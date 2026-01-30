@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell.exe -Command \"$word = New-Object -ComObject Word.Application; $word.Visible = $false; $doc = $word.Documents.Open\\(''D:\\\\buurt-check\\\\fundamentals-prd.docx''\\); $doc.Content.Text; $doc.Close\\(\\); $word.Quit\\(\\)\")",
+      "Bash(python:*)"
+    ]
+  }
+}
