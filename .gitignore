@@ -1,1 +1,29 @@
-/CLAUDE.md
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+venv/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+nul
+
+# Build
+dist/
+node_modules/
+
+# Logs
+logs/
+*.log

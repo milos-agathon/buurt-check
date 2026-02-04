@@ -1,0 +1,21 @@
+{
+  "app.title": "buurt-check",
+  "app.subtitle": "Pre-viewing intelligence for property buyers",
+  "search.placeholder": "Paste or type a Dutch address...",
+  "search.minChars": "Type at least 2 characters",
+  "search.noResults": "No addresses found",
+  "search.error": "Could not search addresses",
+  "building.title": "Building Facts",
+  "building.constructionYear": "Construction year",
+  "building.status": "Status",
+  "building.intendedUse": "Intended use",
+  "building.floorArea": "Floor area",
+  "building.units": "Units in building",
+  "building.pandId": "Pand ID",
+  "building.noBuilding": "No building data found for this address.",
+  "building.source": "Source: BAG (Kadaster)",
+  "building.loading": "Loading building facts...",
+  "map.title": "Building Footprint",
+  "language.toggle": "NL",
+  "error.generic": "Something went wrong. Please try again."
+}

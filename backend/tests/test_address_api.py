@@ -1,0 +1,164 @@
+import time
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+import app.cache.redis as cache_module
+from app.models.address import AddressSuggestion, ResolvedAddress
+from app.models.building import BuildingFacts
+
+
+@pytest.mark.asyncio
+async def test_health(client):
+    resp = await client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.locatieserver")
+async def test_suggest_endpoint(mock_ls, mock_cache_set, mock_cache_get, client):
+    mock_ls.suggest = AsyncMock(
+        return_value=[
+            AddressSuggestion(
+                id="adr-123",
+                display_name="Kalverstraat 1, Amsterdam",
+                type="adres",
+                score=7.5,
+            )
+        ]
+    )
+    mock_ls.AddressSuggestion = AddressSuggestion
+
+    resp = await client.get("/api/address/suggest", params={"q": "kalverstraat"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["suggestions"]) == 1
+    assert data["suggestions"][0]["display_name"] == "Kalverstraat 1, Amsterdam"
+
+
+@pytest.mark.asyncio
+async def test_suggest_too_short(client):
+    resp = await client.get("/api/address/suggest", params={"q": "k"})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.locatieserver")
+async def test_lookup_endpoint(mock_ls, mock_cache_set, mock_cache_get, client):
+    mock_ls.lookup = AsyncMock(
+        return_value=ResolvedAddress(
+            id="adr-123",
+            display_name="Kalverstraat 1, 1012NX Amsterdam",
+            street="Kalverstraat",
+            house_number="1",
+            postcode="1012NX",
+            city="Amsterdam",
+            latitude=52.372,
+            longitude=4.892,
+            rd_x=121286.0,
+            rd_y=487296.0,
+            adresseerbaar_object_id="0363010000696734",
+        )
+    )
+
+    resp = await client.get("/api/address/lookup", params={"id": "adr-123"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["street"] == "Kalverstraat"
+    assert data["latitude"] == 52.372
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.locatieserver")
+async def test_lookup_not_found(mock_ls, mock_cache_set, mock_cache_get, client):
+    mock_ls.lookup = AsyncMock(return_value=None)
+
+    resp = await client.get("/api/address/lookup", params={"id": "adr-nonexistent"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+async def test_building_facts_endpoint(mock_bag, mock_cache_set, mock_cache_get, client):
+    mock_bag.get_building_facts = AsyncMock(
+        return_value=BuildingFacts(
+            pand_id="0363100012253924",
+            construction_year=1917,
+            status="Pand in gebruik",
+            status_en="In use",
+            intended_use=["winkelfunctie"],
+            intended_use_en=["Retail"],
+            num_units=3,
+            floor_area_m2=143,
+            footprint_geojson={"type": "Polygon", "coordinates": [[[4.89, 52.37]]]},
+        )
+    )
+
+    resp = await client.get("/api/address/0363010000696734/building")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["building"]["pand_id"] == "0363100012253924"
+    assert data["building"]["construction_year"] == 1917
+    assert data["building"]["status_en"] == "In use"
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+async def test_building_facts_no_building(mock_bag, mock_cache_set, mock_cache_get, client):
+    mock_bag.get_building_facts = AsyncMock(return_value=None)
+
+    resp = await client.get("/api/address/0000000000000000/building")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["building"] is None
+    assert data["message"] is not None
+
+
+@pytest.mark.asyncio
+async def test_building_facts_invalid_vbo_id(client):
+    resp = await client.get("/api/address/not-valid/building")
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.locatieserver")
+async def test_suggest_works_without_redis(mock_ls, client):
+    """Suggest endpoint returns 200 without Redis running (no cache mocks)."""
+    # Reset circuit breaker and pool so real Redis connection is attempted
+    cache_module._circuit_open_until = 0.0
+    cache_module._pool = None
+
+    mock_ls.suggest = AsyncMock(
+        return_value=[
+            AddressSuggestion(
+                id="adr-123",
+                display_name="Kalverstraat 1, Amsterdam",
+                type="adres",
+                score=7.5,
+            )
+        ]
+    )
+    mock_ls.AddressSuggestion = AddressSuggestion
+
+    start = time.monotonic()
+    resp = await client.get("/api/address/suggest", params={"q": "kalverstraat"})
+    elapsed = time.monotonic() - start
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["suggestions"]) == 1
+    assert elapsed < 3.0  # Must complete in under 3 seconds
+
+    cache_module._circuit_open_until = 0.0
+    cache_module._pool = None

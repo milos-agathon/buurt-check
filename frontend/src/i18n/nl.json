@@ -1,0 +1,21 @@
+{
+  "app.title": "buurt-check",
+  "app.subtitle": "Voorbereidende informatie voor woningkopers",
+  "search.placeholder": "Plak of typ een Nederlands adres...",
+  "search.minChars": "Typ minimaal 2 tekens",
+  "search.noResults": "Geen adressen gevonden",
+  "search.error": "Kon geen adressen zoeken",
+  "building.title": "Gebouwgegevens",
+  "building.constructionYear": "Bouwjaar",
+  "building.status": "Status",
+  "building.intendedUse": "Gebruiksdoel",
+  "building.floorArea": "Oppervlakte",
+  "building.units": "Eenheden in gebouw",
+  "building.pandId": "Pand ID",
+  "building.noBuilding": "Geen gebouwgegevens gevonden voor dit adres.",
+  "building.source": "Bron: BAG (Kadaster)",
+  "building.loading": "Gebouwgegevens laden...",
+  "map.title": "Gebouwcontour",
+  "language.toggle": "EN",
+  "error.generic": "Er ging iets mis. Probeer het opnieuw."
+}

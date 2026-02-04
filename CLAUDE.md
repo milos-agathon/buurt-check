@@ -116,43 +116,99 @@ These are derived from PM fundamentals and shape every decision:
 - **Testing**: Write tests for data transformation logic and API integrations. Risk card threshold logic must be tested.
 - **Error handling**: Graceful degradation -- if a data source is unavailable, show the card as "data unavailable" rather than crashing the entire dossier.
 
-## File structure (planned)
+## Workflow Orchestration
+
+### 1. Plan Mode Default
+- Enter plan mode for any non-trivial task (3+ steps or architectural decisions).
+- If implementation goes sideways, stop and re-plan immediately.
+- Use plan mode for verification steps too, not just implementation.
+- Write detailed specs upfront to reduce ambiguity.
+
+### 2. Subagent Strategy
+- Use subagents liberally to keep the main context clean.
+- Offload research, exploration, and parallel analysis to subagents.
+- For complex problems, allocate more compute via subagents.
+- Keep one focused task per subagent.
+
+### 3. Self-Improvement Loop
+- After any user correction, update `tasks/lessons.md` with the pattern.
+- Write preventive rules to avoid repeating the same mistake.
+- Iterate on lessons until mistake rate drops.
+- Review relevant lessons at session start.
+
+### 4. Verification Before Done
+- Never mark a task complete without proving it works.
+- Diff behavior between `main` and your changes when relevant.
+- Ask: "Would a staff engineer approve this?"
+- Run tests, check logs, and demonstrate correctness.
+
+### 5. Demand Elegance (Balanced)
+- For non-trivial changes, pause and ask whether a more elegant path exists.
+- If a fix feels hacky, re-implement with the best solution given current understanding.
+- Skip this for simple, obvious fixes; do not over-engineer.
+- Challenge your own work before presenting it.
+
+### 6. Autonomous Bug Fixing
+- When given a bug report, move directly to diagnosis and fix.
+- Use logs, errors, and failing tests as primary signals.
+- Minimize context switching required from the user.
+- Proactively fix failing CI tests when encountered.
+
+## Task Management
+1. **Plan first**: Write a checkable plan in `tasks/todo.md`.
+2. **Verify plan**: Confirm the plan before implementation.
+3. **Track progress**: Mark items complete as you go.
+4. **Explain changes**: Provide high-level change summaries by step.
+5. **Document results**: Add a review section to `tasks/todo.md`.
+6. **Capture lessons**: Update `tasks/lessons.md` after corrections.
+
+### Core principles
+- **Simplicity first**: Keep changes as simple as possible, with minimal code impact.
+- **No laziness**: Find root causes; avoid temporary fixes.
+- **Minimal impact**: Touch only what is necessary to avoid regressions.
+
+### Documentation discipline
+- Always plan before coding.
+- Always write or update a permanent, well-named doc after coding.
+- Always verify docs and code match each other.
+- Always update relevant docs when work is complete.
+
+## File structure
 
 ```
 buurt-check/
   docs/              # Design docs, plans, architecture decisions
   backend/           # FastAPI application
     app/
-      api/           # Route handlers
-      services/      # Business logic and data source integrations
-      models/        # Pydantic models
-      ingestion/     # Scheduled data ingestion jobs
-  frontend/          # React application
+      api/           # Route handlers (address.py, router.py)
+      cache/         # Redis cache with circuit breaker (redis.py)
+      services/      # Business logic (bag.py, locatieserver.py)
+      models/        # Pydantic models (address.py, building.py)
+      config.py      # Settings via pydantic-settings
+      main.py        # FastAPI app entry point
+    tests/           # pytest tests
+  frontend/          # React application (Vite + TypeScript)
     src/
-      components/    # UI components
-      pages/         # Page-level components
-      services/      # API client and data fetching
-      i18n/          # EN/NL translations
+      components/    # AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle
+      services/      # API client (fetch-based)
+      types/         # TS interfaces mirroring backend models
+      i18n/          # i18next config + en.json + nl.json
   CLAUDE.md
-  prd.md
 ```
 
 ## Current project status
 
-**Stage: F1 implementation in progress.** The PRD (v1.1) is complete. Backend scaffolding for F1 (Address Resolution + Building Facts) is implemented with FastAPI, including models, services (locatieserver, BAG), Redis cache, and tests. Frontend scaffolded with Vite + React + TypeScript. Frontend components for F1 (address search, building facts card, map) are not yet implemented.
+**Stage: F1 implemented and release-ready (validated).**
 
 ### What exists
-- `backend/` — FastAPI app with address suggest, lookup, and building facts endpoints
-- `backend/tests/` — Unit tests for models, locatieserver service, BAG service, and address API
-- `frontend/` — Vite + React + TypeScript scaffold (default template, no custom components yet)
+- `backend/` — FastAPI app with address suggest, lookup, and building facts endpoints. BAG identity lookups are exact ID-based. Redis cache uses a circuit breaker pattern. 45 passing tests (models, services, API, cache).
+- `frontend/` — Vite + React + TypeScript. Components: AddressSearch (debounced autocomplete with keyboard nav), BuildingFactsCard (bilingual), BuildingFootprintMap (Leaflet + GeoJSON), LanguageToggle (EN/NL). i18n with react-i18next. Vite proxy to backend. Builds cleanly and includes automated Playwright F1 E2E smoke.
 - `docs/prd.md` — v1.1, fully restructured with 13 sections
 
 ### What's next
-- Implement frontend components: AddressSearch, BuildingFactsCard, BuildingFootprintMap
-- Add i18n (EN/NL) with react-i18next
-- Add Leaflet map for building footprint display
-- Compose HomePage with responsive layout
-- Run backend tests and verify endpoints work against live PDOK APIs
+- Maintain F1 quality gates on every change: `ruff`, backend pytest, frontend lint/build/unit, and Playwright E2E smoke.
+- Keep periodic live-sample checks for postcode+huisnummer(+letter/toevoeging) accuracy against PRD acceptance expectations.
+- Move implementation focus to F2/F3/F4 while preserving F1 behavior contracts.
 
 ## Learnings from development sessions (2026-01-30)
 
@@ -197,7 +253,7 @@ buurt-check/
 - **Vite frontend scaffolding:** Use `npx create-vite frontend --template react-ts` to scaffold.
 - **Backend Python deps:** `fastapi[standard]`, `uvicorn[standard]`, `httpx`, `pydantic`, `pydantic-settings`, `redis`
 - **Backend dev deps:** `pytest`, `pytest-asyncio`, `pytest-httpx`, `ruff`
-- **Frontend deps (planned):** `react-i18next`, `i18next`, `i18next-browser-languagedetector`, `leaflet`, `react-leaflet`
+- **Frontend deps (installed):** `react-i18next`, `i18next`, `i18next-browser-languagedetector`, `leaflet`, `react-leaflet`, `@types/leaflet`
 
 ### Process learnings
 
@@ -208,3 +264,39 @@ buurt-check/
 3. **Two planning sessions produced conflicting plans.** Thread be9eddb5 planned F1 with `requirements.txt`, in-memory cache, and `/api/v1/address` endpoint. Thread e20ec1d6 planned F1 with `pyproject.toml`, Redis, and `/api/address/suggest|lookup|building` endpoints. The second plan (e20ec1d6) was approved and implemented. When running parallel planning sessions, ensure only one plan gets approved and used.
 
 4. **Frontend scaffolding came last.** The Vite scaffold was one of the final steps in the implementation session, with the backend fully built first. This is the correct order — backend APIs need to exist before frontend can consume them.
+
+## Learnings from F1 fix-and-complete session (2026-02-04)
+
+### Technical discoveries
+
+1. **BAG building data uses WFS, not OGC API v2.** The OGC API v2 (`api.pdok.nl/kadaster/bag/ogc/v2`) does not support bbox queries for verblijfsobject/pand. The actual working endpoint is the WFS service at `https://service.pdok.nl/kadaster/bag/wfs/v2_0`. Config must use `bag_wfs_base`, not `bag_api_base`. Do not introduce a config key that references an endpoint the code does not use.
+
+2. **Redis without circuit breaker = ~8s latency penalty.** Default `redis.asyncio` connection timeout is ~4s. Two cache calls (get + set) per request = ~8s when Redis is down. Fix: `socket_timeout=0.5`, `socket_connect_timeout=0.5`, plus a 30-second circuit breaker. After first failure, all subsequent calls skip Redis instantly for 30s. This pattern should be applied to any external dependency that can be unavailable.
+
+3. **`asyncio.gather` with a `sleep(0)` placeholder is misleading.** If two API calls are sequential (pand fetch depends on VBO's `pandidentificatie`), just use sequential `await`. Don't fake parallelism.
+
+4. **Leaflet + react-leaflet GeoJSON re-rendering.** The `GeoJSON` component doesn't update when data changes. Use `key={JSON.stringify(footprint)}` to force re-mount. Similarly, `MapContainer` doesn't respond to center changes — use `key={lat-lng}` to re-center.
+
+5. **Vite proxy config for API.** `server.proxy: { '/api': 'http://localhost:8000' }` in `vite.config.ts` eliminates CORS issues during development. The frontend API client uses relative paths (`/api/...`), which work both in dev (proxy) and production (same-origin or reverse proxy).
+
+### Code quality rules (enforce these)
+
+1. **Run `ruff check` before committing backend changes.** Config is in `pyproject.toml`: line-length 100, rules E/F/I/W. Import sort order matters (I rules).
+2. **Run `npm run build` before committing frontend changes.** TypeScript strict mode is on (`noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`). The build will catch type errors that the dev server ignores.
+3. **Do not hardcode external URLs in service files.** All external API base URLs go in `config.py` as `pydantic-settings` fields. Services import `settings` and use the config values.
+4. **Test count baseline: 40.** Any backend change must maintain or increase this number.
+
+### Frontend patterns established
+
+1. **i18n:** All user-facing strings go in `src/i18n/en.json` and `nl.json`. Keys use dot notation (`building.title`). Components use `useTranslation()` hook. For bilingual data from the API (e.g., `status` vs `status_en`), select based on `i18n.language`.
+2. **API client:** `src/services/api.ts` uses native `fetch`. No axios. Throws on non-OK responses. Supports `AbortSignal` for cancellation.
+3. **CSS:** Plain CSS, mobile-first. CSS variables defined in `index.css` `:root`. Component CSS co-located (e.g., `AddressSearch.css` next to `AddressSearch.tsx`). BEM-like naming (`address-search__input`).
+4. **State management:** App-level state in `App.tsx` via `useState`. No global state library. Pass data down as props. This is sufficient for F1-F4; re-evaluate if state grows complex.
+
+### Post-assessment hardening learnings (2026-02-04)
+
+1. **Identity beats proximity.** For F1 building facts, never "best-effort" match by bbox order when an explicit object ID is provided. If exact `vbo_id`/`pand_id` match fails, fail closed and return no data.
+2. **Cache keys must match behavior.** If endpoint output can change by query params (`rd_x`, `rd_y`), cache keys must include those params or the endpoint contract must be narrowed so only stable inputs remain.
+3. **Verify field names against live payloads.** Locatieserver uses `huisnummertoevoeging`; mapping `toevoeging` loses address detail. Always check real payloads before finalizing model mappings.
+4. **Measure warm and cold separately.** Record both first-request (cold) and steady-state (warm) latency during QA; cold spikes can hide startup/dependency penalties.
+5. **Do not declare completion before acceptance metrics.** "F1 complete" requires: lint/build green, backend tests + regression tests, frontend E2E smoke passing, and representative live-sample correctness checks aligned with PRD acceptance criteria.

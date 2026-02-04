@@ -1,0 +1,39 @@
+.app {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.app__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.app__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.app__subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+
+.app__main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app__error {
+  color: var(--color-danger);
+  font-size: 0.875rem;
+  margin: 0;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border-radius: 6px;
+}

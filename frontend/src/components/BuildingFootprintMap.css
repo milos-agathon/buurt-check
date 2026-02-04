@@ -1,0 +1,18 @@
+.footprint-map {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.footprint-map__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+  padding: 12px 16px;
+}
+
+.footprint-map__container {
+  height: 300px;
+  width: 100%;
+}
