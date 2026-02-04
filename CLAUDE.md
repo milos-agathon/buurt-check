@@ -180,35 +180,38 @@ buurt-check/
   docs/              # Design docs, plans, architecture decisions
   backend/           # FastAPI application
     app/
-      api/           # Route handlers (address.py, router.py)
+      api/           # Route handlers (address.py, neighborhood.py, router.py)
       cache/         # Redis cache with circuit breaker (redis.py)
-      services/      # Business logic (bag.py, locatieserver.py)
-      models/        # Pydantic models (address.py, building.py)
+      services/      # Business logic (bag.py, locatieserver.py, three_d_bag.py)
+      models/        # Pydantic models (address.py, building.py, neighborhood.py)
       config.py      # Settings via pydantic-settings
       main.py        # FastAPI app entry point
-    tests/           # pytest tests
+    tests/           # pytest tests (73 tests)
   frontend/          # React application (Vite + TypeScript)
     src/
-      components/    # AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle
+      components/    # F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle
+                     # F2: NeighborhoodViewer3D, ShadowControls, ShadowSnapshots,
+                     #     SunlightRiskCard, OverlayControls
       services/      # API client (fetch-based)
       types/         # TS interfaces mirroring backend models
       i18n/          # i18next config + en.json + nl.json
+      test/          # Test setup (setup.ts, helpers.ts)
   CLAUDE.md
 ```
 
 ## Current project status
 
-**Stage: F1 implemented and release-ready (validated).**
+**Stage: F1 + F2 implemented and validated. Moving to F3.**
 
 ### What exists
-- `backend/` — FastAPI app with address suggest, lookup, and building facts endpoints. BAG identity lookups are exact ID-based. Redis cache uses a circuit breaker pattern. 45 passing tests (models, services, API, cache).
-- `frontend/` — Vite + React + TypeScript. Components: AddressSearch (debounced autocomplete with keyboard nav), BuildingFactsCard (bilingual), BuildingFootprintMap (Leaflet + GeoJSON), LanguageToggle (EN/NL). i18n with react-i18next. Vite proxy to backend. Builds cleanly and includes automated Playwright F1 E2E smoke.
+- `backend/` — FastAPI app with address suggest, lookup, building facts, and 3D neighborhood endpoints. BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration with dual-fetch strategy (direct target + bbox surrounding). Redis cache with circuit breaker. 73 passing tests (14 api + 15 bag + 5 cache + 10 locatieserver + 10 models + 19 three_d_bag).
+- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification), OverlayControls (noise/air/climate stubs). 98 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
 - `docs/prd.md` — v1.1, fully restructured with 13 sections
 
 ### What's next
-- Maintain F1 quality gates on every change: `ruff`, backend pytest, frontend lint/build/unit, and Playwright E2E smoke.
-- Keep periodic live-sample checks for postcode+huisnummer(+letter/toevoeging) accuracy against PRD acceptance expectations.
-- Move implementation focus to F2/F3/F4 while preserving F1 behavior contracts.
+- Maintain quality gates: `ruff check`, backend pytest (73+), frontend vitest (98+), `npm run build`, Playwright E2E smoke.
+- Implement F3 risk cards (noise, air quality, climate stress). Note: RIVM noise WMS is NOT at the `alo` endpoint — that's green/livability. Locate the correct noise endpoint.
+- Implement F4 neighborhood stats (CBS Wijken & Buurten).
 
 ## Learnings from development sessions (2026-01-30)
 
@@ -284,7 +287,7 @@ buurt-check/
 1. **Run `ruff check` before committing backend changes.** Config is in `pyproject.toml`: line-length 100, rules E/F/I/W. Import sort order matters (I rules).
 2. **Run `npm run build` before committing frontend changes.** TypeScript strict mode is on (`noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`). The build will catch type errors that the dev server ignores.
 3. **Do not hardcode external URLs in service files.** All external API base URLs go in `config.py` as `pydantic-settings` fields. Services import `settings` and use the config values.
-4. **Test count baseline: 40.** Any backend change must maintain or increase this number.
+4. **Test count baselines.** Backend: 73 tests. Frontend: 98 tests. Any change must maintain or increase these numbers.
 
 ### Frontend patterns established
 
@@ -300,3 +303,86 @@ buurt-check/
 3. **Verify field names against live payloads.** Locatieserver uses `huisnummertoevoeging`; mapping `toevoeging` loses address detail. Always check real payloads before finalizing model mappings.
 4. **Measure warm and cold separately.** Record both first-request (cold) and steady-state (warm) latency during QA; cold spikes can hide startup/dependency penalties.
 5. **Do not declare completion before acceptance metrics.** "F1 complete" requires: lint/build green, backend tests + regression tests, frontend E2E smoke passing, and representative live-sample correctness checks aligned with PRD acceptance criteria.
+
+## Learnings from F1 data correctness session (2026-02-04)
+
+### BAG WFS filter discovery
+
+1. **PDOK BAG WFS `CQL_FILTER` is silently ignored.** Querying with `CQL_FILTER=identificatie='...'` returns unfiltered results (random features, not the requested ID). Use **OGC XML Filter** encoding instead:
+   ```
+   Filter=<Filter><PropertyIsEqualTo><PropertyName>identificatie</PropertyName><Literal>{id}</Literal></PropertyIsEqualTo></Filter>
+   ```
+   This is standard WFS 2.0.0 and works reliably. The XML is URL-encoded by httpx's `params` dict.
+
+2. **BAG IDs are always 16 digits.** Validate with `re.compile(r"^[0-9]{16}$")` at both service layer (ValueError) and API layer (FastAPI Path pattern returning 422).
+
+3. **Fix multiple bugs from a single root cause.** Bugs "wrong building data" and "cache poisoning" both stemmed from bbox-based lookup. Switching to direct ID lookup (OGC XML Filter) fixed both and simplified the API contract.
+
+## Learnings from F2 implementation sessions (2026-02-04)
+
+### 3DBAG API deep knowledge
+
+1. **CityJSON vertex encoding.** Vertices are integer arrays. Real coords = `vertex * scale + translate` where `scale`/`translate` come from `metadata.transform`. Each feature has its own `vertices` array but shares the transform.
+
+2. **Single-item endpoint nests data under `feature` key.** `GET /collections/pand/items/NL.IMBAG.Pand.{id}` returns `CityJSONFeature` with `CityObjects`, `vertices`, `metadata` nested inside `data["feature"]`, NOT at root. Always use `inner = data.get("feature", data)` with fallback.
+
+3. **Dense areas overwhelm pagination.** Amsterdam city center has 164-844 buildings in a 250m radius. Even MAX_PAGES=5 at 10 items/page only returns 50. **Dual-fetch strategy** is essential: direct target fetch by ID (fast, ~2s, guaranteed) + bbox fetch for surrounding context (slow, 12-17s server-side processing, best-effort).
+
+4. **Server-side processing dominates latency.** 3DBAG bbox queries take 12-17s due to server-side processing, not network. This is not fixable on our end — design around it.
+
+### Timeout chain coordination
+
+The timeout chain must be coordinated across all layers:
+- **3DBAG server processing:** 12-17s per bbox page (uncontrollable)
+- **Backend httpx client:** `Timeout(10.0, connect=3.0)` default, `BBOX_TIMEOUT=20s`, `PER_PAGE_TIMEOUT=20s`
+- **Frontend AbortController:** 25s (must exceed backend worst-case)
+- **Rule:** Frontend timeout > backend total budget > per-external-call timeout. When changing any layer, cascade to the others.
+
+### Time budget pattern for pagination
+
+```python
+start = time.monotonic()
+while has_next_page:
+    remaining = BBOX_TIMEOUT - (time.monotonic() - start)
+    if remaining < 1.0:
+        break
+    timeout = httpx.Timeout(min(PER_PAGE_TIMEOUT, remaining), connect=3.0)
+    # try/except per page, return partial results on failure
+```
+
+### Caching rules for external APIs
+
+1. **Never cache empty/error responses.** When 3DBAG times out, the empty result was being cached for full 24h TTL. Subsequent requests got stale "no data" even after recovery. Only cache when `result.buildings` is non-empty.
+2. **Cache keys must include all varying inputs.** The F1 cache key included coordinates that shouldn't affect output. The F2 cache key correctly uses only the stable input (pand_id + radius).
+
+### Three.js architecture decisions
+
+1. **LoD 0 footprint + height extrusion** (not LoD 2.2 semantics). Uses 2D footprint polygons with `b3_h_maaiveld` (ground) and `b3_h_dak_max` (roof max), extruded via `THREE.ExtrudeGeometry`. Simpler than parsing roof geometry.
+2. **Plain Three.js** (not react-three-fiber or deck.gl). Full control over shadow maps, raycasting, canvas capture.
+3. **SunCalc to Three.js light position:** Azimuth 0 = south (SunCalc), -Z = north (Three.js). Conversion: `x = -sin(az)*cos(alt)*D`, `y = sin(alt)*D`, `z = cos(az)*cos(alt)*D`.
+4. **PCFSoftShadowMap**, 2048x2048, shadow camera frustum +-200m, far 600.
+5. **Camera presets** are stateless (no active state): street `[40,15,40]`, balcony `[30,30,30]`, topDown `[0,200,0.1]`.
+
+### Non-blocking async pattern for slow APIs
+
+The 3D fetch (12-17s) must NOT block the address flow. Move slow fetches to `void (async () => { try { ... } catch {} })()` IIFE pattern. Set `loading=false` for building facts immediately; show 3D viewer loading separately.
+
+### Race condition prevention
+
+Use `useRef` counter (`neighborhood3DRequestId`) incremented on each address selection. In the async callback, only apply results if the counter still matches. This prevents stale data from overwriting fresh data on rapid address changes.
+
+### Shadow snapshot capture
+
+When capturing shadow snapshots (canvas capture at different times), save ALL scene state before mutation:
+- Camera position (`.clone()`)
+- Sun light position (`.clone()`) AND intensity
+- Restore all after the snapshot loop.
+`preserveDrawingBuffer` not needed if `toDataURL()` is called immediately after `render()` in the same synchronous block.
+
+### Sunlight risk classification
+
+Risk uses **winter solstice hours only** (worst case), not annual average. 12-month sampling (21st of each month) provides annual display data, but risk classification is based on the season with minimum sunlight.
+
+### RIVM WMS endpoint correction
+
+The noise data is NOT at `https://data.rivm.nl/geo/alo/wms` — that endpoint contains green/livability layers. The correct noise endpoint needs to be located for F3. The `gcn` endpoint is confirmed for air quality (PM2.5, NO2).
