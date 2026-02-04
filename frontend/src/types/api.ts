@@ -48,3 +48,39 @@ export interface BuildingFactsResponse {
   building?: BuildingFacts;
   message?: string;
 }
+
+export interface BuildingBlock {
+  pand_id: string;
+  ground_height: number;
+  building_height: number;
+  footprint: number[][];
+  year?: number;
+}
+
+export interface Neighborhood3DCenter {
+  lat: number;
+  lng: number;
+  rd_x: number;
+  rd_y: number;
+}
+
+export interface Neighborhood3DResponse {
+  address_id: string;
+  target_pand_id?: string;
+  center: Neighborhood3DCenter;
+  buildings: BuildingBlock[];
+  message?: string;
+}
+
+export interface SunlightResult {
+  winter: number;
+  equinox: number;
+  summer: number;
+  annualAverage: number;
+}
+
+export interface ShadowSnapshot {
+  label: string;
+  hour: number;
+  dataUrl: string;
+}

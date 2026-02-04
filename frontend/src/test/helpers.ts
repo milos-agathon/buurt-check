@@ -7,6 +7,8 @@ import type {
   ResolvedAddress,
   BuildingFacts,
   BuildingFactsResponse,
+  Neighborhood3DResponse,
+  SunlightResult,
 } from '../types/api';
 
 export async function setupTestI18n(lng: string = 'en') {
@@ -74,4 +76,55 @@ export function makeBuildingResponse(
     building: makeBuildingFacts(),
     ...overrides,
   };
+}
+
+export function makeNeighborhood3DResponse(
+  overrides: Partial<Neighborhood3DResponse> = {},
+): Neighborhood3DResponse {
+  return {
+    address_id: 'vbo-123',
+    target_pand_id: '0363100012345678',
+    center: { lat: 52.3676, lng: 4.8846, rd_x: 121000, rd_y: 487000 },
+    buildings: [
+      {
+        pand_id: '0363100012345678',
+        ground_height: 1.75,
+        building_height: 16.43,
+        footprint: [[0, 0], [5, 0], [5, 5], [0, 5]],
+        year: 1917,
+      },
+      {
+        pand_id: '0363100099999999',
+        ground_height: 1.5,
+        building_height: 12.0,
+        footprint: [[10, 0], [15, 0], [15, 5], [10, 5]],
+        year: 1930,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+export function makeSunlightResult(overrides: Partial<SunlightResult> = {}): SunlightResult {
+  return {
+    winter: 3.0,
+    equinox: 7.0,
+    summer: 11.0,
+    annualAverage: 7.0,
+    ...overrides,
+  };
+}
+
+export interface ShadowSnapshotData {
+  label: string;
+  hour: number;
+  dataUrl: string;
+}
+
+export function makeShadowSnapshots(): ShadowSnapshotData[] {
+  return [
+    { label: 'morning', hour: 9, dataUrl: 'data:image/png;base64,mock' },
+    { label: 'noon', hour: 12, dataUrl: 'data:image/png;base64,mock' },
+    { label: 'evening', hour: 17, dataUrl: 'data:image/png;base64,mock' },
+  ];
 }

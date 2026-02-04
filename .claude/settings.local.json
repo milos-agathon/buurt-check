@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(powershell.exe -Command \"$word = New-Object -ComObject Word.Application; $word.Visible = $false; $doc = $word.Documents.Open\\(''D:\\\\buurt-check\\\\fundamentals-prd.docx''\\); $doc.Content.Text; $doc.Close\\(\\); $word.Quit\\(\\)\")",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npm test)",
+      "Bash(curl:*)",
+      "Bash(npx tsc:*)",
+      "Bash(tree:*)",
+      "WebFetch(domain:api.3dbag.nl)",
+      "WebFetch(domain:docs.3dbag.nl)"
     ]
   }
 }

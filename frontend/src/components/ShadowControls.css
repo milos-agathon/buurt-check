@@ -1,0 +1,56 @@
+.shadow-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shadow-controls__presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.shadow-controls__preset {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.shadow-controls__preset:hover {
+  background: var(--color-hover);
+}
+
+.shadow-controls__preset--active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.shadow-controls__slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shadow-controls__label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.shadow-controls__input {
+  width: 100%;
+  accent-color: var(--color-primary);
+}
+
+.shadow-controls__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}

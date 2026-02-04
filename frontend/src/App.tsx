@@ -1,36 +1,86 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import AddressSearch from './components/AddressSearch';
 import BuildingFactsCard from './components/BuildingFactsCard';
 import BuildingFootprintMap from './components/BuildingFootprintMap';
 import LanguageToggle from './components/LanguageToggle';
-import { lookupAddress, getBuildingFacts } from './services/api';
-import type { AddressSuggestion, ResolvedAddress, BuildingFactsResponse } from './types/api';
+import NeighborhoodViewer3D from './components/NeighborhoodViewer3D';
+import SunlightRiskCard from './components/SunlightRiskCard';
+import ShadowSnapshots from './components/ShadowSnapshots';
+import { lookupAddress, getBuildingFacts, getNeighborhood3D } from './services/api';
+import type {
+  AddressSuggestion,
+  ResolvedAddress,
+  BuildingFactsResponse,
+  Neighborhood3DResponse,
+  SunlightResult,
+  ShadowSnapshot,
+} from './types/api';
 import './App.css';
 
 function App() {
   const { t } = useTranslation();
   const [address, setAddress] = useState<ResolvedAddress | null>(null);
   const [buildingResponse, setBuildingResponse] = useState<BuildingFactsResponse | null>(null);
+  const [neighborhood3D, setNeighborhood3D] = useState<Neighborhood3DResponse | null>(null);
+  const [neighborhood3DLoading, setNeighborhood3DLoading] = useState(false);
+  const [sunlight, setSunlight] = useState<SunlightResult | null>(null);
+  const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const neighborhood3DRequestId = useRef(0);
 
   const handleAddressSelect = async (suggestion: AddressSuggestion) => {
     setLoading(true);
     setError(null);
     setBuildingResponse(null);
+    setNeighborhood3D(null);
+    setNeighborhood3DLoading(false);
+    setSunlight(null);
+    setShadowSnapshots(null);
+    const requestId = ++neighborhood3DRequestId.current;
 
     try {
       const resolved = await lookupAddress(suggestion.id);
       setAddress(resolved);
 
-      if (resolved.adresseerbaar_object_id) {
-        const building = await getBuildingFacts(resolved.adresseerbaar_object_id);
+      const vboId = resolved.adresseerbaar_object_id;
+      if (vboId) {
+        const building = await getBuildingFacts(vboId);
         setBuildingResponse(building);
+        setLoading(false);
+
+        // Fire 3D fetch in background (non-blocking, does not delay building facts)
+        const pandId = building.building?.pand_id;
+        const { rd_x, rd_y, latitude, longitude } = resolved;
+        if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
+          setNeighborhood3DLoading(true);
+          void (async () => {
+            try {
+              const n3d = await getNeighborhood3D(
+                vboId,
+                pandId,
+                rd_x,
+                rd_y,
+                latitude,
+                longitude,
+              );
+              if (neighborhood3DRequestId.current === requestId) {
+                setNeighborhood3D(n3d);
+                setNeighborhood3DLoading(false);
+              }
+            } catch {
+              if (neighborhood3DRequestId.current === requestId) {
+                setNeighborhood3DLoading(false);
+              }
+            }
+          })();
+        }
+      } else {
+        setLoading(false);
       }
     } catch {
       setError(t('error.generic'));
-    } finally {
       setLoading(false);
     }
   };
@@ -58,10 +108,46 @@ function App() {
           />
         )}
 
+        {neighborhood3DLoading && (
+          <div className="viewer-3d-status">
+            <p>{t('viewer3d.loading')}</p>
+          </div>
+        )}
+
+        {!neighborhood3DLoading && neighborhood3D && neighborhood3D.buildings.length === 0 && (
+          <div className="viewer-3d-status">
+            <p>{t('viewer3d.noData')}</p>
+          </div>
+        )}
+
+        {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+          <NeighborhoodViewer3D
+            buildings={neighborhood3D.buildings}
+            targetPandId={neighborhood3D.target_pand_id ?? undefined}
+            center={neighborhood3D.center}
+            onSunlightAnalysis={setSunlight}
+            onShadowSnapshots={setShadowSnapshots}
+          />
+        )}
+
         {(loading || buildingResponse) && (
           <BuildingFactsCard
             building={buildingResponse?.building ?? undefined}
             loading={loading}
+          />
+        )}
+
+        {(sunlight || (neighborhood3D && !sunlight)) && (
+          <SunlightRiskCard
+            sunlight={sunlight ?? undefined}
+            loading={!!neighborhood3D && !sunlight}
+          />
+        )}
+
+        {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
+          <ShadowSnapshots
+            snapshots={shadowSnapshots ?? undefined}
+            loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
           />
         )}
       </main>

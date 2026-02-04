@@ -4,7 +4,8 @@ from app.cache.redis import cache_get, cache_set
 from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
-from app.services import bag, locatieserver
+from app.models.neighborhood3d import Neighborhood3DResponse
+from app.services import bag, locatieserver, three_d_bag
 
 router = APIRouter(prefix="/address", tags=["address"])
 
@@ -88,3 +89,37 @@ async def building_facts(
     response = BuildingFactsResponse(address_id=vbo_id, building=facts)
     await cache_set(cache_key, response.model_dump(), ttl=settings.cache_ttl_building)
     return response
+
+
+@router.get("/{vbo_id}/neighborhood3d", response_model=Neighborhood3DResponse)
+async def neighborhood_3d(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    pand_id: str = Query(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    lat: float = Query(...),
+    lng: float = Query(...),
+):
+    """Fetch 3D neighborhood building data from 3DBAG."""
+    cache_key = f"neighborhood3d:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return Neighborhood3DResponse(**cached)
+
+    try:
+        result = await three_d_bag.get_neighborhood_3d(
+            pand_id=pand_id, rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng,
+            vbo_id=vbo_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"3DBAG API unavailable: {exc}"
+        ) from exc
+
+    if result.buildings:
+        await cache_set(
+            cache_key, result.model_dump(), ttl=settings.cache_ttl_neighborhood_3d,
+        )
+    return result

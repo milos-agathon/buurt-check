@@ -6,6 +6,7 @@ import pytest
 import app.cache.redis as cache_module
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.models.building import BuildingFacts
+from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
 
 
 @pytest.mark.asyncio
@@ -162,3 +163,134 @@ async def test_suggest_works_without_redis(mock_ls, client):
 
     cache_module._circuit_open_until = 0.0
     cache_module._pool = None
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.three_d_bag")
+async def test_neighborhood_3d_endpoint(mock_3d, mock_cache_set, mock_cache_get, client):
+    mock_3d.get_neighborhood_3d = AsyncMock(
+        return_value=Neighborhood3DResponse(
+            address_id="0363100012253924",
+            target_pand_id="0363100012253924",
+            center=Neighborhood3DCenter(lat=52.372, lng=4.892, rd_x=121286.0, rd_y=487296.0),
+            buildings=[
+                BuildingBlock(
+                    pand_id="0363100012253924",
+                    ground_height=1.75,
+                    building_height=16.43,
+                    footprint=[[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]],
+                    year=1917,
+                )
+            ],
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/neighborhood3d",
+        params={
+            "pand_id": "0363100012253924",
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["target_pand_id"] == "0363100012253924"
+    assert len(data["buildings"]) == 1
+    assert data["buildings"][0]["building_height"] == 16.43
+
+
+@pytest.mark.asyncio
+async def test_neighborhood_3d_invalid_vbo_id(client):
+    resp = await client.get(
+        "/api/address/not-valid/neighborhood3d",
+        params={
+            "pand_id": "0363100012253924",
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_neighborhood_3d_missing_params(client):
+    resp = await client.get("/api/address/0363010000696734/neighborhood3d")
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.three_d_bag")
+async def test_neighborhood_3d_caches_successful_response(
+    mock_3d, mock_cache_set, mock_cache_get, client,
+):
+    """cache_set is called when the response contains buildings."""
+    mock_3d.get_neighborhood_3d = AsyncMock(
+        return_value=Neighborhood3DResponse(
+            address_id="0363100012253924",
+            target_pand_id="0363100012253924",
+            center=Neighborhood3DCenter(lat=52.372, lng=4.892, rd_x=121286.0, rd_y=487296.0),
+            buildings=[
+                BuildingBlock(
+                    pand_id="0363100012253924",
+                    ground_height=1.75,
+                    building_height=16.43,
+                    footprint=[[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]],
+                    year=1917,
+                )
+            ],
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/neighborhood3d",
+        params={
+            "pand_id": "0363100012253924",
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+    assert resp.status_code == 200
+    mock_cache_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.three_d_bag")
+async def test_neighborhood_3d_does_not_cache_empty_response(
+    mock_3d, mock_cache_set, mock_cache_get, client,
+):
+    """cache_set is NOT called when the response has no buildings."""
+    mock_3d.get_neighborhood_3d = AsyncMock(
+        return_value=Neighborhood3DResponse(
+            address_id="0363100012253924",
+            target_pand_id=None,
+            center=Neighborhood3DCenter(lat=52.372, lng=4.892, rd_x=121286.0, rd_y=487296.0),
+            buildings=[],
+            message="No 3D building data available for this area",
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/neighborhood3d",
+        params={
+            "pand_id": "0363100012253924",
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+    assert resp.status_code == 200
+    mock_cache_set.assert_not_called()

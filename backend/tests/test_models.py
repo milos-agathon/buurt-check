@@ -1,5 +1,6 @@
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.models.building import BuildingFacts, BuildingFactsResponse
+from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
 
 
 def test_address_suggestion_minimal():
@@ -80,3 +81,48 @@ def test_building_facts_response_with_building():
     )
     assert resp.building is not None
     assert resp.building.construction_year == 1917
+
+
+def test_building_block():
+    b = BuildingBlock(
+        pand_id="0363100012253924",
+        ground_height=1.75,
+        building_height=16.43,
+        footprint=[[0.0, 0.0], [5.2, 0.0], [5.2, 4.8], [0.0, 4.8]],
+        year=1917,
+    )
+    assert b.pand_id == "0363100012253924"
+    assert b.building_height == 16.43
+    assert len(b.footprint) == 4
+    assert b.year == 1917
+
+
+def test_building_block_no_year():
+    b = BuildingBlock(
+        pand_id="0363100012253924",
+        ground_height=0.0,
+        building_height=10.0,
+        footprint=[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
+    )
+    assert b.year is None
+
+
+def test_neighborhood_3d_response():
+    resp = Neighborhood3DResponse(
+        address_id="0363010000696734",
+        target_pand_id="0363100012253924",
+        center=Neighborhood3DCenter(lat=52.372, lng=4.892, rd_x=121286.0, rd_y=487296.0),
+        buildings=[
+            BuildingBlock(
+                pand_id="0363100012253924",
+                ground_height=1.75,
+                building_height=16.43,
+                footprint=[[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]],
+                year=1917,
+            )
+        ],
+    )
+    assert resp.target_pand_id == "0363100012253924"
+    assert len(resp.buildings) == 1
+    assert resp.center.lat == 52.372
+    assert resp.message is None

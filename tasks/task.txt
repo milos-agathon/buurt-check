@@ -1,0 +1,4 @@
+you are acting as an award-winning engineer with over 30 years of experience in development and deployment o mobile apps. You are working in buurt-check. Read CLAUDE.md to internalize codebase rules. Then you must read docs\prd.md and fully implement F1 Address + building facts: partially implemente. Here is the list of items you must implement: - High — data correctness bug in F1 building facts:
+
+
+now you must update @CLAUDE.md with the learnings to improve your efficiency and avoid issues going forward with the implementation of this app. Be concise, accurate and methodical     

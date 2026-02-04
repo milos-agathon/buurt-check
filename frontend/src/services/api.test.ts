@@ -1,4 +1,4 @@
-import { suggestAddresses, lookupAddress, getBuildingFacts } from './api';
+import { suggestAddresses, lookupAddress, getBuildingFacts, getNeighborhood3D } from './api';
 
 const mockFetch = vi.fn();
 beforeEach(() => {
@@ -76,5 +76,35 @@ describe('getBuildingFacts', () => {
   it('throws on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(502));
     await expect(getBuildingFacts('vbo-1')).rejects.toThrow('Building facts failed: 502');
+  });
+});
+
+describe('getNeighborhood3D', () => {
+  it('sends GET with vboId in path and query params', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1', buildings: [] }));
+    await getNeighborhood3D('vbo-1', 'pand-1', 121286, 487296, 52.372, 4.892);
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/address/vbo-1/neighborhood3d?');
+    expect(url).toContain('pand_id=pand-1');
+    expect(url).toContain('rd_x=121286');
+    expect(url).toContain('rd_y=487296');
+    expect(url).toContain('lat=52.372');
+    expect(url).toContain('lng=4.892');
+  });
+
+  it('throws on non-OK response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(502));
+    await expect(
+      getNeighborhood3D('vbo-1', 'pand-1', 121286, 487296, 52.372, 4.892),
+    ).rejects.toThrow('Neighborhood 3D failed: 502');
+  });
+
+  it('sends AbortSignal for timeout', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1', buildings: [] }));
+    await getNeighborhood3D('vbo-1', 'pand-1', 121286, 487296, 52.372, 4.892);
+
+    const [, opts] = mockFetch.mock.calls[0];
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
   });
 });

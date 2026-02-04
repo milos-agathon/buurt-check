@@ -1,0 +1,33 @@
+.viewer-3d {
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+}
+
+.viewer-3d__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.viewer-3d__canvas {
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  background: #f0f4f8;
+  min-height: 200px;
+}
+
+.viewer-3d__canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.viewer-3d__source {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin-top: 8px;
+}

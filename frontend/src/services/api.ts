@@ -1,4 +1,4 @@
-import type { SuggestResponse, ResolvedAddress, BuildingFactsResponse } from '../types/api';
+import type { SuggestResponse, ResolvedAddress, BuildingFactsResponse, Neighborhood3DResponse } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
@@ -26,4 +26,33 @@ export async function getBuildingFacts(
   const resp = await fetch(`${API_BASE}/address/${vboId}/building`);
   if (!resp.ok) throw new Error(`Building facts failed: ${resp.status}`);
   return resp.json();
+}
+
+export async function getNeighborhood3D(
+  vboId: string,
+  pandId: string,
+  rdX: number,
+  rdY: number,
+  lat: number,
+  lng: number,
+): Promise<Neighborhood3DResponse> {
+  const params = new URLSearchParams({
+    pand_id: pandId,
+    rd_x: String(rdX),
+    rd_y: String(rdY),
+    lat: String(lat),
+    lng: String(lng),
+  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  try {
+    const resp = await fetch(
+      `${API_BASE}/address/${vboId}/neighborhood3d?${params}`,
+      { signal: controller.signal },
+    );
+    if (!resp.ok) throw new Error(`Neighborhood 3D failed: ${resp.status}`);
+    return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }

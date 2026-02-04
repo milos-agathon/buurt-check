@@ -1,0 +1,27 @@
+.overlay-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.overlay-controls__label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.overlay-controls__buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.overlay-controls__placeholder {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--color-text-muted);
+  padding: 8px 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+}

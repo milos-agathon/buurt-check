@@ -1,12 +1,13 @@
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import App from './App';
-import { setupTestI18n, makeSuggestion, makeResolvedAddress, makeBuildingResponse } from './test/helpers';
+import { setupTestI18n, makeSuggestion, makeResolvedAddress, makeBuildingResponse, makeNeighborhood3DResponse } from './test/helpers';
 
 vi.mock('./services/api', () => ({
   suggestAddresses: vi.fn(),
   lookupAddress: vi.fn(),
   getBuildingFacts: vi.fn(),
+  getNeighborhood3D: vi.fn(),
 }));
 
 vi.mock('react-leaflet', () => ({
@@ -15,10 +16,23 @@ vi.mock('react-leaflet', () => ({
   GeoJSON: () => null,
 }));
 
-import { lookupAddress, getBuildingFacts, suggestAddresses } from './services/api';
+vi.mock('./components/NeighborhoodViewer3D', () => ({
+  default: ({ buildings }: { buildings: unknown[] }) => (
+    <div data-testid="viewer-3d">3D Viewer ({buildings.length} buildings)</div>
+  ),
+}));
+
+vi.mock('./components/SunlightRiskCard', () => ({
+  default: ({ loading }: { loading?: boolean }) => (
+    <div data-testid="sunlight-card">{loading ? 'Loading sunlight...' : 'Sunlight card'}</div>
+  ),
+}));
+
+import { lookupAddress, getBuildingFacts, suggestAddresses, getNeighborhood3D } from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
 const mockBuilding = vi.mocked(getBuildingFacts);
 const mockSuggest = vi.mocked(suggestAddresses);
+const mockNeighborhood3D = vi.mocked(getNeighborhood3D);
 
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -30,6 +44,7 @@ beforeEach(() => {
   mockLookup.mockReset();
   mockBuilding.mockReset();
   mockSuggest.mockReset();
+  mockNeighborhood3D.mockReset();
 });
 
 function renderApp() {
@@ -223,5 +238,71 @@ describe('map rendering', () => {
     await waitFor(() => {
       expect(screen.getByTestId('map')).toBeInTheDocument();
     });
+  });
+});
+
+describe('3D viewer integration', () => {
+  it('renders 3D viewer when neighborhood data is available', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+      expect(screen.getByText(/2 buildings/)).toBeInTheDocument();
+    });
+  });
+
+  it('does not crash when getNeighborhood3D fails', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockRejectedValue(new Error('3DBAG down'));
+
+    renderApp();
+    await selectAddress();
+
+    // Should still render building facts card without error
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('viewer-3d')).not.toBeInTheDocument();
+    // No error shown to user for 3D failure
+    expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument();
+    // Loading indicator should not be stuck after failure
+    expect(screen.queryByText('Loading 3D data...')).not.toBeInTheDocument();
+  });
+
+  it('shows loading message while 3D data is fetching', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    // Never-resolving promise to keep loading state active
+    mockNeighborhood3D.mockReturnValue(new Promise(() => {}));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Loading 3D data...')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('viewer-3d')).not.toBeInTheDocument();
+  });
+
+  it('shows no-data message when 3D returns empty buildings', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(
+      makeNeighborhood3DResponse({ buildings: [], target_pand_id: undefined }),
+    );
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('No 3D building data available.')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('viewer-3d')).not.toBeInTheDocument();
   });
 });

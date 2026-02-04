@@ -1,0 +1,83 @@
+Run PowerShell as Administrator to register or update all scheduled tasks:
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\compound\register-tasks.ps1 -ProjectPath "D:\buurt-check" -PowerShellExe "powershell.exe"
+
+Verify tasks:
+
+Get-ScheduledTask | Where-Object { $_.TaskName -like "Compound-*" }
+
+---
+
+A) Manual prompts in Claude Code (right now)
+
+1) Open a terminal in D:\buurt-check.
+2) Run Claude Code with a prompt:
+
+claude -p "Read CLAUDE.md and prd.md. Suggest next 3 concrete tasks for this repo."
+
+3) If you want it to do work, be explicit:
+
+claude -p "Read CLAUDE.md and prd.md. Pick one small task and implement it. Run any relevant checks and report results."
+
+If Claude Code asks for permissions, you can pass:
+
+--dangerously-skip-permissions
+
+(Only do this if you trust the repo and the prompt.)
+
+---
+
+B) How your nightly loop uses prompts (automatic)
+
+1) Daily compound review
+   scripts\compound\daily-compound-review.ps1 runs:
+   - checks out main, pulls
+   - runs Claude Code to review threads and update CLAUDE.md
+
+2) Auto-compound
+   scripts\compound\auto-compound.ps1 runs:
+   - reads newest report in reports\
+   - prompts Claude Code to write a PRD in tasks\
+   - prompts Claude Code to generate tasks in scripts\compound\prd.json
+   - loops and prompts Claude Code to implement tasks
+
+So when the scheduled tasks run, Claude Code is prompted automatically by these scripts.
+
+---
+
+C) Run the loop manually (no scheduler)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\compound\auto-compound.ps1 -ProjectPath "D:\buurt-check"
+
+---
+
+D) What you need for Claude Code to work
+
+Required:
+- Node.js
+- Claude Code (npm install -g @anthropic-ai/claude-code)
+
+Claude Max note:
+- No API key needed. .env.local is only for optional tokens (e.g., GITHUB_TOKEN).
+
+Optional (for PR creation):
+- GitHub CLI (gh) authenticated (gh auth login)
+
+Optional (recommended):
+- PowerShell 7 (pwsh). If not installed, scripts run under Windows PowerShell 5.1.
+
+If your PowerShell profile causes errors, use -NoProfile when running scripts.
+
+---
+
+E) Scheduled task times (default)
+
+- 5:00 PM -- Prevent sleep
+- 10:30 PM -- Daily review prompt
+- 11:00 PM -- Full auto-compound prompt loop
+
+---
+
+F) Quick status check
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\compound\status.ps1

@@ -37,3 +37,9 @@
   background: #fef2f2;
   border-radius: 6px;
 }
+
+.viewer-3d-status {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--color-text-muted);
+}
