@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.cache.redis import cache_get, cache_set
@@ -7,6 +9,8 @@ from app.models.building import BuildingFactsResponse
 from app.models.neighborhood3d import Neighborhood3DResponse
 from app.models.risk import RiskCardsResponse, RiskLevel
 from app.services import bag, locatieserver, risk_cards, three_d_bag
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/address", tags=["address"])
 
@@ -138,6 +142,7 @@ async def address_risk_cards(
     cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
+        logger.info("risk_cards cache_hit vbo=%s", vbo_id)
         return RiskCardsResponse(**cached)
 
     try:
@@ -162,4 +167,5 @@ async def address_risk_cards(
             result.model_dump(),
             ttl=settings.cache_ttl_risk_cards,
         )
+        logger.info("risk_cards cache_set vbo=%s", vbo_id)
     return result

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -15,6 +16,8 @@ from app.models.risk import (
     RiskCardsResponse,
     RiskLevel,
 )
+
+logger = logging.getLogger(__name__)
 
 _client: httpx.AsyncClient | None = None
 _client_loop_id: int | None = None
@@ -623,10 +626,21 @@ async def get_risk_cards(
     _ = (lat, lng)  # reserved for future climate layer selection by geographic extent
     sampled_at = _utc_now_iso_date()
 
+    start = time.monotonic()
     noise_card, air_card, climate_card = await asyncio.gather(
         _build_noise_card(rd_x, rd_y, sampled_at),
         _build_air_card(rd_x, rd_y, sampled_at),
         _build_climate_card(rd_x, rd_y, sampled_at),
+    )
+    total_ms = (time.monotonic() - start) * 1000
+
+    logger.info(
+        "risk_cards vbo=%s noise=%s air=%s climate=%s total_ms=%.0f",
+        vbo_id,
+        noise_card.level.value,
+        air_card.level.value,
+        climate_card.level.value,
+        total_ms,
     )
 
     return RiskCardsResponse(
