@@ -41,4 +41,58 @@ describe('RiskCardsPanel', () => {
     expect(screen.getAllByText(/Ask\/check at viewing/)).toHaveLength(3);
     expect(screen.getByText(/Source \+ date: RIVM \/ Atlas Leefomgeving WMS/)).toBeInTheDocument();
   });
+
+  it('renders "Data unavailable" for unavailable level', () => {
+    const risks = makeRiskCardsResponse({
+      noise: {
+        level: 'unavailable',
+        source: 'RIVM / Atlas Leefomgeving WMS',
+        source_date: '2019-11-12',
+        sampled_at: '2026-02-05',
+      },
+    });
+    renderPanel(risks);
+    expect(screen.getByText('Data unavailable')).toBeInTheDocument();
+  });
+
+  it('renders warning message when present', () => {
+    const risks = makeRiskCardsResponse({
+      noise: {
+        level: 'medium',
+        lden_db: 60.5,
+        source: 'RIVM / Atlas Leefomgeving WMS',
+        source_date: '2019-11-12',
+        sampled_at: '2026-02-05',
+        message: 'Sampled pixel was outside mapped area',
+      },
+    });
+    renderPanel(risks);
+    expect(screen.getByText('Sampled pixel was outside mapped area')).toBeInTheDocument();
+  });
+
+  it('renders "Metric unavailable for this location" when lden_db is missing', () => {
+    const risks = makeRiskCardsResponse({
+      noise: {
+        level: 'medium',
+        source: 'RIVM / Atlas Leefomgeving WMS',
+        source_date: '2019-11-12',
+        sampled_at: '2026-02-05',
+      },
+    });
+    renderPanel(risks);
+    expect(screen.getByText('Metric unavailable for this location')).toBeInTheDocument();
+  });
+
+  it('renders Dutch card titles when language is nl', async () => {
+    const i18nNl = await setupTestI18n('nl');
+    const risks = makeRiskCardsResponse();
+    render(
+      <I18nextProvider i18n={i18nNl}>
+        <RiskCardsPanel risks={risks} loading={false} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText('Wegverkeersgeluid (Lden)')).toBeInTheDocument();
+    expect(screen.getByText('Luchtkwaliteit (PM2.5 / NO2)')).toBeInTheDocument();
+    expect(screen.getByText('Klimaatstress (Hitte / Water)')).toBeInTheDocument();
+  });
 });

@@ -425,3 +425,10 @@ async def test_risk_cards_does_not_cache_all_unavailable(
         )
     assert resp.status_code == 200
     mock_cache_set.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_risk_cards_missing_params(client):
+    """Missing rd_x/rd_y/lat/lng returns 422."""
+    resp = await client.get("/api/address/0363010000696734/risks")
+    assert resp.status_code == 422

@@ -239,6 +239,22 @@ describe('error handling', () => {
     });
   });
 
+  it('does not crash when getRiskCards fails', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockRiskCards.mockRejectedValue(new Error('Risk API down'));
+
+    renderApp();
+    await selectAddress();
+
+    // Should still render building facts card without error
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+    // No error shown to user for risk cards failure
+    expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument();
+  });
+
   it('clears previous building data on new selection', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());

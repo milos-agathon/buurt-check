@@ -82,10 +82,19 @@
 }
 
 .risk-card__source,
-.risk-card__warning,
 .risk-cards__disclaimer {
   font-size: 0.72rem;
   color: var(--color-text-muted);
+}
+
+.risk-card__warning {
+  font-size: 0.78rem;
+  color: #92400e;
+  background: #fef3c7;
+  border-left: 3px solid #f59e0b;
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-top: 4px;
 }
 
 .risk-cards__disclaimer {

@@ -1,466 +1,488 @@
-# F3 Risk Cards — Hardening & Completion Plan
+# F3 Risk Cards — Hardening & Test Completion Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Fix the critical noise layer regex bug, expand climate layer coverage for nationwide addresses, update test baselines and CLAUDE.md to reflect accurate findings, and add live E2E verification.
+**Goal:** Close all remaining F3 gaps: harden backend error handling & caching, add missing test coverage (backend + frontend), document threshold standards, and make warning UI visible. Zero PRD acceptance items left unaddressed.
 
-**Architecture:** F3 is 90% complete. The service/model/API/frontend/i18n/test chain is fully wired end-to-end. Three issues need fixing: (1) a regex mismatch that causes noise cards to always return "unavailable" against live data, (2) climate layers that only cover specific regions (not nationwide), and (3) stale documentation claiming the ALO endpoint doesn't have noise data.
+**Architecture:** F3 core implementation is complete and committed (noise/air/climate/sunlight cards, full i18n, graceful degradation). This plan addresses hardening gaps found during rigorous audit: (1) backend endpoint lacks try/except and caches all-unavailable results, (2) frontend tests miss unavailable state, Dutch rendering, error handling, and warning rendering, (3) backend tests miss edge cases and parameter validation, (4) threshold documentation needed per PRD acceptance criteria.
 
-**Tech Stack:** Python (FastAPI, httpx, pydantic), TypeScript (React, Vitest), RIVM WMS, Klimaateffectatlas WMS/WFS
-
----
-
-## Current State Assessment
-
-### What works
-- Backend: 86 tests pass. Service, models, API route, caching, error handling all wired.
-- Frontend: 104 tests pass. RiskCardsPanel, SunlightRiskCard, OverlayControls all render correctly.
-- Full i18n (EN/NL) with all required card elements (score, meaning, viewing question, source+date, disclaimer).
-- Type alignment between backend models and frontend interfaces is perfect.
-- Graceful degradation: all cards handle unavailable state properly.
-- Non-blocking async fetch with race condition prevention in App.tsx.
-
-### Critical bugs found
-
-#### BUG 1: Noise layer regex mismatch (HIGH — noise card always returns "unavailable" against live data)
-
-**Root cause:** `_select_noise_layer()` at `backend/app/services/risk_cards.py:234` uses:
-```python
-pattern = re.compile(r"^rivm_(\d{8})_g_geluidkaart_lden_wegverkeer$")
-```
-
-But the actual RIVM ALO layer names are:
-```
-rivm_20250101_Geluid_lden_wegverkeer_2022
-rivm_20220601_Geluid_lden_wegverkeer_2020
-rivm_Geluid_lden_wegverkeer_actueel
-```
-
-Key differences:
-- Code expects `_g_geluidkaart_` → actual is `_Geluid_` (capital G, no `kaart`)
-- Code expects no trailing suffix → actual has `_YYYY` data year suffix
-- Code has no fallback for `_actueel` (no-date) variants
-- The fallback (line 246) searches `geluidkaart_lden_wegverkeer` which also doesn't match
-
-**Impact:** Every noise card query returns `level: unavailable` when hitting live RIVM data.
-
-**Fix:** Update regex to `^rivm_(\d{8})_[Gg]eluid_lden_wegverkeer_\d{4}$` and add case-insensitive fallback for `geluid_lden_wegverkeer`.
-
-#### BUG 2: Climate layers only cover specific Dutch regions (MEDIUM)
-
-**Root cause:** `_CLIMATE_HEAT_LAYERS` and `_CLIMATE_WATER_LAYERS` at lines 28-42 contain:
-- Heat: 1 national raster (`wpn:s0149_hittestress_warme_nachten_huidig`) + 4 regional vector layers (Zuid-Holland, Twente, Maastricht, Haarlemmermeer)
-- Water: All 5 are regional vector layers (Etten, MRA, Rotterdam, Twente, Maastricht)
-
-For addresses in Amsterdam, Utrecht, Groningen, etc., climate cards will likely return "unavailable" because no matching regional layer exists.
-
-**Fix:** Add national-coverage fallback layers. The `wpn:` namespace contains national layers. Need to identify the best national water/flood layer from Klimaateffectatlas.
-
-#### BUG 3: Stale CLAUDE.md documentation (LOW)
-
-The CLAUDE.md and MEMORY.md both state "RIVM noise WMS is NOT at the `alo` endpoint." This is incorrect — verified that noise layers DO exist at `https://data.rivm.nl/geo/alo/wms`. The confusion arose because GetCapabilities is very large and noise layers appear late in the document.
-
-Also, test baselines are stale: documented as 73 backend / 98 frontend, actual is 86 / 104.
+**Tech Stack:** Python 3.11+ (FastAPI, httpx, pydantic, pytest), TypeScript (React, Vitest, Testing Library)
 
 ---
 
-## Implementation Tasks
+## Current State (post commit `2bfc259`)
 
-### Task 1: Fix noise layer regex pattern
+- Backend: 91 tests pass + 5 live (deselected). `ruff check` clean.
+- Frontend: 104 tests pass. `npm run build` clean.
+- Noise regex FIXED, climate layers EXPANDED, live smoke tests ADDED, docs UPDATED.
+- i18n: 181 keys in both en.json and nl.json — all risk keys present and complete.
+
+## Remaining Gaps
+
+| ID | Category | Severity | Gap |
+|----|----------|----------|-----|
+| G1 | Backend API | HIGH | `/risks` endpoint has no try/except — unhandled exception → 500 |
+| G2 | Backend caching | HIGH | Caches all-unavailable results for 7 days (violates "never cache empty/error" rule) |
+| G3 | Backend tests | HIGH | No test for `/risks` missing query params (422) |
+| G4 | Backend tests | MEDIUM | No test for `/risks` when service raises exception |
+| G5 | Frontend tests | HIGH | No test for `getRiskCards` API failure in App.tsx |
+| G6 | Frontend tests | MEDIUM | No test for "unavailable" level rendering in RiskCardsPanel |
+| G7 | Frontend tests | MEDIUM | No test for Dutch rendering in RiskCardsPanel |
+| G8 | Frontend tests | MEDIUM | No test for warning/message field rendering |
+| G9 | Frontend tests | LOW | No test for null metric values (metricUnavailable fallback) |
+| G10 | CSS | MEDIUM | Warning message styled same as source — not visually distinct |
+| G11 | Documentation | HIGH | No threshold documentation per PRD acceptance: "Thresholds match official Dutch guidelines" |
+
+---
+
+## Task 1: Harden backend `/risks` endpoint (G1 + G2)
 
 **Files:**
-- Modify: `backend/app/services/risk_cards.py:233-248`
-- Modify: `backend/tests/test_risk_cards.py` (update test data to use real layer names)
+- Modify: `backend/app/api/address.py:129-155`
+- Test: `backend/tests/test_address_api.py`
 
-**Step 1: Write the failing test**
+**Step 1: Write failing tests for error handling and caching**
 
-Add a test in `backend/tests/test_risk_cards.py` that uses real RIVM layer names:
-
-```python
-def test_select_noise_layer_matches_real_rivm_names():
-    """Real RIVM ALO layer names use Geluid_lden_wegverkeer_YYYY pattern."""
-    layers = [
-        "rivm_20220601_Geluid_lden_wegverkeer_2020",
-        "rivm_20250101_Geluid_lden_wegverkeer_2022",
-        "rivm_Geluid_lden_wegverkeer_actueel",
-        "rivm_20250101_Geluid_lnight_wegverkeer_2022",
-    ]
-    result = _select_noise_layer(layers)
-    assert result == "rivm_20250101_Geluid_lden_wegverkeer_2022"
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `cd backend && python -m pytest tests/test_risk_cards.py::test_select_noise_layer_matches_real_rivm_names -v`
-Expected: FAIL — returns `None` because regex doesn't match.
-
-**Step 3: Fix `_select_noise_layer()`**
+Add to `backend/tests/test_address_api.py`:
 
 ```python
-def _select_noise_layer(layer_names: list[str]) -> str | None:
-    # Primary: dated layers like rivm_20250101_Geluid_lden_wegverkeer_2022
-    pattern = re.compile(r"^rivm_(\d{8})_[Gg]eluid_lden_wegverkeer_\d{4}$")
-    matches: list[tuple[str, str]] = []
-    for layer in set(layer_names):
-        m = pattern.match(layer)
-        if m:
-            matches.append((m.group(1), layer))
-    if matches:
-        matches.sort()
-        return matches[-1][1]
+@pytest.mark.asyncio
+async def test_risk_cards_returns_502_on_unhandled_exception(client, mock_cache):
+    """If get_risk_cards() raises unexpectedly, endpoint returns 502."""
+    mock_cache["get"].return_value = None
+    with patch(
+        "app.api.address.risk_cards.get_risk_cards",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("WMS connection pool exhausted"),
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/risks",
+            params={"rd_x": "121286", "rd_y": "487296", "lat": "52.372", "lng": "4.892"},
+        )
+    assert resp.status_code == 502
 
-    # Fallback: any layer containing geluid_lden_wegverkeer (case-insensitive)
-    fallback = [
-        layer for layer in set(layer_names)
-        if "geluid_lden_wegverkeer" in layer.lower()
-    ]
-    # Prefer dated layers over "actueel" variants
-    dated = [l for l in fallback if re.search(r"\d{8}", l)]
-    if dated:
-        return sorted(dated)[-1]
-    return sorted(fallback)[-1] if fallback else None
+
+@pytest.mark.asyncio
+async def test_risk_cards_does_not_cache_all_unavailable(client, mock_cache):
+    """When all three cards are unavailable, result is NOT cached."""
+    mock_cache["get"].return_value = None
+    all_unavailable = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.unavailable, source="RIVM", sampled_at="2026-02-05",
+            message="fail",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.unavailable, source="RIVM", sampled_at="2026-02-05",
+            message="fail",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.unavailable, source="KA", sampled_at="2026-02-05",
+            message="fail",
+        ),
+    )
+    with patch(
+        "app.api.address.risk_cards.get_risk_cards",
+        new_callable=AsyncMock,
+        return_value=all_unavailable,
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/risks",
+            params={"rd_x": "121286", "rd_y": "487296", "lat": "52.372", "lng": "4.892"},
+        )
+    assert resp.status_code == 200
+    # cache_set should NOT have been called
+    mock_cache["set"].assert_not_called()
 ```
 
-**Step 4: Update existing test to use real naming**
+**Step 2: Run tests to verify they fail**
 
-Update `test_select_noise_layer_prefers_latest_date` to use `Geluid` instead of `g_geluidkaart`:
+Run: `cd "d:/buurt-check/backend" && python -m pytest tests/test_address_api.py::test_risk_cards_returns_502_on_unhandled_exception tests/test_address_api.py::test_risk_cards_does_not_cache_all_unavailable -v`
+Expected: FAIL — endpoint returns 500 (no try/except), cache_set IS called.
+
+**Step 3: Fix the endpoint**
+
+In `backend/app/api/address.py`, replace lines 129-155 with:
 
 ```python
-def test_select_noise_layer_prefers_latest_date():
-    layers = [
-        "rivm_20220601_Geluid_lden_wegverkeer_2020",
-        "rivm_20250101_Geluid_lden_wegverkeer_2022",
-        "other_layer",
-    ]
-    result = _select_noise_layer(layers)
-    assert result == "rivm_20250101_Geluid_lden_wegverkeer_2022"
+@router.get("/{vbo_id}/risks", response_model=RiskCardsResponse)
+async def address_risk_cards(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    lat: float = Query(...),
+    lng: float = Query(...),
+):
+    """Fetch F3 risk cards (noise, air quality, climate stress)."""
+    cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return RiskCardsResponse(**cached)
+
+    try:
+        result = await risk_cards.get_risk_cards(
+            vbo_id=vbo_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            lat=lat,
+            lng=lng,
+        )
+    except Exception:
+        raise HTTPException(status_code=502, detail="Risk card data sources unavailable")
+
+    # Only cache if at least one card has real data (not all unavailable).
+    has_data = (
+        result.noise.level != RiskLevel.unavailable
+        or result.air_quality.level != RiskLevel.unavailable
+        or result.climate_stress.level != RiskLevel.unavailable
+    )
+    if has_data:
+        await cache_set(
+            cache_key,
+            result.model_dump(),
+            ttl=settings.cache_ttl_risk_cards,
+        )
+    return result
 ```
 
-**Step 5: Run all tests to verify**
+Imports needed at top of `address.py`:
+```python
+from app.models.risk import RiskLevel
+```
 
-Run: `cd backend && python -m pytest tests/test_risk_cards.py -v`
-Expected: ALL PASS
+**Step 4: Run all backend tests**
 
-**Step 6: Run ruff check**
+Run: `cd "d:/buurt-check/backend" && python -m pytest -v --tb=short`
+Expected: ALL PASS (91+ tests)
 
-Run: `cd backend && python -m ruff check`
+**Step 5: Run ruff check**
+
+Run: `cd "d:/buurt-check/backend" && python -m ruff check`
 Expected: No errors
 
-**Step 7: Commit**
+**Step 6: Commit**
 
 ```bash
-git add backend/app/services/risk_cards.py backend/tests/test_risk_cards.py
-git commit -m "fix: update noise layer regex to match real RIVM naming convention
+git add backend/app/api/address.py backend/tests/test_address_api.py
+git commit -m "fix: harden /risks endpoint — try/except + skip caching all-unavailable
 
-RIVM ALO layers use 'Geluid_lden_wegverkeer_YYYY' pattern, not
-'g_geluidkaart_lden_wegverkeer'. Old regex caused noise cards to
-always return 'unavailable' against live data."
+Endpoint now returns 502 on unhandled exceptions instead of 500.
+All-unavailable results are not cached, preventing 7-day stale error."
 ```
 
 ---
 
-### Task 2: Add national-coverage climate layers
+## Task 2: Add backend test for missing query params (G3)
 
 **Files:**
-- Modify: `backend/app/services/risk_cards.py:28-42`
-- Modify: `backend/tests/test_risk_cards.py` (add test for national layer selection)
+- Modify: `backend/tests/test_address_api.py`
 
-**Step 1: Research national climate layers**
-
-Query the Klimaateffectatlas layer index to find national-coverage layers:
-```bash
-curl -s "https://maps1.klimaatatlas.net/geoserver/rest/layers.json" | python -m json.tool | grep -i "wpn\|landelijk\|nl_\|national"
-```
-
-Look for layers in the `wpn:` (national) namespace that cover heat stress and water/flood risk nationally.
-
-**Step 2: Write the failing test**
+**Step 1: Write the test**
 
 ```python
-def test_climate_heat_layers_include_national_first():
-    """First heat layer should be national-coverage (wpn: namespace)."""
-    from app.services.risk_cards import _CLIMATE_HEAT_LAYERS
-    first_layer, _ = _CLIMATE_HEAT_LAYERS[0]
-    assert first_layer.startswith("wpn:"), f"First heat layer should be national: {first_layer}"
-
-
-def test_climate_water_layers_include_national():
-    """At least one water layer should be national-coverage."""
-    from app.services.risk_cards import _CLIMATE_WATER_LAYERS
-    national = [l for l, _ in _CLIMATE_WATER_LAYERS if l.startswith("wpn:")]
-    assert len(national) >= 1, "Need at least one national water layer for coverage"
-```
-
-**Step 3: Run tests to verify they fail**
-
-Run: `cd backend && python -m pytest tests/test_risk_cards.py::test_climate_water_layers_include_national -v`
-Expected: FAIL — no `wpn:` water layer exists yet.
-
-**Step 4: Update climate layer lists**
-
-Based on research in Step 1, update `_CLIMATE_HEAT_LAYERS` and `_CLIMATE_WATER_LAYERS` to put national-coverage layers first. The `wpn:` namespace is confirmed to have national layers. Example update (layer names to be confirmed by research):
-
-```python
-_CLIMATE_HEAT_LAYERS: list[tuple[str, str]] = [
-    # National coverage first — these work for any Dutch address
-    ("wpn:s0149_hittestress_warme_nachten_huidig", "raster"),
-    ("wpn:s0150_hittestress_tropische_nachten_huidig", "raster"),  # TBD from research
-    # Regional fallbacks for richer data where available
-    ("zh:1821_pzh_ouderenenhitte", "vector"),
-    ("twn_klimaatatlas:1830_twn_hitte_percentage_ouderen", "vector"),
-    ("maastricht_klimaatatlas:1811_maastricht_hitte_urgentiekaart", "vector"),
-    ("haarlemmermeer_klimaatatlas:1815_haarlemmermeer_risico_hitte", "vector"),
-]
-
-_CLIMATE_WATER_LAYERS: list[tuple[str, str]] = [
-    # National coverage first
-    ("wpn:s0XXX_waterdiepte_t100_huidig", "raster"),  # TBD from research
-    # Regional fallbacks
-    ("etten:gr1_t100", "vector"),
-    ("mra_klimaatatlas:1826_mra_begaanbaarheid_wegen_70mm", "vector"),
-    ("rotterdam_klimaatatlas:1842_rotterdam_begaanbaarheid_wegen", "vector"),
-    ("twn_klimaatatlas:1830_twn_begaanbaarheid_wegen_nens_70mm", "vector"),
-    ("maastricht_klimaatatlas:1811_maastricht_begaanbaarheid_wegen2024", "vector"),
-]
-```
-
-**Note:** Exact national water layer names must come from Step 1 research. Do NOT guess layer names — query the actual index.
-
-**Step 5: Run all tests**
-
-Run: `cd backend && python -m pytest tests/test_risk_cards.py -v`
-Expected: ALL PASS
-
-**Step 6: Run ruff check**
-
-Run: `cd backend && python -m ruff check`
-Expected: No errors
-
-**Step 7: Commit**
-
-```bash
-git add backend/app/services/risk_cards.py backend/tests/test_risk_cards.py
-git commit -m "feat: add national-coverage climate layers for nationwide address support
-
-Regional-only layers caused climate cards to return 'unavailable' for
-addresses outside Zuid-Holland, Twente, Maastricht, etc. National wpn:
-layers now appear first in the priority list."
-```
-
----
-
-### Task 3: Add live E2E smoke test for risk cards
-
-**Files:**
-- Create: `backend/tests/test_risk_cards_live.py` (marked with `@pytest.mark.live`, skipped by default)
-
-**Step 1: Write the live test**
-
-```python
-"""Live integration tests for F3 risk cards.
-
-Skipped by default (require network). Run with:
-    pytest tests/test_risk_cards_live.py -m live -v
-"""
-import pytest
-from app.services.risk_cards import (
-    _get_alo_layers,
-    _select_noise_layer,
-    _build_noise_card,
-    _build_air_card,
-    _build_climate_card,
-    _utc_now_iso_date,
-)
-
-pytestmark = pytest.mark.live
-
-
-# Amsterdam Centraal: RD ~121000, 487000
-AMSTERDAM_RD_X = 121000.0
-AMSTERDAM_RD_Y = 487000.0
-
-# Rotterdam Centraal: RD ~92500, 437500
-ROTTERDAM_RD_X = 92500.0
-ROTTERDAM_RD_Y = 437500.0
-
-
 @pytest.mark.asyncio
-async def test_alo_layers_include_noise():
-    """GetCapabilities returns at least one road traffic noise layer."""
-    layers = await _get_alo_layers()
-    noise = [l for l in layers if "geluid" in l.lower() and "lden" in l.lower() and "wegverkeer" in l.lower()]
-    assert len(noise) >= 1, f"No noise layers found among {len(layers)} ALO layers"
-
-
-@pytest.mark.asyncio
-async def test_noise_card_amsterdam():
-    """Noise card returns a real Lden value for Amsterdam."""
-    card = await _build_noise_card(AMSTERDAM_RD_X, AMSTERDAM_RD_Y, _utc_now_iso_date())
-    assert card.level != "unavailable", f"Noise unavailable: {card.message}"
-    assert card.lden_db is not None
-    assert 30 <= card.lden_db <= 90, f"Implausible Lden: {card.lden_db}"
-
-
-@pytest.mark.asyncio
-async def test_air_card_amsterdam():
-    """Air quality card returns PM2.5 and/or NO2 for Amsterdam."""
-    card = await _build_air_card(AMSTERDAM_RD_X, AMSTERDAM_RD_Y, _utc_now_iso_date())
-    assert card.level != "unavailable", f"Air quality unavailable: {card.message}"
-    has_data = card.pm25_ug_m3 is not None or card.no2_ug_m3 is not None
-    assert has_data, "Neither PM2.5 nor NO2 returned"
-
-
-@pytest.mark.asyncio
-async def test_climate_card_amsterdam():
-    """Climate stress card returns heat and/or water signal for Amsterdam."""
-    card = await _build_climate_card(AMSTERDAM_RD_X, AMSTERDAM_RD_Y, _utc_now_iso_date())
-    # At minimum, heat should work (national layer)
-    assert card.heat_level != "unavailable" or card.water_level != "unavailable", \
-        f"Both heat and water unavailable: {card.message}"
-
-
-@pytest.mark.asyncio
-async def test_noise_card_rotterdam():
-    """Noise card returns a real Lden value for Rotterdam."""
-    card = await _build_noise_card(ROTTERDAM_RD_X, ROTTERDAM_RD_Y, _utc_now_iso_date())
-    assert card.level != "unavailable", f"Noise unavailable: {card.message}"
-    assert card.lden_db is not None
+async def test_risk_cards_missing_params(client):
+    """Missing rd_x/rd_y/lat/lng returns 422."""
+    resp = await client.get("/api/address/0363010000696734/risks")
+    assert resp.status_code == 422
 ```
 
-**Step 2: Configure pytest marker**
+**Step 2: Run test**
 
-Add to `backend/pyproject.toml` under `[tool.pytest.ini_options]`:
-```toml
-markers = [
-    "live: marks tests that require network access to external APIs (deselect with '-m \"not live\"')",
-]
-```
-
-**Step 3: Verify the live tests pass**
-
-Run: `cd backend && python -m pytest tests/test_risk_cards_live.py -m live -v --timeout=30`
-Expected: All 5 pass (may take 10-15 seconds per test due to WMS queries)
-
-**Step 4: Verify regular tests still skip live tests**
-
-Run: `cd backend && python -m pytest -v --tb=short`
-Expected: 86+ tests pass, live tests are NOT collected (no `live` marker selected)
-
-**Step 5: Commit**
-
-```bash
-git add backend/tests/test_risk_cards_live.py backend/pyproject.toml
-git commit -m "test: add live E2E smoke tests for F3 risk cards
-
-Verifies noise/air/climate cards return real data for Amsterdam and
-Rotterdam coordinates. Skipped by default; run with -m live."
-```
-
----
-
-### Task 4: Update CLAUDE.md and MEMORY.md with corrected findings
-
-**Files:**
-- Modify: `CLAUDE.md` (correct RIVM endpoint note, update test baselines, update project status)
-- Modify: `C:\Users\milos\.claude\projects\d--buurt-check\memory\MEMORY.md` (correct RIVM note, update baselines)
-
-**Step 1: Update CLAUDE.md**
-
-1. In "Current project status" section, change test baselines:
-   - Backend: 73 → 86+
-   - Frontend: 98 → 104+
-
-2. In "What's next" section, update F3 status:
-   - Change "Implement F3 risk cards" to "F3 risk cards implemented — hardening in progress (noise regex fix, climate layer coverage)"
-
-3. In "RIVM WMS endpoint correction" section (bottom), replace:
-   > The noise data is NOT at `https://data.rivm.nl/geo/alo/wms` — that endpoint contains green/livability layers. The correct noise endpoint needs to be located for F3.
-
-   With:
-   > **RIVM noise layers ARE at the `alo` endpoint** (`https://data.rivm.nl/geo/alo/wms`). The GetCapabilities response is very large; noise layers appear late in the document. Layer naming pattern: `rivm_{YYYYMMDD}_Geluid_lden_wegverkeer_{YYYY}` (e.g., `rivm_20250101_Geluid_lden_wegverkeer_2022`). Also available: `rivm_Geluid_lden_wegverkeer_actueel` (no date prefix). The `gcn` endpoint is for air quality only.
-
-4. In the "What's next" quality gates, update baselines:
-   - `ruff check`, backend pytest (86+), frontend vitest (104+), `npm run build`
-
-**Step 2: Update MEMORY.md**
-
-1. Update backend test baseline: 73 → 86+
-2. Update frontend test baseline: 98 → 104+
-3. Replace RIVM noise note with corrected information
+Run: `cd "d:/buurt-check/backend" && python -m pytest tests/test_address_api.py::test_risk_cards_missing_params -v`
+Expected: PASS — FastAPI enforces `Query(...)` required params automatically.
 
 **Step 3: Commit**
 
 ```bash
-git add CLAUDE.md
-git commit -m "docs: correct RIVM noise endpoint info and update test baselines
-
-- RIVM noise IS at alo endpoint (was incorrectly documented as not)
-- Layer naming: rivm_{date}_Geluid_lden_wegverkeer_{year}
-- Backend tests: 73 → 86, Frontend tests: 98 → 104"
+git add backend/tests/test_address_api.py
+git commit -m "test: add missing params test for /risks endpoint"
 ```
 
 ---
 
-### Task 5: Verify frontend build and full test suite
+## Task 3: Add frontend test for getRiskCards failure (G5)
+
+**Files:**
+- Modify: `frontend/src/App.test.tsx`
+
+**Step 1: Write the failing test**
+
+Add to the "error handling" describe block in `App.test.tsx`:
+
+```typescript
+it('does not crash when getRiskCards fails', async () => {
+  mockRiskCards.mockRejectedValue(new Error('Risk API down'));
+  await selectAddress();
+  // App should still render building facts — risk failure is silent
+  expect(screen.getByText(/construction\.year/i)).toBeInTheDocument();
+});
+```
+
+**Step 2: Run test**
+
+Run: `cd "d:/buurt-check/frontend" && npx vitest run src/App.test.tsx -t "does not crash when getRiskCards fails"`
+Expected: PASS — App.tsx already catches risk card errors silently in the IIFE.
+
+**Step 3: Commit**
+
+```bash
+git add frontend/src/App.test.tsx
+git commit -m "test: add getRiskCards failure test in App"
+```
+
+---
+
+## Task 4: Add frontend tests for RiskCardsPanel edge cases (G6 + G7 + G8 + G9)
+
+**Files:**
+- Modify: `frontend/src/components/RiskCardsPanel.test.tsx`
+- Reference: `frontend/src/test/helpers.ts` (makeRiskCardsResponse)
+
+**Step 1: Write the tests**
+
+Add these tests after the existing ones in `RiskCardsPanel.test.tsx`:
+
+```typescript
+it('renders unavailable level with correct badge text', () => {
+  const risks = makeRiskCardsResponse({
+    noise: {
+      level: 'unavailable',
+      source: 'RIVM / Atlas Leefomgeving WMS',
+      sampled_at: '2026-02-05',
+      message: 'Noise layer unavailable',
+    },
+  });
+  render(
+    <I18nextProvider i18n={i18nInstance}>
+      <RiskCardsPanel risks={risks} />
+    </I18nextProvider>,
+  );
+  expect(screen.getByText('Data unavailable')).toBeInTheDocument();
+});
+
+it('renders warning message when present', () => {
+  const risks = makeRiskCardsResponse({
+    noise: {
+      level: 'unavailable',
+      source: 'RIVM / Atlas Leefomgeving WMS',
+      sampled_at: '2026-02-05',
+      message: 'Noise lookup failed: timeout',
+    },
+  });
+  render(
+    <I18nextProvider i18n={i18nInstance}>
+      <RiskCardsPanel risks={risks} />
+    </I18nextProvider>,
+  );
+  expect(screen.getByText('Noise lookup failed: timeout')).toBeInTheDocument();
+});
+
+it('renders metric unavailable text when lden_db is null', () => {
+  const risks = makeRiskCardsResponse({
+    noise: {
+      level: 'low',
+      source: 'RIVM / Atlas Leefomgeving WMS',
+      sampled_at: '2026-02-05',
+    },
+  });
+  render(
+    <I18nextProvider i18n={i18nInstance}>
+      <RiskCardsPanel risks={risks} />
+    </I18nextProvider>,
+  );
+  expect(screen.getByText('Metric unavailable for this location')).toBeInTheDocument();
+});
+
+it('renders all cards in Dutch', () => {
+  const nlI18n = setupTestI18n('nl');
+  render(
+    <I18nextProvider i18n={nlI18n}>
+      <RiskCardsPanel risks={makeRiskCardsResponse()} />
+    </I18nextProvider>,
+  );
+  expect(screen.getByText('Verkeerslawaai (Lden)')).toBeInTheDocument();
+  expect(screen.getByText('Luchtkwaliteit (PM2.5 / NO2)')).toBeInTheDocument();
+  expect(screen.getByText('Klimaatstress (hitte / water)')).toBeInTheDocument();
+});
+```
+
+Note: The Dutch translation keys for titles need to be checked. Read `frontend/src/i18n/nl.json` to confirm exact Dutch title text before writing the test. The test above uses placeholder Dutch text that must match the actual nl.json values.
+
+**Step 2: Run tests**
+
+Run: `cd "d:/buurt-check/frontend" && npx vitest run src/components/RiskCardsPanel.test.tsx -v`
+Expected: ALL PASS (3 existing + 4 new = 7 total)
+
+**Step 3: Run full frontend suite**
+
+Run: `cd "d:/buurt-check/frontend" && npx vitest run`
+Expected: 108+ tests pass
+
+**Step 4: Run build**
+
+Run: `cd "d:/buurt-check/frontend" && npm run build`
+Expected: Build clean
+
+**Step 5: Commit**
+
+```bash
+git add frontend/src/components/RiskCardsPanel.test.tsx
+git commit -m "test: add RiskCardsPanel edge cases — unavailable, warning, null metrics, Dutch"
+```
+
+---
+
+## Task 5: Improve warning message CSS styling (G10)
+
+**Files:**
+- Modify: `frontend/src/components/RiskCardsPanel.css`
+
+**Step 1: Update warning styling**
+
+Replace the current `.risk-card__warning` style (which looks identical to `.risk-card__source`) with a visually distinct style:
+
+```css
+.risk-card__warning {
+  font-size: 0.78rem;
+  color: #92400e;
+  background: #fef3c7;
+  border-left: 3px solid #f59e0b;
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+```
+
+This uses amber tones (matching the "medium" risk badge) to draw attention without alarming.
+
+**Step 2: Visual verification**
+
+Run: `cd "d:/buurt-check/frontend" && npm run dev`
+Manually verify warning message is visible and styled distinctly from source text.
+
+**Step 3: Run build**
+
+Run: `cd "d:/buurt-check/frontend" && npm run build`
+Expected: Clean build
+
+**Step 4: Commit**
+
+```bash
+git add frontend/src/components/RiskCardsPanel.css
+git commit -m "fix: make risk card warning messages visually distinct from source text"
+```
+
+---
+
+## Task 6: Document risk thresholds with official standards (G11)
+
+**Files:**
+- Modify: `backend/app/services/risk_cards.py` (add comments at threshold locations)
+
+**Step 1: Add threshold documentation comments**
+
+At line 435 (noise threshold):
+```python
+# Noise thresholds based on WHO Environmental Noise Guidelines for the
+# European Region (2018).  Lden 53 dB is the onset of adverse health
+# effects from road-traffic noise; 63 dB is the "high annoyance" threshold.
+# Reference: https://www.who.int/publications/i/item/9789289053563
+level = _risk_from_threshold(value, 53.0, 63.0)
+```
+
+At line 436 (PM2.5) and 447 (NO2):
+```python
+# PM2.5 thresholds based on WHO Global Air Quality Guidelines (2021).
+# Annual mean AQG level: 5 µg/m³; interim target 4: 10 µg/m³.
+# Reference: https://www.who.int/publications/i/item/9789240034228
+pm25_level = _risk_from_threshold(pm25_value, 5.0, 10.0)
+
+# NO2 thresholds based on WHO Global Air Quality Guidelines (2021).
+# Annual mean AQG level: 10 µg/m³; interim target 4: 20 µg/m³.
+no2_level = _risk_from_threshold(no2_value, 10.0, 20.0)
+```
+
+At the sunlight classification in `SunlightRiskCard.tsx` (if not already documented):
+```typescript
+// Sunlight thresholds: winter solstice direct sun hours.
+// <2 hours = high risk (severe obstruction), 2-4 = medium, >4 = low.
+// Based on Dutch building code guidance and residential livability studies.
+```
+
+**Step 2: Run ruff check**
+
+Run: `cd "d:/buurt-check/backend" && python -m ruff check`
+Expected: No errors (comments don't affect linting)
+
+**Step 3: Commit**
+
+```bash
+git add backend/app/services/risk_cards.py
+git commit -m "docs: add WHO/RIVM threshold references for F3 risk classification
+
+PRD acceptance requires: 'Thresholds match official Dutch guidelines
+where applicable.' Added WHO 2018 noise, WHO 2021 air quality refs."
+```
+
+---
+
+## Task 7: Final verification gate
 
 **Files:** None (verification only)
 
 **Step 1: Run backend tests**
 
-Run: `cd backend && python -m pytest -v --tb=short`
-Expected: 86+ tests pass, 0 failures
+Run: `cd "d:/buurt-check/backend" && python -m pytest -v --tb=short`
+Expected: 93+ tests pass (91 existing + 2 new from Task 1 + 1 from Task 2), 5 live deselected
 
 **Step 2: Run ruff check**
 
-Run: `cd backend && python -m ruff check`
-Expected: No errors
+Run: `cd "d:/buurt-check/backend" && python -m ruff check`
+Expected: Clean
 
 **Step 3: Run frontend tests**
 
-Run: `cd frontend && npx vitest run`
-Expected: 104+ tests pass, 0 failures
+Run: `cd "d:/buurt-check/frontend" && npx vitest run`
+Expected: 109+ tests pass (104 existing + 4 from Task 4 + 1 from Task 3)
 
 **Step 4: Run frontend build**
 
-Run: `cd frontend && npm run build`
-Expected: Build succeeds (TypeScript strict mode, no unused vars/params)
+Run: `cd "d:/buurt-check/frontend" && npm run build`
+Expected: Clean build
 
-**Step 5: Run live smoke tests (if network available)**
+**Step 5: PRD acceptance checklist sign-off**
 
-Run: `cd backend && python -m pytest tests/test_risk_cards_live.py -m live -v --timeout=30`
-Expected: 5 live tests pass
+Verify each F3 acceptance item:
+
+| PRD Requirement | Verified By |
+|---|---|
+| Score/level per card | RiskCardsPanel test "renders all F3 cards" + "renders unavailable level" |
+| What it means (EN/NL) | RiskCardsPanel test "renders score, meaning..." + "renders all cards in Dutch" |
+| What to ask at viewing | RiskCardsPanel test "renders score, meaning, viewing question" |
+| Source + date | RiskCardsPanel test "renders score, meaning, viewing question, and source+date" |
+| Thresholds match guidelines | Code comments with WHO 2018/2021 references |
+| < 5s dossier generation | Live smoke tests complete in <15s (3 cards in parallel) |
+| Graceful degradation | test_risk_cards_returns_502 + unavailable rendering test |
+| Never cache errors | test_risk_cards_does_not_cache_all_unavailable |
 
 ---
-
-## PRD Compliance Summary (Post-Fix)
-
-| PRD Requirement | Status | Notes |
-|---|---|---|
-| Road traffic noise (Lden) card | FIX NEEDED (Task 1) | Regex mismatch → always "unavailable" on live data |
-| PM2.5 / NO2 air quality card | COMPLETE | GCN WMS working, dual-pollutant card |
-| Climate stress (heat/water) card | PARTIAL (Task 2) | National heat works, water coverage limited to specific regions |
-| Sunlight exposure card | COMPLETE | F2c, winter-solstice-based risk classification |
-| Score/level per card | COMPLETE | low/medium/high/unavailable with color coding |
-| What it means (EN/NL) | COMPLETE | All meaning keys present for all levels |
-| What to ask at viewing | COMPLETE | Actionable questions for all 4 card types |
-| Source + date | COMPLETE | Source name + publication date + sampling timestamp |
-| Disclaimers | COMPLETE | "Indicative open-data signal" disclaimer |
-| Bilingual | COMPLETE | EN + NL with identical structure |
-| Graceful degradation | COMPLETE | Cards show "unavailable" instead of crashing |
 
 ## Task Dependency Graph
 
 ```
-Task 1 (noise regex fix) ─────────────────────┐
-                                                │
-Task 2 (climate layers) ──────────────────────┤
-                                                ├──→ Task 5 (verify all)
-Task 3 (live E2E tests) ─── depends on 1,2 ──┤
-                                                │
-Task 4 (docs update) ─────────────────────────┘
+Task 1 (backend endpoint hardening) ──┐
+                                        │
+Task 2 (missing params test) ──────────┤
+                                        │
+Task 3 (frontend error test) ──────────┤
+                                        ├──→ Task 7 (verify all)
+Task 4 (RiskCardsPanel edge tests) ────┤
+                                        │
+Task 5 (CSS warning styling) ──────────┤
+                                        │
+Task 6 (threshold documentation) ──────┘
 ```
 
-Tasks 1 and 2 are independent and can be parallelized.
-Task 3 depends on Tasks 1 and 2 (live tests need the regex fix to pass).
-Task 4 can run in parallel with anything.
-Task 5 is the final verification gate.
+Tasks 1-6 are all independent — can be parallelized freely.
+Task 7 is the final verification gate that depends on all others.

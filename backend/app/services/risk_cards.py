@@ -432,7 +432,10 @@ async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseR
                 message="No noise value at this location",
             )
 
-        # WHO road traffic recommendation: <53 dB Lden; high annoyance rises >63 dB.
+        # Noise thresholds — WHO Environmental Noise Guidelines for the
+        # European Region (2018).  Lden 53 dB: onset of adverse health effects;
+        # 63 dB: high annoyance threshold.
+        # Ref: https://www.who.int/publications/i/item/9789289053563
         level = _risk_from_threshold(value, 53.0, 63.0)
         return NoiseRiskCard(
             level=level,
@@ -466,6 +469,9 @@ async def _build_air_card(rd_x: float, rd_y: float, sampled_at: str) -> AirQuali
             elif props:
                 pm25_value, _ = _extract_numeric(props)
             if pm25_value is not None:
+                # PM2.5 — WHO Global Air Quality Guidelines (2021).
+                # AQG level: 5 µg/m³; interim target 4: 10 µg/m³.
+                # Ref: https://www.who.int/publications/i/item/9789240034228
                 pm25_level = _risk_from_threshold(pm25_value, 5.0, 10.0)
 
         no2_value: float | None = None
@@ -477,6 +483,8 @@ async def _build_air_card(rd_x: float, rd_y: float, sampled_at: str) -> AirQuali
             elif props:
                 no2_value, _ = _extract_numeric(props)
             if no2_value is not None:
+                # NO2 — WHO Global Air Quality Guidelines (2021).
+                # AQG level: 10 µg/m³; interim target 4: 20 µg/m³.
                 no2_level = _risk_from_threshold(no2_value, 10.0, 20.0)
 
         level = _max_level([pm25_level, no2_level])
