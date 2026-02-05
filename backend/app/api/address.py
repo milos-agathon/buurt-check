@@ -148,8 +148,8 @@ async def address_risk_cards(
             lat=lat,
             lng=lng,
         )
-    except Exception:
-        raise HTTPException(status_code=502, detail="Risk card data sources unavailable")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Risk card data sources unavailable") from exc
 
     has_data = (
         result.noise.level != RiskLevel.unavailable
