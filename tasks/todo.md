@@ -55,3 +55,57 @@ Implement all requirements from `docs/plans/2026-02-05-f3-risk-cards-hardening.m
 - Verification:
   - `backend`: `python -m ruff check` ✅, `python -m pytest -v --tb=short` ✅ (`91 passed, 5 deselected`), `python -m pytest tests/test_risk_cards_live.py -m live -v` ✅ (`5 passed`).
   - `frontend`: `npx vitest run` ✅ (`104 passed`), `npm run build` ✅.
+
+---
+
+# F3 Remaining Gaps Closure Plan (2026-02-05)
+
+## Goal
+
+Close remaining F3 correctness + UX gaps:
+- fix air no-data sentinel handling,
+- ensure risk cards degrade to "unavailable" (not hidden) on failures,
+- make sunlight unavailable state fully compliant with 4-element card rule,
+- improve climate WFS feature selection (point containment),
+- adjust caching to avoid storing partial failures,
+- fix air unit display,
+- align E2E and unit tests with new behavior.
+
+## Plan
+
+- [x] 1) Backend correctness + caching
+  - Filter air no-data sentinels (e.g., -999) before classification.
+  - Avoid caching when any card indicates external lookup failure/layer missing.
+  - Improve WFS sampling: select feature containing point when geometry is Polygon/MultiPolygon, else fallback to closest.
+  - Update/extend backend tests for new logic.
+
+- [x] 2) Frontend degradation + sunlight compliance
+  - On risk API failure, render cards as "unavailable" instead of hiding section.
+  - Sunlight unavailable state: show badge/meaning/question/source (4 elements).
+  - Fix air unit display to µg/m³.
+  - Update i18n keys and component tests.
+
+- [x] 3) E2E alignment
+  - Update F3 degraded-path Playwright spec to match new UI behavior.
+
+- [x] 4) Verification
+  - Backend: `ruff check`, full pytest, live risk tests.
+  - Frontend: vitest + build.
+  - E2E: `npm run test:e2e -- tests/e2e/f3-risk-cards.spec.ts`.
+
+## Review
+
+- Backend:
+  - Added raster sentinel sanitization (-999, 1e30) for noise/air/heat sampling.
+  - Climate WFS sampling now prefers polygons containing the point before centroid fallback.
+  - Risk cache skip now avoids storing responses with lookup failures.
+  - Added/expanded tests for sentinel handling, WFS containment, and caching behavior.
+- Frontend:
+  - Risk cards degrade to unavailable cards with an error banner (no more empty section).
+  - Sunlight unavailable state now shows full badge/meaning/tip/source+date.
+  - Added unknown source/date strings, fixed air unit display to µg/m³.
+  - Updated unit/E2E tests to match degraded-path behavior.
+- Verification:
+  - Backend: `python -m ruff check` ✅; `python -m pytest -v --tb=short` ✅ (`105 passed, 5 deselected`); `python -m pytest tests/test_risk_cards_live.py -m live -v` ✅ (`5 passed`).
+  - Frontend: `npm run test` ✅ (`121 passed`); `npm run build` ✅ (chunk size warning only).
+  - E2E: `npm run test:e2e -- tests/e2e/f3-risk-cards.spec.ts` ✅ (2 passed).

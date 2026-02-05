@@ -5,6 +5,7 @@ import './RiskCardsPanel.css';
 interface Props {
   risks?: RiskCardsResponse;
   loading?: boolean;
+  error?: boolean;
 }
 
 interface CardProps {
@@ -50,7 +51,7 @@ function metricOrUnavailable(value: string | null, t: (key: string) => string): 
   return value ?? t('risk.metricUnavailable');
 }
 
-export default function RiskCardsPanel({ risks, loading }: Props) {
+export default function RiskCardsPanel({ risks, loading, error }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -62,61 +63,92 @@ export default function RiskCardsPanel({ risks, loading }: Props) {
     );
   }
 
-  if (!risks) return null;
-
-  const noiseMetric = risks.noise.lden_db != null
-    ? t('risk.noise.metric', { value: risks.noise.lden_db.toFixed(1) })
+  const fallbackRisks: RiskCardsResponse | null = error && !risks
+    ? {
+      address_id: 'unknown',
+      noise: {
+        level: 'unavailable',
+        source: t('risk.sourceUnknown'),
+        source_date: t('risk.dateUnknown'),
+        sampled_at: t('risk.dateUnknown'),
+      },
+      air_quality: {
+        level: 'unavailable',
+        pm25_level: 'unavailable',
+        no2_level: 'unavailable',
+        source: t('risk.sourceUnknown'),
+        source_date: t('risk.dateUnknown'),
+        sampled_at: t('risk.dateUnknown'),
+      },
+      climate_stress: {
+        level: 'unavailable',
+        heat_level: 'unavailable',
+        water_level: 'unavailable',
+        source: t('risk.sourceUnknown'),
+        source_date: t('risk.dateUnknown'),
+        sampled_at: t('risk.dateUnknown'),
+      },
+    }
     : null;
 
-  const pm25Text = risks.air_quality.pm25_ug_m3 != null
-    ? `${risks.air_quality.pm25_ug_m3.toFixed(1)} µg/m³ (${t(`risk.level.${risks.air_quality.pm25_level}`)})`
+  const riskData = risks ?? fallbackRisks;
+
+  if (!riskData) return null;
+
+  const noiseMetric = riskData.noise.lden_db != null
+    ? t('risk.noise.metric', { value: riskData.noise.lden_db.toFixed(1) })
+    : null;
+
+  const pm25Text = riskData.air_quality.pm25_ug_m3 != null
+    ? `${riskData.air_quality.pm25_ug_m3.toFixed(1)} µg/m³ (${t(`risk.level.${riskData.air_quality.pm25_level}`)})`
     : t('risk.metricUnavailable');
-  const no2Text = risks.air_quality.no2_ug_m3 != null
-    ? `${risks.air_quality.no2_ug_m3.toFixed(1)} µg/m³ (${t(`risk.level.${risks.air_quality.no2_level}`)})`
+  const no2Text = riskData.air_quality.no2_ug_m3 != null
+    ? `${riskData.air_quality.no2_ug_m3.toFixed(1)} µg/m³ (${t(`risk.level.${riskData.air_quality.no2_level}`)})`
     : t('risk.metricUnavailable');
   const airMetric = `${t('risk.air.pm25')}: ${pm25Text} • ${t('risk.air.no2')}: ${no2Text}`;
 
-  const heatText = risks.climate_stress.heat_value != null
-    ? `${risks.climate_stress.heat_value.toFixed(2)} (${t(`risk.level.${risks.climate_stress.heat_level}`)})`
-    : t(`risk.level.${risks.climate_stress.heat_level}`);
-  const waterText = risks.climate_stress.water_value != null
-    ? `${risks.climate_stress.water_value.toFixed(2)} (${t(`risk.level.${risks.climate_stress.water_level}`)})`
-    : t(`risk.level.${risks.climate_stress.water_level}`);
+  const heatText = riskData.climate_stress.heat_value != null
+    ? `${riskData.climate_stress.heat_value.toFixed(2)} (${t(`risk.level.${riskData.climate_stress.heat_level}`)})`
+    : t(`risk.level.${riskData.climate_stress.heat_level}`);
+  const waterText = riskData.climate_stress.water_value != null
+    ? `${riskData.climate_stress.water_value.toFixed(2)} (${t(`risk.level.${riskData.climate_stress.water_level}`)})`
+    : t(`risk.level.${riskData.climate_stress.water_level}`);
   const climateMetric = `${t('risk.climate.heat')}: ${heatText} • ${t('risk.climate.water')}: ${waterText}`;
 
   return (
     <section className="risk-cards">
       <h2 className="risk-cards__title">{t('risk.sectionTitle')}</h2>
+      {error && <p className="risk-cards__error">{t('risk.fetchError')}</p>}
       <div className="risk-cards__grid">
         <RiskCard
           id="noise"
-          level={risks.noise.level}
+          level={riskData.noise.level}
           metric={metricOrUnavailable(noiseMetric, t)}
           questionKey="risk.noise.question"
-          source={risks.noise.source}
-          sourceDate={risks.noise.source_date}
-          sampledAt={risks.noise.sampled_at}
-          warning={risks.noise.message}
+          source={riskData.noise.source}
+          sourceDate={riskData.noise.source_date}
+          sampledAt={riskData.noise.sampled_at}
+          warning={riskData.noise.message}
         />
         <RiskCard
           id="air"
-          level={risks.air_quality.level}
+          level={riskData.air_quality.level}
           metric={airMetric}
           questionKey="risk.air.question"
-          source={risks.air_quality.source}
-          sourceDate={risks.air_quality.source_date}
-          sampledAt={risks.air_quality.sampled_at}
-          warning={risks.air_quality.message}
+          source={riskData.air_quality.source}
+          sourceDate={riskData.air_quality.source_date}
+          sampledAt={riskData.air_quality.sampled_at}
+          warning={riskData.air_quality.message}
         />
         <RiskCard
           id="climate"
-          level={risks.climate_stress.level}
+          level={riskData.climate_stress.level}
           metric={climateMetric}
           questionKey="risk.climate.question"
-          source={risks.climate_stress.source}
-          sourceDate={risks.climate_stress.source_date}
-          sampledAt={risks.climate_stress.sampled_at}
-          warning={risks.climate_stress.message}
+          source={riskData.climate_stress.source}
+          sourceDate={riskData.climate_stress.source_date}
+          sampledAt={riskData.climate_stress.sampled_at}
+          warning={riskData.climate_stress.message}
         />
       </div>
       <p className="risk-cards__disclaimer">{t('risk.disclaimer')}</p>

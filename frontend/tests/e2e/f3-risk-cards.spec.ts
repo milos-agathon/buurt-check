@@ -53,10 +53,19 @@ test('F3 degraded path: dossier stays usable when risk API fails', async ({ page
   // Building facts should still render (F1 unaffected by F3 failure)
   await expect(page.getByRole('heading', { name: 'Building Facts' })).toBeVisible({ timeout: 30000 });
 
-  // The risk cards section should NOT appear (silently failed)
-  // Wait a reasonable time and verify it's not there
-  await page.waitForTimeout(3000);
-  await expect(page.locator('.risk-cards')).not.toBeVisible();
+  // The risk cards section SHOULD appear with an error message
+  await expect(page.locator('.risk-cards')).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText(/Risk data could not be loaded|Risicodata kon nu niet/)).toBeVisible();
+
+  // Cards should still render in unavailable state
+  const cards = page.locator('.risk-card');
+  await expect(cards).toHaveCount(3);
+  const badges = page.locator('.risk-card__badge');
+  await expect(badges).toHaveCount(3);
+  for (let i = 0; i < 3; i++) {
+    const badgeText = await badges.nth(i).textContent();
+    expect(badgeText).toMatch(/Data unavailable|Data niet beschikbaar/);
+  }
 
   // The page should NOT show a generic error message
   await expect(page.getByText('Something went wrong')).not.toBeVisible();

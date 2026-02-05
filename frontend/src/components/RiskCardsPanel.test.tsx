@@ -63,11 +63,11 @@ describe('RiskCardsPanel', () => {
         source: 'RIVM / Atlas Leefomgeving WMS',
         source_date: '2019-11-12',
         sampled_at: '2026-02-05',
-        message: 'Sampled pixel was outside mapped area',
+        message: 'NOISE_LOOKUP_FAILED',
       },
     });
     renderPanel(risks);
-    expect(screen.getByText('Sampled pixel was outside mapped area')).toBeInTheDocument();
+    expect(screen.getByText('Noise data could not be retrieved right now.')).toBeInTheDocument();
   });
 
   it('renders "Metric unavailable for this location" when lden_db is missing', () => {
@@ -99,6 +99,20 @@ describe('RiskCardsPanel', () => {
     renderPanel(risks);
     expect(screen.getByText(/dataset date unknown/)).toBeInTheDocument();
     expect(screen.getByText(/sampled 2026-02-05/)).toBeInTheDocument();
+  });
+
+  it('renders error state', () => {
+    render(
+      <I18nextProvider i18n={i18nEn}>
+        <RiskCardsPanel error />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText('Environmental Risk Cards')).toBeInTheDocument();
+    expect(screen.getByText('Risk data could not be loaded right now. Please try again later.')).toBeInTheDocument();
+    expect(screen.getByText('Road Traffic Noise (Lden)')).toBeInTheDocument();
+    expect(screen.getByText('Air Quality (PM2.5 / NO2)')).toBeInTheDocument();
+    expect(screen.getByText('Climate Stress (Heat / Water)')).toBeInTheDocument();
+    expect(screen.getAllByText('Source + date: Source unknown (date unknown)')).toHaveLength(3);
   });
 
   it('renders Dutch card titles when language is nl', async () => {

@@ -206,9 +206,9 @@ async def _sample_wfs_properties(layer: str, rd_x: float, rd_y: float) -> dict[s
         "version": "2.0.0",
         "request": "GetFeature",
         "typeNames": layer,
-        "bbox": f"{rd_x - 300},{rd_y - 300},{rd_x + 300},{rd_y + 300},EPSG:28992",
+        "bbox": f"{rd_x - 5},{rd_y - 5},{rd_x + 5},{rd_y + 5},EPSG:28992",
         "srsName": "EPSG:28992",
-        "count": "1",
+        "count": "5",
         "outputFormat": "application/json",
     }
     resp = await client.get(settings.climate_atlas_wms_base, params=params)
@@ -219,7 +219,39 @@ async def _sample_wfs_properties(layer: str, rd_x: float, rd_y: float) -> dict[s
     features = data.get("features") or []
     if not features:
         return None
-    return features[0].get("properties") or {}
+    if len(features) == 1:
+        return features[0].get("properties") or {}
+
+    containing: list[tuple[dict[str, Any], float]] = []
+    for feat in features:
+        geom = feat.get("geometry")
+        if _geometry_contains_point(geom, rd_x, rd_y):
+            containing.append((feat, _bbox_area(feat.get("bbox"))))
+    if containing:
+        containing.sort(key=lambda item: item[1])
+        return containing[0][0].get("properties") or {}
+
+    # Multiple features: pick the one whose bbox centroid is closest to query point
+    best: dict[str, Any] | None = None
+    best_dist = float("inf")
+    for feat in features:
+        geom = feat.get("geometry")
+        if not geom:
+            continue
+        bbox = feat.get("bbox")
+        if bbox and len(bbox) >= 4:
+            cx = (bbox[0] + bbox[2]) / 2
+            cy = (bbox[1] + bbox[3]) / 2
+        else:
+            # Fallback: skip distance check, use first feature
+            if best is None:
+                best = feat.get("properties") or {}
+            continue
+        dist = (cx - rd_x) ** 2 + (cy - rd_y) ** 2
+        if dist < best_dist:
+            best_dist = dist
+            best = feat.get("properties") or {}
+    return best if best is not None else (features[0].get("properties") or {})
 
 
 def _extract_numeric(
@@ -235,10 +267,72 @@ def _extract_numeric(
             continue
         numeric = float(value)
         # Common no-data sentinel values in geospatial rasters.
-        if numeric <= -9990 or numeric >= 1e30:
+        if numeric <= -999 or numeric >= 1e30:
             continue
         return numeric, key
     return None, None
+
+
+def _sanitize_raster_value(
+    value: float | None,
+    *,
+    min_value: float | None = None,
+) -> float | None:
+    if value is None:
+        return None
+    if value <= -999 or value >= 1e30:
+        return None
+    if min_value is not None and value < min_value:
+        return None
+    return value
+
+
+def _point_in_ring(x: float, y: float, ring: list[list[float]]) -> bool:
+    if len(ring) < 3:
+        return False
+    inside = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = ring[i][0], ring[i][1]
+        xj, yj = ring[j][0], ring[j][1]
+        intersects = ((yi > y) != (yj > y)) and (
+            x < (xj - xi) * (y - yi) / (yj - yi) + xi
+        )
+        if intersects:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _point_in_polygon(x: float, y: float, rings: list[list[list[float]]]) -> bool:
+    if not rings:
+        return False
+    if not _point_in_ring(x, y, rings[0]):
+        return False
+    for hole in rings[1:]:
+        if _point_in_ring(x, y, hole):
+            return False
+    return True
+
+
+def _geometry_contains_point(geometry: dict[str, Any] | None, x: float, y: float) -> bool:
+    if not geometry:
+        return False
+    geom_type = geometry.get("type")
+    coords = geometry.get("coordinates")
+    if not coords:
+        return False
+    if geom_type == "Polygon":
+        return _point_in_polygon(x, y, coords)
+    if geom_type in {"MultiPolygon", "MultiSurface"}:
+        return any(_point_in_polygon(x, y, polygon) for polygon in coords)
+    return False
+
+
+def _bbox_area(bbox: list[float] | None) -> float:
+    if bbox and len(bbox) >= 4:
+        return abs((bbox[2] - bbox[0]) * (bbox[3] - bbox[1]))
+    return float("inf")
 
 
 def _select_noise_layer(layer_names: list[str]) -> str | None:
@@ -296,8 +390,8 @@ def _classify_heat_from_properties(
     if "hittestress_warme_nachten_huidig" in layer_lower:
         value = props.get("GRAY_INDEX")
         if isinstance(value, (int, float)):
-            number = float(value)
-            if number <= -9990 or number >= 1e30:
+            number = _sanitize_raster_value(float(value), min_value=0.0)
+            if number is None:
                 return RiskLevel.unavailable, None, None
             return _risk_from_threshold(number, 0.65, 0.8), round(number, 3), "heat index"
 
@@ -421,9 +515,7 @@ async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseR
         if props:
             raw = props.get("GRAY_INDEX")
             if isinstance(raw, (int, float)):
-                number = float(raw)
-                if -9990 < number < 1e30:
-                    value = number
+                value = _sanitize_raster_value(float(raw), min_value=0.0)
 
         if value is None:
             return NoiseRiskCard(
@@ -468,9 +560,10 @@ async def _build_air_card(rd_x: float, rd_y: float, sampled_at: str) -> AirQuali
         if pm25_layer:
             props = await _sample_wms_properties(settings.rivm_gcn_wms_base, pm25_layer, rd_x, rd_y)
             if props and isinstance(props.get(pm25_layer), (int, float)):
-                pm25_value = float(props[pm25_layer])
+                pm25_value = _sanitize_raster_value(float(props[pm25_layer]), min_value=0.0)
             elif props:
                 pm25_value, _ = _extract_numeric(props)
+                pm25_value = _sanitize_raster_value(pm25_value, min_value=0.0)
             if pm25_value is not None:
                 # PM2.5 — WHO Global Air Quality Guidelines (2021).
                 # AQG level: 5 µg/m³; interim target 4: 10 µg/m³.
@@ -482,9 +575,10 @@ async def _build_air_card(rd_x: float, rd_y: float, sampled_at: str) -> AirQuali
         if no2_layer:
             props = await _sample_wms_properties(settings.rivm_gcn_wms_base, no2_layer, rd_x, rd_y)
             if props and isinstance(props.get(no2_layer), (int, float)):
-                no2_value = float(props[no2_layer])
+                no2_value = _sanitize_raster_value(float(props[no2_layer]), min_value=0.0)
             elif props:
                 no2_value, _ = _extract_numeric(props)
+                no2_value = _sanitize_raster_value(no2_value, min_value=0.0)
             if no2_value is not None:
                 # NO2 — WHO Global Air Quality Guidelines (2021).
                 # AQG level: 10 µg/m³; interim target 4: 20 µg/m³.
@@ -587,7 +681,6 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
         source_date = (
             _extract_layer_date(heat_layer_used)
             or _extract_layer_date(water_layer_used)
-            or sampled_at
         )
 
         return ClimateStressRiskCard(

@@ -28,7 +28,9 @@ function App() {
   const [neighborhood3DLoading, setNeighborhood3DLoading] = useState(false);
   const [riskCards, setRiskCards] = useState<RiskCardsResponse | null>(null);
   const [riskLoading, setRiskLoading] = useState(false);
+  const [riskError, setRiskError] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(null);
+  const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +44,9 @@ function App() {
     setNeighborhood3DLoading(false);
     setRiskCards(null);
     setRiskLoading(false);
+    setRiskError(false);
     setSunlight(null);
+    setSunlightUnavailable(false);
     setShadowSnapshots(null);
     const requestId = ++neighborhood3DRequestId.current;
 
@@ -69,6 +73,7 @@ function App() {
             }
           } catch {
             if (neighborhood3DRequestId.current === requestId) {
+              setRiskError(true);
               setRiskLoading(false);
             }
           }
@@ -97,13 +102,18 @@ function App() {
               if (neighborhood3DRequestId.current === requestId) {
                 setNeighborhood3D(n3d);
                 setNeighborhood3DLoading(false);
+                const canCompute = n3d.buildings.length > 0 && !!n3d.target_pand_id;
+                setSunlightUnavailable(!canCompute);
               }
             } catch {
               if (neighborhood3DRequestId.current === requestId) {
                 setNeighborhood3DLoading(false);
+                setSunlightUnavailable(true);
               }
             }
           })();
+        } else {
+          setSunlightUnavailable(true);
         }
       } else {
         setLoading(false);
@@ -159,10 +169,11 @@ function App() {
           />
         )}
 
-        {(riskLoading || riskCards) && (
+        {(riskLoading || riskCards || riskError) && (
           <RiskCardsPanel
             risks={riskCards ?? undefined}
             loading={riskLoading}
+            error={riskError}
           />
         )}
 
@@ -173,13 +184,21 @@ function App() {
           />
         )}
 
-        {(sunlight || (neighborhood3D && !sunlight)) && (
-          <SunlightRiskCard
-            sunlight={sunlight ?? undefined}
-            loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !sunlight}
-            unavailable={!neighborhood3DLoading && !!neighborhood3D && neighborhood3D.buildings.length === 0}
-          />
-        )}
+        {(() => {
+          const canComputeSunlight = !!neighborhood3D
+            && neighborhood3D.buildings.length > 0
+            && !!neighborhood3D.target_pand_id;
+          const sunlightLoading = canComputeSunlight && !sunlight;
+          const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
+          if (!showSunlightCard) return null;
+          return (
+            <SunlightRiskCard
+              sunlight={sunlight ?? undefined}
+              loading={sunlightLoading}
+              unavailable={sunlightUnavailable}
+            />
+          );
+        })()}
 
         {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
           <ShadowSnapshots

@@ -161,7 +161,22 @@ async def address_risk_cards(
         or result.air_quality.level != RiskLevel.unavailable
         or result.climate_stress.level != RiskLevel.unavailable
     )
-    if has_data:
+    failure_messages = {
+        "NOISE_LAYER_UNAVAILABLE",
+        "NOISE_LOOKUP_FAILED",
+        "AIR_LOOKUP_FAILED",
+        "CLIMATE_LOOKUP_FAILED",
+    }
+    has_failure = any(
+        msg in failure_messages
+        for msg in (
+            result.noise.message,
+            result.air_quality.message,
+            result.climate_stress.message,
+        )
+        if msg
+    )
+    if has_data and not has_failure:
         await cache_set(
             cache_key,
             result.model_dump(),

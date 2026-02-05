@@ -30,7 +30,12 @@ export default function SunlightRiskCard({ sunlight, loading, unavailable }: Pro
     return (
       <div className="sunlight-card">
         <h2 className="sunlight-card__title">{t('sunlight.title')}</h2>
-        <p className="sunlight-card__unavailable">{t('sunlight.unavailable')}</p>
+        <div className="sunlight-card__badge sunlight-card__badge--unavailable">
+          {t('sunlight.level.unavailable')}
+        </div>
+        <p className="sunlight-card__meaning">{t('sunlight.meaning.unavailable')}</p>
+        <p className="sunlight-card__tip">{t('sunlight.viewingTip')}</p>
+        <p className="sunlight-card__source">{t('sunlight.sourceUnavailable')}</p>
       </div>
     );
   }
