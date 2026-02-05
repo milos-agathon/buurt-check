@@ -76,7 +76,15 @@ export async function getRiskCards(
     lat: String(lat),
     lng: String(lng),
   });
-  const resp = await fetch(`${API_BASE}/address/${vboId}/risks?${params}`);
-  if (!resp.ok) throw new Error(`Risk cards failed: ${resp.status}`);
-  return resp.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  try {
+    const resp = await fetch(`${API_BASE}/address/${vboId}/risks?${params}`, {
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`Risk cards failed: ${resp.status}`);
+    return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }

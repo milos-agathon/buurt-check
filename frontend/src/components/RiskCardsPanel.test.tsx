@@ -83,6 +83,24 @@ describe('RiskCardsPanel', () => {
     expect(screen.getByText('Metric unavailable for this location')).toBeInTheDocument();
   });
 
+  it('shows fallback label when source_date is missing', () => {
+    const risks = makeRiskCardsResponse({
+      climate_stress: {
+        level: 'low',
+        heat_value: 0.64,
+        heat_level: 'low',
+        water_value: 1,
+        water_level: 'low',
+        source: 'Klimaateffectatlas WMS/WFS',
+        sampled_at: '2026-02-05',
+        // no source_date
+      },
+    });
+    renderPanel(risks);
+    expect(screen.getByText(/dataset date unknown/)).toBeInTheDocument();
+    expect(screen.getByText(/sampled 2026-02-05/)).toBeInTheDocument();
+  });
+
   it('renders Dutch card titles when language is nl', async () => {
     const i18nNl = await setupTestI18n('nl');
     const risks = makeRiskCardsResponse();

@@ -134,4 +134,38 @@ describe('getRiskCards', () => {
       getRiskCards('vbo-1', 121286, 487296, 52.372, 4.892),
     ).rejects.toThrow('Risk cards failed: 502');
   });
+
+  it('sends AbortSignal for timeout', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1' }));
+    await getRiskCards('vbo-1', 121286, 487296, 52.372, 4.892);
+
+    const [, opts] = mockFetch.mock.calls[0];
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('aborts fetch after 20s timeout', async () => {
+    vi.useFakeTimers();
+    let capturedSignal: AbortSignal | null | undefined;
+    mockFetch.mockImplementation((_url: string, opts?: RequestInit) => {
+      capturedSignal = opts?.signal;
+      return new Promise<Response>(() => {});
+    });
+
+    const promise = getRiskCards('vbo-1', 121286, 487296, 52.372, 4.892);
+
+    // Before timeout, signal should not be aborted
+    expect(capturedSignal?.aborted).toBe(false);
+
+    // Advance past 20s timeout
+    vi.advanceTimersByTime(20000);
+
+    // Signal should now be aborted
+    expect(capturedSignal?.aborted).toBe(true);
+
+    vi.useRealTimers();
+    // The promise will never resolve/reject in this test since the mock
+    // never settles, but we've verified the abort signal fires correctly.
+    // Suppress unhandled rejection from the dangling promise.
+    promise.catch(() => {});
+  });
 });

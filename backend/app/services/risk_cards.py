@@ -410,7 +410,7 @@ async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseR
                 level=RiskLevel.unavailable,
                 source="RIVM / Atlas Leefomgeving WMS",
                 sampled_at=sampled_at,
-                message="Noise layer unavailable",
+                message="NOISE_LAYER_UNAVAILABLE",
             )
 
         props = await _sample_wms_properties(settings.rivm_alo_wms_base, layer, rd_x, rd_y)
@@ -429,7 +429,7 @@ async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseR
                 source_date=_extract_layer_date(layer),
                 sampled_at=sampled_at,
                 layer=layer,
-                message="No noise value at this location",
+                message="NOISE_NO_VALUE",
             )
 
         # Noise thresholds — WHO Environmental Noise Guidelines for the
@@ -445,12 +445,12 @@ async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseR
             sampled_at=sampled_at,
             layer=layer,
         )
-    except Exception as exc:
+    except Exception:
         return NoiseRiskCard(
             level=RiskLevel.unavailable,
             source="RIVM / Atlas Leefomgeving WMS",
             sampled_at=sampled_at,
-            message=f"Noise lookup failed: {exc}",
+            message="NOISE_LOOKUP_FAILED",
         )
 
 
@@ -490,9 +490,9 @@ async def _build_air_card(rd_x: float, rd_y: float, sampled_at: str) -> AirQuali
         level = _max_level([pm25_level, no2_level])
         message = None
         if pm25_level == RiskLevel.unavailable and no2_level == RiskLevel.unavailable:
-            message = "No PM2.5/NO2 values at this location"
+            message = "AIR_NO_VALUE"
         elif pm25_level == RiskLevel.unavailable or no2_level == RiskLevel.unavailable:
-            message = "Partial air-quality data available"
+            message = "AIR_PARTIAL"
 
         source_date = _extract_layer_date(pm25_layer) or _extract_layer_date(no2_layer)
 
@@ -509,12 +509,12 @@ async def _build_air_card(rd_x: float, rd_y: float, sampled_at: str) -> AirQuali
             no2_layer=no2_layer,
             message=message,
         )
-    except Exception as exc:
+    except Exception:
         return AirQualityRiskCard(
             level=RiskLevel.unavailable,
             source="RIVM GCN WMS",
             sampled_at=sampled_at,
-            message=f"Air-quality lookup failed: {exc}",
+            message="AIR_LOOKUP_FAILED",
         )
 
 
@@ -577,9 +577,9 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
 
         message = None
         if overall == RiskLevel.unavailable:
-            message = "No climate-stress data available for this location"
+            message = "CLIMATE_NO_DATA"
         elif heat_level == RiskLevel.unavailable or water_level == RiskLevel.unavailable:
-            message = "Partial climate-stress data available"
+            message = "CLIMATE_PARTIAL"
 
         source_date = (
             _extract_layer_date(heat_layer_used)
@@ -602,12 +602,12 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
             water_signal=water_signal,
             message=message,
         )
-    except Exception as exc:
+    except Exception:
         return ClimateStressRiskCard(
             level=RiskLevel.unavailable,
             source="Klimaateffectatlas WMS/WFS",
             sampled_at=sampled_at,
-            message=f"Climate lookup failed: {exc}",
+            message="CLIMATE_LOOKUP_FAILED",
         )
 
 

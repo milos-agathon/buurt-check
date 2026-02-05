@@ -29,7 +29,7 @@ function RiskCard({
   warning,
 }: CardProps) {
   const { t } = useTranslation();
-  const date = sourceDate ?? sampledAt;
+  const date = sourceDate ?? t('risk.sourceDateFallback', { sampled: sampledAt });
 
   return (
     <article className="risk-card">
@@ -41,7 +41,7 @@ function RiskCard({
       <p className="risk-card__metric">{metric}</p>
       <p className="risk-card__question">{t(questionKey)}</p>
       <p className="risk-card__source">{t('risk.sourceDate', { source, date })}</p>
-      {warning && <p className="risk-card__warning">{warning}</p>}
+      {warning && <p className="risk-card__warning">{t(`risk.warning.${warning}`, warning)}</p>}
     </article>
   );
 }
