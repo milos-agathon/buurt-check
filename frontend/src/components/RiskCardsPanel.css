@@ -14,6 +14,15 @@
   font-size: 0.875rem;
 }
 
+.risk-cards__error {
+  font-size: 0.875rem;
+  color: #92400e;
+  background: #fef3c7;
+  border-left: 3px solid #f59e0b;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
 .risk-cards__grid {
   display: grid;
   grid-template-columns: 1fr;

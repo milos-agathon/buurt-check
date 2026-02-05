@@ -91,15 +91,21 @@ describe('SunlightRiskCard', () => {
     expect(screen.getByText('High risk')).toBeInTheDocument();
   });
 
-  it('shows unavailable message when no 3D context', () => {
+  it('shows full unavailable card structure when no 3D context', () => {
     renderCard(undefined, false, 'en', true);
     expect(screen.getByText('Sunlight Analysis')).toBeInTheDocument();
+    expect(screen.getByText('Data unavailable')).toBeInTheDocument();
     expect(screen.getByText(/No 3D building context available/)).toBeInTheDocument();
+    expect(screen.getByText(/Ask the seller/)).toBeInTheDocument();
+    expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
   });
 
-  it('shows unavailable message in Dutch', () => {
+  it('shows full unavailable card structure in Dutch', () => {
     renderCard(undefined, false, 'nl', true);
     expect(screen.getByText('Zonlichtanalyse')).toBeInTheDocument();
+    expect(screen.getByText('Data niet beschikbaar')).toBeInTheDocument();
     expect(screen.getByText(/Geen 3D-gebouwcontext beschikbaar/)).toBeInTheDocument();
+    expect(screen.getByText(/Vraag de verkoper/)).toBeInTheDocument();
+    expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
   });
 });

@@ -39,8 +39,10 @@ vi.mock('./components/SunlightRiskCard', () => ({
 }));
 
 vi.mock('./components/RiskCardsPanel', () => ({
-  default: ({ loading }: { loading?: boolean }) => (
-    <div data-testid="risk-cards">{loading ? 'Loading risk cards...' : 'Risk cards'}</div>
+  default: ({ loading, error }: { loading?: boolean; error?: boolean }) => (
+    <div data-testid="risk-cards">
+      {loading ? 'Loading risk cards...' : error ? 'Risk cards error' : 'Risk cards'}
+    </div>
   ),
 }));
 
@@ -326,6 +328,20 @@ describe('3D viewer integration', () => {
     expect(screen.queryByText('Loading 3D data...')).not.toBeInTheDocument();
   });
 
+  it('shows sunlight unavailable when 3D fetch fails', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockRejectedValue(new Error('3DBAG down'));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
+  });
+
   it('shows loading message while 3D data is fetching', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
@@ -385,5 +401,60 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByText('Loading sunlight...')).toBeInTheDocument();
     });
+  });
+
+  it('shows sunlight unavailable when buildings exist but no target_pand_id', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(
+      makeNeighborhood3DResponse({ target_pand_id: undefined }),
+    );
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
+  });
+});
+
+describe('risk cards error handling', () => {
+  it('shows risk error state when getRiskCards fails', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockRiskCards.mockRejectedValue(new Error('Risk API down'));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Risk cards error')).toBeInTheDocument();
+    });
+    // Building facts should still show
+    expect(screen.getByText('Building Facts')).toBeInTheDocument();
+  });
+
+  it('clears risk error on new address selection', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockRiskCards.mockRejectedValueOnce(new Error('Risk API down'));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Risk cards error')).toBeInTheDocument();
+    });
+
+    // Second selection succeeds
+    mockRiskCards.mockResolvedValue(makeRiskCardsResponse());
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Risk cards')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Risk cards error')).not.toBeInTheDocument();
   });
 });

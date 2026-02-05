@@ -2,3 +2,14 @@ you are acting as an award-winning engineer with over 30 years of experience in 
 
 
 now you must update @CLAUDE.md with the learnings to improve your efficiency and avoid issues going forward with the implementation of this app. Be concise, accurate and methodical     
+
+/superpowers:execute-plan you are acting as senior software engineer with 30 years of experience in developing and selling muli-million dollar mobile app.   
+  you are working on buurt-check codespace, a new multi-million dollar project. You must first read @CLAUDE.md and internalize codebase rules. then you  must
+  implement F3 from @docs/prd.md end-to-end. Do not stop until you implement fully every single part of F3. Do not claim success until you implemented 
+  everything
+
+  you are acting as senior software engineer with 30 years of experience in developing and selling muli-million dollar mobile app.   
+  you are working on buurt-check codespace, a new multi-million dollar project. You must first read @CLAUDE.md and internalize codebase rules.
+  Then you must read @prd.md fully to grasp what we are building
+  Finally, you must rigorously assess the implementation level of F3. Be honest, methodical and accurate. Do not stop until you rigorously assess every single part of F3. Do not claim success until you rigorously assessed 
+  everything.

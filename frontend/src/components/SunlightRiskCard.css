@@ -41,6 +41,11 @@
   color: #991b1b;
 }
 
+.sunlight-card__badge--unavailable {
+  background: #f3f4f6;
+  color: #374151;
+}
+
 .sunlight-card__meaning {
   font-size: 0.875rem;
   line-height: 1.5;

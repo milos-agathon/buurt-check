@@ -12,7 +12,18 @@
       "Bash(npx tsc:*)",
       "Bash(tree:*)",
       "WebFetch(domain:api.3dbag.nl)",
-      "WebFetch(domain:docs.3dbag.nl)"
+      "WebFetch(domain:docs.3dbag.nl)",
+      "WebFetch(domain:data.rivm.nl)",
+      "WebSearch",
+      "Bash(npm test:*)",
+      "Bash(npm run test:unit:*)",
+      "WebFetch(domain:data.overheid.nl)",
+      "WebFetch(domain:www.atlasleefomgeving.nl)",
+      "Bash(npx vite build)",
+      "Bash(ruff check:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(findstr:*)"
     ]
   }
 }
