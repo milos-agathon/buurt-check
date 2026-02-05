@@ -201,17 +201,17 @@ buurt-check/
 
 ## Current project status
 
-**Stage: F1 + F2 + F3 implemented. F3 hardening in progress.**
+**Stage: F1 + F2 + F3 implemented and hardened. Ready for F4.**
 
 ### What exists
-- `backend/` — FastAPI app with address suggest, lookup, building facts, 3D neighborhood endpoints, and F3 risk-card endpoint (`/api/address/{vbo_id}/risks`) for noise/air/climate. BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration uses dual-fetch strategy (direct target + bbox surrounding). Redis cache with circuit breaker. 91 passing tests + 5 live smoke tests (deselected by default).
-- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification). F3: RiskCardsPanel (noise, air quality, climate stress) with full EN/NL copy and source+date display. 104 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
+- `backend/` — FastAPI app with address suggest, lookup, building facts, 3D neighborhood endpoints (including fast `/building3d` target-only endpoint), and F3 risk-card endpoint (`/api/address/{vbo_id}/risks`) for noise/air/climate. BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration uses dual-fetch strategy (direct target + bbox surrounding). Redis cache with circuit breaker. Structured logging for risk card requests. Calibration script for monthly layer verification. 107 passing tests + 5 live smoke tests (deselected by default).
+- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js with construction-year coloring, HemisphereLight, target edge highlight), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification, unavailable state). F3: RiskCardsPanel (noise, air quality, climate stress) with full EN/NL copy, source+date display, error state, and 20s timeout. Two-phase progressive 3D loading (target ~2s, neighborhood ~12-17s). 124 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
 - `docs/prd.md` — v1.1, fully restructured with 13 sections
 
 ### What's next
-- Maintain quality gates: `ruff check`, backend pytest (91+, excluding live), frontend vitest (104+), `npm run build`, Playwright E2E smoke.
-- F3 risk cards are implemented; continue hardening live-data reliability (noise-layer matching, climate layer coverage, live smoke checks).
+- Maintain quality gates: `ruff check`, backend pytest (107+, excluding live), frontend vitest (124+), `npm run build`, Playwright E2E smoke.
 - Implement F4 neighborhood stats (CBS Wijken & Buurten).
+- Resolve PM2.5 data gap (GCN WMS only has NO2 layers; PM2.5 may need offline ZIP ingestion or alternative endpoint).
 
 ## Learnings from development sessions (2026-01-30)
 
@@ -386,3 +386,100 @@ Risk uses **winter solstice hours only** (worst case), not annual average. 12-mo
 ### RIVM WMS endpoint correction
 
 **RIVM noise layers ARE at** `https://data.rivm.nl/geo/alo/wms`. The GetCapabilities document is large, and noise layers appear deep in the layer list. Live naming pattern: `rivm_{YYYYMMDD}_Geluid_lden_wegverkeer_{YYYY}` (for example `rivm_20250101_Geluid_lden_wegverkeer_2022`) plus an `rivm_Geluid_lden_wegverkeer_actueel` variant. The `gcn` endpoint remains the correct source for air quality (PM2.5, NO2).
+
+## Learnings from F3 implementation and hardening sessions (2026-02-05)
+
+### F3 risk cards architecture
+
+1. **Single endpoint, parallel fetch.** `GET /api/address/{vbo_id}/risks?rd_x=...&rd_y=...&lat=...&lng=...` fetches noise, air, and climate cards in parallel via `asyncio.gather()`. Cache key rounds float coordinates: `f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"`. TTL 7 days, conditional on having real data.
+
+2. **Risk level aggregation.** Air quality: `max(pm25_level, no2_level)`. Climate: `max(heat_level, water_level)` evaluated across ALL available layers (not first-hit). Sunlight: winter solstice hours only. Level ranking: `unavailable=0, low=1, medium=2, high=3`.
+
+3. **Warning message codes.** Backend sends stable enum-like codes (`NOISE_NO_VALUE`, `AIR_PARTIAL`, `CLIMATE_LOOKUP_FAILED`, etc.). Frontend maps to i18n keys via `t('risk.warning.${code}', code)` with raw-code fallback. This keeps the backend language-agnostic.
+
+4. **Frontend risk cards timeout.** 20s `AbortController` on `getRiskCards()`. Timeout chain: frontend 20s > backend httpx 15s (connect 4s).
+
+### Critical bugs found and patterns learned
+
+1. **Noise regex never matched live data.** The regex pattern used lowercase `g` and missed the trailing year. Live layers use capital `G` and `_YYYY` suffix. Mocked tests passed because mock layer names matched the wrong regex. **Lesson: always verify regex patterns against actual live API responses.**
+
+2. **Climate "first-hit break" understated risk.** The climate aggregation loop used `break` after the first successful sample. If the first layer returned "low" but a later layer returned "high," the lower risk was reported. **Fix: remove `break`, keep worst-case via `_level_rank` comparison.**
+
+3. **Sunlight loading deadlock.** When 3DBAG returned no buildings or no `target_pand_id`, the sunlight callback never fired, leaving `SunlightRiskCard` in an infinite loading spinner. **Fix: explicit `unavailable` prop + `canComputeSunlight` guard variable.**
+
+4. **Risk API failure silently hid F3 section.** The catch block set `setRiskLoading(false)` but never set error state. Rendering condition `(loading || data)` evaluated to `(false || null)`. **Fix: add `riskError` state; render condition becomes `(loading || data || error)`.**
+
+5. **Air quality sentinel values.** RIVM WMS returns `-999`, `-9999`, or `1e30` as no-data. The noise card's guard (`-9990 < raw`) let `-999` through for air quality. **Fix: use `0 <= raw < 1e30` for concentrations (physically non-negative).** Different data types need different sentinel ranges.
+
+6. **Climate source_date fallback.** Falling back to `sampled_at` (today's date) when layer date extraction fails misleads users. **Fix: let `source_date` be `None`; frontend shows "dataset date unknown."** Never substitute a sampling timestamp for a dataset publication date.
+
+7. **All-unavailable results were cached for 7 days.** Temporary outages got locked into cache. **Fix: conditional caching — only cache when at least one card has real data.** Extends the "never cache empty/error responses" rule.
+
+### WMS/WFS point-query patterns
+
+1. **WMS GetFeatureInfo** (noise, air quality): 50m bbox, 101x101 pixel grid, query pixel (50,50). Inherently point-accurate for raster layers.
+
+2. **WFS GetFeature** (climate vectors): Original 600m bbox with `count=1` returned arbitrary features, not nearest. **Fix: shrink to +/-5m bbox, fetch up to 5 features, select closest by bbox centroid distance.** WFS does not guarantee proximity ordering.
+
+3. **Do not rely on AI-summarized GetCapabilities for layer discovery.** The RIVM ALO document is too large — noise layers deep in the list get truncated by summarizers. Parse full XML programmatically or query specific layer names via GetFeatureInfo.
+
+### Three-state async model for React components
+
+Every async data section needs three explicit states: loading, loaded, error. Reset all three on new input. A catch block that only clears loading creates invisible failures. Pattern:
+```tsx
+const [data, setData] = useState<T | null>(null);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState(false);
+// Reset all on new input, set error in catch block
+```
+
+### Risk threshold references (WHO guidelines)
+
+- **Noise:** WHO Environmental Noise Guidelines (2018) — Lden 53 dB onset, 63 dB high annoyance
+- **PM2.5:** WHO Global Air Quality Guidelines (2021) — AQG 5 ug/m3, interim target 10 ug/m3
+- **NO2:** WHO Global Air Quality Guidelines (2021) — AQG 10 ug/m3, interim target 20 ug/m3
+- **Sunlight:** Winter solstice < 2 hrs = high, 2-4 hrs = medium, > 4 hrs = low
+
+## Learnings from 3D viewer overhaul sessions (2026-02-05)
+
+### Two-phase progressive 3D loading
+
+1. **New endpoint `GET /{vbo_id}/building3d`** calls only `_fetch_target_building` (no bbox). Returns in ~2s. Cache key: `building3d:{pand_id}`.
+2. **Frontend calls both phases as parallel fire-and-forget IIFEs.** Phase 1 sets `neighborhood3DLoading=false` immediately. Phase 2 updates with full context when ready.
+3. **Sunlight/snapshot callbacks deferred until Phase 2.** Pass `undefined` callbacks while `surroundingLoading` is true: `onSunlightAnalysis={surroundingLoading ? undefined : setSunlight}`.
+
+### Three.js shadow setup checklist
+
+All four are required — missing any one causes silent failure:
+1. `sunLight.castShadow = true`
+2. `scene.add(sunLight)` — the light itself
+3. `scene.add(sunLight.target)` — **CRITICAL: must add target to scene**
+4. Shadow bias: `bias = -0.001`, `normalBias = 0.02`
+
+Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above horizon on first load.
+
+### Camera positioning bugs and fixes
+
+1. **`useRef` guard never reset on new address.** `cameraSetRef.current = true` persisted across address changes because `useRef` does not reset on re-render. **Fix: track `lastFocusedPandId` ref; reset `cameraSetRef` when it changes.**
+2. **No fallback when target not found.** If `targetPandId` didn't match any building, camera stayed at hardcoded default `[100,120,100]`. **Fix: prefer target, fall back to `buildings[0]`.**
+3. **Camera distance too large.** Changed from `maxSpan * 3` (min 30) to `maxSpan * 2` (min 25) and `buildingHeight * 2` (min 25) for closer framing.
+
+### Three.js material and rendering rules
+
+1. **Always use `THREE.DoubleSide`** for building materials. 3DBAG footprint winding order is not guaranteed consistent. CW-wound polygons become invisible with default FrontSide.
+2. **Never use CSS `!important` on canvas dimensions.** `width: 100% !important; height: auto !important` collapses the canvas when Three.js calls `renderer.setSize()`.
+3. **Construction-year color palette** for neighborhood context: pre-1900 terracotta, 1900-1945 sandy brown, 1945-1975 olive, 1975-2000 slate, post-2000 steel gray. Target building stays blue with edge highlight.
+4. **HemisphereLight** (sky `0xb1e1ff`, ground `0xb97a20`, intensity 0.5) replaces flat AmbientLight for natural illumination gradient.
+
+### Test count baselines (updated 2026-02-05)
+
+- **Backend: 107 non-live + 5 live smoke tests** (19 api + 15 bag + 5 cache + 10 locatieserver + 14 models + 19 three_d_bag + 18 risk_cards + 5 live smoke + others). Any backend change must maintain or increase.
+- **Frontend: 124 tests** (15 api + 16 AddressSearch + 14 BuildingFactsCard + 23 App + 7 NeighborhoodViewer3D + 8 ShadowControls + 13 SunlightRiskCard + 7 ShadowSnapshots + 8 OverlayControls + 9 RiskCardsPanel + 4 others). Any frontend change must maintain or increase.
+
+### Process learnings
+
+1. **Mocked tests can mask critical bugs.** The noise regex, air sentinel values, and climate first-hit bugs all passed unit tests. Only live API verification exposed them. Mocked tests verify logic correctness but not live behavior.
+2. **Automated tests are insufficient for visual features.** Despite all tests passing and build clean, manual visual testing immediately found the camera positioning bug. For Three.js components, manual visual verification is mandatory.
+3. **Assessment-first workflow for hardening.** Start with parallel subagent audits (backend + frontend) before any code. This revealed 7 bugs in F3 that feature-addition workflows missed.
+4. **Plans should specify intent, let tests validate details.** The air sentinel fix plan specified `-9990 < raw` (copied from noise). The test caught that this was wrong for air quality data. Domain-specific physical constraints beat copied patterns.
+5. **E2E assertions must evolve with behavior.** When error handling changes from "hide on failure" to "show error state," tests that assert element absence must be updated to assert the new visible error behavior.
