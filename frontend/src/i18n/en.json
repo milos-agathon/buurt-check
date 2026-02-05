@@ -33,6 +33,7 @@
   "viewer3d.camera.topDown": "Top-down",
   "sunlight.title": "Sunlight Analysis",
   "sunlight.loading": "Analyzing sunlight...",
+  "sunlight.unavailable": "No 3D building context available — sunlight analysis requires surrounding buildings.",
   "sunlight.level.low": "Low risk",
   "sunlight.level.medium": "Medium risk",
   "sunlight.level.high": "High risk",

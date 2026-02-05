@@ -6,6 +6,7 @@ from app.models.risk import AirQualityRiskCard, ClimateStressRiskCard, NoiseRisk
 from app.services.risk_cards import (
     _CLIMATE_HEAT_LAYERS,
     _CLIMATE_WATER_LAYERS,
+    _build_climate_card,
     _classify_heat_from_properties,
     _classify_water_from_properties,
     _risk_from_threshold,
@@ -135,3 +136,63 @@ async def test_get_risk_cards_assembly(mock_climate, mock_air, mock_noise):
     assert resp.noise.level == RiskLevel.low
     assert resp.air_quality.level == RiskLevel.medium
     assert resp.climate_stress.level == RiskLevel.high
+
+
+@pytest.mark.asyncio
+@patch("app.services.risk_cards._sample_climate_layer", new_callable=AsyncMock)
+@patch("app.services.risk_cards._get_climate_layer_names", new_callable=AsyncMock)
+async def test_climate_card_selects_worst_case_heat(mock_layers, mock_sample):
+    """When multiple heat layers return data, the worst-case (highest risk) wins."""
+    heat_names = [layer for layer, _ in _CLIMATE_HEAT_LAYERS]
+    # Only heat layers available — no water layers
+    mock_layers.return_value = set(heat_names)
+
+    # Layer 0 (national raster): GRAY_INDEX 0.5 → low (threshold: ≤0.65)
+    # Layer 1 (regional vector): text "Hoge urgentie" → high
+    results = {
+        heat_names[0]: {"GRAY_INDEX": 0.5},
+        heat_names[1]: {"urgentie": "Hoge urgentie"},
+    }
+
+    async def side_effect(layer, layer_type, rd_x, rd_y):
+        return results.get(layer)
+
+    mock_sample.side_effect = side_effect
+
+    card = await _build_climate_card(121000.0, 487000.0, "2026-02-05")
+
+    # Must pick high (from layer 1), not low (from layer 0 which is iterated first)
+    assert card.heat_level == RiskLevel.high
+    assert card.heat_layer == heat_names[1]
+    # Water has no available layers, so should be unavailable
+    assert card.water_level == RiskLevel.unavailable
+
+
+@pytest.mark.asyncio
+@patch("app.services.risk_cards._sample_climate_layer", new_callable=AsyncMock)
+@patch("app.services.risk_cards._get_climate_layer_names", new_callable=AsyncMock)
+async def test_climate_card_selects_worst_case_water(mock_layers, mock_sample):
+    """When multiple water layers return data, the worst-case (highest risk) wins."""
+    water_names = [layer for layer, _ in _CLIMATE_WATER_LAYERS]
+    # Only water layers available — no heat layers
+    mock_layers.return_value = set(water_names)
+
+    # Layer 0: Begaanbaar text → low
+    # Layer 3: Onbegaanbaar text → high
+    results = {
+        water_names[0]: {"Begaanbaar": "Begaanbaar"},
+        water_names[3]: {"Begaanbaar": "Onbegaanbaar"},
+    }
+
+    async def side_effect(layer, layer_type, rd_x, rd_y):
+        return results.get(layer)
+
+    mock_sample.side_effect = side_effect
+
+    card = await _build_climate_card(121000.0, 487000.0, "2026-02-05")
+
+    # Must pick high (from layer 3), not low (from layer 0 which is iterated first)
+    assert card.water_level == RiskLevel.high
+    assert card.water_layer == water_names[3]
+    # Heat has no available layers, so should be unavailable
+    assert card.heat_level == RiskLevel.unavailable

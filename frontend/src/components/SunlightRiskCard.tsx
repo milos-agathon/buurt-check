@@ -5,6 +5,7 @@ import './SunlightRiskCard.css';
 interface Props {
   sunlight?: SunlightResult;
   loading?: boolean;
+  unavailable?: boolean;
 }
 
 function getRiskLevel(winterHours: number): 'low' | 'medium' | 'high' {
@@ -13,7 +14,7 @@ function getRiskLevel(winterHours: number): 'low' | 'medium' | 'high' {
   return 'low';
 }
 
-export default function SunlightRiskCard({ sunlight, loading }: Props) {
+export default function SunlightRiskCard({ sunlight, loading, unavailable }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -21,6 +22,15 @@ export default function SunlightRiskCard({ sunlight, loading }: Props) {
       <div className="sunlight-card">
         <h2 className="sunlight-card__title">{t('sunlight.title')}</h2>
         <p className="sunlight-card__loading">{t('sunlight.loading')}</p>
+      </div>
+    );
+  }
+
+  if (unavailable) {
+    return (
+      <div className="sunlight-card">
+        <h2 className="sunlight-card__title">{t('sunlight.title')}</h2>
+        <p className="sunlight-card__unavailable">{t('sunlight.unavailable')}</p>
       </div>
     );
   }

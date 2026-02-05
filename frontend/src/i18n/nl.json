@@ -33,6 +33,7 @@
   "viewer3d.camera.topDown": "Bovenaanzicht",
   "sunlight.title": "Zonlichtanalyse",
   "sunlight.loading": "Zonlicht analyseren...",
+  "sunlight.unavailable": "Geen 3D-gebouwcontext beschikbaar — zonlichtanalyse vereist omliggende gebouwen.",
   "sunlight.level.low": "Laag risico",
   "sunlight.level.medium": "Gemiddeld risico",
   "sunlight.level.high": "Hoog risico",

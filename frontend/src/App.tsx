@@ -176,7 +176,8 @@ function App() {
         {(sunlight || (neighborhood3D && !sunlight)) && (
           <SunlightRiskCard
             sunlight={sunlight ?? undefined}
-            loading={!!neighborhood3D && !sunlight}
+            loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !sunlight}
+            unavailable={!neighborhood3DLoading && !!neighborhood3D && neighborhood3D.buildings.length === 0}
           />
         )}
 

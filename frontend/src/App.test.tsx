@@ -31,8 +31,10 @@ vi.mock('./components/NeighborhoodViewer3D', () => ({
 }));
 
 vi.mock('./components/SunlightRiskCard', () => ({
-  default: ({ loading }: { loading?: boolean }) => (
-    <div data-testid="sunlight-card">{loading ? 'Loading sunlight...' : 'Sunlight card'}</div>
+  default: ({ loading, unavailable }: { loading?: boolean; unavailable?: boolean }) => (
+    <div data-testid="sunlight-card">
+      {loading ? 'Loading sunlight...' : unavailable ? 'Sunlight unavailable' : 'Sunlight card'}
+    </div>
   ),
 }));
 
@@ -353,5 +355,35 @@ describe('3D viewer integration', () => {
       expect(screen.getByText('No 3D building data available.')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('viewer-3d')).not.toBeInTheDocument();
+  });
+
+  it('shows sunlight unavailable when 3D returns empty buildings', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(
+      makeNeighborhood3DResponse({ buildings: [], target_pand_id: undefined }),
+    );
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
+    });
+    // Should NOT show loading spinner
+    expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
+  });
+
+  it('shows sunlight loading when 3D has buildings and sunlight pending', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Loading sunlight...')).toBeInTheDocument();
+    });
   });
 });

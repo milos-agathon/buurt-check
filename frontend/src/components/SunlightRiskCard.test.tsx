@@ -15,11 +15,12 @@ function renderCard(
   sunlight?: ReturnType<typeof makeSunlightResult>,
   loading = false,
   lang: 'en' | 'nl' = 'en',
+  unavailable = false,
 ) {
   const i18n = lang === 'en' ? i18nEn : i18nNl;
   return render(
     <I18nextProvider i18n={i18n}>
-      <SunlightRiskCard sunlight={sunlight} loading={loading} />
+      <SunlightRiskCard sunlight={sunlight} loading={loading} unavailable={unavailable} />
     </I18nextProvider>,
   );
 }
@@ -88,5 +89,17 @@ describe('SunlightRiskCard', () => {
   it('still uses winter hours for risk classification', () => {
     renderCard(makeSunlightResult({ winter: 1, annualAverage: 8.0 }));
     expect(screen.getByText('High risk')).toBeInTheDocument();
+  });
+
+  it('shows unavailable message when no 3D context', () => {
+    renderCard(undefined, false, 'en', true);
+    expect(screen.getByText('Sunlight Analysis')).toBeInTheDocument();
+    expect(screen.getByText(/No 3D building context available/)).toBeInTheDocument();
+  });
+
+  it('shows unavailable message in Dutch', () => {
+    renderCard(undefined, false, 'nl', true);
+    expect(screen.getByText('Zonlichtanalyse')).toBeInTheDocument();
+    expect(screen.getByText(/Geen 3D-gebouwcontext beschikbaar/)).toBeInTheDocument();
   });
 });

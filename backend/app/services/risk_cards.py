@@ -547,11 +547,11 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
             level, value, signal = _classify_heat_from_properties(props or {}, layer)
             if level == RiskLevel.unavailable:
                 continue
-            heat_level = level
-            heat_value = value
-            heat_signal = signal
-            heat_layer_used = layer
-            break
+            if _level_rank(level) > _level_rank(heat_level):
+                heat_level = level
+                heat_value = value
+                heat_signal = signal
+                heat_layer_used = layer
 
         water_level = RiskLevel.unavailable
         water_value: float | None = None
@@ -567,11 +567,11 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
             level, value, signal = _classify_water_from_properties(props or {})
             if level == RiskLevel.unavailable:
                 continue
-            water_level = level
-            water_value = value
-            water_signal = signal
-            water_layer_used = layer
-            break
+            if _level_rank(level) > _level_rank(water_level):
+                water_level = level
+                water_value = value
+                water_signal = signal
+                water_layer_used = layer
 
         overall = _max_level([heat_level, water_level])
 
