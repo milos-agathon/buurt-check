@@ -4,6 +4,8 @@ import pytest
 
 from app.models.risk import AirQualityRiskCard, ClimateStressRiskCard, NoiseRiskCard, RiskLevel
 from app.services.risk_cards import (
+    _CLIMATE_HEAT_LAYERS,
+    _CLIMATE_WATER_LAYERS,
     _classify_heat_from_properties,
     _classify_water_from_properties,
     _risk_from_threshold,
@@ -21,10 +23,22 @@ def test_risk_from_threshold():
 
 def test_select_noise_layer_prefers_latest_date():
     layers = [
-        "rivm_20180205_g_geluidkaart_lden_wegverkeer",
-        "rivm_20191112_g_geluidkaart_lden_wegverkeer",
+        "rivm_20220601_Geluid_lden_wegverkeer_2020",
+        "rivm_20250101_Geluid_lden_wegverkeer_2022",
+        "other_layer",
     ]
-    assert _select_noise_layer(layers) == "rivm_20191112_g_geluidkaart_lden_wegverkeer"
+    assert _select_noise_layer(layers) == "rivm_20250101_Geluid_lden_wegverkeer_2022"
+
+
+def test_select_noise_layer_matches_real_rivm_names():
+    """Real RIVM ALO names use Geluid_lden_wegverkeer_YYYY pattern."""
+    layers = [
+        "rivm_20220601_Geluid_lden_wegverkeer_2020",
+        "rivm_20250101_Geluid_lden_wegverkeer_2022",
+        "rivm_Geluid_lden_wegverkeer_actueel",
+        "rivm_20250101_Geluid_lnight_wegverkeer_2022",
+    ]
+    assert _select_noise_layer(layers) == "rivm_20250101_Geluid_lden_wegverkeer_2022"
 
 
 def test_select_air_layer_prefers_latest_year():
@@ -57,6 +71,28 @@ def test_classify_water_from_gridcode():
     assert level == RiskLevel.medium
     assert value == 2
     assert signal == "GRIDCODE"
+
+
+def test_classify_water_from_klasse_20():
+    level, value, signal = _classify_water_from_properties({"klasse_20": 3})
+    assert level == RiskLevel.high
+    assert value == 3
+    assert signal == "klasse_20"
+
+
+def test_climate_heat_layers_include_national_first():
+    first_layer, _ = _CLIMATE_HEAT_LAYERS[0]
+    assert first_layer.startswith("wpn:")
+
+
+def test_climate_water_layers_include_national():
+    national = [layer for layer, _ in _CLIMATE_WATER_LAYERS if layer.startswith("wpn:")]
+    assert len(national) >= 1
+
+
+def test_climate_water_layers_start_with_broad_coverage_layer():
+    first_layer, _ = _CLIMATE_WATER_LAYERS[0]
+    assert first_layer == "mra_klimaatatlas:1826_mra_overstromingskans_20cm"
 
 
 @pytest.mark.asyncio

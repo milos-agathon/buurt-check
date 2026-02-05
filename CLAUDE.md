@@ -186,7 +186,7 @@ buurt-check/
       models/        # Pydantic models (address.py, building.py, neighborhood.py)
       config.py      # Settings via pydantic-settings
       main.py        # FastAPI app entry point
-    tests/           # pytest tests (73 tests)
+    tests/           # pytest tests (91 tests + 5 live smoke tests)
   frontend/          # React application (Vite + TypeScript)
     src/
       components/    # F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle
@@ -201,16 +201,16 @@ buurt-check/
 
 ## Current project status
 
-**Stage: F1 + F2 implemented and validated. Moving to F3.**
+**Stage: F1 + F2 + F3 implemented. F3 hardening in progress.**
 
 ### What exists
-- `backend/` — FastAPI app with address suggest, lookup, building facts, and 3D neighborhood endpoints. BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration with dual-fetch strategy (direct target + bbox surrounding). Redis cache with circuit breaker. 73 passing tests (14 api + 15 bag + 5 cache + 10 locatieserver + 10 models + 19 three_d_bag).
-- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification), OverlayControls (noise/air/climate stubs). 98 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
+- `backend/` — FastAPI app with address suggest, lookup, building facts, 3D neighborhood endpoints, and F3 risk-card endpoint (`/api/address/{vbo_id}/risks`) for noise/air/climate. BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration uses dual-fetch strategy (direct target + bbox surrounding). Redis cache with circuit breaker. 91 passing tests + 5 live smoke tests (deselected by default).
+- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification). F3: RiskCardsPanel (noise, air quality, climate stress) with full EN/NL copy and source+date display. 104 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
 - `docs/prd.md` — v1.1, fully restructured with 13 sections
 
 ### What's next
-- Maintain quality gates: `ruff check`, backend pytest (73+), frontend vitest (98+), `npm run build`, Playwright E2E smoke.
-- Implement F3 risk cards (noise, air quality, climate stress). Note: RIVM noise WMS is NOT at the `alo` endpoint — that's green/livability. Locate the correct noise endpoint.
+- Maintain quality gates: `ruff check`, backend pytest (91+, excluding live), frontend vitest (104+), `npm run build`, Playwright E2E smoke.
+- F3 risk cards are implemented; continue hardening live-data reliability (noise-layer matching, climate layer coverage, live smoke checks).
 - Implement F4 neighborhood stats (CBS Wijken & Buurten).
 
 ## Learnings from development sessions (2026-01-30)
@@ -287,7 +287,7 @@ buurt-check/
 1. **Run `ruff check` before committing backend changes.** Config is in `pyproject.toml`: line-length 100, rules E/F/I/W. Import sort order matters (I rules).
 2. **Run `npm run build` before committing frontend changes.** TypeScript strict mode is on (`noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`). The build will catch type errors that the dev server ignores.
 3. **Do not hardcode external URLs in service files.** All external API base URLs go in `config.py` as `pydantic-settings` fields. Services import `settings` and use the config values.
-4. **Test count baselines.** Backend: 73 tests. Frontend: 98 tests. Any change must maintain or increase these numbers.
+4. **Test count baselines.** Backend: 91 non-live tests (+5 live smoke tests). Frontend: 104 tests. Any change must maintain or increase these numbers.
 
 ### Frontend patterns established
 
@@ -385,4 +385,4 @@ Risk uses **winter solstice hours only** (worst case), not annual average. 12-mo
 
 ### RIVM WMS endpoint correction
 
-The noise data is NOT at `https://data.rivm.nl/geo/alo/wms` — that endpoint contains green/livability layers. The correct noise endpoint needs to be located for F3. The `gcn` endpoint is confirmed for air quality (PM2.5, NO2).
+**RIVM noise layers ARE at** `https://data.rivm.nl/geo/alo/wms`. The GetCapabilities document is large, and noise layers appear deep in the layer list. Live naming pattern: `rivm_{YYYYMMDD}_Geluid_lden_wegverkeer_{YYYY}` (for example `rivm_20250101_Geluid_lden_wegverkeer_2022`) plus an `rivm_Geluid_lden_wegverkeer_actueel` variant. The `gcn` endpoint remains the correct source for air quality (PM2.5, NO2).

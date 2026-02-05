@@ -17,6 +17,7 @@ from app.models.risk import (
 )
 
 _client: httpx.AsyncClient | None = None
+_client_loop_id: int | None = None
 
 _alo_layers_cache: tuple[float, list[str]] | None = None
 _gcn_layers_cache: tuple[float, list[str]] | None = None
@@ -26,7 +27,9 @@ _LAYER_CACHE_TTL_SECONDS = 24 * 60 * 60
 
 # Klimaateffectatlas is highly regional; keep this to 10 curated layers only (PRD guidance).
 _CLIMATE_HEAT_LAYERS: list[tuple[str, str]] = [
+    # National raster coverage
     ("wpn:s0149_hittestress_warme_nachten_huidig", "raster"),
+    # Regional enrichments
     ("zh:1821_pzh_ouderenenhitte", "vector"),
     ("twn_klimaatatlas:1830_twn_hitte_percentage_ouderen", "vector"),
     ("maastricht_klimaatatlas:1811_maastricht_hitte_urgentiekaart", "vector"),
@@ -34,18 +37,23 @@ _CLIMATE_HEAT_LAYERS: list[tuple[str, str]] = [
 ]
 
 _CLIMATE_WATER_LAYERS: list[tuple[str, str]] = [
+    # National-ish polygon layer with broad NL coverage
+    ("mra_klimaatatlas:1826_mra_overstromingskans_20cm", "vector"),
+    # National `wpn:` fallback for compatibility with existing atlas namespace
+    ("wpn:s0149_wateroverlast_wpn", "vector"),
+    # Regional enrichments
     ("etten:gr1_t100", "vector"),
     ("mra_klimaatatlas:1826_mra_begaanbaarheid_wegen_70mm", "vector"),
     ("rotterdam_klimaatatlas:1842_rotterdam_begaanbaarheid_wegen", "vector"),
-    ("twn_klimaatatlas:1830_twn_begaanbaarheid_wegen_nens_70mm", "vector"),
-    ("maastricht_klimaatatlas:1811_maastricht_begaanbaarheid_wegen2024", "vector"),
 ]
 
 
 def _get_client() -> httpx.AsyncClient:
-    global _client
-    if _client is None or _client.is_closed:
+    global _client, _client_loop_id
+    loop_id = id(asyncio.get_running_loop())
+    if _client is None or _client.is_closed or _client_loop_id != loop_id:
         _client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=4.0))
+        _client_loop_id = loop_id
     return _client
 
 
@@ -231,7 +239,7 @@ def _extract_numeric(
 
 
 def _select_noise_layer(layer_names: list[str]) -> str | None:
-    pattern = re.compile(r"^rivm_(\d{8})_g_geluidkaart_lden_wegverkeer$")
+    pattern = re.compile(r"^rivm_(\d{8})_[Gg]eluid_lden_wegverkeer_\d{4}$")
     matches: list[tuple[str, str]] = []
     for layer in set(layer_names):
         m = pattern.match(layer)
@@ -243,8 +251,11 @@ def _select_noise_layer(layer_names: list[str]) -> str | None:
 
     fallback = [
         layer for layer in set(layer_names)
-        if "geluidkaart_lden_wegverkeer" in layer.lower()
+        if "geluid_lden_wegverkeer" in layer.lower()
     ]
+    dated = [layer for layer in fallback if re.search(r"\d{8}", layer)]
+    if dated:
+        return sorted(dated)[-1]
     return sorted(fallback)[-1] if fallback else None
 
 
@@ -329,6 +340,28 @@ def _classify_water_from_properties(
             return RiskLevel.medium, None, value
         if "begaanbaar" in text:
             return RiskLevel.low, None, value
+
+    for key in ("klasse_20", "klasse_50", "klasse_200", "klasse_0"):
+        value = props.get(key)
+        if not isinstance(value, (int, float)):
+            continue
+        klasse = float(value)
+        if klasse <= 1:
+            return RiskLevel.low, klasse, key
+        if klasse <= 2:
+            return RiskLevel.medium, klasse, key
+        return RiskLevel.high, klasse, key
+
+    for key in ("overstromi", "overstro_1", "overstro_2", "overstro_3"):
+        value = props.get(key)
+        if not isinstance(value, (int, float)):
+            continue
+        numeric = float(value)
+        if numeric <= 0:
+            return RiskLevel.low, numeric, key
+        if numeric <= 1:
+            return RiskLevel.medium, numeric, key
+        return RiskLevel.high, numeric, key
 
     label_text = " ".join(
         str(v).lower() for v in props.values() if isinstance(v, str)

@@ -23,6 +23,10 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "-m \"not live\""
+markers = [
+    "live: tests that require network access to external APIs",
+]
 
 [tool.ruff]
 line-length = 100
