@@ -5,7 +5,7 @@ from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
 from app.models.neighborhood3d import Neighborhood3DResponse
-from app.models.risk import RiskCardsResponse
+from app.models.risk import RiskCardsResponse, RiskLevel
 from app.services import bag, locatieserver, risk_cards, three_d_bag
 
 router = APIRouter(prefix="/address", tags=["address"])
@@ -140,16 +140,26 @@ async def address_risk_cards(
     if cached is not None:
         return RiskCardsResponse(**cached)
 
-    result = await risk_cards.get_risk_cards(
-        vbo_id=vbo_id,
-        rd_x=rd_x,
-        rd_y=rd_y,
-        lat=lat,
-        lng=lng,
+    try:
+        result = await risk_cards.get_risk_cards(
+            vbo_id=vbo_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            lat=lat,
+            lng=lng,
+        )
+    except Exception:
+        raise HTTPException(status_code=502, detail="Risk card data sources unavailable")
+
+    has_data = (
+        result.noise.level != RiskLevel.unavailable
+        or result.air_quality.level != RiskLevel.unavailable
+        or result.climate_stress.level != RiskLevel.unavailable
     )
-    await cache_set(
-        cache_key,
-        result.model_dump(),
-        ttl=settings.cache_ttl_risk_cards,
-    )
+    if has_data:
+        await cache_set(
+            cache_key,
+            result.model_dump(),
+            ttl=settings.cache_ttl_risk_cards,
+        )
     return result

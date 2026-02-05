@@ -365,3 +365,63 @@ async def test_risk_cards_invalid_vbo_id(client):
         },
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_risk_cards_returns_502_on_unhandled_exception(
+    mock_cache_set, mock_cache_get, client,
+):
+    """If get_risk_cards() raises unexpectedly, endpoint returns 502."""
+    with patch(
+        "app.api.address.risk_cards.get_risk_cards",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("WMS connection pool exhausted"),
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/risks",
+            params={"rd_x": "121286", "rd_y": "487296", "lat": "52.372", "lng": "4.892"},
+        )
+    assert resp.status_code == 502
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_risk_cards_does_not_cache_all_unavailable(
+    mock_cache_set, mock_cache_get, client,
+):
+    """When all three cards are unavailable, result is NOT cached."""
+    all_unavailable = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.unavailable,
+            source="RIVM",
+            sampled_at="2026-02-05",
+            message="fail",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.unavailable,
+            source="RIVM",
+            sampled_at="2026-02-05",
+            message="fail",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.unavailable,
+            source="KA",
+            sampled_at="2026-02-05",
+            message="fail",
+        ),
+    )
+    with patch(
+        "app.api.address.risk_cards.get_risk_cards",
+        new_callable=AsyncMock,
+        return_value=all_unavailable,
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/risks",
+            params={"rd_x": "121286", "rd_y": "487296", "lat": "52.372", "lng": "4.892"},
+        )
+    assert resp.status_code == 200
+    mock_cache_set.assert_not_called()
