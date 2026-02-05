@@ -1,4 +1,10 @@
-import type { SuggestResponse, ResolvedAddress, BuildingFactsResponse, Neighborhood3DResponse } from '../types/api';
+import type {
+  BuildingFactsResponse,
+  Neighborhood3DResponse,
+  ResolvedAddress,
+  RiskCardsResponse,
+  SuggestResponse,
+} from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
@@ -55,4 +61,22 @@ export async function getNeighborhood3D(
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+export async function getRiskCards(
+  vboId: string,
+  rdX: number,
+  rdY: number,
+  lat: number,
+  lng: number,
+): Promise<RiskCardsResponse> {
+  const params = new URLSearchParams({
+    rd_x: String(rdX),
+    rd_y: String(rdY),
+    lat: String(lat),
+    lng: String(lng),
+  });
+  const resp = await fetch(`${API_BASE}/address/${vboId}/risks?${params}`);
+  if (!resp.ok) throw new Error(`Risk cards failed: ${resp.status}`);
+  return resp.json();
 }

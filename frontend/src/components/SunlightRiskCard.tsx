@@ -28,6 +28,7 @@ export default function SunlightRiskCard({ sunlight, loading }: Props) {
   if (!sunlight) return null;
 
   const risk = getRiskLevel(sunlight.winter);
+  const sourceDate = sunlight.analysisYear ? String(sunlight.analysisYear) : t('sunlight.currentYear');
 
   return (
     <div className="sunlight-card">
@@ -65,7 +66,7 @@ export default function SunlightRiskCard({ sunlight, loading }: Props) {
       </table>
 
       <p className="sunlight-card__tip">{t('sunlight.viewingTip')}</p>
-      <p className="sunlight-card__source">{t('sunlight.source')}</p>
+      <p className="sunlight-card__source">{t('sunlight.sourceWithDate', { date: sourceDate })}</p>
     </div>
   );
 }

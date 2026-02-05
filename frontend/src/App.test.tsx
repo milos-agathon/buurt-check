@@ -1,13 +1,21 @@
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import App from './App';
-import { setupTestI18n, makeSuggestion, makeResolvedAddress, makeBuildingResponse, makeNeighborhood3DResponse } from './test/helpers';
+import {
+  makeBuildingResponse,
+  makeNeighborhood3DResponse,
+  makeResolvedAddress,
+  makeRiskCardsResponse,
+  makeSuggestion,
+  setupTestI18n,
+} from './test/helpers';
 
 vi.mock('./services/api', () => ({
   suggestAddresses: vi.fn(),
   lookupAddress: vi.fn(),
   getBuildingFacts: vi.fn(),
   getNeighborhood3D: vi.fn(),
+  getRiskCards: vi.fn(),
 }));
 
 vi.mock('react-leaflet', () => ({
@@ -28,11 +36,18 @@ vi.mock('./components/SunlightRiskCard', () => ({
   ),
 }));
 
-import { lookupAddress, getBuildingFacts, suggestAddresses, getNeighborhood3D } from './services/api';
+vi.mock('./components/RiskCardsPanel', () => ({
+  default: ({ loading }: { loading?: boolean }) => (
+    <div data-testid="risk-cards">{loading ? 'Loading risk cards...' : 'Risk cards'}</div>
+  ),
+}));
+
+import { lookupAddress, getBuildingFacts, suggestAddresses, getNeighborhood3D, getRiskCards } from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
 const mockBuilding = vi.mocked(getBuildingFacts);
 const mockSuggest = vi.mocked(suggestAddresses);
 const mockNeighborhood3D = vi.mocked(getNeighborhood3D);
+const mockRiskCards = vi.mocked(getRiskCards);
 
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -45,6 +60,8 @@ beforeEach(() => {
   mockBuilding.mockReset();
   mockSuggest.mockReset();
   mockNeighborhood3D.mockReset();
+  mockRiskCards.mockReset();
+  mockRiskCards.mockResolvedValue(makeRiskCardsResponse());
 });
 
 function renderApp() {
@@ -109,6 +126,9 @@ describe('address selection flow', () => {
     await waitFor(() => {
       expect(mockBuilding).toHaveBeenCalledWith('vbo-123');
     });
+    await waitFor(() => {
+      expect(mockRiskCards).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('shows loading state while fetching', async () => {
@@ -119,6 +139,19 @@ describe('address selection flow', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Loading building facts...')).toBeInTheDocument();
+    });
+  });
+
+  it('shows risk loading state while risk cards are fetching', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockRiskCards.mockReturnValue(new Promise(() => {}));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Loading risk cards...')).toBeInTheDocument();
     });
   });
 

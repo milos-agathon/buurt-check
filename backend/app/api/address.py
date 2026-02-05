@@ -5,7 +5,8 @@ from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
 from app.models.neighborhood3d import Neighborhood3DResponse
-from app.services import bag, locatieserver, three_d_bag
+from app.models.risk import RiskCardsResponse
+from app.services import bag, locatieserver, risk_cards, three_d_bag
 
 router = APIRouter(prefix="/address", tags=["address"])
 
@@ -122,4 +123,33 @@ async def neighborhood_3d(
         await cache_set(
             cache_key, result.model_dump(), ttl=settings.cache_ttl_neighborhood_3d,
         )
+    return result
+
+
+@router.get("/{vbo_id}/risks", response_model=RiskCardsResponse)
+async def address_risk_cards(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    lat: float = Query(...),
+    lng: float = Query(...),
+):
+    """Fetch F3 risk cards (noise, air quality, climate stress)."""
+    cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return RiskCardsResponse(**cached)
+
+    result = await risk_cards.get_risk_cards(
+        vbo_id=vbo_id,
+        rd_x=rd_x,
+        rd_y=rd_y,
+        lat=lat,
+        lng=lng,
+    )
+    await cache_set(
+        cache_key,
+        result.model_dump(),
+        ttl=settings.cache_ttl_risk_cards,
+    )
     return result

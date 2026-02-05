@@ -7,6 +7,13 @@ import app.cache.redis as cache_module
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.models.building import BuildingFacts
 from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
+from app.models.risk import (
+    AirQualityRiskCard,
+    ClimateStressRiskCard,
+    NoiseRiskCard,
+    RiskCardsResponse,
+    RiskLevel,
+)
 
 
 @pytest.mark.asyncio
@@ -294,3 +301,67 @@ async def test_neighborhood_3d_does_not_cache_empty_response(
     )
     assert resp.status_code == 200
     mock_cache_set.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.risk_cards")
+async def test_risk_cards_endpoint(mock_risk_cards, mock_cache_set, mock_cache_get, client):
+    mock_risk_cards.get_risk_cards = AsyncMock(
+        return_value=RiskCardsResponse(
+            address_id="0363010000696734",
+            noise=NoiseRiskCard(
+                level=RiskLevel.medium,
+                lden_db=61.3,
+                source="RIVM / Atlas Leefomgeving WMS",
+                sampled_at="2026-02-05",
+            ),
+            air_quality=AirQualityRiskCard(
+                level=RiskLevel.medium,
+                pm25_ug_m3=8.8,
+                no2_ug_m3=19.1,
+                pm25_level=RiskLevel.medium,
+                no2_level=RiskLevel.medium,
+                source="RIVM GCN WMS",
+                sampled_at="2026-02-05",
+            ),
+            climate_stress=ClimateStressRiskCard(
+                level=RiskLevel.low,
+                heat_level=RiskLevel.low,
+                water_level=RiskLevel.low,
+                source="Klimaateffectatlas WMS/WFS",
+                sampled_at="2026-02-05",
+            ),
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/risks",
+        params={
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["noise"]["level"] == "medium"
+    assert data["air_quality"]["pm25_ug_m3"] == 8.8
+    assert data["climate_stress"]["level"] == "low"
+    mock_cache_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_risk_cards_invalid_vbo_id(client):
+    resp = await client.get(
+        "/api/address/not-valid/risks",
+        params={
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+    assert resp.status_code == 422

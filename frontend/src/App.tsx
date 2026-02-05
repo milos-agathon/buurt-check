@@ -7,12 +7,14 @@ import LanguageToggle from './components/LanguageToggle';
 import NeighborhoodViewer3D from './components/NeighborhoodViewer3D';
 import SunlightRiskCard from './components/SunlightRiskCard';
 import ShadowSnapshots from './components/ShadowSnapshots';
-import { lookupAddress, getBuildingFacts, getNeighborhood3D } from './services/api';
+import RiskCardsPanel from './components/RiskCardsPanel';
+import { lookupAddress, getBuildingFacts, getNeighborhood3D, getRiskCards } from './services/api';
 import type {
   AddressSuggestion,
   ResolvedAddress,
   BuildingFactsResponse,
   Neighborhood3DResponse,
+  RiskCardsResponse,
   SunlightResult,
   ShadowSnapshot,
 } from './types/api';
@@ -24,6 +26,8 @@ function App() {
   const [buildingResponse, setBuildingResponse] = useState<BuildingFactsResponse | null>(null);
   const [neighborhood3D, setNeighborhood3D] = useState<Neighborhood3DResponse | null>(null);
   const [neighborhood3DLoading, setNeighborhood3DLoading] = useState(false);
+  const [riskCards, setRiskCards] = useState<RiskCardsResponse | null>(null);
+  const [riskLoading, setRiskLoading] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(null);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,6 +40,8 @@ function App() {
     setBuildingResponse(null);
     setNeighborhood3D(null);
     setNeighborhood3DLoading(false);
+    setRiskCards(null);
+    setRiskLoading(false);
     setSunlight(null);
     setShadowSnapshots(null);
     const requestId = ++neighborhood3DRequestId.current;
@@ -45,6 +51,30 @@ function App() {
       setAddress(resolved);
 
       const vboId = resolved.adresseerbaar_object_id;
+      const { rd_x, rd_y, latitude, longitude } = resolved;
+      if (vboId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
+        setRiskLoading(true);
+        void (async () => {
+          try {
+            const risks = await getRiskCards(
+              vboId,
+              rd_x,
+              rd_y,
+              latitude,
+              longitude,
+            );
+            if (neighborhood3DRequestId.current === requestId) {
+              setRiskCards(risks);
+              setRiskLoading(false);
+            }
+          } catch {
+            if (neighborhood3DRequestId.current === requestId) {
+              setRiskLoading(false);
+            }
+          }
+        })();
+      }
+
       if (vboId) {
         const building = await getBuildingFacts(vboId);
         setBuildingResponse(building);
@@ -52,7 +82,6 @@ function App() {
 
         // Fire 3D fetch in background (non-blocking, does not delay building facts)
         const pandId = building.building?.pand_id;
-        const { rd_x, rd_y, latitude, longitude } = resolved;
         if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
           setNeighborhood3DLoading(true);
           void (async () => {
@@ -127,6 +156,13 @@ function App() {
             center={neighborhood3D.center}
             onSunlightAnalysis={setSunlight}
             onShadowSnapshots={setShadowSnapshots}
+          />
+        )}
+
+        {(riskLoading || riskCards) && (
+          <RiskCardsPanel
+            risks={riskCards ?? undefined}
+            loading={riskLoading}
           />
         )}
 

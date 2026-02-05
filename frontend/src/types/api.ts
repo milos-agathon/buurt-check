@@ -77,10 +77,60 @@ export interface SunlightResult {
   equinox: number;
   summer: number;
   annualAverage: number;
+  analysisYear?: number;
 }
 
 export interface ShadowSnapshot {
   label: string;
   hour: number;
   dataUrl: string;
+}
+
+export type RiskLevel = 'low' | 'medium' | 'high' | 'unavailable';
+
+export interface NoiseRiskCard {
+  level: RiskLevel;
+  lden_db?: number;
+  source: string;
+  source_date?: string;
+  sampled_at: string;
+  layer?: string;
+  message?: string;
+}
+
+export interface AirQualityRiskCard {
+  level: RiskLevel;
+  pm25_ug_m3?: number;
+  no2_ug_m3?: number;
+  pm25_level: RiskLevel;
+  no2_level: RiskLevel;
+  source: string;
+  source_date?: string;
+  sampled_at: string;
+  pm25_layer?: string;
+  no2_layer?: string;
+  message?: string;
+}
+
+export interface ClimateStressRiskCard {
+  level: RiskLevel;
+  heat_value?: number;
+  heat_level: RiskLevel;
+  water_value?: number;
+  water_level: RiskLevel;
+  source: string;
+  source_date?: string;
+  sampled_at: string;
+  heat_layer?: string;
+  water_layer?: string;
+  heat_signal?: string;
+  water_signal?: string;
+  message?: string;
+}
+
+export interface RiskCardsResponse {
+  address_id: string;
+  noise: NoiseRiskCard;
+  air_quality: AirQualityRiskCard;
+  climate_stress: ClimateStressRiskCard;
 }

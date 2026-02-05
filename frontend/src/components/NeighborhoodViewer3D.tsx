@@ -317,6 +317,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       equinox: monthlyHours[EQUINOX_IDX],
       summer: monthlyHours[SUMMER_IDX],
       annualAverage,
+      analysisYear: year,
     });
   }, [buildings, targetPandId, center.lat, center.lng, onSunlightAnalysis]);
 

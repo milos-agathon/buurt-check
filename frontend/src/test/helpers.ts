@@ -8,6 +8,7 @@ import type {
   BuildingFacts,
   BuildingFactsResponse,
   Neighborhood3DResponse,
+  RiskCardsResponse,
   SunlightResult,
 } from '../types/api';
 
@@ -111,6 +112,43 @@ export function makeSunlightResult(overrides: Partial<SunlightResult> = {}): Sun
     equinox: 7.0,
     summer: 11.0,
     annualAverage: 7.0,
+    analysisYear: 2026,
+    ...overrides,
+  };
+}
+
+export function makeRiskCardsResponse(
+  overrides: Partial<RiskCardsResponse> = {},
+): RiskCardsResponse {
+  return {
+    address_id: 'vbo-123',
+    noise: {
+      level: 'medium',
+      lden_db: 60.5,
+      source: 'RIVM / Atlas Leefomgeving WMS',
+      source_date: '2019-11-12',
+      sampled_at: '2026-02-05',
+    },
+    air_quality: {
+      level: 'medium',
+      pm25_ug_m3: 8.6,
+      no2_ug_m3: 18.2,
+      pm25_level: 'medium',
+      no2_level: 'medium',
+      source: 'RIVM GCN WMS',
+      source_date: '2024',
+      sampled_at: '2026-02-05',
+    },
+    climate_stress: {
+      level: 'low',
+      heat_value: 0.64,
+      heat_level: 'low',
+      water_value: 1,
+      water_level: 'low',
+      source: 'Klimaateffectatlas WMS/WFS',
+      source_date: '2026-02-05',
+      sampled_at: '2026-02-05',
+    },
     ...overrides,
   };
 }

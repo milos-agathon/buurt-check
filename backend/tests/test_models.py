@@ -1,6 +1,13 @@
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.models.building import BuildingFacts, BuildingFactsResponse
 from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
+from app.models.risk import (
+    AirQualityRiskCard,
+    ClimateStressRiskCard,
+    NoiseRiskCard,
+    RiskCardsResponse,
+    RiskLevel,
+)
 
 
 def test_address_suggestion_minimal():
@@ -126,3 +133,82 @@ def test_neighborhood_3d_response():
     assert len(resp.buildings) == 1
     assert resp.center.lat == 52.372
     assert resp.message is None
+
+
+def test_noise_risk_card():
+    card = NoiseRiskCard(
+        level=RiskLevel.medium,
+        lden_db=61.2,
+        source="RIVM / Atlas Leefomgeving WMS",
+        source_date="2019-11-12",
+        sampled_at="2026-02-05",
+        layer="rivm_20191112_g_geluidkaart_lden_wegverkeer",
+    )
+    assert card.level == RiskLevel.medium
+    assert card.lden_db == 61.2
+
+
+def test_air_quality_risk_card():
+    card = AirQualityRiskCard(
+        level=RiskLevel.high,
+        pm25_ug_m3=11.2,
+        no2_ug_m3=26.8,
+        pm25_level=RiskLevel.high,
+        no2_level=RiskLevel.high,
+        source="RIVM GCN WMS",
+        source_date="2024",
+        sampled_at="2026-02-05",
+        pm25_layer="conc_PM25_2024",
+        no2_layer="conc_NO2_2024",
+    )
+    assert card.level == RiskLevel.high
+    assert card.pm25_level == RiskLevel.high
+    assert card.no2_level == RiskLevel.high
+
+
+def test_climate_stress_risk_card():
+    card = ClimateStressRiskCard(
+        level=RiskLevel.medium,
+        heat_value=0.71,
+        heat_level=RiskLevel.medium,
+        water_value=2.0,
+        water_level=RiskLevel.medium,
+        source="Klimaateffectatlas WMS/WFS",
+        source_date="2026-02-05",
+        sampled_at="2026-02-05",
+        heat_layer="wpn:s0149_hittestress_warme_nachten_huidig",
+        water_layer="etten:gr1_t100",
+    )
+    assert card.level == RiskLevel.medium
+    assert card.heat_level == RiskLevel.medium
+    assert card.water_level == RiskLevel.medium
+
+
+def test_risk_cards_response():
+    resp = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=49.3,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.medium,
+            pm25_ug_m3=8.6,
+            no2_ug_m3=17.5,
+            pm25_level=RiskLevel.medium,
+            no2_level=RiskLevel.medium,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.unavailable,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+    )
+    assert resp.address_id == "0363010000696734"
+    assert resp.noise.level == RiskLevel.low
+    assert resp.air_quality.level == RiskLevel.medium
+    assert resp.climate_stress.level == RiskLevel.unavailable
