@@ -23,7 +23,11 @@
       "Bash(ruff check:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "WebFetch(domain:www.pdok.nl)",
+      "WebFetch(domain:service.pdok.nl)",
+      "Bash(redis-cli:*)",
+      "Bash(docker exec:*)"
     ]
   }
 }

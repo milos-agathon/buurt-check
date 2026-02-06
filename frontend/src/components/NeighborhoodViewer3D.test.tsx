@@ -28,7 +28,7 @@ vi.mock('three', () => {
     this.domElement = mockCanvas;
     this.shadowMap = { enabled: false, type: null };
   }
-  function AmbientLight(this: any) {}
+  function HemisphereLight(this: any) {}
   function DirectionalLight(this: any) {
     this.castShadow = false;
     this.intensity = 0;
@@ -37,18 +37,31 @@ vi.mock('three', () => {
     this.shadow = {
       mapSize: { width: 0, height: 0 },
       camera: { left: 0, right: 0, top: 0, bottom: 0, far: 0, near: 0 },
+      bias: 0,
+      normalBias: 0,
     };
   }
   function PlaneGeometry(this: any) {}
-  function MeshStandardMaterial(this: any) { this.dispose = vi.fn(); }
+  function MeshStandardMaterial(this: any) {
+    this.dispose = vi.fn();
+    this.map = null;
+    this.needsUpdate = false;
+    this.color = { setHex: vi.fn() };
+  }
   function MockMesh(this: any) {
     this.rotation = { x: 0 };
-    this.position = { y: 0 };
+    this.position = { x: 0, y: 0, z: 0, set: vi.fn() };
+    this.scale = { x: 1, y: 1, z: 1, set: vi.fn() };
     this.castShadow = false;
     this.receiveShadow = false;
     this.userData = {};
     this.geometry = { dispose: vi.fn() };
-    this.material = { dispose: vi.fn() };
+    this.material = {
+      dispose: vi.fn(),
+      map: null,
+      needsUpdate: false,
+      color: { setHex: vi.fn() },
+    };
   }
   function Shape(this: any) {
     this.moveTo = vi.fn();
@@ -69,12 +82,21 @@ vi.mock('three', () => {
     this.far = 0;
     this.intersectObjects = vi.fn(() => []);
   }
+  function TextureLoader(this: any) {
+    this.load = vi.fn((_url, onLoad) => {
+      // Simulate successful texture load with mock texture
+      const mockTexture = { colorSpace: null };
+      setTimeout(() => onLoad?.(mockTexture), 0);
+      return mockTexture;
+    });
+  }
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   return {
-    Scene, PerspectiveCamera, WebGLRenderer, AmbientLight, DirectionalLight,
+    Scene, PerspectiveCamera, WebGLRenderer, HemisphereLight, DirectionalLight,
     PlaneGeometry, MeshStandardMaterial, Mesh: MockMesh, Shape, ExtrudeGeometry,
-    Color, PCFSoftShadowMap: 2, Vector3: Vec3, Raycaster,
+    Color, PCFSoftShadowMap: 2, Vector3: Vec3, Raycaster, TextureLoader,
+    DoubleSide: 2, SRGBColorSpace: 'srgb',
   };
 });
 
@@ -85,6 +107,7 @@ vi.mock('three/addons/controls/OrbitControls.js', () => {
     this.maxPolarAngle = 0;
     this.update = vi.fn();
     this.dispose = vi.fn();
+    this.target = { set: vi.fn() };
   }
   return { OrbitControls };
 });

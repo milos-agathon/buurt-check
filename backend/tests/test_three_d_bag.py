@@ -180,49 +180,49 @@ def _make_single_item_response(
 ):
     """Build a 3DBAG single-item response matching the real API shape.
 
-    Real API nests CityObjects/vertices/metadata under a "feature" key.
-    Root-level vertices/metadata are also present but are duplicates.
+    Real API structure (verified against live 3DBAG):
+    - feature.CityObjects, feature.vertices: building data
+    - metadata.transform: transform at ROOT level (NOT inside feature!)
     """
     co_name = f"NL.IMBAG.Pand.{pand_id}"
-    feature_data = {
-        "CityObjects": {
-            co_name: {
-                "type": "Building",
-                "attributes": {
-                    "identificatie": co_name,
-                    "b3_h_maaiveld": h_maaiveld,
-                    "b3_h_dak_max": h_dak_max,
-                    "oorspronkelijkbouwjaar": year,
-                },
-                "geometry": [
-                    {
-                        "lod": "0",
-                        "type": "MultiSurface",
-                        "boundaries": [[[0, 1, 2, 3]]],
-                    }
-                ],
-            }
+    vertices = [
+        [0, 0, 0],
+        [10000, 0, 0],
+        [10000, 10000, 0],
+        [0, 10000, 0],
+    ]
+    return {
+        "type": "CityJSONFeature",
+        "id": co_name,
+        "feature": {
+            "CityObjects": {
+                co_name: {
+                    "type": "Building",
+                    "attributes": {
+                        "identificatie": co_name,
+                        "b3_h_maaiveld": h_maaiveld,
+                        "b3_h_dak_max": h_dak_max,
+                        "oorspronkelijkbouwjaar": year,
+                    },
+                    "geometry": [
+                        {
+                            "lod": "0",
+                            "type": "MultiSurface",
+                            "boundaries": [[[0, 1, 2, 3]]],
+                        }
+                    ],
+                }
+            },
+            "vertices": vertices,
+            # Note: NO metadata inside feature (matches real API)
         },
-        "vertices": [
-            [0, 0, 0],
-            [10000, 0, 0],
-            [10000, 10000, 0],
-            [0, 10000, 0],
-        ],
+        # Transform is at ROOT level metadata
         "metadata": {
             "transform": {
                 "scale": [0.001, 0.001, 0.001],
                 "translate": [121000.0, 487000.0, 0.0],
             }
         },
-    }
-    return {
-        "type": "CityJSONFeature",
-        "id": co_name,
-        "feature": feature_data,
-        # Root-level duplicates (as seen in real API)
-        "vertices": feature_data["vertices"],
-        "metadata": feature_data["metadata"],
     }
 
 
@@ -313,13 +313,13 @@ async def test_get_neighborhood_3d_single_page(mock_get_client):
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
 async def test_get_neighborhood_3d_pagination(mock_get_client):
-    """MAX_PAGES=1 means bbox stops after one page even if next_link exists."""
+    """MAX_PAGES limits bbox fetches even if more next_links exist."""
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
     direct_data = _make_single_item_response()
 
-    # Both buildings on a single page, with a next_link that should NOT be followed
+    # Each page has a next_link; mock returns same page repeatedly
     page1 = _make_3dbag_response(
         [_make_feature("0363100012253924"), _make_feature("0363100099999999", year=2000)],
         next_link="https://api.3dbag.nl/collections/pand/items?offset=1",
@@ -346,9 +346,9 @@ async def test_get_neighborhood_3d_pagination(mock_get_client):
     assert len(result.buildings) == 2
     assert result.target_pand_id == "0363100012253924"
 
-    # Verify page 2 was never fetched: only direct + 1 bbox call = 2 total
+    # Verify fetches respect MAX_PAGES: direct + MAX_PAGES bbox calls
     bbox_calls = [c for c in mock_client.get.call_args_list if "NL.IMBAG.Pand." not in str(c)]
-    assert len(bbox_calls) == 1, f"Expected 1 bbox call (MAX_PAGES=1), got {len(bbox_calls)}"
+    assert len(bbox_calls) == MAX_PAGES, f"Expected {MAX_PAGES} bbox calls, got {len(bbox_calls)}"
 
 
 @pytest.mark.asyncio

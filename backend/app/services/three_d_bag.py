@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 _client: httpx.AsyncClient | None = None
 
-MAX_PAGES = 1
+MAX_PAGES = 3
 BBOX_TIMEOUT = 20.0  # total time budget for bbox fetch (seconds)
 PER_PAGE_TIMEOUT = 20.0  # per-page HTTP timeout (seconds)
 
@@ -109,12 +109,17 @@ async def _fetch_target_building(
     except (httpx.HTTPError, httpx.TimeoutException):
         return None
 
-    # Single-item endpoint returns CityJSONFeature with data nested under "feature" key:
-    # { "type": "CityJSONFeature", "feature": { "CityObjects": {...}, "vertices": [...],
-    #   "metadata": {"transform": {...}} }, "vertices": [...], "metadata": {...} }
-    # Fall back to root for compatibility with older response shapes.
+    # Single-item endpoint returns CityJSONFeature with structure:
+    # { "feature": { "CityObjects": {...}, "vertices": [...] },
+    #   "metadata": { "transform": {...} } }
+    # Transform is at ROOT level metadata, not inside feature!
     inner = data.get("feature", data)
-    transform = inner.get("metadata", {}).get("transform", {})
+    # Try root-level metadata first (correct for single-item endpoint)
+    root_meta = data.get("metadata", {})
+    transform = root_meta.get("transform", {})
+    # Fall back to inner metadata for compatibility
+    if not transform:
+        transform = inner.get("metadata", {}).get("transform", {})
     scale = transform.get("scale", [0.001, 0.001, 0.001])
     translate = transform.get("translate", [0.0, 0.0, 0.0])
     vertices = inner.get("vertices", [])

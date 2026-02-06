@@ -8,11 +8,29 @@ import OverlayControls from './OverlayControls';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
 import './NeighborhoodViewer3D.css';
 
+// Camera preset offsets (relative to target building center) - tight for single building
 const CAMERA_PRESETS: Record<string, [number, number, number]> = {
-  street: [40, 15, 40],
-  balcony: [30, 30, 30],
-  topDown: [0, 200, 0.1],
+  street: [15, 8, 15],
+  balcony: [12, 15, 12],
+  topDown: [0, 50, 0.1],
 };
+
+// Convert lat/lng to Web Mercator tile coordinates and fractional position within tile
+function latLngToTile(lat: number, lng: number, zoom: number) {
+  const n = Math.pow(2, zoom);
+  const xFloat = ((lng + 180) / 360) * n;
+  const latRad = (lat * Math.PI) / 180;
+  const yFloat = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
+
+  const x = Math.floor(xFloat);
+  const y = Math.floor(yFloat);
+
+  // Fractional position within the tile (0-1)
+  const fracX = xFloat - x;
+  const fracY = yFloat - y;
+
+  return { x, y, zoom, fracX, fracY };
+}
 
 interface Props {
   buildings: BuildingBlock[];
@@ -37,7 +55,6 @@ const SUN_DISTANCE = 300;
 const GROUND_SIZE = 500;
 const FRUSTUM = 200;
 const TARGET_COLOR = 0x2563eb;
-const OTHER_COLOR = 0xcccccc;
 
 export default function NeighborhoodViewer3D({ buildings, targetPandId, center, onSunlightAnalysis, onShadowSnapshots }: Props) {
   const { t } = useTranslation();
@@ -54,9 +71,14 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   } | null>(null);
 
   const [hour, setHour] = useState(12);
-  const [datePreset, setDatePreset] = useState('today');
+  const [datePreset, setDatePreset] = useState('summer'); // Default to summer for reliable sun position
   const sunlightComputed = useRef(false);
   const snapshotsCaptured = useRef(false);
+
+  // Camera tracking refs
+  const cameraSetRef = useRef(false);
+  const lastFocusedPandId = useRef<string | null>(null);
+  const targetCenterRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -84,7 +106,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     container.appendChild(renderer.domElement);
 
     // Lights
-    const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+    const ambient = new THREE.HemisphereLight(0xb1e1ff, 0xb97a20, 0.5);
     scene.add(ambient);
 
     const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -97,11 +119,18 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     sunLight.shadow.camera.bottom = -FRUSTUM;
     sunLight.shadow.camera.far = 600;
     sunLight.shadow.camera.near = 1;
+    sunLight.shadow.bias = -0.001;
+    sunLight.shadow.normalBias = 0.02;
     scene.add(sunLight);
+    scene.add(sunLight.target); // Required for shadow rendering
 
-    // Ground plane
+    // Ground plane (neutral color, will be replaced by aerial imagery)
     const groundGeom = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e8 });
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0xd4d4d4,
+      roughness: 0.95,
+      side: THREE.DoubleSide,
+    });
     const ground = new THREE.Mesh(groundGeom, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -163,10 +192,20 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     }
     ctx.buildingMeshes = [];
 
-    // Find min ground height to use as base
-    const minGround = Math.min(...buildings.map((b) => b.ground_height));
+    // Reset camera flag when selecting a new target address
+    if (targetPandId && targetPandId !== lastFocusedPandId.current) {
+      cameraSetRef.current = false;
+      lastFocusedPandId.current = targetPandId;
+    }
 
-    for (const building of buildings) {
+    // Only render target building for now (simplified view)
+    const targetBuilding = targetPandId ? buildings.find((b) => b.pand_id === targetPandId) : null;
+    const buildingsToRender = targetBuilding ? [targetBuilding] : buildings.slice(0, 1);
+
+    // Find min ground height to use as base
+    const minGround = Math.min(...buildingsToRender.map((b) => b.ground_height));
+
+    for (const building of buildingsToRender) {
       const shape = new THREE.Shape();
       const fp = building.footprint;
       if (fp.length < 3) continue;
@@ -182,11 +221,9 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         bevelEnabled: false,
       });
 
-      const isTarget = building.pand_id === targetPandId;
       const mat = new THREE.MeshStandardMaterial({
-        color: isTarget ? TARGET_COLOR : OTHER_COLOR,
-        transparent: !isTarget,
-        opacity: isTarget ? 1.0 : 0.7,
+        color: TARGET_COLOR,
+        side: THREE.DoubleSide, // 3DBAG winding order not guaranteed
       });
 
       const mesh = new THREE.Mesh(geom, mat);
@@ -199,6 +236,34 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
       ctx.scene.add(mesh);
       ctx.buildingMeshes.push(mesh);
+    }
+
+    // Position camera to focus on target building (tight framing for single building)
+    if (!cameraSetRef.current && buildingsToRender.length > 0) {
+      const focusBuilding = buildingsToRender[0];
+
+      const fp = focusBuilding.footprint;
+      const cx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
+      const cy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
+      const xs = fp.map((p) => p[0]);
+      const ys = fp.map((p) => p[1]);
+      const maxSpan = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+
+      const buildingHeight = focusBuilding.building_height;
+      const targetY = focusBuilding.ground_height - minGround + buildingHeight / 2;
+
+      targetCenterRef.current.set(cx, targetY, cy);
+
+      // Tight framing: camera distance based on building size
+      const distance = Math.max(maxSpan * 1.5, buildingHeight * 1.2, 15);
+      const cameraHeight = Math.max(buildingHeight * 1.0, 10);
+
+      ctx.camera.position.set(cx + distance, cameraHeight, cy + distance);
+      ctx.camera.lookAt(cx, targetY, cy);
+      ctx.controls.target.set(cx, targetY, cy);
+      ctx.camera.updateProjectionMatrix();
+
+      cameraSetRef.current = true;
     }
 
     sunlightComputed.current = false;
@@ -235,14 +300,68 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     ctx.sunLight.target.position.set(0, 0, 0);
   }, [hour, datePreset, center.lat, center.lng]);
 
-  // Camera preset handler
+  // Load PDOK street map as ground texture, aligned to building coordinates
+  useEffect(() => {
+    const ctx = sceneRef.current;
+    if (!ctx || !center.lat || !center.lng) return;
+
+    const zoom = 18;
+    const tile = latLngToTile(center.lat, center.lng, zoom);
+    const tileUrl = `https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/${zoom}/${tile.x}/${tile.y}.png`;
+
+    // Calculate tile size in meters at this latitude
+    // Earth circumference at equator = 40075016.686 meters
+    // At zoom 18, there are 2^18 = 262144 tiles around the world
+    // Tile width at equator = 40075016.686 / 262144 ≈ 152.87 meters
+    // At latitude φ, width = equatorWidth * cos(φ)
+    const equatorTileWidth = 40075016.686 / Math.pow(2, zoom);
+    const tileWidthMeters = equatorTileWidth * Math.cos((center.lat * Math.PI) / 180);
+
+    // Scale ground plane to match tile size (GROUND_SIZE is 500m, tile is ~150m)
+    const scaleFactor = tileWidthMeters / GROUND_SIZE;
+    ctx.ground.scale.set(scaleFactor, scaleFactor, 1);
+
+    // Calculate offset from tile center to query point
+    // fracX/fracY are 0-1 within tile, center is at 0.5
+    // WMTS tile Y increases going SOUTH
+    const offsetX = (tile.fracX - 0.5) * tileWidthMeters;
+    const offsetY = (tile.fracY - 0.5) * tileWidthMeters; // positive = south of tile center
+
+    // Move ground plane so the query point aligns with scene origin (0,0,0)
+    // In Three.js: +X is east, +Z is south (Y is up)
+    // Building footprints: +X is east (RD), +Y is north (RD) → maps to +X, -Z in scene
+    // So we need: ground X offset = -offsetX (move tile east if query is west of center)
+    //             ground Z offset = -offsetY (move tile north if query is south of center)
+    ctx.ground.position.set(-offsetX, 0, -offsetY);
+
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      tileUrl,
+      (texture) => {
+        if (!ctx.ground) return;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const material = ctx.ground.material as THREE.MeshStandardMaterial;
+        material.map = texture;
+        material.color.setHex(0xffffff);
+        material.needsUpdate = true;
+      },
+      undefined,
+      () => {
+        // Silently fail — ground stays neutral gray
+      },
+    );
+  }, [center.lat, center.lng]);
+
+  // Camera preset handler — positions relative to target building center
   const setCameraPreset = useCallback((preset: string) => {
     const ctx = sceneRef.current;
     if (!ctx) return;
-    const pos = CAMERA_PRESETS[preset];
-    if (!pos) return;
-    ctx.camera.position.set(pos[0], pos[1], pos[2]);
-    ctx.camera.lookAt(0, 0, 0);
+    const offset = CAMERA_PRESETS[preset];
+    if (!offset) return;
+    const tc = targetCenterRef.current;
+    ctx.camera.position.set(tc.x + offset[0], tc.y + offset[1], tc.z + offset[2]);
+    ctx.camera.lookAt(tc.x, tc.y, tc.z);
+    ctx.controls.target.set(tc.x, tc.y, tc.z);
     ctx.camera.updateProjectionMatrix();
   }, []);
 
