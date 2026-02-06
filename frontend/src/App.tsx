@@ -8,12 +8,14 @@ import NeighborhoodViewer3D from './components/NeighborhoodViewer3D';
 import SunlightRiskCard from './components/SunlightRiskCard';
 import ShadowSnapshots from './components/ShadowSnapshots';
 import RiskCardsPanel from './components/RiskCardsPanel';
-import { lookupAddress, getBuildingFacts, getNeighborhood3D, getRiskCards } from './services/api';
+import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
+import { lookupAddress, getBuildingFacts, getNeighborhood3D, getRiskCards, getNeighborhoodStats } from './services/api';
 import type {
   AddressSuggestion,
   ResolvedAddress,
   BuildingFactsResponse,
   Neighborhood3DResponse,
+  NeighborhoodStatsResponse,
   RiskCardsResponse,
   SunlightResult,
   ShadowSnapshot,
@@ -29,6 +31,9 @@ function App() {
   const [riskCards, setRiskCards] = useState<RiskCardsResponse | null>(null);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState(false);
+  const [neighborhoodStats, setNeighborhoodStats] = useState<NeighborhoodStatsResponse | null>(null);
+  const [neighborhoodStatsLoading, setNeighborhoodStatsLoading] = useState(false);
+  const [neighborhoodStatsError, setNeighborhoodStatsError] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(null);
   const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(null);
@@ -45,6 +50,9 @@ function App() {
     setRiskCards(null);
     setRiskLoading(false);
     setRiskError(false);
+    setNeighborhoodStats(null);
+    setNeighborhoodStatsLoading(false);
+    setNeighborhoodStatsError(false);
     setSunlight(null);
     setSunlightUnavailable(false);
     setShadowSnapshots(null);
@@ -75,6 +83,27 @@ function App() {
             if (neighborhood3DRequestId.current === requestId) {
               setRiskError(true);
               setRiskLoading(false);
+            }
+          }
+        })();
+
+        setNeighborhoodStatsLoading(true);
+        void (async () => {
+          try {
+            const stats = await getNeighborhoodStats(
+              vboId,
+              latitude,
+              longitude,
+              resolved.buurt_code ?? undefined,
+            );
+            if (neighborhood3DRequestId.current === requestId) {
+              setNeighborhoodStats(stats);
+              setNeighborhoodStatsLoading(false);
+            }
+          } catch {
+            if (neighborhood3DRequestId.current === requestId) {
+              setNeighborhoodStatsError(true);
+              setNeighborhoodStatsLoading(false);
             }
           }
         })();
@@ -174,6 +203,14 @@ function App() {
             risks={riskCards ?? undefined}
             loading={riskLoading}
             error={riskError}
+          />
+        )}
+
+        {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
+          <NeighborhoodStatsCard
+            stats={neighborhoodStats ?? undefined}
+            loading={neighborhoodStatsLoading}
+            error={neighborhoodStatsError}
           />
         )}
 

@@ -1,6 +1,7 @@
 import {
   getBuildingFacts,
   getNeighborhood3D,
+  getNeighborhoodStats,
   getRiskCards,
   lookupAddress,
   suggestAddresses,
@@ -158,6 +159,75 @@ describe('getRiskCards', () => {
 
     // Advance past 20s timeout
     vi.advanceTimersByTime(20000);
+
+    // Signal should now be aborted
+    expect(capturedSignal?.aborted).toBe(true);
+
+    vi.useRealTimers();
+    // The promise will never resolve/reject in this test since the mock
+    // never settles, but we've verified the abort signal fires correctly.
+    // Suppress unhandled rejection from the dangling promise.
+    promise.catch(() => {});
+  });
+});
+
+describe('getNeighborhoodStats', () => {
+  it('sends GET with vboId in path and lat/lng params', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1' }));
+    await getNeighborhoodStats('vbo-1', 52.372, 4.892);
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/address/vbo-1/neighborhood?');
+    expect(url).toContain('lat=52.372');
+    expect(url).toContain('lng=4.892');
+  });
+
+  it('includes buurt_code when provided', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1' }));
+    await getNeighborhoodStats('vbo-1', 52.372, 4.892, 'BU0363AD07');
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('buurt_code=BU0363AD07');
+  });
+
+  it('omits buurt_code when not provided', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1' }));
+    await getNeighborhoodStats('vbo-1', 52.372, 4.892);
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).not.toContain('buurt_code');
+  });
+
+  it('throws on non-OK response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(502));
+    await expect(
+      getNeighborhoodStats('vbo-1', 52.372, 4.892),
+    ).rejects.toThrow('Neighborhood stats failed: 502');
+  });
+
+  it('sends AbortSignal for timeout', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1' }));
+    await getNeighborhoodStats('vbo-1', 52.372, 4.892);
+
+    const [, opts] = mockFetch.mock.calls[0];
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('aborts fetch after 15s timeout', async () => {
+    vi.useFakeTimers();
+    let capturedSignal: AbortSignal | null | undefined;
+    mockFetch.mockImplementation((_url: string, opts?: RequestInit) => {
+      capturedSignal = opts?.signal;
+      return new Promise<Response>(() => {});
+    });
+
+    const promise = getNeighborhoodStats('vbo-1', 52.372, 4.892);
+
+    // Before timeout, signal should not be aborted
+    expect(capturedSignal?.aborted).toBe(false);
+
+    // Advance past 15s timeout
+    vi.advanceTimersByTime(15000);
 
     // Signal should now be aborted
     expect(capturedSignal?.aborted).toBe(true);

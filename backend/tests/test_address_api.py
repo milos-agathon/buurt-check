@@ -6,6 +6,13 @@ import pytest
 import app.cache.redis as cache_module
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.models.building import BuildingFacts
+from app.models.neighborhood import (
+    AgeProfile,
+    NeighborhoodIndicator,
+    NeighborhoodStats,
+    NeighborhoodStatsResponse,
+    UrbanizationLevel,
+)
 from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
 from app.models.risk import (
     AirQualityRiskCard,
@@ -481,3 +488,123 @@ async def test_risk_cards_missing_params(client):
     """Missing rd_x/rd_y/lat/lng returns 422."""
     resp = await client.get("/api/address/0363010000696734/risks")
     assert resp.status_code == 422
+
+
+# --- Neighborhood stats endpoint ---
+
+def _make_neighborhood_stats_response() -> NeighborhoodStatsResponse:
+    return NeighborhoodStatsResponse(
+        address_id="0363010000696734",
+        stats=NeighborhoodStats(
+            buurt_code="BU0363AD07",
+            buurt_name="Centrum-Oost",
+            gemeente_name="Amsterdam",
+            population_density=NeighborhoodIndicator(value=15000, unit="per km²"),
+            avg_household_size=NeighborhoodIndicator(value=1.8),
+            single_person_pct=NeighborhoodIndicator(value=55.0, unit="%"),
+            age_profile=AgeProfile(
+                age_0_14=8.0, age_15_24=10.0, age_25_44=40.0,
+                age_45_64=25.0, age_65_plus=17.0,
+            ),
+            owner_occupied_pct=NeighborhoodIndicator(value=35.0, unit="%"),
+            avg_property_value=NeighborhoodIndicator(value=520000, unit="€"),
+            distance_to_train_km=NeighborhoodIndicator(value=0.8, unit="km"),
+            distance_to_supermarket_km=NeighborhoodIndicator(value=0.3, unit="km"),
+            urbanization=UrbanizationLevel.very_urban,
+        ),
+    )
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.cbs")
+async def test_neighborhood_endpoint(mock_cbs, mock_cache_set, mock_cache_get, client):
+    mock_cbs.get_neighborhood_stats = AsyncMock(
+        return_value=_make_neighborhood_stats_response()
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/neighborhood",
+        params={"lat": "52.372", "lng": "4.892", "buurt_code": "BU0363AD07"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["stats"]["buurt_code"] == "BU0363AD07"
+    assert data["stats"]["buurt_name"] == "Centrum-Oost"
+    assert data["stats"]["population_density"]["value"] == 15000
+    mock_cache_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.cbs")
+async def test_neighborhood_caches_by_buurt_code(mock_cbs, mock_cache_set, mock_cache_get, client):
+    mock_cbs.get_neighborhood_stats = AsyncMock(
+        return_value=_make_neighborhood_stats_response()
+    )
+
+    await client.get(
+        "/api/address/0363010000696734/neighborhood",
+        params={"lat": "52.372", "lng": "4.892", "buurt_code": "BU0363AD07"},
+    )
+
+    cache_key = mock_cache_set.call_args[0][0]
+    assert cache_key == "neighborhood:BU0363AD07"
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.cbs")
+async def test_neighborhood_does_not_cache_on_failure(
+    mock_cbs, mock_cache_set, mock_cache_get, client,
+):
+    mock_cbs.get_neighborhood_stats = AsyncMock(
+        return_value=NeighborhoodStatsResponse(
+            address_id="0363010000696734",
+            message="CBS_NO_BUURT_FOUND",
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/neighborhood",
+        params={"lat": "52.372", "lng": "4.892"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["stats"] is None
+    mock_cache_set.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_neighborhood_invalid_vbo_id(client):
+    resp = await client.get(
+        "/api/address/not-valid/neighborhood",
+        params={"lat": "52.372", "lng": "4.892"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_neighborhood_missing_params(client):
+    resp = await client.get("/api/address/0363010000696734/neighborhood")
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_neighborhood_returns_502_on_exception(
+    mock_cache_set, mock_cache_get, client,
+):
+    with patch(
+        "app.api.address.cbs.get_neighborhood_stats",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("CBS connection failed"),
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/neighborhood",
+            params={"lat": "52.372", "lng": "4.892"},
+        )
+    assert resp.status_code == 502

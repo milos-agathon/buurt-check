@@ -1,0 +1,154 @@
+.neighborhood-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.neighborhood-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.neighborhood-card__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.neighborhood-card__subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.neighborhood-card__loading {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.neighborhood-card__error {
+  font-size: 0.875rem;
+  color: #92400e;
+  background: #fef3c7;
+  border-left: 3px solid #f59e0b;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.neighborhood-card__badge {
+  width: fit-content;
+  border-radius: 16px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.neighborhood-card__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.neighborhood-card__group-title {
+  font-size: 0.813rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.neighborhood-card__indicators {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.neighborhood-card__indicator {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.875rem;
+}
+
+.neighborhood-card__indicator-label {
+  color: var(--color-text-muted);
+}
+
+.neighborhood-card__indicator-value {
+  font-weight: 500;
+}
+
+.neighborhood-card__indicator-value--unavailable {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--color-text-muted);
+  font-size: 0.813rem;
+}
+
+.neighborhood-card__age-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.neighborhood-card__age-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.813rem;
+}
+
+.neighborhood-card__age-label {
+  width: 36px;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--color-text-muted);
+}
+
+.neighborhood-card__age-bar-track {
+  flex: 1;
+  height: 14px;
+  background: #f3f4f6;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.neighborhood-card__age-bar-fill {
+  height: 100%;
+  background: #93c5fd;
+  border-radius: 3px;
+  min-width: 1px;
+}
+
+.neighborhood-card__age-pct {
+  width: 36px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.neighborhood-card__question {
+  font-size: 0.813rem;
+  background: #f0f9ff;
+  border-left: 3px solid var(--color-primary);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.neighborhood-card__source {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 600px) {
+  .neighborhood-card__indicators {
+    grid-template-columns: 1fr 1fr;
+  }
+}

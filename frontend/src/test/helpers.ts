@@ -8,6 +8,7 @@ import type {
   BuildingFacts,
   BuildingFactsResponse,
   Neighborhood3DResponse,
+  NeighborhoodStatsResponse,
   RiskCardsResponse,
   SunlightResult,
 } from '../types/api';
@@ -165,4 +166,33 @@ export function makeShadowSnapshots(): ShadowSnapshotData[] {
     { label: 'noon', hour: 12, dataUrl: 'data:image/png;base64,mock' },
     { label: 'evening', hour: 17, dataUrl: 'data:image/png;base64,mock' },
   ];
+}
+
+export function makeNeighborhoodStatsResponse(
+  overrides: Partial<NeighborhoodStatsResponse> = {},
+): NeighborhoodStatsResponse {
+  return {
+    address_id: 'vbo-123',
+    source: 'CBS Wijken & Buurten 2024',
+    source_year: 2024,
+    stats: {
+      buurt_code: 'BU0363AD07',
+      buurt_name: 'Centrum-Oost',
+      gemeente_name: 'Amsterdam',
+      population_density: { value: 15000, unit: 'per km²', available: true },
+      avg_household_size: { value: 1.8, available: true },
+      single_person_pct: { value: 55, unit: '%', available: true },
+      age_profile: {
+        age_0_24: 18,
+        age_25_64: 65,
+        age_65_plus: 17,
+      },
+      owner_occupied_pct: { value: 35, unit: '%', available: true },
+      avg_property_value: { value: 520000, unit: '€', available: true },
+      distance_to_train_km: { value: 0.8, unit: 'km', available: true },
+      distance_to_supermarket_km: { value: 0.3, unit: 'km', available: true },
+      urbanization: 'very_urban',
+    },
+    ...overrides,
+  };
 }

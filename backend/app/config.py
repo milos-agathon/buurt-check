@@ -17,12 +17,16 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379"
 
+    # CBS Wijken & Buurten
+    cbs_wijken_buurten_base: str = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1"
+
     # Cache TTLs (seconds)
     cache_ttl_suggest: int = 3600  # 1 hour
     cache_ttl_lookup: int = 86400  # 24 hours
     cache_ttl_building: int = 86400  # 24 hours
     cache_ttl_neighborhood_3d: int = 86400  # 24 hours
     cache_ttl_risk_cards: int = 604800  # 7 days
+    cache_ttl_neighborhood: int = 2592000  # 30 days
 
     model_config = {"env_prefix": "BUURT_"}
 

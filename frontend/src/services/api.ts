@@ -1,6 +1,7 @@
 import type {
   BuildingFactsResponse,
   Neighborhood3DResponse,
+  NeighborhoodStatsResponse,
   ResolvedAddress,
   RiskCardsResponse,
   SuggestResponse,
@@ -83,6 +84,32 @@ export async function getRiskCards(
       signal: controller.signal,
     });
     if (!resp.ok) throw new Error(`Risk cards failed: ${resp.status}`);
+    return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function getNeighborhoodStats(
+  vboId: string,
+  lat: number,
+  lng: number,
+  buurtCode?: string,
+): Promise<NeighborhoodStatsResponse> {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lng: String(lng),
+  });
+  if (buurtCode) {
+    params.set('buurt_code', buurtCode);
+  }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(`${API_BASE}/address/${vboId}/neighborhood?${params}`, {
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`Neighborhood stats failed: ${resp.status}`);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);

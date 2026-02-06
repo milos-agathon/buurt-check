@@ -4,6 +4,7 @@ import App from './App';
 import {
   makeBuildingResponse,
   makeNeighborhood3DResponse,
+  makeNeighborhoodStatsResponse,
   makeResolvedAddress,
   makeRiskCardsResponse,
   makeSuggestion,
@@ -16,6 +17,7 @@ vi.mock('./services/api', () => ({
   getBuildingFacts: vi.fn(),
   getNeighborhood3D: vi.fn(),
   getRiskCards: vi.fn(),
+  getNeighborhoodStats: vi.fn(),
 }));
 
 vi.mock('react-leaflet', () => ({
@@ -46,12 +48,21 @@ vi.mock('./components/RiskCardsPanel', () => ({
   ),
 }));
 
-import { lookupAddress, getBuildingFacts, suggestAddresses, getNeighborhood3D, getRiskCards } from './services/api';
+vi.mock('./components/NeighborhoodStatsCard', () => ({
+  default: ({ loading, error }: { loading?: boolean; error?: boolean }) => (
+    <div data-testid="neighborhood-stats">
+      {loading ? 'Loading neighborhood...' : error ? 'Neighborhood error' : 'Neighborhood stats'}
+    </div>
+  ),
+}));
+
+import { lookupAddress, getBuildingFacts, suggestAddresses, getNeighborhood3D, getRiskCards, getNeighborhoodStats } from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
 const mockBuilding = vi.mocked(getBuildingFacts);
 const mockSuggest = vi.mocked(suggestAddresses);
 const mockNeighborhood3D = vi.mocked(getNeighborhood3D);
 const mockRiskCards = vi.mocked(getRiskCards);
+const mockNeighborhoodStats = vi.mocked(getNeighborhoodStats);
 
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -65,7 +76,9 @@ beforeEach(() => {
   mockSuggest.mockReset();
   mockNeighborhood3D.mockReset();
   mockRiskCards.mockReset();
+  mockNeighborhoodStats.mockReset();
   mockRiskCards.mockResolvedValue(makeRiskCardsResponse());
+  mockNeighborhoodStats.mockResolvedValue(makeNeighborhoodStatsResponse());
 });
 
 function renderApp() {
@@ -456,5 +469,76 @@ describe('risk cards error handling', () => {
       expect(screen.getByText('Risk cards')).toBeInTheDocument();
     });
     expect(screen.queryByText('Risk cards error')).not.toBeInTheDocument();
+  });
+});
+
+describe('neighborhood stats integration', () => {
+  it('calls getNeighborhoodStats on address selection', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockNeighborhoodStats).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('passes buurt_code from resolved address', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress({ buurt_code: 'BU0363AD07' }));
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockNeighborhoodStats).toHaveBeenCalledWith(
+        'vbo-123',
+        52.3676,
+        4.8846,
+        'BU0363AD07',
+      );
+    });
+  });
+
+  it('renders neighborhood stats card after loading', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('neighborhood-stats')).toBeInTheDocument();
+      expect(screen.getByText('Neighborhood stats')).toBeInTheDocument();
+    });
+  });
+
+  it('does not crash when getNeighborhoodStats fails', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhoodStats.mockRejectedValue(new Error('CBS down'));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument();
+  });
+
+  it('shows neighborhood error state when fetch fails', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhoodStats.mockRejectedValue(new Error('CBS down'));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Neighborhood error')).toBeInTheDocument();
+    });
   });
 });

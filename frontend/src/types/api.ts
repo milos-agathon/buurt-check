@@ -134,3 +134,46 @@ export interface RiskCardsResponse {
   air_quality: AirQualityRiskCard;
   climate_stress: ClimateStressRiskCard;
 }
+
+export type UrbanizationLevel =
+  | 'very_urban'
+  | 'urban'
+  | 'moderate'
+  | 'rural'
+  | 'very_rural'
+  | 'unknown';
+
+export interface AgeProfile {
+  age_0_24?: number;
+  age_25_64?: number;
+  age_65_plus?: number;
+}
+
+export interface NeighborhoodIndicator {
+  value?: number | string | null;
+  unit?: string;
+  available: boolean;
+}
+
+export interface NeighborhoodStats {
+  buurt_code: string;
+  buurt_name?: string;
+  gemeente_name?: string;
+  population_density: NeighborhoodIndicator;
+  avg_household_size: NeighborhoodIndicator;
+  single_person_pct: NeighborhoodIndicator;
+  age_profile: AgeProfile;
+  owner_occupied_pct: NeighborhoodIndicator;
+  avg_property_value: NeighborhoodIndicator;
+  distance_to_train_km: NeighborhoodIndicator;
+  distance_to_supermarket_km: NeighborhoodIndicator;
+  urbanization: UrbanizationLevel;
+}
+
+export interface NeighborhoodStatsResponse {
+  address_id: string;
+  stats?: NeighborhoodStats;
+  source: string;
+  source_year: number;
+  message?: string;
+}

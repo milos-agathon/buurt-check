@@ -6,9 +6,10 @@ from app.cache.redis import cache_get, cache_set
 from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
+from app.models.neighborhood import NeighborhoodStatsResponse
 from app.models.neighborhood3d import Neighborhood3DResponse
 from app.models.risk import RiskCardsResponse, RiskLevel
-from app.services import bag, locatieserver, risk_cards, three_d_bag
+from app.services import bag, cbs, locatieserver, risk_cards, three_d_bag
 
 logger = logging.getLogger(__name__)
 
@@ -183,4 +184,42 @@ async def address_risk_cards(
             ttl=settings.cache_ttl_risk_cards,
         )
         logger.info("risk_cards cache_set vbo=%s", vbo_id)
+    return result
+
+
+@router.get("/{vbo_id}/neighborhood", response_model=NeighborhoodStatsResponse)
+async def neighborhood_stats(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    lat: float = Query(...),
+    lng: float = Query(...),
+    buurt_code: str | None = Query(None),
+):
+    """Fetch CBS neighborhood statistics for an address."""
+    cache_key = (
+        f"neighborhood:{buurt_code}"
+        if buurt_code
+        else f"neighborhood:{lat:.4f}:{lng:.4f}"
+    )
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return NeighborhoodStatsResponse(**cached)
+
+    try:
+        result = await cbs.get_neighborhood_stats(
+            vbo_id=vbo_id,
+            lat=lat,
+            lng=lng,
+            buurt_code=buurt_code,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail="CBS API unavailable"
+        ) from exc
+
+    if result.stats is not None and result.message is None:
+        await cache_set(
+            cache_key,
+            result.model_dump(),
+            ttl=settings.cache_ttl_neighborhood,
+        )
     return result

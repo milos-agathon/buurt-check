@@ -27,7 +27,15 @@
       "WebFetch(domain:www.pdok.nl)",
       "WebFetch(domain:service.pdok.nl)",
       "Bash(redis-cli:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "WebFetch(domain:api.pdok.nl)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cat:*)",
+      "Bash(node --version:*)",
+      "Bash(npm --version:*)",
+      "Bash(docker start:*)",
+      "Bash(docker run:*)"
     ]
   }
 }
