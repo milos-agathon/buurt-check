@@ -182,8 +182,8 @@ buurt-check/
     app/
       api/           # Route handlers (address.py, neighborhood.py, router.py)
       cache/         # Redis cache with circuit breaker (redis.py)
-      services/      # Business logic (bag.py, locatieserver.py, three_d_bag.py)
-      models/        # Pydantic models (address.py, building.py, neighborhood.py)
+      services/      # Business logic (bag.py, locatieserver.py, three_d_bag.py, cbs.py)
+      models/        # Pydantic models (address.py, building.py, neighborhood.py, neighborhood3d.py)
       config.py      # Settings via pydantic-settings
       main.py        # FastAPI app entry point
     tests/           # pytest tests (91 tests + 5 live smoke tests)
@@ -192,6 +192,8 @@ buurt-check/
       components/    # F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle
                      # F2: NeighborhoodViewer3D, ShadowControls, ShadowSnapshots,
                      #     SunlightRiskCard, OverlayControls
+                     # F3: RiskCardsPanel
+                     # F4: NeighborhoodStatsCard
       services/      # API client (fetch-based)
       types/         # TS interfaces mirroring backend models
       i18n/          # i18next config + en.json + nl.json
@@ -201,16 +203,17 @@ buurt-check/
 
 ## Current project status
 
-**Stage: F1 + F2 + F3 implemented and hardened. Ready for F4.**
+**Stage: F1 + F2 + F3 + F4 implemented and hardened. LoD 2.2 roof geometry in progress (uncommitted). Ready for F5.**
 
 ### What exists
-- `backend/` — FastAPI app with address suggest, lookup, building facts, 3D neighborhood endpoints (including fast `/building3d` target-only endpoint), and F3 risk-card endpoint (`/api/address/{vbo_id}/risks`) for noise/air/climate. BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration uses dual-fetch strategy (direct target + bbox surrounding). Redis cache with circuit breaker. Structured logging for risk card requests. Calibration script for monthly layer verification. 107 passing tests + 5 live smoke tests (deselected by default).
-- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js with construction-year coloring, HemisphereLight, target edge highlight), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification, unavailable state). F3: RiskCardsPanel (noise, air quality, climate stress) with full EN/NL copy, source+date display, error state, and 20s timeout. Two-phase progressive 3D loading (target ~2s, neighborhood ~12-17s). 124 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
+- `backend/` — FastAPI app with address suggest, lookup, building facts, 3D neighborhood endpoints (including fast `/building3d` target-only endpoint), F3 risk-card endpoint (`/api/address/{vbo_id}/risks`) for noise/air/climate, and F4 neighborhood stats endpoint (`/api/address/{vbo_id}/neighborhood`). BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration uses dual-fetch strategy (direct target + bbox surrounding). CBS Wijken & Buurten integration with buurt-code + bbox fallback. Redis cache with circuit breaker. Structured logging for risk card requests. Calibration script for monthly layer verification. 147 passing tests + 9 live smoke tests (deselected by default).
+- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js with street basemap, uniform building colors, target edge highlight, dynamic camera positioning), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification, unavailable state). F3: RiskCardsPanel (noise, air quality, climate stress) with full EN/NL copy, source+date display, error state, and 20s timeout. F4: NeighborhoodStatsCard with urbanization badge, age distribution bars, grouped indicators. Two-phase progressive 3D loading (target ~2s, neighborhood ~12-17s). 149 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
 - `docs/prd.md` — v1.1, fully restructured with 13 sections
 
 ### What's next
-- Maintain quality gates: `ruff check`, backend pytest (107+, excluding live), frontend vitest (124+), `npm run build`, Playwright E2E smoke.
-- Implement F4 neighborhood stats (CBS Wijken & Buurten).
+- Maintain quality gates: `ruff check`, backend pytest (147+, excluding live), frontend vitest (149+), `npm run build`, Playwright E2E smoke.
+- Complete LoD 2.2 roof geometry (uncommitted work in progress — backend parsing works, frontend rendering has coordinate alignment issues).
+- Implement F5 shortlist + compare + PDF export.
 - Resolve PM2.5 data gap (GCN WMS only has NO2 layers; PM2.5 may need offline ZIP ingestion or alternative endpoint).
 
 ## Learnings from development sessions (2026-01-30)
@@ -471,10 +474,10 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 3. **Construction-year color palette** for neighborhood context: pre-1900 terracotta, 1900-1945 sandy brown, 1945-1975 olive, 1975-2000 slate, post-2000 steel gray. Target building stays blue with edge highlight.
 4. **HemisphereLight** (sky `0xb1e1ff`, ground `0xb97a20`, intensity 0.5) replaces flat AmbientLight for natural illumination gradient.
 
-### Test count baselines (updated 2026-02-05)
+### Test count baselines (updated 2026-02-06)
 
-- **Backend: 107 non-live + 5 live smoke tests** (19 api + 15 bag + 5 cache + 10 locatieserver + 14 models + 19 three_d_bag + 18 risk_cards + 5 live smoke + others). Any backend change must maintain or increase.
-- **Frontend: 124 tests** (15 api + 16 AddressSearch + 14 BuildingFactsCard + 23 App + 7 NeighborhoodViewer3D + 8 ShadowControls + 13 SunlightRiskCard + 7 ShadowSnapshots + 8 OverlayControls + 9 RiskCardsPanel + 4 others). Any frontend change must maintain or increase.
+- **Backend: 147 non-live + 9 live smoke tests** (25 api + 15 bag + 5 cache + 10 locatieserver + 14 models + 22 three_d_bag + 18 risk_cards + 33 cbs + 5 risk_cards_live + 4 cbs_live). Any backend change must maintain or increase.
+- **Frontend: 149 tests** (21 api + 16 AddressSearch + 14 BuildingFactsCard + 29 App + 9 NeighborhoodViewer3D + 8 ShadowControls + 13 SunlightRiskCard + 7 ShadowSnapshots + 8 OverlayControls + 9 RiskCardsPanel + 15 NeighborhoodStatsCard). Any frontend change must maintain or increase.
 
 ### Process learnings
 
@@ -483,3 +486,89 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 3. **Assessment-first workflow for hardening.** Start with parallel subagent audits (backend + frontend) before any code. This revealed 7 bugs in F3 that feature-addition workflows missed.
 4. **Plans should specify intent, let tests validate details.** The air sentinel fix plan specified `-9990 < raw` (copied from noise). The test caught that this was wrong for air quality data. Domain-specific physical constraints beat copied patterns.
 5. **E2E assertions must evolve with behavior.** When error handling changes from "hide on failure" to "show error state," tests that assert element absence must be updated to assert the new visible error behavior.
+
+## Learnings from 3D viewer visual overhaul sessions (2026-02-06)
+
+### PDOK basemap integration
+
+1. **BRT Achtergrondkaart is the street-style basemap.** URL pattern: `https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png`. Four themes: `standaard`, `grijs`, `pastel`, `water`. Use `.png` format (not `.jpeg` like the aerial layer).
+2. **PDOK aerial imagery is `luchtfotorgb`.** URL: `https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg`. Good for context but too busy under 3D buildings. Street basemap (`standaard`) provides cleaner visual reference.
+3. **WMTS tile offset alignment is critical.** A tile centered on tile coordinates doesn't necessarily center on the query point. Must calculate pixel offset between query point and tile center, then translate the ground plane mesh. Formula: convert lat/lng to pixel coords within tile, compute offset from tile center, scale to world units.
+4. **WMTS tile Z offset sign inversion.** WMTS Y increases southward, but Three.js Z increases southward too. The offset requires careful sign handling: `-offsetY` not `+offsetY` for the ground plane Z translation.
+5. **Ground plane size must match tile size.** A 500m ground plane with a ~150m tile stretches the texture. Scale the ground plane to match the tile's real-world size, or use multiple tiles.
+
+### Camera positioning and framing
+
+1. **Camera presets must be relative to target.** Absolute offsets like `[40, 15, 40]` don't work when buildings are at arbitrary positions. Presets should add offsets to `targetCenter`: `camera.position.set(cx + offset[0], offset[1], cz + offset[2])`.
+2. **Camera distance evolved through 3 iterations.** Started at `maxSpan * 3` (too far), then `maxSpan * 2` (still far for single building), settled on `maxSpan * 1.5` with `min=15`. Each iteration required user visual feedback — automated tests couldn't verify this.
+3. **Single-building view as fallback.** When the neighborhood fetch is slow or missing buildings, showing just the target building with tight camera framing is better than showing an incomplete neighborhood. Filter: `buildings.filter(b => b.pand_id === targetPandId)`.
+
+### 3DBAG single-item endpoint transform bug
+
+**The single-item endpoint (`/items/{id}`) nests `metadata.transform` at the root level, NOT inside `feature`.** The `data['feature']` contains `CityObjects`, `vertices`, `type` but NOT `metadata`. The transform is at `data['metadata']['transform']`. This differs from the bbox endpoint where transform is at `data['metadata']['transform']` at root (consistent, but the feature extraction path can miss it). Always extract transform from the outermost `metadata` key.
+
+### Visual style decisions
+
+1. **Uniform light gray buildings (`0xf5f5f5`)** read cleaner than construction-year coloring for a property-evaluation context. Year coloring is interesting but distracting from the primary use case. Target building stays blue (`#2563eb`) for UX clarity.
+2. **Removed GridHelper.** Grid lines add visual noise and don't help users understand the neighborhood. The basemap provides sufficient spatial reference.
+3. **Full opacity (1.0) for all buildings.** Transparency (0.7) makes buildings look ghostly and reduces shadow visibility.
+
+## Learnings from F4 neighborhood stats implementation (2026-02-06)
+
+### CBS OGC API integration
+
+1. **CBS Wijken & Buurten 2024 has 300+ fields.** Curated to 9 indicators in 4 groups: People (density, household size, single-person %), Age (3 bands), Housing (owner-occupied %, avg property value), Access (train distance, supermarket distance), plus urbanization badge.
+2. **CBS frequently suppresses data.** Owner-occupied %, avg property value, and distance indicators are often `None` due to CBS privacy rules (small sample size in buurt). Always check `available` field and show "unavailable" in UI.
+3. **Buurt code lookup can fail.** Primary strategy: query by buurt code from frontend. Fallback: bbox query at the address coordinates. Bbox may return a neighboring buurt if the point is on a boundary. Accept this as a reasonable fallback.
+4. **Age band reduction for UX.** CBS provides 5 age bands (`0-14`, `15-24`, `25-44`, `45-64`, `65+`). Aggregated to 3 groups for the card: `0-24`, `25-64`, `65+`. Backend handles the aggregation in `_parse_age_profile()` with correct `None` handling.
+
+### F4 architecture patterns
+
+1. **Single endpoint with parallel fetch.** `GET /api/address/{vbo_id}/neighborhood?lat=...&lng=...&buurt_code=...`. Cache key: `neighborhood:{buurt_code}` or `neighborhood:{lat:.4f}:{lng:.4f}`. TTL 30 days (CBS data updates annually).
+2. **Frontend timeout alignment.** `getNeighborhoodStats()` uses 15s `AbortController` timeout matching the backend CBS httpx client timeout. Pattern: `AbortController` + `setTimeout` + `clearTimeout` in `try/finally`.
+3. **Floating-point aggregation in tests.** Summing CBS percentages (e.g., `15.2 + 12.1 = 27.299999999999997`). Use `abs(result - expected) < 0.01` instead of exact equality.
+4. **Live smoke tests.** `@pytest.mark.live`, excluded from CI via `-m "not live"`. Lenient assertions: check field exists, not exact buurt_code match (bbox fallback may return different code).
+
+### NeighborhoodStatsCard frontend patterns
+
+1. **Grouped indicator layout.** Indicators organized into People, Housing, Access groups. Each indicator has `name`, `value`, `available` fields. Unavailable indicators show explanatory text, not empty space.
+2. **Age distribution bars.** Horizontal bar chart with 3 segments. Width proportional to percentage. Shows percentage labels. Uses CSS `display: flex` for layout.
+3. **Urbanization badge.** 5-level scale (1=very urban to 5=rural). Displayed as a colored badge with descriptive label. Maps CBS integer to i18n key.
+4. **E2E test pattern.** 6 tests: happy path, buurt name subtitle, age bars, unavailable indicators, error state, bilingual support. Follows `f3-risk-cards.spec.ts` structure (Playwright + real backend).
+
+## Learnings from LoD 2.2 roof geometry implementation (2026-02-06)
+
+### 3DBAG LoD 2.2 data structure
+
+1. **LoD 2.2 geometry is in BuildingPart children, NOT the parent Building.** The parent `Building` CityObject only has LoD 0 geometry. LoD 2.2 `Solid` geometry is in `BuildingPart` child objects. The original code explicitly skipped `BuildingPart` (`if co_type != "Building": continue`). Fix: check `Building` first, then look at its `children` for `BuildingPart` entries containing LoD 2.2.
+2. **Solid geometry structure.** LoD 2.2 uses `"type": "Solid"` with boundaries `[[[surface1_outer, surface1_inner, ...], [surface2_outer, ...], ...]]`. Outer shell is `boundaries[0]`. Each surface is a list of rings; first ring is the outer boundary.
+3. **Surface classification heuristic.** `avg_z > ground + height * 0.5` classifies as roof, else wall. This works for flat and simple pitched roofs but fails for complex gabled roofs where wall surfaces span ground to ridge (avg Z ~ midpoint ≈ threshold). More sophisticated classification would need normal vector analysis.
+
+### Test geometry design
+
+1. **Gabled roof test geometry fails with avg-Z heuristic.** A realistic gabled roof has wall polygons spanning ground to ridge. The wall average Z equals the roof average Z, making classification ambiguous. **Fix: use flat-roof test geometry** (all roof vertices at the same high elevation) where classification is unambiguous.
+2. **Flat-roof test geometry:** Ground at 1.75m, flat roof at 10.0m. All roof surface vertices at Z=10.0m → avg_z = 10.0 > threshold (5.875). All wall vertices span 1.75 to 10.0 → avg_z = 5.875 ≤ threshold. Clean separation.
+
+### Feature flag discipline
+
+1. **Backend feature flag `BUURT_ENABLE_LOD22_ROOFS`** defaults to `false`. Must be explicitly enabled via environment variable or `.env` file. Pydantic-settings reads `.env` files when configured with `env_file = ".env"` in `model_config`.
+2. **Cache lazy migration.** New `roof_surfaces` field on `BuildingBlock` defaults to `None` (Pydantic). Cached responses without the field deserialize correctly. 24h Redis TTL means full refresh after enabling the flag.
+3. **Deployment sequence:** Flag OFF → deploy → verify no regressions → enable in staging → gradual production rollout.
+
+### Coordinate system alignment (in progress)
+
+1. **LoD 2.2 surfaces use RD offsets from center + NAP heights.** Frontend converts to Three.js Y-up: `[dx, NAP_height - minGround, dy]`. No X-rotation needed (already Y-up). LoD 0 `ExtrudeGeometry` needs `-Math.PI/2` rotation.
+2. **Building rotation/positioning mismatch.** LoD 2.2 geometry appeared slightly rotated and offset compared to LoD 0. Root cause: LoD 2.2 vertices come from BuildingPart (possibly different coordinate anchor than parent Building). Alignment verification requires visual comparison with basemap — automated tests cannot catch this.
+
+### Dependencies
+
+1. **scipy added for ConvexHull.** `scipy>=1.11.0` in `pyproject.toml`. Used in `_extract_footprint_from_surfaces()` to compute 2D convex hull from 3D surface projections. Handles degenerate cases (collinear points) with try/except fallback.
+2. **numpy added as scipy dependency.** Used for ConvexHull input but also available for any future numerical operations.
+
+### Process learnings (Feb 6)
+
+1. **User visual feedback is irreplaceable for 3D work.** Camera framing, basemap alignment, building positioning, and roof geometry all required multiple user screenshot → fix → re-test cycles. No amount of automated testing substitutes for "does it look right?"
+2. **Coordinate bugs are the hardest to debug remotely.** The basemap offset, building rotation, and transform nesting bugs all required understanding three coordinate systems (RD New, WMTS Web Mercator, Three.js local) and how they interact. Always trace a single known point through all coordinate transforms.
+3. **Multiple sessions on the same feature is normal.** The 3D viewer went through 4 sessions (visual style, camera fix, basemap+zoom, LoD 2.2) before reaching acceptable quality. Each session addressed issues discovered by visual inspection in the previous session.
+4. **Feature flags prevent deployment stress.** LoD 2.2 could be deployed safely with the flag OFF, tested in staging, then enabled gradually. This is especially valuable for visual features where regression risk is high.
+5. **pydantic-settings `.env` file loading.** Add `env_file = ".env"` to `model_config` in the Settings class. Without this, environment variables from `.env` files are not loaded — only system environment variables or explicit `BUURT_*` prefixed vars work.
