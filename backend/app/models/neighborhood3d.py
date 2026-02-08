@@ -7,6 +7,7 @@ class BuildingBlock(BaseModel):
     building_height: float
     footprint: list[list[float]]  # [[dx, dy], ...] meter offsets from center
     year: int | None = None
+    roof_surfaces: list[list[list[float]]] | None = None  # [surface][vertex][dx, dy, z_nap]
 
 
 class Neighborhood3DCenter(BaseModel):

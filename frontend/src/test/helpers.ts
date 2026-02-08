@@ -168,6 +168,34 @@ export function makeShadowSnapshots(): ShadowSnapshotData[] {
   ];
 }
 
+export function makeNeighborhood3DResponseWithLod22(
+  overrides: Partial<Neighborhood3DResponse> = {},
+): Neighborhood3DResponse {
+  return {
+    address_id: 'vbo-123',
+    target_pand_id: '0363100012345678',
+    center: { lat: 52.3676, lng: 4.8846, rd_x: 121000, rd_y: 487000 },
+    buildings: [
+      {
+        pand_id: '0363100012345678',
+        ground_height: 1.75,
+        building_height: 8.25,
+        footprint: [[0, 0], [5, 0], [5, 5], [0, 5]],
+        year: 1917,
+        roof_surfaces: [
+          // Flat roof surface (4 verts at z=10.0)
+          [[0, 0, 10.0], [5, 0, 10.0], [5, 5, 10.0], [0, 5, 10.0]],
+          // Ground surface (4 verts at z=1.75)
+          [[0, 5, 1.75], [5, 5, 1.75], [5, 0, 1.75], [0, 0, 1.75]],
+          // Wall south
+          [[0, 0, 1.75], [5, 0, 1.75], [5, 0, 10.0], [0, 0, 10.0]],
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
 export function makeNeighborhoodStatsResponse(
   overrides: Partial<NeighborhoodStatsResponse> = {},
 ): NeighborhoodStatsResponse {

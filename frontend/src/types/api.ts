@@ -55,6 +55,7 @@ export interface BuildingBlock {
   building_height: number;
   footprint: number[][];
   year?: number;
+  roof_surfaces?: number[][][]; // [surface][vertex][dx, dy, z_nap]
 }
 
 export interface Neighborhood3DCenter {

@@ -56,6 +56,38 @@ const GROUND_SIZE = 500;
 const FRUSTUM = 200;
 const TARGET_COLOR = 0x2563eb;
 
+/**
+ * Create a BufferGeometry from LoD 2.2 surfaces.
+ * Each surface is a polygon of [dx, dy, z_nap] vertices (RD offsets + NAP height).
+ * Converts to Three.js Y-up: [dx, z_nap - minGround, dy].
+ * Uses fan triangulation from vertex 0 for each polygon.
+ */
+function createLod22Geometry(surfaces: number[][][], minGround: number): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const indices: number[] = [];
+
+  for (const surface of surfaces) {
+    if (surface.length < 3) continue;
+    const baseIndex = positions.length / 3;
+
+    for (const vert of surface) {
+      // [dx, dy, z_nap] -> Three.js [dx, z_nap - minGround, dy]
+      positions.push(vert[0], vert[2] - minGround, vert[1]);
+    }
+
+    // Fan triangulation: vertex 0 connects to each consecutive pair
+    for (let i = 1; i < surface.length - 1; i++) {
+      indices.push(baseIndex, baseIndex + i, baseIndex + i + 1);
+    }
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geom.setIndex(indices);
+  geom.computeVertexNormals();
+  return geom;
+}
+
 export default function NeighborhoodViewer3D({ buildings, targetPandId, center, onSunlightAnalysis, onShadowSnapshots }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -206,20 +238,30 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     const minGround = Math.min(...buildingsToRender.map((b) => b.ground_height));
 
     for (const building of buildingsToRender) {
-      const shape = new THREE.Shape();
-      const fp = building.footprint;
-      if (fp.length < 3) continue;
+      let geom: THREE.BufferGeometry;
+      let useLod22 = false;
 
-      shape.moveTo(fp[0][0], fp[0][1]);
-      for (let i = 1; i < fp.length; i++) {
-        shape.lineTo(fp[i][0], fp[i][1]);
+      if (building.roof_surfaces && building.roof_surfaces.length > 0) {
+        // LoD 2.2: real 3D surfaces from BuildingPart geometry
+        geom = createLod22Geometry(building.roof_surfaces, minGround);
+        useLod22 = true;
+      } else {
+        // LoD 0 fallback: extrude 2D footprint
+        const shape = new THREE.Shape();
+        const fp = building.footprint;
+        if (fp.length < 3) continue;
+
+        shape.moveTo(fp[0][0], fp[0][1]);
+        for (let i = 1; i < fp.length; i++) {
+          shape.lineTo(fp[i][0], fp[i][1]);
+        }
+        shape.closePath();
+
+        geom = new THREE.ExtrudeGeometry(shape, {
+          depth: building.building_height,
+          bevelEnabled: false,
+        });
       }
-      shape.closePath();
-
-      const geom = new THREE.ExtrudeGeometry(shape, {
-        depth: building.building_height,
-        bevelEnabled: false,
-      });
 
       const mat = new THREE.MeshStandardMaterial({
         color: TARGET_COLOR,
@@ -227,9 +269,16 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       });
 
       const mesh = new THREE.Mesh(geom, mat);
-      // Rotate so extrusion goes Y-up (Shape is in XY, extrude along Z, rotate -90 around X)
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.y = building.ground_height - minGround;
+
+      if (useLod22) {
+        // LoD 2.2: heights baked into vertex data, no rotation needed
+        mesh.position.y = 0;
+      } else {
+        // LoD 0: rotate extrusion Y-up, offset by ground height
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.y = building.ground_height - minGround;
+      }
+
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.userData.pandId = building.pand_id;

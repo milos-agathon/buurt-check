@@ -6,6 +6,7 @@ import pytest
 from app.models.neighborhood3d import BuildingBlock
 from app.services.three_d_bag import (
     MAX_PAGES,
+    _extract_lod22_surfaces,
     _fetch_bbox_buildings,
     _fetch_target_building,
     _parse_building,
@@ -677,3 +678,207 @@ async def test_fetch_bbox_returns_partial_on_mid_page_failure(mock_get_client, m
 
     assert len(buildings) == 1
     assert buildings[0].pand_id == "0363100000000001"
+
+
+# --- LoD 2.2 surface extraction tests ---
+
+# Flat-roof test geometry: 4 ground corners at z=1750, 4 roof corners at z=10000
+# scale=[0.001,0.001,0.001], translate=[121000,487000,0]
+# center_x=121005, center_y=487005
+LOD22_VERTICES = [
+    [0, 0, 1750],         # 0: ground corner (121000, 487000, 1.75)
+    [10000, 0, 1750],     # 1: ground corner (121010, 487000, 1.75)
+    [10000, 10000, 1750], # 2: ground corner (121010, 487010, 1.75)
+    [0, 10000, 1750],     # 3: ground corner (121000, 487010, 1.75)
+    [0, 0, 10000],        # 4: roof corner  (121000, 487000, 10.0)
+    [10000, 0, 10000],    # 5: roof corner  (121010, 487000, 10.0)
+    [10000, 10000, 10000],# 6: roof corner  (121010, 487010, 10.0)
+    [0, 10000, 10000],    # 7: roof corner  (121000, 487010, 10.0)
+]
+
+
+def _make_lod22_city_objects():
+    """Build CityObjects dict with a parent Building + child BuildingPart with LoD 2.2."""
+    parent_name = "NL.IMBAG.Pand.0363100012253924"
+    part_name = f"{parent_name}-0"
+
+    parent = {
+        "type": "Building",
+        "attributes": {
+            "identificatie": parent_name,
+            "b3_h_maaiveld": 1.75,
+            "b3_h_dak_max": 10.0,
+            "oorspronkelijkbouwjaar": 1917,
+        },
+        "geometry": [
+            {
+                "lod": "0",
+                "type": "MultiSurface",
+                "boundaries": [[[0, 1, 2, 3]]],
+            }
+        ],
+        "children": [part_name],
+    }
+
+    # Solid boundaries: [outer_shell] where outer_shell = [surface, surface, ...]
+    # Each surface = [outer_ring, hole_ring, ...]
+    # Flat roof (verts 4,5,6,7) + ground (verts 0,1,2,3) + 4 wall surfaces
+    part = {
+        "type": "BuildingPart",
+        "attributes": {},
+        "parents": [parent_name],
+        "geometry": [
+            {
+                "lod": "2.2",
+                "type": "Solid",
+                "boundaries": [[
+                    [[4, 5, 6, 7]],   # roof (flat, all at z=10.0)
+                    [[0, 3, 2, 1]],   # ground (all at z=1.75)
+                    [[0, 1, 5, 4]],   # wall south
+                    [[1, 2, 6, 5]],   # wall east
+                    [[2, 3, 7, 6]],   # wall north
+                    [[3, 0, 4, 7]],   # wall west
+                ]],
+            }
+        ],
+    }
+
+    city_objects = {parent_name: parent, part_name: part}
+    return city_objects, parent_name, part_name
+
+
+def test_extract_lod22_surfaces_basic():
+    """Correct surfaces are extracted with proper vertex coordinates."""
+    city_objects, parent_name, _ = _make_lod22_city_objects()
+    parent = city_objects[parent_name]
+
+    result = _extract_lod22_surfaces(
+        parent, city_objects, LOD22_VERTICES, SCALE, TRANSLATE, CENTER_X, CENTER_Y
+    )
+
+    assert result is not None
+    # 6 surfaces: 1 roof + 1 ground + 4 walls
+    assert len(result) == 6
+
+    # First surface is the roof (verts 4,5,6,7 at z=10.0)
+    roof = result[0]
+    assert len(roof) == 4
+    # Vertex 4: real=(121000,487000,10.0), offset=(-5,-5,10.0)
+    assert roof[0] == [-5.0, -5.0, 10.0]
+    # Vertex 5: real=(121010,487000,10.0), offset=(5,-5,10.0)
+    assert roof[1] == [5.0, -5.0, 10.0]
+
+
+def test_extract_lod22_surfaces_no_children():
+    """Returns None when building has no children."""
+    city_object = {"type": "Building", "attributes": {}, "geometry": []}
+    result = _extract_lod22_surfaces(
+        city_object, {}, LOD22_VERTICES, SCALE, TRANSLATE, CENTER_X, CENTER_Y
+    )
+    assert result is None
+
+
+def test_extract_lod22_surfaces_no_lod22_geom():
+    """Returns None when child exists but lacks LoD 2.2 geometry."""
+    parent_name = "NL.IMBAG.Pand.0363100012253924"
+    part_name = f"{parent_name}-0"
+    parent = {
+        "type": "Building", "children": [part_name],
+        "attributes": {}, "geometry": [],
+    }
+    child = {
+        "type": "BuildingPart",
+        "geometry": [{"lod": "1.3", "type": "Solid", "boundaries": []}],
+    }
+    city_objects = {parent_name: parent, part_name: child}
+
+    result = _extract_lod22_surfaces(
+        parent, city_objects, LOD22_VERTICES, SCALE, TRANSLATE, CENTER_X, CENTER_Y
+    )
+    assert result is None
+
+
+@patch("app.services.three_d_bag.settings")
+def test_parse_building_with_lod22_flag_enabled(mock_settings):
+    """roof_surfaces populated when feature flag is on and city_objects provided."""
+    mock_settings.enable_lod22_roofs = True
+    city_objects, parent_name, _ = _make_lod22_city_objects()
+    parent = city_objects[parent_name]
+
+    result = _parse_building(
+        parent, LOD22_VERTICES, SCALE, TRANSLATE, CENTER_X, CENTER_Y,
+        city_objects=city_objects,
+    )
+
+    assert result is not None
+    assert result.roof_surfaces is not None
+    assert len(result.roof_surfaces) == 6
+
+
+@patch("app.services.three_d_bag.settings")
+def test_parse_building_with_lod22_flag_disabled(mock_settings):
+    """roof_surfaces is None when feature flag is off."""
+    mock_settings.enable_lod22_roofs = False
+    city_objects, parent_name, _ = _make_lod22_city_objects()
+    parent = city_objects[parent_name]
+
+    result = _parse_building(
+        parent, LOD22_VERTICES, SCALE, TRANSLATE, CENTER_X, CENTER_Y,
+        city_objects=city_objects,
+    )
+
+    assert result is not None
+    assert result.roof_surfaces is None
+
+
+@patch("app.services.three_d_bag.settings")
+def test_parse_building_lod22_graceful_fallback(mock_settings):
+    """Exception during LoD 2.2 parse results in None, not crash."""
+    mock_settings.enable_lod22_roofs = True
+    city_objects, parent_name, part_name = _make_lod22_city_objects()
+    parent = city_objects[parent_name]
+    # Corrupt the child's geometry to cause an exception
+    city_objects[part_name]["geometry"] = [
+        {"lod": "2.2", "type": "Solid", "boundaries": "not-a-list"}
+    ]
+
+    result = _parse_building(
+        parent, LOD22_VERTICES, SCALE, TRANSLATE, CENTER_X, CENTER_Y,
+        city_objects=city_objects,
+    )
+
+    assert result is not None
+    assert result.roof_surfaces is None
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_target_building_with_lod22(mock_get_client, mock_settings):
+    """Integration test: target building fetch includes roof_surfaces when flag on."""
+    mock_settings.enable_lod22_roofs = True
+    mock_settings.three_d_bag_base = "https://api.3dbag.nl"
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    # Build a single-item response with BuildingPart child
+    city_objects_dict, parent_name, part_name = _make_lod22_city_objects()
+    data = {
+        "type": "CityJSONFeature",
+        "id": parent_name,
+        "feature": {
+            "CityObjects": city_objects_dict,
+            "vertices": LOD22_VERTICES,
+        },
+        "metadata": {
+            "transform": {"scale": SCALE, "translate": TRANSLATE},
+        },
+    }
+    mock_client.get.return_value = _make_mock_resp(data)
+
+    result = await _fetch_target_building("0363100012253924", CENTER_X, CENTER_Y)
+
+    assert result is not None
+    assert result.pand_id == "0363100012253924"
+    assert result.roof_surfaces is not None
+    assert len(result.roof_surfaces) == 6

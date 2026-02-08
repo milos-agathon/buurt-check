@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
-import { setupTestI18n, makeNeighborhood3DResponse } from '../test/helpers';
+import { setupTestI18n, makeNeighborhood3DResponse, makeNeighborhood3DResponseWithLod22 } from '../test/helpers';
 
 // Mock Three.js — jsdom has no WebGL
 const mockCanvas = document.createElement('canvas');
@@ -69,6 +69,13 @@ vi.mock('three', () => {
     this.closePath = vi.fn();
   }
   function ExtrudeGeometry(this: any) { this.dispose = vi.fn(); }
+  function BufferGeometry(this: any) {
+    this.setAttribute = vi.fn();
+    this.setIndex = vi.fn();
+    this.computeVertexNormals = vi.fn();
+    this.dispose = vi.fn();
+  }
+  function Float32BufferAttribute(this: any) {}
   function Color(this: any) {}
   function Vec3(this: any) {
     this.set = vi.fn().mockReturnThis();
@@ -95,6 +102,7 @@ vi.mock('three', () => {
   return {
     Scene, PerspectiveCamera, WebGLRenderer, HemisphereLight, DirectionalLight,
     PlaneGeometry, MeshStandardMaterial, Mesh: MockMesh, Shape, ExtrudeGeometry,
+    BufferGeometry, Float32BufferAttribute,
     Color, PCFSoftShadowMap: 2, Vector3: Vec3, Raycaster, TextureLoader,
     DoubleSide: 2, SRGBColorSpace: 'srgb',
   };
@@ -199,6 +207,21 @@ describe('NeighborhoodViewer3D', () => {
   it('snapshot capture restores sun state', () => {
     const onSnapshots = vi.fn();
     renderViewer({ onShadowSnapshots: onSnapshots });
+    expect(screen.getByTestId('viewer-3d-canvas')).toBeInTheDocument();
+  });
+
+  it('renders with LoD 2.2 surfaces when present', () => {
+    const lod22Data = makeNeighborhood3DResponseWithLod22();
+    renderViewer({
+      buildings: lod22Data.buildings,
+      targetPandId: lod22Data.target_pand_id,
+    });
+    expect(screen.getByTestId('viewer-3d-canvas')).toBeInTheDocument();
+  });
+
+  it('renders LoD 0 fallback when roof_surfaces is absent', () => {
+    // Default makeNeighborhood3DResponse has no roof_surfaces
+    renderViewer();
     expect(screen.getByTestId('viewer-3d-canvas')).toBeInTheDocument();
   });
 });

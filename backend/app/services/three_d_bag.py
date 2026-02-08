@@ -23,6 +23,65 @@ def _get_client() -> httpx.AsyncClient:
     return _client
 
 
+def _extract_lod22_surfaces(
+    city_object: dict,
+    city_objects: dict,
+    vertices: list[list[int]],
+    scale: list[float],
+    translate: list[float],
+    center_x: float,
+    center_y: float,
+) -> list[list[list[float]]] | None:
+    """Extract LoD 2.2 surface polygons from BuildingPart children.
+
+    Returns a list of surfaces, each a list of [dx, dy, z_nap] vertices
+    (RD offsets from center + NAP height), or None if no LoD 2.2 data.
+    """
+    children_ids = city_object.get("children", [])
+    if not children_ids:
+        return None
+
+    surfaces: list[list[list[float]]] = []
+
+    for child_id in children_ids:
+        child = city_objects.get(child_id)
+        if not child or child.get("type") != "BuildingPart":
+            continue
+
+        for geom in child.get("geometry", []):
+            if geom.get("lod") != "2.2" or geom.get("type") != "Solid":
+                continue
+
+            boundaries = geom.get("boundaries", [])
+            if not boundaries:
+                continue
+
+            # Outer shell is boundaries[0]
+            outer_shell = boundaries[0]
+            for surface in outer_shell:
+                if not surface:
+                    continue
+                # First ring is the outer boundary
+                outer_ring = surface[0] if isinstance(surface[0], list) else surface
+
+                decoded: list[list[float]] = []
+                for idx in outer_ring:
+                    if idx >= len(vertices):
+                        continue
+                    v = vertices[idx]
+                    real_x = v[0] * scale[0] + translate[0]
+                    real_y = v[1] * scale[1] + translate[1]
+                    real_z = v[2] * scale[2] + translate[2]
+                    dx = round(real_x - center_x, 2)
+                    dy = round(real_y - center_y, 2)
+                    decoded.append([dx, dy, round(real_z, 2)])
+
+                if len(decoded) >= 3:
+                    surfaces.append(decoded)
+
+    return surfaces if surfaces else None
+
+
 def _parse_building(
     city_object: dict,
     vertices: list[list[int]],
@@ -30,6 +89,7 @@ def _parse_building(
     translate: list[float],
     center_x: float,
     center_y: float,
+    city_objects: dict | None = None,
 ) -> BuildingBlock | None:
     """Parse a CityJSON Building object into a BuildingBlock with meter offsets."""
     attrs = city_object.get("attributes", {})
@@ -85,12 +145,24 @@ def _parse_building(
     if raw_id.startswith("NL.IMBAG.Pand."):
         raw_id = raw_id[len("NL.IMBAG.Pand."):]
 
+    # LoD 2.2 roof surfaces (optional, feature-flagged)
+    roof_surfaces = None
+    if settings.enable_lod22_roofs and city_objects is not None:
+        try:
+            roof_surfaces = _extract_lod22_surfaces(
+                city_object, city_objects, vertices, scale, translate, center_x, center_y
+            )
+        except Exception:
+            logger.warning("LoD 2.2 parse failed for %s, falling back to LoD 0", raw_id)
+            roof_surfaces = None
+
     return BuildingBlock(
         pand_id=raw_id,
         ground_height=round(h_maaiveld, 2),
         building_height=round(building_height, 2),
         footprint=footprint,
         year=year,
+        roof_surfaces=roof_surfaces,
     )
 
 
@@ -128,7 +200,10 @@ async def _fetch_target_building(
     for co_data in city_objects.values():
         if co_data.get("type") != "Building":
             continue
-        block = _parse_building(co_data, vertices, scale, translate, center_x, center_y)
+        block = _parse_building(
+            co_data, vertices, scale, translate, center_x, center_y,
+            city_objects=city_objects,
+        )
         if block is not None:
             return block
 
@@ -187,7 +262,10 @@ async def _fetch_bbox_buildings(
                 if co_data.get("type") != "Building":
                     continue
 
-                block = _parse_building(co_data, vertices, scale, translate, center_x, center_y)
+                block = _parse_building(
+                    co_data, vertices, scale, translate, center_x, center_y,
+                    city_objects=city_objects,
+                )
                 if block is not None:
                     buildings.append(block)
                     page_buildings += 1
