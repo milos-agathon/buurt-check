@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     cache_ttl_neighborhood_3d: int = 86400  # 24 hours
     cache_ttl_risk_cards: int = 604800  # 7 days
     cache_ttl_neighborhood: int = 2592000  # 30 days
+    cache_ttl_wms_tile: int = 86400  # 24 hours
 
     model_config = {"env_prefix": "BUURT_", "env_file": ".env"}
 

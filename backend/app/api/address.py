@@ -1,6 +1,8 @@
+import base64
 import logging
 
 from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi.responses import Response
 
 from app.cache.redis import cache_get, cache_set
 from app.config import settings
@@ -9,7 +11,7 @@ from app.models.building import BuildingFactsResponse
 from app.models.neighborhood import NeighborhoodStatsResponse
 from app.models.neighborhood3d import Neighborhood3DResponse
 from app.models.risk import RiskCardsResponse, RiskLevel
-from app.services import bag, cbs, locatieserver, risk_cards, three_d_bag
+from app.services import bag, cbs, locatieserver, risk_cards, three_d_bag, wms_tile
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,38 @@ async def address_lookup(
 
     await cache_set(cache_key, resolved.model_dump(), ttl=settings.cache_ttl_lookup)
     return resolved
+
+
+VALID_TILE_TYPES = {"noise", "air_quality", "climate"}
+
+
+@router.get("/wms-tile")
+async def wms_tile_proxy(
+    type: str = Query(..., description="Tile type: noise, air_quality, or climate"),
+    rd_x: float = Query(..., description="RD X coordinate"),
+    rd_y: float = Query(..., description="RD Y coordinate"),
+):
+    """Proxy WMS GetMap tiles to avoid CORS issues in the browser."""
+    if type not in VALID_TILE_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid tile type '{type}'. "
+            f"Must be one of: {', '.join(sorted(VALID_TILE_TYPES))}",
+        )
+
+    cache_key = f"wms_tile:{type}:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        tile_bytes = base64.b64decode(cached)
+        return Response(content=tile_bytes, media_type="image/png")
+
+    tile_bytes = await wms_tile.get_wms_tile(type, rd_x, rd_y)
+    if tile_bytes is None:
+        return Response(status_code=204)
+
+    encoded = base64.b64encode(tile_bytes).decode()
+    await cache_set(cache_key, encoded, ttl=settings.cache_ttl_wms_tile)
+    return Response(content=tile_bytes, media_type="image/png")
 
 
 @router.get("/{vbo_id}/building", response_model=BuildingFactsResponse)
