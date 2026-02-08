@@ -382,19 +382,16 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     const ctx = sceneRef.current;
     if (!ctx || !center.lat || !center.lng) return;
 
-    const zoom = 18;
+    // Zoom 16: ~612m per tile at Dutch latitudes — covers the full 500m building bbox
+    const zoom = 16;
     const tile = latLngToTile(center.lat, center.lng, zoom);
     const tileUrl = `https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/${zoom}/${tile.x}/${tile.y}.png`;
 
     // Calculate tile size in meters at this latitude
-    // Earth circumference at equator = 40075016.686 meters
-    // At zoom 18, there are 2^18 = 262144 tiles around the world
-    // Tile width at equator = 40075016.686 / 262144 ≈ 152.87 meters
-    // At latitude φ, width = equatorWidth * cos(φ)
     const equatorTileWidth = 40075016.686 / Math.pow(2, zoom);
     const tileWidthMeters = equatorTileWidth * Math.cos((center.lat * Math.PI) / 180);
 
-    // Scale ground plane to match tile size (GROUND_SIZE is 500m, tile is ~150m)
+    // Scale ground plane to match tile real-world size
     const scaleFactor = tileWidthMeters / GROUND_SIZE;
     ctx.ground.scale.set(scaleFactor, scaleFactor, 1);
 
