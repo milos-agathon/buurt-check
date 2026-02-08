@@ -182,11 +182,11 @@ buurt-check/
     app/
       api/           # Route handlers (address.py, neighborhood.py, router.py)
       cache/         # Redis cache with circuit breaker (redis.py)
-      services/      # Business logic (bag.py, locatieserver.py, three_d_bag.py, cbs.py)
+      services/      # Business logic (bag.py, locatieserver.py, three_d_bag.py, cbs.py, risk_cards.py, wms_tile.py)
       models/        # Pydantic models (address.py, building.py, neighborhood.py, neighborhood3d.py)
       config.py      # Settings via pydantic-settings
       main.py        # FastAPI app entry point
-    tests/           # pytest tests (91 tests + 5 live smoke tests)
+    tests/           # pytest tests (162 non-live + 9 live smoke tests)
   frontend/          # React application (Vite + TypeScript)
     src/
       components/    # F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle
@@ -203,16 +203,16 @@ buurt-check/
 
 ## Current project status
 
-**Stage: F1 + F2 + F3 + F4 implemented and hardened. LoD 2.2 roof geometry in progress (uncommitted). Ready for F5.**
+**Stage: F1 + F2 + F3 + F4 implemented and hardened. LoD 2.2 committed and feature-flagged. WMS overlay tiles integrated. Ready for F5.**
 
 ### What exists
-- `backend/` — FastAPI app with address suggest, lookup, building facts, 3D neighborhood endpoints (including fast `/building3d` target-only endpoint), F3 risk-card endpoint (`/api/address/{vbo_id}/risks`) for noise/air/climate, and F4 neighborhood stats endpoint (`/api/address/{vbo_id}/neighborhood`). BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration uses dual-fetch strategy (direct target + bbox surrounding). CBS Wijken & Buurten integration with buurt-code + bbox fallback. Redis cache with circuit breaker. Structured logging for risk card requests. Calibration script for monthly layer verification. 147 passing tests + 9 live smoke tests (deselected by default).
-- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js with street basemap, uniform building colors, target edge highlight, dynamic camera positioning), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification, unavailable state). F3: RiskCardsPanel (noise, air quality, climate stress) with full EN/NL copy, source+date display, error state, and 20s timeout. F4: NeighborhoodStatsCard with urbanization badge, age distribution bars, grouped indicators. Two-phase progressive 3D loading (target ~2s, neighborhood ~12-17s). 149 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
+- `backend/` — FastAPI app with address suggest, lookup, building facts, 3D neighborhood endpoints (including fast `/building3d` target-only endpoint and full `/neighborhood3d` bbox endpoint), F3 risk-card endpoint (`/api/address/{vbo_id}/risks`) for noise/air/climate, F4 neighborhood stats endpoint (`/api/address/{vbo_id}/neighborhood`), and WMS tile proxy (`/api/address/{vbo_id}/wms-tile`). BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration uses dual-fetch strategy (direct target + bbox surrounding) with LoD 2.2 roof geometry parsing (feature-flagged). CBS Wijken & Buurten integration with buurt-code + bbox fallback. Redis cache with circuit breaker. Structured logging. 162 passing tests + 9 live smoke tests (deselected by default).
+- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js with street basemap, construction-year building colors, target edge highlight, LoD 2.2 roof rendering, WMS overlay rendering, two-layer ground system, dynamic camera positioning), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification, unavailable state), OverlayControls (noise/air/climate WMS tile toggles). F3: RiskCardsPanel (noise, air quality, climate stress) with full EN/NL copy, source+date display, error state, and 20s timeout. F4: NeighborhoodStatsCard with urbanization badge, age distribution bars, grouped indicators. Two-phase progressive 3D loading (target ~2s, neighborhood ~12-17s). 150 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
 - `docs/prd.md` — v1.1, fully restructured with 13 sections
 
 ### What's next
-- Maintain quality gates: `ruff check`, backend pytest (147+, excluding live), frontend vitest (149+), `npm run build`, Playwright E2E smoke.
-- Complete LoD 2.2 roof geometry (uncommitted work in progress — backend parsing works, frontend rendering has coordinate alignment issues).
+- Maintain quality gates: `ruff check`, backend pytest (162+, excluding live), frontend vitest (150+), `npm run build`, Playwright E2E smoke.
+- Fix remaining 3D viewer issues: basemap coverage for full neighborhood, LoD 2.2 visual verification, render performance (<15s target).
 - Implement F5 shortlist + compare + PDF export.
 - Resolve PM2.5 data gap (GCN WMS only has NO2 layers; PM2.5 may need offline ZIP ingestion or alternative endpoint).
 
@@ -572,3 +572,69 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 3. **Multiple sessions on the same feature is normal.** The 3D viewer went through 4 sessions (visual style, camera fix, basemap+zoom, LoD 2.2) before reaching acceptable quality. Each session addressed issues discovered by visual inspection in the previous session.
 4. **Feature flags prevent deployment stress.** LoD 2.2 could be deployed safely with the flag OFF, tested in staging, then enabled gradually. This is especially valuable for visual features where regression risk is high.
 5. **pydantic-settings `.env` file loading.** Add `env_file = ".env"` to `model_config` in the Settings class. Without this, environment variables from `.env` files are not loaded — only system environment variables or explicit `BUURT_*` prefixed vars work.
+
+## Learnings from F2 completion and 3D viewer fix sessions (2026-02-08)
+
+### WMS Tile Proxy Pattern
+
+1. **Backend proxy required for WMS overlays.** CORS prevents frontend from calling RIVM/Klimaateffectatlas directly. Backend proxy at `GET /api/address/{vbo_id}/wms-tile?source={noise|air_quality|climate}&rd_x=...&rd_y=...&radius=250` fetches WMS GetMap in EPSG:28992 (RD New) and returns PNG bytes.
+2. **Content-type validation mandatory.** WMS services return HTTP 200 + XML error documents when layers are unavailable. Always check `Content-Type: image/*` before returning bytes. An HTTP 200 does NOT guarantee a valid image.
+3. **Reuse layer selection logic from risk cards.** Import `_select_noise_layer`, `_select_air_layer`, `_CLIMATE_HEAT_LAYERS` from `risk_cards.py` into `wms_tile.py`. Avoids duplicating layer discovery and regex matching. Creates coupling — acceptable for MVP; extract to shared module if logic diverges.
+4. **WMS tile cache key:** `wms_tile:{source}:{rd_x:.0f}:{rd_y:.0f}:{radius:.0f}`. Round coordinates to avoid cache fragmentation. TTL 24 hours (raster data updates infrequently).
+
+### Three.js WMS Overlay Rendering
+
+1. **Overlay mesh positioning.** Place overlay `PlaneGeometry` at `Y=0.1` (just above ground plane at Y=0). Match ground plane dimensions.
+2. **Material settings for transparency.** `MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.5, depthWrite: false })`. **Critical:** `depthWrite: false` prevents z-fighting with the ground plane.
+3. **Blob URL cleanup pattern.** Load texture via `URL.createObjectURL(await resp.blob())`. Always `URL.revokeObjectURL()`, `texture.dispose()`, `geometry.dispose()` when overlay changes or component unmounts. Prevents memory leaks.
+4. **Single-active overlay toggle.** Use `activeOverlay: OverlayId | null` state (not `Set<OverlayId>`). Toggle logic: `onClick={() => setActiveOverlay(isActive ? null : id)}`. Simpler than multi-select with exclusion rules.
+
+### WMTS Basemap Zoom Level Calculation
+
+1. **Tile coverage must exceed geometry bbox.** Formula: `tile_size_meters = (40075017 / 2^zoom) * cos(latitude_radians)`. At Amsterdam (52.37°N): zoom 18 ≈ 153m, zoom 16 ≈ 612m.
+2. **Rule:** If geometry bbox radius = R meters, basemap zoom must provide `tile_size >= 2R`. 3D viewer fetches buildings within 250m radius (500m bbox), so zoom 16 is the minimum at Amsterdam latitude. Zoom 18 caused buildings to render outside the basemap.
+
+### Construction Year Coloring
+
+1. **Period-appropriate facade colors** communicate building age at a glance. Palette based on Dutch architectural periods:
+   - Pre-1900: Sienna (traditional brick) `0xa0522d`
+   - 1900-1945: Warm orange-brown (Amsterdam School) `0xcc7722`
+   - 1945-1975: Sandy yellow (post-war reconstruction) `0xc8b87d`
+   - 1975-2000: Neutral gray (prefab era) `0x9e9e9e`
+   - 2000+: Blue-gray (contemporary) `0xb0bec5`
+   - Unknown: Light gray `0xe0e0e0`
+2. **Target building stays blue** (`#2563eb`) regardless of construction year, for UX clarity.
+
+### Stale Cache Defeats Feature Flags
+
+1. **Root cause of "LoD 2.2 not showing" after flag enabled.** `neighborhood3d:*` cache keys were populated when `enable_lod22_roofs=false`. With 24h TTL, old responses (`roof_surfaces: null`) persisted despite flag now being `true`. **Fix: flush affected cache keys when toggling feature flags that change response shape.** Don't wait for TTL expiry.
+2. **General rule:** Feature flags that alter API response structure require cache invalidation on toggle. This extends the "never cache empty/error responses" principle — also never serve cached responses from a different feature flag state.
+
+### Two-Layer Ground System for Basemap
+
+1. **Problem:** Single WMTS tile with offset can leave buildings outside the tile when the query point is near a tile edge. Gray `PlaneGeometry` base is visible.
+2. **Solution:** Two-layer ground: (1) Large neutral gray base (1000m, always covers all buildings), (2) Textured basemap tile positioned with offset at `Y=0.01` above the base.
+3. **Trade-off:** The gray base is visible at edges, but buildings never appear to "float" over nothing. Preferable to gaps.
+
+### 3DBAG Performance Tuning
+
+1. **Radius reduction has biggest impact.** Reducing bbox radius from 250m to 150m cuts search area by 64%. `MAX_PAGES=2` (40 buildings max) is sufficient for 150m radius in most areas but may miss buildings in dense city centers. `MAX_PAGES=3` (60 buildings) is safer.
+2. **`BBOX_TIMEOUT` increased to 30s** to accommodate larger server-side processing times for dense neighborhoods. Cascade: `BBOX_TIMEOUT=30s` > `PER_PAGE_TIMEOUT=20s` > `connect=3s`. Frontend abort timeout must exceed 30s.
+3. **Progressive loading requires endpoint separation.** Single-building target fetch (`/building3d`, ~2s) must be separate from neighborhood bbox fetch (`/neighborhood3d`, 12-17s). A single monolithic endpoint forces frontend to wait for the slowest operation.
+
+### Stale CLAUDE.md Files in Subdirectories
+
+1. **`frontend/CLAUDE.md` and `backend/CLAUDE.md` describe non-existent architecture.** Frontend CLAUDE.md references Zustand, React Query, Tailwind, shadcn/ui, `src/three/`, `src/hooks/`, `src/stores/` — none of which exist. Backend CLAUDE.md references SQLAlchemy, GeoAlchemy2, PostGIS, alembic — none of which exist.
+2. **Always verify CLAUDE.md claims against actual codebase** before trusting them for planning. Trust `grep`/`read` over stale documentation. The root `CLAUDE.md` is the authoritative source.
+
+### Test Count Baselines (updated 2026-02-08)
+
+- **Backend: 162 non-live + 9 live smoke tests** (25 api + 15 bag + 5 cache + 10 locatieserver + 14 models + 25 three_d_bag + 18 risk_cards + 33 cbs + 8 wms_tile + 5 risk_cards_live + 4 cbs_live). Previous baseline: 147.
+- **Frontend: 150 tests** (21 api + 16 AddressSearch + 14 BuildingFactsCard + 29 App + 10 NeighborhoodViewer3D + 8 ShadowControls + 13 SunlightRiskCard + 7 ShadowSnapshots + 8 OverlayControls + 9 RiskCardsPanel + 15 NeighborhoodStatsCard). Previous baseline: 149.
+
+### Process Learnings (Feb 8)
+
+1. **Passing tests ≠ working product.** All automated tests passed (backend 162, frontend 150, ruff clean, build clean), but user reported LoD 2.2 not rendering, buildings outside basemap, and >20s render time. Visual/UX bugs require manual verification with real data.
+2. **Debug print statements proliferate during fix sessions.** After debugging, always grep for `print(` and clean up before committing. Replace with `logger.info()`/`logger.warning()` if logging is still needed.
+3. **Progressive enhancement: ship UI stubs first.** OverlayControls existed as "Coming soon" stub (shipped in F2), then was wired to real WMS data in a separate session. This validates UX patterns before investing in backend infrastructure.
+4. **Plan-first for multi-issue bugs.** When multiple related issues appear after a feature change, investigate all root causes before implementing fixes. Fixing symptoms (smaller ground, fewer pages) without addressing root causes (stale cache, tile coverage) wastes time.
