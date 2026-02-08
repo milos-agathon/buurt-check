@@ -92,17 +92,24 @@ vi.mock('three', () => {
   function TextureLoader(this: any) {
     this.load = vi.fn((_url, onLoad) => {
       // Simulate successful texture load with mock texture
-      const mockTexture = { colorSpace: null };
+      const mockTexture = { colorSpace: null, dispose: vi.fn() };
       setTimeout(() => onLoad?.(mockTexture), 0);
       return mockTexture;
     });
+  }
+  function MeshBasicMaterial(this: any) {
+    this.dispose = vi.fn();
+    this.map = null;
+    this.transparent = false;
+    this.opacity = 1;
+    this.depthWrite = true;
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   return {
     Scene, PerspectiveCamera, WebGLRenderer, HemisphereLight, DirectionalLight,
-    PlaneGeometry, MeshStandardMaterial, Mesh: MockMesh, Shape, ExtrudeGeometry,
-    BufferGeometry, Float32BufferAttribute,
+    PlaneGeometry, MeshStandardMaterial, MeshBasicMaterial, Mesh: MockMesh,
+    Shape, ExtrudeGeometry, BufferGeometry, Float32BufferAttribute,
     Color, PCFSoftShadowMap: 2, Vector3: Vec3, Raycaster, TextureLoader,
     DoubleSide: 2, SRGBColorSpace: 'srgb',
   };
@@ -128,6 +135,10 @@ vi.mock('suncalc', () => ({
       sunset: new Date(2026, 0, 1, 16, 0),
     })),
   },
+}));
+
+vi.mock('../services/api', () => ({
+  getWmsTile: vi.fn(),
 }));
 
 // Must import after mocks

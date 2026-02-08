@@ -1,57 +1,42 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { OverlayTileType } from '../services/api';
 import './OverlayControls.css';
 
-const OVERLAYS = ['noise', 'airQuality', 'climateStress'] as const;
-type OverlayId = (typeof OVERLAYS)[number];
-
-const OVERLAY_I18N: Record<OverlayId, string> = {
-  noise: 'overlays.noise',
-  airQuality: 'overlays.airQuality',
-  climateStress: 'overlays.climateStress',
-};
+const OVERLAYS: { id: OverlayTileType; i18nKey: string }[] = [
+  { id: 'noise', i18nKey: 'overlays.noise' },
+  { id: 'air_quality', i18nKey: 'overlays.airQuality' },
+  { id: 'climate', i18nKey: 'overlays.climateStress' },
+];
 
 interface Props {
-  availableOverlays?: Set<OverlayId>;
+  activeOverlay: OverlayTileType | null;
+  onOverlayChange: (overlay: OverlayTileType | null) => void;
+  loading?: boolean;
 }
 
-export default function OverlayControls({ availableOverlays }: Props) {
+export default function OverlayControls({ activeOverlay, onOverlayChange, loading }: Props) {
   const { t } = useTranslation();
-  const [active, setActive] = useState<Set<OverlayId>>(new Set());
-
-  const toggle = (id: OverlayId) => {
-    setActive((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
 
   return (
     <div className="overlay-controls">
       <span className="overlay-controls__label">{t('overlays.label')}</span>
       <div className="overlay-controls__buttons">
-        {OVERLAYS.map((id) => (
-          <button
-            key={id}
-            type="button"
-            className={`shadow-controls__preset ${active.has(id) ? 'shadow-controls__preset--active' : ''}`}
-            aria-pressed={active.has(id)}
-            onClick={() => toggle(id)}
-          >
-            {t(OVERLAY_I18N[id])}
-          </button>
-        ))}
+        {OVERLAYS.map(({ id, i18nKey }) => {
+          const isActive = activeOverlay === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              className={`shadow-controls__preset ${isActive ? 'shadow-controls__preset--active' : ''}`}
+              aria-pressed={isActive}
+              onClick={() => onOverlayChange(isActive ? null : id)}
+            >
+              {t(i18nKey)}
+              {isActive && loading && <span className="overlay-controls__spinner" aria-label="loading" />}
+            </button>
+          );
+        })}
       </div>
-      {OVERLAYS.filter((id) => active.has(id) && !availableOverlays?.has(id)).map((id) => (
-        <p key={id} className="overlay-controls__placeholder">
-          {t('overlays.comingSoon', { layer: t(OVERLAY_I18N[id]) })}
-        </p>
-      ))}
     </div>
   );
 }

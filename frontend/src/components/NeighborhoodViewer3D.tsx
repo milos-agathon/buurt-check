@@ -6,6 +6,8 @@ import SunCalc from 'suncalc';
 import ShadowControls from './ShadowControls';
 import OverlayControls from './OverlayControls';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
+import type { OverlayTileType } from '../services/api';
+import { getWmsTile } from '../services/api';
 import './NeighborhoodViewer3D.css';
 
 // Camera preset offsets (relative to target building center)
@@ -48,7 +50,7 @@ function latLngToTile(lat: number, lng: number, zoom: number) {
 interface Props {
   buildings: BuildingBlock[];
   targetPandId?: string;
-  center: { lat: number; lng: number };
+  center: { lat: number; lng: number; rd_x: number; rd_y: number };
   onSunlightAnalysis?: (result: SunlightResult) => void;
   onShadowSnapshots?: (snapshots: ShadowSnapshot[]) => void;
 }
@@ -117,6 +119,10 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
   const [hour, setHour] = useState(12);
   const [datePreset, setDatePreset] = useState('summer'); // Default to summer for reliable sun position
+  const [activeOverlay, setActiveOverlay] = useState<OverlayTileType | null>(null);
+  const [overlayLoading, setOverlayLoading] = useState(false);
+  const overlayMeshRef = useRef<THREE.Mesh | null>(null);
+  const overlayTextureRef = useRef<THREE.Texture | null>(null);
   const sunlightComputed = useRef(false);
   const snapshotsCaptured = useRef(false);
 
@@ -579,6 +585,77 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     onShadowSnapshots(snapshots);
   }, [buildings, onShadowSnapshots, center.lat, center.lng]);
 
+  // Clean up overlay mesh helper
+  const disposeOverlay = useCallback(() => {
+    const ctx = sceneRef.current;
+    if (overlayMeshRef.current) {
+      ctx?.scene.remove(overlayMeshRef.current);
+      overlayMeshRef.current.geometry.dispose();
+      (overlayMeshRef.current.material as THREE.Material).dispose();
+      overlayMeshRef.current = null;
+    }
+    if (overlayTextureRef.current) {
+      overlayTextureRef.current.dispose();
+      overlayTextureRef.current = null;
+    }
+  }, []);
+
+  // Clear overlay on address change
+  useEffect(() => {
+    return () => {
+      disposeOverlay();
+      setActiveOverlay(null);
+    };
+  }, [buildings, disposeOverlay]);
+
+  // Handle overlay toggle
+  const handleOverlayChange = useCallback((type: OverlayTileType | null) => {
+    const ctx = sceneRef.current;
+    if (!ctx) return;
+
+    // Remove old overlay
+    disposeOverlay();
+
+    if (type === null) {
+      setActiveOverlay(null);
+      return;
+    }
+
+    setActiveOverlay(type);
+    setOverlayLoading(true);
+
+    void (async () => {
+      try {
+        const blob = await getWmsTile(type, center.rd_x, center.rd_y);
+        const url = URL.createObjectURL(blob);
+
+        const texture = new THREE.TextureLoader().load(url, () => {
+          URL.revokeObjectURL(url);
+        });
+        overlayTextureRef.current = texture;
+
+        const planeGeom = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
+        const planeMat = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          opacity: 0.5,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+
+        const mesh = new THREE.Mesh(planeGeom, planeMat);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.y = 0.2; // Just above ground plane
+        overlayMeshRef.current = mesh;
+        ctx.scene.add(mesh);
+      } catch {
+        setActiveOverlay(null);
+      } finally {
+        setOverlayLoading(false);
+      }
+    })();
+  }, [center.rd_x, center.rd_y, disposeOverlay]);
+
   return (
     <div className="viewer-3d">
       <h2 className="viewer-3d__title">{t('viewer3d.title')}</h2>
@@ -590,7 +667,11 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         onDatePresetChange={setDatePreset}
         onCameraPreset={setCameraPreset}
       />
-      <OverlayControls />
+      <OverlayControls
+        activeOverlay={activeOverlay}
+        onOverlayChange={handleOverlayChange}
+        loading={overlayLoading}
+      />
       <p className="viewer-3d__source">{t('viewer3d.source')}</p>
     </div>
   );
