@@ -131,6 +131,38 @@ async def building_facts(
     return response
 
 
+@router.get("/{vbo_id}/building3d", response_model=Neighborhood3DResponse)
+async def building_3d(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    pand_id: str = Query(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    lat: float = Query(...),
+    lng: float = Query(...),
+):
+    """Fast Phase 1: fetch only the target building (~2s, no bbox)."""
+    cache_key = f"building3d:{pand_id}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return Neighborhood3DResponse(**cached)
+
+    try:
+        result = await three_d_bag.get_target_building_3d(
+            pand_id=pand_id, rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng,
+            vbo_id=vbo_id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"3DBAG API unavailable: {exc}"
+        ) from exc
+
+    if result.buildings:
+        await cache_set(
+            cache_key, result.model_dump(), ttl=settings.cache_ttl_building,
+        )
+    return result
+
+
 @router.get("/{vbo_id}/neighborhood3d", response_model=Neighborhood3DResponse)
 async def neighborhood_3d(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
@@ -141,7 +173,8 @@ async def neighborhood_3d(
     lng: float = Query(...),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
-    cache_key = f"neighborhood3d:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    # v2: added LoD 2.2 roofs
+    cache_key = f"neighborhood3d:v2:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return Neighborhood3DResponse(**cached)

@@ -9,7 +9,7 @@ import SunlightRiskCard from './components/SunlightRiskCard';
 import ShadowSnapshots from './components/ShadowSnapshots';
 import RiskCardsPanel from './components/RiskCardsPanel';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
-import { lookupAddress, getBuildingFacts, getNeighborhood3D, getRiskCards, getNeighborhoodStats } from './services/api';
+import { lookupAddress, getBuildingFacts, getBuilding3D, getNeighborhood3D, getRiskCards, getNeighborhoodStats } from './services/api';
 import type {
   AddressSuggestion,
   ResolvedAddress,
@@ -28,6 +28,7 @@ function App() {
   const [buildingResponse, setBuildingResponse] = useState<BuildingFactsResponse | null>(null);
   const [neighborhood3D, setNeighborhood3D] = useState<Neighborhood3DResponse | null>(null);
   const [neighborhood3DLoading, setNeighborhood3DLoading] = useState(false);
+  const [surroundingLoading, setSurroundingLoading] = useState(false);
   const [riskCards, setRiskCards] = useState<RiskCardsResponse | null>(null);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState(false);
@@ -47,6 +48,7 @@ function App() {
     setBuildingResponse(null);
     setNeighborhood3D(null);
     setNeighborhood3DLoading(false);
+    setSurroundingLoading(false);
     setRiskCards(null);
     setRiskLoading(false);
     setRiskError(false);
@@ -114,29 +116,41 @@ function App() {
         setBuildingResponse(building);
         setLoading(false);
 
-        // Fire 3D fetch in background (non-blocking, does not delay building facts)
+        // Two-phase progressive 3D loading
         const pandId = building.building?.pand_id;
         if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
           setNeighborhood3DLoading(true);
+          setSurroundingLoading(true);
+          let phase2Done = false;
+
+          // Phase 1: Target building only (~2s)
           void (async () => {
             try {
-              const n3d = await getNeighborhood3D(
-                vboId,
-                pandId,
-                rd_x,
-                rd_y,
-                latitude,
-                longitude,
-              );
+              const target3d = await getBuilding3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
+              if (!phase2Done && neighborhood3DRequestId.current === requestId) {
+                setNeighborhood3D(target3d);
+                setNeighborhood3DLoading(false);
+              }
+            } catch { /* Phase 2 handles full fetch */ }
+          })();
+
+          // Phase 2: Full neighborhood (~12-17s)
+          void (async () => {
+            try {
+              const n3d = await getNeighborhood3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
+              phase2Done = true;
               if (neighborhood3DRequestId.current === requestId) {
                 setNeighborhood3D(n3d);
                 setNeighborhood3DLoading(false);
+                setSurroundingLoading(false);
                 const canCompute = n3d.buildings.length > 0 && !!n3d.target_pand_id;
                 setSunlightUnavailable(!canCompute);
               }
             } catch {
+              phase2Done = true;
               if (neighborhood3DRequestId.current === requestId) {
                 setNeighborhood3DLoading(false);
+                setSurroundingLoading(false);
                 setSunlightUnavailable(true);
               }
             }
@@ -193,8 +207,8 @@ function App() {
             buildings={neighborhood3D.buildings}
             targetPandId={neighborhood3D.target_pand_id ?? undefined}
             center={neighborhood3D.center}
-            onSunlightAnalysis={setSunlight}
-            onShadowSnapshots={setShadowSnapshots}
+            onSunlightAnalysis={surroundingLoading ? undefined : setSunlight}
+            onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
           />
         )}
 
@@ -224,7 +238,8 @@ function App() {
         {(() => {
           const canComputeSunlight = !!neighborhood3D
             && neighborhood3D.buildings.length > 0
-            && !!neighborhood3D.target_pand_id;
+            && !!neighborhood3D.target_pand_id
+            && !surroundingLoading;
           const sunlightLoading = canComputeSunlight && !sunlight;
           const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
           if (!showSunlightCard) return null;

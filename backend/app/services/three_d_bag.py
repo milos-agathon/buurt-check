@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 _client: httpx.AsyncClient | None = None
 
 MAX_PAGES = 3
-BBOX_TIMEOUT = 20.0  # total time budget for bbox fetch (seconds)
+BBOX_TIMEOUT = 30.0  # total time budget for bbox fetch (seconds)
 PER_PAGE_TIMEOUT = 20.0  # per-page HTTP timeout (seconds)
 
 
@@ -49,7 +49,8 @@ def _extract_lod22_surfaces(
             continue
 
         for geom in child.get("geometry", []):
-            if geom.get("lod") != "2.2" or geom.get("type") != "Solid":
+            lod = str(geom.get("lod", ""))
+            if lod != "2.2" or geom.get("type") != "Solid":
                 continue
 
             boundaries = geom.get("boundaries", [])
@@ -152,6 +153,8 @@ def _parse_building(
             roof_surfaces = _extract_lod22_surfaces(
                 city_object, city_objects, vertices, scale, translate, center_x, center_y
             )
+            if roof_surfaces:
+                logger.info("LoD 2.2: %d surfaces for %s", len(roof_surfaces), raw_id)
         except Exception:
             logger.warning("LoD 2.2 parse failed for %s, falling back to LoD 0", raw_id)
             roof_surfaces = None
@@ -223,7 +226,7 @@ async def _fetch_bbox_buildings(
 
     buildings: list[BuildingBlock] = []
     page = 0
-    next_url: str | None = f"{url}?bbox={bbox}&limit=20"
+    next_url: str | None = f"{url}?bbox={bbox}&limit=50"
     start = time.monotonic()
 
     while next_url and page < MAX_PAGES:
@@ -298,7 +301,7 @@ async def get_neighborhood_3d(
     lat: float,
     lng: float,
     vbo_id: str | None = None,
-    radius: float = 250.0,
+    radius: float = 150.0,
 ) -> Neighborhood3DResponse:
     """Fetch 3D building data from 3DBAG for the neighborhood around a point."""
     # Parallel fetch: direct target + bbox neighborhood
@@ -336,4 +339,24 @@ async def get_neighborhood_3d(
         center=center,
         buildings=buildings,
         message=message,
+    )
+
+
+async def get_target_building_3d(
+    pand_id: str,
+    rd_x: float,
+    rd_y: float,
+    lat: float,
+    lng: float,
+    vbo_id: str | None = None,
+) -> Neighborhood3DResponse:
+    """Fast Phase 1: fetch only the target building (~2s, no bbox)."""
+    target = await _fetch_target_building(pand_id, rd_x, rd_y)
+    buildings = [target] if target else []
+    return Neighborhood3DResponse(
+        address_id=vbo_id or pand_id,
+        target_pand_id=pand_id if target else None,
+        center=Neighborhood3DCenter(lat=lat, lng=lng, rd_x=rd_x, rd_y=rd_y),
+        buildings=buildings,
+        message=None if target else "Target building not found in 3D data",
     )

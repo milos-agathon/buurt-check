@@ -15,6 +15,7 @@ vi.mock('./services/api', () => ({
   suggestAddresses: vi.fn(),
   lookupAddress: vi.fn(),
   getBuildingFacts: vi.fn(),
+  getBuilding3D: vi.fn(),
   getNeighborhood3D: vi.fn(),
   getRiskCards: vi.fn(),
   getNeighborhoodStats: vi.fn(),
@@ -56,9 +57,10 @@ vi.mock('./components/NeighborhoodStatsCard', () => ({
   ),
 }));
 
-import { lookupAddress, getBuildingFacts, suggestAddresses, getNeighborhood3D, getRiskCards, getNeighborhoodStats } from './services/api';
+import { lookupAddress, getBuildingFacts, getBuilding3D, suggestAddresses, getNeighborhood3D, getRiskCards, getNeighborhoodStats } from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
 const mockBuilding = vi.mocked(getBuildingFacts);
+const mockBuilding3D = vi.mocked(getBuilding3D);
 const mockSuggest = vi.mocked(suggestAddresses);
 const mockNeighborhood3D = vi.mocked(getNeighborhood3D);
 const mockRiskCards = vi.mocked(getRiskCards);
@@ -73,10 +75,13 @@ beforeAll(async () => {
 beforeEach(() => {
   mockLookup.mockReset();
   mockBuilding.mockReset();
+  mockBuilding3D.mockReset();
   mockSuggest.mockReset();
   mockNeighborhood3D.mockReset();
   mockRiskCards.mockReset();
   mockNeighborhoodStats.mockReset();
+  // Phase 1 (building3D) defaults to never-resolving so Phase 2 controls tests
+  mockBuilding3D.mockReturnValue(new Promise(() => {}));
   mockRiskCards.mockResolvedValue(makeRiskCardsResponse());
   mockNeighborhoodStats.mockResolvedValue(makeNeighborhoodStatsResponse());
 });

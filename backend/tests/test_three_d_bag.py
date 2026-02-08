@@ -625,8 +625,8 @@ async def test_fetch_bbox_stops_on_time_budget(mock_get_client, mock_time):
     mock_get_client.return_value = mock_client
 
     # Simulate: start=0.0, first remaining check=0.0, page_start=0.0,
-    # page_end=2.0, then remaining check=19.5 (remaining=0.5 < 1.0 → break)
-    mock_time.monotonic.side_effect = [0.0, 0.0, 0.0, 2.0, 19.5, 19.5]
+    # page_end=2.0, then remaining check=29.5 (remaining=0.5 < 1.0 → break)
+    mock_time.monotonic.side_effect = [0.0, 0.0, 0.0, 2.0, 29.5, 29.5]
 
     call_count = 0
 

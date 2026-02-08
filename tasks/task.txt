@@ -16,3 +16,70 @@ now you must update @CLAUDE.md with the learnings to improve your efficiency and
   everything.
 
   Duinzicht 23, 2235BV Valkenburg
+
+think hard
+
+# Planning Session: F2 — 3D neighborhood viewer + sunlight & shadow simulation
+
+## Your task
+Read the relevant source files and produce a detailed implementation plan. Do NOT write any code.
+
+## Context
+- Read `docs/prd.md` sections: [RELEVANT SECTIONS, e.g., "F2 — 3D neighborhood viewer + sunlight & shadow simulation"]
+- Read the existing backend service pattern in `backend/services/bag.py` (this is our reference implementation for external API integration)
+- Read the existing risk card component pattern in `frontend/src/components/RiskCard/` if it exists
+- Read `backend/models/` to understand our PostGIS schema conventions
+- Read `CLAUDE.md` in root, backend/, and frontend/
+
+## Requirements
+F2 — 3D neighborhood viewer + sunlight & shadow simulation from prd.md
+
+## Plan format
+Produce a plan with exactly this structure:
+
+### 1. Files to create (full paths)
+For each file: purpose, key exports/functions, dependencies on other files in this plan.
+
+### 2. Files to modify (full paths)
+For each file: what changes, why, and the exact function/class being modified.
+
+### 3. Implementation order
+Number each step 1–N. Each step must:
+- Touch at most 3 files
+- Be independently testable
+- End with a git commit message
+
+### 4. Test plan
+For each implementation step: the test file path, what it tests, key assertions.
+
+### 5. Integration verification
+The exact manual steps to verify the feature works end-to-end after all steps are complete.
+
+### 6. Risk flags
+Anything in this plan that depends on an assumption about external API behavior, browser compatibility, or data format that should be validated first.
+
+Do NOT write any code. Only produce the plan.
+
+ultrathink
+
+# Implementation Session: [FEATURE NAME]
+
+Read `docs/plans/f2.md` — this is the reviewed implementation plan.
+
+## Rules for this session
+1. Implement the plan step by step in the exact order specified.
+2. After completing each step, run the tests specified in the plan for that step.
+3. If tests pass, commit with the message specified in the plan.
+4. If tests fail, fix the implementation (not the tests) until they pass, then commit.
+5. Do NOT refactor, optimize, or add features beyond what the plan specifies.
+6. Do NOT modify any test files that were written in a previous step.
+7. If you encounter an ambiguity in the plan, stop and ask me before proceeding.
+8. After every commit, report: "Step N/M complete. Tests: X passed, Y failed."
+
+## Context files to read first
+- `CLAUDE.md` (root)
+- `backend/CLAUDE.md`
+- `frontend/CLAUDE.md`
+- `docs/plans/f2.md`
+
+Begin with step 1.

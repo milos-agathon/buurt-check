@@ -37,6 +37,26 @@ export async function getBuildingFacts(
   return resp.json();
 }
 
+export async function getBuilding3D(
+  vboId: string,
+  pandId: string,
+  rdX: number,
+  rdY: number,
+  lat: number,
+  lng: number,
+): Promise<Neighborhood3DResponse> {
+  const params = new URLSearchParams({
+    pand_id: pandId,
+    rd_x: String(rdX),
+    rd_y: String(rdY),
+    lat: String(lat),
+    lng: String(lng),
+  });
+  const resp = await fetch(`${API_BASE}/address/${vboId}/building3d?${params}`);
+  if (!resp.ok) throw new Error(`Building 3D failed: ${resp.status}`);
+  return resp.json();
+}
+
 export async function getNeighborhood3D(
   vboId: string,
   pandId: string,
@@ -53,7 +73,8 @@ export async function getNeighborhood3D(
     lng: String(lng),
   });
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  // LoD 2.2 extraction is heavy, increase timeout to 60s
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
   try {
     const resp = await fetch(
       `${API_BASE}/address/${vboId}/neighborhood3d?${params}`,

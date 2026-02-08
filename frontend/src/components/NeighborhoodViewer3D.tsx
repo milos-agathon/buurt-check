@@ -67,7 +67,7 @@ function getDateFromPreset(preset: string): Date {
 
 const SHADOW_MAP_SIZE = 2048;
 const SUN_DISTANCE = 300;
-const GROUND_SIZE = 500;
+const GROUND_SIZE = 1000;
 const FRUSTUM = 200;
 const TARGET_COLOR = 0x2563eb;
 
@@ -86,11 +86,13 @@ function createLod22Geometry(surfaces: number[][][], minGround: number): THREE.B
     const baseIndex = positions.length / 3;
 
     for (const vert of surface) {
-      // [dx, dy, z_nap] -> Three.js [dx, z_nap - minGround, dy]
-      positions.push(vert[0], vert[2] - minGround, vert[1]);
+      // [dx, dy, z_nap] -> Three.js [dx, z_nap - minGround, -dy] (North is -Z)
+      positions.push(vert[0], vert[2] - minGround, -vert[1]);
     }
 
     // Fan triangulation: vertex 0 connects to each consecutive pair
+    // Coordinate mapping is a rotation (det=1), so winding order is PRESERVED.
+    // Use standard order: 0, i, i+1.
     for (let i = 1; i < surface.length - 1; i++) {
       indices.push(baseIndex, baseIndex + i, baseIndex + i + 1);
     }
@@ -121,6 +123,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   const [datePreset, setDatePreset] = useState('summer'); // Default to summer for reliable sun position
   const [activeOverlay, setActiveOverlay] = useState<OverlayTileType | null>(null);
   const [overlayLoading, setOverlayLoading] = useState(false);
+  const basemapMeshesRef = useRef<THREE.Mesh[]>([]);
   const overlayMeshRef = useRef<THREE.Mesh | null>(null);
   const overlayTextureRef = useRef<THREE.Texture | null>(null);
   const sunlightComputed = useRef(false);
@@ -319,6 +322,8 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         tallestHeight = Math.max(tallestHeight, b.building_height);
       }
 
+
+
       const maxSpan = Math.max(allMaxX - allMinX, allMaxY - allMinY);
 
       // Prefer target building center for camera target, fallback to centroid of all
@@ -377,53 +382,106 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     ctx.sunLight.target.position.set(0, 0, 0);
   }, [hour, datePreset, center.lat, center.lng]);
 
-  // Load PDOK street map as ground texture, aligned to building coordinates
+  // Load PDOK street map as a 3x3 grid of basemap tiles around the center
   useEffect(() => {
     const ctx = sceneRef.current;
     if (!ctx || !center.lat || !center.lng) return;
 
-    // Zoom 16: ~612m per tile at Dutch latitudes — covers the full 500m building bbox
-    const zoom = 16;
-    const tile = latLngToTile(center.lat, center.lng, zoom);
-    const tileUrl = `https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/${zoom}/${tile.x}/${tile.y}.png`;
+    // Clean up previous basemap meshes
+    for (const mesh of basemapMeshesRef.current) {
+      ctx.scene.remove(mesh);
+      if ((mesh.material as THREE.MeshStandardMaterial).map) {
+        (mesh.material as THREE.MeshStandardMaterial).map!.dispose();
+      }
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+    }
+    basemapMeshesRef.current = [];
 
-    // Calculate tile size in meters at this latitude
+    const zoom = 16;
+    const centerTile = latLngToTile(center.lat, center.lng, zoom);
+
+    // 3x3 grid offsets
+    const offsets = [
+      { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+      { dx: -1, dy: 0 }, { dx: 0, dy: 0 }, { dx: 1, dy: 0 },
+      { dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
+    ];
+
+    const meshes: THREE.Mesh[] = [];
+    // Store in ref immediately so cleanup works
+    basemapMeshesRef.current = meshes;
+
+    const loader = new THREE.TextureLoader();
+
     const equatorTileWidth = 40075016.686 / Math.pow(2, zoom);
     const tileWidthMeters = equatorTileWidth * Math.cos((center.lat * Math.PI) / 180);
 
-    // Scale ground plane to match tile real-world size
-    const scaleFactor = tileWidthMeters / GROUND_SIZE;
-    ctx.ground.scale.set(scaleFactor, scaleFactor, 1);
+    // Calculate center offset only once for the center tile
+    // All other tiles are positioned relative to the center tile
+    const centerOffsetX = (centerTile.fracX - 0.5) * tileWidthMeters;
+    const centerOffsetY = (centerTile.fracY - 0.5) * tileWidthMeters;
 
-    // Calculate offset from tile center to query point
-    // fracX/fracY are 0-1 within tile, center is at 0.5
-    // WMTS tile Y increases going SOUTH
-    const offsetX = (tile.fracX - 0.5) * tileWidthMeters;
-    const offsetY = (tile.fracY - 0.5) * tileWidthMeters; // positive = south of tile center
+    offsets.forEach(({ dx, dy }) => {
+      const tileX = centerTile.x + dx;
+      const tileY = centerTile.y + dy;
 
-    // Move ground plane so the query point aligns with scene origin (0,0,0)
-    // In Three.js: +X is east, +Z is south (Y is up)
-    // Building footprints: +X is east (RD), +Y is north (RD) → maps to +X, -Z in scene
-    // So we need: ground X offset = -offsetX (move tile east if query is west of center)
-    //             ground Z offset = -offsetY (move tile north if query is south of center)
-    ctx.ground.position.set(-offsetX, 0, -offsetY);
+      const url = `https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/${zoom}/${tileX}/${tileY}.png`;
 
-    const loader = new THREE.TextureLoader();
-    loader.load(
-      tileUrl,
-      (texture) => {
-        if (!ctx.ground) return;
-        texture.colorSpace = THREE.SRGBColorSpace;
-        const material = ctx.ground.material as THREE.MeshStandardMaterial;
-        material.map = texture;
-        material.color.setHex(0xffffff);
-        material.needsUpdate = true;
-      },
-      undefined,
-      () => {
-        // Silently fail — ground stays neutral gray
-      },
-    );
+      loader.load(
+        url,
+        (texture) => {
+          if (!sceneRef.current) return;
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+
+          const tileGeom = new THREE.PlaneGeometry(tileWidthMeters, tileWidthMeters);
+          const tileMat = new THREE.MeshStandardMaterial({
+            map: texture,
+            roughness: 0.95,
+            side: THREE.DoubleSide,
+          });
+          const tileMesh = new THREE.Mesh(tileGeom, tileMat);
+          tileMesh.rotation.x = -Math.PI / 2;
+
+          // Position relative to scene origin (which corresponds to centerTile's specific fracX/fracY point)
+          // Steps:
+          // 1. Start at center tile position: (-centerOffsetX, -centerOffsetY)
+          // 2. Add grid offset: (dx * width, dy * width) (Note: WebMercator Y is South-positive? No, TMS/Google maps...
+          //    PDOK tile Y increases SOUTH (Google XYZ).
+          //    So +Y tile index means moving SOUTH in world.
+          //    In Three.js (Y-up), South is +Z.
+          //    So +tileY (South) -> +Z in scene.
+          //    +tileX (East) -> +X in scene.
+
+          const worldX = (dx * tileWidthMeters) - centerOffsetX;
+          const worldZ = (dy * tileWidthMeters) - centerOffsetY;
+
+          tileMesh.position.set(worldX, 0.01, worldZ);
+          tileMesh.receiveShadow = true;
+
+          sceneRef.current.scene.add(tileMesh);
+          meshes.push(tileMesh);
+        },
+        undefined,
+        () => {
+          // Ignore failures
+        }
+      );
+    });
+
+    return () => {
+      for (const mesh of basemapMeshesRef.current) {
+        sceneRef.current?.scene.remove(mesh);
+        if ((mesh.material as THREE.MeshStandardMaterial).map) {
+          (mesh.material as THREE.MeshStandardMaterial).map!.dispose();
+        }
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+      }
+      basemapMeshesRef.current = [];
+    };
   }, [center.lat, center.lng]);
 
   // Camera preset handler — positions relative to target building center
