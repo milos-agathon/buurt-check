@@ -132,6 +132,7 @@ vi.mock('suncalc', () => ({
 
 // Must import after mocks
 import NeighborhoodViewer3D from './NeighborhoodViewer3D';
+import { getYearColor } from './NeighborhoodViewer3D';
 
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -223,5 +224,16 @@ describe('NeighborhoodViewer3D', () => {
     // Default makeNeighborhood3DResponse has no roof_surfaces
     renderViewer();
     expect(screen.getByTestId('viewer-3d-canvas')).toBeInTheDocument();
+  });
+});
+
+describe('getYearColor', () => {
+  it('maps construction year periods to correct colors', () => {
+    expect(getYearColor(1875)).toBe(0xa0522d);   // Pre-1900: sienna
+    expect(getYearColor(1920)).toBe(0xcc7722);    // 1900-1945: warm orange-brown
+    expect(getYearColor(1960)).toBe(0xc8b87d);    // 1945-1975: sandy yellow
+    expect(getYearColor(1985)).toBe(0x9e9e9e);    // 1975-2000: neutral gray
+    expect(getYearColor(2010)).toBe(0xb0bec5);    // 2000+: blue-gray
+    expect(getYearColor(undefined)).toBe(0xe0e0e0); // Unknown: light gray
   });
 });

@@ -8,12 +8,25 @@ import OverlayControls from './OverlayControls';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
 import './NeighborhoodViewer3D.css';
 
-// Camera preset offsets (relative to target building center) - tight for single building
+// Camera preset offsets (relative to target building center)
 const CAMERA_PRESETS: Record<string, [number, number, number]> = {
-  street: [15, 8, 15],
-  balcony: [12, 15, 12],
-  topDown: [0, 50, 0.1],
+  street: [25, 10, 25],
+  balcony: [20, 20, 20],
+  topDown: [0, 150, 0.1],
 };
+
+/**
+ * Map construction year to period-appropriate facade color.
+ * These match the PRD Section 9.4 period table.
+ */
+export function getYearColor(year?: number): number {
+  if (year == null) return 0xe0e0e0;     // Unknown: light gray
+  if (year < 1900) return 0xa0522d;      // Pre-1900: sienna (traditional brick)
+  if (year < 1945) return 0xcc7722;      // 1900-1945: warm orange-brown (Amsterdam School)
+  if (year < 1975) return 0xc8b87d;      // 1945-1975: sandy yellow (post-war reconstruction)
+  if (year < 2000) return 0x9e9e9e;      // 1975-2000: neutral gray (prefab era)
+  return 0xb0bec5;                       // 2000+: blue-gray (contemporary)
+}
 
 // Convert lat/lng to Web Mercator tile coordinates and fractional position within tile
 function latLngToTile(lat: number, lng: number, zoom: number) {
@@ -230,16 +243,13 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       lastFocusedPandId.current = targetPandId;
     }
 
-    // Only render target building for now (simplified view)
-    const targetBuilding = targetPandId ? buildings.find((b) => b.pand_id === targetPandId) : null;
-    const buildingsToRender = targetBuilding ? [targetBuilding] : buildings.slice(0, 1);
+    // Render ALL buildings from the neighborhood
+    const minGround = Math.min(...buildings.map((b) => b.ground_height));
 
-    // Find min ground height to use as base
-    const minGround = Math.min(...buildingsToRender.map((b) => b.ground_height));
-
-    for (const building of buildingsToRender) {
+    for (const building of buildings) {
       let geom: THREE.BufferGeometry;
       let useLod22 = false;
+      const isTarget = building.pand_id === targetPandId;
 
       if (building.roof_surfaces && building.roof_surfaces.length > 0) {
         // LoD 2.2: real 3D surfaces from BuildingPart geometry
@@ -263,8 +273,9 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         });
       }
 
+      const color = isTarget ? TARGET_COLOR : getYearColor(building.year);
       const mat = new THREE.MeshStandardMaterial({
-        color: TARGET_COLOR,
+        color,
         side: THREE.DoubleSide, // 3DBAG winding order not guaranteed
       });
 
@@ -287,25 +298,36 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       ctx.buildingMeshes.push(mesh);
     }
 
-    // Position camera to focus on target building (tight framing for single building)
-    if (!cameraSetRef.current && buildingsToRender.length > 0) {
-      const focusBuilding = buildingsToRender[0];
+    // Camera framing: encompass all buildings, prefer target center
+    if (!cameraSetRef.current && buildings.length > 0) {
+      // Compute bounding box across all building footprints
+      let allMinX = Infinity, allMaxX = -Infinity, allMinY = Infinity, allMaxY = -Infinity;
+      let tallestHeight = 0;
+      for (const b of buildings) {
+        for (const p of b.footprint) {
+          allMinX = Math.min(allMinX, p[0]);
+          allMaxX = Math.max(allMaxX, p[0]);
+          allMinY = Math.min(allMinY, p[1]);
+          allMaxY = Math.max(allMaxY, p[1]);
+        }
+        tallestHeight = Math.max(tallestHeight, b.building_height);
+      }
 
+      const maxSpan = Math.max(allMaxX - allMinX, allMaxY - allMinY);
+
+      // Prefer target building center for camera target, fallback to centroid of all
+      const targetBuilding = targetPandId ? buildings.find((b) => b.pand_id === targetPandId) : null;
+      const focusBuilding = targetBuilding || buildings[0];
       const fp = focusBuilding.footprint;
       const cx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
       const cy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
-      const xs = fp.map((p) => p[0]);
-      const ys = fp.map((p) => p[1]);
-      const maxSpan = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-
-      const buildingHeight = focusBuilding.building_height;
-      const targetY = focusBuilding.ground_height - minGround + buildingHeight / 2;
+      const targetY = focusBuilding.ground_height - minGround + focusBuilding.building_height / 2;
 
       targetCenterRef.current.set(cx, targetY, cy);
 
-      // Tight framing: camera distance based on building size
-      const distance = Math.max(maxSpan * 1.5, buildingHeight * 1.2, 15);
-      const cameraHeight = Math.max(buildingHeight * 1.0, 10);
+      // Wider framing for neighborhood context
+      const distance = Math.max(maxSpan * 1.5, 30);
+      const cameraHeight = Math.max(tallestHeight * 1.2, 15);
 
       ctx.camera.position.set(cx + distance, cameraHeight, cy + distance);
       ctx.camera.lookAt(cx, targetY, cy);
