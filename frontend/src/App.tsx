@@ -22,6 +22,7 @@ import TopBar from './components/TopBar';
 import type { TabId } from './components/TabBar';
 import { lookupAddress, getBuildingFacts, getBuilding3D, getNeighborhood3D, getRiskCards, getNeighborhoodStats, getViewingQuestions } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
+import { clearRecent } from './services/recentSearches';
 import type {
   AddressSuggestion,
   ResolvedAddress,
@@ -495,7 +496,7 @@ function App() {
 
         {activeScreen === 'settings' && (
           <SettingsScreen
-            onClearRecent={() => {}}
+            onClearRecent={clearRecent}
             onClearShortlist={handleClearShortlist}
           />
         )}

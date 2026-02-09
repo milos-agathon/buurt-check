@@ -85,3 +85,88 @@
   font: var(--type-small);
   margin: var(--space-xs) 0 0;
 }
+
+/* Recent searches */
+.address-search__recent {
+  margin-top: var(--space-base);
+}
+
+.address-search__recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.address-search__recent-title {
+  font: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.address-search__recent-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.address-search__recent-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 48px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.address-search__recent-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.address-search__recent-icon {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+
+.address-search__recent-name {
+  flex: 1;
+  font: var(--type-body);
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address-search__recent-time {
+  flex-shrink: 0;
+  font: var(--type-micro);
+  color: var(--color-text-tertiary);
+}
+
+/* Value proposition rows (first launch) */
+.address-search__value-props {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-xl);
+}
+
+.address-search__value-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  height: 52px;
+  padding: 0 var(--space-sm);
+}
+
+.address-search__value-icon {
+  flex-shrink: 0;
+}
+
+.address-search__value-text {
+  font: var(--type-caption);
+  color: var(--color-text-secondary);
+}
