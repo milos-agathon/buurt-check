@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import SunCalc from 'suncalc';
+import gsap from 'gsap';
 import ShadowControls from './ShadowControls';
 import OverlayControls from './OverlayControls';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
@@ -522,17 +523,25 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     };
   }, [center.lat, center.lng]);
 
-  // Camera preset handler — positions relative to target building center
+  // Camera preset handler — smooth GSAP tween to target position
   const setCameraPreset = useCallback((preset: string) => {
     const ctx = sceneRef.current;
     if (!ctx) return;
     const offset = CAMERA_PRESETS[preset];
     if (!offset) return;
     const tc = targetCenterRef.current;
-    ctx.camera.position.set(tc.x + offset[0], tc.y + offset[1], tc.z + offset[2]);
-    ctx.camera.lookAt(tc.x, tc.y, tc.z);
-    ctx.controls.target.set(tc.x, tc.y, tc.z);
-    ctx.camera.updateProjectionMatrix();
+
+    gsap.to(ctx.camera.position, {
+      x: tc.x + offset[0],
+      y: tc.y + offset[1],
+      z: tc.z + offset[2],
+      duration: 0.3,
+      ease: 'power2.inOut',
+      onUpdate: () => {
+        ctx.camera.lookAt(tc.x, tc.y, tc.z);
+        ctx.controls.target.set(tc.x, tc.y, tc.z);
+      },
+    });
   }, []);
 
   // Sunlight analysis (F2c) — compute once when buildings are ready
