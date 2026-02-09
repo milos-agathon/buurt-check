@@ -1,38 +1,38 @@
 .building-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: var(--radius-card);
+  padding: var(--space-lg);
+  box-shadow: var(--elevation-1);
 }
 
 .building-card--loading,
 .building-card--empty {
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   text-align: center;
-  padding: 24px 16px;
+  padding: var(--space-xl) var(--space-lg);
 }
 
 .building-card__title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  margin: 0 0 12px;
+  font: var(--type-h3);
+  margin: 0 0 var(--space-base);
 }
 
 .building-card__facts {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 6px 16px;
+  gap: 6px var(--space-lg);
   margin: 0;
 }
 
 .building-card__facts dt {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  font: var(--type-small);
 }
 
 .building-card__facts dd {
   margin: 0;
-  font-size: 0.875rem;
+  font: var(--type-small);
   font-weight: 500;
 }
 
@@ -42,7 +42,7 @@
 }
 
 .building-card__source {
-  margin: 12px 0 0;
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  margin: var(--space-base) 0 0;
+  font: var(--type-micro);
+  color: var(--color-text-tertiary);
 }

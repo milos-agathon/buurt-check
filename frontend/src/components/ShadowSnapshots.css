@@ -1,38 +1,38 @@
 .shadow-snapshots {
   background: var(--color-surface);
-  border-radius: 8px;
-  padding: 16px;
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-lg);
+  box-shadow: var(--elevation-1);
 }
 
 .shadow-snapshots__title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 4px;
+  font: var(--type-body-medium);
+  margin-bottom: var(--space-xs);
 }
 
 .shadow-snapshots__subtitle {
-  font-size: 0.813rem;
-  color: var(--color-text-muted);
-  margin-bottom: 12px;
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-base);
 }
 
 .shadow-snapshots__loading {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  font: var(--type-small);
 }
 
 .shadow-snapshots__grid {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
 }
 
 .shadow-snapshots__item {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
   align-items: center;
 }
 
@@ -40,17 +40,17 @@
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
 }
 
 .shadow-snapshots__label {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
   text-align: center;
 }
 
 .shadow-snapshots__source {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
+  font: var(--type-micro);
+  color: var(--color-text-tertiary);
 }

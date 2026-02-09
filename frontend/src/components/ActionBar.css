@@ -1,0 +1,53 @@
+.action-bar {
+  position: sticky;
+  bottom: calc(var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-base);
+  background: var(--color-surface);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+}
+
+.action-bar__btn {
+  flex: 1;
+  height: 48px;
+  border-radius: var(--radius-button);
+  font: var(--type-body-medium);
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.action-bar__icon {
+  flex-shrink: 0;
+}
+
+.action-bar__btn--primary {
+  background: var(--color-accent);
+  color: white;
+}
+
+.action-bar__btn--primary:hover {
+  background: var(--color-accent-dark, #00796B);
+}
+
+.action-bar__btn--secondary {
+  background: var(--color-surface);
+  color: var(--color-accent);
+  border: 1.5px solid var(--color-accent);
+}
+
+.action-bar__btn--secondary:hover {
+  background: var(--color-accent-light);
+}
+
+.action-bar__btn--saved {
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}

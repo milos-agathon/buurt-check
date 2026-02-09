@@ -3,24 +3,47 @@
   width: 100%;
 }
 
+.address-search__wrapper {
+  position: relative;
+}
+
+.address-search__pin {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+  z-index: 1;
+  transition: color var(--transition-fast);
+}
+
+.address-search__wrapper:focus-within .address-search__pin {
+  color: var(--color-accent);
+}
+
 .address-search__input {
   width: 100%;
-  padding: 12px 16px;
-  font-size: 1rem;
+  height: 56px;
+  padding: 0 var(--space-base);
+  padding-left: 44px;
+  font: var(--type-body-medium);
   border: 2px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-input);
   background: var(--color-surface);
   color: var(--color-text);
   box-sizing: border-box;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .address-search__input:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px rgba(0, 137, 123, 0.12);
 }
 
 .address-search__input::placeholder {
-  color: var(--color-text-muted);
+  color: var(--color-text-tertiary);
 }
 
 .address-search__dropdown {
@@ -31,34 +54,34 @@
   margin-top: 4px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-input);
+  box-shadow: var(--elevation-2);
   z-index: 100;
   list-style: none;
-  padding: 4px 0;
+  padding: var(--space-xs) 0;
   max-height: 300px;
   overflow-y: auto;
 }
 
 .address-search__item {
-  padding: 10px 16px;
+  padding: var(--space-sm) var(--space-base);
   cursor: pointer;
-  font-size: 0.9375rem;
+  font: var(--type-body);
 }
 
 .address-search__item:hover,
 .address-search__item--active {
-  background: var(--color-hover);
+  background: var(--color-surface-hover);
 }
 
 .address-search__no-results {
-  padding: 10px 16px;
-  color: var(--color-text-muted);
-  font-size: 0.9375rem;
+  padding: var(--space-sm) var(--space-base);
+  color: var(--color-text-tertiary);
+  font: var(--type-body);
 }
 
 .address-search__error {
   color: var(--color-danger);
-  font-size: 0.875rem;
-  margin: 4px 0 0;
+  font: var(--type-small);
+  margin: var(--space-xs) 0 0;
 }

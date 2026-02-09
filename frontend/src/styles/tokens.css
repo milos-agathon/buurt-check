@@ -1,0 +1,113 @@
+/* buurt-check Design System Tokens */
+/* "Clear Signal Hybrid" Design Direction */
+
+:root {
+  /* ── Colors: Primary ── */
+  --color-primary: #1A1A2E;        /* Charcoal - primary text, wordmark */
+  --color-accent: #00897B;         /* Electric Teal - primary action color */
+  --color-accent-light: #E0F2F1;   /* Teal tint - selected states, backgrounds */
+  --color-accent-hover: #00796B;   /* Teal darker - hover states */
+
+  /* ── Colors: Risk Severity ── */
+  --color-risk-good: #2E7D68;      /* Good (70-100) */
+  --color-risk-moderate: #E8913A;  /* Moderate (40-69) */
+  --color-risk-poor: #D84315;      /* Poor (20-39) / Coral */
+  --color-risk-critical: #B71C1C;  /* Critical (0-19) */
+  --color-risk-unavailable: #9AA0A6; /* Data unavailable */
+
+  /* ── Colors: Surfaces ── */
+  --color-bg: #F8F9FA;             /* Snow - page background */
+  --color-surface: #FFFFFF;        /* White - card surfaces */
+  --color-surface-alt: #F4F5F7;    /* Recessed cards, comparison sections */
+  --color-surface-recessed: #F0F1F3; /* Recessed backgrounds (PRD name) */
+  --color-surface-hover: #F0F1F3;  /* Cool Gray - hover/press state */
+  --color-border: #E8EAED;        /* Light Fog - borders, dividers */
+
+  /* ── Colors: Text ── */
+  --color-text: #1A1A2E;           /* Charcoal - primary text */
+  --color-text-secondary: #5F6368; /* Mid Gray - secondary text */
+  --color-text-tertiary: #9AA0A6;  /* Silver - placeholder, hints */
+  --color-text-inverse: #FFFFFF;   /* White - text on dark backgrounds */
+
+  /* ── Colors: Feedback ── */
+  --color-danger: #D84315;         /* Coral - errors, destructive actions */
+  --color-danger-light: rgba(216, 67, 21, 0.12); /* Error focus ring */
+  --color-success: #2E7D68;        /* Green - success states */
+  --color-warning: #E8913A;        /* Amber - warning states */
+
+  /* ── Colors: Misc ── */
+  --color-badge-coral: #FF6B6B;    /* Saved count badge */
+  --color-backdrop: rgba(26, 26, 46, 0.4); /* Bottom sheet/modal backdrop */
+  --color-toast-bg: #2D2D3F;       /* Toast background (charcoal variant) */
+
+  /* ── Typography: Font Family ── */
+  --font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* ── Typography: Type Scale ── */
+  --type-display: 900 28px/34px var(--font-family);     /* Wordmark, large headings */
+  --type-h1: 900 24px/30px var(--font-family);           /* Screen titles, address header */
+  --type-h2: 700 20px/26px var(--font-family);           /* Section headings */
+  --type-h3: 700 17px/24px var(--font-family);           /* Card titles */
+  --type-body: 400 15px/22px var(--font-family);         /* Body text */
+  --type-body-friendly: 400 15px/26px var(--font-family); /* Risk explanations — generous line-height */
+  --type-body-medium: 500 15px/22px var(--font-family);  /* Input text, emphasis */
+  --type-data: 500 24px/28px var(--font-family);         /* Score numbers, data values */
+  --type-caption: 500 14px/20px var(--font-family);      /* Value prop rows, indicators */
+  --type-small: 400 13px/18px var(--font-family);        /* Secondary info, timestamps */
+  --type-label: 500 12px/16px var(--font-family);        /* Section labels (uppercase) */
+  --type-micro: 400 11px/14px var(--font-family);        /* Source attribution */
+
+  /* ── Typography: Score Display ── */
+  --type-score-large: 900 48px/1 var(--font-family);     /* Risk detail score */
+  --type-score-tile: 900 40px/1 var(--font-family);      /* Risk tile score */
+  --type-score-pill: 600 14px/1 var(--font-family);      /* Summary strip pill */
+
+  /* ── Spacing: 8pt Grid ── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-base: 16px;
+  --space-lg: 20px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 40px;
+  --space-4xl: 48px;
+  --space-5xl: 64px;
+
+  /* ── Colors: Shadow Ink ── */
+  --color-shadow: rgba(26, 26, 46, 0.06);
+
+  /* ── Elevation: Shadows ── */
+  --elevation-0: none;
+  --elevation-1: 0 2px 8px var(--color-shadow);
+  --elevation-2: 0 8px 24px rgba(26, 26, 46, 0.10);
+  --elevation-3: 0 16px 48px rgba(26, 26, 46, 0.15);
+
+  /* ── Radii ── */
+  --radius-card: 16px;
+  --radius-button: 12px;
+  --radius-pill: 24px;
+  --radius-input: 12px;
+  --radius-badge: 8px;
+  --radius-sm: 6px;
+
+  /* ── Layout ── */
+  --max-width: 600px;
+  --tab-bar-height: 56px;
+  --top-bar-height: 44px;
+  --action-bar-height: 64px;
+
+  /* ── Transitions ── */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+
+  /* ── Focus Ring ── */
+  --focus-ring-accent: 0 0 0 4px rgba(0, 137, 123, 0.12);
+  --focus-ring-danger: 0 0 0 4px rgba(216, 67, 21, 0.12);
+
+  /* ── Frosted Glass ── */
+  --glass-bg: rgba(255, 255, 255, 0.92);
+  --glass-blur: blur(20px);
+  --glass-bg-fallback: rgba(255, 255, 255, 0.95); /* Firefox <103 fallback */
+}

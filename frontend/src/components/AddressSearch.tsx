@@ -106,15 +106,21 @@ export default function AddressSearch({ onSelect }: Props) {
 
   return (
     <div className="address-search" ref={containerRef}>
-      <input
-        type="text"
-        className="address-search__input"
-        value={query}
-        onChange={e => handleInputChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={t('search.placeholder')}
-        autoComplete="off"
-      />
+      <div className="address-search__wrapper">
+        <svg className="address-search__pin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+          <circle cx="12" cy="9" r="2.5" />
+        </svg>
+        <input
+          type="text"
+          className="address-search__input"
+          value={query}
+          onChange={e => handleInputChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={t('search.placeholder')}
+          autoComplete="off"
+        />
+      </div>
       {error && <p className="address-search__error">{t('search.error')}</p>}
       {isOpen && suggestions.length > 0 && (
         <ul className="address-search__dropdown" role="listbox">
