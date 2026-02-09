@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import SunCalc from 'suncalc';
 import gsap from 'gsap';
 import ShadowControls from './ShadowControls';
@@ -71,15 +72,16 @@ const SHADOW_MAP_SIZE = 4096;
 const SUN_DISTANCE = 300;
 const GROUND_SIZE = 750;
 const FRUSTUM = 300;
-const TARGET_COLOR = 0x2563eb;
+const TARGET_COLOR_LIGHT = 0x2563eb;
+const TARGET_COLOR_DARK = 0x26a69a;
 
 /**
  * Create a BufferGeometry from LoD 2.2 surfaces.
  * Each surface is a polygon of [dx, dy, z_nap] vertices (RD offsets + NAP height).
- * Converts to Three.js Y-up: [dx, z_nap - minGround, dy].
+ * Converts to Three.js Y-up: [dx, z_nap - buildingGround, dy].
  * Uses fan triangulation from vertex 0 for each polygon.
  */
-function createLod22Geometry(surfaces: number[][][], minGround: number): THREE.BufferGeometry {
+function createLod22Geometry(surfaces: number[][][], buildingGround: number): THREE.BufferGeometry {
   const positions: number[] = [];
   const indices: number[] = [];
 
@@ -88,8 +90,8 @@ function createLod22Geometry(surfaces: number[][][], minGround: number): THREE.B
     const baseIndex = positions.length / 3;
 
     for (const vert of surface) {
-      // [dx, dy, z_nap] -> Three.js [dx, z_nap - minGround, -dy] (North is -Z)
-      positions.push(vert[0], vert[2] - minGround, -vert[1]);
+      // [dx, dy, z_nap] -> Three.js [dx, z_nap - buildingGround, -dy] (North is -Z)
+      positions.push(vert[0], vert[2] - buildingGround, -vert[1]);
     }
 
     // Fan triangulation: vertex 0 connects to each consecutive pair
@@ -186,9 +188,12 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     const width = container.clientWidth;
     const height = Math.min(width * 0.75, 400);
 
+    // Detect dark mode from document attribute
+    const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf0f4f8);
+    scene.background = new THREE.Color(isDarkMode ? 0x0f1117 : 0xf0f4f8);
 
     // Camera
     const camera = new THREE.PerspectiveCamera(50, width / height, 1, 1000);
@@ -204,7 +209,11 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     container.appendChild(renderer.domElement);
 
     // Lights
-    const ambient = new THREE.HemisphereLight(0xb1e1ff, 0xb97a20, 0.5);
+    const ambient = new THREE.HemisphereLight(
+      isDarkMode ? 0x6688aa : 0xb1e1ff,
+      isDarkMode ? 0x443311 : 0xb97a20,
+      isDarkMode ? 0.4 : 0.5,
+    );
     scene.add(ambient);
 
     const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -309,6 +318,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   useEffect(() => {
     const ctx = sceneRef.current;
     if (!ctx || buildings.length === 0) return;
+    const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
 
     // Remove old buildings
     for (const mesh of ctx.buildingMeshes) {
@@ -327,6 +337,8 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     // Render ALL buildings from the neighborhood
     const minGround = Math.min(...buildings.map((b) => b.ground_height));
 
+    const groupedContext = new Map<string, { color: number; geoms: THREE.BufferGeometry[] }>();
+
     for (const building of buildings) {
       let geom: THREE.BufferGeometry;
       let useLod22 = false;
@@ -334,7 +346,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
       if (building.roof_surfaces && building.roof_surfaces.length > 0) {
         // LoD 2.2: real 3D surfaces from BuildingPart geometry
-        geom = createLod22Geometry(building.roof_surfaces, minGround);
+        geom = createLod22Geometry(building.roof_surfaces, building.ground_height);
         useLod22 = true;
       } else {
         // LoD 0 fallback: extrude 2D footprint
@@ -352,31 +364,62 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
           depth: building.building_height,
           bevelEnabled: false,
         });
+        // Normalize LoD0 to world orientation so it can be merged.
+        // Flatten to ground: base at y=0 (relative to flat basemap)
+        const transform = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+        transform.setPosition(0, 0, 0);
+        geom.applyMatrix4(transform);
       }
 
-      const color = isTarget ? TARGET_COLOR : getYearColor(building.year);
+      if (isTarget) {
+        const mat = new THREE.MeshStandardMaterial({
+          color: isDarkMode ? TARGET_COLOR_DARK : TARGET_COLOR_LIGHT,
+          side: THREE.DoubleSide,
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData.pandId = building.pand_id;
+        ctx.scene.add(mesh);
+        ctx.buildingMeshes.push(mesh);
+        continue;
+      }
+
+      const color = getYearColor(building.year);
+      const key = `${color}-${useLod22 ? 'lod22' : 'lod0'}`;
+      const bucket = groupedContext.get(key);
+      if (bucket) {
+        bucket.geoms.push(geom);
+      } else {
+        groupedContext.set(key, { color, geoms: [geom] });
+      }
+    }
+
+    for (const group of groupedContext.values()) {
+      const merged = mergeGeometries(group.geoms, false);
       const mat = new THREE.MeshStandardMaterial({
-        color,
-        side: THREE.DoubleSide, // 3DBAG winding order not guaranteed
+        color: group.color,
+        side: THREE.DoubleSide,
       });
 
-      const mesh = new THREE.Mesh(geom, mat);
-
-      if (useLod22) {
-        // LoD 2.2: heights baked into vertex data, no rotation needed
-        mesh.position.y = 0;
+      if (merged) {
+        for (const g of group.geoms) g.dispose();
+        const mesh = new THREE.Mesh(merged, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData.isContext = true;
+        ctx.scene.add(mesh);
+        ctx.buildingMeshes.push(mesh);
       } else {
-        // LoD 0: rotate extrusion Y-up, offset by ground height
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.position.y = building.ground_height - minGround;
+        for (const g of group.geoms) {
+          const mesh = new THREE.Mesh(g, mat);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.userData.isContext = true;
+          ctx.scene.add(mesh);
+          ctx.buildingMeshes.push(mesh);
+        }
       }
-
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.userData.pandId = building.pand_id;
-
-      ctx.scene.add(mesh);
-      ctx.buildingMeshes.push(mesh);
     }
 
     // Camera framing: encompass all buildings, prefer target center

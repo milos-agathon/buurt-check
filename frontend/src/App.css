@@ -1,45 +1,53 @@
 .app {
-  max-width: 600px;
+  max-width: var(--max-width);
   margin: 0 auto;
-  padding: 16px;
+  padding: var(--space-base);
+  padding-bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + var(--space-base));
 }
 
 .app__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-lg);
 }
 
 .app__title {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font: var(--type-h2);
   margin: 0;
 }
 
 .app__subtitle {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
+  font: var(--type-small);
+  color: var(--color-text-secondary);
   margin: 2px 0 0;
 }
 
 .app__main {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-base);
 }
 
 .app__error {
   color: var(--color-danger);
-  font-size: 0.875rem;
+  font: var(--type-small);
   margin: 0;
-  padding: 8px 12px;
-  background: #fef2f2;
-  border-radius: 6px;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-danger-light);
+  border-radius: var(--radius-sm);
 }
 
 .viewer-3d-status {
   text-align: center;
-  padding: 1.5rem;
-  color: var(--color-text-muted);
+  padding: var(--space-xl);
+  color: var(--color-text-secondary);
+}
+
+.app__section-label {
+  font: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  margin: var(--space-lg) 0 var(--space-sm);
 }

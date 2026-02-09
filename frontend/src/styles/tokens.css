@@ -111,3 +111,60 @@
   --glass-blur: blur(20px);
   --glass-bg-fallback: rgba(255, 255, 255, 0.95); /* Firefox <103 fallback */
 }
+
+/* ── Dark Mode ── */
+[data-theme="dark"] {
+  /* Primary */
+  --color-primary: #EAEDF0;
+  --color-accent: #26A69A;
+  --color-accent-light: rgba(38, 166, 154, 0.15);
+  --color-accent-hover: #4DB6AC;
+
+  /* Risk Severity — brighter for dark backgrounds */
+  --color-risk-good: #4DB6AC;
+  --color-risk-moderate: #FFB74D;
+  --color-risk-poor: #FF7043;
+  --color-risk-critical: #EF5350;
+  --color-risk-unavailable: #78909C;
+
+  /* Surfaces */
+  --color-bg: #0F1117;
+  --color-surface: #1A1D27;
+  --color-surface-alt: #1E2130;
+  --color-surface-recessed: #141720;
+  --color-surface-hover: #252838;
+  --color-border: #2A2D37;
+
+  /* Text */
+  --color-text: #EAEDF0;
+  --color-text-secondary: #9AA0A6;
+  --color-text-tertiary: #5F6368;
+  --color-text-inverse: #1A1A2E;
+
+  /* Feedback */
+  --color-danger: #FF7043;
+  --color-danger-light: rgba(255, 112, 67, 0.15);
+  --color-success: #4DB6AC;
+  --color-warning: #FFB74D;
+
+  /* Misc */
+  --color-badge-coral: #FF6B6B;
+  --color-backdrop: rgba(0, 0, 0, 0.6);
+  --color-toast-bg: #252838;
+
+  /* Shadow Ink */
+  --color-shadow: rgba(0, 0, 0, 0.3);
+
+  /* Elevation */
+  --elevation-1: 0 2px 8px var(--color-shadow);
+  --elevation-2: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --elevation-3: 0 16px 48px rgba(0, 0, 0, 0.5);
+
+  /* Focus Ring */
+  --focus-ring-accent: 0 0 0 4px rgba(38, 166, 154, 0.2);
+  --focus-ring-danger: 0 0 0 4px rgba(255, 112, 67, 0.2);
+
+  /* Frosted Glass */
+  --glass-bg: rgba(15, 17, 23, 0.92);
+  --glass-bg-fallback: rgba(15, 17, 23, 0.95);
+}

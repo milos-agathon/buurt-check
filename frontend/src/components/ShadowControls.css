@@ -1,7 +1,7 @@
 .shadow-controls {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .shadow-controls__presets {
@@ -11,27 +11,27 @@
 }
 
 .shadow-controls__preset {
-  padding: 4px 10px;
+  padding: var(--space-xs) var(--space-sm);
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-text);
-  font-size: 0.75rem;
+  font: var(--type-micro);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
   display: inline-flex;
   align-items: center;
   gap: 2px;
 }
 
 .shadow-controls__preset:hover {
-  background: var(--color-hover);
+  background: var(--color-surface-hover);
 }
 
 .shadow-controls__preset--active {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border-color: var(--color-accent);
 }
 
 .shadow-controls__emoji {
@@ -46,18 +46,17 @@
 
 .shadow-controls__time-display {
   text-align: center;
-  font-size: 1rem;
-  font-weight: 600;
+  font: var(--type-body-medium);
 }
 
 .shadow-controls__label {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font: var(--type-micro);
+  color: var(--color-text-tertiary);
 }
 
 .shadow-controls__input {
   width: 100%;
-  accent-color: var(--color-primary);
+  accent-color: var(--color-accent);
 }
 
 .shadow-controls__ticks {
@@ -67,7 +66,6 @@
 }
 
 .shadow-controls__tick {
-  font-size: 0.65rem;
-  color: var(--color-text-muted);
+  font: var(--type-micro);
+  color: var(--color-text-tertiary);
 }
-

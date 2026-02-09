@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import AddressSearch from './components/AddressSearch';
 import AddressHeader from './components/AddressHeader';
@@ -23,6 +23,7 @@ import type { TabId } from './components/TabBar';
 import { lookupAddress, getBuildingFacts, getBuilding3D, getNeighborhood3D, getRiskCards, getNeighborhoodStats, getViewingQuestions } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
+import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
 import type {
   AddressSuggestion,
   ResolvedAddress,
@@ -65,6 +66,19 @@ function App() {
   const isNl = i18n.language === 'nl';
   const [activeTab, setActiveTab] = useState<TabId>('search');
   const [activeScreen, setActiveScreen] = useState<Screen>('search');
+  const [themePreference, setThemePreference] = useState<ThemePreference>(getTheme());
+
+  // Apply theme on mount and listen for system changes
+  useEffect(() => {
+    applyTheme(themePreference);
+    const cleanup = listenForSystemChanges(() => {});
+    return cleanup;
+  }, [themePreference]);
+
+  const handleThemeChange = useCallback((pref: ThemePreference) => {
+    setTheme(pref);
+    setThemePreference(pref);
+  }, []);
 
   const [address, setAddress] = useState<ResolvedAddress | null>(null);
   const [buildingResponse, setBuildingResponse] = useState<BuildingFactsResponse | null>(null);
@@ -498,6 +512,8 @@ function App() {
           <SettingsScreen
             onClearRecent={clearRecent}
             onClearShortlist={handleClearShortlist}
+            theme={themePreference}
+            onThemeChange={handleThemeChange}
           />
         )}
       </main>

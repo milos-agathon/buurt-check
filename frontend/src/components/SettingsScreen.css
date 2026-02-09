@@ -1,0 +1,100 @@
+.settings-screen {
+  padding: var(--space-base);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.settings-screen__group {
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elevation-1);
+  overflow: hidden;
+}
+
+.settings-screen__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-base) var(--space-lg);
+  min-height: 48px;
+}
+
+.settings-screen__label {
+  font: var(--type-body);
+}
+
+.settings-screen__value {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+}
+
+.settings-screen__lang-toggle {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.settings-screen__lang-btn {
+  padding: var(--space-xs) var(--space-base);
+  border: none;
+  background: var(--color-surface);
+  font: var(--type-small);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-width: 40px;
+}
+
+.settings-screen__lang-btn--active {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+
+.settings-screen__action {
+  display: block;
+  width: 100%;
+  padding: var(--space-base) var(--space-lg);
+  border: none;
+  background: none;
+  text-align: left;
+  font: var(--type-body);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.settings-screen__action:hover {
+  background: var(--color-surface-alt);
+}
+
+.settings-screen__action--danger {
+  color: var(--color-risk-poor);
+}
+
+.settings-screen__action + .settings-screen__action {
+  border-top: 1px solid var(--color-border);
+}
+
+.settings-screen__theme-toggle {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.settings-screen__theme-btn {
+  padding: var(--space-xs) var(--space-md);
+  border: none;
+  background: var(--color-surface);
+  font: var(--type-small);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-width: 52px;
+}
+
+.settings-screen__theme-btn--active {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+}

@@ -29,7 +29,7 @@
 
 .action-bar__btn--primary {
   background: var(--color-accent);
-  color: white;
+  color: var(--color-text-inverse);
 }
 
 .action-bar__btn--primary:hover {

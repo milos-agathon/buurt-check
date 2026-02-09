@@ -1,0 +1,79 @@
+import { useTranslation } from 'react-i18next';
+import type { ThemePreference } from '../services/theme';
+import './SettingsScreen.css';
+
+interface Props {
+  onClearRecent: () => void;
+  onClearShortlist: () => void;
+  theme?: ThemePreference;
+  onThemeChange?: (pref: ThemePreference) => void;
+}
+
+export default function SettingsScreen({ onClearRecent, onClearShortlist, theme = 'system', onThemeChange }: Props) {
+  const { t, i18n } = useTranslation();
+
+  return (
+    <div className="settings-screen" data-testid="settings-screen">
+      <div className="settings-screen__group">
+        <div className="settings-screen__row">
+          <span className="settings-screen__label">{t('settings.language')}</span>
+          <div className="settings-screen__lang-toggle">
+            <button
+              className={`settings-screen__lang-btn ${i18n.language === 'en' ? 'settings-screen__lang-btn--active' : ''}`}
+              onClick={() => i18n.changeLanguage('en')}
+            >
+              EN
+            </button>
+            <button
+              className={`settings-screen__lang-btn ${i18n.language === 'nl' ? 'settings-screen__lang-btn--active' : ''}`}
+              onClick={() => i18n.changeLanguage('nl')}
+            >
+              NL
+            </button>
+          </div>
+        </div>
+        {onThemeChange && (
+          <div className="settings-screen__row">
+            <span className="settings-screen__label">{t('settings.appearance', 'Appearance')}</span>
+            <div className="settings-screen__theme-toggle" data-testid="theme-toggle">
+              <button
+                className={`settings-screen__theme-btn${theme === 'system' ? ' settings-screen__theme-btn--active' : ''}`}
+                onClick={() => onThemeChange('system')}
+              >
+                {t('settings.theme.system', 'System')}
+              </button>
+              <button
+                className={`settings-screen__theme-btn${theme === 'light' ? ' settings-screen__theme-btn--active' : ''}`}
+                onClick={() => onThemeChange('light')}
+              >
+                {t('settings.theme.light', 'Light')}
+              </button>
+              <button
+                className={`settings-screen__theme-btn${theme === 'dark' ? ' settings-screen__theme-btn--active' : ''}`}
+                onClick={() => onThemeChange('dark')}
+              >
+                {t('settings.theme.dark', 'Dark')}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="settings-screen__group">
+        <button className="settings-screen__action settings-screen__action--danger" onClick={onClearRecent}>
+          {t('settings.clearRecent')}
+        </button>
+        <button className="settings-screen__action settings-screen__action--danger" onClick={onClearShortlist}>
+          {t('settings.clearShortlist')}
+        </button>
+      </div>
+
+      <div className="settings-screen__group">
+        <div className="settings-screen__row">
+          <span className="settings-screen__label">{t('settings.version')}</span>
+          <span className="settings-screen__value">1.0.0</span>
+        </div>
+      </div>
+    </div>
+  );
+}
