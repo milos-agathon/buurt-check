@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import QuartileDots from './ui/QuartileDots';
 import type { NeighborhoodStatsResponse, NeighborhoodIndicator, AgeProfile } from '../types/api';
 import './NeighborhoodStatsCard.css';
 
@@ -36,7 +37,10 @@ function Indicator({
   return (
     <div className="neighborhood-card__indicator">
       <span className="neighborhood-card__indicator-label">{label}</span>
-      <span className="neighborhood-card__indicator-value">{display}</span>
+      <div className="neighborhood-card__indicator-right">
+        <span className="neighborhood-card__indicator-value">{display}</span>
+        {indicator.quartile != null && <QuartileDots quartile={indicator.quartile} />}
+      </div>
     </div>
   );
 }

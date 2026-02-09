@@ -5,6 +5,7 @@ import type {
   ResolvedAddress,
   RiskCardsResponse,
   SuggestResponse,
+  ViewingQuestionsResponse,
 } from '../types/api';
 
 export type OverlayTileType = 'noise' | 'air_quality' | 'climate';
@@ -73,8 +74,8 @@ export async function getNeighborhood3D(
     lng: String(lng),
   });
   const controller = new AbortController();
-  // LoD 2.2 extraction is heavy, increase timeout to 60s
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  // 3DBAG can be bursty; allow enough headroom so phase-2 doesn't abort mid-load.
+  const timeoutId = setTimeout(() => controller.abort(), 220000);
   try {
     const resp = await fetch(
       `${API_BASE}/address/${vboId}/neighborhood3d?${params}`,
@@ -134,6 +135,78 @@ export async function getNeighborhoodStats(
     });
     if (!resp.ok) throw new Error(`Neighborhood stats failed: ${resp.status}`);
     return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function getViewingQuestions(
+  vboId: string,
+  rdX: number,
+  rdY: number,
+  lat: number,
+  lng: number,
+): Promise<ViewingQuestionsResponse> {
+  const params = new URLSearchParams({
+    rd_x: String(rdX),
+    rd_y: String(rdY),
+    lat: String(lat),
+    lng: String(lng),
+  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  try {
+    const resp = await fetch(`${API_BASE}/address/${vboId}/viewing-questions?${params}`, {
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`Viewing questions failed: ${resp.status}`);
+    return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export interface ExportOptions {
+  vboId: string;
+  rdX: number;
+  rdY: number;
+  lat: number;
+  lng: number;
+  address: string;
+  language?: string;
+  shadowImageB64?: string;
+}
+
+export async function exportBriefing(options: ExportOptions): Promise<void> {
+  const params = new URLSearchParams({
+    rd_x: String(options.rdX),
+    rd_y: String(options.rdY),
+    lat: String(options.lat),
+    lng: String(options.lng),
+    address: options.address,
+    template: 'quick_brief',
+    language: options.language || 'en',
+  });
+  if (options.shadowImageB64) {
+    params.set('shadow_image', options.shadowImageB64);
+  }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  try {
+    const resp = await fetch(
+      `${API_BASE}/address/${options.vboId}/export?${params}`,
+      { signal: controller.signal },
+    );
+    if (!resp.ok) throw new Error(`Export failed: ${resp.status}`);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `buurt-check-${options.vboId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   } finally {
     clearTimeout(timeoutId);
   }

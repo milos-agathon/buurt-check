@@ -22,6 +22,7 @@ class NeighborhoodIndicator(BaseModel):
     value: float | str | None = None
     unit: str | None = None
     available: bool = True
+    quartile: int | None = None  # 1-4, national quartile position
 
 
 class NeighborhoodStats(BaseModel):

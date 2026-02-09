@@ -14,6 +14,7 @@ import RiskDetailView from './components/RiskDetailView';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
 import ViewingChecklist from './components/ViewingChecklist';
 import ActionBar from './components/ActionBar';
+import ExportBottomSheet from './components/ExportBottomSheet';
 import ShortlistScreen from './components/ShortlistScreen';
 import CompareScreen from './components/CompareScreen';
 import SettingsScreen from './components/SettingsScreen';
@@ -99,6 +100,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const neighborhood3DRequestId = useRef(0);
   const [shortlistItems, setShortlistItems] = useState<ShortlistItem[]>(getShortlist());
+
+  const [exportSheetOpen, setExportSheetOpen] = useState(false);
 
   // Risk detail view state
   const [activeDetailCategory, setActiveDetailCategory] = useState<string | null>(null);
@@ -487,6 +490,7 @@ function App() {
               <ActionBar
                 isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
                 onAddToShortlist={handleBookmark}
+                onExportBriefing={() => setExportSheetOpen(true)}
               />
             )}
           </>
@@ -517,6 +521,21 @@ function App() {
           />
         )}
       </main>
+
+      {/* Export bottom sheet */}
+      {address?.adresseerbaar_object_id && address.rd_x != null && address.rd_y != null && address.latitude != null && address.longitude != null && (
+        <ExportBottomSheet
+          isOpen={exportSheetOpen}
+          onClose={() => setExportSheetOpen(false)}
+          vboId={address.adresseerbaar_object_id}
+          rdX={address.rd_x}
+          rdY={address.rd_y}
+          lat={address.latitude}
+          lng={address.longitude}
+          address={address.display_name}
+          shadowSnapshots={shadowSnapshots}
+        />
+      )}
 
       {/* Risk detail overlay */}
       {activeDetailCategory && (() => {

@@ -1,0 +1,16 @@
+.quartile-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.quartile-dots__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-border);
+}
+
+.quartile-dots__dot--filled {
+  background: var(--color-accent);
+}

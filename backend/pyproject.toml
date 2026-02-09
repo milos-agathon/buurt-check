@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.5.0",
     "redis>=5.0.0",
+    "fpdf2>=2.7.0",
 ]
 
 [project.optional-dependencies]

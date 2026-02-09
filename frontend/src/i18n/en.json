@@ -234,5 +234,13 @@
   "toast.recentCleared": "Recent searches cleared",
   "toast.shortlistCleared": "All saved addresses removed",
   "toast.exportStarted": "Generating briefing PDF...",
-  "toast.undo": "Undo"
+  "toast.undo": "Undo",
+  "export.title": "Export Briefing",
+  "export.template": "Template",
+  "export.quickBrief": "Quick Brief",
+  "export.language": "Language",
+  "export.includeShadows": "Include shadow snapshot",
+  "export.generate": "Generate PDF",
+  "export.generating": "Generating...",
+  "export.error": "Export failed. Please try again."
 }

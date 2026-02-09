@@ -234,5 +234,13 @@
   "toast.recentCleared": "Recente zoekopdrachten gewist",
   "toast.shortlistCleared": "Alle opgeslagen adressen verwijderd",
   "toast.exportStarted": "Briefing-PDF wordt gegenereerd...",
-  "toast.undo": "Ongedaan maken"
+  "toast.undo": "Ongedaan maken",
+  "export.title": "Briefing exporteren",
+  "export.template": "Sjabloon",
+  "export.quickBrief": "Korte briefing",
+  "export.language": "Taal",
+  "export.includeShadows": "Schaduwfoto bijvoegen",
+  "export.generate": "PDF genereren",
+  "export.generating": "Genereren...",
+  "export.error": "Export mislukt. Probeer het opnieuw."
 }

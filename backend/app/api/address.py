@@ -10,8 +10,10 @@ from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
 from app.models.neighborhood import NeighborhoodStatsResponse
 from app.models.neighborhood3d import Neighborhood3DResponse
-from app.models.risk import RiskCardsResponse, RiskLevel
+from app.models.risk import RiskCardsResponse, RiskLevel, ViewingQuestionsResponse
 from app.services import bag, cbs, locatieserver, risk_cards, three_d_bag, wms_tile
+from app.services.pdf_export import generate_quick_brief
+from app.services.viewing_questions import build_viewing_questions
 
 logger = logging.getLogger(__name__)
 
@@ -173,8 +175,8 @@ async def neighborhood_3d(
     lng: float = Query(...),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
-    # v2: added LoD 2.2 roofs
-    cache_key = f"neighborhood3d:v2:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    # v4: parallel pagination strategy, avoid mixing with older cache entries
+    cache_key = f"neighborhood3d:v4:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return Neighborhood3DResponse(**cached)
@@ -191,7 +193,8 @@ async def neighborhood_3d(
             status_code=502, detail=f"3DBAG API unavailable: {exc}"
         ) from exc
 
-    if result.buildings:
+    is_partial = bool(result.message and result.message.startswith("Partial neighborhood data"))
+    if result.buildings and result.target_pand_id is not None and not is_partial:
         await cache_set(
             cache_key, result.model_dump(), ttl=settings.cache_ttl_neighborhood_3d,
         )
@@ -290,3 +293,126 @@ async def neighborhood_stats(
             ttl=settings.cache_ttl_neighborhood,
         )
     return result
+
+
+@router.get(
+    "/{vbo_id}/viewing-questions", response_model=ViewingQuestionsResponse
+)
+async def viewing_questions(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    lat: float = Query(...),
+    lng: float = Query(...),
+):
+    """Generate viewing questions based on risk card scores.
+
+    Fetches risk cards, filters categories with score < 70 (moderate or worse),
+    and returns structured bilingual questions grouped by category.
+    """
+    # Re-use cached risk cards if available
+    cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        risk_result = RiskCardsResponse(**cached)
+    else:
+        try:
+            risk_result = await risk_cards.get_risk_cards(
+                vbo_id=vbo_id,
+                rd_x=rd_x,
+                rd_y=rd_y,
+                lat=lat,
+                lng=lng,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502, detail="Risk card data sources unavailable"
+            ) from exc
+
+    return build_viewing_questions(vbo_id, risk_result)
+
+
+@router.get("/{vbo_id}/export")
+async def export_briefing(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    lat: float = Query(...),
+    lng: float = Query(...),
+    address: str = Query(..., description="Display address string"),
+    template: str = Query("quick_brief"),
+    language: str = Query("en"),
+    shadow_image: str | None = Query(None, description="Base64-encoded shadow snapshot"),
+):
+    """Export a PDF viewing briefing for the address.
+
+    Assembles data from cached risk/building/viewing-questions responses
+    and generates a downloadable PDF.
+    """
+    if template != "quick_brief":
+        raise HTTPException(status_code=422, detail="Only 'quick_brief' template is supported")
+    if language not in ("en", "nl"):
+        raise HTTPException(status_code=422, detail="Language must be 'en' or 'nl'")
+
+    # Fetch building facts (cached or fresh)
+    building_year: int | None = None
+    building_use: str | None = None
+
+    cache_key_building = f"building:{vbo_id}"
+    cached_building = await cache_get(cache_key_building)
+    if cached_building is not None:
+        building_resp = BuildingFactsResponse(**cached_building)
+        if building_resp.building:
+            building_year = building_resp.building.construction_year
+            if building_resp.building.intended_use_en:
+                building_use = ", ".join(building_resp.building.intended_use_en)
+    else:
+        try:
+            facts = await bag.get_building_facts(vbo_id)
+            if facts:
+                building_year = facts.construction_year
+                if facts.intended_use_en:
+                    building_use = ", ".join(facts.intended_use_en)
+        except Exception:
+            logger.warning("Failed to fetch building facts for PDF export")
+
+    # Fetch risk cards (cached or fresh)
+    risks: RiskCardsResponse | None = None
+    sunlight_score: int | None = None
+    cache_key_risks = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cached_risks = await cache_get(cache_key_risks)
+    if cached_risks is not None:
+        risks = RiskCardsResponse(**cached_risks)
+    else:
+        try:
+            risks = await risk_cards.get_risk_cards(
+                vbo_id=vbo_id, rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng,
+            )
+        except Exception:
+            logger.warning("Failed to fetch risk cards for PDF export")
+
+    if risks and risks.sunlight:
+        sunlight_score = risks.sunlight.score
+
+    # Fetch viewing questions
+    viewing_qs: ViewingQuestionsResponse | None = None
+    if risks:
+        viewing_qs = build_viewing_questions(vbo_id, risks)
+
+    pdf_bytes = generate_quick_brief(
+        address=address,
+        building_year=building_year,
+        building_use=building_use,
+        risks=risks,
+        sunlight_score=sunlight_score,
+        viewing_questions=viewing_qs,
+        shadow_image_b64=shadow_image,
+        language=language,
+    )
+
+    filename = f"buurt-check-{vbo_id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

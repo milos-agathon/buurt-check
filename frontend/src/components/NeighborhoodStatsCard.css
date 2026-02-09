@@ -81,6 +81,12 @@
   font: var(--type-body);
 }
 
+.neighborhood-card__indicator-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .neighborhood-card__indicator-value {
   font: var(--type-body-medium);
   color: var(--color-text);

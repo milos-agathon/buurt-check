@@ -89,6 +89,8 @@ export interface ShadowSnapshot {
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'unavailable';
 
+export type SeverityLevel = 'good' | 'moderate' | 'poor' | 'critical' | 'unavailable';
+
 export interface NoiseRiskCard {
   level: RiskLevel;
   lden_db?: number;
@@ -97,6 +99,10 @@ export interface NoiseRiskCard {
   sampled_at: string;
   layer?: string;
   message?: string;
+  score?: number;
+  severity?: SeverityLevel;
+  summary?: string;
+  summary_nl?: string;
 }
 
 export interface AirQualityRiskCard {
@@ -111,6 +117,10 @@ export interface AirQualityRiskCard {
   pm25_layer?: string;
   no2_layer?: string;
   message?: string;
+  score?: number;
+  severity?: SeverityLevel;
+  summary?: string;
+  summary_nl?: string;
 }
 
 export interface ClimateStressRiskCard {
@@ -127,6 +137,20 @@ export interface ClimateStressRiskCard {
   heat_signal?: string;
   water_signal?: string;
   message?: string;
+  score?: number;
+  severity?: SeverityLevel;
+  summary?: string;
+  summary_nl?: string;
+}
+
+export interface SunlightRiskCard {
+  score?: number;
+  severity?: SeverityLevel;
+  summary?: string;
+  summary_nl?: string;
+  winter_hours?: number;
+  summer_hours?: number;
+  equinox_hours?: number;
 }
 
 export interface RiskCardsResponse {
@@ -134,6 +158,7 @@ export interface RiskCardsResponse {
   noise: NoiseRiskCard;
   air_quality: AirQualityRiskCard;
   climate_stress: ClimateStressRiskCard;
+  sunlight?: SunlightRiskCard;
 }
 
 export type UrbanizationLevel =
@@ -154,6 +179,7 @@ export interface NeighborhoodIndicator {
   value?: number | string | null;
   unit?: string;
   available: boolean;
+  quartile?: number | null; // 1-4, national quartile position
 }
 
 export interface NeighborhoodStats {
@@ -177,4 +203,36 @@ export interface NeighborhoodStatsResponse {
   source: string;
   source_year: number;
   message?: string;
+}
+
+export interface ViewingQuestion {
+  text_en: string;
+  text_nl: string;
+}
+
+export interface QuestionCategory {
+  name: string;
+  name_nl: string;
+  severity: SeverityLevel;
+  questions: ViewingQuestion[];
+}
+
+export interface ViewingQuestionsResponse {
+  address_id: string;
+  categories: QuestionCategory[];
+}
+
+export interface ShortlistItem {
+  vboId: string;
+  address: string;
+  postcode?: string;
+  city?: string;
+  buildingYear?: number;
+  riskScores: {
+    noise?: number;
+    air?: number;
+    climate?: number;
+    sunlight?: number;
+  };
+  savedAt: number; // timestamp
 }

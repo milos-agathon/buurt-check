@@ -1,0 +1,73 @@
+.export-sheet {
+  padding: var(--space-md) 0;
+}
+
+.export-sheet__title {
+  font: var(--type-h2);
+  color: var(--color-text);
+  margin: 0 0 var(--space-lg);
+}
+
+.export-sheet__option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.export-sheet__label {
+  font: var(--type-body);
+  color: var(--color-text-secondary);
+}
+
+.export-sheet__value {
+  font: var(--type-body);
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.export-sheet__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) 0;
+  font: var(--type-body);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.export-sheet__toggle input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-accent);
+}
+
+.export-sheet__error {
+  font: var(--type-caption);
+  color: var(--color-risk-poor);
+  margin: var(--space-sm) 0;
+}
+
+.export-sheet__btn {
+  width: 100%;
+  margin-top: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border: none;
+  border-radius: var(--radius-md);
+  font: var(--type-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.export-sheet__btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.export-sheet__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -38,13 +38,42 @@ def _safe_float(props: dict[str, Any], key: str) -> float | None:
     return float(value)
 
 
+# National quartile thresholds (Q1, Q2, Q3) from CBS Wijken & Buurten 2024 statistics.
+# Values below Q1 = quartile 1, Q1-Q2 = quartile 2, Q2-Q3 = quartile 3, above Q3 = quartile 4.
+# For "lower is better" indicators (distances), quartile 1 = best.
+_QUARTILE_THRESHOLDS: dict[str, tuple[float, float, float]] = {
+    "bevolkingsdichtheid_inwoners_per_km2": (1000, 3000, 6000),
+    "gemiddelde_huishoudsgrootte": (1.6, 2.0, 2.4),
+    "percentage_eenpersoonshuishoudens": (25, 38, 50),
+    "percentage_koopwoningen": (30, 55, 75),
+    "gemiddelde_woningwaarde": (200000, 300000, 425000),
+    "treinstation_gemiddelde_afstand_in_km": (2.0, 5.0, 10.0),
+    "grote_supermarkt_gemiddelde_afstand_in_km": (0.5, 0.8, 1.5),
+}
+
+
+def _compute_quartile(key: str, value: float) -> int | None:
+    thresholds = _QUARTILE_THRESHOLDS.get(key)
+    if thresholds is None:
+        return None
+    q1, q2, q3 = thresholds
+    if value <= q1:
+        return 1
+    if value <= q2:
+        return 2
+    if value <= q3:
+        return 3
+    return 4
+
+
 def _make_indicator(
     props: dict[str, Any], key: str, unit: str | None = None
 ) -> NeighborhoodIndicator:
     value = _safe_float(props, key)
     if value is None:
         return NeighborhoodIndicator(available=False)
-    return NeighborhoodIndicator(value=value, unit=unit)
+    quartile = _compute_quartile(key, value)
+    return NeighborhoodIndicator(value=value, unit=unit, quartile=quartile)
 
 
 def _parse_urbanization(props: dict[str, Any]) -> UrbanizationLevel:
