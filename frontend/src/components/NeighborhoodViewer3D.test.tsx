@@ -208,11 +208,11 @@ describe('NeighborhoodViewer3D', () => {
     expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
   });
 
-  it('renders camera preset buttons', () => {
+  it('renders camera preset buttons inside the viewport', () => {
     renderViewer();
-    expect(screen.getByText('Street level')).toBeInTheDocument();
-    expect(screen.getByText('Balcony level')).toBeInTheDocument();
-    expect(screen.getByText('Top-down')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /street/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /balcony/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /top-down/i })).toBeInTheDocument();
   });
 
   it('renders overlay controls', () => {

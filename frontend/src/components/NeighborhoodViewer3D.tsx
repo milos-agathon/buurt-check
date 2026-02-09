@@ -813,6 +813,20 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         >
           {isFullscreen ? '\u2716' : '\u26F6'}
         </button>
+        <div className="viewer-3d__camera-cluster">
+          {(['street', 'balcony', 'topDown'] as const).map((preset) => (
+            <button
+              key={preset}
+              className="viewer-3d__camera-btn"
+              onClick={() => setCameraPreset(preset)}
+              aria-label={t(`viewer3d.camera.${preset}`)}
+              title={t(`viewer3d.camera.${preset}`)}
+              type="button"
+            >
+              {preset === 'street' ? '\uD83D\uDC41' : preset === 'balcony' ? '\uD83C\uDFE2' : '\u2B07'}
+            </button>
+          ))}
+        </div>
         {localSunlight && (() => {
           const SEASON_MAP: Record<string, keyof SunlightResult> = {
             winter: 'winter', spring: 'equinox', summer: 'summer', autumn: 'equinox',
@@ -836,7 +850,6 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         datePreset={datePreset}
         onHourChange={setHour}
         onDatePresetChange={setDatePreset}
-        onCameraPreset={setCameraPreset}
       />
       <OverlayControls
         activeOverlay={activeOverlay}

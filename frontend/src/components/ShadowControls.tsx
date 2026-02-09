@@ -6,7 +6,6 @@ interface Props {
   datePreset: string;
   onHourChange: (hour: number) => void;
   onDatePresetChange: (preset: string) => void;
-  onCameraPreset?: (preset: string) => void;
 }
 
 const DATE_PRESETS = ['winter', 'spring', 'summer', 'autumn'] as const;
@@ -16,10 +15,9 @@ const SEASON_EMOJI: Record<string, string> = {
   summer: '\u2600\uFE0F',
   autumn: '\uD83C\uDF42',
 };
-const CAMERA_PRESETS = ['street', 'balcony', 'topDown'] as const;
 const TICK_HOURS = [6, 9, 12, 15, 18, 21];
 
-export default function ShadowControls({ hour, datePreset, onHourChange, onDatePresetChange, onCameraPreset }: Props) {
+export default function ShadowControls({ hour, datePreset, onHourChange, onDatePresetChange }: Props) {
   const { t } = useTranslation();
 
   return (
@@ -60,18 +58,6 @@ export default function ShadowControls({ hour, datePreset, onHourChange, onDateP
           ))}
         </div>
       </div>
-      {onCameraPreset && (
-        <div className="shadow-controls__section">
-          <span className="shadow-controls__label">{t('viewer3d.cameraLabel')}</span>
-          <div className="shadow-controls__presets">
-            {CAMERA_PRESETS.map((p) => (
-              <button key={p} className="shadow-controls__preset" onClick={() => onCameraPreset(p)} type="button">
-                {t(`viewer3d.camera.${p}`)}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

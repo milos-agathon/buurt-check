@@ -58,27 +58,10 @@ describe('ShadowControls', () => {
     expect(winterBtn.className).toContain('--active');
   });
 
-  it('renders camera preset buttons when onCameraPreset provided', () => {
-    renderControls({ onCameraPreset: vi.fn() });
-    expect(screen.getByText('Camera')).toBeInTheDocument();
-    expect(screen.getByText('Street level')).toBeInTheDocument();
-    expect(screen.getByText('Balcony level')).toBeInTheDocument();
-    expect(screen.getByText('Top-down')).toBeInTheDocument();
-  });
-
-  it('does not render camera presets when onCameraPreset not provided', () => {
+  it('does NOT render camera presets (moved to viewport)', () => {
     renderControls();
     expect(screen.queryByText('Camera')).not.toBeInTheDocument();
     expect(screen.queryByText('Street level')).not.toBeInTheDocument();
-  });
-
-  it('calls onCameraPreset when preset clicked', () => {
-    const onCameraPreset = vi.fn();
-    renderControls({ onCameraPreset });
-    fireEvent.click(screen.getByText('Street level'));
-    expect(onCameraPreset).toHaveBeenCalledWith('street');
-    fireEvent.click(screen.getByText('Top-down'));
-    expect(onCameraPreset).toHaveBeenCalledWith('topDown');
   });
 
   it('renders hour tick marks every 3 hours', () => {

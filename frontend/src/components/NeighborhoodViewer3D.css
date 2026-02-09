@@ -63,6 +63,33 @@
   background: rgba(255, 255, 255, 1);
 }
 
+.viewer-3d__camera-cluster {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+
+.viewer-3d__camera-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.viewer-3d__camera-btn:hover {
+  background: rgba(255, 255, 255, 1);
+}
+
 .viewer-3d__sunlight-badge {
   position: absolute;
   top: 52px;
