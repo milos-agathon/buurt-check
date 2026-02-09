@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { setupTestI18n, makeNeighborhood3DResponse, makeNeighborhood3DResponseWithLod22 } from '../test/helpers';
 
@@ -141,6 +141,10 @@ vi.mock('../services/api', () => ({
   getWmsTile: vi.fn(),
 }));
 
+vi.mock('gsap', () => ({
+  default: { to: vi.fn() },
+}));
+
 // Must import after mocks
 import NeighborhoodViewer3D from './NeighborhoodViewer3D';
 import { getYearColor } from './NeighborhoodViewer3D';
@@ -235,6 +239,28 @@ describe('NeighborhoodViewer3D', () => {
     // Default makeNeighborhood3DResponse has no roof_surfaces
     renderViewer();
     expect(screen.getByTestId('viewer-3d-canvas')).toBeInTheDocument();
+  });
+
+  it('renders fullscreen toggle button', () => {
+    renderViewer();
+    expect(screen.getByRole('button', { name: /fullscreen/i })).toBeInTheDocument();
+  });
+
+  it('adds fullscreen class when fullscreen button clicked', () => {
+    renderViewer();
+    const btn = screen.getByRole('button', { name: /fullscreen/i });
+    fireEvent.click(btn);
+    const container = screen.getByTestId('viewer-3d-canvas').closest('.viewer-3d');
+    expect(container?.className).toContain('viewer-3d--fullscreen');
+  });
+
+  it('exits fullscreen on second click', () => {
+    renderViewer();
+    const btn = screen.getByRole('button', { name: /fullscreen/i });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    const container = screen.getByTestId('viewer-3d-canvas').closest('.viewer-3d');
+    expect(container?.className).not.toContain('viewer-3d--fullscreen');
   });
 });
 

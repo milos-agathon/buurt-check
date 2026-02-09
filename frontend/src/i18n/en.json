@@ -30,6 +30,8 @@
   "viewer3d.cameraLabel": "Camera",
   "viewer3d.camera.street": "Street level",
   "viewer3d.camera.balcony": "Balcony level",
+  "viewer3d.fullscreen": "Toggle fullscreen",
+  "viewer3d.exitFullscreen": "Exit fullscreen",
   "viewer3d.camera.topDown": "Top-down",
   "sunlight.title": "Sunlight Analysis",
   "sunlight.loading": "Analyzing sunlight...",

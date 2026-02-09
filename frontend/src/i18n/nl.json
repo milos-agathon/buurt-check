@@ -30,6 +30,8 @@
   "viewer3d.cameraLabel": "Camera",
   "viewer3d.camera.street": "Straatniveau",
   "viewer3d.camera.balcony": "Balkonniveau",
+  "viewer3d.fullscreen": "Volledig scherm",
+  "viewer3d.exitFullscreen": "Volledig scherm sluiten",
   "viewer3d.camera.topDown": "Bovenaanzicht",
   "sunlight.title": "Zonlichtanalyse",
   "sunlight.loading": "Zonlicht analyseren...",

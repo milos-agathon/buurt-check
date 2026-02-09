@@ -65,10 +65,10 @@ function getDateFromPreset(preset: string): Date {
   }
 }
 
-const SHADOW_MAP_SIZE = 2048;
+const SHADOW_MAP_SIZE = 4096;
 const SUN_DISTANCE = 300;
-const GROUND_SIZE = 1000;
-const FRUSTUM = 200;
+const GROUND_SIZE = 750;
+const FRUSTUM = 300;
 const TARGET_COLOR = 0x2563eb;
 
 /**
@@ -108,6 +108,8 @@ function createLod22Geometry(surfaces: number[][][], minGround: number): THREE.B
 export default function NeighborhoodViewer3D({ buildings, targetPandId, center, onSunlightAnalysis, onShadowSnapshots }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const sceneRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
@@ -133,6 +135,42 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   const cameraSetRef = useRef(false);
   const lastFocusedPandId = useRef<string | null>(null);
   const targetCenterRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+
+  // Fullscreen toggle — set local state and attempt native fullscreen as side effect
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((prev) => {
+      const next = !prev;
+      const el = viewerRef.current;
+      if (!el) return next;
+      if (next && el.requestFullscreen) {
+        el.requestFullscreen().catch(() => { });
+      } else if (!next && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => { });
+      }
+      return next;
+    });
+  }, []);
+
+  // Sync state when user exits fullscreen via Escape
+  useEffect(() => {
+    const onFsChange = () => {
+      if (!document.fullscreenElement) {
+        setIsFullscreen(false);
+      }
+      // Trigger resize so Three.js updates canvas dimensions
+      const ctx = sceneRef.current;
+      const container = containerRef.current;
+      if (ctx && container) {
+        const w = container.clientWidth;
+        const h = document.fullscreenElement ? window.innerHeight : Math.min(w * 0.75, 400);
+        ctx.camera.aspect = w / h;
+        ctx.camera.updateProjectionMatrix();
+        ctx.renderer.setSize(w, h);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -712,9 +750,19 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   }, [center.rd_x, center.rd_y, disposeOverlay]);
 
   return (
-    <div className="viewer-3d">
+    <div className={`viewer-3d${isFullscreen ? ' viewer-3d--fullscreen' : ''}`} ref={viewerRef}>
       <h2 className="viewer-3d__title">{t('viewer3d.title')}</h2>
-      <div className="viewer-3d__canvas" ref={containerRef} data-testid="viewer-3d-canvas" />
+      <div className="viewer-3d__canvas" ref={containerRef} data-testid="viewer-3d-canvas">
+        <button
+          className="viewer-3d__fullscreen-btn"
+          onClick={toggleFullscreen}
+          aria-label={t(isFullscreen ? 'viewer3d.exitFullscreen' : 'viewer3d.fullscreen')}
+          title={t(isFullscreen ? 'viewer3d.exitFullscreen' : 'viewer3d.fullscreen')}
+          type="button"
+        >
+          {isFullscreen ? '\u2716' : '\u26F6'}
+        </button>
+      </div>
       <ShadowControls
         hour={hour}
         datePreset={datePreset}
