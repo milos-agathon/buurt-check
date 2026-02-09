@@ -110,6 +110,8 @@
   "snapshots.noon": "Middag",
   "snapshots.evening": "Avond",
   "snapshots.source": "Bron: 3DBAG + SunCalc (indicatief)",
+  "overlays.layers": "Lagen",
+  "overlays.opacity": "Transparantie",
   "overlays.label": "Data-overlays",
   "overlays.noise": "Geluid",
   "overlays.airQuality": "Luchtkwaliteit",

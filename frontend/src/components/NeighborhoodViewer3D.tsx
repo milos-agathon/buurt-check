@@ -127,6 +127,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   const [datePreset, setDatePreset] = useState('summer'); // Default to summer for reliable sun position
   const [activeOverlay, setActiveOverlay] = useState<OverlayTileType | null>(null);
   const [overlayLoading, setOverlayLoading] = useState(false);
+  const [overlayOpacity, setOverlayOpacity] = useState(50);
   const basemapMeshesRef = useRef<THREE.Mesh[]>([]);
   const overlayMeshRef = useRef<THREE.Mesh | null>(null);
   const overlayTextureRef = useRef<THREE.Texture | null>(null);
@@ -759,6 +760,13 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     })();
   }, [center.rd_x, center.rd_y, disposeOverlay]);
 
+  // Update overlay opacity in real time
+  useEffect(() => {
+    if (overlayMeshRef.current) {
+      (overlayMeshRef.current.material as THREE.MeshBasicMaterial).opacity = overlayOpacity / 100;
+    }
+  }, [overlayOpacity]);
+
   return (
     <div className={`viewer-3d${isFullscreen ? ' viewer-3d--fullscreen' : ''}`} ref={viewerRef}>
       <h2 className="viewer-3d__title">{t('viewer3d.title')}</h2>
@@ -784,6 +792,8 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         activeOverlay={activeOverlay}
         onOverlayChange={handleOverlayChange}
         loading={overlayLoading}
+        opacity={overlayOpacity}
+        onOpacityChange={setOverlayOpacity}
       />
       <p className="viewer-3d__source">{t('viewer3d.source')}</p>
     </div>

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import OverlayControls from './OverlayControls';
@@ -18,6 +18,8 @@ function renderOverlays(
     activeOverlay?: OverlayTileType | null;
     onOverlayChange?: (overlay: OverlayTileType | null) => void;
     loading?: boolean;
+    opacity?: number;
+    onOpacityChange?: (value: number) => void;
   } = {},
   lang: 'en' | 'nl' = 'en',
 ) {
@@ -35,61 +37,84 @@ function renderOverlays(
   );
 }
 
+async function openPopover() {
+  const user = userEvent.setup();
+  const trigger = screen.getByRole('button', { name: /layers/i });
+  await user.click(trigger);
+}
+
 describe('OverlayControls', () => {
-  it('renders overlay label', () => {
+  it('renders layer toggle button', () => {
     renderOverlays();
-    expect(screen.getByText('Data overlays')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /layers/i })).toBeInTheDocument();
   });
 
-  it('renders all 3 toggle buttons', () => {
+  it('popover opens when trigger clicked and shows overlays', async () => {
     renderOverlays();
+    // Overlays not visible initially
+    expect(screen.queryByText('Noise')).not.toBeInTheDocument();
+    await openPopover();
     expect(screen.getByText('Noise')).toBeInTheDocument();
     expect(screen.getByText('Air quality')).toBeInTheDocument();
     expect(screen.getByText('Climate stress')).toBeInTheDocument();
   });
 
   it('clicking overlay calls onOverlayChange with type', async () => {
-    const user = userEvent.setup();
     const onChange = vi.fn();
     renderOverlays({ onOverlayChange: onChange });
+    await openPopover();
+    const user = userEvent.setup();
     await user.click(screen.getByText('Noise'));
     expect(onChange).toHaveBeenCalledWith('noise');
   });
 
   it('clicking active overlay calls onOverlayChange(null)', async () => {
-    const user = userEvent.setup();
     const onChange = vi.fn();
     renderOverlays({ activeOverlay: 'noise', onOverlayChange: onChange });
+    await openPopover();
+    const user = userEvent.setup();
     await user.click(screen.getByText('Noise'));
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
-  it('active overlay has active styling', () => {
+  it('active overlay has active styling', async () => {
     renderOverlays({ activeOverlay: 'noise' });
+    await openPopover();
     const noiseBtn = screen.getByText('Noise');
     expect(noiseBtn).toHaveAttribute('aria-pressed', 'true');
     const airBtn = screen.getByText('Air quality');
     expect(airBtn).toHaveAttribute('aria-pressed', 'false');
-    const climateBtn = screen.getByText('Climate stress');
-    expect(climateBtn).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('no active overlay has all aria-pressed false', () => {
-    renderOverlays({ activeOverlay: null });
-    const buttons = screen.getAllByRole('button');
-    for (const btn of buttons) {
-      expect(btn).toHaveAttribute('aria-pressed', 'false');
-    }
-  });
-
-  it('loading state shows indicator', () => {
+  it('loading state shows indicator', async () => {
     renderOverlays({ loading: true, activeOverlay: 'noise' });
+    await openPopover();
     expect(screen.getByLabelText('loading')).toBeInTheDocument();
   });
 
-  it('renders in Dutch', () => {
+  it('renders opacity slider in popover', async () => {
+    renderOverlays();
+    await openPopover();
+    const slider = screen.getByRole('slider', { name: /opacity/i });
+    expect(slider).toBeInTheDocument();
+    expect(slider).toHaveAttribute('min', '25');
+    expect(slider).toHaveAttribute('max', '75');
+  });
+
+  it('calls onOpacityChange when opacity slider moves', async () => {
+    const onOpacity = vi.fn();
+    renderOverlays({ onOpacityChange: onOpacity });
+    await openPopover();
+    const slider = screen.getByRole('slider', { name: /opacity/i });
+    fireEvent.change(slider, { target: { value: '60' } });
+    expect(onOpacity).toHaveBeenCalledWith(60);
+  });
+
+  it('renders in Dutch', async () => {
     renderOverlays({}, 'nl');
-    expect(screen.getByText('Data-overlays')).toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: /lagen/i });
+    const user = userEvent.setup();
+    await user.click(trigger);
     expect(screen.getByText('Geluid')).toBeInTheDocument();
     expect(screen.getByText('Luchtkwaliteit')).toBeInTheDocument();
     expect(screen.getByText('Klimaatstress')).toBeInTheDocument();

@@ -217,7 +217,7 @@ describe('NeighborhoodViewer3D', () => {
 
   it('renders overlay controls', () => {
     renderViewer();
-    expect(screen.getByText('Data overlays')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /layers/i })).toBeInTheDocument();
   });
 
   it('snapshot capture restores sun state', () => {

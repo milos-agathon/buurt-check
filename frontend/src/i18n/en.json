@@ -110,6 +110,8 @@
   "snapshots.noon": "Noon",
   "snapshots.evening": "Evening",
   "snapshots.source": "Source: 3DBAG + SunCalc (indicative)",
+  "overlays.layers": "Layers",
+  "overlays.opacity": "Opacity",
   "overlays.label": "Data overlays",
   "overlays.noise": "Noise",
   "overlays.airQuality": "Air quality",
