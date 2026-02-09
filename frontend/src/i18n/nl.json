@@ -36,6 +36,7 @@
   "viewer3d.camera.balcony": "Balkonniveau",
   "viewer3d.fullscreen": "Volledig scherm",
   "viewer3d.exitFullscreen": "Volledig scherm sluiten",
+  "viewer3d.simplifiedView": "Vereenvoudigd beeld. Exporteer PDF voor volledige 3D-analyse.",
   "viewer3d.camera.topDown": "Bovenaanzicht",
   "sunlight.title": "Zonlichtanalyse",
   "sunlight.loading": "Zonlicht analyseren...",

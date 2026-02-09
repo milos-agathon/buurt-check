@@ -129,6 +129,8 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   const [overlayLoading, setOverlayLoading] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(50);
   const [localSunlight, setLocalSunlight] = useState<SunlightResult | null>(null);
+  const [lowPerformance, setLowPerformance] = useState(false);
+  const lowPerformanceRef = useRef(false);
   const basemapMeshesRef = useRef<THREE.Mesh[]>([]);
   const overlayMeshRef = useRef<THREE.Mesh | null>(null);
   const overlayTextureRef = useRef<THREE.Texture | null>(null);
@@ -238,12 +240,40 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     controls.enableDamping = true;
     controls.maxPolarAngle = Math.PI / 2.1;
 
+    // FPS monitoring for adaptive quality
+    let frameCount = 0;
+    let lastFpsCheck = performance.now();
+    const FPS_CHECK_INTERVAL = 3000;
+    const FPS_THRESHOLD = 20;
+    let lowFpsStreak = 0;
+
     // Animation loop
     const animate = () => {
       const id = requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
       sceneRef.current!.animId = id;
+
+      // FPS tracking
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFpsCheck >= FPS_CHECK_INTERVAL) {
+        const fps = (frameCount * 1000) / (now - lastFpsCheck);
+        frameCount = 0;
+        lastFpsCheck = now;
+        if (fps < FPS_THRESHOLD) {
+          lowFpsStreak++;
+          // Require 2 consecutive low readings before degrading
+          if (lowFpsStreak >= 2 && !lowPerformanceRef.current) {
+            lowPerformanceRef.current = true;
+            renderer.shadowMap.enabled = false;
+            renderer.setPixelRatio(1);
+            setLowPerformance(true);
+          }
+        } else {
+          lowFpsStreak = 0;
+        }
+      }
     };
 
     sceneRef.current = {
@@ -795,6 +825,11 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
             </div>
           );
         })()}
+        {lowPerformance && (
+          <div className="viewer-3d__perf-banner" data-testid="performance-banner">
+            {t('viewer3d.simplifiedView')}
+          </div>
+        )}
       </div>
       <ShadowControls
         hour={hour}

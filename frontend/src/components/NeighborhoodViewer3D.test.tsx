@@ -279,6 +279,11 @@ describe('NeighborhoodViewer3D', () => {
     // Badge should contain a number followed by 'h'
     expect(badge.textContent).toMatch(/\d+\.\dh/);
   });
+
+  it('does not render performance banner initially', () => {
+    renderViewer();
+    expect(screen.queryByTestId('performance-banner')).not.toBeInTheDocument();
+  });
 });
 
 describe('getYearColor', () => {

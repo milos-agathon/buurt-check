@@ -76,6 +76,20 @@
   z-index: 10;
 }
 
+.viewer-3d__perf-banner {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  z-index: 10;
+  white-space: nowrap;
+}
+
 .viewer-3d__source {
   font-size: 0.7rem;
   color: var(--color-text-muted);
