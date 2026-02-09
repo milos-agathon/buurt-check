@@ -9,8 +9,15 @@ interface Props {
   onCameraPreset?: (preset: string) => void;
 }
 
-const DATE_PRESETS = ['winter', 'summer', 'equinox', 'today'] as const;
+const DATE_PRESETS = ['winter', 'spring', 'summer', 'autumn'] as const;
+const SEASON_EMOJI: Record<string, string> = {
+  winter: '\u2744\uFE0F',
+  spring: '\uD83C\uDF38',
+  summer: '\u2600\uFE0F',
+  autumn: '\uD83C\uDF42',
+};
 const CAMERA_PRESETS = ['street', 'balcony', 'topDown'] as const;
+const TICK_HOURS = [6, 9, 12, 15, 18, 21];
 
 export default function ShadowControls({ hour, datePreset, onHourChange, onDatePresetChange, onCameraPreset }: Props) {
   const { t } = useTranslation();
@@ -25,24 +32,33 @@ export default function ShadowControls({ hour, datePreset, onHourChange, onDateP
             onClick={() => onDatePresetChange(preset)}
             type="button"
           >
-            {t(`viewer3d.${preset === 'winter' ? 'winterSolstice' : preset === 'summer' ? 'summerSolstice' : preset}`)}
+            <span className="shadow-controls__emoji">{SEASON_EMOJI[preset]}</span>
+            {' '}{t(`viewer3d.${preset}`)}
           </button>
         ))}
       </div>
       <div className="shadow-controls__slider">
-        <label className="shadow-controls__label" htmlFor="hour-slider">
-          {t('viewer3d.time')}: {hour}:00
-        </label>
+        <div className="shadow-controls__time-display">
+          {String(hour).padStart(2, '0')}:00
+        </div>
         <input
           id="hour-slider"
           type="range"
-          min={5}
-          max={22}
+          min={6}
+          max={21}
           step={1}
           value={hour}
           onChange={(e) => onHourChange(Number(e.target.value))}
           className="shadow-controls__input"
+          aria-label={t('viewer3d.time')}
         />
+        <div className="shadow-controls__ticks">
+          {TICK_HOURS.map((h) => (
+            <span key={h} className="shadow-controls__tick">
+              {String(h).padStart(2, '0')}
+            </span>
+          ))}
+        </div>
       </div>
       {onCameraPreset && (
         <div className="shadow-controls__section">

@@ -60,8 +60,9 @@ function getDateFromPreset(preset: string): Date {
   const year = new Date().getFullYear();
   switch (preset) {
     case 'winter': return new Date(year, 11, 21);
+    case 'spring': return new Date(year, 2, 20);
     case 'summer': return new Date(year, 5, 21);
-    case 'equinox': return new Date(year, 2, 20);
+    case 'autumn': return new Date(year, 8, 22);
     default: return new Date();
   }
 }

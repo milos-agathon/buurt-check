@@ -199,7 +199,7 @@ describe('NeighborhoodViewer3D', () => {
 
   it('renders shadow controls', () => {
     renderViewer();
-    expect(screen.getByText('Today')).toBeInTheDocument();
+    expect(screen.getByText(/Winter/)).toBeInTheDocument();
     expect(screen.getByRole('slider')).toBeInTheDocument();
   });
 

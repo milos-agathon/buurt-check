@@ -12,7 +12,7 @@ beforeAll(async () => {
 function renderControls(overrides = {}) {
   const props = {
     hour: 12,
-    datePreset: 'today',
+    datePreset: 'summer',
     onHourChange: vi.fn(),
     onDatePresetChange: vi.fn(),
     ...overrides,
@@ -26,18 +26,18 @@ function renderControls(overrides = {}) {
 }
 
 describe('ShadowControls', () => {
-  it('renders time slider with current hour', () => {
+  it('renders time display with current hour', () => {
     renderControls({ hour: 14 });
-    expect(screen.getByText('Time: 14:00')).toBeInTheDocument();
+    expect(screen.getByText('14:00')).toBeInTheDocument();
     expect(screen.getByRole('slider')).toHaveValue('14');
   });
 
-  it('renders all date preset buttons', () => {
+  it('renders 4 season buttons (winter, spring, summer, autumn)', () => {
     renderControls();
-    expect(screen.getByText('Winter')).toBeInTheDocument();
-    expect(screen.getByText('Summer')).toBeInTheDocument();
-    expect(screen.getByText('Equinox')).toBeInTheDocument();
-    expect(screen.getByText('Today')).toBeInTheDocument();
+    expect(screen.getByText(/Winter/)).toBeInTheDocument();
+    expect(screen.getByText(/Spring/)).toBeInTheDocument();
+    expect(screen.getByText(/Summer/)).toBeInTheDocument();
+    expect(screen.getByText(/Autumn/)).toBeInTheDocument();
   });
 
   it('calls onHourChange when slider moves', () => {
@@ -48,13 +48,13 @@ describe('ShadowControls', () => {
 
   it('calls onDatePresetChange when preset clicked', () => {
     const props = renderControls();
-    fireEvent.click(screen.getByText('Winter'));
+    fireEvent.click(screen.getByText(/Winter/));
     expect(props.onDatePresetChange).toHaveBeenCalledWith('winter');
   });
 
   it('highlights active preset', () => {
     renderControls({ datePreset: 'winter' });
-    const winterBtn = screen.getByText('Winter');
+    const winterBtn = screen.getByText(/Winter/).closest('button')!;
     expect(winterBtn.className).toContain('--active');
   });
 
@@ -79,5 +79,23 @@ describe('ShadowControls', () => {
     expect(onCameraPreset).toHaveBeenCalledWith('street');
     fireEvent.click(screen.getByText('Top-down'));
     expect(onCameraPreset).toHaveBeenCalledWith('topDown');
+  });
+
+  it('renders hour tick marks every 3 hours', () => {
+    renderControls();
+    expect(screen.getByText('06')).toBeInTheDocument();
+    expect(screen.getByText('09')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByText('15')).toBeInTheDocument();
+    expect(screen.getByText('18')).toBeInTheDocument();
+    expect(screen.getByText('21')).toBeInTheDocument();
+  });
+
+  it('time slider has range 6-21', () => {
+    renderControls();
+    const slider = screen.getByRole('slider');
+    expect(slider).toHaveAttribute('min', '6');
+    expect(slider).toHaveAttribute('max', '21');
+    expect(slider).toHaveAttribute('step', '1');
   });
 });

@@ -19,6 +19,9 @@
   font-size: 0.75rem;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .shadow-controls__preset:hover {
@@ -31,10 +34,20 @@
   border-color: var(--color-primary);
 }
 
+.shadow-controls__emoji {
+  font-size: 0.85rem;
+}
+
 .shadow-controls__slider {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+}
+
+.shadow-controls__time-display {
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .shadow-controls__label {
@@ -45,6 +58,17 @@
 .shadow-controls__input {
   width: 100%;
   accent-color: var(--color-primary);
+}
+
+.shadow-controls__ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.shadow-controls__tick {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
 }
 
 .shadow-controls__section {
