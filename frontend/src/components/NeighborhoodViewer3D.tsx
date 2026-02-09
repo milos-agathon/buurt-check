@@ -128,6 +128,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   const [activeOverlay, setActiveOverlay] = useState<OverlayTileType | null>(null);
   const [overlayLoading, setOverlayLoading] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(50);
+  const [localSunlight, setLocalSunlight] = useState<SunlightResult | null>(null);
   const basemapMeshesRef = useRef<THREE.Mesh[]>([]);
   const overlayMeshRef = useRef<THREE.Mesh | null>(null);
   const overlayTextureRef = useRef<THREE.Texture | null>(null);
@@ -612,13 +613,15 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
     const annualAverage = Math.round((monthlyHours.reduce((s, h) => s + h, 0) / 12) * 10) / 10;
 
-    onSunlightAnalysis({
+    const result: SunlightResult = {
       winter: monthlyHours[WINTER_IDX],
       equinox: monthlyHours[EQUINOX_IDX],
       summer: monthlyHours[SUMMER_IDX],
       annualAverage,
       analysisYear: year,
-    });
+    };
+    setLocalSunlight(result);
+    onSunlightAnalysis(result);
   }, [buildings, targetPandId, center.lat, center.lng, onSunlightAnalysis]);
 
   // Trigger sunlight analysis after buildings render
@@ -780,6 +783,18 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         >
           {isFullscreen ? '\u2716' : '\u26F6'}
         </button>
+        {localSunlight && (() => {
+          const SEASON_MAP: Record<string, keyof SunlightResult> = {
+            winter: 'winter', spring: 'equinox', summer: 'summer', autumn: 'equinox',
+          };
+          const key = SEASON_MAP[datePreset] ?? 'summer';
+          const hours = localSunlight[key];
+          return (
+            <div className="viewer-3d__sunlight-badge" data-testid="sunlight-badge">
+              {'\u2600\uFE0F'} {typeof hours === 'number' ? `${hours.toFixed(1)}h` : ''}
+            </div>
+          );
+        })()}
       </div>
       <ShadowControls
         hour={hour}

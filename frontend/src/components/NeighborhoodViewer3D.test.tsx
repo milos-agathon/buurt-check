@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { setupTestI18n, makeNeighborhood3DResponse, makeNeighborhood3DResponseWithLod22 } from '../test/helpers';
 
@@ -111,7 +111,7 @@ vi.mock('three', () => {
     PlaneGeometry, MeshStandardMaterial, MeshBasicMaterial, Mesh: MockMesh,
     Shape, ExtrudeGeometry, BufferGeometry, Float32BufferAttribute,
     Color, PCFSoftShadowMap: 2, Vector3: Vec3, Raycaster, TextureLoader,
-    DoubleSide: 2, SRGBColorSpace: 'srgb',
+    DoubleSide: 2, SRGBColorSpace: 'srgb', LinearFilter: 1006,
   };
 });
 
@@ -261,6 +261,23 @@ describe('NeighborhoodViewer3D', () => {
     fireEvent.click(btn);
     const container = screen.getByTestId('viewer-3d-canvas').closest('.viewer-3d');
     expect(container?.className).not.toContain('viewer-3d--fullscreen');
+  });
+
+  it('does not render sunlight badge when no sunlight data computed yet', () => {
+    renderViewer({ onSunlightAnalysis: undefined });
+    expect(screen.queryByTestId('sunlight-badge')).not.toBeInTheDocument();
+  });
+
+  it('renders sunlight badge after analysis completes', async () => {
+    const onSunlight = vi.fn();
+    renderViewer({ onSunlightAnalysis: onSunlight });
+    // sunlight analysis fires after a 100ms setTimeout
+    await waitFor(() => {
+      expect(screen.getByTestId('sunlight-badge')).toBeInTheDocument();
+    }, { timeout: 500 });
+    const badge = screen.getByTestId('sunlight-badge');
+    // Badge should contain a number followed by 'h'
+    expect(badge.textContent).toMatch(/\d+\.\dh/);
   });
 });
 
