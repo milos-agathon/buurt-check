@@ -1,112 +1,185 @@
-# Frontend — React + TypeScript + Three.js
+# Frontend — React + TypeScript + Plain Three.js
 
 ## Stack
-- React 18, TypeScript 5, Vite, Zustand (state), React Query (data fetching)
-- Three.js r160+, @react-three/fiber, @react-three/drei
-- i18n: react-i18next (EN/NL, files in src/i18n/)
-- Styling: Tailwind CSS 4 + shadcn/ui components
-- Test: Vitest + React Testing Library
-- Linting: eslint + prettier
+- React 18, TypeScript 5, Vite 6 (dev server + bundler)
+- Three.js (plain, NOT react-three-fiber) for 3D neighborhood viewer
+- SunCalc for solar position calculations
+- i18n: react-i18next + i18next-browser-languagedetector (EN/NL)
+- Styling: Plain CSS with design system tokens (NO Tailwind, NO CSS-in-JS)
+- GSAP for camera transitions in 3D viewer (300ms easing)
+- Test: Vitest 4.x + React Testing Library + jsdom
+- Linting: TypeScript strict mode via `npm run build`
+- No state management library — App-level `useState` + props
 
 ## Key commands
-- Dev server: `cd frontend && npm run dev`
-- Build: `cd frontend && npm run build`
+- Dev server: `cd frontend && npm run dev` (proxies /api to backend at localhost:8000)
+- Build: `cd frontend && npm run build` (TypeScript strict, catches unused vars/params)
 - Test: `cd frontend && npm run test`
-- Test watch: `cd frontend && npm run test:watch`
-- Lint: `cd frontend && npm run lint`
-- Type check: `cd frontend && npx tsc --noEmit`
+- Test watch: `cd frontend && npx vitest --watch`
 
 ## Project structure
-- `src/App.tsx` — Root layout, routing, i18n provider
-- `src/pages/` — Route-level components: `DossierPage.tsx`, `ComparePage.tsx`, `ShortlistPage.tsx`
-- `src/components/` — Reusable UI, organized by feature:
-  - `AddressInput/` — Postcode + house number form with Dutch validation
-  - `RiskCard/` — Generic risk card component + specific cards (NoiseCard, AirCard, ClimateCard, SunlightCard)
-  - `NeighborhoodSnapshot/` — CBS indicators display
-  - `ThreeViewer/` — Three.js viewer container, controls, overlays
-  - `ShadowTimeline/` — Time slider + date picker for shadow simulation
-  - `Shortlist/` — Save, compare, export controls
-  - `PDFExport/` — Viewing Briefing generation
-  - `ui/` — shadcn/ui primitives (Button, Card, Dialog, etc.)
-- `src/hooks/` — Custom hooks: `useAddress.ts`, `useDossier.ts`, `useThreeScene.ts`, `useShadowSim.ts`
-- `src/services/` — API client functions (one per backend endpoint)
-- `src/three/` — Three.js-specific code (NOT React components):
-  - `scene.ts` — Scene setup, lighting, camera presets
-  - `cityjson-loader.ts` — CityJSON parsing, geometry creation, semantic surface splitting
-  - `materials.ts` — Period-appropriate facade materials, orthophoto roof materials
-  - `shadows.ts` — DirectionalLight config, shadow map setup, SunCalc integration
-  - `overlays.ts` — WMS layer compositing on ground plane
-  - `ground.ts` — Ground plane with orthophoto texture
-- `src/i18n/` — `en.json`, `nl.json` (flat key structure: `"riskCards.noise.title"`)
-- `src/stores/` — Zustand stores: `addressStore.ts`, `shortlistStore.ts`, `viewerSettingsStore.ts`
-- `src/types/` — Shared TypeScript types and interfaces
+```
+src/
+  App.tsx              — Root component, screen routing, state management
+  App.css              — App layout, screen containers
+  index.css            — Global resets, imports tokens + fonts
+  styles/
+    tokens.css         — Design system CSS custom properties ("Clear Signal Hybrid")
+    satoshi.css        — @font-face for Satoshi Variable (woff2)
+  components/
+    # Navigation shell
+    TabBar.tsx         — 3-tab bottom nav (Search, Briefing, Saved), frosted glass
+    TopBar.tsx         — Sticky header with title + language toggle
+    # Search
+    AddressSearch.tsx  — Autocomplete input with PDOK Locatieserver
+    # Loading
+    LoadingScreen.tsx  — Building animation + progress text between search and dossier
+    BuildingAnimation.tsx — SVG canal house progressive draw animation
+    # Dossier — address detail screen
+    AddressHeader.tsx  — Street name, postcode, building facts, bookmark toggle
+    SummaryStrip.tsx   — Horizontal scroll pills with risk scores
+    BuildingFactsCard.tsx — Building year, floors, area, status
+    BuildingFootprintMap.tsx — Leaflet 2D map with building footprint
+    NeighborhoodViewer3D.tsx — Three.js 3D viewer (shadows, overlays, basemap)
+    ShadowControls.tsx — Time slider + season presets + camera presets
+    ShadowSnapshots.tsx — Canvas capture at 9:00/12:00/17:00 winter solstice
+    OverlayControls.tsx — WMS overlay toggles with popover + opacity slider (25-75%)
+    SunlightRiskCard.tsx — 12-month sunlight analysis with risk classification
+    RiskTilesGrid.tsx  — 2x2 CSS Grid of risk tiles
+    RiskTile.tsx       — Score tile (animated score, severity badge, summary)
+    RiskDetailView.tsx — Full-screen detail with comparisons + viewing questions
+    ExportBottomSheet.tsx — PDF export template selection + language toggle
+    RiskCardsPanel.tsx — Risk data orchestrator (noise, air, climate, sunlight)
+    NeighborhoodStatsCard.tsx — CBS indicators with urbanization badge, age bars
+    ViewingChecklist.tsx — Aggregated viewing questions with checkboxes
+    ActionBar.tsx      — Sticky bottom bar (Add to Shortlist / Export Briefing)
+    LanguageToggle.tsx — EN/NL segmented control
+    # Shortlist / Compare
+    ShortlistScreen.tsx — Saved addresses with mini risk dots, compare button
+    CompareScreen.tsx  — Multi-column score comparison with difference highlighting
+    SettingsScreen.tsx — Language, dark mode toggle, clear data, version info
+    # UI primitives
+    ui/SeverityBadge.tsx  — 4-level risk icon + label (good/moderate/poor/critical)
+    ui/ScoreBar.tsx       — Animated horizontal bar with severity coloring
+    ui/AnimatedScore.tsx  — Count-up animation (0→target, 600ms, requestAnimationFrame)
+    ui/QuartileDots.tsx   — 4 dots indicating score quartile position
+    ui/BottomSheet.tsx    — Modal sheet with backdrop + drag handle
+    ui/Toast.tsx          — Slide-up notification with auto-dismiss
+    ui/ToggleSwitch.tsx   — 44x24px toggle with teal active state
+  services/
+    api.ts             — Native fetch API client (no axios), AbortSignal support
+    shortlist.ts       — localStorage CRUD for saved addresses (max 3)
+    recentSearches.ts  — localStorage CRUD for recent searches (max 10)
+    theme.ts           — Dark mode service (light/dark/system, localStorage + matchMedia)
+  types/
+    api.ts             — TypeScript interfaces mirroring backend Pydantic models
+  i18n/
+    index.ts           — i18next config with browser language detection
+    en.json            — English translations (~300 keys)
+    nl.json            — Dutch translations (~300 keys)
+  test/
+    setup.ts           — Vitest setup (DOM mocks, i18n helpers)
+    helpers.ts         — Test factories for API response mocks
+```
+
+## Design system — "Clear Signal Hybrid"
+
+Design tokens in `styles/tokens.css`. All components use CSS custom properties.
+
+### Colors
+- **Primary:** `--color-primary: #1A1A2E` (Charcoal), `--color-accent: #00897B` (Electric Teal)
+- **Risk severity:** `--color-risk-good: #2E7D68`, `--color-risk-moderate: #E8913A`, `--color-risk-poor: #D84315`, `--color-risk-critical: #B71C1C`
+- **Surfaces:** `--color-bg: #F8F9FA`, `--color-surface: #FFFFFF`, `--color-surface-alt: #F4F5F7`
+
+### Typography
+- Font: Satoshi Variable (woff2, self-hosted from fontshare.com)
+- 10-level type scale from `--type-display` (28px Black) to `--type-micro` (11px Regular)
+- Score display: `--type-score-tile` (40px Black), `--type-score-large` (48px Black)
+
+### Spacing
+- 8pt grid: `--space-xs` (4px) through `--space-5xl` (64px)
+
+### Layout
+- Mobile-first, `--max-width: 600px` container
+- Bottom tab bar: 56px + safe area
+- Frosted glass: `backdrop-filter: blur(20px)`, 92% white opacity
 
 ## Conventions — follow these exactly
 
 ### Component pattern
-```tsx
-// Functional component with named export. Props interface colocated.
-interface RiskCardProps {
-  level: "low" | "medium" | "high";
-  titleKey: string;        // i18n key
-  explanationKey: string;  // i18n key
-  source: string;
-  dataDate: string | null;
-  viewingQuestions: string[];  // Already translated by backend
-}
+- Functional components with props interface colocated
+- Named exports (not default) for most components
+- Co-located CSS files with BEM-like naming: `component-name__element--modifier`
+- Co-located test files: `Component.test.tsx` next to `Component.tsx`
 
-export function RiskCard({ level, titleKey, ... }: RiskCardProps) {
-  const { t } = useTranslation();
-  // ...
-}
-```
+### State management
+- App-level state in `App.tsx` via `useState` — no Zustand, no Redux, no Context
+- Screen routing: `activeScreen` state (`'search' | 'dossier' | 'shortlist' | 'compare' | 'settings'`)
+- Pass data down as props. Lift state up when siblings need to share
+- Theme preference: `ThemePreference = 'light' | 'dark' | 'system'` stored in localStorage via `services/theme.ts`
 
 ### Data fetching
-Use React Query for all backend calls. Query keys follow: `[feature, ...params]`.
-```tsx
-const { data, isLoading, error } = useQuery({
-  queryKey: ['dossier', address],
-  queryFn: () => fetchDossier(address),
-  staleTime: 5 * 60 * 1000,  // 5 min
-  retry: 1,
-});
-```
+- Native `fetch` in `services/api.ts`. No React Query, no axios
+- `AbortController` with explicit timeouts for each endpoint
+- Three-state async model: `loading`, `data`, `error` — all three always managed
 
-### Three.js rules — CRITICAL
-- Shadow map: `renderer.shadowMap.type = THREE.PCFSoftShadowMap`
-- Shadow map auto-update OFF: `renderer.shadowMap.autoUpdate = false` — only trigger `renderer.shadowMap.needsUpdate = true` when sun position changes
-- ONE DirectionalLight only. Never add a second shadow-casting light.
-- Shadow camera frustum: `left/right/top/bottom = ±300`, near=1, far=1000
-- Shadow bias: `-0.0005`, normalBias: `0.02`
-- NEVER use `side: THREE.DoubleSide` on building materials — causes shadow artifacts. Fix winding order instead.
-- Coordinate system: 3DBAG vertices arrive in EPSG:28992. Subtract scene center point to place target building at origin. Do NOT reproject to WGS84.
-- Surrounding buildings: merge into single BufferGeometry with vertex colors (not individual meshes). Target: <8 draw calls total.
-- Dispose textures and geometries in cleanup: `geometry.dispose()`, `material.dispose()`, `texture.dispose()`
-
-### Progressive loading sequence
-Follow this exact order to meet the <6s mobile target:
-1. (0–1s) Init empty scene with ambient light, show spinner
-2. (1–3s) Fetch CityJSON + ground orthophoto in parallel
-3. (3–4s) First render: semantic solid colors, shadows work → hide spinner
-4. (4–5s) Apply orthophoto roof texture + full shadow map
-5. (5–6s) Load facade atlas, apply procedural shaders to target building
+### CSS
+- Plain CSS with design tokens from `tokens.css`. NO Tailwind, NO CSS modules
+- Mobile-first. Component CSS co-located (e.g., `AddressSearch.css`)
+- Use `var(--token-name)` for all colors, spacing, typography, radii, shadows
+- Dark mode: `[data-theme="dark"]` selectors override token values in `tokens.css`
+- Available tokens: see `styles/tokens.css` for full reference (~170 tokens)
 
 ### i18n
-- All user-facing strings go through `t()`. Never hardcode English or Dutch text.
-- Key format: `namespace.component.element` (e.g., `riskCards.noise.title`)
-- Dutch translations must be reviewed — do not auto-translate. Add English first, mark NL as `"TODO: [english text]"` for manual review.
+- All user-facing strings via `useTranslation()` hook
+- Key format: dot notation (`risk.noise.title`, `nav.search`)
+- Both `en.json` and `nl.json` must be updated together
+- Warning codes from backend: `t('risk.warning.${code}', code)` with fallback
 
-### Styling
-- Use Tailwind utilities. No inline styles. No CSS modules.
-- Color tokens defined in tailwind.config: `primary`, `risk-low`, `risk-medium`, `risk-high`
-- Responsive: mobile-first. Breakpoints: `sm:`, `md:`, `lg:`
-- The Three.js canvas is full-width on mobile, 60% width on desktop with cards in a sidebar
+### Three.js rules
+- Plain Three.js — NOT react-three-fiber. All setup in `NeighborhoodViewer3D.tsx`
+- Always use `THREE.DoubleSide` on building materials (3DBAG winding order inconsistent)
+- Shadow map: `PCFSoftShadowMap`, 4096x4096 (adaptive fallback to 2048/1024), frustum +-300m, bias `-0.001`
+- Must add `sunLight.target` to scene (missing = silent shadow failure)
+- Dispose all geometries, materials, textures on cleanup
+- SunCalc azimuth 0=south. Convert: `x = -sin(az)*cos(alt)*D`, `y = sin(alt)*D`, `z = cos(az)*cos(alt)*D`
+- Camera presets as viewport overlay buttons (top-left). Use `gsap.to()` for 300ms transitions
+- WMS overlays: `PlaneGeometry` at Y=0.1, `depthWrite: false`, always `revokeObjectURL()` on change
+- Overlay opacity slider: 25-75% range, updates `MeshBasicMaterial.opacity` in real-time
+- LoD 2.2 geometry from `roof_surfaces` — fan triangulation, Y-up coords, no rotation needed
+- `mergeGeometries` from `three/addons/utils/BufferGeometryUtils.js` for non-target buildings (single draw call)
+- FPS monitoring: 60-frame window, 3 consecutive low readings → reduce shadow map size + show banner
+- Fullscreen: `requestFullscreen()` API + `fullscreenchange` event sync + CSS `.fullscreen` class
+- Dark mode: target building color switches blue/teal based on `data-theme` attribute
+
+### Risk scoring (0-100 scale)
+- Backend provides `score` (0-100) and `severity` (good/moderate/poor/critical) on each risk card
+- Frontend displays score in `RiskTile`, full detail in `RiskDetailView`
+- Severity thresholds: 70-100=good, 40-69=moderate, 20-39=poor, 0-19=critical
+- Sunlight score computed client-side from winter solstice hours
+- Comparison chart in detail view: address vs city avg vs NL avg vs WHO limit
+
+### Shortlist
+- localStorage-backed via `services/shortlist.ts`
+- Max 3 addresses. Each stores: vboId, address, postcode, city, buildingYear, riskScores, savedAt
+- Compare view: side-by-side columns with difference highlighting (>15pt spread)
+
+## Testing patterns
+
+- **Test count baseline: 324** — any change must maintain or increase
+- Vitest 4.x + Testing Library + jsdom
+- Three.js mock: constructor functions (not arrow fns — `new` fails). Use `function Scene(this: any) { this.add = vi.fn(); }` pattern
+- react-leaflet mock: `MapContainer` → `<div data-testid="map">`, `TileLayer`/`GeoJSON` → `null`
+- Fake timers + `userEvent.type()` = deadlock. Use `fireEvent.change` instead
+- Fake timers + `waitFor` = deadlock. Switch to real timers before `waitFor`
+- i18n in tests: fresh `i18n.createInstance()` per language in `setupTestI18n()`
+- `vi.fn()` needs `mockReset()` in `beforeEach` (not `vi.restoreAllMocks()`)
 
 ## DO NOT
-- Import Three.js classes directly in React components. All Three.js code lives in `src/three/` and is consumed via hooks.
-- Use `useEffect` for data fetching. Use React Query.
-- Use `any` type. Define proper interfaces in `src/types/`.
-- Add new shadcn/ui components without running `npx shadcn-ui@latest add [component]`.
-- Use `console.log` for debugging. Use the `debug` npm package with namespaces.
-- Modify the ShadowTimeline slider to auto-play — it must be user-controlled only.
-- Create components larger than 200 lines. Extract sub-components.
+- Use Tailwind, CSS modules, or styled-components. Plain CSS + design tokens only
+- Use React Query, Zustand, Redux, or any state management library
+- Use react-three-fiber or drei. Plain Three.js only
+- Use `any` type. Define proper interfaces in `types/api.ts`
+- Use `console.log` for debugging in production code
+- Hardcode English or Dutch text. All strings via `t()`
+- Use CSS `!important` on canvas dimensions (breaks Three.js `renderer.setSize()`)

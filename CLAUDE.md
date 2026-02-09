@@ -81,19 +81,24 @@ Become the trusted pre-viewing intelligence tool for every property buyer in the
 
 ## Architecture decisions
 
-- **Backend**: FastAPI (Python) + PostGIS
-- **Data ingestion**: Scheduled jobs for raster/ZIP data; on-demand WMS/WCS sampling with caching for real-time queries
-- **API serving**: Custom JSON REST API for vector data; pre-sampled tiles or WMS proxy with caching for rasters
-- **Client**: Web-first (mobile responsive), React. Mobile wrapper via React Native later.
-- **3D rendering**: Three.js or deck.gl for the 3D neighborhood viewer. Directional light positioned using SunCalc to cast real-time shadows. Shadow maps for interactive timeline; server-side headless render (e.g., headless GL) for static snapshot generation.
+- **Backend**: FastAPI (Python) + httpx (async) + Pydantic v2. Stateless API aggregator — no database, all data from external APIs. Redis for caching with circuit breaker.
+- **Data fetching**: On-demand WMS/WCS sampling with Redis caching. WMS tile proxy for CORS bypass.
+- **API serving**: Custom JSON REST API. Single router in `api/address.py` with all endpoints.
+- **Client**: Web-first (mobile responsive), React 18 + Vite + TypeScript. Plain CSS with design system tokens.
+- **3D rendering**: Plain Three.js (not react-three-fiber or deck.gl). Directional light positioned using SunCalc to cast real-time shadows. PCFSoftShadowMap 2048x2048.
+- **Design system**: "Clear Signal Hybrid" — Satoshi font, Electric Teal (#00897B) accent, 0-100 risk scoring with 4-level severity. Tokens in `frontend/src/styles/tokens.css`.
+- **State management**: App-level `useState` in `App.tsx`. No Zustand, no Redux. Screen routing via `activeScreen` state.
+- **Shortlist**: localStorage-backed (max 3 addresses). No server-side persistence.
 
 ## Risk card design principles
 
 Every risk card must contain exactly four elements:
-1. **Score/level**: low / medium / high (with color coding)
+1. **Score (0-100) + severity**: good (70-100) / moderate (40-69) / poor (20-39) / critical (0-19) with severity color coding
 2. **What it means**: plain-language EN/NL explanation -- no jargon
 3. **What to ask/check at viewing**: actionable questions for the buyer
 4. **Source + date**: transparency about where the data comes from and how recent it is
+
+Risk tiles display as a 2x2 grid (noise, air, climate, sunlight). Tap opens full-screen detail view with score, comparison chart (address vs city vs NL vs WHO), and viewing questions with checkboxes.
 
 ## Key product principles
 
@@ -177,44 +182,56 @@ These are derived from PM fundamentals and shape every decision:
 
 ```
 buurt-check/
-  docs/              # Design docs, plans, architecture decisions
-  backend/           # FastAPI application
+  docs/              # Design docs: design-prd.md (visual spec), design-spec.md (pixel specs)
+  backend/           # FastAPI application (stateless API aggregator)
     app/
-      api/           # Route handlers (address.py, neighborhood.py, router.py)
+      api/           # Route handlers (address.py, router.py)
       cache/         # Redis cache with circuit breaker (redis.py)
-      services/      # Business logic (bag.py, locatieserver.py, three_d_bag.py, cbs.py, risk_cards.py, wms_tile.py)
-      models/        # Pydantic models (address.py, building.py, neighborhood.py, neighborhood3d.py)
-      config.py      # Settings via pydantic-settings
+      services/      # Business logic: bag.py, locatieserver.py, three_d_bag.py,
+                     #   cbs.py, risk_cards.py, wms_tile.py, scoring.py, viewing_questions.py
+      models/        # Pydantic models: address.py, building.py, neighborhood.py,
+                     #   neighborhood3d.py, risk.py
+      config.py      # Settings via pydantic-settings (BUURT_* prefix)
       main.py        # FastAPI app entry point
-    tests/           # pytest tests (162 non-live + 9 live smoke tests)
+    tests/           # pytest tests (242 non-live + live smoke tests)
   frontend/          # React application (Vite + TypeScript)
     src/
-      components/    # F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle
-                     # F2: NeighborhoodViewer3D, ShadowControls, ShadowSnapshots,
-                     #     SunlightRiskCard, OverlayControls
-                     # F3: RiskCardsPanel
-                     # F4: NeighborhoodStatsCard
-      services/      # API client (fetch-based)
-      types/         # TS interfaces mirroring backend models
-      i18n/          # i18next config + en.json + nl.json
+      styles/        # Design system: tokens.css (CSS custom properties), satoshi.css (font)
+      components/    # Navigation: TabBar, TopBar
+                     # Search: AddressSearch
+                     # Loading: LoadingScreen, BuildingAnimation
+                     # Dossier: AddressHeader, SummaryStrip, BuildingFactsCard,
+                     #   BuildingFootprintMap, NeighborhoodViewer3D, ShadowControls,
+                     #   ShadowSnapshots, OverlayControls, SunlightRiskCard,
+                     #   RiskTilesGrid, RiskTile, RiskDetailView, RiskCardsPanel,
+                     #   NeighborhoodStatsCard, ViewingChecklist, ActionBar
+                     # Shortlist: ShortlistScreen, CompareScreen, SettingsScreen
+                     # UI primitives: ui/SeverityBadge, ui/ScoreBar,
+                     #   ui/BottomSheet, ui/Toast, ui/ToggleSwitch
+      services/      # api.ts (fetch-based), shortlist.ts (localStorage)
+      types/         # api.ts — TS interfaces mirroring backend models
+      i18n/          # i18next config + en.json + nl.json (~200 keys each)
       test/          # Test setup (setup.ts, helpers.ts)
-  CLAUDE.md
+  CLAUDE.md          # Root project docs (authoritative)
+  frontend/CLAUDE.md # Frontend-specific conventions
+  backend/CLAUDE.md  # Backend-specific conventions
 ```
 
 ## Current project status
 
-**Stage: F1 + F2 + F3 + F4 implemented and hardened. LoD 2.2 committed and feature-flagged. WMS overlay tiles integrated. Ready for F5.**
+**Stage: F1-F5 fully implemented + polished. "Clear Signal Hybrid" design system applied. 0-100 risk scoring. Tab navigation. Shortlist + compare. PDF Quick Brief export. Dark mode. Recent searches. GSAP camera transitions. FPS monitoring.**
 
 ### What exists
-- `backend/` — FastAPI app with address suggest, lookup, building facts, 3D neighborhood endpoints (including fast `/building3d` target-only endpoint and full `/neighborhood3d` bbox endpoint), F3 risk-card endpoint (`/api/address/{vbo_id}/risks`) for noise/air/climate, F4 neighborhood stats endpoint (`/api/address/{vbo_id}/neighborhood`), and WMS tile proxy (`/api/address/{vbo_id}/wms-tile`). BAG identity lookups are exact ID-based (OGC XML Filter). 3DBAG integration uses dual-fetch strategy (direct target + bbox surrounding) with LoD 2.2 roof geometry parsing (feature-flagged). CBS Wijken & Buurten integration with buurt-code + bbox fallback. Redis cache with circuit breaker. Structured logging. 162 passing tests + 9 live smoke tests (deselected by default).
-- `frontend/` — Vite + React + TypeScript. F1: AddressSearch, BuildingFactsCard, BuildingFootprintMap, LanguageToggle. F2: NeighborhoodViewer3D (Three.js with street basemap, construction-year building colors, target edge highlight, LoD 2.2 roof rendering, WMS overlay rendering, two-layer ground system, dynamic camera positioning), ShadowControls (time slider + date presets + camera presets), ShadowSnapshots (canvas capture at 9:00/12:00/17:00 winter solstice), SunlightRiskCard (12-month sampling, risk classification, unavailable state), OverlayControls (noise/air/climate WMS tile toggles). F3: RiskCardsPanel (noise, air quality, climate stress) with full EN/NL copy, source+date display, error state, and 20s timeout. F4: NeighborhoodStatsCard with urbanization badge, age distribution bars, grouped indicators. Two-phase progressive 3D loading (target ~2s, neighborhood ~12-17s). 150 passing Vitest tests. i18n with react-i18next. Vite proxy to backend.
-- `docs/prd.md` — v1.1, fully restructured with 13 sections
+- `backend/` — FastAPI app with 11 endpoints: address suggest/lookup, building facts, 3D building/neighborhood, risk cards (with 0-100 scores + severity), neighborhood stats, WMS tile proxy, viewing questions, PDF export. BAG lookups use OGC XML Filter. 3DBAG uses tiled fetch (direct target + grid tiles). LoD 2.2 roof geometry parsing (feature-flagged). Risk scoring normalizes noise/air/climate/sunlight to 0-100. CBS integration with buurt-code + bbox fallback. Redis cache with circuit breaker. fpdf2 for PDF generation. 255 passing tests + live smoke tests.
+- `frontend/` — Vite + React + TypeScript with "Clear Signal Hybrid" design system. Satoshi font, Electric Teal accent, CSS design tokens. 3-tab navigation (Search, Briefing, Saved) with frosted glass tab bar. Loading screen with building animation. Dossier screen: address header, summary strip, 3D viewer (fullscreen, GSAP transitions, FPS monitoring), 2x2 risk tiles with animated 0-100 scores + quartile dots, risk detail views with comparison charts + viewing questions, neighborhood stats, viewing checklist, action bar with PDF export. Dark mode (light/dark/system). Recent searches. Shortlist (max 3) with compare screen. Settings screen. 324 passing Vitest tests. i18n with ~300 keys per language.
+- `docs/design-prd.md` — Full design specification for "Clear Signal Hybrid" design direction
+- `docs/design-spec.md` — Pixel-level visual specification for all screens
 
 ### What's next
-- Maintain quality gates: `ruff check`, backend pytest (162+, excluding live), frontend vitest (150+), `npm run build`, Playwright E2E smoke.
-- Fix remaining 3D viewer issues: basemap coverage for full neighborhood, LoD 2.2 visual verification, render performance (<15s target).
-- Implement F5 shortlist + compare + PDF export.
-- Resolve PM2.5 data gap (GCN WMS only has NO2 layers; PM2.5 may need offline ZIP ingestion or alternative endpoint).
+- Maintain quality gates: `ruff check`, backend pytest (255+, excluding live), frontend vitest (324+), `npm run build`.
+- Resolve PM2.5 data gap (GCN WMS only has NO2 layers).
+- Visual QA pass on all redesigned screens with real data.
+- Full Dossier PDF export (3-4 pages, extends Quick Brief).
 
 ## Learnings from development sessions (2026-01-30)
 
@@ -240,26 +257,28 @@ buurt-check/
 
 ### Architecture decisions made
 
-1. **Three separate backend endpoints for F1** (not one combined):
-   - `/api/address/suggest` — lightweight, fires on every keystroke
-   - `/api/address/lookup` — runs once on selection, resolves BAG IDs
-   - `/api/address/{vbo_id}/building` — heavy call, fetches geometry, cached independently
+1. **Nine backend endpoints, all under `/api/address/`** — suggest, lookup, building, building3d, neighborhood3d, risks, neighborhood, wms-tile, viewing-questions.
 
-2. **Redis from the start** (via Docker: `docker run -d --name buurt-redis -p 6379:6379 redis:7-alpine`). Cache with graceful degradation — app works without Redis, just slower.
+2. **Redis from the start** (via Docker: `docker run -d --name buurt-redis -p 6379:6379 redis:7-alpine`). Cache with graceful degradation — app works without Redis, just slower. Circuit breaker (30s) + socket_timeout (0.5s).
 
-3. **Leaflet for F1 2D maps** (not deck.gl). Leaflet is free, no API key, lightweight. deck.gl reserved for F2 3D neighborhood viewer.
+3. **Leaflet for F1 2D maps.** Leaflet is free, no API key, lightweight. Plain Three.js for F2 3D neighborhood viewer (not deck.gl or react-three-fiber).
 
-4. **Plain CSS, mobile-first.** No CSS framework. Matches YAGNI principle.
+4. **Plain CSS with design system tokens, mobile-first.** "Clear Signal Hybrid" design direction. Satoshi font. Tokens in `styles/tokens.css`. No Tailwind, no CSS-in-JS.
 
 5. **pyproject.toml for backend** (not requirements.txt). Modern Python packaging.
+
+6. **3-tab navigation** (Search, Briefing, Saved). Screen routing via `activeScreen` state in `App.tsx`. Frosted glass tab bar at bottom.
+
+7. **0-100 risk scoring** with 4-level severity (good/moderate/poor/critical). Backend normalizes raw values via `scoring.py`. Frontend displays in 2x2 tile grid + detail views.
 
 ### Development environment notes
 
 - **Windows (Git Bash):** `cd /d D:\path` does not work in bash. Use `cd "D:/path"` or `cd /d/path` instead.
-- **Vite frontend scaffolding:** Use `npx create-vite frontend --template react-ts` to scaffold.
-- **Backend Python deps:** `fastapi[standard]`, `uvicorn[standard]`, `httpx`, `pydantic`, `pydantic-settings`, `redis`
+- **Backend Python deps:** `fastapi[standard]`, `uvicorn[standard]`, `httpx`, `pydantic`, `pydantic-settings`, `redis`, `scipy`
 - **Backend dev deps:** `pytest`, `pytest-asyncio`, `pytest-httpx`, `ruff`
-- **Frontend deps (installed):** `react-i18next`, `i18next`, `i18next-browser-languagedetector`, `leaflet`, `react-leaflet`, `@types/leaflet`
+- **Frontend deps:** `react-i18next`, `i18next`, `i18next-browser-languagedetector`, `leaflet`, `react-leaflet`, `@types/leaflet`, `three`, `suncalc`
+- **Frontend dev deps:** `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `jsdom`
+- **Font:** Satoshi Variable (woff2) from fontshare.com, self-hosted in `frontend/public/fonts/`
 
 ### Process learnings
 
@@ -290,14 +309,15 @@ buurt-check/
 1. **Run `ruff check` before committing backend changes.** Config is in `pyproject.toml`: line-length 100, rules E/F/I/W. Import sort order matters (I rules).
 2. **Run `npm run build` before committing frontend changes.** TypeScript strict mode is on (`noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`). The build will catch type errors that the dev server ignores.
 3. **Do not hardcode external URLs in service files.** All external API base URLs go in `config.py` as `pydantic-settings` fields. Services import `settings` and use the config values.
-4. **Test count baselines.** Backend: 91 non-live tests (+5 live smoke tests). Frontend: 104 tests. Any change must maintain or increase these numbers.
+4. **Test count baselines (updated 2026-02-09).** Backend: 255 non-live tests (+ live smoke tests). Frontend: 324 tests. Any change must maintain or increase these numbers.
 
 ### Frontend patterns established
 
-1. **i18n:** All user-facing strings go in `src/i18n/en.json` and `nl.json`. Keys use dot notation (`building.title`). Components use `useTranslation()` hook. For bilingual data from the API (e.g., `status` vs `status_en`), select based on `i18n.language`.
-2. **API client:** `src/services/api.ts` uses native `fetch`. No axios. Throws on non-OK responses. Supports `AbortSignal` for cancellation.
-3. **CSS:** Plain CSS, mobile-first. CSS variables defined in `index.css` `:root`. Component CSS co-located (e.g., `AddressSearch.css` next to `AddressSearch.tsx`). BEM-like naming (`address-search__input`).
-4. **State management:** App-level state in `App.tsx` via `useState`. No global state library. Pass data down as props. This is sufficient for F1-F4; re-evaluate if state grows complex.
+1. **i18n:** All user-facing strings go in `src/i18n/en.json` and `nl.json` (~200 keys each). Keys use dot notation (`risk.noise.title`, `nav.search`). Components use `useTranslation()` hook. Warning codes from backend: `t('risk.warning.${code}', code)` with fallback.
+2. **API client:** `src/services/api.ts` uses native `fetch`. No axios. Throws on non-OK responses. Supports `AbortSignal` for cancellation. Explicit timeouts per endpoint.
+3. **CSS:** Plain CSS with design system tokens from `styles/tokens.css`. Component CSS co-located (e.g., `AddressSearch.css` next to `AddressSearch.tsx`). BEM-like naming (`risk-tile__score--good`). All colors, spacing, typography, radii, shadows use `var(--token-name)`.
+4. **State management:** App-level state in `App.tsx` via `useState`. Screen routing via `activeScreen` state. Pass data down as props. Shortlist persisted to localStorage via `services/shortlist.ts`.
+5. **Design system:** "Clear Signal Hybrid" direction. Satoshi Variable font, Electric Teal (#00897B) accent, 4-level severity (good/moderate/poor/critical). All tokens in `styles/tokens.css`.
 
 ### Post-assessment hardening learnings (2026-02-04)
 
@@ -474,10 +494,10 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 3. **Construction-year color palette** for neighborhood context: pre-1900 terracotta, 1900-1945 sandy brown, 1945-1975 olive, 1975-2000 slate, post-2000 steel gray. Target building stays blue with edge highlight.
 4. **HemisphereLight** (sky `0xb1e1ff`, ground `0xb97a20`, intensity 0.5) replaces flat AmbientLight for natural illumination gradient.
 
-### Test count baselines (updated 2026-02-06)
+### Test count baselines (updated 2026-02-09)
 
-- **Backend: 147 non-live + 9 live smoke tests** (25 api + 15 bag + 5 cache + 10 locatieserver + 14 models + 22 three_d_bag + 18 risk_cards + 33 cbs + 5 risk_cards_live + 4 cbs_live). Any backend change must maintain or increase.
-- **Frontend: 149 tests** (21 api + 16 AddressSearch + 14 BuildingFactsCard + 29 App + 9 NeighborhoodViewer3D + 8 ShadowControls + 13 SunlightRiskCard + 7 ShadowSnapshots + 8 OverlayControls + 9 RiskCardsPanel + 15 NeighborhoodStatsCard). Any frontend change must maintain or increase.
+- **Backend: 242 non-live + live smoke tests.** Any backend change must maintain or increase.
+- **Frontend: 295 tests.** Any frontend change must maintain or increase.
 
 ### Process learnings
 
@@ -622,15 +642,16 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 2. **`BBOX_TIMEOUT` increased to 30s** to accommodate larger server-side processing times for dense neighborhoods. Cascade: `BBOX_TIMEOUT=30s` > `PER_PAGE_TIMEOUT=20s` > `connect=3s`. Frontend abort timeout must exceed 30s.
 3. **Progressive loading requires endpoint separation.** Single-building target fetch (`/building3d`, ~2s) must be separate from neighborhood bbox fetch (`/neighborhood3d`, 12-17s). A single monolithic endpoint forces frontend to wait for the slowest operation.
 
-### Stale CLAUDE.md Files in Subdirectories
+### CLAUDE.md Files Updated (2026-02-09)
 
-1. **`frontend/CLAUDE.md` and `backend/CLAUDE.md` describe non-existent architecture.** Frontend CLAUDE.md references Zustand, React Query, Tailwind, shadcn/ui, `src/three/`, `src/hooks/`, `src/stores/` — none of which exist. Backend CLAUDE.md references SQLAlchemy, GeoAlchemy2, PostGIS, alembic — none of which exist.
-2. **Always verify CLAUDE.md claims against actual codebase** before trusting them for planning. Trust `grep`/`read` over stale documentation. The root `CLAUDE.md` is the authoritative source.
+1. **`frontend/CLAUDE.md` and `backend/CLAUDE.md` fully rewritten** to match actual codebase. Previously described non-existent architecture (Zustand, React Query, Tailwind, SQLAlchemy, PostGIS). Now accurately reflect: React 18 + Vite + plain CSS + plain Three.js (frontend) and FastAPI + httpx + Pydantic + Redis (backend).
+2. **Root `CLAUDE.md` updated** with current project status (F1-F5 implemented, design system applied), updated architecture decisions, file structure, test baselines (295 frontend, 242 backend), and design system information.
+3. **Root `CLAUDE.md` is authoritative.** Subdirectory CLAUDE.md files provide role-specific conventions. Always verify claims against actual codebase before trusting them for planning.
 
-### Test Count Baselines (updated 2026-02-08)
+### Test Count Baselines (updated 2026-02-09)
 
-- **Backend: 162 non-live + 9 live smoke tests** (25 api + 15 bag + 5 cache + 10 locatieserver + 14 models + 25 three_d_bag + 18 risk_cards + 33 cbs + 8 wms_tile + 5 risk_cards_live + 4 cbs_live). Previous baseline: 147.
-- **Frontend: 150 tests** (21 api + 16 AddressSearch + 14 BuildingFactsCard + 29 App + 10 NeighborhoodViewer3D + 8 ShadowControls + 13 SunlightRiskCard + 7 ShadowSnapshots + 8 OverlayControls + 9 RiskCardsPanel + 15 NeighborhoodStatsCard). Previous baseline: 149.
+- **Backend: 255 non-live + live smoke tests.** Previous baseline: 242. +13 from PDF export tests.
+- **Frontend: 324 tests.** Previous baseline: 295. +29 from design system components, dark mode, recent searches, animated score, quartile dots, export bottom sheet, and integration tests.
 
 ### Process Learnings (Feb 8)
 
@@ -638,3 +659,77 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 2. **Debug print statements proliferate during fix sessions.** After debugging, always grep for `print(` and clean up before committing. Replace with `logger.info()`/`logger.warning()` if logging is still needed.
 3. **Progressive enhancement: ship UI stubs first.** OverlayControls existed as "Coming soon" stub (shipped in F2), then was wired to real WMS data in a separate session. This validates UX patterns before investing in backend infrastructure.
 4. **Plan-first for multi-issue bugs.** When multiple related issues appear after a feature change, investigate all root causes before implementing fixes. Fixing symptoms (smaller ground, fewer pages) without addressing root causes (stale cache, tile coverage) wastes time.
+
+## Learnings from F2 3D viewer UI overhaul session (2026-02-09)
+
+### GSAP Animation Integration
+
+1. **GSAP for camera transitions.** `gsap.to(camera.position, { x, y, z, duration: 0.3, ease: 'power2.inOut' })` provides smooth 300ms transitions between camera presets. Must also animate `controls.target` in parallel. Install: `npm install gsap`.
+2. **Fullscreen API pattern.** Use `element.requestFullscreen()` + `document.exitFullscreen()` wrapped in try/catch. Sync React state with `fullscreenchange` event listener on the viewer element. CSS class `.fullscreen` sets `position: fixed; inset: 0; z-index: 1000`.
+3. **Native fullscreen exit handling.** When user presses Escape, browser fires `fullscreenchange` event but React state isn't updated. Must listen for `fullscreenchange` on the element and sync `isFullscreen` state.
+
+### 3D Viewer UI Enhancements
+
+1. **Season emoji buttons.** Replace text labels ("Winter", "Summer") with emoji buttons (snowflake, flower, sun, leaf) for season presets. Compact and language-independent. Season changes update shadow date preset.
+2. **Hour tick marks on time slider.** Show subtle tick marks at 6:00, 9:00, 12:00, 15:00, 18:00 on the time slider. Pure CSS with `::after` pseudo-elements.
+3. **Overlay popover with opacity slider.** When overlay is active, show a popover below the button with a 25-75% opacity range slider. `MeshBasicMaterial.opacity` updates in real-time. Close popover on click outside or overlay deactivation.
+4. **Sunlight summary badge.** Floating badge on 3D viewport showing winter solstice hours + risk level. Uses `localSunlight` state set from `onSunlightAnalysis` callback. Position: top-right of viewport.
+5. **FPS monitoring with adaptive quality.** Measure frame times over 60-frame window. If average FPS < 20 for 3 consecutive windows, reduce shadow map size (4096→2048→1024) and show user banner. `lowPerformance` ref prevents re-triggering.
+6. **Camera presets as viewport overlay buttons.** Move camera preset buttons from ShadowControls into the 3D viewport itself (top-left cluster). This provides always-visible camera controls without scrolling.
+7. **`mergeGeometries` for performance.** Import from `three/addons/utils/BufferGeometryUtils.js`. Merge all non-target building geometries into a single draw call. Significant FPS improvement with 40+ buildings.
+
+### Dark Mode for Three.js
+
+1. **Target building color changes with theme.** Light mode: blue `0x2563eb`. Dark mode: teal `0x26a69a`. Read from `document.documentElement.getAttribute('data-theme')`.
+2. **Shadow map size increased.** `SHADOW_MAP_SIZE = 4096` (was 2048) for sharper shadows. Falls back to 2048/1024 via FPS-based adaptive quality.
+3. **Frustum increased.** `FRUSTUM = 300` (was 200) to cover larger neighborhood area with zoom 16 basemap.
+
+## Learnings from Clear Signal Hybrid design system implementation (2026-02-09)
+
+### Design Token Architecture
+
+1. **CSS custom properties for theming.** All colors, spacing, radii, shadows defined as `var(--token)` in `styles/tokens.css`. Dark mode overrides via `[data-theme="dark"]` selector. ~170 tokens total.
+2. **Card elevation system.** Three levels: `--shadow-sm` (subtle), `--shadow-md` (cards), `--shadow-lg` (modals). Dark mode uses lighter shadows or replaces with border emphasis.
+3. **Score display typography.** `--type-score-tile: 40px/1 Satoshi Black`, `--type-score-large: 48px/1 Satoshi Black`. Separate from body type scale for visual impact.
+
+### Dark Mode Implementation
+
+1. **Three-way toggle.** `ThemePreference = 'light' | 'dark' | 'system'`. Stored in localStorage (`buurt-check-theme`). System preference uses `window.matchMedia('(prefers-color-scheme: dark)')` with change listener for real-time switching.
+2. **`data-theme` attribute on `<html>`.** All dark mode CSS uses `[data-theme="dark"]` selectors. Applied in `theme.ts` via `document.documentElement.setAttribute('data-theme', effective)`.
+3. **Dark mode token overrides.** Background: `#121212`, surface: `#1E1E1E`, text: `rgba(255,255,255,0.87)`. Risk colors remain same hue but adjust brightness for contrast.
+4. **Three.js dark adaptation.** Ground plane, hemisphere light, and target building color all respond to theme. Read `data-theme` attribute during scene setup and material creation.
+
+### Recent Searches
+
+1. **localStorage persistence pattern.** Same pattern as shortlist: `getRecent()`, `addRecent()`, `removeRecent()`, `clearRecent()`. Max 10 items. Dedup by `id` field. Sorted by timestamp (most recent first).
+2. **Search screen first-launch state.** When no recent searches exist, show value proposition rows explaining the app's benefits. When recent searches exist, show them as tappable list items below the search input.
+
+### PDF Export
+
+1. **fpdf2 library chosen over WeasyPrint.** fpdf2 is pure Python, no system dependencies (WeasyPrint needs cairo/pango). Trade-off: no HTML templates, must build layout programmatically.
+2. **Unicode sanitization for Helvetica.** fpdf2 with built-in Helvetica (latin-1 only) can't render em dashes, smart quotes, bullets. `_sanitize()` function maps Unicode chars to latin-1 equivalents. Final fallback: `text.encode('latin-1', errors='replace').decode('latin-1')`.
+3. **Quick Brief template.** 1-page PDF: header (buurt-check branding + "VIEWING BRIEFING"), address + building facts, risk scores grid (4 categories with severity), optional shadow snapshot image (base64 → bytes → in-memory file), viewing questions, footer with generation date + disclaimer.
+4. **Export endpoint pattern.** `GET /{vbo_id}/export?address=...&template=quick_brief&language=en&shadow_image=...`. Fetches risk cards (from cache if available) + viewing questions server-side. Returns `application/pdf` with `Content-Disposition: attachment`. Shadow image passed as base64 query param (optional).
+5. **Frontend ExportBottomSheet.** Bottom sheet with template selection and language toggle. Triggers download via `window.open()` with query params or `fetch()` + `URL.createObjectURL(blob)` + click-to-download pattern.
+
+### Component Architecture Patterns
+
+1. **AnimatedScore component.** CSS `@keyframes` count-up animation from 0 to target score. Uses `requestAnimationFrame` with easing. Duration 600ms. Displays "—" for null scores.
+2. **QuartileDots component.** 4 small dots indicating score quartile position (which 25% band the score falls in). Filled dot for active quartile, outline for others.
+3. **RiskTile as summary card.** Shows score number, severity badge, and one-line summary. Tappable to open RiskDetailView. 2x2 grid layout with consistent card sizing.
+4. **RiskDetailView as full-screen overlay.** Slides up from bottom. Contains score, comparison chart (address vs city vs NL vs WHO), summary text, and viewing questions with checkboxes.
+5. **ViewingChecklist aggregation.** Collects viewing questions from all risk cards + neighborhood stats into a single checklist. Questions grouped by category. Checkbox state managed in App.tsx via `Set<string>`.
+
+### Multi-Context Session Management
+
+1. **Context continuation summaries work well.** Sessions that hit context limits continued seamlessly with AI-generated summaries of prior work. The summary captured completed steps, current state, and remaining work accurately.
+2. **Long implementation plans (30 steps) should use batched commits.** Group related steps into logical commits (e.g., "Steps 1-7: CSS polish", "Steps 8-9: Search experience"). Don't commit after every single step — too noisy. Don't wait until the end — too risky.
+3. **Phase-based planning enables parallel execution.** 11 phases with clear boundaries allowed different sessions to pick up where others left off. Each phase had explicit entry/exit criteria.
+
+### Process Learnings (Feb 9)
+
+1. **Plan-then-execute across sessions.** Planning sessions (ca55820e, 370d38a7, ffb38943) produced detailed multi-step plans. Execution sessions (ec53c097, 1a753811, 88b0c0b7) consumed those plans. This separation keeps planning thorough and execution focused.
+2. **7 sessions in one day is productive but error-prone.** High velocity but no compound-engineering after any session. Learnings accumulate debt quickly. Compound after every implementation session, not in batch.
+3. **Test baselines drifted significantly.** Backend went 242→255, frontend 295→324 across the day. CLAUDE.md still referenced old baselines in multiple places. Test baselines should be updated immediately after test-adding commits.
+4. **ruff errors in `scripts/` directory are persistent.** Untracked diagnostic scripts in `scripts/` consistently fail ruff checks but are not part of the app. Either add them to `.gitignore` or fix their lint errors to avoid noise during quality gates.
+5. **Large design system changes require real-device testing.** Token changes, dark mode, and responsive layout adjustments need visual verification on actual mobile screens. Desktop browser testing misses touch interaction, safe area, and viewport issues.
