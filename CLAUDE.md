@@ -219,19 +219,22 @@ buurt-check/
 
 ## Current project status
 
-**Stage: F1-F5 fully implemented + polished. "Polar Frost" design system applied with full palette.md token alignment. 0-100 risk scoring. Tab navigation. Shortlist + compare. PDF Quick Brief export. Dark mode. Recent searches. GSAP camera transitions. FPS monitoring.**
+**Stage: F1-F6 fully implemented + polished. All MVP features shipped. "Polar Frost" design system with full palette.md token alignment. 0-100 risk scoring. Tab navigation. Shortlist + compare with parallel coordinates. PDF export (Quick Brief + Full Dossier). Tier B signals (energy label + crime). Risk comparisons (city/NL/WHO baselines). Dark mode (OLED-ready). Recent searches. GSAP camera transitions. FPS monitoring. Accessibility + visual regression tests. Bundle optimization (React.lazy + vendor chunks).**
 
 ### What exists
-- `backend/` — FastAPI app with 11 endpoints: address suggest/lookup, building facts, 3D building/neighborhood, risk cards (with 0-100 scores + severity), neighborhood stats, WMS tile proxy, viewing questions, PDF export. BAG lookups use OGC XML Filter. 3DBAG uses tiled fetch (direct target + grid tiles). LoD 2.2 roof geometry parsing (feature-flagged). Risk scoring normalizes noise/air/climate/sunlight to 0-100. CBS integration with buurt-code + bbox fallback. Redis cache with circuit breaker. fpdf2 for PDF generation. 255 passing tests + live smoke tests.
-- `frontend/` — Vite + React + TypeScript with "Polar Frost" design system. Satoshi font, Arctic Teal accent, ~195 CSS design tokens (including slate/teal scales, nav/overlay utility, choropleth ramps). 3-tab navigation (Search, Briefing, Saved) with solid white tab bar + teal pill. Loading screen with building animation. Dossier screen: address header, summary strip, 3D viewer (uniform slate.200 neighbors at 60% opacity, teal target with edge glow, fullscreen, GSAP transitions, FPS monitoring), 2x2 risk tiles with animated 0-100 scores + quartile dots, risk detail views with comparison charts + viewing questions, neighborhood stats, viewing checklist, action bar with PDF export. Dark mode (light/dark/system). Recent searches. Shortlist (max 3) with compare screen. Settings screen. PDOK BRT grijs basemap. 330 passing Vitest tests. i18n with ~300 keys per language.
+- `backend/` — FastAPI app with 13 endpoints: address suggest/lookup, building facts, 3D building/neighborhood, risk cards (with 0-100 scores + severity), risk comparisons, neighborhood stats, WMS tile proxy, viewing questions, PDF export (quick_brief + full_dossier), tier-b signals. BAG lookups use OGC XML Filter. 3DBAG uses tiled fetch (direct target + grid tiles). LoD 2.2 roof geometry parsing (feature-flagged). Risk scoring normalizes noise/air/climate/sunlight to 0-100. Risk comparisons with urbanization-stratified baselines. CBS integration with buurt-code + bbox fallback. Tier B: EP-Online energy labels + CBS OData crime stats. Redis cache with circuit breaker. fpdf2 for PDF generation. 263 passing tests + live smoke tests.
+- `frontend/` — Vite + React + TypeScript with "Polar Frost" design system. Satoshi font, Arctic Teal accent, ~195 CSS design tokens (including slate/teal scales, nav/overlay utility, choropleth ramps). 3-tab navigation (Search, Briefing, Saved) with solid white tab bar + teal pill. Loading screen with building animation. Dossier screen: address header, summary strip, 3D viewer (uniform slate.200 neighbors at 60% opacity, teal target with edge glow, fullscreen, GSAP transitions, FPS monitoring), 2x2 risk tiles with animated 0-100 scores + quartile dots, risk detail views with comparison charts + viewing questions, neighborhood stats, Tier B signals card, viewing checklist, action bar with PDF export (template selector + language toggle + progress ring + Web Share API). Dark mode (light/dark/system, OLED-ready #000000 base). Recent searches. Shortlist (max 3) with compare screen + parallel coordinates chart. Settings screen. PDOK BRT grijs basemap (CSS filter invert for dark mode). Bundle: React.lazy for 4 heavy components, vendor chunks (react/map/three). 334 passing Vitest tests + accessibility tests + keyboard nav tests + performance budget tests. 10 visual regression snapshots (5 screens x 2 themes). i18n with ~350 keys per language.
 - `docs/design-prd.md` — Full design specification for "Polar Frost" design direction
 - `docs/design-spec.md` — Pixel-level visual specification for all screens
+- `docs/palette.md` — Color palette specification with WCAG contrast requirements
+- `docs/phase4-quality-gates.md` — Quality gate documentation (a11y, perf, visual regression)
 
 ### What's next
-- Maintain quality gates: `ruff check`, backend pytest (255+, excluding live), frontend vitest (330+), `npm run build`.
+- Maintain quality gates: `ruff check`, backend pytest (263+, excluding live), frontend vitest (334+), `npm run build`.
 - Resolve PM2.5 data gap (GCN WMS only has NO2 layers).
-- Visual QA pass on all redesigned screens with real data.
-- Full Dossier PDF export (3-4 pages, extends Quick Brief).
+- Replace hardcoded risk comparison baselines with real CBS/WHO data.
+- 200% zoom manual QA pass on real device.
+- EP-Online API key for energy label data (currently returns "auth required" without key).
 
 ## Learnings from development sessions (2026-01-30)
 
@@ -733,3 +736,78 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 3. **Test baselines drifted significantly.** Backend went 242→255, frontend 295→324 across the day. CLAUDE.md still referenced old baselines in multiple places. Test baselines should be updated immediately after test-adding commits.
 4. **ruff errors in `scripts/` directory are persistent.** Untracked diagnostic scripts in `scripts/` consistently fail ruff checks but are not part of the app. Either add them to `.gitignore` or fix their lint errors to avoid noise during quality gates.
 5. **Large design system changes require real-device testing.** Token changes, dark mode, and responsive layout adjustments need visual verification on actual mobile screens. Desktop browser testing misses touch interaction, safe area, and viewport issues.
+
+## Learnings from Polar Frost palette migration and assessment sessions (2026-02-10)
+
+### Palette Migration Planning
+
+1. **Plan-first for design system migrations.** The Polar Frost palette migration touched 50+ color values across 8+ CSS files, TypeScript, and test files. A detailed 10-step plan with explicit color mappings (old → new with palette.md reference) prevented regressions. Executing without the plan would have been error-prone.
+2. **WCAG compliance requires separate accent-text token.** Accent colors designed for backgrounds (`#2EC4B6`, 2.17:1 on white) fail as text. Created `--color-accent-text` (`#1C8C83`, 4.52:1) for all accent text/icon elements on light surfaces. Rule: **accent is never text on light surfaces** (palette.md Section 2).
+3. **Non-flipping navigation tokens.** TopBar uses dark slate (`--color-nav-bg: #1C2D3F`) that stays constant in both light and dark modes. Not all tokens should flip with theme — navigation "chrome" benefits from staying dark.
+4. **Badge system tokens.** Introduced structured `--color-badge-{variant}-bg/text` pairs (positive, caution, negative, neutral) instead of hardcoded severity colors. Enables consistent badge styling across all components.
+5. **Opacity hierarchy matters.** TopBar lang-toggle had intentional opacity hierarchy: background (0.12) < border (0.15). Coarse token replacement (both → 0.10) lost the visual separation. Fix: purpose-specific tokens (`--color-nav-control-bg: rgba(255,255,255,0.12)`, `--color-nav-icon: rgba(255,255,255,0.7)`).
+
+### Assessment-Driven Bug Discovery
+
+1. **Assessment-first workflow finds bugs tests miss.** Running parallel subagent audits against actual source code (with file:line evidence) revealed 4 token/WCAG bugs that passed all 334 frontend tests. Unit tests verify logic, not visual correctness.
+2. **Undefined CSS tokens fail silently.** `--color-border-strong` was referenced in `ParallelCoordinates.css` but never defined in `tokens.css`. Browser falls back to initial value (transparent), making axis lines invisible. Always define tokens before using them.
+3. **Content-type `white` vs token discipline.** `color: white` in CSS works but violates token discipline. However, replacing with `var(--color-text-inverse)` breaks dark mode (dark text on dark overlay). Fix: purpose-specific `--color-overlay-text: #FFFFFF` that stays white in both themes.
+4. **Dark-mode basemap is not free.** PDOK doesn't provide a dark WMTS layer. Options: (a) CSS `filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1)` on Leaflet tiles, (b) CartoDB dark tiles, (c) accept light basemap. We used CSS filter approach.
+5. **Stale assessment reports are dangerous.** The initial Phase 3 assessment had an 89% error rate — 12 of 14 claims were wrong because it was generated against a stale code snapshot. Assessment reports must be generated against HEAD, never cached. Always re-verify before acting on assessment claims.
+
+### Tier B Implementation (Energy Label + Crime)
+
+1. **Tier B uses `asyncio.gather()` for parallel fetch.** `get_tier_b_data()` fetches EP-Online (energy label) + CBS OData (crime yearly + monthly) + CBS population (for per-1,000 normalization) in parallel. Cache key: `tier_b:{vbo_id}:{postcode}:{huisnummer}`, TTL 7 days.
+2. **EP-Online API v5 may require API key.** `BUURT_ENERGY_LABEL_API_KEY` env var. Service handles auth failures gracefully with `ENERGY_AUTH_REQUIRED` message code. Without key, energy labels show unavailable while crime data still works.
+3. **CBS crime normalization.** Crime stats are per-municipality, normalized to per-1,000 residents using CBS population data. Sub-cards: total, burglary (`diefstal_woninginbraak`), violent (`misdrijven_tegen_het_leven`). Monthly data from 47022NED, yearly from 47018NED.
+4. **8+ distinct error codes for graceful degradation.** `ENERGY_NOT_FOUND`, `ENERGY_AUTH_REQUIRED`, `ENERGY_TIMEOUT`, `CRIME_NO_DATA`, `CRIME_TIMEOUT`, etc. Frontend maps via `t('tierB.warning.${code}', code)` pattern (same as risk cards).
+
+### Risk Comparisons
+
+1. **Urbanization-stratified baselines.** `risk_comparisons.py` provides 5 urbanization levels × 4 risk categories. Baselines are currently hardcoded internal estimates, NOT live CBS/WHO data. Source attribution strings describe methodology, but there's no runtime data ingestion.
+2. **Comparison row structure.** Each category returns 4 rows: address score, city average (urbanization-stratified), NL nationwide, WHO/EU reference (dashed pattern). Frontend renders as horizontal bar chart in `RiskDetailView`.
+
+### PDF Export (Full Dossier)
+
+1. **Two templates dispatched from same endpoint.** `address.py:467-474` validates `template` param and dispatches to `generate_quick_brief()` or `generate_full_dossier()`.
+2. **Full Dossier is 4 pages.** Page 1: cover + summary + shadow. Page 2: risk details (score/100 + meaning + source per category). Page 3: full viewing checklist (unlimited questions). Page 4: methodology + blank notes section.
+3. **Blob-based export (no window.open).** Frontend uses `fetch()` → `Blob` → `URL.createObjectURL()` → click-to-download → `revokeObjectURL()`. More reliable than `window.open()` for binary content.
+4. **Web Share API integration.** `navigator.canShare()` check → `navigator.share({ files: [pdfFile] })` with download fallback. Enables native share sheets on mobile.
+5. **Export progress stages.** 5 stages: idle → collecting (25%) → rendering (65%) → downloading (90%) → ready (100%). Displayed as circular SVG progress ring (40px, 3px stroke) with centered document icon.
+
+### Visual Regression Testing
+
+1. **10 visual regression snapshots.** 5 screens (search, saved, compare, dossier, settings) × 2 themes (light, dark) + 1 desktop. Managed via `visual-regression.spec.ts` with Playwright.
+2. **Mock API for determinism.** `mockApi.ts` provides deterministic data for all API endpoints. Seeded dossier state in `App.tsx` ensures consistent captures across runs.
+3. **Platform-specific snapshots.** Filenames include platform suffix (`-win32.png`). Different platforms render fonts/anti-aliasing differently, so baselines are platform-specific.
+4. **Screens NOT covered:** Risk detail, export sheet, 3D viewer — require complex interaction seeding (tap flows, WebGL context). Accept this gap; manual verification is required for interactive screens.
+
+### Accessibility and Performance Testing
+
+1. **axe-core integration.** `accessibility.test.tsx` runs `axe()` on rendered components. Catches missing ARIA labels, color contrast violations, and semantic HTML issues.
+2. **Keyboard navigation tests.** `keyboard-navigation.test.tsx` verifies tab order, Enter/Space activation, Escape to close modals.
+3. **Performance budget tests.** Unit tests check bundle chunk sizes. E2E tests (`performance-budget.spec.ts`) measure real page load metrics. `chunkSizeWarningLimit: 600` in Vite config.
+4. **React.lazy code splitting.** 4 heavy components lazy-loaded: `BuildingFootprintMap`, `NeighborhoodViewer3D`, `CompareScreen`, `SettingsScreen`. Manual vendor chunks: `vendor-react`, `vendor-map`, `vendor-three`. Total JS gzipped: ~291KB.
+
+### Bundle Optimization
+
+1. **Manual vendor chunks in Vite.** `vite.config.ts:15-19` splits `react`/`react-dom`, `leaflet`/`react-leaflet`, and `three` into separate vendor chunks. Prevents one large bundle; enables better caching.
+2. **Largest chunk: `vendor-three` at 526KB (137KB gzip).** Three.js is the heaviest dependency. Lazy-loading `NeighborhoodViewer3D` ensures it only loads when the dossier screen is active.
+
+### Context-Aware Viewing Questions
+
+1. **Backend generates questions with address context.** `viewing_questions.py` receives `street`, `city`, and raw risk signals (dB value, PM2.5/NO2 concentrations, climate levels, winter sunlight hours). Questions reference specific risk data when available.
+2. **Data-driven risk comparisons in viewing questions.** Questions like "The noise level is X dB — ask about soundproofing" are generated only when actual measurement data exists for the address.
+
+### Test Count Baselines (updated 2026-02-10)
+
+- **Backend: 263 non-live + live smoke tests.** Previous: 255. +8 from tier-b, risk comparisons, scoring, viewing questions tests.
+- **Frontend: 334 tests.** Previous: 324. +10 from accessibility, keyboard nav, performance budget, visual regression, Tier B card, export polish tests.
+
+### Process Learnings (Feb 10)
+
+1. **Rigorous assessment before claiming completion.** Three-phase rigorous assessment (with parallel subagent deep analysis) revealed that an earlier assessment had 89% error rate. The root cause: assessment generated against stale code, not HEAD. Always assess against current code.
+2. **Compound learnings after EVERY session.** 5 sessions on Feb 10 produced learnings that weren't compounded until a batch session. This creates drift between documented knowledge and actual codebase state. The Feb 9 lesson about compounding debt was validated within 24 hours.
+3. **Feature flags + cache invalidation is a recurring pattern.** LoD 2.2 flag, risk comparisons, tier-b — each new feature with cache needs explicit cache key design. Document the cache key format when adding any new cached endpoint.
+4. **Assessment subagents can be wrong.** When one subagent claims "feature X is missing" but another finds it, always verify against actual code. The Phase 3 assessment missed Tier B, parallel coordinates, and full dossier because they were in untracked (new, uncommitted) files.
+5. **OLED dark mode.** Changed dark mode base from `#121212` to `#000000` for OLED screens (true black saves power). Surface stays `#121212` for card elevation differentiation.
