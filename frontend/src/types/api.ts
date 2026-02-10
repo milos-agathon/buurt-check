@@ -161,6 +161,33 @@ export interface RiskCardsResponse {
   sunlight?: SunlightRiskCard;
 }
 
+export type ComparisonLabelCode =
+  | 'city_avg'
+  | 'nl_avg'
+  | 'who_limit'
+  | 'adaptation_target'
+  | 'daylight_target'
+  | 'address';
+
+export type ComparisonPattern = 'solid' | 'dashed';
+
+export interface RiskComparisonRow {
+  label_code: ComparisonLabelCode;
+  value: number;
+  pattern?: ComparisonPattern;
+  source?: string;
+  source_date?: string;
+}
+
+export interface RiskComparisonsResponse {
+  address_id: string;
+  noise: RiskComparisonRow[];
+  air_quality: RiskComparisonRow[];
+  climate_stress: RiskComparisonRow[];
+  sunlight: RiskComparisonRow[];
+  generated_at: string;
+}
+
 export type UrbanizationLevel =
   | 'very_urban'
   | 'urban'
@@ -220,6 +247,31 @@ export interface QuestionCategory {
 export interface ViewingQuestionsResponse {
   address_id: string;
   categories: QuestionCategory[];
+}
+
+export interface EnergyLabelCard {
+  label?: string;
+  source: string;
+  source_date?: string;
+  message?: string;
+}
+
+export interface CrimeStatsCard {
+  total_per_1000?: number;
+  burglary_per_1000?: number;
+  violent_per_1000?: number;
+  yearly_period?: string;
+  monthly_total_per_1000?: number;
+  monthly_period?: string;
+  source: string;
+  source_date?: string;
+  message?: string;
+}
+
+export interface TierBResponse {
+  address_id: string;
+  energy_label: EnergyLabelCard;
+  crime: CrimeStatsCard;
 }
 
 export interface ShortlistItem {

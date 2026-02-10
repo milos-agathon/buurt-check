@@ -18,7 +18,7 @@ async def verify_limit():
     url = "https://api.3dbag.nl/collections/pand/items"
     params = {
         "bbox": bbox,
-        "limit": 50
+        "limit": 50,
     }
 
     print(f"Requesting: {url} with params {params}")
@@ -36,7 +36,7 @@ async def verify_limit():
 
             # check next link to see if there is more
             links = data.get("links", [])
-            next_link = next((l for l in links if l["rel"] == "next"), None)
+            next_link = next((link for link in links if link["rel"] == "next"), None)
 
             number_matched = data.get("numberMatched", "unknown")
             number_returned = data.get("numberReturned", "unknown")
@@ -59,17 +59,21 @@ async def verify_limit():
             if count > 50:
                 print("SUCCESS: API returned more than 50 items. Limit parameter is improved.")
             else:
-                print("WARNING: API returned 50 or fewer items. Might be sparse area or limit ignored.")
+                print(
+                    "WARNING: API returned 50 or fewer items. "
+                    "Might be sparse area or limit ignored."
+                )
 
             if next_link:
                 print(f"Next link present: {next_link['href']}")
             else:
                 print("No next link (all data returned in one page?)")
 
-        except Exception as e:
-            print(f"FAILED: {e}")
+        except Exception as exc:
+            print(f"FAILED: {exc}")
             with open("verification_result.txt", "w") as f:
-                f.write(f"FAILED: {e}")
+                f.write(f"FAILED: {exc}")
+
 
 if __name__ == "__main__":
     asyncio.run(verify_limit())

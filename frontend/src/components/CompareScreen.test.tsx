@@ -53,8 +53,8 @@ describe('CompareScreen', () => {
       makeItem({ vboId: 'a', address: 'Address A' }),
       makeItem({ vboId: 'b', address: 'Address B' }),
     ]);
-    expect(screen.getByText('Address A')).toBeInTheDocument();
-    expect(screen.getByText('Address B')).toBeInTheDocument();
+    expect(screen.getAllByText('Address A').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Address B').length).toBeGreaterThan(0);
   });
 
   it('renders 3 columns for 3 items', () => {
@@ -63,9 +63,9 @@ describe('CompareScreen', () => {
       makeItem({ vboId: 'b', address: 'B' }),
       makeItem({ vboId: 'c', address: 'C' }),
     ]);
-    expect(screen.getByText('A')).toBeInTheDocument();
-    expect(screen.getByText('B')).toBeInTheDocument();
-    expect(screen.getByText('C')).toBeInTheDocument();
+    expect(screen.getAllByText('A').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('B').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('C').length).toBeGreaterThan(0);
   });
 
   it('renders 4 metric rows', () => {
@@ -73,10 +73,18 @@ describe('CompareScreen', () => {
       makeItem({ vboId: 'a' }),
       makeItem({ vboId: 'b' }),
     ]);
-    expect(screen.getByText('Noise')).toBeInTheDocument();
-    expect(screen.getByText('Air')).toBeInTheDocument();
-    expect(screen.getByText('Climate')).toBeInTheDocument();
-    expect(screen.getByText('Sun')).toBeInTheDocument();
+    expect(screen.getAllByText('Noise').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Air').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Climate').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Sun').length).toBeGreaterThan(0);
+  });
+
+  it('renders parallel coordinates chart when at least 2 metrics are shown', () => {
+    renderCompare([
+      makeItem({ vboId: 'a', address: 'Address A' }),
+      makeItem({ vboId: 'b', address: 'Address B' }),
+    ]);
+    expect(screen.getByTestId('parallel-coordinates')).toBeInTheDocument();
   });
 
   it('highlights best/worst when spread > 15', () => {

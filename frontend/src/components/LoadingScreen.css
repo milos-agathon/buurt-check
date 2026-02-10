@@ -8,6 +8,15 @@
   text-align: center;
 }
 
+.loading-screen--warning .loading-screen__dot,
+.loading-screen--warning .loading-screen__bar-fill {
+  background: var(--color-warning);
+}
+
+.loading-screen--warning .loading-screen__text {
+  color: var(--color-warning);
+}
+
 .loading-screen__address {
   font: var(--type-h1);
   color: var(--color-text);

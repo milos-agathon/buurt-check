@@ -1,0 +1,119 @@
+.tier-b-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.tier-b-card__title {
+  font: var(--type-h3);
+}
+
+.tier-b-card__loading {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+}
+
+.tier-b-card__error {
+  font: var(--type-small);
+  color: var(--color-badge-caution-text);
+  background: var(--color-badge-caution-bg);
+  border-left: 3px solid var(--color-warning);
+  padding: var(--space-sm) var(--space-base);
+  border-radius: var(--radius-sm);
+}
+
+.tier-b-card__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-sm);
+}
+
+.tier-b-card__panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.tier-b-card__panel-title {
+  font: var(--type-label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.tier-b-card__energy {
+  font: var(--type-h2);
+  line-height: 1;
+}
+
+.tier-b-card__energy--good {
+  color: var(--color-risk-good);
+}
+
+.tier-b-card__energy--moderate {
+  color: var(--color-risk-moderate);
+}
+
+.tier-b-card__energy--poor {
+  color: var(--color-risk-poor);
+}
+
+.tier-b-card__energy--unavailable {
+  color: var(--color-text-secondary);
+  font: var(--type-body-medium);
+}
+
+.tier-b-card__hint {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+}
+
+.tier-b-card__metrics {
+  display: grid;
+  gap: 4px;
+}
+
+.tier-b-card__metric-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  align-items: baseline;
+  font: var(--type-body);
+}
+
+.tier-b-card__metric-row dt {
+  color: var(--color-text-secondary);
+}
+
+.tier-b-card__metric-row dd {
+  margin: 0;
+  font: var(--type-body-medium);
+}
+
+.tier-b-card__source-line,
+.tier-b-card__period {
+  font: var(--type-micro);
+  color: var(--color-text-tertiary);
+}
+
+.tier-b-card__disclaimer {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+}
+
+@media (min-width: 600px) {
+  .tier-b-card__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

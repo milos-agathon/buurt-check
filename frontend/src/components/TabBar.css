@@ -8,17 +8,9 @@
   display: flex;
   align-items: center;
   justify-content: space-around;
-  background: var(--glass-bg-fallback);
+  background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   z-index: 50;
-}
-
-@supports (backdrop-filter: blur(1px)) {
-  .tab-bar {
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
-  }
 }
 
 .tab-bar__tab {
@@ -36,7 +28,7 @@
 }
 
 .tab-bar__tab--active {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .tab-bar__icon-wrapper {
@@ -44,6 +36,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.tab-bar__tab--active .tab-bar__icon-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: -4px -8px;
+  background: var(--color-accent-light);
+  border-radius: var(--radius-pill);
+  z-index: -1;
 }
 
 .tab-bar__badge {

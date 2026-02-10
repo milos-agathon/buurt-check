@@ -31,9 +31,9 @@
 
 .neighborhood-card__error {
   font: var(--type-small);
-  color: var(--color-risk-moderate);
-  background: rgba(232, 145, 58, 0.08);
-  border-left: 3px solid var(--color-risk-moderate);
+  color: var(--color-badge-caution-text);
+  background: var(--color-badge-caution-bg);
+  border-left: 3px solid var(--color-warning);
   padding: var(--space-sm) var(--space-base);
   border-radius: var(--radius-sm);
 }
@@ -44,8 +44,8 @@
   padding: 3px 10px;
   font: var(--type-micro);
   font-weight: 600;
-  background: var(--color-accent-light);
-  color: var(--color-accent);
+  background: var(--color-badge-positive-bg);
+  color: var(--color-badge-positive-text);
 }
 
 .neighborhood-card__group {

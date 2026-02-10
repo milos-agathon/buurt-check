@@ -40,12 +40,12 @@ async def verify_pagination():
             try:
                 resp = await client.get(
                     next_url,
-                    timeout=httpx.Timeout(min(PER_PAGE_TIMEOUT, remaining), connect=3.0)
+                    timeout=httpx.Timeout(min(PER_PAGE_TIMEOUT, remaining), connect=3.0),
                 )
                 resp.raise_for_status()
                 data = resp.json()
-            except Exception as e:
-                print(f"Page {page+1} failed: {e}")
+            except Exception as exc:
+                print(f"Page {page+1} failed: {exc}")
                 break
 
             features = data.get("features", [])
@@ -58,7 +58,7 @@ async def verify_pagination():
             # Follow pagination
             next_url = None
             links = data.get("links", [])
-            next_link = next((l for l in links if l["rel"] == "next"), None)
+            next_link = next((link for link in links if link["rel"] == "next"), None)
             if next_link:
                 next_url = next_link["href"]
                 # fix for limit parameter if API drops it in next link
@@ -75,6 +75,7 @@ async def verify_pagination():
         f.write(f"Total: {total_features}\n")
         f.write(f"Pages: {page}\n")
         f.write(f"Time: {total_duration:.2f}s\n")
+
 
 if __name__ == "__main__":
     asyncio.run(verify_pagination())

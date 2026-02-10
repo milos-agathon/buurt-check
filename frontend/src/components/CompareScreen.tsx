@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ShortlistItem, SeverityLevel } from '../types/api';
 import SeverityBadge from './ui/SeverityBadge';
 import ScoreBar from './ui/ScoreBar';
+import ParallelCoordinates from './ui/ParallelCoordinates';
 import './CompareScreen.css';
 
 interface Props {
@@ -34,7 +35,7 @@ export default function CompareScreen({ items, onBack }: Props) {
   if (items.length < 2) {
     return (
       <div className="compare-screen" data-testid="compare-screen">
-        <button className="compare-screen__back" onClick={onBack}>&larr; {t('nav.saved')}</button>
+        <button type="button" className="compare-screen__back" onClick={onBack}>&larr; {t('nav.saved')}</button>
         <p className="compare-screen__no-data">{t('compare.noData')}</p>
       </div>
     );
@@ -48,12 +49,27 @@ export default function CompareScreen({ items, onBack }: Props) {
         return Math.max(...valid) - Math.min(...valid) > 15;
       })
     : METRICS;
+  const chartAxes = filteredMetrics.map((metric) => ({
+    key: metric.key,
+    label: t(metric.labelKey),
+  }));
+  const chartSeries = items.map((item) => ({
+    id: item.vboId,
+    label: item.address,
+    values: {
+      noise: item.riskScores.noise,
+      air: item.riskScores.air,
+      climate: item.riskScores.climate,
+      sunlight: item.riskScores.sunlight,
+    },
+  }));
 
   return (
     <div className="compare-screen" data-testid="compare-screen">
       <div className="compare-screen__header">
-        <button className="compare-screen__back" onClick={onBack}>&larr; {t('nav.saved')}</button>
+        <button type="button" className="compare-screen__back" onClick={onBack}>&larr; {t('nav.saved')}</button>
         <button
+          type="button"
           className={`compare-screen__filter ${differencesOnly ? 'compare-screen__filter--active' : ''}`}
           onClick={() => setDifferencesOnly(!differencesOnly)}
         >
@@ -71,6 +87,13 @@ export default function CompareScreen({ items, onBack }: Props) {
           </div>
         ))}
       </div>
+
+      {chartAxes.length >= 2 && (
+        <section className="compare-screen__chart">
+          <h3 className="compare-screen__chart-title">{t('compare.parallelTitle')}</h3>
+          <ParallelCoordinates axes={chartAxes} series={chartSeries} />
+        </section>
+      )}
 
       {filteredMetrics.map(metric => {
         const scores = items.map(i => i.riskScores[metric.key]);

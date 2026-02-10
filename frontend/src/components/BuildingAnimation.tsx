@@ -70,7 +70,7 @@ export default function BuildingAnimation({ animate = true }: BuildingAnimationP
           key={i}
           ref={(el) => { pathRefs.current[i] = el; }}
           d={p.d}
-          stroke="var(--color-text, #1A1A2E)"
+          stroke="var(--color-text, #1C2D3F)"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"

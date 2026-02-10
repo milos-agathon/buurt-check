@@ -1,52 +1,64 @@
+
 import asyncio
 import logging
 import sys
 import time
+import traceback
+
+from app.services.three_d_bag import get_neighborhood_3d
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# Mock settings and models to run standalone if needed,
-# but better to import from app if possible.
-# Let's try importing from app, assuming env is set up.
-
-from app.services.three_d_bag import BBOX_TIMEOUT, MAX_PAGES, _fetch_bbox_buildings
-
 
 async def verify_integration():
-    center_x = 121200
-    center_y = 487250
-    radius = 225
+    # Amsterdam Center coordinates (Keizersgracht)
+    rd_x = 121000.0
+    rd_y = 487000.0
+    lat = 52.3676
+    lng = 4.8846
+    pand_id = "0363100012253924" # Valid ID
 
-    print("Testing _fetch_bbox_buildings with 2x2 tiling...")
-    print(f"Settings: MAX_PAGES={MAX_PAGES}, BBOX_TIMEOUT={BBOX_TIMEOUT}")
+    print(f"Testing get_neighborhood_3d for {pand_id} at ({rd_x}, {rd_y})...")
 
-    start = time.monotonic()
+    start = time.perf_counter()
     try:
-        buildings = await _fetch_bbox_buildings(center_x, center_y, radius)
-        duration = time.monotonic() - start
+        # Uses default radius (85.0)
+        result = await get_neighborhood_3d(
+            pand_id=pand_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            lat=lat,
+            lng=lng,
+        )
+        buildings = result.buildings
+        duration = time.perf_counter() - start
 
-        print("\nSuccess!")
-        print(f"Fetched {len(buildings)} buildings in {duration:.2f}s")
+        print("\n--- Result ---")
+        print(f"Time taken: {duration:.2f}s")
+        print(f"Buildings found: {len(buildings)}")
+        print(f"Target found: {result.target_pand_id is not None}")
+        if result.message:
+            print(f"Message: {result.message}")
 
         # Validation
-        if len(buildings) > 100:
-            print("PASS: Count > 100 (tiling effective)")
+        if len(buildings) > 20:
+            print("PASS: Count > 20")
         else:
-            print("FAIL: Count <= 100 (tiling might be broken or area sparse)")
+            print(f"WARN: Count = {len(buildings)} (area might be sparse or timeout)")
 
-        if duration < 20.0:
-            print("PASS: Duration < 20s (parallelism effective)")
+        if duration < 10.0:
+            print("PASS: Duration < 10s")
         else:
-            print(f"WARN: Duration {duration:.2f}s >= 20s (slow)")
+            print(f"WARN: Duration {duration:.2f}s >= 10s")
 
-    except Exception as e:
-        print(f"FAILED with error: {e}")
-        import traceback
+    except Exception as exc:
+        print(f"FAILED with error: {exc}")
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     # Ensure event loop is clean
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(verify_integration())

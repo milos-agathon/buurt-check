@@ -5,7 +5,7 @@
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-base);
   background: var(--color-surface);
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -2px 8px var(--color-shadow);
   z-index: 10;
 }
 
@@ -33,13 +33,13 @@
 }
 
 .action-bar__btn--primary:hover {
-  background: var(--color-accent-dark, #00796B);
+  background: var(--color-accent-hover);
 }
 
 .action-bar__btn--secondary {
   background: var(--color-surface);
-  color: var(--color-accent);
-  border: 1.5px solid var(--color-accent);
+  color: var(--color-primary);
+  border: 1px solid var(--color-accent);
 }
 
 .action-bar__btn--secondary:hover {
@@ -48,6 +48,6 @@
 
 .action-bar__btn--saved {
   background: var(--color-accent-light);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   border-color: var(--color-accent);
 }

@@ -49,5 +49,5 @@
 }
 
 .address-header__bookmark--active {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }

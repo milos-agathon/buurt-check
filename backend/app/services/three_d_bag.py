@@ -10,10 +10,16 @@ from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neigh
 logger = logging.getLogger(__name__)
 
 _client: httpx.AsyncClient | None = None
+BBOX_PAGE_LIMIT = 100
+BBOX_MAX_PAGES = 8
+BBOX_FETCH_BUDGET = 100.0
+BBOX_PAGE_TIMEOUT = 30.0
+LOD22_ENRICH_CONCURRENCY = 8
+LOD22_ENRICH_BUDGET = 120.0
+LOD22_ENRICH_MAX_BUILDINGS = 220
+MIN_FETCH_BUDGET = 1.0
 
-MAX_PAGES = 3
-BBOX_TIMEOUT = 30.0  # total time budget for bbox fetch (seconds)
-PER_PAGE_TIMEOUT = 20.0  # per-page HTTP timeout (seconds)
+
 
 
 def _get_client() -> httpx.AsyncClient:
@@ -91,6 +97,7 @@ def _parse_building(
     center_x: float,
     center_y: float,
     city_objects: dict | None = None,
+    allow_lod22: bool = True,
 ) -> BuildingBlock | None:
     """Parse a CityJSON Building object into a BuildingBlock with meter offsets."""
     attrs = city_object.get("attributes", {})
@@ -148,7 +155,7 @@ def _parse_building(
 
     # LoD 2.2 roof surfaces (optional, feature-flagged)
     roof_surfaces = None
-    if settings.enable_lod22_roofs and city_objects is not None:
+    if allow_lod22 and settings.enable_lod22_roofs and city_objects is not None:
         try:
             roof_surfaces = _extract_lod22_surfaces(
                 city_object, city_objects, vertices, scale, translate, center_x, center_y
@@ -206,6 +213,7 @@ async def _fetch_target_building(
         block = _parse_building(
             co_data, vertices, scale, translate, center_x, center_y,
             city_objects=city_objects,
+            allow_lod22=True,
         )
         if block is not None:
             return block
@@ -213,85 +221,152 @@ async def _fetch_target_building(
     return None
 
 
-async def _fetch_bbox_buildings(
-    center_x: float, center_y: float, radius: float
-) -> list[BuildingBlock]:
-    """Fetch buildings within a bbox from the 3DBAG paginated endpoint."""
-    client = _get_client()
+def _get_next_page_url(data: dict, limit: int) -> str | None:
+    """Read the next-page URL from 3DBAG links."""
+    for link in data.get("links", []):
+        if link.get("rel") != "next":
+            continue
+        href = link.get("href")
+        if not isinstance(href, str) or not href:
+            return None
+        if "limit=" not in href:
+            separator = "&" if "?" in href else "?"
+            return f"{href}{separator}limit={limit}"
+        return href
+    return None
 
+
+async def _fetch_bbox_paginated(
+    center_x: float, center_y: float, radius: float
+) -> tuple[list[BuildingBlock], bool]:
+    """Fetch surrounding buildings from one paginated bbox query."""
+    client = _get_client()
     x0, y0 = center_x - radius, center_y - radius
     x1, y1 = center_x + radius, center_y + radius
     bbox = f"{x0:.0f},{y0:.0f},{x1:.0f},{y1:.0f}"
     url = f"{settings.three_d_bag_base}/collections/pand/items"
+    next_url = f"{url}?bbox={bbox}&limit={BBOX_PAGE_LIMIT}"
 
-    buildings: list[BuildingBlock] = []
-    page = 0
-    next_url: str | None = f"{url}?bbox={bbox}&limit=50"
     start = time.monotonic()
+    pages = 0
+    partial = False
+    buildings: list[BuildingBlock] = []
 
-    while next_url and page < MAX_PAGES:
-        remaining = BBOX_TIMEOUT - (time.monotonic() - start)
-        if remaining < 1.0:
-            logger.info("Bbox fetch stopping: time budget exhausted (%.1fs used)", BBOX_TIMEOUT)
+    while next_url and pages < BBOX_MAX_PAGES:
+        remaining = BBOX_FETCH_BUDGET - (time.monotonic() - start)
+        if remaining < MIN_FETCH_BUDGET:
+            partial = True
             break
 
-        page_start = time.monotonic()
         try:
             resp = await client.get(
                 next_url,
-                timeout=httpx.Timeout(min(PER_PAGE_TIMEOUT, remaining), connect=3.0),
+                timeout=httpx.Timeout(min(BBOX_PAGE_TIMEOUT, remaining), connect=3.0),
             )
             resp.raise_for_status()
             data = resp.json()
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
-            page_duration = time.monotonic() - page_start
-            logger.warning(
-                "Bbox page %d failed after %.1fs: %s", page + 1, page_duration, exc
-            )
+            logger.warning("Bbox page %d fetch failed: %s", pages + 1, exc)
+            partial = True
             break
-
-        page_duration = time.monotonic() - page_start
 
         transform = data.get("metadata", {}).get("transform", {})
         scale = transform.get("scale", [0.001, 0.001, 0.001])
         translate = transform.get("translate", [0.0, 0.0, 0.0])
 
-        page_buildings = 0
         for feature in data.get("features", []):
             vertices = feature.get("vertices", [])
             city_objects = feature.get("CityObjects", {})
-
             for co_data in city_objects.values():
                 if co_data.get("type") != "Building":
                     continue
-
                 block = _parse_building(
-                    co_data, vertices, scale, translate, center_x, center_y,
+                    co_data,
+                    vertices,
+                    scale,
+                    translate,
+                    center_x,
+                    center_y,
                     city_objects=city_objects,
+                    allow_lod22=False,
                 )
                 if block is not None:
                     buildings.append(block)
-                    page_buildings += 1
 
-        logger.info(
-            "Bbox page %d: %d buildings in %.1fs", page + 1, page_buildings, page_duration
-        )
+        next_url = _get_next_page_url(data, BBOX_PAGE_LIMIT)
+        pages += 1
 
-        # Follow pagination
-        next_url = None
-        for link in data.get("links", []):
-            if link.get("rel") == "next":
-                next_url = link.get("href")
-                break
-        page += 1
+    if next_url:
+        partial = True
 
-    total_duration = time.monotonic() - start
+    duration = time.monotonic() - start
     logger.info(
-        "Bbox fetch complete: %d buildings, %d pages in %.1fs",
-        len(buildings), page, total_duration,
+        "Bbox fetch: %d buildings in %.2fs (%d pages)%s",
+        len(buildings),
+        duration,
+        pages,
+        " [partial]" if partial else "",
     )
+    return buildings, partial
 
-    return buildings
+
+async def _enrich_with_lod22(
+    buildings: list[BuildingBlock],
+    center_x: float,
+    center_y: float,
+    skip_pand_ids: set[str] | None = None,
+) -> tuple[list[BuildingBlock], bool]:
+    """Upgrade context buildings to LoD 2.2 via single-item fetches."""
+    if not buildings or not settings.enable_lod22_roofs:
+        return buildings, False
+
+    skip = skip_pand_ids or set()
+    idx_by_id = {b.pand_id: idx for idx, b in enumerate(buildings)}
+    candidates = [b for b in buildings if b.pand_id not in skip]
+    partial = False
+
+    # Enrich nearest buildings first when the set is very large.
+    if len(candidates) > LOD22_ENRICH_MAX_BUILDINGS:
+        candidates.sort(
+            key=lambda b: (
+                sum(p[0] for p in b.footprint) / len(b.footprint)
+            ) ** 2 + (
+                sum(p[1] for p in b.footprint) / len(b.footprint)
+            ) ** 2
+        )
+        candidates = candidates[:LOD22_ENRICH_MAX_BUILDINGS]
+        partial = True
+
+    semaphore = asyncio.Semaphore(LOD22_ENRICH_CONCURRENCY)
+    start = time.monotonic()
+
+    async def _fetch_one(block: BuildingBlock) -> tuple[str, BuildingBlock | None, bool]:
+        remaining = LOD22_ENRICH_BUDGET - (time.monotonic() - start)
+        if remaining < MIN_FETCH_BUDGET:
+            return block.pand_id, None, True
+
+        async with semaphore:
+            detailed = await _fetch_target_building(block.pand_id, center_x, center_y)
+            if detailed is None:
+                detailed = await _fetch_target_building(block.pand_id, center_x, center_y)
+            return block.pand_id, detailed, detailed is None
+
+    results = await asyncio.gather(*[_fetch_one(b) for b in candidates])
+    detailed_by_id: dict[str, BuildingBlock] = {}
+    for pand_id, detailed, failed in results:
+        if failed:
+            partial = True
+            continue
+        if detailed is not None:
+            detailed_by_id[pand_id] = detailed
+
+    enriched = buildings.copy()
+    for pand_id, detailed in detailed_by_id.items():
+        idx = idx_by_id.get(pand_id)
+        if idx is not None:
+            enriched[idx] = detailed
+
+    return enriched, partial
 
 
 async def get_neighborhood_3d(
@@ -304,11 +379,12 @@ async def get_neighborhood_3d(
     radius: float = 150.0,
 ) -> Neighborhood3DResponse:
     """Fetch 3D building data from 3DBAG for the neighborhood around a point."""
-    # Parallel fetch: direct target + bbox neighborhood
-    target_building, bbox_buildings = await asyncio.gather(
+    # Parallel fetch: direct target + paginated bbox neighborhood.
+    target_building, bbox_result = await asyncio.gather(
         _fetch_target_building(pand_id, rd_x, rd_y),
-        _fetch_bbox_buildings(rd_x, rd_y, radius),
+        _fetch_bbox_paginated(rd_x, rd_y, radius),
     )
+    bbox_buildings, bbox_partial = bbox_result
 
     # Merge: target first, then bbox (deduplicate by pand_id)
     seen_ids: set[str] = set()
@@ -323,6 +399,15 @@ async def get_neighborhood_3d(
             buildings.append(b)
             seen_ids.add(b.pand_id)
 
+    enrich_partial = False
+    if buildings:
+        buildings, enrich_partial = await _enrich_with_lod22(
+            buildings,
+            rd_x,
+            rd_y,
+            skip_pand_ids={target_building.pand_id} if target_building else None,
+        )
+
     target_found = target_building is not None
     address_id = vbo_id if vbo_id else pand_id
     center = Neighborhood3DCenter(lat=lat, lng=lng, rd_x=rd_x, rd_y=rd_y)
@@ -330,8 +415,15 @@ async def get_neighborhood_3d(
     message = None
     if not buildings:
         message = "No 3D building data available for this area"
-    elif not target_found:
-        message = "Target building not found in 3D data"
+    else:
+        message_parts: list[str] = []
+        if bbox_partial or enrich_partial:
+            message_parts.append(
+                "Partial neighborhood data: some surrounding buildings could not be loaded"
+            )
+        if not target_found:
+            message_parts.append("Target building not found in 3D data")
+        message = " ".join(message_parts) if message_parts else None
 
     return Neighborhood3DResponse(
         address_id=address_id,

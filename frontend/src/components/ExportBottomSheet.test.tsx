@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import ExportBottomSheet from './ExportBottomSheet';
 import { setupTestI18n } from '../test/helpers';
@@ -7,6 +7,7 @@ import * as api from '../services/api';
 
 vi.mock('../services/api', () => ({
   exportBriefing: vi.fn(),
+  downloadPdfBlob: vi.fn(),
 }));
 
 describe('ExportBottomSheet', () => {
@@ -50,8 +51,9 @@ describe('ExportBottomSheet', () => {
   });
 
   it('calls exportBriefing and closes on generate', async () => {
-    vi.mocked(api.exportBriefing).mockResolvedValue(undefined);
+    vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
     renderSheet();
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
 
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
@@ -60,13 +62,29 @@ describe('ExportBottomSheet', () => {
         expect.objectContaining({
           vboId: '0363010012345678',
           address: 'Keizersgracht 100, Amsterdam',
+          template: 'full_dossier',
           language: 'en',
         }),
       );
     });
 
     await waitFor(() => {
-      expect(mockClose).toHaveBeenCalled();
+      expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+    expect(mockClose).not.toHaveBeenCalled();
+  });
+
+  it('uses segmented language control independent from app language', async () => {
+    vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    renderSheet();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'NL' }));
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalledWith(
+        expect.objectContaining({ language: 'nl' }),
+      );
     });
   });
 
@@ -80,5 +98,25 @@ describe('ExportBottomSheet', () => {
       expect(screen.getByText('Export failed. Please try again.')).toBeInTheDocument();
     });
     expect(mockClose).not.toHaveBeenCalled();
+  });
+
+  it('shows progress stage text while exporting', async () => {
+    let resolver: (() => void) | undefined;
+    vi.mocked(api.exportBriefing).mockImplementation(
+      () => new Promise<Blob>((resolve) => { resolver = () => resolve(new Blob(['pdf'])); }),
+    );
+    renderSheet();
+
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-progress')).toBeInTheDocument();
+      expect(screen.getByText('Rendering PDF...')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      resolver?.();
+      await Promise.resolve();
+    });
   });
 });

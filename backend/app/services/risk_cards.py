@@ -16,6 +16,15 @@ from app.models.risk import (
     RiskCardsResponse,
     RiskLevel,
 )
+from app.services.scoring import (
+    air_summary,
+    climate_summary,
+    noise_summary,
+    normalize_air_score,
+    normalize_climate_score,
+    normalize_noise_score,
+    severity_from_score,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -735,6 +744,46 @@ async def get_risk_cards(
         climate_card.level.value,
         total_ms,
     )
+
+    noise_score = normalize_noise_score(noise_card.lden_db)
+    noise_card.score = noise_score
+    noise_card.severity = (
+        severity_from_score(noise_score).value
+        if noise_score is not None
+        else "unavailable"
+    )
+    noise_en, noise_nl = noise_summary(noise_score, noise_card.lden_db)
+    noise_card.summary = noise_en
+    noise_card.summary_nl = noise_nl
+
+    air_score = normalize_air_score(air_card.pm25_ug_m3, air_card.no2_ug_m3)
+    air_card.score = air_score
+    air_card.severity = (
+        severity_from_score(air_score).value
+        if air_score is not None
+        else "unavailable"
+    )
+    air_en, air_nl = air_summary(air_score, air_card.pm25_ug_m3, air_card.no2_ug_m3)
+    air_card.summary = air_en
+    air_card.summary_nl = air_nl
+
+    climate_score = normalize_climate_score(
+        climate_card.heat_level.value,
+        climate_card.water_level.value,
+    )
+    climate_card.score = climate_score
+    climate_card.severity = (
+        severity_from_score(climate_score).value
+        if climate_score is not None
+        else "unavailable"
+    )
+    climate_en, climate_nl = climate_summary(
+        climate_score,
+        climate_card.heat_level.value,
+        climate_card.water_level.value,
+    )
+    climate_card.summary = climate_en
+    climate_card.summary_nl = climate_nl
 
     return RiskCardsResponse(
         address_id=vbo_id,

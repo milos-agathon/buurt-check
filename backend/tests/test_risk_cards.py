@@ -140,6 +140,18 @@ async def test_get_risk_cards_assembly(mock_climate, mock_air, mock_noise):
     assert resp.noise.level == RiskLevel.low
     assert resp.air_quality.level == RiskLevel.medium
     assert resp.climate_stress.level == RiskLevel.high
+    assert resp.noise.score == 80
+    assert resp.noise.severity == "good"
+    assert resp.noise.summary is not None
+    assert resp.noise.summary_nl is not None
+    assert resp.air_quality.score == 77
+    assert resp.air_quality.severity == "good"
+    assert resp.air_quality.summary is not None
+    assert resp.air_quality.summary_nl is not None
+    assert resp.climate_stress.score == 15
+    assert resp.climate_stress.severity == "critical"
+    assert resp.climate_stress.summary is not None
+    assert resp.climate_stress.summary_nl is not None
 
 
 @pytest.mark.asyncio

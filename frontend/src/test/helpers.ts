@@ -9,6 +9,7 @@ import type {
   BuildingFactsResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
+  RiskComparisonsResponse,
   RiskCardsResponse,
   SunlightResult,
 } from '../types/api';
@@ -150,6 +151,40 @@ export function makeRiskCardsResponse(
       source_date: '2026-02-05',
       sampled_at: '2026-02-05',
     },
+    ...overrides,
+  };
+}
+
+export function makeRiskComparisonsResponse(
+  overrides: Partial<RiskComparisonsResponse> = {},
+): RiskComparisonsResponse {
+  return {
+    address_id: 'vbo-123',
+    generated_at: '2026-02-10',
+    noise: [
+      { label_code: 'city_avg', value: 54 },
+      { label_code: 'nl_avg', value: 66 },
+      { label_code: 'who_limit', value: 74, pattern: 'dashed' },
+      { label_code: 'address', value: 56 },
+    ],
+    air_quality: [
+      { label_code: 'city_avg', value: 57 },
+      { label_code: 'nl_avg', value: 68 },
+      { label_code: 'who_limit', value: 75, pattern: 'dashed' },
+      { label_code: 'address', value: 74 },
+    ],
+    climate_stress: [
+      { label_code: 'city_avg', value: 49 },
+      { label_code: 'nl_avg', value: 61 },
+      { label_code: 'adaptation_target', value: 70, pattern: 'dashed' },
+      { label_code: 'address', value: 52 },
+    ],
+    sunlight: [
+      { label_code: 'city_avg', value: 52 },
+      { label_code: 'nl_avg', value: 63 },
+      { label_code: 'daylight_target', value: 67, pattern: 'dashed' },
+      { label_code: 'address', value: 45 },
+    ],
     ...overrides,
   };
 }

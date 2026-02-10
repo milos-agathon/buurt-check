@@ -86,7 +86,7 @@ Become the trusted pre-viewing intelligence tool for every property buyer in the
 - **API serving**: Custom JSON REST API. Single router in `api/address.py` with all endpoints.
 - **Client**: Web-first (mobile responsive), React 18 + Vite + TypeScript. Plain CSS with design system tokens.
 - **3D rendering**: Plain Three.js (not react-three-fiber or deck.gl). Directional light positioned using SunCalc to cast real-time shadows. PCFSoftShadowMap 2048x2048.
-- **Design system**: "Clear Signal Hybrid" — Satoshi font, Electric Teal (#00897B) accent, 0-100 risk scoring with 4-level severity. Tokens in `frontend/src/styles/tokens.css`.
+- **Design system**: "Polar Frost" — Satoshi font, Arctic Teal (#2EC4B6) accent, 0-100 risk scoring with 4-level severity. Tokens in `frontend/src/styles/tokens.css`.
 - **State management**: App-level `useState` in `App.tsx`. No Zustand, no Redux. Screen routing via `activeScreen` state.
 - **Shortlist**: localStorage-backed (max 3 addresses). No server-side persistence.
 
@@ -219,16 +219,16 @@ buurt-check/
 
 ## Current project status
 
-**Stage: F1-F5 fully implemented + polished. "Clear Signal Hybrid" design system applied. 0-100 risk scoring. Tab navigation. Shortlist + compare. PDF Quick Brief export. Dark mode. Recent searches. GSAP camera transitions. FPS monitoring.**
+**Stage: F1-F5 fully implemented + polished. "Polar Frost" design system applied with full palette.md token alignment. 0-100 risk scoring. Tab navigation. Shortlist + compare. PDF Quick Brief export. Dark mode. Recent searches. GSAP camera transitions. FPS monitoring.**
 
 ### What exists
 - `backend/` — FastAPI app with 11 endpoints: address suggest/lookup, building facts, 3D building/neighborhood, risk cards (with 0-100 scores + severity), neighborhood stats, WMS tile proxy, viewing questions, PDF export. BAG lookups use OGC XML Filter. 3DBAG uses tiled fetch (direct target + grid tiles). LoD 2.2 roof geometry parsing (feature-flagged). Risk scoring normalizes noise/air/climate/sunlight to 0-100. CBS integration with buurt-code + bbox fallback. Redis cache with circuit breaker. fpdf2 for PDF generation. 255 passing tests + live smoke tests.
-- `frontend/` — Vite + React + TypeScript with "Clear Signal Hybrid" design system. Satoshi font, Electric Teal accent, CSS design tokens. 3-tab navigation (Search, Briefing, Saved) with frosted glass tab bar. Loading screen with building animation. Dossier screen: address header, summary strip, 3D viewer (fullscreen, GSAP transitions, FPS monitoring), 2x2 risk tiles with animated 0-100 scores + quartile dots, risk detail views with comparison charts + viewing questions, neighborhood stats, viewing checklist, action bar with PDF export. Dark mode (light/dark/system). Recent searches. Shortlist (max 3) with compare screen. Settings screen. 324 passing Vitest tests. i18n with ~300 keys per language.
-- `docs/design-prd.md` — Full design specification for "Clear Signal Hybrid" design direction
+- `frontend/` — Vite + React + TypeScript with "Polar Frost" design system. Satoshi font, Arctic Teal accent, ~195 CSS design tokens (including slate/teal scales, nav/overlay utility, choropleth ramps). 3-tab navigation (Search, Briefing, Saved) with solid white tab bar + teal pill. Loading screen with building animation. Dossier screen: address header, summary strip, 3D viewer (uniform slate.200 neighbors at 60% opacity, teal target with edge glow, fullscreen, GSAP transitions, FPS monitoring), 2x2 risk tiles with animated 0-100 scores + quartile dots, risk detail views with comparison charts + viewing questions, neighborhood stats, viewing checklist, action bar with PDF export. Dark mode (light/dark/system). Recent searches. Shortlist (max 3) with compare screen. Settings screen. PDOK BRT grijs basemap. 330 passing Vitest tests. i18n with ~300 keys per language.
+- `docs/design-prd.md` — Full design specification for "Polar Frost" design direction
 - `docs/design-spec.md` — Pixel-level visual specification for all screens
 
 ### What's next
-- Maintain quality gates: `ruff check`, backend pytest (255+, excluding live), frontend vitest (324+), `npm run build`.
+- Maintain quality gates: `ruff check`, backend pytest (255+, excluding live), frontend vitest (330+), `npm run build`.
 - Resolve PM2.5 data gap (GCN WMS only has NO2 layers).
 - Visual QA pass on all redesigned screens with real data.
 - Full Dossier PDF export (3-4 pages, extends Quick Brief).
@@ -263,11 +263,11 @@ buurt-check/
 
 3. **Leaflet for F1 2D maps.** Leaflet is free, no API key, lightweight. Plain Three.js for F2 3D neighborhood viewer (not deck.gl or react-three-fiber).
 
-4. **Plain CSS with design system tokens, mobile-first.** "Clear Signal Hybrid" design direction. Satoshi font. Tokens in `styles/tokens.css`. No Tailwind, no CSS-in-JS.
+4. **Plain CSS with design system tokens, mobile-first.** "Polar Frost" design direction. Satoshi font. Tokens in `styles/tokens.css`. No Tailwind, no CSS-in-JS.
 
 5. **pyproject.toml for backend** (not requirements.txt). Modern Python packaging.
 
-6. **3-tab navigation** (Search, Briefing, Saved). Screen routing via `activeScreen` state in `App.tsx`. Frosted glass tab bar at bottom.
+6. **3-tab navigation** (Search, Briefing, Saved). Screen routing via `activeScreen` state in `App.tsx`. Solid white tab bar with teal pill, dark slate top bar.
 
 7. **0-100 risk scoring** with 4-level severity (good/moderate/poor/critical). Backend normalizes raw values via `scoring.py`. Frontend displays in 2x2 tile grid + detail views.
 
@@ -317,7 +317,7 @@ buurt-check/
 2. **API client:** `src/services/api.ts` uses native `fetch`. No axios. Throws on non-OK responses. Supports `AbortSignal` for cancellation. Explicit timeouts per endpoint.
 3. **CSS:** Plain CSS with design system tokens from `styles/tokens.css`. Component CSS co-located (e.g., `AddressSearch.css` next to `AddressSearch.tsx`). BEM-like naming (`risk-tile__score--good`). All colors, spacing, typography, radii, shadows use `var(--token-name)`.
 4. **State management:** App-level state in `App.tsx` via `useState`. Screen routing via `activeScreen` state. Pass data down as props. Shortlist persisted to localStorage via `services/shortlist.ts`.
-5. **Design system:** "Clear Signal Hybrid" direction. Satoshi Variable font, Electric Teal (#00897B) accent, 4-level severity (good/moderate/poor/critical). All tokens in `styles/tokens.css`.
+5. **Design system:** "Polar Frost" direction. Satoshi Variable font, Arctic Teal (#2EC4B6) accent, 4-level severity (good/moderate/poor/critical). All tokens in `styles/tokens.css`.
 
 ### Post-assessment hardening learnings (2026-02-04)
 
@@ -529,7 +529,7 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 
 ### Visual style decisions
 
-1. **Uniform light gray buildings (`0xf5f5f5`)** read cleaner than construction-year coloring for a property-evaluation context. Year coloring is interesting but distracting from the primary use case. Target building stays blue (`#2563eb`) for UX clarity.
+1. **Uniform light gray buildings (`0xf5f5f5`)** read cleaner than construction-year coloring for a property-evaluation context. Year coloring is interesting but distracting from the primary use case. Target building stays Arctic Teal (`#2EC4B6`) for UX clarity.
 2. **Removed GridHelper.** Grid lines add visual noise and don't help users understand the neighborhood. The basemap provides sufficient spatial reference.
 3. **Full opacity (1.0) for all buildings.** Transparency (0.7) makes buildings look ghostly and reduces shadow visibility.
 
@@ -623,7 +623,7 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
    - 1975-2000: Neutral gray (prefab era) `0x9e9e9e`
    - 2000+: Blue-gray (contemporary) `0xb0bec5`
    - Unknown: Light gray `0xe0e0e0`
-2. **Target building stays blue** (`#2563eb`) regardless of construction year, for UX clarity.
+2. **Target building stays Arctic Teal** (`#2EC4B6`) regardless of construction year, for UX clarity.
 
 ### Stale Cache Defeats Feature Flags
 
@@ -680,11 +680,11 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 
 ### Dark Mode for Three.js
 
-1. **Target building color changes with theme.** Light mode: blue `0x2563eb`. Dark mode: teal `0x26a69a`. Read from `document.documentElement.getAttribute('data-theme')`.
+1. **Target building color.** Arctic Teal `0x2EC4B6` in both light and dark mode (matches `--color-accent`).
 2. **Shadow map size increased.** `SHADOW_MAP_SIZE = 4096` (was 2048) for sharper shadows. Falls back to 2048/1024 via FPS-based adaptive quality.
 3. **Frustum increased.** `FRUSTUM = 300` (was 200) to cover larger neighborhood area with zoom 16 basemap.
 
-## Learnings from Clear Signal Hybrid design system implementation (2026-02-09)
+## Learnings from design system implementation (2026-02-09)
 
 ### Design Token Architecture
 

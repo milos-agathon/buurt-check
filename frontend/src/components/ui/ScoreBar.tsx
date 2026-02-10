@@ -5,9 +5,15 @@ interface ScoreBarProps {
   score: number;
   severity: SeverityLevel;
   animated?: boolean;
+  ariaLabel?: string;
 }
 
-export default function ScoreBar({ score, severity, animated = true }: ScoreBarProps) {
+export default function ScoreBar({
+  score,
+  severity,
+  animated = true,
+  ariaLabel = 'Risk score',
+}: ScoreBarProps) {
   const clampedScore = Math.max(0, Math.min(100, score));
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
@@ -16,7 +22,14 @@ export default function ScoreBar({ score, severity, animated = true }: ScoreBarP
   const shouldAnimate = animated && !prefersReducedMotion;
 
   return (
-    <div className="score-bar" role="meter" aria-valuenow={clampedScore} aria-valuemin={0} aria-valuemax={100}>
+    <div
+      className="score-bar"
+      role="meter"
+      aria-label={ariaLabel}
+      aria-valuenow={clampedScore}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
       <div className="score-bar__track">
         <div
           className={`score-bar__fill score-bar__fill--${severity}${shouldAnimate ? ' score-bar__fill--animated' : ''}`}

@@ -9,16 +9,17 @@ async def fetch_tile(client, bbox):
     params = {"bbox": bbox, "limit": 1000}
     start = time.monotonic()
     try:
-        resp = await client.get(url, params=params, timeout=45.0) # Increased timeout
+        resp = await client.get(url, params=params, timeout=45.0)  # Increased timeout
         resp.raise_for_status()
         data = resp.json()
         count = len(data.get("features", []))
         duration = time.monotonic() - start
         print(f"Tile {bbox}: {count} features in {duration:.2f}s")
         return count, duration
-    except Exception as e:
-        print(f"Tile {bbox} failed: {e}")
+    except Exception as exc:
+        print(f"Tile {bbox} failed: {exc}")
         return 0, time.monotonic() - start
+
 
 async def verify_tiled():
     center_x = 121200
@@ -34,7 +35,8 @@ async def verify_tiled():
 
     print(f"Starting {grid_size}x{grid_size} tiled fetch...")
 
-    async with httpx.AsyncClient(limits=httpx.Limits(max_keepalive_connections=20, max_connections=20)) as client:
+    limits = httpx.Limits(max_keepalive_connections=20, max_connections=20)
+    async with httpx.AsyncClient(limits=limits) as client:
         start_global = time.monotonic()
         tasks = []
         for i in range(grid_size):
@@ -60,6 +62,7 @@ async def verify_tiled():
             f.write(f"Total features: {total_features}\n")
             f.write(f"Total time: {total_time:.2f}s\n")
             f.write(f"Max tile time: {max_duration:.2f}s\n")
+
 
 if __name__ == "__main__":
     asyncio.run(verify_tiled())

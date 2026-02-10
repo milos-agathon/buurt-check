@@ -5,6 +5,7 @@ import {
   makeBuildingResponse,
   makeNeighborhood3DResponse,
   makeNeighborhoodStatsResponse,
+  makeRiskComparisonsResponse,
   makeResolvedAddress,
   makeRiskCardsResponse,
   makeSuggestion,
@@ -18,7 +19,10 @@ vi.mock('./services/api', () => ({
   getBuilding3D: vi.fn(),
   getNeighborhood3D: vi.fn(),
   getRiskCards: vi.fn(),
+  getRiskComparisons: vi.fn(),
   getNeighborhoodStats: vi.fn(),
+  getViewingQuestions: vi.fn(),
+  getTierBData: vi.fn(),
 }));
 
 vi.mock('react-leaflet', () => ({
@@ -57,14 +61,28 @@ vi.mock('./components/NeighborhoodStatsCard', () => ({
   ),
 }));
 
-import { lookupAddress, getBuildingFacts, getBuilding3D, suggestAddresses, getNeighborhood3D, getRiskCards, getNeighborhoodStats } from './services/api';
+import {
+  lookupAddress,
+  getBuildingFacts,
+  getBuilding3D,
+  suggestAddresses,
+  getNeighborhood3D,
+  getRiskCards,
+  getRiskComparisons,
+  getNeighborhoodStats,
+  getViewingQuestions,
+  getTierBData,
+} from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
 const mockBuilding = vi.mocked(getBuildingFacts);
 const mockBuilding3D = vi.mocked(getBuilding3D);
 const mockSuggest = vi.mocked(suggestAddresses);
 const mockNeighborhood3D = vi.mocked(getNeighborhood3D);
 const mockRiskCards = vi.mocked(getRiskCards);
+const mockRiskComparisons = vi.mocked(getRiskComparisons);
 const mockNeighborhoodStats = vi.mocked(getNeighborhoodStats);
+const mockViewingQuestions = vi.mocked(getViewingQuestions);
+const mockTierBData = vi.mocked(getTierBData);
 
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -79,11 +97,24 @@ beforeEach(() => {
   mockSuggest.mockReset();
   mockNeighborhood3D.mockReset();
   mockRiskCards.mockReset();
+  mockRiskComparisons.mockReset();
   mockNeighborhoodStats.mockReset();
-  // Phase 1 (building3D) defaults to never-resolving so Phase 2 controls tests
-  mockBuilding3D.mockReturnValue(new Promise(() => {}));
+  mockViewingQuestions.mockReset();
+  mockTierBData.mockReset();
+  // Resolve Phase 1 quickly with empty data so loading screen exits while
+  // Phase 2 neighborhood fetch still controls 3D content in tests.
+  mockBuilding3D.mockResolvedValue(
+    makeNeighborhood3DResponse({ buildings: [], target_pand_id: undefined }),
+  );
   mockRiskCards.mockResolvedValue(makeRiskCardsResponse());
+  mockRiskComparisons.mockResolvedValue(makeRiskComparisonsResponse());
   mockNeighborhoodStats.mockResolvedValue(makeNeighborhoodStatsResponse());
+  mockViewingQuestions.mockResolvedValue({ address_id: 'vbo-123', categories: [] });
+  mockTierBData.mockResolvedValue({
+    address_id: 'vbo-123',
+    energy_label: { source: 'EP-Online' },
+    crime: { source: 'CBS OData 47018NED/47022NED' },
+  });
 });
 
 function renderApp() {
@@ -160,7 +191,7 @@ describe('address selection flow', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByText('Loading building facts...')).toBeInTheDocument();
+      expect(screen.getByTestId('loading-screen')).toBeInTheDocument();
     });
   });
 
@@ -487,6 +518,30 @@ describe('neighborhood stats integration', () => {
 
     await waitFor(() => {
       expect(mockNeighborhoodStats).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('calls getTierBData with resolved address context', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress({
+      buurt_code: 'BU0363AD07',
+      postcode: '1015AA',
+      house_number: '100',
+      house_letter: 'A',
+      addition: '1',
+    }));
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockTierBData).toHaveBeenCalledWith('vbo-123', {
+        buurtCode: 'BU0363AD07',
+        postcode: '1015AA',
+        houseNumber: '100',
+        houseLetter: 'A',
+        addition: '1',
+      });
     });
   });
 

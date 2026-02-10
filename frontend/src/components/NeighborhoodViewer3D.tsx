@@ -19,18 +19,9 @@ const CAMERA_PRESETS: Record<string, [number, number, number]> = {
   topDown: [0, 150, 0.1],
 };
 
-/**
- * Map construction year to period-appropriate facade color.
- * These match the PRD Section 9.4 period table.
- */
-export function getYearColor(year?: number): number {
-  if (year == null) return 0xe0e0e0;     // Unknown: light gray
-  if (year < 1900) return 0xa0522d;      // Pre-1900: sienna (traditional brick)
-  if (year < 1945) return 0xcc7722;      // 1900-1945: warm orange-brown (Amsterdam School)
-  if (year < 1975) return 0xc8b87d;      // 1945-1975: sandy yellow (post-war reconstruction)
-  if (year < 2000) return 0x9e9e9e;      // 1975-2000: neutral gray (prefab era)
-  return 0xb0bec5;                       // 2000+: blue-gray (contemporary)
-}
+/** Uniform neighbor building color: slate.200 per palette.md */
+const NEIGHBOR_COLOR = 0xB4C0CE;
+const NEIGHBOR_OPACITY = 0.6;
 
 // Convert lat/lng to Web Mercator tile coordinates and fractional position within tile
 function latLngToTile(lat: number, lng: number, zoom: number) {
@@ -72,8 +63,8 @@ const SHADOW_MAP_SIZE = 4096;
 const SUN_DISTANCE = 300;
 const GROUND_SIZE = 750;
 const FRUSTUM = 300;
-const TARGET_COLOR_LIGHT = 0x2563eb;
-const TARGET_COLOR_DARK = 0x26a69a;
+const TARGET_COLOR_LIGHT = 0x2EC4B6;
+const TARGET_COLOR_DARK = 0x2EC4B6;
 
 /**
  * Create a BufferGeometry from LoD 2.2 surfaces.
@@ -193,7 +184,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(isDarkMode ? 0x0f1117 : 0xf0f4f8);
+    scene.background = new THREE.Color(isDarkMode ? 0x0D1620 : 0xF0F3F6);
 
     // Camera
     const camera = new THREE.PerspectiveCamera(50, width / height, 1, 1000);
@@ -231,10 +222,10 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     scene.add(sunLight);
     scene.add(sunLight.target); // Required for shadow rendering
 
-    // Ground plane (neutral color, will be replaced by aerial imagery)
+    // Ground plane — match scene background so edges are invisible
     const groundGeom = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
     const groundMat = new THREE.MeshStandardMaterial({
-      color: 0xd4d4d4,
+      color: isDarkMode ? 0x0D1620 : 0xF0F3F6,
       roughness: 0.95,
       side: THREE.DoubleSide,
     });
@@ -337,17 +328,15 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     // Render ALL buildings from the neighborhood
     const minGround = Math.min(...buildings.map((b) => b.ground_height));
 
-    const groupedContext = new Map<string, { color: number; geoms: THREE.BufferGeometry[] }>();
+    const neighborGeoms: THREE.BufferGeometry[] = [];
 
     for (const building of buildings) {
       let geom: THREE.BufferGeometry;
-      let useLod22 = false;
       const isTarget = building.pand_id === targetPandId;
 
       if (building.roof_surfaces && building.roof_surfaces.length > 0) {
         // LoD 2.2: real 3D surfaces from BuildingPart geometry
         geom = createLod22Geometry(building.roof_surfaces, building.ground_height);
-        useLod22 = true;
       } else {
         // LoD 0 fallback: extrude 2D footprint
         const shape = new THREE.Shape();
@@ -374,6 +363,8 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       if (isTarget) {
         const mat = new THREE.MeshStandardMaterial({
           color: isDarkMode ? TARGET_COLOR_DARK : TARGET_COLOR_LIGHT,
+          emissive: 0x57D4C8,
+          emissiveIntensity: 0.15,
           side: THREE.DoubleSide,
         });
         const mesh = new THREE.Mesh(geom, mat);
@@ -385,34 +376,30 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         continue;
       }
 
-      const color = getYearColor(building.year);
-      const key = `${color}-${useLod22 ? 'lod22' : 'lod0'}`;
-      const bucket = groupedContext.get(key);
-      if (bucket) {
-        bucket.geoms.push(geom);
-      } else {
-        groupedContext.set(key, { color, geoms: [geom] });
-      }
+      neighborGeoms.push(geom);
     }
 
-    for (const group of groupedContext.values()) {
-      const merged = mergeGeometries(group.geoms, false);
-      const mat = new THREE.MeshStandardMaterial({
-        color: group.color,
-        side: THREE.DoubleSide,
-      });
+    // Merge all neighbor geometries into a single draw call with uniform slate color
+    const neighborMat = new THREE.MeshStandardMaterial({
+      color: NEIGHBOR_COLOR,
+      transparent: true,
+      opacity: NEIGHBOR_OPACITY,
+      side: THREE.DoubleSide,
+    });
 
+    if (neighborGeoms.length > 0) {
+      const merged = mergeGeometries(neighborGeoms, false);
       if (merged) {
-        for (const g of group.geoms) g.dispose();
-        const mesh = new THREE.Mesh(merged, mat);
+        for (const g of neighborGeoms) g.dispose();
+        const mesh = new THREE.Mesh(merged, neighborMat);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.userData.isContext = true;
         ctx.scene.add(mesh);
         ctx.buildingMeshes.push(mesh);
       } else {
-        for (const g of group.geoms) {
-          const mesh = new THREE.Mesh(g, mat);
+        for (const g of neighborGeoms) {
+          const mesh = new THREE.Mesh(g, neighborMat);
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           mesh.userData.isContext = true;
@@ -527,13 +514,11 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     // Store in ref immediately so cleanup works
     basemapMeshesRef.current = meshes;
 
-    const loader = new THREE.TextureLoader();
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
     const equatorTileWidth = 40075016.686 / Math.pow(2, zoom);
     const tileWidthMeters = equatorTileWidth * Math.cos((center.lat * Math.PI) / 180);
 
-    // Calculate center offset only once for the center tile
-    // All other tiles are positioned relative to the center tile
     const centerOffsetX = (centerTile.fracX - 0.5) * tileWidthMeters;
     const centerOffsetY = (centerTile.fracY - 0.5) * tileWidthMeters;
 
@@ -541,49 +526,51 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       const tileX = centerTile.x + dx;
       const tileY = centerTile.y + dy;
 
-      const url = `https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/${zoom}/${tileX}/${tileY}.png`;
+      const url = `https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/${zoom}/${tileX}/${tileY}.png`;
 
-      loader.load(
-        url,
-        (texture) => {
-          if (!sceneRef.current) return;
-          texture.colorSpace = THREE.SRGBColorSpace;
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        if (!sceneRef.current) return;
 
-          const tileGeom = new THREE.PlaneGeometry(tileWidthMeters, tileWidthMeters);
-          const tileMat = new THREE.MeshStandardMaterial({
-            map: texture,
-            roughness: 0.95,
-            side: THREE.DoubleSide,
-          });
-          const tileMesh = new THREE.Mesh(tileGeom, tileMat);
-          tileMesh.rotation.x = -Math.PI / 2;
-
-          // Position relative to scene origin (which corresponds to centerTile's specific fracX/fracY point)
-          // Steps:
-          // 1. Start at center tile position: (-centerOffsetX, -centerOffsetY)
-          // 2. Add grid offset: (dx * width, dy * width) (Note: WebMercator Y is South-positive? No, TMS/Google maps...
-          //    PDOK tile Y increases SOUTH (Google XYZ).
-          //    So +Y tile index means moving SOUTH in world.
-          //    In Three.js (Y-up), South is +Z.
-          //    So +tileY (South) -> +Z in scene.
-          //    +tileX (East) -> +X in scene.
-
-          const worldX = (dx * tileWidthMeters) - centerOffsetX;
-          const worldZ = (dy * tileWidthMeters) - centerOffsetY;
-
-          tileMesh.position.set(worldX, 0.01, worldZ);
-          tileMesh.receiveShadow = true;
-
-          sceneRef.current.scene.add(tileMesh);
-          meshes.push(tileMesh);
-        },
-        undefined,
-        () => {
-          // Ignore failures
+        let texture: THREE.Texture;
+        if (isDark) {
+          // Apply invert + hue-rotate via offscreen canvas (same filter as Leaflet dark basemap)
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const c = canvas.getContext('2d')!;
+          c.filter = 'invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1)';
+          c.drawImage(img, 0, 0);
+          texture = new THREE.CanvasTexture(canvas);
+        } else {
+          texture = new THREE.Texture(img);
+          texture.needsUpdate = true;
         }
-      );
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+
+        const tileGeom = new THREE.PlaneGeometry(tileWidthMeters, tileWidthMeters);
+        const tileMat = new THREE.MeshStandardMaterial({
+          map: texture,
+          roughness: 0.95,
+          side: THREE.DoubleSide,
+        });
+        const tileMesh = new THREE.Mesh(tileGeom, tileMat);
+        tileMesh.rotation.x = -Math.PI / 2;
+
+        // PDOK tile Y increases SOUTH (Google XYZ) -> Three.js +Z
+        const worldX = (dx * tileWidthMeters) - centerOffsetX;
+        const worldZ = (dy * tileWidthMeters) - centerOffsetY;
+
+        tileMesh.position.set(worldX, 0.01, worldZ);
+        tileMesh.receiveShadow = true;
+
+        sceneRef.current.scene.add(tileMesh);
+        meshes.push(tileMesh);
+      };
+      img.src = url;
     });
 
     return () => {
@@ -854,7 +841,18 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
           title={t(isFullscreen ? 'viewer3d.exitFullscreen' : 'viewer3d.fullscreen')}
           type="button"
         >
-          {isFullscreen ? '\u2716' : '\u26F6'}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            {isFullscreen ? (
+              <path d="M4 12L12 4M4 4l8 8" />
+            ) : (
+              <>
+                <polyline points="1,5 1,1 5,1" />
+                <polyline points="11,1 15,1 15,5" />
+                <polyline points="15,11 15,15 11,15" />
+                <polyline points="5,15 1,15 1,11" />
+              </>
+            )}
+          </svg>
         </button>
         <div className="viewer-3d__camera-cluster">
           {(['street', 'balcony', 'topDown'] as const).map((preset) => (
@@ -866,7 +864,30 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
               title={t(`viewer3d.camera.${preset}`)}
               type="button"
             >
-              {preset === 'street' ? '\uD83D\uDC41' : preset === 'balcony' ? '\uD83C\uDFE2' : '\u2B07'}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                {preset === 'street' ? (
+                  /* Eye icon — street-level view */
+                  <>
+                    <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5" />
+                    <circle cx="8" cy="8" r="2" />
+                  </>
+                ) : preset === 'balcony' ? (
+                  /* Building icon — balcony view */
+                  <>
+                    <rect x="3" y="2" width="10" height="12" rx="1" />
+                    <line x1="6" y1="5" x2="6" y2="7" />
+                    <line x1="10" y1="5" x2="10" y2="7" />
+                    <line x1="6" y1="9" x2="6" y2="11" />
+                    <line x1="10" y1="9" x2="10" y2="11" />
+                  </>
+                ) : (
+                  /* Arrow-down icon — top-down view */
+                  <>
+                    <line x1="8" y1="2" x2="8" y2="13" />
+                    <polyline points="4,9 8,13 12,9" />
+                  </>
+                )}
+              </svg>
             </button>
           ))}
         </div>
@@ -878,7 +899,14 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
           const hours = localSunlight[key];
           return (
             <div className="viewer-3d__sunlight-badge" data-testid="sunlight-badge">
-              {'\u2600\uFE0F'} {typeof hours === 'number' ? `${hours.toFixed(1)}h` : ''}
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <circle cx="8" cy="8" r="3" />
+                <line x1="8" y1="1" x2="8" y2="3" /><line x1="8" y1="13" x2="8" y2="15" />
+                <line x1="1" y1="8" x2="3" y2="8" /><line x1="13" y1="8" x2="15" y2="8" />
+                <line x1="3.05" y1="3.05" x2="4.46" y2="4.46" /><line x1="11.54" y1="11.54" x2="12.95" y2="12.95" />
+                <line x1="3.05" y1="12.95" x2="4.46" y2="11.54" /><line x1="11.54" y1="4.46" x2="12.95" y2="3.05" />
+              </svg>
+              {typeof hours === 'number' ? ` ${hours.toFixed(1)}h` : ''}
             </div>
           );
         })()}

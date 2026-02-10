@@ -43,7 +43,11 @@ export default function OverlayControls({ activeOverlay, onOverlayChange, loadin
         title={t('overlays.layers')}
         type="button"
       >
-        {'\u{1F5FA}'}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+          <path d="M1 3.5l4.5-2 5 2.5 4.5-2v11l-4.5 2-5-2.5-4.5 2z" />
+          <line x1="5.5" y1="1.5" x2="5.5" y2="12.5" />
+          <line x1="10.5" y1="4" x2="10.5" y2="15" />
+        </svg>
       </button>
       {isOpen && (
         <div className="overlay-controls__popover">

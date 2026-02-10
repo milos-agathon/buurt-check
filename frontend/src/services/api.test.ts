@@ -1,8 +1,12 @@
 import {
+  downloadPdfBlob,
+  exportBriefing,
   getBuildingFacts,
   getNeighborhood3D,
   getNeighborhoodStats,
+  getRiskComparisons,
   getRiskCards,
+  getTierBData,
   lookupAddress,
   suggestAddresses,
 } from './api';
@@ -237,5 +241,95 @@ describe('getNeighborhoodStats', () => {
     // never settles, but we've verified the abort signal fires correctly.
     // Suppress unhandled rejection from the dangling promise.
     promise.catch(() => {});
+  });
+});
+
+describe('getRiskComparisons', () => {
+  it('sends GET with risk-comparisons endpoint and buurt_code', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1' }));
+    await getRiskComparisons('vbo-1', 121286, 487296, 52.372, 4.892, 'BU0363AD07');
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/address/vbo-1/risk-comparisons?');
+    expect(url).toContain('rd_x=121286');
+    expect(url).toContain('rd_y=487296');
+    expect(url).toContain('lat=52.372');
+    expect(url).toContain('lng=4.892');
+    expect(url).toContain('buurt_code=BU0363AD07');
+  });
+
+  it('throws on non-OK response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(502));
+    await expect(
+      getRiskComparisons('vbo-1', 121286, 487296, 52.372, 4.892),
+    ).rejects.toThrow('Risk comparisons failed: 502');
+  });
+});
+
+describe('getTierBData', () => {
+  it('sends GET with tier-b query params', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1', energy_label: {}, crime: {} }));
+    await getTierBData('vbo-1', {
+      buurtCode: 'BU0363AD07',
+      postcode: '1012NX',
+      houseNumber: '1',
+      houseLetter: 'A',
+      addition: '1',
+    });
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/address/vbo-1/tier-b?');
+    expect(url).toContain('buurt_code=BU0363AD07');
+    expect(url).toContain('postcode=1012NX');
+    expect(url).toContain('house_number=1');
+    expect(url).toContain('house_letter=A');
+    expect(url).toContain('addition=1');
+  });
+});
+
+describe('exportBriefing', () => {
+  it('passes selected template to export endpoint', async () => {
+    const expectedBlob = new Blob(['pdf']);
+    mockFetch.mockResolvedValue({ ok: true, blob: () => Promise.resolve(expectedBlob) } as Response);
+
+    const blob = await exportBriefing({
+      vboId: 'vbo-1',
+      rdX: 1,
+      rdY: 2,
+      lat: 3,
+      lng: 4,
+      address: 'Test',
+      template: 'full_dossier',
+    });
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('template=full_dossier');
+    expect(blob).toBe(expectedBlob);
+  });
+});
+
+describe('downloadPdfBlob', () => {
+  it('creates and clicks a download link', () => {
+    const appendChildSpy = vi.spyOn(document.body, 'appendChild');
+    const removeChildSpy = vi.spyOn(document.body, 'removeChild');
+    const createElementSpy = vi.spyOn(document, 'createElement');
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test');
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const click = vi.fn();
+    createElementSpy.mockReturnValue({ click } as unknown as HTMLAnchorElement);
+    appendChildSpy.mockImplementation(() => ({}) as Node);
+    removeChildSpy.mockImplementation(() => ({}) as Node);
+
+    downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
+
+    appendChildSpy.mockRestore();
+    removeChildSpy.mockRestore();
+    createElementSpy.mockRestore();
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
   });
 });

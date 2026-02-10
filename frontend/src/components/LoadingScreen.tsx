@@ -5,6 +5,7 @@ import './LoadingScreen.css';
 interface LoadingScreenProps {
   address: string;
   progressText?: string;
+  tone?: 'normal' | 'warning';
 }
 
 const PROGRESS_MESSAGES = [
@@ -16,7 +17,11 @@ const PROGRESS_MESSAGES = [
   'Computing sunlight...',
 ];
 
-export default function LoadingScreen({ address, progressText }: LoadingScreenProps) {
+export default function LoadingScreen({
+  address,
+  progressText,
+  tone = 'normal',
+}: LoadingScreenProps) {
   const [messageIndex, setMessageIndex] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -35,7 +40,10 @@ export default function LoadingScreen({ address, progressText }: LoadingScreenPr
   const displayText = progressText || PROGRESS_MESSAGES[messageIndex];
 
   return (
-    <div className="loading-screen" data-testid="loading-screen">
+    <div
+      className={`loading-screen${tone === 'warning' ? ' loading-screen--warning' : ''}`}
+      data-testid="loading-screen"
+    >
       <h2 className="loading-screen__address">{address}</h2>
       <div className="loading-screen__animation">
         <BuildingAnimation />

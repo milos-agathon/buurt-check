@@ -1,0 +1,123 @@
+import { render } from '@testing-library/react';
+import { axe } from 'jest-axe';
+import { I18nextProvider } from 'react-i18next';
+import type { ReactNode } from 'react';
+import App from '../App';
+import CompareScreen from '../components/CompareScreen';
+import ExportBottomSheet from '../components/ExportBottomSheet';
+import TierBSignalsCard from '../components/TierBSignalsCard';
+import type { ShortlistItem } from '../types/api';
+import { setupTestI18n } from './helpers';
+
+vi.mock('../services/api', () => ({
+  suggestAddresses: vi.fn(),
+  lookupAddress: vi.fn(),
+  getBuildingFacts: vi.fn(),
+  getBuilding3D: vi.fn(),
+  getNeighborhood3D: vi.fn(),
+  getRiskCards: vi.fn(),
+  getNeighborhoodStats: vi.fn(),
+  getViewingQuestions: vi.fn(),
+  getTierBData: vi.fn(),
+  exportBriefing: vi.fn(),
+}));
+
+vi.mock('react-leaflet', () => ({
+  MapContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TileLayer: () => null,
+  GeoJSON: () => null,
+}));
+
+let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
+
+beforeAll(async () => {
+  i18n = await setupTestI18n('en');
+});
+
+beforeEach(async () => {
+  await i18n.changeLanguage('en');
+});
+
+async function expectNoSeriousA11yViolations(container: HTMLElement) {
+  const results = await axe(container);
+  const severe = results.violations.filter(
+    (v: { impact?: string | null }) => v.impact === 'critical' || v.impact === 'serious',
+  );
+  expect(severe).toHaveLength(0);
+}
+
+function renderWithI18n(ui: React.ReactNode) {
+  return render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
+}
+
+function makeCompareItems(): ShortlistItem[] {
+  return [
+    {
+      vboId: 'vbo-1',
+      address: 'Keizersgracht 100',
+      postcode: '1015AA',
+      city: 'Amsterdam',
+      riskScores: { noise: 72, air: 62, climate: 55, sunlight: 61 },
+      savedAt: Date.now(),
+    },
+    {
+      vboId: 'vbo-2',
+      address: 'Herengracht 50',
+      postcode: '1016BS',
+      city: 'Amsterdam',
+      riskScores: { noise: 48, air: 70, climate: 67, sunlight: 58 },
+      savedAt: Date.now(),
+    },
+  ];
+}
+
+describe('Accessibility audits', () => {
+  it('App shell has no serious/critical violations', async () => {
+    const { container } = renderWithI18n(<App />);
+    await expectNoSeriousA11yViolations(container);
+  });
+
+  it('Export bottom sheet has no serious/critical violations', async () => {
+    const { container } = renderWithI18n(
+      <ExportBottomSheet
+        isOpen
+        onClose={() => {}}
+        vboId="0363010012345678"
+        rdX={121000}
+        rdY={487000}
+        lat={52.37}
+        lng={4.89}
+        address="Keizersgracht 100, Amsterdam"
+      />,
+    );
+    await expectNoSeriousA11yViolations(container);
+  });
+
+  it('Compare screen has no serious/critical violations', async () => {
+    const { container } = renderWithI18n(
+      <CompareScreen items={makeCompareItems()} onBack={() => {}} />,
+    );
+    await expectNoSeriousA11yViolations(container);
+  });
+
+  it('Tier-B card has no serious/critical violations', async () => {
+    const { container } = renderWithI18n(
+      <TierBSignalsCard
+        data={{
+          address_id: 'vbo-1',
+          energy_label: { label: 'A', source: 'EP-Online', source_date: '2025-05-01' },
+          crime: {
+            total_per_1000: 12.5,
+            burglary_per_1000: 1.1,
+            violent_per_1000: 0.7,
+            monthly_total_per_1000: 1.2,
+            monthly_period: '2025MM12',
+            source: 'CBS OData 47018NED/47022NED',
+            source_date: '2025JJ00',
+          },
+        }}
+      />,
+    );
+    await expectNoSeriousA11yViolations(container);
+  });
+});

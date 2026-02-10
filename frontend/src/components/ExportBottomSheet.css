@@ -8,23 +8,92 @@
   margin: 0 0 var(--space-lg);
 }
 
-.export-sheet__option {
+.export-sheet__section {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-sm) 0;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0 var(--space-md);
   border-bottom: 1px solid var(--color-border);
 }
 
-.export-sheet__label {
+.export-sheet__templates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xs);
+}
+
+.export-sheet__template-card {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 112px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.export-sheet__template-card--active {
+  background: var(--color-accent-light);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.export-sheet__template-illus {
+  width: 52px;
+  height: 36px;
+  stroke: var(--color-accent-text);
+  fill: none;
+  stroke-width: 1.8;
+}
+
+.export-sheet__template-title {
   font: var(--type-body);
+  font-weight: 600;
+}
+
+.export-sheet__template-meta {
+  font: var(--type-micro);
   color: var(--color-text-secondary);
 }
 
-.export-sheet__value {
-  font: var(--type-body);
-  color: var(--color-text);
-  font-weight: 500;
+.export-sheet__label {
+  font: var(--type-caption);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.export-sheet__language-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  width: 160px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+}
+
+.export-sheet__language-btn {
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 8px 0;
+  font: var(--type-micro);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.export-sheet__language-btn--active {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
 }
 
 .export-sheet__toggle {
@@ -49,6 +118,79 @@
   margin: var(--space-sm) 0;
 }
 
+.export-sheet__progress {
+  margin-top: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.export-sheet__progress-ring {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+}
+
+.export-sheet__progress-svg {
+  width: 40px;
+  height: 40px;
+  transform: rotate(-90deg);
+}
+
+.export-sheet__progress-track {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 3;
+}
+
+.export-sheet__progress-value {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 220ms ease-out;
+}
+
+.export-sheet__progress-icon {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.7;
+  fill: none;
+}
+
+.export-sheet__progress-percent {
+  position: absolute;
+  bottom: 1px;
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+}
+
+.export-sheet__progress-text {
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.export-sheet__ready {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.export-sheet__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
 .export-sheet__btn {
   width: 100%;
   margin-top: var(--space-lg);
@@ -70,4 +212,11 @@
 .export-sheet__btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.export-sheet__btn--secondary {
+  margin-top: 0;
+  background: var(--color-surface);
+  color: var(--color-accent-text);
+  border: 1px solid var(--color-accent);
 }

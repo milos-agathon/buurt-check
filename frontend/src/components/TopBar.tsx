@@ -25,6 +25,7 @@ export default function TopBar({ title, onSettingsClick }: TopBarProps) {
       <div className="top-bar__actions">
         <div className="top-bar__lang-toggle" role="radiogroup" aria-label="Language">
           <button
+            type="button"
             role="radio"
             aria-checked={i18n.language === 'en'}
             className={`top-bar__lang-btn${i18n.language === 'en' ? ' top-bar__lang-btn--active' : ''}`}
@@ -33,6 +34,7 @@ export default function TopBar({ title, onSettingsClick }: TopBarProps) {
             EN
           </button>
           <button
+            type="button"
             role="radio"
             aria-checked={i18n.language === 'nl'}
             className={`top-bar__lang-btn${i18n.language === 'nl' ? ' top-bar__lang-btn--active' : ''}`}
@@ -42,7 +44,7 @@ export default function TopBar({ title, onSettingsClick }: TopBarProps) {
           </button>
         </div>
         {onSettingsClick && (
-          <button className="top-bar__settings" onClick={onSettingsClick} aria-label="Settings">
+          <button type="button" className="top-bar__settings" onClick={onSettingsClick} aria-label="Settings">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />

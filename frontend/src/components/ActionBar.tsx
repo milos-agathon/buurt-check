@@ -17,6 +17,7 @@ export default function ActionBar({
   return (
     <div className="action-bar" data-testid="action-bar">
       <button
+        type="button"
         className={`action-bar__btn action-bar__btn--secondary${isBookmarked ? ' action-bar__btn--saved' : ''}`}
         onClick={onAddToShortlist}
       >
@@ -28,6 +29,7 @@ export default function ActionBar({
           : t('action.addToShortlist', 'Add to Shortlist')}
       </button>
       <button
+        type="button"
         className="action-bar__btn action-bar__btn--primary"
         onClick={onExportBriefing}
       >

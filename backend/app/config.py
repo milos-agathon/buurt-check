@@ -19,6 +19,12 @@ class Settings(BaseSettings):
 
     # CBS Wijken & Buurten
     cbs_wijken_buurten_base: str = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1"
+    cbs_crime_yearly_base: str = "https://dataderden.cbs.nl/ODataApi/OData/47018NED"
+    cbs_crime_monthly_base: str = "https://dataderden.cbs.nl/ODataApi/OData/47022NED"
+
+    # Tier-B data
+    energy_label_base: str = "https://public.ep-online.nl/api/v5/PandEnergielabel/Adres"
+    energy_label_api_key: str | None = None
 
     # Feature flags
     enable_lod22_roofs: bool = True
@@ -31,6 +37,7 @@ class Settings(BaseSettings):
     cache_ttl_risk_cards: int = 604800  # 7 days
     cache_ttl_neighborhood: int = 2592000  # 30 days
     cache_ttl_wms_tile: int = 86400  # 24 hours
+    cache_ttl_tier_b: int = 604800  # 7 days
 
     model_config = {"env_prefix": "BUURT_", "env_file": ".env"}
 

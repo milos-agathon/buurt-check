@@ -18,9 +18,13 @@ from app.models.risk import (
     AirQualityRiskCard,
     ClimateStressRiskCard,
     NoiseRiskCard,
+    QuestionCategory,
     RiskCardsResponse,
     RiskLevel,
+    ViewingQuestion,
+    ViewingQuestionsResponse,
 )
+from app.models.tier_b import CrimeStatsCard, EnergyLabelCard, TierBResponse
 
 
 @pytest.mark.asyncio
@@ -322,6 +326,46 @@ async def test_neighborhood_3d_caches_successful_response(
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.three_d_bag")
+async def test_neighborhood_3d_does_not_cache_partial_response(
+    mock_3d, mock_cache_set, mock_cache_get, client,
+):
+    """cache_set is NOT called when response is flagged as partial."""
+    mock_3d.get_neighborhood_3d = AsyncMock(
+        return_value=Neighborhood3DResponse(
+            address_id="0363100012253924",
+            target_pand_id="0363100012253924",
+            center=Neighborhood3DCenter(lat=52.372, lng=4.892, rd_x=121286.0, rd_y=487296.0),
+            buildings=[
+                BuildingBlock(
+                    pand_id="0363100012253924",
+                    ground_height=1.75,
+                    building_height=16.43,
+                    footprint=[[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]],
+                    year=1917,
+                )
+            ],
+            message="Partial neighborhood data: some surrounding buildings could not be loaded",
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/neighborhood3d",
+        params={
+            "pand_id": "0363100012253924",
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+    assert resp.status_code == 200
+    mock_cache_set.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.three_d_bag")
 async def test_neighborhood_3d_does_not_cache_empty_response(
     mock_3d, mock_cache_set, mock_cache_get, client,
 ):
@@ -528,6 +572,118 @@ async def test_risk_cards_missing_params(client):
     """Missing rd_x/rd_y/lat/lng returns 422."""
     resp = await client.get("/api/address/0363010000696734/risks")
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.risk_cards")
+@patch("app.api.address.build_viewing_questions")
+async def test_viewing_questions_passes_context_to_builder(
+    mock_build_questions,
+    mock_risk_cards,
+    mock_cache_get,
+    client,
+):
+    mock_risk_cards.get_risk_cards = AsyncMock(
+        return_value=RiskCardsResponse(
+            address_id="0363010000696734",
+            noise=NoiseRiskCard(
+                level=RiskLevel.medium,
+                source="RIVM",
+                sampled_at="2026-02-10",
+                score=55,
+                severity="moderate",
+            ),
+            air_quality=AirQualityRiskCard(
+                level=RiskLevel.low,
+                pm25_level=RiskLevel.low,
+                no2_level=RiskLevel.low,
+                source="RIVM",
+                sampled_at="2026-02-10",
+                score=72,
+                severity="good",
+            ),
+            climate_stress=ClimateStressRiskCard(
+                level=RiskLevel.low,
+                heat_level=RiskLevel.low,
+                water_level=RiskLevel.low,
+                source="Klimaateffectatlas",
+                sampled_at="2026-02-10",
+                score=76,
+                severity="good",
+            ),
+        )
+    )
+    mock_build_questions.return_value = ViewingQuestionsResponse(
+        address_id="0363010000696734",
+        categories=[
+            QuestionCategory(
+                name="Noise",
+                name_nl="Geluid",
+                severity="moderate",
+                questions=[
+                    ViewingQuestion(
+                        text_en="Question",
+                        text_nl="Vraag",
+                    )
+                ],
+            )
+        ],
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/viewing-questions",
+        params={
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+            "street": "Kalverstraat",
+            "city": "Amsterdam",
+        },
+    )
+    assert resp.status_code == 200
+    mock_build_questions.assert_called_once()
+    _, kwargs = mock_build_questions.call_args
+    assert kwargs["street"] == "Kalverstraat"
+    assert kwargs["city"] == "Amsterdam"
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.tier_b")
+async def test_tier_b_endpoint_returns_data_and_caches(
+    mock_tier_b, mock_cache_set, mock_cache_get, client,
+):
+    mock_tier_b.get_tier_b_data = AsyncMock(
+        return_value=TierBResponse(
+            address_id="0363010000696734",
+            energy_label=EnergyLabelCard(label="A", source_date="2025-05-01"),
+            crime=CrimeStatsCard(
+                total_per_1000=12.5,
+                burglary_per_1000=1.2,
+                violent_per_1000=0.8,
+                yearly_period="2025JJ00",
+                monthly_total_per_1000=1.0,
+                monthly_period="2025MM12",
+            ),
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/tier-b",
+        params={
+            "buurt_code": "BU0363AD07",
+            "postcode": "1012NX",
+            "house_number": "1",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["energy_label"]["label"] == "A"
+    assert data["crime"]["total_per_1000"] == 12.5
+    mock_cache_set.assert_called_once()
 
 
 # --- Neighborhood stats endpoint ---

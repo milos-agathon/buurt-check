@@ -8,6 +8,18 @@ export default defineConfig({
       '/api': 'http://localhost:8000',
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-i18next', 'i18next'],
+          'vendor-map': ['leaflet', 'react-leaflet'],
+          'vendor-three': ['three', 'suncalc'],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

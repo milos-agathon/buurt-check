@@ -9,12 +9,6 @@ interface Props {
 }
 
 const DATE_PRESETS = ['winter', 'spring', 'summer', 'autumn'] as const;
-const SEASON_EMOJI: Record<string, string> = {
-  winter: '\u2744\uFE0F',
-  spring: '\uD83C\uDF38',
-  summer: '\u2600\uFE0F',
-  autumn: '\uD83C\uDF42',
-};
 const TICK_HOURS = [6, 9, 12, 15, 18, 21];
 
 export default function ShadowControls({ hour, datePreset, onHourChange, onDatePresetChange }: Props) {
@@ -30,8 +24,7 @@ export default function ShadowControls({ hour, datePreset, onHourChange, onDateP
             onClick={() => onDatePresetChange(preset)}
             type="button"
           >
-            <span className="shadow-controls__emoji">{SEASON_EMOJI[preset]}</span>
-            {' '}{t(`viewer3d.${preset}`)}
+            {t(`viewer3d.${preset}`)}
           </button>
         ))}
       </div>

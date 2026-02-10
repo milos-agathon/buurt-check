@@ -18,6 +18,10 @@ class NoiseRiskCard(BaseModel):
     sampled_at: str
     layer: str | None = None
     message: str | None = None
+    score: int | None = None
+    severity: str | None = None
+    summary: str | None = None
+    summary_nl: str | None = None
 
 
 class AirQualityRiskCard(BaseModel):
@@ -32,6 +36,10 @@ class AirQualityRiskCard(BaseModel):
     pm25_layer: str | None = None
     no2_layer: str | None = None
     message: str | None = None
+    score: int | None = None
+    severity: str | None = None
+    summary: str | None = None
+    summary_nl: str | None = None
 
 
 class ClimateStressRiskCard(BaseModel):
@@ -48,6 +56,20 @@ class ClimateStressRiskCard(BaseModel):
     heat_signal: str | None = None
     water_signal: str | None = None
     message: str | None = None
+    score: int | None = None
+    severity: str | None = None
+    summary: str | None = None
+    summary_nl: str | None = None
+
+
+class SunlightRiskCard(BaseModel):
+    level: RiskLevel
+    winter_hours: float | None = None
+    source: str
+    score: int | None = None
+    severity: str | None = None
+    summary: str | None = None
+    summary_nl: str | None = None
 
 
 class RiskCardsResponse(BaseModel):
@@ -55,3 +77,43 @@ class RiskCardsResponse(BaseModel):
     noise: NoiseRiskCard
     air_quality: AirQualityRiskCard
     climate_stress: ClimateStressRiskCard
+    sunlight: SunlightRiskCard | None = None
+
+
+class ComparisonPattern(str, Enum):
+    solid = "solid"
+    dashed = "dashed"
+
+
+class RiskComparisonRow(BaseModel):
+    label_code: str
+    value: int
+    pattern: ComparisonPattern = ComparisonPattern.solid
+    source: str | None = None
+    source_date: str | None = None
+
+
+class RiskComparisonsResponse(BaseModel):
+    address_id: str
+    noise: list[RiskComparisonRow]
+    air_quality: list[RiskComparisonRow]
+    climate_stress: list[RiskComparisonRow]
+    sunlight: list[RiskComparisonRow]
+    generated_at: str
+
+
+class ViewingQuestion(BaseModel):
+    text_en: str
+    text_nl: str
+
+
+class QuestionCategory(BaseModel):
+    name: str
+    name_nl: str
+    severity: str
+    questions: list[ViewingQuestion]
+
+
+class ViewingQuestionsResponse(BaseModel):
+    address_id: str
+    categories: list[QuestionCategory]

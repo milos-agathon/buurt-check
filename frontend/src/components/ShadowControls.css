@@ -30,12 +30,8 @@
 
 .shadow-controls__preset--active {
   background: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: #fff;
   border-color: var(--color-accent);
-}
-
-.shadow-controls__emoji {
-  font-size: 0.85rem;
 }
 
 .shadow-controls__slider {

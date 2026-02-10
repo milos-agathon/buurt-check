@@ -6,7 +6,7 @@
 .score-bar__track {
   position: relative;
   height: 2px;
-  background: #E8EAED;
+  background: var(--color-border);
   border-radius: 1px;
 }
 

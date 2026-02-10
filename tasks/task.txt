@@ -8,31 +8,31 @@ now you must update @CLAUDE.md with the learnings to improve your efficiency and
   implement F3 from @docs/prd.md end-to-end. Do not stop until you implement fully every single part of F3. Do not claim success until you implemented 
   everything
 
-  you are acting as senior software engineer with 30 years of experience in developing and selling muli-million dollar mobile app.   
-  you are working on buur
-  t-check codespace, a new multi-million dollar project. You must first read @CLAUDE.md and internalize codebase rules.
-  Then you must read @prd.md fully to grasp what we are building
-  Finally, you must rigorously assess the implementation level of F4. Be honest, methodical and accurate. Do not stop until you rigorously assess every single part of F4. Do not claim success until you rigorously assessed 
-  everything.
+you are acting as senior software engineer with 30 years of experience in developing and selling muli-million dollar mobile app. you are working on buurt-check codespace, 
+a new multi-million dollar project. You must first read @CLAUDE.md and internalize codebase rules. 
+Then you must read docs\design-spec.md and docs\design-prd.md fully to grasp what we are building. 
+Finally, you must rigorously assess the implementation level of these two docs. Be honest, methodical and  accurate. 
+Do not stop until you rigorously assess every single part of it. Do not claim success until you rigorously assessed everything. 
+write a detailed report and save it as  markdown in @docs\ with concrete steps on how to implement the missing parts
 
   Duinzicht 23, 2235BV Valkenburg
 
 think hard
 
-# Planning Session: F2 — 3D neighborhood viewer + sunlight & shadow simulation
+# Planning Session: Phase 1
 
 ## Your task
 Read the relevant source files and produce a detailed implementation plan. Do NOT write any code.
 
 ## Context
-- Read `docs/prd.md` sections: [RELEVANT SECTIONS, e.g., "F2 — 3D neighborhood viewer + sunlight & shadow simulation"]
+- Read `docs/implementation-assessment-2026-02-10.md`
 - Read the existing backend service pattern in `backend/services/bag.py` (this is our reference implementation for external API integration)
 - Read the existing risk card component pattern in `frontend/src/components/RiskCard/` if it exists
 - Read `backend/models/` to understand our PostGIS schema conventions
 - Read `CLAUDE.md` in root, backend/, and frontend/
 
 ## Requirements
-F2 — 3D neighborhood viewer + sunlight & shadow simulation from prd.md
+All requirements from Phase 1 in `docs/implementation-assessment-2026-02-10.md`
 
 ## Plan format
 Produce a plan with exactly this structure:

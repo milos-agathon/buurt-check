@@ -7,21 +7,21 @@
   justify-content: space-between;
   height: var(--top-bar-height);
   padding: 0 var(--space-lg);
-  background: transparent;
+  background: var(--color-nav-bg);
   transition: background var(--transition-fast), border-color var(--transition-fast);
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid var(--color-nav-border);
 }
 
 .top-bar--scrolled {
-  background: var(--color-surface);
-  border-bottom-color: var(--color-border);
+  background: var(--color-nav-bg);
+  border-bottom-color: var(--color-nav-border);
 }
 
 .top-bar__title {
   font-family: var(--font-family);
   font-size: 18px;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--color-overlay-text);
   line-height: 1;
 }
 
@@ -33,10 +33,10 @@
 
 .top-bar__lang-toggle {
   display: flex;
-  background: var(--color-surface-hover);
+  background: var(--color-nav-control-bg);
   border-radius: var(--radius-pill);
   padding: 2px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-nav-border);
 }
 
 .top-bar__lang-btn {
@@ -48,13 +48,13 @@
   font-weight: 600;
   cursor: pointer;
   background: transparent;
-  color: var(--color-text-tertiary);
+  color: var(--color-nav-text-dimmed);
   transition: all var(--transition-fast);
 }
 
 .top-bar__lang-btn--active {
   background: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
 }
 
 .top-bar__settings {
@@ -66,11 +66,11 @@
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--color-nav-icon);
   cursor: pointer;
   transition: background var(--transition-fast);
 }
 
 .top-bar__settings:hover {
-  background: var(--color-surface-hover);
+  background: var(--color-nav-border);
 }

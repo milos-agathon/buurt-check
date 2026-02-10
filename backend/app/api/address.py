@@ -8,11 +8,18 @@ from app.cache.redis import cache_get, cache_set
 from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
-from app.models.neighborhood import NeighborhoodStatsResponse
+from app.models.neighborhood import NeighborhoodStatsResponse, UrbanizationLevel
 from app.models.neighborhood3d import Neighborhood3DResponse
-from app.models.risk import RiskCardsResponse, RiskLevel, ViewingQuestionsResponse
-from app.services import bag, cbs, locatieserver, risk_cards, three_d_bag, wms_tile
-from app.services.pdf_export import generate_quick_brief
+from app.models.risk import (
+    RiskCardsResponse,
+    RiskComparisonsResponse,
+    RiskLevel,
+    ViewingQuestionsResponse,
+)
+from app.models.tier_b import TierBResponse
+from app.services import bag, cbs, locatieserver, risk_cards, three_d_bag, tier_b, wms_tile
+from app.services.pdf_export import generate_full_dossier, generate_quick_brief
+from app.services.risk_comparisons import build_risk_comparisons
 from app.services.viewing_questions import build_viewing_questions
 
 logger = logging.getLogger(__name__)
@@ -175,8 +182,8 @@ async def neighborhood_3d(
     lng: float = Query(...),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
-    # v4: parallel pagination strategy, avoid mixing with older cache entries
-    cache_key = f"neighborhood3d:v4:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    # v10: full-bbox pagination + LoD2.2 context enrichment.
+    cache_key = f"neighborhood3d:v10:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return Neighborhood3DResponse(**cached)
@@ -295,6 +302,72 @@ async def neighborhood_stats(
     return result
 
 
+@router.get("/{vbo_id}/risk-comparisons", response_model=RiskComparisonsResponse)
+async def risk_comparisons(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    lat: float = Query(...),
+    lng: float = Query(...),
+    buurt_code: str | None = Query(None),
+):
+    """Return data-driven comparison rows for risk detail views."""
+    cache_key_risks = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cached_risks = await cache_get(cache_key_risks)
+    if cached_risks is not None:
+        risk_result = RiskCardsResponse(**cached_risks)
+    else:
+        try:
+            risk_result = await risk_cards.get_risk_cards(
+                vbo_id=vbo_id,
+                rd_x=rd_x,
+                rd_y=rd_y,
+                lat=lat,
+                lng=lng,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail="Risk card data sources unavailable",
+            ) from exc
+
+    urbanization = UrbanizationLevel.unknown
+    cache_key_neighborhood = (
+        f"neighborhood:{buurt_code}"
+        if buurt_code
+        else f"neighborhood:{lat:.4f}:{lng:.4f}"
+    )
+    cached_neighborhood = await cache_get(cache_key_neighborhood)
+    if cached_neighborhood is not None:
+        neighborhood_result = NeighborhoodStatsResponse(**cached_neighborhood)
+        if neighborhood_result.stats is not None:
+            urbanization = neighborhood_result.stats.urbanization
+    else:
+        try:
+            neighborhood_result = await cbs.get_neighborhood_stats(
+                vbo_id=vbo_id,
+                lat=lat,
+                lng=lng,
+                buurt_code=buurt_code,
+            )
+            if neighborhood_result.stats is not None and neighborhood_result.message is None:
+                await cache_set(
+                    cache_key_neighborhood,
+                    neighborhood_result.model_dump(),
+                    ttl=settings.cache_ttl_neighborhood,
+                )
+            if neighborhood_result.stats is not None:
+                urbanization = neighborhood_result.stats.urbanization
+        except Exception:
+            logger.warning("Failed to fetch neighborhood stats for risk comparisons")
+
+    return build_risk_comparisons(
+        vbo_id=vbo_id,
+        cards=risk_result,
+        urbanization=urbanization,
+    )
+
+
 @router.get(
     "/{vbo_id}/viewing-questions", response_model=ViewingQuestionsResponse
 )
@@ -304,6 +377,8 @@ async def viewing_questions(
     rd_y: float = Query(...),
     lat: float = Query(...),
     lng: float = Query(...),
+    street: str | None = Query(None, description="Street name for contextualized questions"),
+    city: str | None = Query(None, description="City name for contextualized questions"),
 ):
     """Generate viewing questions based on risk card scores.
 
@@ -329,7 +404,50 @@ async def viewing_questions(
                 status_code=502, detail="Risk card data sources unavailable"
             ) from exc
 
-    return build_viewing_questions(vbo_id, risk_result)
+    return build_viewing_questions(vbo_id, risk_result, street=street, city=city)
+
+
+@router.get("/{vbo_id}/tier-b", response_model=TierBResponse)
+async def tier_b_signals(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    buurt_code: str | None = Query(None),
+    postcode: str | None = Query(None),
+    house_number: str | None = Query(None),
+    house_letter: str | None = Query(None),
+    addition: str | None = Query(None),
+):
+    """Fetch Tier-B signals: energy label + crime context."""
+    cache_key = (
+        f"tier-b:{vbo_id}:{buurt_code or '-'}:{postcode or '-'}:{house_number or '-'}"
+        f":{house_letter or '-'}:{addition or '-'}"
+    )
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return TierBResponse(**cached)
+
+    try:
+        result = await tier_b.get_tier_b_data(
+            vbo_id=vbo_id,
+            buurt_code=buurt_code,
+            postcode=postcode,
+            house_number=house_number,
+            house_letter=house_letter,
+            addition=addition,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Tier-B data sources unavailable",
+        ) from exc
+
+    has_any_data = bool(
+        result.energy_label.label
+        or result.crime.total_per_1000 is not None
+        or result.crime.monthly_total_per_1000 is not None
+    )
+    if has_any_data:
+        await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_tier_b)
+    return result
 
 
 @router.get("/{vbo_id}/export")
@@ -343,14 +461,19 @@ async def export_briefing(
     template: str = Query("quick_brief"),
     language: str = Query("en"),
     shadow_image: str | None = Query(None, description="Base64-encoded shadow snapshot"),
+    street: str | None = Query(None, description="Street name for contextualized checklist"),
+    city: str | None = Query(None, description="City name for contextualized checklist"),
 ):
     """Export a PDF viewing briefing for the address.
 
     Assembles data from cached risk/building/viewing-questions responses
     and generates a downloadable PDF.
     """
-    if template != "quick_brief":
-        raise HTTPException(status_code=422, detail="Only 'quick_brief' template is supported")
+    if template not in ("quick_brief", "full_dossier"):
+        raise HTTPException(
+            status_code=422,
+            detail="Template must be 'quick_brief' or 'full_dossier'",
+        )
     if language not in ("en", "nl"):
         raise HTTPException(status_code=422, detail="Language must be 'en' or 'nl'")
 
@@ -397,18 +520,30 @@ async def export_briefing(
     # Fetch viewing questions
     viewing_qs: ViewingQuestionsResponse | None = None
     if risks:
-        viewing_qs = build_viewing_questions(vbo_id, risks)
+        viewing_qs = build_viewing_questions(vbo_id, risks, street=street, city=city)
 
-    pdf_bytes = generate_quick_brief(
-        address=address,
-        building_year=building_year,
-        building_use=building_use,
-        risks=risks,
-        sunlight_score=sunlight_score,
-        viewing_questions=viewing_qs,
-        shadow_image_b64=shadow_image,
-        language=language,
-    )
+    if template == "full_dossier":
+        pdf_bytes = generate_full_dossier(
+            address=address,
+            building_year=building_year,
+            building_use=building_use,
+            risks=risks,
+            sunlight_score=sunlight_score,
+            viewing_questions=viewing_qs,
+            shadow_image_b64=shadow_image,
+            language=language,
+        )
+    else:
+        pdf_bytes = generate_quick_brief(
+            address=address,
+            building_year=building_year,
+            building_use=building_use,
+            risks=risks,
+            sunlight_score=sunlight_score,
+            viewing_questions=viewing_qs,
+            shadow_image_b64=shadow_image,
+            language=language,
+        )
 
     filename = f"buurt-check-{vbo_id}.pdf"
     return Response(

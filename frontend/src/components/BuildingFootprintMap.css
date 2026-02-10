@@ -16,3 +16,13 @@
   height: 300px;
   width: 100%;
 }
+
+/* Dark basemap: invert PDOK BRT grijs tiles to approximate a dark theme */
+[data-theme="dark"] .footprint-map__container .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1);
+}
+
+/* Keep markers/overlays readable by double-inverting them */
+[data-theme="dark"] .footprint-map__container .leaflet-overlay-pane {
+  filter: invert(1) hue-rotate(180deg);
+}

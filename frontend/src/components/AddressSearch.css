@@ -19,7 +19,7 @@
 }
 
 .address-search__wrapper:focus-within .address-search__pin {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .address-search__input {
@@ -39,7 +39,7 @@
 .address-search__input:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 4px rgba(0, 137, 123, 0.12);
+  box-shadow: var(--focus-ring-accent);
 }
 
 .address-search__input::placeholder {

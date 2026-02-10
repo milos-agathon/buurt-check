@@ -10,15 +10,15 @@
 }
 
 .risk-cards__loading {
-  color: var(--color-text-muted);
+  color: var(--color-text-tertiary);
   font-size: 0.875rem;
 }
 
 .risk-cards__error {
   font-size: 0.875rem;
-  color: #92400e;
-  background: #fef3c7;
-  border-left: 3px solid #f59e0b;
+  color: var(--color-badge-caution-text);
+  background: var(--color-badge-caution-bg);
+  border-left: 3px solid var(--color-warning);
   padding: 8px 12px;
   border-radius: 4px;
 }
@@ -54,23 +54,23 @@
 }
 
 .risk-card__badge--low {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--color-badge-positive-bg);
+  color: var(--color-badge-positive-text);
 }
 
 .risk-card__badge--medium {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--color-badge-caution-bg);
+  color: var(--color-badge-caution-text);
 }
 
 .risk-card__badge--high {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--color-badge-negative-bg);
+  color: var(--color-badge-negative-text);
 }
 
 .risk-card__badge--unavailable {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--color-badge-neutral-bg);
+  color: var(--color-badge-neutral-text);
 }
 
 .risk-card__meaning {
@@ -79,12 +79,12 @@
 
 .risk-card__metric {
   font-size: 0.813rem;
-  color: var(--color-text-muted);
+  color: var(--color-text-tertiary);
 }
 
 .risk-card__question {
   font-size: 0.813rem;
-  background: #f0f9ff;
+  background: var(--color-accent-light);
   border-left: 3px solid var(--color-primary);
   border-radius: 6px;
   padding: 8px 10px;
@@ -93,14 +93,14 @@
 .risk-card__source,
 .risk-cards__disclaimer {
   font-size: 0.72rem;
-  color: var(--color-text-muted);
+  color: var(--color-text-tertiary);
 }
 
 .risk-card__warning {
   font-size: 0.78rem;
-  color: #92400e;
-  background: #fef3c7;
-  border-left: 3px solid #f59e0b;
+  color: var(--color-badge-caution-text);
+  background: var(--color-badge-caution-bg);
+  border-left: 3px solid var(--color-warning);
   padding: 6px 10px;
   border-radius: 4px;
   margin-top: 4px;

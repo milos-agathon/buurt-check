@@ -24,11 +24,11 @@ src/
   App.css              — App layout, screen containers
   index.css            — Global resets, imports tokens + fonts
   styles/
-    tokens.css         — Design system CSS custom properties ("Clear Signal Hybrid")
+    tokens.css         — Design system CSS custom properties ("Polar Frost")
     satoshi.css        — @font-face for Satoshi Variable (woff2)
   components/
     # Navigation shell
-    TabBar.tsx         — 3-tab bottom nav (Search, Briefing, Saved), frosted glass
+    TabBar.tsx         — 3-tab bottom nav (Search, Briefing, Saved), solid white + teal pill
     TopBar.tsx         — Sticky header with title + language toggle
     # Search
     AddressSearch.tsx  — Autocomplete input with PDOK Locatieserver
@@ -82,14 +82,15 @@ src/
     helpers.ts         — Test factories for API response mocks
 ```
 
-## Design system — "Clear Signal Hybrid"
+## Design system — "Polar Frost"
 
 Design tokens in `styles/tokens.css`. All components use CSS custom properties.
 
 ### Colors
-- **Primary:** `--color-primary: #1A1A2E` (Charcoal), `--color-accent: #00897B` (Electric Teal)
-- **Risk severity:** `--color-risk-good: #2E7D68`, `--color-risk-moderate: #E8913A`, `--color-risk-poor: #D84315`, `--color-risk-critical: #B71C1C`
-- **Surfaces:** `--color-bg: #F8F9FA`, `--color-surface: #FFFFFF`, `--color-surface-alt: #F4F5F7`
+- **Primary:** `--color-primary: #1C2D3F` (Polar Slate), `--color-accent: #2EC4B6` (Arctic Teal)
+- **WCAG-safe accent text:** `--color-accent-text: #1C8C83` (teal.600, 4.52:1 on white) — use instead of `--color-accent` for text on light backgrounds
+- **Risk severity:** `--color-risk-good: #22C55E`, `--color-risk-moderate: #EAB308`, `--color-risk-poor: #EF4444`, `--color-risk-critical: #B91C1C`
+- **Surfaces:** `--color-bg: #FAFBFC`, `--color-surface: #FFFFFF`, `--color-surface-alt: #F5F7F9`
 
 ### Typography
 - Font: Satoshi Variable (woff2, self-hosted from fontshare.com)
@@ -102,7 +103,7 @@ Design tokens in `styles/tokens.css`. All components use CSS custom properties.
 ### Layout
 - Mobile-first, `--max-width: 600px` container
 - Bottom tab bar: 56px + safe area
-- Frosted glass: `backdrop-filter: blur(20px)`, 92% white opacity
+- Tab bar: solid white background + teal pill on active tab. Top bar: dark slate (`--color-nav-bg: #1C2D3F`)
 
 ## Conventions — follow these exactly
 
@@ -128,7 +129,7 @@ Design tokens in `styles/tokens.css`. All components use CSS custom properties.
 - Mobile-first. Component CSS co-located (e.g., `AddressSearch.css`)
 - Use `var(--token-name)` for all colors, spacing, typography, radii, shadows
 - Dark mode: `[data-theme="dark"]` selectors override token values in `tokens.css`
-- Available tokens: see `styles/tokens.css` for full reference (~170 tokens)
+- Available tokens: see `styles/tokens.css` for full reference (~195 tokens, including slate/teal scale intermediates, nav/overlay utility, choropleth ramps)
 
 ### i18n
 - All user-facing strings via `useTranslation()` hook
@@ -150,7 +151,8 @@ Design tokens in `styles/tokens.css`. All components use CSS custom properties.
 - `mergeGeometries` from `three/addons/utils/BufferGeometryUtils.js` for non-target buildings (single draw call)
 - FPS monitoring: 60-frame window, 3 consecutive low readings → reduce shadow map size + show banner
 - Fullscreen: `requestFullscreen()` API + `fullscreenchange` event sync + CSS `.fullscreen` class
-- Dark mode: target building color switches blue/teal based on `data-theme` attribute
+- Target building: Arctic Teal (`0x2EC4B6`) with teal.300 emissive glow, in both light and dark mode
+- Neighbor buildings: uniform slate.200 (`0xB4C0CE`) at 60% opacity (no construction-year colors)
 
 ### Risk scoring (0-100 scale)
 - Backend provides `score` (0-100) and `severity` (good/moderate/poor/critical) on each risk card
@@ -166,7 +168,7 @@ Design tokens in `styles/tokens.css`. All components use CSS custom properties.
 
 ## Testing patterns
 
-- **Test count baseline: 324** — any change must maintain or increase
+- **Test count baseline: 330** — any change must maintain or increase
 - Vitest 4.x + Testing Library + jsdom
 - Three.js mock: constructor functions (not arrow fns — `new` fails). Use `function Scene(this: any) { this.add = vi.fn(); }` pattern
 - react-leaflet mock: `MapContainer` → `<div data-testid="map">`, `TileLayer`/`GeoJSON` → `null`

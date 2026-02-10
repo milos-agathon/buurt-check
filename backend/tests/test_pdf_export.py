@@ -16,7 +16,7 @@ from app.models.risk import (
     ViewingQuestion,
     ViewingQuestionsResponse,
 )
-from app.services.pdf_export import generate_quick_brief
+from app.services.pdf_export import generate_full_dossier, generate_quick_brief
 
 # --- Unit tests for generate_quick_brief ---
 
@@ -188,6 +188,21 @@ def test_generate_quick_brief_none_scores():
     assert result[:5] == b"%PDF-"
 
 
+def test_generate_full_dossier_returns_pdf_bytes():
+    result = generate_full_dossier(
+        address="Kalverstraat 1, 1012 Amsterdam",
+        building_year=1920,
+        building_use="Residential",
+        risks=_make_risks(),
+        sunlight_score=80,
+        viewing_questions=_make_viewing_questions(),
+        language="en",
+    )
+    assert isinstance(result, bytes)
+    assert len(result) > 100
+    assert result[:5] == b"%PDF-"
+
+
 def test_severity_labels():
     from app.services.pdf_export import _severity_label, _severity_label_nl
 
@@ -299,11 +314,44 @@ async def test_export_endpoint_invalid_template(client):
             "lat": 52.37,
             "lng": 4.89,
             "address": "Test",
-            "template": "full_dossier",
+            "template": "not_a_template",
         },
     )
     assert resp.status_code == 422
-    assert "quick_brief" in resp.json()["detail"]
+    assert "full_dossier" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+@patch("app.api.address.risk_cards")
+async def test_export_endpoint_full_dossier_template(
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, client
+):
+    mock_bag.get_building_facts = AsyncMock(
+        return_value=BuildingFacts(
+            pand_id="0363100012345678",
+            construction_year=1990,
+            intended_use_en=["Residential"],
+        )
+    )
+    mock_risk_cards.get_risk_cards = AsyncMock(return_value=_make_risks())
+
+    resp = await client.get(
+        "/api/address/0363010012345678/export",
+        params={
+            "rd_x": 121000,
+            "rd_y": 487000,
+            "lat": 52.37,
+            "lng": 4.89,
+            "address": "Kalverstraat 1, Amsterdam",
+            "template": "full_dossier",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.content[:5] == b"%PDF-"
 
 
 @pytest.mark.asyncio

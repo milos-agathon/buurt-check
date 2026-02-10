@@ -69,6 +69,7 @@ vi.mock('three', () => {
     this.closePath = vi.fn();
   }
   function ExtrudeGeometry(this: any) { this.dispose = vi.fn(); }
+  ExtrudeGeometry.prototype.applyMatrix4 = vi.fn();
   function BufferGeometry(this: any) {
     this.setAttribute = vi.fn();
     this.setIndex = vi.fn();
@@ -104,13 +105,17 @@ vi.mock('three', () => {
     this.opacity = 1;
     this.depthWrite = true;
   }
+  function Matrix4(this: any) {
+    this.makeRotationX = vi.fn().mockReturnThis();
+    this.setPosition = vi.fn().mockReturnThis();
+  }
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   return {
     Scene, PerspectiveCamera, WebGLRenderer, HemisphereLight, DirectionalLight,
     PlaneGeometry, MeshStandardMaterial, MeshBasicMaterial, Mesh: MockMesh,
     Shape, ExtrudeGeometry, BufferGeometry, Float32BufferAttribute,
-    Color, PCFSoftShadowMap: 2, Vector3: Vec3, Raycaster, TextureLoader,
+    Color, Matrix4, PCFSoftShadowMap: 2, Vector3: Vec3, Raycaster, TextureLoader,
     DoubleSide: 2, SRGBColorSpace: 'srgb', LinearFilter: 1006,
   };
 });
@@ -126,6 +131,10 @@ vi.mock('three/addons/controls/OrbitControls.js', () => {
   }
   return { OrbitControls };
 });
+
+vi.mock('three/addons/utils/BufferGeometryUtils.js', () => ({
+  mergeGeometries: vi.fn((geometries: unknown[]) => geometries[0] ?? null),
+}));
 
 vi.mock('suncalc', () => ({
   default: {
@@ -147,7 +156,6 @@ vi.mock('gsap', () => ({
 
 // Must import after mocks
 import NeighborhoodViewer3D from './NeighborhoodViewer3D';
-import { getYearColor } from './NeighborhoodViewer3D';
 
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -286,13 +294,3 @@ describe('NeighborhoodViewer3D', () => {
   });
 });
 
-describe('getYearColor', () => {
-  it('maps construction year periods to correct colors', () => {
-    expect(getYearColor(1875)).toBe(0xa0522d);   // Pre-1900: sienna
-    expect(getYearColor(1920)).toBe(0xcc7722);    // 1900-1945: warm orange-brown
-    expect(getYearColor(1960)).toBe(0xc8b87d);    // 1945-1975: sandy yellow
-    expect(getYearColor(1985)).toBe(0x9e9e9e);    // 1975-2000: neutral gray
-    expect(getYearColor(2010)).toBe(0xb0bec5);    // 2000+: blue-gray
-    expect(getYearColor(undefined)).toBe(0xe0e0e0); // Unknown: light gray
-  });
-});

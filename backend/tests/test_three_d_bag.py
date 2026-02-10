@@ -1,3 +1,4 @@
+import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -5,9 +6,7 @@ import pytest
 
 from app.models.neighborhood3d import BuildingBlock
 from app.services.three_d_bag import (
-    MAX_PAGES,
     _extract_lod22_surfaces,
-    _fetch_bbox_buildings,
     _fetch_target_building,
     _parse_building,
     get_neighborhood_3d,
@@ -236,10 +235,16 @@ def _make_mock_resp(data):
 
 
 def _route_responses(direct_resp, bbox_resp):
-    """Create a side_effect function that routes by URL pattern."""
+    """Create a side_effect function that routes by URL pattern.
+
+    Any single-item request returns a matching single-item payload for that pand_id,
+    which keeps LoD2.2 enrichment deterministic in tests.
+    """
     def _side_effect(url, **kwargs):
-        if "NL.IMBAG.Pand." in str(url):
-            return direct_resp
+        s_url = str(url)
+        match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+        if match:
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
         return bbox_resp
     return _side_effect
 
@@ -313,27 +318,27 @@ async def test_get_neighborhood_3d_single_page(mock_get_client):
 
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
-async def test_get_neighborhood_3d_pagination(mock_get_client):
-    """MAX_PAGES limits bbox fetches even if more next_links exist."""
+async def test_get_neighborhood_3d_parallel_strategy(mock_get_client):
+    """Verify paginated bbox fetch returns surrounding buildings."""
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    direct_data = _make_single_item_response()
+    bbox_resp = _make_3dbag_response([
+        _make_feature("0363100000000001"),
+        _make_feature("0363100000000002"),
+    ])
 
-    # Each page has a next_link; mock returns same page repeatedly
-    page1 = _make_3dbag_response(
-        [_make_feature("0363100012253924"), _make_feature("0363100099999999", year=2000)],
-        next_link="https://api.3dbag.nl/collections/pand/items?offset=1",
-    )
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        if "bbox=" in s_url and "limit=100" in s_url:
+            return _make_mock_resp(bbox_resp)
+        return _make_mock_resp(_make_3dbag_response([]))
 
-    bbox_resp1 = _make_mock_resp(page1)
-
-    def route(url, **kwargs):
-        if "NL.IMBAG.Pand." in str(url):
-            return _make_mock_resp(direct_data)
-        return bbox_resp1
-
-    mock_client.get.side_effect = route
+    mock_client.get.side_effect = side_effect
 
     result = await get_neighborhood_3d(
         pand_id="0363100012253924",
@@ -343,13 +348,58 @@ async def test_get_neighborhood_3d_pagination(mock_get_client):
         lng=4.892,
     )
 
-    # Target (direct) + 1 neighbor from page1 (target in page1 deduplicated)
-    assert len(result.buildings) == 2
-    assert result.target_pand_id == "0363100012253924"
+    assert len(result.buildings) == 3
+    ids = {b.pand_id for b in result.buildings}
+    assert "0363100012253924" in ids
+    assert "0363100000000001" in ids
+    assert "0363100000000002" in ids
 
-    # Verify fetches respect MAX_PAGES: direct + MAX_PAGES bbox calls
-    bbox_calls = [c for c in mock_client.get.call_args_list if "NL.IMBAG.Pand." not in str(c)]
-    assert len(bbox_calls) == MAX_PAGES, f"Expected {MAX_PAGES} bbox calls, got {len(bbox_calls)}"
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_get_neighborhood_3d_fetches_bbox_next_page(mock_get_client):
+    """Bbox pagination should include buildings from follow-up pages."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    first_page = _make_3dbag_response(
+        [_make_feature("0363100000000001")],
+        next_link=(
+            "https://api.3dbag.nl/collections/pand/items?"
+            "bbox=120855,486855,121155,487155&offset=101"
+        ),
+    )
+    second_page = _make_3dbag_response([_make_feature("0363100000000002")])
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        if "bbox=120855,486855,121155,487155&offset=101" in s_url:
+            return _make_mock_resp(second_page)
+        if "bbox=120855,486855,121155,487155" in s_url:
+            return _make_mock_resp(first_page)
+        return _make_mock_resp(_make_3dbag_response([]))
+
+    mock_client.get.side_effect = side_effect
+
+    result = await get_neighborhood_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+    ids = {b.pand_id for b in result.buildings}
+    assert "0363100012253924" in ids
+    assert "0363100000000001" in ids
+    assert "0363100000000002" in ids
+    assert len(result.buildings) == 3
+    assert result.message is None
+
 
 
 @pytest.mark.asyncio
@@ -397,8 +447,13 @@ async def test_get_neighborhood_3d_target_not_found(mock_get_client):
     bbox_data = _make_3dbag_response([_make_feature("0363100099999999")])
 
     def route(url, **kwargs):
-        if "NL.IMBAG.Pand." in str(url):
+        s_url = str(url)
+        if "NL.IMBAG.Pand.0363100012253924" in s_url:
             raise direct_error
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
         return _make_mock_resp(bbox_data)
 
     mock_client.get.side_effect = route
@@ -591,93 +646,47 @@ async def test_fetch_target_building_root_level_fallback(mock_get_client):
 
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
-async def test_fetch_bbox_respects_max_pages(mock_get_client):
-    """Bbox pagination stops at MAX_PAGES even if more pages are available."""
+async def test_fetch_bbox_partial_failure(mock_get_client):
+    """Second bbox page failure still returns partial neighborhood result."""
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    call_count = 0
+    first_page = _make_3dbag_response(
+        [_make_feature("0363100000000001")],
+        next_link=(
+            "https://api.3dbag.nl/collections/pand/items?"
+            "bbox=120855,486855,121155,487155&offset=101"
+        ),
+    )
 
-    def always_next_page(url, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        pand_id = f"036310000000{call_count:04d}"
-        page = _make_3dbag_response(
-            [_make_feature(pand_id)],
-            next_link=f"https://api.3dbag.nl/collections/pand/items?offset={call_count}",
-        )
-        return _make_mock_resp(page)
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        if "bbox=120855,486855,121155,487155&offset=101" in s_url:
+            raise httpx.TimeoutException("read timeout")
+        if "bbox=120855,486855,121155,487155" in s_url:
+            return _make_mock_resp(first_page)
+        return _make_mock_resp(_make_3dbag_response([]))
 
-    mock_client.get.side_effect = always_next_page
+    mock_client.get.side_effect = side_effect
 
-    buildings = await _fetch_bbox_buildings(CENTER_X, CENTER_Y, 250.0)
+    result = await get_neighborhood_3d(
+        pand_id="0363100012253924", # target
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
 
-    assert call_count == MAX_PAGES
-    assert len(buildings) == MAX_PAGES
-
-
-@pytest.mark.asyncio
-@patch("app.services.three_d_bag.time")
-@patch("app.services.three_d_bag._get_client")
-async def test_fetch_bbox_stops_on_time_budget(mock_get_client, mock_time):
-    """Bbox pagination stops when time budget is exhausted."""
-    mock_client = AsyncMock()
-    mock_get_client.return_value = mock_client
-
-    # Simulate: start=0.0, first remaining check=0.0, page_start=0.0,
-    # page_end=2.0, then remaining check=29.5 (remaining=0.5 < 1.0 → break)
-    mock_time.monotonic.side_effect = [0.0, 0.0, 0.0, 2.0, 29.5, 29.5]
-
-    call_count = 0
-
-    def always_next_page(url, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        pand_id = f"036310000000{call_count:04d}"
-        page = _make_3dbag_response(
-            [_make_feature(pand_id)],
-            next_link=f"https://api.3dbag.nl/collections/pand/items?offset={call_count}",
-        )
-        return _make_mock_resp(page)
-
-    mock_client.get.side_effect = always_next_page
-
-    buildings = await _fetch_bbox_buildings(CENTER_X, CENTER_Y, 250.0)
-
-    assert call_count == 1
-    assert len(buildings) == 1
-
-
-@pytest.mark.asyncio
-@patch("app.services.three_d_bag.time")
-@patch("app.services.three_d_bag._get_client")
-async def test_fetch_bbox_returns_partial_on_mid_page_failure(mock_get_client, mock_time):
-    """Page 1 succeeds, page 2 fails with timeout — returns partial results."""
-    mock_client = AsyncMock()
-    mock_get_client.return_value = mock_client
-
-    # No time pressure — always return 0.0
-    mock_time.monotonic.return_value = 0.0
-
-    call_count = 0
-
-    def page_then_fail(url, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            page = _make_3dbag_response(
-                [_make_feature("0363100000000001")],
-                next_link="https://api.3dbag.nl/collections/pand/items?offset=1",
-            )
-            return _make_mock_resp(page)
-        raise httpx.TimeoutException("read timeout")
-
-    mock_client.get.side_effect = page_then_fail
-
-    buildings = await _fetch_bbox_buildings(CENTER_X, CENTER_Y, 250.0)
-
-    assert len(buildings) == 1
-    assert buildings[0].pand_id == "0363100000000001"
+    # Target + 1 neighbor from Q0
+    assert len(result.buildings) == 2
+    ids = {b.pand_id for b in result.buildings}
+    assert "0363100000000001" in ids
+    assert result.message is not None
+    assert result.message.startswith("Partial neighborhood data")
 
 
 # --- LoD 2.2 surface extraction tests ---

@@ -4,7 +4,9 @@ import type {
   NeighborhoodStatsResponse,
   ResolvedAddress,
   RiskCardsResponse,
+  RiskComparisonsResponse,
   SuggestResponse,
+  TierBResponse,
   ViewingQuestionsResponse,
 } from '../types/api';
 
@@ -140,12 +142,41 @@ export async function getNeighborhoodStats(
   }
 }
 
+export async function getRiskComparisons(
+  vboId: string,
+  rdX: number,
+  rdY: number,
+  lat: number,
+  lng: number,
+  buurtCode?: string,
+): Promise<RiskComparisonsResponse> {
+  const params = new URLSearchParams({
+    rd_x: String(rdX),
+    rd_y: String(rdY),
+    lat: String(lat),
+    lng: String(lng),
+  });
+  if (buurtCode) params.set('buurt_code', buurtCode);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  try {
+    const resp = await fetch(`${API_BASE}/address/${vboId}/risk-comparisons?${params}`, {
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`Risk comparisons failed: ${resp.status}`);
+    return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function getViewingQuestions(
   vboId: string,
   rdX: number,
   rdY: number,
   lat: number,
   lng: number,
+  context?: { street?: string; city?: string },
 ): Promise<ViewingQuestionsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -153,6 +184,8 @@ export async function getViewingQuestions(
     lat: String(lat),
     lng: String(lng),
   });
+  if (context?.street) params.set('street', context.street);
+  if (context?.city) params.set('city', context.city);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000);
   try {
@@ -173,22 +206,31 @@ export interface ExportOptions {
   lat: number;
   lng: number;
   address: string;
+  template?: 'quick_brief' | 'full_dossier';
+  street?: string;
+  city?: string;
   language?: string;
   shadowImageB64?: string;
 }
 
-export async function exportBriefing(options: ExportOptions): Promise<void> {
+export async function exportBriefing(options: ExportOptions): Promise<Blob> {
   const params = new URLSearchParams({
     rd_x: String(options.rdX),
     rd_y: String(options.rdY),
     lat: String(options.lat),
     lng: String(options.lng),
     address: options.address,
-    template: 'quick_brief',
+    template: options.template || 'quick_brief',
     language: options.language || 'en',
   });
   if (options.shadowImageB64) {
     params.set('shadow_image', options.shadowImageB64);
+  }
+  if (options.street) {
+    params.set('street', options.street);
+  }
+  if (options.city) {
+    params.set('city', options.city);
   }
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -198,15 +240,48 @@ export async function exportBriefing(options: ExportOptions): Promise<void> {
       { signal: controller.signal },
     );
     if (!resp.ok) throw new Error(`Export failed: ${resp.status}`);
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `buurt-check-${options.vboId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    return resp.blob();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export function downloadPdfBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export async function getTierBData(
+  vboId: string,
+  options: {
+    buurtCode?: string;
+    postcode?: string;
+    houseNumber?: string;
+    houseLetter?: string;
+    addition?: string;
+  },
+): Promise<TierBResponse> {
+  const params = new URLSearchParams();
+  if (options.buurtCode) params.set('buurt_code', options.buurtCode);
+  if (options.postcode) params.set('postcode', options.postcode);
+  if (options.houseNumber) params.set('house_number', options.houseNumber);
+  if (options.houseLetter) params.set('house_letter', options.houseLetter);
+  if (options.addition) params.set('addition', options.addition);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  try {
+    const resp = await fetch(`${API_BASE}/address/${vboId}/tier-b?${params}`, {
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`Tier-B failed: ${resp.status}`);
+    return resp.json();
   } finally {
     clearTimeout(timeoutId);
   }

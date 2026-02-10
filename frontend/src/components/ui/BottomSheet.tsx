@@ -5,10 +5,17 @@ interface BottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
   height?: string;
+  ariaLabel?: string;
   children: React.ReactNode;
 }
 
-export default function BottomSheet({ isOpen, onClose, height = '50vh', children }: BottomSheetProps) {
+export default function BottomSheet({
+  isOpen,
+  onClose,
+  height = '50vh',
+  ariaLabel = 'Dialog',
+  children,
+}: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,6 +46,7 @@ export default function BottomSheet({ isOpen, onClose, height = '50vh', children
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-label={ariaLabel}
       >
         <div className="bottom-sheet__handle" />
         <div className="bottom-sheet__content">

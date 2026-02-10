@@ -19,14 +19,16 @@ export default function TabBar({ activeTab, onTabChange, savedCount }: TabBarPro
   const { t } = useTranslation();
 
   return (
-    <nav className="tab-bar" role="tablist">
+    <nav className="tab-bar" role="tablist" aria-label={t('nav.primaryTabs')}>
       {TABS.map(tab => {
         const isActive = activeTab === tab.id;
         return (
           <button
             key={tab.id}
+            type="button"
             role="tab"
             aria-selected={isActive}
+            aria-label={t(tab.labelKey)}
             className={`tab-bar__tab${isActive ? ' tab-bar__tab--active' : ''}`}
             onClick={() => onTabChange(tab.id)}
           >
