@@ -1,0 +1,65 @@
+.score-bar {
+  width: 100%;
+  padding: 4px 0;
+}
+
+.score-bar__track {
+  position: relative;
+  height: 2px;
+  background: #E8EAED;
+  border-radius: 1px;
+}
+
+.score-bar__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 1px;
+  transition: width 0s;
+}
+
+.score-bar__fill--animated {
+  transition: width 600ms ease-out;
+}
+
+.score-bar__fill--good { background: var(--color-risk-good); }
+.score-bar__fill--moderate { background: var(--color-risk-moderate); }
+.score-bar__fill--poor { background: var(--color-risk-poor); }
+.score-bar__fill--critical { background: var(--color-risk-critical); }
+.score-bar__fill--unavailable { background: var(--color-risk-unavailable); }
+
+.score-bar__dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+}
+
+.score-bar__dot--animated {
+  animation: scoreBarDotFadeIn 200ms ease-out 400ms both;
+}
+
+.score-bar__dot--good { background: var(--color-risk-good); }
+.score-bar__dot--moderate { background: var(--color-risk-moderate); }
+.score-bar__dot--poor { background: var(--color-risk-poor); }
+.score-bar__dot--critical { background: var(--color-risk-critical); }
+.score-bar__dot--unavailable { background: var(--color-risk-unavailable); }
+
+@keyframes scoreBarDotFadeIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score-bar__fill--animated {
+    transition: none;
+  }
+  .score-bar__dot--animated {
+    animation: none;
+    opacity: 1;
+  }
+}

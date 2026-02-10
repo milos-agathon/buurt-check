@@ -1,0 +1,50 @@
+.viewing-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.viewing-checklist__group {
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-base);
+}
+
+.viewing-checklist__group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.viewing-checklist__group-name {
+  font: var(--type-body-medium);
+  color: var(--color-text);
+}
+
+.viewing-checklist__questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.viewing-checklist__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font: var(--type-body);
+  color: var(--color-text);
+  cursor: pointer;
+  padding: var(--space-xs) 0;
+}
+
+.viewing-checklist__checkbox {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  accent-color: var(--color-accent);
+  margin-top: 2px;
+}

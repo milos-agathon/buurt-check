@@ -1,0 +1,47 @@
+/* Satoshi font family - Free for personal and commercial use (Indian Type Foundry via Fontshare) */
+/* CDN hosted via cdnfonts.com */
+
+@font-face {
+  font-family: 'Satoshi';
+  src: local('Satoshi Light'),
+       url('https://fonts.cdnfonts.com/s/85546/Satoshi-Light.woff') format('woff');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Satoshi';
+  src: local('Satoshi Regular'),
+       url('https://fonts.cdnfonts.com/s/85546/Satoshi-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Satoshi';
+  src: local('Satoshi Medium'),
+       url('https://fonts.cdnfonts.com/s/85546/Satoshi-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Satoshi';
+  src: local('Satoshi Bold'),
+       url('https://fonts.cdnfonts.com/s/85546/Satoshi-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Satoshi';
+  src: local('Satoshi Black'),
+       url('https://fonts.cdnfonts.com/s/85546/Satoshi-Black.woff') format('woff');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}

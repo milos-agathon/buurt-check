@@ -1,0 +1,45 @@
+.severity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-family);
+  white-space: nowrap;
+}
+
+.severity-badge--md {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.severity-badge--sm {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.severity-badge--good {
+  color: var(--color-risk-good);
+}
+
+.severity-badge--moderate {
+  color: var(--color-risk-moderate);
+}
+
+.severity-badge--poor {
+  color: var(--color-risk-poor);
+}
+
+.severity-badge--critical {
+  color: var(--color-risk-critical);
+}
+
+.severity-badge--unavailable {
+  color: var(--color-risk-unavailable);
+}
+
+.severity-badge__icon {
+  flex-shrink: 0;
+}
+
+.severity-badge__label {
+  line-height: 1;
+}
