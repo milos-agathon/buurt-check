@@ -193,7 +193,7 @@ buurt-check/
                      #   neighborhood3d.py, risk.py
       config.py      # Settings via pydantic-settings (BUURT_* prefix)
       main.py        # FastAPI app entry point
-    tests/           # pytest tests (242 non-live + live smoke tests)
+    tests/           # pytest tests (275 non-live + live smoke tests)
   frontend/          # React application (Vite + TypeScript)
     src/
       styles/        # Design system: tokens.css (CSS custom properties), satoshi.css (font)
@@ -210,7 +210,7 @@ buurt-check/
                      #   ui/BottomSheet, ui/Toast, ui/ToggleSwitch
       services/      # api.ts (fetch-based), shortlist.ts (localStorage)
       types/         # api.ts — TS interfaces mirroring backend models
-      i18n/          # i18next config + en.json + nl.json (~200 keys each)
+      i18n/          # i18next config + en.json + nl.json (~360 keys each)
       test/          # Test setup (setup.ts, helpers.ts)
   CLAUDE.md          # Root project docs (authoritative)
   frontend/CLAUDE.md # Frontend-specific conventions
@@ -222,15 +222,15 @@ buurt-check/
 **Stage: F1-F6 fully implemented + polished. All MVP features shipped. "Polar Frost" design system with full palette.md token alignment. 0-100 risk scoring. Tab navigation. Shortlist + compare with parallel coordinates. PDF export (Quick Brief + Full Dossier). Tier B signals (energy label + crime). Risk comparisons (city/NL/WHO baselines). Dark mode (OLED-ready). Recent searches. Simplified 3D viewer (static context card, no interactive controls). Building orientation estimation. Accessibility + visual regression tests. Bundle optimization (React.lazy + vendor chunks).**
 
 ### What exists
-- `backend/` — FastAPI app with 13 endpoints: address suggest/lookup, building facts, 3D building/neighborhood, risk cards (with 0-100 scores + severity), risk comparisons, neighborhood stats, WMS tile proxy, viewing questions, PDF export (quick_brief + full_dossier), tier-b signals. BAG lookups use OGC XML Filter. 3DBAG uses tiled fetch (direct target + grid tiles). LoD 2.2 roof geometry parsing (feature-flagged). Risk scoring normalizes noise/air/climate/sunlight to 0-100. Risk comparisons with urbanization-stratified baselines. CBS integration with buurt-code + bbox fallback. Tier B: EP-Online energy labels + CBS OData crime stats. Redis cache with circuit breaker. fpdf2 for PDF generation. Building orientation estimation from footprint geometry. 275 passing tests + live smoke tests. Cache version: v13.
-- `frontend/` — Vite + React + TypeScript with "Polar Frost" design system. Satoshi font, Arctic Teal accent, ~195 CSS design tokens (including slate/teal scales, nav/overlay utility, choropleth ramps). 3-tab navigation (Search, Briefing, Saved) with solid white tab bar + teal pill. Loading screen with building animation. Dossier screen: address header, summary strip, 3D viewer (static context card with summer noon lighting, orbit controls, reset button — no interactive time slider/camera presets/fullscreen/overlays), sunlight analysis with building orientation, 2x2 risk tiles with animated 0-100 scores + quartile dots, risk detail views with comparison charts + viewing questions, neighborhood stats, Tier B signals card, viewing checklist, action bar with PDF export (template selector + language toggle + progress ring + Web Share API). Dark mode (light/dark/system, OLED-ready #000000 base). Recent searches. Shortlist (max 3) with compare screen + parallel coordinates chart. Settings screen. PDOK BRT grijs basemap (CSS filter invert for dark mode). Bundle: React.lazy for 4 heavy components, vendor chunks (react/map/three). 333 passing Vitest tests + accessibility tests + keyboard nav tests + performance budget tests. 10 visual regression snapshots (5 screens x 2 themes). i18n with ~360 keys per language.
+- `backend/` — FastAPI app with 13 endpoints: address suggest/lookup, building facts, 3D building/neighborhood, risk cards (with 0-100 scores + severity), risk comparisons, neighborhood stats, WMS tile proxy, viewing questions, PDF export (quick_brief + full_dossier), tier-b signals. BAG lookups use OGC XML Filter. 3DBAG uses tiled fetch (direct target + grid tiles). LoD 2.2 roof geometry parsing (feature-flagged). Risk scoring normalizes noise/air/climate/sunlight to 0-100. Risk comparisons with urbanization-stratified baselines. CBS integration with buurt-code + bbox fallback. Tier B: EP-Online energy labels + CBS OData crime stats. Redis cache with circuit breaker. fpdf2 for PDF generation. Building orientation estimation from footprint geometry. 275 non-live passing tests + live smoke tests. Cache version: v13.
+- `frontend/` — Vite + React + TypeScript with "Polar Frost" design system. Satoshi font, Arctic Teal accent, ~195 CSS design tokens (including slate/teal scales, nav/overlay utility, choropleth ramps). 3-tab navigation (Search, Briefing, Saved) with solid white tab bar + teal pill. Loading screen with building animation. Dossier screen: address header, summary strip, 3D viewer (static context card with summer noon lighting, orbit controls, reset button — no interactive time slider/camera presets/fullscreen/overlays), sunlight analysis with building orientation, 2x2 risk tiles with animated 0-100 scores + quartile dots, risk detail views with comparison charts + viewing questions, neighborhood stats, Tier B signals card, viewing checklist, action bar with PDF export (template selector + language toggle + progress ring + Web Share API). Dark mode (light/dark/system, OLED-ready #000000 base). Recent searches. Shortlist (max 3) with compare screen + parallel coordinates chart. Settings screen. PDOK BRT grijs basemap (CSS filter invert for dark mode). Bundle: React.lazy for 4 heavy components, vendor chunks (react/map/three). 340 passing Vitest tests + accessibility tests + keyboard nav tests + performance budget tests. 10 visual regression snapshots (5 screens x 2 themes). i18n with ~360 keys per language.
 - `docs/design-prd.md` — Full design specification for "Polar Frost" design direction
 - `docs/design-spec.md` — Pixel-level visual specification for all screens
 - `docs/palette.md` — Color palette specification with WCAG contrast requirements
 - `docs/phase4-quality-gates.md` — Quality gate documentation (a11y, perf, visual regression)
 
 ### What's next
-- Maintain quality gates: `ruff check`, backend pytest (275+, excluding live), frontend vitest (333+), `npm run build`.
+- Maintain quality gates: `ruff check`, backend pytest (275+, excluding live), frontend vitest (340+), `npm run build`.
 - Resolve PM2.5 data gap (GCN WMS only has NO2 layers).
 - Replace hardcoded risk comparison baselines with real CBS/WHO data.
 - 200% zoom manual QA pass on real device.
@@ -312,7 +312,7 @@ buurt-check/
 1. **Run `ruff check` before committing backend changes.** Config is in `pyproject.toml`: line-length 100, rules E/F/I/W. Import sort order matters (I rules).
 2. **Run `npm run build` before committing frontend changes.** TypeScript strict mode is on (`noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`). The build will catch type errors that the dev server ignores.
 3. **Do not hardcode external URLs in service files.** All external API base URLs go in `config.py` as `pydantic-settings` fields. Services import `settings` and use the config values.
-4. **Test count baselines (updated 2026-02-09).** Backend: 255 non-live tests (+ live smoke tests). Frontend: 324 tests. Any change must maintain or increase these numbers.
+4. **Test count baselines (updated 2026-02-11).** Backend: 275 non-live tests (+ live smoke tests). Frontend: 340 tests. Any change must maintain or increase these numbers.
 
 ### Frontend patterns established
 
@@ -497,10 +497,9 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 3. **Construction-year color palette** for neighborhood context: pre-1900 terracotta, 1900-1945 sandy brown, 1945-1975 olive, 1975-2000 slate, post-2000 steel gray. Target building stays blue with edge highlight.
 4. **HemisphereLight** (sky `0xb1e1ff`, ground `0xb97a20`, intensity 0.5) replaces flat AmbientLight for natural illumination gradient.
 
-### Test count baselines (updated 2026-02-09)
+### Test count baselines (superseded — see 2026-02-11 baselines at end of file)
 
-- **Backend: 242 non-live + live smoke tests.** Any backend change must maintain or increase.
-- **Frontend: 295 tests.** Any frontend change must maintain or increase.
+- Backend: 242→255→263→275 across sessions. Frontend: 295→324→334→340.
 
 ### Process learnings
 
@@ -799,10 +798,10 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 1. **Backend generates questions with address context.** `viewing_questions.py` receives `street`, `city`, and raw risk signals (dB value, PM2.5/NO2 concentrations, climate levels, winter sunlight hours). Questions reference specific risk data when available.
 2. **Data-driven risk comparisons in viewing questions.** Questions like "The noise level is X dB — ask about soundproofing" are generated only when actual measurement data exists for the address.
 
-### Test Count Baselines (updated 2026-02-10)
+### Test Count Baselines (updated 2026-02-11)
 
-- **Backend: 263 non-live + live smoke tests.** Previous: 255. +8 from tier-b, risk comparisons, scoring, viewing questions tests.
-- **Frontend: 334 tests.** Previous: 324. +10 from accessibility, keyboard nav, performance budget, visual regression, Tier B card, export polish tests.
+- **Backend: 275 non-live + live smoke tests.** Previous: 263. +6 orientation tests, +6 from other additions.
+- **Frontend: 340 tests.** Previous: 334. +6 from logo/orientation/viewer tests after 3D simplification and logo integration.
 
 ### Process Learnings (Feb 10)
 
@@ -811,3 +810,50 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 3. **Feature flags + cache invalidation is a recurring pattern.** LoD 2.2 flag, risk comparisons, tier-b — each new feature with cache needs explicit cache key design. Document the cache key format when adding any new cached endpoint.
 4. **Assessment subagents can be wrong.** When one subagent claims "feature X is missing" but another finds it, always verify against actual code. The Phase 3 assessment missed Tier B, parallel coordinates, and full dossier because they were in untracked (new, uncommitted) files.
 5. **OLED dark mode.** Changed dark mode base from `#121212` to `#000000` for OLED screens (true black saves power). Surface stays `#121212` for card elevation differentiation.
+
+## Learnings from 3D simplification and logo integration sessions (2026-02-11)
+
+### Logo Integration
+
+1. **Reverse logo variant for dark nav bar.** The nav bar uses dark slate (`#1C2D3F`) in both light and dark modes. Created a "reverse" SVG variant with white strokes and teal checkmark that reads clearly against the dark background. Stored in `frontend/public/logos/`.
+2. **Conditional logo display in TopBar.** When `title === 'buurt-check'` (main screens), show the logo `<img>` wrapped in an `<a>`. For sub-screens (settings, compare), fall back to text `<h1>`. This pattern keeps branding prominent on primary screens while maintaining simple headers on secondary screens.
+3. **Test impact of logo change.** Replacing `<h1>` with `<a><img>` broke App, TopBar, and keyboard-navigation tests that asserted on heading elements. When changing navigation chrome, always update accessibility and integration tests in the same commit.
+
+### Three.js mergeGeometries Attribute Mismatch
+
+1. **`mergeGeometries` requires identical attribute sets.** When mixing LoD 0 (`ExtrudeGeometry`, which auto-adds `uv` attribute) with LoD 2.2 (`BufferGeometry`, only `position` + `normal`), `mergeGeometries` returns `null` silently. Fix: `geom.deleteAttribute('uv')` after creating LoD 0 extrusion geometries.
+2. **Silent Three.js failures are the worst bugs to diagnose.** `mergeGeometries` returning `null` means no geometry renders, but there's no error or warning. The only symptom is invisible buildings. Always check the return value of `mergeGeometries` and log a warning if `null`.
+
+### 3D Loading Performance (LoD 2.2 Context Enrichment)
+
+1. **LoD 2.2 enrichment for context buildings is a performance trap.** `_enrich_with_lod22()` individually re-fetches each context building from 3DBAG to get LoD 2.2 roof geometry. With `LOD22_ENRICH_MAX_BUILDINGS=220`, this generates 220 sequential HTTP requests at ~2s each = >2 minutes total. Context buildings render as uniform gray at 60% opacity — detailed roof geometry provides zero visual benefit.
+2. **Fix: skip LoD 2.2 for context buildings.** Only enrich the target building with LoD 2.2. Keep `enable_lod22_context_enrichment` flag defaulting to `false`. This reduces neighborhood3d response time from >2 minutes back to the bbox fetch time (~12-17s).
+3. **Aggressive pagination parameters compound latency.** Changing `BBOX_MAX_PAGES` from 3 to 8 and `BBOX_FETCH_BUDGET` from 30s to 100s pushes total request time from manageable (~17s) to unusable (~120s+). Always benchmark pagination parameter changes against real dense neighborhoods (Amsterdam city center).
+
+### Product Value Audit Pattern
+
+1. **Utility audit: layer features by decision-making impact.** The brainstorming session established that interactive shadow controls (time slider, season buttons, camera presets, GSAP transitions, fullscreen, FPS monitoring) were ~75% of shadow code but ~10% of user decision-making value. The real product value was in: (1) sunlight risk score (raycasting-based 0-100), (2) winter shadow snapshots (visual evidence), (3) building orientation estimate.
+2. **"Trust signal" vs "decision tool" distinction.** Interactive 3D exploration primarily serves as a trust signal ("this app did real 3D analysis") and word-of-mouth moment, not as a practical decision-making tool. When building for first-time buyers, prioritize decision tools over spectacle.
+3. **Scope reduction requires honest product assessment.** Asking "what does this help users achieve that they couldn't otherwise?" exposed that interactive shadow controls added complexity without proportional user value. Apply this question before adding any interactive feature.
+
+### Building Orientation Estimation
+
+1. **Algorithm:** Find longest footprint edge, compute azimuth with `(90 - degrees(atan2(dy, dx))) % 360`, normalize to 0-180 range with `% 180`. Returns `None` for degenerate cases (<3 vertices or all edges <0.1m). RD New coordinates: +X=East, +Y=North.
+2. **180-degree ambiguity.** An edge oriented NE-SW could mean the building "faces" either NE or SW. Report as axis pair ("NE -- SW") not as facade direction. Never use "facade," "faces," or "garden side" language.
+3. **Display format:** "Estimated building axis: NE -- SW (45 degrees)" with i18n support for all cardinal and intercardinal directions.
+
+### TypeScript Strict Mode as Build Gate
+
+1. **`noUnusedLocals` catches refactoring debris.** After removing interactive controls from `NeighborhoodViewer3D.tsx`, unused `localSunlight` state variable and unused `waitFor` import caused `npm run build` to fail. Dev server (`npm run dev`) does NOT catch these — always run `npm run build` after refactoring.
+2. **Destructure-to-discard pattern.** When only the setter is needed: `const [, setLocalSunlight] = useState(...)`. This satisfies TypeScript strict mode while keeping the setter accessible.
+
+### Plan Revision Cycles
+
+1. **Multi-iteration plan review catches critical gaps.** The 3D simplification plan went through 3 revision cycles. User feedback caught: test gate violation (net test loss), missing layout promotion, technically incorrect reset button, overconfident orientation language, and cache version not bumped. Single-pass plan approval would have missed these.
+2. **Test budget accounting before implementation.** Explicitly count tests removed (-25) vs tests added (+25), verify net >= threshold (332), before approving the plan. Prevents discovering test gate violations mid-implementation.
+
+### Process Learnings (Feb 11)
+
+1. **Plan-then-execute across sessions works well.** Session 741e2c85 produced the plan (3 iterations with user feedback), session 58a6eb55 executed it autonomously in ~15 minutes with no intervention. Separation keeps planning thorough and execution focused.
+2. **Static 3D viewer removed ~300 lines and 1 dependency (gsap).** Simplification reduced `NeighborhoodViewer3D.tsx` from ~929 to ~633 lines, deleted 6 files (ShadowControls, OverlayControls + tests + CSS), and removed gsap npm dependency. Complexity reduction improves maintainability.
+3. **Visual fidelity investment must match rendering treatment.** LoD 2.2 roof geometry for context buildings (uniform gray, 60% opacity) provides zero visual benefit. Match rendering investment to visual prominence — only the target building (highlighted in teal) warrants detailed geometry.

@@ -149,7 +149,7 @@ tests/
 
 ## Testing
 
-- **Test count baseline: 255 non-live + live smoke tests** — any change must maintain or increase
+- **Test count baseline: 275 non-live + live smoke tests** (updated 2026-02-11) — any change must maintain or increase
 - `pytest -m "not live"` for CI (excludes live API tests)
 - httpx mock pattern: `AsyncMock` for client, `MagicMock` for response (`.json()` is sync)
 - Live tests: `@pytest.mark.live`, lenient assertions (check field exists, not exact values)

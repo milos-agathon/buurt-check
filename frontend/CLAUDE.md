@@ -161,7 +161,7 @@ Design tokens in `styles/tokens.css`. All components use CSS custom properties.
 
 ## Testing patterns
 
-- **Test count baseline: 333** — any change must maintain or increase
+- **Test count baseline: 340** (updated 2026-02-11) — any change must maintain or increase
 - Vitest 4.x + Testing Library + jsdom
 - Three.js mock: constructor functions (not arrow fns — `new` fails). Use `function Scene(this: any) { this.add = vi.fn(); }` pattern
 - react-leaflet mock: `MapContainer` → `<div data-testid="map">`, `TileLayer`/`GeoJSON` → `null`
