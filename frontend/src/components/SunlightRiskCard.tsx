@@ -6,6 +6,23 @@ interface Props {
   sunlight?: SunlightResult;
   loading?: boolean;
   unavailable?: boolean;
+  orientationDeg?: number;
+}
+
+const AXIS_LABELS: [number, string][] = [
+  [22.5, 'ns'],
+  [67.5, 'nesw'],
+  [112.5, 'ew'],
+  [157.5, 'senw'],
+  [180.1, 'ns'],
+];
+
+export function getAxisLabel(deg: number): string {
+  const normalized = ((deg % 180) + 180) % 180;
+  for (const [threshold, key] of AXIS_LABELS) {
+    if (normalized < threshold) return key;
+  }
+  return 'ns';
 }
 
 function getRiskLevel(winterHours: number): 'low' | 'medium' | 'high' {
@@ -14,7 +31,7 @@ function getRiskLevel(winterHours: number): 'low' | 'medium' | 'high' {
   return 'low';
 }
 
-export default function SunlightRiskCard({ sunlight, loading, unavailable }: Props) {
+export default function SunlightRiskCard({ sunlight, loading, unavailable, orientationDeg }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -79,6 +96,15 @@ export default function SunlightRiskCard({ sunlight, loading, unavailable }: Pro
           </tr>
         </tbody>
       </table>
+
+      {orientationDeg != null && (
+        <div className="sunlight-card__orientation">
+          <p className="sunlight-card__orientation-label">
+            {t('sunlight.orientation')}: {t(`sunlight.axis.${getAxisLabel(orientationDeg)}`)} ({Math.round(orientationDeg)}°)
+          </p>
+          <p className="sunlight-card__orientation-note">{t('sunlight.orientationNote')}</p>
+        </div>
+      )}
 
       <p className="sunlight-card__tip">{t('sunlight.viewingTip')}</p>
       <p className="sunlight-card__source">{t('sunlight.sourceWithDate', { date: sourceDate })}</p>

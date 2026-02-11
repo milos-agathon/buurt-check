@@ -1,23 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import SunCalc from 'suncalc';
-import gsap from 'gsap';
-import ShadowControls from './ShadowControls';
-import OverlayControls from './OverlayControls';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
-import type { OverlayTileType } from '../services/api';
-import { getWmsTile } from '../services/api';
 import './NeighborhoodViewer3D.css';
-
-// Camera preset offsets (relative to target building center)
-const CAMERA_PRESETS: Record<string, [number, number, number]> = {
-  street: [25, 10, 25],
-  balcony: [20, 20, 20],
-  topDown: [0, 150, 0.1],
-};
 
 /** Uniform neighbor building color: slate.200 per palette.md */
 const NEIGHBOR_COLOR = 0xB4C0CE;
@@ -48,23 +36,11 @@ interface Props {
   onShadowSnapshots?: (snapshots: ShadowSnapshot[]) => void;
 }
 
-function getDateFromPreset(preset: string): Date {
-  const year = new Date().getFullYear();
-  switch (preset) {
-    case 'winter': return new Date(year, 11, 21);
-    case 'spring': return new Date(year, 2, 20);
-    case 'summer': return new Date(year, 5, 21);
-    case 'autumn': return new Date(year, 8, 22);
-    default: return new Date();
-  }
-}
-
-const SHADOW_MAP_SIZE = 4096;
+const SHADOW_MAP_SIZE = 2048;
 const SUN_DISTANCE = 300;
 const GROUND_SIZE = 750;
 const FRUSTUM = 300;
-const TARGET_COLOR_LIGHT = 0x2EC4B6;
-const TARGET_COLOR_DARK = 0x2EC4B6;
+const TARGET_COLOR = 0x2EC4B6;
 
 /**
  * Create a BufferGeometry from LoD 2.2 surfaces.
@@ -86,8 +62,6 @@ function createLod22Geometry(surfaces: number[][][], buildingGround: number): TH
     }
 
     // Fan triangulation: vertex 0 connects to each consecutive pair
-    // Coordinate mapping is a rotation (det=1), so winding order is PRESERVED.
-    // Use standard order: 0, i, i+1.
     for (let i = 1; i < surface.length - 1; i++) {
       indices.push(baseIndex, baseIndex + i, baseIndex + i + 1);
     }
@@ -103,8 +77,6 @@ function createLod22Geometry(surfaces: number[][][], buildingGround: number): TH
 export default function NeighborhoodViewer3D({ buildings, targetPandId, center, onSunlightAnalysis, onShadowSnapshots }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const sceneRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
@@ -116,60 +88,50 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     animId: number;
   } | null>(null);
 
-  const [hour, setHour] = useState(12);
-  const [datePreset, setDatePreset] = useState('summer'); // Default to summer for reliable sun position
-  const [activeOverlay, setActiveOverlay] = useState<OverlayTileType | null>(null);
-  const [overlayLoading, setOverlayLoading] = useState(false);
-  const [overlayOpacity, setOverlayOpacity] = useState(50);
-  const [, setLocalSunlight] = useState<SunlightResult | null>(null);
-  const [lowPerformance, setLowPerformance] = useState(false);
-  const lowPerformanceRef = useRef(false);
   const basemapMeshesRef = useRef<THREE.Mesh[]>([]);
-  const overlayMeshRef = useRef<THREE.Mesh | null>(null);
-  const overlayTextureRef = useRef<THREE.Texture | null>(null);
   const sunlightComputed = useRef(false);
   const snapshotsCaptured = useRef(false);
 
   // Camera tracking refs
   const cameraSetRef = useRef(false);
   const lastFocusedPandId = useRef<string | null>(null);
-  const targetCenterRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
 
-  // Fullscreen toggle — set local state and attempt native fullscreen as side effect
-  const toggleFullscreen = useCallback(() => {
-    setIsFullscreen((prev) => {
-      const next = !prev;
-      const el = viewerRef.current;
-      if (!el) return next;
-      if (next && el.requestFullscreen) {
-        el.requestFullscreen().catch(() => { });
-      } else if (!next && document.exitFullscreen) {
-        document.exitFullscreen().catch(() => { });
-      }
-      return next;
-    });
-  }, []);
+  // Extract camera framing into a callable function
+  const frameCamera = useCallback(() => {
+    const ctx = sceneRef.current;
+    if (!ctx || buildings.length === 0) return;
 
-  // Sync state when user exits fullscreen via Escape
-  useEffect(() => {
-    const onFsChange = () => {
-      if (!document.fullscreenElement) {
-        setIsFullscreen(false);
+    const minGround = Math.min(...buildings.map((b) => b.ground_height));
+
+    let allMinX = Infinity, allMaxX = -Infinity, allMinY = Infinity, allMaxY = -Infinity;
+    let tallestHeight = 0;
+    for (const b of buildings) {
+      for (const p of b.footprint) {
+        allMinX = Math.min(allMinX, p[0]);
+        allMaxX = Math.max(allMaxX, p[0]);
+        allMinY = Math.min(allMinY, p[1]);
+        allMaxY = Math.max(allMaxY, p[1]);
       }
-      // Trigger resize so Three.js updates canvas dimensions
-      const ctx = sceneRef.current;
-      const container = containerRef.current;
-      if (ctx && container) {
-        const w = container.clientWidth;
-        const h = document.fullscreenElement ? window.innerHeight : Math.min(w * 0.75, 400);
-        ctx.camera.aspect = w / h;
-        ctx.camera.updateProjectionMatrix();
-        ctx.renderer.setSize(w, h);
-      }
-    };
-    document.addEventListener('fullscreenchange', onFsChange);
-    return () => document.removeEventListener('fullscreenchange', onFsChange);
-  }, []);
+      tallestHeight = Math.max(tallestHeight, b.building_height);
+    }
+
+    const maxSpan = Math.max(allMaxX - allMinX, allMaxY - allMinY);
+
+    const targetBuilding = targetPandId ? buildings.find((b) => b.pand_id === targetPandId) : null;
+    const focusBuilding = targetBuilding || buildings[0];
+    const fp = focusBuilding.footprint;
+    const cx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
+    const cy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
+    const targetY = focusBuilding.ground_height - minGround + focusBuilding.building_height / 2;
+
+    const distance = Math.max(maxSpan * 1.5, 30);
+    const cameraHeight = Math.max(tallestHeight * 1.2, 15);
+
+    ctx.camera.position.set(cx + distance, cameraHeight, cy + distance);
+    ctx.camera.lookAt(cx, targetY, cy);
+    ctx.controls.target.set(cx, targetY, cy);
+    ctx.camera.updateProjectionMatrix();
+  }, [buildings, targetPandId]);
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -179,7 +141,6 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     const width = container.clientWidth;
     const height = Math.min(width * 0.75, 400);
 
-    // Detect dark mode from document attribute
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
 
     // Scene
@@ -222,7 +183,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     scene.add(sunLight);
     scene.add(sunLight.target); // Required for shadow rendering
 
-    // Ground plane — match scene background so edges are invisible
+    // Ground plane
     const groundGeom = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
     const groundMat = new THREE.MeshStandardMaterial({
       color: isDarkMode ? 0x0D1620 : 0xF0F3F6,
@@ -235,45 +196,17 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     ground.userData.isGround = true;
     scene.add(ground);
 
-    // Controls
+    // Controls — orbit only
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.maxPolarAngle = Math.PI / 2.1;
 
-    // FPS monitoring for adaptive quality
-    let frameCount = 0;
-    let lastFpsCheck = performance.now();
-    const FPS_CHECK_INTERVAL = 3000;
-    const FPS_THRESHOLD = 20;
-    let lowFpsStreak = 0;
-
-    // Animation loop
+    // Animation loop (no FPS monitoring)
     const animate = () => {
       const id = requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
       sceneRef.current!.animId = id;
-
-      // FPS tracking
-      frameCount++;
-      const now = performance.now();
-      if (now - lastFpsCheck >= FPS_CHECK_INTERVAL) {
-        const fps = (frameCount * 1000) / (now - lastFpsCheck);
-        frameCount = 0;
-        lastFpsCheck = now;
-        if (fps < FPS_THRESHOLD) {
-          lowFpsStreak++;
-          // Require 2 consecutive low readings before degrading
-          if (lowFpsStreak >= 2 && !lowPerformanceRef.current) {
-            lowPerformanceRef.current = true;
-            renderer.shadowMap.enabled = false;
-            renderer.setPixelRatio(1);
-            setLowPerformance(true);
-          }
-        } else {
-          lowFpsStreak = 0;
-        }
-      }
     };
 
     sceneRef.current = {
@@ -325,9 +258,6 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       lastFocusedPandId.current = targetPandId;
     }
 
-    // Render ALL buildings from the neighborhood
-    const minGround = Math.min(...buildings.map((b) => b.ground_height));
-
     const neighborGeoms: THREE.BufferGeometry[] = [];
 
     for (const building of buildings) {
@@ -335,10 +265,8 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       const isTarget = building.pand_id === targetPandId;
 
       if (building.roof_surfaces && building.roof_surfaces.length > 0) {
-        // LoD 2.2: real 3D surfaces from BuildingPart geometry
         geom = createLod22Geometry(building.roof_surfaces, building.ground_height);
       } else {
-        // LoD 0 fallback: extrude 2D footprint
         const shape = new THREE.Shape();
         const fp = building.footprint;
         if (fp.length < 3) continue;
@@ -353,18 +281,15 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
           depth: building.building_height,
           bevelEnabled: false,
         });
-        // Normalize LoD0 to world orientation so it can be merged.
-        // Flatten to ground: base at y=0 (relative to flat basemap)
         const transform = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
         transform.setPosition(0, 0, 0);
         geom.applyMatrix4(transform);
-        // Strip uv attribute so LoD 0 can merge with LoD 2.2 (which has no uv)
         geom.deleteAttribute('uv');
       }
 
       if (isTarget) {
         const mat = new THREE.MeshStandardMaterial({
-          color: isDarkMode ? TARGET_COLOR_DARK : TARGET_COLOR_LIGHT,
+          color: isDarkMode ? TARGET_COLOR : TARGET_COLOR,
           emissive: 0x57D4C8,
           emissiveIntensity: 0.15,
           side: THREE.DoubleSide,
@@ -381,7 +306,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       neighborGeoms.push(geom);
     }
 
-    // Merge all neighbor geometries into a single draw call with uniform slate color
+    // Merge all neighbor geometries into a single draw call
     const neighborMat = new THREE.MeshStandardMaterial({
       color: NEIGHBOR_COLOR,
       transparent: true,
@@ -411,60 +336,24 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       }
     }
 
-    // Camera framing: encompass all buildings, prefer target center
+    // Camera framing on first load
     if (!cameraSetRef.current && buildings.length > 0) {
-      // Compute bounding box across all building footprints
-      let allMinX = Infinity, allMaxX = -Infinity, allMinY = Infinity, allMaxY = -Infinity;
-      let tallestHeight = 0;
-      for (const b of buildings) {
-        for (const p of b.footprint) {
-          allMinX = Math.min(allMinX, p[0]);
-          allMaxX = Math.max(allMaxX, p[0]);
-          allMinY = Math.min(allMinY, p[1]);
-          allMaxY = Math.max(allMaxY, p[1]);
-        }
-        tallestHeight = Math.max(tallestHeight, b.building_height);
-      }
-
-
-
-      const maxSpan = Math.max(allMaxX - allMinX, allMaxY - allMinY);
-
-      // Prefer target building center for camera target, fallback to centroid of all
-      const targetBuilding = targetPandId ? buildings.find((b) => b.pand_id === targetPandId) : null;
-      const focusBuilding = targetBuilding || buildings[0];
-      const fp = focusBuilding.footprint;
-      const cx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
-      const cy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
-      const targetY = focusBuilding.ground_height - minGround + focusBuilding.building_height / 2;
-
-      targetCenterRef.current.set(cx, targetY, cy);
-
-      // Wider framing for neighborhood context
-      const distance = Math.max(maxSpan * 1.5, 30);
-      const cameraHeight = Math.max(tallestHeight * 1.2, 15);
-
-      ctx.camera.position.set(cx + distance, cameraHeight, cy + distance);
-      ctx.camera.lookAt(cx, targetY, cy);
-      ctx.controls.target.set(cx, targetY, cy);
-      ctx.camera.updateProjectionMatrix();
-
+      frameCamera();
       cameraSetRef.current = true;
     }
 
     sunlightComputed.current = false;
     snapshotsCaptured.current = false;
-  }, [buildings, targetPandId]);
+  }, [buildings, targetPandId, frameCamera]);
 
-  // Update sun position
+  // Fix sun to summer noon — static lighting for context card
   useEffect(() => {
     const ctx = sceneRef.current;
     if (!ctx) return;
 
-    const date = getDateFromPreset(datePreset);
-    date.setHours(hour, 0, 0, 0);
-
-    const sunPos = SunCalc.getPosition(date, center.lat, center.lng);
+    const year = new Date().getFullYear();
+    const summerNoon = new Date(year, 5, 21, 12, 0, 0);
+    const sunPos = SunCalc.getPosition(summerNoon, center.lat, center.lng);
 
     if (sunPos.altitude <= 0) {
       ctx.sunLight.intensity = 0;
@@ -472,26 +361,22 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     }
 
     ctx.sunLight.intensity = 0.8;
-    const az = sunPos.azimuth; // 0 = south, positive = west
+    const az = sunPos.azimuth;
     const alt = sunPos.altitude;
 
-    // SunCalc: azimuth 0 = south, clockwise positive
-    // Three.js: -Z = north, +X = east
-    // South direction in Three.js is +Z
     const x = -Math.sin(az) * Math.cos(alt) * SUN_DISTANCE;
     const y = Math.sin(alt) * SUN_DISTANCE;
     const z = Math.cos(az) * Math.cos(alt) * SUN_DISTANCE;
 
     ctx.sunLight.position.set(x, y, z);
     ctx.sunLight.target.position.set(0, 0, 0);
-  }, [hour, datePreset, center.lat, center.lng]);
+  }, [center.lat, center.lng]);
 
-  // Load PDOK street map as a 3x3 grid of basemap tiles around the center
+  // Load PDOK street map as a 3x3 grid of basemap tiles
   useEffect(() => {
     const ctx = sceneRef.current;
     if (!ctx || !center.lat || !center.lng) return;
 
-    // Clean up previous basemap meshes
     for (const mesh of basemapMeshesRef.current) {
       ctx.scene.remove(mesh);
       if ((mesh.material as THREE.MeshStandardMaterial).map) {
@@ -505,7 +390,6 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     const zoom = 16;
     const centerTile = latLngToTile(center.lat, center.lng, zoom);
 
-    // 3x3 grid offsets
     const offsets = [
       { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
       { dx: -1, dy: 0 }, { dx: 0, dy: 0 }, { dx: 1, dy: 0 },
@@ -513,7 +397,6 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     ];
 
     const meshes: THREE.Mesh[] = [];
-    // Store in ref immediately so cleanup works
     basemapMeshesRef.current = meshes;
 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -537,7 +420,6 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
         let texture: THREE.Texture;
         if (isDark) {
-          // Apply invert + hue-rotate via offscreen canvas (same filter as Leaflet dark basemap)
           const canvas = document.createElement('canvas');
           canvas.width = img.width;
           canvas.height = img.height;
@@ -562,7 +444,6 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         const tileMesh = new THREE.Mesh(tileGeom, tileMat);
         tileMesh.rotation.x = -Math.PI / 2;
 
-        // PDOK tile Y increases SOUTH (Google XYZ) -> Three.js +Z
         const worldX = (dx * tileWidthMeters) - centerOffsetX;
         const worldZ = (dy * tileWidthMeters) - centerOffsetY;
 
@@ -588,35 +469,13 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     };
   }, [center.lat, center.lng]);
 
-  // Camera preset handler — smooth GSAP tween to target position
-  const setCameraPreset = useCallback((preset: string) => {
-    const ctx = sceneRef.current;
-    if (!ctx) return;
-    const offset = CAMERA_PRESETS[preset];
-    if (!offset) return;
-    const tc = targetCenterRef.current;
-
-    gsap.to(ctx.camera.position, {
-      x: tc.x + offset[0],
-      y: tc.y + offset[1],
-      z: tc.z + offset[2],
-      duration: 0.3,
-      ease: 'power2.inOut',
-      onUpdate: () => {
-        ctx.camera.lookAt(tc.x, tc.y, tc.z);
-        ctx.controls.target.set(tc.x, tc.y, tc.z);
-      },
-    });
-  }, []);
-
-  // Sunlight analysis (F2c) — compute once when buildings are ready
+  // Sunlight analysis — compute once when buildings are ready
   const computeSunlight = useCallback(() => {
     const ctx = sceneRef.current;
     if (!ctx || !onSunlightAnalysis || buildings.length === 0 || !targetPandId) return;
     if (sunlightComputed.current) return;
     sunlightComputed.current = true;
 
-    // Find target building center
     const target = buildings.find((b) => b.pand_id === targetPandId);
     if (!target) return;
 
@@ -629,11 +488,10 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
     const raycaster = new THREE.Raycaster();
     const year = new Date().getFullYear();
-    // 12-month sampling: 21st of each month (Jan=0 .. Dec=11)
     const monthlyDates = Array.from({ length: 12 }, (_, i) => new Date(year, i, 21));
-    const WINTER_IDX = 11; // Dec
-    const EQUINOX_IDX = 2; // Mar
-    const SUMMER_IDX = 5;  // Jun
+    const WINTER_IDX = 11;
+    const EQUINOX_IDX = 2;
+    const SUMMER_IDX = 5;
 
     const monthlyHours: number[] = [];
 
@@ -660,7 +518,6 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         raycaster.set(roofCenter, sunDir);
         raycaster.far = SUN_DISTANCE * 2;
 
-        // Check for obstructions (other buildings only)
         const intersections = raycaster.intersectObjects(ctx.buildingMeshes);
         const blocked = intersections.some(
           (hit) => hit.object.userData.pandId !== targetPandId && !hit.object.userData.isGround,
@@ -675,27 +532,24 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
     const annualAverage = Math.round((monthlyHours.reduce((s, h) => s + h, 0) / 12) * 10) / 10;
 
-    const result: SunlightResult = {
+    onSunlightAnalysis({
       winter: monthlyHours[WINTER_IDX],
       equinox: monthlyHours[EQUINOX_IDX],
       summer: monthlyHours[SUMMER_IDX],
       annualAverage,
       analysisYear: year,
-    };
-    setLocalSunlight(result);
-    onSunlightAnalysis(result);
+    });
   }, [buildings, targetPandId, center.lat, center.lng, onSunlightAnalysis]);
 
   // Trigger sunlight analysis after buildings render
   useEffect(() => {
     if (buildings.length > 0 && targetPandId) {
-      // Small delay to ensure meshes are added to scene
       const timer = setTimeout(computeSunlight, 100);
       return () => clearTimeout(timer);
     }
   }, [buildings, targetPandId, computeSunlight]);
 
-  // Capture shadow snapshots (F2b) — 3 static views at 9:00/12:00/17:00 on Dec 21
+  // Capture shadow snapshots — 3 static views at 9:00/12:00/17:00 on Dec 21
   useEffect(() => {
     const ctx = sceneRef.current;
     if (!ctx || !onShadowSnapshots || buildings.length === 0 || snapshotsCaptured.current) return;
@@ -705,7 +559,6 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     const savedSunPos = ctx.sunLight.position.clone();
     const savedSunIntensity = ctx.sunLight.intensity;
 
-    // Top-down view for consistent snapshots
     ctx.camera.position.set(0, 200, 0.1);
     ctx.camera.lookAt(0, 0, 0);
     ctx.camera.updateProjectionMatrix();
@@ -754,174 +607,26 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     onShadowSnapshots(snapshots);
   }, [buildings, onShadowSnapshots, center.lat, center.lng]);
 
-  // Clean up overlay mesh helper
-  const disposeOverlay = useCallback(() => {
-    const ctx = sceneRef.current;
-    if (overlayMeshRef.current) {
-      ctx?.scene.remove(overlayMeshRef.current);
-      overlayMeshRef.current.geometry.dispose();
-      (overlayMeshRef.current.material as THREE.Material).dispose();
-      overlayMeshRef.current = null;
-    }
-    if (overlayTextureRef.current) {
-      overlayTextureRef.current.dispose();
-      overlayTextureRef.current = null;
-    }
-  }, []);
-
-  // Clear overlay on address change
-  useEffect(() => {
-    return () => {
-      disposeOverlay();
-      setActiveOverlay(null);
-    };
-  }, [buildings, disposeOverlay]);
-
-  // Handle overlay toggle
-  const handleOverlayChange = useCallback((type: OverlayTileType | null) => {
-    const ctx = sceneRef.current;
-    if (!ctx) return;
-
-    // Remove old overlay
-    disposeOverlay();
-
-    if (type === null) {
-      setActiveOverlay(null);
-      return;
-    }
-
-    setActiveOverlay(type);
-    setOverlayLoading(true);
-
-    void (async () => {
-      try {
-        const blob = await getWmsTile(type, center.rd_x, center.rd_y);
-        const url = URL.createObjectURL(blob);
-
-        const texture = new THREE.TextureLoader().load(url, () => {
-          URL.revokeObjectURL(url);
-        });
-        overlayTextureRef.current = texture;
-
-        const planeGeom = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-        const planeMat = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          opacity: 0.5,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-        });
-
-        const mesh = new THREE.Mesh(planeGeom, planeMat);
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.position.y = 0.2; // Just above ground plane
-        overlayMeshRef.current = mesh;
-        ctx.scene.add(mesh);
-      } catch {
-        setActiveOverlay(null);
-      } finally {
-        setOverlayLoading(false);
-      }
-    })();
-  }, [center.rd_x, center.rd_y, disposeOverlay]);
-
-  // Update overlay opacity in real time
-  useEffect(() => {
-    if (overlayMeshRef.current) {
-      (overlayMeshRef.current.material as THREE.MeshBasicMaterial).opacity = overlayOpacity / 100;
-    }
-  }, [overlayOpacity]);
-
   return (
-    <div className={`viewer-3d${isFullscreen ? ' viewer-3d--fullscreen' : ''}`} ref={viewerRef}>
+    <div className="viewer-3d">
       <h2 className="viewer-3d__title">{t('viewer3d.title')}</h2>
       <div className="viewer-3d__canvas" ref={containerRef} data-testid="viewer-3d-canvas">
         <button
-          className="viewer-3d__fullscreen-btn"
-          onClick={toggleFullscreen}
-          aria-label={t(isFullscreen ? 'viewer3d.exitFullscreen' : 'viewer3d.fullscreen')}
-          title={t(isFullscreen ? 'viewer3d.exitFullscreen' : 'viewer3d.fullscreen')}
+          className="viewer-3d__reset-btn"
+          onClick={() => frameCamera()}
+          aria-label={t('viewer3d.resetView')}
+          title={t('viewer3d.resetView')}
           type="button"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            {isFullscreen ? (
-              <path d="M4 12L12 4M4 4l8 8" />
-            ) : (
-              <>
-                <polyline points="1,5 1,1 5,1" />
-                <polyline points="11,1 15,1 15,5" />
-                <polyline points="15,11 15,15 11,15" />
-                <polyline points="5,15 1,15 1,11" />
-              </>
-            )}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 4V1h3" />
+            <path d="M15 12v3h-3" />
+            <path d="M15 4V1h-3" />
+            <path d="M1 12v3h3" />
+            <rect x="4" y="4" width="8" height="8" rx="1" />
           </svg>
         </button>
-        <div className="viewer-3d__camera-cluster">
-          {(['street', 'balcony', 'topDown'] as const).map((preset) => (
-            <button
-              key={preset}
-              className="viewer-3d__camera-btn"
-              onClick={() => setCameraPreset(preset)}
-              aria-label={t(`viewer3d.camera.${preset}`)}
-              title={t(`viewer3d.camera.${preset}`)}
-              type="button"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                {preset === 'street' ? (
-                  /* Eye icon — street-level view */
-                  <>
-                    <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5" />
-                    <circle cx="8" cy="8" r="2" />
-                  </>
-                ) : preset === 'balcony' ? (
-                  /* Building icon — balcony view */
-                  <>
-                    <rect x="3" y="2" width="10" height="12" rx="1" />
-                    <line x1="6" y1="5" x2="6" y2="7" />
-                    <line x1="10" y1="5" x2="10" y2="7" />
-                    <line x1="6" y1="9" x2="6" y2="11" />
-                    <line x1="10" y1="9" x2="10" y2="11" />
-                  </>
-                ) : (
-                  /* Arrow-down icon — top-down view */
-                  <>
-                    <line x1="8" y1="2" x2="8" y2="13" />
-                    <polyline points="4,9 8,13 12,9" />
-                  </>
-                )}
-              </svg>
-            </button>
-          ))}
-        </div>
-        <div className="viewer-3d__sunlight-badge" data-testid="time-badge">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            <circle cx="8" cy="8" r="3" />
-            <line x1="8" y1="1" x2="8" y2="3" /><line x1="8" y1="13" x2="8" y2="15" />
-            <line x1="1" y1="8" x2="3" y2="8" /><line x1="13" y1="8" x2="15" y2="8" />
-            <line x1="3.05" y1="3.05" x2="4.46" y2="4.46" /><line x1="11.54" y1="11.54" x2="12.95" y2="12.95" />
-            <line x1="3.05" y1="12.95" x2="4.46" y2="11.54" /><line x1="11.54" y1="4.46" x2="12.95" y2="3.05" />
-          </svg>
-          {` ${hour.toString().padStart(2, '0')}:00`}
-        </div>
-        {lowPerformance && (
-          <div className="viewer-3d__perf-banner" data-testid="performance-banner">
-            {t('viewer3d.simplifiedView')}
-          </div>
-        )}
       </div>
-      <ShadowControls
-        hour={hour}
-        datePreset={datePreset}
-        onHourChange={setHour}
-        onDatePresetChange={setDatePreset}
-      />
-      <OverlayControls
-        activeOverlay={activeOverlay}
-        onOverlayChange={handleOverlayChange}
-        loading={overlayLoading}
-        opacity={overlayOpacity}
-        onOpacityChange={setOverlayOpacity}
-      />
       <p className="viewer-3d__source">{t('viewer3d.source')}</p>
     </div>
   );

@@ -192,8 +192,8 @@ async def neighborhood_3d(
     lng: float = Query(...),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
-    # v12: fast neighborhood payload (no context LoD 2.2 enrichment by default).
-    cache_key = f"neighborhood3d:v12:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    # v13: resilient neighborhood fetch with bounded backup retries.
+    cache_key = f"neighborhood3d:v13:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return Neighborhood3DResponse(**cached)
@@ -211,7 +211,11 @@ async def neighborhood_3d(
         ) from exc
 
     is_partial = bool(result.message and result.message.startswith("Partial neighborhood data"))
-    if result.buildings and result.target_pand_id is not None and not is_partial:
+    if (
+        result.buildings
+        and result.target_pand_id is not None
+        and (not is_partial or len(result.buildings) > 1)
+    ):
         await cache_set(
             cache_key, result.model_dump(), ttl=settings.cache_ttl_neighborhood_3d,
         )

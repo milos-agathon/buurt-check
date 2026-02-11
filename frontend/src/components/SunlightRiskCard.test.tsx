@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
-import SunlightRiskCard from './SunlightRiskCard';
+import SunlightRiskCard, { getAxisLabel } from './SunlightRiskCard';
 import { setupTestI18n, makeSunlightResult } from '../test/helpers';
 
 let i18nEn: Awaited<ReturnType<typeof setupTestI18n>>;
@@ -16,11 +16,17 @@ function renderCard(
   loading = false,
   lang: 'en' | 'nl' = 'en',
   unavailable = false,
+  orientationDeg?: number,
 ) {
   const i18n = lang === 'en' ? i18nEn : i18nNl;
   return render(
     <I18nextProvider i18n={i18n}>
-      <SunlightRiskCard sunlight={sunlight} loading={loading} unavailable={unavailable} />
+      <SunlightRiskCard
+        sunlight={sunlight}
+        loading={loading}
+        unavailable={unavailable}
+        orientationDeg={orientationDeg}
+      />
     </I18nextProvider>,
   );
 }
@@ -107,5 +113,65 @@ describe('SunlightRiskCard', () => {
     expect(screen.getByText(/Geen 3D-gebouwcontext beschikbaar/)).toBeInTheDocument();
     expect(screen.getByText(/Vraag de verkoper/)).toBeInTheDocument();
     expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
+  });
+});
+
+describe('getAxisLabel', () => {
+  it('returns ns for 0 degrees', () => {
+    expect(getAxisLabel(0)).toBe('ns');
+  });
+
+  it('returns nesw for 45 degrees', () => {
+    expect(getAxisLabel(45)).toBe('nesw');
+  });
+
+  it('returns ew for 90 degrees', () => {
+    expect(getAxisLabel(90)).toBe('ew');
+  });
+
+  it('returns senw for 135 degrees', () => {
+    expect(getAxisLabel(135)).toBe('senw');
+  });
+
+  it('treats 180 as equivalent to 0 (N-S axis)', () => {
+    expect(getAxisLabel(180)).toBe('ns');
+  });
+
+  it('handles values near boundary (22 degrees = ns)', () => {
+    expect(getAxisLabel(22)).toBe('ns');
+  });
+
+  it('handles values near boundary (23 degrees = nesw)', () => {
+    expect(getAxisLabel(23)).toBe('nesw');
+  });
+});
+
+describe('SunlightRiskCard orientation', () => {
+  it('does not show orientation when orientationDeg is undefined', () => {
+    renderCard(makeSunlightResult());
+    expect(screen.queryByText(/Estimated building axis/)).not.toBeInTheDocument();
+  });
+
+  it('shows orientation when orientationDeg is provided', () => {
+    renderCard(makeSunlightResult(), false, 'en', false, 45);
+    expect(screen.getByText(/Estimated building axis/)).toBeInTheDocument();
+    expect(screen.getByText(/NE — SW/)).toBeInTheDocument();
+    expect(screen.getByText(/45°/)).toBeInTheDocument();
+  });
+
+  it('shows orientation note when orientation is present', () => {
+    renderCard(makeSunlightResult(), false, 'en', false, 90);
+    expect(screen.getByText(/Based on building footprint/)).toBeInTheDocument();
+  });
+
+  it('renders orientation in Dutch', () => {
+    renderCard(makeSunlightResult({ winter: 3 }), false, 'nl', false, 45);
+    expect(screen.getByText(/Geschatte gebouwas/)).toBeInTheDocument();
+    expect(screen.getByText(/NO — ZW/)).toBeInTheDocument();
+  });
+
+  it('does not show orientation in loading state', () => {
+    renderCard(undefined, true, 'en', false, 45);
+    expect(screen.queryByText(/Estimated building axis/)).not.toBeInTheDocument();
   });
 });

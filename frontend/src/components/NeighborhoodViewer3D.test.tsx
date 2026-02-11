@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { setupTestI18n, makeNeighborhood3DResponse, makeNeighborhood3DResponseWithLod22 } from '../test/helpers';
 
@@ -146,14 +146,6 @@ vi.mock('suncalc', () => ({
   },
 }));
 
-vi.mock('../services/api', () => ({
-  getWmsTile: vi.fn(),
-}));
-
-vi.mock('gsap', () => ({
-  default: { to: vi.fn() },
-}));
-
 // Must import after mocks
 import NeighborhoodViewer3D from './NeighborhoodViewer3D';
 
@@ -205,27 +197,9 @@ describe('NeighborhoodViewer3D', () => {
     expect(screen.getByTestId('viewer-3d-canvas')).toBeInTheDocument();
   });
 
-  it('renders shadow controls', () => {
-    renderViewer();
-    expect(screen.getByText(/Winter/)).toBeInTheDocument();
-    expect(screen.getByRole('slider')).toBeInTheDocument();
-  });
-
   it('renders source text', () => {
     renderViewer();
     expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
-  });
-
-  it('renders camera preset buttons inside the viewport', () => {
-    renderViewer();
-    expect(screen.getByRole('button', { name: /street/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /balcony/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /top-down/i })).toBeInTheDocument();
-  });
-
-  it('renders overlay controls', () => {
-    renderViewer();
-    expect(screen.getByRole('button', { name: /layers/i })).toBeInTheDocument();
   });
 
   it('snapshot capture restores sun state', () => {
@@ -249,38 +223,31 @@ describe('NeighborhoodViewer3D', () => {
     expect(screen.getByTestId('viewer-3d-canvas')).toBeInTheDocument();
   });
 
-  it('renders fullscreen toggle button', () => {
+  // New tests for simplified viewer
+  it('renders reset button with accessible label', () => {
     renderViewer();
-    expect(screen.getByRole('button', { name: /fullscreen/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reset view/i })).toBeInTheDocument();
   });
 
-  it('adds fullscreen class when fullscreen button clicked', () => {
+  it('reset button is keyboard-activatable', () => {
     renderViewer();
-    const btn = screen.getByRole('button', { name: /fullscreen/i });
-    fireEvent.click(btn);
-    const container = screen.getByTestId('viewer-3d-canvas').closest('.viewer-3d');
-    expect(container?.className).toContain('viewer-3d--fullscreen');
+    const resetBtn = screen.getByRole('button', { name: /reset view/i });
+    resetBtn.focus();
+    expect(resetBtn).toHaveFocus();
   });
 
-  it('exits fullscreen on second click', () => {
+  it('does not render fullscreen button', () => {
     renderViewer();
-    const btn = screen.getByRole('button', { name: /fullscreen/i });
-    fireEvent.click(btn);
-    fireEvent.click(btn);
-    const container = screen.getByTestId('viewer-3d-canvas').closest('.viewer-3d');
-    expect(container?.className).not.toContain('viewer-3d--fullscreen');
+    expect(screen.queryByRole('button', { name: /fullscreen/i })).not.toBeInTheDocument();
   });
 
-  it('renders time badge with current hour', () => {
+  it('does not render shadow controls (time slider)', () => {
     renderViewer();
-    const badge = screen.getByTestId('time-badge');
-    expect(badge).toBeInTheDocument();
-    expect(badge.textContent).toContain('12:00');
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
   });
 
-  it('does not render performance banner initially', () => {
+  it('does not render overlay controls', () => {
     renderViewer();
-    expect(screen.queryByTestId('performance-banner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /layers/i })).not.toBeInTheDocument();
   });
 });
-

@@ -11,8 +11,6 @@ import type {
   ViewingQuestionsResponse,
 } from '../types/api';
 
-export type OverlayTileType = 'noise' | 'air_quality' | 'climate';
-
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 export async function suggestAddresses(
@@ -311,25 +309,3 @@ export async function getMapillaryStreetView(
   }
 }
 
-export async function getWmsTile(
-  type: OverlayTileType,
-  rdX: number,
-  rdY: number,
-): Promise<Blob> {
-  const params = new URLSearchParams({
-    type,
-    rd_x: String(rdX),
-    rd_y: String(rdY),
-  });
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
-  try {
-    const resp = await fetch(`${API_BASE}/address/wms-tile?${params}`, {
-      signal: controller.signal,
-    });
-    if (!resp.ok) throw new Error(`WMS tile failed: ${resp.status}`);
-    return resp.blob();
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}

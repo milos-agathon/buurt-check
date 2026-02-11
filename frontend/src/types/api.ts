@@ -56,6 +56,7 @@ export interface BuildingBlock {
   footprint: number[][];
   year?: number;
   roof_surfaces?: number[][][]; // [surface][vertex][dx, dy, z_nap]
+  orientation_deg?: number; // Longest edge azimuth, 0=N, clockwise, 0-180 range
 }
 
 export interface Neighborhood3DCenter {

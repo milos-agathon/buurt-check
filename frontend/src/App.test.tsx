@@ -39,8 +39,8 @@ vi.mock('./components/NeighborhoodViewer3D', () => ({
 }));
 
 vi.mock('./components/SunlightRiskCard', () => ({
-  default: ({ loading, unavailable }: { loading?: boolean; unavailable?: boolean }) => (
-    <div data-testid="sunlight-card">
+  default: ({ loading, unavailable, orientationDeg }: { loading?: boolean; unavailable?: boolean; orientationDeg?: number }) => (
+    <div data-testid="sunlight-card" data-orientation={orientationDeg}>
       {loading ? 'Loading sunlight...' : unavailable ? 'Sunlight unavailable' : 'Sunlight card'}
     </div>
   ),

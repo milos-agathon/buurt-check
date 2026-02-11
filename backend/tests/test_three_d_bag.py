@@ -6,6 +6,7 @@ import pytest
 
 from app.models.neighborhood3d import BuildingBlock
 from app.services.three_d_bag import (
+    _compute_building_orientation,
     _extract_lod22_surfaces,
     _fetch_target_building,
     _parse_building,
@@ -985,3 +986,53 @@ async def test_fetch_target_building_with_lod22(mock_get_client, mock_settings):
     assert result.pand_id == "0363100012253924"
     assert result.roof_surfaces is not None
     assert len(result.roof_surfaces) == 6
+
+
+# --- _compute_building_orientation tests ---
+
+
+class TestComputeBuildingOrientation:
+    """Test building orientation estimation from footprint geometry."""
+
+    def test_east_west_rectangle(self):
+        """Longest edge horizontal (E-W) -> ~90 degrees."""
+        # 20m wide (E-W) x 5m deep (N-S)
+        footprint = [[0, 0], [20, 0], [20, 5], [0, 5]]
+        result = _compute_building_orientation(footprint)
+        assert result is not None
+        assert abs(result - 90.0) < 1.0
+
+    def test_north_south_rectangle(self):
+        """Longest edge vertical (N-S) -> ~0 degrees."""
+        # 5m wide x 20m deep
+        footprint = [[0, 0], [5, 0], [5, 20], [0, 20]]
+        result = _compute_building_orientation(footprint)
+        assert result is not None
+        assert result < 1.0 or result > 179.0  # near 0 or 180 (both map to ~0)
+
+    def test_diagonal_rectangle(self):
+        """45-degree diagonal -> ~45 degrees."""
+        # Rectangle along NE-SW axis
+        footprint = [[0, 0], [10, 10], [9, 11], [-1, 1]]
+        result = _compute_building_orientation(footprint)
+        assert result is not None
+        assert abs(result - 45.0) < 5.0
+
+    def test_square_returns_value(self):
+        """Square (all edges equal) -> returns some value (first longest)."""
+        footprint = [[0, 0], [10, 0], [10, 10], [0, 10]]
+        result = _compute_building_orientation(footprint)
+        assert result is not None
+        assert 0 <= result < 180
+
+    def test_degenerate_too_few_vertices(self):
+        """<3 vertices -> None."""
+        assert _compute_building_orientation([[0, 0], [1, 0]]) is None
+        assert _compute_building_orientation([[0, 0]]) is None
+        assert _compute_building_orientation([]) is None
+
+    def test_tiny_edges_below_threshold(self):
+        """All edges < 0.1m -> None."""
+        footprint = [[0, 0], [0.05, 0], [0.05, 0.05]]
+        result = _compute_building_orientation(footprint)
+        assert result is None

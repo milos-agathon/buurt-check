@@ -25,7 +25,7 @@ FALLBACK_MIN_RADIUS = 40.0
 FALLBACK_PAGE_TIMEOUT = 12.0
 FALLBACK_PAGE_LIMIT = 40
 SECONDARY_FALLBACK_RADIUS = 35.0
-PRIMARY_GRACE_AFTER_BACKUP_SECONDS = 2.0
+PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 5.0
 
 
 
@@ -344,30 +344,6 @@ async def _fetch_bbox_paginated(
             data = resp.json()
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
             logger.warning("Bbox page %d fetch failed: %s", pages + 1, exc)
-            # Reliability fallback: one reduced-radius, single-page retry so we still
-            # render neighborhood context when the primary bbox call is too slow.
-            if pages == 0 and radius > FALLBACK_MIN_RADIUS:
-                fallback_radius = max(FALLBACK_MIN_RADIUS, radius * FALLBACK_RADIUS_FACTOR)
-                fx0, fy0 = center_x - fallback_radius, center_y - fallback_radius
-                fx1, fy1 = center_x + fallback_radius, center_y + fallback_radius
-                fallback_bbox = f"{fx0:.0f},{fy0:.0f},{fx1:.0f},{fy1:.0f}"
-                try:
-                    fallback_resp = await client.get(
-                        f"{url}?bbox={fallback_bbox}&limit={FALLBACK_PAGE_LIMIT}",
-                        timeout=httpx.Timeout(FALLBACK_PAGE_TIMEOUT, connect=3.0),
-                    )
-                    fallback_resp.raise_for_status()
-                    fallback_data = fallback_resp.json()
-                    fallback_buildings = _parse_bbox_page(fallback_data, center_x, center_y)
-                    if fallback_buildings:
-                        logger.info(
-                            "Bbox fallback succeeded: %d buildings (radius %.0fm)",
-                            len(fallback_buildings),
-                            fallback_radius,
-                        )
-                        return fallback_buildings, True
-                except (httpx.HTTPError, httpx.TimeoutException) as fallback_exc:
-                    logger.warning("Bbox fallback failed: %s", fallback_exc)
             partial = True
             break
 
@@ -467,22 +443,24 @@ async def _fetch_bbox_resilient(
 
     backup_buildings, backup_partial = _task_result_or_partial(backup_task)
     if backup_buildings:
-        try:
-            primary_buildings, primary_partial = await asyncio.wait_for(
-                primary_task,
-                timeout=PRIMARY_GRACE_AFTER_BACKUP_SECONDS,
-            )
-            if len(primary_buildings) > len(backup_buildings):
+        if primary_task.done():
+            primary_buildings, primary_partial = _task_result_or_partial(primary_task)
+            if len(primary_buildings) >= len(backup_buildings):
                 return primary_buildings, primary_partial
-            return backup_buildings, backup_partial or primary_partial
-        except asyncio.TimeoutError:
-            primary_task.cancel()
-            return backup_buildings, True
-        except Exception:
-            primary_task.cancel()
-            return backup_buildings, True
+        primary_task.cancel()
+        return backup_buildings, True
 
-    primary_buildings, primary_partial = await primary_task
+    try:
+        primary_buildings, primary_partial = await asyncio.wait_for(
+            primary_task,
+            timeout=PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        primary_task.cancel()
+        primary_buildings, primary_partial = [], True
+    except Exception:
+        primary_task.cancel()
+        primary_buildings, primary_partial = [], True
     if primary_buildings:
         return primary_buildings, backup_partial or primary_partial
     secondary_buildings, secondary_partial = await _fetch_bbox_quick_context(

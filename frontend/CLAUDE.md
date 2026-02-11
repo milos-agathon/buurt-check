@@ -6,7 +6,6 @@
 - SunCalc for solar position calculations
 - i18n: react-i18next + i18next-browser-languagedetector (EN/NL)
 - Styling: Plain CSS with design system tokens (NO Tailwind, NO CSS-in-JS)
-- GSAP for camera transitions in 3D viewer (300ms easing)
 - Test: Vitest 4.x + React Testing Library + jsdom
 - Linting: TypeScript strict mode via `npm run build`
 - No state management library — App-level `useState` + props
@@ -40,11 +39,9 @@ src/
     SummaryStrip.tsx   — Horizontal scroll pills with risk scores
     BuildingFactsCard.tsx — Building year, floors, area, status
     BuildingFootprintMap.tsx — Leaflet 2D map with building footprint
-    NeighborhoodViewer3D.tsx — Three.js 3D viewer (shadows, overlays, basemap)
-    ShadowControls.tsx — Time slider + season presets + camera presets
+    NeighborhoodViewer3D.tsx — Three.js 3D static context card (summer noon, orbit controls, reset button)
     ShadowSnapshots.tsx — Canvas capture at 9:00/12:00/17:00 winter solstice
-    OverlayControls.tsx — WMS overlay toggles with popover + opacity slider (25-75%)
-    SunlightRiskCard.tsx — 12-month sunlight analysis with risk classification
+    SunlightRiskCard.tsx — 12-month sunlight analysis with risk classification + building orientation
     RiskTilesGrid.tsx  — 2x2 CSS Grid of risk tiles
     RiskTile.tsx       — Score tile (animated score, severity badge, summary)
     RiskDetailView.tsx — Full-screen detail with comparisons + viewing questions
@@ -138,19 +135,15 @@ Design tokens in `styles/tokens.css`. All components use CSS custom properties.
 - Warning codes from backend: `t('risk.warning.${code}', code)` with fallback
 
 ### Three.js rules
+- 3D viewer is a **static context card** with summer noon lighting and orbit controls. No interactive time slider, camera presets, fullscreen, or WMS overlays. Single reset button calls `frameCamera()`.
 - Plain Three.js — NOT react-three-fiber. All setup in `NeighborhoodViewer3D.tsx`
 - Always use `THREE.DoubleSide` on building materials (3DBAG winding order inconsistent)
-- Shadow map: `PCFSoftShadowMap`, 4096x4096 (adaptive fallback to 2048/1024), frustum +-300m, bias `-0.001`
+- Shadow map: `PCFSoftShadowMap`, 2048x2048, frustum +-200m, bias `-0.001`
 - Must add `sunLight.target` to scene (missing = silent shadow failure)
 - Dispose all geometries, materials, textures on cleanup
 - SunCalc azimuth 0=south. Convert: `x = -sin(az)*cos(alt)*D`, `y = sin(alt)*D`, `z = cos(az)*cos(alt)*D`
-- Camera presets as viewport overlay buttons (top-left). Use `gsap.to()` for 300ms transitions
-- WMS overlays: `PlaneGeometry` at Y=0.1, `depthWrite: false`, always `revokeObjectURL()` on change
-- Overlay opacity slider: 25-75% range, updates `MeshBasicMaterial.opacity` in real-time
 - LoD 2.2 geometry from `roof_surfaces` — fan triangulation, Y-up coords, no rotation needed
 - `mergeGeometries` from `three/addons/utils/BufferGeometryUtils.js` for non-target buildings (single draw call)
-- FPS monitoring: 60-frame window, 3 consecutive low readings → reduce shadow map size + show banner
-- Fullscreen: `requestFullscreen()` API + `fullscreenchange` event sync + CSS `.fullscreen` class
 - Target building: Arctic Teal (`0x2EC4B6`) with teal.300 emissive glow, in both light and dark mode
 - Neighbor buildings: uniform slate.200 (`0xB4C0CE`) at 60% opacity (no construction-year colors)
 
@@ -168,7 +161,7 @@ Design tokens in `styles/tokens.css`. All components use CSS custom properties.
 
 ## Testing patterns
 
-- **Test count baseline: 330** — any change must maintain or increase
+- **Test count baseline: 333** — any change must maintain or increase
 - Vitest 4.x + Testing Library + jsdom
 - Three.js mock: constructor functions (not arrow fns — `new` fails). Use `function Scene(this: any) { this.add = vi.fn(); }` pattern
 - react-leaflet mock: `MapContainer` → `<div data-testid="map">`, `TileLayer`/`GeoJSON` → `null`

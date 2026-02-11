@@ -73,6 +73,24 @@
   color: var(--color-text);
 }
 
+.sunlight-card__orientation {
+  margin-bottom: var(--space-base);
+  padding: var(--space-sm) var(--space-base);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+}
+
+.sunlight-card__orientation-label {
+  font: var(--type-small);
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+
+.sunlight-card__orientation-note {
+  font: var(--type-micro);
+  color: var(--color-text-tertiary);
+}
+
 .sunlight-card__tip {
   font: var(--type-small);
   background: var(--color-accent-light);

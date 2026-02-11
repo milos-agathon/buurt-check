@@ -764,6 +764,34 @@ function App() {
                   </div>
                 )}
 
+                {(() => {
+                  const canComputeSunlight = !!neighborhood3D
+                    && neighborhood3D.buildings.length > 0
+                    && !!neighborhood3D.target_pand_id
+                    && !surroundingLoading;
+                  const sunlightLoading = canComputeSunlight && !sunlight;
+                  const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
+                  if (!showSunlightCard) return null;
+                  const targetOrientation = neighborhood3D?.buildings.find(
+                    b => b.pand_id === neighborhood3D.target_pand_id
+                  )?.orientation_deg;
+                  return (
+                    <SunlightRiskCard
+                      sunlight={sunlight ?? undefined}
+                      loading={sunlightLoading}
+                      unavailable={sunlightUnavailable}
+                      orientationDeg={targetOrientation}
+                    />
+                  );
+                })()}
+
+                {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
+                  <ShadowSnapshots
+                    snapshots={shadowSnapshots ?? undefined}
+                    loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
+                  />
+                )}
+
                 {(riskLoading || riskCards || riskError) && (
                   <>
                     <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
@@ -817,30 +845,6 @@ function App() {
                   <BuildingFactsCard
                     building={buildingResponse?.building ?? undefined}
                     loading={loading}
-                  />
-                )}
-
-                {(() => {
-                  const canComputeSunlight = !!neighborhood3D
-                    && neighborhood3D.buildings.length > 0
-                    && !!neighborhood3D.target_pand_id
-                    && !surroundingLoading;
-                  const sunlightLoading = canComputeSunlight && !sunlight;
-                  const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
-                  if (!showSunlightCard) return null;
-                  return (
-                    <SunlightRiskCard
-                      sunlight={sunlight ?? undefined}
-                      loading={sunlightLoading}
-                      unavailable={sunlightUnavailable}
-                    />
-                  );
-                })()}
-
-                {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
-                  <ShadowSnapshots
-                    snapshots={shadowSnapshots ?? undefined}
-                    loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
                   />
                 )}
 

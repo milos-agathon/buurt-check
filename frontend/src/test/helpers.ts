@@ -95,6 +95,7 @@ export function makeNeighborhood3DResponse(
         building_height: 16.43,
         footprint: [[0, 0], [5, 0], [5, 5], [0, 5]],
         year: 1917,
+        orientation_deg: 135.0,
       },
       {
         pand_id: '0363100099999999',

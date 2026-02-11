@@ -25,98 +25,26 @@
   display: block;
 }
 
-.viewer-3d--fullscreen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 1000;
-  border-radius: 0;
+.viewer-3d__reset-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
   padding: 0;
 }
 
-.viewer-3d--fullscreen .viewer-3d__canvas {
-  min-height: 100vh;
-}
-
-.viewer-3d__fullscreen-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--glass-bg);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-}
-
-.viewer-3d__fullscreen-btn:hover {
-  background: var(--color-surface);
-}
-
-.viewer-3d__camera-cluster {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  z-index: 10;
-}
-
-.viewer-3d__camera-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--glass-bg);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-}
-
-.viewer-3d__camera-btn:hover {
-  background: var(--color-surface);
-}
-
-.viewer-3d__sunlight-badge {
-  position: absolute;
-  top: 52px;
-  right: 8px;
-  background: var(--glass-bg);
-  border-radius: 16px;
-  padding: 4px 10px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  box-shadow: var(--elevation-1);
-  z-index: 10;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--color-text);
-}
-
-.viewer-3d__perf-banner {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--color-overlay-dark);
-  color: var(--color-overlay-text);
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  z-index: 10;
-  white-space: nowrap;
+.viewer-3d__reset-btn:hover {
+  background: var(--color-surface-alt);
 }
 
 .viewer-3d__source {
