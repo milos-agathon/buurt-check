@@ -8,6 +8,7 @@ from app.cache.redis import cache_get, cache_set
 from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
+from app.models.mapillary import MapillaryResponse
 from app.models.neighborhood import NeighborhoodStatsResponse, UrbanizationLevel
 from app.models.neighborhood3d import Neighborhood3DResponse
 from app.models.risk import (
@@ -17,7 +18,16 @@ from app.models.risk import (
     ViewingQuestionsResponse,
 )
 from app.models.tier_b import TierBResponse
-from app.services import bag, cbs, locatieserver, risk_cards, three_d_bag, tier_b, wms_tile
+from app.services import (
+    bag,
+    cbs,
+    locatieserver,
+    mapillary,
+    risk_cards,
+    three_d_bag,
+    tier_b,
+    wms_tile,
+)
 from app.services.pdf_export import generate_full_dossier, generate_quick_brief
 from app.services.risk_comparisons import build_risk_comparisons
 from app.services.viewing_questions import build_viewing_questions
@@ -182,8 +192,8 @@ async def neighborhood_3d(
     lng: float = Query(...),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
-    # v10: full-bbox pagination + LoD2.2 context enrichment.
-    cache_key = f"neighborhood3d:v10:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    # v12: fast neighborhood payload (no context LoD 2.2 enrichment by default).
+    cache_key = f"neighborhood3d:v12:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return Neighborhood3DResponse(**cached)
@@ -447,6 +457,33 @@ async def tier_b_signals(
     )
     if has_any_data:
         await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_tier_b)
+    return result
+
+
+@router.get("/{vbo_id}/mapillary", response_model=MapillaryResponse)
+async def mapillary_street_view(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    lat: float = Query(...),
+    lng: float = Query(...),
+):
+    """Fetch Tier-B Mapillary street-level image nearest to the selected address."""
+    cache_key = f"mapillary:{vbo_id}:{lat:.5f}:{lng:.5f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return MapillaryResponse(**cached)
+
+    try:
+        result = await mapillary.get_street_view(vbo_id=vbo_id, lat=lat, lng=lng)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Mapillary data source unavailable",
+        ) from exc
+
+    cacheable_no_image = {"MAPILLARY_NO_IMAGE", "MAPILLARY_TOKEN_MISSING"}
+    if result.image is not None or result.message in cacheable_no_image:
+        await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_mapillary)
+
     return result
 
 

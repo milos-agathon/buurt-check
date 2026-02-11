@@ -348,3 +348,178 @@ Fix missing context buildings in 3D neighborhood rendering by resolving incomple
   - `pytest -q backend/tests -m "not live"` => `263 passed, 9 deselected`
   - Live service probe (`rd_x=121200, rd_y=487250`): `186` buildings returned, `186` with `roof_surfaces` (LoD 2.2), `message=None`.
 
+
+# Task Plan: Spec Reconciliation and Rigorous Implementation Audit (2026-02-11)
+
+## Goal
+
+Reconcile `docs/design-spec.md`, `docs/design-prd.md`, and `docs/prd.md` against `AGENTS.md`, then perform a rigorous implementation-level assessment and publish a concrete gap-closure plan in `docs/`.
+
+## Plan
+
+- [x] Read and reconcile requirements across all requested docs.
+- [x] Identify hard inconsistencies that require product/tech decisions.
+- [x] Audit backend and frontend implementation against reconciled requirements.
+- [x] Run quality gates and record current pass/fail status.
+- [x] Publish detailed report with concrete implementation steps in `docs/`.
+
+## Review
+
+- Report created: `docs/spec-reconciliation-implementation-assessment-2026-02-11.md`
+- Backend lint: `ruff check .` -> pass
+- Backend non-live tests: `pytest -q` -> `263 passed, 9 deselected`
+- Backend live tests: `pytest -q -m live` -> `8 passed, 1 failed` (`test_cbs_amsterdam_bbox_fallback`)
+- Frontend tests: `npm test` -> `334 passed`
+- Frontend build: `npm run build` -> pass
+- Frontend E2E: `npm run test:e2e` -> `19 passed, 2 failed`
+  - `tests/e2e/performance-budget.spec.ts` (initial shell budget)
+  - `tests/e2e/f4-neighborhood-stats.spec.ts` (Dutch toggle selector drift)
+
+
+# Task Plan: Phase 1 Completion from `docs/specs.md` (2026-02-11)
+
+## Goal
+
+Complete Phase 1 spec lock/doc repair: codify decisions, align PRD/design docs, add explicit delivery labels, and add a source-of-truth requirement matrix.
+
+## Plan
+
+- [x] Record D3/D4 decisions in `docs/specs.md` and mark Phase 1 completed.
+- [x] Create canonical baseline doc with decisions, delivery labels, and requirement ownership matrix.
+- [x] Update `docs/prd.md` with Phase 1 addendum, delivery labels, and architecture scope alignment.
+- [x] Update `docs/design-prd.md` with Phase 1 addendum and implementation stack alignment.
+- [x] Update `docs/design-spec.md` with Phase 1 addendum and renderer-scope clarification.
+
+## Review
+
+- Created `docs/spec-baseline.md`:
+  - Locked decisions D1-1, D2-2, D3-2R, D4-2, D5-1.
+  - Added explicit `Implemented now` vs `Post-MVP` feature labeling.
+  - Added requirement matrix (`requirement ID -> owner files -> acceptance tests`).
+- Updated `docs/specs.md`:
+  - Recorded D3 and D4 decisions.
+  - Marked Phase 0/1 complete and updated next-sprint backlog.
+- Updated `docs/prd.md`:
+  - Added Phase 1 alignment addendum.
+  - Added feature delivery labels table.
+  - Aligned architecture text to current stack and report-only forge3 scope.
+  - Updated PDF language to dual-template export (`quick_brief`, `full_dossier`).
+- Updated `docs/design-prd.md`:
+  - Added Phase 1 alignment addendum.
+  - Set design direction authority to Polar Frost.
+  - Updated section 16 technology stack to current implementation choices.
+- Updated `docs/design-spec.md`:
+  - Added Phase 1 alignment addendum.
+  - Set design direction authority to Polar Frost.
+  - Added PDF renderer split note (forge3 export/report only, Three.js for web interaction).
+
+---
+
+# Task Plan: Implement D4 (Mapillary Street-Level Panel) (2026-02-11)
+
+## Goal
+
+Fully implement D4-2 by adding Mapillary street-level integration to the dossier with backend data lookup/proxy, frontend panel UI, attribution/legal copy, i18n, and test coverage.
+
+## Plan
+
+- [x] Add backend Mapillary models/service/config and expose `/api/address/{vbo_id}/mapillary`.
+- [x] Add frontend Mapillary API client/types/state wiring in `App.tsx`.
+- [x] Build `MapillaryPanel` UI with loading/error/degraded states and required attribution/legal text.
+- [x] Add and update unit tests (backend endpoint + frontend component/API/App wiring) and E2E mocks.
+- [x] Run quality gates (`ruff`, backend pytest non-live, frontend vitest, frontend build) and document results.
+
+## Review
+
+- Backend implementation:
+  - Added new Mapillary response models:
+    - `backend/app/models/mapillary.py`
+  - Added Mapillary Graph API integration service with image ranking (pano + orientation + distance):
+    - `backend/app/services/mapillary.py`
+  - Added config for Mapillary endpoint/token/search and cache TTL:
+    - `backend/app/config.py`
+  - Added new endpoint:
+    - `GET /api/address/{vbo_id}/mapillary?lat=...&lng=...`
+    - file: `backend/app/api/address.py`
+  - Added endpoint/model tests:
+    - `backend/tests/test_address_api.py`
+    - `backend/tests/test_models.py`
+- Frontend implementation:
+  - Added API/types for Mapillary payload:
+    - `frontend/src/services/api.ts`
+    - `frontend/src/types/api.ts`
+  - Added dossier panel component with loading/error/unavailable/image states:
+    - `frontend/src/components/MapillaryPanel.tsx`
+    - `frontend/src/components/MapillaryPanel.css`
+    - `frontend/src/components/MapillaryPanel.test.tsx`
+  - Wired state/fetch/render into app flow:
+    - `frontend/src/App.tsx`
+    - `frontend/src/App.test.tsx`
+  - Added API client tests and E2E mock route:
+    - `frontend/src/services/api.test.ts`
+    - `frontend/tests/e2e/helpers/mockApi.ts`
+  - Added EN/NL copy including attribution/legal and warning text:
+    - `frontend/src/i18n/en.json`
+    - `frontend/src/i18n/nl.json`
+- Docs updated for current D4 status:
+  - `docs/spec-baseline.md`
+  - `docs/prd.md`
+- Verification:
+  - Backend lint: `ruff check backend` -> pass
+  - Backend tests (non-live): `pytest -q backend/tests -m "not live"` -> `267 passed, 9 deselected`
+  - Frontend tests: `npm test` -> `340 passed`
+  - Frontend build: `npm run build` -> pass
+
+---
+
+# Task Plan: 3D Neighborhood Load Time Cap (<30s) (2026-02-11)
+
+## Goal
+
+Reduce end-user 3D neighborhood loading time from 2+ minutes to under 30 seconds for immediate UX stability.
+
+## Plan
+
+- [x] Confirm and remove the main long-tail bottleneck in neighborhood 3D loading.
+- [x] Implement backend fast-path behavior (no slow context enrichment) and cache-key version bump.
+- [x] Align frontend neighborhood 3D timeout to a hard 30-second cap.
+- [x] Add/update regression tests for fast-path behavior.
+- [x] Run backend/frontend quality gates and document measured results.
+
+## Review
+
+- Root cause confirmed:
+  - Neighborhood 3D flow still allowed expensive context LoD 2.2 enrichment (up to ~120s), creating 2+ minute long tails.
+- Implemented:
+  - Backend fast-path toggle (default off for context enrichment):
+    - `backend/app/config.py`
+      - Added `enable_lod22_context_enrichment: bool = False`
+  - Neighborhood service now skips context LoD 2.2 enrichment unless explicitly enabled:
+    - `backend/app/services/three_d_bag.py`
+  - Neighborhood cache key version bump to avoid stale heavy payloads:
+    - `backend/app/api/address.py`
+      - `neighborhood3d:v12:*`
+  - Frontend timeout hard cap for neighborhood 3D request:
+    - `frontend/src/services/api.ts`
+      - `getNeighborhood3D()` timeout set to `30000ms` (was `220000ms`)
+  - Dev proxy routing hardening to ensure frontend reaches the active backend listener:
+    - `frontend/vite.config.ts`
+      - Added `resolveDevApiProxyTarget()` with `VITE_DEV_API_PROXY_TARGET` override.
+      - Default proxy now prefers detected LAN IPv4 (`http://<lan-ip>:8000`) before localhost fallback.
+  - Regression tests:
+    - `backend/tests/test_three_d_bag.py`
+      - Added fast-path test ensuring no context single-item enrichment fan-out.
+      - Hardened existing bbox URL expectations to current pagination behavior.
+    - `frontend/src/services/api.test.ts`
+      - Added explicit 30s abort timeout test for `getNeighborhood3D()`.
+  - Docs alignment:
+    - `backend/CLAUDE.md` feature-flag section updated with new flag/default.
+- Verification:
+  - Backend lint: `ruff check .` -> pass
+  - Backend targeted tests: `pytest -q tests/test_three_d_bag.py tests/test_address_api.py -m "not live"` -> `59 passed`
+  - Backend full non-live tests: `pytest -q -m "not live"` -> `268 passed, 9 deselected`
+  - Frontend targeted tests: `npm test -- src/services/api.test.ts` -> pass (`29 passed`)
+  - Frontend full tests: `npm test` -> pass (`341 passed`)
+  - Frontend build: `npm run build` -> pass
+  - Live timing probe on updated backend endpoint (LAN host): `~7.01s` response for neighborhood 3D request.
+  - End-to-end timing probe via Vite proxy (`http://localhost:5173/api/...`): `~8.22s` response.

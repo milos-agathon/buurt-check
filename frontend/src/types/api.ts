@@ -274,6 +274,29 @@ export interface TierBResponse {
   crime: CrimeStatsCard;
 }
 
+export interface MapillaryImage {
+  id: string;
+  captured_at?: string;
+  is_pano: boolean;
+  compass_angle?: number;
+  distance_m?: number;
+  look_at_delta_deg?: number;
+  thumb_1024_url?: string;
+  thumb_2048_url?: string;
+  viewer_url: string;
+  embed_url: string;
+}
+
+export interface MapillaryResponse {
+  address_id: string;
+  image?: MapillaryImage;
+  source: string;
+  source_date?: string;
+  license: string;
+  attribution: string;
+  message?: string;
+}
+
 export interface ShortlistItem {
   vboId: string;
   address: string;

@@ -8,6 +8,7 @@ class BuildingBlock(BaseModel):
     footprint: list[list[float]]  # [[dx, dy], ...] meter offsets from center
     year: int | None = None
     roof_surfaces: list[list[list[float]]] | None = None  # [surface][vertex][dx, dy, z_nap]
+    orientation_deg: float | None = None  # Longest edge azimuth, 0=N, clockwise, 0-180 range
 
 
 class Neighborhood3DCenter(BaseModel):

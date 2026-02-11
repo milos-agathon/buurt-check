@@ -334,7 +334,7 @@ async def test_get_neighborhood_3d_parallel_strategy(mock_get_client):
             match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
             assert match is not None
             return _make_mock_resp(_make_single_item_response(match.group(1)))
-        if "bbox=" in s_url and "limit=100" in s_url:
+        if "bbox=" in s_url:
             return _make_mock_resp(bbox_resp)
         return _make_mock_resp(_make_3dbag_response([]))
 
@@ -348,6 +348,57 @@ async def test_get_neighborhood_3d_parallel_strategy(mock_get_client):
         lng=4.892,
     )
 
+    assert len(result.buildings) == 3
+    ids = {b.pand_id for b in result.buildings}
+    assert "0363100012253924" in ids
+    assert "0363100000000001" in ids
+    assert "0363100000000002" in ids
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._get_client")
+async def test_get_neighborhood_3d_fast_path_skips_context_enrichment(
+    mock_get_client, mock_settings
+):
+    """Fast path should avoid N single-item context calls that cause long tail latency."""
+    mock_settings.enable_lod22_roofs = True
+    mock_settings.enable_lod22_context_enrichment = False
+    mock_settings.three_d_bag_base = "https://api.3dbag.nl"
+
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    bbox_resp = _make_3dbag_response(
+        [
+            _make_feature("0363100000000001"),
+            _make_feature("0363100000000002"),
+        ]
+    )
+    single_item_calls = 0
+
+    def side_effect(url, **kwargs):
+        nonlocal single_item_calls
+        s_url = str(url)
+        if "NL.IMBAG.Pand." in s_url:
+            single_item_calls += 1
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        return _make_mock_resp(bbox_resp)
+
+    mock_client.get.side_effect = side_effect
+
+    result = await get_neighborhood_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+    # One direct fetch for target + one bbox page, no context single-item enrichment.
+    assert single_item_calls == 1
     assert len(result.buildings) == 3
     ids = {b.pand_id for b in result.buildings}
     assert "0363100012253924" in ids
@@ -377,9 +428,9 @@ async def test_get_neighborhood_3d_fetches_bbox_next_page(mock_get_client):
             match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
             assert match is not None
             return _make_mock_resp(_make_single_item_response(match.group(1)))
-        if "bbox=120855,486855,121155,487155&offset=101" in s_url:
+        if "bbox=" in s_url and "offset=101" in s_url:
             return _make_mock_resp(second_page)
-        if "bbox=120855,486855,121155,487155" in s_url:
+        if "bbox=" in s_url:
             return _make_mock_resp(first_page)
         return _make_mock_resp(_make_3dbag_response([]))
 
@@ -665,9 +716,9 @@ async def test_fetch_bbox_partial_failure(mock_get_client):
             match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
             assert match is not None
             return _make_mock_resp(_make_single_item_response(match.group(1)))
-        if "bbox=120855,486855,121155,487155&offset=101" in s_url:
+        if "bbox=" in s_url and "offset=101" in s_url:
             raise httpx.TimeoutException("read timeout")
-        if "bbox=120855,486855,121155,487155" in s_url:
+        if "bbox=" in s_url:
             return _make_mock_resp(first_page)
         return _make_mock_resp(_make_3dbag_response([]))
 
@@ -684,6 +735,49 @@ async def test_fetch_bbox_partial_failure(mock_get_client):
     # Target + 1 neighbor from Q0
     assert len(result.buildings) == 2
     ids = {b.pand_id for b in result.buildings}
+    assert "0363100000000001" in ids
+    assert result.message is not None
+    assert result.message.startswith("Partial neighborhood data")
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_fallback_returns_context_after_first_page_timeout(mock_get_client):
+    """When primary bbox page times out, reduced-radius fallback should return context."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    bbox_resp = _make_3dbag_response([_make_feature("0363100000000001")])
+    bbox_calls = 0
+
+    def side_effect(url, **kwargs):
+        nonlocal bbox_calls
+        s_url = str(url)
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        if "bbox=" in s_url:
+            bbox_calls += 1
+            if bbox_calls == 1:
+                raise httpx.TimeoutException("primary bbox timeout")
+            return _make_mock_resp(bbox_resp)
+        return _make_mock_resp(_make_3dbag_response([]))
+
+    mock_client.get.side_effect = side_effect
+
+    result = await get_neighborhood_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+    assert bbox_calls >= 2
+    assert len(result.buildings) == 2
+    ids = {b.pand_id for b in result.buildings}
+    assert "0363100012253924" in ids
     assert "0363100000000001" in ids
     assert result.message is not None
     assert result.message.startswith("Partial neighborhood data")

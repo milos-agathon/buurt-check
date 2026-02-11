@@ -4,8 +4,20 @@
 
 > **One-liner:** Paste a Dutch address, get an instant risk-and-reality dossier with 3D context, environmental risk cards, and a printable viewing briefing.
 
+## Phase 1 alignment addendum (2026-02-11)
+
+This PRD is aligned to the locked decisions in `docs/spec-baseline.md`.
+
+- Architecture: no migration now (`D1-1`).
+- Visual authority: Polar Frost (`D2-2`).
+- forge3 scope: report rendering only; web rendering remains Three.js (`D3-2R`).
+- Mapillary: included in current scope (`D4-2`).
+- PDF: dual-template export remains (`quick_brief`, `full_dossier`) (`D5-1`).
+- Requirement ownership and acceptance tests are tracked in `docs/spec-baseline.md` section 4.
+
 ## Table of contents
 
+0. [Phase 1 alignment addendum](#phase-1-alignment-addendum-2026-02-11)
 1. [Market opportunity](#1-market-opportunity)
 2. [Product goal](#2-product-goal)
 3. [Target users](#3-target-users)
@@ -91,6 +103,25 @@ Help expats and first-time buyers **avoid bad purchases and choose the right nei
 
 ## 5. MVP feature set (must ship)
 
+Feature delivery labels for this PRD:
+- `Implemented now`: in current delivery scope (some items may still have implementation gaps).
+- `Post-MVP`: explicitly deferred.
+
+| Feature | Label | Notes |
+|---|---|---|
+| F1 | Implemented now | Address + building facts. |
+| F2a | Implemented now | Interactive Three.js viewer and timeline. |
+| F2b | Implemented now | forge3 report renderer for export snapshots (integration gap still to close). |
+| F2c | Implemented now | Sunlight analysis in current risk pipeline. |
+| F3 | Implemented now | Risk cards with score/meaning/actions/source. |
+| F4 | Implemented now | Neighborhood snapshot indicators. |
+| F5 | Implemented now | Shortlist + compare + dual-template PDF export. |
+| F6 | Implemented now | Crime signal card. |
+| F7 | Implemented now | Energy label card. |
+| F8 | Implemented now | Mapillary panel is in current scope and implemented. |
+| P1 | Post-MVP | Web rendering migration away from Three.js. |
+| P2 | Post-MVP | Full architecture migration (Zustand/Tailwind/Framer). |
+
 ### F1 — Address resolution + building facts
 
 * Input: postcode + house number (optionals: letter/toevoeging)
@@ -158,9 +189,9 @@ Cards in MVP:
 
 * Shortlist items store the resolved address + cached indicators
 * Compare 2–3 homes side by side
-* Export PDF "Viewing Briefing" (1–2 pages) with forge3d-rendered shadow snapshots (F2b) embedded as high-resolution PNGs
+* Export PDF "Viewing Briefing" with two templates: `quick_brief` (1 page) and `full_dossier` (3-4 pages), including forge3-rendered shadow snapshots (F2b)
 
-### Tier B — optional features (ship if time allows)
+### Tier B — included in current scope after F1-F5
 
 #### F6 — Crime level card (Tier B)
 
@@ -220,7 +251,7 @@ Define these before launch. Track outcomes, not outputs.
 - **F2b:** forge3d produces 3 shadow snapshot PNGs at 2000×2000 in < 8 seconds total; visual parity with interactive viewer (same building geometry, same sun positions)
 - **F3:** Each risk card displays score, explanation, viewing questions, and source. Thresholds match official Dutch guidelines where applicable
 - **F4:** Neighborhood snapshot shows 5–8 CBS indicators with EN/NL labels
-- **F5:** User can save 3 homes, compare side-by-side, and export a 1–2 page PDF with embedded shadow snapshots
+- **F5:** User can save 3 homes, compare side-by-side, and export either `quick_brief` (1 page) or `full_dossier` (3-4 pages) with embedded shadow snapshots
 
 ---
 
@@ -362,6 +393,8 @@ Both renderers consume identical inputs to ensure visual parity between interact
 | Sun position | SunCalc(lat, lon, date, time) | Azimuth + altitude in radians |
 
 **Coordinate pipeline:** 3DBAG vertices arrive in EPSG:28992 (RD New, meters). For Three.js, translate all vertices by subtracting the scene center point so the target building sits at origin. The same transform applies to the forge3d pipeline. No reprojection needed — RD New meters map directly to Three.js/wgpu scene units.
+
+Phase 1 scope note: forge3d is report/export rendering only. Interactive web rendering remains Three.js.
 
 ### 9.2 Building geometry: CityJSON → render-ready mesh
 
@@ -513,21 +546,20 @@ These require additional engineering effort and are explicitly out of scope for 
 
 ### Backend
 
-* **Framework**: FastAPI (Python) + PostGIS
-* **forge3d render service**: Python process with PyO3 bindings to the Rust/wgpu renderer. Runs on GPU-equipped server instances. Accepts render requests (CityJSON geometry + sun position + camera params) and returns PNG buffers.
+* **Framework**: FastAPI (Python), stateless API aggregator (no primary database in MVP).
+* **forge3d render service**: Python process with PyO3 bindings to the Rust/wgpu renderer for report export rendering only. Interactive web rendering remains client-side Three.js.
 * **Caching**: Redis for API response caching and forge3d render output.
   - BAG results cached 24h
   - WMS/WCS raster samples cached 7 days
   - CBS stats cached until next annual release
   - forge3d shadow snapshots cached 7 days per address (keyed by address + geometry version)
   - PDOK orthophoto tiles cached 30 days (imagery updates annually)
-* **Error handling**: Graceful degradation — if a data source is unavailable, the dossier still renders with that card showing "Data temporarily unavailable." Never block the entire dossier for one failed source. If forge3d render fails, fall back to Three.js client-side snapshot capture via `renderer.domElement.toDataURL()`.
+* **Error handling**: Graceful degradation — if a data source is unavailable, the dossier still renders with that card showing "Data temporarily unavailable." Never block the entire dossier for one failed source. If forge3d report render fails, fall back to current export snapshot path.
 
 ### Data ingestion
 
-* **Scheduled jobs**: Noise raster ZIPs, air quality ZIPs, CBS annual stats — ingested on release, stored in PostGIS
-* **On-demand**: WMS/WCS sampling for climate stress layers, with response caching
-* **Real-time**: BAG address lookups, EP-Online energy labels — proxied with caching
+* **On-demand**: WMS/WCS sampling and API aggregation with caching.
+* **Real-time**: BAG/Locatieserver, CBS, 3DBAG, risk sources, EP-Online, and Mapillary lookups with cache + fallback behavior.
 
 ### API serving
 
@@ -545,7 +577,9 @@ These require additional engineering effort and are explicitly out of scope for 
   - `MeshStandardMaterial` with `onBeforeCompile` for procedural facades
   - `THREE.DirectionalLight` with `PCFSoftShadowMap` for shadow simulation
   - SunCalc library for sun position calculation
-* **Shadow simulation**: Directional light positioned via SunCalc algorithm. Shadow maps with `autoUpdate = false` for interactive timeline (F2a). forge3d server-side PBR render for static snapshots (F2b). forge3d GPU-accelerated raycasting for annual analysis (F2c).
+* **State management**: App-level `useState` in `App.tsx`; no Redux/Zustand in MVP.
+* **Styling**: Plain CSS with design tokens; no Tailwind migration in current scope.
+* **Shadow simulation**: Directional light positioned via SunCalc algorithm. Shadow maps with `autoUpdate = false` for interactive timeline (F2a). forge3d report renderer is used for export snapshots (F2b).
 * **Internationalization**: EN/NL from day one. All user-facing strings in i18n files.
 
 ### Dual-renderer data flow

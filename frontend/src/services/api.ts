@@ -6,6 +6,7 @@ import type {
   RiskCardsResponse,
   RiskComparisonsResponse,
   SuggestResponse,
+  MapillaryResponse,
   TierBResponse,
   ViewingQuestionsResponse,
 } from '../types/api';
@@ -76,8 +77,8 @@ export async function getNeighborhood3D(
     lng: String(lng),
   });
   const controller = new AbortController();
-  // 3DBAG can be bursty; allow enough headroom so phase-2 doesn't abort mid-load.
-  const timeoutId = setTimeout(() => controller.abort(), 220000);
+  // Hard cap neighborhood loading to keep 3D UX responsive.
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
   try {
     const resp = await fetch(
       `${API_BASE}/address/${vboId}/neighborhood3d?${params}`,
@@ -281,6 +282,29 @@ export async function getTierBData(
       signal: controller.signal,
     });
     if (!resp.ok) throw new Error(`Tier-B failed: ${resp.status}`);
+    return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function getMapillaryStreetView(
+  vboId: string,
+  lat: number,
+  lng: number,
+): Promise<MapillaryResponse> {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lng: String(lng),
+  });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(`${API_BASE}/address/${vboId}/mapillary?${params}`, {
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`Mapillary failed: ${resp.status}`);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import time
 
 import httpx
@@ -11,13 +12,20 @@ logger = logging.getLogger(__name__)
 
 _client: httpx.AsyncClient | None = None
 BBOX_PAGE_LIMIT = 100
-BBOX_MAX_PAGES = 8
-BBOX_FETCH_BUDGET = 100.0
-BBOX_PAGE_TIMEOUT = 30.0
+BBOX_MAX_PAGES = 2
+BBOX_FETCH_BUDGET = 22.0
+BBOX_PAGE_TIMEOUT = 16.0
+BBOX_EARLY_STOP_BUILDINGS = 40
 LOD22_ENRICH_CONCURRENCY = 8
 LOD22_ENRICH_BUDGET = 120.0
-LOD22_ENRICH_MAX_BUILDINGS = 220
+LOD22_ENRICH_MAX_BUILDINGS = 20
 MIN_FETCH_BUDGET = 1.0
+FALLBACK_RADIUS_FACTOR = 0.6
+FALLBACK_MIN_RADIUS = 40.0
+FALLBACK_PAGE_TIMEOUT = 12.0
+FALLBACK_PAGE_LIMIT = 40
+SECONDARY_FALLBACK_RADIUS = 35.0
+PRIMARY_GRACE_AFTER_BACKUP_SECONDS = 2.0
 
 
 
@@ -87,6 +95,41 @@ def _extract_lod22_surfaces(
                     surfaces.append(decoded)
 
     return surfaces if surfaces else None
+
+
+def _compute_building_orientation(footprint: list[list[float]]) -> float | None:
+    """Compute building orientation from longest footprint edge.
+
+    Returns azimuth in degrees (0=North, clockwise) in the 0-180 range,
+    representing the axis direction (180-degree ambiguity: NE-SW and SW-NE
+    are the same axis). Returns None for degenerate footprints.
+
+    RD New coordinate system: +X=East, +Y=North.
+    Azimuth formula: (90 - degrees(atan2(dy, dx))) % 360, then % 180 for axis.
+    """
+    if len(footprint) < 3:
+        return None
+
+    longest_sq = 0.0
+    best_dx = 0.0
+    best_dy = 0.0
+
+    n = len(footprint)
+    for i in range(n):
+        j = (i + 1) % n
+        dx = footprint[j][0] - footprint[i][0]
+        dy = footprint[j][1] - footprint[i][1]
+        length_sq = dx * dx + dy * dy
+        if length_sq > longest_sq:
+            longest_sq = length_sq
+            best_dx = dx
+            best_dy = dy
+
+    if longest_sq < 0.01:  # <0.1m edge
+        return None
+
+    azimuth = (90 - math.degrees(math.atan2(best_dy, best_dx))) % 360
+    return round(azimuth % 180, 1)
 
 
 def _parse_building(
@@ -173,6 +216,7 @@ def _parse_building(
         footprint=footprint,
         year=year,
         roof_surfaces=roof_surfaces,
+        orientation_deg=_compute_building_orientation(footprint),
     )
 
 
@@ -236,6 +280,39 @@ def _get_next_page_url(data: dict, limit: int) -> str | None:
     return None
 
 
+def _parse_bbox_page(
+    data: dict,
+    center_x: float,
+    center_y: float,
+) -> list[BuildingBlock]:
+    """Parse a single 3DBAG bbox page into BuildingBlock rows."""
+    transform = data.get("metadata", {}).get("transform", {})
+    scale = transform.get("scale", [0.001, 0.001, 0.001])
+    translate = transform.get("translate", [0.0, 0.0, 0.0])
+    page_buildings: list[BuildingBlock] = []
+
+    for feature in data.get("features", []):
+        vertices = feature.get("vertices", [])
+        city_objects = feature.get("CityObjects", {})
+        for co_data in city_objects.values():
+            if co_data.get("type") != "Building":
+                continue
+            block = _parse_building(
+                co_data,
+                vertices,
+                scale,
+                translate,
+                center_x,
+                center_y,
+                city_objects=city_objects,
+                allow_lod22=False,
+            )
+            if block is not None:
+                page_buildings.append(block)
+
+    return page_buildings
+
+
 async def _fetch_bbox_paginated(
     center_x: float, center_y: float, radius: float
 ) -> tuple[list[BuildingBlock], bool]:
@@ -267,34 +344,40 @@ async def _fetch_bbox_paginated(
             data = resp.json()
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
             logger.warning("Bbox page %d fetch failed: %s", pages + 1, exc)
+            # Reliability fallback: one reduced-radius, single-page retry so we still
+            # render neighborhood context when the primary bbox call is too slow.
+            if pages == 0 and radius > FALLBACK_MIN_RADIUS:
+                fallback_radius = max(FALLBACK_MIN_RADIUS, radius * FALLBACK_RADIUS_FACTOR)
+                fx0, fy0 = center_x - fallback_radius, center_y - fallback_radius
+                fx1, fy1 = center_x + fallback_radius, center_y + fallback_radius
+                fallback_bbox = f"{fx0:.0f},{fy0:.0f},{fx1:.0f},{fy1:.0f}"
+                try:
+                    fallback_resp = await client.get(
+                        f"{url}?bbox={fallback_bbox}&limit={FALLBACK_PAGE_LIMIT}",
+                        timeout=httpx.Timeout(FALLBACK_PAGE_TIMEOUT, connect=3.0),
+                    )
+                    fallback_resp.raise_for_status()
+                    fallback_data = fallback_resp.json()
+                    fallback_buildings = _parse_bbox_page(fallback_data, center_x, center_y)
+                    if fallback_buildings:
+                        logger.info(
+                            "Bbox fallback succeeded: %d buildings (radius %.0fm)",
+                            len(fallback_buildings),
+                            fallback_radius,
+                        )
+                        return fallback_buildings, True
+                except (httpx.HTTPError, httpx.TimeoutException) as fallback_exc:
+                    logger.warning("Bbox fallback failed: %s", fallback_exc)
             partial = True
             break
 
-        transform = data.get("metadata", {}).get("transform", {})
-        scale = transform.get("scale", [0.001, 0.001, 0.001])
-        translate = transform.get("translate", [0.0, 0.0, 0.0])
-
-        for feature in data.get("features", []):
-            vertices = feature.get("vertices", [])
-            city_objects = feature.get("CityObjects", {})
-            for co_data in city_objects.values():
-                if co_data.get("type") != "Building":
-                    continue
-                block = _parse_building(
-                    co_data,
-                    vertices,
-                    scale,
-                    translate,
-                    center_x,
-                    center_y,
-                    city_objects=city_objects,
-                    allow_lod22=False,
-                )
-                if block is not None:
-                    buildings.append(block)
+        buildings.extend(_parse_bbox_page(data, center_x, center_y))
 
         next_url = _get_next_page_url(data, BBOX_PAGE_LIMIT)
         pages += 1
+        if next_url and len(buildings) >= BBOX_EARLY_STOP_BUILDINGS:
+            partial = True
+            break
 
     if next_url:
         partial = True
@@ -308,6 +391,108 @@ async def _fetch_bbox_paginated(
         " [partial]" if partial else "",
     )
     return buildings, partial
+
+
+async def _fetch_bbox_quick_context(
+    center_x: float,
+    center_y: float,
+    radius: float,
+) -> tuple[list[BuildingBlock], bool]:
+    """Fast single-page neighborhood context query with reduced radius."""
+    client = _get_client()
+    x0, y0 = center_x - radius, center_y - radius
+    x1, y1 = center_x + radius, center_y + radius
+    bbox = f"{x0:.0f},{y0:.0f},{x1:.0f},{y1:.0f}"
+    url = (
+        f"{settings.three_d_bag_base}/collections/pand/items"
+        f"?bbox={bbox}&limit={FALLBACK_PAGE_LIMIT}"
+    )
+
+    try:
+        resp = await client.get(
+            url,
+            timeout=httpx.Timeout(FALLBACK_PAGE_TIMEOUT, connect=3.0),
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except (httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.warning("Quick bbox context fetch failed: %s", exc)
+        return [], True
+
+    buildings = _parse_bbox_page(data, center_x, center_y)
+    partial = _get_next_page_url(data, FALLBACK_PAGE_LIMIT) is not None
+    return buildings, partial
+
+
+def _task_result_or_partial(task: asyncio.Task) -> tuple[list[BuildingBlock], bool]:
+    """Return task result, converting failures into partial empty output."""
+    try:
+        return task.result()
+    except Exception:
+        return [], True
+
+
+async def _fetch_bbox_resilient(
+    center_x: float,
+    center_y: float,
+    radius: float,
+) -> tuple[list[BuildingBlock], bool]:
+    """Fetch neighborhood context with a fast backup path to avoid target-only drops."""
+    backup_radius = max(FALLBACK_MIN_RADIUS, radius * FALLBACK_RADIUS_FACTOR)
+    primary_task = asyncio.create_task(_fetch_bbox_paginated(center_x, center_y, radius))
+    backup_task = asyncio.create_task(_fetch_bbox_quick_context(center_x, center_y, backup_radius))
+
+    done, _pending = await asyncio.wait(
+        {primary_task, backup_task},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    first_task = next(iter(done))
+
+    if first_task is primary_task:
+        primary_buildings, primary_partial = _task_result_or_partial(primary_task)
+        if primary_buildings:
+            backup_task.cancel()
+            return primary_buildings, primary_partial
+        backup_buildings, backup_partial = await backup_task
+        if not backup_buildings:
+            secondary_buildings, secondary_partial = await _fetch_bbox_quick_context(
+                center_x,
+                center_y,
+                SECONDARY_FALLBACK_RADIUS,
+            )
+            if secondary_buildings:
+                return secondary_buildings, True
+            return [], primary_partial or backup_partial or secondary_partial
+        return backup_buildings, primary_partial or backup_partial
+
+    backup_buildings, backup_partial = _task_result_or_partial(backup_task)
+    if backup_buildings:
+        try:
+            primary_buildings, primary_partial = await asyncio.wait_for(
+                primary_task,
+                timeout=PRIMARY_GRACE_AFTER_BACKUP_SECONDS,
+            )
+            if len(primary_buildings) > len(backup_buildings):
+                return primary_buildings, primary_partial
+            return backup_buildings, backup_partial or primary_partial
+        except asyncio.TimeoutError:
+            primary_task.cancel()
+            return backup_buildings, True
+        except Exception:
+            primary_task.cancel()
+            return backup_buildings, True
+
+    primary_buildings, primary_partial = await primary_task
+    if primary_buildings:
+        return primary_buildings, backup_partial or primary_partial
+    secondary_buildings, secondary_partial = await _fetch_bbox_quick_context(
+        center_x,
+        center_y,
+        SECONDARY_FALLBACK_RADIUS,
+    )
+    if secondary_buildings:
+        return secondary_buildings, True
+    return [], backup_partial or primary_partial or secondary_partial
 
 
 async def _enrich_with_lod22(
@@ -376,13 +561,13 @@ async def get_neighborhood_3d(
     lat: float,
     lng: float,
     vbo_id: str | None = None,
-    radius: float = 150.0,
+    radius: float = 80.0,
 ) -> Neighborhood3DResponse:
     """Fetch 3D building data from 3DBAG for the neighborhood around a point."""
-    # Parallel fetch: direct target + paginated bbox neighborhood.
+    # Parallel fetch: direct target + resilient neighborhood bbox strategy.
     target_building, bbox_result = await asyncio.gather(
         _fetch_target_building(pand_id, rd_x, rd_y),
-        _fetch_bbox_paginated(rd_x, rd_y, radius),
+        _fetch_bbox_resilient(rd_x, rd_y, radius),
     )
     bbox_buildings, bbox_partial = bbox_result
 
@@ -400,7 +585,7 @@ async def get_neighborhood_3d(
             seen_ids.add(b.pand_id)
 
     enrich_partial = False
-    if buildings:
+    if buildings and settings.enable_lod22_context_enrichment:
         buildings, enrich_partial = await _enrich_with_lod22(
             buildings,
             rd_x,

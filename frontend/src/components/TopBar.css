@@ -17,6 +17,18 @@
   border-bottom-color: var(--color-nav-border);
 }
 
+.top-bar__logo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  height: 100%;
+}
+
+.top-bar__logo-img {
+  height: 28px;
+  width: auto;
+}
+
 .top-bar__title {
   font-family: var(--font-family);
   font-size: 18px;

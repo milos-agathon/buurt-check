@@ -10,7 +10,8 @@ type DelayMap = Partial<Record<
   | 'riskComparisons'
   | 'neighborhood'
   | 'viewingQuestions'
-  | 'tierB',
+  | 'tierB'
+  | 'mapillary',
   number
 >>;
 
@@ -238,5 +239,24 @@ export async function installMockAddressFlow(page: Page, delays: DelayMap = {}) 
         source_date: '2025JJ00',
       },
     }, delays.tierB ?? 0);
+  });
+
+  await page.route('**/api/address/*/mapillary**', async (route) => {
+    await fulfillJson(route, {
+      address_id: '0363010000696734',
+      source: 'Mapillary Graph API',
+      source_date: '2025-12-01',
+      license: 'CC BY-SA 4.0',
+      attribution: '(c) Mapillary contributors',
+      image: {
+        id: '374806936301199',
+        captured_at: '2025-12-01T10:11:12Z',
+        is_pano: true,
+        distance_m: 12.4,
+        look_at_delta_deg: 8.9,
+        viewer_url: 'https://www.mapillary.com/app/?pKey=374806936301199&focus=photo',
+        embed_url: 'https://www.mapillary.com/embed?image_key=374806936301199&style=photo',
+      },
+    }, delays.mapillary ?? 0);
   });
 }

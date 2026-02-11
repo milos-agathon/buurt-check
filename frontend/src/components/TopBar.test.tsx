@@ -19,9 +19,16 @@ function renderTopBar(props: Partial<Parameters<typeof TopBar>[0]> = {}) {
 }
 
 describe('TopBar', () => {
-  it('renders title', () => {
+  it('renders logo when title is buurt-check', () => {
     renderTopBar();
-    expect(screen.getByText('buurt-check')).toBeInTheDocument();
+    expect(screen.getByAltText('Buurt-Check')).toBeInTheDocument();
+    expect(screen.getByLabelText('Buurt-Check home')).toBeInTheDocument();
+  });
+
+  it('renders text title for non-default screens', () => {
+    renderTopBar({ title: 'Saved Homes' });
+    expect(screen.getByText('Saved Homes')).toBeInTheDocument();
+    expect(screen.queryByAltText('Buurt-Check')).not.toBeInTheDocument();
   });
 
   it('renders language toggle with EN and NL', () => {

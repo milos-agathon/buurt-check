@@ -121,7 +121,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   const [activeOverlay, setActiveOverlay] = useState<OverlayTileType | null>(null);
   const [overlayLoading, setOverlayLoading] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(50);
-  const [localSunlight, setLocalSunlight] = useState<SunlightResult | null>(null);
+  const [, setLocalSunlight] = useState<SunlightResult | null>(null);
   const [lowPerformance, setLowPerformance] = useState(false);
   const lowPerformanceRef = useRef(false);
   const basemapMeshesRef = useRef<THREE.Mesh[]>([]);
@@ -358,6 +358,8 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         const transform = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
         transform.setPosition(0, 0, 0);
         geom.applyMatrix4(transform);
+        // Strip uv attribute so LoD 0 can merge with LoD 2.2 (which has no uv)
+        geom.deleteAttribute('uv');
       }
 
       if (isTarget) {
@@ -891,25 +893,16 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
             </button>
           ))}
         </div>
-        {localSunlight && (() => {
-          const SEASON_MAP: Record<string, keyof SunlightResult> = {
-            winter: 'winter', spring: 'equinox', summer: 'summer', autumn: 'equinox',
-          };
-          const key = SEASON_MAP[datePreset] ?? 'summer';
-          const hours = localSunlight[key];
-          return (
-            <div className="viewer-3d__sunlight-badge" data-testid="sunlight-badge">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <circle cx="8" cy="8" r="3" />
-                <line x1="8" y1="1" x2="8" y2="3" /><line x1="8" y1="13" x2="8" y2="15" />
-                <line x1="1" y1="8" x2="3" y2="8" /><line x1="13" y1="8" x2="15" y2="8" />
-                <line x1="3.05" y1="3.05" x2="4.46" y2="4.46" /><line x1="11.54" y1="11.54" x2="12.95" y2="12.95" />
-                <line x1="3.05" y1="12.95" x2="4.46" y2="11.54" /><line x1="11.54" y1="4.46" x2="12.95" y2="3.05" />
-              </svg>
-              {typeof hours === 'number' ? ` ${hours.toFixed(1)}h` : ''}
-            </div>
-          );
-        })()}
+        <div className="viewer-3d__sunlight-badge" data-testid="time-badge">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <circle cx="8" cy="8" r="3" />
+            <line x1="8" y1="1" x2="8" y2="3" /><line x1="8" y1="13" x2="8" y2="15" />
+            <line x1="1" y1="8" x2="3" y2="8" /><line x1="13" y1="8" x2="15" y2="8" />
+            <line x1="3.05" y1="3.05" x2="4.46" y2="4.46" /><line x1="11.54" y1="11.54" x2="12.95" y2="12.95" />
+            <line x1="3.05" y1="12.95" x2="4.46" y2="11.54" /><line x1="11.54" y1="4.46" x2="12.95" y2="3.05" />
+          </svg>
+          {` ${hour.toString().padStart(2, '0')}:00`}
+        </div>
         {lowPerformance && (
           <div className="viewer-3d__perf-banner" data-testid="performance-banner">
             {t('viewer3d.simplifiedView')}

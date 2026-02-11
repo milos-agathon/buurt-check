@@ -7,9 +7,12 @@ interface TopBarProps {
   onSettingsClick?: () => void;
 }
 
+const LOGO_TITLE = 'buurt-check';
+
 export default function TopBar({ title, onSettingsClick }: TopBarProps) {
   const { i18n } = useTranslation();
   const [scrolled, setScrolled] = useState(false);
+  const isLogo = title === LOGO_TITLE;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,7 +24,17 @@ export default function TopBar({ title, onSettingsClick }: TopBarProps) {
 
   return (
     <header className={`top-bar${scrolled ? ' top-bar--scrolled' : ''}`}>
-      <h1 className="top-bar__title">{title}</h1>
+      {isLogo ? (
+        <a className="top-bar__logo" href="/" aria-label="Buurt-Check home">
+          <img
+            src="/logos/buurt-check-lockup-horizontal-reverse.svg"
+            alt="Buurt-Check"
+            className="top-bar__logo-img"
+          />
+        </a>
+      ) : (
+        <h1 className="top-bar__title">{title}</h1>
+      )}
       <div className="top-bar__actions">
         <div className="top-bar__lang-toggle" role="radiogroup" aria-label="Language">
           <button

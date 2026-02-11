@@ -1,13 +1,29 @@
 # buurt-check — Design System & UI/UX Product Requirements Document
 
 > **Version:** 1.0 | **Last updated:** 2026-02-09
-> **Design direction:** "Clear Signal Hybrid" — Scandinavian data elegance + institutional trust + emotional accessibility
+> **Design direction:** "Polar Frost" — trusted, calm, data-first clarity
 > **Companion to:** buurt-check Product Requirements Document v2.0 (2026-02-06)
+
+---
+
+## Phase 1 alignment addendum (2026-02-11)
+
+This design PRD is aligned to `docs/spec-baseline.md`.
+
+- Architecture migration is deferred (`D1-1`).
+- Visual authority is Polar Frost (`D2-2`).
+- forge3 is report-renderer scope only; web rendering remains Three.js (`D3-2R`).
+- Mapillary is in current scope (`D4-2`).
+- PDF remains dual-template (`quick_brief`, `full_dossier`) (`D5-1`).
+- Feature delivery labels and requirement ownership are defined in `docs/spec-baseline.md` sections 3 and 4.
+
+Where legacy values in this document conflict with the addendum, follow `docs/spec-baseline.md` and `frontend/src/styles/tokens.css`.
 
 ---
 
 ## Table of contents
 
+0. [Phase 1 alignment addendum](#phase-1-alignment-addendum-2026-02-11)
 1. [Design philosophy](#1-design-philosophy)
 2. [Design system foundation](#2-design-system-foundation)
 3. [Navigation & information architecture](#3-navigation--information-architecture)
@@ -1096,7 +1112,7 @@ Note: Two empty checkbox lines at the bottom allow the user to add their own que
 
 ### 11.3 Implementation notes
 
-- **Animation library:** Framer Motion (React) for UI animations. GSAP for Three.js camera tweens. Native CSS transitions for simple state changes (hover, focus, active).
+- **Animation implementation:** CSS transitions and lightweight component-level helpers for UI animations. GSAP remains available for Three.js camera tweens when needed.
 - **Performance budget:** No animation should cause a frame drop below 50fps on target devices. Complex animations (3D building fade-in, score counter) use `will-change: transform, opacity` for GPU acceleration.
 - **Haptic feedback:** iOS: `UIImpactFeedbackGenerator` (.medium for shortlist, .light for toggles). Android: `HapticFeedbackConstants.CONFIRM` for shortlist. Use sparingly — only on primary actions (shortlist add, PDF export complete).
 
@@ -1280,21 +1296,23 @@ In dark mode, elevation is communicated through **progressively lighter surfaces
 | Layer | Technology | Notes |
 |---|---|---|
 | Frontend framework | React 18+ TypeScript | Strict TypeScript, no `any` types in production |
-| State management | Zustand or Jotai | Lightweight, avoids Redux boilerplate |
+| State management | App-level `useState` | Current MVP architecture; no Redux/Zustand migration now |
 | 3D rendering | Three.js (r160+) | Tree-shaken imports only |
 | 3D geometry parsing | `cityjson-threejs-loader` | Apache-2.0, TU Delft |
 | Sun position | SunCalc | Public domain algorithm |
-| Animations (UI) | Framer Motion | For React component animations |
+| Animations (UI) | CSS transitions + component-level animation helpers | Framer Motion migration deferred |
 | Animations (3D) | GSAP | For Three.js camera tweens |
 | Internationalization | react-i18next | EN/NL string files |
-| PDF generation | Server-side (Python: WeasyPrint or Puppeteer) | HTML template → PDF |
-| Styling | Tailwind CSS 3+ with design token configuration | Tokens map to CSS custom properties |
+| PDF generation | Server-side Python `fpdf2` (+ forge3 export snapshots) | Quick brief + full dossier templates |
+| Styling | Plain CSS with design tokens | Tokens in `frontend/src/styles/tokens.css` |
 | Icons | Lucide React (customized stroke weight) | MIT license |
 | Haptics | `navigator.vibrate()` (Android) + native bridge (iOS) | Progressive enhancement |
 
 ### 16.2 Design token implementation
 
-All design system values defined as CSS custom properties on `:root` and `[data-theme="dark"]`:
+All design system values are defined as CSS custom properties in `frontend/src/styles/tokens.css`, with Polar Frost values as the current authority.
+
+Theme values are applied on `:root` and `[data-theme="dark"]`:
 
 ```css
 :root {
@@ -1312,7 +1330,7 @@ All design system values defined as CSS custom properties on `:root` and `[data-
 }
 ```
 
-Tailwind configuration maps these tokens to utility classes: `bg-surface`, `text-primary`, `border-default`, etc.
+In the current stack, components consume these tokens directly via plain CSS classes and custom properties.
 
 ### 16.3 Component library requirements
 

@@ -1,15 +1,31 @@
 # buurt-check — Complete Visual Design Specification
 
 > **Version:** 2.0 | **Last updated:** 2026-02-09
-> **Design direction:** "Clear Signal Hybrid"
+> **Design direction:** "Polar Frost" (Phase 1 authority)
 > **Companion to:** buurt-check Design System PRD v1.0 and Product Requirements Document v2.0
 
 This document specifies every visual element at pixel-level detail. A developer should be able to implement any screen from this spec alone, without design mockups.
 
 ---
 
+## Phase 1 alignment addendum (2026-02-11)
+
+This visual spec is aligned to `docs/spec-baseline.md`.
+
+- Visual authority: Polar Frost token values from `frontend/src/styles/tokens.css` (`D2-2`).
+- Architecture authority: current implementation stack, no migration now (`D1-1`).
+- Renderer split: Three.js for web interaction; forge3 for report/export rendering only (`D3-2R`).
+- Mapillary is in current scope (`D4-2`).
+- PDF export templates remain `quick_brief` and `full_dossier` (`D5-1`).
+- Feature delivery labels and requirement ownership are tracked in `docs/spec-baseline.md` sections 3 and 4.
+
+Where legacy values in this document conflict with the above decisions, follow the addendum and `docs/spec-baseline.md`.
+
+---
+
 ## Table of contents
 
+0. [Phase 1 alignment addendum](#phase-1-alignment-addendum-2026-02-11)
 1. [Main screen (search)](#1-main-screen-search)
 2. [Loading screen](#2-loading-screen)
 3. [Dossier screen](#3-dossier-screen)
@@ -1574,6 +1590,8 @@ When scores differ by >15 points between columns for the same metric:
 ---
 
 ## 11. PDF export flow
+
+Phase 1 renderer note: the export/report pipeline uses forge3 snapshots when available; interactive web rendering remains Three.js.
 
 ### 11.1 Configuration bottom sheet
 

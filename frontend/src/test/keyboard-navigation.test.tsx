@@ -46,8 +46,9 @@ describe('Keyboard navigation', () => {
     const nl = screen.getByRole('radio', { name: 'NL' });
     expect(en).toHaveAttribute('aria-checked', 'true');
 
-    await user.tab();
-    await user.tab();
+    await user.tab(); // logo link
+    await user.tab(); // EN button
+    await user.tab(); // NL button
     expect(nl).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(nl).toHaveAttribute('aria-checked', 'true');

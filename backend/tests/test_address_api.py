@@ -6,6 +6,7 @@ import pytest
 import app.cache.redis as cache_module
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.models.building import BuildingFacts
+from app.models.mapillary import MapillaryImage, MapillaryResponse
 from app.models.neighborhood import (
     AgeProfile,
     NeighborhoodIndicator,
@@ -684,6 +685,66 @@ async def test_tier_b_endpoint_returns_data_and_caches(
     assert data["energy_label"]["label"] == "A"
     assert data["crime"]["total_per_1000"] == 12.5
     mock_cache_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.mapillary")
+async def test_mapillary_endpoint_returns_data_and_caches(
+    mock_mapillary, mock_cache_set, mock_cache_get, client,
+):
+    mock_mapillary.get_street_view = AsyncMock(
+        return_value=MapillaryResponse(
+            address_id="0363010000696734",
+            source="Mapillary Graph API",
+            source_date="2025-12-01",
+            image=MapillaryImage(
+                id="374806936301199",
+                captured_at="2025-12-01T10:11:12Z",
+                is_pano=True,
+                distance_m=11.6,
+                look_at_delta_deg=12.4,
+                thumb_1024_url="https://images.example/thumb.jpg",
+                viewer_url="https://www.mapillary.com/app/?pKey=374806936301199&focus=photo",
+                embed_url="https://www.mapillary.com/embed?image_key=374806936301199&style=photo",
+            ),
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/mapillary",
+        params={"lat": "52.372", "lng": "4.892"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["image"]["id"] == "374806936301199"
+    assert data["source"] == "Mapillary Graph API"
+    mock_cache_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.mapillary")
+async def test_mapillary_endpoint_does_not_cache_lookup_failures(
+    mock_mapillary, mock_cache_set, mock_cache_get, client,
+):
+    mock_mapillary.get_street_view = AsyncMock(
+        return_value=MapillaryResponse(
+            address_id="0363010000696734",
+            source="Mapillary Graph API",
+            message="MAPILLARY_LOOKUP_FAILED",
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/mapillary",
+        params={"lat": "52.372", "lng": "4.892"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "MAPILLARY_LOOKUP_FAILED"
+    mock_cache_set.assert_not_called()
 
 
 # --- Neighborhood stats endpoint ---

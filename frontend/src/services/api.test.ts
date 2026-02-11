@@ -4,6 +4,7 @@ import {
   getBuildingFacts,
   getNeighborhood3D,
   getNeighborhoodStats,
+  getMapillaryStreetView,
   getRiskComparisons,
   getRiskCards,
   getTierBData,
@@ -117,6 +118,24 @@ describe('getNeighborhood3D', () => {
 
     const [, opts] = mockFetch.mock.calls[0];
     expect(opts.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('aborts fetch after 30s timeout', async () => {
+    vi.useFakeTimers();
+    let capturedSignal: AbortSignal | null | undefined;
+    mockFetch.mockImplementation((_url: string, opts?: RequestInit) => {
+      capturedSignal = opts?.signal;
+      return new Promise<Response>(() => {});
+    });
+
+    const promise = getNeighborhood3D('vbo-1', 'pand-1', 121286, 487296, 52.372, 4.892);
+
+    expect(capturedSignal?.aborted).toBe(false);
+    vi.advanceTimersByTime(30000);
+    expect(capturedSignal?.aborted).toBe(true);
+
+    vi.useRealTimers();
+    promise.catch(() => {});
   });
 });
 
@@ -284,6 +303,25 @@ describe('getTierBData', () => {
     expect(url).toContain('house_number=1');
     expect(url).toContain('house_letter=A');
     expect(url).toContain('addition=1');
+  });
+});
+
+describe('getMapillaryStreetView', () => {
+  it('sends GET with mapillary query params', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1', source: 'Mapillary' }));
+    await getMapillaryStreetView('vbo-1', 52.372, 4.892);
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/address/vbo-1/mapillary?');
+    expect(url).toContain('lat=52.372');
+    expect(url).toContain('lng=4.892');
+  });
+
+  it('throws on non-OK response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(502));
+    await expect(getMapillaryStreetView('vbo-1', 52.372, 4.892)).rejects.toThrow(
+      'Mapillary failed: 502',
+    );
   });
 });
 

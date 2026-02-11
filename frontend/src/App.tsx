@@ -11,6 +11,7 @@ import RiskTilesGrid from './components/RiskTilesGrid';
 import RiskDetailView from './components/RiskDetailView';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
 import TierBSignalsCard from './components/TierBSignalsCard';
+import MapillaryPanel from './components/MapillaryPanel';
 import ViewingChecklist from './components/ViewingChecklist';
 import LoadingScreen from './components/LoadingScreen';
 import ActionBar from './components/ActionBar';
@@ -29,6 +30,7 @@ import {
   getNeighborhoodStats,
   getViewingQuestions,
   getTierBData,
+  getMapillaryStreetView,
 } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
@@ -46,6 +48,7 @@ import type {
   ShadowSnapshot,
   ViewingQuestionsResponse,
   TierBResponse,
+  MapillaryResponse,
   SeverityLevel,
   RiskLevel,
   ShortlistItem,
@@ -67,6 +70,7 @@ interface DossierSeedState {
   riskComparisons?: RiskComparisonsResponse;
   neighborhoodStats?: NeighborhoodStatsResponse;
   tierBData?: TierBResponse;
+  mapillaryData?: MapillaryResponse;
   sunlight?: SunlightResult;
   shadowSnapshots?: ShadowSnapshot[];
   viewingQuestions?: ViewingQuestionsResponse;
@@ -154,6 +158,11 @@ function App() {
   const [tierBData, setTierBData] = useState<TierBResponse | null>(dossierSeed?.tierBData ?? null);
   const [tierBLoading, setTierBLoading] = useState(false);
   const [tierBError, setTierBError] = useState(false);
+  const [mapillaryData, setMapillaryData] = useState<MapillaryResponse | null>(
+    dossierSeed?.mapillaryData ?? null,
+  );
+  const [mapillaryLoading, setMapillaryLoading] = useState(false);
+  const [mapillaryError, setMapillaryError] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(dossierSeed?.sunlight ?? null);
   const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(
@@ -324,6 +333,9 @@ function App() {
     setTierBData(null);
     setTierBLoading(false);
     setTierBError(false);
+    setMapillaryData(null);
+    setMapillaryLoading(false);
+    setMapillaryError(false);
     setSunlight(null);
     setSunlightUnavailable(false);
     setShadowSnapshots(null);
@@ -443,6 +455,23 @@ function App() {
               setTierBError(true);
               setTierBLoading(false);
               await showLoadingWarning('loading.warning.tierB');
+            }
+          }
+        })();
+
+        setMapillaryLoading(true);
+        void (async () => {
+          try {
+            const mapillary = await getMapillaryStreetView(vboId, latitude, longitude);
+            if (neighborhood3DRequestId.current === requestId) {
+              setMapillaryData(mapillary);
+              setMapillaryLoading(false);
+            }
+          } catch {
+            if (neighborhood3DRequestId.current === requestId) {
+              setMapillaryError(true);
+              setMapillaryLoading(false);
+              await showLoadingWarning('loading.warning.mapillary');
             }
           }
         })();
@@ -769,6 +798,17 @@ function App() {
                       data={tierBData ?? undefined}
                       loading={tierBLoading}
                       error={tierBError}
+                    />
+                  </>
+                )}
+
+                {(mapillaryLoading || mapillaryData || mapillaryError) && (
+                  <>
+                    <h3 className="app__section-label">{t('dossier.streetView')}</h3>
+                    <MapillaryPanel
+                      data={mapillaryData ?? undefined}
+                      loading={mapillaryLoading}
+                      error={mapillaryError}
                     />
                   </>
                 )}

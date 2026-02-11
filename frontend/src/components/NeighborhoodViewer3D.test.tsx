@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { setupTestI18n, makeNeighborhood3DResponse, makeNeighborhood3DResponseWithLod22 } from '../test/helpers';
 
@@ -28,7 +28,7 @@ vi.mock('three', () => {
     this.domElement = mockCanvas;
     this.shadowMap = { enabled: false, type: null };
   }
-  function HemisphereLight(this: any) {}
+  function HemisphereLight(this: any) { }
   function DirectionalLight(this: any) {
     this.castShadow = false;
     this.intensity = 0;
@@ -41,7 +41,7 @@ vi.mock('three', () => {
       normalBias: 0,
     };
   }
-  function PlaneGeometry(this: any) {}
+  function PlaneGeometry(this: any) { }
   function MeshStandardMaterial(this: any) {
     this.dispose = vi.fn();
     this.map = null;
@@ -68,7 +68,7 @@ vi.mock('three', () => {
     this.lineTo = vi.fn();
     this.closePath = vi.fn();
   }
-  function ExtrudeGeometry(this: any) { this.dispose = vi.fn(); }
+  function ExtrudeGeometry(this: any) { this.dispose = vi.fn(); this.deleteAttribute = vi.fn(); }
   ExtrudeGeometry.prototype.applyMatrix4 = vi.fn();
   function BufferGeometry(this: any) {
     this.setAttribute = vi.fn();
@@ -76,8 +76,8 @@ vi.mock('three', () => {
     this.computeVertexNormals = vi.fn();
     this.dispose = vi.fn();
   }
-  function Float32BufferAttribute(this: any) {}
-  function Color(this: any) {}
+  function Float32BufferAttribute(this: any) { }
+  function Color(this: any) { }
   function Vec3(this: any) {
     this.set = vi.fn().mockReturnThis();
     this.normalize = vi.fn().mockReturnThis();
@@ -170,7 +170,7 @@ beforeEach(() => {
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => {
     return ++rafId;
   });
-  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
 });
 
 afterEach(() => {
@@ -271,21 +271,11 @@ describe('NeighborhoodViewer3D', () => {
     expect(container?.className).not.toContain('viewer-3d--fullscreen');
   });
 
-  it('does not render sunlight badge when no sunlight data computed yet', () => {
-    renderViewer({ onSunlightAnalysis: undefined });
-    expect(screen.queryByTestId('sunlight-badge')).not.toBeInTheDocument();
-  });
-
-  it('renders sunlight badge after analysis completes', async () => {
-    const onSunlight = vi.fn();
-    renderViewer({ onSunlightAnalysis: onSunlight });
-    // sunlight analysis fires after a 100ms setTimeout
-    await waitFor(() => {
-      expect(screen.getByTestId('sunlight-badge')).toBeInTheDocument();
-    }, { timeout: 500 });
-    const badge = screen.getByTestId('sunlight-badge');
-    // Badge should contain a number followed by 'h'
-    expect(badge.textContent).toMatch(/\d+\.\dh/);
+  it('renders time badge with current hour', () => {
+    renderViewer();
+    const badge = screen.getByTestId('time-badge');
+    expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toContain('12:00');
   });
 
   it('does not render performance banner initially', () => {

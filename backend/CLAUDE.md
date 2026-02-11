@@ -100,7 +100,7 @@ tests/
 ### Configuration
 - All external API URLs in `config.py` as pydantic-settings fields
 - Environment prefix: `BUURT_` (e.g., `BUURT_ENABLE_LOD22_ROOFS=true`)
-- Feature flags: `enable_lod22_roofs` (default false). `.env` requires `env_file = ".env"` in model_config
+- Feature flags: `enable_lod22_roofs` (default true), `enable_lod22_context_enrichment` (default false). `.env` requires `env_file = ".env"` in model_config
 - Feature flag toggle requires cache invalidation for affected keys
 
 ### Coordinate system
