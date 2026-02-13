@@ -15,7 +15,6 @@ This visual spec is aligned to `docs/spec-baseline.md`.
 - Visual authority: Polar Frost token values from `frontend/src/styles/tokens.css` (`D2-2`).
 - Architecture authority: current implementation stack, no migration now (`D1-1`).
 - Renderer split: Three.js for web interaction; forge3 for report/export rendering only (`D3-2R`).
-- Mapillary is in current scope (`D4-2`).
 - PDF export templates remain `quick_brief` and `full_dossier` (`D5-1`).
 - Feature delivery labels and requirement ownership are tracked in `docs/spec-baseline.md` sections 3 and 4.
 

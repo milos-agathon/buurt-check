@@ -240,7 +240,7 @@ The feature [FEATURE NAME] is implemented and all tests pass on branch `feature/
 ## Project structure
 - `main.py` — FastAPI app factory, CORS, lifespan
 - `api/` — Route handlers. One file per feature: `address.py`, `dossier.py`, `risk_cards.py`, `neighborhood.py`, `shortlist.py`, `export.py`, `render.py`
-- `services/` — Business logic + external API clients. One file per data source: `bag.py`, `three_d_bag.py`, `pdok_ortho.py`, `rivm_noise.py`, `rivm_air.py`, `klimaat.py`, `cbs.py`, `ep_online.py`, `mapillary.py`
+- `services/` — Business logic + external API clients. One file per data source: `bag.py`, `three_d_bag.py`, `pdok_ortho.py`, `rivm_noise.py`, `rivm_air.py`, `klimaat.py`, `cbs.py`, `ep_online.py`
 - `services/forge3d_client.py` — Async client to the forge3d render service (PyO3 bindings)
 - `models/` — SQLAlchemy + GeoAlchemy2 models. Use `Geometry('POINT', srid=28992)` for all spatial columns (RD New)
 - `schemas/` — Pydantic v2 models for request/response validation
@@ -523,7 +523,7 @@ All geometry is EPSG:28992 (RD New, meters). Same transform as Three.js: subtrac
 ```markdown
 ---
 name: api-researcher
-description: "Read-only researcher for Dutch geospatial APIs (BAG, 3DBAG, PDOK, RIVM, CBS, Klimaateffectatlas, EP-Online, Mapillary). Use PROACTIVELY when implementation involves calling an external Dutch data API. Investigates endpoint behavior, response schemas, coordinate systems, rate limits, and error codes by reading project documentation and source code. Never modifies files."
+description: "Read-only researcher for Dutch geospatial APIs (BAG, 3DBAG, PDOK, RIVM, CBS, Klimaateffectatlas, EP-Online). Use PROACTIVELY when implementation involves calling an external Dutch data API. Investigates endpoint behavior, response schemas, coordinate systems, rate limits, and error codes by reading project documentation and source code. Never modifies files."
 model: claude-haiku-4-5-20251001
 tools:
   - View
@@ -551,7 +551,6 @@ You are expert in these Dutch data sources:
 - **CBS Wijken & Buurten**: OGC API at `https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1`.
 - **EP-Online**: REST at `https://public.ep-online.nl/api/v5/`. Requires API key.
 - **CBS OData (Crime)**: `https://dataderden.cbs.nl/ODataApi/OData/47018NED` (yearly), `47022NED` (monthly).
-- **Mapillary**: Graph API v4 at `https://graph.mapillary.com/`. Requires Meta developer token. CC BY-SA 4.0.
 
 ## When you are invoked
 

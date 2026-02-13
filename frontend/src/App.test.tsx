@@ -23,7 +23,6 @@ vi.mock('./services/api', () => ({
   getNeighborhoodStats: vi.fn(),
   getViewingQuestions: vi.fn(),
   getTierBData: vi.fn(),
-  getMapillaryStreetView: vi.fn(),
 }));
 
 vi.mock('react-leaflet', () => ({
@@ -73,7 +72,6 @@ import {
   getNeighborhoodStats,
   getViewingQuestions,
   getTierBData,
-  getMapillaryStreetView,
 } from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
 const mockBuilding = vi.mocked(getBuildingFacts);
@@ -85,8 +83,6 @@ const mockRiskComparisons = vi.mocked(getRiskComparisons);
 const mockNeighborhoodStats = vi.mocked(getNeighborhoodStats);
 const mockViewingQuestions = vi.mocked(getViewingQuestions);
 const mockTierBData = vi.mocked(getTierBData);
-const mockMapillaryStreetView = vi.mocked(getMapillaryStreetView);
-
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
@@ -104,7 +100,6 @@ beforeEach(() => {
   mockNeighborhoodStats.mockReset();
   mockViewingQuestions.mockReset();
   mockTierBData.mockReset();
-  mockMapillaryStreetView.mockReset();
   // Resolve Phase 1 quickly with empty data so loading screen exits while
   // Phase 2 neighborhood fetch still controls 3D content in tests.
   mockBuilding3D.mockResolvedValue(
@@ -118,13 +113,6 @@ beforeEach(() => {
     address_id: 'vbo-123',
     energy_label: { source: 'EP-Online' },
     crime: { source: 'CBS OData 47018NED/47022NED' },
-  });
-  mockMapillaryStreetView.mockResolvedValue({
-    address_id: 'vbo-123',
-    source: 'Mapillary Graph API',
-    license: 'CC BY-SA 4.0',
-    attribution: '(c) Mapillary contributors',
-    message: 'MAPILLARY_NO_IMAGE',
   });
 });
 
@@ -553,18 +541,6 @@ describe('neighborhood stats integration', () => {
         houseLetter: 'A',
         addition: '1',
       });
-    });
-  });
-
-  it('calls getMapillaryStreetView with resolved coordinates', async () => {
-    mockLookup.mockResolvedValue(makeResolvedAddress());
-    mockBuilding.mockResolvedValue(makeBuildingResponse());
-
-    renderApp();
-    await selectAddress();
-
-    await waitFor(() => {
-      expect(mockMapillaryStreetView).toHaveBeenCalledWith('vbo-123', 52.3676, 4.8846);
     });
   });
 

@@ -19,7 +19,7 @@ Expected reduction: ~900 lines + `gsap` dependency.
 ## Critical Corrections From Review
 
 1. Test gate `>=330`. Losing 25 tests (8 `ShadowControls` + 9 `OverlayControls` + 8 viewer). Must add `>=25` replacement tests.
-2. Promote sunlight section. Move `SunlightRiskCard` + `ShadowSnapshots` from after Mapillary/BuildingFacts to right after the 3D viewer.
+2. Promote sunlight section. Move `SunlightRiskCard` + `ShadowSnapshots` to right after the 3D viewer.
 3. Reset needs `frameCamera()`. Extract camera framing into a callable function. Reset button calls it, not just flipping a ref.
 4. 180 degree ambiguity. Longest edge has two directions. Report as `NE-SW axis`, not `faces SW`. No `main facade` or `garden side` claims.
 5. Cache version bump: `neighborhood3d:v12` -> `neighborhood3d:v13` in `backend/app/api/address.py`.

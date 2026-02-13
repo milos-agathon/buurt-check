@@ -43,7 +43,7 @@ Unified requirements across all 3 docs:
 - F3: risk cards (noise, air, climate, sunlight).
 - F4: neighborhood snapshot.
 - F5: shortlist + compare + PDF export.
-- Tier B: crime + energy; Mapillary optional.
+- Tier B: crime + energy.
 
 ### 2.3 Data baseline
 - BAG/Locatieserver for address and building entities.
@@ -103,11 +103,9 @@ Decision recorded (2026-02-11):
 Conflict:
 - `AGENTS.md` says F6 tier B ship if time allows.
 - Current code already ships tier-B endpoint + UI (crime and energy).
-- Mapillary tier B (F8) exists in `docs/prd.md` but is not implemented.
 
-Decision recorded (2026-02-11):
-- **D4-2 selected**: Include Mapillary in current scope now (with explicit attribution and legal copy).
-- F6/F7 remain included.
+Decision recorded (2026-02-13):
+- **D4-1 selected**: Mapillary removed from scope. F6 (crime) and F7 (energy label) remain included.
 
 ### D5. PDF spec depth
 Conflict:
@@ -128,10 +126,10 @@ Decision recorded (2026-02-11):
 | 2 Product goal | Informational | Goal reflected in app flow and copy direction. |
 | 3 Target users | Partial | EN/NL support exists, but expat-specific explanatory layers are still thin. |
 | 4 Core user journey | Partial | End-to-end journey works; some polish/spec parity gaps remain. |
-| 5 MVP feature set | Partial | F1-F5 implemented; F2b/F2c architecture differs; F8 absent. |
+| 5 MVP feature set | Partial | F1-F5 implemented; F2b/F2c architecture differs. |
 | 6 Out of scope | Implemented | No listings/valuation/accounts built. |
 | 7 Success metrics | Missing | No product telemetry layer for conversion/return metrics. |
-| 8 Data sources and ingestion | Partial | Major sources integrated; PM2.5 layer/data quality still limited; Mapillary not integrated. |
+| 8 Data sources and ingestion | Partial | Major sources integrated; PM2.5 layer/data quality still limited. |
 | 9 3D visualization pipeline | Partial | Viewer works, but dual-renderer + photorealistic pipeline not implemented as specified. |
 | 10 MVP architecture | Partial | FastAPI+React+Redis done; forge3d worker/render API not present. |
 | 11 Performance and quality requirements | Partial | Some budgets tested; E2E budget failures and missing device/lighthouse gates. |
@@ -284,8 +282,7 @@ Outputs:
 
 1. Implement forge3 report-renderer integration and tests for F2b parity.
 2. Fix failing E2E tests and backend live CBS loop issue.
-3. Implement Mapillary panel (F8) with attribution, i18n copy, and legal checks.
-4. Remove remaining hardcoded strings and implement checklist dual-language toggle.
+3. Remove remaining hardcoded strings and implement checklist dual-language toggle.
 5. Add metrics instrumentation for PRD primary KPIs.
 
 ---
@@ -295,4 +292,4 @@ Outputs:
 - Core user value delivery: strong.
 - Decision baseline is now locked (`docs/spec-baseline.md`), and doc conflicts are narrowed to implementation gaps.
 - Engineering quality baseline: strong in unit/integration tests, but E2E/live gaps remain.
-- Fastest path to "rigorously complete": execute Phases 2-4 and close forge3/Mapillary implementation gaps.
+- Fastest path to "rigorously complete": execute Phases 2-4 and close forge3 implementation gaps.

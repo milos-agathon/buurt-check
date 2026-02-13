@@ -13,7 +13,6 @@ This design PRD is aligned to `docs/spec-baseline.md`.
 - Architecture migration is deferred (`D1-1`).
 - Visual authority is Polar Frost (`D2-2`).
 - forge3 is report-renderer scope only; web rendering remains Three.js (`D3-2R`).
-- Mapillary is in current scope (`D4-2`).
 - PDF remains dual-template (`quick_brief`, `full_dossier`) (`D5-1`).
 - Feature delivery labels and requirement ownership are defined in `docs/spec-baseline.md` sections 3 and 4.
 
@@ -293,7 +292,6 @@ A minimal top bar appears on all screens:
 │       ├── Viewing checklist (aggregated questions)
 │       ├── [Tier B] Crime card
 │       ├── [Tier B] Energy label card
-│       ├── [Tier B] Mapillary street view panel
 │       └── Action bar: Add to Shortlist | Export PDF
 │
 └── Saved (Tab 3)
@@ -1018,7 +1016,7 @@ Note: Two empty checkbox lines at the bottom allow the user to add their own que
 - Page 2: Risk analysis — all 4 risk cards with scores, explanations, comparison charts
 - Page 3: Shadow analysis — 3 shadow snapshots (morning/noon/evening, winter solstice) side by side, plus seasonal sunlight summary. Neighborhood snapshot (CBS stats).
 - Page 4: Viewing checklist — all questions organized by category, with checkboxes. Bilingual (EN+NL both printed). Notes section with blank lines.
-- Footer on all pages: "buurt-check · [date] · Indicative data, not professional advice" + required data attributions (CC BY 4.0 for Klimaateffectatlas and PDOK, CC BY-SA 4.0 for Mapillary if used)
+- Footer on all pages: "buurt-check · [date] · Indicative data, not professional advice" + required data attributions (CC BY 4.0 for Klimaateffectatlas and PDOK)
 
 **Success criteria:**
 - SC-9a: PDF generation completes within 12 seconds (including forge3d render or cache hit)

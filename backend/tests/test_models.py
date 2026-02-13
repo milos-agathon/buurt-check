@@ -1,6 +1,5 @@
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.models.building import BuildingFacts, BuildingFactsResponse
-from app.models.mapillary import MapillaryImage, MapillaryResponse
 from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
 from app.models.risk import (
     AirQualityRiskCard,
@@ -215,29 +214,3 @@ def test_risk_cards_response():
     assert resp.climate_stress.level == RiskLevel.unavailable
 
 
-def test_mapillary_response_with_image():
-    resp = MapillaryResponse(
-        address_id="0363010000696734",
-        image=MapillaryImage(
-            id="374806936301199",
-            captured_at="2025-12-01T10:11:12Z",
-            is_pano=True,
-            distance_m=15.2,
-            look_at_delta_deg=9.1,
-            viewer_url="https://www.mapillary.com/app/?pKey=374806936301199&focus=photo",
-            embed_url="https://www.mapillary.com/embed?image_key=374806936301199&style=photo",
-        ),
-        source_date="2025-12-01",
-    )
-    assert resp.image is not None
-    assert resp.image.id == "374806936301199"
-    assert resp.license == "CC BY-SA 4.0"
-
-
-def test_mapillary_response_without_image():
-    resp = MapillaryResponse(
-        address_id="0363010000696734",
-        message="MAPILLARY_NO_IMAGE",
-    )
-    assert resp.image is None
-    assert resp.message == "MAPILLARY_NO_IMAGE"

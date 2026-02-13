@@ -11,7 +11,6 @@ This PRD is aligned to the locked decisions in `docs/spec-baseline.md`.
 - Architecture: no migration now (`D1-1`).
 - Visual authority: Polar Frost (`D2-2`).
 - forge3 scope: report rendering only; web rendering remains Three.js (`D3-2R`).
-- Mapillary: included in current scope (`D4-2`).
 - PDF: dual-template export remains (`quick_brief`, `full_dossier`) (`D5-1`).
 - Requirement ownership and acceptance tests are tracked in `docs/spec-baseline.md` section 4.
 
@@ -118,7 +117,6 @@ Feature delivery labels for this PRD:
 | F5 | Implemented now | Shortlist + compare + dual-template PDF export. |
 | F6 | Implemented now | Crime signal card. |
 | F7 | Implemented now | Energy label card. |
-| F8 | Implemented now | Mapillary panel is in current scope and implemented. |
 | P1 | Post-MVP | Web rendering migration away from Three.js. |
 | P2 | Post-MVP | Full architecture migration (Zustand/Tailwind/Framer). |
 
@@ -204,13 +202,6 @@ Cards in MVP:
 * EP-Online API v5 (API key required); cache and rate-limit
 * Useful for running costs and "upgrade reality" scenarios
 
-#### F8 — Mapillary street-level panel (Tier B)
-
-* Embed a MapillaryJS panorama viewer in a side panel, synced to the selected building via `get_image_looking_at()` API
-* Zero texture complexity; immediate value for property buyers wanting to see the street without visiting
-* Mapillary imagery is CC BY-SA 4.0 (attribution + ShareAlike required)
-* The Netherlands has the highest Mapillary coverage density globally; Amsterdam alone has 800K+ professional panoramic images
-
 ## 6. Out of scope (explicit)
 
 * Listings ingestion/scraping
@@ -218,7 +209,7 @@ Cards in MVP:
 * Permit certainty nationwide
 * Foundation condition certainty (only subsidence/soil proxies later)
 * User accounts or social features in MVP
-* Photorealistic facade texturing from Mapillary/Cyclomedia imagery projection in MVP (Phase 2+ — see [§9](#9-3d-visualization-pipeline))
+* Photorealistic facade texturing from street-level imagery projection in MVP (Phase 2+ — see [§9](#9-3d-visualization-pipeline))
 
 ---
 
@@ -272,7 +263,6 @@ Define these before launch. Track outcomes, not outputs.
 | Climate stress layers | **Klimaateffectatlas** | NL | WMS/WFS (GeoServer) | WMS/WFS: `https://maps1.klimaatatlas.net/geoserver/ows` ([klimaateffectatlas.nl][4]) | Periodic | CC BY 4.0 attribution required |
 | Energy label lookup | **EP-Online Public API v5** | NL | REST (API key) + bulk | `https://public.ep-online.nl/api/v5/PandEnergielabel/Adres` ([RVO.nl][6]) | Daily mut., monthly full | Needs API key; cache + rate-limit |
 | Crime statistics | **CBS OData** | NL | OData API | `https://dataderden.cbs.nl/ODataApi/OData/47018NED` ([data.overheid.nl][13]) | Annual (yearly table), monthly | Official CBS; privacy suppression applies |
-| Street-level imagery (Tier B) | **Mapillary** | NL (dense) | REST API v4 | `https://graph.mapillary.com/` | Continuous | CC BY-SA 4.0; requires Meta developer token |
 
 ### Integration details per source
 
@@ -361,15 +351,6 @@ Recommended for MVP: 3DBAG API for geometry + attributes. Kadaster 3D Basisvoorz
 * "Registered crimes ≠ total crime; reporting and registration vary."
 * "Use as screening context, not a prediction."
 * "Small-area data may be suppressed for privacy for some categories."
-
-#### J) Mapillary street-level imagery (Tier B)
-
-* **API**: Mapillary Graph API v4 (`https://graph.mapillary.com/`)
-* **Authentication**: Meta developer token (free)
-* **Key endpoints**: Image search by bbox + compass angle, `get_image_looking_at(lat, lon)` for syncing to a building
-* **License**: CC BY-SA 4.0 — commercially usable, but ShareAlike requirement applies to derivative textures
-* **Coverage**: Netherlands has highest global density. Amsterdam uploaded 800K+ professional panoramic images (Trimble MX7)
-* **MVP use**: Embed MapillaryJS viewer in side panel, synced to selected building. No texture projection in MVP.
 
 ---
 
@@ -532,13 +513,9 @@ renderer.shadowMap.autoUpdate = false; // Only re-render when sun moves
 
 These require additional engineering effort and are explicitly out of scope for MVP:
 
-1. **Mapillary facade projection:** Use `three-projected-material` to project Mapillary street-level images onto the target building's wall surfaces. Requires image selection, lens undistortion, and facade segmentation. Estimated: 1–2 weeks.
+1. **BGT vector ground plane:** Replace orthophoto ground with semantically colored BGT polygons (dark grey roads, blue water, green grass) via `https://api.pdok.nl/lv/bgt/ogc/v1`. Cleaner for analytical views but requires GeoJSON triangulation and multiple materials.
 
-2. **User-assisted facade rectification:** Add UI for users to click four facade corners in an embedded Mapillary panorama, then use homography to rectify just the facade region and apply as UV-mapped texture. Estimated: 2–4 weeks.
-
-3. **BGT vector ground plane:** Replace orthophoto ground with semantically colored BGT polygons (dark grey roads, blue water, green grass) via `https://api.pdok.nl/lv/bgt/ogc/v1`. Cleaner for analytical views but requires GeoJSON triangulation and multiple materials.
-
-4. **WebGPU migration:** When browser WebGPU support matures (Chrome/Edge have it; Safari/Firefox behind), compile forge3d to WASM for in-browser rendering. A Rust/WebGPU renderer will outperform any JavaScript/WebGL solution on identical hardware. This would unify the dual-renderer into a single codebase.
+2. **WebGPU migration:** When browser WebGPU support matures (Chrome/Edge have it; Safari/Firefox behind), compile forge3d to WASM for in-browser rendering. A Rust/WebGPU renderer will outperform any JavaScript/WebGL solution on identical hardware. This would unify the dual-renderer into a single codebase.
 
 ---
 
@@ -559,7 +536,7 @@ These require additional engineering effort and are explicitly out of scope for 
 ### Data ingestion
 
 * **On-demand**: WMS/WCS sampling and API aggregation with caching.
-* **Real-time**: BAG/Locatieserver, CBS, 3DBAG, risk sources, EP-Online, and Mapillary lookups with cache + fallback behavior.
+* **Real-time**: BAG/Locatieserver, CBS, 3DBAG, risk sources, EP-Online lookups with cache + fallback behavior.
 
 ### API serving
 
@@ -642,11 +619,9 @@ These require additional engineering effort and are explicitly out of scope for 
 * **Data attribution:** Required attributions displayed in the dossier footer and PDF export:
   - Klimaateffectatlas: CC BY 4.0 attribution required
   - PDOK Luchtfoto: CC BY 4.0 attribution required
-  - Mapillary (if Tier B shipped): CC BY-SA 4.0 — attribution + ShareAlike
   - CBS, BAG, RIVM: public services, attribution as good practice
 * **Disclaimers:** All environmental, noise, air quality, and crime data is presented as indicative. The app does not provide professional advice. Disclaimer text shown on every dossier and PDF.
-* **API terms of service:** BAG/PDOK, RIVM, CBS, and Klimaateffectatlas are public services. Respect rate limits, cache aggressively, and do not scrape. EP-Online requires an API key with separate terms. Mapillary requires Meta developer token with separate terms.
-* **Street-level imagery privacy:** Mapillary images are auto-blurred for faces and license plates by Meta's pipeline. No additional processing needed for privacy compliance.
+* **API terms of service:** BAG/PDOK, RIVM, CBS, and Klimaateffectatlas are public services. Respect rate limits, cache aggressively, and do not scrape. EP-Online requires an API key with separate terms.
 
 ---
 
@@ -665,7 +640,6 @@ These require additional engineering effort and are explicitly out of scope for 
 | PDOK orthophoto CORS or availability | Low | Low — no roof textures | Fall back to solid semantic roof colors. Scene remains fully functional. |
 | EP-Online API key revocation | Low | Low — Tier B feature | Energy label is optional in MVP. Degrade gracefully. |
 | WebGPU browser support fragmentation | N/A | N/A | Not relevant for MVP (forge3d is server-side only). Monitor for Phase 2 WASM migration. |
-| Mapillary coverage gaps | Low | Low — Tier B feature | Display "No street view available" for buildings without nearby Mapillary imagery. |
 | Google 3D Tiles API blocked for EU | N/A | N/A | Not a dependency. Google stopped serving Photorealistic 3D Tiles to EU/EEA billing addresses (July 2025, DMA compliance). buurt-check uses open 3DBAG data exclusively. |
 
 ---

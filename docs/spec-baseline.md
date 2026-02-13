@@ -12,7 +12,7 @@ If any statement in `docs/prd.md`, `docs/design-prd.md`, or `docs/design-spec.md
 | D1-1 | Architecture migration now? | No migration now. Keep current stack and update docs to implementation reality. |
 | D2-2 | Visual authority | Keep Polar Frost visual system and update design docs to match. |
 | D3-2R | forge3 scope | Implement forge3 renderer for report rendering only (PDF/export). Web rendering remains Three.js. |
-| D4-2 | Mapillary scope | Include Mapillary in current scope now. |
+| D4-1 | Mapillary scope | Removed from scope (2026-02-13). |
 | D5-1 | PDF depth | Keep dual-template export: `quick_brief` and `full_dossier`. |
 
 ## 2. Authorities
@@ -41,7 +41,7 @@ Label meaning:
 | F5 | Shortlist + compare + PDF export (quick + full) | Implemented now | Implemented and tested. |
 | F6 | Crime card | Implemented now | Implemented and tested. |
 | F7 | Energy label card | Implemented now | Implemented and tested. |
-| F8 | Mapillary street-level panel | Implemented now | Implemented and tested. |
+| F8 | ~~Mapillary street-level panel~~ | Removed | Removed from scope (2026-02-13). |
 | P1 | Web renderer migration away from Three.js | Post-MVP | Deferred by D1-1 and D3-2R. |
 | P2 | Full architecture migration (Zustand/Tailwind/Framer) | Post-MVP | Deferred by D1-1. |
 | P3 | Photorealistic facade projection from street imagery | Post-MVP | Deferred intentionally. |
@@ -63,7 +63,6 @@ Requirement format: `requirement ID -> owner files -> acceptance tests`.
 | REQ-F5-PDF | Dual-template export (`quick_brief`, `full_dossier`) | `backend/app/services/pdf_export.py`, `backend/app/api/address.py`, `frontend/src/components/ExportBottomSheet.tsx` | `backend/tests/test_pdf_export.py`, `backend/tests/test_address_api.py`, `frontend/src/components/ExportBottomSheet.test.tsx` |
 | REQ-F6-CRIME | Crime card + disclaimers | `backend/app/services/tier_b.py`, `frontend/src/components/TierBSignalsCard.tsx` | `backend/tests/test_address_api.py`, `frontend/src/components/TierBSignalsCard.test.tsx` |
 | REQ-F7-ENERGY | Energy label card + disclaimers | `backend/app/services/tier_b.py`, `frontend/src/components/TierBSignalsCard.tsx` | `backend/tests/test_address_api.py`, `frontend/src/components/TierBSignalsCard.test.tsx` |
-| REQ-F8-MAPILLARY | Mapillary street-level panel in dossier | `backend/app/services/mapillary.py`, `backend/app/models/mapillary.py`, `backend/app/api/address.py`, `frontend/src/components/MapillaryPanel.tsx`, `frontend/src/services/api.ts`, `frontend/src/App.tsx` | `backend/tests/test_address_api.py`, `backend/tests/test_models.py`, `frontend/src/components/MapillaryPanel.test.tsx`, `frontend/src/services/api.test.ts`, `frontend/src/App.test.tsx` |
 | REQ-I18N | Bilingual EN/NL user-facing text | `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/**/*.tsx` | `frontend/src/App.test.tsx`, i18n coverage checks in component tests |
 | REQ-DEGRADE | Graceful degradation on upstream failures | `backend/app/services/*.py`, `frontend/src/components/*` risk/status states | `backend/tests/test_risk_cards.py`, `backend/tests/test_cache.py`, UI component fallback tests |
 | REQ-QG-BE | Backend quality gates | `backend/pyproject.toml`, backend test suite | `ruff check .`, `pytest -q`, `pytest -q -m live` |

@@ -6,7 +6,7 @@
   padding: var(--space-lg);
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-xl);
 }
 
 .neighborhood-card__header {
@@ -51,34 +51,41 @@
 .neighborhood-card__group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border);
 }
 
 .neighborhood-card__group-title {
   font: var(--type-label);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
 }
 
 .neighborhood-card__indicators {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
 }
 
 .neighborhood-card__indicator {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  height: 44px;
-  padding: 0 var(--space-xs);
+  min-height: 40px;
+  padding: var(--space-sm);
   font: var(--type-body);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
 }
 
 .neighborhood-card__indicator-label {
   color: var(--color-text-secondary);
-  font: var(--type-body);
+  font: var(--type-small);
+  flex: 1;
+  min-width: 0;
 }
 
 .neighborhood-card__indicator-right {
@@ -90,20 +97,25 @@
 .neighborhood-card__indicator-value {
   font: var(--type-body-medium);
   color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .neighborhood-card__indicator-value--unavailable {
-  font-weight: 400;
+  font: var(--type-small);
   font-style: italic;
   color: var(--color-text-tertiary);
-  font: var(--type-small);
+  white-space: nowrap;
 }
 
 .neighborhood-card__age-bars {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
-  margin-top: var(--space-xs);
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
 }
 
 .neighborhood-card__age-row {
@@ -114,7 +126,7 @@
 }
 
 .neighborhood-card__age-label {
-  width: 36px;
+  width: 48px;
   flex-shrink: 0;
   text-align: right;
   color: var(--color-text-secondary);
@@ -122,24 +134,24 @@
 
 .neighborhood-card__age-bar-track {
   flex: 1;
-  height: 14px;
-  background: var(--color-surface-alt);
-  border-radius: 3px;
+  height: 10px;
+  background: var(--color-surface-recessed);
+  border-radius: 5px;
   overflow: hidden;
 }
 
 .neighborhood-card__age-bar-fill {
   height: 100%;
   background: var(--color-accent);
-  border-radius: 3px;
-  min-width: 1px;
+  border-radius: 5px;
+  min-width: 2px;
 }
 
 .neighborhood-card__age-pct {
-  width: 36px;
+  width: 40px;
   flex-shrink: 0;
   text-align: right;
-  font: var(--type-micro);
+  font: var(--type-small);
   color: var(--color-text-secondary);
 }
 
@@ -148,7 +160,8 @@
   background: var(--color-accent-light);
   border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-sm);
+  padding: var(--space-base);
+  line-height: 1.5;
 }
 
 .neighborhood-card__source {
@@ -159,5 +172,9 @@
 @media (min-width: 600px) {
   .neighborhood-card__indicators {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .neighborhood-card__group:last-of-type .neighborhood-card__indicators {
+    grid-template-columns: 1fr;
   }
 }

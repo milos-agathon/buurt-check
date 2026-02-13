@@ -110,7 +110,6 @@ def _get_client() -> httpx.AsyncClient:
 #### Already compliant
 
 - `backend/app/services/risk_cards.py`
-- `backend/app/services/mapillary.py`
 
 #### Needs fix
 
@@ -209,7 +208,6 @@ def _get_client() -> httpx.AsyncClient:
 | `tier_b.py` | `timeout=httpx.Timeout(15.0, connect=4.0)` |
 | `wms_tile.py` | `timeout=httpx.Timeout(10.0, connect=3.0)` |
 | `risk_cards.py` | `timeout=httpx.Timeout(15.0, connect=4.0)` |
-| `mapillary.py` | `timeout=httpx.Timeout(12.0, connect=4.0)` |
 
 #### App shutdown hook
 
@@ -230,10 +228,9 @@ async def lifespan(app):
         tier_b,
         wms_tile,
         risk_cards,
-        mapillary,
     )
 
-    for mod in [bag, cbs, three_d_bag, locatieserver, tier_b, wms_tile, risk_cards, mapillary]:
+    for mod in [bag, cbs, three_d_bag, locatieserver, tier_b, wms_tile, risk_cards]:
         _http = getattr(mod, "_http", None)
         if _http:
             await _http.close()
@@ -846,7 +843,6 @@ Final baselines (verified 2026-02-12, all phases complete):
 - `backend/app/services/tier_b.py` - 2.1
 - `backend/app/services/wms_tile.py` - 2.1
 - `backend/app/services/risk_cards.py` - 2.1
-- `backend/app/services/mapillary.py` - 2.1
 - `backend/app/main.py` - 2.1, 6.1
 - `frontend/tests/e2e/f4-neighborhood-stats.spec.ts` - 2.2
 - `frontend/tests/e2e/f1-address-building.spec.ts` - 2.3
