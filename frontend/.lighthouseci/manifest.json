@@ -1,0 +1,14 @@
+[
+  {
+    "url": "http://127.0.0.1:4173/",
+    "isRepresentativeRun": true,
+    "htmlPath": "D:\\buurt-check\\frontend\\.lighthouseci\\127_0_0_1--2026_02_12_21_27_58.report.html",
+    "jsonPath": "D:\\buurt-check\\frontend\\.lighthouseci\\127_0_0_1--2026_02_12_21_27_58.report.json",
+    "summary": {
+      "performance": 0.93,
+      "accessibility": 0.96,
+      "best-practices": 0.96,
+      "seo": 0.83
+    }
+  }
+]
