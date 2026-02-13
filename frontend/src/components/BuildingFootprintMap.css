@@ -15,14 +15,73 @@
 .footprint-map__container {
   height: 300px;
   width: 100%;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(46, 196, 182, 0.09), transparent 42%),
+    radial-gradient(circle at 80% 85%, rgba(255, 255, 255, 0.14), transparent 44%),
+    linear-gradient(145deg, rgba(15, 22, 34, 0.82), rgba(20, 31, 45, 0.96));
 }
 
-/* Dark basemap: invert PDOK BRT grijs tiles to approximate a dark theme */
-[data-theme="dark"] .footprint-map__container .leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1);
+.footprint-map__svg {
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
-/* Keep markers/overlays readable by double-inverting them */
-[data-theme="dark"] .footprint-map__container .leaflet-overlay-pane {
-  filter: invert(1) hue-rotate(180deg);
+.footprint-map__bg {
+  fill: rgba(5, 11, 18, 0.6);
+}
+
+.footprint-map__grid {
+  fill: url(#footprint-grid);
+}
+
+.footprint-map__grid-line {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 0.8;
+}
+
+.footprint-map__shape {
+  fill: rgba(46, 196, 182, 0.28);
+  stroke: rgba(46, 196, 182, 0.95);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.footprint-map__pin {
+  fill: var(--color-accent-teal);
+  stroke: #ffffff;
+  stroke-width: 0.6;
+}
+
+.footprint-map__meta {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+[data-theme="light"] .footprint-map__container {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(0, 137, 123, 0.12), transparent 36%),
+    radial-gradient(circle at 82% 84%, rgba(46, 196, 182, 0.18), transparent 40%),
+    linear-gradient(155deg, rgba(243, 248, 251, 0.96), rgba(230, 240, 246, 0.96));
+}
+
+[data-theme="light"] .footprint-map__bg {
+  fill: rgba(255, 255, 255, 0.74);
+}
+
+[data-theme="light"] .footprint-map__grid-line {
+  stroke: rgba(17, 43, 64, 0.16);
+}
+
+[data-theme="light"] .footprint-map__meta {
+  color: rgba(17, 43, 64, 0.75);
 }

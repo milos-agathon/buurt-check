@@ -12,10 +12,11 @@ import RiskDetailView from './components/RiskDetailView';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
 import TierBSignalsCard from './components/TierBSignalsCard';
 import ViewingChecklist from './components/ViewingChecklist';
-import { LayoutGroup } from 'framer-motion';
+import { LayoutGroup, motion } from 'framer-motion';
 import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
 import { SkeletonCard, SkeletonGrid, SkeletonLine } from './components/SkeletonCard';
+import { SPRING_REVEAL } from './config/springs';
 import { hapticTap, hapticSuccess } from './utils/haptic';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
@@ -277,6 +278,11 @@ function App() {
       setActiveScreen('shortlist');
     }
   }, [address, buildingResponse]);
+
+  const handleRiskTileTap = useCallback((category: string) => {
+    if (isTransitioning) return;
+    setActiveDetailCategory(category);
+  }, [isTransitioning]);
 
   const handleAddressSelect = async (suggestion: AddressSuggestion) => {
     setLoading(true);
@@ -636,10 +642,16 @@ function App() {
             <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
               {/* Skeleton address header while loading */}
               {loading && !buildingResponse && pendingDisplayName && (
-                <SkeletonCard>
-                  <SkeletonLine width="70%" className="skeleton-line--lg" />
-                  <SkeletonLine width="40%" />
-                </SkeletonCard>
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={SPRING_REVEAL}
+                >
+                  <SkeletonCard>
+                    <SkeletonLine width="70%" className="skeleton-line--lg" />
+                    <SkeletonLine width="40%" />
+                  </SkeletonCard>
+                </motion.div>
               )}
 
               {address && buildingResponse && (
@@ -654,13 +666,19 @@ function App() {
               {summaryPills.length > 0 && (
                 <SummaryStrip
                   pills={summaryPills}
-                  onPillTap={(category) => setActiveDetailCategory(category)}
+                  onPillTap={handleRiskTileTap}
                 />
               )}
 
               {/* Skeleton risk grid while loading */}
               {loading && !riskCards && (
-                <SkeletonGrid />
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={SPRING_REVEAL}
+                >
+                  <SkeletonGrid />
+                </motion.div>
               )}
 
               {neighborhood3DLoading && (
@@ -720,19 +738,48 @@ function App() {
                 />
               )}
 
-              {(riskLoading || riskCards || riskError) && (
+              {(riskLoading || riskCards || riskError || activeDetailCategory) && (
                 <LayoutGroup>
-                  <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
-                  <RiskTilesGrid
-                    risks={riskCards ?? undefined}
-                    sunlight={sunlight ?? undefined}
-                    onTileTap={(category) => { if (!isTransitioning) setActiveDetailCategory(category); }}
-                  />
-                  <RiskCardsPanel
-                    risks={riskCards ?? undefined}
-                    loading={riskLoading}
-                    error={riskError}
-                  />
+                  {(riskLoading || riskCards || riskError) && (
+                    <>
+                      <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
+                      <RiskTilesGrid
+                        risks={riskCards ?? undefined}
+                        sunlight={sunlight ?? undefined}
+                        onTileTap={handleRiskTileTap}
+                      />
+                      <RiskCardsPanel
+                        risks={riskCards ?? undefined}
+                        loading={riskLoading}
+                        error={riskError}
+                      />
+                    </>
+                  )}
+                  {activeDetailCategory && (() => {
+                    const detail = getDetailProps(activeDetailCategory);
+                    if (!detail) return null;
+                    return (
+                      <RiskDetailView
+                        category={activeDetailCategory}
+                        titleKey={detail.titleKey}
+                        score={detail.score}
+                        severity={detail.severity}
+                        meaning={detail.meaning}
+                        comparisons={detail.comparisons}
+                        questions={activeQuestions}
+                        checkedQuestions={checkedQuestions}
+                        onToggleQuestion={handleToggleQuestion}
+                        source={detail.source}
+                        sourceDate={detail.sourceDate}
+                        onBack={() => {
+                          setActiveDetailCategory(null);
+                          setIsTransitioning(false);
+                        }}
+                        onAnimationStart={() => setIsTransitioning(true)}
+                        onAnimationComplete={() => setIsTransitioning(false)}
+                      />
+                    );
+                  })()}
                 </LayoutGroup>
               )}
 
@@ -841,30 +888,6 @@ function App() {
           onGenerateError={() => showToast(t('export.error'))}
         />
       )}
-
-      {/* Risk detail overlay */}
-      {activeDetailCategory && (() => {
-        const detail = getDetailProps(activeDetailCategory);
-        if (!detail) return null;
-        return (
-          <RiskDetailView
-            category={activeDetailCategory}
-            titleKey={detail.titleKey}
-            score={detail.score}
-            severity={detail.severity}
-            meaning={detail.meaning}
-            comparisons={detail.comparisons}
-            questions={activeQuestions}
-            checkedQuestions={checkedQuestions}
-            onToggleQuestion={handleToggleQuestion}
-            source={detail.source}
-            sourceDate={detail.sourceDate}
-            onBack={() => setActiveDetailCategory(null)}
-            onAnimationStart={() => setIsTransitioning(true)}
-            onAnimationComplete={() => setIsTransitioning(false)}
-          />
-        );
-      })()}
 
       <TabBar
         activeTab={activeTab}

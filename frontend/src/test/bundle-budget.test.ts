@@ -1,14 +1,37 @@
-import { existsSync, readdirSync, statSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { gzipSync } from 'zlib';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const distRoot = resolve(__dirname, '../../dist');
 const distDir = resolve(__dirname, '../../dist/assets');
 
 const hasDistDir = existsSync(distDir);
 
+function collectFiles(dir: string): string[] {
+  const entries = readdirSync(dir);
+  return entries.flatMap((entry) => {
+    const filePath = resolve(dir, entry);
+    const stats = statSync(filePath);
+    if (stats.isDirectory()) {
+      return collectFiles(filePath);
+    }
+    return [filePath];
+  });
+}
+
 describe.skipIf(!hasDistDir)('Bundle budget', () => {
+  it('all dist gzip total under 330KB', () => {
+    const files = collectFiles(distRoot);
+    const totalGzip = files.reduce((sum, filePath) => {
+      const gzipped = gzipSync(readFileSync(filePath)).length;
+      return sum + gzipped;
+    }, 0);
+    expect(totalGzip).toBeLessThan(330 * 1024);
+  });
+
   it('vendor-three chunk under 550KB', () => {
     const files = readdirSync(distDir);
     const threeChunk = files.find((f) => f.startsWith('vendor-three'));

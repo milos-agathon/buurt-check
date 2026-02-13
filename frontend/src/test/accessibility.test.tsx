@@ -1,7 +1,6 @@
 import { render } from '@testing-library/react';
 import { axe } from 'jest-axe';
 import { I18nextProvider } from 'react-i18next';
-import type { ReactNode } from 'react';
 import App from '../App';
 import CompareScreen from '../components/CompareScreen';
 import ExportBottomSheet from '../components/ExportBottomSheet';
@@ -20,12 +19,6 @@ vi.mock('../services/api', () => ({
   getViewingQuestions: vi.fn(),
   getTierBData: vi.fn(),
   exportBriefing: vi.fn(),
-}));
-
-vi.mock('react-leaflet', () => ({
-  MapContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TileLayer: () => null,
-  GeoJSON: () => null,
 }));
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;

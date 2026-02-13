@@ -25,12 +25,6 @@ vi.mock('./services/api', () => ({
   getTierBData: vi.fn(),
 }));
 
-vi.mock('react-leaflet', () => ({
-  MapContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="map">{children}</div>,
-  TileLayer: () => null,
-  GeoJSON: () => null,
-}));
-
 vi.mock('./components/NeighborhoodViewer3D', () => ({
   default: ({ buildings }: { buildings: unknown[] }) => (
     <div data-testid="viewer-3d">3D Viewer ({buildings.length} buildings)</div>

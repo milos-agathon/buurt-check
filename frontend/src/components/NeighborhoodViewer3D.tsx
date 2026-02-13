@@ -1,6 +1,30 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import * as THREE from 'three';
+import {
+  BufferGeometry,
+  CanvasTexture,
+  Color,
+  DirectionalLight,
+  DoubleSide,
+  ExtrudeGeometry,
+  Float32BufferAttribute,
+  HemisphereLight,
+  LinearFilter,
+  Material,
+  Matrix4,
+  Mesh,
+  MeshStandardMaterial,
+  PCFSoftShadowMap,
+  PerspectiveCamera,
+  PlaneGeometry,
+  Raycaster,
+  SRGBColorSpace,
+  Scene,
+  Shape,
+  Texture,
+  Vector3,
+  WebGLRenderer,
+} from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import SunCalc from 'suncalc';
@@ -48,7 +72,7 @@ const TARGET_COLOR = 0x2EC4B6;
  * Converts to Three.js Y-up: [dx, z_nap - buildingGround, dy].
  * Uses fan triangulation from vertex 0 for each polygon.
  */
-function createLod22Geometry(surfaces: number[][][], buildingGround: number): THREE.BufferGeometry {
+function createLod22Geometry(surfaces: number[][][], buildingGround: number): BufferGeometry {
   const positions: number[] = [];
   const indices: number[] = [];
 
@@ -67,8 +91,8 @@ function createLod22Geometry(surfaces: number[][][], buildingGround: number): TH
     }
   }
 
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const geom = new BufferGeometry();
+  geom.setAttribute('position', new Float32BufferAttribute(positions, 3));
   geom.setIndex(indices);
   geom.computeVertexNormals();
   return geom;
@@ -78,17 +102,17 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    renderer: THREE.WebGLRenderer;
+    scene: Scene;
+    camera: PerspectiveCamera;
+    renderer: WebGLRenderer;
     controls: OrbitControls;
-    sunLight: THREE.DirectionalLight;
-    buildingMeshes: THREE.Mesh[];
-    ground: THREE.Mesh;
+    sunLight: DirectionalLight;
+    buildingMeshes: Mesh[];
+    ground: Mesh;
     animId: number;
   } | null>(null);
 
-  const basemapMeshesRef = useRef<THREE.Mesh[]>([]);
+  const basemapMeshesRef = useRef<Mesh[]>([]);
   const sunlightComputed = useRef(false);
   const snapshotsCaptured = useRef(false);
 
@@ -144,31 +168,31 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
 
     // Scene
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(isDarkMode ? 0x0D1620 : 0xF0F3F6);
+    const scene = new Scene();
+    scene.background = new Color(isDarkMode ? 0x0D1620 : 0xF0F3F6);
 
     // Camera
-    const camera = new THREE.PerspectiveCamera(50, width / height, 1, 1000);
+    const camera = new PerspectiveCamera(50, width / height, 1, 1000);
     camera.position.set(100, 120, 100);
     camera.lookAt(0, 0, 0);
 
     // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
     // Lights
-    const ambient = new THREE.HemisphereLight(
+    const ambient = new HemisphereLight(
       isDarkMode ? 0x6688aa : 0xb1e1ff,
       isDarkMode ? 0x443311 : 0xb97a20,
       isDarkMode ? 0.4 : 0.5,
     );
     scene.add(ambient);
 
-    const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const sunLight = new DirectionalLight(0xffffff, 0.8);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = SHADOW_MAP_SIZE;
     sunLight.shadow.mapSize.height = SHADOW_MAP_SIZE;
@@ -184,13 +208,13 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     scene.add(sunLight.target); // Required for shadow rendering
 
     // Ground plane
-    const groundGeom = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-    const groundMat = new THREE.MeshStandardMaterial({
+    const groundGeom = new PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
+    const groundMat = new MeshStandardMaterial({
       color: isDarkMode ? 0x0D1620 : 0xF0F3F6,
       roughness: 0.95,
-      side: THREE.DoubleSide,
+      side: DoubleSide,
     });
-    const ground = new THREE.Mesh(groundGeom, groundMat);
+    const ground = new Mesh(groundGeom, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     ground.userData.isGround = true;
@@ -248,7 +272,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     for (const mesh of ctx.buildingMeshes) {
       ctx.scene.remove(mesh);
       mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
+      (mesh.material as Material).dispose();
     }
     ctx.buildingMeshes = [];
 
@@ -258,16 +282,16 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       lastFocusedPandId.current = targetPandId;
     }
 
-    const neighborGeoms: THREE.BufferGeometry[] = [];
+    const neighborGeoms: BufferGeometry[] = [];
 
     for (const building of buildings) {
-      let geom: THREE.BufferGeometry;
+      let geom: BufferGeometry;
       const isTarget = building.pand_id === targetPandId;
 
       if (building.roof_surfaces && building.roof_surfaces.length > 0) {
         geom = createLod22Geometry(building.roof_surfaces, building.ground_height);
       } else {
-        const shape = new THREE.Shape();
+        const shape = new Shape();
         const fp = building.footprint;
         if (fp.length < 3) continue;
 
@@ -277,24 +301,24 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         }
         shape.closePath();
 
-        geom = new THREE.ExtrudeGeometry(shape, {
+        geom = new ExtrudeGeometry(shape, {
           depth: building.building_height,
           bevelEnabled: false,
         });
-        const transform = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+        const transform = new Matrix4().makeRotationX(-Math.PI / 2);
         transform.setPosition(0, 0, 0);
         geom.applyMatrix4(transform);
         geom.deleteAttribute('uv');
       }
 
       if (isTarget) {
-        const mat = new THREE.MeshStandardMaterial({
+        const mat = new MeshStandardMaterial({
           color: isDarkMode ? TARGET_COLOR : TARGET_COLOR,
           emissive: 0x57D4C8,
           emissiveIntensity: 0.15,
-          side: THREE.DoubleSide,
+          side: DoubleSide,
         });
-        const mesh = new THREE.Mesh(geom, mat);
+        const mesh = new Mesh(geom, mat);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.userData.pandId = building.pand_id;
@@ -307,18 +331,18 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     }
 
     // Merge all neighbor geometries into a single draw call
-    const neighborMat = new THREE.MeshStandardMaterial({
+    const neighborMat = new MeshStandardMaterial({
       color: NEIGHBOR_COLOR,
       transparent: true,
       opacity: NEIGHBOR_OPACITY,
-      side: THREE.DoubleSide,
+      side: DoubleSide,
     });
 
     if (neighborGeoms.length > 0) {
       const merged = mergeGeometries(neighborGeoms, false);
       if (merged) {
         for (const g of neighborGeoms) g.dispose();
-        const mesh = new THREE.Mesh(merged, neighborMat);
+        const mesh = new Mesh(merged, neighborMat);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.userData.isContext = true;
@@ -326,7 +350,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         ctx.buildingMeshes.push(mesh);
       } else {
         for (const g of neighborGeoms) {
-          const mesh = new THREE.Mesh(g, neighborMat);
+          const mesh = new Mesh(g, neighborMat);
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           mesh.userData.isContext = true;
@@ -379,11 +403,11 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
     for (const mesh of basemapMeshesRef.current) {
       ctx.scene.remove(mesh);
-      if ((mesh.material as THREE.MeshStandardMaterial).map) {
-        (mesh.material as THREE.MeshStandardMaterial).map!.dispose();
+      if ((mesh.material as MeshStandardMaterial).map) {
+        (mesh.material as MeshStandardMaterial).map!.dispose();
       }
       mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
+      (mesh.material as Material).dispose();
     }
     basemapMeshesRef.current = [];
 
@@ -396,7 +420,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       { dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
     ];
 
-    const meshes: THREE.Mesh[] = [];
+    const meshes: Mesh[] = [];
     basemapMeshesRef.current = meshes;
 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -418,7 +442,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       img.onload = () => {
         if (!sceneRef.current) return;
 
-        let texture: THREE.Texture;
+        let texture: Texture;
         if (isDark) {
           const canvas = document.createElement('canvas');
           canvas.width = img.width;
@@ -426,22 +450,22 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
           const c = canvas.getContext('2d')!;
           c.filter = 'invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1)';
           c.drawImage(img, 0, 0);
-          texture = new THREE.CanvasTexture(canvas);
+          texture = new CanvasTexture(canvas);
         } else {
-          texture = new THREE.Texture(img);
+          texture = new Texture(img);
           texture.needsUpdate = true;
         }
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
+        texture.colorSpace = SRGBColorSpace;
+        texture.minFilter = LinearFilter;
+        texture.magFilter = LinearFilter;
 
-        const tileGeom = new THREE.PlaneGeometry(tileWidthMeters, tileWidthMeters);
-        const tileMat = new THREE.MeshStandardMaterial({
+        const tileGeom = new PlaneGeometry(tileWidthMeters, tileWidthMeters);
+        const tileMat = new MeshStandardMaterial({
           map: texture,
           roughness: 0.95,
-          side: THREE.DoubleSide,
+          side: DoubleSide,
         });
-        const tileMesh = new THREE.Mesh(tileGeom, tileMat);
+        const tileMesh = new Mesh(tileGeom, tileMat);
         tileMesh.rotation.x = -Math.PI / 2;
 
         const worldX = (dx * tileWidthMeters) - centerOffsetX;
@@ -459,11 +483,11 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     return () => {
       for (const mesh of basemapMeshesRef.current) {
         sceneRef.current?.scene.remove(mesh);
-        if ((mesh.material as THREE.MeshStandardMaterial).map) {
-          (mesh.material as THREE.MeshStandardMaterial).map!.dispose();
+        if ((mesh.material as MeshStandardMaterial).map) {
+          (mesh.material as MeshStandardMaterial).map!.dispose();
         }
         mesh.geometry.dispose();
-        (mesh.material as THREE.Material).dispose();
+        (mesh.material as Material).dispose();
       }
       basemapMeshesRef.current = [];
     };
@@ -484,9 +508,9 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     const cy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
     const minGround = Math.min(...buildings.map((b) => b.ground_height));
     const targetTop = target.ground_height - minGround + target.building_height;
-    const roofCenter = new THREE.Vector3(cx, targetTop + 0.5, cy);
+    const roofCenter = new Vector3(cx, targetTop + 0.5, cy);
 
-    const raycaster = new THREE.Raycaster();
+    const raycaster = new Raycaster();
     const year = new Date().getFullYear();
     const monthlyDates = Array.from({ length: 12 }, (_, i) => new Date(year, i, 21));
     const WINTER_IDX = 11;
@@ -509,7 +533,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
         const az = sunPos.azimuth;
         const alt = sunPos.altitude;
-        const sunDir = new THREE.Vector3(
+        const sunDir = new Vector3(
           -Math.sin(az) * Math.cos(alt),
           Math.sin(alt),
           Math.cos(az) * Math.cos(alt),

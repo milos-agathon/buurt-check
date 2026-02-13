@@ -1,3 +1,5 @@
+import type { Geometry } from 'geojson';
+
 export interface AddressSuggestion {
   id: string;
   display_name: string;
@@ -39,7 +41,7 @@ export interface BuildingFacts {
   intended_use_en: string[];
   num_units?: number;
   floor_area_m2?: number;
-  footprint_geojson?: GeoJSON.Geometry;
+  footprint_geojson?: Geometry;
   document_date?: string;
 }
 
