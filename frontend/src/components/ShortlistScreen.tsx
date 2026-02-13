@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import type { ShortlistItem, SeverityLevel } from '../types/api';
 import './ShortlistScreen.css';
 
@@ -62,13 +63,14 @@ export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAd
                 );
               })}
             </div>
-            <button
+            <motion.button
               className="shortlist-screen__remove"
               onClick={(e) => { e.stopPropagation(); onRemove(item.vboId); }}
+              whileTap={{ scale: 0.97 }}
               aria-label={t('shortlist.remove')}
             >
               &times;
-            </button>
+            </motion.button>
           </div>
         ))}
       </div>
