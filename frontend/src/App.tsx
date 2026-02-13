@@ -14,6 +14,7 @@ import TierBSignalsCard from './components/TierBSignalsCard';
 import ViewingChecklist from './components/ViewingChecklist';
 import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
+import { SkeletonCard, SkeletonGrid, SkeletonLine } from './components/SkeletonCard';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
 import ShortlistScreen from './components/ShortlistScreen';
@@ -165,7 +166,7 @@ function App() {
   );
   const [loading, setLoading] = useState(false);
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>('hidden');
-  const [, setPendingDisplayName] = useState<string | null>(null);
+  const [pendingDisplayName, setPendingDisplayName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const neighborhood3DRequestId = useRef(0);
   const previousScreenRef = useRef<Screen>('search');
@@ -628,6 +629,14 @@ function App() {
 
             {/* DossierSheet slides up over the map */}
             <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
+              {/* Skeleton address header while loading */}
+              {loading && !buildingResponse && pendingDisplayName && (
+                <SkeletonCard>
+                  <SkeletonLine width="70%" className="skeleton-line--lg" />
+                  <SkeletonLine width="40%" />
+                </SkeletonCard>
+              )}
+
               {address && buildingResponse && (
                 <AddressHeader
                   address={address}
@@ -642,6 +651,11 @@ function App() {
                   pills={summaryPills}
                   onPillTap={(category) => setActiveDetailCategory(category)}
                 />
+              )}
+
+              {/* Skeleton risk grid while loading */}
+              {loading && !riskCards && (
+                <SkeletonGrid />
               )}
 
               {neighborhood3DLoading && (
