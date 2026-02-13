@@ -5,7 +5,7 @@ import time
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.cache.redis import cache_get, cache_set
 from app.config import settings
@@ -488,6 +488,8 @@ async def tier_b_signals(
 class ExportRequest(BaseModel):
     """POST body for PDF export — avoids URL-length limits from base64 shadow images."""
 
+    model_config = {"populate_by_name": True}
+
     rd_x: float
     rd_y: float
     lat: float
@@ -495,7 +497,7 @@ class ExportRequest(BaseModel):
     address: str
     template: str = "quick_brief"
     language: str = "en"
-    shadow_image: str | None = None
+    shadow_image: str | None = Field(None, alias="shadow_image_b64")
     street: str | None = None
     city: str | None = None
     buurt_code: str | None = None
@@ -647,14 +649,19 @@ async def export_briefing(
     risk_comparisons_data = None
 
     if body.template == "full_dossier":
-        neighborhood_stats, tier_b_data = await asyncio.gather(
-            _fetch_neighborhood_for_export(
-                vbo_id, body.lat, body.lng, body.buurt_code,
-            ),
-            _fetch_tier_b_for_export(
-                vbo_id, body.buurt_code, body.postcode,
-                body.house_number, body.house_letter, body.addition,
-            ),
+        # Fetch neighborhood first — its buurt_code is the fallback for tier-b
+        neighborhood_stats = await _fetch_neighborhood_for_export(
+            vbo_id, body.lat, body.lng, body.buurt_code,
+        )
+
+        # Resolve buurt_code: prefer request, fallback to neighborhood-resolved
+        resolved_buurt_code = body.buurt_code
+        if not resolved_buurt_code and neighborhood_stats:
+            resolved_buurt_code = neighborhood_stats.buurt_code
+
+        tier_b_data = await _fetch_tier_b_for_export(
+            vbo_id, resolved_buurt_code, body.postcode,
+            body.house_number, body.house_letter, body.addition,
         )
 
         urbanization = UrbanizationLevel.unknown
