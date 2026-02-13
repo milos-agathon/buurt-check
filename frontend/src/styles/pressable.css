@@ -1,0 +1,21 @@
+/* Global pressed state styles for usePressable hook.
+ * Applied via the `pressed` CSS class (set by pointer events, not :active).
+ * No :active fallback — pointer events work on all target platforms.
+ */
+
+.pressable {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.pressable.pressed {
+  transform: scale(0.97);
+  background-color: var(--color-surface-pressed);
+  transition: transform 80ms ease-out;
+}
+
+.pressable:not(.pressed) {
+  transition: transform 150ms ease-out;
+}
