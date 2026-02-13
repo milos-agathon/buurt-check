@@ -4,6 +4,7 @@ import {
   getBuildingFacts,
   getNeighborhood3D,
   getNeighborhoodStats,
+  getPropertyWarnings,
   getRiskComparisons,
   getRiskCards,
   getTierBData,
@@ -366,5 +367,50 @@ describe('downloadPdfBlob', () => {
     createElementSpy.mockRestore();
     createObjectURLSpy.mockRestore();
     revokeObjectURLSpy.mockRestore();
+  });
+});
+
+describe('getPropertyWarnings', () => {
+  it('sends GET with required params', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        address_id: 'vbo-123',
+        foundation_risk: { level: 'low', messages: [] },
+        erfpacht: { detected: false, messages: [] },
+        vve: { is_apartment: false, messages: [] },
+        asbestos: { flagged: false, messages: [] },
+        attention_summary: {
+          flag_count: 0,
+          flags: [],
+          risk_categories_assessed: 4,
+          risk_categories_total: 4,
+        },
+      }),
+    );
+    const result = await getPropertyWarnings('0363200000000001', 121000, 487000);
+    expect(result.address_id).toBe('vbo-123');
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/property-warnings?');
+    expect(url).toContain('rd_x=121000');
+  });
+
+  it('sends optional params when provided', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-123' }));
+    await getPropertyWarnings('0363200000000001', 121000, 487000, {
+      constructionYear: 1952,
+      numUnits: 8,
+      municipality: 'Amsterdam',
+    });
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('construction_year=1952');
+    expect(url).toContain('num_units=8');
+    expect(url).toContain('municipality=Amsterdam');
+  });
+
+  it('throws on non-OK response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(502));
+    await expect(
+      getPropertyWarnings('0363200000000001', 121000, 487000),
+    ).rejects.toThrow('Property warnings failed: 502');
   });
 });
