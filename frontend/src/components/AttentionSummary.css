@@ -1,0 +1,43 @@
+.attention-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-base);
+  border-radius: var(--radius-card);
+  flex-wrap: wrap;
+}
+
+.attention-summary--green {
+  background: var(--color-badge-positive-bg);
+}
+
+.attention-summary--amber {
+  background: var(--color-badge-caution-bg);
+}
+
+.attention-summary--red {
+  background: var(--color-badge-negative-bg);
+}
+
+.attention-summary__badge {
+  font: var(--type-body-medium);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.attention-summary__badge--green {
+  color: var(--color-badge-positive-text);
+}
+
+.attention-summary__badge--amber {
+  color: var(--color-badge-caution-text);
+}
+
+.attention-summary__badge--red {
+  color: var(--color-badge-negative-text);
+}
+
+.attention-summary__completeness {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+}
