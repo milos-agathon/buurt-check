@@ -875,6 +875,11 @@ function App() {
           address={address.display_name}
           street={address.street ?? undefined}
           city={address.city ?? undefined}
+          buurtCode={address.buurt_code ?? undefined}
+          postcode={address.postcode ?? undefined}
+          houseNumber={address.house_number ?? undefined}
+          houseLetter={address.house_letter ?? undefined}
+          addition={address.addition ?? undefined}
           shadowSnapshots={shadowSnapshots}
           onGenerateStart={() => showToast(t('toast.exportStarted'))}
           onGenerateSuccess={() => showToast(t('toast.exportReady'))}

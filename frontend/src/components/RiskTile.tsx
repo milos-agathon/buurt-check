@@ -18,7 +18,14 @@ export default function RiskTile({ category, labelKey, score, severity, summary,
   const { t } = useTranslation();
 
   return (
-    <button className="risk-tile" onClick={onTap} data-testid={`risk-tile-${category}`}>
+    <button
+      className="risk-tile"
+      onClick={onTap}
+      data-testid={`risk-tile-${category}`}
+      aria-label={score != null
+        ? t('risk.tileAria', { label: t(labelKey), score, max: 100 })
+        : t('risk.tileAriaUnavailable', { label: t(labelKey) })}
+    >
       <div className="risk-tile__header">
         <span className="risk-tile__label">{t(labelKey)}</span>
         <SeverityBadge severity={severity} size="sm" />

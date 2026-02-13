@@ -320,8 +320,13 @@ describe('exportBriefing', () => {
       template: 'full_dossier',
     });
 
-    const [url] = mockFetch.mock.calls[0];
-    expect(url).toContain('template=full_dossier');
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/address/vbo-1/export');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body);
+    expect(body.template).toBe('full_dossier');
+    expect(body.rd_x).toBe(1);
+    expect(body.lat).toBe(3);
     expect(blob).toBe(expectedBlob);
   });
 });

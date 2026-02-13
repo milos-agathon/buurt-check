@@ -54,6 +54,8 @@ export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAd
                 return (
                   <span
                     key={cat}
+                    role="img"
+                    aria-label={`${cat}: ${score ?? '?'}`}
                     className={`shortlist-screen__dot shortlist-screen__dot--${sev}`}
                     title={`${cat}: ${score ?? '?'}`}
                   />

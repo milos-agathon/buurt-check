@@ -10,7 +10,7 @@ interface AddressHeaderProps {
 }
 
 export default function AddressHeader({ address, building, isBookmarked = false, onBookmarkToggle }: AddressHeaderProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const street = address.street || '';
   const houseNumber = [address.house_number, address.house_letter, address.addition]
@@ -21,10 +21,10 @@ export default function AddressHeader({ address, building, isBookmarked = false,
 
   const buildingDetails: string[] = [];
   if (building?.construction_year) {
-    buildingDetails.push(`Built ${building.construction_year}`);
+    buildingDetails.push(t('building.built', { year: building.construction_year }));
   }
   if (building?.num_units && building.num_units > 1) {
-    buildingDetails.push(`${building.num_units} units`);
+    buildingDetails.push(t('building.units', { count: building.num_units }));
   }
   const use = i18n.language === 'nl' ? building?.intended_use : building?.intended_use_en;
   if (use?.length) {

@@ -27,7 +27,7 @@ export default function ViewingChecklist({
   return (
     <div className="viewing-checklist" data-testid="viewing-checklist">
       {visibleCategories.map((cat) => (
-        <div key={cat.name} className="viewing-checklist__group">
+        <div key={cat.name} className="viewing-checklist__group" role="group" aria-label={isNl ? cat.name_nl : cat.name}>
           <div className="viewing-checklist__group-header">
             <span className="viewing-checklist__group-name">
               {isNl ? cat.name_nl : cat.name}

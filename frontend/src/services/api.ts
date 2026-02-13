@@ -209,33 +209,43 @@ export interface ExportOptions {
   city?: string;
   language?: string;
   shadowImageB64?: string;
+  buurtCode?: string;
+  postcode?: string;
+  houseNumber?: string;
+  houseLetter?: string;
+  addition?: string;
 }
 
 export async function exportBriefing(options: ExportOptions): Promise<Blob> {
-  const params = new URLSearchParams({
-    rd_x: String(options.rdX),
-    rd_y: String(options.rdY),
-    lat: String(options.lat),
-    lng: String(options.lng),
+  const body: Record<string, unknown> = {
+    rd_x: options.rdX,
+    rd_y: options.rdY,
+    lat: options.lat,
+    lng: options.lng,
     address: options.address,
     template: options.template || 'quick_brief',
     language: options.language || 'en',
-  });
-  if (options.shadowImageB64) {
-    params.set('shadow_image', options.shadowImageB64);
-  }
-  if (options.street) {
-    params.set('street', options.street);
-  }
-  if (options.city) {
-    params.set('city', options.city);
-  }
+  };
+  if (options.shadowImageB64) body.shadow_image = options.shadowImageB64;
+  if (options.street) body.street = options.street;
+  if (options.city) body.city = options.city;
+  if (options.buurtCode) body.buurt_code = options.buurtCode;
+  if (options.postcode) body.postcode = options.postcode;
+  if (options.houseNumber) body.house_number = options.houseNumber;
+  if (options.houseLetter) body.house_letter = options.houseLetter;
+  if (options.addition) body.addition = options.addition;
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
   try {
     const resp = await fetch(
-      `${API_BASE}/address/${options.vboId}/export?${params}`,
-      { signal: controller.signal },
+      `${API_BASE}/address/${options.vboId}/export`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      },
     );
     if (!resp.ok) throw new Error(`Export failed: ${resp.status}`);
     return resp.blob();

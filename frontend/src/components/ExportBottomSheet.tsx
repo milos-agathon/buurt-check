@@ -16,6 +16,11 @@ interface ExportBottomSheetProps {
   address: string;
   street?: string;
   city?: string;
+  buurtCode?: string;
+  postcode?: string;
+  houseNumber?: string;
+  houseLetter?: string;
+  addition?: string;
   shadowSnapshots?: ShadowSnapshot[] | null;
   onGenerateStart?: () => void;
   onGenerateSuccess?: () => void;
@@ -33,6 +38,11 @@ export default function ExportBottomSheet({
   address,
   street,
   city,
+  buurtCode,
+  postcode,
+  houseNumber,
+  houseLetter,
+  addition,
   shadowSnapshots,
   onGenerateStart,
   onGenerateSuccess,
@@ -108,6 +118,11 @@ export default function ExportBottomSheet({
         template,
         street,
         city,
+        buurtCode,
+        postcode,
+        houseNumber,
+        houseLetter,
+        addition,
         language: exportLanguage,
         shadowImageB64: shadowB64,
       });
