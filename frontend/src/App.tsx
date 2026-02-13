@@ -12,7 +12,8 @@ import RiskDetailView from './components/RiskDetailView';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
 import TierBSignalsCard from './components/TierBSignalsCard';
 import ViewingChecklist from './components/ViewingChecklist';
-import LoadingScreen from './components/LoadingScreen';
+import DossierSheet from './components/DossierSheet';
+import type { SheetSnap } from './components/DossierSheet';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
 import ShortlistScreen from './components/ShortlistScreen';
@@ -163,13 +164,10 @@ function App() {
     dossierSeed?.viewingQuestions ?? null,
   );
   const [loading, setLoading] = useState(false);
-  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
-  const [loadingAddress, setLoadingAddress] = useState<string | null>(null);
-  const [loadingProgressText, setLoadingProgressText] = useState<string | undefined>(undefined);
-  const [loadingTone, setLoadingTone] = useState<'normal' | 'warning'>('normal');
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>('hidden');
+  const [, setPendingDisplayName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const neighborhood3DRequestId = useRef(0);
-  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousScreenRef = useRef<Screen>('search');
   const [shortlistItems, setShortlistItems] = useState<ShortlistItem[]>(getShortlist());
 
@@ -186,38 +184,9 @@ function App() {
     return cleanup;
   }, [themePreference]);
 
-  useEffect(() => {
-    return () => {
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-    };
-  }, []);
-
   const handleThemeChange = useCallback((pref: ThemePreference) => {
     setTheme(pref);
     setThemePreference(pref);
-  }, []);
-
-  const setLoadingStage = useCallback((key: string) => {
-    setLoadingProgressText(t(key));
-    setLoadingTone('normal');
-  }, [t]);
-
-  const showLoadingWarning = useCallback(async (key: string) => {
-    setLoadingProgressText(t(key));
-    setLoadingTone('warning');
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setLoadingTone('normal');
-  }, [t]);
-
-  const finishLoadingFlow = useCallback(() => {
-    if (loadingTimeoutRef.current) {
-      clearTimeout(loadingTimeoutRef.current);
-      loadingTimeoutRef.current = null;
-    }
-    setShowLoadingScreen(false);
-    setLoadingAddress(null);
-    setLoadingTone('normal');
-    setLoadingProgressText(undefined);
   }, []);
 
   const openSettings = useCallback(() => {
@@ -305,10 +274,6 @@ function App() {
 
   const handleAddressSelect = async (suggestion: AddressSuggestion) => {
     setLoading(true);
-    setShowLoadingScreen(true);
-    setLoadingAddress(suggestion.display_name);
-    setLoadingTone('normal');
-    setLoadingStage('loading.findingBuilding');
     setError(null);
     setBuildingResponse(null);
     setNeighborhood3D(null);
@@ -331,25 +296,21 @@ function App() {
     setActiveDetailCategory(null);
     setCheckedQuestions(new Set());
     const requestId = ++neighborhood3DRequestId.current;
-    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-    loadingTimeoutRef.current = setTimeout(() => {
-      if (neighborhood3DRequestId.current === requestId) {
-        finishLoadingFlow();
-      }
-    }, 8000);
+
+    // T+0: immediately show dossier screen with sheet at peek
+    setActiveScreen('dossier');
+    setActiveTab('search');
+    setSheetSnap('peek');
+    setPendingDisplayName(suggestion.display_name);
 
     try {
       const resolved = await lookupAddress(suggestion.id);
       setAddress(resolved);
-      setLoadingAddress(resolved.display_name);
-      setActiveScreen('dossier');
-      setActiveTab('search');
 
       const vboId = resolved.adresseerbaar_object_id;
       const { rd_x, rd_y, latitude, longitude } = resolved;
       if (vboId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
         setRiskLoading(true);
-        setLoadingStage('loading.checkingNoise');
         void (async () => {
           try {
             const risks = await getRiskCards(vboId, rd_x, rd_y, latitude, longitude);
@@ -361,7 +322,6 @@ function App() {
             if (neighborhood3DRequestId.current === requestId) {
               setRiskError(true);
               setRiskLoading(false);
-              await showLoadingWarning('loading.warning.risk');
             }
           }
         })();
@@ -380,14 +340,10 @@ function App() {
               setRiskComparisons(comparisons);
             }
           } catch {
-            if (neighborhood3DRequestId.current === requestId) {
-              await showLoadingWarning('loading.warning.risk');
-            }
+            // Risk comparisons are optional — silently ignore
           }
         })();
 
-        // Fetch viewing questions
-        setLoadingStage('loading.loadingChecklist');
         void (async () => {
           try {
             const questions = await getViewingQuestions(vboId, rd_x, rd_y, latitude, longitude, {
@@ -398,14 +354,11 @@ function App() {
               setViewingQuestions(questions);
             }
           } catch {
-            if (neighborhood3DRequestId.current === requestId) {
-              await showLoadingWarning('loading.warning.questions');
-            }
+            // Viewing questions are optional — silently ignore
           }
         })();
 
         setNeighborhoodStatsLoading(true);
-        setLoadingStage('loading.analyzingClimate');
         void (async () => {
           try {
             const stats = await getNeighborhoodStats(
@@ -419,7 +372,6 @@ function App() {
             if (neighborhood3DRequestId.current === requestId) {
               setNeighborhoodStatsError(true);
               setNeighborhoodStatsLoading(false);
-              await showLoadingWarning('loading.warning.neighborhood');
             }
           }
         })();
@@ -442,7 +394,6 @@ function App() {
             if (neighborhood3DRequestId.current === requestId) {
               setTierBError(true);
               setTierBLoading(false);
-              await showLoadingWarning('loading.warning.tierB');
             }
           }
         })();
@@ -450,17 +401,16 @@ function App() {
       }
 
       if (vboId) {
-        setLoadingStage('loading.findingBuilding');
         const building = await getBuildingFacts(vboId);
         setBuildingResponse(building);
         setLoading(false);
+        setSheetSnap('half');
 
         const pandId = building.building?.pand_id;
         if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
           setNeighborhood3DLoading(true);
           setSurroundingLoading(true);
           let phase2Done = false;
-          setLoadingStage('loading.loading3D');
 
           void (async () => {
             try {
@@ -470,11 +420,6 @@ function App() {
                 setNeighborhood3DLoading(false);
               }
             } catch { /* Phase 2 handles full fetch */ }
-            finally {
-              if (neighborhood3DRequestId.current === requestId) {
-                finishLoadingFlow();
-              }
-            }
           })();
 
           void (async () => {
@@ -499,16 +444,13 @@ function App() {
           })();
         } else {
           setSunlightUnavailable(true);
-          finishLoadingFlow();
         }
       } else {
         setLoading(false);
-        finishLoadingFlow();
       }
     } catch {
       setError(t('error.generic'));
       setLoading(false);
-      finishLoadingFlow();
     }
   };
 
@@ -669,166 +611,160 @@ function App() {
       <main className="app__main">
         {(activeScreen === 'search' || activeScreen === 'dossier') && (
           <>
-            {showLoadingScreen ? (
-              <LoadingScreen
-                address={loadingAddress ?? address?.display_name ?? ''}
-                progressText={loadingProgressText}
-                tone={loadingTone}
-              />
-            ) : (
-              <>
-                <AddressSearch onSelect={handleAddressSelect} />
+            <AddressSearch onSelect={handleAddressSelect} />
+            {error && <p className="app__error">{error}</p>}
 
-                {error && <p className="app__error">{error}</p>}
-
-                {address && buildingResponse && (
-                  <AddressHeader
-                    address={address}
-                    building={buildingResponse.building ?? undefined}
-                    isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
-                    onBookmarkToggle={handleBookmark}
-                  />
-                )}
-
-                {summaryPills.length > 0 && (
-                  <SummaryStrip
-                    pills={summaryPills}
-                    onPillTap={(category) => setActiveDetailCategory(category)}
-                  />
-                )}
-
-                {address?.latitude && address?.longitude && (
-                  <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-                    <BuildingFootprintMap
-                      lat={address.latitude}
-                      lng={address.longitude}
-                      footprint={buildingResponse?.building?.footprint_geojson}
-                    />
-                  </Suspense>
-                )}
-
-                {neighborhood3DLoading && (
-                  <div className="viewer-3d-status">
-                    <p>{t('viewer3d.loading')}</p>
-                  </div>
-                )}
-
-                {!neighborhood3DLoading && neighborhood3D && neighborhood3D.buildings.length === 0 && (
-                  <div className="viewer-3d-status">
-                    <p>{t('viewer3d.noData')}</p>
-                  </div>
-                )}
-
-                {neighborhood3D && neighborhood3D.buildings.length > 0 && (
-                  <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-                    <NeighborhoodViewer3D
-                      buildings={neighborhood3D.buildings}
-                      targetPandId={neighborhood3D.target_pand_id ?? undefined}
-                      center={neighborhood3D.center}
-                      onSunlightAnalysis={surroundingLoading ? undefined : setSunlight}
-                      onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
-                    />
-                  </Suspense>
-                )}
-                {surroundingLoading && !showLoadingScreen && (
-                  <div className="viewer-3d-status">
-                    <p>{t('viewer3d.loading')}</p>
-                  </div>
-                )}
-
-                {(() => {
-                  const canComputeSunlight = !!neighborhood3D
-                    && neighborhood3D.buildings.length > 0
-                    && !!neighborhood3D.target_pand_id
-                    && !surroundingLoading;
-                  const sunlightLoading = canComputeSunlight && !sunlight;
-                  const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
-                  if (!showSunlightCard) return null;
-                  const targetOrientation = neighborhood3D?.buildings.find(
-                    b => b.pand_id === neighborhood3D.target_pand_id
-                  )?.orientation_deg;
-                  return (
-                    <SunlightRiskCard
-                      sunlight={sunlight ?? undefined}
-                      loading={sunlightLoading}
-                      unavailable={sunlightUnavailable}
-                      orientationDeg={targetOrientation}
-                    />
-                  );
-                })()}
-
-                {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
-                  <ShadowSnapshots
-                    snapshots={shadowSnapshots ?? undefined}
-                    loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
-                  />
-                )}
-
-                {(riskLoading || riskCards || riskError) && (
-                  <>
-                    <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
-                    <RiskTilesGrid
-                      risks={riskCards ?? undefined}
-                      sunlight={sunlight ?? undefined}
-                      onTileTap={(category) => setActiveDetailCategory(category)}
-                    />
-                    <RiskCardsPanel
-                      risks={riskCards ?? undefined}
-                      loading={riskLoading}
-                      error={riskError}
-                    />
-                  </>
-                )}
-
-                {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
-                  <>
-                    <h3 className="app__section-label">{t('dossier.neighborhood')}</h3>
-                    <NeighborhoodStatsCard
-                      stats={neighborhoodStats ?? undefined}
-                      loading={neighborhoodStatsLoading}
-                      error={neighborhoodStatsError}
-                    />
-                  </>
-                )}
-
-                {(tierBLoading || tierBData || tierBError) && (
-                  <>
-                    <h3 className="app__section-label">{t('dossier.tierB')}</h3>
-                    <TierBSignalsCard
-                      data={tierBData ?? undefined}
-                      loading={tierBLoading}
-                      error={tierBError}
-                    />
-                  </>
-                )}
-
-                {(loading || buildingResponse) && (
-                  <BuildingFactsCard
-                    building={buildingResponse?.building ?? undefined}
-                    loading={loading}
-                  />
-                )}
-
-                {viewingQuestions && viewingQuestions.categories.length > 0 && (
-                  <>
-                    <h3 className="app__section-label">{t('dossier.viewingChecklist')}</h3>
-                    <ViewingChecklist
-                      categories={viewingQuestions.categories}
-                      checkedQuestions={checkedQuestions}
-                      onToggleQuestion={handleToggleQuestion}
-                    />
-                  </>
-                )}
-
-                {address && buildingResponse && (
-                  <ActionBar
-                    isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
-                    onAddToShortlist={handleBookmark}
-                    onExportBriefing={() => setExportSheetOpen(true)}
-                  />
-                )}
-              </>
+            {/* Map visible behind the sheet */}
+            {address?.latitude && address?.longitude && (
+              <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                <BuildingFootprintMap
+                  lat={address.latitude}
+                  lng={address.longitude}
+                  footprint={buildingResponse?.building?.footprint_geojson}
+                  zoom={15}
+                />
+              </Suspense>
             )}
+
+            {/* DossierSheet slides up over the map */}
+            <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
+              {address && buildingResponse && (
+                <AddressHeader
+                  address={address}
+                  building={buildingResponse.building ?? undefined}
+                  isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
+                  onBookmarkToggle={handleBookmark}
+                />
+              )}
+
+              {summaryPills.length > 0 && (
+                <SummaryStrip
+                  pills={summaryPills}
+                  onPillTap={(category) => setActiveDetailCategory(category)}
+                />
+              )}
+
+              {neighborhood3DLoading && (
+                <div className="viewer-3d-status">
+                  <p>{t('viewer3d.loading')}</p>
+                </div>
+              )}
+
+              {!neighborhood3DLoading && neighborhood3D && neighborhood3D.buildings.length === 0 && (
+                <div className="viewer-3d-status">
+                  <p>{t('viewer3d.noData')}</p>
+                </div>
+              )}
+
+              {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                  <NeighborhoodViewer3D
+                    buildings={neighborhood3D.buildings}
+                    targetPandId={neighborhood3D.target_pand_id ?? undefined}
+                    center={neighborhood3D.center}
+                    onSunlightAnalysis={surroundingLoading ? undefined : setSunlight}
+                    onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
+                  />
+                </Suspense>
+              )}
+              {surroundingLoading && (
+                <div className="viewer-3d-status">
+                  <p>{t('viewer3d.loading')}</p>
+                </div>
+              )}
+
+              {(() => {
+                const canComputeSunlight = !!neighborhood3D
+                  && neighborhood3D.buildings.length > 0
+                  && !!neighborhood3D.target_pand_id
+                  && !surroundingLoading;
+                const sunlightLoading = canComputeSunlight && !sunlight;
+                const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
+                if (!showSunlightCard) return null;
+                const targetOrientation = neighborhood3D?.buildings.find(
+                  b => b.pand_id === neighborhood3D.target_pand_id
+                )?.orientation_deg;
+                return (
+                  <SunlightRiskCard
+                    sunlight={sunlight ?? undefined}
+                    loading={sunlightLoading}
+                    unavailable={sunlightUnavailable}
+                    orientationDeg={targetOrientation}
+                  />
+                );
+              })()}
+
+              {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
+                <ShadowSnapshots
+                  snapshots={shadowSnapshots ?? undefined}
+                  loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
+                />
+              )}
+
+              {(riskLoading || riskCards || riskError) && (
+                <>
+                  <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
+                  <RiskTilesGrid
+                    risks={riskCards ?? undefined}
+                    sunlight={sunlight ?? undefined}
+                    onTileTap={(category) => setActiveDetailCategory(category)}
+                  />
+                  <RiskCardsPanel
+                    risks={riskCards ?? undefined}
+                    loading={riskLoading}
+                    error={riskError}
+                  />
+                </>
+              )}
+
+              {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
+                <>
+                  <h3 className="app__section-label">{t('dossier.neighborhood')}</h3>
+                  <NeighborhoodStatsCard
+                    stats={neighborhoodStats ?? undefined}
+                    loading={neighborhoodStatsLoading}
+                    error={neighborhoodStatsError}
+                  />
+                </>
+              )}
+
+              {(tierBLoading || tierBData || tierBError) && (
+                <>
+                  <h3 className="app__section-label">{t('dossier.tierB')}</h3>
+                  <TierBSignalsCard
+                    data={tierBData ?? undefined}
+                    loading={tierBLoading}
+                    error={tierBError}
+                  />
+                </>
+              )}
+
+              {(loading || buildingResponse) && (
+                <BuildingFactsCard
+                  building={buildingResponse?.building ?? undefined}
+                  loading={loading}
+                />
+              )}
+
+              {viewingQuestions && viewingQuestions.categories.length > 0 && (
+                <>
+                  <h3 className="app__section-label">{t('dossier.viewingChecklist')}</h3>
+                  <ViewingChecklist
+                    categories={viewingQuestions.categories}
+                    checkedQuestions={checkedQuestions}
+                    onToggleQuestion={handleToggleQuestion}
+                  />
+                </>
+              )}
+
+              {address && buildingResponse && (
+                <ActionBar
+                  isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
+                  onAddToShortlist={handleBookmark}
+                  onExportBriefing={() => setExportSheetOpen(true)}
+                />
+              )}
+            </DossierSheet>
           </>
         )}
 

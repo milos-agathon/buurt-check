@@ -7,9 +7,10 @@ interface Props {
   lat: number;
   lng: number;
   footprint?: GeoJSON.Geometry;
+  zoom?: number;
 }
 
-export default function BuildingFootprintMap({ lat, lng, footprint }: Props) {
+export default function BuildingFootprintMap({ lat, lng, footprint, zoom }: Props) {
   const { t } = useTranslation();
 
   return (
@@ -18,7 +19,7 @@ export default function BuildingFootprintMap({ lat, lng, footprint }: Props) {
       <MapContainer
         key={`${lat}-${lng}`}
         center={[lat, lng]}
-        zoom={18}
+        zoom={zoom ?? 18}
         className="footprint-map__container"
         scrollWheelZoom={false}
       >

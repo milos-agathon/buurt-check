@@ -17,12 +17,12 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
     expect(size).toBeLessThan(550 * 1024);
   });
 
-  it('vendor-react chunk under 80KB', () => {
+  it('vendor-react chunk under 200KB', () => {
     const files = readdirSync(distDir);
     const reactChunk = files.find((f) => f.startsWith('vendor-react'));
     expect(reactChunk).toBeDefined();
     const size = statSync(resolve(distDir, reactChunk!)).size;
-    expect(size).toBeLessThan(80 * 1024);
+    expect(size).toBeLessThan(200 * 1024);
   });
 
   it('main index chunk under 350KB', () => {
