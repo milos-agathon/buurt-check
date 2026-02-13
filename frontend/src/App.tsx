@@ -11,6 +11,8 @@ import RiskTilesGrid from './components/RiskTilesGrid';
 import RiskDetailView from './components/RiskDetailView';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
 import TierBSignalsCard from './components/TierBSignalsCard';
+import AttentionSummary from './components/AttentionSummary';
+import PropertyWarningsCard from './components/PropertyWarningsCard';
 import ViewingChecklist from './components/ViewingChecklist';
 import { LayoutGroup, motion } from 'framer-motion';
 import DossierSheet from './components/DossierSheet';
@@ -34,6 +36,7 @@ import {
   getNeighborhoodStats,
   getViewingQuestions,
   getTierBData,
+  getPropertyWarnings,
 } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
@@ -51,6 +54,7 @@ import type {
   ShadowSnapshot,
   ViewingQuestionsResponse,
   TierBResponse,
+  PropertyWarningsResponse,
   SeverityLevel,
   RiskLevel,
   ShortlistItem,
@@ -72,6 +76,7 @@ interface DossierSeedState {
   riskComparisons?: RiskComparisonsResponse;
   neighborhoodStats?: NeighborhoodStatsResponse;
   tierBData?: TierBResponse;
+  propertyWarnings?: PropertyWarningsResponse;
   sunlight?: SunlightResult;
   shadowSnapshots?: ShadowSnapshot[];
   viewingQuestions?: ViewingQuestionsResponse;
@@ -159,6 +164,11 @@ function App() {
   const [tierBData, setTierBData] = useState<TierBResponse | null>(dossierSeed?.tierBData ?? null);
   const [tierBLoading, setTierBLoading] = useState(false);
   const [tierBError, setTierBError] = useState(false);
+  const [propertyWarnings, setPropertyWarnings] = useState<PropertyWarningsResponse | null>(
+    dossierSeed?.propertyWarnings ?? null,
+  );
+  const [propertyWarningsLoading, setPropertyWarningsLoading] = useState(false);
+  const [propertyWarningsError, setPropertyWarningsError] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(dossierSeed?.sunlight ?? null);
   const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(
@@ -301,6 +311,9 @@ function App() {
     setTierBData(null);
     setTierBLoading(false);
     setTierBError(false);
+    setPropertyWarnings(null);
+    setPropertyWarningsLoading(false);
+    setPropertyWarningsError(false);
     setSunlight(null);
     setSunlightUnavailable(false);
     setShadowSnapshots(null);
@@ -406,6 +419,24 @@ function App() {
             if (neighborhood3DRequestId.current === requestId) {
               setTierBError(true);
               setTierBLoading(false);
+            }
+          }
+        })();
+
+        setPropertyWarningsLoading(true);
+        void (async () => {
+          try {
+            const warnings = await getPropertyWarnings(vboId, rd_x, rd_y, {
+              municipality: resolved.municipality ?? undefined,
+            });
+            if (neighborhood3DRequestId.current === requestId) {
+              setPropertyWarnings(warnings);
+              setPropertyWarningsLoading(false);
+            }
+          } catch {
+            if (neighborhood3DRequestId.current === requestId) {
+              setPropertyWarningsError(true);
+              setPropertyWarningsLoading(false);
             }
           }
         })();
@@ -663,6 +694,22 @@ function App() {
                 />
               )}
 
+              {/* AttentionSummary — delayed until both risks and warnings resolve */}
+              {((!riskLoading && (riskCards || riskError)) &&
+                (!propertyWarningsLoading && (propertyWarnings || propertyWarningsError))) && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={SPRING_REVEAL}
+                >
+                  <AttentionSummary
+                    riskCards={riskCards ?? undefined}
+                    warnings={propertyWarnings ?? undefined}
+                    sunlightScore={sunlight ? normalizeSunlightScore(sunlight.winter) : undefined}
+                  />
+                </motion.div>
+              )}
+
               {summaryPills.length > 0 && (
                 <SummaryStrip
                   pills={summaryPills}
@@ -801,6 +848,17 @@ function App() {
                     data={tierBData ?? undefined}
                     loading={tierBLoading}
                     error={tierBError}
+                  />
+                </>
+              )}
+
+              {(propertyWarningsLoading || propertyWarnings || propertyWarningsError) && (
+                <>
+                  <h3 className="app__section-label">{t('warnings.sectionTitle')}</h3>
+                  <PropertyWarningsCard
+                    data={propertyWarnings ?? undefined}
+                    loading={propertyWarningsLoading}
+                    error={propertyWarningsError}
                   />
                 </>
               )}
