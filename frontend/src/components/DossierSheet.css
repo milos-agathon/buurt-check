@@ -1,0 +1,62 @@
+.dossier-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-bg);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  box-shadow: var(--elevation-3);
+  z-index: 40; /* Below TabBar (z-index: 50) so tabs remain accessible */
+  will-change: transform;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.dossier-sheet__handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  cursor: grab;
+  flex-shrink: 0;
+  touch-action: none; /* Only the handle gets touch-action: none — content scrolls normally */
+}
+
+.dossier-sheet__handle:active {
+  cursor: grabbing;
+}
+
+.dossier-sheet__pill {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+}
+
+.dossier-sheet__content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* Bottom padding prevents content from hiding under TabBar (z-index: 50, height: 56px + safe area) */
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-md));
+}
+
+.dossier-sheet__content--peek {
+  overflow: hidden;
+}
+
+.dossier-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  z-index: 49;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dossier-sheet {
+    transition: none;
+  }
+}
