@@ -35,7 +35,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-i18next', 'i18next'],
+          'vendor-react': ['react', 'react-dom', 'react-i18next', 'i18next', 'framer-motion'],
           'vendor-map': ['leaflet', 'react-leaflet'],
           'vendor-three': ['three', 'suncalc'],
         },
