@@ -865,6 +865,8 @@ async def test_export_full_dossier_fetches_additional_data(
             "buurt_code": "BU03630000",
             "postcode": "1012NX",
             "house_number": "1",
+            "house_letter": "A",
+            "addition": "2",
         },
     )
     assert resp.status_code == 200
@@ -878,6 +880,8 @@ async def test_export_full_dossier_fetches_additional_data(
     tb_kwargs = mock_tier_b.get_tier_b_data.call_args
     assert tb_kwargs.kwargs.get("postcode") == "1012NX"
     assert tb_kwargs.kwargs.get("house_number") == "1"
+    assert tb_kwargs.kwargs.get("house_letter") == "A"
+    assert tb_kwargs.kwargs.get("addition") == "2"
     assert tb_kwargs.kwargs.get("buurt_code") == "BU03630000"
 
 
@@ -915,10 +919,12 @@ async def test_export_tier_b_uses_neighborhood_buurt_code_fallback(
         },
     )
     assert resp.status_code == 200
-    # Tier-B should have received the neighborhood-resolved buurt_code
-    mock_tier_b.get_tier_b_data.assert_called_once()
-    tb_kwargs = mock_tier_b.get_tier_b_data.call_args
-    assert tb_kwargs.kwargs.get("buurt_code") == "BU03630001"
+    # Tier-B first call is parallel with missing buurt_code, second call uses fallback.
+    assert mock_tier_b.get_tier_b_data.call_count == 2
+    first_call = mock_tier_b.get_tier_b_data.call_args_list[0]
+    second_call = mock_tier_b.get_tier_b_data.call_args_list[1]
+    assert first_call.kwargs.get("buurt_code") is None
+    assert second_call.kwargs.get("buurt_code") == "BU03630001"
 
 
 @pytest.mark.asyncio
@@ -1138,3 +1144,30 @@ async def test_export_get_backward_compat(
     assert resp.status_code == 200
     assert resp.content[:5] == b"%PDF-"
     assert resp.headers["content-type"] == "application/pdf"
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+@patch("app.api.address.risk_cards")
+async def test_export_get_accepts_shadow_image_b64(
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, client
+):
+    """GET export supports canonical shadow_image_b64 while keeping old query support."""
+    mock_bag.get_building_facts = AsyncMock(return_value=None)
+    mock_risk_cards.get_risk_cards = AsyncMock(return_value=_make_risks())
+
+    resp = await client.get(
+        "/api/address/0363010012345678/export",
+        params={
+            "rd_x": 121000,
+            "rd_y": 487000,
+            "lat": 52.37,
+            "lng": 4.89,
+            "address": "Test",
+            "shadow_image_b64": "AAAA",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.content[:5] == b"%PDF-"

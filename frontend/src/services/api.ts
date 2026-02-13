@@ -226,7 +226,7 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
     template: options.template || 'quick_brief',
     language: options.language || 'en',
   };
-  if (options.shadowImageB64) body.shadow_image = options.shadowImageB64;
+  if (options.shadowImageB64) body.shadow_image_b64 = options.shadowImageB64;
   if (options.street) body.street = options.street;
   if (options.city) body.city = options.city;
   if (options.buurtCode) body.buurt_code = options.buurtCode;

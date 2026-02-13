@@ -1,4 +1,4 @@
-# Mobile UI Premium — Implementation Plan (Revision 4)
+# Mobile UI Premium — Implementation Plan (Revision 4.2)
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -13,23 +13,36 @@
 
 **Test baselines (verified 2026-02-13, all green):**
 - Frontend: 338 pass (0 fail)
-- Backend: 321 pass non-live (0 fail), 9 deselected as live
+- Backend: 328 pass non-live (0 fail), 9 deselected as live
 - Ruff: all checks passed
 - Build: passes
 
 **Revision 4 changes:** Addresses 12 findings from Revision 3 assessment:
-1. Baselines updated to actual current state: 338 frontend, 321 backend — all green (R3-Finding 1,2)
+1. Baselines updated to actual current state: 338 frontend, 328 backend - all green (R3-Finding 1,2)
 2. Task 0 reduced to verify-only (no code changes — i18n keys and metrics already fixed) (R3-Finding 1,2)
 3. 3-tab navigation preserved per CLAUDE.md (Search/Briefing/Saved) — no tab removal (R3-Finding 3)
 4. T+0 timing fixed: `setActiveScreen('dossier')` + `setSheetSnap('peek')` moved BEFORE `lookupAddress()` (R3-Finding 4)
 5. Drag restricted to handle only — `touch-action: none` + `drag="y"` only on handle, content div scrolls normally (R3-Finding 5)
 6. Z-index: DossierSheet at 40 (below TabBar at 50) so tabs remain accessible (R3-Finding 6)
-7. usePressable applied to non-motion elements (bookmark, shortlist remove); whileTap for motion components (R3-Finding 7)
+7. Press-state strategy applied in Task 11: `usePressable` for bookmark, `whileTap` for shortlist remove and motion components (R3-Finding 7)
 8. Language toggle: explicit `min-height: 44px` added (R3-Finding 8)
 9. RiskDetailView CSS: clarified — keep `position: fixed; inset: 0` as final animated state (R3-Finding 9)
 10. Tab pill: explicit refactor from `::before` pseudo-element to `<motion.div>` DOM element (R3-Finding 10)
 11. File inventory corrected: 13 new files (R3-Finding 11)
-12. Backend baseline: 321 throughout (R3-Finding 12)
+12. Backend baseline: 328 throughout (R3-Finding 12)
+
+**Revision 4.1 changes:** Addresses 3 findings from R4 assessment:
+1. `pendingDisplayName` state moved from Task 5 into Task 4 (step 2b), fixing execution ordering (R4-Finding 1)
+2. ShortlistScreen remove button uses `motion.button` + `whileTap` instead of `usePressable` — avoids hooks-in-loop violation (R4-Finding 2)
+3. Sheet content gets `padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-md))` to prevent occlusion under TabBar (R4-Finding 3)
+
+**Revision 4.2 changes:** Addresses 6 consistency findings from R4.1 assessment:
+1. Backend baseline updated from 321 -> 328 in header, tasks, and quality gates
+2. Task 5 `SkeletonLine` import gap fixed in App.tsx instructions
+3. Task 5 intermediate test expectation clarified (known temporary red due LoadingScreen tests until Task 6)
+4. Summary row for R3-Finding 7 aligned to final Task 11 strategy (`whileTap` on shortlist remove)
+5. Summary/backend reference for R3-Finding 12 updated to 328
+6. File inventory updated: `ShortlistScreen.tsx` note now reflects `whileTap`, not `usePressable`
 
 ---
 
@@ -53,7 +66,7 @@ Expected: 338 pass (0 fail).
 cd backend; python -m pytest -m "not live" -q 2>&1 | Select-Object -Last 10
 ```
 
-Expected: 321 pass (0 fail), 9 deselected.
+Expected: 328 pass (0 fail), 9 deselected.
 
 **Step 3: Run build + lint**
 
@@ -392,6 +405,8 @@ Create `frontend/src/components/DossierSheet.css`:
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  /* Bottom padding prevents content from hiding under TabBar (z-index: 50, height: 56px + safe area) */
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-md));
 }
 
 .dossier-sheet__content--peek {
@@ -586,10 +601,13 @@ import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
 ```
 
-**2b. Add sheetSnap state** (after line 165, near other state declarations):
+**2b. Add sheetSnap and pendingDisplayName state** (after line 165, near other state declarations):
 ```typescript
 const [sheetSnap, setSheetSnap] = useState<SheetSnap>('hidden');
+const [pendingDisplayName, setPendingDisplayName] = useState<string | null>(null);
 ```
+
+Note: `pendingDisplayName` is declared here (not Task 5) so that `handleAddressSelect` can use it immediately. Task 5 wires it into the skeleton render.
 
 **2c. Update handleAddressSelect** (line 306+):
 Move `setActiveScreen('dossier')` and add `setSheetSnap('peek')` **BEFORE** the `lookupAddress()` call. This is the T+0 timing fix (R3-Finding 4):
@@ -598,7 +616,7 @@ Move `setActiveScreen('dossier')` and add `setSheetSnap('peek')` **BEFORE** the 
 // T+0: immediately show dossier screen with sheet at peek
 setActiveScreen('dossier');
 setSheetSnap('peek');
-setPendingDisplayName(suggestion.display_name); // from Task 5
+setPendingDisplayName(suggestion.display_name);
 
 // Then resolve full address (async, ~200ms)
 const resolved = await lookupAddress(suggestion.id);
@@ -859,10 +877,7 @@ export function SkeletonGrid() {
 
 In `frontend/src/App.tsx`:
 
-**4a. Add a new state for the pending address display name** (near line 166):
-```typescript
-const [pendingDisplayName, setPendingDisplayName] = useState<string | null>(null);
-```
+**4a. `pendingDisplayName` state already declared in Task 4.** No new state needed here.
 
 **4b. Remove LoadingScreen-related state** (lines 166-169, 172):
 Delete these lines:
@@ -885,17 +900,14 @@ Delete `import LoadingScreen from './components/LoadingScreen';`
 
 **4f. Add SkeletonCard import:**
 ```typescript
-import { SkeletonCard, SkeletonGrid } from './components/SkeletonCard';
+import { SkeletonCard, SkeletonGrid, SkeletonLine } from './components/SkeletonCard';
 ```
 
 **4g. Update handleAddressSelect** (line 306+):
-At the top of `handleAddressSelect`, set the pending name immediately:
-```typescript
-setPendingDisplayName(suggestion.display_name);
-```
+`setPendingDisplayName(suggestion.display_name)` is already set in Task 4 step 2c. In this step, only clean up LoadingScreen leftovers:
 Remove all `setShowLoadingScreen`, `setLoadingAddress`, `setLoadingStage`, `showLoadingWarning`, `finishLoadingFlow` calls.
 Remove the `loadingTimeoutRef` setTimeout/clearTimeout blocks.
-Keep the `setLoading(true)`, `setActiveScreen('dossier')`, `setSheetSnap('peek')` flow.
+Keep the `setLoading(true)`, `setActiveScreen('dossier')`, `setSheetSnap('peek')`, `setPendingDisplayName(...)` flow (already added in Task 4).
 
 **4h. In the render, replace the `showLoadingScreen` ternary** (lines 672-677):
 Instead of `{showLoadingScreen ? <LoadingScreen ... /> : <content>}`, render the dossier content always, using skeleton cards when data is loading:
@@ -932,7 +944,7 @@ Inside the DossierSheet (from Task 4), show skeleton or real content conditional
 cd frontend; npx vitest run
 ```
 
-Expected: >= 338 pass. LoadingScreen.test.tsx tests will fail — they test the removed component. Fix by deleting them (Task 6).
+Expected: temporary red is acceptable in this step because `LoadingScreen.test.tsx` still exists and will fail after App flow changes. Proceed to Task 6 to delete obsolete LoadingScreen files, then return to full green.
 
 **Step 6: Run build**
 
@@ -1132,7 +1144,7 @@ Expected: >= 346 pass (0 fail). Net should exceed original 338 baseline.
 ```powershell
 cd backend; python -m pytest -m "not live" -q 2>&1 | Select-Object -Last 10
 ```
-Expected: 321 pass (0 fail), 9 deselected.
+Expected: 328 pass (0 fail), 9 deselected.
 
 **Step 3: Run build**
 
@@ -1416,15 +1428,15 @@ git commit -m "feat: add pressable CSS with pointer-event-driven press state"
 ### Task 11: Apply press states to interactive elements
 
 **Two press-state strategies (R3-Finding 7):**
-1. **Framer Motion `whileTap`** — for components already wrapped in `motion.*` (RiskTile, TabBar buttons). Native Framer scale animation.
-2. **`usePressable` hook** — for non-motion elements (bookmark button, shortlist remove button). Adds `.pressed` CSS class via pointer events.
+1. **Framer Motion `whileTap`** — for components wrapped in `motion.*` (RiskTile, TabBar, shortlist remove). Native Framer scale animation. Preferred for buttons rendered inside `.map()` loops (avoids hooks-in-loop violation).
+2. **`usePressable` hook** — for non-motion elements rendered once per component (bookmark button in AddressHeader). Adds `.pressed` CSS class via pointer events.
 
 **Files:**
 - Modify: `frontend/src/components/RiskTile.tsx` — add `motion.button` with `whileTap`
 - Modify: `frontend/src/components/RiskTile.css` — remove manual `:active` if present
 - Modify: `frontend/src/components/TabBar.tsx` — add `whileTap` to tab buttons
 - Modify: `frontend/src/components/AddressHeader.tsx` — apply `usePressable` to bookmark button
-- Modify: `frontend/src/components/ShortlistScreen.tsx` — apply `usePressable` to remove button
+- Modify: `frontend/src/components/ShortlistScreen.tsx` — use `motion.button` + `whileTap` on remove button (NOT `usePressable` — button is inside `.map()` loop)
 
 **Step 1: Update RiskTile to use Framer Motion whileTap**
 
@@ -1455,10 +1467,13 @@ In `frontend/src/components/AddressHeader.tsx`:
 - Add `{...pressableProps}` and `className={`...bookmark-btn${isPressed ? ' pressed' : ''}`}` to the bookmark button
 - Add `className="pressable"` base class to the bookmark button
 
-**Step 4: Apply usePressable to shortlist remove button**
+**Step 4: Apply whileTap to shortlist remove button (NOT usePressable)**
 
 In `frontend/src/components/ShortlistScreen.tsx`:
-- Same pattern as Step 3 for the remove button
+- The remove button is rendered inside `items.map(...)` (line ~42). Using `usePressable` here would violate React Hooks rules (hooks cannot be called inside loops).
+- Instead, use `motion.button` with `whileTap` (same as RiskTile):
+- Add import: `import { motion } from 'framer-motion';`
+- Replace the remove `<button>` (line ~65) with `<motion.button whileTap={{ scale: 0.95 }}>`
 
 **Step 5: Run tests**
 
@@ -1806,7 +1821,7 @@ Expected: >= 355 pass (0 fail). Gains from: springs (4), DossierSheet (9), skele
 ```powershell
 cd backend; python -m pytest -m "not live" -q 2>&1 | Select-Object -Last 10
 ```
-Expected: 321 pass (0 fail), 9 deselected.
+Expected: 328 pass (0 fail), 9 deselected.
 
 **Step 3: Run build**
 
@@ -1880,12 +1895,20 @@ git commit -m "chore: Tier 2 quality gate — all tests pass, springs verified, 
 | 4 | T+0: setActiveScreen after lookupAddress | Task 4: moved BEFORE lookupAddress() |
 | 5 | Drag/scroll conflict: touch-action:none on sheet | Task 3: drag="y" on handle only |
 | 6 | Z-index collision: sheet 50 = TabBar 50 | Task 3: sheet z-index: 40 |
-| 7 | usePressable never applied | Task 11: applied to bookmark + shortlist remove |
+| 7 | usePressable never applied | Task 11: bookmark uses usePressable, shortlist remove uses whileTap |
 | 8 | Lang toggle min-height not guaranteed | Task 7: explicit `min-height: 44px` |
 | 9 | CSS instruction contradictory | Task 12: clarified — keep fixed as final state |
 | 10 | Tab pill is ::before, not DOM | Task 15: refactor to `<motion.div>` |
 | 11 | File count 9 vs 13 listed | File inventory: corrected to 13 |
-| 12 | Backend baseline 293 vs actual 321 | All quality gates: 321 |
+| 12 | Backend baseline 293 vs actual 321 | All quality gates: 328 |
+
+**R4 Findings (3 from Revision 4 assessment - addressed in R4.1):**
+
+| # | Finding | Resolution |
+|---|---------|-----------|
+| 1 | `pendingDisplayName` declared after first use | Moved state declaration into Task 4, before handler updates |
+| 2 | Shortlist remove plan risked hooks-in-loop | Task 11 switched shortlist remove to `motion.button` + `whileTap` |
+| 3 | Sheet content could hide under TabBar | Task 3 added bottom padding with tab height + safe area + spacing |
 
 ---
 
@@ -1929,7 +1952,7 @@ git commit -m "chore: Tier 2 quality gate — all tests pass, springs verified, 
 - `frontend/src/components/TopBar.css` (lang toggle min-height 44px + settings 44px)
 - `frontend/src/components/AddressHeader.tsx` (usePressable on bookmark)
 - `frontend/src/components/AddressHeader.css` (bookmark 44px)
-- `frontend/src/components/ShortlistScreen.tsx` (usePressable on remove button)
+- `frontend/src/components/ShortlistScreen.tsx` (whileTap on remove button)
 - `frontend/src/components/ShortlistScreen.css` (remove button 44px)
 - `frontend/src/components/ViewingChecklist.css` (item height 48px)
 

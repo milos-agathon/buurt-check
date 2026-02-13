@@ -306,7 +306,7 @@ describe('getTierBData', () => {
 });
 
 describe('exportBriefing', () => {
-  it('passes selected template to export endpoint', async () => {
+  it('passes selected template and canonical export fields to export endpoint', async () => {
     const expectedBlob = new Blob(['pdf']);
     mockFetch.mockResolvedValue({ ok: true, blob: () => Promise.resolve(expectedBlob) } as Response);
 
@@ -318,6 +318,12 @@ describe('exportBriefing', () => {
       lng: 4,
       address: 'Test',
       template: 'full_dossier',
+      shadowImageB64: 'AAAA',
+      buurtCode: 'BU0363AD07',
+      postcode: '1012NX',
+      houseNumber: '1',
+      houseLetter: 'A',
+      addition: '2',
     });
 
     const [url, init] = mockFetch.mock.calls[0];
@@ -325,6 +331,12 @@ describe('exportBriefing', () => {
     expect(init.method).toBe('POST');
     const body = JSON.parse(init.body);
     expect(body.template).toBe('full_dossier');
+    expect(body.shadow_image_b64).toBe('AAAA');
+    expect(body.buurt_code).toBe('BU0363AD07');
+    expect(body.postcode).toBe('1012NX');
+    expect(body.house_number).toBe('1');
+    expect(body.house_letter).toBe('A');
+    expect(body.addition).toBe('2');
     expect(body.rd_x).toBe(1);
     expect(body.lat).toBe(3);
     expect(blob).toBe(expectedBlob);

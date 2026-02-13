@@ -5,7 +5,7 @@ import time
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from app.cache.redis import cache_get, cache_set
 from app.config import settings
@@ -497,7 +497,10 @@ class ExportRequest(BaseModel):
     address: str
     template: str = "quick_brief"
     language: str = "en"
-    shadow_image: str | None = Field(None, alias="shadow_image_b64")
+    shadow_image_b64: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("shadow_image_b64", "shadow_image"),
+    )
     street: str | None = None
     city: str | None = None
     buurt_code: str | None = None
@@ -649,20 +652,27 @@ async def export_briefing(
     risk_comparisons_data = None
 
     if body.template == "full_dossier":
-        # Fetch neighborhood first — its buurt_code is the fallback for tier-b
-        neighborhood_stats = await _fetch_neighborhood_for_export(
-            vbo_id, body.lat, body.lng, body.buurt_code,
+        # Fetch neighborhood + tier-b in parallel first.
+        neighborhood_stats, tier_b_data = await asyncio.gather(
+            _fetch_neighborhood_for_export(
+                vbo_id, body.lat, body.lng, body.buurt_code,
+            ),
+            _fetch_tier_b_for_export(
+                vbo_id, body.buurt_code, body.postcode,
+                body.house_number, body.house_letter, body.addition,
+            ),
         )
 
-        # Resolve buurt_code: prefer request, fallback to neighborhood-resolved
-        resolved_buurt_code = body.buurt_code
-        if not resolved_buurt_code and neighborhood_stats:
-            resolved_buurt_code = neighborhood_stats.buurt_code
-
-        tier_b_data = await _fetch_tier_b_for_export(
-            vbo_id, resolved_buurt_code, body.postcode,
-            body.house_number, body.house_letter, body.addition,
-        )
+        # If request buurt_code is missing, retry Tier-B with neighborhood code.
+        if (
+            not body.buurt_code
+            and neighborhood_stats
+            and neighborhood_stats.buurt_code
+        ):
+            tier_b_data = await _fetch_tier_b_for_export(
+                vbo_id, neighborhood_stats.buurt_code, body.postcode,
+                body.house_number, body.house_letter, body.addition,
+            )
 
         urbanization = UrbanizationLevel.unknown
         if neighborhood_stats:
@@ -681,7 +691,7 @@ async def export_briefing(
             risks=risks,
             sunlight_score=sunlight_score,
             viewing_questions=viewing_qs,
-            shadow_image_b64=body.shadow_image,
+            shadow_image_b64=body.shadow_image_b64,
             language=body.language,
             floor_area=floor_area,
             neighborhood_stats=neighborhood_stats,
@@ -696,7 +706,7 @@ async def export_briefing(
             risks=risks,
             sunlight_score=sunlight_score,
             viewing_questions=viewing_qs,
-            shadow_image_b64=body.shadow_image,
+            shadow_image_b64=body.shadow_image_b64,
             language=body.language,
             floor_area=floor_area,
         )
@@ -719,6 +729,7 @@ async def export_briefing_get(
     address: str = Query(...),
     template: str = Query("quick_brief"),
     language: str = Query("en"),
+    shadow_image_b64: str | None = Query(None),
     shadow_image: str | None = Query(None),
     street: str | None = Query(None),
     city: str | None = Query(None),
@@ -729,10 +740,12 @@ async def export_briefing_get(
     addition: str | None = Query(None),
 ):
     """Backward-compatible GET endpoint for PDF export (deprecated — prefer POST)."""
+    resolved_shadow = shadow_image_b64 or shadow_image
     body = ExportRequest(
         rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng, address=address,
-        template=template, language=language, shadow_image=shadow_image,
+        template=template, language=language, shadow_image_b64=resolved_shadow,
         street=street, city=city, buurt_code=buurt_code, postcode=postcode,
         house_number=house_number, house_letter=house_letter, addition=addition,
     )
     return await export_briefing(vbo_id=vbo_id, body=body)
+
