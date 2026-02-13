@@ -52,7 +52,8 @@
 }
 
 .top-bar__lang-btn {
-  padding: 4px 12px;
+  padding: 10px 12px;
+  min-height: 44px;
   border: none;
   border-radius: var(--radius-pill);
   font-family: var(--font-family);
@@ -73,8 +74,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 50%;
   background: transparent;
