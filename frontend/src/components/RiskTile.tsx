@@ -23,6 +23,7 @@ export default function RiskTile({ category, labelKey, score, severity, summary,
       className="risk-tile"
       onClick={onTap}
       whileTap={{ scale: 0.97 }}
+      layoutId={`risk-tile-${category}`}
       data-testid={`risk-tile-${category}`}
       aria-label={score != null
         ? t('risk.tileAria', { label: t(labelKey), score, max: 100 })

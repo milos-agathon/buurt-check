@@ -12,6 +12,7 @@ import RiskDetailView from './components/RiskDetailView';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
 import TierBSignalsCard from './components/TierBSignalsCard';
 import ViewingChecklist from './components/ViewingChecklist';
+import { LayoutGroup } from 'framer-motion';
 import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
 import { SkeletonCard, SkeletonGrid, SkeletonLine } from './components/SkeletonCard';
@@ -176,6 +177,7 @@ function App() {
 
   // Risk detail view state.
   const [activeDetailCategory, setActiveDetailCategory] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [checkedQuestions, setCheckedQuestions] = useState<Set<string>>(new Set());
 
   // Apply theme on mount and listen for system changes
@@ -716,19 +718,19 @@ function App() {
               )}
 
               {(riskLoading || riskCards || riskError) && (
-                <>
+                <LayoutGroup>
                   <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
                   <RiskTilesGrid
                     risks={riskCards ?? undefined}
                     sunlight={sunlight ?? undefined}
-                    onTileTap={(category) => setActiveDetailCategory(category)}
+                    onTileTap={(category) => { if (!isTransitioning) setActiveDetailCategory(category); }}
                   />
                   <RiskCardsPanel
                     risks={riskCards ?? undefined}
                     loading={riskLoading}
                     error={riskError}
                   />
-                </>
+                </LayoutGroup>
               )}
 
               {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
@@ -855,6 +857,8 @@ function App() {
             source={detail.source}
             sourceDate={detail.sourceDate}
             onBack={() => setActiveDetailCategory(null)}
+            onAnimationStart={() => setIsTransitioning(true)}
+            onAnimationComplete={() => setIsTransitioning(false)}
           />
         );
       })()}
