@@ -13,6 +13,7 @@ from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
 from app.models.neighborhood import NeighborhoodStatsResponse, UrbanizationLevel
 from app.models.neighborhood3d import Neighborhood3DResponse
+from app.models.property_warnings import PropertyWarningsResponse
 from app.models.risk import (
     RiskCardsResponse,
     RiskComparisonsResponse,
@@ -25,6 +26,7 @@ from app.services import (
     cbs,
     locatieserver,
     metrics,
+    property_warnings,
     risk_cards,
     three_d_bag,
     tier_b,
@@ -482,6 +484,54 @@ async def tier_b_signals(
     )
     if has_any_data:
         await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_tier_b)
+    return result
+
+
+@router.get("/{vbo_id}/property-warnings", response_model=PropertyWarningsResponse)
+async def address_property_warnings(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    construction_year: int | None = Query(None),
+    num_units: int | None = Query(None),
+    municipality: str | None = Query(None),
+):
+    """Property warnings: foundation risk, erfpacht, VvE, asbestos."""
+    t0 = time.monotonic()
+    cache_key = f"property_warnings:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        logger.info("property_warnings cache_hit vbo=%s", vbo_id)
+        return PropertyWarningsResponse(**cached)
+
+    try:
+        result = await property_warnings.get_property_warnings(
+            vbo_id=vbo_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            construction_year=construction_year,
+            num_units=num_units,
+            municipality=municipality,
+        )
+    except Exception as exc:
+        logger.error("property_warnings failed vbo=%s: %s", vbo_id, exc)
+        raise HTTPException(
+            status_code=502, detail="Property warnings fetch failed"
+        ) from exc
+
+    # Cache if foundation risk has real data
+    if result.foundation_risk.level != "unavailable":
+        await cache_set(
+            cache_key,
+            result.model_dump(),
+            ttl=settings.cache_ttl_property_warnings,
+        )
+        logger.info(
+            "property_warnings cache_set vbo=%s latency=%.0fms",
+            vbo_id,
+            (time.monotonic() - t0) * 1000,
+        )
+
     return result
 
 
