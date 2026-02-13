@@ -15,7 +15,9 @@ Finally, you must rigorously assess the implementation level of these two docs. 
 Do not stop until you rigorously assess every single part of it. Do not claim success until you rigorously assessed everything. 
 write a detailed report and save it as  markdown in @docs\ with concrete steps on how to implement the missing parts
 
-  Duinzicht 23, 2235BV Valkenburg
+you are acting as senior software engineer with 30 years of experience in developing and selling muli-million dollar mobile app. you are working on buurt-check codespace, a new multi-million dollar project. You must first read @CLAUDE.md and internalize codebase rules. then you must implement all partial or missing features from @docs/plan/specs-remaining-work-plan.md. Do not stop until you implement fully every single part of it. Do not claim success until you implemented everything
+
+Duinzicht 23, 2235BV Valkenburg
 
 think hard
 
