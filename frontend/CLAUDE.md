@@ -1,7 +1,8 @@
-# Frontend — React + TypeScript + Plain Three.js
+# Frontend — React + TypeScript + Framer Motion + Plain Three.js
 
 ## Stack
 - React 18, TypeScript 5, Vite 6 (dev server + bundler)
+- Framer Motion for spring animations, gestures, shared element transitions
 - Three.js (plain, NOT react-three-fiber) for 3D neighborhood viewer
 - SunCalc for solar position calculations
 - i18n: react-i18next + i18next-browser-languagedetector (EN/NL)
@@ -32,10 +33,11 @@ src/
     # Search
     AddressSearch.tsx  — Autocomplete input with PDOK Locatieserver
     # Loading
-    LoadingScreen.tsx  — Building animation + progress text between search and dossier
-    BuildingAnimation.tsx — SVG canal house progressive draw animation
+    SkeletonCard.tsx   — Shimmer loading placeholder cards (replaces full-screen blocker)
     # Dossier — address detail screen
+    DossierSheet.tsx   — Gesture-driven bottom sheet with 4 snap points (framer-motion drag)
     AddressHeader.tsx  — Street name, postcode, building facts, bookmark toggle
+    AttentionSummary.tsx — Green/amber/red badge aggregating all dossier warnings
     SummaryStrip.tsx   — Horizontal scroll pills with risk scores
     BuildingFactsCard.tsx — Building year, floors, area, status
     BuildingFootprintMap.tsx — Leaflet 2D map with building footprint
@@ -48,6 +50,7 @@ src/
     ExportBottomSheet.tsx — PDF export template selection + language toggle
     RiskCardsPanel.tsx — Risk data orchestrator (noise, air, climate, sunlight)
     NeighborhoodStatsCard.tsx — CBS indicators with urbanization badge, age bars
+    PropertyWarningsCard.tsx — Foundation, erfpacht, VvE, asbestos warning cards
     ViewingChecklist.tsx — Aggregated viewing questions with checkboxes
     ActionBar.tsx      — Sticky bottom bar (Add to Shortlist / Export Briefing)
     LanguageToggle.tsx — EN/NL segmented control
@@ -68,12 +71,17 @@ src/
     shortlist.ts       — localStorage CRUD for saved addresses (max 3)
     recentSearches.ts  — localStorage CRUD for recent searches (max 10)
     theme.ts           — Dark mode service (light/dark/system, localStorage + matchMedia)
+  hooks/
+    usePressable.tsx   — Press state tracking for touch interactions
+  utils/
+    haptic.ts          — Navigator.vibrate() wrapper with permission checks
+    spring-constants.ts — Named Framer Motion spring configs (SHEET, EXPAND, REVEAL, TAB)
   types/
     api.ts             — TypeScript interfaces mirroring backend Pydantic models
   i18n/
     index.ts           — i18next config with browser language detection
-    en.json            — English translations (~300 keys)
-    nl.json            — Dutch translations (~300 keys)
+    en.json            — English translations (~395 keys)
+    nl.json            — Dutch translations (~395 keys)
   test/
     setup.ts           — Vitest setup (DOM mocks, i18n helpers)
     helpers.ts         — Test factories for API response mocks
@@ -161,13 +169,14 @@ Design tokens in `styles/tokens.css`. All components use CSS custom properties.
 
 ## Testing patterns
 
-- **Test count baseline: 340** (updated 2026-02-11) — any change must maintain or increase
+- **Test count baseline: 385** (updated 2026-02-13) — any change must maintain or increase
 - Vitest 4.x + Testing Library + jsdom
 - Three.js mock: constructor functions (not arrow fns — `new` fails). Use `function Scene(this: any) { this.add = vi.fn(); }` pattern
 - react-leaflet mock: `MapContainer` → `<div data-testid="map">`, `TileLayer`/`GeoJSON` → `null`
 - Fake timers + `userEvent.type()` = deadlock. Use `fireEvent.change` instead
 - Fake timers + `waitFor` = deadlock. Switch to real timers before `waitFor`
 - i18n in tests: fresh `i18n.createInstance()` per language in `setupTestI18n()`
+- Framer Motion mock: `vi.mock('framer-motion', ...)` returning forwarded `motion.div` components
 - `vi.fn()` needs `mockReset()` in `beforeEach` (not `vi.restoreAllMocks()`)
 
 ## DO NOT

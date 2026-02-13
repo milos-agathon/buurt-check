@@ -4,7 +4,7 @@
 - Python 3.12, FastAPI, httpx (async HTTP client), Pydantic v2 + pydantic-settings
 - Redis (async, with circuit breaker) for caching. NO database — all data from external APIs
 - scipy (ConvexHull for LoD 2.2 roof geometry)
-- fpdf2 (PDF generation for Quick Brief export)
+- fpdf2 with Satoshi TTF font embedding (PDF generation for Quick Brief + Full Dossier)
 - Test: pytest + pytest-asyncio
 - Linting: ruff (check + format)
 - NO SQLAlchemy, NO PostGIS, NO alembic — this is a stateless API proxy/aggregator
@@ -29,7 +29,8 @@ app/
                           /{vbo_id}/building3d, /{vbo_id}/neighborhood3d,
                           /{vbo_id}/risks, /{vbo_id}/neighborhood,
                           /{vbo_id}/wms-tile, /{vbo_id}/viewing-questions,
-                          /{vbo_id}/export
+                          /{vbo_id}/export, /{vbo_id}/risk-comparisons,
+                          /{vbo_id}/tier-b, /{vbo_id}/property-warnings
   services/
     locatieserver.py   — PDOK Locatieserver suggest + lookup
     bag.py             — BAG WFS for building facts (OGC XML Filter, NOT CQL_FILTER)
@@ -39,8 +40,11 @@ app/
     wms_tile.py        — WMS tile proxy for 3D viewer overlays (CORS bypass)
     scoring.py         — Risk score normalization (0-100 scale) + severity classification
     viewing_questions.py — Bilingual viewing questions based on risk scores
-    pdf_export.py      — Quick Brief PDF generation via fpdf2
-    offline_store.py   — Offline data file handling (future use)
+    pdf_export.py      — PDF generation via fpdf2 with Satoshi TTF (Quick Brief + Full Dossier)
+    risk_comparisons.py — Urbanization-stratified baselines (city/NL/WHO per risk category)
+    tier_b.py          — EP-Online energy labels + CBS OData crime stats
+    property_warnings.py — Foundation risk, erfpacht, VvE fund, asbestos detection
+    foundation_risk.py — BRO soil data + Klimaateffectatlas subsidence classification
   models/
     address.py         — AddressSuggestion, ResolvedAddress
     building.py        — BuildingFacts, BuildingBlock (with optional roof_surfaces)
@@ -48,6 +52,7 @@ app/
     neighborhood3d.py  — Neighborhood3DResponse, BuildingBlock3D
     risk.py            — NoiseRiskCard, AirQualityRiskCard, ClimateStressRiskCard,
                           SunlightRiskCard, RiskCardsResponse (with score/severity/summary)
+    property_warnings.py — PropertyWarnings, FoundationRisk, ErfpachtWarning, etc.
   cache/
     redis.py           — Async Redis with circuit breaker (30s), socket_timeout=0.5s
 tests/
@@ -63,6 +68,9 @@ tests/
   test_pdf_export.py   — PDF export service tests
   test_models.py       — Pydantic model serialization tests
   test_cache.py        — Redis circuit breaker tests
+  test_tier_b.py       — Tier B service tests (energy label, crime)
+  test_property_warnings.py — Property warnings service tests (foundation, erfpacht, VvE, asbestos)
+  test_foundation_risk.py — Foundation risk service tests (BRO soil, subsidence)
   test_risk_cards_live.py — Live API smoke tests (@pytest.mark.live)
   test_cbs_live.py     — Live CBS API smoke tests (@pytest.mark.live)
 ```
@@ -80,7 +88,10 @@ tests/
 | `/api/address/{vbo_id}/neighborhood?lat=&lng=&buurt_code=` | GET | CBS neighborhood stats |
 | `/api/address/{vbo_id}/wms-tile?source=&rd_x=&rd_y=&radius=` | GET | WMS tile proxy (PNG bytes) |
 | `/api/address/{vbo_id}/viewing-questions?rd_x=&rd_y=&lat=&lng=` | GET | Bilingual viewing questions |
-| `/api/address/{vbo_id}/export?address=&template=&language=` | GET | PDF Quick Brief export |
+| `/api/address/{vbo_id}/risk-comparisons` | GET | Urbanization-stratified risk baselines |
+| `/api/address/{vbo_id}/tier-b?postcode=&huisnummer=` | GET | Energy label + crime stats (Tier B) |
+| `/api/address/{vbo_id}/property-warnings` | GET | Foundation, erfpacht, VvE, asbestos warnings |
+| `/api/address/{vbo_id}/export` | POST | PDF export (Quick Brief + Full Dossier) |
 
 ## Conventions — follow these exactly
 
@@ -95,7 +106,8 @@ tests/
 
 ### Cache TTLs
 - BAG building: 24h | Risk cards: 7d (conditional) | CBS stats: 30d
-- 3D buildings: 24h | WMS tiles: 24h | Locatieserver: not cached
+- 3D buildings: 24h | WMS tiles: 24h | Tier B: 7d | Property warnings: 30d
+- Locatieserver: not cached
 
 ### Configuration
 - All external API URLs in `config.py` as pydantic-settings fields
@@ -134,12 +146,13 @@ tests/
 - Feature-flagged: `BUURT_ENABLE_LOD22_ROOFS`
 
 ### PDF export
-- Library: fpdf2 (pure Python, no system dependencies). NOT WeasyPrint (needs cairo/pango)
-- Built-in Helvetica font (latin-1 only). Must sanitize Unicode → latin-1 equivalents
-- `_sanitize()` maps em dashes, smart quotes, bullets. Final fallback: `encode('latin-1', errors='replace')`
-- Quick Brief: 1-page. Fetches risk cards (from cache) + viewing questions server-side
-- Returns `application/pdf` with `Content-Disposition: attachment`
-- Shadow image: optional base64 query param, decoded server-side to embed in PDF
+- Library: fpdf2 with Satoshi TTF font embedding (Black/Bold/Medium/Regular)
+- BuurtCheckPDF subclass with branded header/footer, score bars, comparison charts
+- Two templates: `quick_brief` (1 page, 2x2 risk grid) and `full_dossier` (5 pages)
+- Endpoint: `POST /{vbo_id}/export` with ExportRequest Pydantic body
+- Pydantic alias: `Field(None, alias="shadow_image_b64")` + `populate_by_name=True` for backwards compat
+- Neighborhood buurt_code fallback: if not provided, fetches neighborhood first → extracts code → uses for tier-B
+- Quick Brief clipped-content: returns `clipped` boolean when questions exceed page limit
 
 ### WMS/WFS query patterns
 - WMS GetFeatureInfo (noise, air): 50m bbox, 101x101 grid, pixel (50,50)
@@ -149,7 +162,7 @@ tests/
 
 ## Testing
 
-- **Test count baseline: 275 non-live + live smoke tests** (updated 2026-02-11) — any change must maintain or increase
+- **Test count baseline: 381 non-live + live smoke tests** (updated 2026-02-13) — any change must maintain or increase
 - `pytest -m "not live"` for CI (excludes live API tests)
 - httpx mock pattern: `AsyncMock` for client, `MagicMock` for response (`.json()` is sync)
 - Live tests: `@pytest.mark.live`, lenient assertions (check field exists, not exact values)

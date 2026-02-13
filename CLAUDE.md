@@ -31,7 +31,7 @@ Become the trusted pre-viewing intelligence tool for every property buyer in the
 - Listings ingestion or Funda-like browsing
 - Automated valuation, fair-price estimates, or bidding advice
 - Nationwide permit/renovation certainty
-- Foundation condition assessment
+- Detailed foundation condition assessment (basic foundation risk indicators are included via property warnings)
 - User accounts or social features in MVP
 
 ## Data sources and endpoints
@@ -84,7 +84,7 @@ Become the trusted pre-viewing intelligence tool for every property buyer in the
 - **Backend**: FastAPI (Python) + httpx (async) + Pydantic v2. Stateless API aggregator — no database, all data from external APIs. Redis for caching with circuit breaker.
 - **Data fetching**: On-demand WMS/WCS sampling with Redis caching. WMS tile proxy for CORS bypass.
 - **API serving**: Custom JSON REST API. Single router in `api/address.py` with all endpoints.
-- **Client**: Web-first (mobile responsive), React 18 + Vite + TypeScript. Plain CSS with design system tokens.
+- **Client**: Web-first (mobile responsive), React 18 + Vite + TypeScript + Framer Motion. Plain CSS with design system tokens.
 - **3D rendering**: Plain Three.js (not react-three-fiber or deck.gl). Directional light positioned using SunCalc to cast real-time shadows. PCFSoftShadowMap 2048x2048.
 - **Design system**: "Polar Frost" — Satoshi font, Arctic Teal (#2EC4B6) accent, 0-100 risk scoring with 4-level severity. Tokens in `frontend/src/styles/tokens.css`.
 - **State management**: App-level `useState` in `App.tsx`. No Zustand, no Redux. Screen routing via `activeScreen` state.
@@ -188,23 +188,25 @@ buurt-check/
       api/           # Route handlers (address.py, router.py)
       cache/         # Redis cache with circuit breaker (redis.py)
       services/      # Business logic: bag.py, locatieserver.py, three_d_bag.py,
-                     #   cbs.py, risk_cards.py, wms_tile.py, scoring.py, viewing_questions.py
+                     #   cbs.py, risk_cards.py, wms_tile.py, scoring.py, viewing_questions.py,
+                     #   property_warnings.py, foundation_risk.py
       models/        # Pydantic models: address.py, building.py, neighborhood.py,
-                     #   neighborhood3d.py, risk.py
+                     #   neighborhood3d.py, risk.py, property_warnings.py
       config.py      # Settings via pydantic-settings (BUURT_* prefix)
       main.py        # FastAPI app entry point
-    tests/           # pytest tests (275 non-live + live smoke tests)
+    tests/           # pytest tests (381 non-live + live smoke tests)
   frontend/          # React application (Vite + TypeScript)
     src/
       styles/        # Design system: tokens.css (CSS custom properties), satoshi.css (font)
       components/    # Navigation: TabBar, TopBar
                      # Search: AddressSearch
-                     # Loading: LoadingScreen, BuildingAnimation
-                     # Dossier: AddressHeader, SummaryStrip, BuildingFactsCard,
+                     # Loading: SkeletonCard
+                     # Dossier: DossierSheet, AddressHeader, AttentionSummary,
+                     #   SummaryStrip, BuildingFactsCard,
                      #   BuildingFootprintMap, NeighborhoodViewer3D,
                      #   ShadowSnapshots, SunlightRiskCard,
                      #   RiskTilesGrid, RiskTile, RiskDetailView, RiskCardsPanel,
-                     #   NeighborhoodStatsCard, ViewingChecklist, ActionBar
+                     #   NeighborhoodStatsCard, PropertyWarningsCard, ViewingChecklist, ActionBar
                      # Shortlist: ShortlistScreen, CompareScreen, SettingsScreen
                      # UI primitives: ui/SeverityBadge, ui/ScoreBar,
                      #   ui/BottomSheet, ui/Toast, ui/ToggleSwitch
@@ -219,18 +221,19 @@ buurt-check/
 
 ## Current project status
 
-**Stage: F1-F6 fully implemented + polished. All MVP features shipped. "Polar Frost" design system with full palette.md token alignment. 0-100 risk scoring. Tab navigation. Shortlist + compare with parallel coordinates. PDF export (Quick Brief + Full Dossier). Tier B signals (energy label + crime). Risk comparisons (city/NL/WHO baselines). Dark mode (OLED-ready). Recent searches. Simplified 3D viewer (static context card, no interactive controls). Building orientation estimation. Accessibility + visual regression tests. Bundle optimization (React.lazy + vendor chunks).**
+**Stage: F1-F6 fully implemented + polished + mobile UI premium layer. All MVP features shipped. "Polar Frost" design system with full palette.md token alignment. 0-100 risk scoring. Tab navigation with spring-animated pill. Shortlist + compare with parallel coordinates. PDF export (Quick Brief + Full Dossier) with Polar Frost branding. Tier B signals (energy label + crime). Property warnings (foundation, erfpacht, VvE, asbestos). AttentionSummary badge. Risk comparisons (city/NL/WHO baselines). Dark mode (OLED-ready). Recent searches. Simplified 3D viewer (static context card, no interactive controls). Building orientation estimation. Framer Motion gestures (DossierSheet, shared element transitions, press states, haptic feedback). Skeleton loading. Accessibility + visual regression tests. Bundle optimization (React.lazy + vendor chunks). Mapillary removed from scope.**
 
 ### What exists
-- `backend/` — FastAPI app with 13 endpoints: address suggest/lookup, building facts, 3D building/neighborhood, risk cards (with 0-100 scores + severity), risk comparisons, neighborhood stats, WMS tile proxy, viewing questions, PDF export (quick_brief + full_dossier), tier-b signals. BAG lookups use OGC XML Filter. 3DBAG uses tiled fetch (direct target + grid tiles). LoD 2.2 roof geometry parsing (feature-flagged). Risk scoring normalizes noise/air/climate/sunlight to 0-100. Risk comparisons with urbanization-stratified baselines. CBS integration with buurt-code + bbox fallback. Tier B: EP-Online energy labels + CBS OData crime stats. Redis cache with circuit breaker. fpdf2 for PDF generation. Building orientation estimation from footprint geometry. 275 non-live passing tests + live smoke tests. Cache version: v13.
-- `frontend/` — Vite + React + TypeScript with "Polar Frost" design system. Satoshi font, Arctic Teal accent, ~195 CSS design tokens (including slate/teal scales, nav/overlay utility, choropleth ramps). 3-tab navigation (Search, Briefing, Saved) with solid white tab bar + teal pill. Loading screen with building animation. Dossier screen: address header, summary strip, 3D viewer (static context card with summer noon lighting, orbit controls, reset button — no interactive time slider/camera presets/fullscreen/overlays), sunlight analysis with building orientation, 2x2 risk tiles with animated 0-100 scores + quartile dots, risk detail views with comparison charts + viewing questions, neighborhood stats, Tier B signals card, viewing checklist, action bar with PDF export (template selector + language toggle + progress ring + Web Share API). Dark mode (light/dark/system, OLED-ready #000000 base). Recent searches. Shortlist (max 3) with compare screen + parallel coordinates chart. Settings screen. PDOK BRT grijs basemap (CSS filter invert for dark mode). Bundle: React.lazy for 4 heavy components, vendor chunks (react/map/three). 340 passing Vitest tests + accessibility tests + keyboard nav tests + performance budget tests. 10 visual regression snapshots (5 screens x 2 themes). i18n with ~360 keys per language.
+- `backend/` — FastAPI app with 14 endpoints: address suggest/lookup, building facts, 3D building/neighborhood, risk cards (with 0-100 scores + severity), risk comparisons, neighborhood stats, WMS tile proxy, viewing questions, PDF export (quick_brief + full_dossier), tier-b signals, property warnings. BAG lookups use OGC XML Filter. 3DBAG uses tiled fetch (direct target + grid tiles). LoD 2.2 roof geometry parsing (feature-flagged). Risk scoring normalizes noise/air/climate/sunlight to 0-100. Risk comparisons with urbanization-stratified baselines. CBS integration with buurt-code + bbox fallback. Tier B: EP-Online energy labels + CBS OData crime stats. Property warnings: foundation risk (BRO soil + subsidence), erfpacht (municipality config), VvE fund, asbestos detection. Redis cache with circuit breaker. fpdf2 for PDF generation with Satoshi TTF. Building orientation estimation from footprint geometry. 381 non-live passing tests + live smoke tests. Cache version: v13.
+- `frontend/` — Vite + React + TypeScript + Framer Motion with "Polar Frost" design system. Satoshi font, Arctic Teal accent, ~195 CSS design tokens (including slate/teal scales, nav/overlay utility, choropleth ramps). 3-tab navigation (Search, Briefing, Saved) with spring-animated teal pill. Skeleton loading cards (replaces full-screen blocker). DossierSheet with gesture drag + 4 snap points (collapsed/default/expanded/fullscreen). Dossier screen: address header, AttentionSummary badge, 3D viewer (static context card with summer noon lighting, orbit controls, reset button), sunlight analysis with building orientation, 2x2 risk tiles with shared element transitions to detail views (layoutId), comparison charts + viewing questions, neighborhood stats, property warnings card, Tier B signals card, viewing checklist, action bar with PDF export (template selector + language toggle + progress ring + Web Share API). Press states via usePressable hook. Haptic feedback on bookmark/tab/export. Dark mode (light/dark/system, OLED-ready #000000 base). Recent searches. Shortlist (max 3) with compare screen + parallel coordinates chart. Settings screen. PDOK BRT grijs basemap (CSS filter invert for dark mode). Bundle: React.lazy for 4 heavy components, vendor chunks (react/map/three/framer-motion). 385 passing Vitest tests + accessibility tests + keyboard nav tests + performance budget tests. 10 visual regression snapshots (5 screens x 2 themes). i18n with ~395 keys per language.
 - `docs/design-prd.md` — Full design specification for "Polar Frost" design direction
 - `docs/design-spec.md` — Pixel-level visual specification for all screens
 - `docs/palette.md` — Color palette specification with WCAG contrast requirements
 - `docs/phase4-quality-gates.md` — Quality gate documentation (a11y, perf, visual regression)
+- `docs/ui-principles.md` — Apple-tier mobile UX principles and interaction patterns
 
 ### What's next
-- Maintain quality gates: `ruff check`, backend pytest (275+, excluding live), frontend vitest (340+), `npm run build`.
+- Maintain quality gates: `ruff check`, backend pytest (381+, excluding live), frontend vitest (385+), `npm run build`.
 - Resolve PM2.5 data gap (GCN WMS only has NO2 layers).
 - Replace hardcoded risk comparison baselines with real CBS/WHO data.
 - 200% zoom manual QA pass on real device.
@@ -260,7 +263,7 @@ buurt-check/
 
 ### Architecture decisions made
 
-1. **Nine backend endpoints, all under `/api/address/`** — suggest, lookup, building, building3d, neighborhood3d, risks, neighborhood, wms-tile, viewing-questions.
+1. **Fourteen backend endpoints, all under `/api/address/`** — suggest, lookup, building, building3d, neighborhood3d, risks, risk-comparisons, neighborhood, wms-tile, viewing-questions, export, tier-b, property-warnings.
 
 2. **Redis from the start** (via Docker: `docker run -d --name buurt-redis -p 6379:6379 redis:7-alpine`). Cache with graceful degradation — app works without Redis, just slower. Circuit breaker (30s) + socket_timeout (0.5s).
 
@@ -312,7 +315,7 @@ buurt-check/
 1. **Run `ruff check` before committing backend changes.** Config is in `pyproject.toml`: line-length 100, rules E/F/I/W. Import sort order matters (I rules).
 2. **Run `npm run build` before committing frontend changes.** TypeScript strict mode is on (`noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`). The build will catch type errors that the dev server ignores.
 3. **Do not hardcode external URLs in service files.** All external API base URLs go in `config.py` as `pydantic-settings` fields. Services import `settings` and use the config values.
-4. **Test count baselines (updated 2026-02-11).** Backend: 275 non-live tests (+ live smoke tests). Frontend: 340 tests. Any change must maintain or increase these numbers.
+4. **Test count baselines (updated 2026-02-13).** Backend: 381 non-live tests (+ live smoke tests). Frontend: 385 tests. Any change must maintain or increase these numbers.
 
 ### Frontend patterns established
 
@@ -857,3 +860,51 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 1. **Plan-then-execute across sessions works well.** Session 741e2c85 produced the plan (3 iterations with user feedback), session 58a6eb55 executed it autonomously in ~15 minutes with no intervention. Separation keeps planning thorough and execution focused.
 2. **Static 3D viewer removed ~300 lines and 1 dependency (gsap).** Simplification reduced `NeighborhoodViewer3D.tsx` from ~929 to ~633 lines, deleted 6 files (ShadowControls, OverlayControls + tests + CSS), and removed gsap npm dependency. Complexity reduction improves maintainability.
 3. **Visual fidelity investment must match rendering treatment.** LoD 2.2 roof geometry for context buildings (uniform gray, 60% opacity) provides zero visual benefit. Match rendering investment to visual prominence — only the target building (highlighted in teal) warrants detailed geometry.
+
+## Learnings from Feb 13 sessions (mobile UI premium, property warnings, PDF redesign)
+
+### Mapillary Removal
+
+1. **Comprehensive pre-deletion audit prevents rework.** Explore agent found all 24 files containing Mapillary references across backend, frontend, i18n, E2E mocks, and docs. Prevents multiple incomplete passes.
+2. **Cascading deletion order:** Delete leaf files (models, services, components, tests) → remove imports/config from container files → remove app wiring → remove i18n keys → remove mocks → verify quality gates.
+3. **Linter hooks can re-add removed code.** After editing files to remove Mapillary fields, a linter/formatter hook automatically re-added the code. Always verify removals persisted with `grep` before proceeding.
+
+### Mobile UI Premium — Framer Motion & Gestures
+
+1. **Framer Motion added as dependency.** `framer-motion` (~33KB gzip) provides spring physics, gesture drag, `layoutId` shared element transitions, and `AnimatePresence`. Added as separate vendor chunk in `vite.config.ts`.
+2. **Test mocking for Framer Motion.** `vi.mock('framer-motion', ...)` returning forwarded `motion.div` components. Must return component-like structures, not simple arrow functions.
+3. **4 named spring constants in `spring-constants.ts`.** `SHEET` (fast drag), `EXPAND` (bottom sheet open), `REVEAL` (skeleton fade-in), `TAB` (pill slide). Perceptually tuned — different damping for different interaction types.
+4. **DossierSheet (gesture-driven bottom sheet).** 4 snap points: collapsed (20vh), default (65vh), expanded (95vh), fullscreen (100vh). Uses Framer's `drag` with velocity-based auto-snap. T+0 reveal pattern — sheet visible immediately, data streams in.
+5. **Shared element transitions via `layoutId`.** RiskTile and RiskDetailView share a `layoutId` for automatic morph animation. Scoping is global per component tree — avoid duplicate `layoutId` values.
+6. **Spring-animated tab pill.** Active tab indicator uses `motion.div` with `layoutId` + spring physics. Smoother than CSS transitions for multi-column jumps.
+7. **Skeleton loading replaces full-screen blocker.** `SkeletonCard` components with shimmer CSS animation. Deleted `LoadingScreen.tsx` and `BuildingAnimation.tsx`. Honors `prefers-reduced-motion`.
+8. **Touch targets: 44px minimum (Apple HIG).** Enforced across RiskTile, TabBar, bookmarks, remove buttons. Prior 24-32px targets failed mobile usability requirements.
+9. **`usePressable` hook for press states.** Custom React hook tracking pointer down/up with `onPress` callback + `pressable.css`. More reliable than CSS `:active` for complex interactions — `:active` doesn't fire on drag.
+10. **Haptic feedback utility.** `utils/haptic.ts` wraps `navigator.vibrate()` with permission checks. `navigator.vibrate()` can throw `SecurityError` on locked devices. Wired into bookmark (light), tab (medium), export (medium).
+
+### Property Warnings Feature
+
+1. **New endpoint: `GET /api/address/{vbo_id}/property-warnings`.** Aggregates 4 sub-warnings: foundation risk, erfpacht, VvE fund, asbestos. Parallel `asyncio.gather()`. Cache TTL 30 days (data updates infrequently).
+2. **Foundation risk uses BRO soil data + Klimaateffectatlas subsidence layers.** Classification heuristic: clay/peat soil + pre-1970 building + subsidence zone = high risk.
+3. **Erfpacht is municipality-specific, not property-specific.** Hardcoded list of endemic municipalities (Amsterdam, Utrecht, Gouda, Tiel, Haarlem, Arnhem, etc.) in config. Can't infer from BAG data alone.
+4. **AttentionSummary component.** Client-side aggregation of all dossier warnings (4 risk cards + property warnings) into single green/amber/red badge. Severity via `max()` across all warning levels.
+5. **Test deltas: +60 backend (321→381), +47 frontend (338→385).** Both baselines updated in MEMORY.md.
+
+### PDF Export Enhancements
+
+1. **Pydantic Field aliasing for backwards compatibility.** `Field(None, alias="shadow_image_b64")` + `populate_by_name=True` accepts both parameter names without breaking existing clients.
+2. **Neighborhood buurt_code fallback chain.** When export request lacks explicit `buurt_code`, fetch neighborhood data first → extract resolved code → use for tier-B. Prevents mismatched identity fields.
+3. **Quick Brief clipped-content signaling.** `_draw_branded_questions()` returns `clipped` boolean when questions exceed 1-page limit. Frontend shows "See Full Dossier" note.
+
+### E2E Test Infrastructure
+
+1. **Mock API factory for deterministic E2E.** `installMockAddressFlow()` helper mocks all 12 API endpoints with controllable delays. Eliminates live API flakiness in F3 and F4 E2E specs.
+2. **Playwright webServer config.** Explicit entries for both backend (port 8000) and frontend preview (port 4173) with proper timeouts.
+
+### Process Learnings (Feb 13)
+
+1. **Spring physics is a strategic decision, not polish.** Every major mobile app uses spring physics for natural feel. Linear transitions feel "dead." The Framer Motion investment (~33KB gzip) pays for itself in perceived quality.
+2. **CSS changes can regress performance tests unexpectedly.** Spacing/padding tweaks to NeighborhoodStatsCard caused CompareScreen to render 2.5x slower (over 1500ms budget). Measure before/after CSS changes.
+3. **Feature removal needs the same rigor as feature addition.** Mapillary removal touched 24 files. Without systematic audit + cascading deletion order, incomplete removal causes stale references.
+4. **Brainstorming sessions produce better design when structured.** The mobile UI assessment session used systematic Apple design principles (8 categories) rather than ad-hoc improvement suggestions. Structure prevents missing interaction patterns.
+5. **Test count baselines (updated 2026-02-13).** Backend: 381 non-live (+ live smoke). Frontend: 385. Update immediately after test-adding commits to prevent drift.
