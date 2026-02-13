@@ -1,8 +1,11 @@
+import asyncio
 import base64
 import logging
+import time
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from app.cache.redis import cache_get, cache_set
 from app.config import settings
@@ -21,6 +24,7 @@ from app.services import (
     bag,
     cbs,
     locatieserver,
+    metrics,
     risk_cards,
     three_d_bag,
     tier_b,
@@ -122,21 +126,30 @@ async def building_facts(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
 ):
     """Fetch building facts from BAG for a verblijfsobject."""
+    t0 = time.monotonic()
     cache_key = f"building:{vbo_id}"
     cached = await cache_get(cache_key)
     if cached is not None:
+        metrics.inc("building.success")
+        metrics.record_latency("building", (time.monotonic() - t0) * 1000)
         return BuildingFactsResponse(**cached)
 
     try:
         facts = await bag.get_building_facts(vbo_id)
     except ValueError as exc:
+        metrics.inc("building.error")
+        metrics.record_latency("building", (time.monotonic() - t0) * 1000)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
+        metrics.inc("building.error")
+        metrics.record_latency("building", (time.monotonic() - t0) * 1000)
         raise HTTPException(
             status_code=502, detail=f"BAG API unavailable: {exc}"
         ) from exc
 
     if facts is None:
+        metrics.inc("building.success")
+        metrics.record_latency("building", (time.monotonic() - t0) * 1000)
         return BuildingFactsResponse(
             address_id=vbo_id,
             building=None,
@@ -145,6 +158,8 @@ async def building_facts(
 
     response = BuildingFactsResponse(address_id=vbo_id, building=facts)
     await cache_set(cache_key, response.model_dump(), ttl=settings.cache_ttl_building)
+    metrics.inc("building.success")
+    metrics.record_latency("building", (time.monotonic() - t0) * 1000)
     return response
 
 
@@ -230,10 +245,13 @@ async def address_risk_cards(
     lng: float = Query(...),
 ):
     """Fetch F3 risk cards (noise, air quality, climate stress)."""
+    t0 = time.monotonic()
     cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         logger.info("risk_cards cache_hit vbo=%s", vbo_id)
+        metrics.inc("risks.success")
+        metrics.record_latency("risks", (time.monotonic() - t0) * 1000)
         return RiskCardsResponse(**cached)
 
     try:
@@ -245,6 +263,8 @@ async def address_risk_cards(
             lng=lng,
         )
     except Exception as exc:
+        metrics.inc("risks.error")
+        metrics.record_latency("risks", (time.monotonic() - t0) * 1000)
         raise HTTPException(status_code=502, detail="Risk card data sources unavailable") from exc
 
     has_data = (
@@ -274,6 +294,8 @@ async def address_risk_cards(
             ttl=settings.cache_ttl_risk_cards,
         )
         logger.info("risk_cards cache_set vbo=%s", vbo_id)
+    metrics.inc("risks.success")
+    metrics.record_latency("risks", (time.monotonic() - t0) * 1000)
     return result
 
 
@@ -463,99 +485,213 @@ async def tier_b_signals(
     return result
 
 
-@router.get("/{vbo_id}/export")
+class ExportRequest(BaseModel):
+    """POST body for PDF export — avoids URL-length limits from base64 shadow images."""
+
+    rd_x: float
+    rd_y: float
+    lat: float
+    lng: float
+    address: str
+    template: str = "quick_brief"
+    language: str = "en"
+    shadow_image: str | None = None
+    street: str | None = None
+    city: str | None = None
+    buurt_code: str | None = None
+    postcode: str | None = None
+    house_number: str | None = None
+    house_letter: str | None = None
+    addition: str | None = None
+
+
+async def _fetch_building_for_export(vbo_id: str):
+    """Cache-first building facts fetch for export."""
+    cache_key = f"building:{vbo_id}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return BuildingFactsResponse(**cached)
+    try:
+        facts = await bag.get_building_facts(vbo_id)
+        if facts:
+            resp = BuildingFactsResponse(address_id=vbo_id, building=facts)
+            await cache_set(cache_key, resp.model_dump(), ttl=settings.cache_ttl_building)
+            return resp
+    except Exception:
+        logger.warning("Failed to fetch building facts for PDF export")
+    return None
+
+
+async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float,
+                                  lat: float, lng: float):
+    """Cache-first risk cards fetch for export."""
+    cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return RiskCardsResponse(**cached)
+    try:
+        result = await risk_cards.get_risk_cards(
+            vbo_id=vbo_id, rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng,
+        )
+        has_data = (
+            result.noise.level != RiskLevel.unavailable
+            or result.air_quality.level != RiskLevel.unavailable
+            or result.climate_stress.level != RiskLevel.unavailable
+        )
+        if has_data:
+            await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_risk_cards)
+        return result
+    except Exception:
+        logger.warning("Failed to fetch risk cards for PDF export")
+    return None
+
+
+async def _fetch_neighborhood_for_export(vbo_id: str, lat: float, lng: float,
+                                         buurt_code: str | None):
+    """Cache-first CBS neighborhood stats fetch for export."""
+    cache_key = (
+        f"neighborhood:{buurt_code}" if buurt_code
+        else f"neighborhood:{lat:.4f}:{lng:.4f}"
+    )
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return NeighborhoodStatsResponse(**cached).stats
+    try:
+        resp = await cbs.get_neighborhood_stats(
+            vbo_id=vbo_id, lat=lat, lng=lng, buurt_code=buurt_code,
+        )
+        if resp.stats:
+            await cache_set(cache_key, resp.model_dump(), ttl=settings.cache_ttl_neighborhood)
+        return resp.stats
+    except Exception:
+        logger.warning("Failed to fetch neighborhood stats for PDF export")
+    return None
+
+
+async def _fetch_tier_b_for_export(vbo_id: str, buurt_code: str | None,
+                                   postcode: str | None, house_number: str | None,
+                                   house_letter: str | None, addition: str | None):
+    """Cache-first Tier-B signals fetch for export."""
+    cache_key = (
+        f"tier-b:{vbo_id}:{buurt_code or '-'}:{postcode or '-'}"
+        f":{house_number or '-'}:{house_letter or '-'}:{addition or '-'}"
+    )
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return TierBResponse(**cached)
+    try:
+        result = await tier_b.get_tier_b_data(
+            vbo_id=vbo_id, buurt_code=buurt_code, postcode=postcode,
+            house_number=house_number, house_letter=house_letter, addition=addition,
+        )
+        has_data = bool(
+            result.energy_label.label
+            or result.crime.total_per_1000 is not None
+            or result.crime.monthly_total_per_1000 is not None
+        )
+        if has_data:
+            await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_tier_b)
+        return result
+    except Exception:
+        logger.warning("Failed to fetch tier-b data for PDF export")
+    return None
+
+
+@router.post("/{vbo_id}/export")
 async def export_briefing(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
-    rd_x: float = Query(...),
-    rd_y: float = Query(...),
-    lat: float = Query(...),
-    lng: float = Query(...),
-    address: str = Query(..., description="Display address string"),
-    template: str = Query("quick_brief"),
-    language: str = Query("en"),
-    shadow_image: str | None = Query(None, description="Base64-encoded shadow snapshot"),
-    street: str | None = Query(None, description="Street name for contextualized checklist"),
-    city: str | None = Query(None, description="City name for contextualized checklist"),
+    body: ExportRequest = ...,
 ):
     """Export a PDF viewing briefing for the address.
 
-    Assembles data from cached risk/building/viewing-questions responses
-    and generates a downloadable PDF.
+    POST body accepts all parameters including base64 shadow image,
+    avoiding URL-length limits. Full Dossier fetches additional data
+    (neighborhood stats, tier-b, risk comparisons) in parallel.
     """
-    if template not in ("quick_brief", "full_dossier"):
+    if body.template not in ("quick_brief", "full_dossier"):
         raise HTTPException(
             status_code=422,
             detail="Template must be 'quick_brief' or 'full_dossier'",
         )
-    if language not in ("en", "nl"):
+    if body.language not in ("en", "nl"):
         raise HTTPException(status_code=422, detail="Language must be 'en' or 'nl'")
 
-    # Fetch building facts (cached or fresh)
+    # --- Phase 1: Fetch building + risks in parallel ---
+    building_resp, risks = await asyncio.gather(
+        _fetch_building_for_export(vbo_id),
+        _fetch_risks_for_export(vbo_id, body.rd_x, body.rd_y, body.lat, body.lng),
+    )
+
     building_year: int | None = None
     building_use: str | None = None
+    floor_area: int | None = None
+    if building_resp and building_resp.building:
+        building_year = building_resp.building.construction_year
+        floor_area = building_resp.building.floor_area_m2
+        if building_resp.building.intended_use_en:
+            building_use = ", ".join(building_resp.building.intended_use_en)
 
-    cache_key_building = f"building:{vbo_id}"
-    cached_building = await cache_get(cache_key_building)
-    if cached_building is not None:
-        building_resp = BuildingFactsResponse(**cached_building)
-        if building_resp.building:
-            building_year = building_resp.building.construction_year
-            if building_resp.building.intended_use_en:
-                building_use = ", ".join(building_resp.building.intended_use_en)
-    else:
-        try:
-            facts = await bag.get_building_facts(vbo_id)
-            if facts:
-                building_year = facts.construction_year
-                if facts.intended_use_en:
-                    building_use = ", ".join(facts.intended_use_en)
-        except Exception:
-            logger.warning("Failed to fetch building facts for PDF export")
-
-    # Fetch risk cards (cached or fresh)
-    risks: RiskCardsResponse | None = None
     sunlight_score: int | None = None
-    cache_key_risks = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
-    cached_risks = await cache_get(cache_key_risks)
-    if cached_risks is not None:
-        risks = RiskCardsResponse(**cached_risks)
-    else:
-        try:
-            risks = await risk_cards.get_risk_cards(
-                vbo_id=vbo_id, rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng,
-            )
-        except Exception:
-            logger.warning("Failed to fetch risk cards for PDF export")
-
     if risks and risks.sunlight:
         sunlight_score = risks.sunlight.score
 
-    # Fetch viewing questions
     viewing_qs: ViewingQuestionsResponse | None = None
     if risks:
-        viewing_qs = build_viewing_questions(vbo_id, risks, street=street, city=city)
+        viewing_qs = build_viewing_questions(
+            vbo_id, risks, street=body.street, city=body.city,
+        )
 
-    if template == "full_dossier":
+    # --- Phase 2 (Full Dossier): Fetch neighborhood + tier-b in parallel ---
+    neighborhood_stats = None
+    tier_b_data = None
+    risk_comparisons_data = None
+
+    if body.template == "full_dossier":
+        neighborhood_stats, tier_b_data = await asyncio.gather(
+            _fetch_neighborhood_for_export(
+                vbo_id, body.lat, body.lng, body.buurt_code,
+            ),
+            _fetch_tier_b_for_export(
+                vbo_id, body.buurt_code, body.postcode,
+                body.house_number, body.house_letter, body.addition,
+            ),
+        )
+
+        urbanization = UrbanizationLevel.unknown
+        if neighborhood_stats:
+            urbanization = neighborhood_stats.urbanization
+        if risks:
+            risk_comparisons_data = build_risk_comparisons(
+                vbo_id=vbo_id, cards=risks, urbanization=urbanization,
+            )
+
+    # --- Generate PDF ---
+    if body.template == "full_dossier":
         pdf_bytes = generate_full_dossier(
-            address=address,
+            address=body.address,
             building_year=building_year,
             building_use=building_use,
             risks=risks,
             sunlight_score=sunlight_score,
             viewing_questions=viewing_qs,
-            shadow_image_b64=shadow_image,
-            language=language,
+            shadow_image_b64=body.shadow_image,
+            language=body.language,
+            floor_area=floor_area,
+            neighborhood_stats=neighborhood_stats,
+            tier_b=tier_b_data,
+            risk_comparisons=risk_comparisons_data,
         )
     else:
         pdf_bytes = generate_quick_brief(
-            address=address,
+            address=body.address,
             building_year=building_year,
             building_use=building_use,
             risks=risks,
             sunlight_score=sunlight_score,
             viewing_questions=viewing_qs,
-            shadow_image_b64=shadow_image,
-            language=language,
+            shadow_image_b64=body.shadow_image,
+            language=body.language,
+            floor_area=floor_area,
         )
 
     filename = f"buurt-check-{vbo_id}.pdf"
@@ -564,3 +700,32 @@ async def export_briefing(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/{vbo_id}/export")
+async def export_briefing_get(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    lat: float = Query(...),
+    lng: float = Query(...),
+    address: str = Query(...),
+    template: str = Query("quick_brief"),
+    language: str = Query("en"),
+    shadow_image: str | None = Query(None),
+    street: str | None = Query(None),
+    city: str | None = Query(None),
+    buurt_code: str | None = Query(None),
+    postcode: str | None = Query(None),
+    house_number: str | None = Query(None),
+    house_letter: str | None = Query(None),
+    addition: str | None = Query(None),
+):
+    """Backward-compatible GET endpoint for PDF export (deprecated — prefer POST)."""
+    body = ExportRequest(
+        rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng, address=address,
+        template=template, language=language, shadow_image=shadow_image,
+        street=street, city=city, buurt_code=buurt_code, postcode=postcode,
+        house_number=house_number, house_letter=house_letter, addition=addition,
+    )
+    return await export_briefing(vbo_id=vbo_id, body=body)
