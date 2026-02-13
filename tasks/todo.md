@@ -258,6 +258,19 @@ Deliverable: a detailed markdown report in `docs/` with concrete implementation 
   - Extended visual suite to 5 baselines:
     - mobile light search
     - mobile light saved
+
+## Hotfix Plan (2026-02-13) - 3D flanking houses + startup stability
+
+- [ ] Restore Mapillary backend/frontend runtime files and config fields so backend boots with `.env` token and frontend compiles.
+- [ ] Harden `neighborhood3d` neighbor selection to preserve target flanking context deterministically across reloads and addresses.
+- [ ] Version neighborhood cache key and tighten caching guard to avoid persisting degraded local context.
+- [ ] Run targeted backend tests (`three_d_bag`, `address_api`, `config`) and lint.
+- [ ] Run frontend tests/build for Mapillary and API compile integrity.
+- [ ] Restart backend and build app for UI access.
+
+## Hotfix Review (2026-02-13)
+
+- Pending implementation.
     - mobile light compare
     - mobile dark saved
     - desktop light search
@@ -521,5 +534,54 @@ Reduce end-user 3D neighborhood loading time from 2+ minutes to under 30 seconds
   - Frontend targeted tests: `npm test -- src/services/api.test.ts` -> pass (`29 passed`)
   - Frontend full tests: `npm test` -> pass (`341 passed`)
   - Frontend build: `npm run build` -> pass
-  - Live timing probe on updated backend endpoint (LAN host): `~7.01s` response for neighborhood 3D request.
-  - End-to-end timing probe via Vite proxy (`http://localhost:5173/api/...`): `~8.22s` response.
+- Live timing probe on updated backend endpoint (LAN host): `~7.01s` response for neighborhood 3D request.
+- End-to-end timing probe via Vite proxy (`http://localhost:5173/api/...`): `~8.22s` response.
+
+---
+
+# Task Plan: Mapillary Token Enable + Rebuild/Restart (2026-02-13)
+
+## Goal
+
+Confirm Mapillary token wiring from environment, ensure app runtime loads it, and rebuild/restart backend + frontend so UI is available.
+
+## Plan
+
+- [x] Read `CLAUDE.md`, `docs/design-spec.md`, and `docs/design-prd.md`.
+- [x] Verify Mapillary integration points and expected env variable names.
+- [x] Verify token presence in local environment files used by runtime.
+- [x] Rebuild backend and frontend.
+- [x] Restart backend and frontend servers.
+- [x] Verify backend health and frontend UI availability.
+
+---
+
+# Task Plan: 3D Target Building Alignment Fix (2026-02-13)
+
+## Goal
+
+Keep all neighborhood houses visible while fixing the teal target building misalignment in the 3D view.
+
+## Plan
+
+- [x] Confirm root cause in neighborhood coordinate-origin handling.
+- [x] Keep a single coordinate reference for target and context building footprints.
+- [x] Add regression coverage for mixed-origin context fetches.
+- [x] Run targeted backend tests and lint.
+- [x] Document review notes and verification results.
+
+## Review
+
+- Root cause:
+  - Immediate-neighbor bbox fetch queried around the target centroid but also used that centroid as the output origin.
+  - Target and broader context stayed in address-origin coordinates, so mixed-origin building offsets caused visible teal-target misalignment.
+- Implemented:
+  - `backend/app/services/three_d_bag.py`
+    - Extended `_fetch_bbox_quick_context(...)` to accept optional `reference_x`/`reference_y` for output-origin control.
+    - Kept immediate-neighbor query center at target centroid for retrieval quality.
+    - Forced immediate-neighbor output offsets into the shared address origin (`reference_x=rd_x`, `reference_y=rd_y`).
+  - `backend/tests/test_three_d_bag.py`
+    - Added `test_fetch_bbox_quick_context_reference_origin` regression coverage for mixed query-center/output-origin behavior.
+- Verification:
+  - `ruff check backend/app/services/three_d_bag.py backend/app/api/address.py backend/tests/test_three_d_bag.py` -> pass
+  - `pytest -q backend/tests/test_three_d_bag.py backend/tests/test_address_api.py -m "not live"` -> `67 passed`

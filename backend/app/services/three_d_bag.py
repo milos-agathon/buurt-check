@@ -13,17 +13,22 @@ logger = logging.getLogger(__name__)
 _client: httpx.AsyncClient | None = None
 BBOX_PAGE_LIMIT = 100
 BBOX_MAX_PAGES = 2
-BBOX_FETCH_BUDGET = 22.0
-BBOX_PAGE_TIMEOUT = 16.0
-BBOX_EARLY_STOP_BUILDINGS = 40
+BBOX_FETCH_BUDGET = 40.0
+BBOX_PAGE_TIMEOUT = 22.0
 LOD22_ENRICH_CONCURRENCY = 8
-LOD22_ENRICH_BUDGET = 120.0
-LOD22_ENRICH_MAX_BUILDINGS = 20
 MIN_FETCH_BUDGET = 1.0
 FALLBACK_RADIUS_FACTOR = 0.6
 FALLBACK_MIN_RADIUS = 40.0
-FALLBACK_PAGE_TIMEOUT = 12.0
+FALLBACK_PAGE_TIMEOUT = 20.0
 FALLBACK_PAGE_LIMIT = 40
+NEARBY_CONTEXT_MIN_RADIUS = 70.0
+NEARBY_CONTEXT_TIMEOUT = 20.0
+NEARBY_CONTEXT_LIMIT = 100
+NEARBY_CONTEXT_MAX_PAGES = 2
+IMMEDIATE_CONTEXT_RADIUS = 30.0
+IMMEDIATE_CONTEXT_TIMEOUT = 15.0
+IMMEDIATE_CONTEXT_LIMIT = 200
+IMMEDIATE_CONTEXT_MAX_PAGES = 2
 SECONDARY_FALLBACK_RADIUS = 35.0
 PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 5.0
 
@@ -305,7 +310,7 @@ def _parse_bbox_page(
                 center_x,
                 center_y,
                 city_objects=city_objects,
-                allow_lod22=False,
+                allow_lod22=True,
             )
             if block is not None:
                 page_buildings.append(block)
@@ -351,9 +356,6 @@ async def _fetch_bbox_paginated(
 
         next_url = _get_next_page_url(data, BBOX_PAGE_LIMIT)
         pages += 1
-        if next_url and len(buildings) >= BBOX_EARLY_STOP_BUILDINGS:
-            partial = True
-            break
 
     if next_url:
         partial = True
@@ -373,30 +375,50 @@ async def _fetch_bbox_quick_context(
     center_x: float,
     center_y: float,
     radius: float,
+    *,
+    limit: int = FALLBACK_PAGE_LIMIT,
+    timeout_s: float = FALLBACK_PAGE_TIMEOUT,
+    max_pages: int = 1,
+    reference_x: float | None = None,
+    reference_y: float | None = None,
 ) -> tuple[list[BuildingBlock], bool]:
-    """Fast single-page neighborhood context query with reduced radius."""
+    """Fast bounded-page neighborhood context query.
+
+    `center_x`/`center_y` define the bbox query center.
+    `reference_x`/`reference_y` define the coordinate origin used for footprint offsets.
+    """
     client = _get_client()
     x0, y0 = center_x - radius, center_y - radius
     x1, y1 = center_x + radius, center_y + radius
     bbox = f"{x0:.0f},{y0:.0f},{x1:.0f},{y1:.0f}"
-    url = (
+    next_url = (
         f"{settings.three_d_bag_base}/collections/pand/items"
-        f"?bbox={bbox}&limit={FALLBACK_PAGE_LIMIT}"
+        f"?bbox={bbox}&limit={limit}"
     )
+    pages = 0
+    buildings: list[BuildingBlock] = []
+    partial = False
+    parse_center_x = center_x if reference_x is None else reference_x
+    parse_center_y = center_y if reference_y is None else reference_y
 
-    try:
-        resp = await client.get(
-            url,
-            timeout=httpx.Timeout(FALLBACK_PAGE_TIMEOUT, connect=3.0),
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except (httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.warning("Quick bbox context fetch failed: %s", exc)
-        return [], True
+    while next_url and pages < max_pages:
+        try:
+            resp = await client.get(
+                next_url,
+                timeout=httpx.Timeout(timeout_s, connect=3.0),
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except (httpx.HTTPError, httpx.TimeoutException) as exc:
+            logger.warning("Quick bbox context fetch failed: %s", exc)
+            return buildings, True
 
-    buildings = _parse_bbox_page(data, center_x, center_y)
-    partial = _get_next_page_url(data, FALLBACK_PAGE_LIMIT) is not None
+        buildings.extend(_parse_bbox_page(data, parse_center_x, parse_center_y))
+        next_url = _get_next_page_url(data, limit)
+        pages += 1
+
+    if next_url:
+        partial = True
     return buildings, partial
 
 
@@ -479,7 +501,7 @@ async def _enrich_with_lod22(
     center_y: float,
     skip_pand_ids: set[str] | None = None,
 ) -> tuple[list[BuildingBlock], bool]:
-    """Upgrade context buildings to LoD 2.2 via single-item fetches."""
+    """Upgrade all returned context buildings to LoD 2.2 via single-item fetches."""
     if not buildings or not settings.enable_lod22_roofs:
         return buildings, False
 
@@ -488,26 +510,9 @@ async def _enrich_with_lod22(
     candidates = [b for b in buildings if b.pand_id not in skip]
     partial = False
 
-    # Enrich nearest buildings first when the set is very large.
-    if len(candidates) > LOD22_ENRICH_MAX_BUILDINGS:
-        candidates.sort(
-            key=lambda b: (
-                sum(p[0] for p in b.footprint) / len(b.footprint)
-            ) ** 2 + (
-                sum(p[1] for p in b.footprint) / len(b.footprint)
-            ) ** 2
-        )
-        candidates = candidates[:LOD22_ENRICH_MAX_BUILDINGS]
-        partial = True
-
     semaphore = asyncio.Semaphore(LOD22_ENRICH_CONCURRENCY)
-    start = time.monotonic()
 
     async def _fetch_one(block: BuildingBlock) -> tuple[str, BuildingBlock | None, bool]:
-        remaining = LOD22_ENRICH_BUDGET - (time.monotonic() - start)
-        if remaining < MIN_FETCH_BUDGET:
-            return block.pand_id, None, True
-
         async with semaphore:
             detailed = await _fetch_target_building(block.pand_id, center_x, center_y)
             if detailed is None:
@@ -542,20 +547,59 @@ async def get_neighborhood_3d(
     radius: float = 80.0,
 ) -> Neighborhood3DResponse:
     """Fetch 3D building data from 3DBAG for the neighborhood around a point."""
-    # Parallel fetch: direct target + resilient neighborhood bbox strategy.
-    target_building, bbox_result = await asyncio.gather(
+    near_radius = max(radius * 0.9, NEARBY_CONTEXT_MIN_RADIUS)
+
+    # Parallel fetch: direct target + guaranteed near-neighbor context + broader resilient context.
+    target_building, near_result, bbox_result = await asyncio.gather(
         _fetch_target_building(pand_id, rd_x, rd_y),
+        _fetch_bbox_quick_context(
+            rd_x,
+            rd_y,
+            near_radius,
+            limit=NEARBY_CONTEXT_LIMIT,
+            timeout_s=NEARBY_CONTEXT_TIMEOUT,
+            max_pages=NEARBY_CONTEXT_MAX_PAGES,
+        ),
         _fetch_bbox_resilient(rd_x, rd_y, radius),
     )
-    bbox_buildings, bbox_partial = bbox_result
+    immediate_buildings: list[BuildingBlock] = []
+    immediate_partial = False
+    if target_building is not None:
+        tx = sum(p[0] for p in target_building.footprint) / len(target_building.footprint)
+        ty = sum(p[1] for p in target_building.footprint) / len(target_building.footprint)
+        immediate_buildings, immediate_partial = await _fetch_bbox_quick_context(
+            rd_x + tx,
+            rd_y + ty,
+            IMMEDIATE_CONTEXT_RADIUS,
+            limit=IMMEDIATE_CONTEXT_LIMIT,
+            timeout_s=IMMEDIATE_CONTEXT_TIMEOUT,
+            max_pages=IMMEDIATE_CONTEXT_MAX_PAGES,
+            reference_x=rd_x,
+            reference_y=rd_y,
+        )
 
-    # Merge: target first, then bbox (deduplicate by pand_id)
+    near_buildings, near_partial = near_result
+    bbox_buildings, bbox_partial = bbox_result
+    immediate_degraded = immediate_partial and not immediate_buildings
+    near_degraded = near_partial and not near_buildings and not bbox_buildings
+
+    # Merge: target first, then immediate-neighbor ring, then near ring, then broader context.
     seen_ids: set[str] = set()
     buildings: list[BuildingBlock] = []
 
     if target_building is not None:
         buildings.append(target_building)
         seen_ids.add(target_building.pand_id)
+
+    for b in immediate_buildings:
+        if b.pand_id not in seen_ids:
+            buildings.append(b)
+            seen_ids.add(b.pand_id)
+
+    for b in near_buildings:
+        if b.pand_id not in seen_ids:
+            buildings.append(b)
+            seen_ids.add(b.pand_id)
 
     for b in bbox_buildings:
         if b.pand_id not in seen_ids:
@@ -571,7 +615,11 @@ async def get_neighborhood_3d(
             skip_pand_ids={target_building.pand_id} if target_building else None,
         )
 
-    target_found = target_building is not None
+    target_index = next((i for i, b in enumerate(buildings) if b.pand_id == pand_id), None)
+    target_found = target_index is not None
+    if target_found and target_index is not None and target_index != 0:
+        # Keep target first for deterministic frontend focus/highlight.
+        buildings.insert(0, buildings.pop(target_index))
     address_id = vbo_id if vbo_id else pand_id
     center = Neighborhood3DCenter(lat=lat, lng=lng, rd_x=rd_x, rd_y=rd_y)
 
@@ -580,7 +628,7 @@ async def get_neighborhood_3d(
         message = "No 3D building data available for this area"
     else:
         message_parts: list[str] = []
-        if bbox_partial or enrich_partial:
+        if immediate_degraded or near_degraded or bbox_partial or enrich_partial:
             message_parts.append(
                 "Partial neighborhood data: some surrounding buildings could not be loaded"
             )

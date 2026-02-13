@@ -8,6 +8,7 @@ from app.models.neighborhood3d import BuildingBlock
 from app.services.three_d_bag import (
     _compute_building_orientation,
     _extract_lod22_surfaces,
+    _fetch_bbox_quick_context,
     _fetch_target_building,
     _parse_building,
     get_neighborhood_3d,
@@ -176,6 +177,60 @@ def _make_feature(pand_id="0363100012253924", h_maaiveld=1.75, h_dak_max=18.18, 
     }
 
 
+def _make_feature_with_lod22_child(
+    pand_id="0363100012253924",
+    h_maaiveld=1.75,
+    h_dak_max=10.0,
+    year=1917,
+):
+    """Build a bbox feature whose Building has a BuildingPart with LoD 2.2 geometry."""
+    parent_name = f"NL.IMBAG.Pand.{pand_id}"
+    part_name = f"{parent_name}-0"
+
+    return {
+        "type": "CityJSONFeature",
+        "id": parent_name,
+        "CityObjects": {
+            parent_name: {
+                "type": "Building",
+                "attributes": {
+                    "identificatie": parent_name,
+                    "b3_h_maaiveld": h_maaiveld,
+                    "b3_h_dak_max": h_dak_max,
+                    "oorspronkelijkbouwjaar": year,
+                },
+                "geometry": [
+                    {
+                        "lod": "0",
+                        "type": "MultiSurface",
+                        "boundaries": [[[0, 1, 2, 3]]],
+                    }
+                ],
+                "children": [part_name],
+            },
+            part_name: {
+                "type": "BuildingPart",
+                "parents": [parent_name],
+                "geometry": [
+                    {
+                        "lod": "2.2",
+                        "type": "Solid",
+                        "boundaries": [[
+                            [[4, 5, 6, 7]],
+                            [[0, 3, 2, 1]],
+                            [[0, 1, 5, 4]],
+                            [[1, 2, 6, 5]],
+                            [[2, 3, 7, 6]],
+                            [[3, 0, 4, 7]],
+                        ]],
+                    }
+                ],
+            },
+        },
+        "vertices": LOD22_VERTICES,
+    }
+
+
 def _make_single_item_response(
     pand_id="0363100012253924", h_maaiveld=1.75, h_dak_max=18.18, year=1917,
 ):
@@ -284,6 +339,49 @@ async def test_fetch_target_building_http_error(mock_get_client):
 
     result = await _fetch_target_building("0363100012253924", CENTER_X, CENTER_Y)
     assert result is None
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_quick_context_reference_origin(mock_get_client):
+    """Context fetch can query around one center but keep a stable output origin."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    response = {
+        "type": "FeatureCollection",
+        "features": [_make_feature("0363100099999999")],
+        "metadata": {
+            "transform": {
+                "scale": [0.001, 0.001, 0.001],
+                "translate": [121010.0, 487010.0, 0.0],
+            }
+        },
+        "links": [{"rel": "self", "href": "http://example.com"}],
+        "numberMatched": 1,
+        "numberReturned": 1,
+    }
+    mock_client.get.return_value = _make_mock_resp(response)
+
+    # Default origin is the query center.
+    default_buildings, default_partial = await _fetch_bbox_quick_context(
+        121015.0,
+        487015.0,
+        30.0,
+    )
+    assert default_partial is False
+    assert default_buildings[0].footprint[0] == [-5.0, -5.0]
+
+    # Explicit origin keeps all footprints in the shared neighborhood frame.
+    shared_buildings, shared_partial = await _fetch_bbox_quick_context(
+        121015.0,
+        487015.0,
+        30.0,
+        reference_x=121005.0,
+        reference_y=487005.0,
+    )
+    assert shared_partial is False
+    assert shared_buildings[0].footprint[0] == [5.0, 5.0]
 
 
 # --- get_neighborhood_3d integration tests (mocked HTTP) ---
@@ -523,6 +621,47 @@ async def test_get_neighborhood_3d_target_not_found(mock_get_client):
     assert result.message == "Target building not found in 3D data"
 
 
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_get_neighborhood_3d_target_found_from_bbox_when_direct_fails(mock_get_client):
+    """If direct fetch fails but bbox contains target, keep target_pand_id set."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    target_id = "0363100012253924"
+    direct_error = httpx.HTTPStatusError(
+        "Not Found", request=MagicMock(), response=MagicMock(status_code=404)
+    )
+    bbox_data = _make_3dbag_response([
+        _make_feature("0363100099999999"),
+        _make_feature(target_id),
+    ])
+
+    def route(url, **kwargs):
+        s_url = str(url)
+        if f"NL.IMBAG.Pand.{target_id}" in s_url:
+            raise direct_error
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        return _make_mock_resp(bbox_data)
+
+    mock_client.get.side_effect = route
+
+    result = await get_neighborhood_3d(
+        pand_id=target_id,
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+    assert result.target_pand_id == target_id
+    assert result.buildings[0].pand_id == target_id
+    assert result.message is None or "Target building not found" not in (result.message or "")
+
+
 # --- New tests for direct fetch + parallel strategy ---
 
 
@@ -760,7 +899,8 @@ async def test_fetch_bbox_fallback_returns_context_after_first_page_timeout(mock
             return _make_mock_resp(_make_single_item_response(match.group(1)))
         if "bbox=" in s_url:
             bbox_calls += 1
-            if bbox_calls == 1:
+            # Simulate timeout on primary paginated query (limit=100), not on near-neighbor query.
+            if "limit=100" in s_url and "offset=" not in s_url:
                 raise httpx.TimeoutException("primary bbox timeout")
             return _make_mock_resp(bbox_resp)
         return _make_mock_resp(_make_3dbag_response([]))
@@ -986,6 +1126,43 @@ async def test_fetch_target_building_with_lod22(mock_get_client, mock_settings):
     assert result.pand_id == "0363100012253924"
     assert result.roof_surfaces is not None
     assert len(result.roof_surfaces) == 6
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._get_client")
+async def test_neighborhood_context_gets_lod22_from_bbox_without_enrichment(
+    mock_get_client, mock_settings,
+):
+    """Context buildings should carry LoD2.2 roofs from bbox payload directly."""
+    mock_settings.enable_lod22_roofs = True
+    mock_settings.enable_lod22_context_enrichment = False
+    mock_settings.three_d_bag_base = "https://api.3dbag.nl"
+
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    target_id = "0363100012253924"
+    neighbor_id = "0363100099999999"
+    direct_data = _make_single_item_response(target_id)
+    bbox_data = _make_3dbag_response([_make_feature_with_lod22_child(neighbor_id)])
+
+    mock_client.get.side_effect = _route_responses(
+        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
+    )
+
+    result = await get_neighborhood_3d(
+        pand_id=target_id,
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+    neighbor = next((b for b in result.buildings if b.pand_id == neighbor_id), None)
+    assert neighbor is not None
+    assert neighbor.roof_surfaces is not None
+    assert len(neighbor.roof_surfaces) == 6
 
 
 # --- _compute_building_orientation tests ---

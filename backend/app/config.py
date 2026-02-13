@@ -13,10 +13,6 @@ class Settings(BaseSettings):
     rivm_gcn_wms_base: str = "https://data.rivm.nl/geo/gcn/wms"
     climate_atlas_wms_base: str = "https://maps1.klimaatatlas.net/geoserver/ows"
     climate_atlas_layers_index: str = "https://maps1.klimaatatlas.net/geoserver/rest/layers.json"
-    mapillary_graph_base: str = "https://graph.mapillary.com"
-    mapillary_access_token: str | None = None
-    mapillary_search_radius_m: int = 60
-    mapillary_max_results: int = 30
 
     # Redis
     redis_url: str = "redis://localhost:6379"
@@ -43,9 +39,12 @@ class Settings(BaseSettings):
     cache_ttl_neighborhood: int = 2592000  # 30 days
     cache_ttl_wms_tile: int = 86400  # 24 hours
     cache_ttl_tier_b: int = 604800  # 7 days
-    cache_ttl_mapillary: int = 86400  # 24 hours
 
-    model_config = {"env_prefix": "BUURT_", "env_file": ".env"}
+    # Load env vars whether uvicorn is started from repo root or backend/.
+    model_config = {
+        "env_prefix": "BUURT_",
+        "env_file": (".env", "backend/.env"),
+    }
 
 
 settings = Settings()
