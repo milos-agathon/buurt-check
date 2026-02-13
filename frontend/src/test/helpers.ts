@@ -9,6 +9,7 @@ import type {
   BuildingFactsResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
+  PropertyWarningsResponse,
   RiskComparisonsResponse,
   RiskCardsResponse,
   SunlightResult,
@@ -257,6 +258,30 @@ export function makeNeighborhoodStatsResponse(
       distance_to_supermarket_km: { value: 0.3, unit: 'km', available: true },
       urbanization: 'very_urban',
     },
+    ...overrides,
+  };
+}
+
+export function makePropertyWarningsResponse(
+  overrides: Partial<PropertyWarningsResponse> = {},
+): PropertyWarningsResponse {
+  return {
+    address_id: 'vbo-123',
+    attention_summary: {
+      flag_count: 0,
+      flags: [],
+      risk_categories_assessed: 4,
+      risk_categories_total: 4,
+    },
+    foundation_risk: {
+      level: 'low',
+      construction_year: 2005,
+      soil_type: 'zand',
+      messages: [],
+    },
+    erfpacht: { detected: false, messages: [] },
+    vve: { is_apartment: false, messages: [] },
+    asbestos: { flagged: false, messages: [] },
     ...overrides,
   };
 }
