@@ -16,6 +16,7 @@ import { LayoutGroup } from 'framer-motion';
 import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
 import { SkeletonCard, SkeletonGrid, SkeletonLine } from './components/SkeletonCard';
+import { hapticTap, hapticSuccess } from './utils/haptic';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
 import ShortlistScreen from './components/ShortlistScreen';
@@ -218,6 +219,7 @@ function App() {
   }, []);
 
   const handleBookmark = useCallback(() => {
+    hapticTap();
     if (!address?.adresseerbaar_object_id) return;
     const vboId = address.adresseerbaar_object_id;
     if (isInShortlist(vboId)) {
@@ -266,6 +268,7 @@ function App() {
   }, [showToast, t]);
 
   const handleTabChange = useCallback((tab: TabId) => {
+    hapticTap();
     setActiveTab(tab);
     if (tab === 'search' || tab === 'briefing') {
       setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
@@ -834,7 +837,7 @@ function App() {
           addition={address.addition ?? undefined}
           shadowSnapshots={shadowSnapshots}
           onGenerateStart={() => showToast(t('toast.exportStarted'))}
-          onGenerateSuccess={() => showToast(t('toast.exportReady'))}
+          onGenerateSuccess={() => { hapticSuccess(); showToast(t('toast.exportReady')); }}
           onGenerateError={() => showToast(t('export.error'))}
         />
       )}
