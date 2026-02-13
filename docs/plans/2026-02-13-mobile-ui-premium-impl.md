@@ -1,20 +1,74 @@
-# Mobile UI Premium — Implementation Plan
+# Mobile UI Premium — Implementation Plan (Revision 4)
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Elevate buurt-check's mobile UX to Apple-tier native feel via gesture-driven bottom sheet, skeleton loading, touch target compliance, press states, spring physics, and shared element transitions.
 
-**Architecture:** Three-tier rollout. Tier 1 (structural): bottom sheet rewrite, skeleton loading to replace full-screen blocker, 44px touch targets. Tier 2 (perception): press states via usePressable hook + Framer Motion whileTap, spring physics on 4 key transitions, shared element risk tile expansion. Tier 3: deferred. Each tier ends with a commit + quality gate.
+**Architecture:** Three-tier rollout. Tier 1 (structural): gesture-driven DossierSheet with handle-only drag + velocity thresholds, skeleton loading to replace full-screen blocker, 44px touch targets. Tier 2 (perception): press states via Framer Motion `whileTap` (components) + `usePressable` hook (non-motion elements), spring physics on 4 key transitions, shared element risk tile → detail expansion. Tier 3: deferred. Each tier ends with a commit + quality gate. **3-tab navigation preserved** (Search, Briefing, Saved) per CLAUDE.md architectural contract.
 
-**Tech Stack:** React 18, TypeScript, Framer Motion (~33KB gzip), plain CSS tokens, Vitest + Testing Library.
+**Tech Stack:** React 19, TypeScript, Framer Motion (~33KB gzip), plain CSS tokens, Vitest + Testing Library.
 
 **Design spec:** `docs/plans/2026-02-13-mobile-ui-premium-design.md`
 **UI principles:** `docs/ui-principles.md`
-**Test baselines:** Frontend 347 Vitest, Backend 288 pytest. Must maintain or increase.
+
+**Test baselines (verified 2026-02-13, all green):**
+- Frontend: 338 pass (0 fail)
+- Backend: 321 pass non-live (0 fail), 9 deselected as live
+- Ruff: all checks passed
+- Build: passes
+
+**Revision 4 changes:** Addresses 12 findings from Revision 3 assessment:
+1. Baselines updated to actual current state: 338 frontend, 321 backend — all green (R3-Finding 1,2)
+2. Task 0 reduced to verify-only (no code changes — i18n keys and metrics already fixed) (R3-Finding 1,2)
+3. 3-tab navigation preserved per CLAUDE.md (Search/Briefing/Saved) — no tab removal (R3-Finding 3)
+4. T+0 timing fixed: `setActiveScreen('dossier')` + `setSheetSnap('peek')` moved BEFORE `lookupAddress()` (R3-Finding 4)
+5. Drag restricted to handle only — `touch-action: none` + `drag="y"` only on handle, content div scrolls normally (R3-Finding 5)
+6. Z-index: DossierSheet at 40 (below TabBar at 50) so tabs remain accessible (R3-Finding 6)
+7. usePressable applied to non-motion elements (bookmark, shortlist remove); whileTap for motion components (R3-Finding 7)
+8. Language toggle: explicit `min-height: 44px` added (R3-Finding 8)
+9. RiskDetailView CSS: clarified — keep `position: fixed; inset: 0` as final animated state (R3-Finding 9)
+10. Tab pill: explicit refactor from `::before` pseudo-element to `<motion.div>` DOM element (R3-Finding 10)
+11. File inventory corrected: 13 new files (R3-Finding 11)
+12. Backend baseline: 321 throughout (R3-Finding 12)
 
 ---
 
-## Pre-Flight: Install Framer Motion
+## Pre-Flight Phase 0: Verify Green Baseline
+
+### Task 0: Verify all tests pass (no code changes)
+
+All i18n keys and metrics wiring already exist in the codebase. This task only verifies the baseline before feature work begins. **Do NOT modify any files.**
+
+**Step 1: Run frontend tests**
+
+```powershell
+cd frontend; npx vitest run 2>&1 | Select-Object -Last 10
+```
+
+Expected: 338 pass (0 fail).
+
+**Step 2: Run backend tests**
+
+```powershell
+cd backend; python -m pytest -m "not live" -q 2>&1 | Select-Object -Last 10
+```
+
+Expected: 321 pass (0 fail), 9 deselected.
+
+**Step 3: Run build + lint**
+
+```powershell
+cd frontend; npm run build
+cd ..\backend; ruff check app/ tests/
+```
+
+Expected: Both pass. Record exact counts as baseline for quality gates.
+
+**If any test fails**, investigate and fix before proceeding. Do NOT proceed with feature work on a red baseline.
+
+---
+
+## Pre-Flight Phase 1: Install Framer Motion
 
 ### Task 1: Add framer-motion dependency
 
@@ -25,9 +79,8 @@
 
 **Step 1: Install framer-motion**
 
-Run:
-```bash
-cd frontend && npm install framer-motion
+```powershell
+cd frontend; npm install framer-motion
 ```
 
 **Step 2: Add to vendor chunk in vite.config.ts**
@@ -35,7 +88,7 @@ cd frontend && npm install framer-motion
 In `frontend/vite.config.ts`, find the `manualChunks` object and add `framer-motion` to the react vendor chunk:
 
 ```typescript
-// Before:
+// Before (line ~37):
 'vendor-react': ['react', 'react-dom', 'react-i18next', 'i18next'],
 
 // After:
@@ -49,16 +102,16 @@ In `frontend/src/test/setup.ts`, add after the existing `matchMedia` mock:
 ```typescript
 import { createElement } from 'react';
 
-// Mock framer-motion for tests — renders motion.div as plain div, etc.
+// Mock framer-motion — renders motion.div as plain div, etc.
 vi.mock('framer-motion', () => {
   const motion = new Proxy({} as Record<string, unknown>, {
     get: (_target, prop: string) => {
       const Component = ({ children, ...props }: Record<string, unknown> & { children?: React.ReactNode }) => {
-        // Strip framer-motion-specific props, pass rest to DOM element
         const {
           layoutId: _a, initial: _b, animate: _c, exit: _d, transition: _e,
           whileTap: _f, whileHover: _g, drag: _h, dragConstraints: _i,
-          onDragEnd: _j, variants: _k, layout: _l, style,
+          onDragEnd: _j, variants: _k, layout: _l, onAnimationStart: _m,
+          onAnimationComplete: _n, style,
           ...domProps
         } = props;
         return createElement(prop, { ...domProps, style }, children);
@@ -80,21 +133,19 @@ vi.mock('framer-motion', () => {
 
 **Step 4: Verify tests still pass**
 
-Run:
-```bash
-cd frontend && npx vitest run
+```powershell
+cd frontend; npx vitest run 2>&1 | Select-Object -Last 10
 ```
 
-Expected: All 347 tests pass. The mock ensures framer-motion imports don't break existing tests.
+Expected: Same green count as Task 0 baseline (338 pass).
 
-**Step 5: Verify build succeeds**
+**Step 5: Verify build and record bundle sizes**
 
-Run:
-```bash
-cd frontend && npm run build
+```powershell
+cd frontend; npm run build
 ```
 
-Expected: Build succeeds. Check that `vendor-react` chunk includes framer-motion.
+Expected: Build succeeds. `vendor-react` chunk grows ~33KB gzip.
 
 **Step 6: Commit**
 
@@ -105,7 +156,7 @@ git commit -m "chore: add framer-motion dependency with test mock and vendor chu
 
 ---
 
-## Tier 1A: Spring Config Constants
+## Tier 1A: Gesture-Driven Bottom Sheet
 
 ### Task 2: Create spring configuration file
 
@@ -150,7 +201,9 @@ describe('Spring configurations', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd frontend && npx vitest run src/config/springs.test.ts`
+```powershell
+cd frontend; npx vitest run src/config/springs.test.ts
+```
 Expected: FAIL — module not found.
 
 **Step 3: Write implementation**
@@ -160,10 +213,7 @@ Create `frontend/src/config/springs.ts`:
 ```typescript
 /**
  * Named spring animation configs for Framer Motion.
- * Each config has a distinct physical feel tuned for its interaction.
- *
- * Tune empirically via the spring tuner (long-press version in Settings).
- * Update ONE constant here — every animation updates.
+ * All Framer Motion transitions in this app MUST use these constants.
  */
 
 export const SPRING_SHEET = {
@@ -193,7 +243,9 @@ export const SPRING_TAB = {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd frontend && npx vitest run src/config/springs.test.ts`
+```powershell
+cd frontend; npx vitest run src/config/springs.test.ts
+```
 Expected: PASS (4 tests).
 
 **Step 5: Commit**
@@ -205,609 +257,918 @@ git commit -m "feat: add named spring animation constants"
 
 ---
 
-## Tier 1B: Skeleton Loading
+### Task 3: Create DossierSheet component with gesture drag
 
-### Task 3: Add skeleton design tokens
+This is the highest-risk structural task. The sheet is the architectural spine. It replaces the current fixed-position dossier layout with a gesture-driven bottom sheet that can snap to 4 positions.
 
 **Files:**
-- Modify: `frontend/src/styles/tokens.css` — add skeleton tokens after line ~165 (transition section)
+- Create: `frontend/src/components/DossierSheet.tsx`
+- Create: `frontend/src/components/DossierSheet.css`
+- Create: `frontend/src/components/DossierSheet.test.tsx`
 
-**Step 1: Add tokens**
+**Step 1: Write the test**
 
-In `frontend/src/styles/tokens.css`, find the transition tokens section (around line 162-165) and add after it:
+Create `frontend/src/components/DossierSheet.test.tsx`:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import DossierSheet from './DossierSheet';
+
+describe('DossierSheet', () => {
+  const defaultProps = {
+    snap: 'half' as const,
+    onSnapChange: vi.fn(),
+    children: <div data-testid="sheet-content">Content</div>,
+  };
+
+  it('renders children', () => {
+    render(<DossierSheet {...defaultProps} />);
+    expect(screen.getByTestId('sheet-content')).toBeInTheDocument();
+  });
+
+  it('renders drag handle with 44px hit area', () => {
+    render(<DossierSheet {...defaultProps} />);
+    const handle = screen.getByTestId('sheet-handle');
+    expect(handle).toBeInTheDocument();
+    // 44px min-height enforced via CSS .dossier-sheet__handle
+  });
+
+  it('renders as hidden when snap is hidden', () => {
+    render(<DossierSheet {...defaultProps} snap="hidden" />);
+    const sheet = screen.getByTestId('dossier-sheet');
+    expect(sheet).toBeInTheDocument();
+  });
+
+  it('renders at peek when snap is peek', () => {
+    render(<DossierSheet {...defaultProps} snap="peek" />);
+    expect(screen.getByTestId('dossier-sheet')).toBeInTheDocument();
+    // Content overflow hidden at peek (CSS class)
+  });
+
+  it('renders backdrop at full snap', () => {
+    render(<DossierSheet {...defaultProps} snap="full" />);
+    expect(screen.getByTestId('sheet-backdrop')).toBeInTheDocument();
+  });
+
+  it('does not render backdrop at half snap', () => {
+    render(<DossierSheet {...defaultProps} snap="half" />);
+    expect(screen.queryByTestId('sheet-backdrop')).not.toBeInTheDocument();
+  });
+
+  it('calls onSnapChange("half") on Escape key at full snap', () => {
+    const onSnapChange = vi.fn();
+    render(<DossierSheet {...defaultProps} snap="full" onSnapChange={onSnapChange} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onSnapChange).toHaveBeenCalledWith('half');
+  });
+
+  it('does not call onSnapChange on Escape at half snap', () => {
+    const onSnapChange = vi.fn();
+    render(<DossierSheet {...defaultProps} snap="half" onSnapChange={onSnapChange} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onSnapChange).not.toHaveBeenCalled();
+  });
+
+  it('handle has role=separator with aria-label', () => {
+    render(<DossierSheet {...defaultProps} />);
+    const handle = screen.getByTestId('sheet-handle');
+    expect(handle).toHaveAttribute('role', 'separator');
+    expect(handle).toHaveAttribute('aria-label');
+  });
+});
+```
+
+**Step 2: Run test to verify it fails**
+
+```powershell
+cd frontend; npx vitest run src/components/DossierSheet.test.tsx
+```
+Expected: FAIL — module not found.
+
+**Step 3: Write CSS**
+
+Create `frontend/src/components/DossierSheet.css`:
 
 ```css
-  /* ── Skeleton Loading ── */
+.dossier-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-bg);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  box-shadow: var(--elevation-3);
+  z-index: 40; /* Below TabBar (z-index: 50) so tabs remain accessible */
+  will-change: transform;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.dossier-sheet__handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  cursor: grab;
+  flex-shrink: 0;
+  touch-action: none; /* Only the handle gets touch-action: none — content scrolls normally */
+}
+
+.dossier-sheet__handle:active {
+  cursor: grabbing;
+}
+
+.dossier-sheet__pill {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+}
+
+.dossier-sheet__content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.dossier-sheet__content--peek {
+  overflow: hidden;
+}
+
+.dossier-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  z-index: 49;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dossier-sheet {
+    transition: none;
+  }
+}
+```
+
+**Step 4: Write implementation with gesture drag**
+
+Create `frontend/src/components/DossierSheet.tsx`:
+
+```typescript
+import { useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { SPRING_SHEET } from '../config/springs';
+import './DossierSheet.css';
+
+export type SheetSnap = 'hidden' | 'peek' | 'half' | 'full';
+
+interface DossierSheetProps {
+  snap: SheetSnap;
+  onSnapChange: (snap: SheetSnap) => void;
+  children: React.ReactNode;
+}
+
+const SNAP_HEIGHTS: Record<SheetSnap, string> = {
+  hidden: '0px',
+  peek: '140px',
+  half: '50vh',
+  full: '90vh',
+};
+
+// Velocity threshold for fast-swipe detection (px/s)
+const VELOCITY_THRESHOLD = 500;
+// Distance threshold for slow-drag snap change (px)
+const DRAG_THRESHOLD = 100;
+
+export default function DossierSheet({ snap, onSnapChange, children }: DossierSheetProps) {
+  // Escape key at full -> half
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && snap === 'full') {
+        onSnapChange('half');
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [snap, onSnapChange]);
+
+  // Gesture handler: velocity-first, then distance fallback
+  const handleDragEnd = useCallback(
+    (_: unknown, info: { velocity: { y: number }; offset: { y: number } }) => {
+      const vy = info.velocity.y;
+      const dy = info.offset.y;
+
+      // Fast swipe up -> expand one level (or go full)
+      if (vy < -VELOCITY_THRESHOLD) {
+        onSnapChange(snap === 'peek' ? 'half' : 'full');
+        return;
+      }
+      // Fast swipe down -> collapse one level (or go peek)
+      if (vy > VELOCITY_THRESHOLD) {
+        onSnapChange(snap === 'full' ? 'half' : 'peek');
+        return;
+      }
+
+      // Slow drag: snap based on drag distance
+      if (dy < -DRAG_THRESHOLD) {
+        onSnapChange(snap === 'peek' ? 'half' : 'full');
+      } else if (dy > DRAG_THRESHOLD) {
+        onSnapChange(snap === 'full' ? 'half' : 'peek');
+      }
+      // If drag < threshold, spring back to current snap (no-op)
+    },
+    [snap, onSnapChange],
+  );
+
+  if (snap === 'hidden') {
+    return <div data-testid="dossier-sheet" style={{ display: 'none' }} />;
+  }
+
+  return (
+    <>
+      <AnimatePresence>
+        {snap === 'full' && (
+          <motion.div
+            className="dossier-sheet__backdrop"
+            data-testid="sheet-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => onSnapChange('half')}
+          />
+        )}
+      </AnimatePresence>
+      <motion.div
+        data-testid="dossier-sheet"
+        className="dossier-sheet"
+        animate={{ height: SNAP_HEIGHTS[snap] }}
+        transition={SPRING_SHEET}
+      >
+        {/* Drag is on the HANDLE only — content div scrolls normally */}
+        <motion.div
+          className="dossier-sheet__handle"
+          data-testid="sheet-handle"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Drag to resize"
+          drag="y"
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={0.1}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="dossier-sheet__pill" />
+        </motion.div>
+        <div className={`dossier-sheet__content${snap === 'peek' ? ' dossier-sheet__content--peek' : ''}`}>
+          {children}
+        </div>
+      </motion.div>
+    </>
+  );
+}
+```
+
+Key gesture details:
+- **Drag on handle only:** `drag="y"` is on `.dossier-sheet__handle`, NOT the whole sheet. Content div has `overflow-y: auto` and scrolls normally. This prevents the drag/scroll conflict (R3-Finding 5).
+- **Velocity detection:** `|vy| > 500 px/s` triggers fast-swipe snap change
+- **Distance detection:** `|dy| > 100 px` triggers slow-drag snap change
+- **Spring-back:** If drag < 100px and velocity < 500, sheet springs back (Framer Motion handles this via `dragConstraints`)
+- **Backdrop click:** At full snap, clicking backdrop collapses to half
+- **Z-index: 40** — below TabBar (z-index: 50) so tabs remain accessible at all snap positions (R3-Finding 6)
+
+**Step 5: Run test to verify it passes**
+
+```powershell
+cd frontend; npx vitest run src/components/DossierSheet.test.tsx
+```
+Expected: PASS (9 tests).
+
+**Step 6: Run build**
+
+```powershell
+cd frontend; npm run build
+```
+Expected: Build succeeds.
+
+**Step 7: Commit**
+
+```bash
+git add frontend/src/components/DossierSheet.tsx frontend/src/components/DossierSheet.css frontend/src/components/DossierSheet.test.tsx
+git commit -m "feat: add DossierSheet with gesture drag, velocity thresholds, 4 snap points"
+```
+
+---
+
+### Task 4: Wire DossierSheet into App.tsx (3-tab navigation preserved)
+
+**IMPORTANT: Keep all 3 tabs** (Search, Briefing, Saved). CLAUDE.md specifies 3-tab navigation as established architecture. Do NOT modify TabBar's tab count, TabId type, or tab array. (TabBar.tsx IS modified later in Tasks 11 and 15 for whileTap and pill refactor — those changes don't affect tab count.)
+
+**Files:**
+- Modify: `frontend/src/App.tsx` — add sheetSnap state, wrap dossier in DossierSheet
+- Modify: `frontend/src/components/BuildingFootprintMap.tsx` — add optional `zoom` prop
+
+**Step 1: Add zoom prop to BuildingFootprintMap**
+
+In `frontend/src/components/BuildingFootprintMap.tsx`:
+- Add `zoom?: number` to the props interface (after line 10)
+- Change `zoom={18}` (line 21) to `zoom={zoom ?? 18}`
+
+**Step 2: Update App.tsx**
+
+In `frontend/src/App.tsx`, make these changes:
+
+**2a. Add import for DossierSheet** (after line 19):
+```typescript
+import DossierSheet from './components/DossierSheet';
+import type { SheetSnap } from './components/DossierSheet';
+```
+
+**2b. Add sheetSnap state** (after line 165, near other state declarations):
+```typescript
+const [sheetSnap, setSheetSnap] = useState<SheetSnap>('hidden');
+```
+
+**2c. Update handleAddressSelect** (line 306+):
+Move `setActiveScreen('dossier')` and add `setSheetSnap('peek')` **BEFORE** the `lookupAddress()` call. This is the T+0 timing fix (R3-Finding 4):
+
+```typescript
+// T+0: immediately show dossier screen with sheet at peek
+setActiveScreen('dossier');
+setSheetSnap('peek');
+setPendingDisplayName(suggestion.display_name); // from Task 5
+
+// Then resolve full address (async, ~200ms)
+const resolved = await lookupAddress(suggestion.id);
+```
+
+**2d. Wrap dossier content in DossierSheet** (in the render, around line 670-731):
+Replace the `showLoadingScreen` ternary with the DossierSheet wrapping the dossier content. The `BuildingFootprintMap` moves above the sheet (visible behind it), and dossier cards go inside the sheet.
+
+The structure becomes:
+```tsx
+{(activeScreen === 'search' || activeScreen === 'dossier') && (
+  <>
+    <AddressSearch onSelect={handleAddressSelect} />
+    {error && <p className="app__error">{error}</p>}
+
+    {/* Map visible behind the sheet */}
+    {address?.latitude && address?.longitude && (
+      <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+        <BuildingFootprintMap
+          lat={address.latitude}
+          lng={address.longitude}
+          footprint={buildingResponse?.building?.footprint_geojson}
+          zoom={15}
+        />
+      </Suspense>
+    )}
+
+    {/* DossierSheet slides up over the map */}
+    <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
+      {address && buildingResponse && (
+        <AddressHeader ... />
+      )}
+      {summaryPills.length > 0 && <SummaryStrip ... />}
+      {/* ... rest of dossier cards ... */}
+    </DossierSheet>
+  </>
+)}
+```
+
+**Step 3: Run tests**
+
+```powershell
+cd frontend; npx vitest run
+```
+
+Expected: >= 338 pass (new DossierSheet tests add to total). No tab count changes, so no regressions from TabBar.
+
+**Step 4: Run build**
+
+```powershell
+cd frontend; npm run build
+```
+Expected: Build succeeds (TypeScript catches any dangling references).
+
+**Step 5: Commit**
+
+```bash
+git add frontend/src/App.tsx frontend/src/components/BuildingFootprintMap.tsx
+git commit -m "feat: wire DossierSheet into App with T+0 reveal (3-tab navigation preserved)"
+```
+
+---
+
+## Tier 1B: Skeleton Loading
+
+### Task 5: Replace LoadingScreen with skeleton loading
+
+The current flow blocks the entire screen with `LoadingScreen` (line 672-677 of App.tsx). Replace with inline skeleton cards that appear immediately when an address is selected.
+
+**Key timing insight (R3-Finding 4):** `suggestion.display_name` is available at T+0 (passed to `handleAddressSelect`). The resolved `address` object is only available after `lookupAddress()` resolves (~200ms). The skeleton must use `suggestion.display_name`, NOT `address.display_name`. Task 4 already moves `setActiveScreen('dossier')` + `setSheetSnap('peek')` BEFORE `lookupAddress()`, so the skeleton is visible immediately.
+
+**Files:**
+- Create: `frontend/src/components/SkeletonCard.tsx`
+- Create: `frontend/src/components/SkeletonCard.css`
+- Create: `frontend/src/components/SkeletonCard.test.tsx`
+- Modify: `frontend/src/styles/tokens.css` — add skeleton tokens
+- Modify: `frontend/src/App.tsx` — remove LoadingScreen, add skeleton states
+
+**Step 1: Add skeleton tokens to tokens.css**
+
+In `frontend/src/styles/tokens.css`, add inside the `:root` block (before the `/* Dark Mode */` section at line 177):
+
+```css
+  /* ── Skeleton ── */
   --color-skeleton: var(--color-surface-alt);
   --color-skeleton-shimmer: rgba(255, 255, 255, 0.6);
   --skeleton-duration: 1.5s;
 ```
 
-In the `[data-theme="dark"]` section, add:
-
+Add dark-mode overrides inside the `[data-theme="dark"]` block:
 ```css
-  --color-skeleton: #1A2535;
-  --color-skeleton-shimmer: rgba(255, 255, 255, 0.06);
+  --color-skeleton: rgba(255, 255, 255, 0.08);
+  --color-skeleton-shimmer: rgba(255, 255, 255, 0.04);
 ```
 
-**Step 2: Verify build**
+**Step 2: Write skeleton test**
 
-Run: `cd frontend && npm run build`
-Expected: Build succeeds.
-
-**Step 3: Commit**
-
-```bash
-git add frontend/src/styles/tokens.css
-git commit -m "feat: add skeleton loading design tokens"
-```
-
-### Task 4: Create Skeleton primitive component
-
-**Files:**
-- Create: `frontend/src/components/ui/Skeleton.tsx`
-- Create: `frontend/src/components/ui/Skeleton.css`
-- Create: `frontend/src/components/ui/Skeleton.test.tsx`
-
-**Step 1: Write the test**
-
-Create `frontend/src/components/ui/Skeleton.test.tsx`:
+Create `frontend/src/components/SkeletonCard.test.tsx`:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import Skeleton from './Skeleton';
+import { SkeletonCard, SkeletonLine, SkeletonGrid } from './SkeletonCard';
 
-describe('Skeleton', () => {
-  it('renders with default dimensions', () => {
-    render(<Skeleton data-testid="skel" />);
-    const el = screen.getByTestId('skel');
-    expect(el).toBeInTheDocument();
-    expect(el.className).toContain('skeleton');
+describe('SkeletonCard', () => {
+  it('renders with shimmer animation class', () => {
+    render(<SkeletonCard data-testid="skel" />);
+    expect(screen.getByTestId('skel')).toHaveClass('skeleton-card');
   });
 
-  it('applies custom width and height', () => {
-    render(<Skeleton width="200px" height="40px" data-testid="skel" />);
-    const el = screen.getByTestId('skel');
-    expect(el.style.width).toBe('200px');
-    expect(el.style.height).toBe('40px');
+  it('renders children inside', () => {
+    render(<SkeletonCard><span data-testid="child">hi</span></SkeletonCard>);
+    expect(screen.getByTestId('child')).toBeInTheDocument();
+  });
+});
+
+describe('SkeletonLine', () => {
+  it('renders with width prop', () => {
+    render(<SkeletonLine width="60%" data-testid="line" />);
+    const el = screen.getByTestId('line');
+    expect(el).toHaveStyle({ width: '60%' });
   });
 
-  it('applies custom border radius', () => {
-    render(<Skeleton borderRadius="50%" data-testid="skel" />);
-    const el = screen.getByTestId('skel');
-    expect(el.style.borderRadius).toBe('50%');
+  it('defaults to 100% width', () => {
+    render(<SkeletonLine data-testid="line" />);
+    const el = screen.getByTestId('line');
+    expect(el).toHaveStyle({ width: '100%' });
   });
+});
 
-  it('respects prefers-reduced-motion via CSS class', () => {
-    render(<Skeleton data-testid="skel" />);
-    const el = screen.getByTestId('skel');
-    expect(el.className).toContain('skeleton');
-    // Animation is CSS-only, so we just verify the class exists
+describe('SkeletonGrid', () => {
+  it('renders 4 skeleton tiles', () => {
+    render(<SkeletonGrid />);
+    const tiles = screen.getAllByTestId('skeleton-tile');
+    expect(tiles).toHaveLength(4);
   });
 });
 ```
 
-**Step 2: Run test to verify it fails**
+**Step 3: Write skeleton implementation**
 
-Run: `cd frontend && npx vitest run src/components/ui/Skeleton.test.tsx`
-Expected: FAIL — module not found.
-
-**Step 3: Write implementation**
-
-Create `frontend/src/components/ui/Skeleton.css`:
+Create `frontend/src/components/SkeletonCard.css`:
 
 ```css
-.skeleton {
-  background: var(--color-skeleton);
-  background-image: linear-gradient(
-    90deg,
-    var(--color-skeleton) 25%,
-    var(--color-skeleton-shimmer) 50%,
-    var(--color-skeleton) 75%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer var(--skeleton-duration) ease-in-out infinite;
+.skeleton-card {
+  background: var(--color-surface);
   border-radius: var(--radius-card);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-base);
+  margin-bottom: var(--space-md);
 }
 
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+.skeleton-line {
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-skeleton);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--color-skeleton-shimmer), transparent);
+  animation: shimmer var(--skeleton-duration) infinite;
+}
+
+.skeleton-line--lg {
+  height: 20px;
+}
+
+.skeleton-line + .skeleton-line {
+  margin-top: var(--space-sm);
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.skeleton-tile {
+  aspect-ratio: 1;
+  border-radius: var(--radius-card);
+  background: var(--color-skeleton);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--color-skeleton-shimmer), transparent);
+  animation: shimmer var(--skeleton-duration) infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton {
+  .skeleton-line::after,
+  .skeleton-tile::after {
     animation: none;
-    background-image: none;
   }
 }
 ```
 
-Create `frontend/src/components/ui/Skeleton.tsx`:
+Create `frontend/src/components/SkeletonCard.tsx`:
 
 ```typescript
-import './Skeleton.css';
+import './SkeletonCard.css';
 
-interface SkeletonProps {
+interface SkeletonCardProps {
+  children?: React.ReactNode;
+  'data-testid'?: string;
+}
+
+export function SkeletonCard({ children, ...props }: SkeletonCardProps) {
+  return (
+    <div className="skeleton-card" {...props}>
+      {children || (
+        <>
+          <SkeletonLine width="40%" className="skeleton-line--lg" />
+          <SkeletonLine width="70%" />
+          <SkeletonLine width="55%" />
+        </>
+      )}
+    </div>
+  );
+}
+
+interface SkeletonLineProps {
   width?: string;
-  height?: string;
-  borderRadius?: string;
   className?: string;
   'data-testid'?: string;
 }
 
-export default function Skeleton({
-  width = '100%',
-  height = '20px',
-  borderRadius,
-  className = '',
-  'data-testid': testId,
-}: SkeletonProps) {
+export function SkeletonLine({ width = '100%', className = '', ...props }: SkeletonLineProps) {
+  return <div className={`skeleton-line ${className}`} style={{ width }} {...props} />;
+}
+
+export function SkeletonGrid() {
   return (
-    <div
-      className={`skeleton ${className}`.trim()}
-      style={{ width, height, borderRadius }}
-      data-testid={testId}
-      aria-hidden="true"
-    />
-  );
-}
-```
-
-**Step 4: Run test to verify it passes**
-
-Run: `cd frontend && npx vitest run src/components/ui/Skeleton.test.tsx`
-Expected: PASS (4 tests).
-
-**Step 5: Commit**
-
-```bash
-git add frontend/src/components/ui/Skeleton.tsx frontend/src/components/ui/Skeleton.css frontend/src/components/ui/Skeleton.test.tsx
-git commit -m "feat: add Skeleton primitive component with shimmer animation"
-```
-
-### Task 5: Create RiskTileSkeleton component
-
-**Files:**
-- Create: `frontend/src/components/RiskTileSkeleton.tsx`
-- Create: `frontend/src/components/RiskTileSkeleton.css`
-- Create: `frontend/src/components/RiskTileSkeleton.test.tsx`
-
-**Step 1: Write the test**
-
-Create `frontend/src/components/RiskTileSkeleton.test.tsx`:
-
-```typescript
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import RiskTileSkeleton from './RiskTileSkeleton';
-
-describe('RiskTileSkeleton', () => {
-  it('renders skeleton placeholders', () => {
-    render(<RiskTileSkeleton data-testid="risk-skel" />);
-    expect(screen.getByTestId('risk-skel')).toBeInTheDocument();
-  });
-
-  it('matches RiskTile min-height (160px)', () => {
-    render(<RiskTileSkeleton data-testid="risk-skel" />);
-    const el = screen.getByTestId('risk-skel');
-    expect(el.className).toContain('risk-tile-skeleton');
-    // min-height enforced via CSS class
-  });
-
-  it('is hidden from screen readers', () => {
-    render(<RiskTileSkeleton data-testid="risk-skel" />);
-    const el = screen.getByTestId('risk-skel');
-    expect(el.getAttribute('aria-hidden')).toBe('true');
-  });
-});
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `cd frontend && npx vitest run src/components/RiskTileSkeleton.test.tsx`
-Expected: FAIL.
-
-**Step 3: Write implementation**
-
-Create `frontend/src/components/RiskTileSkeleton.css`:
-
-```css
-.risk-tile-skeleton {
-  min-height: 160px;
-  padding: var(--space-base);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.risk-tile-skeleton__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-```
-
-Create `frontend/src/components/RiskTileSkeleton.tsx`:
-
-```typescript
-import Skeleton from './ui/Skeleton';
-import './RiskTileSkeleton.css';
-
-interface RiskTileSkeletonProps {
-  'data-testid'?: string;
-}
-
-export default function RiskTileSkeleton({ 'data-testid': testId }: RiskTileSkeletonProps) {
-  return (
-    <div className="risk-tile-skeleton" aria-hidden="true" data-testid={testId}>
-      <div className="risk-tile-skeleton__header">
-        <Skeleton width="60%" height="16px" />
-        <Skeleton width="48px" height="20px" borderRadius="10px" />
-      </div>
-      <Skeleton width="64px" height="40px" borderRadius="4px" />
-      <Skeleton width="100%" height="6px" borderRadius="3px" />
-      <Skeleton width="80%" height="14px" />
+    <div className="skeleton-grid">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="skeleton-tile" data-testid="skeleton-tile" />
+      ))}
     </div>
   );
 }
 ```
 
-**Step 4: Run test to verify it passes**
-
-Run: `cd frontend && npx vitest run src/components/RiskTileSkeleton.test.tsx`
-Expected: PASS (3 tests).
-
-**Step 5: Commit**
-
-```bash
-git add frontend/src/components/RiskTileSkeleton.tsx frontend/src/components/RiskTileSkeleton.css frontend/src/components/RiskTileSkeleton.test.tsx
-git commit -m "feat: add RiskTileSkeleton matching RiskTile dimensions"
-```
-
-### Task 6: Create DossierSkeleton composite
-
-**Files:**
-- Create: `frontend/src/components/DossierSkeleton.tsx`
-- Create: `frontend/src/components/DossierSkeleton.css`
-- Create: `frontend/src/components/DossierSkeleton.test.tsx`
-
-**Step 1: Write the test**
-
-Create `frontend/src/components/DossierSkeleton.test.tsx`:
-
-```typescript
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import DossierSkeleton from './DossierSkeleton';
-
-describe('DossierSkeleton', () => {
-  it('renders address skeleton when address provided', () => {
-    render(<DossierSkeleton address="Damrak 1, Amsterdam" />);
-    expect(screen.getByText('Damrak 1, Amsterdam')).toBeInTheDocument();
-  });
-
-  it('renders 4 risk tile skeletons', () => {
-    render(<DossierSkeleton address="Test" />);
-    const skeletons = screen.getAllByTestId(/risk-tile-skeleton/);
-    expect(skeletons).toHaveLength(4);
-  });
-
-  it('renders stats and tier-b skeleton sections', () => {
-    render(<DossierSkeleton address="Test" />);
-    expect(screen.getByTestId('stats-skeleton')).toBeInTheDocument();
-    expect(screen.getByTestId('tierb-skeleton')).toBeInTheDocument();
-  });
-
-  it('does not render 3D section skeleton', () => {
-    render(<DossierSkeleton address="Test" />);
-    expect(screen.queryByTestId('3d-skeleton')).not.toBeInTheDocument();
-  });
-});
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `cd frontend && npx vitest run src/components/DossierSkeleton.test.tsx`
-Expected: FAIL.
-
-**Step 3: Write implementation**
-
-Create `frontend/src/components/DossierSkeleton.css`:
-
-```css
-.dossier-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-  padding: var(--space-base);
-}
-
-.dossier-skeleton__address {
-  font: var(--type-h2);
-  color: var(--color-text);
-}
-
-.dossier-skeleton__summary {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.dossier-skeleton__risk-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-md);
-}
-
-@media (max-width: 374px) {
-  .dossier-skeleton__risk-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.dossier-skeleton__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-base);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-}
-```
-
-Create `frontend/src/components/DossierSkeleton.tsx`:
-
-```typescript
-import Skeleton from './ui/Skeleton';
-import RiskTileSkeleton from './RiskTileSkeleton';
-import './DossierSkeleton.css';
-
-interface DossierSkeletonProps {
-  address: string;
-}
-
-export default function DossierSkeleton({ address }: DossierSkeletonProps) {
-  return (
-    <div className="dossier-skeleton">
-      {/* Address header — real text, we already have it */}
-      <h2 className="dossier-skeleton__address">{address}</h2>
-
-      {/* Summary strip skeleton — 4 pill placeholders */}
-      <div className="dossier-skeleton__summary">
-        {[1, 2, 3, 4].map(i => (
-          <Skeleton key={i} width="72px" height="28px" borderRadius="14px" />
-        ))}
-      </div>
-
-      {/* Risk tiles skeleton — 2x2 grid */}
-      <div className="dossier-skeleton__risk-grid">
-        {[1, 2, 3, 4].map(i => (
-          <RiskTileSkeleton key={i} data-testid={`risk-tile-skeleton-${i}`} />
-        ))}
-      </div>
-
-      {/* Stats section skeleton */}
-      <div className="dossier-skeleton__section" data-testid="stats-skeleton">
-        <Skeleton width="50%" height="18px" />
-        <Skeleton width="100%" height="12px" />
-        <Skeleton width="100%" height="12px" />
-        <Skeleton width="80%" height="12px" />
-        <Skeleton width="100%" height="32px" borderRadius="4px" />
-      </div>
-
-      {/* Tier B section skeleton */}
-      <div className="dossier-skeleton__section" data-testid="tierb-skeleton">
-        <Skeleton width="40%" height="18px" />
-        <Skeleton width="100%" height="12px" />
-        <Skeleton width="60%" height="12px" />
-      </div>
-
-      {/* NO 3D section skeleton — 3D is opt-in per principle Section 7 */}
-    </div>
-  );
-}
-```
-
-**Step 4: Run test to verify it passes**
-
-Run: `cd frontend && npx vitest run src/components/DossierSkeleton.test.tsx`
-Expected: PASS (4 tests).
-
-**Step 5: Commit**
-
-```bash
-git add frontend/src/components/DossierSkeleton.tsx frontend/src/components/DossierSkeleton.css frontend/src/components/DossierSkeleton.test.tsx
-git commit -m "feat: add DossierSkeleton composite with risk grid and section placeholders"
-```
-
-### Task 7: Wire skeleton into App.tsx, remove LoadingScreen
-
-This is the highest-risk task. It replaces the full-screen loading blocker with progressive skeleton reveal.
-
-**Files:**
-- Modify: `frontend/src/App.tsx` — remove LoadingScreen import/state/render, add DossierSkeleton
-- Modify: `frontend/src/App.test.tsx` — update loading assertions
-- Delete: `frontend/src/components/LoadingScreen.tsx`
-- Delete: `frontend/src/components/LoadingScreen.css`
-- Delete: `frontend/src/components/LoadingScreen.test.tsx`
-- Delete: `frontend/src/components/BuildingAnimation.tsx`
-- Delete: `frontend/src/components/BuildingAnimation.css`
-- Delete: `frontend/src/components/BuildingAnimation.test.tsx`
-
-**Step 1: Modify App.tsx**
+**Step 4: Update App.tsx — remove LoadingScreen, add skeleton flow**
 
 In `frontend/src/App.tsx`:
 
-**1a. Remove LoadingScreen import (line 15):**
+**4a. Add a new state for the pending address display name** (near line 166):
 ```typescript
-// DELETE this line:
-import LoadingScreen from './components/LoadingScreen';
-
-// ADD this line in its place:
-import DossierSkeleton from './components/DossierSkeleton';
+const [pendingDisplayName, setPendingDisplayName] = useState<string | null>(null);
 ```
 
-**1b. Remove loading screen state variables (lines 166-169, 172):**
+**4b. Remove LoadingScreen-related state** (lines 166-169, 172):
+Delete these lines:
 ```typescript
-// DELETE these 4 lines:
+// DELETE these:
 const [showLoadingScreen, setShowLoadingScreen] = useState(false);
 const [loadingAddress, setLoadingAddress] = useState<string | null>(null);
 const [loadingProgressText, setLoadingProgressText] = useState<string | undefined>(undefined);
 const [loadingTone, setLoadingTone] = useState<'normal' | 'warning'>('normal');
-
-// DELETE this line:
 const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 ```
 
-**1c. Remove loading timeout cleanup useEffect (lines 189-193):**
+**4c. Remove LoadingScreen helper callbacks** (lines 200-221):
+Delete `setLoadingStage`, `showLoadingWarning`, `finishLoadingFlow` callbacks entirely.
+
+**4d. Remove the loadingTimeoutRef cleanup effect** (lines 189-193).
+
+**4e. Remove the LoadingScreen import** (line 15):
+Delete `import LoadingScreen from './components/LoadingScreen';`
+
+**4f. Add SkeletonCard import:**
 ```typescript
-// DELETE this block:
-useEffect(() => {
-  return () => {
-    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-  };
-}, []);
+import { SkeletonCard, SkeletonGrid } from './components/SkeletonCard';
 ```
 
-**1d. Remove loading helper callbacks (lines 200-221):**
+**4g. Update handleAddressSelect** (line 306+):
+At the top of `handleAddressSelect`, set the pending name immediately:
 ```typescript
-// DELETE these three callbacks entirely:
-// setLoadingStage (lines 200-203)
-// showLoadingWarning (lines 205-210)
-// finishLoadingFlow (lines 212-221)
+setPendingDisplayName(suggestion.display_name);
+```
+Remove all `setShowLoadingScreen`, `setLoadingAddress`, `setLoadingStage`, `showLoadingWarning`, `finishLoadingFlow` calls.
+Remove the `loadingTimeoutRef` setTimeout/clearTimeout blocks.
+Keep the `setLoading(true)`, `setActiveScreen('dossier')`, `setSheetSnap('peek')` flow.
+
+**4h. In the render, replace the `showLoadingScreen` ternary** (lines 672-677):
+Instead of `{showLoadingScreen ? <LoadingScreen ... /> : <content>}`, render the dossier content always, using skeleton cards when data is loading:
+
+Inside the DossierSheet (from Task 4), show skeleton or real content conditionally:
+```tsx
+<DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
+  {/* Address header: show pending name as skeleton, or real header */}
+  {loading && !buildingResponse && pendingDisplayName && (
+    <SkeletonCard>
+      <SkeletonLine width="70%" className="skeleton-line--lg" />
+      <SkeletonLine width="40%" />
+    </SkeletonCard>
+  )}
+
+  {address && buildingResponse && (
+    <AddressHeader ... />
+  )}
+
+  {/* Risk tiles: skeleton grid while loading */}
+  {loading && !riskCards && (
+    <SkeletonGrid />
+  )}
+
+  {/* Real risk tiles when loaded */}
+  {summaryPills.length > 0 && <SummaryStrip ... />}
+  {/* ... rest of dossier cards ... */}
+</DossierSheet>
 ```
 
-**1e. Simplify handleAddressSelect (lines 306-339):**
+**Step 5: Run tests**
 
-Replace the loading screen orchestration with immediate skeleton reveal:
-
-```typescript
-// In handleAddressSelect, REPLACE lines 307-339 with:
-setLoading(true);
-setError(null);
-setBuildingResponse(null);
-setNeighborhood3D(null);
-setNeighborhood3DLoading(false);
-setSurroundingLoading(false);
-setRiskCards(null);
-setRiskComparisons(null);
-setRiskLoading(false);
-setRiskError(false);
-setNeighborhoodStats(null);
-setNeighborhoodStatsLoading(false);
-setNeighborhoodStatsError(false);
-setTierBData(null);
-setTierBLoading(false);
-setTierBError(false);
-setSunlight(null);
-setSunlightUnavailable(false);
-setShadowSnapshots(null);
-setViewingQuestions(null);
-setActiveDetailCategory(null);
-setCheckedQuestions(new Set());
-const requestId = ++neighborhood3DRequestId.current;
+```powershell
+cd frontend; npx vitest run
 ```
 
-Also remove all `setLoadingStage(...)` and `showLoadingWarning(...)` calls in the async blocks below (lines ~352, 364, etc.). These are now no-ops since the callbacks are deleted.
+Expected: >= 338 pass. LoadingScreen.test.tsx tests will fail — they test the removed component. Fix by deleting them (Task 6).
 
-**1f. Replace render section (lines 670-831):**
+**Step 6: Run build**
 
-Replace the `showLoadingScreen ? <LoadingScreen .../> : <...>` conditional with:
+```powershell
+cd frontend; npm run build
+```
+Expected: Build succeeds (catches dangling imports to LoadingScreen).
 
-```typescript
-{/* Remove the showLoadingScreen ternary entirely. Always show the dossier content: */}
-<AddressSearch onSelect={handleAddressSelect} />
+**Step 7: Commit**
 
-{error && <p className="app__error">{error}</p>}
-
-{/* Show skeleton when loading is true but no data yet */}
-{loading && !buildingResponse && address && (
-  <DossierSkeleton address={address?.display_name ?? ''} />
-)}
-
-{/* Show real content when data arrives (existing code, unchanged) */}
-{address && buildingResponse && (
-  <AddressHeader ... />
-)}
-{/* ... rest of the dossier sections as-is ... */}
+```bash
+git add frontend/src/components/SkeletonCard.tsx frontend/src/components/SkeletonCard.css frontend/src/components/SkeletonCard.test.tsx frontend/src/styles/tokens.css frontend/src/App.tsx
+git commit -m "feat: add skeleton loading cards, wire into dossier flow"
 ```
 
-The key change: instead of `showLoadingScreen ? <LoadingScreen/> : <Content/>`, it's now `{loading && !buildingResponse && <DossierSkeleton/>}` followed by the real content sections which render when their data arrives.
+---
 
-**1g. Set screen to dossier immediately in handleAddressSelect:**
+### Task 6: Delete LoadingScreen and BuildingAnimation
 
-The line `setActiveScreen('dossier')` (currently line 345) should move BEFORE the `lookupAddress` call, right after the state resets. This way the skeleton appears immediately.
+**Only 4 files exist** (validated via `Glob`):
+1. `frontend/src/components/LoadingScreen.tsx` — 60 lines
+2. `frontend/src/components/LoadingScreen.css` — exists
+3. `frontend/src/components/LoadingScreen.test.tsx` — 7 tests
+4. `frontend/src/components/BuildingAnimation.tsx` — 87 lines
 
-```typescript
-// Move this line to AFTER the state resets, BEFORE the try block:
-setActiveScreen('dossier');
-setActiveTab('search');
+**Note:** `BuildingAnimation.css` and `BuildingAnimation.test.tsx` do NOT exist — do not attempt to delete them.
 
-try {
-  const resolved = await lookupAddress(suggestion.id);
-  ...
+**Files:**
+- Delete: `frontend/src/components/LoadingScreen.tsx`
+- Delete: `frontend/src/components/LoadingScreen.css`
+- Delete: `frontend/src/components/LoadingScreen.test.tsx`
+- Delete: `frontend/src/components/BuildingAnimation.tsx`
+- Modify: `frontend/src/App.test.tsx` — remove LoadingScreen assertions
+
+**Step 1: Delete files**
+
+```powershell
+cd frontend; Remove-Item src/components/LoadingScreen.tsx, src/components/LoadingScreen.css, src/components/LoadingScreen.test.tsx, src/components/BuildingAnimation.tsx
 ```
 
 **Step 2: Update App.test.tsx**
 
-In `frontend/src/App.test.tsx`, find any test that asserts on `LoadingScreen` or `showLoadingScreen` and update:
+Find and remove assertions that reference `loading-screen` testid (e.g., `expect(screen.getByTestId('loading-screen'))`). Replace with assertions for the new skeleton behavior if applicable.
 
-- Replace assertions on loading screen text with assertions on skeleton presence
-- Add test: "shows DossierSkeleton during address loading"
-- Add test: "skeleton disappears when building data arrives"
+**Step 3: Run tests and verify net count**
 
-```typescript
-it('shows skeleton during loading', async () => {
-  // Mock API to delay response
-  // Trigger address select
-  // Assert DossierSkeleton is in the DOM
-  // Assert RiskTileSkeleton elements exist
-});
+```powershell
+cd frontend; npx vitest run 2>&1 | Select-Object -Last 10
 ```
 
-**Step 3: Delete LoadingScreen and BuildingAnimation files**
+Expected: Test count drops by 7 (LoadingScreen tests removed) but gains from SkeletonCard tests (6) + DossierSheet tests (9). Net should be >= 338 + 15 - 7 = 346.
 
-```bash
-git rm frontend/src/components/LoadingScreen.tsx
-git rm frontend/src/components/LoadingScreen.css
-git rm frontend/src/components/LoadingScreen.test.tsx
-git rm frontend/src/components/BuildingAnimation.tsx
-git rm frontend/src/components/BuildingAnimation.css
-git rm frontend/src/components/BuildingAnimation.test.tsx
+**Step 4: Run build**
+
+```powershell
+cd frontend; npm run build
 ```
+Expected: Build succeeds (no dangling references).
 
-**Step 4: Run all tests**
-
-Run: `cd frontend && npx vitest run`
-Expected: Tests pass. Count should be >= 347 (we added ~11 new tests in Tasks 2-6, removed ~6 from LoadingScreen/BuildingAnimation, net positive).
-
-**Step 5: Run build**
-
-Run: `cd frontend && npm run build`
-Expected: Build succeeds with no unused variable errors.
-
-**Step 6: Commit**
+**Step 5: Commit**
 
 ```bash
-git add -A
-git commit -m "feat: replace LoadingScreen with progressive DossierSkeleton reveal
-
-Removes the full-screen loading blocker (LoadingScreen + BuildingAnimation).
-Shows DossierSkeleton immediately when address is selected. Each dossier
-section replaces its skeleton independently as data arrives. 3D section
-has no skeleton (opt-in per principle Section 7)."
+git add -A frontend/src/components/LoadingScreen.tsx frontend/src/components/LoadingScreen.css frontend/src/components/LoadingScreen.test.tsx frontend/src/components/BuildingAnimation.tsx frontend/src/App.test.tsx
+git commit -m "refactor: remove LoadingScreen and BuildingAnimation (replaced by skeleton loading)"
 ```
 
 ---
 
 ## Tier 1C: Touch Target Compliance
 
-### Task 8: Create usePressable hook
+### Task 7: Fix all 44px touch target violations
+
+Comprehensive audit of all interactive elements. Apple HIG requires 44x44px minimum touch targets.
+
+**Files to modify:**
+- `frontend/src/components/RiskDetailView.css:28-29` — back button 36→44px
+- `frontend/src/components/TopBar.css:55` — lang toggle padding 4px 12px → 10px 12px (reaches 44px height)
+- `frontend/src/components/TopBar.css:76-77` — settings button 36→44px
+- `frontend/src/components/AddressHeader.css:34-35` — bookmark button 40→44px
+- `frontend/src/components/ShortlistScreen.css:99-100` — remove button 32→44px
+- `frontend/src/components/ViewingChecklist.css:41` — checklist items need min-height: 48px
+
+**Step 1: Fix RiskDetailView back button**
+
+In `frontend/src/components/RiskDetailView.css`, change lines 28-29:
+```css
+/* Before: */
+  width: 36px;
+  height: 36px;
+
+/* After: */
+  width: 44px;
+  height: 44px;
+```
+
+**Step 2: Fix TopBar lang toggle**
+
+In `frontend/src/components/TopBar.css`, change line 55:
+```css
+/* Before: */
+  padding: 4px 12px;
+
+/* After: */
+  padding: 10px 12px;
+  min-height: 44px; /* Explicit 44px guarantee regardless of font size (R3-Finding 8) */
+```
+
+**Step 3: Fix TopBar settings button**
+
+In `frontend/src/components/TopBar.css`, change lines 76-77:
+```css
+/* Before: */
+  width: 36px;
+  height: 36px;
+
+/* After: */
+  width: 44px;
+  height: 44px;
+```
+
+**Step 4: Fix AddressHeader bookmark**
+
+In `frontend/src/components/AddressHeader.css`, change lines 34-35:
+```css
+/* Before: */
+  width: 40px;
+  height: 40px;
+
+/* After: */
+  width: 44px;
+  height: 44px;
+```
+
+**Step 5: Fix ShortlistScreen remove button**
+
+In `frontend/src/components/ShortlistScreen.css`, change lines 99-100:
+```css
+/* Before: */
+  width: 32px;
+  height: 32px;
+
+/* After: */
+  width: 44px;
+  height: 44px;
+```
+
+**Step 6: Fix ViewingChecklist item height**
+
+In `frontend/src/components/ViewingChecklist.css`, add `min-height: 48px` to the checklist item rule (line 41):
+```css
+/* Before: */
+  padding: var(--space-xs) 0;
+
+/* After: */
+  padding: var(--space-xs) 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+```
+
+**Step 7: Run tests**
+
+```powershell
+cd frontend; npx vitest run
+```
+Expected: All pass. CSS changes don't break logic tests.
+
+**Step 8: Run build**
+
+```powershell
+cd frontend; npm run build
+```
+Expected: Build succeeds.
+
+**Step 9: Commit**
+
+```bash
+git add frontend/src/components/RiskDetailView.css frontend/src/components/TopBar.css frontend/src/components/AddressHeader.css frontend/src/components/ShortlistScreen.css frontend/src/components/ViewingChecklist.css
+git commit -m "fix: enforce 44px minimum touch targets on all interactive elements"
+```
+
+---
+
+## Tier 1 Quality Gate
+
+### Task 8: Tier 1 quality gate
+
+**Step 1: Run full frontend test suite**
+
+```powershell
+cd frontend; npx vitest run 2>&1 | Select-Object -Last 10
+```
+Expected: >= 346 pass (0 fail). Net should exceed original 338 baseline.
+
+**Step 2: Run full backend test suite**
+
+```powershell
+cd backend; python -m pytest -m "not live" -q 2>&1 | Select-Object -Last 10
+```
+Expected: 321 pass (0 fail), 9 deselected.
+
+**Step 3: Run build**
+
+```powershell
+cd frontend; npm run build
+```
+Expected: Build succeeds.
+
+**Step 4: Run ruff**
+
+```powershell
+cd backend; ruff check app/ tests/
+```
+Expected: No errors.
+
+**Step 5: Check bundle size**
+
+```powershell
+cd frontend; npm run build 2>&1 | Select-String "gzip"
+```
+Expected: Total gzip < 330KB (was ~291KB + ~33KB framer-motion).
+
+**Step 6: Commit quality gate checkpoint**
+
+```bash
+git add -A
+git commit -m "chore: Tier 1 quality gate — all tests pass, bundle within budget"
+```
+
+---
+
+## Tier 2A: Press States
+
+### Task 9: Create usePressable hook (pointer events only)
+
+This hook uses pointer events exclusively. **No `:active` CSS fallback** — pointer events work consistently across mobile browsers including iOS Safari (where `:active` has finger-drift issues). The hook adds/removes a `.pressed` CSS class programmatically.
 
 **Files:**
 - Create: `frontend/src/hooks/usePressable.ts`
@@ -819,114 +1180,426 @@ Create `frontend/src/hooks/usePressable.test.ts`:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
-import { useRef } from 'react';
+import { renderHook, act } from '@testing-library/react';
 import { usePressable } from './usePressable';
 
 describe('usePressable', () => {
-  it('adds pressed class on touchstart', () => {
-    const div = document.createElement('div');
-    document.body.appendChild(div);
-
-    renderHook(() => {
-      const ref = useRef(div);
-      usePressable(ref);
-      return ref;
-    });
-
-    div.dispatchEvent(new Event('touchstart'));
-    expect(div.classList.contains('pressed')).toBe(true);
-
-    document.body.removeChild(div);
+  it('returns pressable props object', () => {
+    const { result } = renderHook(() => usePressable());
+    expect(result.current.pressableProps).toBeDefined();
+    expect(result.current.isPressed).toBe(false);
   });
 
-  it('removes pressed class on touchend', () => {
-    const div = document.createElement('div');
-    document.body.appendChild(div);
-
-    renderHook(() => {
-      const ref = useRef(div);
-      usePressable(ref);
-      return ref;
+  it('sets isPressed true on pointerdown', () => {
+    const { result } = renderHook(() => usePressable());
+    act(() => {
+      result.current.pressableProps.onPointerDown({} as React.PointerEvent);
     });
-
-    div.dispatchEvent(new Event('touchstart'));
-    div.dispatchEvent(new Event('touchend'));
-    expect(div.classList.contains('pressed')).toBe(false);
-
-    document.body.removeChild(div);
+    expect(result.current.isPressed).toBe(true);
   });
 
-  it('removes pressed class on touchcancel', () => {
-    const div = document.createElement('div');
-    document.body.appendChild(div);
-
-    renderHook(() => {
-      const ref = useRef(div);
-      usePressable(ref);
-      return ref;
+  it('sets isPressed false on pointerup', () => {
+    const { result } = renderHook(() => usePressable());
+    act(() => {
+      result.current.pressableProps.onPointerDown({} as React.PointerEvent);
     });
+    act(() => {
+      result.current.pressableProps.onPointerUp({} as React.PointerEvent);
+    });
+    expect(result.current.isPressed).toBe(false);
+  });
 
-    div.dispatchEvent(new Event('touchstart'));
-    div.dispatchEvent(new Event('touchcancel'));
-    expect(div.classList.contains('pressed')).toBe(false);
+  it('sets isPressed false on pointerleave (finger drift)', () => {
+    const { result } = renderHook(() => usePressable());
+    act(() => {
+      result.current.pressableProps.onPointerDown({} as React.PointerEvent);
+    });
+    act(() => {
+      result.current.pressableProps.onPointerLeave({} as React.PointerEvent);
+    });
+    expect(result.current.isPressed).toBe(false);
+  });
 
-    document.body.removeChild(div);
+  it('calls onPress callback on pointerup after pointerdown', () => {
+    const onPress = vi.fn();
+    const { result } = renderHook(() => usePressable({ onPress }));
+    act(() => {
+      result.current.pressableProps.onPointerDown({} as React.PointerEvent);
+    });
+    act(() => {
+      result.current.pressableProps.onPointerUp({} as React.PointerEvent);
+    });
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onPress if pointerleave before pointerup', () => {
+    const onPress = vi.fn();
+    const { result } = renderHook(() => usePressable({ onPress }));
+    act(() => {
+      result.current.pressableProps.onPointerDown({} as React.PointerEvent);
+    });
+    act(() => {
+      result.current.pressableProps.onPointerLeave({} as React.PointerEvent);
+    });
+    act(() => {
+      result.current.pressableProps.onPointerUp({} as React.PointerEvent);
+    });
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it('handles keyboard Enter/Space for a11y', () => {
+    const onPress = vi.fn();
+    const { result } = renderHook(() => usePressable({ onPress }));
+    act(() => {
+      result.current.pressableProps.onKeyDown({ key: 'Enter', preventDefault: vi.fn() } as unknown as React.KeyboardEvent);
+    });
+    expect(onPress).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.pressableProps.onKeyDown({ key: ' ', preventDefault: vi.fn() } as unknown as React.KeyboardEvent);
+    });
+    expect(onPress).toHaveBeenCalledTimes(2);
   });
 });
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd frontend && npx vitest run src/hooks/usePressable.test.ts`
-Expected: FAIL.
+```powershell
+cd frontend; npx vitest run src/hooks/usePressable.test.ts
+```
+Expected: FAIL — module not found.
 
 **Step 3: Write implementation**
 
 Create `frontend/src/hooks/usePressable.ts`:
 
 ```typescript
-import { useEffect, type RefObject } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
-/**
- * Adds touch-based press states to an element.
- * Uses touchstart/touchend/touchcancel instead of CSS :active
- * because iOS Safari deactivates :active on 1px finger movement.
- */
-export function usePressable(ref: RefObject<HTMLElement | null>) {
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+interface UsePressableOptions {
+  onPress?: () => void;
+  disabled?: boolean;
+}
 
-    const add = () => el.classList.add('pressed');
-    const remove = () => el.classList.remove('pressed');
+export function usePressable({ onPress, disabled }: UsePressableOptions = {}) {
+  const [isPressed, setIsPressed] = useState(false);
+  const wasPressed = useRef(false);
 
-    el.addEventListener('touchstart', add, { passive: true });
-    el.addEventListener('touchend', remove);
-    el.addEventListener('touchcancel', remove);
+  const handlePointerDown = useCallback((_e: React.PointerEvent) => {
+    if (disabled) return;
+    setIsPressed(true);
+    wasPressed.current = true;
+  }, [disabled]);
 
-    return () => {
-      el.removeEventListener('touchstart', add);
-      el.removeEventListener('touchend', remove);
-      el.removeEventListener('touchcancel', remove);
-    };
-  }, [ref]);
+  const handlePointerUp = useCallback((_e: React.PointerEvent) => {
+    if (wasPressed.current && !disabled) {
+      onPress?.();
+    }
+    setIsPressed(false);
+    wasPressed.current = false;
+  }, [onPress, disabled]);
+
+  const handlePointerLeave = useCallback((_e: React.PointerEvent) => {
+    setIsPressed(false);
+    wasPressed.current = false;
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (disabled) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onPress?.();
+    }
+  }, [onPress, disabled]);
+
+  return {
+    isPressed,
+    pressableProps: {
+      onPointerDown: handlePointerDown,
+      onPointerUp: handlePointerUp,
+      onPointerLeave: handlePointerLeave,
+      onKeyDown: handleKeyDown,
+    },
+  };
 }
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd frontend && npx vitest run src/hooks/usePressable.test.ts`
-Expected: PASS (3 tests).
+```powershell
+cd frontend; npx vitest run src/hooks/usePressable.test.ts
+```
+Expected: PASS (7 tests).
 
 **Step 5: Commit**
 
 ```bash
 git add frontend/src/hooks/usePressable.ts frontend/src/hooks/usePressable.test.ts
-git commit -m "feat: add usePressable hook for iOS-safe touch press states"
+git commit -m "feat: add usePressable hook with pointer events and keyboard parity"
 ```
 
-### Task 9: Create haptic utility
+---
+
+### Task 10: Create pressable.css and add pressed surface token
+
+**Files:**
+- Create: `frontend/src/styles/pressable.css`
+- Modify: `frontend/src/styles/tokens.css` — add `--color-surface-pressed`
+- Modify: `frontend/src/index.css` — import pressable.css
+
+**Step 1: Add pressed surface token**
+
+In `frontend/src/styles/tokens.css`, add inside `:root` (after the skeleton tokens):
+```css
+  /* ── Press State ── */
+  --color-surface-pressed: rgba(28, 45, 63, 0.06);
+```
+
+Add dark-mode override:
+```css
+  --color-surface-pressed: rgba(255, 255, 255, 0.06);
+```
+
+**Step 2: Create pressable.css**
+
+Create `frontend/src/styles/pressable.css`:
+
+```css
+/* Global pressed state styles for usePressable hook.
+ * Applied via the `pressed` CSS class (set by pointer events, not :active).
+ * No :active fallback — pointer events work on all target platforms.
+ */
+
+.pressable {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.pressable.pressed {
+  transform: scale(0.97);
+  background-color: var(--color-surface-pressed);
+  transition: transform 80ms ease-out;
+}
+
+.pressable:not(.pressed) {
+  transition: transform 150ms ease-out;
+}
+```
+
+**Step 3: Import in index.css**
+
+In `frontend/src/index.css`, add after the existing imports:
+```css
+@import './styles/pressable.css';
+```
+
+**Step 4: Run tests and build**
+
+```powershell
+cd frontend; npx vitest run
+cd frontend; npm run build
+```
+Expected: All pass, build succeeds.
+
+**Step 5: Commit**
+
+```bash
+git add frontend/src/styles/pressable.css frontend/src/styles/tokens.css frontend/src/index.css
+git commit -m "feat: add pressable CSS with pointer-event-driven press state"
+```
+
+---
+
+### Task 11: Apply press states to interactive elements
+
+**Two press-state strategies (R3-Finding 7):**
+1. **Framer Motion `whileTap`** — for components already wrapped in `motion.*` (RiskTile, TabBar buttons). Native Framer scale animation.
+2. **`usePressable` hook** — for non-motion elements (bookmark button, shortlist remove button). Adds `.pressed` CSS class via pointer events.
+
+**Files:**
+- Modify: `frontend/src/components/RiskTile.tsx` — add `motion.button` with `whileTap`
+- Modify: `frontend/src/components/RiskTile.css` — remove manual `:active` if present
+- Modify: `frontend/src/components/TabBar.tsx` — add `whileTap` to tab buttons
+- Modify: `frontend/src/components/AddressHeader.tsx` — apply `usePressable` to bookmark button
+- Modify: `frontend/src/components/ShortlistScreen.tsx` — apply `usePressable` to remove button
+
+**Step 1: Update RiskTile to use Framer Motion whileTap**
+
+In `frontend/src/components/RiskTile.tsx`:
+- Add import: `import { motion } from 'framer-motion';`
+- Replace `<button className="risk-tile" onClick={onTap}>` (line 21) with:
+```tsx
+<motion.button
+  className="risk-tile"
+  onClick={onTap}
+  whileTap={{ scale: 0.97 }}
+  data-testid={`risk-tile-${category}`}
+>
+```
+- Replace closing `</button>` (line 40) with `</motion.button>`
+
+**Step 2: Update TabBar buttons**
+
+In `frontend/src/components/TabBar.tsx`:
+- Add import: `import { motion } from 'framer-motion';`
+- Wrap each tab button with `motion.button` and add `whileTap={{ scale: 0.95 }}`.
+
+**Step 3: Apply usePressable to bookmark button**
+
+In `frontend/src/components/AddressHeader.tsx`:
+- Add import: `import { usePressable } from '../hooks/usePressable';`
+- In the component body: `const { isPressed, pressableProps } = usePressable();`
+- Add `{...pressableProps}` and `className={`...bookmark-btn${isPressed ? ' pressed' : ''}`}` to the bookmark button
+- Add `className="pressable"` base class to the bookmark button
+
+**Step 4: Apply usePressable to shortlist remove button**
+
+In `frontend/src/components/ShortlistScreen.tsx`:
+- Same pattern as Step 3 for the remove button
+
+**Step 5: Run tests**
+
+```powershell
+cd frontend; npx vitest run
+```
+Expected: All pass (framer-motion mock handles `motion.button` transparently, usePressable is a regular hook).
+
+**Step 6: Run build**
+
+```powershell
+cd frontend; npm run build
+```
+Expected: Build succeeds.
+
+**Step 7: Commit**
+
+```bash
+git add frontend/src/components/RiskTile.tsx frontend/src/components/RiskTile.css frontend/src/components/TabBar.tsx frontend/src/components/AddressHeader.tsx frontend/src/components/ShortlistScreen.tsx
+git commit -m "feat: add press states — whileTap for motion elements, usePressable for non-motion"
+```
+
+---
+
+## Tier 2B: Shared Element Transitions
+
+### Task 12: Add layoutId to RiskTile → RiskDetailView transition
+
+The risk tile tap → detail view expansion uses Framer Motion's `layoutId` for a shared element transition. The tile morphs into the full-screen detail view.
+
+**Files:**
+- Modify: `frontend/src/components/RiskTile.tsx` — add `layoutId`
+- Modify: `frontend/src/components/RiskDetailView.tsx` — add `layoutId`, `motion.div`, transition callbacks
+- Modify: `frontend/src/components/RiskDetailView.css:1-9` — keep `position: fixed; inset: 0;` as final animated state (Framer interpolates to it)
+- Modify: `frontend/src/App.tsx` — add `isTransitioning` state, wire callbacks, wrap with `LayoutGroup`
+
+**Step 1: Add layoutId to RiskTile**
+
+In `frontend/src/components/RiskTile.tsx`:
+- The `motion.button` (from Task 11) already exists
+- Add `layoutId={`risk-tile-${category}`}` prop to it
+
+**Step 2: Update RiskDetailView to accept animation callbacks**
+
+In `frontend/src/components/RiskDetailView.tsx`:
+- Add to props interface (line 14-27):
+```typescript
+  onAnimationStart?: () => void;
+  onAnimationComplete?: () => void;
+```
+- Add import: `import { motion } from 'framer-motion';`
+- Import: `import { SPRING_EXPAND } from '../config/springs';`
+- Wrap the outer `<div className="risk-detail">` with `motion.div`:
+```tsx
+<motion.div
+  className="risk-detail"
+  layoutId={`risk-tile-${category}`}
+  transition={SPRING_EXPAND}
+  onAnimationStart={onAnimationStart}
+  onAnimationComplete={onAnimationComplete}
+  data-testid={`risk-detail-${category}`}
+>
+```
+
+**Step 3: Verify RiskDetailView.css (no changes needed)**
+
+In `frontend/src/components/RiskDetailView.css`, **keep** the existing `position: fixed; inset: 0;` rules exactly as they are (R3-Finding 9). These define the final resting position of the detail view. Framer Motion's `layoutId` will animate from the tile's position to this full-screen position — it interpolates TO the CSS-defined final state, not FROM it. Do NOT remove `position: fixed; inset: 0;`.
+
+**Step 4: Wire isTransitioning in App.tsx**
+
+In `frontend/src/App.tsx`:
+
+**4a. Add isTransitioning state** (near other state declarations):
+```typescript
+const [isTransitioning, setIsTransitioning] = useState(false);
+```
+
+**4b. Add LayoutGroup import:**
+```typescript
+import { LayoutGroup } from 'framer-motion';
+```
+
+**4c. Wrap the risk tiles + detail view section in `<LayoutGroup>`:**
+```tsx
+<LayoutGroup>
+  {/* RiskTilesGrid with layoutId on each tile */}
+  {riskCards && (
+    <RiskTilesGrid ... />
+  )}
+
+  {/* RiskDetailView with matching layoutId */}
+  {activeDetailCategory && (() => {
+    const detail = getDetailProps(activeDetailCategory);
+    if (!detail) return null;
+    return (
+      <RiskDetailView
+        ...
+        onAnimationStart={() => setIsTransitioning(true)}
+        onAnimationComplete={() => setIsTransitioning(false)}
+      />
+    );
+  })()}
+</LayoutGroup>
+```
+
+**4d. Guard taps during transition:**
+In `handleAddressSelect` and `setActiveDetailCategory`, skip if `isTransitioning`:
+```typescript
+// Guard in the onTap handler for risk tiles
+const handleRiskTileTap = useCallback((category: string) => {
+  if (isTransitioning) return;
+  setActiveDetailCategory(category);
+}, [isTransitioning]);
+```
+
+**Step 5: Run tests**
+
+```powershell
+cd frontend; npx vitest run
+```
+Expected: All pass. The framer-motion mock renders `motion.div` as plain `div` with `data-testid`, so existing assertions still work.
+
+**Step 6: Run build**
+
+```powershell
+cd frontend; npm run build
+```
+Expected: Build succeeds.
+
+**Step 7: Commit**
+
+```bash
+git add frontend/src/components/RiskTile.tsx frontend/src/components/RiskDetailView.tsx frontend/src/components/RiskDetailView.css frontend/src/App.tsx
+git commit -m "feat: shared element transition for risk tile → detail view with layoutId"
+```
+
+---
+
+## Tier 2C: Haptic Feedback
+
+### Task 13: Create haptic utility
 
 **Files:**
 - Create: `frontend/src/utils/haptic.ts`
@@ -938,612 +1611,330 @@ Create `frontend/src/utils/haptic.test.ts`:
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { haptic } from './haptic';
+import { hapticTap, hapticSuccess, hapticWarning } from './haptic';
 
 describe('haptic', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('calls navigator.vibrate when available', () => {
-    const vibrateMock = vi.fn();
-    Object.defineProperty(navigator, 'vibrate', { value: vibrateMock, configurable: true });
-
-    haptic();
-    expect(vibrateMock).toHaveBeenCalledWith(10);
+  it('calls navigator.vibrate for tap', () => {
+    Object.defineProperty(navigator, 'vibrate', { value: vi.fn(), writable: true, configurable: true });
+    hapticTap();
+    expect(navigator.vibrate).toHaveBeenCalledWith(10);
   });
 
-  it('accepts custom duration', () => {
-    const vibrateMock = vi.fn();
-    Object.defineProperty(navigator, 'vibrate', { value: vibrateMock, configurable: true });
-
-    haptic(20);
-    expect(vibrateMock).toHaveBeenCalledWith(20);
+  it('calls navigator.vibrate for success', () => {
+    Object.defineProperty(navigator, 'vibrate', { value: vi.fn(), writable: true, configurable: true });
+    hapticSuccess();
+    expect(navigator.vibrate).toHaveBeenCalledWith([10, 50, 10]);
   });
 
-  it('does not throw when navigator.vibrate is unavailable', () => {
-    Object.defineProperty(navigator, 'vibrate', { value: undefined, configurable: true });
-    expect(() => haptic()).not.toThrow();
+  it('calls navigator.vibrate for warning', () => {
+    Object.defineProperty(navigator, 'vibrate', { value: vi.fn(), writable: true, configurable: true });
+    hapticWarning();
+    expect(navigator.vibrate).toHaveBeenCalledWith([30, 50, 30]);
+  });
+
+  it('does not throw when vibrate is unavailable', () => {
+    Object.defineProperty(navigator, 'vibrate', { value: undefined, writable: true, configurable: true });
+    expect(() => hapticTap()).not.toThrow();
+    expect(() => hapticSuccess()).not.toThrow();
+    expect(() => hapticWarning()).not.toThrow();
   });
 });
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd frontend && npx vitest run src/utils/haptic.test.ts`
-Expected: FAIL.
+```powershell
+cd frontend; npx vitest run src/utils/haptic.test.ts
+```
+Expected: FAIL — module not found.
 
 **Step 3: Write implementation**
 
 Create `frontend/src/utils/haptic.ts`:
 
 ```typescript
-/**
- * Trigger a micro haptic pulse. Fails silently on unsupported devices.
- * Use only for semantic moments: shortlist add, risk tile open,
- * checklist toggle, export tap. NOT for navigation or scroll.
- */
-export function haptic(ms = 10): void {
-  navigator?.vibrate?.(ms);
+function vibrate(pattern: number | number[]): void {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    navigator.vibrate(pattern);
+  }
+}
+
+export function hapticTap(): void {
+  vibrate(10);
+}
+
+export function hapticSuccess(): void {
+  vibrate([10, 50, 10]);
+}
+
+export function hapticWarning(): void {
+  vibrate([30, 50, 30]);
 }
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd frontend && npx vitest run src/utils/haptic.test.ts`
-Expected: PASS (3 tests).
+```powershell
+cd frontend; npx vitest run src/utils/haptic.test.ts
+```
+Expected: PASS (4 tests).
 
 **Step 5: Commit**
 
 ```bash
 git add frontend/src/utils/haptic.ts frontend/src/utils/haptic.test.ts
-git commit -m "feat: add haptic feedback utility with silent fallback"
-```
-
-### Task 10: Add pressable CSS and fix touch targets
-
-**Files:**
-- Modify: `frontend/src/styles/tokens.css` — add pressed surface color token
-- Create: `frontend/src/styles/pressable.css` — pressable and tap-target utility classes
-- Modify: `frontend/src/components/TopBar.tsx` — fix settings button to 44px
-- Modify: `frontend/src/components/TopBar.css` — update touch target sizes
-- Modify: `frontend/src/components/RiskDetailView.tsx` — fix back button to 44px
-- Modify: `frontend/src/components/RiskDetailView.css` — update
-- Modify: `frontend/src/components/ViewingChecklist.tsx` — full-row tap surface
-- Modify: `frontend/src/components/ViewingChecklist.css` — 48px row height
-- Modify: `frontend/src/components/RiskTilesGrid.css` — verify 12px gap (already var(--space-md) = 12px, confirm)
-
-**Step 1: Add pressed surface token**
-
-In `frontend/src/styles/tokens.css`, in the surfaces section, add:
-
-```css
-  --color-surface-pressed: rgba(0, 0, 0, 0.04);
-```
-
-In `[data-theme="dark"]` section:
-```css
-  --color-surface-pressed: rgba(255, 255, 255, 0.06);
-```
-
-**Step 2: Create pressable.css**
-
-Create `frontend/src/styles/pressable.css`:
-
-```css
-/* Press state — applied by usePressable hook via .pressed class */
-.pressable {
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 100ms cubic-bezier(0.2, 0, 0.2, 1);
-  will-change: transform;
-  cursor: pointer;
-}
-
-.pressable.pressed {
-  transform: scale(0.97);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pressable.pressed {
-    transform: none;
-    background-color: var(--color-surface-pressed);
-  }
-}
-
-/* Tap target expansion for icon buttons */
-.tap-target-44 {
-  position: relative;
-  min-width: 44px;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-```
-
-Import this in `frontend/src/index.css` after the tokens import:
-```css
-@import './styles/pressable.css';
-```
-
-**Step 3: Fix TopBar settings button**
-
-In `frontend/src/components/TopBar.tsx`, add `tap-target-44` class to the settings button. In `TopBar.css`, ensure the button is at least 44x44px.
-
-**Step 4: Fix RiskDetailView back button**
-
-In `frontend/src/components/RiskDetailView.tsx` and its CSS, increase the back button to 44x44px using the `tap-target-44` class.
-
-**Step 5: Fix ViewingChecklist rows**
-
-In `frontend/src/components/ViewingChecklist.tsx`, ensure each `<label>` row has `min-height: 48px` and the entire row is tappable (not just the checkbox).
-
-In `ViewingChecklist.css`:
-```css
-.viewing-checklist__item {
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-xs) 0;
-  cursor: pointer;
-}
-```
-
-**Step 6: Verify grid gap**
-
-Confirm `frontend/src/components/RiskTilesGrid.css` uses `gap: var(--space-md)` which is 12px. No change needed.
-
-**Step 7: Run tests**
-
-Run: `cd frontend && npx vitest run`
-Expected: All tests pass.
-
-**Step 8: Run build**
-
-Run: `cd frontend && npm run build`
-Expected: Build succeeds.
-
-**Step 9: Commit**
-
-```bash
-git add -A
-git commit -m "feat: fix touch targets to 44px minimum, add pressable CSS utilities
-
-- TopBar settings button: 36px -> 44px
-- RiskDetailView back button: 36px -> 44px
-- ViewingChecklist rows: full-row 48px tap surface
-- Add .pressable and .tap-target-44 utility classes
-- Add --color-surface-pressed token for reduced-motion fallback"
+git commit -m "feat: add haptic feedback utility with vibrate API"
 ```
 
 ---
 
-## Tier 1 Quality Gate
-
-### Task 11: Tier 1 verification
-
-**Step 1: Run full test suite**
-
-```bash
-cd frontend && npx vitest run
-```
-
-Expected: >= 347 tests pass.
-
-**Step 2: Run build**
-
-```bash
-cd frontend && npm run build
-```
-
-Expected: Clean build, no TypeScript errors.
-
-**Step 3: Run backend tests (ensure no regressions)**
-
-```bash
-cd backend && python -m pytest -x -m "not live" -q
-```
-
-Expected: >= 288 tests pass.
-
-**Step 4: Run ruff**
-
-```bash
-cd backend && ruff check app/ tests/
-```
-
-Expected: No errors.
-
-**Step 5: Manual verification checklist**
-
-- [ ] Start dev server (`cd frontend && npm run dev`)
-- [ ] Search for an address
-- [ ] Verify: skeleton appears immediately, no full-screen blocker
-- [ ] Verify: risk tile skeletons match loaded tile dimensions
-- [ ] Verify: data sections fill in progressively
-- [ ] Verify: 3D section has no skeleton (loads on scroll)
-- [ ] Verify: settings button is at least 44px tap area
-- [ ] Verify: back button in risk detail is at least 44px
-- [ ] Verify: checklist rows respond to full-row tap
-
----
-
-## Tier 2A: Press States on Interactive Elements
-
-### Task 12: Apply usePressable to Tier A elements
+### Task 14: Wire haptic into key interactions
 
 **Files:**
-- Modify: `frontend/src/components/TabBar.tsx` — add pressable to tab buttons
-- Modify: `frontend/src/components/ActionBar.tsx` — add pressable to action buttons
-- Modify: `frontend/src/components/ViewingChecklist.tsx` — add pressable to checklist rows
-- Modify: `frontend/src/components/AddressSearch.tsx` — add pressable to recent search items
-- Modify: corresponding test files to verify press behavior
+- Modify: `frontend/src/App.tsx` — add haptic calls to bookmark, export, tab change
 
-**Step 1: Apply usePressable pattern**
+Note the import path from `App.tsx` (which lives at `src/App.tsx`): `./utils/haptic` (NOT `../utils/haptic`).
 
-For each component above, the pattern is:
-1. Import `usePressable` and `useRef`
-2. Create a ref for the pressable element
-3. Call `usePressable(ref)`
-4. Add `className="pressable"` and `ref={ref}` to the element
-
-For components with multiple pressable children (e.g., TabBar with 3 tabs), use a ref callback pattern or apply the `pressable` CSS class and rely on CSS `:active` as fallback (since these are simple press-and-release elements, the iOS finger-drift issue is less severe on large tab buttons).
-
-Simpler approach for multi-element components: just add `className="pressable"` to the buttons. The CSS `:active` works well enough for 56px tab buttons where finger drift is rare due to the large target.
-
-**Step 2: Add haptic calls to key moments**
-
-In `frontend/src/App.tsx`:
-- Import `haptic` from `../utils/haptic`
-- Add `haptic()` call inside `handleBookmark` (shortlist add)
-- Add `haptic()` call inside `setActiveDetailCategory` handler (risk tile open)
-- Add `haptic()` call inside `handleToggleQuestion` (checklist toggle)
-- Add `haptic()` call inside export button handler
-
-**Step 3: Run tests**
-
-Run: `cd frontend && npx vitest run`
-Expected: All tests pass.
-
-**Step 4: Run build**
-
-Run: `cd frontend && npm run build`
-Expected: Build succeeds.
-
-**Step 5: Commit**
-
-```bash
-git add -A
-git commit -m "feat: add press states to tab bar, action bar, checklist rows
-
-Apply .pressable class for scale(0.97) feedback on touch.
-Add haptic micro-pulse on shortlist add, risk tile open,
-checklist toggle, and export tap."
-```
-
-### Task 13: Apply Framer Motion whileTap to Tier B elements (risk tiles)
-
-**Files:**
-- Modify: `frontend/src/components/RiskTile.tsx` — wrap in motion.button with whileTap
-- Modify: `frontend/src/components/RiskTile.test.tsx` — verify tap behavior with mock
-
-**Step 1: Modify RiskTile.tsx**
-
-Replace the `<button>` with `<motion.button>`:
+**Step 1: Add haptic import to App.tsx**
 
 ```typescript
-import { motion } from 'framer-motion';
-// ... existing imports
-
-export default function RiskTile({ category, labelKey, score, severity, summary, onTap }: RiskTileProps) {
-  const { t } = useTranslation();
-
-  return (
-    <motion.button
-      className="risk-tile"
-      onClick={onTap}
-      data-testid={`risk-tile-${category}`}
-      whileTap={{ scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-    >
-      {/* ... existing content unchanged ... */}
-    </motion.button>
-  );
-}
+import { hapticTap, hapticSuccess } from './utils/haptic';
 ```
 
-**Step 2: Verify tests pass**
+**Step 2: Add haptic calls**
 
-Run: `cd frontend && npx vitest run src/components/RiskTile.test.tsx`
-Expected: PASS — the framer-motion mock in setup.ts renders motion.button as a plain button.
+- In `handleBookmark`: add `hapticTap()` at the start
+- In `handleTabChange`: add `hapticTap()` at the start
+- In the export success handler: add `hapticSuccess()`
 
-**Step 3: Run full tests + build**
+**Step 3: Run tests and build**
 
-Run: `cd frontend && npx vitest run && npm run build`
-Expected: All pass.
+```powershell
+cd frontend; npx vitest run
+cd frontend; npm run build
+```
+Expected: All pass, build succeeds.
 
 **Step 4: Commit**
 
 ```bash
-git add frontend/src/components/RiskTile.tsx frontend/src/components/RiskTile.test.tsx
-git commit -m "feat: add spring press state to risk tiles via Framer Motion whileTap"
+git add frontend/src/App.tsx
+git commit -m "feat: wire haptic feedback into bookmark, tab, and export interactions"
 ```
 
 ---
 
-## Tier 2B: Shared Element Transition (Risk Tile -> Detail)
+## Tier 2D: Spring Physics on Remaining Transitions
 
-### Task 14: Add layoutId to RiskTile and RiskDetailView
+### Task 15: Apply spring physics to sheet, tab, and skeleton transitions
 
-This is the highest-risk task in the entire plan. Take it step by step.
+Ensure all Framer Motion transitions use the named spring constants from `config/springs.ts`. No hardcoded stiffness/damping values anywhere.
 
 **Files:**
-- Modify: `frontend/src/components/RiskTile.tsx` — add layoutId prop
-- Modify: `frontend/src/components/RiskTilesGrid.tsx` — pass layoutId
-- Modify: `frontend/src/components/RiskDetailView.tsx` — add layoutId, wrap in motion.div
-- Modify: `frontend/src/App.tsx` — wrap risk section in LayoutGroup + AnimatePresence
-- Create: `frontend/src/hooks/useAnimationPerformance.ts`
-- Create: `frontend/src/hooks/useAnimationPerformance.test.ts`
+- Verify: `frontend/src/components/DossierSheet.tsx` — uses `SPRING_SHEET` (done in Task 3)
+- Verify: `frontend/src/components/RiskDetailView.tsx` — uses `SPRING_EXPAND` (done in Task 12)
+- Modify: `frontend/src/components/TabBar.tsx` — add spring transition to tab pill indicator
 
-**Step 1: Create useAnimationPerformance hook**
+**Step 1: Refactor TabBar pill from `::before` pseudo-element to `<motion.div>` DOM element**
 
-Create `frontend/src/hooks/useAnimationPerformance.ts`:
+The tab pill indicator is currently a CSS `::before` pseudo-element on `.tab-bar__tab--active` (see `TabBar.css:41-48`). Framer Motion's `layoutId` requires a real DOM element — it cannot animate pseudo-elements (R3-Finding 10).
 
-```typescript
-import { useRef, useCallback } from 'react';
+In `frontend/src/components/TabBar.tsx`:
+- Import: `import { SPRING_TAB } from '../config/springs';`
+- Import: `import { motion } from 'framer-motion';` (may already be imported from Task 11)
+- Inside each tab button, add a conditional pill element for the active tab:
+```tsx
+<button className={`tab-bar__tab${isActive ? ' tab-bar__tab--active' : ''}`} ...>
+  {isActive && (
+    <motion.div className="tab-bar__pill" layoutId="tab-pill" transition={SPRING_TAB} />
+  )}
+  <span className="tab-bar__icon">{tab.icon}</span>
+  <span className="tab-bar__label">{t(tab.labelKey)}</span>
+</button>
+```
 
-/**
- * Monitors frame drops during animations.
- * If >3 frames exceed 32ms, flags the session as "reduced animation."
- */
-export function useAnimationPerformance() {
-  const isReducedRef = useRef(false);
-  const frameTimesRef = useRef<number[]>([]);
-  const rafIdRef = useRef<number | null>(null);
-
-  const startMonitoring = useCallback(() => {
-    if (isReducedRef.current) return; // Already flagged
-    frameTimesRef.current = [];
-    let lastTime = performance.now();
-
-    const measure = () => {
-      const now = performance.now();
-      frameTimesRef.current.push(now - lastTime);
-      lastTime = now;
-      rafIdRef.current = requestAnimationFrame(measure);
-    };
-    rafIdRef.current = requestAnimationFrame(measure);
-  }, []);
-
-  const stopMonitoring = useCallback(() => {
-    if (rafIdRef.current != null) {
-      cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = null;
-    }
-    const droppedFrames = frameTimesRef.current.filter(t => t > 32).length;
-    if (droppedFrames > 3) {
-      isReducedRef.current = true;
-    }
-    frameTimesRef.current = [];
-  }, []);
-
-  return {
-    isReduced: isReducedRef,
-    startMonitoring,
-    stopMonitoring,
-  };
+In `frontend/src/components/TabBar.css`:
+- **Remove** the `::before` pseudo-element from `.tab-bar__tab--active` (lines 41-48)
+- **Add** a new `.tab-bar__pill` rule with the same visual styles:
+```css
+.tab-bar__pill {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-accent);
 }
 ```
 
-Create `frontend/src/hooks/useAnimationPerformance.test.ts`:
+**Step 2: Run tests and build**
 
-```typescript
-import { describe, it, expect } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useAnimationPerformance } from './useAnimationPerformance';
-
-describe('useAnimationPerformance', () => {
-  it('starts with isReduced false', () => {
-    const { result } = renderHook(() => useAnimationPerformance());
-    expect(result.current.isReduced.current).toBe(false);
-  });
-
-  it('exports start and stop monitoring functions', () => {
-    const { result } = renderHook(() => useAnimationPerformance());
-    expect(typeof result.current.startMonitoring).toBe('function');
-    expect(typeof result.current.stopMonitoring).toBe('function');
-  });
-
-  it('does not throw on start/stop cycle', () => {
-    const { result } = renderHook(() => useAnimationPerformance());
-    act(() => {
-      result.current.startMonitoring();
-      result.current.stopMonitoring();
-    });
-    expect(result.current.isReduced.current).toBe(false);
-  });
-});
+```powershell
+cd frontend; npx vitest run
+cd frontend; npm run build
 ```
+Expected: All pass, build succeeds.
 
-**Step 2: Add layoutId to RiskTile**
-
-In `frontend/src/components/RiskTile.tsx`, the `motion.button` from Task 13 now also gets a `layoutId`:
-
-```typescript
-<motion.button
-  className="risk-tile"
-  onClick={onTap}
-  data-testid={`risk-tile-${category}`}
-  layoutId={`risk-tile-${category}`}
-  whileTap={{ scale: 0.97 }}
-  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
->
-```
-
-**Step 3: Wrap RiskDetailView header in matching layoutId**
-
-In `frontend/src/components/RiskDetailView.tsx`, wrap the header section in a `motion.div` with the same `layoutId`:
-
-```typescript
-import { motion } from 'framer-motion';
-import { SPRING_EXPAND } from '../config/springs';
-
-// In the render, wrap the header card:
-<motion.div
-  layoutId={`risk-tile-${category}`}
-  transition={SPRING_EXPAND}
-  className="risk-detail__header-card"
->
-  {/* score, severity badge, title */}
-</motion.div>
-```
-
-**Step 4: Wrap risk section in App.tsx with LayoutGroup + AnimatePresence**
-
-In `frontend/src/App.tsx`, import and wrap:
-
-```typescript
-import { LayoutGroup, AnimatePresence } from 'framer-motion';
-
-// In the render, around the risk tiles + detail view:
-<LayoutGroup>
-  {/* Risk tiles grid */}
-  {(riskLoading || riskCards || riskError) && !activeDetailCategory && (
-    <>
-      <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
-      <RiskTilesGrid ... />
-    </>
-  )}
-
-  {/* Risk detail — replaces grid content */}
-  <AnimatePresence>
-    {activeDetailCategory && (() => {
-      const detail = getDetailProps(activeDetailCategory);
-      if (!detail) return null;
-      return (
-        <RiskDetailView
-          key={activeDetailCategory}
-          ...
-        />
-      );
-    })()}
-  </AnimatePresence>
-</LayoutGroup>
-```
-
-**Step 5: Add isTransitioning guard**
-
-In `frontend/src/App.tsx`, add a ref to prevent taps during transition:
-
-```typescript
-const isTransitioning = useRef(false);
-
-// In the risk tile tap handler:
-const handleRiskTileTap = useCallback((category: string) => {
-  if (isTransitioning.current) return;
-  haptic();
-  setActiveDetailCategory(category);
-}, []);
-```
-
-**Step 6: Run tests**
-
-Run: `cd frontend && npx vitest run`
-Expected: All tests pass.
-
-**Step 7: Run build**
-
-Run: `cd frontend && npm run build`
-Expected: Build succeeds.
-
-**Step 8: Commit**
+**Step 3: Commit**
 
 ```bash
-git add -A
-git commit -m "feat: add shared element transition for risk tile -> detail view
-
-Uses Framer Motion layoutId to morph risk tile into detail header.
-Includes AnimatePresence for enter/exit animations, LayoutGroup for
-coordination, isTransitioning guard to prevent mid-animation taps,
-and useAnimationPerformance hook for frame-drop fallback detection."
+git add frontend/src/components/TabBar.tsx frontend/src/components/TabBar.css
+git commit -m "feat: refactor tab pill from ::before to motion.div with SPRING_TAB transition"
 ```
 
 ---
 
 ## Tier 2 Quality Gate
 
-### Task 15: Tier 2 verification
+### Task 16: Tier 2 quality gate
 
-**Step 1: Run full test suite**
+**Step 1: Run full frontend test suite**
+
+```powershell
+cd frontend; npx vitest run 2>&1 | Select-Object -Last 10
+```
+Expected: >= 355 pass (0 fail). Gains from: springs (4), DossierSheet (9), skeleton (6), pressable (7), haptic (4). Losses: LoadingScreen (7).
+
+**Step 2: Run full backend test suite**
+
+```powershell
+cd backend; python -m pytest -m "not live" -q 2>&1 | Select-Object -Last 10
+```
+Expected: 321 pass (0 fail), 9 deselected.
+
+**Step 3: Run build**
+
+```powershell
+cd frontend; npm run build
+```
+Expected: Build succeeds.
+
+**Step 4: Run ruff**
+
+```powershell
+cd backend; ruff check app/ tests/
+```
+Expected: No errors.
+
+**Step 5: Check bundle size**
+
+```powershell
+cd frontend; npm run build 2>&1 | Select-String "gzip"
+```
+Expected: Total gzip < 330KB.
+
+**Step 6: Verify spring constant usage (no hardcoded values)**
+
+```powershell
+cd frontend; npx vitest run src/config/springs.test.ts
+```
+Expected: PASS — confirms all spring constants are valid.
+
+Visually verify: no `stiffness:` or `damping:` literals appear outside `config/springs.ts`:
+```powershell
+Select-String -Path "frontend/src/**/*.tsx","frontend/src/**/*.ts" -Pattern "stiffness:|damping:" -Exclude "*springs*","*node_modules*","*.test.*" | Select-Object -First 10
+```
+Expected: No matches.
+
+**Step 7: Commit**
 
 ```bash
-cd frontend && npx vitest run
+git add -A
+git commit -m "chore: Tier 2 quality gate — all tests pass, springs verified, bundle within budget"
 ```
-
-Expected: >= 347 tests (should be ~360+ with new tests from Tasks 2-14).
-
-**Step 2: Run build**
-
-```bash
-cd frontend && npm run build
-```
-
-Expected: Clean build. Check vendor-react chunk includes framer-motion.
-
-**Step 3: Run backend tests**
-
-```bash
-cd backend && python -m pytest -x -m "not live" -q
-```
-
-Expected: >= 288 tests pass (no backend changes in this plan).
-
-**Step 4: Bundle size check**
-
-```bash
-cd frontend && npm run build 2>&1 | grep -i "gzip"
-```
-
-Expected: Total gzipped JS < 330KB (was ~291KB + ~33KB framer-motion).
-
-**Step 5: Manual verification checklist**
-
-- [ ] Risk tile: scales to 0.97 on press (touch device or DevTools mobile)
-- [ ] Risk tile -> detail: shared element morph animation plays
-- [ ] Detail -> grid: reverse morph plays, other tiles fade in
-- [ ] Tab bar buttons: scale on press
-- [ ] Checklist rows: full row responds to tap, haptic on toggle
-- [ ] Shortlist add: haptic pulse
-- [ ] Export button: haptic pulse
-- [ ] `prefers-reduced-motion`: all animations disabled, background color fallback
-- [ ] No layout shift during skeleton -> loaded transitions
 
 ---
 
-## Summary
+## Summary of Changes by Finding
 
-| Task | Component | Type | Tests added |
-|------|-----------|------|-------------|
-| 1 | framer-motion install | Infra | 0 (verification only) |
-| 2 | Spring constants | Config | 4 |
-| 3 | Skeleton tokens | CSS | 0 |
-| 4 | Skeleton primitive | Component | 4 |
-| 5 | RiskTileSkeleton | Component | 3 |
-| 6 | DossierSkeleton | Component | 4 |
-| 7 | App.tsx skeleton wiring | Integration | ~2 new, ~6 deleted |
-| 8 | usePressable hook | Hook | 3 |
-| 9 | haptic utility | Utility | 3 |
-| 10 | Touch target fixes | CSS/Components | 0 |
-| 11 | Tier 1 quality gate | Verification | 0 |
-| 12 | Press states (Tier A) | Components | 0 |
-| 13 | Risk tile whileTap | Component | 0 |
-| 14 | Shared element transition | Architecture | 3 |
-| 15 | Tier 2 quality gate | Verification | 0 |
+**R2 Findings (original 12 from first assessment):**
 
-**Net new tests:** ~20+ (well above maintaining 347 baseline)
-**Bundle increase:** ~33KB gzipped (framer-motion)
-**Files deleted:** 6 (LoadingScreen, BuildingAnimation + their CSS + tests)
-**Files created:** ~12 (springs, skeleton, hooks, utilities)
-**Files modified:** ~10 (App.tsx, RiskTile, RiskDetailView, TopBar, ViewingChecklist, tokens.css, etc.)
+| # | Finding | Resolution |
+|---|---------|-----------|
+| 1 | Bottom sheet not planned | Task 3: DossierSheet with handle-only drag, velocity thresholds, 4 snap points |
+| 2 | Non-existent file deletions | Task 6: only 4 files, validated via Glob |
+| 3 | Skeleton timing contradiction | Task 5: `suggestion.display_name` at T+0, `pendingDisplayName` state |
+| 4 | isTransitioning not wired | Task 12: animation callbacks + tap guard |
+| 5 | Stale test baselines | Task 0: verify-only (all already green) |
+| 6 | Invalid token --shadow-sm | All CSS uses `--elevation-1/2/3`. Zero `--shadow-sm` |
+| 7 | Wrong import path | Task 14: `./utils/haptic` (correct for `src/App.tsx`) |
+| 8 | Press state contradiction | Task 9-10: pointer events only, no `:active` |
+| 9 | Spring constants unused | Task 12/15: all transitions use `config/springs.ts` |
+| 10 | Incomplete touch targets | Task 7: 6 violations + explicit min-height on lang toggle |
+| 11 | React 18 stated | React 19 throughout |
+| 12 | grep not PowerShell | All commands PowerShell-native |
+
+**R3 Findings (12 from Revision 3 assessment — addressed in R4):**
+
+| # | Finding | Resolution |
+|---|---------|-----------|
+| 1 | Baselines outdated (said 7 fail, actual 0) | Task 0: verify-only, no code changes |
+| 2 | Task 0 duplicates already-fixed code | Task 0: all code edits removed |
+| 3 | 3→2 tab change violates CLAUDE.md | Task 4: keep all 3 tabs, no TabBar changes |
+| 4 | T+0: setActiveScreen after lookupAddress | Task 4: moved BEFORE lookupAddress() |
+| 5 | Drag/scroll conflict: touch-action:none on sheet | Task 3: drag="y" on handle only |
+| 6 | Z-index collision: sheet 50 = TabBar 50 | Task 3: sheet z-index: 40 |
+| 7 | usePressable never applied | Task 11: applied to bookmark + shortlist remove |
+| 8 | Lang toggle min-height not guaranteed | Task 7: explicit `min-height: 44px` |
+| 9 | CSS instruction contradictory | Task 12: clarified — keep fixed as final state |
+| 10 | Tab pill is ::before, not DOM | Task 15: refactor to `<motion.div>` |
+| 11 | File count 9 vs 13 listed | File inventory: corrected to 13 |
+| 12 | Backend baseline 293 vs actual 321 | All quality gates: 321 |
+
+---
+
+## File Inventory
+
+**New files (13):**
+- `frontend/src/config/springs.ts`
+- `frontend/src/config/springs.test.ts`
+- `frontend/src/components/DossierSheet.tsx`
+- `frontend/src/components/DossierSheet.css`
+- `frontend/src/components/DossierSheet.test.tsx`
+- `frontend/src/components/SkeletonCard.tsx`
+- `frontend/src/components/SkeletonCard.css`
+- `frontend/src/components/SkeletonCard.test.tsx`
+- `frontend/src/hooks/usePressable.ts`
+- `frontend/src/hooks/usePressable.test.ts`
+- `frontend/src/utils/haptic.ts`
+- `frontend/src/utils/haptic.test.ts`
+- `frontend/src/styles/pressable.css`
+
+**Deleted files (4):**
+- `frontend/src/components/LoadingScreen.tsx`
+- `frontend/src/components/LoadingScreen.css`
+- `frontend/src/components/LoadingScreen.test.tsx`
+- `frontend/src/components/BuildingAnimation.tsx`
+
+**Modified files (19):**
+- `frontend/package.json` (framer-motion dependency)
+- `frontend/vite.config.ts` (vendor chunk)
+- `frontend/src/test/setup.ts` (framer-motion mock)
+- `frontend/src/styles/tokens.css` (skeleton + pressed tokens)
+- `frontend/src/index.css` (pressable import)
+- `frontend/src/App.tsx` (DossierSheet, skeleton, transitions, haptic)
+- `frontend/src/App.test.tsx` (remove LoadingScreen assertions)
+- `frontend/src/components/TabBar.tsx` (spring pill refactor from ::before to motion.div, whileTap)
+- `frontend/src/components/TabBar.css` (pill refactor from ::before to .tab-bar__pill)
+- `frontend/src/components/BuildingFootprintMap.tsx` (zoom prop)
+- `frontend/src/components/RiskTile.tsx` (motion.button, layoutId)
+- `frontend/src/components/RiskDetailView.tsx` (motion.div, layoutId, callbacks)
+- `frontend/src/components/RiskDetailView.css` (back button 44px)
+- `frontend/src/components/TopBar.css` (lang toggle min-height 44px + settings 44px)
+- `frontend/src/components/AddressHeader.tsx` (usePressable on bookmark)
+- `frontend/src/components/AddressHeader.css` (bookmark 44px)
+- `frontend/src/components/ShortlistScreen.tsx` (usePressable on remove button)
+- `frontend/src/components/ShortlistScreen.css` (remove button 44px)
+- `frontend/src/components/ViewingChecklist.css` (item height 48px)
+
+**NOT modified (already correct):**
+- `frontend/src/i18n/en.json` — all keys already exist
+- `frontend/src/i18n/nl.json` — all keys already exist
+- `backend/app/config.py` — metrics fields already present
+- `backend/app/api/router.py` — metrics router already wired
