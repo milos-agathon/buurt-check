@@ -79,6 +79,23 @@ Become the trusted pre-viewing intelligence tool for every property buyer in the
 - Present as crimes per 1,000 residents. Sub-cards: burglary, violent crime.
 - Mandatory disclaimers about registered vs. total crime.
 
+### I) Leefbaarometer (livability scores)
+- WFS: `https://geo.leefbaarometer.nl/lbm3/ows` (OGC WFS 2.0.0)
+- Query: `CQL_FILTER=INTERSECTS(geom, POINT(rd_x rd_y))` in EPSG:28992, `outputFormat=application/json`
+- Feature types: `buurtscore24` (latest, 2024 data), historical back to `buurtscore02` (biennial releases)
+- 5 dimensions: `_fys` (physical), `_onv` (safety), `_soc` (social cohesion), `_vrz` (amenities), `_won` (housing quality). Scale: 1-10. Overall: `lbm` field.
+- No authentication. No rate limits observed. Cache TTL: 30 days.
+
+### J) Bodemloket (soil contamination) -- limited
+- WMS only: `https://gis.gdngeoservices.nl/standalone/services/blk_gdn/lks_blk_rd_v1/MapServer/WMSServer`
+- **No WFS exists** (planned since 2019, never implemented). GetFeatureInfo returns only reference IDs, NOT contamination severity.
+- Practical scope: presence/absence detection only. Link to Bodemloket website for details.
+
+### K) Lead pipe risk -- no API (proxy via BAG)
+- No dedicated OGC service exists for Loodverwachtingskaart.
+- Proxy: BAG construction year < 1960 indicates lead pipe risk (same heuristic as Dutch water utilities).
+- Derived from existing BAG data, no additional API call needed.
+
 ## Architecture decisions
 
 - **Backend**: FastAPI (Python) + httpx (async) + Pydantic v2. Stateless API aggregator — no database, all data from external APIs. Redis for caching with circuit breaker.
@@ -232,7 +249,13 @@ buurt-check/
 - `docs/phase4-quality-gates.md` — Quality gate documentation (a11y, perf, visual regression)
 - `docs/ui-principles.md` — Apple-tier mobile UX principles and interaction patterns
 
+### Unmerged feature branch
+- **`feat/mobile-ui-premium`** contains 26 commits (78 files, +6358 lines) with ALL Phase 1A work: property warnings, AttentionSummary, Framer Motion, DossierSheet, skeleton loading, haptic feedback, press states, spring constants, touch targets. Zero merge conflicts with `main` (verified via `git merge-tree`). Must be merged before Phase 1B work.
+- **Test baseline discrepancy:** CLAUDE.md documents 381 backend / 385 frontend tests — these are branch numbers. Main branch has 328 backend / 338 frontend tests (26 frontend tests failing on main). Baselines should be re-verified after merge.
+
 ### What's next
+- **Merge `feat/mobile-ui-premium` to `main`** and resolve any test failures.
+- **Phase 1B:** Leefbaarometer integration, Bodemloket soil contamination, lead pipe proxy warning, enhance AttentionSummary with new signals.
 - Maintain quality gates: `ruff check`, backend pytest (381+, excluding live), frontend vitest (385+), `npm run build`.
 - Resolve PM2.5 data gap (GCN WMS only has NO2 layers).
 - Replace hardcoded risk comparison baselines with real CBS/WHO data.
@@ -908,3 +931,30 @@ Default `datePreset` must be `'summer'` (not `'today'`) to guarantee sun above h
 3. **Feature removal needs the same rigor as feature addition.** Mapillary removal touched 24 files. Without systematic audit + cascading deletion order, incomplete removal causes stale references.
 4. **Brainstorming sessions produce better design when structured.** The mobile UI assessment session used systematic Apple design principles (8 categories) rather than ad-hoc improvement suggestions. Structure prevents missing interaction patterns.
 5. **Test count baselines (updated 2026-02-13).** Backend: 381 non-live (+ live smoke). Frontend: 385. Update immediately after test-adding commits to prevent drift.
+
+### Missed learnings from Feb 13 compound session
+
+1. **PDOK BRO soil type WFS endpoint unavailable.** All known BRO WFS endpoints return 404. Foundation risk service falls back to Klimaateffectatlas subsidence layers + construction year heuristic. Do not assume PDOK endpoints exist without live verification.
+2. **Klimaateffectatlas subsidence layers are regional, not national.** Coverage varies by province. Some addresses will have no subsidence data. Handle gracefully with "data unavailable" fallback.
+3. **React Hooks-in-loop violation.** Calling `usePressable()` inside `.map()` violates Rules of Hooks. Fix: use Framer Motion's `whileTap` prop instead of custom hooks in mapped elements.
+4. **T+0 visual feedback requires `pendingDisplayName`.** Showing the dossier sheet immediately on address selection (before API response) requires extracting the display name from the suggestion data, not waiting for the lookup response.
+5. **Z-index hierarchy:** DossierSheet (40), backdrop (49), TabBar (50). TabBar must be above sheet backdrop to remain tappable. Document z-index allocation to prevent future conflicts.
+6. **`assert b"text" in pdf_bytes` unreliable with fpdf2 TTF.** fpdf2 encodes TTF text as binary glyph indices, not readable text. PDF content assertions must use a PDF parser or check structural markers instead.
+
+## Learnings from Feb 14 sessions (Phase 1B planning, compound engineering)
+
+### Phase 1B Planning Session
+
+1. **Always check for unmerged feature branches before planning new work.** The Phase 1B planning session discovered that all Phase 1A work existed on `feat/mobile-ui-premium` (26 commits, never merged to main). This fundamentally changed the plan from "build from scratch" to "merge first, then extend."
+2. **API research must verify actual capabilities, not documented intentions.** Bodemloket documentation mentions WFS support, but live testing returned 404. Loodverwachtingskaart was referenced in design docs but has no published API. Always probe live endpoints before committing to integration work.
+3. **Test baselines must specify which branch they apply to.** Documented baselines (381/385) were from the feature branch, not main (328/338). After merging, re-verify and document with merge commit reference.
+4. **Leefbaarometer is production-ready.** WFS 2.0.0 with CQL_FILTER support, GeoJSON output, 5 livability dimensions on a 1-10 scale. No auth, no rate limits. Straightforward integration following existing WFS patterns in `risk_cards.py`.
+5. **Lead pipe risk has no API — use BAG proxy.** Construction year < 1960 is the standard heuristic used by Dutch water utilities. No additional API call needed; derive from existing BAG building data.
+6. **`LoopAwareClient` pattern in `http_client.py`.** Auto-recreates `httpx.AsyncClient` when event loop changes. Prevents stale-event-loop bugs in testing or ASGI worker restarts. All new services should use this client.
+
+### Compound Engineering Process Learnings (Feb 13-14)
+
+1. **Background task output files can be empty on Windows.** Claude Code background agents produced 0-byte output files. Results were only available via task notification messages. Prefer foreground agents or check task notifications rather than output files.
+2. **Compound sessions can miss learnings.** The Feb 13 compound session (commit `71254d2`) missed 6+ learnings that subagents identified but weren't written to CLAUDE.md. Always verify compound output against subagent reports.
+3. **Compound debt compounds fast.** Feb 13 had 6 un-compounded sessions by end of day. Each session's learnings were lost until the batch compound at 22:52. The cost of batch compounding is higher (880K tokens across subagents) than incremental compounding per session.
+4. **Parallel subagent exploration is effective for planning.** Three subagents (backend patterns, frontend patterns, API research) running simultaneously completed in ~2 minutes, producing comprehensive findings that would take 15+ minutes sequentially.
