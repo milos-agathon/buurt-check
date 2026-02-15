@@ -301,7 +301,7 @@ export async function getLivability(
   vboId: string,
   rdX: number,
   rdY: number,
-): Promise<LivabilityResponse> {
+): Promise<LivabilityResponse | null> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
     rd_y: String(rdY),
@@ -313,7 +313,10 @@ export async function getLivability(
       signal: controller.signal,
     });
     if (!resp.ok) throw new Error(`Livability failed: ${resp.status}`);
-    return resp.json();
+    const data = await resp.json();
+    // Contract: backend always returns 200. Check `available` field.
+    if (data.available === false) return null;
+    return data as LivabilityResponse;
   } finally {
     clearTimeout(timeoutId);
   }

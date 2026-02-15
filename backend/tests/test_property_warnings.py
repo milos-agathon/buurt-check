@@ -47,6 +47,62 @@ class TestErfpachtDetection:
         assert result.erfpacht.detected is True
 
     @pytest.mark.asyncio
+    async def test_amsterdam_lowercase_flags_erfpacht(self):
+        """Case-insensitive: 'amsterdam' must match configured 'Amsterdam'."""
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="low", construction_year=2000),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=2000,
+                num_units=1,
+                municipality="amsterdam",
+            )
+        assert result.erfpacht.detected is True
+        assert result.erfpacht.confidence == "municipality_based"
+
+    @pytest.mark.asyncio
+    async def test_amsterdam_whitespace_flags_erfpacht(self):
+        """Leading/trailing whitespace: ' Amsterdam ' must match."""
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="low", construction_year=2000),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=2000,
+                num_units=1,
+                municipality=" Amsterdam ",
+            )
+        assert result.erfpacht.detected is True
+        assert result.erfpacht.municipality == "Amsterdam"
+
+    @pytest.mark.asyncio
+    async def test_amsterdam_mixed_case_flags_erfpacht(self):
+        """Mixed case: 'AMSTERDAM' must match."""
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="low", construction_year=2000),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=2000,
+                num_units=1,
+                municipality="AMSTERDAM",
+            )
+        assert result.erfpacht.detected is True
+
+    @pytest.mark.asyncio
     async def test_non_erfpacht_city_no_flag(self):
         with patch(
             "app.services.property_warnings.foundation_risk.get_foundation_risk",

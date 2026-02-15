@@ -384,7 +384,10 @@ async def test_endpoint_cache_hit():
         data1 = resp1.json()
         assert data1["available"] is True
 
-        # Second call — should come from cache
+        # Record WFS call count after first request
+        wfs_call_count_after_first = m_client.get.call_count
+
+        # Second call — should come from cache, WFS call count must NOT increase
         resp2 = client.get(
             "/api/address/0363200012345678/livability",
             params={"rd_x": "121000", "rd_y": "487000"},
@@ -394,10 +397,17 @@ async def test_endpoint_cache_hit():
         assert data2["available"] is True
         assert data2["buurt_name"] == data1["buurt_name"]
 
+        # Assert WFS was NOT called again on second request (cache hit)
+        assert m_client.get.call_count == wfs_call_count_after_first
+
 
 @pytest.mark.asyncio
 async def test_endpoint_no_cache_on_empty():
-    """When no data, endpoint returns available:false and does NOT cache."""
+    """When no data, endpoint returns available:false and does NOT cache.
+
+    Calls endpoint twice to prove both: no cache write on empty, and
+    repeated WFS fetch on subsequent call.
+    """
     from starlette.testclient import TestClient
 
     from app.main import app
@@ -421,13 +431,31 @@ async def test_endpoint_no_cache_on_empty():
         m_client.get.return_value = mock_cl
 
         client = TestClient(app)
-        resp = client.get(
+
+        # First call — no data
+        resp1 = client.get(
             "/api/address/0363200012345678/livability",
             params={"rd_x": "0", "rd_y": "0"},
         )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["available"] is False
+        assert resp1.status_code == 200
+        assert resp1.json()["available"] is False
 
         # Verify nothing was cached
+        assert len(cache_store) == 0
+
+        # Record WFS call count after first request
+        wfs_call_count_after_first = m_client.get.call_count
+
+        # Second call — should hit WFS again (not cached)
+        resp2 = client.get(
+            "/api/address/0363200012345678/livability",
+            params={"rd_x": "0", "rd_y": "0"},
+        )
+        assert resp2.status_code == 200
+        assert resp2.json()["available"] is False
+
+        # Assert WFS was called again (empty results were NOT cached)
+        assert m_client.get.call_count > wfs_call_count_after_first
+
+        # Still nothing in cache
         assert len(cache_store) == 0

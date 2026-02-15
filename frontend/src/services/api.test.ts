@@ -435,8 +435,9 @@ describe('getLivability', () => {
       }),
     );
     const result = await getLivability('0363200000000001', 121286, 487296);
-    expect(result.available).toBe(true);
-    expect(result.overall_normalized).toBe(75);
+    expect(result).not.toBeNull();
+    expect(result!.available).toBe(true);
+    expect(result!.overall_normalized).toBe(75);
     const [url] = mockFetch.mock.calls[0];
     expect(url).toContain('/api/address/0363200000000001/livability?');
     expect(url).toContain('rd_x=121286');
@@ -448,6 +449,14 @@ describe('getLivability', () => {
     await expect(
       getLivability('0363200000000001', 121286, 487296),
     ).rejects.toThrow('Livability failed: 500');
+  });
+
+  it('returns null when available is false', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({ available: false, buurt_code: '', buurt_name: '', gemeente: '', year: '', overall_score: 0, overall_normalized: 0, dimensions: [], trend: [], comparison: [], source: '', messages: [] }),
+    );
+    const result = await getLivability('0363200000000001', 121286, 487296);
+    expect(result).toBeNull();
   });
 
   it('passes AbortSignal for timeout', async () => {

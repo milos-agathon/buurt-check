@@ -2,8 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import SoilInfoCard from './SoilInfoCard';
-import { setupTestI18n, makePropertyWarningsResponse } from '../test/helpers';
-import type { PropertyWarningsResponse } from '../types/api';
+import { setupTestI18n } from '../test/helpers';
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -11,46 +10,56 @@ beforeEach(async () => {
   i18n = await setupTestI18n('en');
 });
 
-function renderCard(warnings?: PropertyWarningsResponse) {
+function renderCard(props: { leadPipeFlagged?: boolean; constructionYear?: number } = {}) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <SoilInfoCard warnings={warnings} />
+      <SoilInfoCard {...props} />
     </I18nextProvider>,
   );
 }
 
 describe('SoilInfoCard', () => {
   it('renders card with soil contamination section', () => {
-    renderCard(makePropertyWarningsResponse());
+    renderCard();
     expect(screen.getByTestId('soil-info-card')).toBeInTheDocument();
-    expect(screen.getByText('Soil Contamination')).toBeInTheDocument();
+    expect(screen.getByText('Soil Contamination Check')).toBeInTheDocument();
   });
 
   it('renders Bodemloket link', () => {
-    renderCard(makePropertyWarningsResponse());
+    renderCard();
     const link = screen.getByRole('link', { name: /bodemloket/i });
     expect(link).toHaveAttribute('href', 'https://www.bodemloket.nl');
     expect(link).toHaveAttribute('target', '_blank');
   });
 
-  it('shows lead pipe warning for pre-1960 building', () => {
-    const data = makePropertyWarningsResponse({
-      lead_pipe: { flagged: true, construction_year: 1955, messages: ['LEAD_PIPE_PRE_1960'] },
-    });
-    renderCard(data);
+  it('renders viewing questions in a collapsible details element', () => {
+    renderCard();
+    const details = screen.getByTestId('soil-questions');
+    expect(details).toBeInTheDocument();
+    expect(details.tagName).toBe('DETAILS');
+    // Questions are present inside the details
+    expect(screen.getByText(/soil investigation/i)).toBeInTheDocument();
+    expect(screen.getByText(/underground storage tanks/i)).toBeInTheDocument();
+    expect(screen.getByText(/contaminated soil layers/i)).toBeInTheDocument();
+  });
+
+  it('renders disclaimer', () => {
+    renderCard();
+    expect(screen.getByText(/absence of a record/i)).toBeInTheDocument();
+  });
+
+  it('shows lead pipe warning when leadPipeFlagged is true', () => {
+    renderCard({ leadPipeFlagged: true, constructionYear: 1955 });
     expect(screen.getByTestId('lead-pipe-warning')).toBeInTheDocument();
     expect(screen.getByText(/1955/)).toBeInTheDocument();
   });
 
-  it('does not show lead pipe warning for post-1960 building', () => {
-    const data = makePropertyWarningsResponse({
-      lead_pipe: { flagged: false, messages: [] },
-    });
-    renderCard(data);
+  it('does not show lead pipe warning when leadPipeFlagged is false', () => {
+    renderCard({ leadPipeFlagged: false });
     expect(screen.queryByTestId('lead-pipe-warning')).not.toBeInTheDocument();
   });
 
-  it('renders without warnings prop', () => {
+  it('renders without any props', () => {
     renderCard();
     expect(screen.getByTestId('soil-info-card')).toBeInTheDocument();
     expect(screen.queryByTestId('lead-pipe-warning')).not.toBeInTheDocument();
@@ -60,9 +69,7 @@ describe('SoilInfoCard', () => {
     const nlI18n = await setupTestI18n('nl');
     render(
       <I18nextProvider i18n={nlI18n}>
-        <SoilInfoCard warnings={makePropertyWarningsResponse({
-          lead_pipe: { flagged: true, construction_year: 1950, messages: ['LEAD_PIPE_PRE_1960'] },
-        })} />
+        <SoilInfoCard leadPipeFlagged={true} constructionYear={1950} />
       </I18nextProvider>,
     );
     expect(screen.getByText('Loden Leidingen Risico')).toBeInTheDocument();

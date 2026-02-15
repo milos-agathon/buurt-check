@@ -867,3 +867,114 @@ async def test_property_warnings_invalid_vbo(client):
 async def test_property_warnings_missing_params(client):
     resp = await client.get("/api/address/0363010000696734/property-warnings")
     assert resp.status_code == 422
+
+
+# --- Property-warnings cache-key regression tests ---
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_property_warnings_cache_key_varies_by_context(
+    mock_cache_set, mock_cache_get, client
+):
+    """Different construction_year / num_units / municipality => distinct cache keys."""
+    with patch(
+        "app.api.address.property_warnings.get_property_warnings",
+        new_callable=AsyncMock,
+        return_value=_make_property_warnings_response(),
+    ):
+        # Call 1: with construction_year=1920, num_units=1, municipality=amsterdam
+        await client.get(
+            "/api/address/0363010000696734/property-warnings",
+            params={
+                "rd_x": "121000",
+                "rd_y": "487000",
+                "construction_year": "1920",
+                "num_units": "1",
+                "municipality": "amsterdam",
+            },
+        )
+        key_1 = mock_cache_get.call_args_list[-1][0][0]
+
+        # Call 2: different construction_year
+        await client.get(
+            "/api/address/0363010000696734/property-warnings",
+            params={
+                "rd_x": "121000",
+                "rd_y": "487000",
+                "construction_year": "2005",
+                "num_units": "1",
+                "municipality": "amsterdam",
+            },
+        )
+        key_2 = mock_cache_get.call_args_list[-1][0][0]
+
+        # Call 3: different num_units
+        await client.get(
+            "/api/address/0363010000696734/property-warnings",
+            params={
+                "rd_x": "121000",
+                "rd_y": "487000",
+                "construction_year": "1920",
+                "num_units": "50",
+                "municipality": "amsterdam",
+            },
+        )
+        key_3 = mock_cache_get.call_args_list[-1][0][0]
+
+        # Call 4: different municipality
+        await client.get(
+            "/api/address/0363010000696734/property-warnings",
+            params={
+                "rd_x": "121000",
+                "rd_y": "487000",
+                "construction_year": "1920",
+                "num_units": "1",
+                "municipality": "utrecht",
+            },
+        )
+        key_4 = mock_cache_get.call_args_list[-1][0][0]
+
+    # All four keys must be distinct
+    keys = [key_1, key_2, key_3, key_4]
+    assert len(set(keys)) == 4, f"Expected 4 distinct cache keys, got: {keys}"
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_property_warnings_cache_key_municipality_normalization(
+    mock_cache_set, mock_cache_get, client
+):
+    """Municipality normalization: ' Amsterdam ' vs 'amsterdam' => same cache key."""
+    with patch(
+        "app.api.address.property_warnings.get_property_warnings",
+        new_callable=AsyncMock,
+        return_value=_make_property_warnings_response(),
+    ):
+        # Padded with whitespace and mixed case
+        await client.get(
+            "/api/address/0363010000696734/property-warnings",
+            params={
+                "rd_x": "121000",
+                "rd_y": "487000",
+                "municipality": " Amsterdam ",
+            },
+        )
+        key_padded = mock_cache_get.call_args_list[-1][0][0]
+
+        # Lowercase, stripped
+        await client.get(
+            "/api/address/0363010000696734/property-warnings",
+            params={
+                "rd_x": "121000",
+                "rd_y": "487000",
+                "municipality": "amsterdam",
+            },
+        )
+        key_clean = mock_cache_get.call_args_list[-1][0][0]
+
+    assert key_padded == key_clean, (
+        f"Municipality normalization failed: '{key_padded}' != '{key_clean}'"
+    )

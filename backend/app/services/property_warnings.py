@@ -128,13 +128,17 @@ async def get_property_warnings(
     fr = await foundation_risk.get_foundation_risk(construction_year, rd_x, rd_y)
 
     # Erfpacht detection (sync — municipality list lookup)
-    erfpacht_detected = (
-        municipality is not None and municipality in settings.erfpacht_municipalities
+    # Normalize municipality input (strip + casefold) to match case-insensitively
+    # against the configured list. This prevents cache poisoning when the first
+    # request uses a non-canonical casing (e.g. "amsterdam" vs "Amsterdam").
+    mu_norm = municipality.strip().casefold() if municipality else None
+    erfpacht_detected = mu_norm is not None and any(
+        m.casefold() == mu_norm for m in settings.erfpacht_municipalities
     )
     erfpacht = ErfpachtWarning(
         detected=erfpacht_detected,
         confidence="municipality_based" if erfpacht_detected else None,
-        municipality=municipality if erfpacht_detected else None,
+        municipality=municipality.strip() if erfpacht_detected and municipality else None,
     )
 
     # VvE detection (sync — unit count from BAG)

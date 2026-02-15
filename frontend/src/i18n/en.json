@@ -374,15 +374,17 @@
   "livability.dimensions": "Dimensions",
 
   "dossier.soilInfo": "Soil & Pipes",
-  "soil.title": "Soil & Utility Pipes",
-  "soil.contamination.title": "Soil Contamination",
-  "soil.contamination.description": "Check for known soil contamination at this address. The Bodemloket shows historical contamination records maintained by municipalities and provinces.",
-  "soil.contamination.link": "View on Bodemloket.nl",
-  "soil.leadPipe.title": "Lead Pipe Risk",
-  "soil.leadPipe.description": "This building was constructed in {{year}}, before 1960. Properties built before 1960 may still have lead water pipes, which pose a health risk.",
-  "soil.leadPipe.action": "Ask the seller or water utility if lead pipes have been replaced. You can also request a water quality test.",
-  "soil.source": "Construction year: BAG Kadaster. Lead pipe heuristic based on Dutch water utility guidelines.",
-
-  "warnings.leadPipe.title": "Lead Pipe Risk",
-  "warnings.leadPipe.description": "Pre-1960 building — check for lead water pipes."
+  "soil.title": "Soil Contamination Check",
+  "soil.description": "Dutch law requires buyers to investigate soil contamination (onderzoeksplicht). Soil contamination can cost EUR 25,000-100,000+ to remediate.",
+  "soil.link_label": "Check on Bodemloket.nl",
+  "soil.viewing_questions_label": "Viewing questions",
+  "soil.question_1": "Has a soil investigation (bodemonderzoek) been conducted for this property?",
+  "soil.question_2": "Are there underground storage tanks that have not been removed?",
+  "soil.question_3": "If renovation is planned: will it disturb contaminated soil layers?",
+  "soil.disclaimer": "Absence of a record does not guarantee clean soil. Only a professional bodemonderzoek can confirm soil condition.",
+  "soil.source": "Bodemloket (National Soil Information System)",
+  "soil.lead_pipe_title": "Lead Pipe Risk",
+  "soil.lead_pipe_note": "Built in {{constructionYear}}, before 1960. Original water supply pipes may contain lead. If the property has a garden used by young children, or original pre-1960 water pipes, request a lead test (loodtest).",
+  "soil.lead_pipe_viewing_question": "Does this property have original water pipes (pre-1960)? Has a lead test been conducted on soil or drinking water?",
+  "soil.lead_pipe_source": "Construction year: BAG Kadaster. Lead pipe risk proxy based on Dutch water utility guidelines."
 }

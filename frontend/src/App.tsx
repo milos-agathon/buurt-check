@@ -711,7 +711,27 @@ function App() {
 
             {/* DossierSheet slides up over the map */}
             <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
-              {/* Skeleton address header while loading */}
+              {/* === DOSSIER CANONICAL ORDER (v7 spec — tasks/todo.md:1076) === */}
+
+              {/* 1. AttentionSummary — delayed until both risks and warnings resolve */}
+              {((!riskLoading && (riskCards || riskError)) &&
+                (!propertyWarningsLoading && (propertyWarnings || propertyWarningsError))) && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={SPRING_REVEAL}
+                  data-dossier-section="attention-summary"
+                >
+                  <AttentionSummary
+                    riskCards={riskCards ?? undefined}
+                    warnings={propertyWarnings ?? undefined}
+                    sunlightScore={sunlight ? normalizeSunlightScore(sunlight.winter) : undefined}
+                    livability={livability ?? undefined}
+                  />
+                </motion.div>
+              )}
+
+              {/* 2. AddressHeader + bookmark */}
               {loading && !buildingResponse && pendingDisplayName && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
@@ -734,23 +754,7 @@ function App() {
                 />
               )}
 
-              {/* AttentionSummary — delayed until both risks and warnings resolve */}
-              {((!riskLoading && (riskCards || riskError)) &&
-                (!propertyWarningsLoading && (propertyWarnings || propertyWarningsError))) && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={SPRING_REVEAL}
-                >
-                  <AttentionSummary
-                    riskCards={riskCards ?? undefined}
-                    warnings={propertyWarnings ?? undefined}
-                    sunlightScore={sunlight ? normalizeSunlightScore(sunlight.winter) : undefined}
-                    livability={livability ?? undefined}
-                  />
-                </motion.div>
-              )}
-
+              {/* 3. SummaryStrip (risk score pills) */}
               {summaryPills.length > 0 && (
                 <SummaryStrip
                   pills={summaryPills}
@@ -758,7 +762,15 @@ function App() {
                 />
               )}
 
-              {/* Skeleton risk grid while loading */}
+              {/* 4. BuildingFactsCard */}
+              {(loading || buildingResponse) && (
+                <BuildingFactsCard
+                  building={buildingResponse?.building ?? undefined}
+                  loading={loading}
+                />
+              )}
+
+              {/* 5. RiskTilesGrid (2x2: noise, air, climate, sunlight) */}
               {loading && !riskCards && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
@@ -769,6 +781,95 @@ function App() {
                 </motion.div>
               )}
 
+              {(riskLoading || riskCards || riskError || activeDetailCategory) && (
+                <LayoutGroup>
+                  {(riskLoading || riskCards || riskError) && (
+                    <>
+                      <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
+                      <RiskTilesGrid
+                        risks={riskCards ?? undefined}
+                        sunlight={sunlight ?? undefined}
+                        onTileTap={handleRiskTileTap}
+                      />
+                      <RiskCardsPanel
+                        risks={riskCards ?? undefined}
+                        loading={riskLoading}
+                        error={riskError}
+                      />
+                    </>
+                  )}
+                  {activeDetailCategory && (() => {
+                    const detail = getDetailProps(activeDetailCategory);
+                    if (!detail) return null;
+                    return (
+                      <RiskDetailView
+                        category={activeDetailCategory}
+                        titleKey={detail.titleKey}
+                        score={detail.score}
+                        severity={detail.severity}
+                        meaning={detail.meaning}
+                        comparisons={detail.comparisons}
+                        questions={activeQuestions}
+                        checkedQuestions={checkedQuestions}
+                        onToggleQuestion={handleToggleQuestion}
+                        source={detail.source}
+                        sourceDate={detail.sourceDate}
+                        onBack={() => {
+                          setActiveDetailCategory(null);
+                          setIsTransitioning(false);
+                        }}
+                        onAnimationStart={() => setIsTransitioning(true)}
+                        onAnimationComplete={() => setIsTransitioning(false)}
+                      />
+                    );
+                  })()}
+                </LayoutGroup>
+              )}
+
+              {/* 6. PropertyWarningsCard */}
+              {(propertyWarningsLoading || propertyWarnings || propertyWarningsError) && (
+                <>
+                  <h3 className="app__section-label">{t('warnings.sectionTitle')}</h3>
+                  <PropertyWarningsCard
+                    data={propertyWarnings ?? undefined}
+                    loading={propertyWarningsLoading}
+                    error={propertyWarningsError}
+                  />
+                </>
+              )}
+
+              {/* 7. SoilInfoCard (static info, lead pipe note) */}
+              {propertyWarnings && (
+                <>
+                  <h3 className="app__section-label">{t('dossier.soilInfo', 'Soil & Pipes')}</h3>
+                  <SoilInfoCard
+                    leadPipeFlagged={propertyWarnings?.lead_pipe?.flagged}
+                    constructionYear={buildingResponse?.building?.construction_year}
+                  />
+                </>
+              )}
+
+              {/* 8. LivabilityCard + detail view */}
+              {(livabilityLoading || livability || livabilityError) && (
+                <>
+                  <h3 className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
+                  <LivabilityCard
+                    data={livability ?? undefined}
+                    loading={livabilityLoading}
+                    error={livabilityError}
+                    onTap={livability ? () => setShowLivabilityDetail(true) : undefined}
+                  />
+                </>
+              )}
+
+              {showLivabilityDetail && livability && (
+                <LivabilityDetailView
+                  data={livability}
+                  onClose={() => setShowLivabilityDetail(false)}
+                />
+              )}
+
+              {/* 9. 3D Viewer (NeighborhoodViewer3D) + Sunlight + Shadows */}
               {neighborhood3DLoading && (
                 <div className="viewer-3d-status">
                   <p>{t('viewer3d.loading')}</p>
@@ -826,51 +927,7 @@ function App() {
                 />
               )}
 
-              {(riskLoading || riskCards || riskError || activeDetailCategory) && (
-                <LayoutGroup>
-                  {(riskLoading || riskCards || riskError) && (
-                    <>
-                      <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
-                      <RiskTilesGrid
-                        risks={riskCards ?? undefined}
-                        sunlight={sunlight ?? undefined}
-                        onTileTap={handleRiskTileTap}
-                      />
-                      <RiskCardsPanel
-                        risks={riskCards ?? undefined}
-                        loading={riskLoading}
-                        error={riskError}
-                      />
-                    </>
-                  )}
-                  {activeDetailCategory && (() => {
-                    const detail = getDetailProps(activeDetailCategory);
-                    if (!detail) return null;
-                    return (
-                      <RiskDetailView
-                        category={activeDetailCategory}
-                        titleKey={detail.titleKey}
-                        score={detail.score}
-                        severity={detail.severity}
-                        meaning={detail.meaning}
-                        comparisons={detail.comparisons}
-                        questions={activeQuestions}
-                        checkedQuestions={checkedQuestions}
-                        onToggleQuestion={handleToggleQuestion}
-                        source={detail.source}
-                        sourceDate={detail.sourceDate}
-                        onBack={() => {
-                          setActiveDetailCategory(null);
-                          setIsTransitioning(false);
-                        }}
-                        onAnimationStart={() => setIsTransitioning(true)}
-                        onAnimationComplete={() => setIsTransitioning(false)}
-                      />
-                    );
-                  })()}
-                </LayoutGroup>
-              )}
-
+              {/* 10. NeighborhoodStatsCard */}
               {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
                 <>
                   <h3 className="app__section-label">{t('dossier.neighborhood')}</h3>
@@ -882,25 +939,7 @@ function App() {
                 </>
               )}
 
-              {(livabilityLoading || livability || livabilityError) && (
-                <>
-                  <h3 className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
-                  <LivabilityCard
-                    data={livability ?? undefined}
-                    loading={livabilityLoading}
-                    error={livabilityError}
-                    onTap={livability ? () => setShowLivabilityDetail(true) : undefined}
-                  />
-                </>
-              )}
-
-              {showLivabilityDetail && livability && (
-                <LivabilityDetailView
-                  data={livability}
-                  onClose={() => setShowLivabilityDetail(false)}
-                />
-              )}
-
+              {/* 11. TierBSignalsCard */}
               {(tierBLoading || tierBData || tierBError) && (
                 <>
                   <h3 className="app__section-label">{t('dossier.tierB')}</h3>
@@ -912,32 +951,7 @@ function App() {
                 </>
               )}
 
-              {(propertyWarningsLoading || propertyWarnings || propertyWarningsError) && (
-                <>
-                  <h3 className="app__section-label">{t('warnings.sectionTitle')}</h3>
-                  <PropertyWarningsCard
-                    data={propertyWarnings ?? undefined}
-                    loading={propertyWarningsLoading}
-                    error={propertyWarningsError}
-                  />
-                </>
-              )}
-
-              {/* Soil info — always shown when property warnings loaded (static info card) */}
-              {propertyWarnings && (
-                <>
-                  <h3 className="app__section-label">{t('dossier.soilInfo', 'Soil & Pipes')}</h3>
-                  <SoilInfoCard warnings={propertyWarnings ?? undefined} />
-                </>
-              )}
-
-              {(loading || buildingResponse) && (
-                <BuildingFactsCard
-                  building={buildingResponse?.building ?? undefined}
-                  loading={loading}
-                />
-              )}
-
+              {/* 12. ViewingChecklist */}
               {viewingQuestions && viewingQuestions.categories.length > 0 && (
                 <>
                   <h3 className="app__section-label">{t('dossier.viewingChecklist')}</h3>
@@ -949,6 +963,7 @@ function App() {
                 </>
               )}
 
+              {/* 13. ActionBar (PDF export, share) */}
               {address && buildingResponse && (
                 <ActionBar
                   isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}

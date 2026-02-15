@@ -31,7 +31,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 export default function SummaryStrip({ pills, onPillTap }: SummaryStripProps) {
 
   return (
-    <div className="summary-strip" role="list">
+    <div className="summary-strip" data-testid="summary-strip" role="list">
       {pills.map(pill => (
         <button
           key={pill.category}

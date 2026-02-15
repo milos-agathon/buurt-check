@@ -626,3 +626,130 @@ describe('neighborhood stats integration', () => {
     });
   });
 });
+
+describe('dossier section order (v7 canonical)', () => {
+  it('renders sections in the full v7 canonical order', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    // Provide 3D data so viewer-3d and sunlight-card render deterministically
+    const n3d = makeNeighborhood3DResponse();
+    mockBuilding3D.mockResolvedValue(n3d);
+    mockNeighborhood3D.mockResolvedValue(n3d);
+    // Provide viewing questions so checklist renders
+    mockViewingQuestions.mockResolvedValue({
+      address_id: 'vbo-123',
+      categories: [{
+        name: 'general',
+        name_nl: 'Algemeen',
+        severity: 'moderate' as const,
+        questions: [{ text_en: 'Check foundation', text_nl: 'Controleer fundering' }],
+      }],
+    });
+
+    renderApp();
+    await selectAddress();
+
+    // Wait for all sections to render (including 3D and sunlight)
+    await waitFor(() => {
+      expect(screen.getByTestId('attention-summary')).toBeInTheDocument();
+      expect(screen.getByTestId('address-header')).toBeInTheDocument();
+      expect(screen.getByTestId('summary-strip')).toBeInTheDocument();
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+      expect(screen.getByTestId('risk-cards')).toBeInTheDocument();
+      expect(screen.getByTestId('property-warnings')).toBeInTheDocument();
+      expect(screen.getByTestId('soil-info-card')).toBeInTheDocument();
+      expect(screen.getByTestId('livability-card')).toBeInTheDocument();
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+      expect(screen.getByTestId('sunlight-card')).toBeInTheDocument();
+      expect(screen.getByTestId('neighborhood-stats')).toBeInTheDocument();
+      expect(screen.getByTestId('tier-b-card')).toBeInTheDocument();
+      expect(screen.getByTestId('viewing-checklist')).toBeInTheDocument();
+      expect(screen.getByTestId('action-bar')).toBeInTheDocument();
+    });
+
+    // Get the dossier sheet container and verify relative ordering
+    const dossier = screen.getByTestId('dossier-sheet');
+    const all = dossier.querySelectorAll(
+      '[data-testid="attention-summary"], ' +
+      '[data-testid="address-header"], ' +
+      '[data-testid="summary-strip"], ' +
+      '.building-card, ' +
+      '[data-testid="risk-cards"], ' +
+      '[data-testid="property-warnings"], ' +
+      '[data-testid="soil-info-card"], ' +
+      '[data-testid="livability-card"], ' +
+      '[data-testid="viewer-3d"], ' +
+      '[data-testid="sunlight-card"], ' +
+      '[data-testid="neighborhood-stats"], ' +
+      '[data-testid="tier-b-card"], ' +
+      '[data-testid="viewing-checklist"], ' +
+      '[data-testid="action-bar"]'
+    );
+    const order = Array.from(all).map((el) => {
+      const tid = el.getAttribute('data-testid');
+      if (tid === 'attention-summary') return 'attention';
+      if (tid === 'address-header') return 'address-header';
+      if (tid === 'summary-strip') return 'summary-strip';
+      if (el.classList.contains('building-card')) return 'building';
+      if (tid === 'risk-cards') return 'risk';
+      if (tid === 'property-warnings') return 'warnings';
+      if (tid === 'soil-info-card') return 'soil';
+      if (tid === 'livability-card') return 'livability';
+      if (tid === 'viewer-3d') return 'viewer-3d';
+      if (tid === 'sunlight-card') return 'sunlight';
+      if (tid === 'neighborhood-stats') return 'stats';
+      if (tid === 'tier-b-card') return 'tierb';
+      if (tid === 'viewing-checklist') return 'checklist';
+      if (tid === 'action-bar') return 'actionbar';
+      return 'unknown';
+    });
+
+    // Verify full v7 canonical order (tasks/todo.md:1076-1097)
+    // AttentionSummary → AddressHeader → SummaryStrip → BuildingFacts →
+    // RiskTiles → PropertyWarnings → SoilInfo → Livability →
+    // 3D Viewer → Sunlight → NeighborhoodStats → TierB →
+    // ViewingChecklist → ActionBar
+    const expected = [
+      'attention', 'address-header', 'summary-strip', 'building', 'risk',
+      'warnings', 'soil', 'livability', 'viewer-3d', 'sunlight',
+      'stats', 'tierb', 'checklist', 'actionbar',
+    ];
+    const filtered = order.filter(s => expected.includes(s));
+    expect(filtered).toEqual(expected);
+  });
+});
+
+describe('property warnings param forwarding', () => {
+  it('calls getPropertyWarnings with constructionYear, numUnits, and municipality from building facts and resolved address', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress({ municipality: 'Amsterdam' }));
+    mockBuilding.mockResolvedValue(makeBuildingResponse({
+      building: {
+        pand_id: '0363100012345678',
+        construction_year: 1875,
+        status: 'Pand in gebruik',
+        status_en: 'Building in use',
+        intended_use: ['woonfunctie'],
+        intended_use_en: ['residential'],
+        num_units: 4,
+        floor_area_m2: 120,
+      },
+    }));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockPropertyWarnings).toHaveBeenCalledTimes(1);
+    });
+    expect(mockPropertyWarnings).toHaveBeenCalledWith(
+      'vbo-123',
+      121000,
+      487000,
+      {
+        constructionYear: 1875,
+        numUnits: 4,
+        municipality: 'Amsterdam',
+      },
+    );
+  });
+});

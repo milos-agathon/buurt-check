@@ -34,7 +34,7 @@ export default function AddressHeader({ address, building, isBookmarked = false,
   }
 
   return (
-    <div className="address-header">
+    <div className="address-header" data-testid="address-header">
       <div className="address-header__info">
         <h2 className="address-header__street">{mainLine || address.display_name}</h2>
         {subLine && <p className="address-header__postcode">{subLine}</p>}

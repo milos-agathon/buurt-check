@@ -7,7 +7,7 @@ interface Props {
   riskCards?: RiskCardsResponse;
   warnings?: PropertyWarningsResponse;
   sunlightScore?: number;
-  livability?: LivabilityResponse;
+  livability?: LivabilityResponse | null;
 }
 
 interface Flag {
@@ -20,7 +20,7 @@ function computeFlags(
   riskCards: RiskCardsResponse | undefined,
   warnings: PropertyWarningsResponse | undefined,
   sunlightScore: number | undefined,
-  livability: LivabilityResponse | undefined,
+  _livability: LivabilityResponse | null | undefined,
 ): { flags: Flag[]; assessed: number } {
   const flags: Flag[] = [];
   let assessed = 0;
@@ -81,10 +81,8 @@ function computeFlags(
     }
   }
 
-  // Livability — flag if overall score is poor (<40)
-  if (livability?.available && livability.overall_normalized < 40) {
-    flags.push({ category: 'livability', severity: 'elevated', label: 'Low livability score' });
-  }
+  // Livability — deliberately NOT flagged per v7 design spec (lines 254-261).
+  // The livability prop is accepted for future use but does not contribute to flags.
 
   return { flags, assessed };
 }

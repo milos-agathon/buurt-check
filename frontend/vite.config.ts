@@ -1,27 +1,9 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import os from 'node:os'
-
-function resolveDevApiProxyTarget(): string {
-  // Allow explicit override for custom local setups.
-  if (process.env.VITE_DEV_API_PROXY_TARGET) {
-    return process.env.VITE_DEV_API_PROXY_TARGET
-  }
-
-  // Prefer a concrete LAN IPv4 to avoid ambiguous localhost listeners.
-  const interfaces = os.networkInterfaces()
-  for (const entries of Object.values(interfaces)) {
-    for (const entry of entries ?? []) {
-      if (entry.family === 'IPv4' && !entry.internal) {
-        return `http://${entry.address}:8000`
-      }
-    }
-  }
-
-  return 'http://localhost:8000'
-}
-
-const devApiProxyTarget = resolveDevApiProxyTarget()
+// Default to loopback; Playwright starts backend on 127.0.0.1:8000.
+// Override via VITE_DEV_API_PROXY_TARGET for LAN/mobile testing.
+const devApiProxyTarget =
+  process.env.VITE_DEV_API_PROXY_TARGET ?? 'http://127.0.0.1:8000'
 
 export default defineConfig({
   plugins: [react()],

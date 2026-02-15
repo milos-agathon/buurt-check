@@ -196,7 +196,7 @@ describe('AttentionSummary', () => {
     expect(screen.getByText(/no flags raised/i)).toBeInTheDocument();
   });
 
-  it('includes livability flag when normalized < 40', () => {
+  it('does NOT flag livability even when normalized < 40 (v7 spec)', () => {
     const livability: LivabilityResponse = {
       available: true, buurt_code: 'BU', buurt_name: 'T', gemeente: 'A',
       year: '2024', overall_score: 3, overall_normalized: 25,
@@ -206,42 +206,13 @@ describe('AttentionSummary', () => {
       riskCards: makeGoodRiskCards(),
       warnings: makeCleanWarnings(),
       sunlightScore: 80,
+      livability,
     });
-    // Re-render with livability prop — need to pass via props
-    const { unmount } = render(
-      <I18nextProvider i18n={i18n}>
-        <AttentionSummary
-          riskCards={makeGoodRiskCards()}
-          warnings={makeCleanWarnings()}
-          sunlightScore={80}
-          livability={livability}
-        />
-      </I18nextProvider>,
-    );
-    expect(screen.getByText(/1 item needs attention/i)).toBeInTheDocument();
-    unmount();
-  });
-
-  it('does not flag livability when normalized >= 40', () => {
-    const livability: LivabilityResponse = {
-      available: true, buurt_code: 'BU', buurt_name: 'T', gemeente: 'A',
-      year: '2024', overall_score: 7, overall_normalized: 75,
-      dimensions: [], trend: [], comparison: [], source: 'x', messages: [],
-    };
-    render(
-      <I18nextProvider i18n={i18n}>
-        <AttentionSummary
-          riskCards={makeGoodRiskCards()}
-          warnings={makeCleanWarnings()}
-          sunlightScore={80}
-          livability={livability}
-        />
-      </I18nextProvider>,
-    );
+    // Per v7 design spec: livability does NOT contribute to attention flags
     expect(screen.getByText(/no flags raised/i)).toBeInTheDocument();
   });
 
-  it('combines lead pipe + low livability flags', () => {
+  it('lead pipe flag count is not affected by low livability', () => {
     const warnings = makePropertyWarningsResponse({
       lead_pipe: { flagged: true, construction_year: 1955, messages: ['LEAD_PIPE_PRE_1960'] },
     });
@@ -250,16 +221,13 @@ describe('AttentionSummary', () => {
       year: '2024', overall_score: 2, overall_normalized: 13,
       dimensions: [], trend: [], comparison: [], source: 'x', messages: [],
     };
-    render(
-      <I18nextProvider i18n={i18n}>
-        <AttentionSummary
-          riskCards={makeGoodRiskCards()}
-          warnings={warnings}
-          sunlightScore={80}
-          livability={livability}
-        />
-      </I18nextProvider>,
-    );
-    expect(screen.getByText(/2 items need attention/i)).toBeInTheDocument();
+    renderSummary({
+      riskCards: makeGoodRiskCards(),
+      warnings,
+      sunlightScore: 80,
+      livability,
+    });
+    // Only lead pipe flag — livability does NOT add a flag per v7
+    expect(screen.getByText(/1 item needs attention/i)).toBeInTheDocument();
   });
 });

@@ -374,15 +374,17 @@
   "livability.dimensions": "Dimensies",
 
   "dossier.soilInfo": "Bodem & Leidingen",
-  "soil.title": "Bodem & Leidingen",
-  "soil.contamination.title": "Bodemverontreiniging",
-  "soil.contamination.description": "Controleer op bekende bodemverontreiniging op dit adres. Het Bodemloket toont historische verontreinigingsgegevens van gemeenten en provincies.",
-  "soil.contamination.link": "Bekijk op Bodemloket.nl",
-  "soil.leadPipe.title": "Loden Leidingen Risico",
-  "soil.leadPipe.description": "Dit gebouw is gebouwd in {{year}}, voor 1960. Woningen van voor 1960 kunnen nog loden waterleidingen hebben, wat een gezondheidsrisico vormt.",
-  "soil.leadPipe.action": "Vraag de verkoper of het waterbedrijf of loden leidingen zijn vervangen. U kunt ook een waterkwaliteitstest aanvragen.",
-  "soil.source": "Bouwjaar: BAG Kadaster. Loden leidingen heuristiek op basis van richtlijnen Nederlandse waterbedrijven.",
-
-  "warnings.leadPipe.title": "Loden Leidingen Risico",
-  "warnings.leadPipe.description": "Gebouw van voor 1960 — controleer op loden waterleidingen."
+  "soil.title": "Bodemverontreiniging Controle",
+  "soil.description": "De Nederlandse wet verplicht kopers om bodemverontreiniging te onderzoeken (onderzoeksplicht). Bodemsanering kan EUR 25.000-100.000+ kosten.",
+  "soil.link_label": "Bekijk op Bodemloket.nl",
+  "soil.viewing_questions_label": "Bezichtigingsvragen",
+  "soil.question_1": "Is er een bodemonderzoek uitgevoerd voor dit pand?",
+  "soil.question_2": "Zijn er ondergrondse opslagtanks die niet zijn verwijderd?",
+  "soil.question_3": "Als er een verbouwing gepland is: zal deze verontreinigde bodemlagen verstoren?",
+  "soil.disclaimer": "Het ontbreken van een registratie garandeert geen schone bodem. Alleen een professioneel bodemonderzoek kan de bodemtoestand bevestigen.",
+  "soil.source": "Bodemloket (Nationaal Bodem Informatie Systeem)",
+  "soil.lead_pipe_title": "Loden Leidingen Risico",
+  "soil.lead_pipe_note": "Gebouwd in {{constructionYear}}, voor 1960. Oorspronkelijke waterleidingen kunnen lood bevatten. Als het pand een tuin heeft die door jonge kinderen wordt gebruikt, of originele waterleidingen van voor 1960, vraag dan een loodtest aan.",
+  "soil.lead_pipe_viewing_question": "Heeft dit pand originele waterleidingen (van voor 1960)? Is er een loodtest uitgevoerd op bodem of drinkwater?",
+  "soil.lead_pipe_source": "Bouwjaar: BAG Kadaster. Loden leidingen risico-indicatie op basis van richtlijnen Nederlandse waterbedrijven."
 }

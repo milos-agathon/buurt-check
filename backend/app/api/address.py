@@ -537,7 +537,13 @@ async def address_property_warnings(
 ):
     """Property warnings: foundation risk, erfpacht, VvE, asbestos."""
     t0 = time.monotonic()
-    cache_key = f"property_warnings:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+    _cy = construction_year if construction_year is not None else ""
+    _nu = num_units if num_units is not None else ""
+    _mu = (municipality or "").lower().strip()
+    cache_key = (
+        f"property_warnings:v2:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+        f":{_cy}:{_nu}:{_mu}"
+    )
     cached = await cache_get(cache_key)
     if cached is not None:
         logger.info("property_warnings cache_hit vbo=%s", vbo_id)
