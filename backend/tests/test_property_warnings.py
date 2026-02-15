@@ -295,3 +295,84 @@ class TestAttentionSummary:
         )
         assert summary.risk_categories_assessed == 2
         assert summary.risk_categories_total == 4
+
+
+# --- Lead pipe proxy warning ---
+
+
+class TestLeadPipeWarning:
+    @pytest.mark.asyncio
+    async def test_pre_1960_building_flagged(self):
+        """Pre-1960 building → flagged, message present."""
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="low", construction_year=1955),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=1955,
+                num_units=1,
+                municipality=None,
+            )
+        assert result.lead_pipe.flagged is True
+        assert result.lead_pipe.construction_year == 1955
+        assert "LEAD_PIPE_PRE_1960" in result.lead_pipe.messages
+
+    @pytest.mark.asyncio
+    async def test_post_1960_building_not_flagged(self):
+        """Post-1960 building → not flagged."""
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="low", construction_year=1975),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=1975,
+                num_units=1,
+                municipality=None,
+            )
+        assert result.lead_pipe.flagged is False
+        assert result.lead_pipe.construction_year is None
+
+    @pytest.mark.asyncio
+    async def test_no_construction_year_not_flagged(self):
+        """No construction year → not flagged."""
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="unavailable"),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=None,
+                num_units=1,
+                municipality=None,
+            )
+        assert result.lead_pipe.flagged is False
+
+    @pytest.mark.asyncio
+    async def test_attention_summary_includes_lead_pipe(self):
+        """Attention summary includes lead pipe flag when pre-1960."""
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="low", construction_year=1950),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=1950,
+                num_units=1,
+                municipality=None,
+            )
+        categories = {f.category for f in result.attention_summary.flags}
+        assert "lead_pipe" in categories

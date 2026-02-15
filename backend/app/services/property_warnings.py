@@ -9,6 +9,7 @@ from app.models.property_warnings import (
     AttentionFlag,
     AttentionSummary,
     ErfpachtWarning,
+    LeadPipeWarning,
     PropertyWarningsResponse,
     VvEInfo,
 )
@@ -150,10 +151,28 @@ async def get_property_warnings(
         construction_year=construction_year if asbestos_flagged else None,
     )
 
-    # Attention summary placeholder — real count computed frontend-side with risk scores
+    # Lead pipe proxy (construction year < 1960)
+    lead_pipe_flagged = construction_year is not None and construction_year < 1960
+    lead_pipe = LeadPipeWarning(
+        flagged=lead_pipe_flagged,
+        construction_year=construction_year if lead_pipe_flagged else None,
+        messages=["LEAD_PIPE_PRE_1960"] if lead_pipe_flagged else [],
+    )
+
+    # Attention summary — includes lead pipe flag
+    flags: list[AttentionFlag] = []
+    if lead_pipe_flagged:
+        flags.append(
+            AttentionFlag(
+                category="lead_pipe",
+                severity="info",
+                label="Lead pipe risk (pre-1960 construction)",
+            )
+        )
+
     attention = AttentionSummary(
-        flag_count=0,
-        flags=[],
+        flag_count=len(flags),
+        flags=flags,
         risk_categories_assessed=0,
         risk_categories_total=4,
     )
@@ -165,4 +184,5 @@ async def get_property_warnings(
         erfpacht=erfpacht,
         vve=vve,
         asbestos=asbestos,
+        lead_pipe=lead_pipe,
     )

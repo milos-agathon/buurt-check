@@ -11,7 +11,6 @@ import pytest
 
 from app.models.livability import (
     LivabilityComparison,
-    LivabilityComparisonRow,
     LivabilityResponse,
     LivabilityTrendPoint,
 )

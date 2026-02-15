@@ -33,6 +33,12 @@ class AsbestosWarning(BaseModel):
     messages: list[str] = Field(default_factory=list)
 
 
+class LeadPipeWarning(BaseModel):
+    flagged: bool
+    construction_year: int | None = None
+    messages: list[str] = Field(default_factory=list)
+
+
 class AttentionFlag(BaseModel):
     category: str
     severity: str
@@ -53,3 +59,6 @@ class PropertyWarningsResponse(BaseModel):
     erfpacht: ErfpachtWarning
     vve: VvEInfo
     asbestos: AsbestosWarning
+    lead_pipe: LeadPipeWarning = Field(
+        default_factory=lambda: LeadPipeWarning(flagged=False)
+    )
