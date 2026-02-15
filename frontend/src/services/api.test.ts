@@ -2,6 +2,7 @@ import {
   downloadPdfBlob,
   exportBriefing,
   getBuildingFacts,
+  getLivability,
   getNeighborhood3D,
   getNeighborhoodStats,
   getPropertyWarnings,
@@ -412,5 +413,49 @@ describe('getPropertyWarnings', () => {
     await expect(
       getPropertyWarnings('0363200000000001', 121000, 487000),
     ).rejects.toThrow('Property warnings failed: 502');
+  });
+});
+
+describe('getLivability', () => {
+  it('sends GET with rd_x and rd_y params', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        available: true,
+        buurt_code: 'BU0363AB10',
+        buurt_name: 'Testbuurt',
+        gemeente: 'Amsterdam',
+        year: '2024',
+        overall_score: 7,
+        overall_normalized: 75,
+        dimensions: [],
+        trend: [],
+        comparison: [],
+        source: 'Leefbaarometer 3.0',
+        messages: [],
+      }),
+    );
+    const result = await getLivability('0363200000000001', 121286, 487296);
+    expect(result.available).toBe(true);
+    expect(result.overall_normalized).toBe(75);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/address/0363200000000001/livability?');
+    expect(url).toContain('rd_x=121286');
+    expect(url).toContain('rd_y=487296');
+  });
+
+  it('throws on non-OK response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(500));
+    await expect(
+      getLivability('0363200000000001', 121286, 487296),
+    ).rejects.toThrow('Livability failed: 500');
+  });
+
+  it('passes AbortSignal for timeout', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({ available: false, buurt_code: '', buurt_name: '', gemeente: '', year: '', overall_score: 0, overall_normalized: 0, dimensions: [], trend: [], comparison: [], source: '', messages: [] }),
+    );
+    await getLivability('vbo-1', 121286, 487296);
+    const [, init] = mockFetch.mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 });
