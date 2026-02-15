@@ -1,7 +1,7 @@
-# Phase 1B Implementation Plan — v7 (Execution-Ready)
+# Phase 1B Implementation Plan — v8 (Post-Assessment Remediation)
 
 **Date:** 2026-02-15
-**Author:** Senior engineer review, v7 addressing 3 consistency defects from v6 review
+**Author:** Senior engineer review, v8 addressing assessment findings
 **Base branch:** `main` (after merging `feat/mobile-ui-premium`)
 **Scope:** Full Phase 1B from design spec: Leefbaarometer livability (score + trend + comparison + detail view), Bodemloket soil contamination (revised scope), lead pipe proxy, fix Phase 1A property warnings bug, AttentionSummary extension, CLAUDE.md corrections
 
@@ -54,7 +54,7 @@
 | # | Severity | Issue | Root cause | Resolution |
 |---|----------|-------|------------|------------|
 | 21 | **Medium** | Step 10 (line 821) says bars are "pending stakeholder approval" but visualization decision was finalized as non-blocking in v5 (Issue #14) | Copy error: Step 10 wording not updated when Issue #14 finalized the bars decision | Normalized wording to "decision finalized in v5, Issue #14". Consistent with lines 106, 115, and 1155. |
-| 22 | **Low** | Soil revision table says frontend static card tests are 5 (line 83) but Step 15 defines 6 SoilInfoCard tests (lines 1043-1052) | Off-by-one: table was written before Issue #8 added the 6th test (lead pipe conditional rendering) | Updated soil revision table from "5 tests" to "6 tests". Matches Step 15 exactly. |
+| 22 | **Low** | Soil revision table says frontend static card tests are 5 (line 83) but Step 15 defines 6 SoilInfoCard tests (lines 1043-1052) | Off-by-one: table was written before Issue #8 added the 6th test (lead pipe conditional rendering) | _(Historical: plan spec updated to 6; actual implementation is 8 — 6 planned + 2 additional: default-props rendering and Dutch locale.)_ |
 | 23 | **Low** | v4 Issue #11 resolution text still says "Stakeholder approves or rejects as part of this plan review" | Historical wording not updated when v5 finalized the decision (Issue #14) | Updated to "Decision finalized in v5 (Issue #14) — horizontal bars chosen. No approval gate remains." Eliminates conflicting approval-gate language from historical context. |
 
 ### Open question resolutions (v6)
@@ -88,7 +88,7 @@
 | Contamination type, severity, remediation status | Not feasible via API | No structured data extractable |
 | `backend/app/services/soil_contamination.py` | No backend service | No API to call |
 | `GET /api/address/soil-contamination` endpoint | No endpoint | No backend service |
-| `backend/tests/test_soil_contamination.py` (6 tests) | Frontend-only static card tests (6 tests) | Static content, no service logic |
+| `backend/tests/test_soil_contamination.py` (6 tests) | Frontend-only static card tests (8 tests) | Static content, no service logic |
 | Soil feeds into AttentionSummary flag | Lead pipe warning feeds into AttentionSummary as soil-relevant proxy | Cannot derive structured severity from API |
 | SoilInfoCard shows WMS tile overlay (visual) | SoilInfoCard is purely static — no API calls, no WMS overlay | **Issue #8 fix:** WMS overlay contradicts "no API call" requirement. Removed entirely. |
 
@@ -167,7 +167,9 @@ pytest backend/ -q -m "not live"
 # Expected: 381 passed, 9 deselected
 
 # Frontend (run from frontend/)
-cd frontend && npm run build && npx vitest run && cd ..
+# PowerShell (separate commands):
+cd frontend; npm run build; npx vitest run; cd ..
+# Or bash: cd frontend && npm run build && npx vitest run && cd ..
 # Expected: 385 passed
 ```
 
@@ -878,7 +880,7 @@ Link button: "Check on Bodemloket.nl →"
   target: _blank
   rel: noopener noreferrer
 
-Viewing questions (collapsible, same pattern as PropertyWarningsCard sub-cards):
+Viewing questions (collapsible `<details>/<summary>` element — implemented):
 1. "Has a soil investigation (bodemonderzoek) been conducted for this property?"
 2. "Are there underground storage tanks that have not been removed?"
 3. "If renovation is planned: will it disturb contaminated soil layers?"
@@ -1048,7 +1050,7 @@ Parallel structure in `nl.json` with proper Dutch text for all ~36 keys above.
 
 ### New file: `frontend/src/components/SoilInfoCard.test.tsx`
 
-**Minimum 6 tests (expanded from v3's 5 — Issue #8 fix adds lead pipe conditional rendering):**
+**8 tests (6 planned + 2 additional: default-props rendering and Dutch locale. Expanded from v3's 5 — Issue #8 fix added lead pipe conditional rendering):**
 
 | # | Test | What it verifies |
 |---|------|------------------|
@@ -1111,17 +1113,19 @@ pytest backend/ -q -m "not live"
 # Expected: 381 (post-merge) + 15 (leefbaarometer) + 4 (lead pipe) = 400+ passed
 
 # Frontend (run from frontend directory)
-cd frontend && npm run build && npx vitest run && cd ..
+# PowerShell (separate commands):
+cd frontend; npm run build; npx vitest run; cd ..
+# Or bash: cd frontend && npm run build && npx vitest run && cd ..
 # Expected: 385 (post-merge) + 10 (livability card) + 6 (detail view) + 6 (soil card) + 3 (api) = 410+ passed
 
 # i18n key count match
-# en.json keys == nl.json keys (both ~395 + 36 = ~431)
+# en.json keys == nl.json keys (actual: 380/380 — parity enforced, minimum threshold)
 ```
 
 **Test count accounting:**
 - Backend: 381 (post-merge) + 15 (leefbaarometer) + 4 (lead pipe) = **400+ minimum**
 - Frontend: 385 (post-merge) + 10 (livability card) + 6 (detail view) + 6 (soil card) + 3 (api) = **410+ minimum**
-- i18n: ~431 keys per language (395 existing + 36 new — v4 was +38, reduced by Issue #15 dedup)
+- i18n: 380 keys per language (parity enforced — actual count reflects consolidated key set, not v4's ~431 estimate)
 
 ---
 
@@ -1230,23 +1234,23 @@ cd frontend && npm run build && npx vitest run && cd ..
 
 _Check each item after the corresponding step is completed. All must be checked before marking the plan complete._
 
-- [ ] **Step 0:** Merge clean — `ruff check`, `pytest -m "not live"` (381+), `npm run build`, `vitest run` (385+) all pass
-- [ ] **Step 1:** Property warnings card shows correct foundation risk level (not always "unavailable"); VvE card appears for apartments; asbestos card for pre-1994
-- [ ] **Step 2:** CLAUDE.md Section I field names corrected (`kscore`, `kfys`, `konv`, `ksoc`, `kvrz`, `kwon`, scale 1-9); Section J Bodemloket updated
-- [ ] **Steps 3-4:** Leefbaarometer endpoint returns current score + 5 dimensions + trend (up to 9 points) + wijk/gemeente comparison. Caching at endpoint level only (`livability_full:*` key). Service functions are pure.
-- [ ] **Step 5:** 15 Leefbaarometer tests pass: 13 service-level (normalization, dimensions, trend, comparison) + 2 endpoint-level cache tests via TestClient (Issue #19: cache tests target endpoint, not service)
-- [ ] **Step 6:** Lead pipe warning flagged for pre-1960, not flagged for post-1960/unknown. AttentionSummary includes lead pipe flag.
-- [ ] **Step 7:** TypeScript types compile cleanly with `npm run build`
-- [ ] **Step 8:** `getLivability()` returns data for valid coords, `null` for `available:false`, throws on error. App.tsx state wired correctly.
-- [ ] **Step 9:** LivabilityCard renders: overall score badge (color-coded), 5 dimension bars, trend sparkline, comparison row, buurt name + source
-- [ ] **Step 10:** LivabilityDetailView renders: full dimension bars, trend chart with historical points, per-dimension trends, comparison bars (buurt/wijk/gemeente)
-- [ ] **Step 11:** SoilInfoCard renders: static content, bodemloket.nl link, viewing questions. Lead pipe section visible ONLY when `leadPipeFlagged=true`. Uses `t('soil.lead_pipe_note', { constructionYear })` interpolation.
-- [ ] **Step 12:** VERIFIED REMOVED — PropertyWarningsCard does NOT contain a lead pipe sub-card (Issue #18 confirmed: dossier layout also reflects this)
-- [ ] **Step 13:** AttentionSummary counts lead pipe flag. Does NOT add livability threshold flags.
-- [ ] **Step 14:** `en.json` and `nl.json` key counts match. `soil.lead_pipe_note` contains `{{constructionYear}}`. No `warnings.lead_pipe.*` keys exist.
-- [ ] **Step 15:** All frontend tests pass: 10 (LivabilityCard) + 6 (LivabilityDetailView) + 6 (SoilInfoCard) + 3 (api)
-- [ ] **Step 16:** Dossier layout matches canonical order (AttentionSummary → AddressHeader → SummaryStrip → BuildingFacts → RiskTiles → PropertyWarnings → SoilInfo → Livability → 3D → Stats → TierB → Checklist → ActionBar)
-- [ ] **Step 17:** All quality gates pass — backend 400+, frontend 410+, i18n ~431 keys, ruff clean, build clean
+- [x] **Step 0:** Merge clean — `ruff check`, `pytest -m "not live"` (400 passed), `npm run build`, `vitest run` (421 passed) all pass
+- [x] **Step 1:** Property warnings card shows correct foundation risk level (not always "unavailable"); VvE card appears for apartments; asbestos card for pre-1994
+- [x] **Step 2:** CLAUDE.md Section I field names corrected (`kscore`, `kfys`, `konv`, `ksoc`, `kvrz`, `kwon`, scale 1-9); Section J Bodemloket updated
+- [x] **Steps 3-4:** Leefbaarometer endpoint returns current score + 5 dimensions + trend (up to 9 points) + wijk/gemeente comparison. Caching at endpoint level only (`livability_full:*` key). Service functions are pure.
+- [x] **Step 5:** 15 Leefbaarometer tests pass: 13 service-level (normalization, dimensions, trend, comparison) + 2 endpoint-level cache tests via TestClient (Issue #19: cache tests target endpoint, not service)
+- [x] **Step 6:** Lead pipe warning flagged for pre-1960, not flagged for post-1960/unknown. AttentionSummary includes lead pipe flag.
+- [x] **Step 7:** TypeScript types compile cleanly with `npm run build`
+- [x] **Step 8:** `getLivability()` returns data for valid coords, `null` for `available:false`, throws on error. App.tsx state wired correctly.
+- [x] **Step 9:** LivabilityCard renders: overall score badge (color-coded), 5 dimension bars, trend sparkline, comparison row, buurt name + source
+- [x] **Step 10:** LivabilityDetailView renders: full dimension bars, trend chart with historical points, per-dimension trends, comparison bars (buurt/wijk/gemeente)
+- [x] **Step 11:** SoilInfoCard renders: static content, bodemloket.nl link, collapsible viewing questions (`<details>`). Lead pipe section visible ONLY when `leadPipeFlagged=true`. Uses `t('soil.lead_pipe_note', { constructionYear })` interpolation.
+- [x] **Step 12:** VERIFIED REMOVED — PropertyWarningsCard does NOT contain a lead pipe sub-card (Issue #18 confirmed: dossier layout also reflects this)
+- [x] **Step 13:** AttentionSummary counts lead pipe flag. Does NOT add livability threshold flags. Livability prop typed as `LivabilityResponse | null`.
+- [x] **Step 14:** `en.json` and `nl.json` key counts match (380/380). `soil.lead_pipe_note` contains `{{constructionYear}}`. No `warnings.lead_pipe.*` keys exist.
+- [x] **Step 15:** All frontend tests pass: 10 (LivabilityCard) + 6 (LivabilityDetailView) + 8 (SoilInfoCard) + 3 (api) + 1 (property-warnings param forwarding) — total 421 passing
+- [x] **Step 16:** Dossier layout matches canonical order. Unit regression test in `App.test.tsx` asserts 14 sections in order (mocked 3D/sunlight). E2E integration test in `tests/e2e/dossier-section-order.spec.ts` verifies section order with real rendered components against live backend, using DOM order assertions (`compareDocumentPosition`) for whichever sections render.
+- [x] **Step 17:** All quality gates pass — backend 400+, frontend 421+, i18n 380/380 parity, ruff clean, build clean
 
 ### Lessons Learned
 
@@ -1254,7 +1258,12 @@ _To be filled during and after implementation. Capture patterns that should info
 
 | # | Lesson | Category |
 |---|--------|----------|
-| | _(fill during implementation)_ | |
+| 1 | i18n key count estimates in plans drift from reality — use parity enforcement + minimum threshold policy instead of exact target counts | Planning |
+| 2 | Spec/implementation type drift (e.g., `T` vs `T \| null`) is low-severity but should be resolved before shipping — costs nothing to fix and eliminates future confusion | TypeScript |
+| 3 | HTML `<details>/<summary>` is the correct collapsible pattern for static content — zero JS, accessible, semantic, matches platform conventions | Frontend |
+| 4 | Order regression tests should assert the full canonical chain, not a subset — partial assertions miss order violations between untested sections | Testing |
+| 5 | Acceptance checklists must be checked against actual gate output, not left unchecked when all gates pass — unchecked items signal incomplete verification even when work is done | Process |
+| 6 | Unit-level order tests with mocked components validate logic but not integration behavior — add E2E complement with real components to catch rendering/hydration order bugs that mocks hide | Testing |
 
 ### Change Log
 
@@ -1267,3 +1276,4 @@ _To be filled during and after implementation. Capture patterns that should info
 | v5 | 2026-02-15 | 5 issues from v4 code review: caching consistency (#13), bars decision finalized (#14), lead pipe dedup (#15), i18n interpolation (#16), review section (#17) |
 | v6 | 2026-02-15 | 3 issues from v5 code review: lead pipe dossier layout contradiction (#18), cache test placement aligned with endpoint-only strategy (#19), mutable default literals → `Field(default_factory=list)` (#20). Both open questions resolved. |
 | v7 | 2026-02-15 | 3 consistency defects from v6 review: (1) Step 10 line 821 visualization wording normalized from "pending stakeholder approval" to "decision finalized in v5" (Issue #14 alignment); (2) Soil revision table frontend test count corrected from 5 to 6 (matching Step 15's 6 SoilInfoCard tests); (3) v4 Issue #11 resolution text updated from "Stakeholder approves or rejects" to "Decision finalized in v5 — no approval gate remains". No structural or code changes. |
+| v8 | 2026-02-15 | Post-assessment remediation: (1) Vite proxy pinned to 127.0.0.1 — fixes E2E Playwright ECONNREFUSED; (2) property-warnings cache key v2 includes construction_year, num_units, municipality; (3) livability cache tests assert WFS call count on cache hit and repeated fetch on empty; (4) App.test.tsx asserts getPropertyWarnings called with building-derived params; (5) test count references aligned to 421; (6) E2E Playwright test for dossier section order. |
