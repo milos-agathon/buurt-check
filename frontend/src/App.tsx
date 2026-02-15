@@ -37,6 +37,7 @@ import {
   getViewingQuestions,
   getTierBData,
   getPropertyWarnings,
+  getLivability,
 } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
@@ -46,6 +47,7 @@ import type {
   AddressSuggestion,
   ResolvedAddress,
   BuildingFactsResponse,
+  LivabilityResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
   RiskCardsResponse,
@@ -77,6 +79,7 @@ interface DossierSeedState {
   neighborhoodStats?: NeighborhoodStatsResponse;
   tierBData?: TierBResponse;
   propertyWarnings?: PropertyWarningsResponse;
+  livability?: LivabilityResponse;
   sunlight?: SunlightResult;
   shadowSnapshots?: ShadowSnapshot[];
   viewingQuestions?: ViewingQuestionsResponse;
@@ -169,6 +172,11 @@ function App() {
   );
   const [propertyWarningsLoading, setPropertyWarningsLoading] = useState(false);
   const [propertyWarningsError, setPropertyWarningsError] = useState(false);
+  const [livability, setLivability] = useState<LivabilityResponse | null>(
+    dossierSeed?.livability ?? null,
+  );
+  const [livabilityLoading, setLivabilityLoading] = useState(false);
+  const [livabilityError, setLivabilityError] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(dossierSeed?.sunlight ?? null);
   const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(
@@ -314,6 +322,9 @@ function App() {
     setPropertyWarnings(null);
     setPropertyWarningsLoading(false);
     setPropertyWarningsError(false);
+    setLivability(null);
+    setLivabilityLoading(false);
+    setLivabilityError(false);
     setSunlight(null);
     setSunlightUnavailable(false);
     setShadowSnapshots(null);
@@ -397,6 +408,22 @@ function App() {
             if (neighborhood3DRequestId.current === requestId) {
               setNeighborhoodStatsError(true);
               setNeighborhoodStatsLoading(false);
+            }
+          }
+        })();
+
+        setLivabilityLoading(true);
+        void (async () => {
+          try {
+            const livData = await getLivability(vboId, rd_x, rd_y);
+            if (neighborhood3DRequestId.current === requestId) {
+              setLivability(livData);
+              setLivabilityLoading(false);
+            }
+          } catch {
+            if (neighborhood3DRequestId.current === requestId) {
+              setLivabilityError(true);
+              setLivabilityLoading(false);
             }
           }
         })();
@@ -846,6 +873,20 @@ function App() {
                     loading={neighborhoodStatsLoading}
                     error={neighborhoodStatsError}
                   />
+                </>
+              )}
+
+              {(livabilityLoading || livability || livabilityError) && (
+                <>
+                  <h3 className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
+                  {livabilityLoading && <SkeletonCard><SkeletonLine width="60%" /></SkeletonCard>}
+                  {livabilityError && <p className="app__error">{t('error.generic')}</p>}
+                  {livability && livability.available && (
+                    <div className="card" style={{ padding: 'var(--space-md)' }}>
+                      <p>{livability.buurt_name} — {livability.gemeente}</p>
+                      <p>{t('livability.overallScore', 'Livability score')}: {livability.overall_normalized}/100</p>
+                    </div>
+                  )}
                 </>
               )}
 

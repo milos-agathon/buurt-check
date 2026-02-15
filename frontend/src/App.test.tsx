@@ -23,6 +23,8 @@ vi.mock('./services/api', () => ({
   getNeighborhoodStats: vi.fn(),
   getViewingQuestions: vi.fn(),
   getTierBData: vi.fn(),
+  getPropertyWarnings: vi.fn(),
+  getLivability: vi.fn(),
 }));
 
 vi.mock('./components/NeighborhoodViewer3D', () => ({
@@ -66,6 +68,8 @@ import {
   getNeighborhoodStats,
   getViewingQuestions,
   getTierBData,
+  getPropertyWarnings,
+  getLivability,
 } from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
 const mockBuilding = vi.mocked(getBuildingFacts);
@@ -77,6 +81,8 @@ const mockRiskComparisons = vi.mocked(getRiskComparisons);
 const mockNeighborhoodStats = vi.mocked(getNeighborhoodStats);
 const mockViewingQuestions = vi.mocked(getViewingQuestions);
 const mockTierBData = vi.mocked(getTierBData);
+const mockPropertyWarnings = vi.mocked(getPropertyWarnings);
+const mockLivability = vi.mocked(getLivability);
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
@@ -94,6 +100,8 @@ beforeEach(() => {
   mockNeighborhoodStats.mockReset();
   mockViewingQuestions.mockReset();
   mockTierBData.mockReset();
+  mockPropertyWarnings.mockReset();
+  mockLivability.mockReset();
   // Resolve Phase 1 quickly with empty data so dossier sheet expands while
   // Phase 2 neighborhood fetch still controls 3D content in tests.
   mockBuilding3D.mockResolvedValue(
@@ -107,6 +115,29 @@ beforeEach(() => {
     address_id: 'vbo-123',
     energy_label: { source: 'EP-Online' },
     crime: { source: 'CBS OData 47018NED/47022NED' },
+  });
+  mockPropertyWarnings.mockResolvedValue({
+    address_id: 'vbo-123',
+    attention_summary: { flag_count: 0, flags: [], risk_categories_assessed: 0, risk_categories_total: 4 },
+    foundation_risk: { level: 'low', messages: [] },
+    erfpacht: { detected: false, messages: [] },
+    vve: { is_apartment: false, messages: [] },
+    asbestos: { flagged: false, messages: [] },
+    lead_pipe: { flagged: false, messages: [] },
+  });
+  mockLivability.mockResolvedValue({
+    available: true,
+    buurt_code: 'BU0363AB10',
+    buurt_name: 'Testbuurt',
+    gemeente: 'Amsterdam',
+    year: '2024',
+    overall_score: 7,
+    overall_normalized: 75,
+    dimensions: [],
+    trend: [],
+    comparison: [],
+    source: 'Leefbaarometer 3.0',
+    messages: [],
   });
 });
 

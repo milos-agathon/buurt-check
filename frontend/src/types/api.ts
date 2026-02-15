@@ -318,6 +318,12 @@ export interface AttentionSummary {
   risk_categories_total: number;
 }
 
+export interface LeadPipeWarning {
+  flagged: boolean;
+  construction_year?: number;
+  messages: string[];
+}
+
 export interface PropertyWarningsResponse {
   address_id: string;
   attention_summary: AttentionSummary;
@@ -325,6 +331,53 @@ export interface PropertyWarningsResponse {
   erfpacht: ErfpachtWarning;
   vve: VvEInfo;
   asbestos: AsbestosWarning;
+  lead_pipe: LeadPipeWarning;
+}
+
+// Livability (Leefbaarometer)
+export type LivabilityDimensionName =
+  | 'physical'
+  | 'safety'
+  | 'social'
+  | 'amenities'
+  | 'housing';
+
+export interface LivabilityDimension {
+  name: LivabilityDimensionName;
+  raw_score: number;
+  normalized_score: number;
+  label_code: string;
+}
+
+export interface LivabilityTrendPoint {
+  year: string;
+  overall_score: number;
+  overall_normalized: number;
+  dimensions: LivabilityDimension[];
+}
+
+export interface LivabilityComparisonRow {
+  level: 'buurt' | 'wijk' | 'gemeente';
+  name: string;
+  overall_score: number;
+  overall_normalized: number;
+  dimensions: LivabilityDimension[];
+}
+
+export interface LivabilityResponse {
+  available: boolean;
+  buurt_code: string;
+  buurt_name: string;
+  gemeente: string;
+  year: string;
+  overall_score: number;
+  overall_normalized: number;
+  dimensions: LivabilityDimension[];
+  trend: LivabilityTrendPoint[];
+  comparison: LivabilityComparisonRow[];
+  source: string;
+  source_date?: string;
+  messages: string[];
 }
 
 export interface ShortlistItem {

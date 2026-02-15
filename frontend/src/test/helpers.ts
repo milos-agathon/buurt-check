@@ -282,6 +282,7 @@ export function makePropertyWarningsResponse(
     erfpacht: { detected: false, messages: [] },
     vve: { is_apartment: false, messages: [] },
     asbestos: { flagged: false, messages: [] },
+    lead_pipe: { flagged: false, messages: [] },
     ...overrides,
   };
 }

@@ -1,5 +1,6 @@
 import type {
   BuildingFactsResponse,
+  LivabilityResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
   PropertyWarningsResponse,
@@ -290,6 +291,28 @@ export async function getTierBData(
       signal: controller.signal,
     });
     if (!resp.ok) throw new Error(`Tier-B failed: ${resp.status}`);
+    return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function getLivability(
+  vboId: string,
+  rdX: number,
+  rdY: number,
+): Promise<LivabilityResponse> {
+  const params = new URLSearchParams({
+    rd_x: String(rdX),
+    rd_y: String(rdY),
+  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(`${API_BASE}/address/${vboId}/livability?${params}`, {
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`Livability failed: ${resp.status}`);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);
