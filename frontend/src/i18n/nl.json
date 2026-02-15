@@ -355,5 +355,32 @@
   "warnings.asbestos.question_3": "Bij geplande renovatie: heeft de verkoper mogelijke asbesthoudende materialen gemeld?",
   "warnings.asbestos.question_4": "Is er een asbestvrij verklaring voor eerder uitgevoerd renovatiewerk?",
   "warnings.asbestos.source": "Bouwjaar: BAG Kadaster. Asbestverbod: Asbestverwijderingsbesluit 2005.",
-  "warnings.asbestos.disclaimer": "De aanwezigheid van asbest kan alleen worden vastgesteld door professioneel onderzoek."
+  "warnings.asbestos.disclaimer": "De aanwezigheid van asbest kan alleen worden vastgesteld door professioneel onderzoek.",
+
+  "dossier.livability": "Leefbaarheid",
+  "livability.loading": "Leefbaarheidsgegevens laden...",
+  "livability.error": "Kan leefbaarheidsgegevens niet laden. Probeer het later opnieuw.",
+  "livability.unavailable": "Leefbaarheidsgegevens zijn niet beschikbaar voor deze locatie.",
+  "livability.overallScore": "Leefbaarheidsscore",
+  "livability.trend": "Trend over tijd",
+  "livability.comparison": "Vergeleken met omgeving",
+  "livability.source": "{{source}} ({{date}})",
+  "livability.dimension.physical": "Fysieke omgeving",
+  "livability.dimension.safety": "Veiligheid",
+  "livability.dimension.social": "Sociale samenhang",
+  "livability.dimension.amenities": "Voorzieningen",
+  "livability.dimension.housing": "Woningkwaliteit",
+
+  "dossier.soilInfo": "Bodem & Leidingen",
+  "soil.title": "Bodem & Leidingen",
+  "soil.contamination.title": "Bodemverontreiniging",
+  "soil.contamination.description": "Controleer op bekende bodemverontreiniging op dit adres. Het Bodemloket toont historische verontreinigingsgegevens van gemeenten en provincies.",
+  "soil.contamination.link": "Bekijk op Bodemloket.nl",
+  "soil.leadPipe.title": "Loden Leidingen Risico",
+  "soil.leadPipe.description": "Dit gebouw is gebouwd in {{year}}, voor 1960. Woningen van voor 1960 kunnen nog loden waterleidingen hebben, wat een gezondheidsrisico vormt.",
+  "soil.leadPipe.action": "Vraag de verkoper of het waterbedrijf of loden leidingen zijn vervangen. U kunt ook een waterkwaliteitstest aanvragen.",
+  "soil.source": "Bouwjaar: BAG Kadaster. Loden leidingen heuristiek op basis van richtlijnen Nederlandse waterbedrijven.",
+
+  "warnings.leadPipe.title": "Loden Leidingen Risico",
+  "warnings.leadPipe.description": "Gebouw van voor 1960 — controleer op loden waterleidingen."
 }

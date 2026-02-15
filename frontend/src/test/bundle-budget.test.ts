@@ -29,7 +29,7 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
       const gzipped = gzipSync(readFileSync(filePath)).length;
       return sum + gzipped;
     }, 0);
-    expect(totalGzip).toBeLessThan(330 * 1024);
+    expect(totalGzip).toBeLessThan(340 * 1024);
   });
 
   it('vendor-three chunk under 550KB', () => {

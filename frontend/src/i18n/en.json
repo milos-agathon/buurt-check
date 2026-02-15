@@ -355,5 +355,32 @@
   "warnings.asbestos.question_3": "If renovation is planned: has the seller disclosed potential asbestos-containing materials?",
   "warnings.asbestos.question_4": "Is there an asbestos-free certificate (asbestvrij verklaring)?",
   "warnings.asbestos.source": "Construction year: BAG Kadaster. Dutch asbestos ban: Asbestverwijderingsbesluit 2005.",
-  "warnings.asbestos.disclaimer": "The presence of asbestos can only be confirmed by professional inspection."
+  "warnings.asbestos.disclaimer": "The presence of asbestos can only be confirmed by professional inspection.",
+
+  "dossier.livability": "Livability",
+  "livability.loading": "Loading livability data...",
+  "livability.error": "Could not load livability data. Please try again later.",
+  "livability.unavailable": "Livability data is not available for this location.",
+  "livability.overallScore": "Livability score",
+  "livability.trend": "Trend over time",
+  "livability.comparison": "Compared to area",
+  "livability.source": "{{source}} ({{date}})",
+  "livability.dimension.physical": "Physical environment",
+  "livability.dimension.safety": "Safety",
+  "livability.dimension.social": "Social cohesion",
+  "livability.dimension.amenities": "Amenities",
+  "livability.dimension.housing": "Housing quality",
+
+  "dossier.soilInfo": "Soil & Pipes",
+  "soil.title": "Soil & Utility Pipes",
+  "soil.contamination.title": "Soil Contamination",
+  "soil.contamination.description": "Check for known soil contamination at this address. The Bodemloket shows historical contamination records maintained by municipalities and provinces.",
+  "soil.contamination.link": "View on Bodemloket.nl",
+  "soil.leadPipe.title": "Lead Pipe Risk",
+  "soil.leadPipe.description": "This building was constructed in {{year}}, before 1960. Properties built before 1960 may still have lead water pipes, which pose a health risk.",
+  "soil.leadPipe.action": "Ask the seller or water utility if lead pipes have been replaced. You can also request a water quality test.",
+  "soil.source": "Construction year: BAG Kadaster. Lead pipe heuristic based on Dutch water utility guidelines.",
+
+  "warnings.leadPipe.title": "Lead Pipe Risk",
+  "warnings.leadPipe.description": "Pre-1960 building — check for lead water pipes."
 }
