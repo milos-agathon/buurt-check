@@ -423,31 +423,39 @@ function App() {
           }
         })();
 
-        setPropertyWarningsLoading(true);
-        void (async () => {
-          try {
-            const warnings = await getPropertyWarnings(vboId, rd_x, rd_y, {
-              municipality: resolved.municipality ?? undefined,
-            });
-            if (neighborhood3DRequestId.current === requestId) {
-              setPropertyWarnings(warnings);
-              setPropertyWarningsLoading(false);
-            }
-          } catch {
-            if (neighborhood3DRequestId.current === requestId) {
-              setPropertyWarningsError(true);
-              setPropertyWarningsLoading(false);
-            }
-          }
-        })();
-
       }
 
       if (vboId) {
         const building = await getBuildingFacts(vboId);
+        if (neighborhood3DRequestId.current !== requestId) return;
         setBuildingResponse(building);
         setLoading(false);
         setSheetSnap('half');
+
+        // Chain property warnings AFTER building facts — needs constructionYear + numUnits
+        if (rd_x != null && rd_y != null) {
+          setPropertyWarningsLoading(true);
+          const rdXVal = rd_x;
+          const rdYVal = rd_y;
+          void (async () => {
+            try {
+              const warnings = await getPropertyWarnings(vboId, rdXVal, rdYVal, {
+                constructionYear: building?.building?.construction_year ?? undefined,
+                numUnits: building?.building?.num_units ?? undefined,
+                municipality: resolved.municipality ?? undefined,
+              });
+              if (neighborhood3DRequestId.current !== requestId) return;
+              setPropertyWarnings(warnings);
+            } catch {
+              if (neighborhood3DRequestId.current !== requestId) return;
+              setPropertyWarningsError(true);
+            } finally {
+              if (neighborhood3DRequestId.current === requestId) {
+                setPropertyWarningsLoading(false);
+              }
+            }
+          })();
+        }
 
         const pandId = building.building?.pand_id;
         if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
