@@ -81,15 +81,17 @@ Become the trusted pre-viewing intelligence tool for every property buyer in the
 
 ### I) Leefbaarometer (livability scores)
 - WFS: `https://geo.leefbaarometer.nl/lbm3/ows` (OGC WFS 2.0.0)
-- Query: `CQL_FILTER=INTERSECTS(geom, POINT(rd_x rd_y))` in EPSG:28992, `outputFormat=application/json`
-- Feature types: `buurtscore24` (latest, 2024 data), historical back to `buurtscore02` (biennial releases)
-- 5 dimensions: `_fys` (physical), `_onv` (safety), `_soc` (social cohesion), `_vrz` (amenities), `_won` (housing quality). Scale: 1-10. Overall: `lbm` field.
+- Query: `CQL_FILTER=INTERSECTS(geom,POINT(rd_x rd_y))` in EPSG:28992, `outputFormat=application/json`. NO space after comma in INTERSECTS.
+- Feature types: `buurtscore{YY}` (buurt), `wijkscore{YY}` (wijk), `gemeentescore{YY}` (gemeente), `pc4score{YY}` (postcode).
+- Latest: `buurtscore24` (2024 data). Historical data: 12 biennial releases exist (buurtscore02 through buurtscore24). 9 selected for trend: 02, 08, 12, 14, 16, 18, 20, 22, 24.
+- 5 dimensions: `kfys` (physical), `konv` (safety), `ksoc` (social cohesion), `kvrz` (amenities), `kwon` (housing quality). Scale: 1-9 (NOT 1-10). Overall: `kscore` field (NOT `lbm`).
+- Trend layers: `buurtontwikkeling{BASE}_{TARGET}` for pre-computed change between measurement years.
 - No authentication. No rate limits observed. Cache TTL: 30 days.
 
 ### J) Bodemloket (soil contamination) -- limited
-- WMS only: `https://gis.gdngeoservices.nl/standalone/services/blk_gdn/lks_blk_rd_v1/MapServer/WMSServer`
-- **No WFS exists** (planned since 2019, never implemented). GetFeatureInfo returns only reference IDs, NOT contamination severity.
-- Practical scope: presence/absence detection only. Link to Bodemloket website for details.
+- WMS only (no WFS -- returns 404): `https://gis.gdngeoservices.nl/standalone/services/blk_gdn/lks_blk_rd_v1/MapServer/WMSServer`
+- **GetFeatureInfo is NON-FUNCTIONAL** (returns empty XML for all queries, verified 2026-02-15 across Amsterdam, Rotterdam, IJmuiden). Only GetMap (image tiles) works.
+- Practical scope: link to bodemloket.nl only. No structured data extraction possible via API.
 
 ### K) Lead pipe risk -- no API (proxy via BAG)
 - No dedicated OGC service exists for Loodverwachtingskaart.
