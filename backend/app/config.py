@@ -22,6 +22,19 @@ class Settings(BaseSettings):
     cbs_crime_yearly_base: str = "https://dataderden.cbs.nl/ODataApi/OData/47018NED"
     cbs_crime_monthly_base: str = "https://dataderden.cbs.nl/ODataApi/OData/47022NED"
 
+    # PDOK BRO (Basisregistratie Ondergrond) — soil type data
+    bro_wfs_base: str = (
+        "https://service.pdok.nl/bzk/bro-bodemkundigevlakkenkaart/wfs/v1_0"
+    )
+
+    # Property warnings
+    # Last verified: 2026-02-13. Recheck annually — municipalities occasionally
+    # convert erfpacht portfolios to eigendom or adopt new erfpacht policies.
+    erfpacht_municipalities: list[str] = [
+        "Amsterdam", "Den Haag", "Rotterdam", "Utrecht",
+        "Leiden", "Zaanstad", "Amstelveen", "Haarlem",
+    ]
+
     # Tier-B data
     energy_label_base: str = "https://public.ep-online.nl/api/v5/PandEnergielabel/Adres"
     energy_label_api_key: str | None = None
@@ -43,6 +56,8 @@ class Settings(BaseSettings):
     cache_ttl_neighborhood: int = 2592000  # 30 days
     cache_ttl_wms_tile: int = 86400  # 24 hours
     cache_ttl_tier_b: int = 604800  # 7 days
+    cache_ttl_property_warnings: int = 604800  # 7 days
+    cache_ttl_foundation: int = 2592000  # 30 days (soil doesn't change)
 
     # Load env vars whether uvicorn is started from repo root or backend/.
     model_config = {

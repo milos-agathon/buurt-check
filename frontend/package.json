@@ -18,13 +18,12 @@
     "test:visual:update": "playwright test tests/e2e/visual-regression.spec.ts --update-snapshots"
   },
   "dependencies": {
+    "framer-motion": "^12.34.0",
     "i18next": "^25.8.1",
     "i18next-browser-languagedetector": "^8.2.0",
-    "leaflet": "^1.9.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-i18next": "^16.5.4",
-    "react-leaflet": "^5.0.0",
     "suncalc": "^1.9.0",
     "three": "^0.182.0"
   },
@@ -34,7 +33,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/leaflet": "^1.9.21",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
@@ -47,6 +46,7 @@
     "globals": "^16.5.0",
     "jest-axe": "^10.0.0",
     "jsdom": "^28.0.0",
+    "terser": "^5.46.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",

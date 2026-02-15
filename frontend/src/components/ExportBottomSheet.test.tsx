@@ -45,6 +45,11 @@ describe('ExportBottomSheet', () => {
     expect(screen.getByText('Quick Brief')).toBeInTheDocument();
   });
 
+  it('shows updated Full Dossier page metadata', () => {
+    renderSheet();
+    expect(screen.getByText('5+ pages')).toBeInTheDocument();
+  });
+
   it('does not render when closed', () => {
     renderSheet({ isOpen: false });
     expect(screen.queryByTestId('export-sheet')).not.toBeInTheDocument();

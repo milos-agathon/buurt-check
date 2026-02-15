@@ -31,12 +31,28 @@ export default defineConfig({
     },
   },
   build: {
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        passes: 3,
+        module: true,
+        toplevel: true,
+        pure_getters: true,
+      },
+      mangle: {
+        module: true,
+        toplevel: true,
+        safari10: true,
+      },
+      format: {
+        comments: false,
+      },
+    },
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-i18next', 'i18next'],
-          'vendor-map': ['leaflet', 'react-leaflet'],
+          'vendor-react': ['react', 'react-dom', 'react-i18next', 'i18next', 'framer-motion'],
           'vendor-three': ['three', 'suncalc'],
         },
       },

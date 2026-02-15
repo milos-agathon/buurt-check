@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import SeverityBadge from './ui/SeverityBadge';
 import ScoreBar from './ui/ScoreBar';
 import AnimatedScore from './ui/AnimatedScore';
@@ -18,9 +19,11 @@ export default function RiskTile({ category, labelKey, score, severity, summary,
   const { t } = useTranslation();
 
   return (
-    <button
+    <motion.button
       className="risk-tile"
       onClick={onTap}
+      whileTap={{ scale: 0.97 }}
+      layoutId={`risk-tile-${category}`}
       data-testid={`risk-tile-${category}`}
       aria-label={score != null
         ? t('risk.tileAria', { label: t(labelKey), score, max: 100 })
@@ -44,6 +47,6 @@ export default function RiskTile({ category, labelKey, score, severity, summary,
       <svg className="risk-tile__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M9 18l6-6-6-6" />
       </svg>
-    </button>
+    </motion.button>
   );
 }

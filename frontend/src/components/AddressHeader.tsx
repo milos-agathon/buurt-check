@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { usePressable } from '../hooks/usePressable';
 import type { ResolvedAddress, BuildingFacts } from '../types/api';
 import './AddressHeader.css';
 
@@ -11,6 +12,7 @@ interface AddressHeaderProps {
 
 export default function AddressHeader({ address, building, isBookmarked = false, onBookmarkToggle }: AddressHeaderProps) {
   const { t, i18n } = useTranslation();
+  const { isPressed, pressableProps } = usePressable({ onPress: onBookmarkToggle });
 
   const street = address.street || '';
   const houseNumber = [address.house_number, address.house_letter, address.addition]
@@ -42,8 +44,8 @@ export default function AddressHeader({ address, building, isBookmarked = false,
       </div>
       {onBookmarkToggle && (
         <button
-          className={`address-header__bookmark${isBookmarked ? ' address-header__bookmark--active' : ''}`}
-          onClick={onBookmarkToggle}
+          className={`address-header__bookmark pressable${isBookmarked ? ' address-header__bookmark--active' : ''}${isPressed ? ' pressed' : ''}`}
+          {...pressableProps}
           aria-label={isBookmarked ? 'Remove from shortlist' : 'Add to shortlist'}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">

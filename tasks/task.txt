@@ -19,6 +19,8 @@ you are acting as senior software engineer with 30 years of experience in develo
 
 Duinzicht 23, 2235BV Valkenburg
 
+claude --dangerously-skip-permissions
+
 think hard
 
 # Planning Session: Phase 1

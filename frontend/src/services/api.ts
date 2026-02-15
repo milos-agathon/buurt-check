@@ -2,6 +2,7 @@ import type {
   BuildingFactsResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
+  PropertyWarningsResponse,
   ResolvedAddress,
   RiskCardsResponse,
   RiskComparisonsResponse,
@@ -226,7 +227,7 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
     template: options.template || 'quick_brief',
     language: options.language || 'en',
   };
-  if (options.shadowImageB64) body.shadow_image = options.shadowImageB64;
+  if (options.shadowImageB64) body.shadow_image_b64 = options.shadowImageB64;
   if (options.street) body.street = options.street;
   if (options.city) body.city = options.city;
   if (options.buurtCode) body.buurt_code = options.buurtCode;
@@ -295,4 +296,36 @@ export async function getTierBData(
   }
 }
 
+export async function getPropertyWarnings(
+  vboId: string,
+  rdX: number,
+  rdY: number,
+  options?: {
+    constructionYear?: number;
+    numUnits?: number;
+    municipality?: string;
+  },
+): Promise<PropertyWarningsResponse> {
+  const params = new URLSearchParams({
+    rd_x: String(rdX),
+    rd_y: String(rdY),
+  });
+  if (options?.constructionYear != null)
+    params.set('construction_year', String(options.constructionYear));
+  if (options?.numUnits != null)
+    params.set('num_units', String(options.numUnits));
+  if (options?.municipality) params.set('municipality', options.municipality);
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(
+      `${API_BASE}/address/${vboId}/property-warnings?${params}`,
+      { signal: controller.signal },
+    );
+    if (!resp.ok) throw new Error(`Property warnings failed: ${resp.status}`);
+    return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}

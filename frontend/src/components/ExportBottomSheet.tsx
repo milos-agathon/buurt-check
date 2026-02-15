@@ -219,7 +219,7 @@ export default function ExportBottomSheet({
                 <rect x="28" y="8" width="18" height="24" rx="2.5" />
               </svg>
               <span className="export-sheet__template-title">{t('export.fullDossier', 'Full Dossier')}</span>
-              <span className="export-sheet__template-meta">{t('export.fullDossierMeta', '3-4 pages')}</span>
+              <span className="export-sheet__template-meta">{t('export.fullDossierMeta', '5+ pages')}</span>
             </button>
           </div>
         </div>

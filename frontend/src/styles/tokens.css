@@ -168,6 +168,14 @@
   --focus-ring-accent: 0 0 0 4px rgba(46, 196, 182, 0.12);
   --focus-ring-danger: 0 0 0 4px rgba(239, 68, 68, 0.12);
 
+  /* ── Skeleton ── */
+  --color-skeleton: var(--color-surface-alt);
+  --color-skeleton-shimmer: rgba(255, 255, 255, 0.6);
+  --skeleton-duration: 1.5s;
+
+  /* ── Press State ── */
+  --color-surface-pressed: rgba(28, 45, 63, 0.06);
+
   /* ── Frosted Glass ── */
   --glass-bg: rgba(255, 255, 255, 0.92);
   --glass-blur: blur(20px);
@@ -245,6 +253,13 @@
   /* Focus Ring */
   --focus-ring-accent: 0 0 0 4px rgba(46, 196, 182, 0.2);
   --focus-ring-danger: 0 0 0 4px rgba(239, 68, 68, 0.2);
+
+  /* Skeleton */
+  --color-skeleton: rgba(255, 255, 255, 0.08);
+  --color-skeleton-shimmer: rgba(255, 255, 255, 0.04);
+
+  /* Press State */
+  --color-surface-pressed: rgba(255, 255, 255, 0.06);
 
   /* Frosted Glass */
   --glass-bg: rgba(13, 22, 32, 0.92);

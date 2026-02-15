@@ -4,6 +4,7 @@ import {
   getBuildingFacts,
   getNeighborhood3D,
   getNeighborhoodStats,
+  getPropertyWarnings,
   getRiskComparisons,
   getRiskCards,
   getTierBData,
@@ -306,7 +307,7 @@ describe('getTierBData', () => {
 });
 
 describe('exportBriefing', () => {
-  it('passes selected template to export endpoint', async () => {
+  it('passes selected template and canonical export fields to export endpoint', async () => {
     const expectedBlob = new Blob(['pdf']);
     mockFetch.mockResolvedValue({ ok: true, blob: () => Promise.resolve(expectedBlob) } as Response);
 
@@ -318,6 +319,12 @@ describe('exportBriefing', () => {
       lng: 4,
       address: 'Test',
       template: 'full_dossier',
+      shadowImageB64: 'AAAA',
+      buurtCode: 'BU0363AD07',
+      postcode: '1012NX',
+      houseNumber: '1',
+      houseLetter: 'A',
+      addition: '2',
     });
 
     const [url, init] = mockFetch.mock.calls[0];
@@ -325,6 +332,12 @@ describe('exportBriefing', () => {
     expect(init.method).toBe('POST');
     const body = JSON.parse(init.body);
     expect(body.template).toBe('full_dossier');
+    expect(body.shadow_image_b64).toBe('AAAA');
+    expect(body.buurt_code).toBe('BU0363AD07');
+    expect(body.postcode).toBe('1012NX');
+    expect(body.house_number).toBe('1');
+    expect(body.house_letter).toBe('A');
+    expect(body.addition).toBe('2');
     expect(body.rd_x).toBe(1);
     expect(body.lat).toBe(3);
     expect(blob).toBe(expectedBlob);
@@ -354,5 +367,50 @@ describe('downloadPdfBlob', () => {
     createElementSpy.mockRestore();
     createObjectURLSpy.mockRestore();
     revokeObjectURLSpy.mockRestore();
+  });
+});
+
+describe('getPropertyWarnings', () => {
+  it('sends GET with required params', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        address_id: 'vbo-123',
+        foundation_risk: { level: 'low', messages: [] },
+        erfpacht: { detected: false, messages: [] },
+        vve: { is_apartment: false, messages: [] },
+        asbestos: { flagged: false, messages: [] },
+        attention_summary: {
+          flag_count: 0,
+          flags: [],
+          risk_categories_assessed: 4,
+          risk_categories_total: 4,
+        },
+      }),
+    );
+    const result = await getPropertyWarnings('0363200000000001', 121000, 487000);
+    expect(result.address_id).toBe('vbo-123');
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/property-warnings?');
+    expect(url).toContain('rd_x=121000');
+  });
+
+  it('sends optional params when provided', async () => {
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-123' }));
+    await getPropertyWarnings('0363200000000001', 121000, 487000, {
+      constructionYear: 1952,
+      numUnits: 8,
+      municipality: 'Amsterdam',
+    });
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('construction_year=1952');
+    expect(url).toContain('num_units=8');
+    expect(url).toContain('municipality=Amsterdam');
+  });
+
+  it('throws on non-OK response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(502));
+    await expect(
+      getPropertyWarnings('0363200000000001', 121000, 487000),
+    ).rejects.toThrow('Property warnings failed: 502');
   });
 });

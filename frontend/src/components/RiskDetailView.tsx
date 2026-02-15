@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
+import { SPRING_EXPAND } from '../config/springs';
 import SeverityBadge from './ui/SeverityBadge';
 import ScoreBar from './ui/ScoreBar';
 import AnimatedScore from './ui/AnimatedScore';
@@ -24,6 +26,8 @@ interface RiskDetailViewProps {
   source?: string;
   sourceDate?: string;
   onBack: () => void;
+  onAnimationStart?: () => void;
+  onAnimationComplete?: () => void;
 }
 
 export default function RiskDetailView({
@@ -39,12 +43,21 @@ export default function RiskDetailView({
   source,
   sourceDate,
   onBack,
+  onAnimationStart,
+  onAnimationComplete,
 }: RiskDetailViewProps) {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
 
   return (
-    <div className="risk-detail" data-testid={`risk-detail-${category}`}>
+    <motion.div
+      className="risk-detail"
+      layoutId={`risk-tile-${category}`}
+      transition={SPRING_EXPAND}
+      onAnimationStart={onAnimationStart}
+      onAnimationComplete={onAnimationComplete}
+      data-testid={`risk-detail-${category}`}
+    >
       <nav className="risk-detail__nav">
         <button className="risk-detail__back" onClick={onBack} aria-label="Back">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -128,6 +141,6 @@ export default function RiskDetailView({
           </footer>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

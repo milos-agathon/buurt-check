@@ -395,10 +395,15 @@ def _draw_branded_questions(
     viewing_questions: ViewingQuestionsResponse | None,
     is_nl: bool,
     max_questions: int | None,
-) -> None:
-    """Draw viewing questions with severity-colored borders and drawn checkboxes."""
+) -> bool:
+    """Draw viewing questions with severity-colored borders and drawn checkboxes.
+
+    Returns True if questions were clipped due to max_questions limit.
+    """
     if not viewing_questions or not viewing_questions.categories:
-        return
+        return False
+
+    total_questions = sum(len(c.questions) for c in viewing_questions.categories)
 
     pdf.set_font("Satoshi", "B", 11)
     pdf.set_text_color(*SLATE)
@@ -440,6 +445,8 @@ def _draw_branded_questions(
             )
             count += 1
         pdf.ln(1)
+
+    return max_questions is not None and count < total_questions
 
 
 def _draw_shadow_image(pdf: BuurtCheckPDF, shadow_image_b64: str | None, is_nl: bool) -> None:
@@ -533,7 +540,19 @@ def generate_quick_brief(
     # Each question ~7mm, header ~10mm. Available = page bottom margin minus current Y.
     remaining_mm = (pdf.h - 20) - pdf.get_y() - 10  # 20mm footer margin, 10mm header
     max_q = max(int(remaining_mm / 7), 3)  # At least 3 questions
-    _draw_branded_questions(pdf, viewing_questions, is_nl, max_questions=min(max_q, 8))
+    was_clipped = _draw_branded_questions(
+        pdf, viewing_questions, is_nl, max_questions=min(max_q, 8),
+    )
+
+    if was_clipped:
+        pdf.set_font("Satoshi", "I", 7)
+        pdf.set_text_color(*MUTED)
+        note = (
+            "Zie het Volledige Dossier voor de complete checklist."
+            if is_nl
+            else "See the Full Dossier for the complete checklist."
+        )
+        pdf.cell(0, 5, note, new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output())
 

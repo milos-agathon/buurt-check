@@ -25,12 +25,6 @@ vi.mock('./services/api', () => ({
   getTierBData: vi.fn(),
 }));
 
-vi.mock('react-leaflet', () => ({
-  MapContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="map">{children}</div>,
-  TileLayer: () => null,
-  GeoJSON: () => null,
-}));
-
 vi.mock('./components/NeighborhoodViewer3D', () => ({
   default: ({ buildings }: { buildings: unknown[] }) => (
     <div data-testid="viewer-3d">3D Viewer ({buildings.length} buildings)</div>
@@ -100,7 +94,7 @@ beforeEach(() => {
   mockNeighborhoodStats.mockReset();
   mockViewingQuestions.mockReset();
   mockTierBData.mockReset();
-  // Resolve Phase 1 quickly with empty data so loading screen exits while
+  // Resolve Phase 1 quickly with empty data so dossier sheet expands while
   // Phase 2 neighborhood fetch still controls 3D content in tests.
   mockBuilding3D.mockResolvedValue(
     makeNeighborhood3DResponse({ buildings: [], target_pand_id: undefined }),
@@ -183,14 +177,14 @@ describe('address selection flow', () => {
     });
   });
 
-  it('shows loading state while fetching', async () => {
+  it('shows dossier sheet immediately when address selected', async () => {
     mockLookup.mockReturnValue(new Promise(() => {}));
 
     renderApp();
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByTestId('loading-screen')).toBeInTheDocument();
+      expect(screen.getByTestId('dossier-sheet')).toBeInTheDocument();
     });
   });
 

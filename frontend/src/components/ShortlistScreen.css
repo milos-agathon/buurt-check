@@ -96,8 +96,8 @@
 .shortlist-screen__dot--unavailable { background: var(--color-surface-alt); }
 
 .shortlist-screen__remove {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: none;
   background: none;
   color: var(--color-text-tertiary);

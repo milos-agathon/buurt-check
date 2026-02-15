@@ -14,6 +14,14 @@ from app.models.neighborhood import (
     UrbanizationLevel,
 )
 from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
+from app.models.property_warnings import (
+    AsbestosWarning,
+    AttentionSummary,
+    ErfpachtWarning,
+    FoundationRisk,
+    PropertyWarningsResponse,
+    VvEInfo,
+)
 from app.models.risk import (
     AirQualityRiskCard,
     ClimateStressRiskCard,
@@ -804,3 +812,58 @@ async def test_neighborhood_returns_502_on_exception(
             params={"lat": "52.372", "lng": "4.892"},
         )
     assert resp.status_code == 502
+
+
+# --- Property warnings endpoint ---
+
+
+def _make_property_warnings_response() -> PropertyWarningsResponse:
+    return PropertyWarningsResponse(
+        address_id="0363010000696734",
+        attention_summary=AttentionSummary(
+            flag_count=0,
+            flags=[],
+            risk_categories_assessed=0,
+            risk_categories_total=4,
+        ),
+        foundation_risk=FoundationRisk(level="low", construction_year=2000),
+        erfpacht=ErfpachtWarning(detected=False),
+        vve=VvEInfo(is_apartment=False),
+        asbestos=AsbestosWarning(flagged=False),
+    )
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_property_warnings_success(mock_cache_set, mock_cache_get, client):
+    with patch(
+        "app.api.address.property_warnings.get_property_warnings",
+        new_callable=AsyncMock,
+        return_value=_make_property_warnings_response(),
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/property-warnings",
+            params={"rd_x": "121000", "rd_y": "487000"},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["address_id"] == "0363010000696734"
+    assert data["foundation_risk"]["level"] == "low"
+    assert data["erfpacht"]["detected"] is False
+    mock_cache_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_property_warnings_invalid_vbo(client):
+    resp = await client.get(
+        "/api/address/invalid/property-warnings",
+        params={"rd_x": "121000", "rd_y": "487000"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_property_warnings_missing_params(client):
+    resp = await client.get("/api/address/0363010000696734/property-warnings")
+    assert resp.status_code == 422

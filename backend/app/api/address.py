@@ -5,7 +5,7 @@ import time
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 from app.cache.redis import cache_get, cache_set
 from app.config import settings
@@ -13,6 +13,7 @@ from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
 from app.models.neighborhood import NeighborhoodStatsResponse, UrbanizationLevel
 from app.models.neighborhood3d import Neighborhood3DResponse
+from app.models.property_warnings import PropertyWarningsResponse
 from app.models.risk import (
     RiskCardsResponse,
     RiskComparisonsResponse,
@@ -25,6 +26,7 @@ from app.services import (
     cbs,
     locatieserver,
     metrics,
+    property_warnings,
     risk_cards,
     three_d_bag,
     tier_b,
@@ -485,8 +487,58 @@ async def tier_b_signals(
     return result
 
 
+@router.get("/{vbo_id}/property-warnings", response_model=PropertyWarningsResponse)
+async def address_property_warnings(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+    construction_year: int | None = Query(None),
+    num_units: int | None = Query(None),
+    municipality: str | None = Query(None),
+):
+    """Property warnings: foundation risk, erfpacht, VvE, asbestos."""
+    t0 = time.monotonic()
+    cache_key = f"property_warnings:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        logger.info("property_warnings cache_hit vbo=%s", vbo_id)
+        return PropertyWarningsResponse(**cached)
+
+    try:
+        result = await property_warnings.get_property_warnings(
+            vbo_id=vbo_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            construction_year=construction_year,
+            num_units=num_units,
+            municipality=municipality,
+        )
+    except Exception as exc:
+        logger.error("property_warnings failed vbo=%s: %s", vbo_id, exc)
+        raise HTTPException(
+            status_code=502, detail="Property warnings fetch failed"
+        ) from exc
+
+    # Cache if foundation risk has real data
+    if result.foundation_risk.level != "unavailable":
+        await cache_set(
+            cache_key,
+            result.model_dump(),
+            ttl=settings.cache_ttl_property_warnings,
+        )
+        logger.info(
+            "property_warnings cache_set vbo=%s latency=%.0fms",
+            vbo_id,
+            (time.monotonic() - t0) * 1000,
+        )
+
+    return result
+
+
 class ExportRequest(BaseModel):
     """POST body for PDF export — avoids URL-length limits from base64 shadow images."""
+
+    model_config = {"populate_by_name": True}
 
     rd_x: float
     rd_y: float
@@ -495,7 +547,10 @@ class ExportRequest(BaseModel):
     address: str
     template: str = "quick_brief"
     language: str = "en"
-    shadow_image: str | None = None
+    shadow_image_b64: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("shadow_image_b64", "shadow_image"),
+    )
     street: str | None = None
     city: str | None = None
     buurt_code: str | None = None
@@ -647,6 +702,7 @@ async def export_briefing(
     risk_comparisons_data = None
 
     if body.template == "full_dossier":
+        # Fetch neighborhood + tier-b in parallel first.
         neighborhood_stats, tier_b_data = await asyncio.gather(
             _fetch_neighborhood_for_export(
                 vbo_id, body.lat, body.lng, body.buurt_code,
@@ -656,6 +712,17 @@ async def export_briefing(
                 body.house_number, body.house_letter, body.addition,
             ),
         )
+
+        # If request buurt_code is missing, retry Tier-B with neighborhood code.
+        if (
+            not body.buurt_code
+            and neighborhood_stats
+            and neighborhood_stats.buurt_code
+        ):
+            tier_b_data = await _fetch_tier_b_for_export(
+                vbo_id, neighborhood_stats.buurt_code, body.postcode,
+                body.house_number, body.house_letter, body.addition,
+            )
 
         urbanization = UrbanizationLevel.unknown
         if neighborhood_stats:
@@ -674,7 +741,7 @@ async def export_briefing(
             risks=risks,
             sunlight_score=sunlight_score,
             viewing_questions=viewing_qs,
-            shadow_image_b64=body.shadow_image,
+            shadow_image_b64=body.shadow_image_b64,
             language=body.language,
             floor_area=floor_area,
             neighborhood_stats=neighborhood_stats,
@@ -689,7 +756,7 @@ async def export_briefing(
             risks=risks,
             sunlight_score=sunlight_score,
             viewing_questions=viewing_qs,
-            shadow_image_b64=body.shadow_image,
+            shadow_image_b64=body.shadow_image_b64,
             language=body.language,
             floor_area=floor_area,
         )
@@ -712,6 +779,7 @@ async def export_briefing_get(
     address: str = Query(...),
     template: str = Query("quick_brief"),
     language: str = Query("en"),
+    shadow_image_b64: str | None = Query(None),
     shadow_image: str | None = Query(None),
     street: str | None = Query(None),
     city: str | None = Query(None),
@@ -722,10 +790,12 @@ async def export_briefing_get(
     addition: str | None = Query(None),
 ):
     """Backward-compatible GET endpoint for PDF export (deprecated — prefer POST)."""
+    resolved_shadow = shadow_image_b64 or shadow_image
     body = ExportRequest(
         rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng, address=address,
-        template=template, language=language, shadow_image=shadow_image,
+        template=template, language=language, shadow_image_b64=resolved_shadow,
         street=street, city=city, buurt_code=buurt_code, postcode=postcode,
         house_number=house_number, house_letter=house_letter, addition=addition,
     )
     return await export_briefing(vbo_id=vbo_id, body=body)
+

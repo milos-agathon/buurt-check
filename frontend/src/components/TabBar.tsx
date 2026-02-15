@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
+import { SPRING_TAB } from '../config/springs';
 import './TabBar.css';
 
 export type TabId = 'search' | 'briefing' | 'saved';
@@ -23,7 +25,7 @@ export default function TabBar({ activeTab, onTabChange, savedCount }: TabBarPro
       {TABS.map(tab => {
         const isActive = activeTab === tab.id;
         return (
-          <button
+          <motion.button
             key={tab.id}
             type="button"
             role="tab"
@@ -31,7 +33,11 @@ export default function TabBar({ activeTab, onTabChange, savedCount }: TabBarPro
             aria-label={t(tab.labelKey)}
             className={`tab-bar__tab${isActive ? ' tab-bar__tab--active' : ''}`}
             onClick={() => onTabChange(tab.id)}
+            whileTap={{ scale: 0.97 }}
           >
+            {isActive && (
+              <motion.div className="tab-bar__pill" layoutId="tab-pill" transition={SPRING_TAB} />
+            )}
             <div className="tab-bar__icon-wrapper">
               <svg
                 width="24"
@@ -51,7 +57,7 @@ export default function TabBar({ activeTab, onTabChange, savedCount }: TabBarPro
               )}
             </div>
             <span className="tab-bar__label">{t(tab.labelKey)}</span>
-          </button>
+          </motion.button>
         );
       })}
     </nav>

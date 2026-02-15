@@ -1,3 +1,5 @@
+import type { Geometry } from 'geojson';
+
 export interface AddressSuggestion {
   id: string;
   display_name: string;
@@ -39,7 +41,7 @@ export interface BuildingFacts {
   intended_use_en: string[];
   num_units?: number;
   floor_area_m2?: number;
-  footprint_geojson?: GeoJSON.Geometry;
+  footprint_geojson?: Geometry;
   document_date?: string;
 }
 
@@ -273,6 +275,56 @@ export interface TierBResponse {
   address_id: string;
   energy_label: EnergyLabelCard;
   crime: CrimeStatsCard;
+}
+
+// Property Warnings
+export interface FoundationRisk {
+  level: 'high' | 'medium' | 'low' | 'unavailable';
+  construction_year?: number;
+  soil_type?: string;
+  subsidence_rate_mm_per_year?: number;
+  messages: string[];
+}
+
+export interface ErfpachtWarning {
+  detected: boolean;
+  confidence?: 'confirmed' | 'municipality_based';
+  municipality?: string;
+  messages: string[];
+}
+
+export interface VvEInfo {
+  is_apartment: boolean;
+  num_units?: number;
+  messages: string[];
+}
+
+export interface AsbestosWarning {
+  flagged: boolean;
+  construction_year?: number;
+  messages: string[];
+}
+
+export interface AttentionFlag {
+  category: string;
+  severity: string;
+  label: string;
+}
+
+export interface AttentionSummary {
+  flag_count: number;
+  flags: AttentionFlag[];
+  risk_categories_assessed: number;
+  risk_categories_total: number;
+}
+
+export interface PropertyWarningsResponse {
+  address_id: string;
+  attention_summary: AttentionSummary;
+  foundation_risk: FoundationRisk;
+  erfpacht: ErfpachtWarning;
+  vve: VvEInfo;
+  asbestos: AsbestosWarning;
 }
 
 export interface ShortlistItem {
