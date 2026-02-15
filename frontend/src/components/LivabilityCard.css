@@ -9,10 +9,24 @@
   gap: var(--space-md);
 }
 
+.livability-card--tappable {
+  cursor: pointer;
+}
+
+.livability-card--tappable:hover {
+  box-shadow: var(--elevation-2, var(--elevation-1));
+}
+
 .livability-card__header {
   display: flex;
   align-items: center;
   gap: var(--space-md);
+}
+
+.livability-card__chevron {
+  margin-left: auto;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
 }
 
 .livability-card__score-badge {

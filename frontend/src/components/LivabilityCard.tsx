@@ -6,6 +6,7 @@ interface Props {
   data?: LivabilityResponse;
   loading?: boolean;
   error?: boolean;
+  onTap?: () => void;
 }
 
 function scoreSeverity(normalized: number): SeverityLevel {
@@ -15,7 +16,7 @@ function scoreSeverity(normalized: number): SeverityLevel {
   return 'critical';
 }
 
-export default function LivabilityCard({ data, loading, error }: Props) {
+export default function LivabilityCard({ data, loading, error, onTap }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -47,7 +48,14 @@ export default function LivabilityCard({ data, loading, error }: Props) {
   const severity = scoreSeverity(data.overall_normalized);
 
   return (
-    <section className="livability-card" data-testid="livability-card">
+    <section
+      className={`livability-card${onTap ? ' livability-card--tappable' : ''}`}
+      data-testid="livability-card"
+      onClick={onTap}
+      role={onTap ? 'button' : undefined}
+      tabIndex={onTap ? 0 : undefined}
+      onKeyDown={onTap ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap(); } } : undefined}
+    >
       {/* Score badge + buurt name */}
       <div className="livability-card__header">
         <div className={`livability-card__score-badge livability-card__score-badge--${severity}`}>
@@ -57,6 +65,11 @@ export default function LivabilityCard({ data, loading, error }: Props) {
           <p className="livability-card__buurt-name">{data.buurt_name}</p>
           <p className="livability-card__gemeente">{data.gemeente} — {data.year}</p>
         </div>
+        {onTap && (
+          <svg className="livability-card__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        )}
       </div>
 
       {/* 5 dimension bars */}

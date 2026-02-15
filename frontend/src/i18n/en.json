@@ -370,6 +370,8 @@
   "livability.dimension.social": "Social cohesion",
   "livability.dimension.amenities": "Amenities",
   "livability.dimension.housing": "Housing quality",
+  "livability.detailTitle": "Livability Analysis",
+  "livability.dimensions": "Dimensions",
 
   "dossier.soilInfo": "Soil & Pipes",
   "soil.title": "Soil & Utility Pipes",

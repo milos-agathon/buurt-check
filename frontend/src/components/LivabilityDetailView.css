@@ -1,0 +1,251 @@
+.livability-detail {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.livability-detail__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 48px;
+  padding: 0 var(--space-base);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.livability-detail__back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.livability-detail__back:hover {
+  background: var(--color-surface-hover);
+}
+
+.livability-detail__nav-title {
+  font: var(--type-body-medium);
+  color: var(--color-text);
+}
+
+.livability-detail__content {
+  flex: 1;
+  padding: var(--space-lg) var(--space-base);
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Score section */
+.livability-detail__score-section {
+  text-align: center;
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-lg);
+}
+
+.livability-detail__score {
+  font: var(--type-score-large);
+}
+
+.livability-detail__score--good { color: var(--color-risk-good); }
+.livability-detail__score--moderate { color: var(--color-risk-moderate); }
+.livability-detail__score--poor { color: var(--color-risk-poor); }
+.livability-detail__score--critical { color: var(--color-risk-critical); }
+
+.livability-detail__score-label {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-xs);
+}
+
+/* Sections */
+.livability-detail__section {
+  margin-bottom: var(--space-lg);
+}
+
+.livability-detail__section-title {
+  font: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+/* Dimension bars */
+.livability-detail__dimensions {
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-card);
+  padding: var(--space-base);
+}
+
+.livability-detail__dim-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 32px;
+}
+
+.livability-detail__dim-row + .livability-detail__dim-row {
+  margin-top: var(--space-xs);
+}
+
+.livability-detail__dim-label {
+  width: 130px;
+  flex-shrink: 0;
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+}
+
+.livability-detail__dim-track {
+  flex: 1;
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.livability-detail__dim-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 600ms ease-out;
+}
+
+.livability-detail__dim-fill--good { background: var(--color-risk-good); }
+.livability-detail__dim-fill--moderate { background: var(--color-risk-moderate); }
+.livability-detail__dim-fill--poor { background: var(--color-risk-poor); }
+.livability-detail__dim-fill--critical { background: var(--color-risk-critical); }
+
+.livability-detail__dim-value {
+  width: 32px;
+  flex-shrink: 0;
+  text-align: right;
+  font: var(--type-small);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Trend chart */
+.livability-detail__trend-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-xs);
+  height: 160px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-card);
+  padding: var(--space-base);
+}
+
+.livability-detail__trend-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.livability-detail__trend-bar-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.livability-detail__trend-bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+  transition: height 600ms ease-out;
+}
+
+.livability-detail__trend-bar--good { background: var(--color-risk-good); }
+.livability-detail__trend-bar--moderate { background: var(--color-risk-moderate); }
+.livability-detail__trend-bar--poor { background: var(--color-risk-poor); }
+.livability-detail__trend-bar--critical { background: var(--color-risk-critical); }
+
+.livability-detail__trend-value {
+  font: var(--type-micro);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-top: var(--space-xs);
+}
+
+.livability-detail__trend-year {
+  font: var(--type-micro);
+  color: var(--color-text-tertiary);
+}
+
+/* Comparison bars */
+.livability-detail__comparisons {
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-card);
+  padding: var(--space-base);
+}
+
+.livability-detail__cmp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 32px;
+}
+
+.livability-detail__cmp-row + .livability-detail__cmp-row {
+  margin-top: var(--space-xs);
+}
+
+.livability-detail__cmp-label {
+  width: 130px;
+  flex-shrink: 0;
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+}
+
+.livability-detail__cmp-track {
+  flex: 1;
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.livability-detail__cmp-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 4px;
+  transition: width 600ms ease-out;
+}
+
+.livability-detail__cmp-value {
+  width: 32px;
+  flex-shrink: 0;
+  text-align: right;
+  font: var(--type-small);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Footer */
+.livability-detail__footer {
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.livability-detail__source {
+  font: var(--type-micro);
+  color: var(--color-text-tertiary);
+}

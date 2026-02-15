@@ -14,6 +14,7 @@ import TierBSignalsCard from './components/TierBSignalsCard';
 import AttentionSummary from './components/AttentionSummary';
 import PropertyWarningsCard from './components/PropertyWarningsCard';
 import LivabilityCard from './components/LivabilityCard';
+import LivabilityDetailView from './components/LivabilityDetailView';
 import SoilInfoCard from './components/SoilInfoCard';
 import ViewingChecklist from './components/ViewingChecklist';
 import { LayoutGroup, motion } from 'framer-motion';
@@ -179,6 +180,7 @@ function App() {
   );
   const [livabilityLoading, setLivabilityLoading] = useState(false);
   const [livabilityError, setLivabilityError] = useState(false);
+  const [showLivabilityDetail, setShowLivabilityDetail] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(dossierSeed?.sunlight ?? null);
   const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(
@@ -327,6 +329,7 @@ function App() {
     setLivability(null);
     setLivabilityLoading(false);
     setLivabilityError(false);
+    setShowLivabilityDetail(false);
     setSunlight(null);
     setSunlightUnavailable(false);
     setShadowSnapshots(null);
@@ -886,8 +889,16 @@ function App() {
                     data={livability ?? undefined}
                     loading={livabilityLoading}
                     error={livabilityError}
+                    onTap={livability ? () => setShowLivabilityDetail(true) : undefined}
                   />
                 </>
+              )}
+
+              {showLivabilityDetail && livability && (
+                <LivabilityDetailView
+                  data={livability}
+                  onClose={() => setShowLivabilityDetail(false)}
+                />
               )}
 
               {(tierBLoading || tierBData || tierBError) && (

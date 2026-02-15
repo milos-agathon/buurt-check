@@ -1,0 +1,124 @@
+import { useTranslation } from 'react-i18next';
+import type { LivabilityResponse } from '../types/api';
+import './LivabilityDetailView.css';
+
+interface Props {
+  data: LivabilityResponse;
+  onClose: () => void;
+}
+
+function scoreSeverity(normalized: number): string {
+  if (normalized >= 70) return 'good';
+  if (normalized >= 40) return 'moderate';
+  if (normalized >= 20) return 'poor';
+  return 'critical';
+}
+
+export default function LivabilityDetailView({ data, onClose }: Props) {
+  const { t } = useTranslation();
+
+  const severity = scoreSeverity(data.overall_normalized);
+
+  return (
+    <div className="livability-detail" data-testid="livability-detail">
+      <nav className="livability-detail__nav">
+        <button className="livability-detail__back" onClick={onClose} aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <span className="livability-detail__nav-title">{t('livability.detailTitle', 'Livability Analysis')}</span>
+      </nav>
+
+      <div className="livability-detail__content">
+        {/* Overall score */}
+        <div className="livability-detail__score-section">
+          <div className={`livability-detail__score livability-detail__score--${severity}`}>
+            {data.overall_normalized}
+          </div>
+          <p className="livability-detail__score-label">
+            {data.buurt_name}, {data.gemeente}
+          </p>
+        </div>
+
+        {/* 5 dimension bars */}
+        {data.dimensions.length > 0 && (
+          <section className="livability-detail__section" data-testid="livability-detail-dimensions">
+            <h3 className="livability-detail__section-title">{t('livability.dimensions', 'Dimensions')}</h3>
+            <div className="livability-detail__dimensions">
+              {data.dimensions.map((dim) => {
+                const dimSev = scoreSeverity(dim.normalized_score);
+                return (
+                  <div className="livability-detail__dim-row" key={dim.name}>
+                    <span className="livability-detail__dim-label">
+                      {t(dim.label_code, dim.name)}
+                    </span>
+                    <div className="livability-detail__dim-track">
+                      <div
+                        className={`livability-detail__dim-fill livability-detail__dim-fill--${dimSev}`}
+                        style={{ width: `${dim.normalized_score}%` }}
+                      />
+                    </div>
+                    <span className="livability-detail__dim-value">{dim.normalized_score}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Trend chart */}
+        {data.trend.length > 1 && (
+          <section className="livability-detail__section" data-testid="livability-detail-trend">
+            <h3 className="livability-detail__section-title">{t('livability.trend')}</h3>
+            <div className="livability-detail__trend-chart">
+              {data.trend.map((point) => {
+                const barSev = scoreSeverity(point.overall_normalized);
+                return (
+                  <div className="livability-detail__trend-col" key={point.year}>
+                    <div className="livability-detail__trend-bar-wrapper">
+                      <div
+                        className={`livability-detail__trend-bar livability-detail__trend-bar--${barSev}`}
+                        style={{ height: `${Math.max(10, point.overall_normalized)}%` }}
+                      />
+                    </div>
+                    <span className="livability-detail__trend-value">{point.overall_normalized}</span>
+                    <span className="livability-detail__trend-year">{point.year}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Comparison bars */}
+        {data.comparison.length > 0 && (
+          <section className="livability-detail__section" data-testid="livability-detail-comparison">
+            <h3 className="livability-detail__section-title">{t('livability.comparison')}</h3>
+            <div className="livability-detail__comparisons">
+              {data.comparison.map((row) => (
+                <div className="livability-detail__cmp-row" key={row.level}>
+                  <span className="livability-detail__cmp-label">{row.name}</span>
+                  <div className="livability-detail__cmp-track">
+                    <div
+                      className="livability-detail__cmp-fill"
+                      style={{ width: `${row.overall_normalized}%` }}
+                    />
+                  </div>
+                  <span className="livability-detail__cmp-value">{row.overall_normalized}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Source */}
+        <footer className="livability-detail__footer">
+          <p className="livability-detail__source">
+            {t('livability.source', { source: data.source, date: data.source_date ?? data.year })}
+          </p>
+        </footer>
+      </div>
+    </div>
+  );
+}
