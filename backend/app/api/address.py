@@ -11,6 +11,7 @@ from app.cache.redis import cache_get, cache_set
 from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
+from app.models.livability import LivabilityComparison, LivabilityResponse
 from app.models.neighborhood import NeighborhoodStatsResponse, UrbanizationLevel
 from app.models.neighborhood3d import Neighborhood3DResponse
 from app.models.property_warnings import PropertyWarningsResponse
@@ -24,6 +25,7 @@ from app.models.tier_b import TierBResponse
 from app.services import (
     bag,
     cbs,
+    leefbaarometer,
     locatieserver,
     metrics,
     property_warnings,
@@ -485,6 +487,43 @@ async def tier_b_signals(
     if has_any_data:
         await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_tier_b)
     return result
+
+
+@router.get("/{vbo_id}/livability")
+async def address_livability(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    rd_x: float = Query(...),
+    rd_y: float = Query(...),
+):
+    """Fetch Leefbaarometer livability data: current score + trend + comparison."""
+    cache_key = f"livability_full:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return LivabilityResponse(**cached)
+
+    current = await leefbaarometer.get_livability(rd_x, rd_y)
+    if current is None:
+        return {"available": False, "message": "LIVABILITY_NO_DATA"}
+
+    # Fetch trend + comparison in parallel
+    trend_task = leefbaarometer.get_livability_trend(rd_x, rd_y)
+    comparison_task = leefbaarometer.get_livability_comparison(rd_x, rd_y)
+    trend, comparison = await asyncio.gather(
+        trend_task, comparison_task, return_exceptions=True
+    )
+
+    current.trend = trend if isinstance(trend, list) else []
+    current.comparison = (
+        comparison.rows if isinstance(comparison, LivabilityComparison) else []
+    )
+
+    # Cache the fully assembled response
+    await cache_set(
+        cache_key,
+        current.model_dump(),
+        ttl=settings.cache_ttl_livability,
+    )
+    return current
 
 
 @router.get("/{vbo_id}/property-warnings", response_model=PropertyWarningsResponse)

@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     climate_atlas_wms_base: str = "https://maps1.klimaatatlas.net/geoserver/ows"
     climate_atlas_layers_index: str = "https://maps1.klimaatatlas.net/geoserver/rest/layers.json"
 
+    # Leefbaarometer
+    leefbaarometer_wfs_base: str = "https://geo.leefbaarometer.nl/lbm3/ows"
+
     # Redis
     redis_url: str = "redis://localhost:6379"
 
@@ -58,6 +61,7 @@ class Settings(BaseSettings):
     cache_ttl_tier_b: int = 604800  # 7 days
     cache_ttl_property_warnings: int = 604800  # 7 days
     cache_ttl_foundation: int = 2592000  # 30 days (soil doesn't change)
+    cache_ttl_livability: int = 2592000  # 30 days
 
     # Load env vars whether uvicorn is started from repo root or backend/.
     model_config = {
