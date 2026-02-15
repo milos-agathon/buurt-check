@@ -13,6 +13,8 @@ import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
 import TierBSignalsCard from './components/TierBSignalsCard';
 import AttentionSummary from './components/AttentionSummary';
 import PropertyWarningsCard from './components/PropertyWarningsCard';
+import LivabilityCard from './components/LivabilityCard';
+import SoilInfoCard from './components/SoilInfoCard';
 import ViewingChecklist from './components/ViewingChecklist';
 import { LayoutGroup, motion } from 'framer-motion';
 import DossierSheet from './components/DossierSheet';
@@ -741,6 +743,7 @@ function App() {
                     riskCards={riskCards ?? undefined}
                     warnings={propertyWarnings ?? undefined}
                     sunlightScore={sunlight ? normalizeSunlightScore(sunlight.winter) : undefined}
+                    livability={livability ?? undefined}
                   />
                 </motion.div>
               )}
@@ -879,14 +882,11 @@ function App() {
               {(livabilityLoading || livability || livabilityError) && (
                 <>
                   <h3 className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
-                  {livabilityLoading && <SkeletonCard><SkeletonLine width="60%" /></SkeletonCard>}
-                  {livabilityError && <p className="app__error">{t('error.generic')}</p>}
-                  {livability && livability.available && (
-                    <div className="card" style={{ padding: 'var(--space-md)' }}>
-                      <p>{livability.buurt_name} — {livability.gemeente}</p>
-                      <p>{t('livability.overallScore', 'Livability score')}: {livability.overall_normalized}/100</p>
-                    </div>
-                  )}
+                  <LivabilityCard
+                    data={livability ?? undefined}
+                    loading={livabilityLoading}
+                    error={livabilityError}
+                  />
                 </>
               )}
 
@@ -909,6 +909,14 @@ function App() {
                     loading={propertyWarningsLoading}
                     error={propertyWarningsError}
                   />
+                </>
+              )}
+
+              {/* Soil info — always shown when property warnings loaded (static info card) */}
+              {propertyWarnings && (
+                <>
+                  <h3 className="app__section-label">{t('dossier.soilInfo', 'Soil & Pipes')}</h3>
+                  <SoilInfoCard warnings={propertyWarnings ?? undefined} />
                 </>
               )}
 

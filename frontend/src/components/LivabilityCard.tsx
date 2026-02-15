@@ -1,0 +1,140 @@
+import { useTranslation } from 'react-i18next';
+import type { LivabilityResponse, SeverityLevel } from '../types/api';
+import './LivabilityCard.css';
+
+interface Props {
+  data?: LivabilityResponse;
+  loading?: boolean;
+  error?: boolean;
+}
+
+function scoreSeverity(normalized: number): SeverityLevel {
+  if (normalized >= 70) return 'good';
+  if (normalized >= 40) return 'moderate';
+  if (normalized >= 20) return 'poor';
+  return 'critical';
+}
+
+export default function LivabilityCard({ data, loading, error }: Props) {
+  const { t } = useTranslation();
+
+  if (loading) {
+    return (
+      <section className="livability-card" data-testid="livability-card">
+        <p className="livability-card__loading">{t('livability.loading')}</p>
+      </section>
+    );
+  }
+
+  if (error && !data) {
+    return (
+      <section className="livability-card" data-testid="livability-card">
+        <p className="livability-card__error">{t('livability.error')}</p>
+      </section>
+    );
+  }
+
+  if (!data) return null;
+
+  if (!data.available) {
+    return (
+      <section className="livability-card" data-testid="livability-card">
+        <p className="livability-card__unavailable">{t('livability.unavailable')}</p>
+      </section>
+    );
+  }
+
+  const severity = scoreSeverity(data.overall_normalized);
+
+  return (
+    <section className="livability-card" data-testid="livability-card">
+      {/* Score badge + buurt name */}
+      <div className="livability-card__header">
+        <div className={`livability-card__score-badge livability-card__score-badge--${severity}`}>
+          <span className="livability-card__score-value">{data.overall_normalized}</span>
+        </div>
+        <div className="livability-card__header-text">
+          <p className="livability-card__buurt-name">{data.buurt_name}</p>
+          <p className="livability-card__gemeente">{data.gemeente} — {data.year}</p>
+        </div>
+      </div>
+
+      {/* 5 dimension bars */}
+      {data.dimensions.length > 0 && (
+        <div className="livability-card__dimensions" data-testid="livability-dimensions">
+          {data.dimensions.map((dim) => {
+            const dimSeverity = scoreSeverity(dim.normalized_score);
+            return (
+              <div className="livability-card__dimension" key={dim.name}>
+                <span className="livability-card__dimension-label">
+                  {t(dim.label_code, dim.name)}
+                </span>
+                <div className="livability-card__dimension-track">
+                  <div
+                    className={`livability-card__dimension-fill livability-card__dimension-fill--${dimSeverity}`}
+                    style={{ width: `${dim.normalized_score}%` }}
+                  />
+                </div>
+                <span className="livability-card__dimension-value">{dim.normalized_score}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Sparkline trend */}
+      {data.trend.length > 1 && (
+        <div className="livability-card__trend" data-testid="livability-trend">
+          <span className="livability-card__trend-label">{t('livability.trend')}</span>
+          <div className="livability-card__sparkline">
+            {data.trend.map((point) => {
+              const pctHeight = Math.max(10, point.overall_normalized);
+              const barSeverity = scoreSeverity(point.overall_normalized);
+              return (
+                <div
+                  key={point.year}
+                  className={`livability-card__spark-bar livability-card__spark-bar--${barSeverity}`}
+                  style={{ height: `${pctHeight}%` }}
+                  title={`${point.year}: ${point.overall_normalized}/100`}
+                />
+              );
+            })}
+          </div>
+          <div className="livability-card__spark-years">
+            {data.trend.map((point) => (
+              <span key={point.year} className="livability-card__spark-year">
+                {point.year.slice(-2)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Wijk/Gemeente comparison */}
+      {data.comparison.length > 0 && (
+        <div className="livability-card__comparison" data-testid="livability-comparison">
+          <span className="livability-card__comparison-label">{t('livability.comparison')}</span>
+          {data.comparison.map((row) => (
+            <div className="livability-card__comparison-row" key={row.level}>
+              <span className="livability-card__comparison-name">
+                {row.name}
+              </span>
+              <div className="livability-card__comparison-track">
+                <div
+                  className="livability-card__comparison-fill"
+                  style={{ width: `${row.overall_normalized}%` }}
+                />
+              </div>
+              <span className="livability-card__comparison-value">{row.overall_normalized}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Source */}
+      <p className="livability-card__source">
+        {t('livability.source', { source: data.source, date: data.source_date ?? data.year })}
+      </p>
+    </section>
+  );
+}

@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { RiskCardsResponse, PropertyWarningsResponse } from '../types/api';
+import type { LivabilityResponse, RiskCardsResponse, PropertyWarningsResponse } from '../types/api';
 import './AttentionSummary.css';
 
 interface Props {
   riskCards?: RiskCardsResponse;
   warnings?: PropertyWarningsResponse;
   sunlightScore?: number;
+  livability?: LivabilityResponse;
 }
 
 interface Flag {
@@ -19,6 +20,7 @@ function computeFlags(
   riskCards: RiskCardsResponse | undefined,
   warnings: PropertyWarningsResponse | undefined,
   sunlightScore: number | undefined,
+  livability: LivabilityResponse | undefined,
 ): { flags: Flag[]; assessed: number } {
   const flags: Flag[] = [];
   let assessed = 0;
@@ -72,17 +74,27 @@ function computeFlags(
     if (warnings.asbestos.flagged && year != null && year < 1980) {
       flags.push({ category: 'asbestos', severity: 'info', label: 'Pre-1980 asbestos risk' });
     }
+
+    // Lead pipe — pre-1960 construction
+    if (warnings.lead_pipe?.flagged) {
+      flags.push({ category: 'lead_pipe', severity: 'info', label: 'Lead pipe risk (pre-1960)' });
+    }
+  }
+
+  // Livability — flag if overall score is poor (<40)
+  if (livability?.available && livability.overall_normalized < 40) {
+    flags.push({ category: 'livability', severity: 'elevated', label: 'Low livability score' });
   }
 
   return { flags, assessed };
 }
 
-export default function AttentionSummary({ riskCards, warnings, sunlightScore }: Props) {
+export default function AttentionSummary({ riskCards, warnings, sunlightScore, livability }: Props) {
   const { t } = useTranslation();
 
   const { flags, assessed } = useMemo(
-    () => computeFlags(riskCards, warnings, sunlightScore),
-    [riskCards, warnings, sunlightScore],
+    () => computeFlags(riskCards, warnings, sunlightScore, livability),
+    [riskCards, warnings, sunlightScore, livability],
   );
 
   // Don't render if no data at all
