@@ -21,6 +21,11 @@ Duinzicht 23, 2235BV Valkenburg
 
 claude --dangerously-skip-permissions
 
+/superpowers:write-plan you are acting as senior software engineer with 30 years of experience in developing and selling muli-million dollar mobile app. you are working on buurt-check codespace, a new multi-million dollar project. You must first read @CLAUDE.md and internalize codebase rules. then you  must read d:\buurt-check\docs\plans\2026-02-13-premium-features-design.md to grasp what we are building. Then you must read d:\buurt-check\tasks\todo.md to understand the current implementation plan. finally you must implement the feedback below and redo your implementation plan. Be honest, methodical and  accurate. Feedback:    
+
+you are acting as senior software engineer with 30 years of experience in developing and selling muli-million dollar mobile app. you are working on buurt-check codespace, a new multi-million dollar project. You must first read @CLAUDE.md and internalize codebase rules. Then you must read d:\buurt-check\docs\plans\2026-02-13-premium-features-design.md to grasp what we are building (for now we build only Phase 1). Finally, you must rigorously assess the implementation plan for this doc in d:\buurt-check\tasks\todo.md. Re-read it. Be honest, methodical and accurate.
+
+
 think hard
 
 # Planning Session: Phase 1

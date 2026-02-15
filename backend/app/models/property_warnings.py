@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FoundationRisk(BaseModel):
@@ -11,26 +11,26 @@ class FoundationRisk(BaseModel):
     construction_year: int | None = None
     soil_type: str | None = None
     subsidence_rate_mm_per_year: float | None = None
-    messages: list[str] = []
+    messages: list[str] = Field(default_factory=list)
 
 
 class ErfpachtWarning(BaseModel):
     detected: bool
     confidence: Literal["confirmed", "municipality_based"] | None = None
     municipality: str | None = None
-    messages: list[str] = []
+    messages: list[str] = Field(default_factory=list)
 
 
 class VvEInfo(BaseModel):
     is_apartment: bool
     num_units: int | None = None
-    messages: list[str] = []
+    messages: list[str] = Field(default_factory=list)
 
 
 class AsbestosWarning(BaseModel):
     flagged: bool
     construction_year: int | None = None
-    messages: list[str] = []
+    messages: list[str] = Field(default_factory=list)
 
 
 class AttentionFlag(BaseModel):
