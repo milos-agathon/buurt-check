@@ -41,6 +41,7 @@ ruff check . && ruff format .               # MUST pass before commit
 - **httpx mock in tests**: `AsyncMock` for client, `MagicMock` for response (`.json()` is sync)
 - **Pydantic v2**: Use `Field(default_factory=list)` for list defaults, never bare `= []`
 - **Feature flags**: `BUURT_ENABLE_LOD22_ROOFS` etc. Toggle requires cache invalidation
+- **CBS crime normalization**: per-1,000 residents (`raw / population * 1000`). Population can be suppressed (`-99995`) → `CRIME_NO_POPULATION`
 
 ## Anti-patterns
 

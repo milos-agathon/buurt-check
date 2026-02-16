@@ -40,6 +40,8 @@ npx vitest --watch   # Watch mode
 - Target building: Arctic Teal `0x2EC4B6`. Neighbors: slate `0xB4C0CE` at 60% opacity
 - Dispose all geometries/materials/textures on cleanup
 - `mergeGeometries` for non-target buildings (single draw call)
+- WebGL `linewidth` > 1 unsupported — use geometry-based outlines for highlights
+- Summer-noon effect resets lighting per frame — store light ref, gate overrides in condition
 
 ### Components
 - Functional components, named exports, co-located CSS + tests
@@ -57,6 +59,7 @@ npx vitest --watch   # Watch mode
 - Framer Motion mock: `vi.mock('framer-motion', ...)` returning forwarded `motion.div`
 - i18n: fresh `i18n.createInstance()` per language in tests
 - `vi.fn()` needs `mockReset()` in `beforeEach`, not `restoreAllMocks()`
+- Puppeteer screenshot regression: validate at iPhone 375w and Android 360w breakpoints
 
 ## Anti-patterns
 
@@ -68,3 +71,4 @@ npx vitest --watch   # Watch mode
 - CSS `!important` on canvas → breaks `renderer.setSize()`
 - `console.log` in production code
 - CSS `font` shorthand before `font-weight`/`font-style` → shorthand resets them
+- Custom severity vocab (`low/medium/high`) → use canonical `good/moderate/poor/critical` via SeverityBadge
