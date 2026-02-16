@@ -33,9 +33,9 @@ describe('Keyboard navigation', () => {
     expect(onTabChange).toHaveBeenCalledWith('search');
 
     await user.tab();
-    expect(screen.getByRole('tab', { name: 'Briefing' })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: 'Saved' })).toHaveFocus();
     await user.keyboard('{Enter}');
-    expect(onTabChange).toHaveBeenCalledWith('briefing');
+    expect(onTabChange).toHaveBeenCalledWith('saved');
   });
 
   it('TopBar language controls are keyboard operable', async () => {

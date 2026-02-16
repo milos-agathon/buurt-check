@@ -20,9 +20,10 @@ import ViewingChecklist from './components/ViewingChecklist';
 import { LayoutGroup, motion } from 'framer-motion';
 import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
-import { SkeletonCard, SkeletonGrid, SkeletonLine } from './components/SkeletonCard';
+import DossierSkeleton from './components/DossierSkeleton';
+import RiskTileSkeleton from './components/RiskTileSkeleton';
 import { SPRING_REVEAL } from './config/springs';
-import { hapticTap, hapticSuccess } from './utils/haptic';
+import { hapticTap } from './utils/haptic';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
 import ShortlistScreen from './components/ShortlistScreen';
@@ -233,6 +234,7 @@ function App() {
   }, [activeScreen, activeTab]);
 
   const handleToggleQuestion = useCallback((id: string) => {
+    hapticTap();
     setCheckedQuestions(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -242,7 +244,6 @@ function App() {
   }, []);
 
   const handleBookmark = useCallback(() => {
-    hapticTap();
     if (!address?.adresseerbaar_object_id) return;
     const vboId = address.adresseerbaar_object_id;
     if (isInShortlist(vboId)) {
@@ -265,6 +266,7 @@ function App() {
       };
       const added = addToShortlist(item);
       if (added) {
+        hapticTap();
         showToast(t('toast.addressSaved'));
       } else {
         showToast(t('shortlist.maxReached'));
@@ -291,9 +293,8 @@ function App() {
   }, [showToast, t]);
 
   const handleTabChange = useCallback((tab: TabId) => {
-    hapticTap();
     setActiveTab(tab);
-    if (tab === 'search' || tab === 'briefing') {
+    if (tab === 'search') {
       setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
     } else if (tab === 'saved') {
       setShortlistItems(getShortlist());
@@ -303,6 +304,7 @@ function App() {
 
   const handleRiskTileTap = useCallback((category: string) => {
     if (isTransitioning) return;
+    hapticTap();
     setActiveDetailCategory(category);
   }, [isTransitioning]);
 
@@ -738,10 +740,7 @@ function App() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={SPRING_REVEAL}
                 >
-                  <SkeletonCard>
-                    <SkeletonLine width="70%" className="skeleton-line--lg" />
-                    <SkeletonLine width="40%" />
-                  </SkeletonCard>
+                  <DossierSkeleton />
                 </motion.div>
               )}
 
@@ -777,7 +776,7 @@ function App() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={SPRING_REVEAL}
                 >
-                  <SkeletonGrid />
+                  <RiskTileSkeleton />
                 </motion.div>
               )}
 
@@ -857,12 +856,12 @@ function App() {
                     data={livability ?? undefined}
                     loading={livabilityLoading}
                     error={livabilityError}
-                    onTap={livability ? () => setShowLivabilityDetail(true) : undefined}
+                    onTap={livability?.available ? () => setShowLivabilityDetail(true) : undefined}
                   />
                 </>
               )}
 
-              {showLivabilityDetail && livability && (
+              {showLivabilityDetail && livability?.available && (
                 <LivabilityDetailView
                   data={livability}
                   onClose={() => setShowLivabilityDetail(false)}
@@ -968,7 +967,10 @@ function App() {
                 <ActionBar
                   isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
                   onAddToShortlist={handleBookmark}
-                  onExportBriefing={() => setExportSheetOpen(true)}
+                  onExportBriefing={() => {
+                    hapticTap();
+                    setExportSheetOpen(true);
+                  }}
                 />
               )}
             </DossierSheet>
@@ -1025,7 +1027,7 @@ function App() {
           addition={address.addition ?? undefined}
           shadowSnapshots={shadowSnapshots}
           onGenerateStart={() => showToast(t('toast.exportStarted'))}
-          onGenerateSuccess={() => { hapticSuccess(); showToast(t('toast.exportReady')); }}
+          onGenerateSuccess={() => showToast(t('toast.exportReady'))}
           onGenerateError={() => showToast(t('export.error'))}
         />
       )}

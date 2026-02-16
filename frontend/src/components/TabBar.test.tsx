@@ -24,14 +24,14 @@ function renderTabBar(props: Partial<Parameters<typeof TabBar>[0]> = {}) {
 }
 
 describe('TabBar', () => {
-  it('renders 3 tabs', () => {
+  it('renders 2 tabs', () => {
     renderTabBar();
     const tabs = screen.getAllByRole('tab');
-    expect(tabs).toHaveLength(3);
+    expect(tabs).toHaveLength(2);
   });
 
   it('marks active tab', () => {
-    renderTabBar({ activeTab: 'briefing' });
+    renderTabBar({ activeTab: 'saved' });
     const tabs = screen.getAllByRole('tab');
     expect(tabs[1].getAttribute('aria-selected')).toBe('true');
     expect(tabs[0].getAttribute('aria-selected')).toBe('false');
@@ -40,7 +40,7 @@ describe('TabBar', () => {
   it('calls onTabChange when tab clicked', () => {
     const onTabChange = vi.fn();
     renderTabBar({ onTabChange });
-    fireEvent.click(screen.getAllByRole('tab')[2]); // saved tab
+    fireEvent.click(screen.getAllByRole('tab')[1]); // saved tab
     expect(onTabChange).toHaveBeenCalledWith('saved');
   });
 

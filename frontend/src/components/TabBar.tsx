@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { SPRING_TAB } from '../config/springs';
 import './TabBar.css';
 
-export type TabId = 'search' | 'briefing' | 'saved';
+export type TabId = 'search' | 'saved';
 
 interface TabBarProps {
   activeTab: TabId;
@@ -13,7 +13,6 @@ interface TabBarProps {
 
 const TABS: { id: TabId; icon: string; labelKey: string }[] = [
   { id: 'search', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z', labelKey: 'nav.search' },
-  { id: 'briefing', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', labelKey: 'nav.briefing' },
   { id: 'saved', icon: 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z', labelKey: 'nav.saved' },
 ];
 
