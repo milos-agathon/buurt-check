@@ -27,5 +27,6 @@
 }
 
 .dossier-skeleton__facts-block {
+  height: 48px;
   border-radius: var(--radius-sm);
 }

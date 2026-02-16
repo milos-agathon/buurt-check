@@ -18,6 +18,7 @@ interface RiskDetailViewProps {
   titleKey: string;
   score?: number;
   severity: SeverityLevel;
+  useSharedElement?: boolean;
   meaning?: string;
   comparisons?: ComparisonRow[];
   questions?: ViewingQuestion[];
@@ -35,6 +36,7 @@ export default function RiskDetailView({
   titleKey,
   score,
   severity,
+  useSharedElement = true,
   meaning,
   comparisons,
   questions,
@@ -52,8 +54,11 @@ export default function RiskDetailView({
   return (
     <motion.div
       className="risk-detail"
-      layoutId={`risk-tile-${category}`}
-      transition={SPRING_EXPAND}
+      layoutId={useSharedElement ? `risk-tile-${category}` : undefined}
+      initial={useSharedElement ? undefined : { opacity: 0 }}
+      animate={useSharedElement ? undefined : { opacity: 1 }}
+      exit={useSharedElement ? undefined : { opacity: 0 }}
+      transition={useSharedElement ? SPRING_EXPAND : { duration: 0.2, ease: 'easeOut' }}
       onAnimationStart={onAnimationStart}
       onAnimationComplete={onAnimationComplete}
       data-testid={`risk-detail-${category}`}

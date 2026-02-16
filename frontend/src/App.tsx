@@ -17,13 +17,14 @@ import LivabilityCard from './components/LivabilityCard';
 import LivabilityDetailView from './components/LivabilityDetailView';
 import SoilInfoCard from './components/SoilInfoCard';
 import ViewingChecklist from './components/ViewingChecklist';
-import { LayoutGroup, motion } from 'framer-motion';
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
 import DossierSkeleton from './components/DossierSkeleton';
 import RiskTileSkeleton from './components/RiskTileSkeleton';
 import { SPRING_REVEAL } from './config/springs';
 import { hapticTap } from './utils/haptic';
+import { useAnimationPerformance } from './hooks/useAnimationPerformance';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
 import ShortlistScreen from './components/ShortlistScreen';
@@ -71,6 +72,7 @@ const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMa
 const NeighborhoodViewer3D = lazy(() => import('./components/NeighborhoodViewer3D'));
 const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
+const SpringTuner = import.meta.env.DEV ? lazy(() => import('./components/SpringTuner')) : null;
 
 type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed' };
@@ -203,7 +205,9 @@ function App() {
   // Risk detail view state.
   const [activeDetailCategory, setActiveDetailCategory] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [useFallbackDetailTransition, setUseFallbackDetailTransition] = useState(false);
   const [checkedQuestions, setCheckedQuestions] = useState<Set<string>>(new Set());
+  const animationPerformance = useAnimationPerformance();
 
   // Apply theme on mount and listen for system changes
   useEffect(() => {
@@ -305,8 +309,9 @@ function App() {
   const handleRiskTileTap = useCallback((category: string) => {
     if (isTransitioning) return;
     hapticTap();
+    setUseFallbackDetailTransition(animationPerformance.shouldUseFallback());
     setActiveDetailCategory(category);
-  }, [isTransitioning]);
+  }, [animationPerformance, isTransitioning]);
 
   const handleAddressSelect = async (suggestion: AddressSuggestion) => {
     setLoading(true);
@@ -797,31 +802,42 @@ function App() {
                       />
                     </>
                   )}
-                  {activeDetailCategory && (() => {
-                    const detail = getDetailProps(activeDetailCategory);
-                    if (!detail) return null;
-                    return (
-                      <RiskDetailView
-                        category={activeDetailCategory}
-                        titleKey={detail.titleKey}
-                        score={detail.score}
-                        severity={detail.severity}
-                        meaning={detail.meaning}
-                        comparisons={detail.comparisons}
-                        questions={activeQuestions}
-                        checkedQuestions={checkedQuestions}
-                        onToggleQuestion={handleToggleQuestion}
-                        source={detail.source}
-                        sourceDate={detail.sourceDate}
-                        onBack={() => {
-                          setActiveDetailCategory(null);
-                          setIsTransitioning(false);
-                        }}
-                        onAnimationStart={() => setIsTransitioning(true)}
-                        onAnimationComplete={() => setIsTransitioning(false)}
-                      />
-                    );
-                  })()}
+                  <AnimatePresence initial={false} mode="wait">
+                    {activeDetailCategory && (() => {
+                      const detail = getDetailProps(activeDetailCategory);
+                      if (!detail) return null;
+                      return (
+                        <RiskDetailView
+                          key={`${activeDetailCategory}:${useFallbackDetailTransition ? 'fallback' : 'shared'}`}
+                          category={activeDetailCategory}
+                          titleKey={detail.titleKey}
+                          score={detail.score}
+                          severity={detail.severity}
+                          meaning={detail.meaning}
+                          comparisons={detail.comparisons}
+                          questions={activeQuestions}
+                          checkedQuestions={checkedQuestions}
+                          onToggleQuestion={handleToggleQuestion}
+                          source={detail.source}
+                          sourceDate={detail.sourceDate}
+                          useSharedElement={!useFallbackDetailTransition}
+                          onBack={() => {
+                            animationPerformance.stopMonitoring();
+                            setActiveDetailCategory(null);
+                            setIsTransitioning(false);
+                          }}
+                          onAnimationStart={() => {
+                            setIsTransitioning(true);
+                            animationPerformance.startMonitoring();
+                          }}
+                          onAnimationComplete={() => {
+                            animationPerformance.stopMonitoring();
+                            setIsTransitioning(false);
+                          }}
+                        />
+                      );
+                    })()}
+                  </AnimatePresence>
                 </LayoutGroup>
               )}
 
@@ -1003,6 +1019,11 @@ function App() {
               theme={themePreference}
               onThemeChange={handleThemeChange}
             />
+          </Suspense>
+        )}
+        {SpringTuner && activeScreen === 'settings' && (
+          <Suspense fallback={null}>
+            <SpringTuner />
           </Suspense>
         )}
       </main>
