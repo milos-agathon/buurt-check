@@ -266,6 +266,10 @@ export interface CrimeStatsCard {
   yearly_period?: string;
   monthly_total_per_1000?: number;
   monthly_period?: string;
+  total_count?: number;
+  burglary_count?: number;
+  violent_count?: number;
+  monthly_total_count?: number;
   source: string;
   source_date?: string;
   message?: string;

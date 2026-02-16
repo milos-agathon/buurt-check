@@ -63,7 +63,7 @@ async function typeAndFlush(input: HTMLElement, value: string) {
 describe('input behavior', () => {
   it('renders input with translated placeholder', () => {
     renderSearch();
-    expect(screen.getByPlaceholderText('Paste or type a Dutch address...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Paste or type an address...')).toBeInTheDocument();
   });
 
   it('does not fetch for queries < 2 chars', async () => {

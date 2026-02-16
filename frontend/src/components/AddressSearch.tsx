@@ -30,7 +30,6 @@ export default function AddressSearch({ onSelect }: Props) {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(getRecent());
-  const [isFocused, setIsFocused] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,7 +120,6 @@ export default function AddressSearch({ onSelect }: Props) {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        setIsFocused(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -145,7 +143,7 @@ export default function AddressSearch({ onSelect }: Props) {
     refreshRecent();
   }, [refreshRecent]);
 
-  const showRecent = isFocused && query.length < 2 && !isOpen && recentSearches.length > 0;
+  const showRecent = query.length < 2 && !isOpen && recentSearches.length > 0;
 
   return (
     <div className="address-search" ref={containerRef}>
@@ -160,7 +158,6 @@ export default function AddressSearch({ onSelect }: Props) {
           value={query}
           onChange={e => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => setIsFocused(true)}
           placeholder={t('search.placeholder')}
           autoComplete="off"
         />

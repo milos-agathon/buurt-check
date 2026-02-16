@@ -1,13 +1,15 @@
 .risk-tile {
   position: relative;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-base);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   box-shadow: var(--elevation-1);
-  padding: var(--space-base);
-  min-height: 148px;
+  padding: var(--space-sm) var(--space-base);
+  min-height: 64px;
   min-width: 0;
   cursor: pointer;
   text-align: left;
@@ -22,31 +24,31 @@
 
 .risk-tile__header {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .risk-tile__label {
   font-family: var(--font-family);
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
 }
 
 .risk-tile__score-area {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-sm) 0;
+  flex-shrink: 0;
+  width: 48px;
 }
 
 .risk-tile__score {
   font-family: var(--font-family);
-  font-size: 34px;
+  font-size: 28px;
   line-height: 1;
   font-weight: 900;
 }
@@ -60,15 +62,12 @@
 .risk-tile__summary {
   font: var(--type-small);
   color: var(--color-text-secondary);
-  margin-top: var(--space-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .risk-tile__chevron {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
+  flex-shrink: 0;
   color: var(--color-text-tertiary);
 }

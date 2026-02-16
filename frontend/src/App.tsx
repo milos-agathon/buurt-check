@@ -145,10 +145,11 @@ function App() {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
   const dossierSeed = useMemo(readDossierSeed, []);
+  const initialHasDossier = !!(dossierSeed?.address && dossierSeed?.buildingResponse);
   const { toasts, showToast, dismissToast } = useToast();
-  const [activeTab, setActiveTab] = useState<TabId>('search');
+  const [activeTab, setActiveTab] = useState<TabId>(initialHasDossier ? 'briefing' : 'search');
   const [activeScreen, setActiveScreen] = useState<Screen>(
-    dossierSeed?.address && dossierSeed?.buildingResponse ? 'dossier' : 'search',
+    initialHasDossier ? 'dossier' : 'search',
   );
   const [themePreference, setThemePreference] = useState<ThemePreference>(getTheme());
   const [address, setAddress] = useState<ResolvedAddress | null>(dossierSeed?.address ?? null);
@@ -192,7 +193,7 @@ function App() {
     dossierSeed?.viewingQuestions ?? null,
   );
   const [loading, setLoading] = useState(false);
-  const [sheetSnap, setSheetSnap] = useState<SheetSnap>('hidden');
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>(initialHasDossier ? 'half' : 'hidden');
   const [pendingDisplayName, setPendingDisplayName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const neighborhood3DRequestId = useRef(0);
@@ -297,8 +298,19 @@ function App() {
 
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab);
-    if (tab === 'search') {
+    if (tab === 'home') {
       setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
+      if (address && buildingResponse) setSheetSnap('half');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const el = document.getElementById('dossier-content');
+      if (el) el.scrollTop = 0;
+      return;
+    }
+    if (tab === 'search') {
+      setActiveScreen('search');
+    } else if (tab === 'briefing') {
+      setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
+      if (address && buildingResponse) setSheetSnap('half');
     } else if (tab === 'saved') {
       setShortlistItems(getShortlist());
       setActiveScreen('shortlist');
@@ -346,7 +358,7 @@ function App() {
 
     // T+0: immediately show dossier screen with sheet at peek
     setActiveScreen('dossier');
-    setActiveTab('search');
+    setActiveTab('briefing');
     setSheetSnap('peek');
     setPendingDisplayName(suggestion.display_name);
 
@@ -665,7 +677,9 @@ function App() {
       ? t('compare.title')
       : activeScreen === 'settings'
         ? t('nav.settings')
-        : 'buurt-check';
+        : activeScreen === 'dossier'
+          ? t('nav.briefing')
+          : 'buurt-check';
 
   // Get viewing questions for active detail category
   const activeQuestions = activeDetailCategory
@@ -1050,6 +1064,7 @@ function App() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         savedCount={shortlistItems.length}
+        hasDossier={!!(address && buildingResponse)}
       />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>

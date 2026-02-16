@@ -186,6 +186,36 @@ async def _get_energy_label(
     return EnergyLabelCard(label=label, source_date=source_date)
 
 
+def _buurt_to_gemeente(buurt_code: str) -> str:
+    """Extract GM code from buurt code: BU05370606 -> GM0537."""
+    digits = buurt_code[2:6]  # 4-digit municipality code
+    return f"GM{digits}"
+
+
+async def _fetch_crime_rows(
+    area_code: str,
+    latest_year: str,
+    latest_month: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fetch yearly + monthly crime rows for a given area code."""
+    yearly_rows = await _fetch_typed_rows(
+        settings.cbs_crime_yearly_base,
+        filter_expr=(
+            f"startswith(WijkenEnBuurten,'{area_code}') and Perioden eq '{latest_year}'"
+        ),
+        top=250,
+    )
+    monthly_rows = await _fetch_typed_rows(
+        settings.cbs_crime_monthly_base,
+        filter_expr=(
+            f"SoortMisdrijf eq '{_CRIME_TOTAL_KEY}' and "
+            f"startswith(WijkenEnBuurten,'{area_code}') and Perioden eq '{latest_month}'"
+        ),
+        top=5,
+    )
+    return yearly_rows, monthly_rows
+
+
 async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     cleaned_buurt = _clean_buurt_code(buurt_code)
     if not cleaned_buurt:
@@ -203,21 +233,20 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
         if not latest_year or not latest_month:
             return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
 
-        yearly_rows = await _fetch_typed_rows(
-            settings.cbs_crime_yearly_base,
-            filter_expr=(
-                f"WijkenEnBuurten eq '{cleaned_buurt}' and Perioden eq '{latest_year}'"
-            ),
-            top=250,
+        # Try buurt-level first
+        yearly_rows, monthly_rows = await _fetch_crime_rows(
+            cleaned_buurt, latest_year, latest_month,
         )
-        monthly_rows = await _fetch_typed_rows(
-            settings.cbs_crime_monthly_base,
-            filter_expr=(
-                f"SoortMisdrijf eq '{_CRIME_TOTAL_KEY}' and "
-                f"WijkenEnBuurten eq '{cleaned_buurt}' and Perioden eq '{latest_month}'"
-            ),
-            top=5,
-        )
+
+        # Fall back to municipality-level if buurt has no data
+        used_gemeente_fallback = False
+        if not yearly_rows:
+            gm_code = _buurt_to_gemeente(cleaned_buurt)
+            yearly_rows, monthly_rows = await _fetch_crime_rows(
+                gm_code, latest_year, latest_month,
+            )
+            if yearly_rows:
+                used_gemeente_fallback = True
     except Exception:
         logger.exception("Crime lookup failed for buurt=%s", cleaned_buurt)
         return CrimeStatsCard(message="CRIME_LOOKUP_FAILED")
@@ -241,7 +270,9 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
         monthly_count = _to_float(monthly_rows[0].get("GeregistreerdeMisdrijven_1"))
 
     message: str | None = None
-    if population is None:
+    if used_gemeente_fallback:
+        message = "CRIME_MUNICIPALITY_LEVEL"
+    elif population is None:
         message = "CRIME_NO_POPULATION"
     elif total_count is None:
         message = "CRIME_NO_DATA"
@@ -253,6 +284,10 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
         yearly_period=latest_year,
         monthly_total_per_1000=_per_1000(monthly_count, population),
         monthly_period=latest_month,
+        total_count=total_count,
+        burglary_count=burglary_count,
+        violent_count=violent_count if violent_count else None,
+        monthly_total_count=monthly_count,
         source_date=latest_year,
         message=message,
     )

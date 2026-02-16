@@ -8,9 +8,16 @@ interface Props {
   error?: boolean;
 }
 
-function formatPer1000(value: number | undefined, unavailableLabel: string): string {
-  if (value == null) return unavailableLabel;
-  return value.toFixed(1);
+function formatCrimeValue(
+  per1000: number | undefined,
+  rawCount: number | undefined,
+  unavailableLabel: string,
+  per1000Suffix: string,
+  rawSuffix: string,
+): { value: string; suffix: string } {
+  if (per1000 != null) return { value: per1000.toFixed(1), suffix: per1000Suffix };
+  if (rawCount != null) return { value: String(Math.round(rawCount)), suffix: rawSuffix };
+  return { value: unavailableLabel, suffix: '' };
 }
 
 /** Convert CBS period like "2026MM01" to "January 2026" / "januari 2026". */
@@ -47,6 +54,14 @@ export default function TierBSignalsCard({ data, loading, error }: Props) {
 
   const unavailable = t('tierB.unavailable');
   const crimeSourceDate = data.crime.source_date ?? data.crime.yearly_period ?? t('risk.dateUnknown');
+  const per1000Suffix = ' / 1,000';
+  const rawSuffix = ` ${t('tierB.crime.rawSuffix')}`;
+  const hasRates = data.crime.total_per_1000 != null;
+
+  const total = formatCrimeValue(data.crime.total_per_1000, data.crime.total_count, unavailable, per1000Suffix, rawSuffix);
+  const burglary = formatCrimeValue(data.crime.burglary_per_1000, data.crime.burglary_count, unavailable, per1000Suffix, rawSuffix);
+  const violent = formatCrimeValue(data.crime.violent_per_1000, data.crime.violent_count, unavailable, per1000Suffix, rawSuffix);
+  const monthly = formatCrimeValue(data.crime.monthly_total_per_1000, data.crime.monthly_total_count, unavailable, per1000Suffix, rawSuffix);
 
   return (
     <section className="tier-b-card" data-testid="tier-b-card">
@@ -55,21 +70,27 @@ export default function TierBSignalsCard({ data, loading, error }: Props) {
         <dl className="tier-b-card__metrics">
           <div className="tier-b-card__metric-row">
             <dt>{t('tierB.crime.total')}</dt>
-            <dd>{formatPer1000(data.crime.total_per_1000, unavailable)}</dd>
+            <dd>{total.value}<span className="tier-b-card__metric-suffix">{total.suffix}</span></dd>
           </div>
           <div className="tier-b-card__metric-row">
             <dt>{t('tierB.crime.burglary')}</dt>
-            <dd>{formatPer1000(data.crime.burglary_per_1000, unavailable)}</dd>
+            <dd>{burglary.value}<span className="tier-b-card__metric-suffix">{burglary.suffix}</span></dd>
           </div>
           <div className="tier-b-card__metric-row">
             <dt>{t('tierB.crime.violent')}</dt>
-            <dd>{formatPer1000(data.crime.violent_per_1000, unavailable)}</dd>
+            <dd>{violent.value}<span className="tier-b-card__metric-suffix">{violent.suffix}</span></dd>
           </div>
           <div className="tier-b-card__metric-row">
             <dt>{t('tierB.crime.monthly')}</dt>
-            <dd>{formatPer1000(data.crime.monthly_total_per_1000, unavailable)}</dd>
+            <dd>{monthly.value}<span className="tier-b-card__metric-suffix">{monthly.suffix}</span></dd>
           </div>
         </dl>
+        {data.crime.message === 'CRIME_MUNICIPALITY_LEVEL' && (
+          <p className="tier-b-card__note">{t('tierB.crime.municipalityNote')}</p>
+        )}
+        {!hasRates && data.crime.message !== 'CRIME_MUNICIPALITY_LEVEL' && (
+          <p className="tier-b-card__note">{t('tierB.crime.rawNote')}</p>
+        )}
         <p className="tier-b-card__source-line">
           {t('tierB.source.crime', { source: data.crime.source, date: crimeSourceDate })}
         </p>
@@ -80,7 +101,9 @@ export default function TierBSignalsCard({ data, loading, error }: Props) {
         )}
       </article>
 
-      <p className="tier-b-card__disclaimer">{t('tierB.disclaimer')}</p>
+      <p className="tier-b-card__disclaimer">
+        {hasRates ? t('tierB.disclaimer') : t('tierB.disclaimerRaw')}
+      </p>
     </section>
   );
 }

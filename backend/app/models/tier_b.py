@@ -15,6 +15,10 @@ class CrimeStatsCard(BaseModel):
     yearly_period: str | None = None
     monthly_total_per_1000: float | None = None
     monthly_period: str | None = None
+    total_count: float | None = None
+    burglary_count: float | None = None
+    violent_count: float | None = None
+    monthly_total_count: float | None = None
     source: str = "CBS OData 47018NED/47022NED"
     source_date: str | None = None
     message: str | None = None

@@ -1,0 +1,53 @@
+{
+    "permissions": {
+        "deny": [
+            "Edit(CLAUDE.md)",
+            "Write(CLAUDE.md)",
+            "Edit(**/.env*)",
+            "Write(**/.env*)",
+            "Edit(**/migrations/**)",
+            "Bash(rm -rf *)"
+        ],
+        "ask": [
+            "Edit(**/forge3d/src/shaders/**)",
+            "Write(**/forge3d/src/shaders/**)",
+            "Bash(git push*)"
+        ],
+        "allow": [
+            "Edit(*)",
+            "Write(*)",
+            "MultiEdit(*)",
+            "Bash(python -m pytest*)",
+            "Bash(npx vitest*)",
+            "Bash(cargo test*)",
+            "Bash(npx eslint*)",
+            "Bash(npx tsc*)",
+            "Bash(npm run dev*)",
+            "Bash(uvicorn*)"
+        ]
+    },
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "Edit|Write|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "pwsh -ExecutionPolicy Bypass -File scripts/post-edit-test.ps1"
+                    }
+                ]
+            }
+        ],
+        "Notification": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "pwsh -Command \"[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; [System.Windows.Forms.MessageBox]::Show('Claude Code needs your attention', 'Claude Code') | Out-Null\""
+                    }
+                ]
+            }
+        ]
+    }
+}

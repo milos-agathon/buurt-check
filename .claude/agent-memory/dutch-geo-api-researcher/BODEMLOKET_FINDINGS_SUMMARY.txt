@@ -1,0 +1,138 @@
+BODEMLOKET WMS ENDPOINT RESEARCH — CRITICAL FINDINGS
+=====================================================
+
+Date: 2026-02-15
+Status: Research Complete — Integration NOT RECOMMENDED
+
+
+CRITICAL FINDING: GetFeatureInfo is Non-Functional
+===================================================
+
+The endpoint's data-retrieval interface (GetFeatureInfo) does NOT return
+contamination records. All test queries return empty XML:
+
+  <esri_wms:FeatureInfoResponse/>
+
+This was tested across:
+  ✓ Multiple coordinate systems (EPSG:28992, EPSG:4326)
+  ✓ Multiple formats (text/plain, XML, ESRI formats)
+  ✓ Known contamination areas (Rotterdam harbor, IJmuiden, Amsterdam-Noord)
+  ✓ Different bbox sizes and pixel coordinates
+
+Result: Empty response every single time.
+
+
+WHAT WORKS
+==========
+
+1. GetCapabilities — Service responds to metadata requests
+   - Layer names confirmed: WBB_locaties, Beschikbaarheid_gegevens, Bevoegd_gezag
+   - CRS: EPSG:28992 (RD New), EPSG:4326
+
+2. GetMap — Image tiles render correctly
+   - Use WMS 1.1.1 (not 1.3.0 for consistency)
+   - Requires STYLES=default parameter
+   - Returns valid PNG showing contamination symbols
+   - Can only be used for visualization
+
+
+WHAT DOESN'T WORK
+=================
+
+1. GetFeatureInfo — Returns empty data for all queries
+   - Service bug: Claims to support it (in capabilities) but doesn't return data
+   - No fields returned: contamination type, severity, remediation status
+
+2. JSON formats — Rejected by service
+   - "Parameter 'InfoFormat' contains unacceptable value" error
+   - Only XML/text formats accepted (but still return empty)
+
+3. WFS — Does not exist (confirmed via 404 testing)
+   - No alternative data retrieval interface available
+
+
+PRACTICAL IMPLICATIONS
+======================
+
+According to CLAUDE.md Phase 1B planning:
+  "GetFeatureInfo returns only reference IDs, NOT contamination severity"
+  "Practical scope: presence/absence detection only"
+
+Actually tested reality:
+  GetFeatureInfo returns NOTHING — not even reference IDs
+  Can see contamination symbols on map but cannot access properties
+  Pixel color analysis would be required (unreliable, not recommended)
+
+
+RECOMMENDATION
+==============
+
+DO NOT INTEGRATE Bodemloket WMS into buurt-check
+
+Instead, use one of:
+
+Option A (Recommended):
+  - Link directly to bodemloket.nl website
+  - Users check themselves (required by Dutch law: onderzoeksplicht)
+  - Show warning in UI: "Dutch law requires buyers to investigate soil
+    contamination. Use bodemloket.nl to check this property."
+  - No API integration needed
+
+Option B (If visualization only):
+  - Render GetMap tiles as background layer in 3D viewer/map
+  - Display disclaimer: "Contamination data shown for reference only"
+  - Do NOT attempt property data extraction
+  - Do NOT assume presence/absence from pixel color
+
+Option C (Future):
+  - Monitor RIVM/GDN for GetFeatureInfo bug fix
+  - Check data.overheid.nl for bulk data downloads (offline indexing)
+  - Re-evaluate when live data access is available
+
+
+VERIFIED FACTS
+==============
+
+Endpoint: https://gis.gdngeoservices.nl/standalone/services/blk_gdn/lks_blk_rd_v1/MapServer/WMSServer
+
+Layer names (3 total):
+  - WBB_locaties (soil contamination locations)
+  - Beschikbaarheid_gegevens (data availability)
+  - Bevoegd_gezag (responsible authorities)
+
+Coordinate systems:
+  - EPSG:28992 (Rijksdriehoeksstelsel / RD New) — primary
+  - EPSG:4326 (WGS84) — supported
+
+WMS versions:
+  - v1.1.1 (use this — has param "srs=")
+  - v1.3.0 (avoid — uses different param "crs=" naming)
+
+Required parameters:
+  - VERSION=1.1.1
+  - STYLES=default (required, not optional)
+  - FORMAT=image/png (for GetMap)
+  - SRS=EPSG:28992 (for v1.1.1)
+
+Auth: None required (public service)
+
+Rate limits: Unknown (none observed during testing)
+
+
+FILES CREATED
+=============
+
+/d/buurt-check/.claude/agent-memory/dutch-geo-api-researcher/bodemloket-wms-research.md
+  Full technical research report with all findings and error codes
+
+This file:
+  Quick reference summary for decision-making
+
+
+NEXT STEPS
+==========
+
+1. Review this research with team
+2. Decide: Direct link to bodemloket.nl or skip Phase 1B soil contamination feature?
+3. If skipping: Remove from Phase 1B planning doc
+4. If proceeding: Use Option A (direct link) — lowest effort, highest accuracy

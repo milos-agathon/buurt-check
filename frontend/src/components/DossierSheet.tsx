@@ -102,7 +102,7 @@ export default function DossierSheet({ snap, onSnapChange, children }: DossierSh
         >
           <div className="dossier-sheet__pill" />
         </motion.div>
-        <div className={`dossier-sheet__content${snap === 'peek' ? ' dossier-sheet__content--peek' : ''}`}>
+        <div id="dossier-content" className={`dossier-sheet__content${snap === 'peek' ? ' dossier-sheet__content--peek' : ''}`}>
           {children}
         </div>
       </motion.div>
