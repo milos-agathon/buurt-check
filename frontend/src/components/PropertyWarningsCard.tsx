@@ -8,6 +8,8 @@ interface Props {
   error?: boolean;
 }
 
+const ERFPACHT_NOTE_MUNICIPALITY_ONLY = 'ERFPACHT_NOTE_MUNICIPALITY_ONLY';
+
 function severityClass(level: string): string {
   if (level === 'high') return 'poor';
   if (level === 'medium') return 'moderate';
@@ -41,6 +43,13 @@ export default function PropertyWarningsCard({ data, loading, error }: Props) {
   const hasErfpacht = erfpacht.detected;
   const hasVve = vve.is_apartment;
   const hasAsbestos = asbestos.flagged;
+  const erfpachtBadge =
+    erfpacht.confidence === 'confirmed'
+      ? t('warnings.erfpacht.badge.confirmed')
+      : t('warnings.erfpacht.badge.likely');
+  const showMunicipalityOnlyNote = erfpacht.messages.includes(
+    ERFPACHT_NOTE_MUNICIPALITY_ONLY,
+  );
 
   return (
     <section className="property-warnings" data-testid="property-warnings">
@@ -77,11 +86,17 @@ export default function PropertyWarningsCard({ data, loading, error }: Props) {
         <article className="property-warnings__card property-warnings__card--info">
           <h4 className="property-warnings__card-title">{t('warnings.erfpacht.title')}</h4>
           <span className="property-warnings__badge property-warnings__badge--info">
-            {erfpacht.confidence === 'confirmed' ? 'confirmed' : 'likely'}
+            {erfpachtBadge}
           </span>
           <p className="property-warnings__description">
             {t('warnings.erfpacht.likely', { municipality: erfpacht.municipality ?? '' })}
           </p>
+          {showMunicipalityOnlyNote && (
+            <p className="property-warnings__note">
+              <strong>{t('warnings.erfpacht.note_label')}:</strong>{' '}
+              {t('warnings.erfpacht.municipality_only_note')}
+            </p>
+          )}
           <details className="property-warnings__questions">
             <summary>{t('warnings.erfpacht.title')} — {t('warnings.erfpacht.question_1').split('?')[0]}?</summary>
             <ul>

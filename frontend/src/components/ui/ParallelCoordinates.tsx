@@ -22,7 +22,7 @@ const HEIGHT = 190;
 const PADDING_X = 26;
 const PADDING_TOP = 16;
 const PADDING_BOTTOM = 42;
-const SERIES_COLORS = ['#00897B', '#E8913A', '#7C4DFF'];
+const SERIES_COLORS = ['#00897B', '#9AA0A6', '#D1D5DB', '#E8913A'];
 
 function clampScore(score: number): number {
   return Math.max(0, Math.min(100, score));

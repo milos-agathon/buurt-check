@@ -63,6 +63,20 @@ describe('PropertyWarningsCard', () => {
     expect(screen.getByRole('heading', { name: /erfpacht/i })).toBeInTheDocument();
   });
 
+  it('renders erfpacht municipality-only confidence note when backend provides note code', () => {
+    const data = makePropertyWarningsResponse({
+      erfpacht: {
+        detected: true,
+        confidence: 'municipality_based',
+        municipality: 'Amsterdam',
+        messages: ['ERFPACHT_NOTE_MUNICIPALITY_ONLY'],
+      },
+    });
+    renderCard(data);
+    expect(screen.getByText(/data confidence note/i)).toBeInTheDocument();
+    expect(screen.getByText(/not confirmed via kadaster for this specific property/i)).toBeInTheDocument();
+  });
+
   it('does not render erfpacht card when not detected', () => {
     const data = makePropertyWarningsResponse();
     renderCard(data);

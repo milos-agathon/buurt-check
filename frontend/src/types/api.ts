@@ -364,8 +364,8 @@ export interface LivabilityComparisonRow {
   dimensions: LivabilityDimension[];
 }
 
-export interface LivabilityResponse {
-  available: boolean;
+export interface LivabilityAvailableResponse {
+  available: true;
   buurt_code: string;
   buurt_name: string;
   gemeente: string;
@@ -379,6 +379,13 @@ export interface LivabilityResponse {
   source_date?: string;
   messages: string[];
 }
+
+export interface LivabilityUnavailableResponse {
+  available: false;
+  message: string;
+}
+
+export type LivabilityResponse = LivabilityAvailableResponse | LivabilityUnavailableResponse;
 
 export interface ShortlistItem {
   vboId: string;

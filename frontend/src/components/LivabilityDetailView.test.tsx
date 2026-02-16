@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import LivabilityDetailView from './LivabilityDetailView';
 import { setupTestI18n } from '../test/helpers';
-import type { LivabilityResponse, LivabilityDimension } from '../types/api';
+import type { LivabilityAvailableResponse, LivabilityDimension } from '../types/api';
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -21,7 +21,7 @@ function makeDimensions(): LivabilityDimension[] {
   ];
 }
 
-function makeData(overrides: Partial<LivabilityResponse> = {}): LivabilityResponse {
+function makeData(overrides: Partial<LivabilityAvailableResponse> = {}): LivabilityAvailableResponse {
   return {
     available: true,
     buurt_code: 'BU0363AB10',
@@ -46,7 +46,7 @@ function makeData(overrides: Partial<LivabilityResponse> = {}): LivabilityRespon
   };
 }
 
-function renderDetail(data: LivabilityResponse, onClose = vi.fn()) {
+function renderDetail(data: LivabilityAvailableResponse, onClose = vi.fn()) {
   return render(
     <I18nextProvider i18n={i18n}>
       <LivabilityDetailView data={data} onClose={onClose} />
@@ -99,5 +99,38 @@ describe('LivabilityDetailView', () => {
       </I18nextProvider>,
     );
     expect(screen.getByText(/Fysieke omgeving/i)).toBeInTheDocument();
+  });
+
+  it('renders per-dimension trend section when trend points have dimensions', () => {
+    const dims = makeDimensions();
+    const data = makeData({
+      trend: [
+        { year: '2020', overall_score: 6, overall_normalized: 63, dimensions: dims.map(d => ({ ...d, normalized_score: d.normalized_score - 10 })) },
+        { year: '2022', overall_score: 7, overall_normalized: 75, dimensions: dims },
+        { year: '2024', overall_score: 8, overall_normalized: 88, dimensions: dims.map(d => ({ ...d, normalized_score: d.normalized_score + 5 })) },
+      ],
+    });
+    renderDetail(data);
+    expect(screen.getByTestId('livability-detail-dim-trends')).toBeInTheDocument();
+  });
+
+  it('does not render per-dimension trend section when trend dimensions are empty', () => {
+    renderDetail(makeData()); // Default makeData has dimensions: [] in trend points
+    expect(screen.queryByTestId('livability-detail-dim-trends')).not.toBeInTheDocument();
+  });
+
+  it('renders all 5 dimension labels in per-dimension trend section', () => {
+    const dims = makeDimensions();
+    const data = makeData({
+      trend: [
+        { year: '2020', overall_score: 6, overall_normalized: 63, dimensions: dims },
+        { year: '2024', overall_score: 8, overall_normalized: 88, dimensions: dims },
+      ],
+    });
+    renderDetail(data);
+    const section = screen.getByTestId('livability-detail-dim-trends');
+    expect(section).toBeInTheDocument();
+    // All 5 dimension names should appear within the section
+    expect(section.querySelectorAll('.livability-detail__dim-trend-row')).toHaveLength(5);
   });
 });

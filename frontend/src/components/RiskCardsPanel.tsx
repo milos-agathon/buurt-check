@@ -11,7 +11,7 @@ interface Props {
 interface CardProps {
   id: 'noise' | 'air' | 'climate';
   level: RiskLevel;
-  metric: string;
+  metric: React.ReactNode;
   questionKey: string;
   source: string;
   sourceDate?: string;
@@ -105,7 +105,13 @@ export default function RiskCardsPanel({ risks, loading, error }: Props) {
   const no2Text = riskData.air_quality.no2_ug_m3 != null
     ? `${riskData.air_quality.no2_ug_m3.toFixed(1)} µg/m³ (${t(`risk.level.${riskData.air_quality.no2_level}`)})`
     : t('risk.metricUnavailable');
-  const airMetric = `${t('risk.air.pm25')}: ${pm25Text} • ${t('risk.air.no2')}: ${no2Text}`;
+  const airMetric = (
+    <>
+      {t('risk.air.pm25')}: {pm25Text}
+      <br />
+      {t('risk.air.no2')}: {no2Text}
+    </>
+  );
 
   const heatText = riskData.climate_stress.heat_value != null
     ? `${riskData.climate_stress.heat_value.toFixed(2)} (${t(`risk.level.${riskData.climate_stress.heat_level}`)})`
@@ -113,7 +119,13 @@ export default function RiskCardsPanel({ risks, loading, error }: Props) {
   const waterText = riskData.climate_stress.water_value != null
     ? `${riskData.climate_stress.water_value.toFixed(2)} (${t(`risk.level.${riskData.climate_stress.water_level}`)})`
     : t(`risk.level.${riskData.climate_stress.water_level}`);
-  const climateMetric = `${t('risk.climate.heat')}: ${heatText} • ${t('risk.climate.water')}: ${waterText}`;
+  const climateMetric = (
+    <>
+      {t('risk.climate.heat')}: {heatText}
+      <br />
+      {t('risk.climate.water')}: {waterText}
+    </>
+  );
 
   return (
     <section className="risk-cards">

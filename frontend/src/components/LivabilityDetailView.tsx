@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import type { LivabilityResponse } from '../types/api';
+import type { LivabilityAvailableResponse } from '../types/api';
 import './LivabilityDetailView.css';
 
 interface Props {
-  data: LivabilityResponse;
+  data: LivabilityAvailableResponse;
   onClose: () => void;
 }
 
@@ -18,6 +18,15 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
   const { t } = useTranslation();
 
   const severity = scoreSeverity(data.overall_normalized);
+
+  // Check if any trend point has per-dimension data
+  const hasDimensionTrends = data.trend.length > 1 &&
+    data.trend.some((p) => p.dimensions.length > 0);
+
+  // Stable dimension order
+  const dimensionNames: string[] = hasDimensionTrends
+    ? ['physical', 'safety', 'social', 'amenities', 'housing']
+    : [];
 
   return (
     <div className="livability-detail" data-testid="livability-detail">
@@ -88,6 +97,38 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
                 );
               })}
             </div>
+          </section>
+        )}
+
+        {/* Per-dimension trends */}
+        {hasDimensionTrends && (
+          <section className="livability-detail__section" data-testid="livability-detail-dim-trends">
+            <h3 className="livability-detail__section-title">{t('livability.dimensionTrends', 'Dimension trends')}</h3>
+            {dimensionNames.map((dimName) => {
+              const dimLabel = `livability.dimension.${dimName}`;
+              return (
+                <div className="livability-detail__dim-trend-row" key={dimName}>
+                  <span className="livability-detail__dim-trend-label">
+                    {t(dimLabel, dimName)}
+                  </span>
+                  <div className="livability-detail__dim-trend-bars">
+                    {data.trend.map((point) => {
+                      const dim = point.dimensions.find((d) => d.name === dimName);
+                      if (!dim) return <div className="livability-detail__dim-trend-bar-slot" key={point.year} />;
+                      const barSev = scoreSeverity(dim.normalized_score);
+                      return (
+                        <div
+                          className={`livability-detail__dim-trend-bar livability-detail__dim-trend-bar--${barSev}`}
+                          style={{ height: `${Math.max(10, dim.normalized_score)}%` }}
+                          key={point.year}
+                          title={`${point.year}: ${dim.normalized_score}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </section>
         )}
 

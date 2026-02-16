@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import LivabilityCard from './LivabilityCard';
 import { setupTestI18n } from '../test/helpers';
-import type { LivabilityResponse, LivabilityDimension } from '../types/api';
+import type { LivabilityAvailableResponse, LivabilityDimension, LivabilityResponse } from '../types/api';
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -21,7 +21,7 @@ function makeDimensions(): LivabilityDimension[] {
   ];
 }
 
-function makeLivabilityResponse(overrides: Partial<LivabilityResponse> = {}): LivabilityResponse {
+function makeLivabilityResponse(overrides: Partial<LivabilityAvailableResponse> = {}): LivabilityAvailableResponse {
   return {
     available: true,
     buurt_code: 'BU0363AB10',
@@ -66,7 +66,7 @@ describe('LivabilityCard', () => {
   });
 
   it('shows unavailable when available=false', () => {
-    renderCard(makeLivabilityResponse({ available: false }));
+    renderCard({ available: false, message: 'LIVABILITY_NO_DATA' });
     expect(screen.getByText(/not available/i)).toBeInTheDocument();
   });
 

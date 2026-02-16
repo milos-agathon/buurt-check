@@ -312,9 +312,9 @@ async def neighborhood_stats(
 ):
     """Fetch CBS neighborhood statistics for an address."""
     cache_key = (
-        f"neighborhood:{buurt_code}"
+        f"neighborhood:v2:{buurt_code}"
         if buurt_code
-        else f"neighborhood:{lat:.4f}:{lng:.4f}"
+        else f"neighborhood:v2:{lat:.4f}:{lng:.4f}"
     )
     cached = await cache_get(cache_key)
     if cached is not None:
@@ -372,9 +372,9 @@ async def risk_comparisons(
 
     urbanization = UrbanizationLevel.unknown
     cache_key_neighborhood = (
-        f"neighborhood:{buurt_code}"
+        f"neighborhood:v2:{buurt_code}"
         if buurt_code
-        else f"neighborhood:{lat:.4f}:{lng:.4f}"
+        else f"neighborhood:v2:{lat:.4f}:{lng:.4f}"
     )
     cached_neighborhood = await cache_get(cache_key_neighborhood)
     if cached_neighborhood is not None:
@@ -539,7 +539,7 @@ async def address_property_warnings(
     t0 = time.monotonic()
     _cy = construction_year if construction_year is not None else ""
     _nu = num_units if num_units is not None else ""
-    _mu = (municipality or "").lower().strip()
+    _mu = (municipality or "").strip().casefold()
     cache_key = (
         f"property_warnings:v2:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
         f":{_cy}:{_nu}:{_mu}"
@@ -650,8 +650,8 @@ async def _fetch_neighborhood_for_export(vbo_id: str, lat: float, lng: float,
                                          buurt_code: str | None):
     """Cache-first CBS neighborhood stats fetch for export."""
     cache_key = (
-        f"neighborhood:{buurt_code}" if buurt_code
-        else f"neighborhood:{lat:.4f}:{lng:.4f}"
+        f"neighborhood:v2:{buurt_code}" if buurt_code
+        else f"neighborhood:v2:{lat:.4f}:{lng:.4f}"
     )
     cached = await cache_get(cache_key)
     if cached is not None:

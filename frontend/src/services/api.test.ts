@@ -121,7 +121,7 @@ describe('getNeighborhood3D', () => {
     expect(opts.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it('aborts fetch after 45s timeout', async () => {
+  it('aborts fetch after 90s timeout', async () => {
     vi.useFakeTimers();
     let capturedSignal: AbortSignal | null | undefined;
     mockFetch.mockImplementation((_url: string, opts?: RequestInit) => {
@@ -132,7 +132,7 @@ describe('getNeighborhood3D', () => {
     const promise = getNeighborhood3D('vbo-1', 'pand-1', 121286, 487296, 52.372, 4.892);
 
     expect(capturedSignal?.aborted).toBe(false);
-    vi.advanceTimersByTime(45000);
+    vi.advanceTimersByTime(90000);
     expect(capturedSignal?.aborted).toBe(true);
 
     vi.useRealTimers();
@@ -437,7 +437,9 @@ describe('getLivability', () => {
     const result = await getLivability('0363200000000001', 121286, 487296);
     expect(result).not.toBeNull();
     expect(result!.available).toBe(true);
-    expect(result!.overall_normalized).toBe(75);
+    if (result && result.available) {
+      expect(result.overall_normalized).toBe(75);
+    }
     const [url] = mockFetch.mock.calls[0];
     expect(url).toContain('/api/address/0363200000000001/livability?');
     expect(url).toContain('rd_x=121286');
@@ -451,17 +453,18 @@ describe('getLivability', () => {
     ).rejects.toThrow('Livability failed: 500');
   });
 
-  it('returns null when available is false', async () => {
+  it('returns response with available:false when backend says unavailable', async () => {
     mockFetch.mockResolvedValue(
-      okResponse({ available: false, buurt_code: '', buurt_name: '', gemeente: '', year: '', overall_score: 0, overall_normalized: 0, dimensions: [], trend: [], comparison: [], source: '', messages: [] }),
+      okResponse({ available: false, message: 'LIVABILITY_NO_DATA' }),
     );
     const result = await getLivability('0363200000000001', 121286, 487296);
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.available).toBe(false);
   });
 
   it('passes AbortSignal for timeout', async () => {
     mockFetch.mockResolvedValue(
-      okResponse({ available: false, buurt_code: '', buurt_name: '', gemeente: '', year: '', overall_score: 0, overall_normalized: 0, dimensions: [], trend: [], comparison: [], source: '', messages: [] }),
+      okResponse({ available: false, message: 'LIVABILITY_NO_DATA' }),
     );
     await getLivability('vbo-1', 121286, 487296);
     const [, init] = mockFetch.mock.calls[0];

@@ -20,6 +20,10 @@
   min-height: 48px;
 }
 
+.settings-screen__row--toggle {
+  gap: var(--space-sm);
+}
+
 .settings-screen__label {
   font: var(--type-body);
 }
@@ -32,24 +36,28 @@
 .settings-screen__lang-toggle {
   display: flex;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
+  border-radius: 16px;
   overflow: hidden;
+  max-width: 100%;
 }
 
 .settings-screen__lang-btn {
-  padding: var(--space-xs) var(--space-base);
+  padding: 3px 10px;
+  min-height: 28px;
   border: none;
   background: var(--color-surface);
-  font: var(--type-small);
+  font-size: 12px;
+  line-height: 1;
   font-weight: 600;
+  color: var(--color-text);
   cursor: pointer;
   transition: all var(--transition-fast);
-  min-width: 40px;
+  min-width: 34px;
 }
 
 .settings-screen__lang-btn--active {
   background: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
 }
 
 .settings-screen__action {
@@ -79,22 +87,48 @@
 .settings-screen__theme-toggle {
   display: flex;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
+  border-radius: 16px;
   overflow: hidden;
+  max-width: 100%;
 }
 
 .settings-screen__theme-btn {
-  padding: var(--space-xs) var(--space-md);
+  padding: 3px 10px;
+  min-height: 28px;
   border: none;
   background: var(--color-surface);
-  font: var(--type-small);
+  font-size: 12px;
+  line-height: 1;
   font-weight: 600;
+  color: var(--color-text);
   cursor: pointer;
   transition: all var(--transition-fast);
-  min-width: 52px;
+  min-width: 44px;
 }
 
 .settings-screen__theme-btn--active {
   background: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
+}
+
+[data-theme='dark'] .settings-screen__lang-btn,
+[data-theme='dark'] .settings-screen__theme-btn {
+  color: var(--color-overlay-text);
+}
+
+@media (max-width: 360px) {
+  .settings-screen__row--toggle {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .settings-screen__row--toggle .settings-screen__lang-btn {
+    padding: 3px 8px;
+    min-width: 32px;
+  }
+
+  .settings-screen__row--toggle .settings-screen__theme-btn {
+    padding: 3px 8px;
+    min-width: 40px;
+  }
 }

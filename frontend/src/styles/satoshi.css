@@ -1,8 +1,12 @@
 /* Satoshi font family - locally served from /public/fonts */
+/* TODO: Replace Satoshi-Regular.woff with Satoshi-Variable.woff2 (~45KB)
+   from fontshare.com for true variable font weight support (300-900).
+   Current .woff file may cause browser-synthesized bold/black weights. */
 
 @font-face {
   font-family: 'Satoshi';
-  src: local('Satoshi Regular'),
+  src: local('Satoshi Variable'),
+       local('Satoshi Regular'),
        url('/fonts/Satoshi-Regular.woff') format('woff');
   font-weight: 300 900;
   font-style: normal;

@@ -52,8 +52,6 @@ function AgeBars({ profile }: { profile: AgeProfile }) {
     { key: '25_64', label: t('neighborhood.age.25_64'), value: profile.age_25_64 },
     { key: '65_plus', label: t('neighborhood.age.65_plus'), value: profile.age_65_plus },
   ];
-  const maxPct = Math.max(...bands.map((b) => b.value ?? 0), 1);
-
   return (
     <div className="neighborhood-card__age-bars" data-testid="age-bars">
       {bands.map((band) => (
@@ -62,7 +60,7 @@ function AgeBars({ profile }: { profile: AgeProfile }) {
           <div className="neighborhood-card__age-bar-track">
             <div
               className="neighborhood-card__age-bar-fill"
-              style={{ width: `${((band.value ?? 0) / maxPct) * 100}%` }}
+              style={{ width: `${band.value ?? 0}%` }}
             />
           </div>
           <span className="neighborhood-card__age-pct">

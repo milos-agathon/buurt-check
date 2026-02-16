@@ -15,7 +15,7 @@ export default function SettingsScreen({ onClearRecent, onClearShortlist, theme 
   return (
     <div className="settings-screen" data-testid="settings-screen">
       <div className="settings-screen__group">
-        <div className="settings-screen__row">
+        <div className="settings-screen__row settings-screen__row--toggle">
           <span className="settings-screen__label">{t('settings.language')}</span>
           <div className="settings-screen__lang-toggle">
             <button
@@ -33,7 +33,7 @@ export default function SettingsScreen({ onClearRecent, onClearShortlist, theme 
           </div>
         </div>
         {onThemeChange && (
-          <div className="settings-screen__row">
+          <div className="settings-screen__row settings-screen__row--toggle">
             <span className="settings-screen__label">{t('settings.appearance', 'Appearance')}</span>
             <div className="settings-screen__theme-toggle" data-testid="theme-toggle">
               <button

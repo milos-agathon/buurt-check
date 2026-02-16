@@ -190,6 +190,51 @@
   color: var(--color-text-tertiary);
 }
 
+/* Per-dimension trend mini-bars */
+.livability-detail__dim-trend-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  height: 48px;
+  padding: var(--space-xs) 0;
+}
+
+.livability-detail__dim-trend-row + .livability-detail__dim-trend-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.livability-detail__dim-trend-label {
+  width: 100px;
+  flex-shrink: 0;
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+  align-self: center;
+}
+
+.livability-detail__dim-trend-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 36px;
+}
+
+.livability-detail__dim-trend-bar-slot {
+  flex: 1;
+  height: 0;
+}
+
+.livability-detail__dim-trend-bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+
+.livability-detail__dim-trend-bar--good { background: var(--color-risk-good); }
+.livability-detail__dim-trend-bar--moderate { background: var(--color-risk-moderate); }
+.livability-detail__dim-trend-bar--poor { background: var(--color-risk-poor); }
+.livability-detail__dim-trend-bar--critical { background: var(--color-risk-critical); }
+
 /* Comparison bars */
 .livability-detail__comparisons {
   background: var(--color-surface-alt);

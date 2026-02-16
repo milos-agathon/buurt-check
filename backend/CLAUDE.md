@@ -1,180 +1,61 @@
 # Backend — FastAPI + httpx + Pydantic + Redis
 
-## Stack
-- Python 3.12, FastAPI, httpx (async HTTP client), Pydantic v2 + pydantic-settings
-- Redis (async, with circuit breaker) for caching. NO database — all data from external APIs
-- scipy (ConvexHull for LoD 2.2 roof geometry)
-- fpdf2 with Satoshi TTF font embedding (PDF generation for Quick Brief + Full Dossier)
-- Test: pytest + pytest-asyncio
-- Linting: ruff (check + format)
-- NO SQLAlchemy, NO PostGIS, NO alembic — this is a stateless API proxy/aggregator
+Python 3.12 stateless API aggregator. No database — all data from Dutch government APIs with Redis caching.
 
-## Key commands
-- Run server: `cd backend && uvicorn app.main:app --reload --port 8000`
-- Run all tests: `cd backend && pytest -x -q -m "not live"`
-- Run with live API tests: `cd backend && pytest -x -q`
-- Run single test: `cd backend && pytest tests/test_bag.py::test_name -v`
-- Lint: `cd backend && ruff check .`
-- Format: `cd backend && ruff format .`
+## Commands
 
-## Project structure
-```
-app/
-  main.py              — FastAPI app, CORS, lifespan
-  config.py            — Settings via pydantic-settings (BUURT_* env prefix)
-  api/
-    router.py          — FastAPI router aggregation
-    address.py         — All address-related endpoints:
-                          /suggest, /lookup, /{vbo_id}/building,
-                          /{vbo_id}/building3d, /{vbo_id}/neighborhood3d,
-                          /{vbo_id}/risks, /{vbo_id}/neighborhood,
-                          /{vbo_id}/wms-tile, /{vbo_id}/viewing-questions,
-                          /{vbo_id}/export, /{vbo_id}/risk-comparisons,
-                          /{vbo_id}/tier-b, /{vbo_id}/property-warnings
-  services/
-    locatieserver.py   — PDOK Locatieserver suggest + lookup
-    bag.py             — BAG WFS for building facts (OGC XML Filter, NOT CQL_FILTER)
-    three_d_bag.py     — 3DBAG OGC API for 3D geometry (CityJSON, dual-fetch + tiled)
-    risk_cards.py      — RIVM WMS (noise, air) + Klimaateffectatlas WFS (climate)
-    cbs.py             — CBS Wijken & Buurten OGC API for neighborhood stats
-    wms_tile.py        — WMS tile proxy for 3D viewer overlays (CORS bypass)
-    scoring.py         — Risk score normalization (0-100 scale) + severity classification
-    viewing_questions.py — Bilingual viewing questions based on risk scores
-    pdf_export.py      — PDF generation via fpdf2 with Satoshi TTF (Quick Brief + Full Dossier)
-    risk_comparisons.py — Urbanization-stratified baselines (city/NL/WHO per risk category)
-    tier_b.py          — EP-Online energy labels + CBS OData crime stats
-    property_warnings.py — Foundation risk, erfpacht, VvE fund, asbestos detection
-    foundation_risk.py — BRO soil data + Klimaateffectatlas subsidence classification
-  models/
-    address.py         — AddressSuggestion, ResolvedAddress
-    building.py        — BuildingFacts, BuildingBlock (with optional roof_surfaces)
-    neighborhood.py    — NeighborhoodStats, IndicatorGroup, AgeProfile
-    neighborhood3d.py  — Neighborhood3DResponse, BuildingBlock3D
-    risk.py            — NoiseRiskCard, AirQualityRiskCard, ClimateStressRiskCard,
-                          SunlightRiskCard, RiskCardsResponse (with score/severity/summary)
-    property_warnings.py — PropertyWarnings, FoundationRisk, ErfpachtWarning, etc.
-  cache/
-    redis.py           — Async Redis with circuit breaker (30s), socket_timeout=0.5s
-tests/
-  conftest.py          — Shared fixtures
-  test_address_api.py  — API endpoint integration tests
-  test_bag.py          — BAG WFS service tests
-  test_locatieserver.py — Locatieserver service tests
-  test_three_d_bag.py  — 3DBAG service tests (tiled fetch, LoD 2.2 parsing)
-  test_risk_cards.py   — Risk card builder tests (noise, air, climate)
-  test_scoring.py      — Score normalization boundary tests
-  test_cbs.py          — CBS service tests
-  test_wms_tile.py     — WMS tile proxy tests
-  test_pdf_export.py   — PDF export service tests
-  test_models.py       — Pydantic model serialization tests
-  test_cache.py        — Redis circuit breaker tests
-  test_tier_b.py       — Tier B service tests (energy label, crime)
-  test_property_warnings.py — Property warnings service tests (foundation, erfpacht, VvE, asbestos)
-  test_foundation_risk.py — Foundation risk service tests (BRO soil, subsidence)
-  test_risk_cards_live.py — Live API smoke tests (@pytest.mark.live)
-  test_cbs_live.py     — Live CBS API smoke tests (@pytest.mark.live)
+```bash
+uvicorn app.main:app --reload --port 8000   # Dev server
+pytest -x -q -m "not live"                  # CI tests (405+ baseline)
+pytest -x -q                                # Including live API smoke tests
+ruff check . && ruff format .               # MUST pass before commit
 ```
 
-## API endpoints
+## API endpoints (all under `/api/address/`)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/address/suggest?q=...` | GET | Autocomplete via PDOK Locatieserver |
-| `/api/address/lookup?id=...` | GET | Resolve BAG IDs + coordinates |
-| `/api/address/{vbo_id}/building` | GET | Building facts from BAG WFS |
-| `/api/address/{vbo_id}/building3d` | GET | Target building 3D geometry (~2s) |
-| `/api/address/{vbo_id}/neighborhood3d?rd_x=&rd_y=` | GET | Surrounding buildings 3D (~12-17s) |
-| `/api/address/{vbo_id}/risks?rd_x=&rd_y=&lat=&lng=` | GET | Risk cards (noise, air, climate) with scores |
-| `/api/address/{vbo_id}/neighborhood?lat=&lng=&buurt_code=` | GET | CBS neighborhood stats |
-| `/api/address/{vbo_id}/wms-tile?source=&rd_x=&rd_y=&radius=` | GET | WMS tile proxy (PNG bytes) |
-| `/api/address/{vbo_id}/viewing-questions?rd_x=&rd_y=&lat=&lng=` | GET | Bilingual viewing questions |
-| `/api/address/{vbo_id}/risk-comparisons` | GET | Urbanization-stratified risk baselines |
-| `/api/address/{vbo_id}/tier-b?postcode=&huisnummer=` | GET | Energy label + crime stats (Tier B) |
-| `/api/address/{vbo_id}/property-warnings` | GET | Foundation, erfpacht, VvE, asbestos warnings |
-| `/api/address/{vbo_id}/export` | POST | PDF export (Quick Brief + Full Dossier) |
+| Endpoint | Description |
+|----------|-------------|
+| `GET /suggest?q=` | Autocomplete via PDOK Locatieserver |
+| `GET /lookup?id=` | Resolve BAG IDs + coordinates |
+| `GET /{vbo_id}/building` | Building facts from BAG WFS |
+| `GET /{vbo_id}/building3d` | Target building 3D (~2s) |
+| `GET /{vbo_id}/neighborhood3d?rd_x=&rd_y=` | Surrounding 3D (~12-17s) |
+| `GET /{vbo_id}/risks?rd_x=&rd_y=&lat=&lng=` | Risk cards with 0-100 scores |
+| `GET /{vbo_id}/neighborhood?lat=&lng=&buurt_code=` | CBS neighborhood stats |
+| `GET /{vbo_id}/wms-tile?source=&rd_x=&rd_y=&radius=` | WMS tile proxy (PNG) |
+| `GET /{vbo_id}/viewing-questions` | Bilingual viewing questions |
+| `GET /{vbo_id}/risk-comparisons` | Urbanization-stratified baselines |
+| `GET /{vbo_id}/tier-b?postcode=&huisnummer=` | Energy label + crime |
+| `GET /{vbo_id}/property-warnings` | Foundation, erfpacht, VvE, asbestos |
+| `GET /{vbo_id}/livability?rd_x=&rd_y=` | Leefbaarometer scores + trend |
+| `POST /{vbo_id}/export` | PDF (quick_brief / full_dossier) |
 
-## Conventions — follow these exactly
+## Conventions
 
-### External API integration
-```python
-# 1. Try Redis cache first (cache key = f"{service}:{deterministic_params}")
-# 2. Call external API with httpx.AsyncClient, explicit timeout
-# 3. On success: cache with TTL, return parsed result
-# 4. On failure (timeout, HTTP error): log warning, return graceful degradation
-# 5. NEVER cache empty/error responses — only cache real data
-```
+- **Service pattern**: Cache check → external API call → parse → cache on success → return. Never cache empty/error
+- **Cache TTLs**: BAG 24h, risks 7d (conditional), CBS/livability/warnings 30d, WMS tiles 24h, tier-B 7d
+- **Config**: All URLs in `config.py` as pydantic-settings fields. Env prefix: `BUURT_`
+- **Coordinates**: EPSG:28992 everywhere. BAG IDs: 16 digits (`^[0-9]{16}$`)
+- **Error handling**: Log + return graceful degradation. Warning codes (`NOISE_NO_VALUE`, `AIR_PARTIAL`, etc.)
+- **Models**: All in `models/`. Include `source` + `source_date`. Optional fields default to `None`
+- **httpx mock in tests**: `AsyncMock` for client, `MagicMock` for response (`.json()` is sync)
+- **Pydantic v2**: Use `Field(default_factory=list)` for list defaults, never bare `= []`
+- **Feature flags**: `BUURT_ENABLE_LOD22_ROOFS` etc. Toggle requires cache invalidation
 
-### Cache TTLs
-- BAG building: 24h | Risk cards: 7d (conditional) | CBS stats: 30d
-- 3D buildings: 24h | WMS tiles: 24h | Tier B: 7d | Property warnings: 30d
-- Locatieserver: not cached
+## Anti-patterns
 
-### Configuration
-- All external API URLs in `config.py` as pydantic-settings fields
-- Environment prefix: `BUURT_` (e.g., `BUURT_ENABLE_LOD22_ROOFS=true`)
-- Feature flags: `enable_lod22_roofs` (default true), `enable_lod22_context_enrichment` (default false). `.env` requires `env_file = ".env"` in model_config
-- Feature flag toggle requires cache invalidation for affected keys
+- `CQL_FILTER` for BAG WFS → use OGC XML Filter (CQL is silently ignored)
+- `requests` library → use `httpx` async
+- Business logic in route handlers → routes call services
+- WGS84 coordinates in responses → everything EPSG:28992
+- `sampled_at` as `source_date` → let it be `None`
+- Hardcoded URLs in services → all in `config.py`
+- SQLAlchemy / PostGIS / any ORM → this is stateless, no DB
 
-### Coordinate system
-- All spatial data in EPSG:28992 (RD New, meters). Frontend handles projection
-- BAG IDs: always 16 digits, validate with `^[0-9]{16}$`
-- 3DBAG IDs prefixed: `NL.IMBAG.Pand.{16-digit-id}`. Backend strips prefix
+## Scoring reference (0-100)
 
-### Error handling
-- External API failures: log + return graceful degradation (never crash the dossier)
-- Warning codes: backend sends stable codes (`NOISE_NO_VALUE`, `AIR_PARTIAL`, etc.)
-- Frontend maps codes to i18n keys
-
-### Pydantic models
-- All models in `models/`. Response models include `source` and `source_date` fields
-- Risk cards: `score: int | None`, `severity: str | None`, `summary: str | None`
-- Optional fields default to `None` for backward compatibility with cached responses
-
-### Risk scoring (0-100 scale)
-- `scoring.py` normalizes raw values to 0-100 scores
-- Noise: 40dB=100, 53dB=74 (WHO onset), 63dB=50, 90dB=0
+- Noise: 40dB=100, 53dB=74 (WHO), 63dB=50, 90dB=0
 - Air: worst of PM2.5 and NO2 sub-scores
-- Climate: categorical mapping (low=85, medium=50, high=15)
+- Climate: categorical (low=85, medium=50, high=15)
 - Sunlight: 0h=0, 2h=40, 4h=80, 6h+=100 (winter solstice)
 - Severity: 70-100=good, 40-69=moderate, 20-39=poor, 0-19=critical
-
-### 3DBAG integration
-- Tiled fetch strategy: split bbox into grid tiles for parallel fetching
-- Direct target fetch by ID (~2s) + tiled surrounding fetch (~12-17s)
-- CityJSON vertex transform: `real_coord = vertex * scale + translate`
-- LoD 2.2 in BuildingPart children (NOT parent Building)
-- Feature-flagged: `BUURT_ENABLE_LOD22_ROOFS`
-
-### PDF export
-- Library: fpdf2 with Satoshi TTF font embedding (Black/Bold/Medium/Regular)
-- BuurtCheckPDF subclass with branded header/footer, score bars, comparison charts
-- Two templates: `quick_brief` (1 page, 2x2 risk grid) and `full_dossier` (5 pages)
-- Endpoint: `POST /{vbo_id}/export` with ExportRequest Pydantic body
-- Pydantic alias: `Field(None, alias="shadow_image_b64")` + `populate_by_name=True` for backwards compat
-- Neighborhood buurt_code fallback: if not provided, fetches neighborhood first → extracts code → uses for tier-B
-- Quick Brief clipped-content: returns `clipped` boolean when questions exceed page limit
-
-### WMS/WFS query patterns
-- WMS GetFeatureInfo (noise, air): 50m bbox, 101x101 grid, pixel (50,50)
-- WFS GetFeature (climate): +/-5m bbox, count=5, select closest by centroid distance
-- Sentinel values: noise `-9990 < raw < 1e30`, air `0 <= raw < 1e30`
-- Content-type validation mandatory for WMS responses (XML error on 200 OK)
-
-## Testing
-
-- **Test count baseline: 381 non-live + live smoke tests** (updated 2026-02-13) — any change must maintain or increase
-- `pytest -m "not live"` for CI (excludes live API tests)
-- httpx mock pattern: `AsyncMock` for client, `MagicMock` for response (`.json()` is sync)
-- Live tests: `@pytest.mark.live`, lenient assertions (check field exists, not exact values)
-- Floating-point: `abs(result - expected) < 0.01` for aggregated percentages
-- Ruff: line-length 100, rules E/F/I/W. Import sort order matters
-
-## DO NOT
-- Use SQLAlchemy, PostGIS, alembic, or any ORM. This is a stateless API aggregator
-- Use `requests` library. Use `httpx` with async
-- Use `CQL_FILTER` for BAG WFS queries (silently ignored). Use OGC XML Filter
-- Put business logic in route handlers. Routes call services
-- Return coordinates in WGS84. Everything is EPSG:28992
-- Cache empty/error responses. Only cache real data
-- Use `sampled_at` as `source_date` fallback. Let it be `None`
-- Hardcode external URLs. All URLs in `config.py`

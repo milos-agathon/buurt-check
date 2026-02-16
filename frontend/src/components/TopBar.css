@@ -40,28 +40,29 @@
 .top-bar__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3xs);
 }
 
 .top-bar__lang-toggle {
   display: flex;
   background: var(--color-nav-control-bg);
-  border-radius: var(--radius-pill);
-  padding: 2px;
+  border-radius: 18px;
+  padding: 0;
   border: 1px solid var(--color-nav-border);
 }
 
 .top-bar__lang-btn {
-  padding: 10px 12px;
-  min-height: 44px;
+  padding: 6px 8px;
+  min-height: 32px;
+  min-width: 30px;
   border: none;
-  border-radius: var(--radius-pill);
+  border-radius: 16px;
   font-family: var(--font-family);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   background: transparent;
-  color: var(--color-nav-text-dimmed);
+  color: var(--color-overlay-text);
   transition: all var(--transition-fast);
 }
 
@@ -74,8 +75,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border: none;
   border-radius: 50%;
   background: transparent;
@@ -86,4 +87,21 @@
 
 .top-bar__settings:hover {
   background: var(--color-nav-border);
+}
+
+@media (max-width: 360px) {
+  .top-bar {
+    padding: 0 var(--space-base);
+  }
+
+  .top-bar__lang-btn {
+    padding: 5px 7px;
+    min-width: 28px;
+    min-height: 30px;
+  }
+
+  .top-bar__settings {
+    width: 34px;
+    height: 34px;
+  }
 }

@@ -697,7 +697,7 @@ Add `lead_pipe: LeadPipeWarning` to existing `PropertyWarningsResponse` interfac
 
 **File:** `frontend/src/services/api.ts`
 
-**Add function (consistent contract per Step 4):**
+**Add function (revised contract — returns full response including unavailable):**
 ```typescript
 export async function getLivability(
   vboId: string,
@@ -705,27 +705,29 @@ export async function getLivability(
   rdY: number,
 ): Promise<LivabilityResponse | null> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s (trend fetch takes longer)
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
   try {
     const resp = await fetch(
       `/api/address/${vboId}/livability?rd_x=${rdX}&rd_y=${rdY}`,
       { signal: controller.signal }
     );
-    if (!resp.ok) throw new Error(`Livability fetch failed: ${resp.status}`);
+    if (!resp.ok) throw new Error(`Livability failed: ${resp.status}`);
     const data = await resp.json();
-    // Contract: backend always returns 200. Check `available` field.
-    if (data.available === false) return null;
-    return data as LivabilityResponse;
+    // Contract: backend always returns 200. available:false means no data for location.
+    // Return the full response so LivabilityCard can render the unavailable state.
+    return data;
   } finally {
     clearTimeout(timeoutId);
   }
 }
 ```
 
-**Contract consistency:**
+**Contract consistency (revised):**
 - Backend: always 200 for valid vbo_id
-- `data.available === false` → frontend returns `null`
+- `data.available === false` → frontend returns full response (discriminated union: `LivabilityUnavailableResponse`), LivabilityCard renders unavailable state
+- `data.available === true` → frontend returns full response (`LivabilityAvailableResponse`), LivabilityCard + LivabilityDetailView render normally
 - `!resp.ok` (5xx, network) → throws → caught by IIFE catch block
+- TypeScript: `LivabilityResponse = LivabilityAvailableResponse | LivabilityUnavailableResponse` discriminated union
 
 **File:** `frontend/src/App.tsx`
 
@@ -1004,10 +1006,11 @@ interface Props {
 ### Attention summary additions (~2 keys):
 ```json
 {
-  "warnings.attention.lead_pipe": "Lead pipe risk (pre-1960 construction)",
-  "dossier.soilCheck": "Soil & Lead"
+  "warnings.attention.lead_pipe": "Lead pipe risk (pre-1960)",
+  "dossier.soilInfo": "Soil & Pipes"
 }
 ```
+> **Design Revision (i18n key):** Plan originally specified `dossier.soilCheck` / "Soil & Lead". Implementation uses `dossier.soilInfo` / "Soil & Pipes" (nl: "Bodem & Leidingen") — better reflects that the card covers soil contamination AND lead pipe risk. Key added to both en.json and nl.json.
 
 ### Dutch translations:
 Parallel structure in `nl.json` with proper Dutch text for all ~36 keys above.
@@ -1241,16 +1244,16 @@ _Check each item after the corresponding step is completed. All must be checked 
 - [x] **Step 5:** 15 Leefbaarometer tests pass: 13 service-level (normalization, dimensions, trend, comparison) + 2 endpoint-level cache tests via TestClient (Issue #19: cache tests target endpoint, not service)
 - [x] **Step 6:** Lead pipe warning flagged for pre-1960, not flagged for post-1960/unknown. AttentionSummary includes lead pipe flag.
 - [x] **Step 7:** TypeScript types compile cleanly with `npm run build`
-- [x] **Step 8:** `getLivability()` returns data for valid coords, `null` for `available:false`, throws on error. App.tsx state wired correctly.
+- [x] **Step 8:** `getLivability()` returns full discriminated union response (both `available:true` and `available:false` variants), throws on error. App.tsx guards detail view with `livability?.available` narrowing. App-level integration test verifies unavailable flow.
 - [x] **Step 9:** LivabilityCard renders: overall score badge (color-coded), 5 dimension bars, trend sparkline, comparison row, buurt name + source
 - [x] **Step 10:** LivabilityDetailView renders: full dimension bars, trend chart with historical points, per-dimension trends, comparison bars (buurt/wijk/gemeente)
 - [x] **Step 11:** SoilInfoCard renders: static content, bodemloket.nl link, collapsible viewing questions (`<details>`). Lead pipe section visible ONLY when `leadPipeFlagged=true`. Uses `t('soil.lead_pipe_note', { constructionYear })` interpolation.
 - [x] **Step 12:** VERIFIED REMOVED — PropertyWarningsCard does NOT contain a lead pipe sub-card (Issue #18 confirmed: dossier layout also reflects this)
 - [x] **Step 13:** AttentionSummary counts lead pipe flag. Does NOT add livability threshold flags. Livability prop typed as `LivabilityResponse | null`.
 - [x] **Step 14:** `en.json` and `nl.json` key counts match (380/380). `soil.lead_pipe_note` contains `{{constructionYear}}`. No `warnings.lead_pipe.*` keys exist.
-- [x] **Step 15:** All frontend tests pass: 10 (LivabilityCard) + 6 (LivabilityDetailView) + 8 (SoilInfoCard) + 3 (api) + 1 (property-warnings param forwarding) — total 421 passing
+- [x] **Step 15:** All frontend tests pass: 10 (LivabilityCard) + 6 (LivabilityDetailView) + 8 (SoilInfoCard) + 3 (api) + 1 (property-warnings param forwarding) + 1 (livability unavailable App integration) — total 425+ passing
 - [x] **Step 16:** Dossier layout matches canonical order. Unit regression test in `App.test.tsx` asserts 14 sections in order (mocked 3D/sunlight). E2E integration test in `tests/e2e/dossier-section-order.spec.ts` verifies section order with real rendered components against live backend, using DOM order assertions (`compareDocumentPosition`) for whichever sections render.
-- [x] **Step 17:** All quality gates pass — backend 400+, frontend 421+, i18n 380/380 parity, ruff clean, build clean
+- [x] **Step 17:** All quality gates pass — backend 406+, frontend 425+, i18n 380/380 parity, ruff clean, build clean
 
 ### Lessons Learned
 
@@ -1277,3 +1280,24 @@ _To be filled during and after implementation. Capture patterns that should info
 | v6 | 2026-02-15 | 3 issues from v5 code review: lead pipe dossier layout contradiction (#18), cache test placement aligned with endpoint-only strategy (#19), mutable default literals → `Field(default_factory=list)` (#20). Both open questions resolved. |
 | v7 | 2026-02-15 | 3 consistency defects from v6 review: (1) Step 10 line 821 visualization wording normalized from "pending stakeholder approval" to "decision finalized in v5" (Issue #14 alignment); (2) Soil revision table frontend test count corrected from 5 to 6 (matching Step 15's 6 SoilInfoCard tests); (3) v4 Issue #11 resolution text updated from "Stakeholder approves or rejects" to "Decision finalized in v5 — no approval gate remains". No structural or code changes. |
 | v8 | 2026-02-15 | Post-assessment remediation: (1) Vite proxy pinned to 127.0.0.1 — fixes E2E Playwright ECONNREFUSED; (2) property-warnings cache key v2 includes construction_year, num_units, municipality; (3) livability cache tests assert WFS call count on cache hit and repeated fetch on empty; (4) App.test.tsx asserts getPropertyWarnings called with building-derived params; (5) test count references aligned to 421; (6) E2E Playwright test for dossier section order. |
+
+## Hotfix Plan: Duinzicht 23 3D Recovery (2026-02-16)
+
+### Goal
+Fix missing 3D target + surrounding buildings for `Duinzicht 23, 2235BV Valkenburg` by hardening transient 3DBAG failure handling.
+
+### Checklist
+
+- [x] Reproduce current failure path with live IDs and capture root cause notes
+- [x] Add transient-retry logic for 3DBAG single-item and bbox requests in `backend/app/services/three_d_bag.py`
+- [x] Extend slow-area fallback budget only when fast path fails (avoid regressing healthy addresses)
+- [x] Increase frontend `getNeighborhood3D` timeout to exceed backend recovery budget
+- [x] Add/adjust tests for transient 502 + timeout recovery behavior
+- [x] Run targeted quality gates (`pytest backend/tests/test_three_d_bag.py`, `pytest backend/tests/test_address_api.py`, `npm run build`)
+
+### Review
+
+- Root cause: 3DBAG calls for this area intermittently return transient `502` and often need >40s server time. Existing logic used short timeouts and single-attempt fetches, so both target and context returned empty.
+- Fix summary: Added transient retry/backoff helper in `three_d_bag.py`, raised slow-path fetch budgets (`BBOX_FETCH_BUDGET`, page timeouts, nearby timeout), and updated frontend neighborhood fetch timeout to 90s so backend recovery can complete.
+- Verification: Live reproduction now returns `90` buildings with `target_pand_id=0537100000015479` for `Duinzicht 23`; backend tests pass (`39` in `test_three_d_bag.py`, `36` in `test_address_api.py`), frontend API tests pass (`34`), and `npm run build` is clean.
+- Residual risk: Affected addresses can still take ~35-45s for full surrounding context while upstream 3DBAG is unstable; UI now waits longer instead of failing fast.

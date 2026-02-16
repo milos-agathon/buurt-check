@@ -9,7 +9,7 @@ function flatKeys(obj: Record<string, unknown>, prefix = ''): string[] {
   );
 }
 
-const MIN_KEY_COUNT = 380;
+const MIN_KEY_COUNT = 396;
 
 test('en.json and nl.json have identical key sets', () => {
   const enKeys = new Set(flatKeys(en));

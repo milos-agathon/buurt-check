@@ -213,21 +213,21 @@ export default function AddressSearch({ onSelect }: Props) {
       {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && (
         <div className="address-search__value-props" data-testid="value-props">
           <div className="address-search__value-row">
-            <svg className="address-search__value-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
+            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
               <circle cx="12" cy="12" r="5" />
               <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
             </svg>
             <span className="address-search__value-text">{t('search.valueProp.sunlight')}</span>
           </div>
           <div className="address-search__value-row">
-            <svg className="address-search__value-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
+            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
               <path d="M12 22c4-4 8-7.58 8-12a8 8 0 10-16 0c0 4.42 4 8 8 12z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
             <span className="address-search__value-text">{t('search.valueProp.risk')}</span>
           </div>
           <div className="address-search__value-row">
-            <svg className="address-search__value-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
+            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
               <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
               <rect x="9" y="3" width="6" height="4" rx="1" />
               <path d="M9 14l2 2 4-4" />

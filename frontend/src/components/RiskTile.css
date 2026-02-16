@@ -6,8 +6,8 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   box-shadow: var(--elevation-1);
-  padding: var(--space-lg);
-  min-height: 160px;
+  padding: var(--space-base);
+  min-height: 148px;
   min-width: 0;
   cursor: pointer;
   text-align: left;
@@ -45,7 +45,10 @@
 }
 
 .risk-tile__score {
-  font: var(--type-score-tile);
+  font-family: var(--font-family);
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 900;
 }
 
 .risk-tile__score--good { color: var(--color-risk-good); }

@@ -343,6 +343,30 @@ async def test_fetch_target_building_http_error(mock_get_client):
 
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
+async def test_fetch_target_building_retries_transient_502(mock_get_client):
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    transient_502 = httpx.HTTPStatusError(
+        "Bad Gateway",
+        request=MagicMock(),
+        response=MagicMock(status_code=502),
+    )
+    mock_client.get.side_effect = [
+        transient_502,
+        transient_502,
+        _make_mock_resp(_make_single_item_response()),
+    ]
+
+    result = await _fetch_target_building("0363100012253924", CENTER_X, CENTER_Y)
+
+    assert result is not None
+    assert result.pand_id == "0363100012253924"
+    assert mock_client.get.call_count == 3
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
 async def test_fetch_bbox_quick_context_reference_origin(mock_get_client):
     """Context fetch can query around one center but keep a stable output origin."""
     mock_client = AsyncMock()
@@ -382,6 +406,48 @@ async def test_fetch_bbox_quick_context_reference_origin(mock_get_client):
     )
     assert shared_partial is False
     assert shared_buildings[0].footprint[0] == [5.0, 5.0]
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_quick_context_retries_transient_502(mock_get_client):
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    transient_502 = httpx.HTTPStatusError(
+        "Bad Gateway",
+        request=MagicMock(),
+        response=MagicMock(status_code=502),
+    )
+    response = {
+        "type": "FeatureCollection",
+        "features": [_make_feature("0363100099999999")],
+        "metadata": {
+            "transform": {
+                "scale": [0.001, 0.001, 0.001],
+                "translate": [121010.0, 487010.0, 0.0],
+            }
+        },
+        "links": [{"rel": "self", "href": "http://example.com"}],
+        "numberMatched": 1,
+        "numberReturned": 1,
+    }
+
+    mock_client.get.side_effect = [
+        transient_502,
+        _make_mock_resp(response),
+    ]
+
+    buildings, partial = await _fetch_bbox_quick_context(
+        121015.0,
+        487015.0,
+        30.0,
+    )
+
+    assert partial is False
+    assert len(buildings) == 1
+    assert buildings[0].pand_id == "0363100099999999"
+    assert mock_client.get.call_count == 2
 
 
 # --- get_neighborhood_3d integration tests (mocked HTTP) ---

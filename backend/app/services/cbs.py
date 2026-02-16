@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
@@ -38,6 +38,11 @@ def _safe_float(props: dict[str, Any], key: str) -> float | None:
     return float(value)
 
 
+def _normalize_property_value(value: float) -> float:
+    """CBS 2023 reports gemiddelde_woningwaarde in thousands of euros."""
+    return value * 1000 if 0 < value < 10000 else value
+
+
 # National quartile thresholds (Q1, Q2, Q3) from CBS Wijken & Buurten 2024 statistics.
 # Values below Q1 = quartile 1, Q1-Q2 = quartile 2, Q2-Q3 = quartile 3, above Q3 = quartile 4.
 # For "lower is better" indicators (distances), quartile 1 = best.
@@ -67,11 +72,16 @@ def _compute_quartile(key: str, value: float) -> int | None:
 
 
 def _make_indicator(
-    props: dict[str, Any], key: str, unit: str | None = None
+    props: dict[str, Any],
+    key: str,
+    unit: str | None = None,
+    transform: Callable[[float], float] | None = None,
 ) -> NeighborhoodIndicator:
     value = _safe_float(props, key)
     if value is None:
         return NeighborhoodIndicator(available=False)
+    if transform is not None:
+        value = transform(value)
     quartile = _compute_quartile(key, value)
     return NeighborhoodIndicator(value=value, unit=unit, quartile=quartile)
 
@@ -138,7 +148,7 @@ def _parse_stats(feature: dict[str, Any]) -> NeighborhoodStats | None:
             props, "percentage_koopwoningen", "%"
         ),
         avg_property_value=_make_indicator(
-            props, "gemiddelde_woningwaarde", "\u20ac"
+            props, "gemiddelde_woningwaarde", "\u20ac", transform=_normalize_property_value
         ),
         distance_to_train_km=_make_indicator(
             props, "treinstation_gemiddelde_afstand_in_km", "km"
@@ -199,6 +209,61 @@ async def _fetch_by_buurt_code(buurt_code: str) -> dict[str, Any] | None:
     return features[0] if features else None
 
 
+async def _fetch_by_buurt_code_from_base(
+    buurt_code: str, base_url: str
+) -> dict[str, Any] | None:
+    client = _get_client()
+    resp = await client.get(
+        f"{base_url}/collections/buurten/items",
+        params={
+            "buurtcode": buurt_code,
+            "f": "json",
+            "limit": "1",
+        },
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    features = data.get("features") or []
+    return features[0] if features else None
+
+
+def _needs_housing_access_backfill(stats: NeighborhoodStats) -> bool:
+    return any(
+        indicator.value is None or not indicator.available
+        for indicator in (
+            stats.owner_occupied_pct,
+            stats.avg_property_value,
+            stats.distance_to_train_km,
+            stats.distance_to_supermarket_km,
+        )
+    )
+
+
+def _merge_missing_housing_access(
+    primary: NeighborhoodStats, fallback: NeighborhoodStats
+) -> NeighborhoodStats:
+    def pick(
+        current: NeighborhoodIndicator, fallback_indicator: NeighborhoodIndicator
+    ) -> NeighborhoodIndicator:
+        if current.available and current.value is not None:
+            return current
+        return fallback_indicator
+
+    return primary.model_copy(
+        update={
+            "owner_occupied_pct": pick(primary.owner_occupied_pct, fallback.owner_occupied_pct),
+            "avg_property_value": pick(primary.avg_property_value, fallback.avg_property_value),
+            "distance_to_train_km": pick(
+                primary.distance_to_train_km, fallback.distance_to_train_km
+            ),
+            "distance_to_supermarket_km": pick(
+                primary.distance_to_supermarket_km,
+                fallback.distance_to_supermarket_km,
+            ),
+        }
+    )
+
+
 async def _fetch_by_bbox(lat: float, lng: float) -> dict[str, Any] | None:
     delta = 0.001
     bbox = f"{lng - delta},{lat - delta},{lng + delta},{lat + delta}"
@@ -236,6 +301,7 @@ async def get_neighborhood_stats(
 ) -> NeighborhoodStatsResponse:
     """Fetch CBS neighborhood statistics for a resolved address."""
     feature = None
+    source = "CBS Wijken & Buurten 2024"
 
     # Primary: direct buurt_code lookup
     if buurt_code:
@@ -268,7 +334,27 @@ async def get_neighborhood_stats(
             message="CBS_PARSE_FAILED",
         )
 
+    # CBS 2024 currently returns -99995 sentinels for several
+    # housing/access fields in many buurten; backfill missing values from 2023.
+    if _needs_housing_access_backfill(stats):
+        try:
+            legacy_feature = await _fetch_by_buurt_code_from_base(
+                stats.buurt_code, settings.cbs_wijken_buurten_fallback_base
+            )
+        except Exception:
+            legacy_feature = None
+            logger.warning(
+                "CBS 2023 fallback fetch failed for buurt_code=%s", stats.buurt_code
+            )
+        if legacy_feature is not None:
+            legacy_stats = _parse_stats(legacy_feature)
+            if legacy_stats is not None:
+                stats = _merge_missing_housing_access(stats, legacy_stats)
+                if not _needs_housing_access_backfill(stats):
+                    source = "CBS Wijken & Buurten 2024 + 2023 fallback"
+
     return NeighborhoodStatsResponse(
         address_id=vbo_id,
         stats=stats,
+        source=source,
     )

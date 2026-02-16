@@ -627,6 +627,26 @@ describe('neighborhood stats integration', () => {
   });
 });
 
+describe('livability unavailable flow', () => {
+  it('renders unavailable card and does not open detail view when available:false', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockLivability.mockResolvedValue({ available: false, message: 'LIVABILITY_NO_DATA' });
+
+    renderApp();
+    await selectAddress();
+
+    // Livability card should render with unavailable state
+    await waitFor(() => {
+      expect(screen.getByTestId('livability-card')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/not available/i)).toBeInTheDocument();
+
+    // Detail view should NOT be present (no tap handler when unavailable)
+    expect(screen.queryByTestId('livability-detail')).not.toBeInTheDocument();
+  });
+});
+
 describe('dossier section order (v7 canonical)', () => {
   it('renders sections in the full v7 canonical order', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());

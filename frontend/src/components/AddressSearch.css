@@ -150,15 +150,16 @@
 .address-search__value-props {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
-  margin-top: var(--space-xl);
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-3xl);
 }
 
 .address-search__value-row {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  height: 52px;
+  gap: var(--space-sm);
+  height: 40px;
   padding: 0 var(--space-sm);
 }
 
@@ -167,6 +168,6 @@
 }
 
 .address-search__value-text {
-  font: var(--type-caption);
+  font: var(--type-small);
   color: var(--color-text-secondary);
 }

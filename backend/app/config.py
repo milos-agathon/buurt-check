@@ -22,6 +22,9 @@ class Settings(BaseSettings):
 
     # CBS Wijken & Buurten
     cbs_wijken_buurten_base: str = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1"
+    cbs_wijken_buurten_fallback_base: str = (
+        "https://api.pdok.nl/cbs/wijken-en-buurten-2023/ogc/v1"
+    )
     cbs_crime_yearly_base: str = "https://dataderden.cbs.nl/ODataApi/OData/47018NED"
     cbs_crime_monthly_base: str = "https://dataderden.cbs.nl/ODataApi/OData/47022NED"
 

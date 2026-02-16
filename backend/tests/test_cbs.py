@@ -151,6 +151,24 @@ def _make_full_feature() -> dict:
     }
 
 
+def _make_sentinel_housing_feature() -> dict:
+    feature = _make_full_feature()
+    feature["properties"]["percentage_koopwoningen"] = -99995
+    feature["properties"]["gemiddelde_woningwaarde"] = -99995
+    feature["properties"]["treinstation_gemiddelde_afstand_in_km"] = -99995
+    feature["properties"]["grote_supermarkt_gemiddelde_afstand_in_km"] = -99995
+    return feature
+
+
+def _make_legacy_housing_feature() -> dict:
+    feature = _make_full_feature()
+    feature["properties"]["percentage_koopwoningen"] = 84
+    feature["properties"]["gemiddelde_woningwaarde"] = 428
+    feature["properties"]["treinstation_gemiddelde_afstand_in_km"] = 5.2
+    feature["properties"]["grote_supermarkt_gemiddelde_afstand_in_km"] = 1.0
+    return feature
+
+
 def test_parse_stats_full():
     stats = _parse_stats(_make_full_feature())
     assert isinstance(stats, NeighborhoodStats)
@@ -186,6 +204,14 @@ def test_parse_stats_suppressed_fields():
     assert stats.avg_property_value.available is False
     # Other indicators should still be available
     assert stats.population_density.available is True
+
+
+def test_parse_stats_normalizes_property_value_from_thousands():
+    feature = _make_full_feature()
+    feature["properties"]["gemiddelde_woningwaarde"] = 428
+    stats = _parse_stats(feature)
+    assert stats is not None
+    assert stats.avg_property_value.value == 428000.0
 
 
 # --- geometry point-in-polygon ---
@@ -405,3 +431,28 @@ async def test_get_neighborhood_stats_buurt_code_exception_falls_back():
 
     assert result.stats is not None
     mock_bbox.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_neighborhood_stats_backfills_housing_access_from_2023():
+    with (
+        patch("app.services.cbs._fetch_by_buurt_code", new_callable=AsyncMock) as mock_primary,
+        patch(
+            "app.services.cbs._fetch_by_buurt_code_from_base", new_callable=AsyncMock
+        ) as mock_legacy,
+    ):
+        mock_primary.return_value = _make_sentinel_housing_feature()
+        mock_legacy.return_value = _make_legacy_housing_feature()
+        result = await get_neighborhood_stats(
+            vbo_id="0363010000696734",
+            lat=52.37,
+            lng=4.89,
+            buurt_code="BU0363AD07",
+        )
+
+    assert result.stats is not None
+    assert result.stats.owner_occupied_pct.value == 84.0
+    assert result.stats.avg_property_value.value == 428000.0
+    assert result.stats.distance_to_train_km.value == 5.2
+    assert result.stats.distance_to_supermarket_km.value == 1.0
+    assert result.source == "CBS Wijken & Buurten 2024 + 2023 fallback"

@@ -1,24 +1,10 @@
 # buurt-check — Complete Visual Design Specification
 
-> **Version:** 2.0 | **Last updated:** 2026-02-09
+> **Version:** 3.0 | **Last updated:** 2026-02-16
 > **Design direction:** "Polar Frost" (Phase 1 authority)
-> **Companion to:** buurt-check Design System PRD v1.0 and Product Requirements Document v2.0
+> **Canonical color source:** `frontend/src/styles/tokens.css` and `docs/palette.md`
 
 This document specifies every visual element at pixel-level detail. A developer should be able to implement any screen from this spec alone, without design mockups.
-
----
-
-## Phase 1 alignment addendum (2026-02-11)
-
-This visual spec is aligned to `docs/spec-baseline.md`.
-
-- Visual authority: Polar Frost token values from `frontend/src/styles/tokens.css` (`D2-2`).
-- Architecture authority: current implementation stack, no migration now (`D1-1`).
-- Renderer split: Three.js for web interaction; forge3 for report/export rendering only (`D3-2R`).
-- PDF export templates remain `quick_brief` and `full_dossier` (`D5-1`).
-- Feature delivery labels and requirement ownership are tracked in `docs/spec-baseline.md` sections 3 and 4.
-
-Where legacy values in this document conflict with the above decisions, follow the addendum and `docs/spec-baseline.md`.
 
 ---
 
@@ -111,7 +97,7 @@ The first screen every user sees. Its job: communicate the value prop in 3 secon
 
 | Property | Value |
 |----------|-------|
-| Background color | `#F8F9FA` (Snow) |
+| Background color | `#FAFBFC` (Snow) |
 | Full screen fill | Yes — edge to edge, including behind status bar |
 | Safe area handling | Content respects `env(safe-area-inset-top)` and `env(safe-area-inset-bottom)` |
 
@@ -122,7 +108,7 @@ The first screen every user sees. Its job: communicate the value prop in 3 secon
 | Text | "buurt-check" |
 | Font | Satoshi Black (900) |
 | Size | 28px |
-| Color | `#1A1A2E` (Charcoal) |
+| Color | `#1C2D3F` (Charcoal) |
 | Letter spacing | -0.03em |
 | Alignment | Center horizontal |
 | Position | 80px below top bar bottom edge |
@@ -139,7 +125,7 @@ Note: No logo icon/symbol for MVP — the wordmark IS the brand mark. If a compa
 | Font | Satoshi Regular (400) |
 | Size | 15px |
 | Line height | 22px |
-| Color | `#5F6368` (Mid Gray / text-secondary) |
+| Color | `#637892` (Mid Gray / text-secondary) |
 | Alignment | Center horizontal |
 | Position | 16px below wordmark baseline |
 | Max width | 280px (wraps to 2 lines if needed for NL) |
@@ -153,12 +139,12 @@ The most important interactive element on this screen.
 | Width | Full screen width minus 40px (20px margin each side) |
 | Height | 56px |
 | Background | `#FFFFFF` (White) |
-| Border (default) | 2px solid `#E8EAED` (Light Fog) |
-| Border (focused) | 2px solid `#00897B` (Electric Teal) |
-| Border (error) | 2px solid `#D84315` (Coral) |
+| Border (default) | 2px solid `#E2E7ED` (Light Fog) |
+| Border (focused) | 2px solid `#2EC4B6` (Electric Teal) |
+| Border (error) | 2px solid `#EF4444` (Coral) |
 | Border radius | 12px |
 | Shadow (default) | None |
-| Shadow (focused) | `0 0 0 4px rgba(0, 137, 123, 0.12)` — teal focus ring |
+| Shadow (focused) | `0 0 0 4px rgba(46, 196, 182, 0.12)` — teal focus ring |
 | Internal padding | Left: 48px (icon space) / Right: 16px / Top & Bottom: auto-centered |
 | Position | 32px below tagline |
 
@@ -169,8 +155,8 @@ The most important interactive element on this screen.
 | Icon | Map pin (vertical pin with circle head) |
 | Size | 20px × 20px |
 | Stroke weight | 1.5px |
-| Color (default) | `#9AA0A6` (Silver / text-tertiary) |
-| Color (focused) | `#00897B` (Electric Teal) |
+| Color (default) | `#8A9BB0` (Silver / text-tertiary) |
+| Color (focused) | `#2EC4B6` (Electric Teal) |
 | Position | Centered vertically, 16px from left edge of field |
 
 **Input text:**
@@ -180,10 +166,10 @@ The most important interactive element on this screen.
 | Placeholder text (EN) | "Postcode + house number" |
 | Placeholder text (NL) | "Postcode + huisnummer" |
 | Placeholder font | Satoshi Regular (400), 15px |
-| Placeholder color | `#9AA0A6` (Silver / text-tertiary) |
+| Placeholder color | `#8A9BB0` (Silver / text-tertiary) |
 | Input text font | Satoshi Medium (500), 15px |
-| Input text color | `#1A1A2E` (Charcoal / text-primary) |
-| Cursor color | `#00897B` (Electric Teal) |
+| Input text color | `#1C2D3F` (Charcoal / text-primary) |
+| Cursor color | `#2EC4B6` (Electric Teal) |
 
 **Input field loading state (after submit):**
 
@@ -191,21 +177,21 @@ The most important interactive element on this screen.
 |----------|-------|
 | Map pin icon | Replaced by a circular spinner |
 | Spinner size | 20px × 20px |
-| Spinner color | `#00897B` (Electric Teal) |
+| Spinner color | `#2EC4B6` (Electric Teal) |
 | Spinner stroke | 2px |
 | Spinner animation | Rotate 360° every 800ms, linear, infinite |
-| Input text | Shows confirmed address text, non-editable, `#5F6368` (Mid Gray) |
-| Border | 2px solid `#00897B` (stays teal during loading) |
+| Input text | Shows confirmed address text, non-editable, `#637892` (Mid Gray) |
+| Border | 2px solid `#2EC4B6` (stays teal during loading) |
 
 **Input field error state:**
 
 | Property | Value |
 |----------|-------|
-| Border | 2px solid `#D84315` (Coral) |
-| Focus ring | `0 0 0 4px rgba(216, 67, 21, 0.12)` |
+| Border | 2px solid `#EF4444` (Coral) |
+| Focus ring | `0 0 0 4px rgba(239, 68, 68, 0.12)` |
 | Error message text | Below field, 4px gap |
 | Error font | Satoshi Regular (400), 13px |
-| Error color | `#D84315` (Coral) |
+| Error color | `#EF4444` (Coral) |
 | Error icon | Small triangle-exclamation, 14px, inline before text |
 | Example messages | "Address not found. Check the postcode and number." / "Adres niet gevonden. Controleer postcode en nummer." |
 
@@ -226,7 +212,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 | Width | Full width minus 40px margins |
 | Position | 24px below input field |
 | Background | `#FFFFFF` (White) |
-| Border | 1px solid `#E8EAED` (Light Fog) |
+| Border | 1px solid `#E2E7ED` (Light Fog) |
 | Border radius | 12px |
 | Shadow | None |
 
@@ -236,7 +222,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 |----------|-------|
 | Height | 52px |
 | Padding | Left: 16px, Right: 16px |
-| Divider between rows | 1px solid `#E8EAED`, inset 16px from left |
+| Divider between rows | 1px solid `#E2E7ED`, inset 16px from left |
 
 **Row icon:**
 
@@ -244,7 +230,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 |----------|-------|
 | Size | 24px × 24px |
 | Style | Outlined, 1.5px stroke |
-| Color | `#00897B` (Electric Teal) |
+| Color | `#2EC4B6` (Electric Teal) |
 | Position | Centered vertically, 16px from left edge |
 | Icons per row | Row 1: Sun with rays / Row 2: Bar chart / Row 3: Clipboard with checkmark |
 
@@ -255,7 +241,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 | Font | Satoshi Medium (500) |
 | Size | 14px |
 | Line height | 20px |
-| Color | `#1A1A2E` (Charcoal) |
+| Color | `#1C2D3F` (Charcoal) |
 | Position | Centered vertically, 12px right of icon |
 
 ### 1.7 Recent searches section
@@ -269,7 +255,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 | Line height | 16px |
 | Letter spacing | 0.04em |
 | Text transform | Uppercase |
-| Color | `#9AA0A6` (Silver / text-tertiary) |
+| Color | `#8A9BB0` (Silver / text-tertiary) |
 | Position | 32px below value prop rows (or input field if value props hidden) |
 | Left margin | 20px |
 
@@ -279,7 +265,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 |----------|-------|
 | Width | Full width minus 40px margins |
 | Background | `#FFFFFF` (White) |
-| Border | 1px solid `#E8EAED` |
+| Border | 1px solid `#E2E7ED` |
 | Border radius | 12px |
 | Shadow | None |
 | Position | 8px below "RECENT" label |
@@ -291,24 +277,24 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 |----------|-------|
 | Height | 64px |
 | Padding | Left: 16px, Right: 16px |
-| Divider | 1px solid `#E8EAED`, inset 48px from left (aligns with text, not icon) |
-| Tap state | Background transitions to `#F0F1F3` (Cool Gray) for 150ms on press |
+| Divider | 1px solid `#E2E7ED`, inset 48px from left (aligns with text, not icon) |
+| Tap state | Background transitions to `#F0F3F6` (Cool Gray) for 150ms on press |
 
 **Row layout:**
 
 | Element | Property | Value |
 |---------|----------|-------|
 | Map pin icon | Size | 16px × 16px |
-| Map pin icon | Color | `#9AA0A6` (Silver) |
+| Map pin icon | Color | `#8A9BB0` (Silver) |
 | Map pin icon | Position | Centered vertically, 16px from left |
 | Address text | Font | Satoshi Medium (500), 15px |
-| Address text | Color | `#1A1A2E` (Charcoal) |
+| Address text | Color | `#1C2D3F` (Charcoal) |
 | Address text | Position | 12px right of icon, 14px from top of row |
 | Postcode + city | Font | Satoshi Regular (400), 13px |
-| Postcode + city | Color | `#5F6368` (Mid Gray) |
+| Postcode + city | Color | `#637892` (Mid Gray) |
 | Postcode + city | Position | 12px right of icon, 2px below address text baseline |
 | Timestamp | Font | Satoshi Regular (400), 12px |
-| Timestamp | Color | `#9AA0A6` (Silver) |
+| Timestamp | Color | `#8A9BB0` (Silver) |
 | Timestamp | Position | Right-aligned, centered vertically |
 | Timestamp format | Relative | "2m ago", "1h ago", "1d ago", "3d ago", then "Jan 15" |
 
@@ -317,7 +303,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 | Property | Value |
 |----------|-------|
 | Reveal distance | 80px swipe-left |
-| Delete background | `#D84315` (Coral) |
+| Delete background | `#EF4444` (Coral) |
 | Delete icon | Trash can, 20px, white, centered in revealed area |
 | Animation | Row slides left with spring physics, snaps at 80px threshold |
 
@@ -386,8 +372,8 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 
 | Property | Value |
 |----------|-------|
-| Street + number | Satoshi Black (900), 24px, `#1A1A2E` (Charcoal) |
-| Postcode + city | Satoshi Regular (400), 15px, `#5F6368` (Mid Gray) |
+| Street + number | Satoshi Black (900), 24px, `#1C2D3F` (Charcoal) |
+| Postcode + city | Satoshi Regular (400), 15px, `#637892` (Mid Gray) |
 | Alignment | Center horizontal |
 | Position | 64px below status bar bottom edge |
 | Line spacing | 4px between street and postcode lines |
@@ -400,7 +386,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 | Alignment | Center horizontal |
 | Position | 48px below address text |
 | Drawing style | Single continuous stroke, no fills |
-| Stroke color | `#1A1A2E` (Charcoal) |
+| Stroke color | `#1C2D3F` (Charcoal) |
 | Stroke weight | 2px |
 | Line cap | Round |
 | Animation sequence | Foundation (0–400ms) → Left wall (400–700ms) → Right wall (700–1000ms) → Roof (1000–1400ms) → Windows grid (1400–1800ms) → Door (1800–2000ms) |
@@ -413,10 +399,10 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 | Property | Value |
 |----------|-------|
 | Font | Satoshi Regular (400), 14px |
-| Color | `#5F6368` (Mid Gray) |
+| Color | `#637892` (Mid Gray) |
 | Alignment | Center horizontal |
 | Position | 32px below animation canvas |
-| Status dot | 6px circle, `#00897B` (Electric Teal), 8px left of text, centered vertically |
+| Status dot | 6px circle, `#2EC4B6` (Electric Teal), 8px left of text, centered vertically |
 | Status dot animation | Pulse opacity 0.4 → 1.0 → 0.4, 1.2s cycle, ease-in-out |
 | Text transition | 200ms crossfade between messages |
 
@@ -435,7 +421,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 
 | Property | Value |
 |----------|-------|
-| Color | `#E8913A` (Warm Amber — not red, since it's a degradation not a failure) |
+| Color | `#EAB308` (Warm Amber — not red, since it's a degradation not a failure) |
 | Icon | Triangle warning, 14px, inline left of text |
 | Text example | "⚠ Noise data temporarily unavailable" |
 | Duration | Shows for 1.5s before advancing to next step |
@@ -448,8 +434,8 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 | Height | 3px |
 | Alignment | Center horizontal |
 | Position | 12px below progress text |
-| Track color | `#E8EAED` (Light Fog) |
-| Fill color | `#00897B` (Electric Teal) |
+| Track color | `#E2E7ED` (Light Fog) |
+| Fill color | `#2EC4B6` (Electric Teal) |
 | Border radius | 1.5px (fully rounded) |
 | Animation | Fills proportionally as each data source completes (6 steps = ~17% each) |
 | Easing | `ease-out` per segment, no snapping |
@@ -533,7 +519,7 @@ The primary content screen. A vertically scrolling intelligence briefing compose
 
 | Property | Value |
 |----------|-------|
-| Background | `#F8F9FA` (Snow) |
+| Background | `#FAFBFC` (Snow) |
 | Scroll behavior | Vertical, free scroll, momentum scrolling enabled |
 | Overscroll | Elastic (iOS default) / Clamped (Android) |
 
@@ -548,7 +534,7 @@ Used before each major dossier section (Risk Assessment, Neighborhood, Your View
 | Line height | 16px |
 | Letter spacing | 0.04em |
 | Text transform | UPPERCASE |
-| Color | `#5F6368` (Mid Gray / text-secondary) |
+| Color | `#637892` (Mid Gray / text-secondary) |
 | Left padding | 20px from screen edge |
 | Top margin | 48px from bottom of previous section container |
 | Bottom margin | 12px to top of next container |
@@ -568,10 +554,10 @@ Not in a card — it sits directly on the Snow background to feel like a page ti
 
 | Element | Font | Size | Weight | Color | Position |
 |---------|------|------|--------|-------|----------|
-| Street + number | Satoshi | 24px | Black (900) | `#1A1A2E` | Left-aligned, top of container |
-| Postcode + city | Satoshi | 14px | Regular (400) | `#5F6368` | Left-aligned, 4px below street baseline |
-| Building facts | Satoshi | 13px | Regular (400) | `#9AA0A6` | Left-aligned, 4px below postcode baseline |
-| Bookmark icon | — | 24px | — | `#9AA0A6` (unsaved) / `#00897B` filled (saved) | Right-aligned, vertically centered against street text |
+| Street + number | Satoshi | 24px | Black (900) | `#1C2D3F` | Left-aligned, top of container |
+| Postcode + city | Satoshi | 14px | Regular (400) | `#637892` | Left-aligned, 4px below street baseline |
+| Building facts | Satoshi | 13px | Regular (400) | `#8A9BB0` | Left-aligned, 4px below postcode baseline |
+| Bookmark icon | — | 24px | — | `#8A9BB0` (unsaved) / `#2EC4B6` filled (saved) | Right-aligned, vertically centered against street text |
 
 **Building facts format:** "Built [year] · [floors] floors · [function]" — e.g., "Built 1895 · 3 floors · Residential". Separator is a middle dot (·) with spaces.
 
@@ -579,10 +565,10 @@ Not in a card — it sits directly on the Snow background to feel like a page ti
 
 | State | Icon style | Color | Background |
 |-------|-----------|-------|------------|
-| Not saved | Outlined bookmark, 1.5px stroke | `#9AA0A6` (Silver) | None |
-| Saved | Filled bookmark | `#00897B` (Electric Teal) | None |
+| Not saved | Outlined bookmark, 1.5px stroke | `#8A9BB0` (Silver) | None |
+| Saved | Filled bookmark | `#2EC4B6` (Electric Teal) | None |
 | Tap area | — | — | 44 × 44px invisible touch target centered on icon |
-| Tap feedback | Filled bookmark with 1.2× scale pulse (200ms, spring) then settles to 1.0× | `#00897B` | — |
+| Tap feedback | Filled bookmark with 1.2× scale pulse (200ms, spring) then settles to 1.0× | `#2EC4B6` | — |
 
 ### 3.5 Summary strip (risk score pills)
 
@@ -607,13 +593,13 @@ A horizontal scrollable row of compact risk indicators.
 | Height | 36px |
 | Min width | 80px |
 | Padding | 8px left, 12px right |
-| Background | `#F0F1F3` (Cool Gray / surface-recessed) |
+| Background | `#F0F3F6` (Cool Gray / surface-recessed) |
 | Border | None |
 | Border radius | 18px (fully pill-shaped) |
 | Gap between pills | 8px |
 | Scroll snap | `scroll-snap-align: start` |
 | Tap target | Entire pill is tappable (scrolls dossier to corresponding card) |
-| Tap feedback | Background transitions to `#E0F2F1` (Soft Teal) for 200ms |
+| Tap feedback | Background transitions to `#E6F9F7` (Soft Teal) for 200ms |
 
 **Pill content layout:**
 
@@ -647,10 +633,10 @@ A horizontal scrollable row of compact risk indicators.
 |----------|-------|
 | Width | Full width minus 40px (20px margin each side) |
 | Height | 50vh (50% of viewport height), min 280px, max 420px |
-| Background | `#F8F9FA` (Snow — matching scene background) |
-| Border | 1px solid `#E8EAED` (Light Fog) |
+| Background | `#FAFBFC` (Snow — matching scene background) |
+| Border | 1px solid `#E2E7ED` (Light Fog) |
 | Border radius | 16px |
-| Shadow | `0 2px 8px rgba(26, 26, 46, 0.06)` (Level 1) |
+| Shadow | `0 2px 8px rgba(28, 45, 63, 0.06)` (Level 1) |
 | Overflow | Hidden (3D canvas clips to card bounds) |
 | Position | 16px below summary strip |
 
@@ -660,9 +646,9 @@ Shown before Three.js initializes (0–3s).
 
 | Property | Value |
 |----------|-------|
-| Background | `#F0F1F3` (Cool Gray) |
-| Center element | Circular spinner, 32px diameter, 2.5px stroke, `#00897B` (Teal) |
-| Below spinner | "Loading 3D view..." in Satoshi Regular 13px, `#5F6368`, 8px below spinner |
+| Background | `#F0F3F6` (Cool Gray) |
+| Center element | Circular spinner, 32px diameter, 2.5px stroke, `#2EC4B6` (Teal) |
+| Below spinner | "Loading 3D view..." in Satoshi Regular 13px, `#637892`, 8px below spinner |
 
 ### 4.3 Viewer control overlay — camera presets (top-left)
 
@@ -683,18 +669,18 @@ Three vertically stacked buttons in the top-left corner of the viewer card.
 | Size | 36px × 36px |
 | Border radius | 10px |
 | Background (inactive) | `rgba(255, 255, 255, 0.85)` — semi-transparent white |
-| Background (active) | `#00897B` (Electric Teal) |
+| Background (active) | `#2EC4B6` (Electric Teal) |
 | Border | None |
-| Shadow | `0 1px 4px rgba(26, 26, 46, 0.10)` |
+| Shadow | `0 1px 4px rgba(28, 45, 63, 0.10)` |
 | Backdrop filter | `blur(8px)` (frosted glass effect behind semi-transparent bg) |
 
 **Camera preset icons:**
 
 | Preset | Icon | Size | Color (inactive) | Color (active) |
 |--------|------|------|-------------------|----------------|
-| Street level | Eye (simple: oval + circle pupil) | 18px | `#1A1A2E` | `#FFFFFF` |
-| Balcony level | Building with upward arrow | 18px | `#1A1A2E` | `#FFFFFF` |
-| Top-down | Downward arrow inside circle | 18px | `#1A1A2E` | `#FFFFFF` |
+| Street level | Eye (simple: oval + circle pupil) | 18px | `#1C2D3F` | `#FFFFFF` |
+| Balcony level | Building with upward arrow | 18px | `#1C2D3F` | `#FFFFFF` |
+| Top-down | Downward arrow inside circle | 18px | `#1C2D3F` | `#FFFFFF` |
 
 ### 4.4 Viewer control overlay — utilities (top-right)
 
@@ -704,8 +690,8 @@ Two vertically stacked buttons in the top-right corner.
 
 | Button | Icon | Size | Color | Behavior |
 |--------|------|------|-------|----------|
-| Fullscreen toggle | Two diagonal arrows (expand) / Four inward arrows (collapse) | 18px | `#1A1A2E` (inactive bg) | Opens 3D viewer in full device screen |
-| Layer toggle | Three stacked diamond/square shapes | 18px | `#1A1A2E` (inactive bg) | Opens layer popover (see §4.5) |
+| Fullscreen toggle | Two diagonal arrows (expand) / Four inward arrows (collapse) | 18px | `#1C2D3F` (inactive bg) | Opens 3D viewer in full device screen |
+| Layer toggle | Three stacked diamond/square shapes | 18px | `#1C2D3F` (inactive bg) | Opens layer popover (see §4.5) |
 
 ### 4.5 Layer popover
 
@@ -715,9 +701,9 @@ Opens when user taps the layer toggle button. Appears anchored below the button.
 |----------|-------|
 | Width | 220px |
 | Background | `#FFFFFF` |
-| Border | 1px solid `#E8EAED` |
+| Border | 1px solid `#E2E7ED` |
 | Border radius | 12px |
-| Shadow | `0 8px 24px rgba(26, 26, 46, 0.10)` (Level 2) |
+| Shadow | `0 8px 24px rgba(28, 45, 63, 0.10)` (Level 2) |
 | Padding | 16px |
 | Position | Anchored 4px below layer toggle button, right-aligned to button |
 | Arrow/pointer | 8px triangle pointing up, aligned to button center, filled white with border |
@@ -730,8 +716,8 @@ Each layer toggle is a row:
 |----------|-------|
 | Row height | 40px |
 | Layout | Icon (16px) + Label (flex-grow) + Toggle switch (right) |
-| Label font | Satoshi Regular (400), 14px, `#1A1A2E` |
-| Divider | 1px solid `#E8EAED` between rows |
+| Label font | Satoshi Regular (400), 14px, `#1C2D3F` |
+| Divider | 1px solid `#E2E7ED` between rows |
 
 **Toggle switch component:**
 
@@ -739,8 +725,8 @@ Each layer toggle is a row:
 |----------|-------|
 | Width | 44px |
 | Height | 24px |
-| Track (off) | `#E8EAED` (Light Fog) |
-| Track (on) | `#00897B` (Electric Teal) |
+| Track (off) | `#E2E7ED` (Light Fog) |
+| Track (on) | `#2EC4B6` (Electric Teal) |
 | Thumb | 20px circle, `#FFFFFF`, shadow `0 1px 2px rgba(0,0,0,0.15)` |
 | Thumb position (off) | 2px from left |
 | Thumb position (on) | 2px from right |
@@ -758,14 +744,14 @@ Each layer toggle is a row:
 
 | Property | Value |
 |----------|-------|
-| Label | "Overlay opacity" / "Overlay transparantie" in Satoshi Regular 12px, `#5F6368` |
+| Label | "Overlay opacity" / "Overlay transparantie" in Satoshi Regular 12px, `#637892` |
 | Position | 12px below last toggle row |
 | Slider width | Full popover width minus 32px padding |
-| Track | 2px, `#E8EAED` |
-| Filled track | 2px, `#00897B` |
-| Thumb | 14px circle, `#00897B`, white 2px border |
+| Track | 2px, `#E2E7ED` |
+| Filled track | 2px, `#2EC4B6` |
+| Thumb | 14px circle, `#2EC4B6`, white 2px border |
 | Range | 25%–75%, default 50% |
-| Value label | Right-aligned, Satoshi Medium 12px, `#5F6368`, shows "50%" |
+| Value label | Right-aligned, Satoshi Medium 12px, `#637892`, shows "50%" |
 
 ### 4.6 Shadow timeline control (bottom of viewer card)
 
@@ -793,9 +779,9 @@ Sits inside the viewer card, at the bottom, overlaying the 3D canvas.
 | Button background | Transparent |
 | Button border radius | 8px |
 | Button font | Satoshi Medium (500), 12px |
-| Button text color (inactive) | `#5F6368` (Mid Gray) |
-| Button text color (active) | `#00897B` (Electric Teal) |
-| Active indicator | 2px bottom border, `#00897B`, below button text |
+| Button text color (inactive) | `#637892` (Mid Gray) |
+| Button text color (active) | `#2EC4B6` (Electric Teal) |
+| Active indicator | 2px bottom border, `#2EC4B6`, below button text |
 | Button tap area | Full 44px height (invisible extended target) |
 
 **Season button content:**
@@ -814,12 +800,12 @@ Sits inside the viewer card, at the bottom, overlaying the 3D canvas.
 | Position | 8px below season buttons row |
 | Width | Full container width minus 24px padding (12px each side) |
 | Track height | 2px |
-| Track color | `#E8EAED` (Light Fog) |
-| Filled track (left of thumb) | `#00897B` (Electric Teal), 2px |
+| Track color | `#E2E7ED` (Light Fog) |
+| Filled track (left of thumb) | `#2EC4B6` (Electric Teal), 2px |
 | Thumb | 16px diameter circle |
-| Thumb fill | `#00897B` (Electric Teal) |
+| Thumb fill | `#2EC4B6` (Electric Teal) |
 | Thumb border | 3px solid `#FFFFFF` |
-| Thumb shadow | `0 1px 4px rgba(26, 26, 46, 0.15)` |
+| Thumb shadow | `0 1px 4px rgba(28, 45, 63, 0.15)` |
 | Touch target | 44px height invisible hit area centered on track |
 | Range | 06:00 to 21:00 |
 | Step | 15 minutes |
@@ -829,13 +815,13 @@ Sits inside the viewer card, at the bottom, overlaying the 3D canvas.
 | Element | Property | Value |
 |---------|----------|-------|
 | Start label "06:00" | Font | Satoshi Regular (400), 11px |
-| Start label | Color | `#9AA0A6` (Silver) |
+| Start label | Color | `#8A9BB0` (Silver) |
 | Start label | Position | Left-aligned with track start, 2px below track |
 | End label "21:00" | Same styling | Right-aligned with track end |
 | Current time (below thumb) | Font | Satoshi SemiBold (600), 14px |
-| Current time | Color | `#1A1A2E` (Charcoal) |
+| Current time | Color | `#1C2D3F` (Charcoal) |
 | Current time | Position | Centered below thumb, 4px below track |
-| Hour tick marks | 4px tall vertical line, 1px wide, `#E8EAED` | Every 3 hours (09, 12, 15, 18), above track |
+| Hour tick marks | 4px tall vertical line, 1px wide, `#E2E7ED` | Every 3 hours (09, 12, 15, 18), above track |
 
 ### 4.7 Sunlight summary badge (top-right, inside viewport)
 
@@ -850,10 +836,10 @@ Floats inside the 3D viewport area, above the control buttons.
 | Backdrop filter | `blur(8px)` |
 | Border radius | 14px (pill) |
 | Border | None |
-| Shadow | `0 1px 4px rgba(26, 26, 46, 0.10)` |
+| Shadow | `0 1px 4px rgba(28, 45, 63, 0.10)` |
 | Content | "☀️ 4.2h" — sun emoji (14px) + space + hours value |
 | Text font | Satoshi SemiBold (600), 13px |
-| Text color | `#1A1A2E` (Charcoal) |
+| Text color | `#1C2D3F` (Charcoal) |
 | Tap behavior | Opens sunlight risk card detail view |
 
 ### 4.8 Sticky mini-bar (collapsed state)
@@ -866,8 +852,8 @@ When user scrolls past the 3D viewer card, it collapses to a persistent mini-bar
 | Width | Full screen width |
 | Position | Sticky, pinned below the global top bar (44px from screen top + status bar) |
 | Background | `#FFFFFF` with `backdrop-filter: blur(12px)` |
-| Border bottom | 1px solid `#E8EAED` |
-| Shadow | `0 2px 8px rgba(26, 26, 46, 0.06)` |
+| Border bottom | 1px solid `#E2E7ED` |
+| Shadow | `0 2px 8px rgba(28, 45, 63, 0.06)` |
 | Z-index | Above all dossier content, below modals |
 
 **Mini-bar content layout:**
@@ -875,15 +861,15 @@ When user scrolls past the 3D viewer card, it collapses to a persistent mini-bar
 | Element | Property | Value |
 |---------|----------|-------|
 | Building silhouette | Size | 32px × 28px, simplified outline of the target building |
-| Building silhouette | Color | `#1A1A2E` (Charcoal), 1.5px stroke, no fill |
+| Building silhouette | Color | `#1C2D3F` (Charcoal), 1.5px stroke, no fill |
 | Building silhouette | Position | 16px from left, centered vertically |
 | Sun time display | Text | "☀️ Dec 21 · 12:00" — current season date + time from slider |
 | Sun time display | Font | Satoshi Medium (500), 13px |
-| Sun time display | Color | `#5F6368` (Mid Gray) |
+| Sun time display | Color | `#637892` (Mid Gray) |
 | Sun time display | Position | Centered horizontally |
 | Expand icon | Icon | Chevron-down or expand arrows |
 | Expand icon | Size | 20px |
-| Expand icon | Color | `#00897B` (Electric Teal) |
+| Expand icon | Color | `#2EC4B6` (Electric Teal) |
 | Expand icon | Position | 16px from right, centered vertically |
 | Tap behavior | Entire mini-bar | Scrolls back to viewer card and expands with spring animation (300ms) |
 
@@ -920,10 +906,10 @@ When user scrolls past the 3D viewer card, it collapses to a persistent mini-bar
 | Min height | 160px |
 | Padding | 20px all sides |
 | Background | `#FFFFFF` (White) |
-| Border | 1px solid `#E8EAED` (Light Fog) |
+| Border | 1px solid `#E2E7ED` (Light Fog) |
 | Border radius | 16px |
-| Shadow | `0 2px 8px rgba(26, 26, 46, 0.06)` (Level 1) |
-| Cursor / tap feedback | Background transitions to `#F8F9FA` (Snow) on press, 150ms |
+| Shadow | `0 2px 8px rgba(28, 45, 63, 0.06)` (Level 1) |
+| Cursor / tap feedback | Background transitions to `#FAFBFC` (Snow) on press, 150ms |
 
 **Tile internal layout (top to bottom, specific measurements):**
 
@@ -956,14 +942,14 @@ When user scrolls past the 3D viewer card, it collapses to a persistent mini-bar
 | Category label | Font | Satoshi Medium (500), 12px |
 | Category label | Letter spacing | 0.04em |
 | Category label | Text transform | UPPERCASE |
-| Category label | Color | `#5F6368` (Mid Gray) |
+| Category label | Color | `#637892` (Mid Gray) |
 | Category label | Position | Left-aligned, top of content area |
 | Severity badge | Layout | Icon (16px) + 4px gap + text label |
 | Severity badge | Position | Right-aligned, same baseline as category label |
 | Severity icon | Size | 16px × 16px, 1.5px stroke |
 | Severity icon | Per-level rendering | Good: circle with checkmark / Moderate: circle with horizontal dash / Poor: triangle with exclamation / Critical: circle with X |
 | Severity text | Font | Satoshi Medium (500), 12px |
-| Severity text/icon color | Per level | Good: `#2E7D68` / Moderate: `#E8913A` / Poor: `#D84315` / Critical: `#B71C1C` |
+| Severity text/icon color | Per level | Good: `#22C55E` / Moderate: `#EAB308` / Poor: `#EF4444` / Critical: `#B91C1C` |
 
 **Row 2 — Score number:**
 
@@ -982,12 +968,12 @@ When user scrolls past the 3D viewer card, it collapses to a persistent mini-bar
 | Property | Value |
 |----------|-------|
 | Width | Full tile width minus 40px padding |
-| Track | Full width, 2px height, `#E8EAED` (Light Fog) |
+| Track | Full width, 2px height, `#E2E7ED` (Light Fog) |
 | Track border radius | 1px |
 | Fill | Left portion (score% of width), 2px height, severity color |
 | Fill border radius | 1px |
 | Endpoint dot | 8px diameter circle, severity color, centered on fill end point |
-| Dot shadow | `0 1px 2px rgba(26, 26, 46, 0.10)` |
+| Dot shadow | `0 1px 2px rgba(28, 45, 63, 0.10)` |
 | Position | 12px below score number |
 
 **Row 4 — Summary + chevron:**
@@ -995,13 +981,13 @@ When user scrolls past the 3D viewer card, it collapses to a persistent mini-bar
 | Element | Property | Value |
 |---------|----------|-------|
 | Summary text | Font | Satoshi Regular (400), 14px |
-| Summary text | Color | `#1A1A2E` (Charcoal) |
+| Summary text | Color | `#1C2D3F` (Charcoal) |
 | Summary text | Max lines | 1 |
 | Summary text | Overflow | `text-overflow: ellipsis` |
 | Summary text | Position | Left-aligned, 12px below score bar |
 | Chevron icon | Icon | Right-pointing chevron (>) |
 | Chevron icon | Size | 14px |
-| Chevron icon | Color | `#9AA0A6` (Silver) |
+| Chevron icon | Color | `#8A9BB0` (Silver) |
 | Chevron icon | Position | Right-aligned, centered vertically with summary text |
 | Max text width | Tile width - 40px padding - 14px chevron - 8px gap |
 
@@ -1023,7 +1009,7 @@ When tiles stack single-column, each becomes a compact horizontal bar:
 | Height | 72px |
 | Padding | 16px all sides |
 | Background | `#FFFFFF` |
-| Border | 1px solid `#E8EAED` |
+| Border | 1px solid `#E2E7ED` |
 | Border radius | 12px |
 | Gap between bars | 8px |
 | Layout | Horizontal: [Category icon 24px] [16px gap] [Label + summary vertical stack] [flex grow] [Score number + severity badge vertical stack, right-aligned] [chevron 14px] |
@@ -1059,10 +1045,10 @@ Full-screen view opened when tapping a risk tile.
 |----------|-------|
 | Height | 48px |
 | Background | `#FFFFFF` |
-| Border bottom | 1px solid `#E8EAED` |
+| Border bottom | 1px solid `#E2E7ED` |
 | Position | Sticky at top (below status bar) |
-| Left element | Back arrow icon (←), 20px, `#1A1A2E`, 16px from left edge |
-| Right of arrow | Category name in Satoshi SemiBold (600), 16px, `#1A1A2E`, 12px right of arrow |
+| Left element | Back arrow icon (←), 20px, `#1C2D3F`, 16px from left edge |
+| Right of arrow | Category name in Satoshi SemiBold (600), 16px, `#1C2D3F`, 12px right of arrow |
 | Tap area | Arrow + label together = 44px height touch target |
 
 ### 6.3 Score display section (top of content)
@@ -1086,7 +1072,7 @@ Full-screen view opened when tapping a risk tile.
 | Container | No card — text sits directly on white background |
 | Padding | 0px top (section label handles spacing), 20px sides |
 | Text font | Satoshi Regular (400), 15px, line-height 26px (the generous `body-friendly` variant) |
-| Text color | `#1A1A2E` (Charcoal) |
+| Text color | `#1C2D3F` (Charcoal) |
 | Paragraph spacing | 16px between paragraphs |
 | Bold emphasis | Satoshi SemiBold (600) — used sparingly for key numbers and thresholds |
 
@@ -1099,7 +1085,7 @@ A comparison bar chart in a recessed card.
 | Property | Value |
 |----------|-------|
 | Width | Full width minus 40px |
-| Background | `#F0F1F3` (Cool Gray / surface-recessed) |
+| Background | `#F0F3F6` (Cool Gray / surface-recessed) |
 | Border | None |
 | Border radius | 12px |
 | Padding | 20px all sides |
@@ -1112,21 +1098,21 @@ A comparison bar chart in a recessed card.
 | Element per bar row | Property | Value |
 |---------------------|----------|-------|
 | Label (left) | Font | Satoshi Regular (400), 13px |
-| Label | Color | `#5F6368` (Mid Gray) |
+| Label | Color | `#637892` (Mid Gray) |
 | Label | Width | 120px fixed (truncate with ellipsis if longer) |
 | Bar track | Height | 8px |
-| Bar track | Background | `#E8EAED` (Light Fog) |
+| Bar track | Background | `#E2E7ED` (Light Fog) |
 | Bar track | Border radius | 4px |
 | Bar track | Width | Remaining width after label and score |
 | Bar fill | Height | 8px |
 | Bar fill | Border radius | 4px |
 | Bar fill | Width | Proportional to score (0-100 maps to 0-100% of track) |
-| Bar fill color (this address) | `#00897B` (Electric Teal) |
-| Bar fill color (city average) | `#9AA0A6` (Silver) |
+| Bar fill color (this address) | `#2EC4B6` (Electric Teal) |
+| Bar fill color (city average) | `#8A9BB0` (Silver) |
 | Bar fill color (NL average) | `#D1D5DB` (lighter gray) |
-| Bar fill color (WHO/EU limit) | `#E8913A` (Warm Amber) — the threshold line |
+| Bar fill color (WHO/EU limit) | `#EAB308` (Warm Amber) — the threshold line |
 | Score (right) | Font | Satoshi Medium (500), 13px |
-| Score | Color | `#1A1A2E` (Charcoal) |
+| Score | Color | `#1C2D3F` (Charcoal) |
 | Score | Width | 32px fixed, right-aligned |
 
 **Bar rows for noise card example:**
@@ -1145,7 +1131,7 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 | Property | Value |
 |----------|-------|
 | Width | Full width minus 40px |
-| Background | `#E0F2F1` (Soft Teal / accent-light) |
+| Background | `#E6F9F7` (Soft Teal / accent-light) |
 | Border | None |
 | Border radius | 12px |
 | Padding | 20px all sides |
@@ -1158,10 +1144,10 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 | Text (EN) | "Ask at your viewing" |
 | Text (NL) | "Vraag bij de bezichtiging" |
 | Font | Satoshi SemiBold (600), 14px |
-| Color | `#00897B` (Electric Teal — darker shade to contrast against light teal bg) |
+| Color | `#2EC4B6` (Electric Teal — darker shade to contrast against light teal bg) |
 | Letter spacing | 0.02em |
 | Text transform | UPPERCASE |
-| Icon | Speech bubble, 16px, `#00897B`, 8px left of text |
+| Icon | Speech bubble, 16px, `#2EC4B6`, 8px left of text |
 | Position | Top of card content |
 
 **Checklist questions:**
@@ -1177,14 +1163,14 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 |---------|----------|-------|
 | Checkbox | Size | 22px × 22px |
 | Checkbox (unchecked) | Background | `#FFFFFF` |
-| Checkbox (unchecked) | Border | 2px solid `#00897B` |
+| Checkbox (unchecked) | Border | 2px solid `#2EC4B6` |
 | Checkbox (unchecked) | Border radius | 4px |
-| Checkbox (checked) | Background | `#00897B` (Electric Teal) |
+| Checkbox (checked) | Background | `#2EC4B6` (Electric Teal) |
 | Checkbox (checked) | Checkmark | White, 2px stroke, centered |
 | Checkbox (checked) | Border | None |
 | Checkbox transition | Duration | 150ms ease-out |
 | Question text | Font | Satoshi Regular (400), 15px, line-height 22px |
-| Question text | Color | `#1A1A2E` (Charcoal) |
+| Question text | Color | `#1C2D3F` (Charcoal) |
 | Question text | Position | 12px right of checkbox, top-aligned |
 | Question text | Quoted speech | Wrapped in curly double quotes: "Which rooms face the A10?" |
 
@@ -1193,13 +1179,13 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 | Property | Value |
 |----------|-------|
 | Position | 16px below last question |
-| Layout | Globe icon (16px, `#00897B`) + text link |
+| Layout | Globe icon (16px, `#2EC4B6`) + text link |
 | Text (when viewing EN) | "Show in Dutch" / (when viewing NL) "Toon in het Engels" |
 | Font | Satoshi Medium (500), 13px |
-| Color | `#00897B` (Electric Teal) |
+| Color | `#2EC4B6` (Electric Teal) |
 | Text decoration | Underline |
 | Behavior | Expands/collapses alternate language translations below each question |
-| Alternate text styling | Satoshi Regular (400), 14px, `#5F6368` (Mid Gray), italic, 8px below English text, indented to align with question text (not checkbox) |
+| Alternate text styling | Satoshi Regular (400), 14px, `#637892` (Mid Gray), italic, 8px below English text, indented to align with question text (not checkbox) |
 
 ### 6.7 Source attribution (bottom of detail screen)
 
@@ -1211,14 +1197,14 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 | Element | Property | Value |
 |---------|----------|-------|
 | Source line | Font | Satoshi Regular (400), 12px |
-| Source line | Color | `#9AA0A6` (Silver) |
+| Source line | Color | `#8A9BB0` (Silver) |
 | Source line | Text | "Source: [dataset name] ([year])" |
 | Update line | Font | Satoshi Regular (400), 12px |
-| Update line | Color | `#9AA0A6` |
+| Update line | Color | `#8A9BB0` |
 | Update line | Text | "Last updated: [month year]" |
 | Disclaimer | Font | Satoshi Regular (400), 12px |
-| Disclaimer | Color | `#9AA0A6` |
-| Disclaimer icon | Triangle warning, 12px, `#9AA0A6`, inline |
+| Disclaimer | Color | `#8A9BB0` |
+| Disclaimer icon | Triangle warning, 12px, `#8A9BB0`, inline |
 | Disclaimer | Text | "⚠ Indicative data. Not a substitute for professional advice." / "⚠ Indicatieve gegevens. Geen vervanging voor professioneel advies." |
 | Line spacing | 4px between each line |
 
@@ -1242,9 +1228,9 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 |----------|-------|
 | Width | Full width minus 40px (20px margins) |
 | Background | `#FFFFFF` (White) |
-| Border | 1px solid `#E8EAED` |
+| Border | 1px solid `#E2E7ED` |
 | Border radius | 16px |
-| Shadow | `0 2px 8px rgba(26, 26, 46, 0.06)` (Level 1) |
+| Shadow | `0 2px 8px rgba(28, 45, 63, 0.06)` (Level 1) |
 | Padding | 24px top, 20px sides, 20px bottom |
 | Position | 12px below "NEIGHBORHOOD" section label |
 
@@ -1253,10 +1239,10 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 | Element | Property | Value |
 |---------|----------|-------|
 | Buurt name | Font | Satoshi Bold (700), 18px |
-| Buurt name | Color | `#1A1A2E` |
+| Buurt name | Color | `#1C2D3F` |
 | Buurt name | Position | Left-aligned, top of card content |
 | Buurt label | Font | Satoshi Regular (400), 13px |
-| Buurt label | Color | `#5F6368` |
+| Buurt label | Color | `#637892` |
 | Buurt label | Text | "Neighborhood · [Municipality name]" / "Buurt · [Gemeente naam]" |
 | Buurt label | Position | 4px below buurt name |
 
@@ -1266,7 +1252,7 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 |----------|-------|
 | Position | 20px below card header |
 | Layout | Vertical list of rows |
-| Divider | 1px solid `#F0F1F3` between rows (lighter than standard border — subtle) |
+| Divider | 1px solid `#F0F3F6` between rows (lighter than standard border — subtle) |
 
 **Individual indicator row:**
 
@@ -1279,10 +1265,10 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 | Element | Property | Value |
 |---------|----------|-------|
 | Indicator label | Font | Satoshi Regular (400), 14px |
-| Indicator label | Color | `#5F6368` (Mid Gray) |
+| Indicator label | Color | `#637892` (Mid Gray) |
 | Indicator label | Position | Left, centered vertically |
 | Value | Font | Satoshi Medium (500), 15px |
-| Value | Color | `#1A1A2E` (Charcoal) |
+| Value | Color | `#1C2D3F` (Charcoal) |
 | Value | Position | Right of label, right-aligned within value column |
 | Value | Formatting | Numbers: locale-formatted. Currency: €XX,XXX. Percentages: XX%. Distances: X.X km |
 
@@ -1293,8 +1279,8 @@ WHO limit       ██████░░░░░░░░░░░░░░░�
 | Position | 12px right of value, centered vertically |
 | Layout | 4 dots in a horizontal row, 4px gap between dots |
 | Dot size | 6px diameter circles |
-| Filled dot | `#00897B` (Electric Teal) |
-| Empty dot | `#E8EAED` (Light Fog) |
+| Filled dot | `#2EC4B6` (Electric Teal) |
+| Empty dot | `#E2E7ED` (Light Fog) |
 | Filled count | 1 dot = bottom quartile (Q1), 2 = Q2, 3 = Q3, 4 = top quartile (Q4) |
 
 **Example row rendering:**
@@ -1311,7 +1297,7 @@ Owner-occupied         34%            ●●○○
 |----------|-------|
 | Position | 12px below last indicator row |
 | Font | Satoshi Regular (400), 11px |
-| Color | `#9AA0A6` (Silver) |
+| Color | `#8A9BB0` (Silver) |
 | Text | "Source: CBS Wijken & Buurten 2024" |
 
 ### 7.5 Neighborhood snapshot success criteria
@@ -1332,9 +1318,9 @@ Owner-occupied         34%            ●●○○
 |----------|-------|
 | Width | Full width minus 40px (20px margins) |
 | Background | `#FFFFFF` (White) |
-| Border | 1px solid `#E8EAED` |
+| Border | 1px solid `#E2E7ED` |
 | Border radius | 16px |
-| Shadow | `0 2px 8px rgba(26, 26, 46, 0.06)` (Level 1) |
+| Shadow | `0 2px 8px rgba(28, 45, 63, 0.06)` (Level 1) |
 | Padding | 24px top, 20px sides, 24px bottom |
 | Position | 12px below "YOUR VIEWING CHECKLIST" section label |
 
@@ -1345,11 +1331,11 @@ Owner-occupied         34%            ●●○○
 | Title (EN) | "Questions to bring to your viewing" |
 | Title (NL) | "Vragen om mee te nemen naar de bezichtiging" |
 | Font | Satoshi SemiBold (600), 17px |
-| Color | `#1A1A2E` |
+| Color | `#1C2D3F` |
 | Subtitle (EN) | "Based on the risks we found for this address" |
 | Subtitle (NL) | "Op basis van de risico's die we voor dit adres vonden" |
 | Subtitle font | Satoshi Regular (400), 14px |
-| Subtitle color | `#5F6368` |
+| Subtitle color | `#637892` |
 | Gap | 4px between title and subtitle |
 
 ### 8.3 Question groups
@@ -1374,8 +1360,8 @@ Same specification as §6.6 questions, but without the teal card background — 
 
 | Property | Value |
 |----------|-------|
-| Checkbox | 22×22px, 2px border `#00897B`, 4px radius, same checked state as §6.6 |
-| Question text | Satoshi Regular (400), 15px, `#1A1A2E`, line-height 22px |
+| Checkbox | 22×22px, 2px border `#2EC4B6`, 4px radius, same checked state as §6.6 |
+| Question text | Satoshi Regular (400), 15px, `#1C2D3F`, line-height 22px |
 | Gap between questions | 12px |
 | Position | 12px below group header |
 
@@ -1385,11 +1371,11 @@ Same specification as §6.6 questions, but without the teal card background — 
 |----------|-------|
 | Position | 24px below last question |
 | Layout | Horizontal: arrow-right icon + text |
-| Icon | Right arrow, 14px, `#00897B` |
+| Icon | Right arrow, 14px, `#2EC4B6` |
 | Text (EN) | "Export as PDF to bring to your viewing" |
 | Text (NL) | "Exporteer als PDF om mee te nemen" |
 | Font | Satoshi Medium (500), 13px |
-| Color | `#00897B` (Electric Teal) |
+| Color | `#2EC4B6` (Electric Teal) |
 | Tap behavior | Triggers PDF export flow (same as action bar "Export Briefing" button) |
 | Tap area | Full row width, 44px height |
 
@@ -1409,14 +1395,14 @@ Same specification as §6.6 questions, but without the teal card background — 
 
 | Property | Value |
 |----------|-------|
-| Background | `#F8F9FA` (Snow) |
-| Center icon | Bookmark (outlined), 48px, `#9AA0A6` (Silver) |
+| Background | `#FAFBFC` (Snow) |
+| Center icon | Bookmark (outlined), 48px, `#8A9BB0` (Silver) |
 | Icon position | Center horizontal, 40% from top |
 | Title | "No saved addresses yet" / "Nog geen opgeslagen adressen" |
-| Title font | Satoshi SemiBold (600), 18px, `#5F6368` |
+| Title font | Satoshi SemiBold (600), 18px, `#637892` |
 | Title position | 16px below icon, center horizontal |
 | Subtitle | "Search for an address and tap the bookmark to save it" |
-| Subtitle font | Satoshi Regular (400), 14px, `#9AA0A6` |
+| Subtitle font | Satoshi Regular (400), 14px, `#8A9BB0` |
 | Subtitle position | 8px below title, center horizontal, max-width 260px |
 
 ### 9.2 Populated state
@@ -1425,7 +1411,7 @@ Same specification as §6.6 questions, but without the teal card background — 
 
 | Property | Value |
 |----------|-------|
-| Background | `#F8F9FA` (Snow) — no card wrapper, items are individual cards |
+| Background | `#FAFBFC` (Snow) — no card wrapper, items are individual cards |
 | Padding | 20px sides, 16px top |
 
 **Saved address card:**
@@ -1435,12 +1421,12 @@ Same specification as §6.6 questions, but without the teal card background — 
 | Width | Full width minus 40px margins |
 | Height | 88px |
 | Background | `#FFFFFF` |
-| Border | 1px solid `#E8EAED` |
+| Border | 1px solid `#E2E7ED` |
 | Border radius | 12px |
-| Shadow | `0 2px 8px rgba(26, 26, 46, 0.06)` |
+| Shadow | `0 2px 8px rgba(28, 45, 63, 0.06)` |
 | Padding | 16px all sides |
 | Gap between cards | 12px |
-| Tap feedback | Background → `#F8F9FA` for 150ms |
+| Tap feedback | Background → `#FAFBFC` for 150ms |
 
 **Card internal layout:**
 
@@ -1448,13 +1434,13 @@ Same specification as §6.6 questions, but without the teal card background — 
 |---------|----------|-------|
 | Thumbnail | Size | 56px × 56px |
 | Thumbnail | Border radius | 8px |
-| Thumbnail | Content | Mini orthophoto map clip centered on address, or solid `#F0F1F3` with map pin icon if not cached |
+| Thumbnail | Content | Mini orthophoto map clip centered on address, or solid `#F0F3F6` with map pin icon if not cached |
 | Thumbnail | Position | Left-aligned, centered vertically |
 | Address text | Font | Satoshi SemiBold (600), 15px |
-| Address text | Color | `#1A1A2E` |
+| Address text | Color | `#1C2D3F` |
 | Address text | Position | 12px right of thumbnail, 16px from top |
 | City text | Font | Satoshi Regular (400), 13px |
-| City text | Color | `#5F6368` |
+| City text | Color | `#637892` |
 | City text | Position | 12px right of thumbnail, 4px below address baseline |
 | Mini risk dots | Layout | 2×2 grid, each dot 10px diameter, 4px gap |
 | Mini risk dots | Colors | Each dot colored by its category's severity |
@@ -1478,7 +1464,7 @@ Same specification as §6.6 questions, but without the teal card background — 
 | Text (EN) | "Compare" |
 | Text (NL) | "Vergelijken" |
 | Icon | Two columns (compare) icon, 18px, white, 8px left of text |
-| Disabled state | When <2 addresses saved: 50% opacity, `#9AA0A6` background, non-interactive |
+| Disabled state | When <2 addresses saved: 50% opacity, `#8A9BB0` background, non-interactive |
 
 ### 9.4 "Full" state (3 addresses saved)
 
@@ -1490,7 +1476,7 @@ When user tries to add a 4th address, show a bottom sheet (see §18 for bottom s
 | Title | "Shortlist is full" / "Shortlist is vol" |
 | Title font | Satoshi SemiBold (600), 18px |
 | Body | "You can save up to 3 addresses. Remove one to add a new address." |
-| Body font | Satoshi Regular (400), 15px, `#5F6368` |
+| Body font | Satoshi Regular (400), 15px, `#637892` |
 | Button | "Got it" — secondary button style (see §13), full width, closes sheet |
 
 ### 9.5 Shortlist success criteria
@@ -1509,7 +1495,7 @@ When user tries to add a 4th address, show a bottom sheet (see §18 for bottom s
 
 | Property | Value |
 |----------|-------|
-| Background | `#F8F9FA` (Snow) |
+| Background | `#FAFBFC` (Snow) |
 | Navigation | Back arrow (← Compare) in top bar — returns to shortlist |
 | Layout | Horizontal scroll of synchronized columns |
 
@@ -1530,10 +1516,10 @@ When user tries to add a 4th address, show a bottom sheet (see §18 for bottom s
 | Property | Value |
 |----------|-------|
 | Height | 80px |
-| Background | `#FFFFFF` with bottom border `1px solid #E8EAED` |
+| Background | `#FFFFFF` with bottom border `1px solid #E2E7ED` |
 | Position | Sticky at top, z-index above column content |
-| Address text | Satoshi SemiBold (600), 14px, `#1A1A2E`, max 2 lines |
-| City text | Satoshi Regular (400), 12px, `#5F6368` |
+| Address text | Satoshi SemiBold (600), 14px, `#1C2D3F`, max 2 lines |
+| City text | Satoshi Regular (400), 12px, `#637892` |
 | Padding | 12px all sides |
 
 **Score rows (vertically stacked per metric):**
@@ -1543,9 +1529,9 @@ When user tries to add a 4th address, show a bottom sheet (see §18 for bottom s
 | Row height | 80px |
 | Padding | 12px |
 | Background | `#FFFFFF` |
-| Border bottom | 1px solid `#F0F1F3` |
+| Border bottom | 1px solid `#F0F3F6` |
 | Category icon | 16px, severity color, top-left of row |
-| Category label | Satoshi Medium (500), 11px, `#5F6368`, uppercase, 4px right of icon |
+| Category label | Satoshi Medium (500), 11px, `#637892`, uppercase, 4px right of icon |
 | Score number | Satoshi Black (900), 28px, severity color, centered in row |
 | Score bar | Same as tile score bar, full row width minus 24px padding |
 | Severity label | Satoshi Medium (500), 12px, severity color, centered below score bar |
@@ -1556,8 +1542,8 @@ When scores differ by >15 points between columns for the same metric:
 
 | Condition | Visual treatment |
 |-----------|-----------------|
-| Highest score (best) | Left border: 3px solid `#2E7D68` (Clear Green) on the score row |
-| Lowest score (worst) | Left border: 3px solid `#E8913A` (Warm Amber) on the score row |
+| Highest score (best) | Left border: 3px solid `#22C55E` (Clear Green) on the score row |
+| Lowest score (worst) | Left border: 3px solid `#EAB308` (Warm Amber) on the score row |
 | Middle score (if 3 addresses) | No border highlight |
 | <15 point difference | No highlighting on any column for that row |
 
@@ -1570,11 +1556,11 @@ When scores differ by >15 points between columns for the same metric:
 | Width | Auto (content-sized) |
 | Height | 32px |
 | Border radius | 16px |
-| Background (off) | `#F0F1F3` |
-| Background (on) | `#00897B` |
+| Background (off) | `#F0F3F6` |
+| Background (on) | `#2EC4B6` |
 | Text | "Differences only" / "Alleen verschillen" |
 | Text font | Satoshi Medium (500), 12px |
-| Text color (off) | `#5F6368` |
+| Text color (off) | `#637892` |
 | Text color (on) | `#FFFFFF` |
 | Behavior | Hides all metric rows where score spread is ≤15 points |
 
@@ -1590,7 +1576,7 @@ When scores differ by >15 points between columns for the same metric:
 
 ## 11. PDF export flow
 
-Phase 1 renderer note: the export/report pipeline uses forge3 snapshots when available; interactive web rendering remains Three.js.
+Phase 1 renderer note: the export/report pipeline uses Three.js snapshots when available; interactive web rendering remains Three.js.
 
 ### 11.1 Configuration bottom sheet
 
@@ -1609,15 +1595,15 @@ Two horizontal cards side by side:
 |----------|-------|
 | Card size | (sheet width - 48px padding - 12px gap) / 2 |
 | Card height | 120px |
-| Card background (unselected) | `#F0F1F3` |
-| Card background (selected) | `#E0F2F1` (Soft Teal) |
+| Card background (unselected) | `#F0F3F6` |
+| Card background (selected) | `#E6F9F7` (Soft Teal) |
 | Card border (unselected) | 2px solid transparent |
-| Card border (selected) | 2px solid `#00897B` |
+| Card border (selected) | 2px solid `#2EC4B6` |
 | Card border radius | 12px |
 | Card content | Mini page illustration (40px), centered. Label below: "Quick Brief" / "Full Dossier" |
 | Label font | Satoshi Medium (500), 13px |
-| Label color | `#1A1A2E` |
-| Sublabel | "1 page" / "3-4 pages" in Satoshi Regular (400), 11px, `#5F6368` |
+| Label color | `#1C2D3F` |
+| Sublabel | "1 page" / "3-4 pages" in Satoshi Regular (400), 11px, `#637892` |
 
 **Shadow snapshots toggle:**
 
@@ -1626,7 +1612,7 @@ Two horizontal cards side by side:
 | Position | 20px below template selector |
 | Layout | Standard toggle switch (§4.5) + label |
 | Label | "Include 3D shadow analysis" / "Inclusief 3D schaduwanalyse" |
-| Label font | Satoshi Regular (400), 14px, `#1A1A2E` |
+| Label font | Satoshi Regular (400), 14px, `#1C2D3F` |
 | Default | ON |
 
 **Language selector:**
@@ -1638,10 +1624,10 @@ Two horizontal cards side by side:
 | Width | 160px |
 | Height | 36px |
 | Segment width | 80px each |
-| Active segment bg | `#00897B` |
+| Active segment bg | `#2EC4B6` |
 | Active text | `#FFFFFF`, Satoshi SemiBold (600), 14px |
-| Inactive segment bg | `#F0F1F3` |
-| Inactive text | `#5F6368`, Satoshi Medium (500), 14px |
+| Inactive segment bg | `#F0F3F6` |
+| Inactive text | `#637892`, Satoshi Medium (500), 14px |
 | Border radius | 10px |
 
 **Generate button:**
@@ -1660,9 +1646,9 @@ Bottom sheet expands to show progress. Template selector and options replaced by
 | Element | Property | Value |
 |---------|----------|-------|
 | Status icon | Document icon (32px) with circular progress ring around it |
-| Progress ring | 40px diameter, 3px stroke, `#00897B` fill, `#E8EAED` track |
+| Progress ring | 40px diameter, 3px stroke, `#2EC4B6` fill, `#E2E7ED` track |
 | Status text | "Rendering shadow analysis... [1/3]" / "Building your briefing..." |
-| Status font | Satoshi Regular (400), 14px, `#5F6368` |
+| Status font | Satoshi Regular (400), 14px, `#637892` |
 | Progress bar (below) | Full sheet width minus padding, 3px height, same style as loading screen (§2.6) |
 
 ### 11.3 PDF export success criteria
@@ -1672,7 +1658,7 @@ Bottom sheet expands to show progress. Template selector and options replaced by
 - SC-11c: Generate button is disabled (50% opacity) while no template is selected
 - SC-11d: Progress ring fills proportionally to actual generation progress
 - SC-11e: System share sheet opens within 500ms of PDF generation completing
-- SC-11f: If forge3d fails, fallback generates within 8s and user is not shown an error
+- SC-11f: If Three.jsd fails, fallback generates within 8s and user is not shown an error
 
 ---
 
@@ -1684,7 +1670,7 @@ Accessed via profile icon (top-right of search screen).
 
 | Property | Value |
 |----------|-------|
-| Background | `#F8F9FA` (Snow) |
+| Background | `#FAFBFC` (Snow) |
 | Navigation | Back arrow (← Settings) in top bar |
 | Layout | Vertical list of setting groups in cards |
 
@@ -1696,7 +1682,7 @@ Accessed via profile icon (top-right of search screen).
 |----------|-------|
 | Width | Full width minus 40px margins |
 | Background | `#FFFFFF` |
-| Border | 1px solid `#E8EAED` |
+| Border | 1px solid `#E2E7ED` |
 | Border radius | 12px |
 | Shadow | None |
 | Gap between groups | 16px |
@@ -1707,8 +1693,8 @@ Accessed via profile icon (top-right of search screen).
 |----------|-------|
 | Height | 52px |
 | Padding | 16px sides |
-| Divider | 1px solid `#F0F1F3`, inset 16px from left |
-| Label font | Satoshi Regular (400), 15px, `#1A1A2E` |
+| Divider | 1px solid `#F0F3F6`, inset 16px from left |
+| Label font | Satoshi Regular (400), 15px, `#1C2D3F` |
 | Value/control | Right-aligned |
 
 **Settings inventory:**
@@ -1720,7 +1706,7 @@ Accessed via profile icon (top-right of search screen).
 | Preferences | Reduced motion | Toggle switch | System setting |
 | Data | Clear recent searches | Destructive text button (red, see §13.4) | — |
 | Data | Clear shortlist | Destructive text button | — |
-| About | Version | Static text, right-aligned, `#9AA0A6` | "1.0.0" |
+| About | Version | Static text, right-aligned, `#8A9BB0` | "1.0.0" |
 | About | Data sources | Chevron right → opens attribution screen | — |
 | About | Privacy policy | Chevron right → opens in-app browser | — |
 | About | Terms of use | Chevron right → opens in-app browser | — |
@@ -1738,7 +1724,7 @@ The main call-to-action. Used for: "Export Briefing", "Generate Briefing", "Comp
 | Height | 48px | 48px | 48px |
 | Min width | 120px | — | — |
 | Padding | 16px horizontal | — | — |
-| Background | `#00897B` (Electric Teal) | `#00796B` (10% darker) | `#9AA0A6` (Silver) |
+| Background | `#2EC4B6` (Electric Teal) | `#00796B` (10% darker) | `#8A9BB0` (Silver) |
 | Border | None | None | None |
 | Border radius | 12px | 12px | 12px |
 | Shadow | None | None | None |
@@ -1760,12 +1746,12 @@ Used for: "Add to Shortlist", "Got it" in sheets, secondary actions.
 | Height | 48px | 48px | 48px |
 | Min width | 120px | — | — |
 | Padding | 16px horizontal | — | — |
-| Background | `transparent` | `#E0F2F1` (Soft Teal) | `transparent` |
-| Border | 2px solid `#00897B` | 2px solid `#00897B` | 2px solid `#9AA0A6` |
+| Background | `transparent` | `#E6F9F7` (Soft Teal) | `transparent` |
+| Border | 2px solid `#2EC4B6` | 2px solid `#2EC4B6` | 2px solid `#8A9BB0` |
 | Border radius | 12px | 12px | 12px |
 | Text font | Satoshi SemiBold (600), 15px | — | — |
-| Text color | `#00897B` | `#00796B` | `#9AA0A6` |
-| Icon (optional) | 18px, `#00897B`, 8px left of text | — | `#9AA0A6` |
+| Text color | `#2EC4B6` | `#00796B` | `#8A9BB0` |
+| Icon (optional) | 18px, `#2EC4B6`, 8px left of text | — | `#8A9BB0` |
 | Opacity | 1.0 | 1.0 | 0.5 |
 | Tap feedback | Scale 0.98× for 100ms | — | — |
 
@@ -1780,8 +1766,8 @@ Used for: "Show in Dutch", in-text links, minor actions.
 | Background | `transparent` | — |
 | Border | None | — |
 | Text font | Satoshi Medium (500), 14px | — |
-| Text color | `#00897B` (Electric Teal) | `#00796B` |
-| Text decoration | Underline (1px, `#00897B`) | — |
+| Text color | `#2EC4B6` (Electric Teal) | `#00796B` |
+| Text decoration | Underline (1px, `#2EC4B6`) | — |
 
 ### 13.4 Destructive button (text style)
 
@@ -1790,7 +1776,7 @@ Used for: "Clear recent searches", "Clear shortlist", delete confirmations.
 | Property | Value |
 |----------|-------|
 | Same as tertiary button except: |  |
-| Text color | `#D84315` (Coral) |
+| Text color | `#EF4444` (Coral) |
 | Text decoration | None |
 | Pressed color | `#BF360C` (darker coral) |
 
@@ -1802,10 +1788,10 @@ Used for: "Differences only" filter, feature toggles.
 |----------|-----|-----|
 | Height | 32px | 32px |
 | Padding | 12px horizontal | 12px horizontal |
-| Background | `#F0F1F3` (Cool Gray) | `#00897B` (Electric Teal) |
+| Background | `#F0F3F6` (Cool Gray) | `#2EC4B6` (Electric Teal) |
 | Border radius | 16px (full pill) | 16px |
 | Text font | Satoshi Medium (500), 12px | — |
-| Text color | `#5F6368` | `#FFFFFF` |
+| Text color | `#637892` | `#FFFFFF` |
 | Transition | 200ms ease-out | — |
 
 ### 13.6 Action bar (dossier fixed bottom)
@@ -1817,8 +1803,8 @@ The sticky CTA bar at the bottom of the dossier screen.
 | Width | Full screen width |
 | Height | 64px + `env(safe-area-inset-bottom)` |
 | Background | `#FFFFFF` |
-| Shadow | `0 -4px 12px rgba(26, 26, 46, 0.06)` (upward shadow) |
-| Border top | 1px solid `#E8EAED` |
+| Shadow | `0 -4px 12px rgba(28, 45, 63, 0.06)` (upward shadow) |
+| Border top | 1px solid `#E2E7ED` |
 | Position | Fixed, bottom of screen, above tab bar |
 | Z-index | Above dossier scroll content, below modals |
 | Padding | 8px 20px |
@@ -1832,10 +1818,10 @@ The sticky CTA bar at the bottom of the dossier screen.
 
 | Property | Value |
 |----------|-------|
-| Background | `#E0F2F1` (Soft Teal — lightly filled) |
-| Border | 2px solid `#00897B` |
+| Background | `#E6F9F7` (Soft Teal — lightly filled) |
+| Border | 2px solid `#2EC4B6` |
 | Text | "Saved ✓" / "Opgeslagen ✓" |
-| Text color | `#00897B` |
+| Text color | `#2EC4B6` |
 | Checkmark | Inline with text, 14px |
 | Non-interactive | Button is still tappable (removes from shortlist on tap — show confirmation first) |
 
@@ -1862,9 +1848,9 @@ All icons follow a unified visual language.
 | Stroke cap | Round |
 | Stroke join | Round |
 | Corner radius (where applicable) | 2px |
-| Color (default) | `#1A1A2E` (Charcoal) |
-| Color (secondary/inactive) | `#9AA0A6` (Silver) |
-| Color (active/accent) | `#00897B` (Electric Teal) |
+| Color (default) | `#1C2D3F` (Charcoal) |
+| Color (secondary/inactive) | `#8A9BB0` (Silver) |
+| Color (active/accent) | `#2EC4B6` (Electric Teal) |
 | Color (on teal background) | `#FFFFFF` (White) |
 | Optical alignment | Centered within 24px bounding box. Asymmetric icons (play, arrow) optically centered. |
 
@@ -1913,19 +1899,19 @@ These are rendered at 16px with the icon centered within the bounding box.
 | Icon | Description | Default color | Sizes used |
 |------|-------------|---------------|------------|
 | Download/export | Downward arrow (8px long) landing into a tray (12px wide, 4px tall, open top) | `#FFFFFF` (on primary buttons) | 18px |
-| Share | Square with upward arrow emerging from top edge (iOS-style share icon) | `#1A1A2E` | 20px |
-| Plus | Vertical line + horizontal line crossing at center, each 10px | `#1A1A2E` | 20px |
+| Share | Square with upward arrow emerging from top edge (iOS-style share icon) | `#1C2D3F` | 20px |
+| Plus | Vertical line + horizontal line crossing at center, each 10px | `#1C2D3F` | 20px |
 | Columns (compare) | Two rectangles side by side (6px wide each, 12px tall, 4px gap) | `#FFFFFF` (on primary button) | 18px |
 | Trash | Narrow can shape: lid on top, body tapered inward at bottom, 2 vertical lines inside | `#FFFFFF` (on delete bg) | 20px |
-| Expand arrows | Two diagonal arrows pointing outward (top-right + bottom-left) | `#1A1A2E` | 18px |
-| Collapse arrows | Four arrows pointing inward to center | `#1A1A2E` | 18px |
-| Layers | 3 stacked parallelogram shapes (like a deck of cards from the side) | `#1A1A2E` | 18px |
-| Eye (camera: street) | Horizontal oval (14px) with circle pupil (6px) centered | `#1A1A2E` (inactive) / `#FFFFFF` (active) | 18px |
+| Expand arrows | Two diagonal arrows pointing outward (top-right + bottom-left) | `#1C2D3F` | 18px |
+| Collapse arrows | Four arrows pointing inward to center | `#1C2D3F` | 18px |
+| Layers | 3 stacked parallelogram shapes (like a deck of cards from the side) | `#1C2D3F` | 18px |
+| Eye (camera: street) | Horizontal oval (14px) with circle pupil (6px) centered | `#1C2D3F` (inactive) / `#FFFFFF` (active) | 18px |
 | Building + arrow (camera: balcony) | Small building outline (10px wide, 12px tall) with upward arrow from roof | Same | 18px |
 | Down-arrow circle (camera: top) | Circle (14px) with downward-pointing arrow inside | Same | 18px |
-| Map pin | Inverted teardrop: circle top (8px), pointed bottom, 14px total height | `#9AA0A6` / `#00897B` | 16px, 20px |
-| Speech bubble | Rounded rectangle with small triangle tail at bottom-left | `#00897B` | 16px |
-| Triangle warning | Equilateral triangle outline with exclamation inside (line + dot) | `#E8913A` / `#9AA0A6` | 12px, 14px |
+| Map pin | Inverted teardrop: circle top (8px), pointed bottom, 14px total height | `#8A9BB0` / `#2EC4B6` | 16px, 20px |
+| Speech bubble | Rounded rectangle with small triangle tail at bottom-left | `#2EC4B6` | 16px |
+| Triangle warning | Equilateral triangle outline with exclamation inside (line + dot) | `#EAB308` / `#8A9BB0` | 12px, 14px |
 
 ### 14.6 Icon success criteria
 
@@ -1947,7 +1933,7 @@ The primary data visualization throughout the app.
 |----------|-------|
 | Track width | 100% of parent container (minus padding) |
 | Track height | 2px |
-| Track color | `#E8EAED` |
+| Track color | `#E2E7ED` |
 | Track border radius | 1px |
 | Fill height | 2px |
 | Fill color | Severity color of the score |
@@ -1955,7 +1941,7 @@ The primary data visualization throughout the app.
 | Fill width | `(score / 100) × track_width` |
 | Endpoint dot diameter | 8px |
 | Endpoint dot color | Same as fill (severity color) |
-| Endpoint dot shadow | `0 1px 2px rgba(26, 26, 46, 0.10)` |
+| Endpoint dot shadow | `0 1px 2px rgba(28, 45, 63, 0.10)` |
 | Endpoint dot position | Centered on the end of the fill line |
 | Animation | Fill width transitions over 600ms with ease-out on initial render |
 | Dot animation | Fades in at 400ms (200ms before fill reaches it), opacity 0 → 1, 200ms |
@@ -1970,12 +1956,12 @@ Used in the "How it compares" section.
 | Bar border radius | 4px |
 | Bar gap (between rows) | 16px |
 | Label width | 120px (fixed, left-aligned) |
-| Label font | Satoshi Regular (400), 13px, `#5F6368` |
+| Label font | Satoshi Regular (400), 13px, `#637892` |
 | Score width | 32px (fixed, right-aligned) |
-| Score font | Satoshi Medium (500), 13px, `#1A1A2E` |
+| Score font | Satoshi Medium (500), 13px, `#1C2D3F` |
 | Track width | Container width minus label width minus score width minus 24px total gaps |
 | Track height | 8px |
-| Track color | `#E8EAED` |
+| Track color | `#E2E7ED` |
 | Track border radius | 4px |
 | Fill height | 8px |
 | Fill border radius | 4px |
@@ -1985,12 +1971,12 @@ Used in the "How it compares" section.
 
 | Row | Fill color |
 |-----|-----------|
-| This address | `#00897B` (Electric Teal) |
-| City average | `#5F6368` (Mid Gray) |
-| NL average | `#9AA0A6` (Silver) |
-| WHO/EU limit | `#E8913A` (Warm Amber) — dashed pattern: 4px dash, 4px gap |
+| This address | `#2EC4B6` (Electric Teal) |
+| City average | `#637892` (Mid Gray) |
+| NL average | `#8A9BB0` (Silver) |
+| WHO/EU limit | `#EAB308` (Warm Amber) — dashed pattern: 4px dash, 4px gap |
 
-The WHO/EU limit bar uses a **dashed fill** to distinguish it as a threshold rather than a measurement: CSS `background: repeating-linear-gradient(90deg, #E8913A 0 4px, transparent 4px 8px)`.
+The WHO/EU limit bar uses a **dashed fill** to distinguish it as a threshold rather than a measurement: CSS `background: repeating-linear-gradient(90deg, #EAB308 0 4px, transparent 4px 8px)`.
 
 ### 15.3 Quartile dots (neighborhood snapshot)
 
@@ -1999,8 +1985,8 @@ The WHO/EU limit bar uses a **dashed fill** to distinguish it as a threshold rat
 | Dot count | 4 |
 | Dot diameter | 6px |
 | Dot gap | 4px |
-| Filled color | `#00897B` (Electric Teal) |
-| Empty color | `#E8EAED` (Light Fog) |
+| Filled color | `#2EC4B6` (Electric Teal) |
+| Empty color | `#E2E7ED` (Light Fog) |
 | Total width | 4 × 6px + 3 × 4px = 36px |
 | Layout | Horizontal row, left to right |
 | Animation | Dots fill left-to-right with 80ms stagger on initial render, opacity 0 → 1 |
@@ -2013,8 +1999,8 @@ Already specified in §3.5. Key visualization notes:
 |----------|-------|
 | Icon inside pill | 16px risk category icon, colored by severity |
 | Score number | 14px SemiBold, colored by severity |
-| Background | `#F0F1F3` (Cool Gray) — neutral regardless of severity |
-| Tap feedback | Background flash to `#E0F2F1` (Soft Teal), 200ms |
+| Background | `#F0F3F6` (Cool Gray) — neutral regardless of severity |
+| Tap feedback | Background flash to `#E6F9F7` (Soft Teal), 200ms |
 
 ### 15.5 Mini risk dots (shortlist cards)
 
@@ -2047,9 +2033,9 @@ Used at the bottom of the compare screen for multi-metric comparison.
 |----------|-------|
 | Count | 4 vertical axes (Noise, Air, Climate, Sunlight) |
 | Spacing | Evenly distributed across chart width |
-| Line | 1px solid `#E8EAED`, full chart height |
-| Label (top) | Satoshi Medium (500), 11px, `#5F6368`, centered above axis |
-| Scale labels | "0" at bottom, "100" at top, Satoshi Regular (400), 10px, `#9AA0A6` |
+| Line | 1px solid `#E2E7ED`, full chart height |
+| Label (top) | Satoshi Medium (500), 11px, `#637892`, centered above axis |
+| Scale labels | "0" at bottom, "100" at top, Satoshi Regular (400), 10px, `#8A9BB0` |
 
 **Data lines (per address):**
 
@@ -2057,8 +2043,8 @@ Used at the bottom of the compare screen for multi-metric comparison.
 |----------|-------|
 | Line width | 2px |
 | Line cap | Round |
-| Address 1 color | `#00897B` (Electric Teal) |
-| Address 2 color | `#E8913A` (Warm Amber) |
+| Address 1 color | `#2EC4B6` (Electric Teal) |
+| Address 2 color | `#EAB308` (Warm Amber) |
 | Address 3 color | `#7C4DFF` (Purple — not in main palette, reserved for compare) |
 | Data points | 8px circles at each axis intersection, filled with line color, white 2px border |
 | Legend | Below chart, 3 rows: colored line segment (16px) + address text, Satoshi Regular 12px |
@@ -2069,12 +2055,12 @@ Used at the bottom of the compare screen for multi-metric comparison.
 |----------|-------|
 | Diameter | 40px |
 | Stroke width | 3px |
-| Track color | `#E8EAED` |
-| Fill color | `#00897B` |
+| Track color | `#E2E7ED` |
+| Fill color | `#2EC4B6` |
 | Rotation start | 12 o'clock (top) |
 | Direction | Clockwise |
 | Animation | `stroke-dasharray` transition, linear, matches actual progress |
-| Center content | Document icon, 20px, `#1A1A2E` |
+| Center content | Document icon, 20px, `#1C2D3F` |
 
 ### 15.8 Visualization success criteria
 
@@ -2098,7 +2084,7 @@ Used at the bottom of the compare screen for multi-metric comparison.
 | Width | Full screen width |
 | Position | Fixed at screen bottom, above system home indicator |
 | Background | `rgba(255, 255, 255, 0.92)` with `backdrop-filter: blur(20px)` |
-| Border top | 1px solid `#E8EAED` |
+| Border top | 1px solid `#E2E7ED` |
 | Z-index | Above all screen content, below modals and bottom sheets |
 
 ### 16.2 Tab items
@@ -2115,13 +2101,13 @@ Used at the bottom of the compare screen for multi-metric comparison.
 | Element | Property | Value |
 |---------|----------|-------|
 | Icon | Size | 24px × 24px |
-| Icon (inactive) | Color | `#9AA0A6` (Silver) |
-| Icon (active) | Color | `#00897B` (Electric Teal) |
+| Icon (inactive) | Color | `#8A9BB0` (Silver) |
+| Icon (active) | Color | `#2EC4B6` (Electric Teal) |
 | Label | Font | Satoshi Medium (500), 11px |
-| Label (inactive) | Color | `#9AA0A6` |
-| Label (active) | Color | `#00897B` |
+| Label (inactive) | Color | `#8A9BB0` |
+| Label (active) | Color | `#2EC4B6` |
 | Gap | Icon-to-label | 2px |
-| Badge (shortlist count) | 16px circle, `#D84315` (Coral) background, white text 10px Bold, positioned -4px top-right of icon |
+| Badge (shortlist count) | 16px circle, `#EF4444` (Coral) background, white text 10px Bold, positioned -4px top-right of icon |
 
 ### 16.3 Tab bar fallback (no backdrop-filter)
 
@@ -2130,7 +2116,7 @@ For browsers that don't support `backdrop-filter`:
 | Property | Value |
 |----------|-------|
 | Background | `#FFFFFF` (solid white, 100% opacity) |
-| Border top | 1px solid `#E8EAED` |
+| Border top | 1px solid `#E2E7ED` |
 
 ---
 
@@ -2147,7 +2133,7 @@ For browsers that don't support `backdrop-filter`:
 | Background (scrolled) | `rgba(255, 255, 255, 0.92)` with `backdrop-filter: blur(12px)` |
 | Background transition | 200ms ease-out |
 | Border bottom (scroll position 0) | None |
-| Border bottom (scrolled) | 1px solid `#E8EAED` |
+| Border bottom (scrolled) | 1px solid `#E2E7ED` |
 | Padding | 0 16px |
 
 ### 17.2 Content layout
@@ -2155,19 +2141,19 @@ For browsers that don't support `backdrop-filter`:
 | Element | Property | Value |
 |---------|----------|-------|
 | Left: Screen title | Font | Satoshi Bold (700), 18px |
-| Screen title | Color | `#1A1A2E` |
+| Screen title | Color | `#1C2D3F` |
 | Screen title | Vertical align | Center |
 | Right: Language toggle | Type | Segmented control |
 | Language toggle | Width | 80px (40px per segment) |
 | Language toggle | Height | 28px |
 | Language toggle | Border radius | 8px |
-| Language toggle | Background | `#F0F1F3` |
-| Active segment | Background | `#00897B` |
+| Language toggle | Background | `#F0F3F6` |
+| Active segment | Background | `#2EC4B6` |
 | Active segment text | Color | `#FFFFFF` |
 | Active segment text | Font | Satoshi SemiBold (600), 12px |
-| Inactive segment text | Color | `#5F6368` |
+| Inactive segment text | Color | `#637892` |
 | Inactive segment text | Font | Satoshi Medium (500), 12px |
-| Far right (search screen only): Profile icon | 24px person icon, `#5F6368`, 44×44px tap target |
+| Far right (search screen only): Profile icon | 24px person icon, `#637892`, 44×44px tap target |
 
 ---
 
@@ -2179,9 +2165,9 @@ For browsers that don't support `backdrop-filter`:
 |----------|-------|
 | Background | `#FFFFFF` |
 | Border radius | 24px 24px 0 0 (top corners only) |
-| Shadow | `0 -8px 32px rgba(26, 26, 46, 0.12)` |
+| Shadow | `0 -8px 32px rgba(28, 45, 63, 0.12)` |
 | Handle | 36px wide × 4px tall, `#D1D5DB`, centered, 8px from top edge, border-radius 2px |
-| Backdrop | `rgba(26, 26, 46, 0.4)` overlay behind sheet |
+| Backdrop | `rgba(28, 45, 63, 0.4)` overlay behind sheet |
 | Backdrop tap | Dismisses sheet |
 | Entry animation | Slides up from bottom, 350ms, spring (stiffness: 400, damping: 30) |
 | Exit animation | Slides down, 250ms, ease-in |
@@ -2201,13 +2187,13 @@ Non-blocking messages that appear at the bottom of the screen, above the tab bar
 |----------|-------|
 | Width | Full width minus 40px |
 | Height | Auto (content-dependent), min 48px |
-| Background | `#1A1A2E` (Charcoal) |
+| Background | `#1C2D3F` (Charcoal) |
 | Border radius | 12px |
 | Padding | 12px 16px |
 | Position | 8px above tab bar, centered horizontally |
 | Text font | Satoshi Medium (500), 14px |
 | Text color | `#FFFFFF` |
-| Action button (optional) | "Undo" text, Satoshi SemiBold (600), 14px, `#00B4A6` (brighter teal for dark bg) |
+| Action button (optional) | "Undo" text, Satoshi SemiBold (600), 14px, `#57D4C8` (brighter teal for dark bg) |
 | Entry animation | Slide up from bottom, 250ms, spring |
 | Auto-dismiss | 4 seconds (6 seconds if has action button) |
 | Dismiss gesture | Swipe down |
@@ -2229,17 +2215,17 @@ Blocking confirmation dialogs for destructive actions.
 
 | Property | Value |
 |----------|-------|
-| Backdrop | `rgba(26, 26, 46, 0.4)` |
+| Backdrop | `rgba(28, 45, 63, 0.4)` |
 | Card width | 300px |
 | Card background | `#FFFFFF` |
 | Card border radius | 16px |
 | Card shadow | Level 3 |
 | Card padding | 24px |
-| Title font | Satoshi SemiBold (600), 17px, `#1A1A2E` |
-| Body font | Satoshi Regular (400), 15px, `#5F6368` |
+| Title font | Satoshi SemiBold (600), 17px, `#1C2D3F` |
+| Body font | Satoshi Regular (400), 15px, `#637892` |
 | Button layout | Horizontal, right-aligned, 12px gap |
-| Cancel button | Tertiary style (text button), `#5F6368` |
-| Confirm button | If destructive: text button in `#D84315`. If non-destructive: primary button. |
+| Cancel button | Tertiary style (text button), `#637892` |
+| Confirm button | If destructive: text button in `#EF4444`. If non-destructive: primary button. |
 | Entry animation | Fade in + scale from 0.95 → 1.0, 200ms |
 
 ---
@@ -2252,9 +2238,9 @@ Used for: Shortlist empty, no results, first-time screens.
 
 | Property | Value |
 |----------|-------|
-| Centered icon | 48px, `#9AA0A6` |
-| Title | Satoshi SemiBold (600), 18px, `#5F6368`, centered, 16px below icon |
-| Subtitle | Satoshi Regular (400), 14px, `#9AA0A6`, centered, 8px below title, max-width 260px |
+| Centered icon | 48px, `#8A9BB0` |
+| Title | Satoshi SemiBold (600), 18px, `#637892`, centered, 16px below icon |
+| Subtitle | Satoshi Regular (400), 14px, `#8A9BB0`, centered, 8px below title, max-width 260px |
 | Optional action button | Secondary button style, 16px below subtitle |
 
 ### 20.2 Error state template
@@ -2263,9 +2249,9 @@ Used for: Network errors, API timeouts, address not found.
 
 | Property | Value |
 |----------|-------|
-| Centered icon | Triangle warning, 48px, `#E8913A` (Warm Amber — not red, errors are not the user's fault) |
-| Title | Satoshi SemiBold (600), 18px, `#1A1A2E`, centered |
-| Subtitle | Satoshi Regular (400), 14px, `#5F6368`, centered, max-width 280px |
+| Centered icon | Triangle warning, 48px, `#EAB308` (Warm Amber — not red, errors are not the user's fault) |
+| Title | Satoshi SemiBold (600), 18px, `#1C2D3F`, centered |
+| Subtitle | Satoshi Regular (400), 14px, `#637892`, centered, max-width 280px |
 | Retry button | Primary button, "Try again" / "Opnieuw proberen" |
 
 **Error variations:**
@@ -2283,14 +2269,14 @@ When a specific data source fails, the corresponding risk tile shows a degraded 
 
 | Property | Value |
 |----------|-------|
-| Background | `#F0F1F3` (Cool Gray — recessed, not white) |
-| Border | 1px solid `#E8EAED` |
+| Background | `#F0F3F6` (Cool Gray — recessed, not white) |
+| Border | 1px solid `#E2E7ED` |
 | Category label | Normal styling (still shows the category name) |
-| Score number | Replaced by "—" dash, 40px, `#9AA0A6` |
+| Score number | Replaced by "—" dash, 40px, `#8A9BB0` |
 | Severity badge | Hidden |
 | Score bar | Hidden |
 | Summary text | "Data temporarily unavailable" / "Data tijdelijk niet beschikbaar" |
-| Summary text | Satoshi Regular (400), 14px, `#9AA0A6` |
+| Summary text | Satoshi Regular (400), 14px, `#8A9BB0` |
 | Tap behavior | Disabled — no detail view available |
 | Opacity | 0.7 (entire tile) |
 
@@ -2313,7 +2299,7 @@ When a specific data source fails, the corresponding risk tile shows a degraded 
 | VS-1 | All screen margins, padding, and gaps match the 8pt grid specification (4pt half-steps permitted) |
 | VS-2 | No element overlaps another element at any viewport width from 320px to 1440px |
 | VS-3 | No horizontal scroll on any screen (except intentional horizontal scroll regions: summary pills, compare columns) |
-| VS-4 | All cards have consistent border radius (16px), shadow (Level 1), and border (1px #E8EAED) unless explicitly specified otherwise |
+| VS-4 | All cards have consistent border radius (16px), shadow (Level 1), and border (1px #E2E7ED) unless explicitly specified otherwise |
 
 ### Color
 
@@ -2321,7 +2307,7 @@ When a specific data source fails, the corresponding risk tile shows a degraded 
 |---|---|
 | VS-5 | All text-on-background combinations meet WCAG AA contrast (4.5:1 for normal text, 3.0:1 for large text) in both light and dark modes |
 | VS-6 | Risk severity is communicated through 4 channels simultaneously (color, icon shape, text label, number) — no channel is sole communicator |
-| VS-7 | The only accent color used anywhere in the app is teal (`#00897B` light / `#26A69A` dark). No other hue appears except in risk severity indicators. |
+| VS-7 | The only accent color used anywhere in the app is teal (`#2EC4B6` light / `#26A69A` dark). No other hue appears except in risk severity indicators. |
 | VS-8 | Dark mode colors match the mapping table exactly — no light-mode colors leak into dark mode |
 
 ### Typography

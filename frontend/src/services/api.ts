@@ -76,8 +76,8 @@ export async function getNeighborhood3D(
     lng: String(lng),
   });
   const controller = new AbortController();
-  // LoD2.2 neighborhood payloads can exceed 30s on dense areas.
-  const timeoutId = setTimeout(() => controller.abort(), 45000);
+  // Some 3DBAG areas need additional retries + slower server-side processing.
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
   try {
     const resp = await fetch(
       `${API_BASE}/address/${vboId}/neighborhood3d?${params}`,
@@ -314,9 +314,9 @@ export async function getLivability(
     });
     if (!resp.ok) throw new Error(`Livability failed: ${resp.status}`);
     const data = await resp.json();
-    // Contract: backend always returns 200. Check `available` field.
-    if (data.available === false) return null;
-    return data as LivabilityResponse;
+    // Contract: backend always returns 200. available:false means no data for location.
+    // Return the full response so LivabilityCard can render the unavailable state.
+    return data;
   } finally {
     clearTimeout(timeoutId);
   }

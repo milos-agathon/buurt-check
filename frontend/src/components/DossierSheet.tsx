@@ -14,7 +14,7 @@ interface DossierSheetProps {
 const SNAP_HEIGHTS: Record<SheetSnap, string> = {
   hidden: '0px',
   peek: '140px',
-  half: '50vh',
+  half: '65vh',
   full: '90vh',
 };
 

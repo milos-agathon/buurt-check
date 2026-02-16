@@ -39,8 +39,8 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  /* Bottom padding prevents content from hiding under TabBar (z-index: 50, height: 56px + safe area) */
-  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-md));
+  /* Bottom padding prevents content from hiding under the TabBar */
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-lg));
 }
 
 .dossier-sheet__content--peek {

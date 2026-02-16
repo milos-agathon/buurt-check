@@ -1,24 +1,26 @@
 .viewer-3d {
   background: var(--color-surface);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: var(--radius-card);
+  padding: var(--space-md);
+  margin: var(--space-sm) var(--space-base);
   border: 1px solid var(--color-border);
 }
 
 .viewer-3d__title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 12px;
+  font: var(--type-h3);
+  margin-bottom: var(--space-md);
 }
 
 .viewer-3d__canvas {
   position: relative;
   width: 100%;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-md);
   background: var(--color-surface-recessed);
-  min-height: 200px;
+  height: 20vh;
+  min-height: 140px;
+  max-height: 170px;
 }
 
 .viewer-3d__canvas canvas {
@@ -27,12 +29,12 @@
 
 .viewer-3d__reset-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: var(--space-sm);
+  right: var(--space-sm);
   z-index: 10;
   width: 36px;
   height: 36px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   cursor: pointer;
@@ -48,7 +50,7 @@
 }
 
 .viewer-3d__source {
-  font-size: 0.7rem;
+  font: var(--type-micro);
   color: var(--color-text-tertiary);
-  margin-top: 8px;
+  margin-top: var(--space-sm);
 }

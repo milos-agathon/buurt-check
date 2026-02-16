@@ -755,7 +755,7 @@ async def test_neighborhood_caches_by_buurt_code(mock_cbs, mock_cache_set, mock_
     )
 
     cache_key = mock_cache_set.call_args[0][0]
-    assert cache_key == "neighborhood:BU0363AD07"
+    assert cache_key == "neighborhood:v2:BU0363AD07"
 
 
 @pytest.mark.asyncio
@@ -977,4 +977,41 @@ async def test_property_warnings_cache_key_municipality_normalization(
 
     assert key_padded == key_clean, (
         f"Municipality normalization failed: '{key_padded}' != '{key_clean}'"
+    )
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_property_warnings_cache_key_uses_casefold(
+    mock_cache_set, mock_cache_get, client
+):
+    """Cache key uses casefold() (not lower()) — parity with service logic.
+
+    casefold() handles locale-specific case folding (e.g., German ß -> ss).
+    This ensures cache key normalization matches property_warnings.py:134.
+    """
+    with patch(
+        "app.api.address.property_warnings.get_property_warnings",
+        new_callable=AsyncMock,
+        return_value=_make_property_warnings_response(),
+    ):
+        # Use a string where casefold() and lower() produce different results
+        await client.get(
+            "/api/address/0363010000696734/property-warnings",
+            params={
+                "rd_x": "121000",
+                "rd_y": "487000",
+                "municipality": "Straße",
+            },
+        )
+        cache_key = mock_cache_get.call_args_list[-1][0][0]
+
+    # casefold() turns ß -> ss, lower() keeps ß.
+    # Verify cache key used casefold() normalization.
+    assert "strasse" in cache_key, (
+        f"Cache key should use casefold() (ß->ss), got: '{cache_key}'"
+    )
+    assert "straße" not in cache_key, (
+        f"Cache key should NOT contain non-casefolded 'ß', got: '{cache_key}'"
     )

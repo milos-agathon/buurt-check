@@ -2,42 +2,50 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  box-shadow: var(--elevation-1);
-  padding: var(--space-lg);
+  padding: var(--space-md);
+  margin: 0 var(--space-base);
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: calc(var(--space-sm) - 2px);
+  min-height: 148px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .soil-info-card__title {
-  font: var(--type-h3);
+  font: var(--type-h4);
+  line-height: 1.15;
 }
 
 .soil-info-card__item {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-sm);
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-3xs);
 }
 
 .soil-info-card__item--caution {
   border-left: 3px solid var(--color-warning);
+  background: var(--color-badge-caution-bg);
+  border-radius: var(--radius-sm);
+  padding: 3px var(--space-xs);
 }
 
 .soil-info-card__item--info {
-  border-left: 3px solid var(--color-accent);
+  border-left: none;
+  background: transparent;
+  padding: 0;
 }
 
 .soil-info-card__item-title {
-  font: var(--type-body-medium);
-  color: var(--color-text);
+  font: var(--type-small);
+  color: var(--color-text-secondary);
 }
 
 .soil-info-card__item-text {
   font: var(--type-small);
   color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .soil-info-card__link {
@@ -50,15 +58,15 @@
 }
 
 .soil-info-card__questions {
-  padding: var(--space-xs) 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  padding: 3px var(--space-xs);
+  background: var(--color-accent-light);
+  border-left: 3px solid var(--color-primary);
 }
 
 .soil-info-card__questions-summary {
-  font: var(--type-body-medium);
-  color: var(--color-text);
+  font: var(--type-small);
+  color: var(--color-text-secondary);
   cursor: pointer;
   list-style: none;
   display: flex;
@@ -83,21 +91,25 @@
 
 .soil-info-card__question-list {
   margin: 0;
-  padding-left: var(--space-lg);
+  padding-left: var(--space-md);
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-3xs);
   font: var(--type-small);
   color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .soil-info-card__disclaimer {
   font: var(--type-micro);
   color: var(--color-text-tertiary);
-  font-style: italic;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .soil-info-card__source {
   font: var(--type-micro);
   color: var(--color-text-tertiary);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }

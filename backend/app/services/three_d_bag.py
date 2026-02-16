@@ -13,16 +13,16 @@ logger = logging.getLogger(__name__)
 _client: httpx.AsyncClient | None = None
 BBOX_PAGE_LIMIT = 100
 BBOX_MAX_PAGES = 2
-BBOX_FETCH_BUDGET = 40.0
-BBOX_PAGE_TIMEOUT = 22.0
+BBOX_FETCH_BUDGET = 80.0
+BBOX_PAGE_TIMEOUT = 65.0
 LOD22_ENRICH_CONCURRENCY = 8
 MIN_FETCH_BUDGET = 1.0
 FALLBACK_RADIUS_FACTOR = 0.6
 FALLBACK_MIN_RADIUS = 40.0
-FALLBACK_PAGE_TIMEOUT = 20.0
+FALLBACK_PAGE_TIMEOUT = 65.0
 FALLBACK_PAGE_LIMIT = 40
 NEARBY_CONTEXT_MIN_RADIUS = 70.0
-NEARBY_CONTEXT_TIMEOUT = 20.0
+NEARBY_CONTEXT_TIMEOUT = 65.0
 NEARBY_CONTEXT_LIMIT = 100
 NEARBY_CONTEXT_MAX_PAGES = 2
 IMMEDIATE_CONTEXT_RADIUS = 30.0
@@ -31,6 +31,11 @@ IMMEDIATE_CONTEXT_LIMIT = 200
 IMMEDIATE_CONTEXT_MAX_PAGES = 2
 SECONDARY_FALLBACK_RADIUS = 35.0
 PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 5.0
+TARGET_FETCH_TIMEOUT = 30.0
+TARGET_FETCH_RETRIES = 6
+BBOX_FETCH_RETRIES = 10
+RETRY_BACKOFF_BASE = 0.35
+TRANSIENT_STATUS_CODES = {502, 503, 504}
 
 
 
@@ -40,6 +45,49 @@ def _get_client() -> httpx.AsyncClient:
     if _client is None or _client.is_closed:
         _client = httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=3.0))
     return _client
+
+
+def _is_transient_3dbag_error(exc: Exception) -> bool:
+    if isinstance(exc, httpx.TimeoutException):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        status_code = exc.response.status_code if exc.response is not None else None
+        return status_code in TRANSIENT_STATUS_CODES
+    if isinstance(exc, httpx.RequestError):
+        return True
+    return False
+
+
+async def _get_json_with_retries(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    timeout: httpx.Timeout,
+    attempts: int,
+) -> dict:
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = await client.get(url, timeout=timeout)
+            resp.raise_for_status()
+            return resp.json()
+        except (httpx.HTTPError, httpx.TimeoutException) as exc:
+            last_exc = exc
+            if attempt >= attempts or not _is_transient_3dbag_error(exc):
+                raise
+            wait_s = min(RETRY_BACKOFF_BASE * attempt, 2.0)
+            logger.warning(
+                "3DBAG transient error on attempt %d/%d for %s: %s",
+                attempt,
+                attempts,
+                url,
+                exc,
+            )
+            await asyncio.sleep(wait_s)
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("Retry helper reached unexpected state")
 
 
 def _extract_lod22_surfaces(
@@ -234,9 +282,12 @@ async def _fetch_target_building(
     url = f"{settings.three_d_bag_base}/collections/pand/items/{prefixed_id}"
 
     try:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        data = resp.json()
+        data = await _get_json_with_retries(
+            client,
+            url,
+            timeout=httpx.Timeout(TARGET_FETCH_TIMEOUT, connect=3.0),
+            attempts=TARGET_FETCH_RETRIES,
+        )
     except (httpx.HTTPError, httpx.TimeoutException):
         return None
 
@@ -341,12 +392,12 @@ async def _fetch_bbox_paginated(
             break
 
         try:
-            resp = await client.get(
+            data = await _get_json_with_retries(
+                client,
                 next_url,
                 timeout=httpx.Timeout(min(BBOX_PAGE_TIMEOUT, remaining), connect=3.0),
+                attempts=BBOX_FETCH_RETRIES,
             )
-            resp.raise_for_status()
-            data = resp.json()
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
             logger.warning("Bbox page %d fetch failed: %s", pages + 1, exc)
             partial = True
@@ -403,12 +454,12 @@ async def _fetch_bbox_quick_context(
 
     while next_url and pages < max_pages:
         try:
-            resp = await client.get(
+            data = await _get_json_with_retries(
+                client,
                 next_url,
                 timeout=httpx.Timeout(timeout_s, connect=3.0),
+                attempts=BBOX_FETCH_RETRIES,
             )
-            resp.raise_for_status()
-            data = resp.json()
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
             logger.warning("Quick bbox context fetch failed: %s", exc)
             return buildings, True

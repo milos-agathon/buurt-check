@@ -27,3 +27,11 @@ node_modules/
 # Logs
 logs/
 *.log
+
+# Claude Code local overrides
+CLAUDE.local.md
+
+# Workflow state (regenerated each session)
+.workflow/plans/
+.workflow/feedback/
+.workflow/approved-plan.md

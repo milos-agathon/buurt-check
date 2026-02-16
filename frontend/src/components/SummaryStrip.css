@@ -1,31 +1,23 @@
 .summary-strip {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding: 4px var(--space-lg);
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.summary-strip::-webkit-scrollbar {
-  display: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-xs);
+  margin: 0 var(--space-base);
+  padding: 4px 0;
 }
 
 .summary-strip__pill {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 12px;
-  min-width: 80px;
+  gap: 4px;
+  height: 34px;
+  padding: 0 8px;
+  min-width: 0;
   justify-content: center;
   background: var(--color-surface-recessed);
   border: none;
-  border-radius: 18px;
+  border-radius: 16px;
   cursor: pointer;
-  white-space: nowrap;
-  scroll-snap-align: start;
   color: var(--pill-color, var(--color-text));
   transition: background var(--transition-fast);
 }
@@ -40,7 +32,7 @@
 
 .summary-strip__score {
   font-family: var(--font-family);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1;
 }

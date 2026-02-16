@@ -1,22 +1,8 @@
 # buurt-check — Design System & UI/UX Product Requirements Document
 
-> **Version:** 1.0 | **Last updated:** 2026-02-09
+> **Version:** 2.0 | **Last updated:** 2026-02-16
 > **Design direction:** "Polar Frost" — trusted, calm, data-first clarity
-> **Companion to:** buurt-check Product Requirements Document v2.0 (2026-02-06)
-
----
-
-## Phase 1 alignment addendum (2026-02-11)
-
-This design PRD is aligned to `docs/spec-baseline.md`.
-
-- Architecture migration is deferred (`D1-1`).
-- Visual authority is Polar Frost (`D2-2`).
-- forge3 is report-renderer scope only; web rendering remains Three.js (`D3-2R`).
-- PDF remains dual-template (`quick_brief`, `full_dossier`) (`D5-1`).
-- Feature delivery labels and requirement ownership are defined in `docs/spec-baseline.md` sections 3 and 4.
-
-Where legacy values in this document conflict with the addendum, follow `docs/spec-baseline.md` and `frontend/src/styles/tokens.css`.
+> **Canonical color source:** `frontend/src/styles/tokens.css` and `docs/palette.md`
 
 ---
 
@@ -80,20 +66,21 @@ The palette is built on cool charcoal and warm whites, with electric teal as the
 
 | Token | Name | Hex | RGB | Usage | WCAG on white |
 |-------|------|-----|-----|-------|---------------|
-| `--color-primary` | Charcoal | `#1A1A2E` | 26, 26, 46 | Headers, primary text, nav backgrounds | 15.5:1 ✅ AAA |
-| `--color-accent` | Electric Teal | `#00897B` | 0, 137, 123 | CTAs, active states, target building highlight, interactive elements | 4.6:1 ✅ AA |
-| `--color-accent-light` | Soft Teal | `#E0F2F1` | 224, 242, 241 | Teal-tinted backgrounds, selected states | N/A (bg only) |
+| `--color-primary` | Polar Slate | `#1C2D3F` | 28, 45, 63 | Headers, primary text, nav backgrounds | 12.6:1 ✅ AAA |
+| `--color-accent` | Arctic Teal | `#2EC4B6` | 46, 196, 182 | CTAs, active states, target building highlight | 2.17:1 ⚠️ (bg only) |
+| `--color-accent-text` | Teal 600 | `#1C8C83` | 28, 140, 131 | WCAG-safe teal for text/icons on light bg | 4.52:1 ✅ AA |
+| `--color-accent-light` | Teal Tint | `#E6F9F7` | 230, 249, 247 | Selected states, backgrounds | N/A (bg only) |
 
-Note on teal selection: The PRD's original Electric Teal `#00B4A6` fails WCAG AA on white (3.3:1). The specified `#00897B` achieves 4.6:1 while maintaining the same teal character. All interactive elements using teal as a text or icon color on white backgrounds must use this adjusted value. For decorative/non-text uses (borders, fills behind dark text), the original `#00B4A6` is permitted.
+**WCAG rule:** `--color-accent` (#2EC4B6) has 2.17:1 contrast on white — **never use as text on light backgrounds**. Use `--color-accent-text` (#1C8C83, 4.52:1) for text and icons on light surfaces. `--color-accent` is valid on dark backgrounds (nav bar, dark mode surfaces) and as decorative fills behind dark text.
 
 #### Risk severity colors
 
 | Token | Name | Hex | Text label | Icon | Usage |
 |-------|------|-----|------------|------|-------|
-| `--color-risk-good` | Clear Green | `#2E7D68` | Good | ✓ circle | Safe indicators, positive scores (70-100) |
-| `--color-risk-moderate` | Warm Amber | `#E8913A` | Moderate | — dash | Moderate risk, attention needed (40-69) |
-| `--color-risk-poor` | Coral | `#D84315` | Poor | ▲ triangle | High risk, significant concern (20-39) |
-| `--color-risk-critical` | Crimson | `#B71C1C` | Critical | ✕ cross | Extreme risk, deal-breaker potential (0-19) |
+| `--color-risk-good` | Clear Green | `#22C55E` | Good | ✓ circle | Safe indicators, positive scores (70-100) |
+| `--color-risk-moderate` | Warm Amber | `#EAB308` | Moderate | — dash | Moderate risk, attention needed (40-69) |
+| `--color-risk-poor` | Coral | `#EF4444` | Poor | ▲ triangle | High risk, significant concern (20-39) |
+| `--color-risk-critical` | Crimson | `#B91C1C` | Critical | ✕ cross | Extreme risk, deal-breaker potential (0-19) |
 
 All risk colors achieve ≥4.5:1 contrast on white and on `--color-surface`. The severity scale uses four channels simultaneously — color, text label, icon shape, and numeric score — ensuring no single channel is essential for comprehension.
 
@@ -101,19 +88,19 @@ All risk colors achieve ≥4.5:1 contrast on white and on `--color-surface`. The
 
 | Token | Name | Hex | Usage |
 |-------|------|-----|-------|
-| `--color-bg` | Snow | `#F8F9FA` | Page background |
+| `--color-bg` | Snow | `#FAFBFC` | Page background |
 | `--color-surface` | White | `#FFFFFF` | Cards, elevated surfaces |
-| `--color-surface-recessed` | Cool Gray | `#F0F1F3` | Recessed areas, inactive states, code blocks |
-| `--color-border` | Light Fog | `#E8EAED` | Card borders (1px), dividers, 3D viewer edge lines |
-| `--color-shadow` | Shadow Ink | `rgba(26, 26, 46, 0.06)` | Card elevation shadow |
+| `--color-surface-recessed` | Cool Gray | `#F0F3F6` | Recessed areas, inactive states, code blocks |
+| `--color-border` | Light Fog | `#E2E7ED` | Card borders (1px), dividers, 3D viewer edge lines |
+| `--color-shadow` | Shadow Ink | `rgba(28, 45, 63, 0.06)` | Card elevation shadow |
 
 #### Text colors
 
 | Token | Name | Hex | Usage | WCAG on white |
 |-------|------|-----|-------|---------------|
-| `--color-text-primary` | Charcoal | `#1A1A2E` | Body text, headings | 15.5:1 ✅ AAA |
-| `--color-text-secondary` | Mid Gray | `#5F6368` | Labels, metadata, secondary info | 7.0:1 ✅ AAA |
-| `--color-text-tertiary` | Silver | `#9AA0A6` | Timestamps, source attributions, disabled text | 3.0:1 ⚠️ (decorative only) |
+| `--color-text` | Polar Slate | `#1C2D3F` | Body text, headings | 12.6:1 ✅ AAA |
+| `--color-text-secondary` | Slate 400 | `#637892` | Labels, metadata, secondary info | 4.74:1 ✅ AA |
+| `--color-text-tertiary` | Slate 300 | `#8A9BB0` | Timestamps, source attributions, disabled text | 2.75:1 ⚠️ (decorative only) |
 
 Implementation note: `--color-text-tertiary` falls below WCAG AA for body text. It is permitted only for non-essential decorative text (source attributions, timestamps) that is also conveyed through other channels. If any tertiary text carries essential information, use `--color-text-secondary` instead.
 
@@ -171,8 +158,8 @@ Built on an **8pt base grid** with 4pt half-steps for fine adjustments.
 | Component | Property | Value |
 |-----------|----------|-------|
 | Card | Border radius | 16px |
-| Card | Shadow | `0 2px 8px rgba(26, 26, 46, 0.06)` |
-| Card | Border | `1px solid #E8EAED` |
+| Card | Shadow | `0 2px 8px rgba(28, 45, 63, 0.06)` |
+| Card | Border | `1px solid #E2E7ED` |
 | Card | Internal padding | 24px (all sides) |
 | Button (primary) | Border radius | 12px |
 | Button (primary) | Height | 48px |
@@ -225,10 +212,10 @@ Elevation communicates hierarchy without heavy borders. Three levels:
 
 | Level | Shadow | Border | Usage |
 |-------|--------|--------|-------|
-| Level 0 (flat) | None | `1px solid #E8EAED` | Inline elements, dividers |
-| Level 1 (card) | `0 2px 8px rgba(26, 26, 46, 0.06)` | `1px solid #E8EAED` | Standard cards, risk tiles |
-| Level 2 (elevated) | `0 8px 24px rgba(26, 26, 46, 0.10)` | None | Bottom sheets, modals, expanded cards |
-| Level 3 (overlay) | `0 16px 48px rgba(26, 26, 46, 0.15)` | None | Full-screen overlays, image lightboxes |
+| Level 0 (flat) | None | `1px solid #E2E7ED` | Inline elements, dividers |
+| Level 1 (card) | `0 2px 8px rgba(28, 45, 63, 0.06)` | `1px solid #E2E7ED` | Standard cards, risk tiles |
+| Level 2 (elevated) | `0 8px 24px rgba(28, 45, 63, 0.10)` | None | Bottom sheets, modals, expanded cards |
+| Level 3 (overlay) | `0 16px 48px rgba(28, 45, 63, 0.15)` | None | Full-screen overlays, image lightboxes |
 
 ---
 
@@ -248,7 +235,7 @@ Elevation communicates hierarchy without heavy borders. Three levels:
 
 **Tab bar styling:**
 - Background: White (`#FFFFFF`) with `backdrop-filter: blur(20px)` and 80% opacity
-- Top border: `1px solid #E8EAED`
+- Top border: `1px solid #E2E7ED`
 - Active tab: Icon in `--color-accent` (Electric Teal) with label in `--color-accent`
 - Inactive tab: Icon in `--color-text-secondary` (Mid Gray) with label in `--color-text-secondary`
 - Label font: `--type-micro` (11px Medium)
@@ -320,7 +307,7 @@ The entry point. Must communicate the app's value proposition in under 3 seconds
 
 **Address input field:**
 - Height: 56px (slightly oversized — this is the app's primary action)
-- Border: `2px solid #E8EAED`, transitions to `2px solid #00897B` on focus
+- Border: `2px solid #E2E7ED`, transitions to `2px solid #2EC4B6` on focus
 - Border radius: 12px
 - Background: White
 - Left icon: Map pin (20px, Mid Gray, transitions to Teal on focus)
@@ -396,7 +383,7 @@ Each pill:
 - Width: auto (content-dependent), min 80px
 - Height: 36px
 - Border radius: 18px (pill shape)
-- Background: `--color-surface-recessed` (#F0F1F3)
+- Background: `--color-surface-recessed` (#F0F3F6)
 - Left: 16px risk category icon (colored by severity)
 - Right: Score number in `--type-h2` (16px SemiBold), colored by severity
 - Gap between pills: 8px
@@ -505,7 +492,7 @@ The 3D viewer is buurt-check's signature differentiator. It renders the actual n
 
 **The viewer card is a "window into reality."** The contrast between the clean UI and the realistic 3D content is intentional and must be maintained. The 3D viewer should look like a carefully composed aerial photograph of a 3D architectural model — not like a stylized illustration.
 
-**Renderer: Three.js (WebGL) for interactive client-side viewing (F2a).** forge3d (Rust/wgpu) handles server-side static snapshots for PDF export (F2b) and sunlight analysis (F2c). Both renderers consume the same 3DBAG LoD2.2 geometry and SunCalc sun positions — only the render backend differs. See PRD v2.0 §9 for the full rendering pipeline specification.
+**Renderer: Three.js (WebGL) for interactive client-side viewing (F2a).** Three.js (Rust/wgpu) handles server-side static snapshots for PDF export (F2b) and sunlight analysis (F2c). Both renderers consume the same 3DBAG LoD2.2 geometry and SunCalc sun positions — only the render backend differs. See PRD v2.0 §9 for the full rendering pipeline specification.
 
 **Visual specification for the Three.js viewer:**
 
@@ -516,11 +503,11 @@ The 3D viewer is buurt-check's signature differentiator. It renders the actual n
 | Surrounding building roofs | Vertex-colored from orthophoto sampling | PRD §9.5 |
 | Surrounding building walls | Solid period-appropriate colors | PRD §9.5 |
 | Ground plane | Orthophoto (25cm PDOK, 2048×2048) with shadow receiving | PRD §9.6 |
-| Target building highlight | Teal outline effect: `--color-accent` (`#00897B`) at 2px screen-space edge, rendered via post-processing outline pass or stencil buffer | Design system |
-| Sky | Solid `#F8F9FA` (matches app background) — no skybox | Design system |
+| Target building highlight | Teal outline effect: `--color-accent` (`#2EC4B6`) at 2px screen-space edge, rendered via post-processing outline pass or stencil buffer | Design system |
+| Sky | Solid `#FAFBFC` (matches app background) — no skybox | Design system |
 | Ambient lighting | `THREE.AmbientLight` at `#B8C4D0`, intensity 0.4 | Custom |
 | Sun lighting | `THREE.DirectionalLight` at `#FFFAF0`, intensity 0.8, positioned via SunCalc | PRD §9.9 |
-| Shadows | `PCFSoftShadowMap`, 2048×2048, `rgba(26, 26, 46, 0.25)` on ground | PRD §9.9 |
+| Shadows | `PCFSoftShadowMap`, 2048×2048, `rgba(28, 45, 63, 0.25)` on ground | PRD §9.9 |
 
 ### 5.2 Viewer UI overlay
 
@@ -575,7 +562,7 @@ This is the primary interactive element in the 3D viewer. Design merges Directio
 
 **Time slider:**
 - Horizontal slider from 06:00 to 21:00
-- Track: 2px line in `--color-border` (#E8EAED)
+- Track: 2px line in `--color-border` (#E2E7ED)
 - Filled track (left of thumb): 2px line in `--color-accent`
 - Thumb: 16px circle in `--color-accent` with 4px white border (Level 2 shadow)
 - Current time label below thumb: `--type-h2` (16px SemiBold)
@@ -666,7 +653,7 @@ Each tile in the dossier's 2×2 grid is a compact summary card designed for quic
 - Border radius: 16px
 - Background: White
 - Shadow: Level 1
-- Border: `1px solid #E8EAED`
+- Border: `1px solid #E2E7ED`
 
 **Score thresholds (normalized 0–100 scale):**
 All raw data sources are normalized to a 0–100 score where 100 = best possible, 0 = worst. This normalization is essential for consistent visual communication and cross-category comparison.
@@ -781,7 +768,7 @@ Tapping a risk tile opens a **full-screen detail view** with a shared element tr
 
 | Property | Specification |
 |----------|--------------|
-| Raw data | Direct sunlight hours per day from forge3d GPU-accelerated raycast analysis (8 sample dates × 15-min intervals) |
+| Raw data | Direct sunlight hours per day from Three.js GPU-accelerated raycast analysis (8 sample dates × 15-min intervals) |
 | Score normalization | Based on December sunlight hours: ≥4h = 100, 0h = 0, linear interpolation. December is worst-case and most decision-relevant. |
 | Seasonal breakdown | Show hours for each season: "Dec: 2.1h / Mar: 4.8h / Jun: 8.4h / Sep: 5.2h" |
 | Relatable comparisons | "In winter, this home gets about [X] hours of direct sunlight — roughly [comparison: 'enough for a short lunch on the balcony' / 'barely enough to notice' / 'significant daylight']" |
@@ -955,13 +942,13 @@ Below the chart: A "Differences only" toggle (pill button) that filters the colu
    - **Generate button:** Full-width, `--color-accent`, "Generate Briefing"
 3. **Generation state:**
    - Bottom sheet expands to show progress
-   - If shadow snapshots are included and not cached: forge3d renders 3 PNGs (morning/noon/evening, December 21). Progress shows: "Rendering shadow analysis... [1/3]" with a thin teal progress bar
+   - If shadow snapshots are included and not cached: Three.js renders 3 PNGs (morning/noon/evening, December 21). Progress shows: "Rendering shadow analysis... [1/3]" with a thin teal progress bar
    - If cached: "Building your briefing..." with determinate progress bar
-   - Maximum generation time: 12 seconds (if forge3d renders needed)
+   - Maximum generation time: 12 seconds (if Three.js renders needed)
 4. **Preview:**
    - Full-screen PDF preview with pinch-to-zoom
    - Bottom bar: "Share" button (system share sheet: Save to Files, AirDrop, email, WhatsApp, print) + "Regenerate" button (outline style)
-5. **forge3d fallback:** If forge3d render fails or times out: use Three.js client-side capture via `renderer.domElement.toDataURL('image/png')` at the current viewport resolution. Quality is lower but the export is never blocked.
+5. **Three.js fallback:** If Three.js render fails or times out: use Three.js client-side capture via `renderer.domElement.toDataURL('image/png')` at the current viewport resolution. Quality is lower but the export is never blocked.
 
 ### 9.2 PDF design specification
 
@@ -1019,14 +1006,14 @@ Note: Two empty checkbox lines at the bottom allow the user to add their own que
 - Footer on all pages: "buurt-check · [date] · Indicative data, not professional advice" + required data attributions (CC BY 4.0 for Klimaateffectatlas and PDOK)
 
 **Success criteria:**
-- SC-9a: PDF generation completes within 12 seconds (including forge3d render or cache hit)
+- SC-9a: PDF generation completes within 12 seconds (including Three.js render or cache hit)
 - SC-9b: Quick Brief fits on exactly 1 A4 page with ≥15mm margins
 - SC-9c: Full Dossier fits on 3–4 A4 pages with consistent formatting
 - SC-9d: Shadow snapshots in PDF match the address, date, and time specified (not generic or cached from wrong address)
 - SC-9e: All text in PDF is selectable/searchable (not rasterized)
 - SC-9f: PDF renders correctly in Preview (macOS), Adobe Reader, Chrome PDF viewer, and iOS Files
 - SC-9g: All required data source attributions appear in PDF footer
-- SC-9h: forge3d-to-Three.js fallback produces a usable (if lower quality) PDF within 8 seconds
+- SC-9h: Three.js-to-Three.js fallback produces a usable (if lower quality) PDF within 8 seconds
 - SC-9i: Viewing checklist questions in PDF exactly match the questions shown in the app dossier
 - SC-9j: Bilingual PDF shows both EN and NL for all questions when "Full Dossier" is selected
 
@@ -1134,9 +1121,9 @@ Note: Two empty checkbox lines at the bottom allow the user to add their own que
 
 | Requirement | Standard | Implementation |
 |---|---|---|
-| Text contrast (primary) | ≥4.5:1 on background | Charcoal (#1A1A2E) on White = 15.5:1 ✅ |
-| Text contrast (secondary) | ≥4.5:1 on background | Mid Gray (#5F6368) on White = 7.0:1 ✅ |
-| Text contrast (tertiary) | ≥3.0:1 on background (decorative only) | Silver (#9AA0A6) on White = 3.0:1 ⚠️ — restricted use |
+| Text contrast (primary) | ≥4.5:1 on background | Charcoal (#1C2D3F) on White = 15.5:1 ✅ |
+| Text contrast (secondary) | ≥4.5:1 on background | Mid Gray (#637892) on White = 7.0:1 ✅ |
+| Text contrast (tertiary) | ≥3.0:1 on background (decorative only) | Silver (#8A9BB0) on White = 3.0:1 ⚠️ — restricted use |
 | Large text contrast (≥18px bold / ≥24px) | ≥3.0:1 | All large text exceeds this ✅ |
 | Non-text contrast (icons, borders) | ≥3.0:1 | All icons at full opacity ✅ |
 | Risk severity communication | Not color-alone | Quadruple redundancy: color + icon shape + text label + numeric score |
@@ -1193,21 +1180,21 @@ Note: Two empty checkbox lines at the bottom allow the user to add their own que
 
 | Light token | Light value | Dark value | Notes |
 |---|---|---|---|
-| `--color-bg` | `#F8F9FA` | `#0F1117` | Near-black with blue undertone |
+| `--color-bg` | `#FAFBFC` | `#0F1117` | Near-black with blue undertone |
 | `--color-surface` | `#FFFFFF` | `#1A1D27` | Dark blue-gray |
-| `--color-surface-recessed` | `#F0F1F3` | `#141720` | Darker than surface |
-| `--color-border` | `#E8EAED` | `#2A2D37` | Subtle borders, 1px |
+| `--color-surface-recessed` | `#F0F3F6` | `#141720` | Darker than surface |
+| `--color-border` | `#E2E7ED` | `#2A2D37` | Subtle borders, 1px |
 | `--color-shadow` | `rgba(26,26,46,0.06)` | `rgba(0,0,0,0.3)` | Stronger shadows needed in dark mode |
-| `--color-primary` | `#1A1A2E` | `#EAEDF0` | Inverted for text |
-| `--color-accent` | `#00897B` | `#26A69A` | Brighter teal for contrast |
-| `--color-accent-light` | `#E0F2F1` | `#1A2E2C` | Dark teal tint |
-| `--color-text-primary` | `#1A1A2E` | `#EAEDF0` | Light on dark |
-| `--color-text-secondary` | `#5F6368` | `#9AA0A6` | Lighter gray |
-| `--color-text-tertiary` | `#9AA0A6` | `#5F6368` | Swapped with secondary (lighter on dark bg) |
-| `--color-risk-good` | `#2E7D68` | `#4CAF8B` | Brighter for dark bg |
-| `--color-risk-moderate` | `#E8913A` | `#FFB74D` | Brighter |
-| `--color-risk-poor` | `#D84315` | `#FF7043` | Brighter |
-| `--color-risk-critical` | `#B71C1C` | `#EF5350` | Brighter |
+| `--color-primary` | `#1C2D3F` | `#EAEDF0` | Inverted for text |
+| `--color-accent` | `#2EC4B6` | `#26A69A` | Brighter teal for contrast |
+| `--color-accent-light` | `#E6F9F7` | `#1A2E2C` | Dark teal tint |
+| `--color-text-primary` | `#1C2D3F` | `#EAEDF0` | Light on dark |
+| `--color-text-secondary` | `#637892` | `#8A9BB0` | Lighter gray |
+| `--color-text-tertiary` | `#8A9BB0` | `#637892` | Swapped with secondary (lighter on dark bg) |
+| `--color-risk-good` | `#22C55E` | `#4CAF8B` | Brighter for dark bg |
+| `--color-risk-moderate` | `#EAB308` | `#FFB74D` | Brighter |
+| `--color-risk-poor` | `#EF4444` | `#FF7043` | Brighter |
+| `--color-risk-critical` | `#B91C1C` | `#EF5350` | Brighter |
 
 ### 13.3 Dark mode for 3D viewer
 
@@ -1272,9 +1259,9 @@ In dark mode, elevation is communicated through **progressively lighter surfaces
 | Shadow timeline latency | <200ms per step | Time from slider input to shadow render | Frontend |
 | Total scene transfer | <2.5 MB | CityJSON + orthophoto + atlas + JS bundle | Frontend + CDN |
 | JavaScript bundle (gzipped) | <250 KB | Tree-shaken Three.js + app code | Frontend |
-| forge3d snapshot render | <8s for 3 PNGs | Server-side render time | Backend (GPU) |
-| forge3d sunlight analysis | <15s | 8 sample dates × full day raycasting | Backend (GPU) |
-| PDF generation | <12s | Including forge3d render or cache hit | Full stack |
+| Three.js snapshot render | <8s for 3 PNGs | Server-side render time | Backend (GPU) |
+| Three.js sunlight analysis | <15s | 8 sample dates × full day raycasting | Backend (GPU) |
+| PDF generation | <12s | Including Three.js render or cache hit | Full stack |
 | Animation FPS | ≥50fps | All UI animations on target devices | Frontend |
 | Memory usage (3D viewer) | <200 MB | Total GPU + CPU memory | Frontend |
 | Lighthouse performance score | ≥80 | Mobile, 4G throttle | Frontend |
@@ -1301,7 +1288,7 @@ In dark mode, elevation is communicated through **progressively lighter surfaces
 | Animations (UI) | CSS transitions + component-level animation helpers | Framer Motion migration deferred |
 | Animations (3D) | GSAP | For Three.js camera tweens |
 | Internationalization | react-i18next | EN/NL string files |
-| PDF generation | Server-side Python `fpdf2` (+ forge3 export snapshots) | Quick brief + full dossier templates |
+| PDF generation | Server-side Python `fpdf2` (+ Three.js export snapshots) | Quick brief + full dossier templates |
 | Styling | Plain CSS with design tokens | Tokens in `frontend/src/styles/tokens.css` |
 | Icons | Lucide React (customized stroke weight) | MIT license |
 | Haptics | `navigator.vibrate()` (Android) + native bridge (iOS) | Progressive enhancement |
@@ -1314,9 +1301,9 @@ Theme values are applied on `:root` and `[data-theme="dark"]`:
 
 ```css
 :root {
-  --color-bg: #F8F9FA;
+  --color-bg: #FAFBFC;
   --color-surface: #FFFFFF;
-  --color-accent: #00897B;
+  --color-accent: #2EC4B6;
   /* ... all tokens from §2 */
 }
 
@@ -1424,13 +1411,13 @@ All success criteria from individual sections, consolidated and numbered for tra
 | Satoshi font not available/loading fails | Low | Medium — typography falls back to system fonts, losing editorial quality | Specify robust fallback stack. Font is variable (single file, ~45 KB). Subset to Latin Extended only. Preload via `<link rel="preload">`. |
 | Teal accent color insufficient for all interactive states | Medium | Low — some elements may be hard to distinguish as interactive | Combine teal color with other affordances: underlines for links, shadows for buttons, borders for inputs. Never rely on color alone. |
 | 2×2 risk grid too dense on small phones (320px) | Medium | Medium — tiles become too small to read | At 320px, degrade to single-column stacked tiles. Each tile becomes a horizontal bar (full width, 72px height) showing icon + category + score + severity badge. |
-| 3D viewer performance varies wildly across devices | High | High — poor 3D experience undermines core differentiator | Three-tier fallback: (1) Full interactive viewer, (2) Simplified viewer (LoD1.3, no textures, no shadows), (3) Static forge3d snapshots with season toggle. Device capability detected via WebGL `MAX_TEXTURE_SIZE` and initial FPS measurement. |
+| 3D viewer performance varies wildly across devices | High | High — poor 3D experience undermines core differentiator | Three-tier fallback: (1) Full interactive viewer, (2) Simplified viewer (LoD1.3, no textures, no shadows), (3) Static Three.js snapshots with season toggle. Device capability detected via WebGL `MAX_TEXTURE_SIZE` and initial FPS measurement. |
 | Dark mode introduces unforeseen contrast issues | Medium | Medium — accessibility violations in dark theme | Automated visual regression tests for both themes. Contrast checker integrated into component Storybook. All dark mode tokens tested against WCAG AA at design system level. |
 | PDF design diverges from app design over time | Medium | Low — inconsistent brand experience | PDF template uses the same design tokens (exported to CSS/HTML for WeasyPrint). Shared `tokens.json` file consumed by both React app and PDF template. |
 | Animation overhead impacts performance on mid-range devices | Medium | Medium — janky animations worse than no animations | Performance budget: no animation causes frame drop below 50fps. Monitor via `PerformanceObserver` long task API. Disable non-essential animations on devices with `navigator.hardwareConcurrency < 4`. |
 | Dutch text expansion breaks layouts | Medium | Medium — truncated text, overflow, broken cards | All text containers tested at maximum Dutch string length. Use `text-overflow: ellipsis` as safety net. QA checklist includes full NL-language pass on every screen. |
 | Expat users confused by unfamiliar Dutch reference points (e.g., CBS buurt names, Lden measurement) | High | Medium — data feels foreign and unhelpful | Every Dutch-specific term explained on first use. Comparison charts use international references (WHO limits, not just Dutch standards). "Learn more" expandable on technical terms. |
-| Monochromatic palette feels too cold/clinical for anxious buyers | Medium | Medium — users don't form emotional connection with the app | Mitigated by: (1) conversational copy in risk explanations and viewing questions, (2) warm whites (#F8F9FA not pure white), (3) teal accent adds warmth to monochrome, (4) generous spacing and line heights create breathing room. Monitor via user testing — if NPS <40 on "friendliness" dimension, introduce subtle warm accent (e.g., amber for positive scores). |
+| Monochromatic palette feels too cold/clinical for anxious buyers | Medium | Medium — users don't form emotional connection with the app | Mitigated by: (1) conversational copy in risk explanations and viewing questions, (2) warm whites (#FAFBFC not pure white), (3) teal accent adds warmth to monochrome, (4) generous spacing and line heights create breathing room. Monitor via user testing — if NPS <40 on "friendliness" dimension, introduce subtle warm accent (e.g., amber for positive scores). |
 
 ---
 
@@ -1441,25 +1428,25 @@ For implementation convenience, all tokens consolidated in a single exportable f
 ```json
 {
   "color": {
-    "bg": { "light": "#F8F9FA", "dark": "#0F1117" },
+    "bg": { "light": "#FAFBFC", "dark": "#0F1117" },
     "surface": { "light": "#FFFFFF", "dark": "#1A1D27" },
-    "surfaceRecessed": { "light": "#F0F1F3", "dark": "#141720" },
-    "border": { "light": "#E8EAED", "dark": "#2A2D37" },
-    "primary": { "light": "#1A1A2E", "dark": "#EAEDF0" },
-    "accent": { "light": "#00897B", "dark": "#26A69A" },
-    "accentLight": { "light": "#E0F2F1", "dark": "#1A2E2C" },
-    "textPrimary": { "light": "#1A1A2E", "dark": "#EAEDF0" },
-    "textSecondary": { "light": "#5F6368", "dark": "#9AA0A6" },
-    "textTertiary": { "light": "#9AA0A6", "dark": "#5F6368" },
-    "riskGood": { "light": "#2E7D68", "dark": "#4CAF8B" },
-    "riskModerate": { "light": "#E8913A", "dark": "#FFB74D" },
-    "riskPoor": { "light": "#D84315", "dark": "#FF7043" },
-    "riskCritical": { "light": "#B71C1C", "dark": "#EF5350" }
+    "surfaceRecessed": { "light": "#F0F3F6", "dark": "#141720" },
+    "border": { "light": "#E2E7ED", "dark": "#2A2D37" },
+    "primary": { "light": "#1C2D3F", "dark": "#EAEDF0" },
+    "accent": { "light": "#2EC4B6", "dark": "#26A69A" },
+    "accentLight": { "light": "#E6F9F7", "dark": "#1A2E2C" },
+    "textPrimary": { "light": "#1C2D3F", "dark": "#EAEDF0" },
+    "textSecondary": { "light": "#637892", "dark": "#8A9BB0" },
+    "textTertiary": { "light": "#8A9BB0", "dark": "#637892" },
+    "riskGood": { "light": "#22C55E", "dark": "#4CAF8B" },
+    "riskModerate": { "light": "#EAB308", "dark": "#FFB74D" },
+    "riskPoor": { "light": "#EF4444", "dark": "#FF7043" },
+    "riskCritical": { "light": "#B91C1C", "dark": "#EF5350" }
   },
   "shadow": {
-    "level1": "0 2px 8px rgba(26, 26, 46, 0.06)",
-    "level2": "0 8px 24px rgba(26, 26, 46, 0.10)",
-    "level3": "0 16px 48px rgba(26, 26, 46, 0.15)"
+    "level1": "0 2px 8px rgba(28, 45, 63, 0.06)",
+    "level2": "0 8px 24px rgba(28, 45, 63, 0.10)",
+    "level3": "0 16px 48px rgba(28, 45, 63, 0.15)"
   },
   "radius": {
     "card": "16px",

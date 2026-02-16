@@ -72,7 +72,6 @@ const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMa
 const NeighborhoodViewer3D = lazy(() => import('./components/NeighborhoodViewer3D'));
 const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
-const SpringTuner = import.meta.env.DEV ? lazy(() => import('./components/SpringTuner')) : null;
 
 type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed' };
@@ -789,7 +788,6 @@ function App() {
                 <LayoutGroup>
                   {(riskLoading || riskCards || riskError) && (
                     <>
-                      <h3 className="app__section-label">{t('dossier.riskAssessment')}</h3>
                       <RiskTilesGrid
                         risks={riskCards ?? undefined}
                         sunlight={sunlight ?? undefined}
@@ -1019,11 +1017,6 @@ function App() {
               theme={themePreference}
               onThemeChange={handleThemeChange}
             />
-          </Suspense>
-        )}
-        {SpringTuner && activeScreen === 'settings' && (
-          <Suspense fallback={null}>
-            <SpringTuner />
           </Suspense>
         )}
       </main>
