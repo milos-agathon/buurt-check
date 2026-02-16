@@ -77,7 +77,7 @@ function computeFlags(
 
     // Lead pipe — pre-1960 construction
     if (warnings.lead_pipe?.flagged) {
-      flags.push({ category: 'lead_pipe', severity: 'info', label: 'Lead pipe risk (pre-1960)' });
+      flags.push({ category: 'lead_pipe', severity: 'info', label: 'Pre-1960 lead pipe risk' });
     }
   }
 
@@ -99,6 +99,7 @@ export default function AttentionSummary({ riskCards, warnings, sunlightScore, l
   if (!riskCards && !warnings) return null;
 
   const total = 4;
+  const missing = total - assessed;
   const count = flags.length;
   const badgeVariant = count === 0 ? 'green' : count === 1 ? 'amber' : 'red';
 
@@ -113,6 +114,29 @@ export default function AttentionSummary({ riskCards, warnings, sunlightScore, l
       <span className={`attention-summary__badge attention-summary__badge--${badgeVariant}`}>
         {badgeText}
       </span>
+
+      {flags.length > 0 && (
+        <ul className="attention-summary__flags" data-testid="attention-flags">
+          {flags.map((f) => (
+            <li key={f.category} className={`attention-summary__flag attention-summary__flag--${f.severity}`}>
+              {t(`warnings.attention.flag.${f.category}`, f.label)}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {flags.length === 0 && assessed > 0 && (
+        <span className="attention-summary__detail" data-testid="attention-detail">
+          {t('warnings.attention.no_flags_detail')}
+        </span>
+      )}
+
+      {missing > 0 && (
+        <span className="attention-summary__missing" data-testid="attention-missing">
+          {t('warnings.attention.missing_categories', { missing, total })}
+        </span>
+      )}
+
       <span className="attention-summary__completeness">
         {t('warnings.attention.based_on', { assessed, total })}
       </span>

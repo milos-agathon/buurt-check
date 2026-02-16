@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     erfpacht_municipalities: list[str] = [
         "Amsterdam", "Den Haag", "Rotterdam", "Utrecht",
         "Leiden", "Zaanstad", "Amstelveen", "Haarlem",
+        "Gouda", "Arnhem", "Tiel",
     ]
 
     # Tier-B data

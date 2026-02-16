@@ -37,6 +37,51 @@
   color: var(--color-badge-negative-text);
 }
 
+.attention-summary__flags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.attention-summary__flag {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  padding-left: var(--space-sm);
+  position: relative;
+}
+
+.attention-summary__flag::before {
+  content: "\2022";
+  position: absolute;
+  left: 0;
+}
+
+.attention-summary__flag--critical,
+.attention-summary__flag--high {
+  color: var(--color-risk-poor);
+}
+
+.attention-summary__flag--elevated,
+.attention-summary__flag--medium {
+  color: var(--color-risk-moderate);
+}
+
+.attention-summary__detail {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  width: 100%;
+}
+
+.attention-summary__missing {
+  font: var(--type-small);
+  color: var(--color-text-tertiary);
+  width: 100%;
+}
+
 .attention-summary__completeness {
   font: var(--type-small);
   color: var(--color-text-secondary);

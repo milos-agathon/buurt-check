@@ -13,7 +13,7 @@ from app.models.property_warnings import (
     PropertyWarningsResponse,
     VvEInfo,
 )
-from app.services import foundation_risk
+from app.services import bag, foundation_risk
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +124,22 @@ async def get_property_warnings(
     municipality: str | None,
 ) -> PropertyWarningsResponse:
     """Aggregate all property warnings for an address."""
+    # Self-serve missing building facts from BAG when client didn't supply them
+    if construction_year is None or num_units is None:
+        try:
+            facts = await bag.get_building_facts(vbo_id)
+            if facts:
+                if construction_year is None:
+                    construction_year = facts.construction_year
+                if num_units is None:
+                    num_units = facts.num_units
+        except Exception:
+            logger.warning("BAG fallback fetch failed for vbo_id=%s", vbo_id)
+
     # Foundation risk (async — calls external APIs)
-    fr = await foundation_risk.get_foundation_risk(construction_year, rd_x, rd_y)
+    fr = await foundation_risk.get_foundation_risk(
+        construction_year, rd_x, rd_y, municipality=municipality
+    )
 
     # Erfpacht detection (sync — municipality list lookup)
     # Normalize municipality input (strip + casefold) to match case-insensitively
@@ -139,6 +153,7 @@ async def get_property_warnings(
         detected=erfpacht_detected,
         confidence="municipality_based" if erfpacht_detected else None,
         municipality=municipality.strip() if erfpacht_detected and municipality else None,
+        messages=["ERFPACHT_NOTE_MUNICIPALITY_ONLY"] if erfpacht_detected else [],
     )
 
     # VvE detection (sync — unit count from BAG)
@@ -163,23 +178,23 @@ async def get_property_warnings(
         messages=["LEAD_PIPE_PRE_1960"] if lead_pipe_flagged else [],
     )
 
-    # Attention summary — includes lead pipe flag
-    flags: list[AttentionFlag] = []
+    # Attention summary — property-level signals only (risk scores not available here)
+    attention = build_attention_summary(
+        risk_scores={"noise": None, "air_quality": None, "climate": None, "sunlight": None},
+        foundation_level=fr.level,
+        erfpacht_detected=erfpacht_detected,
+        is_apartment=is_apartment,
+        construction_year=construction_year,
+    )
     if lead_pipe_flagged:
-        flags.append(
+        attention.flags.append(
             AttentionFlag(
                 category="lead_pipe",
                 severity="info",
                 label="Lead pipe risk (pre-1960 construction)",
             )
         )
-
-    attention = AttentionSummary(
-        flag_count=len(flags),
-        flags=flags,
-        risk_categories_assessed=0,
-        risk_categories_total=4,
-    )
+        attention.flag_count = len(attention.flags)
 
     return PropertyWarningsResponse(
         address_id=vbo_id,

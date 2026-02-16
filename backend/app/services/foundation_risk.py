@@ -11,6 +11,17 @@ from app.models.property_warnings import FoundationRisk
 
 logger = logging.getLogger(__name__)
 
+# Municipalities with predominantly soft soil (clay/peat), from Rijksdienst voor
+# het Cultureel Erfgoed foundation risk mapping.  Normalized to casefold.
+SOFT_SOIL_MUNICIPALITIES: frozenset[str] = frozenset(
+    m.casefold()
+    for m in (
+        "Amsterdam", "Rotterdam", "Gouda", "Zaanstad", "Dordrecht",
+        "Schiedam", "Delft", "Haarlem", "Leiden", "Alkmaar",
+        "Hoorn", "Purmerend", "Wormerland", "Edam-Volendam",
+    )
+)
+
 _client: httpx.AsyncClient | None = None
 _client_loop_id: int | None = None
 
@@ -28,29 +39,51 @@ def _classify_foundation_risk(
     construction_year: int | None,
     soil_type: str | None,
     subsidence_rate: float | None,
-) -> str:
+    municipality: str | None = None,
+) -> tuple[str, str | None]:
     """Classify foundation risk level from inputs.
 
-    Returns "high", "medium", "low", or "unavailable".
+    Returns (level, message_code) where level is "high"/"medium"/"low"/"unavailable"
+    and message_code is an optional informational code about the classification path.
     """
-    if soil_type is None or construction_year is None:
-        return "unavailable"
+    if construction_year is None:
+        return ("unavailable", None)
 
-    soft_soil = soil_type.lower() in ("klei", "veen")
-    high_subsidence = subsidence_rate is not None and subsidence_rate > 2.0
+    # Primary path: soil type available from BRO
+    if soil_type is not None:
+        soft_soil = soil_type.lower() in ("klei", "veen")
+        high_subsidence = subsidence_rate is not None and subsidence_rate > 2.0
+
+        if construction_year < 1970:
+            if soft_soil:
+                return ("high" if high_subsidence else "medium", None)
+            return ("low", None)
+
+        if construction_year <= 1990:
+            if soft_soil and high_subsidence:
+                return ("medium", None)
+            return ("low", None)
+
+        return ("low", None)
+
+    # Fallback path: no soil data — use construction year + soft-soil city heuristic
+    in_soft_soil_city = (
+        municipality is not None
+        and municipality.strip().casefold() in SOFT_SOIL_MUNICIPALITIES
+    )
 
     if construction_year < 1970:
-        if soft_soil:
-            return "high" if high_subsidence else "medium"
-        return "low"
+        if in_soft_soil_city:
+            return ("high", "FOUNDATION_SOFT_SOIL_CITY")
+        return ("medium", "FOUNDATION_YEAR_ONLY")
 
     if construction_year <= 1990:
-        if soft_soil and high_subsidence:
-            return "medium"
-        return "low"
+        if in_soft_soil_city:
+            return ("medium", "FOUNDATION_SOFT_SOIL_CITY")
+        return ("low", "FOUNDATION_YEAR_ONLY")
 
     # Post-1990: modern foundations
-    return "low"
+    return ("low", "FOUNDATION_YEAR_ONLY")
 
 
 def _normalize_soil_type(raw: str) -> str:
@@ -161,6 +194,7 @@ async def get_foundation_risk(
     construction_year: int | None,
     rd_x: float,
     rd_y: float,
+    municipality: str | None = None,
 ) -> FoundationRisk:
     """Assess foundation risk from soil type, subsidence, and construction year."""
     soil_type, subsidence_rate = await asyncio.gather(
@@ -168,7 +202,9 @@ async def get_foundation_risk(
         _fetch_subsidence_rate(rd_x, rd_y),
     )
 
-    level = _classify_foundation_risk(construction_year, soil_type, subsidence_rate)
+    level, msg_code = _classify_foundation_risk(
+        construction_year, soil_type, subsidence_rate, municipality
+    )
 
     messages: list[str] = []
     if soil_type is None:
@@ -177,6 +213,8 @@ async def get_foundation_risk(
         messages.append("FOUNDATION_NO_SUBSIDENCE_DATA")
     if construction_year is None:
         messages.append("FOUNDATION_NO_YEAR")
+    if msg_code:
+        messages.append(msg_code)
 
     return FoundationRisk(
         level=level,

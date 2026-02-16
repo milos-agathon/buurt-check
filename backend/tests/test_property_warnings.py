@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.models.building import BuildingFacts
 from app.models.property_warnings import FoundationRisk
 from app.services.property_warnings import build_attention_summary, get_property_warnings
 
@@ -101,6 +102,42 @@ class TestErfpachtDetection:
                 municipality="AMSTERDAM",
             )
         assert result.erfpacht.detected is True
+
+    @pytest.mark.asyncio
+    async def test_gouda_flags_erfpacht(self):
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="low", construction_year=2000),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=2000,
+                num_units=1,
+                municipality="Gouda",
+            )
+        assert result.erfpacht.detected is True
+        assert result.erfpacht.confidence == "municipality_based"
+
+    @pytest.mark.asyncio
+    async def test_erfpacht_municipality_only_message(self):
+        """Erfpacht detection includes municipality_only confidence note."""
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="low", construction_year=2000),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=2000,
+                num_units=1,
+                municipality="Amsterdam",
+            )
+        assert "ERFPACHT_NOTE_MUNICIPALITY_ONLY" in result.erfpacht.messages
 
     @pytest.mark.asyncio
     async def test_non_erfpacht_city_no_flag(self):
@@ -432,3 +469,118 @@ class TestLeadPipeWarning:
             )
         categories = {f.category for f in result.attention_summary.flags}
         assert "lead_pipe" in categories
+
+    @pytest.mark.asyncio
+    async def test_attention_summary_includes_all_property_flags(self):
+        """Attention summary wires all property-level signals, not just lead pipe."""
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="high", construction_year=1950),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=1950,
+                num_units=8,
+                municipality="Amsterdam",
+            )
+        categories = {f.category for f in result.attention_summary.flags}
+        assert "foundation" in categories
+        assert "erfpacht" in categories
+        assert "vve" in categories
+        assert "asbestos" in categories
+        assert "lead_pipe" in categories
+        assert result.attention_summary.risk_categories_assessed == 0
+
+
+# --- BAG fallback for missing construction_year / num_units ---
+
+
+class TestBAGFallback:
+    @pytest.mark.asyncio
+    async def test_bag_fallback_called_when_params_missing(self):
+        """When construction_year is None, BAG is called to fill it."""
+        fake_facts = BuildingFacts(
+            pand_id="0363100000000001",
+            construction_year=1955,
+            num_units=4,
+        )
+        with (
+            patch(
+                "app.services.property_warnings.bag.get_building_facts",
+                new_callable=AsyncMock,
+                return_value=fake_facts,
+            ) as mock_bag,
+            patch(
+                "app.services.property_warnings.foundation_risk.get_foundation_risk",
+                new_callable=AsyncMock,
+                return_value=FoundationRisk(level="low", construction_year=1955),
+            ),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=None,
+                num_units=None,
+                municipality=None,
+            )
+        mock_bag.assert_awaited_once_with("0363200000000001")
+        # BAG-supplied year used for lead pipe detection
+        assert result.lead_pipe.flagged is True
+        assert result.lead_pipe.construction_year == 1955
+        # BAG-supplied num_units used for VvE detection
+        assert result.vve.is_apartment is True
+        assert result.vve.num_units == 4
+
+    @pytest.mark.asyncio
+    async def test_bag_fallback_failure_graceful(self):
+        """When BAG fallback raises, property warnings still work with None values."""
+        with (
+            patch(
+                "app.services.property_warnings.bag.get_building_facts",
+                new_callable=AsyncMock,
+                side_effect=Exception("BAG down"),
+            ),
+            patch(
+                "app.services.property_warnings.foundation_risk.get_foundation_risk",
+                new_callable=AsyncMock,
+                return_value=FoundationRisk(level="unavailable"),
+            ),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=None,
+                num_units=None,
+                municipality=None,
+            )
+        assert result.lead_pipe.flagged is False
+        assert result.vve.is_apartment is False
+
+    @pytest.mark.asyncio
+    async def test_no_bag_call_when_params_present(self):
+        """When both construction_year and num_units supplied, no BAG call."""
+        with (
+            patch(
+                "app.services.property_warnings.bag.get_building_facts",
+                new_callable=AsyncMock,
+            ) as mock_bag,
+            patch(
+                "app.services.property_warnings.foundation_risk.get_foundation_risk",
+                new_callable=AsyncMock,
+                return_value=FoundationRisk(level="low", construction_year=2000),
+            ),
+        ):
+            await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=2000,
+                num_units=1,
+                municipality=None,
+            )
+        mock_bag.assert_not_awaited()

@@ -137,7 +137,7 @@ describe('AttentionSummary', () => {
       warnings: makeCleanWarnings(),
     });
     // noise + air scored, climate undefined, no sunlight = 2 of 4
-    expect(screen.getByText(/2 of 4/i)).toBeInTheDocument();
+    expect(screen.getByText(/based on 2 of 4/i)).toBeInTheDocument();
   });
 
   it('includes VvE in flag count for apartments', () => {
@@ -210,6 +210,54 @@ describe('AttentionSummary', () => {
     });
     // Per v7 design spec: livability does NOT contribute to attention flags
     expect(screen.getByText(/no flags raised/i)).toBeInTheDocument();
+  });
+
+  it('renders flag bullet list when flags exist', () => {
+    renderSummary({
+      riskCards: makePoorNoiseRiskCards(),
+      warnings: makeFoundationHighWarnings(),
+      sunlightScore: 80,
+    });
+    const flagList = screen.getByTestId('attention-flags');
+    expect(flagList).toBeInTheDocument();
+    const items = flagList.querySelectorAll('li');
+    expect(items.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders green-state detail when no flags and data assessed', () => {
+    renderSummary({
+      riskCards: makeGoodRiskCards(),
+      warnings: makeCleanWarnings(),
+      sunlightScore: 80,
+    });
+    expect(screen.getByTestId('attention-detail')).toBeInTheDocument();
+    expect(screen.getByText(/all assessed risk categories/i)).toBeInTheDocument();
+  });
+
+  it('does not render flag list when no flags', () => {
+    renderSummary({
+      riskCards: makeGoodRiskCards(),
+      warnings: makeCleanWarnings(),
+      sunlightScore: 80,
+    });
+    expect(screen.queryByTestId('attention-flags')).not.toBeInTheDocument();
+  });
+
+  it('renders missing-category explanation for partial data', () => {
+    renderSummary({
+      riskCards: makePartialRiskCards(),
+      warnings: makeCleanWarnings(),
+    });
+    expect(screen.getByTestId('attention-missing')).toBeInTheDocument();
+  });
+
+  it('does not render missing-category when all assessed', () => {
+    renderSummary({
+      riskCards: makeGoodRiskCards(),
+      warnings: makeCleanWarnings(),
+      sunlightScore: 80,
+    });
+    expect(screen.queryByTestId('attention-missing')).not.toBeInTheDocument();
   });
 
   it('lead pipe flag count is not affected by low livability', () => {
