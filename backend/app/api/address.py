@@ -93,14 +93,16 @@ async def address_lookup(
     return resolved
 
 
-VALID_TILE_TYPES = {"noise", "air_quality", "climate"}
+VALID_TILE_TYPES = {"noise", "air_quality", "climate", "luchtfoto"}
 
 
 @router.get("/wms-tile")
 async def wms_tile_proxy(
-    type: str = Query(..., description="Tile type: noise, air_quality, or climate"),
+    type: str = Query(..., description="Tile type: noise, air_quality, climate, or luchtfoto"),
     rd_x: float = Query(..., description="RD X coordinate"),
     rd_y: float = Query(..., description="RD Y coordinate"),
+    radius: float = Query(250.0, ge=10, le=500, description="Tile radius in meters"),
+    size: int = Query(512, ge=128, le=2048, description="Tile size in pixels"),
 ):
     """Proxy WMS GetMap tiles to avoid CORS issues in the browser."""
     if type not in VALID_TILE_TYPES:
@@ -110,19 +112,20 @@ async def wms_tile_proxy(
             f"Must be one of: {', '.join(sorted(VALID_TILE_TYPES))}",
         )
 
-    cache_key = f"wms_tile:{type}:{rd_x:.0f}:{rd_y:.0f}"
+    media_type = "image/jpeg" if type == "luchtfoto" else "image/png"
+    cache_key = f"wms_tile:{type}:{rd_x:.0f}:{rd_y:.0f}:{radius:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         tile_bytes = base64.b64decode(cached)
-        return Response(content=tile_bytes, media_type="image/png")
+        return Response(content=tile_bytes, media_type=media_type)
 
-    tile_bytes = await wms_tile.get_wms_tile(type, rd_x, rd_y)
+    tile_bytes = await wms_tile.get_wms_tile(type, rd_x, rd_y, radius=radius, size=size)
     if tile_bytes is None:
         return Response(status_code=204)
 
     encoded = base64.b64encode(tile_bytes).decode()
     await cache_set(cache_key, encoded, ttl=settings.cache_ttl_wms_tile)
-    return Response(content=tile_bytes, media_type="image/png")
+    return Response(content=tile_bytes, media_type=media_type)
 
 
 @router.get("/{vbo_id}/building", response_model=BuildingFactsResponse)
@@ -209,8 +212,8 @@ async def neighborhood_3d(
     lng: float = Query(...),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
-    # v21: immediate-neighbor fetch uses shared RD origin to keep target/context alignment stable.
-    cache_key = f"neighborhood3d:v21:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    # v23: include completed near-ring prefetch to recover close context when bbox is truncated.
+    cache_key = f"neighborhood3d:v23:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return Neighborhood3DResponse(**cached)

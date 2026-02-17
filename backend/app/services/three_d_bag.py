@@ -12,25 +12,26 @@ logger = logging.getLogger(__name__)
 
 _client: httpx.AsyncClient | None = None
 BBOX_PAGE_LIMIT = 100
-BBOX_MAX_PAGES = 2
+BBOX_MAX_PAGES = 5
 BBOX_FETCH_BUDGET = 80.0
 BBOX_PAGE_TIMEOUT = 65.0
 LOD22_ENRICH_CONCURRENCY = 8
 MIN_FETCH_BUDGET = 1.0
 FALLBACK_RADIUS_FACTOR = 0.6
-FALLBACK_MIN_RADIUS = 40.0
+FALLBACK_MIN_RADIUS = 60.0
 FALLBACK_PAGE_TIMEOUT = 65.0
-FALLBACK_PAGE_LIMIT = 40
-NEARBY_CONTEXT_MIN_RADIUS = 70.0
+FALLBACK_PAGE_LIMIT = 50
+NEARBY_CONTEXT_MIN_RADIUS = 100.0
 NEARBY_CONTEXT_TIMEOUT = 65.0
 NEARBY_CONTEXT_LIMIT = 100
-NEARBY_CONTEXT_MAX_PAGES = 2
+NEARBY_CONTEXT_MAX_PAGES = 5
 IMMEDIATE_CONTEXT_RADIUS = 30.0
 IMMEDIATE_CONTEXT_TIMEOUT = 15.0
 IMMEDIATE_CONTEXT_LIMIT = 200
 IMMEDIATE_CONTEXT_MAX_PAGES = 2
-SECONDARY_FALLBACK_RADIUS = 35.0
+SECONDARY_FALLBACK_RADIUS = 50.0
 PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 5.0
+PRIMARY_WAIT_AFTER_BACKUP_SECONDS = 10.0
 TARGET_FETCH_TIMEOUT = 30.0
 TARGET_FETCH_RETRIES = 6
 BBOX_FETCH_RETRIES = 10
@@ -515,18 +516,19 @@ async def _fetch_bbox_resilient(
         return backup_buildings, primary_partial or backup_partial
 
     backup_buildings, backup_partial = _task_result_or_partial(backup_task)
-    if backup_buildings:
-        if primary_task.done():
-            primary_buildings, primary_partial = _task_result_or_partial(primary_task)
-            if len(primary_buildings) >= len(backup_buildings):
-                return primary_buildings, primary_partial
-        primary_task.cancel()
-        return backup_buildings, True
 
+    # Always wait for primary to finish — it covers a larger radius and returns
+    # more buildings for accurate shadow analysis.  Use backup as minimum
+    # guarantee if primary fails entirely.
+    wait_timeout = (
+        PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS
+        if not backup_buildings
+        else PRIMARY_WAIT_AFTER_BACKUP_SECONDS
+    )
     try:
         primary_buildings, primary_partial = await asyncio.wait_for(
             primary_task,
-            timeout=PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS,
+            timeout=wait_timeout,
         )
     except asyncio.TimeoutError:
         primary_task.cancel()
@@ -534,8 +536,15 @@ async def _fetch_bbox_resilient(
     except Exception:
         primary_task.cancel()
         primary_buildings, primary_partial = [], True
-    if primary_buildings:
-        return primary_buildings, backup_partial or primary_partial
+
+    # Prefer whichever fetch returned more buildings
+    if len(primary_buildings) >= len(backup_buildings):
+        if primary_buildings:
+            return primary_buildings, primary_partial
+    if backup_buildings:
+        return backup_buildings, backup_partial or True
+
+    # Both empty — try a secondary fallback
     secondary_buildings, secondary_partial = await _fetch_bbox_quick_context(
         center_x,
         center_y,
@@ -558,16 +567,19 @@ async def _enrich_with_lod22(
 
     skip = skip_pand_ids or set()
     idx_by_id = {b.pand_id: idx for idx, b in enumerate(buildings)}
-    candidates = [b for b in buildings if b.pand_id not in skip]
+    # Most bbox features already include LoD 2.2 via BuildingPart children.
+    # Only enrich blocks still missing roof surfaces.
+    candidates = [b for b in buildings if b.pand_id not in skip and not b.roof_surfaces]
     partial = False
+
+    if not candidates:
+        return buildings, False
 
     semaphore = asyncio.Semaphore(LOD22_ENRICH_CONCURRENCY)
 
     async def _fetch_one(block: BuildingBlock) -> tuple[str, BuildingBlock | None, bool]:
         async with semaphore:
             detailed = await _fetch_target_building(block.pand_id, center_x, center_y)
-            if detailed is None:
-                detailed = await _fetch_target_building(block.pand_id, center_x, center_y)
             return block.pand_id, detailed, detailed is None
 
     results = await asyncio.gather(*[_fetch_one(b) for b in candidates])
@@ -595,14 +607,11 @@ async def get_neighborhood_3d(
     lat: float,
     lng: float,
     vbo_id: str | None = None,
-    radius: float = 80.0,
+    radius: float = 150.0,
 ) -> Neighborhood3DResponse:
     """Fetch 3D building data from 3DBAG for the neighborhood around a point."""
     near_radius = max(radius * 0.9, NEARBY_CONTEXT_MIN_RADIUS)
-
-    # Parallel fetch: direct target + guaranteed near-neighbor context + broader resilient context.
-    target_building, near_result, bbox_result = await asyncio.gather(
-        _fetch_target_building(pand_id, rd_x, rd_y),
+    near_task = asyncio.create_task(
         _fetch_bbox_quick_context(
             rd_x,
             rd_y,
@@ -610,27 +619,67 @@ async def get_neighborhood_3d(
             limit=NEARBY_CONTEXT_LIMIT,
             timeout_s=NEARBY_CONTEXT_TIMEOUT,
             max_pages=NEARBY_CONTEXT_MAX_PAGES,
-        ),
+        )
+    )
+
+    # Parallel fetch: direct target + broader resilient context first.
+    target_building, bbox_result = await asyncio.gather(
+        _fetch_target_building(pand_id, rd_x, rd_y),
         _fetch_bbox_resilient(rd_x, rd_y, radius),
     )
+    bbox_buildings, bbox_partial = bbox_result
+
+    # Fallback: if the direct target fetch failed, try to find the target
+    # in the bbox results (the single-item endpoint is less reliable than bbox).
+    if target_building is None:
+        for b in bbox_buildings:
+            if b.pand_id == pand_id:
+                target_building = b
+                logger.info(
+                    "Target %s recovered from bbox results after single-item 502",
+                    pand_id,
+                )
+                break
+
+    # Always await the near-ring context — bbox pagination is capped and frequently
+    # returns fewer buildings than the near ring, especially at larger radii.
+    near_buildings: list[BuildingBlock] = []
+    near_partial = False
+    try:
+        near_buildings, near_partial = await near_task
+    except Exception:
+        near_buildings, near_partial = [], True
+
+    if target_building is None:
+        for b in near_buildings:
+            if b.pand_id == pand_id:
+                target_building = b
+                logger.info(
+                    "Target %s recovered from near-ring results after single-item 502",
+                    pand_id,
+                )
+                break
+
     immediate_buildings: list[BuildingBlock] = []
     immediate_partial = False
     if target_building is not None:
-        tx = sum(p[0] for p in target_building.footprint) / len(target_building.footprint)
-        ty = sum(p[1] for p in target_building.footprint) / len(target_building.footprint)
-        immediate_buildings, immediate_partial = await _fetch_bbox_quick_context(
-            rd_x + tx,
-            rd_y + ty,
-            IMMEDIATE_CONTEXT_RADIUS,
-            limit=IMMEDIATE_CONTEXT_LIMIT,
-            timeout_s=IMMEDIATE_CONTEXT_TIMEOUT,
-            max_pages=IMMEDIATE_CONTEXT_MAX_PAGES,
-            reference_x=rd_x,
-            reference_y=rd_y,
+        has_near_or_bbox_context = any(
+            b.pand_id != target_building.pand_id
+            for b in (*near_buildings, *bbox_buildings)
         )
-
-    near_buildings, near_partial = near_result
-    bbox_buildings, bbox_partial = bbox_result
+        if not has_near_or_bbox_context:
+            tx = sum(p[0] for p in target_building.footprint) / len(target_building.footprint)
+            ty = sum(p[1] for p in target_building.footprint) / len(target_building.footprint)
+            immediate_buildings, immediate_partial = await _fetch_bbox_quick_context(
+                rd_x + tx,
+                rd_y + ty,
+                IMMEDIATE_CONTEXT_RADIUS,
+                limit=IMMEDIATE_CONTEXT_LIMIT,
+                timeout_s=IMMEDIATE_CONTEXT_TIMEOUT,
+                max_pages=IMMEDIATE_CONTEXT_MAX_PAGES,
+                reference_x=rd_x,
+                reference_y=rd_y,
+            )
     immediate_degraded = immediate_partial and not immediate_buildings
     near_degraded = near_partial and not near_buildings and not bbox_buildings
 

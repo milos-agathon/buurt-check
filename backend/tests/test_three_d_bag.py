@@ -1,3 +1,4 @@
+import asyncio
 import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -7,6 +8,7 @@ import pytest
 from app.models.neighborhood3d import BuildingBlock
 from app.services.three_d_bag import (
     _compute_building_orientation,
+    _enrich_with_lod22,
     _extract_lod22_surfaces,
     _fetch_bbox_quick_context,
     _fetch_target_building,
@@ -569,6 +571,90 @@ async def test_get_neighborhood_3d_fast_path_skips_context_enrichment(
     assert "0363100012253924" in ids
     assert "0363100000000001" in ids
     assert "0363100000000002" in ids
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_get_neighborhood_3d_prefetches_near_ring_without_duping_context(mock_get_client):
+    """Near-ring prefetch should not duplicate context when bbox already has neighbors."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    bbox_resp = _make_3dbag_response(
+        [
+            _make_feature("0363100000000001"),
+            _make_feature("0363100000000002"),
+        ]
+    )
+    seen_urls: list[str] = []
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        seen_urls.append(s_url)
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        return _make_mock_resp(bbox_resp)
+
+    mock_client.get.side_effect = side_effect
+
+    result = await get_neighborhood_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+    # Near-ring radius query (rd ±135m with radius=150) is prefetched in parallel.
+    assert any("bbox=120870,486870,121140,487140" in u for u in seen_urls)
+    # Result still contains target + two neighbors (no duplication from prefetch).
+    assert len(result.buildings) == 3
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_get_neighborhood_3d_keeps_completed_near_ring_context_when_bbox_has_context(
+    mock_get_client,
+):
+    """Keep prefetched near-ring buildings to avoid dropping close context."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    bbox_resp = _make_3dbag_response([_make_feature("0363100000000001")])
+    near_resp = _make_3dbag_response([_make_feature("0363100000000002")])
+
+    async def side_effect(url, **kwargs):
+        s_url = str(url)
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        if "bbox=120870,486870,121140,487140" in s_url:
+            # Near-ring prefetch (rd ±135m).
+            return _make_mock_resp(near_resp)
+        if "bbox=120855,486855,121155,487155" in s_url:
+            # Broader bbox query (rd ±150m): still has context, but misses one close building.
+            await asyncio.sleep(0.02)
+            return _make_mock_resp(bbox_resp)
+        return _make_mock_resp(_make_3dbag_response([]))
+
+    mock_client.get.side_effect = side_effect
+
+    result = await get_neighborhood_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+    ids = {b.pand_id for b in result.buildings}
+    assert "0363100012253924" in ids
+    assert "0363100000000001" in ids
+    assert "0363100000000002" in ids
+    assert len(result.buildings) == 3
 
 
 @pytest.mark.asyncio
@@ -1192,6 +1278,50 @@ async def test_fetch_target_building_with_lod22(mock_get_client, mock_settings):
     assert result.pand_id == "0363100012253924"
     assert result.roof_surfaces is not None
     assert len(result.roof_surfaces) == 6
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._fetch_target_building")
+async def test_enrich_with_lod22_skips_blocks_that_already_have_roofs(
+    mock_fetch_target_building, mock_settings,
+):
+    """Only blocks missing roof_surfaces should trigger single-item enrichment fetches."""
+    mock_settings.enable_lod22_roofs = True
+
+    already_lod22 = BuildingBlock(
+        pand_id="0363100000000001",
+        ground_height=1.0,
+        building_height=10.0,
+        footprint=[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
+        roof_surfaces=[[[0.0, 0.0, 10.0], [1.0, 0.0, 10.0], [1.0, 1.0, 10.0]]],
+    )
+    missing_lod22 = BuildingBlock(
+        pand_id="0363100000000002",
+        ground_height=1.0,
+        building_height=9.0,
+        footprint=[[2.0, 0.0], [3.0, 0.0], [3.0, 1.0]],
+        roof_surfaces=None,
+    )
+    enriched_missing = BuildingBlock(
+        pand_id="0363100000000002",
+        ground_height=1.0,
+        building_height=9.0,
+        footprint=[[2.0, 0.0], [3.0, 0.0], [3.0, 1.0]],
+        roof_surfaces=[[[2.0, 0.0, 9.0], [3.0, 0.0, 9.0], [3.0, 1.0, 9.0]]],
+    )
+    mock_fetch_target_building.return_value = enriched_missing
+
+    enriched, partial = await _enrich_with_lod22(
+        [already_lod22, missing_lod22],
+        center_x=121005.0,
+        center_y=487005.0,
+    )
+
+    assert partial is False
+    assert mock_fetch_target_building.call_count == 1
+    assert enriched[0].roof_surfaces is not None
+    assert enriched[1].roof_surfaces is not None
 
 
 @pytest.mark.asyncio
