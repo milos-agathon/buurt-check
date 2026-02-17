@@ -2,5 +2,5 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-sm);
-  margin: 0 var(--space-base);
+  margin: 0;
 }

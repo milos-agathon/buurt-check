@@ -65,6 +65,8 @@ const SUN_DISTANCE = 300;
 const GROUND_SIZE = 750;
 const FRUSTUM = 300;
 const TARGET_COLOR = 0x2EC4B6;
+const NEIGHBOR_CHUNK_SIZE = 40;
+const NEIGHBOR_FRAME_BUDGET_MS = 10;
 
 /**
  * Create a BufferGeometry from LoD 2.2 surfaces.
@@ -98,6 +100,32 @@ function createLod22Geometry(surfaces: number[][][], buildingGround: number): Bu
   return geom;
 }
 
+function createBuildingGeometry(building: BuildingBlock): BufferGeometry | null {
+  if (building.roof_surfaces && building.roof_surfaces.length > 0) {
+    return createLod22Geometry(building.roof_surfaces, building.ground_height);
+  }
+
+  const footprint = building.footprint;
+  if (footprint.length < 3) return null;
+
+  const shape = new Shape();
+  shape.moveTo(footprint[0][0], footprint[0][1]);
+  for (let i = 1; i < footprint.length; i++) {
+    shape.lineTo(footprint[i][0], footprint[i][1]);
+  }
+  shape.closePath();
+
+  const geom = new ExtrudeGeometry(shape, {
+    depth: building.building_height,
+    bevelEnabled: false,
+  });
+  const transform = new Matrix4().makeRotationX(-Math.PI / 2);
+  transform.setPosition(0, 0, 0);
+  geom.applyMatrix4(transform);
+  geom.deleteAttribute('uv');
+  return geom;
+}
+
 export default function NeighborhoodViewer3D({ buildings, targetPandId, center, onSunlightAnalysis, onShadowSnapshots }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -115,6 +143,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
   const basemapMeshesRef = useRef<Mesh[]>([]);
   const sunlightComputed = useRef(false);
   const snapshotsCaptured = useRef(false);
+  const neighborBuildFrameRef = useRef<number | null>(null);
 
   // Camera tracking refs
   const cameraSetRef = useRef(false);
@@ -268,11 +297,23 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     if (!ctx || buildings.length === 0) return;
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
 
+    if (neighborBuildFrameRef.current != null) {
+      cancelAnimationFrame(neighborBuildFrameRef.current);
+      neighborBuildFrameRef.current = null;
+    }
+
     // Remove old buildings
+    const disposedMaterials = new Set<Material>();
     for (const mesh of ctx.buildingMeshes) {
       ctx.scene.remove(mesh);
       mesh.geometry.dispose();
-      (mesh.material as Material).dispose();
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of materials) {
+        if (!disposedMaterials.has(material)) {
+          material.dispose();
+          disposedMaterials.add(material);
+        }
+      }
     }
     ctx.buildingMeshes = [];
 
@@ -282,36 +323,28 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       lastFocusedPandId.current = targetPandId;
     }
 
-    const neighborGeoms: BufferGeometry[] = [];
+    const neighborMaterial = new MeshStandardMaterial({
+      color: NEIGHBOR_COLOR,
+      transparent: true,
+      opacity: NEIGHBOR_OPACITY,
+      side: DoubleSide,
+    });
+    let neighborMaterialUsed = false;
+    let neighborMaterialDisposed = false;
+    const disposeNeighborMaterial = () => {
+      if (!neighborMaterialDisposed) {
+        neighborMaterial.dispose();
+        neighborMaterialDisposed = true;
+      }
+    };
+    const deferredNeighbors: BuildingBlock[] = [];
 
     for (const building of buildings) {
-      let geom: BufferGeometry;
       const isTarget = building.pand_id === targetPandId;
 
-      if (building.roof_surfaces && building.roof_surfaces.length > 0) {
-        geom = createLod22Geometry(building.roof_surfaces, building.ground_height);
-      } else {
-        const shape = new Shape();
-        const fp = building.footprint;
-        if (fp.length < 3) continue;
-
-        shape.moveTo(fp[0][0], fp[0][1]);
-        for (let i = 1; i < fp.length; i++) {
-          shape.lineTo(fp[i][0], fp[i][1]);
-        }
-        shape.closePath();
-
-        geom = new ExtrudeGeometry(shape, {
-          depth: building.building_height,
-          bevelEnabled: false,
-        });
-        const transform = new Matrix4().makeRotationX(-Math.PI / 2);
-        transform.setPosition(0, 0, 0);
-        geom.applyMatrix4(transform);
-        geom.deleteAttribute('uv');
-      }
-
       if (isTarget) {
+        const geom = createBuildingGeometry(building);
+        if (!geom) continue;
         const mat = new MeshStandardMaterial({
           color: isDarkMode ? TARGET_COLOR : TARGET_COLOR,
           emissive: 0x57D4C8,
@@ -327,37 +360,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         continue;
       }
 
-      neighborGeoms.push(geom);
-    }
-
-    // Merge all neighbor geometries into a single draw call
-    const neighborMat = new MeshStandardMaterial({
-      color: NEIGHBOR_COLOR,
-      transparent: true,
-      opacity: NEIGHBOR_OPACITY,
-      side: DoubleSide,
-    });
-
-    if (neighborGeoms.length > 0) {
-      const merged = mergeGeometries(neighborGeoms, false);
-      if (merged) {
-        for (const g of neighborGeoms) g.dispose();
-        const mesh = new Mesh(merged, neighborMat);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.userData.isContext = true;
-        ctx.scene.add(mesh);
-        ctx.buildingMeshes.push(mesh);
-      } else {
-        for (const g of neighborGeoms) {
-          const mesh = new Mesh(g, neighborMat);
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          mesh.userData.isContext = true;
-          ctx.scene.add(mesh);
-          ctx.buildingMeshes.push(mesh);
-        }
-      }
+      deferredNeighbors.push(building);
     }
 
     // Camera framing on first load
@@ -368,6 +371,77 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
     sunlightComputed.current = false;
     snapshotsCaptured.current = false;
+
+    let cancelled = false;
+    let nextIndex = 0;
+
+    const addNeighborChunk = () => {
+      if (cancelled || !sceneRef.current) return;
+
+      const chunkGeometries: BufferGeometry[] = [];
+      const chunkStart = performance.now();
+
+      while (nextIndex < deferredNeighbors.length && chunkGeometries.length < NEIGHBOR_CHUNK_SIZE) {
+        const geom = createBuildingGeometry(deferredNeighbors[nextIndex]);
+        nextIndex += 1;
+        if (geom) chunkGeometries.push(geom);
+        if (performance.now() - chunkStart >= NEIGHBOR_FRAME_BUDGET_MS) {
+          break;
+        }
+      }
+
+      if (chunkGeometries.length > 0) {
+        const merged = mergeGeometries(chunkGeometries, false);
+        if (merged) {
+          for (const geom of chunkGeometries) {
+            geom.dispose();
+          }
+          const mesh = new Mesh(merged, neighborMaterial);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.userData.isContext = true;
+          ctx.scene.add(mesh);
+          ctx.buildingMeshes.push(mesh);
+          neighborMaterialUsed = true;
+        } else {
+          for (const geom of chunkGeometries) {
+            const mesh = new Mesh(geom, neighborMaterial);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData.isContext = true;
+            ctx.scene.add(mesh);
+            ctx.buildingMeshes.push(mesh);
+            neighborMaterialUsed = true;
+          }
+        }
+      }
+
+      if (nextIndex < deferredNeighbors.length) {
+        neighborBuildFrameRef.current = requestAnimationFrame(addNeighborChunk);
+      } else {
+        neighborBuildFrameRef.current = null;
+        if (!neighborMaterialUsed) {
+          disposeNeighborMaterial();
+        }
+      }
+    };
+
+    if (deferredNeighbors.length > 0) {
+      neighborBuildFrameRef.current = requestAnimationFrame(addNeighborChunk);
+    } else {
+      disposeNeighborMaterial();
+    }
+
+    return () => {
+      cancelled = true;
+      if (neighborBuildFrameRef.current != null) {
+        cancelAnimationFrame(neighborBuildFrameRef.current);
+        neighborBuildFrameRef.current = null;
+      }
+      if (!neighborMaterialUsed) {
+        disposeNeighborMaterial();
+      }
+    };
   }, [buildings, targetPandId, frameCamera]);
 
   // Fix sun to summer noon — static lighting for context card

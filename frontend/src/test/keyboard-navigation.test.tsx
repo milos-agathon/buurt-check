@@ -25,12 +25,17 @@ describe('Keyboard navigation', () => {
   it('TabBar tabs can be activated with keyboard', async () => {
     const user = userEvent.setup();
     const onTabChange = vi.fn();
-    renderWithI18n(<TabBar activeTab="search" onTabChange={onTabChange} savedCount={2} />);
+    renderWithI18n(<TabBar activeTab="home" onTabChange={onTabChange} savedCount={2} hasDossier />);
 
     await user.tab();
-    expect(screen.getByRole('tab', { name: 'Search' })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: 'Home' })).toHaveFocus();
     await user.keyboard('{Enter}');
-    expect(onTabChange).toHaveBeenCalledWith('search');
+    expect(onTabChange).toHaveBeenCalledWith('home');
+
+    await user.tab();
+    expect(screen.getByRole('tab', { name: 'Briefing' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(onTabChange).toHaveBeenCalledWith('briefing');
 
     await user.tab();
     expect(screen.getByRole('tab', { name: 'Saved' })).toHaveFocus();
@@ -47,7 +52,6 @@ describe('Keyboard navigation', () => {
     expect(en).toHaveAttribute('aria-checked', 'true');
 
     await user.tab(); // logo link
-    await user.tab(); // EN button
     await user.tab(); // NL button
     expect(nl).toHaveFocus();
     await user.keyboard('{Enter}');

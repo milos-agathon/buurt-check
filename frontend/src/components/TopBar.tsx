@@ -40,20 +40,20 @@ export default function TopBar({ title, onSettingsClick }: TopBarProps) {
           <button
             type="button"
             role="radio"
-            aria-checked={i18n.language === 'en'}
-            className={`top-bar__lang-btn${i18n.language === 'en' ? ' top-bar__lang-btn--active' : ''}`}
-            onClick={() => i18n.changeLanguage('en')}
-          >
-            EN
-          </button>
-          <button
-            type="button"
-            role="radio"
             aria-checked={i18n.language === 'nl'}
             className={`top-bar__lang-btn${i18n.language === 'nl' ? ' top-bar__lang-btn--active' : ''}`}
             onClick={() => i18n.changeLanguage('nl')}
           >
             NL
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={i18n.language === 'en'}
+            className={`top-bar__lang-btn${i18n.language === 'en' ? ' top-bar__lang-btn--active' : ''}`}
+            onClick={() => i18n.changeLanguage('en')}
+          >
+            EN
           </button>
         </div>
         {onSettingsClick && (

@@ -21,7 +21,6 @@ function renderCard(props: { data?: TierBResponse; loading?: boolean; error?: bo
 describe('TierBSignalsCard', () => {
   it('renders loading state', () => {
     renderCard({ loading: true });
-    expect(screen.getByText('Energy + Crime Signals')).toBeInTheDocument();
     expect(screen.getByText('Loading Tier-B signals...')).toBeInTheDocument();
   });
 
@@ -30,9 +29,8 @@ describe('TierBSignalsCard', () => {
       data: {
         address_id: 'vbo-1',
         energy_label: {
-          label: 'A',
           source: 'EP-Online',
-          source_date: '2025-05-01',
+          source_date: '2025-01-01',
         },
         crime: {
           total_per_1000: 12.5,
@@ -46,10 +44,10 @@ describe('TierBSignalsCard', () => {
       },
     });
 
-    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.getByText('Crime (registered)')).toBeInTheDocument();
     expect(screen.getByText('12.5')).toBeInTheDocument();
-    expect(screen.getByText(/Source \+ date: EP-Online/)).toBeInTheDocument();
     expect(screen.getByText(/Source \+ date: CBS OData/)).toBeInTheDocument();
+    expect(screen.getByText('Latest month: December 2025')).toBeInTheDocument();
   });
 
   it('renders fallback values when data is unavailable', () => {
@@ -58,7 +56,7 @@ describe('TierBSignalsCard', () => {
         address_id: 'vbo-1',
         energy_label: {
           source: 'EP-Online',
-          message: 'ENERGY_AUTH_REQUIRED',
+          message: 'ENERGY_LABEL_NO_DATA',
         },
         crime: {
           source: 'CBS OData 47018NED/47022NED',
@@ -67,7 +65,8 @@ describe('TierBSignalsCard', () => {
       },
     });
 
-    expect(screen.getByText('Energy label service requires API authorization.')).toBeInTheDocument();
     expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
+    expect(screen.getByText('Per-capita rates unavailable — showing total registered incidents.')).toBeInTheDocument();
+    expect(screen.getByText('Population data unavailable for this neighborhood. Showing raw registered incident counts. Data is indicative.')).toBeInTheDocument();
   });
 });

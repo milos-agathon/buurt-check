@@ -12,7 +12,8 @@ i18n
       en: { translation: en },
       nl: { translation: nl },
     },
-    fallbackLng: 'en',
+    lng: 'nl',
+    fallbackLng: 'nl',
     interpolation: {
       escapeValue: false,
     },

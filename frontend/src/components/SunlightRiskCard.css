@@ -3,7 +3,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: var(--space-md);
-  margin: 0 var(--space-base);
+  margin: 0;
 }
 
 .sunlight-card__title {

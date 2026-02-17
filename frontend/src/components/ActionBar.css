@@ -4,8 +4,7 @@
   display: flex;
   gap: var(--space-xs);
   padding: 0 var(--space-base);
-  margin: var(--space-base) 0
-    calc(var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px) + var(--space-xs));
+  margin: var(--space-base) 0 var(--space-base);
   box-sizing: border-box;
   background: transparent;
   z-index: 1;

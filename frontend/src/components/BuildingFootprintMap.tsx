@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Geometry, Position } from 'geojson';
 import { useTranslation } from 'react-i18next';
 import './BuildingFootprintMap.css';
@@ -6,17 +6,15 @@ import './BuildingFootprintMap.css';
 interface Props {
   lat: number;
   lng: number;
+  rdX?: number;
+  rdY?: number;
   footprint?: Geometry;
   zoom?: number;
 }
 
-interface Point {
-  x: number;
-  y: number;
-}
-
 const VIEWBOX_SIZE = 100;
 const VIEWBOX_PADDING = 8;
+const TILE_RADIUS = 80; // meters around center
 
 function polygonArea(ring: Position[]): number {
   let area = 0;
@@ -55,81 +53,150 @@ function getPrimaryRing(geometry?: Geometry): Position[] | undefined {
   return undefined;
 }
 
-function normalizeRing(ring: Position[]): Point[] {
-  const xs = ring.map((coord) => coord[0]);
-  const ys = ring.map((coord) => coord[1]);
+/**
+ * Convert WGS84 footprint ring to SVG path on the aerial tile.
+ * Uses a local linear approximation: at the center point we know both WGS84 and RD.
+ * At ~52N: 1 degree lng ≈ 68_710m, 1 degree lat ≈ 111_320m in RD meters.
+ */
+function wgs84RingToSvgPath(
+  ring: Position[],
+  centerLng: number, centerLat: number,
+  centerRdX: number, centerRdY: number,
+  tileRadius: number,
+): string | undefined {
+  if (ring.length < 3) return undefined;
+  const mPerDegLng = 68710; // at ~52N latitude
+  const mPerDegLat = 111320;
+  const bboxMinX = centerRdX - tileRadius;
+  const bboxMinY = centerRdY - tileRadius;
+  const bboxSize = tileRadius * 2;
+  const scale = VIEWBOX_SIZE / bboxSize;
 
+  const points = ring.map(([lng, lat]) => {
+    const rdX = centerRdX + (lng - centerLng) * mPerDegLng;
+    const rdY = centerRdY + (lat - centerLat) * mPerDegLat;
+    return {
+      x: (rdX - bboxMinX) * scale,
+      y: VIEWBOX_SIZE - (rdY - bboxMinY) * scale,
+    };
+  });
+
+  const [first, ...rest] = points;
+  const cmds = [`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`];
+  for (const p of rest) cmds.push(`L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
+  cmds.push('Z');
+  return cmds.join(' ');
+}
+
+function normalizeRing(ring: Position[]): { x: number; y: number }[] {
+  const xs = ring.map((c) => c[0]);
+  const ys = ring.map((c) => c[1]);
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
-
   const rangeX = Math.max(maxX - minX, 1e-9);
   const rangeY = Math.max(maxY - minY, 1e-9);
   const drawableSize = VIEWBOX_SIZE - VIEWBOX_PADDING * 2;
-
-  return ring.map((coord) => {
-    const x = VIEWBOX_PADDING + ((coord[0] - minX) / rangeX) * drawableSize;
-    const y = VIEWBOX_SIZE - (VIEWBOX_PADDING + ((coord[1] - minY) / rangeY) * drawableSize);
-    return { x, y };
-  });
+  return ring.map((c) => ({
+    x: VIEWBOX_PADDING + ((c[0] - minX) / rangeX) * drawableSize,
+    y: VIEWBOX_SIZE - (VIEWBOX_PADDING + ((c[1] - minY) / rangeY) * drawableSize),
+  }));
 }
 
-function toPath(points: Point[]): string | undefined {
+function toPath(points: { x: number; y: number }[]): string | undefined {
   if (points.length < 3) return undefined;
   const [first, ...rest] = points;
-  const commands = [`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`];
-  for (const point of rest) {
-    commands.push(`L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`);
-  }
-  commands.push('Z');
-  return commands.join(' ');
+  const cmds = [`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`];
+  for (const p of rest) cmds.push(`L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
+  cmds.push('Z');
+  return cmds.join(' ');
 }
 
-export default function BuildingFootprintMap({ lat, lng, footprint, zoom }: Props) {
+export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint }: Props) {
   const { t } = useTranslation();
-  const ringPath = useMemo(() => {
-    const ring = getPrimaryRing(footprint);
+  const [imgError, setImgError] = useState(false);
+
+  const ring = useMemo(() => getPrimaryRing(footprint), [footprint]);
+
+  // Aerial photo URL (backend WMS proxy)
+  const aerialUrl = useMemo(() => {
+    if (rdX == null || rdY == null) return undefined;
+    const params = new URLSearchParams({
+      type: 'luchtfoto',
+      rd_x: String(rdX),
+      rd_y: String(rdY),
+      radius: String(TILE_RADIUS),
+      size: '512',
+    });
+    return `/api/address/wms-tile?${params}`;
+  }, [rdX, rdY]);
+
+  // Map footprint WGS84 coords to SVG overlay on the aerial image
+  const overlayPath = useMemo(() => {
+    if (!ring || ring.length < 3 || rdX == null || rdY == null) return undefined;
+    return wgs84RingToSvgPath(ring, lng, lat, rdX, rdY, TILE_RADIUS);
+  }, [ring, lng, lat, rdX, rdY]);
+
+  // Fallback SVG path (when no aerial photo available)
+  const fallbackPath = useMemo(() => {
     if (!ring || ring.length < 3) return undefined;
     return toPath(normalizeRing(ring));
-  }, [footprint]);
+  }, [ring]);
 
-  const zoomHint = zoom ?? 18;
+  const showAerial = aerialUrl && !imgError;
 
   return (
     <div className="footprint-map" data-testid="map">
-      <h2 className="footprint-map__title">{t('map.title')}</h2>
-      <div className="footprint-map__container" role="img" aria-label={t('map.title')}>
-        <svg
-          className="footprint-map__svg"
-          viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}
-          preserveAspectRatio="xMidYMid meet"
-        >
-          <defs>
-            <pattern
-              id="footprint-grid"
-              width="10"
-              height="10"
-              patternUnits="userSpaceOnUse"
-            >
-              <path d="M 10 0 L 0 0 0 10" fill="none" className="footprint-map__grid-line" />
-            </pattern>
-          </defs>
-          <rect x="0" y="0" width={VIEWBOX_SIZE} height={VIEWBOX_SIZE} className="footprint-map__bg" />
-          <rect
-            x={VIEWBOX_PADDING}
-            y={VIEWBOX_PADDING}
-            width={VIEWBOX_SIZE - VIEWBOX_PADDING * 2}
-            height={VIEWBOX_SIZE - VIEWBOX_PADDING * 2}
-            className="footprint-map__grid"
-          />
-          {ringPath && <path d={ringPath} className="footprint-map__shape" />}
-          <circle cx={VIEWBOX_SIZE / 2} cy={VIEWBOX_SIZE / 2} r="1.8" className="footprint-map__pin" />
-        </svg>
-        <p className="footprint-map__meta">
-          {lat.toFixed(5)}, {lng.toFixed(5)} | z{zoomHint}
-        </p>
+      <div className="footprint-map__container" role="img" aria-label={t('map.aerialTitle', 'Luchtfoto')}>
+        {showAerial ? (
+          <div className="footprint-map__aerial-wrap">
+            <img
+              src={aerialUrl}
+              alt={t('map.aerialTitle', 'Luchtfoto')}
+              className="footprint-map__aerial-img"
+              onError={() => setImgError(true)}
+              loading="eager"
+            />
+            {overlayPath && (
+              <svg
+                className="footprint-map__aerial-overlay"
+                viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}
+                preserveAspectRatio="none"
+              >
+                <path d={overlayPath} className="footprint-map__shape" />
+              </svg>
+            )}
+          </div>
+        ) : (
+          <svg
+            className="footprint-map__svg"
+            viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            <defs>
+              <pattern id="footprint-grid" width="10" height="10" patternUnits="userSpaceOnUse">
+                <path d="M 10 0 L 0 0 0 10" fill="none" className="footprint-map__grid-line" />
+              </pattern>
+            </defs>
+            <rect x="0" y="0" width={VIEWBOX_SIZE} height={VIEWBOX_SIZE} className="footprint-map__bg" />
+            <rect
+              x={VIEWBOX_PADDING}
+              y={VIEWBOX_PADDING}
+              width={VIEWBOX_SIZE - VIEWBOX_PADDING * 2}
+              height={VIEWBOX_SIZE - VIEWBOX_PADDING * 2}
+              className="footprint-map__grid"
+            />
+            {fallbackPath && <path d={fallbackPath} className="footprint-map__shape" />}
+            <circle cx={VIEWBOX_SIZE / 2} cy={VIEWBOX_SIZE / 2} r="1.8" className="footprint-map__pin" />
+          </svg>
+        )}
       </div>
+      <p className="footprint-map__source">
+        {showAerial
+          ? t('map.aerialSource', 'Luchtfoto: PDOK / Kadaster (CC BY 4.0)')
+          : `${lat.toFixed(5)}, ${lng.toFixed(5)}`}
+      </p>
     </div>
   );
 }

@@ -11,13 +11,15 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-secondary);
-  margin: 0 var(--space-base) var(--space-xs);
+  margin: 0 0 var(--space-xs);
+  padding: 0 var(--space-base);
 }
 
 .risk-cards__loading {
   color: var(--color-text-tertiary);
   font: var(--type-small);
-  margin: 0 var(--space-base);
+  margin: 0;
+  padding: 0 var(--space-base);
 }
 
 .risk-cards__error {
@@ -27,14 +29,14 @@
   border-left: 3px solid var(--color-warning);
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
-  margin: 0 var(--space-base);
+  margin: 0;
 }
 
 .risk-cards__grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-sm);
-  margin: 0 var(--space-base);
+  margin: 0;
 }
 
 .risk-card {
@@ -96,7 +98,6 @@
 .risk-card__question {
   font: var(--type-small);
   background: var(--color-accent-light);
-  border-left: 3px solid var(--color-primary);
   border-radius: var(--radius-sm);
   padding: 3px var(--space-xs);
 }
@@ -123,6 +124,7 @@
 }
 
 .risk-cards__disclaimer {
-  margin: var(--space-3xs) var(--space-base) 0;
+  margin: var(--space-3xs) 0 0;
+  padding: 0 var(--space-base);
 }
 

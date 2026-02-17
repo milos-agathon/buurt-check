@@ -3,8 +3,8 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-md);
-  margin: var(--space-base) var(--space-base);
-  padding: var(--space-base) 0;
+  margin: var(--space-base) 0;
+  padding: var(--space-base);
 }
 
 .address-header__info {

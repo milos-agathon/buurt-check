@@ -394,7 +394,8 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByText('Building Facts')).toBeInTheDocument();
     });
-    expect(screen.queryByTestId('viewer-3d')).not.toBeInTheDocument();
+    expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+    expect(screen.getByText(/1 buildings/)).toBeInTheDocument();
     // No error shown to user for 3D failure
     expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument();
     // Loading indicator should not be stuck after failure
@@ -427,12 +428,16 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByText('Loading 3D data...')).toBeInTheDocument();
     });
-    expect(screen.queryByTestId('viewer-3d')).not.toBeInTheDocument();
+    expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+    expect(screen.getByText(/1 buildings/)).toBeInTheDocument();
   });
 
-  it('shows no-data message when 3D returns empty buildings', async () => {
+  it('keeps instant target building when both 3D endpoints return empty context', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockBuilding3D.mockResolvedValue(
+      makeNeighborhood3DResponse({ buildings: [], target_pand_id: undefined }),
+    );
     mockNeighborhood3D.mockResolvedValue(
       makeNeighborhood3DResponse({ buildings: [], target_pand_id: undefined }),
     );
@@ -441,9 +446,32 @@ describe('3D viewer integration', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByText('No 3D building data available.')).toBeInTheDocument();
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+      expect(screen.getByText(/1 buildings/)).toBeInTheDocument();
     });
-    expect(screen.queryByTestId('viewer-3d')).not.toBeInTheDocument();
+    expect(screen.queryByText('No 3D building data available.')).not.toBeInTheDocument();
+  });
+
+  it('keeps phase-1 target building when neighborhood fetch returns empty', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    const phase1 = makeNeighborhood3DResponse({
+      buildings: [makeNeighborhood3DResponse().buildings[0]],
+    });
+    mockBuilding3D.mockResolvedValue(phase1);
+    mockNeighborhood3D.mockResolvedValue(
+      makeNeighborhood3DResponse({ buildings: [], target_pand_id: undefined }),
+    );
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+      expect(screen.getByText(/1 buildings/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No 3D building data available.')).not.toBeInTheDocument();
+    expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
   });
 
   it('shows sunlight unavailable when 3D returns empty buildings', async () => {
@@ -476,7 +504,7 @@ describe('3D viewer integration', () => {
     });
   });
 
-  it('shows sunlight unavailable when buildings exist but no target_pand_id', async () => {
+  it('keeps sunlight loading when neighborhood omits target_pand_id but instant target exists', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(
@@ -487,9 +515,9 @@ describe('3D viewer integration', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
+      expect(screen.getByText('Loading sunlight...')).toBeInTheDocument();
     });
-    expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
   });
 });
 

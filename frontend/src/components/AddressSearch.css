@@ -1,6 +1,10 @@
 .address-search {
-  position: relative;
+  position: sticky;
+  top: var(--top-bar-height);
+  z-index: 39;
   width: 100%;
+  background: var(--color-bg);
+  padding-bottom: var(--space-xs);
 }
 
 .address-search__wrapper {

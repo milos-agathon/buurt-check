@@ -48,6 +48,7 @@ import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clear
 import { clearRecent } from './services/recentSearches';
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
 import { ToastContainer, useToast } from './components/ui/Toast';
+import type { Geometry, Position } from 'geojson';
 import type {
   AddressSuggestion,
   ResolvedAddress,
@@ -141,13 +142,176 @@ function fallbackSunlightQuestions(score: number | undefined) {
   ];
 }
 
+const PLACEHOLDER_BUILDING_HEIGHT_M = 12;
+const PLACEHOLDER_HALF_SIZE_M = 6;
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function normalizeLinearRing(ring: Position[] | undefined): [number, number][] {
+  if (!Array.isArray(ring)) return [];
+
+  const normalized: [number, number][] = [];
+  for (const coordinate of ring) {
+    const [lng, lat] = coordinate;
+    if (isFiniteNumber(lng) && isFiniteNumber(lat)) {
+      normalized.push([lng, lat]);
+    }
+  }
+
+  if (normalized.length >= 2) {
+    const [firstLng, firstLat] = normalized[0];
+    const [lastLng, lastLat] = normalized[normalized.length - 1];
+    if (firstLng === lastLng && firstLat === lastLat) {
+      normalized.pop();
+    }
+  }
+
+  return normalized.length >= 3 ? normalized : [];
+}
+
+function ringArea(ring: [number, number][]): number {
+  let area = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    area += (x1 * y2) - (x2 * y1);
+  }
+  return area * 0.5;
+}
+
+function extractPrimaryRing(geometry?: Geometry): [number, number][] | null {
+  if (!geometry) return null;
+
+  if (geometry.type === 'Polygon') {
+    const ring = normalizeLinearRing(geometry.coordinates[0]);
+    return ring.length >= 3 ? ring : null;
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    let bestRing: [number, number][] | null = null;
+    let bestArea = 0;
+
+    for (const polygon of geometry.coordinates) {
+      const ring = normalizeLinearRing(polygon[0]);
+      if (ring.length < 3) continue;
+      const area = Math.abs(ringArea(ring));
+      if (!bestRing || area > bestArea) {
+        bestRing = ring;
+        bestArea = area;
+      }
+    }
+
+    return bestRing;
+  }
+
+  return null;
+}
+
+function lngLatRingToLocalFootprint(
+  ring: [number, number][] | null,
+  centerLat: number,
+  centerLng: number,
+): number[][] | null {
+  if (!ring || ring.length < 3) return null;
+
+  const latRad = (centerLat * Math.PI) / 180;
+  const metersPerDegLat = 111_132.92;
+  const metersPerDegLng = 111_320 * Math.cos(latRad);
+  if (!Number.isFinite(metersPerDegLng) || Math.abs(metersPerDegLng) < 1e-6) return null;
+
+  const footprint: number[][] = [];
+  for (const [lng, lat] of ring) {
+    const dx = (lng - centerLng) * metersPerDegLng;
+    const dy = (lat - centerLat) * metersPerDegLat;
+    if (Number.isFinite(dx) && Number.isFinite(dy)) {
+      footprint.push([dx, dy]);
+    }
+  }
+
+  return footprint.length >= 3 ? footprint : null;
+}
+
+function createPlaceholderFootprint(): number[][] {
+  const d = PLACEHOLDER_HALF_SIZE_M;
+  return [[-d, -d], [d, -d], [d, d], [-d, d]];
+}
+
+function createImmediateTarget3D(
+  addressId: string,
+  pandId: string,
+  rdX: number,
+  rdY: number,
+  lat: number,
+  lng: number,
+  building: BuildingFactsResponse['building'] | undefined,
+): Neighborhood3DResponse {
+  const primaryRing = extractPrimaryRing(building?.footprint_geojson);
+  const footprint = lngLatRingToLocalFootprint(primaryRing, lat, lng) ?? createPlaceholderFootprint();
+
+  return {
+    address_id: addressId,
+    target_pand_id: pandId,
+    center: { lat, lng, rd_x: rdX, rd_y: rdY },
+    buildings: [{
+      pand_id: pandId,
+      ground_height: 0,
+      building_height: PLACEHOLDER_BUILDING_HEIGHT_M,
+      footprint,
+      year: building?.construction_year,
+    }],
+  };
+}
+
+function mergeNeighborhood3DWithFallback(
+  neighborhood: Neighborhood3DResponse,
+  phase1Target: Neighborhood3DResponse | null,
+): Neighborhood3DResponse {
+  const fallbackTargetId = phase1Target?.target_pand_id;
+  const fallbackTarget = fallbackTargetId
+    ? phase1Target?.buildings.find((b) => b.pand_id === fallbackTargetId)
+    : undefined;
+
+  const mergedTargetId = neighborhood.target_pand_id ?? fallbackTarget?.pand_id;
+  if (!mergedTargetId) {
+    return neighborhood;
+  }
+
+  const mergedBuildings = [...neighborhood.buildings];
+  let targetIndex = mergedBuildings.findIndex((b) => b.pand_id === mergedTargetId);
+
+  if (targetIndex < 0 && fallbackTarget) {
+    mergedBuildings.unshift(fallbackTarget);
+    targetIndex = 0;
+  }
+
+  if (targetIndex > 0) {
+    const [targetBuilding] = mergedBuildings.splice(targetIndex, 1);
+    mergedBuildings.unshift(targetBuilding);
+  }
+
+  return {
+    ...neighborhood,
+    target_pand_id: mergedTargetId,
+    buildings: mergedBuildings,
+  };
+}
+
+function hasSurroundingContext(data: Neighborhood3DResponse | null): boolean {
+  if (!data?.target_pand_id || data.buildings.length < 2) {
+    return false;
+  }
+  return data.buildings.some((b) => b.pand_id === data.target_pand_id);
+}
+
 function App() {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
   const dossierSeed = useMemo(readDossierSeed, []);
   const initialHasDossier = !!(dossierSeed?.address && dossierSeed?.buildingResponse);
   const { toasts, showToast, dismissToast } = useToast();
-  const [activeTab, setActiveTab] = useState<TabId>(initialHasDossier ? 'briefing' : 'search');
+  const [activeTab, setActiveTab] = useState<TabId>(initialHasDossier ? 'briefing' : 'home');
   const [activeScreen, setActiveScreen] = useState<Screen>(
     initialHasDossier ? 'dossier' : 'search',
   );
@@ -306,9 +470,7 @@ function App() {
       if (el) el.scrollTop = 0;
       return;
     }
-    if (tab === 'search') {
-      setActiveScreen('search');
-    } else if (tab === 'briefing') {
+    if (tab === 'briefing') {
       setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
       if (address && buildingResponse) setSheetSnap('half');
     } else if (tab === 'saved') {
@@ -511,13 +673,39 @@ function App() {
         if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
           setNeighborhood3DLoading(true);
           setSurroundingLoading(true);
+
+          const immediateTargetData = createImmediateTarget3D(
+            vboId,
+            pandId,
+            rd_x,
+            rd_y,
+            latitude,
+            longitude,
+            building.building,
+          );
+          if (neighborhood3DRequestId.current === requestId) {
+            setNeighborhood3D(immediateTargetData);
+            setNeighborhood3DLoading(false);
+          }
+
           let phase2Done = false;
+          let phase2HasRenderableData = false;
+          let phase1TargetData: Neighborhood3DResponse | null = immediateTargetData;
 
           void (async () => {
             try {
               const target3d = await getBuilding3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
-              if (!phase2Done && neighborhood3DRequestId.current === requestId) {
-                setNeighborhood3D(target3d);
+              const hasTargetBuilding = target3d.buildings.length > 0;
+              if (hasTargetBuilding) {
+                phase1TargetData = target3d;
+              }
+              if (
+                (!phase2Done || !phase2HasRenderableData)
+                && neighborhood3DRequestId.current === requestId
+              ) {
+                if (hasTargetBuilding) {
+                  setNeighborhood3D(target3d);
+                }
                 setNeighborhood3DLoading(false);
               }
             } catch { /* Phase 2 handles full fetch */ }
@@ -527,15 +715,18 @@ function App() {
             try {
               const n3d = await getNeighborhood3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
               phase2Done = true;
+              const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
+              phase2HasRenderableData = merged3d.buildings.length > 0;
               if (neighborhood3DRequestId.current === requestId) {
-                setNeighborhood3D(n3d);
+                setNeighborhood3D(merged3d);
                 setNeighborhood3DLoading(false);
                 setSurroundingLoading(false);
-                const canCompute = n3d.buildings.length > 0 && !!n3d.target_pand_id;
+                const canCompute = hasSurroundingContext(merged3d);
                 setSunlightUnavailable(!canCompute);
               }
             } catch {
               phase2Done = true;
+              phase2HasRenderableData = false;
               if (neighborhood3DRequestId.current === requestId) {
                 setNeighborhood3DLoading(false);
                 setSurroundingLoading(false);
@@ -717,20 +908,21 @@ function App() {
             <AddressSearch onSelect={handleAddressSelect} />
             {error && <p className="app__error">{error}</p>}
 
-            {/* Map visible behind the sheet */}
-            {address?.latitude && address?.longitude && (
-              <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-                <BuildingFootprintMap
-                  lat={address.latitude}
-                  lng={address.longitude}
-                  footprint={buildingResponse?.building?.footprint_geojson}
-                  zoom={15}
-                />
-              </Suspense>
-            )}
-
-            {/* DossierSheet slides up over the map */}
+            {/* DossierSheet is a scrollable dossier container */}
             <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
+              {address?.latitude && address?.longitude && (
+                <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                  <BuildingFootprintMap
+                    lat={address.latitude}
+                    lng={address.longitude}
+                    rdX={address.rd_x ?? undefined}
+                    rdY={address.rd_y ?? undefined}
+                    footprint={buildingResponse?.building?.footprint_geojson}
+                    zoom={15}
+                  />
+                </Suspense>
+              )}
+
               {/* === DOSSIER CANONICAL ORDER (v7 spec — tasks/todo.md:1076) === */}
 
               {/* 1. AttentionSummary — delayed until both risks and warnings resolve */}
@@ -927,10 +1119,7 @@ function App() {
               )}
 
               {(() => {
-                const canComputeSunlight = !!neighborhood3D
-                  && neighborhood3D.buildings.length > 0
-                  && !!neighborhood3D.target_pand_id
-                  && !surroundingLoading;
+                const canComputeSunlight = hasSurroundingContext(neighborhood3D) && !surroundingLoading;
                 const sunlightLoading = canComputeSunlight && !sunlight;
                 const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
                 if (!showSunlightCard) return null;

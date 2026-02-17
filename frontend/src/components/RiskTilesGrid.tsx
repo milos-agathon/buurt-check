@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import RiskTile from './RiskTile';
 import type { RiskCardsResponse, SunlightResult, SeverityLevel, RiskLevel } from '../types/api';
 import './RiskTilesGrid.css';
@@ -29,9 +28,6 @@ function normalizeSunlightScore(winterHours: number): number {
 }
 
 export default function RiskTilesGrid({ risks, sunlight, onTileTap }: RiskTilesGridProps) {
-  const { i18n } = useTranslation();
-  const isNl = i18n.language === 'nl';
-
   const sunlightScore = sunlight ? normalizeSunlightScore(sunlight.winter) : undefined;
   const sunlightSeverity: SeverityLevel = sunlightScore != null
     ? (sunlightScore >= 70 ? 'good' : sunlightScore >= 40 ? 'moderate' : sunlightScore >= 20 ? 'poor' : 'critical')
@@ -44,7 +40,6 @@ export default function RiskTilesGrid({ risks, sunlight, onTileTap }: RiskTilesG
         labelKey="risk.noise.title"
         score={risks?.noise.score}
         severity={risks ? levelToSeverity(risks.noise.level, risks.noise.score) : 'unavailable'}
-        summary={isNl ? risks?.noise.summary_nl : risks?.noise.summary}
         onTap={() => onTileTap?.('noise')}
       />
       <RiskTile
@@ -52,7 +47,6 @@ export default function RiskTilesGrid({ risks, sunlight, onTileTap }: RiskTilesG
         labelKey="risk.air.title"
         score={risks?.air_quality.score}
         severity={risks ? levelToSeverity(risks.air_quality.level, risks.air_quality.score) : 'unavailable'}
-        summary={isNl ? risks?.air_quality.summary_nl : risks?.air_quality.summary}
         onTap={() => onTileTap?.('air')}
       />
       <RiskTile
@@ -60,7 +54,6 @@ export default function RiskTilesGrid({ risks, sunlight, onTileTap }: RiskTilesG
         labelKey="risk.climate.title"
         score={risks?.climate_stress.score}
         severity={risks ? levelToSeverity(risks.climate_stress.level, risks.climate_stress.score) : 'unavailable'}
-        summary={isNl ? risks?.climate_stress.summary_nl : risks?.climate_stress.summary}
         onTap={() => onTileTap?.('climate')}
       />
       <RiskTile

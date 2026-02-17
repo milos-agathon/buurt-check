@@ -37,7 +37,7 @@ describe('RiskTile', () => {
   it('renders the translated label', () => {
     const { container } = renderTile({});
     const label = container.querySelector('.risk-tile__label');
-    expect(label?.textContent).toBe('Road Traffic Noise (Lden)');
+    expect(label?.textContent).toBe('Road Traffic Noise');
   });
 
   it('displays numeric score when provided', () => {
@@ -62,14 +62,14 @@ describe('RiskTile', () => {
     expect(container.querySelector('.severity-badge')).toBeInTheDocument();
   });
 
-  it('renders ScoreBar when score is provided', () => {
+  it('renders score text when score is provided', () => {
     const { container } = renderTile({ score: 60, severity: 'moderate' });
-    expect(container.querySelector('.score-bar')).toBeInTheDocument();
+    expect(container.querySelector('.risk-tile__score')?.textContent).toBe('60');
   });
 
-  it('does not render ScoreBar when score is undefined', () => {
+  it('renders unavailable score when score is undefined', () => {
     const { container } = renderTile({ score: undefined });
-    expect(container.querySelector('.score-bar')).not.toBeInTheDocument();
+    expect(container.querySelector('.risk-tile__score--unavailable')?.textContent).toBe('--');
   });
 
   it('renders summary text when provided', () => {

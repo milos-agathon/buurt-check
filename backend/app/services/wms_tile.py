@@ -50,6 +50,9 @@ async def _resolve_layer(tile_type: str) -> tuple[str | None, str]:
                 return (layer_name, settings.climate_atlas_wms_base)
         return (None, "")
 
+    if tile_type == "luchtfoto":
+        return ("Actueel_orthoHR", settings.luchtfoto_wms_base)
+
     return (None, "")
 
 
@@ -68,6 +71,7 @@ async def get_wms_tile(
     if layer is None:
         return None
 
+    is_photo = tile_type == "luchtfoto"
     bbox = f"{rd_x - radius},{rd_y - radius},{rd_x + radius},{rd_y + radius}"
     params = {
         "service": "WMS",
@@ -78,8 +82,8 @@ async def get_wms_tile(
         "bbox": bbox,
         "width": str(size),
         "height": str(size),
-        "format": "image/png",
-        "transparent": "true",
+        "format": "image/jpeg" if is_photo else "image/png",
+        "transparent": "false" if is_photo else "true",
         "styles": "",
     }
 

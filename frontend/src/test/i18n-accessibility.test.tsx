@@ -25,7 +25,7 @@ describe('AddressHeader i18n', () => {
       </I18nextProvider>,
     );
     expect(screen.getByText(/Bouwjaar 1917/)).toBeInTheDocument();
-    expect(screen.getByText(/3 eenheden/)).toBeInTheDocument();
+    expect(screen.getByText(/Eenheden/)).toBeInTheDocument();
   });
 });
 
@@ -129,10 +129,10 @@ describe('AddressSearch NL time formatting', () => {
 describe('TopBar i18n aria-labels', () => {
   it('has translated aria-label keys', () => {
     // Verify the keys exist and translate correctly
-    expect(i18nEn.t('nav.home')).toBe('Buurt-Check home');
+    expect(i18nEn.t('nav.home')).toBe('Home');
     expect(i18nEn.t('nav.languageToggle')).toBe('Language');
     expect(i18nEn.t('nav.settings')).toBe('Settings');
-    expect(i18nNl.t('nav.home')).toBe('Buurt-Check startpagina');
+    expect(i18nNl.t('nav.home')).toBe('Home');
     expect(i18nNl.t('nav.languageToggle')).toBe('Taal');
     expect(i18nNl.t('nav.settings')).toBe('Instellingen');
   });

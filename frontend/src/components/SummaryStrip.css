@@ -2,8 +2,8 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-xs);
-  margin: 0 var(--space-base);
-  padding: 4px 0;
+  margin: 0;
+  padding: 4px var(--space-base);
 }
 
 .summary-strip__pill {

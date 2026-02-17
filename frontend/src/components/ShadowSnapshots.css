@@ -3,7 +3,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: var(--space-md);
-  margin: var(--space-sm) var(--space-base);
+  margin: var(--space-sm) 0;
 }
 
 .shadow-snapshots__title {

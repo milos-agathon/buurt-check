@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     climate_atlas_wms_base: str = "https://maps1.klimaatatlas.net/geoserver/ows"
     climate_atlas_layers_index: str = "https://maps1.klimaatatlas.net/geoserver/rest/layers.json"
 
+    # PDOK Luchtfoto (aerial orthophotography — Kadaster, CC BY 4.0)
+    luchtfoto_wms_base: str = "https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0"
+
     # Leefbaarometer
     leefbaarometer_wfs_base: str = "https://geo.leefbaarometer.nl/lbm3/ows"
 

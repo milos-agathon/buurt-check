@@ -29,9 +29,9 @@ describe('RiskCardsPanel', () => {
 
   it('renders all F3 cards', () => {
     renderPanel();
-    expect(screen.getByText('Road Traffic Noise (Lden)')).toBeInTheDocument();
-    expect(screen.getByText('Air Quality (PM2.5 / NO2)')).toBeInTheDocument();
-    expect(screen.getByText('Climate Stress (Heat / Water)')).toBeInTheDocument();
+    expect(screen.getByText('Road Traffic Noise')).toBeInTheDocument();
+    expect(screen.getByText('Air Quality')).toBeInTheDocument();
+    expect(screen.getByText('Climate Risk')).toBeInTheDocument();
   });
 
   it('renders score, meaning, viewing question, and source+date', () => {
@@ -109,9 +109,9 @@ describe('RiskCardsPanel', () => {
     );
     expect(screen.getByText('Environmental Risk Cards')).toBeInTheDocument();
     expect(screen.getByText('Risk data could not be loaded right now. Please try again later.')).toBeInTheDocument();
-    expect(screen.getByText('Road Traffic Noise (Lden)')).toBeInTheDocument();
-    expect(screen.getByText('Air Quality (PM2.5 / NO2)')).toBeInTheDocument();
-    expect(screen.getByText('Climate Stress (Heat / Water)')).toBeInTheDocument();
+    expect(screen.getByText('Road Traffic Noise')).toBeInTheDocument();
+    expect(screen.getByText('Air Quality')).toBeInTheDocument();
+    expect(screen.getByText('Climate Risk')).toBeInTheDocument();
     expect(screen.getAllByText('Source + date: Source unknown (date unknown)')).toHaveLength(3);
   });
 
@@ -123,8 +123,8 @@ describe('RiskCardsPanel', () => {
         <RiskCardsPanel risks={risks} loading={false} />
       </I18nextProvider>,
     );
-    expect(screen.getByText('Wegverkeersgeluid (Lden)')).toBeInTheDocument();
-    expect(screen.getByText('Luchtkwaliteit (PM2.5 / NO2)')).toBeInTheDocument();
-    expect(screen.getByText('Klimaatstress (Hitte / Water)')).toBeInTheDocument();
+    expect(screen.getByText('Wegverkeersgeluid')).toBeInTheDocument();
+    expect(screen.getByText('Luchtkwaliteit')).toBeInTheDocument();
+    expect(screen.getByText('Klimaatrisico')).toBeInTheDocument();
   });
 });

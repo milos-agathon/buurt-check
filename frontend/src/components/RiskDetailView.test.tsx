@@ -36,7 +36,7 @@ describe('RiskDetailView', () => {
   it('renders the category title in nav', () => {
     const { container } = renderDetail({});
     const navTitle = container.querySelector('.risk-detail__nav-title');
-    expect(navTitle?.textContent).toBe('Road Traffic Noise (Lden)');
+    expect(navTitle?.textContent).toBe('Road Traffic Noise');
   });
 
   it('displays the numeric score', () => {
