@@ -21,7 +21,7 @@ backend/           # FastAPI stateless API aggregator — NO database, all data 
   app/models/      # Pydantic response models
   app/cache/       # Redis with circuit breaker
   app/config.py    # pydantic-settings (BUURT_* env prefix)
-  tests/           # pytest (405+ non-live tests)
+  tests/           # pytest (432+ non-live tests)
 frontend/          # React + Vite + TypeScript
   src/components/  # All UI components (dossier cards, navigation, search, shortlist)
   src/styles/      # tokens.css (195 CSS custom properties), satoshi.css (font)
@@ -36,13 +36,13 @@ docs/              # Design specs, plans, palette, UI principles
 ```bash
 # Backend
 cd backend && uvicorn app.main:app --reload --port 8000
-cd backend && pytest -x -q -m "not live"   # CI tests (405+ baseline)
+cd backend && pytest -x -q -m "not live"   # CI tests (432+ baseline)
 cd backend && ruff check .                  # MUST pass before commit
 
 # Frontend
 cd frontend && npm run dev                  # Dev server (proxies /api to :8000)
 cd frontend && npm run build                # MUST pass before commit (strict TS)
-cd frontend && npm run test                 # Vitest (421+ baseline)
+cd frontend && npm run test                 # Vitest (448+ baseline)
 ```
 
 ## Architecture decisions
@@ -51,13 +51,13 @@ cd frontend && npm run test                 # Vitest (421+ baseline)
 - **Single router**: All endpoints in `api/address.py`. Services do the work
 - **0-100 risk scoring**: Backend normalizes raw values via `scoring.py`. 4-level severity: good (70-100), moderate (40-69), poor (20-39), critical (0-19)
 - **State management**: App-level `useState` in `App.tsx`. No Redux/Zustand. Screen routing via `activeScreen`
-- **i18n from day one**: All strings via `t()`. EN + NL. Warning codes from backend: `t('feature.warning.${code}', code)`
+- **i18n from day one**: All strings via `t()`. NL default, EN secondary. Warning codes from backend: `t('feature.warning.${code}', code)`
 
 ## Product principles
 
 1. **Consequences over data** — translate every number into "what does this mean for me"
 2. **5-8 indicators max per section** — curate aggressively, no dashboard spam
-3. **Bilingual by default** — EN/NL, not bolted on later
+3. **Bilingual by default** — NL default, EN secondary, not bolted on later
 4. **Disclaimers mandatory** — always cite source, date, and limitations
 5. **Graceful degradation** — if a data source fails, show "unavailable", never crash the dossier
 
@@ -81,6 +81,7 @@ cd frontend && npm run test                 # Vitest (421+ baseline)
 - React Query / Zustand / Redux — useState + props
 - Bare `= []` in Pydantic models — use `Field(default_factory=list)`
 - `sampled_at` as `source_date` fallback — let it be `None`
+- Infer 3D viewer loading from `buildings.length === 0` — use explicit `loading` prop from parent
 
 ## Risk card contract
 

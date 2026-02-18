@@ -6,7 +6,7 @@ Python 3.12 stateless API aggregator. No database — all data from Dutch govern
 
 ```bash
 uvicorn app.main:app --reload --port 8000   # Dev server
-pytest -x -q -m "not live"                  # CI tests (405+ baseline)
+pytest -x -q -m "not live"                  # CI tests (432+ baseline)
 pytest -x -q                                # Including live API smoke tests
 ruff check . && ruff format .               # MUST pass before commit
 ```
@@ -60,3 +60,13 @@ ruff check . && ruff format .               # MUST pass before commit
 - Climate: categorical (low=85, medium=50, high=15)
 - Sunlight: 0h=0, 2h=40, 4h=80, 6h+=100 (winter solstice)
 - Severity: 70-100=good, 40-69=moderate, 20-39=poor, 0-19=critical
+
+## 3DBAG & 3D Viewer (added 2026-02-17)
+
+- **3DBAG bbox fallback for target recovery:** When single-item endpoint returns 502, scan bbox results for target `pand_id`. Prevents total failure on intermittent 3DBAG outages
+- **3DBAG building coverage:** Default bbox radius 150m (was 80m), max pages 4 (was 2). After `asyncio.gather`, must `await near_task` — race condition where backup query cancels primary
+- **Single-flight request deduplication:** `_in_flight_requests: dict[str, asyncio.Future]` at module level for `get_neighborhood_3d`. Use `asyncio.shield()` for shared tasks. Key: `{pand_id}:{rd_x:.0f}:{rd_y:.0f}`. Clean up in `finally`. Prevents duplicate 3DBAG calls from React strict-mode remounts
+- **Cache version v14** for neighborhood3d responses (bumped from v13 for coverage/dedup changes)
+- **LoD 2.2 is mandatory for all buildings** (including neighbors). Sunlight shadow analysis requires accurate roof geometry — flat-extruded boxes produce incorrect shadow patterns. This is a product constraint, not a performance knob
+- **3DBAG cold latency baselines (Feb 17):** Damrak 1 = 77s/167 buildings, Duinzicht 23 = 74s/220 buildings, Kerkstraat 10 = 62s/251 buildings. 90%+ of wait time is 3DBAG API latency, not frontend rendering
+- **PDOK Luchtfoto RGB:** `service.pdok.nl/hwh/luchtfotorgb/wms/v1_0`, layer `Actueel_orthoHR`, JPEG format, CC BY 4.0 license

@@ -7,7 +7,7 @@ Mobile-first SPA with "Polar Frost" design system. Framer Motion gestures, Three
 ```bash
 npm run dev          # Dev server (proxies /api to localhost:8000)
 npm run build        # MUST pass before commit (strict TS: noUnusedLocals)
-npm run test         # Vitest (421+ baseline)
+npm run test         # Vitest (448+ baseline)
 npx vitest --watch   # Watch mode
 ```
 
@@ -72,3 +72,35 @@ npx vitest --watch   # Watch mode
 - `console.log` in production code
 - CSS `font` shorthand before `font-weight`/`font-style` → shorthand resets them
 - Custom severity vocab (`low/medium/high`) → use canonical `good/moderate/poor/critical` via SeverityBadge
+
+## 3D Viewer — On-demand Rendering (added 2026-02-17)
+
+- **Invalidation-driven rendering:** Replace continuous 60fps rAF with `renderOnce()` calls after every scene mutation (building added, basemap tile loaded, sun position change, resize, shadow snapshot)
+- **OrbitControls damping loop:** Wire `start`/`end` event listeners. On `end`, schedule 500ms delayed stop allowing damping to decay, then cancel rAF and render final frame. Use refs (not useState) for damping state
+- **Rollback flag:** `VITE_VIEWER3D_CONTINUOUS_RENDER=true` restores legacy 60fps loop
+- **Feature-flagged quality controls:** `VITE_VIEWER3D_SHADOW_SIZE` (default 2048), `VITE_VIEWER3D_DPR_CAP` (default 2), `VITE_VIEWER3D_TILE_GRID` (default 3x3). Read with `Number(import.meta.env.VITE_X) || default`
+- **Explicit loading prop:** Never infer loading from `buildings.length === 0`. Pass `surroundingLoading` from App.tsx. Hide reset button during loading
+- **Dev render counter:** Guard with literal `import.meta.env.DEV` (not stored in variable — Vite tree-shaking needs literal). Create DOM overlay in useEffect init, update via `setInterval(1000)`, clean up overlay in cleanup
+- **OrbitControls mock must include `addEventListener`/`removeEventListener`** for on-demand rendering tests
+
+## Card Layout & Tab Bar (added 2026-02-17)
+
+- **Card width:** All dossier cards use `margin: 0` (full DossierSheet width). Text inset via padding on individual elements, not card-level margins
+- **Tab bar:** 3 tabs (Home, Briefing, Saved). `position: fixed; bottom: 0; z-index: 50`. Stateless component — no useState/useEffect. Dossier tab triggers PDF export sheet
+- **DossierSheet bottom padding:** `calc(var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px) + var(--space-lg))`
+- **OLED dark mode trap:** Semi-transparent overlays on `#000000` are invisible. Use solid `var(--color-nav-bg)` with accent borders
+- **Risk tile titles:** No parenthetical technical details in tile labels
+
+## Comparison Bars (added 2026-02-17)
+
+- **WHO guideline bar:** `opacity: 0.7` on accent color (not `repeating-linear-gradient` dashes — too pixelated). Solid bars for measured values, semi-transparent for reference/guideline
+- **Opacity tuning:** 0.35 too washed, 0.55 still pale, 0.7 is the sweet spot for distinction with visual weight
+
+## i18n & Branding (added 2026-02-17)
+
+- **NL is default language** (changed from EN)
+- **Logo:** "Buurt Check" (no hyphen), 36px height, checkmark scale 0.56
+
+## Coordinate Conversion (added 2026-02-17)
+
+- **WGS84-to-RD linear approximation:** 68710 m/deg longitude, 111320 m/deg latitude at ~52°N (Amsterdam). Sufficient for ±500m bbox calculations
