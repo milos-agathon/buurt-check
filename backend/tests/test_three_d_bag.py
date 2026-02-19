@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from app.models.neighborhood3d import BuildingBlock
+from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
 from app.services.three_d_bag import (
     _compute_building_orientation,
     _enrich_with_lod22,
@@ -1359,6 +1359,94 @@ async def test_neighborhood_context_gets_lod22_from_bbox_without_enrichment(
     assert neighbor is not None
     assert neighbor.roof_surfaces is not None
     assert len(neighbor.roof_surfaces) == 6
+
+
+# --- single-flight dedup tests ---
+
+
+@pytest.mark.asyncio
+async def test_single_flight_dedup_shares_result():
+    """Two concurrent calls with same coordinates should share one in-flight request."""
+    import app.services.three_d_bag as mod
+
+    mod._in_flight.clear()
+    call_count = 0
+    response = Neighborhood3DResponse(
+        address_id="0123456789012345",
+        target_pand_id="0123456789012345",
+        center=Neighborhood3DCenter(lat=52.37, lng=4.89, rd_x=121000.0, rd_y=487000.0),
+        buildings=[
+            BuildingBlock(
+                pand_id="0123456789012345",
+                ground_height=1.0,
+                building_height=10.0,
+                footprint=[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
+            )
+        ],
+        message=None,
+    )
+
+    async def counting_impl(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        await asyncio.sleep(0.01)
+        return response
+
+    with patch.object(mod, "_get_neighborhood_3d_impl", side_effect=counting_impl):
+        r1, r2 = await asyncio.gather(
+            mod.get_neighborhood_3d("0123456789012345", 121000.0, 487000.0, 52.37, 4.89),
+            mod.get_neighborhood_3d("0123456789012345", 121000.0, 487000.0, 52.37, 4.89),
+        )
+
+    assert call_count == 1
+    assert r1.target_pand_id == r2.target_pand_id
+    mod._in_flight.clear()
+
+
+@pytest.mark.asyncio
+async def test_single_flight_dedup_different_coords_separate():
+    """Concurrent calls with different coords should not deduplicate."""
+    import app.services.three_d_bag as mod
+
+    mod._in_flight.clear()
+    call_count = 0
+
+    async def counting_impl(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        await asyncio.sleep(0.01)
+        return Neighborhood3DResponse(
+            address_id=kwargs["pand_id"],
+            target_pand_id=kwargs["pand_id"],
+            center=Neighborhood3DCenter(
+                lat=kwargs["lat"], lng=kwargs["lng"], rd_x=kwargs["rd_x"], rd_y=kwargs["rd_y"]
+            ),
+            buildings=[],
+            message=None,
+        )
+
+    with patch.object(mod, "_get_neighborhood_3d_impl", side_effect=counting_impl):
+        await asyncio.gather(
+            mod.get_neighborhood_3d("0123456789012345", 121000.0, 487000.0, 52.37, 4.89),
+            mod.get_neighborhood_3d("0123456789012345", 121010.0, 487010.0, 52.37, 4.89),
+        )
+
+    assert call_count == 2
+    mod._in_flight.clear()
+
+
+@pytest.mark.asyncio
+async def test_single_flight_dedup_cleanup_after_error():
+    """Failed in-flight requests should be removed from the dedup map."""
+    import app.services.three_d_bag as mod
+
+    mod._in_flight.clear()
+
+    with patch.object(mod, "_get_neighborhood_3d_impl", side_effect=RuntimeError("boom")):
+        with pytest.raises(RuntimeError, match="boom"):
+            await mod.get_neighborhood_3d("0123456789012345", 121000.0, 487000.0, 52.37, 4.89)
+
+    assert len(mod._in_flight) == 0
 
 
 # --- _compute_building_orientation tests ---

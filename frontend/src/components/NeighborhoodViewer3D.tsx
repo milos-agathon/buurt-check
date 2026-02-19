@@ -58,9 +58,13 @@ interface Props {
   center: { lat: number; lng: number; rd_x: number; rd_y: number };
   onSunlightAnalysis?: (result: SunlightResult) => void;
   onShadowSnapshots?: (snapshots: ShadowSnapshot[]) => void;
+  loading?: boolean;
 }
 
-const SHADOW_MAP_SIZE = 2048;
+// Canvas quality controls — feature-flagged for safe rollout.
+const SHADOW_MAP_SIZE = Number(import.meta.env.VITE_VIEWER3D_SHADOW_SIZE) || 2048;
+const DPR_CAP = Number(import.meta.env.VITE_VIEWER3D_DPR_CAP) || 2;
+const TILE_GRID: '3x3' | '2x2' = import.meta.env.VITE_VIEWER3D_TILE_GRID === '2x2' ? '2x2' : '3x3';
 const SUN_DISTANCE = 300;
 const GROUND_SIZE = 750;
 const FRUSTUM = 300;
@@ -126,7 +130,14 @@ function createBuildingGeometry(building: BuildingBlock): BufferGeometry | null 
   return geom;
 }
 
-export default function NeighborhoodViewer3D({ buildings, targetPandId, center, onSunlightAnalysis, onShadowSnapshots }: Props) {
+export default function NeighborhoodViewer3D({
+  buildings,
+  targetPandId,
+  center,
+  onSunlightAnalysis,
+  onShadowSnapshots,
+  loading = false,
+}: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{
@@ -138,16 +149,31 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     buildingMeshes: Mesh[];
     ground: Mesh;
     animId: number;
+    renderQueued: boolean;
   } | null>(null);
 
   const basemapMeshesRef = useRef<Mesh[]>([]);
   const sunlightComputed = useRef(false);
   const snapshotsCaptured = useRef(false);
   const neighborBuildFrameRef = useRef<number | null>(null);
+  const dampingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Camera tracking refs
   const cameraSetRef = useRef(false);
   const lastFocusedPandId = useRef<string | null>(null);
+
+  const renderOnce = useCallback(() => {
+    const ctx = sceneRef.current;
+    if (!ctx || ctx.renderQueued) return;
+    ctx.renderQueued = true;
+    requestAnimationFrame(() => {
+      const current = sceneRef.current;
+      if (!current) return;
+      current.controls.update();
+      current.renderer.render(current.scene, current.camera);
+      current.renderQueued = false;
+    });
+  }, []);
 
   // Extract camera framing into a callable function
   const frameCamera = useCallback(() => {
@@ -184,7 +210,8 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     ctx.camera.lookAt(cx, targetY, cy);
     ctx.controls.target.set(cx, targetY, cy);
     ctx.camera.updateProjectionMatrix();
-  }, [buildings, targetPandId]);
+    renderOnce();
+  }, [buildings, targetPandId, renderOnce]);
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -208,7 +235,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     // Renderer
     const renderer = new WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_CAP));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
@@ -254,20 +281,73 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     controls.enableDamping = true;
     controls.maxPolarAngle = Math.PI / 2.1;
 
-    // Animation loop (no FPS monitoring)
-    const animate = () => {
-      const id = requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-      sceneRef.current!.animId = id;
-    };
+    const continuousRender = import.meta.env.VITE_VIEWER3D_CONTINUOUS_RENDER === 'true';
+    let onControlStart: (() => void) | null = null;
+    let onControlChange: (() => void) | null = null;
+    let onControlEnd: (() => void) | null = null;
 
     sceneRef.current = {
       scene, camera, renderer, controls, sunLight,
-      buildingMeshes: [], ground, animId: 0,
+      buildingMeshes: [], ground, animId: 0, renderQueued: false,
     };
 
-    animate();
+    if (continuousRender) {
+      const animate = () => {
+        const id = requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+        sceneRef.current!.animId = id;
+      };
+      animate();
+    } else {
+      const runDampingLoop = () => {
+        const current = sceneRef.current;
+        if (!current) return;
+        controls.update();
+        renderer.render(scene, camera);
+        current.animId = requestAnimationFrame(runDampingLoop);
+      };
+
+      onControlStart = () => {
+        if (dampingTimerRef.current) {
+          clearTimeout(dampingTimerRef.current);
+          dampingTimerRef.current = null;
+        }
+        const current = sceneRef.current;
+        if (current && current.animId === 0) {
+          runDampingLoop();
+        }
+      };
+
+      onControlChange = () => {
+        if (sceneRef.current?.animId === 0) {
+          renderOnce();
+        }
+      };
+
+      onControlEnd = () => {
+        if (dampingTimerRef.current) {
+          clearTimeout(dampingTimerRef.current);
+        }
+        dampingTimerRef.current = setTimeout(() => {
+          const current = sceneRef.current;
+          if (current) {
+            cancelAnimationFrame(current.animId);
+            current.animId = 0;
+            controls.update();
+            renderer.render(scene, camera);
+          }
+          dampingTimerRef.current = null;
+        }, 500);
+      };
+
+      controls.addEventListener('start', onControlStart);
+      controls.addEventListener('change', onControlChange);
+      controls.addEventListener('end', onControlEnd);
+
+      // Draw initial frame so scene contents are visible while idle.
+      renderOnce();
+    }
 
     // Resize handler
     const onResize = () => {
@@ -276,11 +356,19 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      renderOnce();
     };
     window.addEventListener('resize', onResize);
 
     return () => {
+      if (dampingTimerRef.current) {
+        clearTimeout(dampingTimerRef.current);
+        dampingTimerRef.current = null;
+      }
       window.removeEventListener('resize', onResize);
+      if (onControlStart) controls.removeEventListener('start', onControlStart);
+      if (onControlChange) controls.removeEventListener('change', onControlChange);
+      if (onControlEnd) controls.removeEventListener('end', onControlEnd);
       cancelAnimationFrame(sceneRef.current?.animId ?? 0);
       controls.dispose();
       renderer.dispose();
@@ -289,7 +377,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       }
       sceneRef.current = null;
     };
-  }, []);
+  }, [renderOnce]);
 
   // Add buildings to scene
   useEffect(() => {
@@ -357,6 +445,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         mesh.userData.pandId = building.pand_id;
         ctx.scene.add(mesh);
         ctx.buildingMeshes.push(mesh);
+        renderOnce();
         continue;
       }
 
@@ -403,6 +492,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
           ctx.scene.add(mesh);
           ctx.buildingMeshes.push(mesh);
           neighborMaterialUsed = true;
+          renderOnce();
         } else {
           for (const geom of chunkGeometries) {
             const mesh = new Mesh(geom, neighborMaterial);
@@ -413,6 +503,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
             ctx.buildingMeshes.push(mesh);
             neighborMaterialUsed = true;
           }
+          renderOnce();
         }
       }
 
@@ -442,7 +533,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
         disposeNeighborMaterial();
       }
     };
-  }, [buildings, targetPandId, frameCamera]);
+  }, [buildings, targetPandId, frameCamera, renderOnce]);
 
   // Fix sun to summer noon — static lighting for context card
   useEffect(() => {
@@ -455,6 +546,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
     if (sunPos.altitude <= 0) {
       ctx.sunLight.intensity = 0;
+      renderOnce();
       return;
     }
 
@@ -468,7 +560,8 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
     ctx.sunLight.position.set(x, y, z);
     ctx.sunLight.target.position.set(0, 0, 0);
-  }, [center.lat, center.lng]);
+    renderOnce();
+  }, [center.lat, center.lng, renderOnce]);
 
   // Load PDOK street map as a 3x3 grid of basemap tiles
   useEffect(() => {
@@ -488,11 +581,16 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     const zoom = 16;
     const centerTile = latLngToTile(center.lat, center.lng, zoom);
 
-    const offsets = [
-      { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
-      { dx: -1, dy: 0 }, { dx: 0, dy: 0 }, { dx: 1, dy: 0 },
-      { dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
-    ];
+    const offsets = TILE_GRID === '2x2'
+      ? [
+        { dx: 0, dy: 0 }, { dx: 1, dy: 0 },
+        { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
+      ]
+      : [
+        { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+        { dx: -1, dy: 0 }, { dx: 0, dy: 0 }, { dx: 1, dy: 0 },
+        { dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
+      ];
 
     const meshes: Mesh[] = [];
     basemapMeshesRef.current = meshes;
@@ -550,6 +648,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
 
         sceneRef.current.scene.add(tileMesh);
         meshes.push(tileMesh);
+        renderOnce();
       };
       img.src = url;
     });
@@ -565,7 +664,7 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
       }
       basemapMeshesRef.current = [];
     };
-  }, [center.lat, center.lng]);
+  }, [center.lat, center.lng, renderOnce]);
 
   // Sunlight analysis — compute once when buildings are ready
   const computeSunlight = useCallback(() => {
@@ -701,29 +800,34 @@ export default function NeighborhoodViewer3D({ buildings, targetPandId, center, 
     ctx.camera.updateProjectionMatrix();
     ctx.sunLight.position.copy(savedSunPos);
     ctx.sunLight.intensity = savedSunIntensity;
+    renderOnce();
 
     onShadowSnapshots(snapshots);
-  }, [buildings, onShadowSnapshots, center.lat, center.lng]);
+  }, [buildings, onShadowSnapshots, center.lat, center.lng, renderOnce]);
 
   return (
     <div className="viewer-3d">
       <h2 className="viewer-3d__title">{t('viewer3d.title')}</h2>
       <div className="viewer-3d__canvas" ref={containerRef} data-testid="viewer-3d-canvas">
-        <button
-          className="viewer-3d__reset-btn"
-          onClick={() => frameCamera()}
-          aria-label={t('viewer3d.resetView')}
-          title={t('viewer3d.resetView')}
-          type="button"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1 4V1h3" />
-            <path d="M15 12v3h-3" />
-            <path d="M15 4V1h-3" />
-            <path d="M1 12v3h3" />
-            <rect x="4" y="4" width="8" height="8" rx="1" />
-          </svg>
-        </button>
+        {loading ? (
+          <div className="viewer-3d__skeleton" aria-label={t('viewer3d.loading')} aria-busy="true" />
+        ) : (
+          <button
+            className="viewer-3d__reset-btn"
+            onClick={() => frameCamera()}
+            aria-label={t('viewer3d.resetView')}
+            title={t('viewer3d.resetView')}
+            type="button"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 4V1h3" />
+              <path d="M15 12v3h-3" />
+              <path d="M15 4V1h-3" />
+              <path d="M1 12v3h3" />
+              <rect x="4" y="4" width="8" height="8" rx="1" />
+            </svg>
+          </button>
+        )}
       </div>
       <p className="viewer-3d__source">{t('viewer3d.source')}</p>
     </div>

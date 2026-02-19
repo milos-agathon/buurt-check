@@ -5,6 +5,7 @@ import { setupTestI18n, makeNeighborhood3DResponse, makeNeighborhood3DResponseWi
 // Mock Three.js — jsdom has no WebGL
 const mockCanvas = document.createElement('canvas');
 mockCanvas.toDataURL = vi.fn(() => 'data:image/png;base64,mock');
+const orbitControlsInstances: any[] = [];
 
 vi.mock('three', () => {
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -128,6 +129,9 @@ vi.mock('three/addons/controls/OrbitControls.js', () => {
     this.update = vi.fn();
     this.dispose = vi.fn();
     this.target = { set: vi.fn() };
+    this.addEventListener = vi.fn();
+    this.removeEventListener = vi.fn();
+    orbitControlsInstances.push(this);
   }
   return { OrbitControls };
 });
@@ -159,6 +163,7 @@ beforeAll(async () => {
 let rafId = 0;
 beforeEach(() => {
   rafId = 0;
+  orbitControlsInstances.length = 0;
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => {
     return ++rafId;
   });
@@ -229,6 +234,14 @@ describe('NeighborhoodViewer3D', () => {
     expect(screen.getByRole('button', { name: /reset view/i })).toBeInTheDocument();
   });
 
+  it('wires OrbitControls listeners for on-demand rendering', () => {
+    renderViewer();
+    const controls = orbitControlsInstances[0];
+    expect(controls.addEventListener).toHaveBeenCalledWith('start', expect.any(Function));
+    expect(controls.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+    expect(controls.addEventListener).toHaveBeenCalledWith('end', expect.any(Function));
+  });
+
   it('reset button is keyboard-activatable', () => {
     renderViewer();
     const resetBtn = screen.getByRole('button', { name: /reset view/i });
@@ -249,5 +262,20 @@ describe('NeighborhoodViewer3D', () => {
   it('does not render overlay controls', () => {
     renderViewer();
     expect(screen.queryByRole('button', { name: /layers/i })).not.toBeInTheDocument();
+  });
+
+  it('shows skeleton overlay when loading=true', () => {
+    renderViewer({ loading: true });
+    expect(screen.getByLabelText(/loading/i)).toBeInTheDocument();
+  });
+
+  it('hides reset button when loading=true', () => {
+    renderViewer({ loading: true });
+    expect(screen.queryByRole('button', { name: /reset/i })).not.toBeInTheDocument();
+  });
+
+  it('shows reset button when loading=false', () => {
+    renderViewer({ loading: false });
+    expect(screen.getByRole('button', { name: /reset/i })).toBeInTheDocument();
   });
 });

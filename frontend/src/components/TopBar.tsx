@@ -25,10 +25,10 @@ export default function TopBar({ title, onSettingsClick }: TopBarProps) {
   return (
     <header className={`top-bar${scrolled ? ' top-bar--scrolled' : ''}`}>
       {isLogo ? (
-        <a className="top-bar__logo" href="/" aria-label="Buurt-Check home">
+        <a className="top-bar__logo" href="/" aria-label="Buurt Check home">
           <img
             src="/logos/buurt-check-lockup-horizontal-reverse.svg"
-            alt="Buurt-Check"
+            alt="Buurt Check"
             className="top-bar__logo-img"
           />
         </a>

@@ -28,8 +28,10 @@ vi.mock('./services/api', () => ({
 }));
 
 vi.mock('./components/NeighborhoodViewer3D', () => ({
-  default: ({ buildings }: { buildings: unknown[] }) => (
-    <div data-testid="viewer-3d">3D Viewer ({buildings.length} buildings)</div>
+  default: ({ buildings, loading }: { buildings: unknown[]; loading?: boolean }) => (
+    <div data-testid="viewer-3d">
+      {loading ? '3D Viewer loading...' : `3D Viewer (${buildings.length} buildings)`}
+    </div>
   ),
 }));
 
@@ -178,7 +180,7 @@ async function selectAddress() {
 describe('initial render', () => {
   it('renders app title and search input', () => {
     renderApp();
-    expect(screen.getByAltText('Buurt-Check')).toBeInTheDocument();
+    expect(screen.getByAltText('Buurt Check')).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 
@@ -426,10 +428,9 @@ describe('3D viewer integration', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByText('Loading 3D data...')).toBeInTheDocument();
+      expect(screen.getByText('3D Viewer loading...')).toBeInTheDocument();
     });
     expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
-    expect(screen.getByText(/1 buildings/)).toBeInTheDocument();
   });
 
   it('keeps instant target building when both 3D endpoints return empty context', async () => {

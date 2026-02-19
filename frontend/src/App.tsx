@@ -520,7 +520,7 @@ function App() {
 
     // T+0: immediately show dossier screen with sheet at peek
     setActiveScreen('dossier');
-    setActiveTab('briefing');
+    setActiveTab('home');
     setSheetSnap('peek');
     setPendingDisplayName(suggestion.display_name);
 
@@ -868,9 +868,11 @@ function App() {
       ? t('compare.title')
       : activeScreen === 'settings'
         ? t('nav.settings')
-        : activeScreen === 'dossier'
-          ? t('nav.briefing')
-          : 'buurt-check';
+        : activeTab === 'home'
+          ? 'buurt-check'
+          : activeScreen === 'dossier'
+            ? t('nav.briefing')
+            : 'buurt-check';
 
   // Get viewing questions for active detail category
   const activeQuestions = activeDetailCategory
@@ -1109,13 +1111,9 @@ function App() {
                     center={neighborhood3D.center}
                     onSunlightAnalysis={surroundingLoading ? undefined : setSunlight}
                     onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
+                    loading={surroundingLoading}
                   />
                 </Suspense>
-              )}
-              {surroundingLoading && (
-                <div className="viewer-3d-status">
-                  <p>{t('viewer3d.loading')}</p>
-                </div>
               )}
 
               {(() => {

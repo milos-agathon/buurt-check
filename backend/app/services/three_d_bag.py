@@ -38,6 +38,8 @@ BBOX_FETCH_RETRIES = 10
 RETRY_BACKOFF_BASE = 0.35
 TRANSIENT_STATUS_CODES = {502, 503, 504}
 
+_in_flight: dict[str, asyncio.Task[Neighborhood3DResponse]] = {}
+
 
 
 
@@ -600,7 +602,7 @@ async def _enrich_with_lod22(
     return enriched, partial
 
 
-async def get_neighborhood_3d(
+async def _get_neighborhood_3d_impl(
     pand_id: str,
     rd_x: float,
     rd_y: float,
@@ -743,6 +745,41 @@ async def get_neighborhood_3d(
         buildings=buildings,
         message=message,
     )
+
+
+async def get_neighborhood_3d(
+    pand_id: str,
+    rd_x: float,
+    rd_y: float,
+    lat: float,
+    lng: float,
+    vbo_id: str | None = None,
+    radius: float = 150.0,
+) -> Neighborhood3DResponse:
+    """Fetch neighborhood 3D context with single-flight request deduplication."""
+    key = f"{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    existing = _in_flight.get(key)
+    if existing is not None and not existing.done():
+        logger.info("Dedup: joining in-flight request for %s", key)
+        return await asyncio.shield(existing)
+
+    task = asyncio.create_task(
+        _get_neighborhood_3d_impl(
+            pand_id=pand_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            lat=lat,
+            lng=lng,
+            vbo_id=vbo_id,
+            radius=radius,
+        )
+    )
+    _in_flight[key] = task
+    try:
+        return await asyncio.shield(task)
+    finally:
+        if _in_flight.get(key) is task:
+            _in_flight.pop(key, None)
 
 
 async def get_target_building_3d(
