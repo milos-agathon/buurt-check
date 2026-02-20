@@ -17,21 +17,13 @@
 ### Task 1: Theme-Aware Neighbor Building Constants
 
 **Files:**
-- Modify: `frontend/src/components/NeighborhoodViewer3D.tsx:8,34-36,479-484`
+- Modify: `frontend/src/components/NeighborhoodViewer3D.tsx:34-36,479-484`
 
-**Step 1: Add `FrontSide` import**
+**NOTE:** Keep `DoubleSide` on neighbor material — 3DBAG LoD 2.2 has inconsistent face winding
+(see `frontend/CLAUDE.md`: "THREE.DoubleSide on all materials (3DBAG winding inconsistent)").
+FrontSide would create invisible faces / holes in building geometry.
 
-At line 8, change:
-```tsx
-  DoubleSide,
-```
-to:
-```tsx
-  DoubleSide,
-  FrontSide,
-```
-
-**Step 2: Replace static neighbor constants with theme-aware values**
+**Step 1: Replace static neighbor constants with theme-aware values**
 
 At lines 34-36, change:
 ```tsx
@@ -48,9 +40,9 @@ const NEIGHBOR_OPACITY_LIGHT = 0.70;
 const NEIGHBOR_OPACITY_DARK = 0.65;
 ```
 
-**Step 3: Update neighbor material creation to be theme-aware**
+**Step 2: Update neighbor material creation to be theme-aware**
 
-At lines 479-484 (inside the building effect where `isDarkMode` is already available), change:
+At lines 479-484 (inside the building effect where `isDarkMode` is already available at line 451), change:
 ```tsx
     const neighborMaterial = new MeshStandardMaterial({
       color: NEIGHBOR_COLOR,
@@ -65,25 +57,27 @@ to:
       color: isDarkMode ? NEIGHBOR_COLOR_DARK : NEIGHBOR_COLOR_LIGHT,
       transparent: true,
       opacity: isDarkMode ? NEIGHBOR_OPACITY_DARK : NEIGHBOR_OPACITY_LIGHT,
-      side: FrontSide,
+      side: DoubleSide,
     });
 ```
 
-**Step 4: Verify build passes**
+Note: `DoubleSide` is kept — 3DBAG geometry has inconsistent face winding.
+
+**Step 3: Verify build passes**
 
 Run: `cd frontend && npm run build`
-Expected: Clean build with no TS errors. `DoubleSide` must still be imported (used elsewhere — target building material at line ~505, ground plane at line ~274).
+Expected: Clean build with no TS errors.
 
-**Step 5: Run existing tests**
+**Step 4: Run existing tests**
 
 Run: `cd frontend && npx vitest run src/components/NeighborhoodViewer3D.test.tsx`
 Expected: All existing tests pass (Three.js is fully mocked; constant changes don't affect mock behavior).
 
-**Step 6: Commit**
+**Step 5: Commit**
 
 ```bash
 git add frontend/src/components/NeighborhoodViewer3D.tsx
-git commit -m "fix: theme-aware neighbor building contrast (opacity + color + FrontSide)"
+git commit -m "style: theme-aware neighbor building contrast (opacity + color)"
 ```
 
 ---
@@ -91,13 +85,26 @@ git commit -m "fix: theme-aware neighbor building contrast (opacity + color + Fr
 ### Task 2: Ground Plane Contrast + Shadow Lighting
 
 **Files:**
-- Modify: `frontend/src/components/NeighborhoodViewer3D.tsx:247-254,271-275`
+- Modify: `frontend/src/components/NeighborhoodViewer3D.tsx:247-254,271-275,425,623`
 
-These changes are in the scene init `useEffect` (line ~220) where `isDarkMode` is already computed at line 227.
+**CRITICAL:** `sunLight.intensity` is set in **4 locations**. The init effect (line 254) value gets
+overwritten by the summer-noon effect (line 623) and snapshot capture (line 425), both hardcoded
+to `0.8`. All locations must be updated for the shadow improvement to take effect.
 
-**Step 1: Update hemisphere light intensity**
+| Line | Context | Current | Fix |
+|------|---------|---------|-----|
+| 254 | Init effect | `0.8` | `isDarkMode ? 0.85 : 0.9` |
+| 425 | Snapshot capture (sun > horizon) | `0.8` | Read `isDarkMode` from DOM |
+| 623 | Summer-noon effect (sun > horizon) | `0.8` | Read `isDarkMode` from DOM |
+| 618/427 | Sun below horizon | `0` | Keep (correct) |
 
-At lines 247-251, change:
+These changes span 3 `useEffect`/`useCallback` blocks. The init effect has `isDarkMode` in scope
+(line 227). The other two don't — use `document.documentElement.getAttribute('data-theme') === 'dark'`
+(same pattern already used at lines 227, 451, 668).
+
+**Step 1: Update hemisphere light intensity (init effect, line ~247)**
+
+Change:
 ```tsx
     const ambient = new HemisphereLight(
       isDarkMode ? 0x6688aa : 0xb1e1ff,
@@ -114,9 +121,9 @@ to:
     );
 ```
 
-**Step 2: Update directional light intensity**
+**Step 2: Update directional light intensity (init effect, line ~254)**
 
-At line 254, change:
+Change:
 ```tsx
     const sunLight = new DirectionalLight(0xffffff, 0.8);
 ```
@@ -125,9 +132,9 @@ to:
     const sunLight = new DirectionalLight(0xffffff, isDarkMode ? 0.85 : 0.9);
 ```
 
-**Step 3: Update ground plane material**
+**Step 3: Update ground plane material (init effect, line ~271)**
 
-At lines 271-275, change:
+Change:
 ```tsx
     const groundMat = new MeshStandardMaterial({
       color: isDarkMode ? 0x0D1620 : 0xF0F3F6,
@@ -144,16 +151,44 @@ to:
     });
 ```
 
-**Step 4: Run build + tests**
+**Step 4: Update sunLight.intensity in summer-noon effect (line ~623)**
+
+In the summer-noon `useEffect`, change:
+```tsx
+    ctx.sunLight.intensity = 0.8;
+```
+to:
+```tsx
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
+```
+
+**Step 5: Update sunLight.intensity in snapshot capture (line ~425)**
+
+In the `captureSnapshots` callback, change:
+```tsx
+        ctx.sunLight.intensity = 0.8;
+```
+to:
+```tsx
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
+```
+
+Note: The `isDark` variable must be declared inside the `if (sunPos.altitude > 0)` block since
+it's only needed there. The snapshot restore at line ~441 (`ctx.sunLight.intensity = savedSunIntensity`)
+is correct — it restores whatever value was current before the snapshot loop.
+
+**Step 6: Run build + tests**
 
 Run: `cd frontend && npm run build && npx vitest run src/components/NeighborhoodViewer3D.test.tsx`
 Expected: Clean build, all tests pass.
 
-**Step 5: Commit**
+**Step 7: Commit**
 
 ```bash
 git add frontend/src/components/NeighborhoodViewer3D.tsx
-git commit -m "fix: improve 3D shadow contrast via lighting rebalance + ground color"
+git commit -m "style: improve 3D shadow contrast via lighting rebalance + ground color"
 ```
 
 ---
@@ -189,7 +224,7 @@ Expected: Clean build, all tests pass.
 
 ```bash
 git add frontend/src/components/NeighborhoodViewer3D.tsx
-git commit -m "fix: improve dark mode basemap readability via filter rebalance"
+git commit -m "style: improve dark mode basemap readability via filter rebalance"
 ```
 
 ---
@@ -242,7 +277,7 @@ Expected: Clean build, all 448+ frontend tests pass.
 
 ```bash
 git add frontend/src/components/BuildingFootprintMap.css
-git commit -m "fix: improve 2D footprint overlay contrast with dark mode variant"
+git commit -m "style: improve 2D footprint overlay contrast with dark mode variant"
 ```
 
 ---
@@ -288,9 +323,9 @@ Each task's values can be independently adjusted. If dark mode basemap filter `b
 |------|---------|-----------|--------|---------------|--------------|
 | NeighborhoodViewer3D.tsx | 35-36 | Neighbor color | `0xB4C0CE` | `0xB4C0CE` | `0x8A9BB0` |
 | NeighborhoodViewer3D.tsx | 35-36 | Neighbor opacity | `0.6` | `0.70` | `0.65` |
-| NeighborhoodViewer3D.tsx | 483 | Neighbor material side | `DoubleSide` | `FrontSide` | `FrontSide` |
+| NeighborhoodViewer3D.tsx | 483 | Neighbor material side | `DoubleSide` | `DoubleSide` (keep) | `DoubleSide` (keep) |
 | NeighborhoodViewer3D.tsx | 250 | Hemisphere ambient | `0.5` / `0.4` | `0.35` | `0.30` |
-| NeighborhoodViewer3D.tsx | 254 | Directional light | `0.8` | `0.9` | `0.85` |
+| NeighborhoodViewer3D.tsx | 254,425,623 | Directional light (all 3 locations) | `0.8` | `0.9` | `0.85` |
 | NeighborhoodViewer3D.tsx | 272 | Ground color | `0xF0F3F6`/`0x0D1620` | `0xDDE3EA` | `0x1A2838` |
 | NeighborhoodViewer3D.tsx | 273 | Ground roughness | `0.95` | `0.90` | `0.90` |
 | NeighborhoodViewer3D.tsx | 693 | Dark basemap filter | `brightness(0.85) contrast(1.1)` | — | `brightness(1.8) contrast(1.5) saturate(1.2)` |
