@@ -31,9 +31,11 @@ import SunCalc from 'suncalc';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
 import './NeighborhoodViewer3D.css';
 
-/** Uniform neighbor building color: slate.200 per palette.md */
-const NEIGHBOR_COLOR = 0xB4C0CE;
-const NEIGHBOR_OPACITY = 0.6;
+/** Theme-aware neighbor building appearance */
+const NEIGHBOR_COLOR_LIGHT = 0xB4C0CE;
+const NEIGHBOR_COLOR_DARK = 0x8A9BB0;
+const NEIGHBOR_OPACITY_LIGHT = 0.70;
+const NEIGHBOR_OPACITY_DARK = 0.65;
 
 // Convert lat/lng to Web Mercator tile coordinates and fractional position within tile
 function latLngToTile(lat: number, lng: number, zoom: number) {
@@ -477,9 +479,9 @@ export default function NeighborhoodViewer3D({
     }
 
     const neighborMaterial = new MeshStandardMaterial({
-      color: NEIGHBOR_COLOR,
+      color: isDarkMode ? NEIGHBOR_COLOR_DARK : NEIGHBOR_COLOR_LIGHT,
       transparent: true,
-      opacity: NEIGHBOR_OPACITY,
+      opacity: isDarkMode ? NEIGHBOR_OPACITY_DARK : NEIGHBOR_OPACITY_LIGHT,
       side: DoubleSide,
     });
     let neighborMaterialUsed = false;
