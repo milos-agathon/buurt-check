@@ -35,10 +35,15 @@
 }
 
 .footprint-map__shape {
-  fill: rgba(46, 196, 182, 0.28);
+  fill: rgba(46, 196, 182, 0.40);
   stroke: rgba(46, 196, 182, 0.95);
-  stroke-width: 1.4;
+  stroke-width: 1.7;
   vector-effect: non-scaling-stroke;
+}
+
+[data-theme="dark"] .footprint-map__shape {
+  fill: rgba(87, 212, 200, 0.50);
+  stroke: rgba(87, 212, 200, 1.0);
 }
 
 /* Fallback SVG grid mode */
