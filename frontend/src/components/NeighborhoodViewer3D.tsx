@@ -155,6 +155,9 @@ export default function NeighborhoodViewer3D({
   const basemapMeshesRef = useRef<Mesh[]>([]);
   const sunlightComputed = useRef(false);
   const snapshotsCaptured = useRef(false);
+  const onShadowSnapshotsRef = useRef(onShadowSnapshots);
+  onShadowSnapshotsRef.current = onShadowSnapshots;
+  const allBuildingsReadyRef = useRef(false);
   const neighborBuildFrameRef = useRef<number | null>(null);
   const dampingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -379,6 +382,68 @@ export default function NeighborhoodViewer3D({
     };
   }, [renderOnce]);
 
+  // Capture shadow snapshots — 3 static views at 9:00/12:00/17:00 on Dec 21
+  // Extracted into a callback so it can be triggered from the chunk completion path
+  const captureSnapshots = useCallback(() => {
+    const ctx = sceneRef.current;
+    const callback = onShadowSnapshotsRef.current;
+    if (!ctx || !callback || snapshotsCaptured.current) return;
+    if (!allBuildingsReadyRef.current) return;
+    snapshotsCaptured.current = true;
+
+    const savedCameraPos = ctx.camera.position.clone();
+    const savedSunPos = ctx.sunLight.position.clone();
+    const savedSunIntensity = ctx.sunLight.intensity;
+
+    ctx.camera.position.set(0, 200, 0.1);
+    ctx.camera.lookAt(0, 0, 0);
+    ctx.camera.updateProjectionMatrix();
+
+    const year = new Date().getFullYear();
+    const winterSolstice = new Date(year, 11, 21);
+    const snapshotConfigs = [
+      { hour: 9, label: 'morning' },
+      { hour: 12, label: 'noon' },
+      { hour: 17, label: 'evening' },
+    ];
+
+    const snapshots: ShadowSnapshot[] = [];
+
+    for (const config of snapshotConfigs) {
+      const date = new Date(winterSolstice);
+      date.setHours(config.hour, 0, 0, 0);
+
+      const sunPos = SunCalc.getPosition(date, center.lat, center.lng);
+
+      if (sunPos.altitude > 0) {
+        const az = sunPos.azimuth;
+        const alt = sunPos.altitude;
+        const x = -Math.sin(az) * Math.cos(alt) * SUN_DISTANCE;
+        const y = Math.sin(alt) * SUN_DISTANCE;
+        const z = Math.cos(az) * Math.cos(alt) * SUN_DISTANCE;
+        ctx.sunLight.position.set(x, y, z);
+        ctx.sunLight.intensity = 0.8;
+      } else {
+        ctx.sunLight.intensity = 0;
+      }
+
+      ctx.renderer.render(ctx.scene, ctx.camera);
+      const dataUrl = ctx.renderer.domElement.toDataURL('image/png');
+
+      snapshots.push({ label: config.label, hour: config.hour, dataUrl });
+    }
+
+    // Restore camera and sun state
+    ctx.camera.position.copy(savedCameraPos);
+    ctx.camera.lookAt(0, 0, 0);
+    ctx.camera.updateProjectionMatrix();
+    ctx.sunLight.position.copy(savedSunPos);
+    ctx.sunLight.intensity = savedSunIntensity;
+    renderOnce();
+
+    callback(snapshots);
+  }, [center.lat, center.lng, renderOnce]);
+
   // Add buildings to scene
   useEffect(() => {
     const ctx = sceneRef.current;
@@ -460,6 +525,7 @@ export default function NeighborhoodViewer3D({
 
     sunlightComputed.current = false;
     snapshotsCaptured.current = false;
+    allBuildingsReadyRef.current = false;
 
     let cancelled = false;
     let nextIndex = 0;
@@ -514,6 +580,8 @@ export default function NeighborhoodViewer3D({
         if (!neighborMaterialUsed) {
           disposeNeighborMaterial();
         }
+        allBuildingsReadyRef.current = true;
+        captureSnapshots();
       }
     };
 
@@ -521,6 +589,8 @@ export default function NeighborhoodViewer3D({
       neighborBuildFrameRef.current = requestAnimationFrame(addNeighborChunk);
     } else {
       disposeNeighborMaterial();
+      allBuildingsReadyRef.current = true;
+      captureSnapshots();
     }
 
     return () => {
@@ -533,7 +603,7 @@ export default function NeighborhoodViewer3D({
         disposeNeighborMaterial();
       }
     };
-  }, [buildings, targetPandId, frameCamera, renderOnce]);
+  }, [buildings, targetPandId, frameCamera, renderOnce, captureSnapshots]);
 
   // Fix sun to summer noon — static lighting for context card
   useEffect(() => {
@@ -746,64 +816,12 @@ export default function NeighborhoodViewer3D({
     }
   }, [buildings, targetPandId, computeSunlight]);
 
-  // Capture shadow snapshots — 3 static views at 9:00/12:00/17:00 on Dec 21
+  // Fallback: capture snapshots when onShadowSnapshots callback arrives after buildings are ready
   useEffect(() => {
-    const ctx = sceneRef.current;
-    if (!ctx || !onShadowSnapshots || buildings.length === 0 || snapshotsCaptured.current) return;
-    snapshotsCaptured.current = true;
-
-    const savedCameraPos = ctx.camera.position.clone();
-    const savedSunPos = ctx.sunLight.position.clone();
-    const savedSunIntensity = ctx.sunLight.intensity;
-
-    ctx.camera.position.set(0, 200, 0.1);
-    ctx.camera.lookAt(0, 0, 0);
-    ctx.camera.updateProjectionMatrix();
-
-    const year = new Date().getFullYear();
-    const winterSolstice = new Date(year, 11, 21);
-    const snapshotConfigs = [
-      { hour: 9, label: 'morning' },
-      { hour: 12, label: 'noon' },
-      { hour: 17, label: 'evening' },
-    ];
-
-    const snapshots: ShadowSnapshot[] = [];
-
-    for (const config of snapshotConfigs) {
-      const date = new Date(winterSolstice);
-      date.setHours(config.hour, 0, 0, 0);
-
-      const sunPos = SunCalc.getPosition(date, center.lat, center.lng);
-
-      if (sunPos.altitude > 0) {
-        const az = sunPos.azimuth;
-        const alt = sunPos.altitude;
-        const x = -Math.sin(az) * Math.cos(alt) * SUN_DISTANCE;
-        const y = Math.sin(alt) * SUN_DISTANCE;
-        const z = Math.cos(az) * Math.cos(alt) * SUN_DISTANCE;
-        ctx.sunLight.position.set(x, y, z);
-        ctx.sunLight.intensity = 0.8;
-      } else {
-        ctx.sunLight.intensity = 0;
-      }
-
-      ctx.renderer.render(ctx.scene, ctx.camera);
-      const dataUrl = ctx.renderer.domElement.toDataURL('image/png');
-
-      snapshots.push({ label: config.label, hour: config.hour, dataUrl });
+    if (onShadowSnapshots && allBuildingsReadyRef.current && !snapshotsCaptured.current) {
+      captureSnapshots();
     }
-
-    // Restore camera and sun state
-    ctx.camera.position.copy(savedCameraPos);
-    ctx.camera.lookAt(0, 0, 0);
-    ctx.camera.updateProjectionMatrix();
-    ctx.sunLight.position.copy(savedSunPos);
-    ctx.sunLight.intensity = savedSunIntensity;
-    renderOnce();
-
-    onShadowSnapshots(snapshots);
-  }, [buildings, onShadowSnapshots, center.lat, center.lng, renderOnce]);
+  }, [onShadowSnapshots, captureSnapshots]);
 
   return (
     <div className="viewer-3d">

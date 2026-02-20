@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { setupTestI18n, makeNeighborhood3DResponse, makeNeighborhood3DResponseWithLod22 } from '../test/helpers';
 
@@ -277,5 +277,49 @@ describe('NeighborhoodViewer3D', () => {
   it('shows reset button when loading=false', () => {
     renderViewer({ loading: false });
     expect(screen.getByRole('button', { name: /reset/i })).toBeInTheDocument();
+  });
+
+  it('captures shadow snapshots only after all neighbor chunks are processed', async () => {
+    // Collect rAF callbacks so we can control when chunks execute
+    const rafCallbacks: (() => void)[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafCallbacks.push(cb as () => void);
+      return ++rafId;
+    });
+
+    const onSnapshots = vi.fn();
+    renderViewer({ onShadowSnapshots: onSnapshots });
+
+    // At this point, the target building is added synchronously.
+    // Neighbor chunks are scheduled via rAF but haven't executed.
+    // Snapshots should NOT have been captured yet.
+    expect(onSnapshots).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(rafCallbacks.length).toBeGreaterThan(0);
+    });
+
+    // Execute all pending rAF callbacks (building chunks + final snapshot trigger)
+    let safety = 0;
+    while (rafCallbacks.length > 0 && safety < 50) {
+      const cb = rafCallbacks.shift()!;
+      await act(async () => {
+        cb();
+        await Promise.resolve();
+      });
+      safety++;
+    }
+
+    // Now snapshots should have been captured
+    await waitFor(() => {
+      expect(onSnapshots).toHaveBeenCalledTimes(1);
+    });
+    expect(onSnapshots).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'morning', hour: 9 }),
+        expect.objectContaining({ label: 'noon', hour: 12 }),
+        expect.objectContaining({ label: 'evening', hour: 17 }),
+      ])
+    );
   });
 });
