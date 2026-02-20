@@ -56,17 +56,17 @@ if settings.three_d_conservative_mode:
     TARGET_FETCH_TIMEOUT = 30.0
     TARGET_FETCH_BUDGET = 999.0
 else:
-    # Accelerated mode defaults.
-    DEFAULT_RADIUS = 150.0
-    BBOX_MAX_PAGES = 3
-    BBOX_FETCH_BUDGET = 50.0
-    BBOX_PAGE_TIMEOUT = 40.0
+    # Accelerated mode defaults — parallel quadrant strategy.
+    DEFAULT_RADIUS = 120.0
+    BBOX_MAX_PAGES = 1
+    BBOX_FETCH_BUDGET = 35.0
+    BBOX_PAGE_TIMEOUT = 30.0
     TARGET_FETCH_RETRIES = 4
-    BBOX_FETCH_RETRIES = 6
+    BBOX_FETCH_RETRIES = 4
     RETRY_BACKOFF_BASE = 0.25
-    FALLBACK_PAGE_TIMEOUT = 40.0
+    FALLBACK_PAGE_TIMEOUT = 30.0
     NEARBY_CONTEXT_MIN_RADIUS = 100.0
-    NEARBY_CONTEXT_TIMEOUT = 40.0
+    NEARBY_CONTEXT_TIMEOUT = 30.0
     NEARBY_CONTEXT_MAX_PAGES = 3
     IMMEDIATE_CONTEXT_TIMEOUT = 15.0
     PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 3.0
@@ -633,6 +633,11 @@ async def _fetch_bbox_resilient(
     radius: float,
 ) -> tuple[list[BuildingBlock], bool]:
     """Fetch neighborhood context with a fast backup path to avoid target-only drops."""
+    # Accelerated mode: use parallel quadrant strategy (no sequential pagination).
+    if not settings.three_d_conservative_mode:
+        return await _fetch_bbox_parallel_quadrants(center_x, center_y, radius)
+
+    # Conservative mode: original sequential paginated fetch with backup.
     backup_radius = max(FALLBACK_MIN_RADIUS, radius * FALLBACK_RADIUS_FACTOR)
     primary_task = asyncio.create_task(_fetch_bbox_paginated(center_x, center_y, radius))
     backup_task = asyncio.create_task(_fetch_bbox_quick_context(center_x, center_y, backup_radius))
@@ -662,9 +667,6 @@ async def _fetch_bbox_resilient(
 
     backup_buildings, backup_partial = _task_result_or_partial(backup_task)
 
-    # Always wait for primary to finish — it covers a larger radius and returns
-    # more buildings for accurate shadow analysis.  Use backup as minimum
-    # guarantee if primary fails entirely.
     wait_timeout = (
         PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS
         if not backup_buildings
@@ -682,14 +684,12 @@ async def _fetch_bbox_resilient(
         primary_task.cancel()
         primary_buildings, primary_partial = [], True
 
-    # Prefer whichever fetch returned more buildings
     if len(primary_buildings) >= len(backup_buildings):
         if primary_buildings:
             return primary_buildings, primary_partial
     if backup_buildings:
         return backup_buildings, backup_partial or True
 
-    # Both empty — try a secondary fallback
     secondary_buildings, secondary_partial = await _fetch_bbox_quick_context(
         center_x,
         center_y,
@@ -755,17 +755,21 @@ async def _get_neighborhood_3d_impl(
     radius: float = DEFAULT_RADIUS,
 ) -> Neighborhood3DResponse:
     """Fetch 3D building data from 3DBAG for the neighborhood around a point."""
-    near_radius = max(radius * 0.9, NEARBY_CONTEXT_MIN_RADIUS)
-    near_task = asyncio.create_task(
-        _fetch_bbox_quick_context(
-            rd_x,
-            rd_y,
-            near_radius,
-            limit=NEARBY_CONTEXT_LIMIT,
-            timeout_s=NEARBY_CONTEXT_TIMEOUT,
-            max_pages=NEARBY_CONTEXT_MAX_PAGES,
+    near_task: asyncio.Task | None = None
+    if settings.three_d_conservative_mode:
+        # Near-ring prefetch only useful in conservative mode where bbox is paginated.
+        # In accelerated mode, parallel quadrants already cover the full radius.
+        near_radius = max(radius * 0.9, NEARBY_CONTEXT_MIN_RADIUS)
+        near_task = asyncio.create_task(
+            _fetch_bbox_quick_context(
+                rd_x,
+                rd_y,
+                near_radius,
+                limit=NEARBY_CONTEXT_LIMIT,
+                timeout_s=NEARBY_CONTEXT_TIMEOUT,
+                max_pages=NEARBY_CONTEXT_MAX_PAGES,
+            )
         )
-    )
 
     # Parallel fetch: direct target + broader resilient context first.
     target_building, bbox_result = await asyncio.gather(
@@ -790,10 +794,11 @@ async def _get_neighborhood_3d_impl(
     # returns fewer buildings than the near ring, especially at larger radii.
     near_buildings: list[BuildingBlock] = []
     near_partial = False
-    try:
-        near_buildings, near_partial = await near_task
-    except Exception:
-        near_buildings, near_partial = [], True
+    if near_task is not None:
+        try:
+            near_buildings, near_partial = await near_task
+        except Exception:
+            near_buildings, near_partial = [], True
 
     if target_building is None:
         for b in near_buildings:

@@ -703,17 +703,19 @@ async def test_get_neighborhood_3d_fast_path_skips_context_enrichment(
 
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
-async def test_get_neighborhood_3d_prefetches_near_ring_without_duping_context(mock_get_client):
-    """Near-ring prefetch should not duplicate context when bbox already has neighbors."""
+async def test_accelerated_mode_skips_near_ring_prefetch(mock_get_client):
+    """Near-ring prefetch is skipped in accelerated mode (redundant with quadrants)."""
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    bbox_resp = _make_3dbag_response(
-        [
-            _make_feature("0363100000000001"),
-            _make_feature("0363100000000002"),
-        ]
-    )
+    import app.services.three_d_bag as mod
+    if mod.settings.three_d_conservative_mode:
+        pytest.skip("Only applies in accelerated mode")
+
+    bbox_resp = _make_3dbag_response([
+        _make_feature("0363100000000001"),
+        _make_feature("0363100000000002"),
+    ])
     seen_urls: list[str] = []
 
     def side_effect(url, **kwargs):
@@ -735,10 +737,10 @@ async def test_get_neighborhood_3d_prefetches_near_ring_without_duping_context(m
         lng=4.892,
     )
 
-    # Near-ring radius query (rd ±135m with radius=150) is prefetched in parallel.
-    assert any("bbox=120870,486870,121140,487140" in u for u in seen_urls)
-    # Result still contains target + two neighbors (no duplication from prefetch).
-    assert len(result.buildings) == 3
+    # No near-ring URL (108m radius) should appear — only quadrant URLs
+    near_ring_urls = [u for u in seen_urls if "bbox=120897,486897" in u]
+    assert len(near_ring_urls) == 0
+    assert len(result.buildings) >= 1
 
 
 @pytest.mark.asyncio
@@ -747,6 +749,10 @@ async def test_get_neighborhood_3d_keeps_completed_near_ring_context_when_bbox_h
     mock_get_client,
 ):
     """Keep prefetched near-ring buildings to avoid dropping close context."""
+    import app.services.three_d_bag as mod
+    if not mod.settings.three_d_conservative_mode:
+        pytest.skip("Near-ring prefetch only applies in conservative mode")
+
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -789,6 +795,10 @@ async def test_get_neighborhood_3d_keeps_completed_near_ring_context_when_bbox_h
 @patch("app.services.three_d_bag._get_client")
 async def test_get_neighborhood_3d_fetches_bbox_next_page(mock_get_client):
     """Bbox pagination should include buildings from follow-up pages."""
+    import app.services.three_d_bag as mod
+    if not mod.settings.three_d_conservative_mode:
+        pytest.skip("Sequential pagination only applies in conservative mode")
+
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -1119,6 +1129,10 @@ async def test_fetch_target_building_root_level_fallback(mock_get_client):
 @patch("app.services.three_d_bag._get_client")
 async def test_fetch_bbox_partial_failure(mock_get_client):
     """Second bbox page failure still returns partial neighborhood result."""
+    import app.services.three_d_bag as mod
+    if not mod.settings.three_d_conservative_mode:
+        pytest.skip("Sequential pagination only applies in conservative mode")
+
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -1164,6 +1178,10 @@ async def test_fetch_bbox_partial_failure(mock_get_client):
 @patch("app.services.three_d_bag._get_client")
 async def test_fetch_bbox_fallback_returns_context_after_first_page_timeout(mock_get_client):
     """When primary bbox page times out, reduced-radius fallback should return context."""
+    import app.services.three_d_bag as mod
+    if not mod.settings.three_d_conservative_mode:
+        pytest.skip("Resilient backup path only applies in conservative mode")
+
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -1496,16 +1514,16 @@ def test_accelerated_mode_constants_within_latency_bounds():
     if mod.settings.three_d_conservative_mode:
         pytest.skip("Only applies in accelerated mode")
 
-    assert mod.BBOX_MAX_PAGES <= 3
-    assert mod.BBOX_FETCH_BUDGET <= 50.0
-    assert mod.BBOX_FETCH_RETRIES <= 6
-    assert mod.DEFAULT_RADIUS <= 150.0
+    assert mod.BBOX_MAX_PAGES <= 1
+    assert mod.BBOX_FETCH_BUDGET <= 35.0
+    assert mod.BBOX_FETCH_RETRIES <= 4
+    assert mod.DEFAULT_RADIUS <= 120.0
 
 
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
-async def test_default_radius_produces_150m_bbox_url(mock_get_client):
-    """Calling get_neighborhood_3d without radius should use DEFAULT_RADIUS."""
+async def test_default_radius_produces_quadrant_bbox_urls(mock_get_client):
+    """Accelerated mode should produce 4 quadrant bbox URLs at 120m radius."""
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -1535,8 +1553,14 @@ async def test_default_radius_produces_150m_bbox_url(mock_get_client):
         lng=4.892,
     )
 
-    assert any("bbox=120855,486855,121155,487155" in u for u in seen_urls)
-    assert any("bbox=120870,486870,121140,487140" in u for u in seen_urls)
+    bbox_urls = [u for u in seen_urls if "bbox=" in u]
+    # Should have 4 quadrant bbox URLs (no near-ring in accelerated mode)
+    assert len(bbox_urls) == 4
+    # Verify quadrant pattern: center is (121005, 487005), radius 120
+    assert any("bbox=121005,487005," in u for u in bbox_urls)  # NE
+    assert any("bbox=120885,487005," in u for u in bbox_urls)  # NW
+    assert any("bbox=121005,486885," in u for u in bbox_urls)  # SE
+    assert any("bbox=120885,486885," in u for u in bbox_urls)  # SW
 
 
 @pytest.mark.asyncio
@@ -1655,9 +1679,9 @@ def test_conservative_mode_preserves_exact_pre_optimization_constants():
         pytest.skip("Test expects accelerated mode by default")
 
     # Prove accelerated defaults are active before switching modes.
-    assert mod.DEFAULT_RADIUS == 150.0
-    assert mod.BBOX_MAX_PAGES == 3
-    assert mod.BBOX_FETCH_BUDGET == 50.0
+    assert mod.DEFAULT_RADIUS == 120.0
+    assert mod.BBOX_MAX_PAGES == 1
+    assert mod.BBOX_FETCH_BUDGET == 35.0
 
     PRE_OPT = {
         "BBOX_MAX_PAGES": 5,
@@ -2058,3 +2082,47 @@ async def test_fetch_bbox_parallel_quadrants_budget_preserves_completed(mock_get
     assert partial is True
     # 3 fast quadrants should still be returned even when one timed out.
     assert len(buildings) == 3
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._get_client")
+async def test_conservative_mode_uses_sequential_path(mock_get_client, mock_settings):
+    """Conservative mode should use sequential _fetch_bbox_paginated, not parallel quadrants."""
+    mock_settings.three_d_conservative_mode = True
+    mock_settings.enable_lod22_roofs = True
+    mock_settings.enable_lod22_context_enrichment = False
+    mock_settings.three_d_bag_base = "https://api.3dbag.nl"
+
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    seen_urls: list[str] = []
+    bbox_resp = _make_3dbag_response([_make_feature("0363100000000001")])
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        seen_urls.append(s_url)
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        return _make_mock_resp(bbox_resp)
+
+    mock_client.get.side_effect = side_effect
+
+    result = await get_neighborhood_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+        radius=150.0,
+    )
+
+    # Conservative should produce ONE large bbox URL (sequential), not 4 quadrants.
+    # Bbox at 150m: 120855,486855,121155,487155 (with limit=100)
+    bbox_urls = [u for u in seen_urls if "bbox=" in u and "limit=100" in u]
+    assert len(bbox_urls) >= 1
+    assert any("bbox=120855,486855,121155,487155" in u for u in bbox_urls)
+    assert result.buildings is not None
