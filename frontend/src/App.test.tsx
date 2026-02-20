@@ -802,3 +802,61 @@ describe('property warnings param forwarding', () => {
     );
   });
 });
+
+describe('early 3D fetch from lookup pand_id', () => {
+  it('starts 3D fetches from lookup pand_id before building facts resolves', async () => {
+    const buildingDeferred = { resolve: (_v: ReturnType<typeof makeBuildingResponse>) => {} };
+    mockLookup.mockResolvedValue(makeResolvedAddress({ pand_id: '0363100012253924' }));
+    mockBuilding.mockReturnValue(
+      new Promise<ReturnType<typeof makeBuildingResponse>>((resolve) => {
+        buildingDeferred.resolve = resolve;
+      }),
+    );
+    mockBuilding3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockBuilding3D).toHaveBeenCalledWith(
+        'vbo-123',
+        '0363100012253924',
+        121000,
+        487000,
+        52.3676,
+        4.8846,
+      );
+    });
+    await waitFor(() => {
+      expect(mockNeighborhood3D).toHaveBeenCalledWith(
+        'vbo-123',
+        '0363100012253924',
+        121000,
+        487000,
+        52.3676,
+        4.8846,
+      );
+    });
+
+    // Clean up unresolved building promise to avoid test leakage.
+    buildingDeferred.resolve(makeBuildingResponse());
+  });
+
+  it('does not start duplicate 3D pipeline when lookup pand_id is present', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress({ pand_id: '0363100012253924' }));
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockBuilding3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockBuilding3D).toHaveBeenCalled();
+      expect(mockNeighborhood3D).toHaveBeenCalled();
+    });
+    expect(mockBuilding3D).toHaveBeenCalledTimes(1);
+    expect(mockNeighborhood3D).toHaveBeenCalledTimes(1);
+  });
+});

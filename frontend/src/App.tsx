@@ -530,6 +530,66 @@ function App() {
 
       const vboId = resolved.adresseerbaar_object_id;
       const { rd_x, rd_y, latitude, longitude } = resolved;
+
+      // --- EARLY 3D FETCH ---
+      const earlyPandId = resolved.pand_id ?? null;
+      let early3DStarted = false;
+
+      if (earlyPandId && vboId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
+        early3DStarted = true;
+        setNeighborhood3DLoading(true);
+        setSurroundingLoading(true);
+
+        let phase1TargetData: Neighborhood3DResponse | null = null;
+        let phase2Done = false;
+        let phase2HasRenderableData = false;
+
+        // Phase 1: Quick target building 3D (~2s)
+        void (async () => {
+          try {
+            const target3d = await getBuilding3D(vboId, earlyPandId, rd_x, rd_y, latitude, longitude);
+            const hasTargetBuilding = target3d.buildings.length > 0;
+            if (hasTargetBuilding) {
+              phase1TargetData = target3d;
+            }
+            if (
+              (!phase2Done || !phase2HasRenderableData)
+              && neighborhood3DRequestId.current === requestId
+            ) {
+              if (hasTargetBuilding) {
+                setNeighborhood3D(target3d);
+                setNeighborhood3DLoading(false);
+              }
+            }
+          } catch { /* Phase 2 handles full fetch */ }
+        })();
+
+        // Phase 2: Full neighborhood (~15-22s with reduced scope)
+        void (async () => {
+          try {
+            const n3d = await getNeighborhood3D(vboId, earlyPandId, rd_x, rd_y, latitude, longitude);
+            phase2Done = true;
+            const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
+            phase2HasRenderableData = merged3d.buildings.length > 0;
+            if (neighborhood3DRequestId.current === requestId) {
+              setNeighborhood3D(merged3d);
+              setNeighborhood3DLoading(false);
+              setSurroundingLoading(false);
+              const canCompute = hasSurroundingContext(merged3d);
+              setSunlightUnavailable(!canCompute);
+            }
+          } catch {
+            phase2Done = true;
+            phase2HasRenderableData = false;
+            if (neighborhood3DRequestId.current === requestId) {
+              setNeighborhood3DLoading(false);
+              setSurroundingLoading(false);
+              setSunlightUnavailable(true);
+            }
+          }
+        })();
+      }
+
       if (vboId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
         setRiskLoading(true);
         void (async () => {
@@ -670,11 +730,11 @@ function App() {
         }
 
         const pandId = building.building?.pand_id;
-        if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
-          setNeighborhood3DLoading(true);
-          setSurroundingLoading(true);
 
-          const immediateTargetData = createImmediateTarget3D(
+        // --- PLACEHOLDER: always render from building facts (regardless of early3DStarted) ---
+        let immediateTargetData: Neighborhood3DResponse | null = null;
+        if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
+          immediateTargetData = createImmediateTarget3D(
             vboId,
             pandId,
             rd_x,
@@ -684,9 +744,18 @@ function App() {
             building.building,
           );
           if (neighborhood3DRequestId.current === requestId) {
-            setNeighborhood3D(immediateTargetData);
+            // Functional setState: only apply placeholder if early fetch hasn't
+            // already produced better data (real 3D model > synthetic placeholder).
+            setNeighborhood3D(prev =>
+              prev && prev.buildings.length > 0 ? prev : immediateTargetData!
+            );
             setNeighborhood3DLoading(false);
           }
+        }
+
+        // --- 3D API FETCHES: only when early fetch didn't already start them ---
+        if (!early3DStarted && pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
+          setSurroundingLoading(true);
 
           let phase2Done = false;
           let phase2HasRenderableData = false;
@@ -734,7 +803,7 @@ function App() {
               }
             }
           })();
-        } else {
+        } else if (!early3DStarted) {
           setSunlightUnavailable(true);
         }
       } else {
