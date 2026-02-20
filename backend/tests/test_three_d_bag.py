@@ -607,8 +607,8 @@ async def test_get_neighborhood_3d_prefetches_near_ring_without_duping_context(m
         lng=4.892,
     )
 
-    # Near-ring radius query (rd ±90m with radius=100) is prefetched in parallel.
-    assert any("bbox=120915,486915,121095,487095" in u for u in seen_urls)
+    # Near-ring radius query (rd ±135m with radius=150) is prefetched in parallel.
+    assert any("bbox=120870,486870,121140,487140" in u for u in seen_urls)
     # Result still contains target + two neighbors (no duplication from prefetch).
     assert len(result.buildings) == 3
 
@@ -631,11 +631,11 @@ async def test_get_neighborhood_3d_keeps_completed_near_ring_context_when_bbox_h
             match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
             assert match is not None
             return _make_mock_resp(_make_single_item_response(match.group(1)))
-        if "bbox=120915,486915,121095,487095" in s_url:
-            # Near-ring prefetch (rd ±90m).
+        if "bbox=120870,486870,121140,487140" in s_url:
+            # Near-ring prefetch (rd ±135m).
             return _make_mock_resp(near_resp)
-        if "bbox=120905,486905,121105,487105" in s_url:
-            # Broader bbox query (rd ±100m): still has context, but misses one close building.
+        if "bbox=120855,486855,121155,487155" in s_url:
+            # Broader bbox query (rd ±150m): still has context, but misses one close building.
             await asyncio.sleep(0.02)
             return _make_mock_resp(bbox_resp)
         return _make_mock_resp(_make_3dbag_response([]))
@@ -668,7 +668,7 @@ async def test_get_neighborhood_3d_fetches_bbox_next_page(mock_get_client):
         [_make_feature("0363100000000001")],
         next_link=(
             "https://api.3dbag.nl/collections/pand/items?"
-            "bbox=120905,486905,121105,487105&offset=101"
+            "bbox=120855,486855,121155,487155&offset=101"
         ),
     )
     second_page = _make_3dbag_response([_make_feature("0363100000000002")])
@@ -998,7 +998,7 @@ async def test_fetch_bbox_partial_failure(mock_get_client):
         [_make_feature("0363100000000001")],
         next_link=(
             "https://api.3dbag.nl/collections/pand/items?"
-            "bbox=120905,486905,121105,487105&offset=101"
+            "bbox=120855,486855,121155,487155&offset=101"
         ),
     )
 
@@ -1368,15 +1368,15 @@ def test_accelerated_mode_constants_within_latency_bounds():
     if mod.settings.three_d_conservative_mode:
         pytest.skip("Only applies in accelerated mode")
 
-    assert mod.BBOX_MAX_PAGES <= 2
-    assert mod.BBOX_FETCH_BUDGET <= 35.0
-    assert mod.BBOX_FETCH_RETRIES <= 4
-    assert mod.DEFAULT_RADIUS <= 100.0
+    assert mod.BBOX_MAX_PAGES <= 3
+    assert mod.BBOX_FETCH_BUDGET <= 50.0
+    assert mod.BBOX_FETCH_RETRIES <= 6
+    assert mod.DEFAULT_RADIUS <= 150.0
 
 
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
-async def test_default_radius_produces_100m_bbox_url(mock_get_client):
+async def test_default_radius_produces_150m_bbox_url(mock_get_client):
     """Calling get_neighborhood_3d without radius should use DEFAULT_RADIUS."""
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
@@ -1407,14 +1407,14 @@ async def test_default_radius_produces_100m_bbox_url(mock_get_client):
         lng=4.892,
     )
 
-    assert any("bbox=120905,486905,121105,487105" in u for u in seen_urls)
-    assert any("bbox=120915,486915,121095,487095" in u for u in seen_urls)
+    assert any("bbox=120855,486855,121155,487155" in u for u in seen_urls)
+    assert any("bbox=120870,486870,121140,487140" in u for u in seen_urls)
 
 
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
 async def test_neighborhood_3d_building_count_floor_at_reduced_radius(mock_get_client):
-    """Dense neighborhoods should still return a usable building count at 100m."""
+    """Dense neighborhoods should still return a usable building count at 150m."""
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -1440,7 +1440,7 @@ async def test_neighborhood_3d_building_count_floor_at_reduced_radius(mock_get_c
         rd_y=487005.0,
         lat=52.372,
         lng=4.892,
-        radius=100.0,
+        radius=150.0,
     )
 
     assert result.target_pand_id == target_id
@@ -1480,7 +1480,7 @@ async def test_neighborhood_3d_target_recovered_at_reduced_radius(mock_get_clien
         rd_y=487005.0,
         lat=52.372,
         lng=4.892,
-        radius=100.0,
+        radius=150.0,
     )
 
     assert result.target_pand_id == target_id
@@ -1527,9 +1527,9 @@ def test_conservative_mode_preserves_exact_pre_optimization_constants():
         pytest.skip("Test expects accelerated mode by default")
 
     # Prove accelerated defaults are active before switching modes.
-    assert mod.DEFAULT_RADIUS == 100.0
-    assert mod.BBOX_MAX_PAGES == 2
-    assert mod.BBOX_FETCH_BUDGET == 35.0
+    assert mod.DEFAULT_RADIUS == 150.0
+    assert mod.BBOX_MAX_PAGES == 3
+    assert mod.BBOX_FETCH_BUDGET == 50.0
 
     PRE_OPT = {
         "BBOX_MAX_PAGES": 5,

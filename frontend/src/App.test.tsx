@@ -839,8 +839,11 @@ describe('early 3D fetch from lookup pand_id', () => {
       );
     });
 
-    // Clean up unresolved building promise to avoid test leakage.
-    buildingDeferred.resolve(makeBuildingResponse());
+    // Clean up unresolved building promise to avoid async state updates after test end.
+    await act(async () => {
+      buildingDeferred.resolve(makeBuildingResponse());
+      await Promise.resolve();
+    });
   });
 
   it('does not start duplicate 3D pipeline when lookup pand_id is present', async () => {

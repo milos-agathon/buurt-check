@@ -392,6 +392,92 @@ async def test_neighborhood_3d_endpoint(mock_3d, mock_cache_set, mock_cache_get,
 
 
 @pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.three_d_bag")
+async def test_neighborhood_3d_cache_key_includes_accelerated_mode(
+    mock_3d, mock_cache_set, mock_cache_get, client,
+):
+    mock_3d.get_neighborhood_3d = AsyncMock(
+        return_value=Neighborhood3DResponse(
+            address_id="0363100012253924",
+            target_pand_id="0363100012253924",
+            center=Neighborhood3DCenter(lat=52.372, lng=4.892, rd_x=121286.0, rd_y=487296.0),
+            buildings=[
+                BuildingBlock(
+                    pand_id="0363100012253924",
+                    ground_height=1.75,
+                    building_height=16.43,
+                    footprint=[[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]],
+                    year=1917,
+                )
+            ],
+        )
+    )
+
+    resp = await client.get(
+        "/api/address/0363010000696734/neighborhood3d",
+        params={
+            "pand_id": "0363100012253924",
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+    assert resp.status_code == 200
+    cache_key = mock_cache_get.call_args.args[0]
+    assert cache_key.startswith("neighborhood3d:v25:accelerated:")
+    assert "0363100012253924:121286:487296" in cache_key
+    assert mock_cache_set.call_args.args[0] == cache_key
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.three_d_bag")
+async def test_neighborhood_3d_cache_key_includes_conservative_mode(
+    mock_3d, mock_cache_set, mock_cache_get, client,
+):
+    import app.api.address as address_mod
+
+    mock_3d.get_neighborhood_3d = AsyncMock(
+        return_value=Neighborhood3DResponse(
+            address_id="0363100012253924",
+            target_pand_id="0363100012253924",
+            center=Neighborhood3DCenter(lat=52.372, lng=4.892, rd_x=121286.0, rd_y=487296.0),
+            buildings=[
+                BuildingBlock(
+                    pand_id="0363100012253924",
+                    ground_height=1.75,
+                    building_height=16.43,
+                    footprint=[[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]],
+                    year=1917,
+                )
+            ],
+        )
+    )
+
+    with patch.object(address_mod.settings, "three_d_conservative_mode", True):
+        resp = await client.get(
+            "/api/address/0363010000696734/neighborhood3d",
+            params={
+                "pand_id": "0363100012253924",
+                "rd_x": "121286.0",
+                "rd_y": "487296.0",
+                "lat": "52.372",
+                "lng": "4.892",
+            },
+        )
+
+    assert resp.status_code == 200
+    cache_key = mock_cache_get.call_args.args[0]
+    assert cache_key.startswith("neighborhood3d:v25:conservative:")
+    assert "0363100012253924:121286:487296" in cache_key
+    assert mock_cache_set.call_args.args[0] == cache_key
+
+
+@pytest.mark.asyncio
 async def test_neighborhood_3d_invalid_vbo_id(client):
     resp = await client.get(
         "/api/address/not-valid/neighborhood3d",

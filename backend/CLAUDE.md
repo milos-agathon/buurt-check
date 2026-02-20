@@ -64,9 +64,9 @@ ruff check . && ruff format .               # MUST pass before commit
 ## 3DBAG & 3D Viewer
 
 - **Scope modes:**
-  - **Accelerated (default):** bbox radius 100m, max pages 2, budget 35s. ~80-120 buildings. Sub-25s cold load target
+  - **Accelerated (default):** bbox radius 150m, max pages 3, budget 50s. Tuned to recover close-context coverage while keeping cold loads bounded
   - **Conservative:** bbox radius 150m, max pages 5, budget 80s. ~150-250 buildings. Enable via `BUURT_THREE_D_CONSERVATIVE_MODE=True`. This is the rollback safety valve — preserves exact pre-optimization behavior
-- **Cache version v24** for neighborhood3d (bumped for scope reduction)
+- **Cache version v25** for neighborhood3d. Key includes mode: `neighborhood3d:v25:{accelerated|conservative}:...`
 - **Lookup pand_id:** Lookup endpoint resolves VBO->pand_id with 3s timeout budget. Cache key: `lookup:v2:{id}`. Enables early 3D fetch without waiting for building facts
 - **GZip compression:** All responses >1KB compressed via GZipMiddleware
 - **3DBAG bbox fallback for target recovery:** When single-item endpoint returns 502, scan bbox results for target `pand_id`
