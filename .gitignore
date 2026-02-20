@@ -31,6 +31,9 @@ logs/
 # Claude Code local overrides
 CLAUDE.local.md
 
+# Worktrees
+.worktrees/
+
 # Workflow state (regenerated each session)
 .workflow/plans/
 .workflow/feedback/
