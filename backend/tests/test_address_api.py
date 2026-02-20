@@ -427,7 +427,7 @@ async def test_neighborhood_3d_cache_key_includes_accelerated_mode(
     )
     assert resp.status_code == 200
     cache_key = mock_cache_get.call_args.args[0]
-    assert cache_key.startswith("neighborhood3d:v25:accelerated:")
+    assert cache_key.startswith("neighborhood3d:v26:accelerated:")
     assert "0363100012253924:121286:487296" in cache_key
     assert mock_cache_set.call_args.args[0] == cache_key
 
@@ -472,7 +472,7 @@ async def test_neighborhood_3d_cache_key_includes_conservative_mode(
 
     assert resp.status_code == 200
     cache_key = mock_cache_get.call_args.args[0]
-    assert cache_key.startswith("neighborhood3d:v25:conservative:")
+    assert cache_key.startswith("neighborhood3d:v26:conservative:")
     assert "0363100012253924:121286:487296" in cache_key
     assert mock_cache_set.call_args.args[0] == cache_key
 
