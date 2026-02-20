@@ -249,11 +249,11 @@ export default function NeighborhoodViewer3D({
     const ambient = new HemisphereLight(
       isDarkMode ? 0x6688aa : 0xb1e1ff,
       isDarkMode ? 0x443311 : 0xb97a20,
-      isDarkMode ? 0.4 : 0.5,
+      isDarkMode ? 0.30 : 0.35,
     );
     scene.add(ambient);
 
-    const sunLight = new DirectionalLight(0xffffff, 0.8);
+    const sunLight = new DirectionalLight(0xffffff, isDarkMode ? 0.85 : 0.9);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = SHADOW_MAP_SIZE;
     sunLight.shadow.mapSize.height = SHADOW_MAP_SIZE;
@@ -271,8 +271,8 @@ export default function NeighborhoodViewer3D({
     // Ground plane
     const groundGeom = new PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
     const groundMat = new MeshStandardMaterial({
-      color: isDarkMode ? 0x0D1620 : 0xF0F3F6,
-      roughness: 0.95,
+      color: isDarkMode ? 0x1A2838 : 0xDDE3EA,
+      roughness: 0.90,
       side: DoubleSide,
     });
     const ground = new Mesh(groundGeom, groundMat);
@@ -424,7 +424,8 @@ export default function NeighborhoodViewer3D({
         const y = Math.sin(alt) * SUN_DISTANCE;
         const z = Math.cos(az) * Math.cos(alt) * SUN_DISTANCE;
         ctx.sunLight.position.set(x, y, z);
-        ctx.sunLight.intensity = 0.8;
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
       } else {
         ctx.sunLight.intensity = 0;
       }
@@ -622,7 +623,8 @@ export default function NeighborhoodViewer3D({
       return;
     }
 
-    ctx.sunLight.intensity = 0.8;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
     const az = sunPos.azimuth;
     const alt = sunPos.altitude;
 
