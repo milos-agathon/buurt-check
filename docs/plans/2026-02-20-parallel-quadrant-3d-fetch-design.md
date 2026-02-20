@@ -93,7 +93,7 @@ async def _fetch_bbox_parallel_quadrants(center_x, center_y, radius=120):
 The API response shape is identical. The frontend doesn't know or care about the backend fetch strategy.
 
 **Changes:**
-- `getNeighborhood3D` AbortController timeout: 90s -> 40s (backend budget is 35s, leave margin)
+- `getNeighborhood3D` AbortController timeout: **stays at 90s** (must support conservative mode's 80s budget + margin; reducing to 40s would break conservative rollback)
 
 **No changes to:** geometry pipeline, chunked rendering, shadow snapshots, loading skeleton behavior.
 

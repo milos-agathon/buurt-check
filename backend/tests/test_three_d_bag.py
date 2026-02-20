@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -11,9 +12,11 @@ from app.services.three_d_bag import (
     _enrich_with_lod22,
     _extract_lod22_surfaces,
     _fetch_bbox_quick_context,
+    _fetch_target_budgeted,
     _fetch_target_building,
     _parse_building,
     get_neighborhood_3d,
+    get_target_building_3d,
 )
 
 # --- _parse_building unit tests ---
@@ -368,6 +371,50 @@ async def test_fetch_target_building_retries_transient_502(mock_get_client):
 
 
 @pytest.mark.asyncio
+@patch("app.services.three_d_bag.TARGET_FETCH_BUDGET", 0.5)
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_target_budgeted_caps_wall_clock(mock_get_client):
+    """Budget wrapper must cap wall-clock even when target endpoint is slow."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    call_count = 0
+
+    async def slow_target(url, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        await asyncio.sleep(10)
+        return _make_mock_resp(_make_single_item_response("0363100012253924"))
+
+    mock_client.get.side_effect = slow_target
+
+    start = time.monotonic()
+    result = await _fetch_target_budgeted("0363100012253924", 121005.0, 487005.0)
+    elapsed = time.monotonic() - start
+
+    assert result is None
+    assert elapsed < 2.0, f"Budget should cap wall-clock; took {elapsed:.1f}s"
+    assert call_count <= 2, f"Budget should prevent full retry exhaustion; {call_count} calls made"
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_target_budgeted_returns_building_on_success(mock_get_client):
+    """Budget wrapper should pass through successful responses unchanged."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    mock_client.get.return_value = _make_mock_resp(
+        _make_single_item_response("0363100012253924")
+    )
+
+    result = await _fetch_target_budgeted("0363100012253924", 121005.0, 487005.0)
+
+    assert result is not None
+    assert result.pand_id == "0363100012253924"
+
+
+@pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
 async def test_fetch_bbox_quick_context_reference_origin(mock_get_client):
     """Context fetch can query around one center but keep a stable output origin."""
@@ -520,6 +567,85 @@ async def test_get_neighborhood_3d_parallel_strategy(mock_get_client):
     assert "0363100012253924" in ids
     assert "0363100000000001" in ids
     assert "0363100000000002" in ids
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.TARGET_FETCH_BUDGET", 0.5)
+@patch("app.services.three_d_bag._get_client")
+async def test_get_neighborhood_3d_impl_bounded_by_budgets(mock_get_client):
+    """Gather wall-clock should be bounded by target and bbox budgets."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    target_id = "0363100012253924"
+    bbox_resp = _make_3dbag_response([
+        _make_feature("0363100000000001"),
+        _make_feature("0363100000000002"),
+    ])
+
+    call_count = 0
+
+    async def side_effect(url, **kwargs):
+        nonlocal call_count
+        s_url = str(url)
+        if f"NL.IMBAG.Pand.{target_id}" in s_url:
+            call_count += 1
+            await asyncio.sleep(10)
+            return _make_mock_resp(_make_single_item_response(target_id))
+        match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+        if match:
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        return _make_mock_resp(bbox_resp)
+
+    mock_client.get.side_effect = side_effect
+
+    start = time.monotonic()
+    result = await get_neighborhood_3d(
+        pand_id=target_id,
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 5.0, (
+        f"gather wall-clock should be bounded by TARGET_FETCH_BUDGET; took {elapsed:.1f}s"
+    )
+    assert len(result.buildings) >= 1
+    assert call_count <= 2
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.TARGET_FETCH_BUDGET", 0.5)
+@patch("app.services.three_d_bag._get_client")
+async def test_get_target_building_3d_bounded_by_target_budget(mock_get_client):
+    """Target-only endpoint must also honor the target fetch budget."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    async def slow_target(url, **kwargs):
+        await asyncio.sleep(10)
+        return _make_mock_resp(_make_single_item_response("0363100012253924"))
+
+    mock_client.get.side_effect = slow_target
+
+    start = time.monotonic()
+    result = await get_target_building_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 2.0, (
+        f"target-only endpoint should be bounded by TARGET_FETCH_BUDGET; took {elapsed:.1f}s"
+    )
+    assert result.target_pand_id is None
+    assert result.buildings == []
+    assert result.message == "Target building not found in 3D data"
 
 
 @pytest.mark.asyncio
@@ -1544,6 +1670,7 @@ def test_conservative_mode_preserves_exact_pre_optimization_constants():
         "PRIMARY_WAIT_AFTER_BACKUP_SECONDS": 10.0,
         "TARGET_FETCH_TIMEOUT": 30.0,
         "TARGET_FETCH_RETRIES": 6,
+        "TARGET_FETCH_BUDGET": 999.0,
         "BBOX_FETCH_RETRIES": 10,
         "RETRY_BACKOFF_BASE": 0.35,
         "DEFAULT_RADIUS": 150.0,
@@ -1557,6 +1684,14 @@ def test_conservative_mode_preserves_exact_pre_optimization_constants():
                 assert actual == expected, (
                     f"{name}: expected {expected}, got {actual}"
                 )
+            conservative_target_worst_case = (
+                mod.TARGET_FETCH_TIMEOUT * mod.TARGET_FETCH_RETRIES
+                + sum(
+                    min(mod.RETRY_BACKOFF_BASE * i, 2.0)
+                    for i in range(1, mod.TARGET_FETCH_RETRIES)
+                )
+            )
+            assert mod.TARGET_FETCH_BUDGET > conservative_target_worst_case + 30.0
         finally:
             importlib.reload(mod)
 

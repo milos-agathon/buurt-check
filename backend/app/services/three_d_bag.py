@@ -41,6 +41,7 @@ if settings.three_d_conservative_mode:
     PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 5.0
     PRIMARY_WAIT_AFTER_BACKUP_SECONDS = 10.0
     TARGET_FETCH_TIMEOUT = 30.0
+    TARGET_FETCH_BUDGET = 999.0
 else:
     # Accelerated mode defaults.
     DEFAULT_RADIUS = 150.0
@@ -58,6 +59,7 @@ else:
     PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 3.0
     PRIMARY_WAIT_AFTER_BACKUP_SECONDS = 8.0
     TARGET_FETCH_TIMEOUT = 25.0
+    TARGET_FETCH_BUDGET = 30.0
 
 _in_flight: dict[str, asyncio.Task[Neighborhood3DResponse]] = {}
 
@@ -343,6 +345,24 @@ async def _fetch_target_building(
             return block
 
     return None
+
+
+async def _fetch_target_budgeted(
+    pand_id: str, center_x: float, center_y: float
+) -> BuildingBlock | None:
+    """Fetch target building with an overall wall-clock budget."""
+    try:
+        return await asyncio.wait_for(
+            _fetch_target_building(pand_id, center_x, center_y),
+            timeout=TARGET_FETCH_BUDGET,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Target fetch for %s exceeded budget of %.0fs",
+            pand_id,
+            TARGET_FETCH_BUDGET,
+        )
+        return None
 
 
 def _get_next_page_url(data: dict, limit: int) -> str | None:
@@ -647,7 +667,7 @@ async def _get_neighborhood_3d_impl(
 
     # Parallel fetch: direct target + broader resilient context first.
     target_building, bbox_result = await asyncio.gather(
-        _fetch_target_building(pand_id, rd_x, rd_y),
+        _fetch_target_budgeted(pand_id, rd_x, rd_y),
         _fetch_bbox_resilient(rd_x, rd_y, radius),
     )
     bbox_buildings, bbox_partial = bbox_result
@@ -812,7 +832,7 @@ async def get_target_building_3d(
     vbo_id: str | None = None,
 ) -> Neighborhood3DResponse:
     """Fast Phase 1: fetch only the target building (~2s, no bbox)."""
-    target = await _fetch_target_building(pand_id, rd_x, rd_y)
+    target = await _fetch_target_budgeted(pand_id, rd_x, rd_y)
     buildings = [target] if target else []
     return Neighborhood3DResponse(
         address_id=vbo_id or pand_id,
