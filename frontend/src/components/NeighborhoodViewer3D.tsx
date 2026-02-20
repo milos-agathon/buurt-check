@@ -233,7 +233,7 @@ export default function NeighborhoodViewer3D({
     camera.lookAt(0, 0, 0);
 
     // Renderer
-    const renderer = new WebGLRenderer({ antialias: true });
+    const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_CAP));
     renderer.shadowMap.enabled = true;
