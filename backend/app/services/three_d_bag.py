@@ -479,6 +479,95 @@ async def _fetch_bbox_paginated(
     return buildings, partial
 
 
+async def _fetch_single_quadrant(
+    center_x: float,
+    center_y: float,
+    bbox_str: str,
+    label: str,
+) -> tuple[list[BuildingBlock], bool]:
+    """Fetch a single quadrant bbox page.
+
+    Returns (buildings, partial). partial=True if fetch failed or page has more results.
+    """
+    client = _get_client()
+    url = (
+        f"{settings.three_d_bag_base}/collections/pand/items"
+        f"?bbox={bbox_str}&limit={BBOX_PAGE_LIMIT}"
+    )
+    try:
+        data = await _get_json_with_retries(
+            client,
+            url,
+            timeout=httpx.Timeout(BBOX_PAGE_TIMEOUT, connect=3.0),
+            attempts=BBOX_FETCH_RETRIES,
+        )
+    except (httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.warning("Quadrant %s fetch failed: %s", label, exc)
+        return [], True
+
+    buildings = _parse_bbox_page(data, center_x, center_y)
+    has_next = any(link.get("rel") == "next" for link in data.get("links", []))
+    if has_next:
+        logger.info("Quadrant %s has more pages (not fetched)", label)
+    return buildings, has_next
+
+
+async def _fetch_bbox_parallel_quadrants(
+    center_x: float, center_y: float, radius: float
+) -> tuple[list[BuildingBlock], bool]:
+    """Fetch surrounding buildings via 4 parallel quadrant bbox queries.
+
+    Splits the square bbox into NE/NW/SE/SW quadrants, fetches all 4
+    concurrently (single page each), then deduplicates by pand_id.
+    Enforces BBOX_FETCH_BUDGET as an outer timeout guard.
+    """
+    quadrants = _quadrant_bboxes(center_x, center_y, radius)
+    start = time.monotonic()
+    tasks = [
+        asyncio.create_task(_fetch_single_quadrant(center_x, center_y, bbox_str, label))
+        for label, bbox_str in quadrants
+    ]
+    done, pending = await asyncio.wait(tasks, timeout=BBOX_FETCH_BUDGET)
+
+    partial = False
+    if pending:
+        partial = True
+        logger.warning(
+            "Parallel quadrant fetch hit budget (done=%d pending=%d of %d)",
+            len(done),
+            len(pending),
+            len(tasks),
+        )
+        for task in pending:
+            task.cancel()
+
+    seen_ids: set[str] = set()
+    buildings: list[BuildingBlock] = []
+    results: list[tuple[list[BuildingBlock], bool]] = []
+    for task in done:
+        try:
+            results.append(task.result())
+        except Exception as exc:
+            logger.warning("Quadrant fetch exception: %s", exc)
+            partial = True
+    for quadrant_buildings, quadrant_partial in results:
+        if quadrant_partial:
+            partial = True
+        for b in quadrant_buildings:
+            if b.pand_id not in seen_ids:
+                seen_ids.add(b.pand_id)
+                buildings.append(b)
+
+    duration = time.monotonic() - start
+    logger.info(
+        "Parallel quadrant fetch: %d buildings in %.2fs (4 quadrants)%s",
+        len(buildings),
+        duration,
+        " [partial]" if partial else "",
+    )
+    return buildings, partial
+
+
 async def _fetch_bbox_quick_context(
     center_x: float,
     center_y: float,

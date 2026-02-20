@@ -11,6 +11,7 @@ from app.services.three_d_bag import (
     _compute_building_orientation,
     _enrich_with_lod22,
     _extract_lod22_surfaces,
+    _fetch_bbox_parallel_quadrants,
     _fetch_bbox_quick_context,
     _fetch_target_budgeted,
     _fetch_target_building,
@@ -1875,3 +1876,185 @@ class TestQuadrantBboxes:
         assert min_y == cy - r
         assert max_x == cx + r
         assert max_y == cy + r
+
+
+# --- Parallel quadrant fetch tests ---
+
+
+def _quadrant_route(center_x, center_y, radius, quadrant_responses):
+    """Build a side_effect that routes bbox URLs to per-quadrant responses.
+
+    quadrant_responses: dict mapping label ("NE","NW","SE","SW") to mock response.
+    Uses bbox= prefix anchoring to avoid substring collisions between quadrants.
+    """
+    cx, cy, r = center_x, center_y, radius
+    # Build exact bbox prefix for each quadrant
+    bbox_prefixes = {
+        "NE": f"bbox={cx:.0f},{cy:.0f},",
+        "NW": f"bbox={cx - r:.0f},{cy:.0f},",
+        "SE": f"bbox={cx:.0f},{cy - r:.0f},",
+        "SW": f"bbox={cx - r:.0f},{cy - r:.0f},",
+    }
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        for label, prefix in bbox_prefixes.items():
+            if prefix in s_url and label in quadrant_responses:
+                resp = quadrant_responses[label]
+                if isinstance(resp, Exception):
+                    raise resp
+                return resp
+        return _make_mock_resp(_make_3dbag_response([]))
+
+    return side_effect
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_merges_all_quadrants(mock_get_client):
+    """All 4 quadrant results are merged into a single building list."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    cx, cy, r = 121005.0, 487005.0, 120.0
+    mock_client.get.side_effect = _quadrant_route(cx, cy, r, {
+        "NE": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000001")])),
+        "NW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000002")])),
+        "SE": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000003")])),
+        "SW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000004")])),
+    })
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    assert len(buildings) == 4
+    ids = {b.pand_id for b in buildings}
+    assert ids == {
+        "0363100000000001", "0363100000000002",
+        "0363100000000003", "0363100000000004",
+    }
+    assert partial is False
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_deduplicates(mock_get_client):
+    """Building appearing in 2 adjacent quadrants is returned only once."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    shared_id = "0363100000000099"
+    cx, cy, r = 121005.0, 487005.0, 120.0
+    mock_client.get.side_effect = _quadrant_route(cx, cy, r, {
+        "NE": _make_mock_resp(_make_3dbag_response([
+            _make_feature("0363100000000001"),
+            _make_feature(shared_id),
+        ])),
+        "NW": _make_mock_resp(_make_3dbag_response([
+            _make_feature("0363100000000002"),
+            _make_feature(shared_id),  # duplicate
+        ])),
+    })
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    ids = [b.pand_id for b in buildings]
+    assert ids.count(shared_id) == 1
+    assert len(buildings) == 3
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_partial_on_one_failure(mock_get_client):
+    """If one quadrant fails, return partial=True with buildings from other 3."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    cx, cy, r = 121005.0, 487005.0, 120.0
+    mock_client.get.side_effect = _quadrant_route(cx, cy, r, {
+        "NE": httpx.TimeoutException("read timeout"),
+        "NW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000002")])),
+        "SE": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000003")])),
+        "SW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000004")])),
+    })
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    assert partial is True
+    assert len(buildings) == 3
+    ids = {b.pand_id for b in buildings}
+    assert "0363100000000002" in ids
+    assert "0363100000000003" in ids
+    assert "0363100000000004" in ids
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_all_fail(mock_get_client):
+    """If all quadrants fail, return empty + partial=True."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    mock_client.get.side_effect = httpx.TimeoutException("total failure")
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(121005.0, 487005.0, 120.0)
+
+    assert buildings == []
+    assert partial is True
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_partial_when_has_next_page(mock_get_client):
+    """Quadrant with more pages signals partial=True even though fetch succeeded."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    cx, cy, r = 121005.0, 487005.0, 120.0
+    resp_with_next = _make_3dbag_response(
+        [_make_feature("0363100000000001")],
+        next_link="https://api.3dbag.nl/collections/pand/items?offset=101",
+    )
+    mock_client.get.side_effect = _quadrant_route(cx, cy, r, {
+        "NE": _make_mock_resp(resp_with_next),
+        "NW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000002")])),
+        "SE": _make_mock_resp(_make_3dbag_response([])),
+        "SW": _make_mock_resp(_make_3dbag_response([])),
+    })
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    assert partial is True  # NE had more pages
+    assert len(buildings) == 2
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.BBOX_FETCH_BUDGET", 0.05)
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_budget_preserves_completed(mock_get_client):
+    """Budget timeout should keep completed quadrant data instead of dropping all."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    cx, cy, r = 121005.0, 487005.0, 120.0
+
+    async def side_effect(url, **kwargs):
+        s_url = str(url)
+        # Make NE slow so it stays pending past budget; others return quickly.
+        if f"bbox={cx:.0f},{cy:.0f}," in s_url:
+            await asyncio.sleep(0.2)
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000001")]))
+        if f"bbox={cx - r:.0f},{cy:.0f}," in s_url:
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000002")]))
+        if f"bbox={cx:.0f},{cy - r:.0f}," in s_url:
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000003")]))
+        if f"bbox={cx - r:.0f},{cy - r:.0f}," in s_url:
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000004")]))
+        return _make_mock_resp(_make_3dbag_response([]))
+
+    mock_client.get.side_effect = side_effect
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    assert partial is True
+    # 3 fast quadrants should still be returned even when one timed out.
+    assert len(buildings) == 3
