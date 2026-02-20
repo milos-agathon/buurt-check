@@ -61,12 +61,17 @@ ruff check . && ruff format .               # MUST pass before commit
 - Sunlight: 0h=0, 2h=40, 4h=80, 6h+=100 (winter solstice)
 - Severity: 70-100=good, 40-69=moderate, 20-39=poor, 0-19=critical
 
-## 3DBAG & 3D Viewer (added 2026-02-17)
+## 3DBAG & 3D Viewer
 
-- **3DBAG bbox fallback for target recovery:** When single-item endpoint returns 502, scan bbox results for target `pand_id`. Prevents total failure on intermittent 3DBAG outages
-- **3DBAG building coverage:** Default bbox radius 150m (was 80m), max pages 4 (was 2). After `asyncio.gather`, must `await near_task` — race condition where backup query cancels primary
-- **Single-flight request deduplication:** `_in_flight_requests: dict[str, asyncio.Future]` at module level for `get_neighborhood_3d`. Use `asyncio.shield()` for shared tasks. Key: `{pand_id}:{rd_x:.0f}:{rd_y:.0f}`. Clean up in `finally`. Prevents duplicate 3DBAG calls from React strict-mode remounts
-- **Cache version v14** for neighborhood3d responses (bumped from v13 for coverage/dedup changes)
-- **LoD 2.2 is mandatory for all buildings** (including neighbors). Sunlight shadow analysis requires accurate roof geometry — flat-extruded boxes produce incorrect shadow patterns. This is a product constraint, not a performance knob
-- **3DBAG cold latency baselines (Feb 17):** Damrak 1 = 77s/167 buildings, Duinzicht 23 = 74s/220 buildings, Kerkstraat 10 = 62s/251 buildings. 90%+ of wait time is 3DBAG API latency, not frontend rendering
+- **Scope modes:**
+  - **Accelerated (default):** bbox radius 100m, max pages 2, budget 35s. ~80-120 buildings. Sub-25s cold load target
+  - **Conservative:** bbox radius 150m, max pages 5, budget 80s. ~150-250 buildings. Enable via `BUURT_THREE_D_CONSERVATIVE_MODE=True`. This is the rollback safety valve — preserves exact pre-optimization behavior
+- **Cache version v24** for neighborhood3d (bumped for scope reduction)
+- **Lookup pand_id:** Lookup endpoint resolves VBO->pand_id with 3s timeout budget. Cache key: `lookup:v2:{id}`. Enables early 3D fetch without waiting for building facts
+- **GZip compression:** All responses >1KB compressed via GZipMiddleware
+- **3DBAG bbox fallback for target recovery:** When single-item endpoint returns 502, scan bbox results for target `pand_id`
+- **3DBAG building coverage:** Controlled by mode constants. After `asyncio.gather`, must `await near_task` — race condition where backup query cancels primary
+- **Single-flight request deduplication:** `_in_flight: dict[str, asyncio.Task]` at module level for `get_neighborhood_3d`. Use `asyncio.shield()` for shared tasks. Key: `{pand_id}:{rd_x:.0f}:{rd_y:.0f}`. Clean up in `finally`
+- **LoD 2.2 is mandatory for all buildings** (including neighbors). Sunlight shadow analysis requires accurate roof geometry
+- **Cold latency baselines (Feb 17, pre-optimization):** Damrak 1 = 77s/167 buildings, Kerkstraat 10 = 62s/251 buildings. 90%+ of wait time is 3DBAG API latency
 - **PDOK Luchtfoto RGB:** `service.pdok.nl/hwh/luchtfotorgb/wms/v1_0`, layer `Actueel_orthoHR`, JPEG format, CC BY 4.0 license
