@@ -24,6 +24,19 @@ IMMEDIATE_CONTEXT_MAX_PAGES = 2
 SECONDARY_FALLBACK_RADIUS = 50.0
 TRANSIENT_STATUS_CODES = {502, 503, 504}
 
+
+def _quadrant_bboxes(
+    cx: float, cy: float, r: float
+) -> list[tuple[str, str]]:
+    """Split a square bbox into 4 quadrant bboxes for parallel fetching."""
+    return [
+        ("NE", f"{cx:.0f},{cy:.0f},{cx + r:.0f},{cy + r:.0f}"),
+        ("NW", f"{cx - r:.0f},{cy:.0f},{cx:.0f},{cy + r:.0f}"),
+        ("SE", f"{cx:.0f},{cy - r:.0f},{cx + r:.0f},{cy:.0f}"),
+        ("SW", f"{cx - r:.0f},{cy - r:.0f},{cx:.0f},{cy:.0f}"),
+    ]
+
+
 if settings.three_d_conservative_mode:
     # Exact pre-optimization constants (rollback mode).
     DEFAULT_RADIUS = 150.0

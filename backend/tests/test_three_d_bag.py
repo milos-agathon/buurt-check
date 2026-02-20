@@ -15,6 +15,7 @@ from app.services.three_d_bag import (
     _fetch_target_budgeted,
     _fetch_target_building,
     _parse_building,
+    _quadrant_bboxes,
     get_neighborhood_3d,
     get_target_building_3d,
 )
@@ -1832,3 +1833,45 @@ class TestComputeBuildingOrientation:
         footprint = [[0, 0], [0.05, 0], [0.05, 0.05]]
         result = _compute_building_orientation(footprint)
         assert result is None
+
+
+# --- Quadrant bbox splitting tests ---
+
+
+class TestQuadrantBboxes:
+    def test_four_quadrants_tile_correctly(self):
+        """4 quadrants should tile the full bbox with no gaps."""
+        cx, cy, r = 121005.0, 487005.0, 120.0
+        quads = _quadrant_bboxes(cx, cy, r)
+        assert len(quads) == 4
+        labels = {q[0] for q in quads}
+        assert labels == {"NE", "NW", "SE", "SW"}
+
+        ne = next(q for q in quads if q[0] == "NE")
+        assert ne[1] == f"{cx:.0f},{cy:.0f},{cx + r:.0f},{cy + r:.0f}"
+
+        nw = next(q for q in quads if q[0] == "NW")
+        assert nw[1] == f"{cx - r:.0f},{cy:.0f},{cx:.0f},{cy + r:.0f}"
+
+        se = next(q for q in quads if q[0] == "SE")
+        assert se[1] == f"{cx:.0f},{cy - r:.0f},{cx + r:.0f},{cy:.0f}"
+
+        sw = next(q for q in quads if q[0] == "SW")
+        assert sw[1] == f"{cx - r:.0f},{cy - r:.0f},{cx:.0f},{cy:.0f}"
+
+    def test_full_coverage_matches_single_bbox(self):
+        """Union of 4 quadrant bboxes equals the original single bbox."""
+        cx, cy, r = 121005.0, 487005.0, 120.0
+        quads = _quadrant_bboxes(cx, cy, r)
+        all_coords = []
+        for _, bbox_str in quads:
+            parts = [float(p) for p in bbox_str.split(",")]
+            all_coords.append(parts)
+        min_x = min(c[0] for c in all_coords)
+        min_y = min(c[1] for c in all_coords)
+        max_x = max(c[2] for c in all_coords)
+        max_y = max(c[3] for c in all_coords)
+        assert min_x == cx - r
+        assert min_y == cy - r
+        assert max_x == cx + r
+        assert max_y == cy + r
