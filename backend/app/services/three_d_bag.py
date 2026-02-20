@@ -12,31 +12,52 @@ logger = logging.getLogger(__name__)
 
 _client: httpx.AsyncClient | None = None
 BBOX_PAGE_LIMIT = 100
-BBOX_MAX_PAGES = 5
-BBOX_FETCH_BUDGET = 80.0
-BBOX_PAGE_TIMEOUT = 65.0
 LOD22_ENRICH_CONCURRENCY = 8
 MIN_FETCH_BUDGET = 1.0
 FALLBACK_RADIUS_FACTOR = 0.6
 FALLBACK_MIN_RADIUS = 60.0
-FALLBACK_PAGE_TIMEOUT = 65.0
 FALLBACK_PAGE_LIMIT = 50
-NEARBY_CONTEXT_MIN_RADIUS = 100.0
-NEARBY_CONTEXT_TIMEOUT = 65.0
 NEARBY_CONTEXT_LIMIT = 100
-NEARBY_CONTEXT_MAX_PAGES = 5
 IMMEDIATE_CONTEXT_RADIUS = 30.0
-IMMEDIATE_CONTEXT_TIMEOUT = 15.0
 IMMEDIATE_CONTEXT_LIMIT = 200
 IMMEDIATE_CONTEXT_MAX_PAGES = 2
 SECONDARY_FALLBACK_RADIUS = 50.0
-PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 5.0
-PRIMARY_WAIT_AFTER_BACKUP_SECONDS = 10.0
-TARGET_FETCH_TIMEOUT = 30.0
-TARGET_FETCH_RETRIES = 6
-BBOX_FETCH_RETRIES = 10
-RETRY_BACKOFF_BASE = 0.35
 TRANSIENT_STATUS_CODES = {502, 503, 504}
+
+if settings.three_d_conservative_mode:
+    # Exact pre-optimization constants (rollback mode).
+    DEFAULT_RADIUS = 150.0
+    BBOX_MAX_PAGES = 5
+    BBOX_FETCH_BUDGET = 80.0
+    BBOX_PAGE_TIMEOUT = 65.0
+    TARGET_FETCH_RETRIES = 6
+    BBOX_FETCH_RETRIES = 10
+    RETRY_BACKOFF_BASE = 0.35
+    FALLBACK_PAGE_TIMEOUT = 65.0
+    NEARBY_CONTEXT_MIN_RADIUS = 100.0
+    NEARBY_CONTEXT_TIMEOUT = 65.0
+    NEARBY_CONTEXT_MAX_PAGES = 5
+    IMMEDIATE_CONTEXT_TIMEOUT = 15.0
+    PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 5.0
+    PRIMARY_WAIT_AFTER_BACKUP_SECONDS = 10.0
+    TARGET_FETCH_TIMEOUT = 30.0
+else:
+    # Accelerated mode defaults.
+    DEFAULT_RADIUS = 100.0
+    BBOX_MAX_PAGES = 2
+    BBOX_FETCH_BUDGET = 35.0
+    BBOX_PAGE_TIMEOUT = 30.0
+    TARGET_FETCH_RETRIES = 4
+    BBOX_FETCH_RETRIES = 4
+    RETRY_BACKOFF_BASE = 0.2
+    FALLBACK_PAGE_TIMEOUT = 30.0
+    NEARBY_CONTEXT_MIN_RADIUS = 80.0
+    NEARBY_CONTEXT_TIMEOUT = 30.0
+    NEARBY_CONTEXT_MAX_PAGES = 2
+    IMMEDIATE_CONTEXT_TIMEOUT = 15.0
+    PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 1.0
+    PRIMARY_WAIT_AFTER_BACKUP_SECONDS = 2.0
+    TARGET_FETCH_TIMEOUT = 20.0
 
 _in_flight: dict[str, asyncio.Task[Neighborhood3DResponse]] = {}
 
@@ -609,7 +630,7 @@ async def _get_neighborhood_3d_impl(
     lat: float,
     lng: float,
     vbo_id: str | None = None,
-    radius: float = 150.0,
+    radius: float = DEFAULT_RADIUS,
 ) -> Neighborhood3DResponse:
     """Fetch 3D building data from 3DBAG for the neighborhood around a point."""
     near_radius = max(radius * 0.9, NEARBY_CONTEXT_MIN_RADIUS)
@@ -754,7 +775,7 @@ async def get_neighborhood_3d(
     lat: float,
     lng: float,
     vbo_id: str | None = None,
-    radius: float = 150.0,
+    radius: float = DEFAULT_RADIUS,
 ) -> Neighborhood3DResponse:
     """Fetch neighborhood 3D context with single-flight request deduplication."""
     key = f"{pand_id}:{rd_x:.0f}:{rd_y:.0f}"

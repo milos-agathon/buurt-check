@@ -607,8 +607,8 @@ async def test_get_neighborhood_3d_prefetches_near_ring_without_duping_context(m
         lng=4.892,
     )
 
-    # Near-ring radius query (rd ±135m with radius=150) is prefetched in parallel.
-    assert any("bbox=120870,486870,121140,487140" in u for u in seen_urls)
+    # Near-ring radius query (rd ±90m with radius=100) is prefetched in parallel.
+    assert any("bbox=120915,486915,121095,487095" in u for u in seen_urls)
     # Result still contains target + two neighbors (no duplication from prefetch).
     assert len(result.buildings) == 3
 
@@ -631,11 +631,11 @@ async def test_get_neighborhood_3d_keeps_completed_near_ring_context_when_bbox_h
             match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
             assert match is not None
             return _make_mock_resp(_make_single_item_response(match.group(1)))
-        if "bbox=120870,486870,121140,487140" in s_url:
-            # Near-ring prefetch (rd ±135m).
+        if "bbox=120915,486915,121095,487095" in s_url:
+            # Near-ring prefetch (rd ±90m).
             return _make_mock_resp(near_resp)
-        if "bbox=120855,486855,121155,487155" in s_url:
-            # Broader bbox query (rd ±150m): still has context, but misses one close building.
+        if "bbox=120905,486905,121105,487105" in s_url:
+            # Broader bbox query (rd ±100m): still has context, but misses one close building.
             await asyncio.sleep(0.02)
             return _make_mock_resp(bbox_resp)
         return _make_mock_resp(_make_3dbag_response([]))
@@ -668,7 +668,7 @@ async def test_get_neighborhood_3d_fetches_bbox_next_page(mock_get_client):
         [_make_feature("0363100000000001")],
         next_link=(
             "https://api.3dbag.nl/collections/pand/items?"
-            "bbox=120855,486855,121155,487155&offset=101"
+            "bbox=120905,486905,121105,487105&offset=101"
         ),
     )
     second_page = _make_3dbag_response([_make_feature("0363100000000002")])
@@ -998,7 +998,7 @@ async def test_fetch_bbox_partial_failure(mock_get_client):
         [_make_feature("0363100000000001")],
         next_link=(
             "https://api.3dbag.nl/collections/pand/items?"
-            "bbox=120855,486855,121155,487155&offset=101"
+            "bbox=120905,486905,121105,487105&offset=101"
         ),
     )
 
@@ -1359,6 +1359,206 @@ async def test_neighborhood_context_gets_lod22_from_bbox_without_enrichment(
     assert neighbor is not None
     assert neighbor.roof_surfaces is not None
     assert len(neighbor.roof_surfaces) == 6
+
+
+def test_accelerated_mode_constants_within_latency_bounds():
+    """Accelerated defaults must stay within latency-safe bounds."""
+    import app.services.three_d_bag as mod
+
+    if mod.settings.three_d_conservative_mode:
+        pytest.skip("Only applies in accelerated mode")
+
+    assert mod.BBOX_MAX_PAGES <= 2
+    assert mod.BBOX_FETCH_BUDGET <= 35.0
+    assert mod.BBOX_FETCH_RETRIES <= 4
+    assert mod.DEFAULT_RADIUS <= 100.0
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_default_radius_produces_100m_bbox_url(mock_get_client):
+    """Calling get_neighborhood_3d without radius should use DEFAULT_RADIUS."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    seen_urls: list[str] = []
+    bbox_resp = _make_3dbag_response([_make_feature("0363100000000001")])
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        seen_urls.append(s_url)
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        return _make_mock_resp(bbox_resp)
+
+    mock_client.get.side_effect = side_effect
+
+    import app.services.three_d_bag as mod
+    if mod.settings.three_d_conservative_mode:
+        pytest.skip("Only applies in accelerated mode")
+
+    await get_neighborhood_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+    assert any("bbox=120905,486905,121105,487105" in u for u in seen_urls)
+    assert any("bbox=120915,486915,121095,487095" in u for u in seen_urls)
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_neighborhood_3d_building_count_floor_at_reduced_radius(mock_get_client):
+    """Dense neighborhoods should still return a usable building count at 100m."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    target_id = "0363100012253924"
+    features = [
+        _make_feature(f"036310009999{i:04d}", h_maaiveld=0.5, h_dak_max=10.0 + i, year=1990)
+        for i in range(9)
+    ]
+    bbox_resp = _make_3dbag_response(features)
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+        if match:
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        return _make_mock_resp(bbox_resp)
+
+    mock_client.get.side_effect = side_effect
+
+    result = await get_neighborhood_3d(
+        pand_id=target_id,
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+        radius=100.0,
+    )
+
+    assert result.target_pand_id == target_id
+    assert len(result.buildings) >= 5
+    assert result.buildings[0].pand_id == target_id
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_neighborhood_3d_target_recovered_at_reduced_radius(mock_get_client):
+    """If direct fetch fails, bbox fallback should still recover the target."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    target_id = "0363100012253924"
+    features = [
+        _make_feature(target_id, h_maaiveld=0.5, h_dak_max=12.0, year=1917),
+        _make_feature("0363100099999999", h_maaiveld=0.5, h_dak_max=8.0, year=1990),
+    ]
+    bbox_resp = _make_3dbag_response(features)
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        if "/items/NL.IMBAG.Pand." in s_url:
+            raise httpx.HTTPStatusError(
+                "502",
+                request=MagicMock(),
+                response=MagicMock(status_code=502),
+            )
+        return _make_mock_resp(bbox_resp)
+
+    mock_client.get.side_effect = side_effect
+
+    result = await get_neighborhood_3d(
+        pand_id=target_id,
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+        radius=100.0,
+    )
+
+    assert result.target_pand_id == target_id
+    assert len(result.buildings) >= 2
+
+
+def test_surrounding_context_threshold_enables_sunlight():
+    """target + at least one neighbor is sufficient for sunlight computation."""
+    response = Neighborhood3DResponse(
+        address_id="0363010000696734",
+        target_pand_id="0363100012253924",
+        center=Neighborhood3DCenter(lat=52.37, lng=4.89, rd_x=121005.0, rd_y=487005.0),
+        buildings=[
+            BuildingBlock(
+                pand_id="0363100012253924",
+                ground_height=0.5,
+                building_height=10.0,
+                footprint=[[0, 0], [10, 0], [10, 8], [0, 8]],
+            ),
+            BuildingBlock(
+                pand_id="0363100099999999",
+                ground_height=0.5,
+                building_height=8.0,
+                footprint=[[15, 0], [22, 0], [22, 7], [15, 7]],
+            ),
+        ],
+    )
+
+    has_target = response.target_pand_id is not None and any(
+        b.pand_id == response.target_pand_id for b in response.buildings
+    )
+    assert has_target
+    assert len(response.buildings) >= 2
+
+
+def test_conservative_mode_preserves_exact_pre_optimization_constants():
+    """Conservative mode must restore exact pre-optimization constant values."""
+    import importlib
+
+    import app.config as config_mod
+    import app.services.three_d_bag as mod
+
+    if config_mod.settings.three_d_conservative_mode:
+        pytest.skip("Test expects accelerated mode by default")
+
+    # Prove accelerated defaults are active before switching modes.
+    assert mod.DEFAULT_RADIUS == 100.0
+    assert mod.BBOX_MAX_PAGES == 2
+    assert mod.BBOX_FETCH_BUDGET == 35.0
+
+    PRE_OPT = {
+        "BBOX_MAX_PAGES": 5,
+        "BBOX_FETCH_BUDGET": 80.0,
+        "BBOX_PAGE_TIMEOUT": 65.0,
+        "FALLBACK_PAGE_TIMEOUT": 65.0,
+        "NEARBY_CONTEXT_MIN_RADIUS": 100.0,
+        "NEARBY_CONTEXT_TIMEOUT": 65.0,
+        "NEARBY_CONTEXT_MAX_PAGES": 5,
+        "IMMEDIATE_CONTEXT_TIMEOUT": 15.0,
+        "PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS": 5.0,
+        "PRIMARY_WAIT_AFTER_BACKUP_SECONDS": 10.0,
+        "TARGET_FETCH_TIMEOUT": 30.0,
+        "TARGET_FETCH_RETRIES": 6,
+        "BBOX_FETCH_RETRIES": 10,
+        "RETRY_BACKOFF_BASE": 0.35,
+        "DEFAULT_RADIUS": 150.0,
+    }
+
+    with patch.object(config_mod.settings, "three_d_conservative_mode", True):
+        mod = importlib.reload(mod)
+        try:
+            for name, expected in PRE_OPT.items():
+                actual = getattr(mod, name)
+                assert actual == expected, (
+                    f"{name}: expected {expected}, got {actual}"
+                )
+        finally:
+            importlib.reload(mod)
 
 
 # --- single-flight dedup tests ---

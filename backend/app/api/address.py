@@ -76,7 +76,7 @@ async def address_lookup(
     id: str = Query(..., description="Locatieserver document ID"),
 ):
     """Resolve a locatieserver suggestion to full address details."""
-    cache_key = f"lookup:{id}"
+    cache_key = f"lookup:v2:{id}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return ResolvedAddress(**cached)
@@ -89,7 +89,26 @@ async def address_lookup(
     if resolved is None:
         raise HTTPException(status_code=404, detail="Address not found")
 
-    await cache_set(cache_key, resolved.model_dump(), ttl=settings.cache_ttl_lookup)
+    pand_id_attempted = False
+    if resolved.adresseerbaar_object_id:
+        pand_id_attempted = True
+        try:
+            resolved.pand_id = await asyncio.wait_for(
+                bag.get_pand_id(resolved.adresseerbaar_object_id),
+                timeout=3.0,
+            )
+        except Exception as exc:
+            logger.warning(
+                "pand_id resolution failed for VBO %s: %s",
+                resolved.adresseerbaar_object_id,
+                exc,
+            )
+
+    ttl = settings.cache_ttl_lookup
+    if pand_id_attempted and resolved.pand_id is None:
+        ttl = min(ttl, 300)
+
+    await cache_set(cache_key, resolved.model_dump(), ttl=ttl)
     return resolved
 
 
@@ -212,8 +231,8 @@ async def neighborhood_3d(
     lng: float = Query(...),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
-    # v23: include completed near-ring prefetch to recover close context when bbox is truncated.
-    cache_key = f"neighborhood3d:v23:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    # v24: reduced default scope and conservative-mode fallback support.
+    cache_key = f"neighborhood3d:v24:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return Neighborhood3DResponse(**cached)

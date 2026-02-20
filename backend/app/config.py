@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     # Feature flags
     enable_lod22_roofs: bool = True
     enable_lod22_context_enrichment: bool = False
+    three_d_conservative_mode: bool = False
 
     # Cache TTLs (seconds)
     cache_ttl_suggest: int = 3600  # 1 hour
