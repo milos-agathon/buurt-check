@@ -171,3 +171,11 @@ async def get_building_facts(vbo_id: str) -> BuildingFacts | None:
         footprint_geojson=pand_data.get("_geometry") if pand_data else None,
         document_date=None,  # WFS doesn't provide a separate document date
     )
+
+
+async def get_pand_id(vbo_id: str) -> str | None:
+    """Resolve a VBO ID to pand_id without fetching full building details."""
+    vbo_data = await _fetch_verblijfsobject(vbo_id)
+    if not vbo_data:
+        return None
+    return vbo_data.get("pandidentificatie")

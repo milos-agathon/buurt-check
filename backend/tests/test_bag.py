@@ -9,6 +9,7 @@ from app.services.bag import (
     _translate_status,
     _validate_bag_id,
     get_building_facts,
+    get_pand_id,
 )
 
 
@@ -178,6 +179,50 @@ async def test_get_building_facts_no_vbo(httpx_mock):
 async def test_get_building_facts_invalid_id():
     with pytest.raises(ValueError, match="Invalid BAG VBO ID"):
         await get_building_facts("nonexistent")
+
+
+@pytest.mark.asyncio
+async def test_get_pand_id_returns_pand_from_vbo(httpx_mock):
+    httpx_mock.add_response(
+        url=re.compile(r".*typeName=bag%3Averblijfsobject.*|.*typeName=bag:verblijfsobject.*"),
+        json={
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "identificatie": "0363010000696734",
+                        "pandidentificatie": "0363100012253924",
+                    },
+                    "geometry": {"type": "Point", "coordinates": [121286.0, 487296.0]},
+                }
+            ],
+        },
+    )
+
+    import app.services.bag as bag_module
+    bag_module._client = None
+
+    result = await get_pand_id("0363010000696734")
+    assert result == "0363100012253924"
+
+    bag_module._client = None
+
+
+@pytest.mark.asyncio
+async def test_get_pand_id_returns_none_on_missing_vbo(httpx_mock):
+    httpx_mock.add_response(
+        url=re.compile(r".*typeName=bag%3Averblijfsobject.*|.*typeName=bag:verblijfsobject.*"),
+        json={"type": "FeatureCollection", "features": []},
+    )
+
+    import app.services.bag as bag_module
+    bag_module._client = None
+
+    result = await get_pand_id("0000000000000000")
+    assert result is None
+
+    bag_module._client = None
 
 
 def test_validate_bag_id_valid():

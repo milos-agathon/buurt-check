@@ -1,3 +1,4 @@
+import asyncio
 import time
 from unittest.mock import AsyncMock, patch
 
@@ -75,8 +76,9 @@ async def test_suggest_too_short(client):
 @pytest.mark.asyncio
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
 @patch("app.api.address.locatieserver")
-async def test_lookup_endpoint(mock_ls, mock_cache_set, mock_cache_get, client):
+async def test_lookup_endpoint(mock_ls, mock_bag, mock_cache_set, mock_cache_get, client):
     mock_ls.lookup = AsyncMock(
         return_value=ResolvedAddress(
             id="adr-123",
@@ -92,6 +94,7 @@ async def test_lookup_endpoint(mock_ls, mock_cache_set, mock_cache_get, client):
             adresseerbaar_object_id="0363010000696734",
         )
     )
+    mock_bag.get_pand_id = AsyncMock(return_value=None)
 
     resp = await client.get("/api/address/lookup", params={"id": "adr-123"})
     assert resp.status_code == 200
@@ -103,12 +106,130 @@ async def test_lookup_endpoint(mock_ls, mock_cache_set, mock_cache_get, client):
 @pytest.mark.asyncio
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
 @patch("app.api.address.locatieserver")
-async def test_lookup_not_found(mock_ls, mock_cache_set, mock_cache_get, client):
+async def test_lookup_not_found(mock_ls, mock_bag, mock_cache_set, mock_cache_get, client):
     mock_ls.lookup = AsyncMock(return_value=None)
+    mock_bag.get_pand_id = AsyncMock(return_value=None)
 
     resp = await client.get("/api/address/lookup", params={"id": "adr-nonexistent"})
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+@patch("app.api.address.locatieserver")
+async def test_lookup_includes_pand_id(mock_ls, mock_bag, mock_cache_set, mock_cache_get, client):
+    mock_ls.lookup = AsyncMock(
+        return_value=ResolvedAddress(
+            id="adr-123",
+            display_name="Kalverstraat 1, 1012NX Amsterdam",
+            adresseerbaar_object_id="0363010000696734",
+            latitude=52.372,
+            longitude=4.892,
+            rd_x=121286.0,
+            rd_y=487296.0,
+        )
+    )
+    mock_bag.get_pand_id = AsyncMock(return_value="0363100012253924")
+
+    resp = await client.get("/api/address/lookup", params={"id": "adr-123"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["pand_id"] == "0363100012253924"
+    mock_bag.get_pand_id.assert_called_once_with("0363010000696734")
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+@patch("app.api.address.locatieserver")
+async def test_lookup_succeeds_when_pand_id_resolution_fails(
+    mock_ls, mock_bag, mock_cache_set, mock_cache_get, client,
+):
+    mock_ls.lookup = AsyncMock(
+        return_value=ResolvedAddress(
+            id="adr-123",
+            display_name="Kalverstraat 1, 1012NX Amsterdam",
+            adresseerbaar_object_id="0363010000696734",
+            latitude=52.372,
+            longitude=4.892,
+            rd_x=121286.0,
+            rd_y=487296.0,
+        )
+    )
+    mock_bag.get_pand_id = AsyncMock(side_effect=Exception("BAG WFS timeout"))
+
+    resp = await client.get("/api/address/lookup", params={"id": "adr-123"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("pand_id") is None
+    assert data["display_name"] == "Kalverstraat 1, 1012NX Amsterdam"
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+@patch("app.api.address.locatieserver")
+async def test_lookup_pand_id_respects_3s_timeout(
+    mock_ls, mock_bag, mock_cache_set, mock_cache_get, client,
+):
+    async def slow_pand_id(vbo_id):
+        await asyncio.sleep(10)
+        return "0363100012253924"
+
+    mock_ls.lookup = AsyncMock(
+        return_value=ResolvedAddress(
+            id="adr-123",
+            display_name="Kalverstraat 1, 1012NX Amsterdam",
+            adresseerbaar_object_id="0363010000696734",
+            latitude=52.372,
+            longitude=4.892,
+        )
+    )
+    mock_bag.get_pand_id = AsyncMock(side_effect=slow_pand_id)
+
+    started = time.monotonic()
+    resp = await client.get("/api/address/lookup", params={"id": "adr-123"})
+    elapsed = time.monotonic() - started
+
+    assert resp.status_code == 200
+    assert elapsed <= 3.5
+    data = resp.json()
+    assert data.get("pand_id") is None
+    mock_cache_set.assert_called_once()
+    assert mock_cache_set.call_args.kwargs.get("ttl") == 300
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+@patch("app.api.address.locatieserver")
+async def test_lookup_uses_full_ttl_when_pand_id_resolved(
+    mock_ls, mock_bag, mock_cache_set, mock_cache_get, client,
+):
+    from app.config import settings
+
+    mock_ls.lookup = AsyncMock(
+        return_value=ResolvedAddress(
+            id="adr-123",
+            display_name="Kalverstraat 1, 1012NX Amsterdam",
+            adresseerbaar_object_id="0363010000696734",
+            latitude=52.372,
+            longitude=4.892,
+        )
+    )
+    mock_bag.get_pand_id = AsyncMock(return_value="0363100012253924")
+
+    resp = await client.get("/api/address/lookup", params={"id": "adr-123"})
+    assert resp.status_code == 200
+    mock_cache_set.assert_called_once()
+    assert mock_cache_set.call_args.kwargs.get("ttl") == settings.cache_ttl_lookup
 
 
 @pytest.mark.asyncio

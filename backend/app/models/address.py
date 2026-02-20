@@ -16,6 +16,7 @@ class ResolvedAddress(BaseModel):
     id: str
     nummeraanduiding_id: str | None = None
     adresseerbaar_object_id: str | None = None
+    pand_id: str | None = None
     display_name: str
     street: str | None = None
     house_number: str | None = None

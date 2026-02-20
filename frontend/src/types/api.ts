@@ -15,6 +15,7 @@ export interface ResolvedAddress {
   id: string;
   nummeraanduiding_id?: string;
   adresseerbaar_object_id?: string;
+  pand_id?: string;
   display_name: string;
   street?: string;
   house_number?: string;
