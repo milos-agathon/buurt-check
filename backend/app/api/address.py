@@ -231,10 +231,10 @@ async def neighborhood_3d(
     lng: float = Query(...),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
-    # v25: restored 150m radius for accelerated mode (v24 was too aggressive).
+    # v26: parallel quadrant strategy for accelerated mode (4 concurrent bbox queries at 120m).
     # Mode must be in the key because it changes radius/page/budget behavior.
     mode = "conservative" if settings.three_d_conservative_mode else "accelerated"
-    cache_key = f"neighborhood3d:v25:{mode}:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
+    cache_key = f"neighborhood3d:v26:{mode}:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return Neighborhood3DResponse(**cached)

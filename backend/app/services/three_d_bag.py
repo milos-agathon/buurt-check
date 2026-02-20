@@ -24,6 +24,19 @@ IMMEDIATE_CONTEXT_MAX_PAGES = 2
 SECONDARY_FALLBACK_RADIUS = 50.0
 TRANSIENT_STATUS_CODES = {502, 503, 504}
 
+
+def _quadrant_bboxes(
+    cx: float, cy: float, r: float
+) -> list[tuple[str, str]]:
+    """Split a square bbox into 4 quadrant bboxes for parallel fetching."""
+    return [
+        ("NE", f"{cx:.0f},{cy:.0f},{cx + r:.0f},{cy + r:.0f}"),
+        ("NW", f"{cx - r:.0f},{cy:.0f},{cx:.0f},{cy + r:.0f}"),
+        ("SE", f"{cx:.0f},{cy - r:.0f},{cx + r:.0f},{cy:.0f}"),
+        ("SW", f"{cx - r:.0f},{cy - r:.0f},{cx:.0f},{cy:.0f}"),
+    ]
+
+
 if settings.three_d_conservative_mode:
     # Exact pre-optimization constants (rollback mode).
     DEFAULT_RADIUS = 150.0
@@ -41,23 +54,25 @@ if settings.three_d_conservative_mode:
     PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 5.0
     PRIMARY_WAIT_AFTER_BACKUP_SECONDS = 10.0
     TARGET_FETCH_TIMEOUT = 30.0
+    TARGET_FETCH_BUDGET = 999.0
 else:
-    # Accelerated mode defaults.
-    DEFAULT_RADIUS = 150.0
-    BBOX_MAX_PAGES = 3
-    BBOX_FETCH_BUDGET = 50.0
-    BBOX_PAGE_TIMEOUT = 40.0
+    # Accelerated mode defaults — parallel quadrant strategy.
+    DEFAULT_RADIUS = 120.0
+    BBOX_MAX_PAGES = 1
+    BBOX_FETCH_BUDGET = 35.0
+    BBOX_PAGE_TIMEOUT = 30.0
     TARGET_FETCH_RETRIES = 4
-    BBOX_FETCH_RETRIES = 6
+    BBOX_FETCH_RETRIES = 4
     RETRY_BACKOFF_BASE = 0.25
-    FALLBACK_PAGE_TIMEOUT = 40.0
+    FALLBACK_PAGE_TIMEOUT = 30.0
     NEARBY_CONTEXT_MIN_RADIUS = 100.0
-    NEARBY_CONTEXT_TIMEOUT = 40.0
+    NEARBY_CONTEXT_TIMEOUT = 30.0
     NEARBY_CONTEXT_MAX_PAGES = 3
     IMMEDIATE_CONTEXT_TIMEOUT = 15.0
     PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS = 3.0
     PRIMARY_WAIT_AFTER_BACKUP_SECONDS = 8.0
     TARGET_FETCH_TIMEOUT = 25.0
+    TARGET_FETCH_BUDGET = 30.0
 
 _in_flight: dict[str, asyncio.Task[Neighborhood3DResponse]] = {}
 
@@ -345,6 +360,24 @@ async def _fetch_target_building(
     return None
 
 
+async def _fetch_target_budgeted(
+    pand_id: str, center_x: float, center_y: float
+) -> BuildingBlock | None:
+    """Fetch target building with an overall wall-clock budget."""
+    try:
+        return await asyncio.wait_for(
+            _fetch_target_building(pand_id, center_x, center_y),
+            timeout=TARGET_FETCH_BUDGET,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Target fetch for %s exceeded budget of %.0fs",
+            pand_id,
+            TARGET_FETCH_BUDGET,
+        )
+        return None
+
+
 def _get_next_page_url(data: dict, limit: int) -> str | None:
     """Read the next-page URL from 3DBAG links."""
     for link in data.get("links", []):
@@ -446,6 +479,97 @@ async def _fetch_bbox_paginated(
     return buildings, partial
 
 
+async def _fetch_single_quadrant(
+    center_x: float,
+    center_y: float,
+    bbox_str: str,
+    label: str,
+) -> tuple[list[BuildingBlock], bool]:
+    """Fetch a single quadrant bbox page.
+
+    Returns (buildings, partial). partial=True if fetch failed or page has more results.
+    """
+    client = _get_client()
+    url = (
+        f"{settings.three_d_bag_base}/collections/pand/items"
+        f"?bbox={bbox_str}&limit={BBOX_PAGE_LIMIT}"
+    )
+    try:
+        data = await _get_json_with_retries(
+            client,
+            url,
+            timeout=httpx.Timeout(BBOX_PAGE_TIMEOUT, connect=3.0),
+            attempts=BBOX_FETCH_RETRIES,
+        )
+    except (httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.warning("Quadrant %s fetch failed: %s", label, exc)
+        return [], True
+
+    buildings = _parse_bbox_page(data, center_x, center_y)
+    has_next = any(link.get("rel") == "next" for link in data.get("links", []))
+    if has_next:
+        logger.info("Quadrant %s has more pages (not fetched)", label)
+    return buildings, has_next
+
+
+async def _fetch_bbox_parallel_quadrants(
+    center_x: float, center_y: float, radius: float
+) -> tuple[list[BuildingBlock], bool]:
+    """Fetch surrounding buildings via 4 parallel quadrant bbox queries.
+
+    Splits the square bbox into NE/NW/SE/SW quadrants, fetches all 4
+    concurrently (single page each), then deduplicates by pand_id.
+    Enforces BBOX_FETCH_BUDGET as an outer timeout guard.
+    """
+    quadrants = _quadrant_bboxes(center_x, center_y, radius)
+    start = time.monotonic()
+    tasks = [
+        asyncio.create_task(_fetch_single_quadrant(center_x, center_y, bbox_str, label))
+        for label, bbox_str in quadrants
+    ]
+    done, pending = await asyncio.wait(tasks, timeout=BBOX_FETCH_BUDGET)
+
+    partial = False
+    if pending:
+        partial = True
+        logger.warning(
+            "Parallel quadrant fetch hit budget (done=%d pending=%d of %d)",
+            len(done),
+            len(pending),
+            len(tasks),
+        )
+        for task in pending:
+            task.cancel()
+        # Drain cancelled tasks to avoid "Task was destroyed but it is pending".
+        await asyncio.gather(*pending, return_exceptions=True)
+
+    seen_ids: set[str] = set()
+    buildings: list[BuildingBlock] = []
+    results: list[tuple[list[BuildingBlock], bool]] = []
+    for task in done:
+        try:
+            results.append(task.result())
+        except Exception as exc:
+            logger.warning("Quadrant fetch exception: %s", exc)
+            partial = True
+    for quadrant_buildings, quadrant_partial in results:
+        if quadrant_partial:
+            partial = True
+        for b in quadrant_buildings:
+            if b.pand_id not in seen_ids:
+                seen_ids.add(b.pand_id)
+                buildings.append(b)
+
+    duration = time.monotonic() - start
+    logger.info(
+        "Parallel quadrant fetch: %d buildings in %.2fs (4 quadrants)%s",
+        len(buildings),
+        duration,
+        " [partial]" if partial else "",
+    )
+    return buildings, partial
+
+
 async def _fetch_bbox_quick_context(
     center_x: float,
     center_y: float,
@@ -511,6 +635,11 @@ async def _fetch_bbox_resilient(
     radius: float,
 ) -> tuple[list[BuildingBlock], bool]:
     """Fetch neighborhood context with a fast backup path to avoid target-only drops."""
+    # Accelerated mode: use parallel quadrant strategy (no sequential pagination).
+    if not settings.three_d_conservative_mode:
+        return await _fetch_bbox_parallel_quadrants(center_x, center_y, radius)
+
+    # Conservative mode: original sequential paginated fetch with backup.
     backup_radius = max(FALLBACK_MIN_RADIUS, radius * FALLBACK_RADIUS_FACTOR)
     primary_task = asyncio.create_task(_fetch_bbox_paginated(center_x, center_y, radius))
     backup_task = asyncio.create_task(_fetch_bbox_quick_context(center_x, center_y, backup_radius))
@@ -524,10 +653,13 @@ async def _fetch_bbox_resilient(
     if first_task is primary_task:
         primary_buildings, primary_partial = _task_result_or_partial(primary_task)
         if primary_buildings:
+            # Primary paginated result won quickly with useful context.
             backup_task.cancel()
             return primary_buildings, primary_partial
+        # Primary returned empty/failed first, so prefer the already-running backup result.
         backup_buildings, backup_partial = await backup_task
         if not backup_buildings:
+            # Last fallback: broader one-page query to avoid target-only drops in sparse areas.
             secondary_buildings, secondary_partial = await _fetch_bbox_quick_context(
                 center_x,
                 center_y,
@@ -540,9 +672,6 @@ async def _fetch_bbox_resilient(
 
     backup_buildings, backup_partial = _task_result_or_partial(backup_task)
 
-    # Always wait for primary to finish — it covers a larger radius and returns
-    # more buildings for accurate shadow analysis.  Use backup as minimum
-    # guarantee if primary fails entirely.
     wait_timeout = (
         PRIMARY_WAIT_AFTER_EMPTY_BACKUP_SECONDS
         if not backup_buildings
@@ -560,14 +689,13 @@ async def _fetch_bbox_resilient(
         primary_task.cancel()
         primary_buildings, primary_partial = [], True
 
-    # Prefer whichever fetch returned more buildings
     if len(primary_buildings) >= len(backup_buildings):
         if primary_buildings:
             return primary_buildings, primary_partial
     if backup_buildings:
+        # Backup won by returning more context; keep conservative partial semantics.
         return backup_buildings, backup_partial or True
 
-    # Both empty — try a secondary fallback
     secondary_buildings, secondary_partial = await _fetch_bbox_quick_context(
         center_x,
         center_y,
@@ -633,21 +761,25 @@ async def _get_neighborhood_3d_impl(
     radius: float = DEFAULT_RADIUS,
 ) -> Neighborhood3DResponse:
     """Fetch 3D building data from 3DBAG for the neighborhood around a point."""
-    near_radius = max(radius * 0.9, NEARBY_CONTEXT_MIN_RADIUS)
-    near_task = asyncio.create_task(
-        _fetch_bbox_quick_context(
-            rd_x,
-            rd_y,
-            near_radius,
-            limit=NEARBY_CONTEXT_LIMIT,
-            timeout_s=NEARBY_CONTEXT_TIMEOUT,
-            max_pages=NEARBY_CONTEXT_MAX_PAGES,
+    near_task: asyncio.Task | None = None
+    if settings.three_d_conservative_mode:
+        # Near-ring prefetch only useful in conservative mode where bbox is paginated.
+        # In accelerated mode, parallel quadrants already cover the full radius.
+        near_radius = max(radius * 0.9, NEARBY_CONTEXT_MIN_RADIUS)
+        near_task = asyncio.create_task(
+            _fetch_bbox_quick_context(
+                rd_x,
+                rd_y,
+                near_radius,
+                limit=NEARBY_CONTEXT_LIMIT,
+                timeout_s=NEARBY_CONTEXT_TIMEOUT,
+                max_pages=NEARBY_CONTEXT_MAX_PAGES,
+            )
         )
-    )
 
     # Parallel fetch: direct target + broader resilient context first.
     target_building, bbox_result = await asyncio.gather(
-        _fetch_target_building(pand_id, rd_x, rd_y),
+        _fetch_target_budgeted(pand_id, rd_x, rd_y),
         _fetch_bbox_resilient(rd_x, rd_y, radius),
     )
     bbox_buildings, bbox_partial = bbox_result
@@ -668,10 +800,11 @@ async def _get_neighborhood_3d_impl(
     # returns fewer buildings than the near ring, especially at larger radii.
     near_buildings: list[BuildingBlock] = []
     near_partial = False
-    try:
-        near_buildings, near_partial = await near_task
-    except Exception:
-        near_buildings, near_partial = [], True
+    if near_task is not None:
+        try:
+            near_buildings, near_partial = await near_task
+        except Exception:
+            near_buildings, near_partial = [], True
 
     if target_building is None:
         for b in near_buildings:
@@ -812,7 +945,7 @@ async def get_target_building_3d(
     vbo_id: str | None = None,
 ) -> Neighborhood3DResponse:
     """Fast Phase 1: fetch only the target building (~2s, no bbox)."""
-    target = await _fetch_target_building(pand_id, rd_x, rd_y)
+    target = await _fetch_target_budgeted(pand_id, rd_x, rd_y)
     buildings = [target] if target else []
     return Neighborhood3DResponse(
         address_id=vbo_id or pand_id,

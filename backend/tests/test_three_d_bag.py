@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -10,10 +11,15 @@ from app.services.three_d_bag import (
     _compute_building_orientation,
     _enrich_with_lod22,
     _extract_lod22_surfaces,
+    _fetch_bbox_parallel_quadrants,
     _fetch_bbox_quick_context,
+    _fetch_single_quadrant,
+    _fetch_target_budgeted,
     _fetch_target_building,
     _parse_building,
+    _quadrant_bboxes,
     get_neighborhood_3d,
+    get_target_building_3d,
 )
 
 # --- _parse_building unit tests ---
@@ -368,6 +374,50 @@ async def test_fetch_target_building_retries_transient_502(mock_get_client):
 
 
 @pytest.mark.asyncio
+@patch("app.services.three_d_bag.TARGET_FETCH_BUDGET", 0.5)
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_target_budgeted_caps_wall_clock(mock_get_client):
+    """Budget wrapper must cap wall-clock even when target endpoint is slow."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    call_count = 0
+
+    async def slow_target(url, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        await asyncio.sleep(10)
+        return _make_mock_resp(_make_single_item_response("0363100012253924"))
+
+    mock_client.get.side_effect = slow_target
+
+    start = time.monotonic()
+    result = await _fetch_target_budgeted("0363100012253924", 121005.0, 487005.0)
+    elapsed = time.monotonic() - start
+
+    assert result is None
+    assert elapsed < 2.0, f"Budget should cap wall-clock; took {elapsed:.1f}s"
+    assert call_count <= 2, f"Budget should prevent full retry exhaustion; {call_count} calls made"
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_target_budgeted_returns_building_on_success(mock_get_client):
+    """Budget wrapper should pass through successful responses unchanged."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    mock_client.get.return_value = _make_mock_resp(
+        _make_single_item_response("0363100012253924")
+    )
+
+    result = await _fetch_target_budgeted("0363100012253924", 121005.0, 487005.0)
+
+    assert result is not None
+    assert result.pand_id == "0363100012253924"
+
+
+@pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
 async def test_fetch_bbox_quick_context_reference_origin(mock_get_client):
     """Context fetch can query around one center but keep a stable output origin."""
@@ -523,6 +573,85 @@ async def test_get_neighborhood_3d_parallel_strategy(mock_get_client):
 
 
 @pytest.mark.asyncio
+@patch("app.services.three_d_bag.TARGET_FETCH_BUDGET", 0.5)
+@patch("app.services.three_d_bag._get_client")
+async def test_get_neighborhood_3d_impl_bounded_by_budgets(mock_get_client):
+    """Gather wall-clock should be bounded by target and bbox budgets."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    target_id = "0363100012253924"
+    bbox_resp = _make_3dbag_response([
+        _make_feature("0363100000000001"),
+        _make_feature("0363100000000002"),
+    ])
+
+    call_count = 0
+
+    async def side_effect(url, **kwargs):
+        nonlocal call_count
+        s_url = str(url)
+        if f"NL.IMBAG.Pand.{target_id}" in s_url:
+            call_count += 1
+            await asyncio.sleep(10)
+            return _make_mock_resp(_make_single_item_response(target_id))
+        match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+        if match:
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        return _make_mock_resp(bbox_resp)
+
+    mock_client.get.side_effect = side_effect
+
+    start = time.monotonic()
+    result = await get_neighborhood_3d(
+        pand_id=target_id,
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 5.0, (
+        f"gather wall-clock should be bounded by TARGET_FETCH_BUDGET; took {elapsed:.1f}s"
+    )
+    assert len(result.buildings) >= 1
+    assert call_count <= 2
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.TARGET_FETCH_BUDGET", 0.5)
+@patch("app.services.three_d_bag._get_client")
+async def test_get_target_building_3d_bounded_by_target_budget(mock_get_client):
+    """Target-only endpoint must also honor the target fetch budget."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    async def slow_target(url, **kwargs):
+        await asyncio.sleep(10)
+        return _make_mock_resp(_make_single_item_response("0363100012253924"))
+
+    mock_client.get.side_effect = slow_target
+
+    start = time.monotonic()
+    result = await get_target_building_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+    )
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 2.0, (
+        f"target-only endpoint should be bounded by TARGET_FETCH_BUDGET; took {elapsed:.1f}s"
+    )
+    assert result.target_pand_id is None
+    assert result.buildings == []
+    assert result.message == "Target building not found in 3D data"
+
+
+@pytest.mark.asyncio
 @patch("app.services.three_d_bag.settings")
 @patch("app.services.three_d_bag._get_client")
 async def test_get_neighborhood_3d_fast_path_skips_context_enrichment(
@@ -575,17 +704,19 @@ async def test_get_neighborhood_3d_fast_path_skips_context_enrichment(
 
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
-async def test_get_neighborhood_3d_prefetches_near_ring_without_duping_context(mock_get_client):
-    """Near-ring prefetch should not duplicate context when bbox already has neighbors."""
+async def test_accelerated_mode_skips_near_ring_prefetch(mock_get_client):
+    """Near-ring prefetch is skipped in accelerated mode (redundant with quadrants)."""
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    bbox_resp = _make_3dbag_response(
-        [
-            _make_feature("0363100000000001"),
-            _make_feature("0363100000000002"),
-        ]
-    )
+    import app.services.three_d_bag as mod
+    if mod.settings.three_d_conservative_mode:
+        pytest.skip("Only applies in accelerated mode")
+
+    bbox_resp = _make_3dbag_response([
+        _make_feature("0363100000000001"),
+        _make_feature("0363100000000002"),
+    ])
     seen_urls: list[str] = []
 
     def side_effect(url, **kwargs):
@@ -607,10 +738,10 @@ async def test_get_neighborhood_3d_prefetches_near_ring_without_duping_context(m
         lng=4.892,
     )
 
-    # Near-ring radius query (rd ±135m with radius=150) is prefetched in parallel.
-    assert any("bbox=120870,486870,121140,487140" in u for u in seen_urls)
-    # Result still contains target + two neighbors (no duplication from prefetch).
-    assert len(result.buildings) == 3
+    # No near-ring URL (108m radius) should appear — only quadrant URLs
+    near_ring_urls = [u for u in seen_urls if "bbox=120897,486897" in u]
+    assert len(near_ring_urls) == 0
+    assert len(result.buildings) >= 1
 
 
 @pytest.mark.asyncio
@@ -619,6 +750,10 @@ async def test_get_neighborhood_3d_keeps_completed_near_ring_context_when_bbox_h
     mock_get_client,
 ):
     """Keep prefetched near-ring buildings to avoid dropping close context."""
+    import app.services.three_d_bag as mod
+    if not mod.settings.three_d_conservative_mode:
+        pytest.skip("Near-ring prefetch only applies in conservative mode")
+
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -661,6 +796,10 @@ async def test_get_neighborhood_3d_keeps_completed_near_ring_context_when_bbox_h
 @patch("app.services.three_d_bag._get_client")
 async def test_get_neighborhood_3d_fetches_bbox_next_page(mock_get_client):
     """Bbox pagination should include buildings from follow-up pages."""
+    import app.services.three_d_bag as mod
+    if not mod.settings.three_d_conservative_mode:
+        pytest.skip("Sequential pagination only applies in conservative mode")
+
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -991,6 +1130,10 @@ async def test_fetch_target_building_root_level_fallback(mock_get_client):
 @patch("app.services.three_d_bag._get_client")
 async def test_fetch_bbox_partial_failure(mock_get_client):
     """Second bbox page failure still returns partial neighborhood result."""
+    import app.services.three_d_bag as mod
+    if not mod.settings.three_d_conservative_mode:
+        pytest.skip("Sequential pagination only applies in conservative mode")
+
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -1036,6 +1179,10 @@ async def test_fetch_bbox_partial_failure(mock_get_client):
 @patch("app.services.three_d_bag._get_client")
 async def test_fetch_bbox_fallback_returns_context_after_first_page_timeout(mock_get_client):
     """When primary bbox page times out, reduced-radius fallback should return context."""
+    import app.services.three_d_bag as mod
+    if not mod.settings.three_d_conservative_mode:
+        pytest.skip("Resilient backup path only applies in conservative mode")
+
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -1368,16 +1515,16 @@ def test_accelerated_mode_constants_within_latency_bounds():
     if mod.settings.three_d_conservative_mode:
         pytest.skip("Only applies in accelerated mode")
 
-    assert mod.BBOX_MAX_PAGES <= 3
-    assert mod.BBOX_FETCH_BUDGET <= 50.0
-    assert mod.BBOX_FETCH_RETRIES <= 6
-    assert mod.DEFAULT_RADIUS <= 150.0
+    assert mod.BBOX_MAX_PAGES <= 1
+    assert mod.BBOX_FETCH_BUDGET <= 35.0
+    assert mod.BBOX_FETCH_RETRIES <= 4
+    assert mod.DEFAULT_RADIUS <= 120.0
 
 
 @pytest.mark.asyncio
 @patch("app.services.three_d_bag._get_client")
-async def test_default_radius_produces_150m_bbox_url(mock_get_client):
-    """Calling get_neighborhood_3d without radius should use DEFAULT_RADIUS."""
+async def test_default_radius_produces_quadrant_bbox_urls(mock_get_client):
+    """Accelerated mode should produce 4 quadrant bbox URLs at 120m radius."""
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
@@ -1407,8 +1554,14 @@ async def test_default_radius_produces_150m_bbox_url(mock_get_client):
         lng=4.892,
     )
 
-    assert any("bbox=120855,486855,121155,487155" in u for u in seen_urls)
-    assert any("bbox=120870,486870,121140,487140" in u for u in seen_urls)
+    bbox_urls = [u for u in seen_urls if "bbox=" in u]
+    # Should have 4 quadrant bbox URLs (no near-ring in accelerated mode)
+    assert len(bbox_urls) == 4
+    # Verify quadrant pattern: center is (121005, 487005), radius 120
+    assert any("bbox=121005,487005," in u for u in bbox_urls)  # NE
+    assert any("bbox=120885,487005," in u for u in bbox_urls)  # NW
+    assert any("bbox=121005,486885," in u for u in bbox_urls)  # SE
+    assert any("bbox=120885,486885," in u for u in bbox_urls)  # SW
 
 
 @pytest.mark.asyncio
@@ -1527,9 +1680,9 @@ def test_conservative_mode_preserves_exact_pre_optimization_constants():
         pytest.skip("Test expects accelerated mode by default")
 
     # Prove accelerated defaults are active before switching modes.
-    assert mod.DEFAULT_RADIUS == 150.0
-    assert mod.BBOX_MAX_PAGES == 3
-    assert mod.BBOX_FETCH_BUDGET == 50.0
+    assert mod.DEFAULT_RADIUS == 120.0
+    assert mod.BBOX_MAX_PAGES == 1
+    assert mod.BBOX_FETCH_BUDGET == 35.0
 
     PRE_OPT = {
         "BBOX_MAX_PAGES": 5,
@@ -1544,6 +1697,7 @@ def test_conservative_mode_preserves_exact_pre_optimization_constants():
         "PRIMARY_WAIT_AFTER_BACKUP_SECONDS": 10.0,
         "TARGET_FETCH_TIMEOUT": 30.0,
         "TARGET_FETCH_RETRIES": 6,
+        "TARGET_FETCH_BUDGET": 999.0,
         "BBOX_FETCH_RETRIES": 10,
         "RETRY_BACKOFF_BASE": 0.35,
         "DEFAULT_RADIUS": 150.0,
@@ -1557,6 +1711,14 @@ def test_conservative_mode_preserves_exact_pre_optimization_constants():
                 assert actual == expected, (
                     f"{name}: expected {expected}, got {actual}"
                 )
+            conservative_target_worst_case = (
+                mod.TARGET_FETCH_TIMEOUT * mod.TARGET_FETCH_RETRIES
+                + sum(
+                    min(mod.RETRY_BACKOFF_BASE * i, 2.0)
+                    for i in range(1, mod.TARGET_FETCH_RETRIES)
+                )
+            )
+            assert mod.TARGET_FETCH_BUDGET > conservative_target_worst_case + 30.0
         finally:
             importlib.reload(mod)
 
@@ -1697,3 +1859,298 @@ class TestComputeBuildingOrientation:
         footprint = [[0, 0], [0.05, 0], [0.05, 0.05]]
         result = _compute_building_orientation(footprint)
         assert result is None
+
+
+# --- Quadrant bbox splitting tests ---
+
+
+class TestQuadrantBboxes:
+    def test_four_quadrants_tile_correctly(self):
+        """4 quadrants should tile the full bbox with no gaps."""
+        cx, cy, r = 121005.0, 487005.0, 120.0
+        quads = _quadrant_bboxes(cx, cy, r)
+        assert len(quads) == 4
+        labels = {q[0] for q in quads}
+        assert labels == {"NE", "NW", "SE", "SW"}
+
+        ne = next(q for q in quads if q[0] == "NE")
+        assert ne[1] == f"{cx:.0f},{cy:.0f},{cx + r:.0f},{cy + r:.0f}"
+
+        nw = next(q for q in quads if q[0] == "NW")
+        assert nw[1] == f"{cx - r:.0f},{cy:.0f},{cx:.0f},{cy + r:.0f}"
+
+        se = next(q for q in quads if q[0] == "SE")
+        assert se[1] == f"{cx:.0f},{cy - r:.0f},{cx + r:.0f},{cy:.0f}"
+
+        sw = next(q for q in quads if q[0] == "SW")
+        assert sw[1] == f"{cx - r:.0f},{cy - r:.0f},{cx:.0f},{cy:.0f}"
+
+    def test_full_coverage_matches_single_bbox(self):
+        """Union of 4 quadrant bboxes equals the original single bbox."""
+        cx, cy, r = 121005.0, 487005.0, 120.0
+        quads = _quadrant_bboxes(cx, cy, r)
+        all_coords = []
+        for _, bbox_str in quads:
+            parts = [float(p) for p in bbox_str.split(",")]
+            all_coords.append(parts)
+        min_x = min(c[0] for c in all_coords)
+        min_y = min(c[1] for c in all_coords)
+        max_x = max(c[2] for c in all_coords)
+        max_y = max(c[3] for c in all_coords)
+        assert min_x == cx - r
+        assert min_y == cy - r
+        assert max_x == cx + r
+        assert max_y == cy + r
+
+
+# --- Parallel quadrant fetch tests ---
+
+
+def _quadrant_route(center_x, center_y, radius, quadrant_responses):
+    """Build a side_effect that routes bbox URLs to per-quadrant responses.
+
+    quadrant_responses: dict mapping label ("NE","NW","SE","SW") to mock response.
+    Uses bbox= prefix anchoring to avoid substring collisions between quadrants.
+    """
+    cx, cy, r = center_x, center_y, radius
+    # Build exact bbox prefix for each quadrant
+    bbox_prefixes = {
+        "NE": f"bbox={cx:.0f},{cy:.0f},",
+        "NW": f"bbox={cx - r:.0f},{cy:.0f},",
+        "SE": f"bbox={cx:.0f},{cy - r:.0f},",
+        "SW": f"bbox={cx - r:.0f},{cy - r:.0f},",
+    }
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        for label, prefix in bbox_prefixes.items():
+            if prefix in s_url and label in quadrant_responses:
+                resp = quadrant_responses[label]
+                if isinstance(resp, Exception):
+                    raise resp
+                return resp
+        return _make_mock_resp(_make_3dbag_response([]))
+
+    return side_effect
+
+
+@pytest.mark.asyncio
+async def test_fetch_single_quadrant_direct_behavior():
+    """Direct unit coverage for single quadrant URL/parse/partial behavior."""
+    cx, cy = 121005.0, 487005.0
+    bbox = "121005,487005,121125,487125"
+    response = _make_3dbag_response(
+        [_make_feature("0363100000000001")],
+        next_link="https://api.3dbag.nl/collections/pand/items?offset=101",
+    )
+
+    mock_client = AsyncMock()
+    mock_get_json = AsyncMock(return_value=response)
+
+    with (
+        patch("app.services.three_d_bag._get_client", return_value=mock_client),
+        patch("app.services.three_d_bag._get_json_with_retries", mock_get_json),
+    ):
+        buildings, partial = await _fetch_single_quadrant(cx, cy, bbox, "NE")
+
+    assert len(buildings) == 1
+    assert buildings[0].pand_id == "0363100000000001"
+    assert partial is True
+    called_url = str(mock_get_json.call_args.args[1])
+    assert f"bbox={bbox}" in called_url
+    assert "limit=" in called_url
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_merges_all_quadrants(mock_get_client):
+    """All 4 quadrant results are merged into a single building list."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    cx, cy, r = 121005.0, 487005.0, 120.0
+    mock_client.get.side_effect = _quadrant_route(cx, cy, r, {
+        "NE": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000001")])),
+        "NW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000002")])),
+        "SE": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000003")])),
+        "SW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000004")])),
+    })
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    assert len(buildings) == 4
+    ids = {b.pand_id for b in buildings}
+    assert ids == {
+        "0363100000000001", "0363100000000002",
+        "0363100000000003", "0363100000000004",
+    }
+    assert partial is False
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_deduplicates(mock_get_client):
+    """Building appearing in 2 adjacent quadrants is returned only once."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    shared_id = "0363100000000099"
+    cx, cy, r = 121005.0, 487005.0, 120.0
+    mock_client.get.side_effect = _quadrant_route(cx, cy, r, {
+        "NE": _make_mock_resp(_make_3dbag_response([
+            _make_feature("0363100000000001"),
+            _make_feature(shared_id),
+        ])),
+        "NW": _make_mock_resp(_make_3dbag_response([
+            _make_feature("0363100000000002"),
+            _make_feature(shared_id),  # duplicate
+        ])),
+    })
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    ids = [b.pand_id for b in buildings]
+    assert ids.count(shared_id) == 1
+    assert len(buildings) == 3
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_partial_on_one_failure(mock_get_client):
+    """If one quadrant fails, return partial=True with buildings from other 3."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    cx, cy, r = 121005.0, 487005.0, 120.0
+    mock_client.get.side_effect = _quadrant_route(cx, cy, r, {
+        "NE": httpx.TimeoutException("read timeout"),
+        "NW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000002")])),
+        "SE": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000003")])),
+        "SW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000004")])),
+    })
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    assert partial is True
+    assert len(buildings) == 3
+    ids = {b.pand_id for b in buildings}
+    assert "0363100000000002" in ids
+    assert "0363100000000003" in ids
+    assert "0363100000000004" in ids
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_all_fail(mock_get_client):
+    """If all quadrants fail, return empty + partial=True."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    mock_client.get.side_effect = httpx.TimeoutException("total failure")
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(121005.0, 487005.0, 120.0)
+
+    assert buildings == []
+    assert partial is True
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_partial_when_has_next_page(mock_get_client):
+    """Quadrant with more pages signals partial=True even though fetch succeeded."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    cx, cy, r = 121005.0, 487005.0, 120.0
+    resp_with_next = _make_3dbag_response(
+        [_make_feature("0363100000000001")],
+        next_link="https://api.3dbag.nl/collections/pand/items?offset=101",
+    )
+    mock_client.get.side_effect = _quadrant_route(cx, cy, r, {
+        "NE": _make_mock_resp(resp_with_next),
+        "NW": _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000002")])),
+        "SE": _make_mock_resp(_make_3dbag_response([])),
+        "SW": _make_mock_resp(_make_3dbag_response([])),
+    })
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    assert partial is True  # NE had more pages
+    assert len(buildings) == 2
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.BBOX_FETCH_BUDGET", 0.05)
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_budget_preserves_completed(mock_get_client):
+    """Budget timeout should keep completed quadrant data instead of dropping all."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    cx, cy, r = 121005.0, 487005.0, 120.0
+
+    async def side_effect(url, **kwargs):
+        s_url = str(url)
+        # Make NE slow so it stays pending past budget; others return quickly.
+        if f"bbox={cx:.0f},{cy:.0f}," in s_url:
+            await asyncio.sleep(0.2)
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000001")]))
+        if f"bbox={cx - r:.0f},{cy:.0f}," in s_url:
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000002")]))
+        if f"bbox={cx:.0f},{cy - r:.0f}," in s_url:
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000003")]))
+        if f"bbox={cx - r:.0f},{cy - r:.0f}," in s_url:
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000004")]))
+        return _make_mock_resp(_make_3dbag_response([]))
+
+    mock_client.get.side_effect = side_effect
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    assert partial is True
+    # 3 fast quadrants should still be returned even when one timed out.
+    assert len(buildings) == 3
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._get_client")
+async def test_conservative_mode_uses_sequential_path(mock_get_client, mock_settings):
+    """Conservative mode should use sequential _fetch_bbox_paginated, not parallel quadrants."""
+    mock_settings.three_d_conservative_mode = True
+    mock_settings.enable_lod22_roofs = True
+    mock_settings.enable_lod22_context_enrichment = False
+    mock_settings.three_d_bag_base = "https://api.3dbag.nl"
+
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    seen_urls: list[str] = []
+    bbox_resp = _make_3dbag_response([_make_feature("0363100000000001")])
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        seen_urls.append(s_url)
+        if "NL.IMBAG.Pand." in s_url:
+            match = re.search(r"NL\.IMBAG\.Pand\.(\d{16})", s_url)
+            assert match is not None
+            return _make_mock_resp(_make_single_item_response(match.group(1)))
+        return _make_mock_resp(bbox_resp)
+
+    mock_client.get.side_effect = side_effect
+
+    result = await get_neighborhood_3d(
+        pand_id="0363100012253924",
+        rd_x=121005.0,
+        rd_y=487005.0,
+        lat=52.372,
+        lng=4.892,
+        radius=150.0,
+    )
+
+    # Conservative should produce ONE large bbox URL (sequential), not 4 quadrants.
+    # Bbox at 150m: 120855,486855,121155,487155 (with limit=100)
+    bbox_urls = [u for u in seen_urls if "bbox=" in u and "limit=100" in u]
+    assert len(bbox_urls) >= 1
+    assert any("bbox=120855,486855,121155,487155" in u for u in bbox_urls)
+    assert result.buildings is not None

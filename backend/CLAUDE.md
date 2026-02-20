@@ -64,13 +64,14 @@ ruff check . && ruff format .               # MUST pass before commit
 ## 3DBAG & 3D Viewer
 
 - **Scope modes:**
-  - **Accelerated (default):** bbox radius 150m, max pages 3, budget 50s. Tuned to recover close-context coverage while keeping cold loads bounded
-  - **Conservative:** bbox radius 150m, max pages 5, budget 80s. ~150-250 buildings. Enable via `BUURT_THREE_D_CONSERVATIVE_MODE=True`. This is the rollback safety valve — preserves exact pre-optimization behavior
-- **Cache version v25** for neighborhood3d. Key includes mode: `neighborhood3d:v25:{accelerated|conservative}:...`
+  - **Accelerated (default):** 4 parallel quadrant queries at 120m radius, 1 page each, budget 35s. ~120-150 buildings. Near-ring prefetch skipped (redundant with quadrant coverage)
+  - **Conservative:** bbox radius 150m, max pages 5, budget 80s. ~150-250 buildings. Sequential pagination with backup fallback. Enable via `BUURT_THREE_D_CONSERVATIVE_MODE=True`. This is the rollback safety valve — preserves exact pre-optimization behavior
+- **Cache version v26** for neighborhood3d. Key includes mode: `neighborhood3d:v26:{accelerated|conservative}:...`
+- **Frontend timeout:** 90s — unchanged, must support conservative mode's 80s budget + margin
 - **Lookup pand_id:** Lookup endpoint resolves VBO->pand_id with 3s timeout budget. Cache key: `lookup:v2:{id}`. Enables early 3D fetch without waiting for building facts
 - **GZip compression:** All responses >1KB compressed via GZipMiddleware
 - **3DBAG bbox fallback for target recovery:** When single-item endpoint returns 502, scan bbox results for target `pand_id`
-- **3DBAG building coverage:** Controlled by mode constants. After `asyncio.gather`, must `await near_task` — race condition where backup query cancels primary
+- **3DBAG building coverage:** Controlled by mode constants. In conservative mode, `await near_task` after `asyncio.gather`. In accelerated mode, near-ring is skipped (quadrants cover full radius)
 - **Single-flight request deduplication:** `_in_flight: dict[str, asyncio.Task]` at module level for `get_neighborhood_3d`. Use `asyncio.shield()` for shared tasks. Key: `{pand_id}:{rd_x:.0f}:{rd_y:.0f}`. Clean up in `finally`
 - **LoD 2.2 is mandatory for all buildings** (including neighbors). Sunlight shadow analysis requires accurate roof geometry
 - **Cold latency baselines (Feb 17, pre-optimization):** Damrak 1 = 77s/167 buildings, Kerkstraat 10 = 62s/251 buildings. 90%+ of wait time is 3DBAG API latency

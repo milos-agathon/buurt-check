@@ -10,6 +10,12 @@
 
 **Shadow analysis trade-off:** Radius reduction from 150m to 120m reduces coverage area by 36% (90,000 sq-m to 57,600 sq-m). Probe data shows ~124 buildings at 120m vs ~180 at 150m for Amsterdam Centrum. This was an explicit design decision to guarantee sub-30s full-scene loads. Shadow analysis accuracy decreases slightly for buildings near the 120-150m fringe that are no longer included. Conservative mode (150m, sequential) remains available for shadow-critical use cases.
 
+**Revision note (2026-02-20, v2):** Critical fix from Claude vs Codex adversarial review: replaced `asyncio.wait_for(asyncio.gather(...))` with `asyncio.wait(tasks, timeout=BBOX_FETCH_BUDGET)` in `_fetch_bbox_parallel_quadrants`. The original pattern discarded ALL completed quadrant results when the budget expired — if 3/4 quadrants finished in 34s and the 4th was slow, the `except asyncio.TimeoutError` branch returned `([], True)`, throwing away all successful data. The fix uses `asyncio.wait(tasks, timeout=BBOX_FETCH_BUDGET)` which returns `(done, pending)` sets, preserving results from completed quadrants while cancelling only pending ones. Added budget-timeout regression test to verify this behavior.
+
+**Frontend timeout:** Stays at 90s (unchanged). The design doc Section 2 suggests reducing to 40s — this is INCORRECT. 90s must remain to support conservative mode's 80s budget + margin.
+
+**Verified pre-conditions:** `_parse_bbox_page` exists in `three_d_bag.py` (verified by symbol name; line numbers shift as the file evolves). `import asyncio` is already present and this amendment also adds `import time` in the test file where `time.monotonic()` is used. Target fetch wall-clock is bounded by `TARGET_FETCH_BUDGET` (30s) via `_fetch_target_budgeted` wrapper. Without the budget, worst-case is `TARGET_FETCH_TIMEOUT(25s) * TARGET_FETCH_RETRIES(4) + backoff = ~101.5s`. This amendment bounds the target leg only; current `_fetch_bbox_resilient` fallback paths remain independently timed until parent Task 3 lands. See `2026-02-20-target-fetch-budget-fix.md`.
+
 ---
 
 ### Task 1: Add `_quadrant_bboxes` helper + tests
@@ -279,6 +285,39 @@ async def test_fetch_bbox_parallel_quadrants_partial_when_has_next_page(mock_get
 
     assert partial is True  # NE had more pages
     assert len(buildings) == 2
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.BBOX_FETCH_BUDGET", 0.05)
+@patch("app.services.three_d_bag._get_client")
+async def test_fetch_bbox_parallel_quadrants_budget_preserves_completed(mock_get_client):
+    """Budget timeout should keep completed quadrant data instead of dropping all."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    cx, cy, r = 121005.0, 487005.0, 120.0
+
+    async def side_effect(url, **kwargs):
+        s_url = str(url)
+        # Make NE slow so it stays pending past budget; others return quickly.
+        if f"bbox={cx:.0f},{cy:.0f}," in s_url:
+            await asyncio.sleep(0.2)
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000001")]))
+        if f"bbox={cx - r:.0f},{cy:.0f}," in s_url:
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000002")]))
+        if f"bbox={cx:.0f},{cy - r:.0f}," in s_url:
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000003")]))
+        if f"bbox={cx - r:.0f},{cy - r:.0f}," in s_url:
+            return _make_mock_resp(_make_3dbag_response([_make_feature("0363100000000004")]))
+        return _make_mock_resp(_make_3dbag_response([]))
+
+    mock_client.get.side_effect = side_effect
+
+    buildings, partial = await _fetch_bbox_parallel_quadrants(cx, cy, r)
+
+    assert partial is True
+    # 3 fast quadrants should still be returned even when one timed out.
+    assert len(buildings) == 3
 ```
 
 **Step 2: Run tests to verify they fail**
@@ -335,32 +374,34 @@ async def _fetch_bbox_parallel_quadrants(
     """
     quadrants = _quadrant_bboxes(center_x, center_y, radius)
     start = time.monotonic()
+    tasks = [
+        asyncio.create_task(_fetch_single_quadrant(center_x, center_y, bbox_str, label))
+        for label, bbox_str in quadrants
+    ]
+    done, pending = await asyncio.wait(tasks, timeout=BBOX_FETCH_BUDGET)
 
-    try:
-        results = await asyncio.wait_for(
-            asyncio.gather(
-                *[
-                    _fetch_single_quadrant(center_x, center_y, bbox_str, label)
-                    for label, bbox_str in quadrants
-                ],
-                return_exceptions=True,
-            ),
-            timeout=BBOX_FETCH_BUDGET,
+    partial = False
+    if pending:
+        partial = True
+        logger.warning(
+            "Parallel quadrant fetch hit budget (done=%d pending=%d of %d)",
+            len(done),
+            len(pending),
+            len(tasks),
         )
-    except asyncio.TimeoutError:
-        logger.warning("Parallel quadrant fetch exceeded budget of %.0fs", BBOX_FETCH_BUDGET)
-        return [], True
+        for task in pending:
+            task.cancel()
 
     seen_ids: set[str] = set()
     buildings: list[BuildingBlock] = []
-    partial = False
-
-    for result in results:
-        if isinstance(result, BaseException):
-            logger.warning("Quadrant fetch exception: %s", result)
+    results: list[tuple[list[BuildingBlock], bool]] = []
+    for task in done:
+        try:
+            results.append(task.result())
+        except Exception as exc:
+            logger.warning("Quadrant fetch exception: %s", exc)
             partial = True
-            continue
-        quadrant_buildings, quadrant_partial = result
+    for quadrant_buildings, quadrant_partial in results:
         if quadrant_partial:
             partial = True
         for b in quadrant_buildings:
@@ -381,7 +422,7 @@ async def _fetch_bbox_parallel_quadrants(
 **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && python -m pytest tests/test_three_d_bag.py -k "parallel_quadrants" -v`
-Expected: PASS (5 tests)
+Expected: PASS (6 tests)
 
 **Step 5: Commit**
 
@@ -880,3 +921,20 @@ curl -w "\nTotal time: %{time_total}s\n" \
 ```
 
 Expected: Response with buildings in similar timeframe. Confirms approach generalizes beyond Amsterdam.
+
+---
+
+## Adversarial review findings (2026-02-20)
+
+Consolidated findings from Claude and Codex adversarial reviews.
+
+| # | Finding | Severity | Resolution |
+|---|---------|----------|------------|
+| 1 | **Budget timeout loses completed data** — `asyncio.wait_for(asyncio.gather(...))` discards all results on timeout | CRITICAL | Replaced with `asyncio.wait(tasks, timeout=BBOX_FETCH_BUDGET)` which returns `(done, pending)` sets. Completed quadrant results are always preserved. New regression test `test_fetch_bbox_parallel_quadrants_budget_preserves_completed` verifies this. **Note:** The conservative-mode path in `_fetch_bbox_resilient` (Task 3, Step 2) retains `asyncio.wait_for(primary_task, timeout=wait_timeout)` — this is intentional and correct. It waits on a SINGLE already-running task with a short grace period, not a gather of multiple tasks, so the data-loss problem does not apply. |
+| 2 | **Conservative-mode test uses accelerated constants** — module constants resolved at import time, patching settings at runtime doesn't change them | LOW (pre-existing) | Pre-existing architectural limitation across all module-level constant tests. The conservative-mode fallback test (Step 5) explicitly patches `mock_settings` and tests the routing decision, not constant values. Not a blocker for this plan. |
+| 3 | **Timeout chain not end-to-end bounded** — target fetch has no outer wall-clock guard | **CRITICAL (partially fixed)** | Original analysis was wrong: worst-case is 101.5s, not 33s (`25s × 4 attempts + backoff`). Fixed for the target leg by adding `TARGET_FETCH_BUDGET=30s` and `_fetch_target_budgeted()` wrapper using `asyncio.wait_for`. Current HEAD still relies on `_fetch_bbox_resilient`, whose backup/secondary fallback paths are not covered by `BBOX_FETCH_BUDGET`, so end-to-end gather wall-clock is not yet strictly bounded. Parent Task 3 completes the end-to-end bound (35s target once quadrant-budget path is active). See `2026-02-20-target-fetch-budget-fix.md`. |
+| 4 | **Conservative test coverage reduced** — 4 tests skip in accelerated mode | MEDIUM | Inherent to mode-specific behavior. Tests D, E, F, G test sequential pagination which only exists in conservative mode. The new parallel quadrant tests (6 tests) cover the accelerated path. Net coverage INCREASES (6 new > 4 skipped). |
+| 5 | **Upstream fan-out risk** — 4 quadrants × 4 retries = 16 potential requests | LOW | Worth monitoring but not a blocker. Each quadrant has its own error handling. The 35s budget caps total wall-clock regardless of retry count. Log message includes quadrant label for debugging. |
+| 6 | **`_parse_bbox_page` existence** — called but not verified | RESOLVED | Verified: symbol exists in `three_d_bag.py` and is already used by `_fetch_bbox_paginated`. |
+| 7 | **Frontend timeout contradicts design doc** | RESOLVED | Design doc Section 2 says "90s -> 40s" but impl plan correctly keeps 90s. Added explicit note in plan header. 90s must remain for conservative mode's 80s budget + margin. |
+| 8 | **Cache key lat/lng audit** | LOW (pre-existing) | Pre-existing pattern. Not introduced by this plan. |

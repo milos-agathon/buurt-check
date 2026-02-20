@@ -31,9 +31,11 @@ import SunCalc from 'suncalc';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
 import './NeighborhoodViewer3D.css';
 
-/** Uniform neighbor building color: slate.200 per palette.md */
-const NEIGHBOR_COLOR = 0xB4C0CE;
-const NEIGHBOR_OPACITY = 0.6;
+/** Theme-aware neighbor building appearance */
+const NEIGHBOR_COLOR_LIGHT = 0xB4C0CE;
+const NEIGHBOR_COLOR_DARK = 0x8A9BB0;
+const NEIGHBOR_OPACITY_LIGHT = 0.70;
+const NEIGHBOR_OPACITY_DARK = 0.65;
 
 // Convert lat/lng to Web Mercator tile coordinates and fractional position within tile
 function latLngToTile(lat: number, lng: number, zoom: number) {
@@ -247,11 +249,11 @@ export default function NeighborhoodViewer3D({
     const ambient = new HemisphereLight(
       isDarkMode ? 0x6688aa : 0xb1e1ff,
       isDarkMode ? 0x443311 : 0xb97a20,
-      isDarkMode ? 0.4 : 0.5,
+      isDarkMode ? 0.30 : 0.35,
     );
     scene.add(ambient);
 
-    const sunLight = new DirectionalLight(0xffffff, 0.8);
+    const sunLight = new DirectionalLight(0xffffff, isDarkMode ? 0.85 : 0.9);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = SHADOW_MAP_SIZE;
     sunLight.shadow.mapSize.height = SHADOW_MAP_SIZE;
@@ -269,8 +271,8 @@ export default function NeighborhoodViewer3D({
     // Ground plane
     const groundGeom = new PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
     const groundMat = new MeshStandardMaterial({
-      color: isDarkMode ? 0x0D1620 : 0xF0F3F6,
-      roughness: 0.95,
+      color: isDarkMode ? 0x1A2838 : 0xDDE3EA,
+      roughness: 0.90,
       side: DoubleSide,
     });
     const ground = new Mesh(groundGeom, groundMat);
@@ -422,7 +424,8 @@ export default function NeighborhoodViewer3D({
         const y = Math.sin(alt) * SUN_DISTANCE;
         const z = Math.cos(az) * Math.cos(alt) * SUN_DISTANCE;
         ctx.sunLight.position.set(x, y, z);
-        ctx.sunLight.intensity = 0.8;
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
       } else {
         ctx.sunLight.intensity = 0;
       }
@@ -477,9 +480,9 @@ export default function NeighborhoodViewer3D({
     }
 
     const neighborMaterial = new MeshStandardMaterial({
-      color: NEIGHBOR_COLOR,
+      color: isDarkMode ? NEIGHBOR_COLOR_DARK : NEIGHBOR_COLOR_LIGHT,
       transparent: true,
-      opacity: NEIGHBOR_OPACITY,
+      opacity: isDarkMode ? NEIGHBOR_OPACITY_DARK : NEIGHBOR_OPACITY_LIGHT,
       side: DoubleSide,
     });
     let neighborMaterialUsed = false;
@@ -620,7 +623,8 @@ export default function NeighborhoodViewer3D({
       return;
     }
 
-    ctx.sunLight.intensity = 0.8;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
     const az = sunPos.azimuth;
     const alt = sunPos.altitude;
 
@@ -690,7 +694,7 @@ export default function NeighborhoodViewer3D({
           canvas.width = img.width;
           canvas.height = img.height;
           const c = canvas.getContext('2d')!;
-          c.filter = 'invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1)';
+          c.filter = 'invert(1) hue-rotate(180deg) brightness(1.8) contrast(1.5) saturate(1.2)';
           c.drawImage(img, 0, 0);
           texture = new CanvasTexture(canvas);
         } else {
