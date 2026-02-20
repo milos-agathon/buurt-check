@@ -694,7 +694,7 @@ export default function NeighborhoodViewer3D({
           canvas.width = img.width;
           canvas.height = img.height;
           const c = canvas.getContext('2d')!;
-          c.filter = 'invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1)';
+          c.filter = 'invert(1) hue-rotate(180deg) brightness(1.8) contrast(1.5) saturate(1.2)';
           c.drawImage(img, 0, 0);
           texture = new CanvasTexture(canvas);
         } else {
