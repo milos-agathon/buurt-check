@@ -540,6 +540,8 @@ async def _fetch_bbox_parallel_quadrants(
         )
         for task in pending:
             task.cancel()
+        # Drain cancelled tasks to avoid "Task was destroyed but it is pending".
+        await asyncio.gather(*pending, return_exceptions=True)
 
     seen_ids: set[str] = set()
     buildings: list[BuildingBlock] = []
@@ -651,10 +653,13 @@ async def _fetch_bbox_resilient(
     if first_task is primary_task:
         primary_buildings, primary_partial = _task_result_or_partial(primary_task)
         if primary_buildings:
+            # Primary paginated result won quickly with useful context.
             backup_task.cancel()
             return primary_buildings, primary_partial
+        # Primary returned empty/failed first, so prefer the already-running backup result.
         backup_buildings, backup_partial = await backup_task
         if not backup_buildings:
+            # Last fallback: broader one-page query to avoid target-only drops in sparse areas.
             secondary_buildings, secondary_partial = await _fetch_bbox_quick_context(
                 center_x,
                 center_y,
@@ -688,6 +693,7 @@ async def _fetch_bbox_resilient(
         if primary_buildings:
             return primary_buildings, primary_partial
     if backup_buildings:
+        # Backup won by returning more context; keep conservative partial semantics.
         return backup_buildings, backup_partial or True
 
     secondary_buildings, secondary_partial = await _fetch_bbox_quick_context(

@@ -13,6 +13,7 @@ from app.services.three_d_bag import (
     _extract_lod22_surfaces,
     _fetch_bbox_parallel_quadrants,
     _fetch_bbox_quick_context,
+    _fetch_single_quadrant,
     _fetch_target_budgeted,
     _fetch_target_building,
     _parse_building,
@@ -1931,6 +1932,33 @@ def _quadrant_route(center_x, center_y, radius, quadrant_responses):
         return _make_mock_resp(_make_3dbag_response([]))
 
     return side_effect
+
+
+@pytest.mark.asyncio
+async def test_fetch_single_quadrant_direct_behavior():
+    """Direct unit coverage for single quadrant URL/parse/partial behavior."""
+    cx, cy = 121005.0, 487005.0
+    bbox = "121005,487005,121125,487125"
+    response = _make_3dbag_response(
+        [_make_feature("0363100000000001")],
+        next_link="https://api.3dbag.nl/collections/pand/items?offset=101",
+    )
+
+    mock_client = AsyncMock()
+    mock_get_json = AsyncMock(return_value=response)
+
+    with (
+        patch("app.services.three_d_bag._get_client", return_value=mock_client),
+        patch("app.services.three_d_bag._get_json_with_retries", mock_get_json),
+    ):
+        buildings, partial = await _fetch_single_quadrant(cx, cy, bbox, "NE")
+
+    assert len(buildings) == 1
+    assert buildings[0].pand_id == "0363100000000001"
+    assert partial is True
+    called_url = str(mock_get_json.call_args.args[1])
+    assert f"bbox={bbox}" in called_url
+    assert "limit=" in called_url
 
 
 @pytest.mark.asyncio
