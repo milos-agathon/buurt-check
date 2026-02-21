@@ -724,6 +724,11 @@ export default function NeighborhoodViewer3D({
         meshes.push(tileMesh);
         renderOnce();
       };
+      img.onerror = () => {
+        if (import.meta.env.DEV) {
+          console.warn(`[3D] Basemap tile failed: ${url}`);
+        }
+      };
       img.src = url;
     });
 
