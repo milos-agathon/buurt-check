@@ -9,7 +9,7 @@
       <path d="M74 20 L80 26"       stroke="#1C2D3F" stroke-width="6"   stroke-linecap="butt" stroke-linejoin="miter"/>
       <path d="M80 34 L80 80"       stroke="#1C2D3F" stroke-width="6"   stroke-linecap="butt" stroke-linejoin="miter"/>
       <!-- Checkmark -->
-      <path d="M33 52 L46 65 L84 31" stroke="#2EC4B6"  stroke-width="12" stroke-linecap="butt" stroke-linejoin="bevel"/>
+      <path d="M33 52 L46 65 L84 31" stroke="#1C2D3F"  stroke-width="12" stroke-linecap="butt" stroke-linejoin="bevel"/>
     </g>
   </defs>
 

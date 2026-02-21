@@ -1,0 +1,38 @@
+# Code Reviewer Agent Memory — buurt-check
+
+> Detailed notes in topic files. This file is a concise index.
+> Keep under 200 lines.
+
+## Key Architecture Facts (verified)
+
+- `NeighborhoodViewer3D.tsx`: single `useEffect` for Three.js init (lines ~190-292). Cleanup removes `renderer.domElement`. Any new DOM elements added inside that effect MUST also be removed in the same cleanup return.
+- `get_neighborhood_3d` in `three_d_bag.py`: all partial flags (`bbox_partial`, `near_partial`, `immediate_partial`, `enrich_partial`), `target_found`, and `message` are all in scope at line ~738, just before the final `return`. `message` is assigned in a block ending ~line 737. Any log referencing `message` must be placed strictly after that block ends.
+- Test file `test_three_d_bag.py`: 405+ tests baseline. Uses `_route_responses` helper that routes single-item vs. bbox but NOT near-ring vs. primary-paginated. For near-ring distinctions, use inline `side_effect` like `test_get_neighborhood_3d_keeps_completed_near_ring_context_when_bbox_has_context`.
+
+## Recurring Anti-Patterns Found
+
+- **DOM element leaks in Three.js useEffect**: any element created inside the init effect (overlay, debug badge, etc.) must be cleaned up in the effect's return function. Only `renderer.domElement` is auto-cleaned — all other appended children are not.
+- **useState in animation loops**: using `useState` setter inside `requestAnimationFrame` callbacks causes a re-render per frame. Always use `useRef` for per-frame counters, timers, and display values; update DOM directly via `element.textContent`.
+- **`import.meta.env.DEV` stored in variable**: storing as `const isDev = import.meta.env.DEV` prevents Vite from tree-shaking the dev branch in production builds. Always use the literal `if (import.meta.env.DEV)` in hot-path code.
+- **DOM textContent updated every frame**: even in dev-only overlays, updating `textContent` every animation frame triggers layout recalculation. Gate updates to a 1-second boundary using a `lastResetRef`.
+- **`any([...])` list literal in Python logging**: prefer `a or b or c or d` over `any([a, b, c, d])` in log arguments. The list form is flagged by ruff in some configurations.
+
+## Testing Patterns
+
+- Structured log assertions require `caplog` fixture: `with caplog.at_level(logging.INFO, logger="app.services.three_d_bag")`. Without this, logger.info calls have no test coverage.
+- `_route_responses` helper in `test_three_d_bag.py` covers single-item vs. bbox URLs only. Near-ring vs. primary paginated requires inline side_effect with URL pattern matching (e.g., `limit=100` vs `limit=50`).
+- Stacked `@patch` decorators inject arguments in reverse order: bottom decorator → first arg, top decorator → last arg. Verify `(mock_get_client, mock_settings)` matches `@patch settings` outer + `@patch _get_client` inner.
+
+## Parallel Quadrant Fetch Architecture (Task 3, 2026-02-20)
+
+- `_quadrant_bboxes(cx, cy, r)` at top of `three_d_bag.py` (line 28) returns 4 (label, bbox_str) tuples: NE/NW/SE/SW.
+- Accelerated mode constants (lines 59-75): DEFAULT_RADIUS=120, BBOX_MAX_PAGES=1, BBOX_FETCH_BUDGET=35, BBOX_PAGE_TIMEOUT=30, BBOX_FETCH_RETRIES=4, TARGET_FETCH_BUDGET=30 (not in spec but functional).
+- `_fetch_bbox_resilient` now branches on `settings.three_d_conservative_mode`: accelerated → `_fetch_bbox_parallel_quadrants`, conservative → original sequential backup logic.
+- `near_task` in `_get_neighborhood_3d_impl` is `None` in accelerated mode; await block is guarded by `if near_task is not None`.
+- Cache version bumped to v26 (from v25). Key: `neighborhood3d:v26:{mode}:{pand_id}:{rd_x:.0f}:{rd_y:.0f}`.
+- Test C (near-ring skip test): checks URL pattern `bbox=120897,486897` for 108m near-ring at rd_x=121005, rd_y=487005. Math: max(120*0.9, 100)=108; 121005-108=120897, 487005-108=486897. ✅
+- Stale comment at `test_three_d_bag.py` line 1169: "Target + 1 neighbor from Q0" — "Q0" is meaningless in conservative-only test context. Minor but misleading.
+
+## Links to Topic Files
+
+- See `patterns.md` for more detail on Three.js instrumentation patterns.
