@@ -32,9 +32,9 @@ import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api
 import './NeighborhoodViewer3D.css';
 
 /** Theme-aware neighbor building appearance */
-const NEIGHBOR_COLOR_LIGHT = 0xB4C0CE;
+const NEIGHBOR_COLOR_LIGHT = 0x556E85;
 const NEIGHBOR_COLOR_DARK = 0x8A9BB0;
-const NEIGHBOR_OPACITY_LIGHT = 0.70;
+const NEIGHBOR_OPACITY_LIGHT = 0.90;
 const NEIGHBOR_OPACITY_DARK = 0.65;
 
 // Convert lat/lng to Web Mercator tile coordinates and fractional position within tile
@@ -502,9 +502,9 @@ export default function NeighborhoodViewer3D({
         const geom = createBuildingGeometry(building);
         if (!geom) continue;
         const mat = new MeshStandardMaterial({
-          color: isDarkMode ? TARGET_COLOR : TARGET_COLOR,
+          color: TARGET_COLOR,
           emissive: 0x57D4C8,
-          emissiveIntensity: 0.15,
+          emissiveIntensity: isDarkMode ? 0.20 : 0.40,
           side: DoubleSide,
         });
         const mesh = new Mesh(geom, mat);
