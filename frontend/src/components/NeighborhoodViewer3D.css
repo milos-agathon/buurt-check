@@ -51,7 +51,7 @@
 
 .viewer-3d__source {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   margin-top: var(--space-sm);
 }
 
