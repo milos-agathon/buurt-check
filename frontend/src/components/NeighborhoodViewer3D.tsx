@@ -27,8 +27,8 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import SunCalc from 'suncalc';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
+import { getDaylightRange, getRepresentativeDates, getSunDirection, SUN_DISTANCE } from '../utils/sunPosition';
 import './NeighborhoodViewer3D.css';
 
 /**
@@ -72,7 +72,6 @@ interface Props {
 const SHADOW_MAP_SIZE = Number(import.meta.env.VITE_VIEWER3D_SHADOW_SIZE) || 2048;
 const DPR_CAP = Number(import.meta.env.VITE_VIEWER3D_DPR_CAP) || 2;
 const TILE_GRID: '3x3' | '2x2' = import.meta.env.VITE_VIEWER3D_TILE_GRID === '2x2' ? '2x2' : '3x3';
-const SUN_DISTANCE = 300;
 const GROUND_SIZE = 750;
 const FRUSTUM = 300;
 const TARGET_COLOR = 0x2EC4B6;
@@ -420,15 +419,14 @@ export default function NeighborhoodViewer3D({
       const date = new Date(winterSolstice);
       date.setHours(config.hour, 0, 0, 0);
 
-      const sunPos = SunCalc.getPosition(date, center.lat, center.lng);
+      const sunDir = getSunDirection(date, center.lat, center.lng);
 
-      if (sunPos.altitude > 0) {
-        const az = sunPos.azimuth;
-        const alt = sunPos.altitude;
-        const x = -Math.sin(az) * Math.cos(alt) * SUN_DISTANCE;
-        const y = Math.sin(alt) * SUN_DISTANCE;
-        const z = Math.cos(az) * Math.cos(alt) * SUN_DISTANCE;
-        ctx.sunLight.position.set(x, y, z);
+      if (sunDir) {
+        ctx.sunLight.position.set(
+          sunDir.x * SUN_DISTANCE,
+          sunDir.y * SUN_DISTANCE,
+          sunDir.z * SUN_DISTANCE,
+        );
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
       } else {
@@ -620,9 +618,9 @@ export default function NeighborhoodViewer3D({
 
     const year = new Date().getFullYear();
     const summerNoon = new Date(year, 5, 21, 12, 0, 0);
-    const sunPos = SunCalc.getPosition(summerNoon, center.lat, center.lng);
+    const sunDir = getSunDirection(summerNoon, center.lat, center.lng);
 
-    if (sunPos.altitude <= 0) {
+    if (!sunDir) {
       ctx.sunLight.intensity = 0;
       renderOnce();
       return;
@@ -630,14 +628,11 @@ export default function NeighborhoodViewer3D({
 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
-    const az = sunPos.azimuth;
-    const alt = sunPos.altitude;
-
-    const x = -Math.sin(az) * Math.cos(alt) * SUN_DISTANCE;
-    const y = Math.sin(alt) * SUN_DISTANCE;
-    const z = Math.cos(az) * Math.cos(alt) * SUN_DISTANCE;
-
-    ctx.sunLight.position.set(x, y, z);
+    ctx.sunLight.position.set(
+      sunDir.x * SUN_DISTANCE,
+      sunDir.y * SUN_DISTANCE,
+      sunDir.z * SUN_DISTANCE,
+    );
     ctx.sunLight.target.position.set(0, 0, 0);
     renderOnce();
   }, [center.lat, center.lng, renderOnce]);
@@ -769,7 +764,7 @@ export default function NeighborhoodViewer3D({
 
     const raycaster = new Raycaster();
     const year = new Date().getFullYear();
-    const monthlyDates = Array.from({ length: 12 }, (_, i) => new Date(year, i, 21));
+    const monthlyDates = getRepresentativeDates(year);
     const WINTER_IDX = 11;
     const EQUINOX_IDX = 2;
     const SUMMER_IDX = 5;
@@ -777,24 +772,16 @@ export default function NeighborhoodViewer3D({
     const monthlyHours: number[] = [];
 
     for (const date of monthlyDates) {
-      const times = SunCalc.getTimes(date, center.lat, center.lng);
-      const sunrise = times.sunrise.getHours();
-      const sunset = times.sunset.getHours();
+      const { sunrise, sunset } = getDaylightRange(date, center.lat, center.lng);
+      const sunriseHour = Math.floor(sunrise);
+      const sunsetHour = Math.floor(sunset);
       let sunlitHours = 0;
 
-      for (let h = sunrise; h <= sunset; h++) {
+      for (let h = sunriseHour; h <= sunsetHour; h++) {
         const d = new Date(date);
         d.setHours(h, 30, 0, 0);
-        const sunPos = SunCalc.getPosition(d, center.lat, center.lng);
-        if (sunPos.altitude <= 0) continue;
-
-        const az = sunPos.azimuth;
-        const alt = sunPos.altitude;
-        const sunDir = new Vector3(
-          -Math.sin(az) * Math.cos(alt),
-          Math.sin(alt),
-          Math.cos(az) * Math.cos(alt),
-        ).normalize();
+        const sunDir = getSunDirection(d, center.lat, center.lng);
+        if (!sunDir) continue;
 
         raycaster.set(roofCenter, sunDir);
         raycaster.far = SUN_DISTANCE * 2;
