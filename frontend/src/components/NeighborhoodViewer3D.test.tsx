@@ -6,6 +6,8 @@ import { setupTestI18n, makeNeighborhood3DResponse, makeNeighborhood3DResponseWi
 const mockCanvas = document.createElement('canvas');
 mockCanvas.toDataURL = vi.fn(() => 'data:image/png;base64,mock');
 const orbitControlsInstances: any[] = [];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const materialCalls: { args: any; instance: any }[] = [];
 
 vi.mock('three', () => {
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -43,7 +45,8 @@ vi.mock('three', () => {
     };
   }
   function PlaneGeometry(this: any) { }
-  function MeshStandardMaterial(this: any) {
+  function MeshStandardMaterial(this: any, opts?: any) {
+    materialCalls.push({ args: opts, instance: this });
     this.dispose = vi.fn();
     this.map = null;
     this.needsUpdate = false;
@@ -164,6 +167,7 @@ let rafId = 0;
 beforeEach(() => {
   rafId = 0;
   orbitControlsInstances.length = 0;
+  materialCalls.length = 0;
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => {
     return ++rafId;
   });
@@ -321,5 +325,46 @@ describe('NeighborhoodViewer3D', () => {
         expect.objectContaining({ label: 'evening', hour: 17 }),
       ])
     );
+  });
+
+  it('creates neighbor material with contrast-passing color and opacity', () => {
+    renderViewer();
+    const neighborCall = materialCalls.find(
+      ({ args }) => args?.transparent === true && args?.opacity !== undefined
+    );
+    expect(neighborCall).toBeDefined();
+    expect(neighborCall!.args.color).toBe(0x556E85);
+    expect(neighborCall!.args.opacity).toBe(0.90);
+  });
+
+  it('creates target material with theme-aware emissive intensity', () => {
+    renderViewer();
+    const targetCall = materialCalls.find(
+      ({ args }) => args?.emissive !== undefined && !args?.transparent
+    );
+    expect(targetCall).toBeDefined();
+    expect(targetCall!.args.color).toBe(0x2EC4B6);
+    expect(targetCall!.args.emissiveIntensity).toBe(0.40); // light mode (jsdom default)
+  });
+
+  it('uses dark-mode material values when data-theme is dark', () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    try {
+      renderViewer();
+      const neighborCall = materialCalls.find(
+        ({ args }) => args?.transparent === true && args?.opacity !== undefined
+      );
+      expect(neighborCall).toBeDefined();
+      expect(neighborCall!.args.color).toBe(0x8A9BB0);
+      expect(neighborCall!.args.opacity).toBe(0.65);
+
+      const targetCall = materialCalls.find(
+        ({ args }) => args?.emissive !== undefined && !args?.transparent
+      );
+      expect(targetCall).toBeDefined();
+      expect(targetCall!.args.emissiveIntensity).toBe(0.20);
+    } finally {
+      document.documentElement.removeAttribute('data-theme');
+    }
   });
 });

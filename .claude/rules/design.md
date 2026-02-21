@@ -60,8 +60,8 @@ Four channels for severity: color + text label + icon shape + numeric score. Nev
 
 ## 3D Viewer Colors
 
-- Target building: Arctic Teal `0x2EC4B6` with `--teal-300` emissive glow
-- Neighbor buildings: `--slate-200` (`0xB4C0CE`) at 60% opacity
+- Target building: Arctic Teal `0x2EC4B6` with `--teal-300` emissive glow (light 0.40, dark 0.20)
+- Neighbor buildings: `0x556E85` at 90% opacity (light), `0x8A9BB0` at 65% (dark). Blended contrast vs ground: 3.49:1
 - Shadow: PCFSoftShadowMap 2048x2048, summer noon default
 
 ## Z-Index Hierarchy

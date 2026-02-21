@@ -37,7 +37,7 @@ npx vitest --watch   # Watch mode
 - Plain Three.js only — NOT react-three-fiber
 - Static context card: summer noon lighting, orbit controls, reset button
 - `THREE.DoubleSide` on all materials (3DBAG winding inconsistent)
-- Target building: Arctic Teal `0x2EC4B6`. Neighbors: slate `0xB4C0CE` at 60% opacity
+- Target building: Arctic Teal `0x2EC4B6`, emissive `0x57D4C8` (light 0.40, dark 0.20). Neighbors: `0x556E85` at 90% opacity (light), `0x8A9BB0` at 65% (dark)
 - Dispose all geometries/materials/textures on cleanup
 - `mergeGeometries` for non-target buildings (single draw call)
 - WebGL `linewidth` > 1 unsupported — use geometry-based outlines for highlights
