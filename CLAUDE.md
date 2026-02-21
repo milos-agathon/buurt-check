@@ -93,6 +93,7 @@ Every risk card must have: (1) score 0-100 + severity, (2) plain-language meanin
 - `docs/design-spec.md` — Pixel-level visual spec
 - `docs/palette.md` — Color palette with WCAG requirements
 - `docs/ui-principles.md` — Mobile UX principles
+- `docs/sunlight-prd.md` — Sunlight v1 product requirements
 - `backend/CLAUDE.md` — Backend-specific conventions
 - `frontend/CLAUDE.md` — Frontend-specific conventions
 - Data source endpoints + API quirks → already in auto-memory (MEMORY.md)
