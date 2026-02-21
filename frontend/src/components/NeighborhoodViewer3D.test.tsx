@@ -346,4 +346,25 @@ describe('NeighborhoodViewer3D', () => {
     expect(targetCall!.args.color).toBe(0x2EC4B6);
     expect(targetCall!.args.emissiveIntensity).toBe(0.40); // light mode (jsdom default)
   });
+
+  it('uses dark-mode material values when data-theme is dark', () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    try {
+      renderViewer();
+      const neighborCall = materialCalls.find(
+        ({ args }) => args?.transparent === true && args?.opacity !== undefined
+      );
+      expect(neighborCall).toBeDefined();
+      expect(neighborCall!.args.color).toBe(0x8A9BB0);
+      expect(neighborCall!.args.opacity).toBe(0.65);
+
+      const targetCall = materialCalls.find(
+        ({ args }) => args?.emissive !== undefined && !args?.transparent
+      );
+      expect(targetCall).toBeDefined();
+      expect(targetCall!.args.emissiveIntensity).toBe(0.20);
+    } finally {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  });
 });

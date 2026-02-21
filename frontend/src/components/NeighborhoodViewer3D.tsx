@@ -31,7 +31,12 @@ import SunCalc from 'suncalc';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
 import './NeighborhoodViewer3D.css';
 
-/** Theme-aware neighbor building appearance */
+/**
+ * Theme-aware neighbor building appearance.
+ * Contrast ratios (alpha-blended on ground, WCAG 1.4.11 graphical 3:1 min):
+ *   Light: 0x556E85 @ 0.90 on #DDE3EA → blended #62798F → 3.49:1
+ *   Dark:  0x8A9BB0 @ 0.65 on #1A2838 → blended #627286 → 3.04:1
+ */
 const NEIGHBOR_COLOR_LIGHT = 0x556E85;
 const NEIGHBOR_COLOR_DARK = 0x8A9BB0;
 const NEIGHBOR_OPACITY_LIGHT = 0.90;
