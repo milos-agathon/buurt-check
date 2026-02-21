@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next';
+import SeverityBadge from './ui/SeverityBadge';
 import type { SunlightResult } from '../types/api';
+import type { SeverityLevel } from '../types/api';
 import './SunlightRiskCard.css';
 
 interface Props {
@@ -25,10 +27,12 @@ export function getAxisLabel(deg: number): string {
   return 'ns';
 }
 
-function getRiskLevel(winterHours: number): 'low' | 'medium' | 'high' {
-  if (winterHours < 2) return 'high';
-  if (winterHours <= 4) return 'medium';
-  return 'low';
+function getSeverity(winterHours: number): SeverityLevel {
+  const score = Math.max(0, Math.min(100, Math.round((winterHours / 6) * 100)));
+  if (score >= 70) return 'good';
+  if (score >= 40) return 'moderate';
+  if (score >= 20) return 'poor';
+  return 'critical';
 }
 
 export default function SunlightRiskCard({ sunlight, loading, unavailable, orientationDeg }: Props) {
@@ -37,7 +41,8 @@ export default function SunlightRiskCard({ sunlight, loading, unavailable, orien
   if (loading) {
     return (
       <div className="sunlight-card">
-        <h2 className="sunlight-card__title">{t('sunlight.title')}</h2>
+        <h2 className="sunlight-card__title">{t('sunlight.title_full')}</h2>
+        <p className="sunlight-card__subtitle">{t('sunlight.subtitle')}</p>
         <p className="sunlight-card__loading">{t('sunlight.loading')}</p>
       </div>
     );
@@ -46,10 +51,9 @@ export default function SunlightRiskCard({ sunlight, loading, unavailable, orien
   if (unavailable) {
     return (
       <div className="sunlight-card">
-        <h2 className="sunlight-card__title">{t('sunlight.title')}</h2>
-        <div className="sunlight-card__badge sunlight-card__badge--unavailable">
-          {t('sunlight.level.unavailable')}
-        </div>
+        <h2 className="sunlight-card__title">{t('sunlight.title_full')}</h2>
+        <p className="sunlight-card__subtitle">{t('sunlight.subtitle')}</p>
+        <SeverityBadge severity="unavailable" />
         <p className="sunlight-card__meaning">{t('sunlight.meaning.unavailable')}</p>
         <p className="sunlight-card__tip">{t('sunlight.viewingTip')}</p>
         <p className="sunlight-card__source">{t('sunlight.sourceUnavailable')}</p>
@@ -59,19 +63,18 @@ export default function SunlightRiskCard({ sunlight, loading, unavailable, orien
 
   if (!sunlight) return null;
 
-  const risk = getRiskLevel(sunlight.winter);
+  const severity = getSeverity(sunlight.winter);
   const sourceDate = sunlight.analysisYear ? String(sunlight.analysisYear) : t('sunlight.currentYear');
 
   return (
     <div className="sunlight-card">
-      <h2 className="sunlight-card__title">{t('sunlight.title')}</h2>
+      <h2 className="sunlight-card__title">{t('sunlight.title_full')}</h2>
+      <p className="sunlight-card__subtitle">{t('sunlight.subtitle')}</p>
 
-      <div className={`sunlight-card__badge sunlight-card__badge--${risk}`}>
-        {t(`sunlight.level.${risk}`)}
-      </div>
+      <SeverityBadge severity={severity} />
 
       <p className="sunlight-card__meaning">
-        {t(`sunlight.meaning.${risk}`)}
+        {t(`sunlight.meaning.${severity}`)}
       </p>
 
       <table className="sunlight-card__table">
@@ -105,6 +108,12 @@ export default function SunlightRiskCard({ sunlight, loading, unavailable, orien
           <p className="sunlight-card__orientation-note">{t('sunlight.orientationNote')}</p>
         </div>
       )}
+
+      <div className="sunlight-card__disclaimers">
+        <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_geometry')}</p>
+        <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_objects')}</p>
+        <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_approx')}</p>
+      </div>
 
       <p className="sunlight-card__tip">{t('sunlight.viewingTip')}</p>
       <p className="sunlight-card__source">{t('sunlight.sourceWithDate', { date: sourceDate })}</p>

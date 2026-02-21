@@ -870,10 +870,12 @@ function App() {
     const sunlightMeaning = sunlightScore == null
       ? t('sunlight.meaning.unavailable')
       : sunlightScore >= 70
-        ? t('sunlight.meaning.low')
+        ? t('sunlight.meaning.good')
         : sunlightScore >= 40
-          ? t('sunlight.meaning.medium')
-          : t('sunlight.meaning.high');
+          ? t('sunlight.meaning.moderate')
+          : sunlightScore >= 20
+            ? t('sunlight.meaning.poor')
+            : t('sunlight.meaning.critical');
 
     const currentRiskCards = riskCards;
     if (!currentRiskCards && category !== 'sunlight') return null;

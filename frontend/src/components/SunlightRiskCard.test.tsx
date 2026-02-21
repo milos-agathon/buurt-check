@@ -34,7 +34,8 @@ function renderCard(
 describe('SunlightRiskCard', () => {
   it('shows loading state', () => {
     renderCard(undefined, true);
-    expect(screen.getByText('Sunlight Analysis')).toBeInTheDocument();
+    expect(screen.getByText('Direct sun (clear-sky visibility)')).toBeInTheDocument();
+    expect(screen.getByText(/Counts time when the sun is above the horizon/i)).toBeInTheDocument();
     expect(screen.getByText('Analyzing sunlight...')).toBeInTheDocument();
   });
 
@@ -43,22 +44,28 @@ describe('SunlightRiskCard', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('shows low risk for good winter sunlight', () => {
+  it('shows good severity for score >= 70 (>= 4.2h winter sunlight)', () => {
     renderCard(makeSunlightResult({ winter: 6, equinox: 10, summer: 14 }));
-    expect(screen.getByText('Low risk')).toBeInTheDocument();
-    expect(screen.getByText(/good direct sunlight/)).toBeInTheDocument();
+    expect(screen.getByText('Good')).toBeInTheDocument();
+    expect(screen.getByText(/Adequate direct sunlight year-round/i)).toBeInTheDocument();
   });
 
-  it('shows medium risk for moderate winter sunlight', () => {
+  it('shows moderate severity for score 40-69 (~2.4-4.1h winter sunlight)', () => {
     renderCard(makeSunlightResult({ winter: 3, equinox: 7, summer: 11 }));
-    expect(screen.getByText('Medium risk')).toBeInTheDocument();
-    expect(screen.getByText(/moderate direct sunlight/)).toBeInTheDocument();
+    expect(screen.getByText('Moderate')).toBeInTheDocument();
+    expect(screen.getByText(/Some shadow in winter months/i)).toBeInTheDocument();
   });
 
-  it('shows high risk for poor winter sunlight', () => {
-    renderCard(makeSunlightResult({ winter: 1, equinox: 5, summer: 9 }));
-    expect(screen.getByText('High risk')).toBeInTheDocument();
-    expect(screen.getByText(/very little direct sunlight/)).toBeInTheDocument();
+  it('shows poor severity for score 20-39 (~1.2-2.3h winter sunlight)', () => {
+    renderCard(makeSunlightResult({ winter: 1.5, equinox: 5, summer: 9 }));
+    expect(screen.getByText('Poor')).toBeInTheDocument();
+    expect(screen.getByText(/Significant shadow from surrounding buildings/i)).toBeInTheDocument();
+  });
+
+  it('shows critical severity for score < 20 (< 1.2h winter sunlight)', () => {
+    renderCard(makeSunlightResult({ winter: 0.5, equinox: 3, summer: 7 }));
+    expect(screen.getByText('Critical')).toBeInTheDocument();
+    expect(screen.getByText(/Heavily shadowed location/i)).toBeInTheDocument();
   });
 
   it('displays seasonal breakdown', () => {
@@ -74,6 +81,13 @@ describe('SunlightRiskCard', () => {
     expect(screen.getByText(/Ask the seller/)).toBeInTheDocument();
   });
 
+  it('renders all three PRD-mandated disclaimers', () => {
+    renderCard(makeSunlightResult());
+    expect(screen.getByText(/geometry-based estimate/i)).toBeInTheDocument();
+    expect(screen.getByText(/interior layout/i)).toBeInTheDocument();
+    expect(screen.getByText(/approximated from building geometry/i)).toBeInTheDocument();
+  });
+
   it('shows source', () => {
     renderCard(makeSunlightResult());
     expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
@@ -81,8 +95,8 @@ describe('SunlightRiskCard', () => {
 
   it('renders in Dutch', () => {
     renderCard(makeSunlightResult({ winter: 1 }), false, 'nl');
-    expect(screen.getByText('Zonlichtanalyse')).toBeInTheDocument();
-    expect(screen.getByText('Hoog risico')).toBeInTheDocument();
+    expect(screen.getByText('Directe zon (helder weer)')).toBeInTheDocument();
+    expect(screen.getByText('Kritiek')).toBeInTheDocument();
     expect(screen.getByText(/Vraag de verkoper/)).toBeInTheDocument();
   });
 
@@ -94,13 +108,13 @@ describe('SunlightRiskCard', () => {
 
   it('still uses winter hours for risk classification', () => {
     renderCard(makeSunlightResult({ winter: 1, annualAverage: 8.0 }));
-    expect(screen.getByText('High risk')).toBeInTheDocument();
+    expect(screen.getByText('Critical')).toBeInTheDocument();
   });
 
   it('shows full unavailable card structure when no 3D context', () => {
     renderCard(undefined, false, 'en', true);
-    expect(screen.getByText('Sunlight Analysis')).toBeInTheDocument();
-    expect(screen.getByText('Data unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Direct sun (clear-sky visibility)')).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
     expect(screen.getByText(/No 3D building context available/)).toBeInTheDocument();
     expect(screen.getByText(/Ask the seller/)).toBeInTheDocument();
     expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
@@ -108,8 +122,8 @@ describe('SunlightRiskCard', () => {
 
   it('shows full unavailable card structure in Dutch', () => {
     renderCard(undefined, false, 'nl', true);
-    expect(screen.getByText('Zonlichtanalyse')).toBeInTheDocument();
-    expect(screen.getByText('Data niet beschikbaar')).toBeInTheDocument();
+    expect(screen.getByText('Directe zon (helder weer)')).toBeInTheDocument();
+    expect(screen.getByText('Niet beschikbaar')).toBeInTheDocument();
     expect(screen.getByText(/Geen 3D-gebouwcontext beschikbaar/)).toBeInTheDocument();
     expect(screen.getByText(/Vraag de verkoper/)).toBeInTheDocument();
     expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
