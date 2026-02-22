@@ -142,6 +142,49 @@ When documents conflict, the higher-authority document governs:
 
 ---
 
+### A-8. Dossier section ordering: "house first, buurt second" (2026-02-22)
+
+**The conflict:**
+- `design-spec.md` §3.1 and `design-prd.md` §3.3/§4.3.2 place the 3D viewer immediately after the summary strip (position 3 in the dossier).
+- Implementation (`App.tsx`) uses a different v7 order with the 3D viewer at position 9 of 14.
+- Both `design-spec.md` and `design-prd.md` have a 2D footprint map at the top of the dossier. Placing the 3D viewer immediately after creates two maps visible simultaneously on mobile.
+
+**Resolution: "House first, buurt second" — a new ordering principle.** The dossier is organized in two phases:
+1. **House (this property):** AttentionSummary → AddressHeader (+2D footprint map) → SummaryStrip → BuildingFacts → RiskTiles → PropertyWarnings → SoilInfo
+2. **Buurt (neighborhood):** Livability → 3D Viewer → Sunlight → NeighborhoodStats → TierB
+3. **Action:** ViewingChecklist → ActionBar (fixed bottom)
+
+**Rationale:**
+- Matches buyer mental model: "What am I buying?" before "What is this neighborhood like?"
+- The 2D footprint map (house-level, at the top) and 3D viewer (buurt-level, after ~7 house sections) are never on screen simultaneously — no map saturation.
+- Risk tiles (noise, air, climate, sunlight) stay in the house section despite being area-derived data, because they answer "what is it like at THIS address."
+- The 3D viewer transitions the user from property details into spatial neighborhood context.
+
+**Action:**
+- `design-spec.md` §3.1: Updated dossier layout diagram and added ordering principle note.
+- `design-prd.md` §3.3: Updated IA tree. §4.3.2: Repositioned 3D viewer to neighborhood section.
+- `ui-principles.md` §2: Rewritten to describe "house first, buurt second" principle.
+- `component-audit-findings-2026-02-21.md`: Finding 2 updated with resolution.
+
+---
+
+### A-9. 3D viewer sizing and camera framing (2026-02-22)
+
+**The conflict:**
+- `design-spec.md` §4.1 and `design-prd.md` §4.3.2 specify 50vh, min 280px, max 420px.
+- Implementation uses 20vh, min 140px, max 170px (too small to appreciate spatial relationships).
+
+**Resolution: 40vh compromise with no-sky constraint.**
+- Height: `40vh`, min `240px`, max `360px`. The full 50vh pushes adjacent content off-screen on small phones; 40vh gives room to breathe while keeping the next section peek-visible as scroll affordance.
+- Camera framing: tight/isometric — buildings and ground plane only, **no blue sky visible**. The viewer should feel like a technical aerial diagram. Sky is wasted space on a 360px-tall mobile viewport. Background color matches ground plane.
+
+**Action:**
+- `design-spec.md` §4.1: Updated height values and added camera framing row.
+- `design-prd.md` §4.3.2: Updated height values and added no-sky constraint.
+- `ui-principles.md` §7: Added no-sky framing rule.
+
+---
+
 ## Part 2: Token & implementation mismatches (from redesign plan)
 
 ### Critical fixes (do first)
@@ -168,7 +211,7 @@ When documents conflict, the higher-authority document governs:
 |---|-------|-----------|--------|
 | T-9 | Address input focus ring uses `#2EC4B6` (accent), spec mentions `#00897B` (teal-700) | **Keep `#2EC4B6` (accent).** The spec's `#00897B` reference appears inconsistent with the broader design system where `--color-accent` is the interactive state color. The focus ring should use the accent color. Update spec to match. | 5 min (spec edit) |
 | T-10 | Tab bar glass background — verify `--glass-bg`/`--glass-blur` map to spec values | **Verify and document.** Spec: white + `backdrop-filter: blur(20px)` + 80% opacity. Check that `--glass-bg` = `rgba(255,255,255,0.8)` and `--glass-blur` = `blur(20px)`. | 15 min |
-| T-11 | 3D viewer height — verify against spec (50vh, min 280px, max 420px) | **Verify in `NeighborhoodViewer3D.css`.** If it deviates, match the spec. | 15 min |
+| T-11 | 3D viewer height — update to 40vh, min 240px, max 360px (per A-9) | **Update `NeighborhoodViewer3D.css`.** Also enforce no-sky camera framing (tight/isometric, ground-only background). | 30 min |
 | T-12 | Language toggle border radius: 4px in implementation, system minimum is 6px (`--radius-sm`) | **Change to 6px.** No component should go below the system minimum radius. | 5 min |
 | T-13 | Number formatting (NL comma decimal, EN period decimal) | **Add runtime test.** Create test cases for both locales with sample values. This is invisible until a Dutch user sees "€485.000" formatted wrong. | 1 hr |
 

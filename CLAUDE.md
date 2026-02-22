@@ -36,13 +36,13 @@ docs/              # Design specs, plans, palette, UI principles
 ```bash
 # Backend
 cd backend && uvicorn app.main:app --reload --port 8000
-cd backend && pytest -x -q -m "not live"   # CI tests (432+ baseline)
+cd backend && pytest -x -q -m "not live"   # CI tests (466+ baseline)
 cd backend && ruff check .                  # MUST pass before commit
 
 # Frontend
 cd frontend && npm run dev                  # Dev server (proxies /api to :8000)
 cd frontend && npm run build                # MUST pass before commit (strict TS)
-cd frontend && npm run test                 # Vitest (448+ baseline)
+cd frontend && npm run test                 # Vitest (493+ baseline)
 ```
 
 ## Architecture decisions

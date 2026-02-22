@@ -90,12 +90,10 @@ Help expats and first-time buyers **avoid bad purchases and choose the right nei
 ## 4. Core user journey (MVP)
 
 1. User pastes **address** (or postcode + house number).
-2. App generates:
-   * **Building facts** (BAG)
-   * **3D block view + sunlight & shadow analysis** (3DBAG + Three.js + SunCalc)
-   * **Livability risk cards** (noise, air, climate stress, sunlight)
-   * **Neighborhood snapshot** (CBS)
-   * *If available:* **Energy label** (EP-Online) — Tier B
+2. App generates a dossier following the **"house first, buurt second"** principle:
+   * **House details:** Building facts (BAG), risk assessment (noise, air, climate, sunlight), property warnings, soil info
+   * **Neighborhood context:** Livability (Leefbaarometer), 3D block view + sunlight & shadow analysis (3DBAG + Three.js + SunCalc), neighborhood snapshot (CBS)
+   * *If available:* **Energy label** (EP-Online) + **Crime signal** (CBS OData) — Tier B
 3. User explores **3D shadow timeline**: drags time slider to see how shadows fall on the property at different times of day and seasons.
 4. User saves to a **Shortlist**, compares up to **3 homes**, exports a **PDF "Viewing Briefing"** with forge3d-rendered shadow snapshots.
 5. At viewing: user opens "**Questions to ask**" checklist auto-generated from detected risks.

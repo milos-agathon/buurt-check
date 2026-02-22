@@ -40,7 +40,7 @@ buurt-check must feel like a beautifully designed intelligence briefing prepared
 
 **Pillar 1 — Editorial restraint.** White space is the primary design material. A near-monochromatic palette with a single teal accent means that when color appears — in risk indicators, the 3D viewer highlight, CTAs — it carries maximum informational weight. Every element earns its place.
 
-**Pillar 2 — Data as narrative.** The dossier reads like a story, not a dashboard. Section transitions guide the user from context (building facts, 3D view) through analysis (risk cards, neighborhood stats) to action (viewing checklist, PDF export). Conversational copy in plain English/Dutch removes jargon without sacrificing precision. Risk data is always followed by "so what?" — what it means for the buyer and what to ask at the viewing.
+**Pillar 2 — Data as narrative.** The dossier reads like a story, not a dashboard. Section transitions guide the user from **house details** (building facts, risk assessment, property warnings) through **neighborhood context** (livability, 3D spatial view, stats) to **action** (viewing checklist, PDF export). This "house first, buurt second" flow matches how buyers think: "What is this property?" then "What is this neighborhood like?" Conversational copy in plain English/Dutch removes jargon without sacrificing precision. Risk data is always followed by "so what?" — what it means for the buyer and what to ask at the viewing.
 
 **Pillar 3 — The 3D window into reality.** The UI outside the 3D viewer is curated, editorial, restrained. The 3D viewer itself renders the actual neighborhood with photorealistic orthophoto roofs, procedural period-appropriate facades, and real sunlight simulation. This contrast is intentional: the clean interface frames the realistic 3D view, making it more impactful; the realistic 3D view validates the app's data authority. Neither element would work as well alone.
 
@@ -264,22 +264,28 @@ A minimal top bar appears on all screens:
 │
 ├── Briefing (Tab 2)
 │   ├── Empty state (no address searched yet)
-│   └── Dossier view
-│       ├── Address header + summary strip
-│       ├── 3D neighborhood viewer (hero card)
-│       │   ├── Interactive mode (Three.js)
-│       │   ├── Shadow timeline (slider + season presets)
-│       │   └── Camera presets (street / balcony / top-down)
+│   └── Dossier view ("house first, buurt second")
+│       ├── ── HOUSE (this property) ──
+│       ├── Attention summary
+│       ├── Address header + 2D footprint map + summary strip
+│       ├── Building facts
 │       ├── Risk tiles (2×2 grid)
 │       │   ├── Noise → Detail view
 │       │   ├── Air quality → Detail view
 │       │   ├── Climate stress → Detail view
 │       │   └── Sunlight → Detail view
+│       ├── Property warnings + Soil info
+│       ├── ── BUURT (neighborhood) ──
+│       ├── Livability (Leefbaarometer)
+│       ├── 3D neighborhood viewer
+│       │   ├── Interactive mode (Three.js)
+│       │   └── Shadow timeline (slider + season presets)
+│       ├── Sunlight analysis card
 │       ├── Neighborhood snapshot (CBS stats)
+│       ├── [Tier B] Crime card + Energy label
+│       ├── ── ACTION ──
 │       ├── Viewing checklist (aggregated questions)
-│       ├── [Tier B] Crime card
-│       ├── [Tier B] Energy label card
-│       └── Action bar: Add to Shortlist | Export PDF
+│       └── Action bar: Add to Shortlist | Export PDF (fixed bottom)
 │
 └── Saved (Tab 3)
     ├── Shortlist (1-3 saved addresses)
@@ -399,14 +405,15 @@ The pills serve as **jump links** — tapping a pill scrolls the dossier to the 
 - SC-4.3.1c: Pill tap-to-scroll navigation lands the target card at the top of the viewport within 300ms
 - SC-4.3.1d: Building facts (year, floors, function) sourced from BAG data match official records
 
-#### 4.3.2 3D viewer hero card
+#### 4.3.2 3D viewer card (neighborhood section)
 
 See [§5 — 3D Viewer Design](#5-3d-viewer-design) for complete specification. In the dossier layout:
 
-- Positioned immediately below the summary strip
+- Positioned within the **neighborhood section**, after the livability card — not immediately below the summary strip. This follows the "house first, buurt second" principle and prevents two maps (2D footprint + 3D viewer) from appearing on screen simultaneously.
 - Card with 16px border radius, Level 1 elevation
-- Height: 50vh on initial load (50% of viewport height), min 280px, max 420px
+- Height: 40vh on initial load (40% of viewport height), min 240px, max 360px
 - Full-width within 20px screen margins
+- Camera framing: tight/isometric — buildings and ground plane only, **no blue sky visible**. The viewer should feel like a technical aerial view, not a landscape. Background color matches ground plane.
 - On scroll past: collapses to a **sticky mini-bar** (48px height) pinned below the global top bar. Mini-bar shows: simplified building silhouette (left), current sun time display (center), expand icon (right). Tap to re-expand with spring animation (300ms).
 
 #### 4.3.3 Risk tiles (2×2 grid)

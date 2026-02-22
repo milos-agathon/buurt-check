@@ -453,7 +453,7 @@ Shown only on first launch or when there are no recent searches. Three horizonta
 
 ## 3. Dossier screen
 
-The primary content screen. A vertically scrolling intelligence briefing composed of distinct container sections.
+The primary content screen. A vertically scrolling intelligence briefing composed of distinct container sections. Organized by the **"house first, buurt second"** principle: all property-specific details appear before neighborhood context, so the user understands the house before seeing the surrounding area.
 
 ### 3.1 Overall screen layout
 
@@ -464,25 +464,24 @@ The primary content screen. A vertically scrolling intelligence briefing compose
 │  Briefing          [EN|NL]    [👤]     │ ← Top bar (scrolls away)
 ├─────────────────────────────────────────┤
 │                                         │
-│  Keizersgracht 123-II            [🔖]  │ ← ADDRESS HEADER CONTAINER
+│  ┌─────────────────────────────────┐    │
+│  │   2D FOOTPRINT MAP              │    │ ← Building footprint (house-level)
+│  └─────────────────────────────────┘    │
+│                                         │
+│  ⚠ Attention: 2 items need attention   │ ← ATTENTION SUMMARY
+│                                         │
+│  Keizersgracht 123-II            [🔖]  │ ← ADDRESS HEADER
 │  1012 AB Amsterdam                      │
 │  Built 1895 · 3 floors · Residential    │
 │                                         │
 │  [🔊 72] [🌿 84] [🌡️ 45] [☀️ 61]      │ ← SUMMARY STRIP (horizontal scroll)
 │                                         │
-├─────────────────────────────────────────┤
-│                                         │
+│  THIS PROPERTY                          │ ← Section label
 │  ┌─────────────────────────────────┐    │
-│  │                                 │    │
-│  │         3D VIEWER CARD          │    │ ← 3D VIEWER CONTAINER
-│  │     (see §4 for full spec)      │    │
-│  │                                 │    │
-│  │  ❄️ Winter 🌸 Spring ☀️ Sum 🍂 Aut │    │
-│  │  06 ──────●────────────── 21    │    │
+│  │  Building facts                 │    │ ← BUILDING FACTS
 │  └─────────────────────────────────┘    │
 │                                         │
 │  RISK ASSESSMENT                        │ ← Section label
-│                                         │
 │  ┌──────────┐  ┌──────────┐             │
 │  │  NOISE   │  │   AIR    │             │ ← RISK TILES (2×2 grid)
 │  │   72     │  │   84     │             │   (see §5 for full spec)
@@ -494,10 +493,36 @@ The primary content screen. A vertically scrolling intelligence briefing compose
 │  │ Moderate │  │ Moderate │             │
 │  └──────────┘  └──────────┘             │
 │                                         │
-│  NEIGHBORHOOD                           │ ← Section label
 │  ┌─────────────────────────────────┐    │
-│  │  Neighborhood snapshot          │    │ ← NEIGHBORHOOD CONTAINER
+│  │  Property warnings              │    │ ← PROPERTY WARNINGS
+│  │  Soil info                      │    │ ← SOIL INFO
+│  └─────────────────────────────────┘    │
+│                                         │
+│  NEIGHBORHOOD                           │ ← Section label (buurt transition)
+│  ┌─────────────────────────────────┐    │
+│  │  Livability                     │    │ ← LIVABILITY (Leefbaarometer)
+│  └─────────────────────────────────┘    │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │                                 │    │
+│  │         3D VIEWER CARD          │    │ ← 3D VIEWER CONTAINER
+│  │     (see §4 for full spec)      │    │   (neighborhood spatial context)
+│  │                                 │    │
+│  │  ❄️ Winter 🌸 Spring ☀️ Sum 🍂 Aut │    │
+│  │  06 ──────●────────────── 21    │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │  Sunlight analysis              │    │ ← SUNLIGHT CARD
+│  └─────────────────────────────────┘    │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │  Neighborhood snapshot          │    │ ← NEIGHBORHOOD STATS (CBS)
 │  │  (see §7 for full spec)         │    │   (see §7)
+│  └─────────────────────────────────┘    │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │  Tier B signals                 │    │ ← TIER B (crime, energy)
 │  └─────────────────────────────────┘    │
 │                                         │
 │  YOUR VIEWING CHECKLIST                 │ ← Section label
@@ -507,13 +532,15 @@ The primary content screen. A vertically scrolling intelligence briefing compose
 │  └─────────────────────────────────┘    │
 │                                         │
 │  ┌─────────────────────────────────┐    │
-│  │ [Add to Shortlist][Export Brief] │    │ ← ACTION BAR (sticky)
+│  │ [Add to Shortlist][Export Brief] │    │ ← ACTION BAR (fixed bottom)
 │  └─────────────────────────────────┘    │
 │                                         │
 ├─────────────────────────────────────────┤
 │ ░░░░░░░░ BOTTOM TAB BAR ░░░░░░░░░░░░░ │
 └─────────────────────────────────────────┘
 ```
+
+**Ordering principle — "house first, buurt second":** The dossier is split into two phases. The first phase covers everything specific to the property itself (building facts, risk scores at this address, property warnings, soil). The second phase covers the surrounding neighborhood (livability, 3D spatial context, sunlight from surrounding geometry, CBS stats, tier B signals). This ensures the 2D footprint map (house-level, at the top) and the 3D viewer (buurt-level, after house sections) are never visible on screen simultaneously.
 
 ### 3.2 Dossier screen background
 
@@ -632,13 +659,14 @@ A horizontal scrollable row of compact risk indicators.
 | Property | Value |
 |----------|-------|
 | Width | Full width minus 40px (20px margin each side) |
-| Height | 50vh (50% of viewport height), min 280px, max 420px |
+| Height | 40vh (40% of viewport height), min 240px, max 360px |
 | Background | `#FAFBFC` (Snow — matching scene background) |
 | Border | 1px solid `#E2E7ED` (Light Fog) |
 | Border radius | 16px |
 | Shadow | `0 2px 8px rgba(28, 45, 63, 0.06)` (Level 1) |
 | Overflow | Hidden (3D canvas clips to card bounds) |
-| Position | 16px below summary strip |
+| Position | Within the neighborhood section, after livability card |
+| Camera framing | Tight/isometric — buildings and ground plane only, no sky visible. Camera angle should fill the viewport with built geometry. Background color matches ground plane, not a sky gradient |
 
 ### 4.2 Viewer card loading state
 

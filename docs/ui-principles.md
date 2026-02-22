@@ -18,15 +18,15 @@ buurt-check is not a data tool. It's a prepared, trustworthy intelligence briefi
 
 ---
 
-## 2. The Dossier is the Spine — the 3D Viewer is the Spatial Anchor
+## 2. House First, Buurt Second — the Dossier Narrative Flow
 
-buurt-check delivers a curated report, not a spatial browsing experience. The dossier scroll is the primary container. The 3D viewer card functions as the spatial anchor embedded within it.
+buurt-check delivers a curated report, not a spatial browsing experience. The dossier scroll is the primary container, organized by the **"house first, buurt second"** principle: all property-specific details appear before neighborhood context.
 
-- **The dossier reads top-to-bottom like a briefing.** Address header → summary strip → 3D viewer → risk tiles → neighborhood snapshot → viewing checklist → action bar. This linear flow supports the "analyst prepared this for you" mental model and maps naturally to progressive disclosure.
-- **The 3D viewer is always present in the dossier, not hidden behind a button.** It's buurt-check's signature differentiator — hiding it reduces discovery and first-impression impact. Performance concerns are addressed through progressive loading and device-tier fallback (see §7), not by gating access.
-- **The 3D viewer card has a clear boundary.** It's a defined viewport (50vh, min 280px, max 420px) within the dossier scroll, not a full-page background. A single, tight control cluster (fullscreen toggle, season buttons, time slider) lives inside the card. Controls don't scatter across the page.
-- **Risk overlays supplement risk tiles, not replace them.** The 3D viewer offers optional overlay toggles (noise, air quality, climate) for spatial context. But the primary risk communication happens through the 2×2 tile grid, where scores, explanations, and viewing questions provide narrative structure that overlays can't.
-- **Minimize 3D viewer chrome.** Camera preset buttons, fullscreen toggle, and layer controls should be minimal and tucked to edges. The 3D canvas is the most valuable real estate inside the card.
+- **The dossier follows a two-phase narrative.** Phase one is the house: address, building facts, risk scores at this address, property warnings, soil. Phase two is the buurt: livability, 3D neighborhood viewer, sunlight analysis, CBS stats, tier B signals. This matches how buyers think — "What am I buying?" before "Where am I buying?" — and ensures the 2D footprint map (house-level) and 3D viewer (buurt-level) are never on screen simultaneously.
+- **The 3D viewer is the spatial anchor of the neighborhood section, not hidden behind a button.** It's buurt-check's signature differentiator — hiding it reduces discovery and first-impression impact. But it belongs in the neighborhood section, not at the very top of the dossier. Performance concerns are addressed through progressive loading and device-tier fallback (see §7), not by gating access.
+- **The 3D viewer card has a clear boundary.** It's a defined viewport (40vh, min 240px, max 360px) within the dossier scroll, not a full-page background. Camera framing is tight/isometric — buildings and ground plane only, no blue sky. The viewer should feel like a technical aerial diagram, not a landscape.
+- **Risk tiles live in the house section.** Even though noise, air, and climate data come from area-level sources, they are measured at this specific address and directly affect this property's livability. They answer "what is it like HERE?" not "what is this neighborhood like?"
+- **Minimize 3D viewer chrome.** A reset button is sufficient for most users. Camera preset buttons and fullscreen toggle are future additions. The 3D canvas is the most valuable real estate inside the card.
 
 ---
 
@@ -59,7 +59,7 @@ Risk data is buurt-check's core value proposition. How you visualize severity is
 
 On mobile, you can't dump everything at once. The risk tiles pattern (2×2 grid → tap → fullscreen detail) is the right mental model. Small screens and short sessions punish complexity; structure and layered revelation reward it.
 
-- **Default dossier view:** address header + summary strip + 3D hero card + 2×2 risk tiles + neighborhood snapshot + viewing checklist. That's it. No scrolling past three screens of content.
+- **Default dossier view:** address header + summary strip + building facts + 2×2 risk tiles + property warnings (house phase) → livability + 3D viewer + neighborhood snapshot (buurt phase) → viewing checklist + action bar. The house-first flow gives users property context before spatial context.
 - **Detailed charts, disclaimers, methodology:** fullscreen drilldown, never inline. The user chooses to go deeper; they're never forced.
 - **Collapse secondary data into expandable cards.** Risk factors that aren't immediately alarming can live behind a tap. Only surface what's actionable or surprising.
 - **Use the dossier scroll position as an engagement signal.** If a user never scrolls past the summary, the summary is doing its job. If they always drill into one category, consider surfacing that category higher.
@@ -88,7 +88,8 @@ The 3D neighborhood viewer is buurt-check's wow factor and the design PRD's "win
   3. **Static snapshots:** Pre-rendered views with season toggle. For low-power devices or WebGL failures.
   Device capability is detected automatically — the user never sees a "choose your quality" dialog.
 - **Progressive visual enhancement within a session.** First meaningful render (solid-color buildings, orbitabel) within 3-4 seconds. Shadows arrive at 4s. Textures at 5s. Procedural facades at 6s. The viewer is usable before it's beautiful.
-- **Keep interactions simple on mobile.** Single-finger drag to orbit, pinch to zoom, double-tap to reset view. Avoid complex multi-finger gestures. Always provide a visible "Reset view" button (camera presets).
+- **No sky, only substance.** Camera framing should be tight/isometric — buildings and ground plane fill the viewport. Blue sky is wasted pixels on a small screen. The viewer should feel like a technical aerial diagram, not a landscape scene.
+- **Keep interactions simple on mobile.** Single-finger drag to orbit, pinch to zoom, double-tap to reset view. Avoid complex multi-finger gestures. Always provide a visible "Reset view" button.
 - **Defer all 3D asset loading until the viewer card enters the viewport.** The 3D viewer should never slow down the dossier's initial render. Intersection Observer triggers the loading sequence.
 - **Performance guardrails:**
   - Cap scenes at ~100k triangles; use level-of-detail to show higher detail only when zoomed in.
