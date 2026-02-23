@@ -366,6 +366,10 @@ function App() {
 
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
 
+  // When an overlay modal (e.g. ExportBottomSheet) is open, mark background
+  // content as inert so screen readers cannot access it (WCAG best practice).
+  const isOverlayModalOpen = exportSheetOpen;
+
   // Risk detail view state.
   const [activeDetailCategory, setActiveDetailCategory] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -973,10 +977,10 @@ function App() {
 
   return (
     <div className="app">
-      <a href="#main-content" className="sr-only sr-only--focusable">{t('a11y.skip_to_content')}</a>
-      <TopBar title={topBarTitle} onSettingsClick={openSettings} />
+      <a href="#main-content" className="sr-only sr-only--focusable" inert={isOverlayModalOpen || undefined}>{t('a11y.skip_to_content')}</a>
+      <TopBar title={topBarTitle} onSettingsClick={openSettings} inert={isOverlayModalOpen || undefined} />
 
-      <main className="app__main" id="main-content">
+      <main className="app__main" id="main-content" inert={isOverlayModalOpen || undefined}>
         {(activeScreen === 'search' || activeScreen === 'dossier') && (
           <>
             <AddressSearch onSelect={handleAddressSelect} />
@@ -1324,6 +1328,7 @@ function App() {
         onTabChange={handleTabChange}
         savedCount={shortlistItems.length}
         hasDossier={!!(address && buildingResponse)}
+        inert={isOverlayModalOpen || undefined}
       />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
