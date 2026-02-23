@@ -1126,7 +1126,7 @@ function App() {
               {/* 6. PropertyWarningsCard */}
               {(propertyWarningsLoading || propertyWarnings || propertyWarningsError) && (
                 <>
-                  <h3 className="app__section-label">{t('warnings.sectionTitle')}</h3>
+                  <h3 id="section-warnings" className="app__section-label">{t('warnings.sectionTitle')}</h3>
                   <PropertyWarningsCard
                     data={propertyWarnings ?? undefined}
                     loading={propertyWarningsLoading}
@@ -1138,7 +1138,7 @@ function App() {
               {/* 7. SoilInfoCard (static info, lead pipe note) */}
               {propertyWarnings && (
                 <>
-                  <h3 className="app__section-label">{t('dossier.soilInfo', 'Soil & Pipes')}</h3>
+                  <h3 id="section-soil" className="app__section-label">{t('dossier.soilInfo', 'Soil & Pipes')}</h3>
                   <SoilInfoCard
                     leadPipeFlagged={propertyWarnings?.lead_pipe?.flagged}
                     constructionYear={buildingResponse?.building?.construction_year}
@@ -1149,7 +1149,7 @@ function App() {
               {/* 8. LivabilityCard + detail view */}
               {(livabilityLoading || livability || livabilityError) && (
                 <>
-                  <h3 className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
+                  <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
                   <LivabilityCard
                     data={livability ?? undefined}
                     loading={livabilityLoading}
@@ -1220,7 +1220,7 @@ function App() {
               {/* 10. NeighborhoodStatsCard */}
               {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
                 <>
-                  <h3 className="app__section-label">{t('dossier.neighborhood')}</h3>
+                  <h3 id="section-neighborhood" className="app__section-label">{t('dossier.neighborhood')}</h3>
                   <NeighborhoodStatsCard
                     stats={neighborhoodStats ?? undefined}
                     loading={neighborhoodStatsLoading}
@@ -1232,7 +1232,7 @@ function App() {
               {/* 11. TierBSignalsCard */}
               {(tierBLoading || tierBData || tierBError) && (
                 <>
-                  <h3 className="app__section-label">{t('dossier.tierB')}</h3>
+                  <h3 id="section-tier-b" className="app__section-label">{t('dossier.tierB')}</h3>
                   <TierBSignalsCard
                     data={tierBData ?? undefined}
                     loading={tierBLoading}
@@ -1244,7 +1244,7 @@ function App() {
               {/* 12. ViewingChecklist */}
               {viewingQuestions && viewingQuestions.categories.length > 0 && (
                 <>
-                  <h3 className="app__section-label">{t('dossier.viewingChecklist')}</h3>
+                  <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
                   <ViewingChecklist
                     categories={viewingQuestions.categories}
                     checkedQuestions={checkedQuestions}
