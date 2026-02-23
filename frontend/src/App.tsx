@@ -973,9 +973,10 @@ function App() {
 
   return (
     <div className="app">
+      <a href="#main-content" className="sr-only sr-only--focusable">{t('a11y.skip_to_content')}</a>
       <TopBar title={topBarTitle} onSettingsClick={openSettings} />
 
-      <main className="app__main">
+      <main className="app__main" id="main-content">
         {(activeScreen === 'search' || activeScreen === 'dossier') && (
           <>
             <AddressSearch onSelect={handleAddressSelect} />
