@@ -137,3 +137,24 @@ describe('TopBar i18n aria-labels', () => {
     expect(i18nNl.t('nav.settings')).toBe('Instellingen');
   });
 });
+
+describe('Back button i18n', () => {
+  it('common.back translates correctly in both languages', () => {
+    expect(i18nEn.t('common.back')).toBe('Back');
+    expect(i18nNl.t('common.back')).toBe('Terug');
+  });
+});
+
+describe('Skip navigation i18n', () => {
+  it('a11y.skip_to_content translates correctly in both languages', () => {
+    expect(i18nEn.t('a11y.skip_to_content')).toBe('Skip to main content');
+    expect(i18nNl.t('a11y.skip_to_content')).toBe('Ga naar hoofdinhoud');
+  });
+});
+
+describe('3D viewer keyboard hint i18n', () => {
+  it('viewer3d.keyboardHint translates correctly in both languages', () => {
+    expect(i18nEn.t('viewer3d.keyboardHint')).toMatch(/arrow keys/i);
+    expect(i18nNl.t('viewer3d.keyboardHint')).toMatch(/pijltjestoetsen/i);
+  });
+});
