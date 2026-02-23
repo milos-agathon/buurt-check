@@ -412,5 +412,6 @@
   "soil.lead_pipe_viewing_question": "Heeft dit pand originele waterleidingen (van voor 1960)? Is er een loodtest uitgevoerd op bodem of drinkwater?",
   "soil.lead_pipe_source": "Bouwjaar: BAG Kadaster. Loden leidingen risico-indicatie op basis van richtlijnen Nederlandse waterbedrijven.",
 
-  "a11y.skip_to_content": "Ga naar hoofdinhoud"
+  "a11y.skip_to_content": "Ga naar hoofdinhoud",
+  "common.back": "Terug"
 }

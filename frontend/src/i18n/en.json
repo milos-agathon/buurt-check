@@ -412,5 +412,6 @@
   "soil.lead_pipe_viewing_question": "Does this property have original water pipes (pre-1960)? Has a lead test been conducted on soil or drinking water?",
   "soil.lead_pipe_source": "Construction year: BAG Kadaster. Lead pipe risk proxy based on Dutch water utility guidelines.",
 
-  "a11y.skip_to_content": "Skip to main content"
+  "a11y.skip_to_content": "Skip to main content",
+  "common.back": "Back"
 }
