@@ -20,7 +20,9 @@ import {
   SRGBColorSpace,
   Scene,
   Shape,
+  Spherical,
   Texture,
+  Vector3,
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -315,6 +317,62 @@ export default function NeighborhoodViewer3D({
     ctx.camera.updateProjectionMatrix();
     renderOnce();
   }, [buildings, targetPandId, renderOnce]);
+
+  // Keyboard navigation for accessibility (WCAG 2.1.1)
+  const ORBIT_STEP = 0.087; // ~5 degrees in radians
+  const ZOOM_FACTOR = 0.9;  // 10% per keypress
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const ctx = sceneRef.current;
+    if (!ctx) return;
+
+    const { camera, controls } = ctx;
+    const offset = camera.position.clone().sub(controls.target);
+    const spherical = new Spherical().setFromVector3(offset);
+
+    let handled = false;
+
+    switch (e.key) {
+      case 'ArrowLeft':
+        spherical.theta -= ORBIT_STEP;
+        handled = true;
+        break;
+      case 'ArrowRight':
+        spherical.theta += ORBIT_STEP;
+        handled = true;
+        break;
+      case 'ArrowUp':
+        spherical.phi = Math.max(controls.minPolarAngle, spherical.phi - ORBIT_STEP);
+        handled = true;
+        break;
+      case 'ArrowDown':
+        spherical.phi = Math.min(controls.maxPolarAngle, spherical.phi + ORBIT_STEP);
+        handled = true;
+        break;
+      case '+':
+      case '=':
+      case 'PageUp':
+        spherical.radius = Math.max(controls.minDistance, spherical.radius * ZOOM_FACTOR);
+        handled = true;
+        break;
+      case '-':
+      case 'PageDown':
+        spherical.radius = Math.min(controls.maxDistance, spherical.radius / ZOOM_FACTOR);
+        handled = true;
+        break;
+      case 'Home':
+        frameCamera();
+        e.preventDefault();
+        return;
+    }
+
+    if (handled) {
+      e.preventDefault();
+      camera.position.copy(new Vector3().setFromSpherical(spherical).add(controls.target));
+      camera.lookAt(controls.target);
+      renderOnce();
+    }
+  }, [frameCamera, renderOnce]);
 
   const resetTargetHeatmap = useCallback(() => {
     const targetMesh = targetMeshRef.current;
@@ -1147,8 +1205,11 @@ export default function NeighborhoodViewer3D({
         className="viewer-3d__canvas"
         ref={containerRef}
         data-testid="viewer-3d-canvas"
+        tabIndex={0}
+        role="application"
         aria-label={t('viewer3d.canvasAria')}
         aria-describedby={sceneSummaryId}
+        onKeyDown={handleKeyDown}
       >
         {loading ? (
           <div className="viewer-3d__skeleton" aria-label={t('viewer3d.loading')} aria-busy="true" />
@@ -1175,7 +1236,9 @@ export default function NeighborhoodViewer3D({
           maxHours={heatmapRange?.maxHours ?? 0}
         />
       </div>
-      <p id={sceneSummaryId} className="viewer-3d__summary">{staticSceneSummary}</p>
+      <p id={sceneSummaryId} className="viewer-3d__summary">
+        {staticSceneSummary} {t('viewer3d.keyboardHint')}
+      </p>
       <p className="viewer-3d__source">{t('viewer3d.source')}</p>
     </div>
   );
