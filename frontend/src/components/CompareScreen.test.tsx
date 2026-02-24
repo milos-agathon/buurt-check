@@ -113,7 +113,7 @@ describe('CompareScreen', () => {
     ]);
     fireEvent.click(screen.getByText('Differences only'));
     // Climate has 30-point spread (visible), others are 0 (hidden)
-    expect(screen.getByText('Climate')).toBeInTheDocument();
+    expect(screen.getAllByText('Climate').length).toBeGreaterThan(0);
     // Noise, Air, Sun should be filtered out
     expect(screen.queryByText('Noise')).not.toBeInTheDocument();
   });

@@ -101,6 +101,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  window.history.replaceState({}, '', '/');
   mockLookup.mockReset();
   mockBuilding.mockReset();
   mockBuilding3D.mockReset();
@@ -221,15 +222,16 @@ describe('address selection flow', () => {
     });
   });
 
-  it('shows dossier sheet immediately when address selected', async () => {
+  it('shows loading screen immediately when address selected', async () => {
     mockLookup.mockReturnValue(new Promise(() => {}));
 
     renderApp();
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByTestId('dossier-sheet')).toBeInTheDocument();
+      expect(screen.getByTestId('loading-screen')).toBeInTheDocument();
     });
+    expect(screen.queryByTestId('dossier-sheet')).not.toBeInTheDocument();
   });
 
   it('shows risk loading state while risk cards are fetching', async () => {
@@ -815,7 +817,7 @@ describe('property warnings param forwarding', () => {
 });
 
 describe('early 3D fetch from lookup pand_id', () => {
-  it('starts 3D fetches from lookup pand_id before building facts resolves', async () => {
+  it('starts 3D fetches from lookup pand_id after building facts resolves', async () => {
     const buildingDeferred = { resolve: (_v: ReturnType<typeof makeBuildingResponse>) => {} };
     mockLookup.mockResolvedValue(makeResolvedAddress({ pand_id: '0363100012253924' }));
     mockBuilding.mockReturnValue(
@@ -828,6 +830,14 @@ describe('early 3D fetch from lookup pand_id', () => {
 
     renderApp();
     await selectAddress();
+
+    expect(mockBuilding3D).not.toHaveBeenCalled();
+    expect(mockNeighborhood3D).not.toHaveBeenCalled();
+
+    await act(async () => {
+      buildingDeferred.resolve(makeBuildingResponse());
+      await Promise.resolve();
+    });
 
     await waitFor(() => {
       expect(mockBuilding3D).toHaveBeenCalledWith(
@@ -848,12 +858,6 @@ describe('early 3D fetch from lookup pand_id', () => {
         52.3676,
         4.8846,
       );
-    });
-
-    // Clean up unresolved building promise to avoid async state updates after test end.
-    await act(async () => {
-      buildingDeferred.resolve(makeBuildingResponse());
-      await Promise.resolve();
     });
   });
 

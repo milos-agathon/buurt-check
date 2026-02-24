@@ -21,8 +21,8 @@ import ViewingChecklist from './components/ViewingChecklist';
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
-import DossierSkeleton from './components/DossierSkeleton';
 import RiskTileSkeleton from './components/RiskTileSkeleton';
+import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
 import { SPRING_REVEAL } from './config/springs';
 import { hapticTap } from './utils/haptic';
 import { useAnimationPerformance } from './hooks/useAnimationPerformance';
@@ -33,6 +33,7 @@ import TabBar from './components/TabBar';
 import TopBar from './components/TopBar';
 import type { TabId } from './components/TabBar';
 import {
+  suggestAddresses,
   lookupAddress,
   getBuildingFacts,
   getBuilding3D,
@@ -69,6 +70,14 @@ import type {
   RiskLevel,
   ShortlistItem,
 } from './types/api';
+import {
+  formatCoverageDate,
+  parseSourceDateValue,
+  resolveSourceFetchStatus,
+  staleThresholdDate,
+  type SourceFetchStatus,
+  type ParsedSourceDate,
+} from './utils/dataCoverage';
 import './App.css';
 
 const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMap'));
@@ -307,6 +316,64 @@ function hasSurroundingContext(data: Neighborhood3DResponse | null): boolean {
   return data.buildings.some((b) => b.pand_id === data.target_pand_id);
 }
 
+type ProgressivePhase = 'house' | 'risk' | 'buurt';
+type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
+
+const PHASE_1_TIMEOUT_MS = 7000;
+const PHASE_2_TIMEOUT_MS = 9000;
+
+interface ParsedHashRoute {
+  route: HashRoute;
+  vboId?: string;
+  lookupId?: string;
+}
+
+function settleWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<'done' | 'timeout'> {
+  return new Promise((resolve) => {
+    const timeoutId = window.setTimeout(() => resolve('timeout'), timeoutMs);
+    promise
+      .catch(() => undefined)
+      .finally(() => {
+        window.clearTimeout(timeoutId);
+        resolve('done');
+      });
+  });
+}
+
+function parseHashRoute(hash: string): ParsedHashRoute {
+  const value = hash.startsWith('#') ? hash.slice(1) : hash;
+  const [pathPart = '', queryPart = ''] = value.split('?');
+  const path = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
+  const params = new URLSearchParams(queryPart);
+
+  if (path === '/saved') return { route: 'shortlist' };
+  if (path === '/compare') return { route: 'compare' };
+  if (path === '/settings') return { route: 'settings' };
+
+  const dossierMatch = path.match(/^\/address\/([^/]+)$/);
+  if (dossierMatch) {
+    return {
+      route: 'dossier',
+      vboId: decodeURIComponent(dossierMatch[1]),
+      lookupId: params.get('lookup') ?? undefined,
+    };
+  }
+
+  if (path === '/briefing') return { route: 'dossier' };
+  return { route: 'search' };
+}
+
+function getDossierScrollContainer(): HTMLElement | null {
+  if (typeof document === 'undefined') return null;
+  const element = document.getElementById('dossier-content');
+  return element instanceof HTMLElement ? element : null;
+}
+
+function hasInternalDossierScroll(container: HTMLElement | null): container is HTMLElement {
+  if (!container) return false;
+  return container.scrollHeight > container.clientHeight + 2;
+}
+
 function App() {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
@@ -319,6 +386,7 @@ function App() {
   );
   const [themePreference, setThemePreference] = useState<ThemePreference>(getTheme());
   const [address, setAddress] = useState<ResolvedAddress | null>(dossierSeed?.address ?? null);
+  const [activeLookupId, setActiveLookupId] = useState<string | null>(dossierSeed?.address?.id ?? null);
   const [buildingResponse, setBuildingResponse] = useState<BuildingFactsResponse | null>(
     dossierSeed?.buildingResponse ?? null,
   );
@@ -361,6 +429,11 @@ function App() {
     dossierSeed?.viewingQuestions ?? null,
   );
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<LoadingProgressStep>('findingBuilding');
+  const [loadingWarningKey, setLoadingWarningKey] = useState<string | null>(null);
+  const [progressivePhase, setProgressivePhase] = useState<ProgressivePhase>(
+    initialHasDossier ? 'buurt' : 'house',
+  );
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>(initialHasDossier ? 'half' : 'hidden');
   const [pendingDisplayName, setPendingDisplayName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -379,7 +452,9 @@ function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [useFallbackDetailTransition, setUseFallbackDetailTransition] = useState(false);
   const [checkedQuestions, setCheckedQuestions] = useState<Set<string>>(new Set());
+  const [showDossierJump, setShowDossierJump] = useState(false);
   const animationPerformance = useAnimationPerformance();
+  const ignoreNextHashRef = useRef(false);
 
   // Apply theme on mount and listen for system changes
   useEffect(() => {
@@ -393,21 +468,61 @@ function App() {
     setThemePreference(pref);
   }, []);
 
+  const setHashRoute = useCallback((hash: string, options?: { replace?: boolean }) => {
+    if (typeof window === 'undefined') return;
+    const normalized = hash.startsWith('#') ? hash : `#${hash}`;
+    if (window.location.hash === normalized) return;
+    ignoreNextHashRef.current = true;
+    if (options?.replace) {
+      window.history.replaceState(null, '', normalized);
+    } else {
+      window.history.pushState(null, '', normalized);
+    }
+  }, []);
+
+  const dossierHash = useCallback((vboId?: string | null, lookupId?: string | null) => {
+    if (!vboId) return '#/briefing';
+    const params = new URLSearchParams();
+    if (lookupId) params.set('lookup', lookupId);
+    const query = params.toString();
+    return `#/address/${encodeURIComponent(vboId)}${query ? `?${query}` : ''}`;
+  }, []);
+
   const openSettings = useCallback(() => {
     if (activeScreen !== 'settings') {
       previousScreenRef.current = activeScreen;
       setActiveScreen('settings');
+      setHashRoute('#/settings');
       return;
     }
 
-    if (activeTab === 'saved') {
-      setActiveScreen(
-        previousScreenRef.current === 'settings' ? 'shortlist' : previousScreenRef.current,
-      );
+    const fallbackScreen = activeTab === 'saved'
+      ? (previousScreenRef.current === 'settings' ? 'shortlist' : previousScreenRef.current)
+      : (previousScreenRef.current === 'settings' ? 'search' : previousScreenRef.current);
+
+    setActiveScreen(fallbackScreen);
+
+    if (fallbackScreen === 'shortlist') {
+      setHashRoute('#/saved');
       return;
     }
-    setActiveScreen(previousScreenRef.current === 'settings' ? 'search' : previousScreenRef.current);
-  }, [activeScreen, activeTab]);
+    if (fallbackScreen === 'compare') {
+      setHashRoute('#/compare');
+      return;
+    }
+    if (fallbackScreen === 'dossier') {
+      setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
+      return;
+    }
+    setHashRoute('#/search');
+  }, [
+    activeLookupId,
+    activeScreen,
+    activeTab,
+    address?.adresseerbaar_object_id,
+    dossierHash,
+    setHashRoute,
+  ]);
 
   const handleToggleQuestion = useCallback((id: string) => {
     hapticTap();
@@ -472,21 +587,63 @@ function App() {
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab);
     if (tab === 'home') {
-      setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
-      if (address && buildingResponse) setSheetSnap('half');
+      const hasDossier = !!(address && buildingResponse);
+      setActiveScreen(hasDossier ? 'dossier' : 'search');
+      if (hasDossier) {
+        setSheetSnap('half');
+        setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
+      } else {
+        setHashRoute('#/search');
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
       const el = document.getElementById('dossier-content');
       if (el) el.scrollTop = 0;
       return;
     }
     if (tab === 'briefing') {
-      setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
-      if (address && buildingResponse) setSheetSnap('half');
+      const hasDossier = !!(address && buildingResponse);
+      setActiveScreen(hasDossier ? 'dossier' : 'search');
+      if (hasDossier) {
+        setSheetSnap('half');
+        setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
+      } else {
+        setHashRoute('#/search');
+      }
     } else if (tab === 'saved') {
       setShortlistItems(getShortlist());
       setActiveScreen('shortlist');
+      setHashRoute('#/saved');
     }
-  }, [address, buildingResponse]);
+  }, [activeLookupId, address, buildingResponse, dossierHash, setHashRoute]);
+
+  useEffect(() => {
+    if (activeScreen !== 'dossier') {
+      setShowDossierJump(false);
+      return;
+    }
+
+    const root = getDossierScrollContainer();
+    const useInternalScroll = hasInternalDossierScroll(root);
+
+    const updateJumpVisibility = () => {
+      if (useInternalScroll && root) {
+        setShowDossierJump(root.scrollTop > 360);
+        return;
+      }
+      const windowScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+      setShowDossierJump(windowScrollTop > 360);
+    };
+
+    updateJumpVisibility();
+
+    if (useInternalScroll && root) {
+      root.addEventListener('scroll', updateJumpVisibility, { passive: true });
+      return () => root.removeEventListener('scroll', updateJumpVisibility);
+    }
+
+    window.addEventListener('scroll', updateJumpVisibility, { passive: true });
+    return () => window.removeEventListener('scroll', updateJumpVisibility);
+  }, [activeScreen, address?.id]);
 
   const handleRiskTileTap = useCallback((category: string) => {
     if (isTransitioning) return;
@@ -494,6 +651,54 @@ function App() {
     setUseFallbackDetailTransition(animationPerformance.shouldUseFallback());
     setActiveDetailCategory(category);
   }, [animationPerformance, isTransitioning]);
+
+  const scrollToDossierTarget = useCallback((elementId: string) => {
+    const root = getDossierScrollContainer();
+    const target = document.getElementById(elementId);
+    if (!target) return;
+
+    if (hasInternalDossierScroll(root)) {
+      const rootRect = root.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const top = root.scrollTop + (targetRect.top - rootRect.top) - 68;
+      root.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      return;
+    }
+
+    const top = window.scrollY + target.getBoundingClientRect().top - 72;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }, []);
+
+  const highlightRiskTile = useCallback((category: string) => {
+    const tile = document.getElementById(`section-risk-${category}`);
+    if (!tile) return;
+    tile.classList.remove('risk-tile--pulse');
+    // Force reflow so repeated taps still replay the pulse animation.
+    void tile.getBoundingClientRect();
+    tile.classList.add('risk-tile--pulse');
+    window.setTimeout(() => tile.classList.remove('risk-tile--pulse'), 320);
+  }, []);
+
+  const handleSummaryPillTap = useCallback((category: string) => {
+    hapticTap();
+    scrollToDossierTarget(`section-risk-${category}`);
+    highlightRiskTile(category);
+  }, [highlightRiskTile, scrollToDossierTarget]);
+
+  const handleJumpToHouse = useCallback(() => {
+    hapticTap();
+    scrollToDossierTarget('section-house-start');
+  }, [scrollToDossierTarget]);
+
+  const handleJumpToBuurt = useCallback(() => {
+    hapticTap();
+    scrollToDossierTarget('section-buurt-start');
+  }, [scrollToDossierTarget]);
+
+  const handleJumpToChecklist = useCallback(() => {
+    hapticTap();
+    scrollToDossierTarget('section-viewing-checklist');
+  }, [scrollToDossierTarget]);
 
   const handleSunlightAnalysis = useCallback((result: SunlightResult) => {
     setSunlight(result);
@@ -523,9 +728,112 @@ function App() {
     })();
   }, [address]);
 
-  const handleAddressSelect = async (suggestion: AddressSuggestion) => {
+  const handleRetryPropertyWarnings = useCallback(() => {
+    if (!address?.adresseerbaar_object_id || address.rd_x == null || address.rd_y == null) return;
+    setPropertyWarningsError(false);
+    setPropertyWarningsLoading(true);
+    void (async () => {
+      try {
+        const warnings = await getPropertyWarnings(address.adresseerbaar_object_id!, address.rd_x!, address.rd_y!, {
+          constructionYear: buildingResponse?.building?.construction_year ?? undefined,
+          numUnits: buildingResponse?.building?.num_units ?? undefined,
+          municipality: address.municipality ?? undefined,
+        });
+        setPropertyWarnings(warnings);
+      } catch {
+        setPropertyWarningsError(true);
+      } finally {
+        setPropertyWarningsLoading(false);
+      }
+    })();
+  }, [address, buildingResponse?.building?.construction_year, buildingResponse?.building?.num_units]);
+
+  const handleRetryNeighborhoodStats = useCallback(() => {
+    if (!address?.adresseerbaar_object_id || address.latitude == null || address.longitude == null) return;
+    setNeighborhoodStatsError(false);
+    setNeighborhoodStatsLoading(true);
+    void (async () => {
+      try {
+        const stats = await getNeighborhoodStats(
+          address.adresseerbaar_object_id!,
+          address.latitude!,
+          address.longitude!,
+          address.buurt_code ?? undefined,
+        );
+        setNeighborhoodStats(stats);
+      } catch {
+        setNeighborhoodStatsError(true);
+      } finally {
+        setNeighborhoodStatsLoading(false);
+      }
+    })();
+  }, [address]);
+
+  const handleRetryTierB = useCallback(() => {
+    if (!address?.adresseerbaar_object_id) return;
+    setTierBError(false);
+    setTierBLoading(true);
+    void (async () => {
+      try {
+        const tierB = await getTierBData(address.adresseerbaar_object_id!, {
+          buurtCode: address.buurt_code ?? undefined,
+          postcode: address.postcode ?? undefined,
+          houseNumber: address.house_number ?? undefined,
+          houseLetter: address.house_letter ?? undefined,
+          addition: address.addition ?? undefined,
+        });
+        setTierBData(tierB);
+      } catch {
+        setTierBError(true);
+      } finally {
+        setTierBLoading(false);
+      }
+    })();
+  }, [address]);
+
+  const handleRetryLivability = useCallback(() => {
+    if (!address?.adresseerbaar_object_id || address.rd_x == null || address.rd_y == null) return;
+    setLivabilityError(false);
+    setLivabilityLoading(true);
+    void (async () => {
+      try {
+        const livData = await getLivability(address.adresseerbaar_object_id!, address.rd_x!, address.rd_y!);
+        setLivability(livData);
+      } catch {
+        setLivabilityError(true);
+      } finally {
+        setLivabilityLoading(false);
+      }
+    })();
+  }, [address]);
+
+  const handleRetryAllFailed = useCallback(() => {
+    if (riskError) handleRetryRiskCards();
+    if (propertyWarningsError) handleRetryPropertyWarnings();
+    if (livabilityError) handleRetryLivability();
+    if (neighborhoodStatsError) handleRetryNeighborhoodStats();
+    if (tierBError) handleRetryTierB();
+  }, [
+    handleRetryLivability,
+    handleRetryNeighborhoodStats,
+    handleRetryPropertyWarnings,
+    handleRetryRiskCards,
+    handleRetryTierB,
+    livabilityError,
+    neighborhoodStatsError,
+    propertyWarningsError,
+    riskError,
+    tierBError,
+  ]);
+
+  const handleAddressSelect = useCallback(async (suggestion: AddressSuggestion) => {
     setLoading(true);
+    setLoadingStep('findingBuilding');
+    setLoadingWarningKey(null);
+    setProgressivePhase('house');
     setError(null);
+    setAddress(null);
+    setActiveLookupId(suggestion.id);
     setBuildingResponse(null);
     setNeighborhood3D(null);
     setNeighborhood3DLoading(false);
@@ -557,90 +865,79 @@ function App() {
     setCheckedQuestions(new Set());
     const requestId = ++neighborhood3DRequestId.current;
 
-    // T+0: immediately show dossier screen with sheet at peek
     setActiveScreen('dossier');
-    setActiveTab('home');
+    setActiveTab('briefing');
     setSheetSnap('peek');
     setPendingDisplayName(suggestion.display_name);
+    setHashRoute('#/briefing');
 
     try {
       const resolved = await lookupAddress(suggestion.id);
-      setAddress(resolved);
+      if (neighborhood3DRequestId.current !== requestId) return;
 
+      setAddress(resolved);
       const vboId = resolved.adresseerbaar_object_id;
       const { rd_x, rd_y, latitude, longitude } = resolved;
 
-      // --- EARLY 3D FETCH ---
-      const earlyPandId = resolved.pand_id ?? null;
-      let early3DStarted = false;
+      if (!vboId) {
+        setLoading(false);
+        setSheetSnap('hidden');
+        return;
+      }
 
-      if (earlyPandId && vboId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
-        early3DStarted = true;
-        setNeighborhood3DLoading(true);
-        setSurroundingLoading(true);
+      const building = await getBuildingFacts(vboId);
+      if (neighborhood3DRequestId.current !== requestId) return;
 
-        let phase1TargetData: Neighborhood3DResponse | null = null;
-        let phase2Done = false;
-        let phase2HasRenderableData = false;
+      setBuildingResponse(building);
+      setLoading(false);
+      setSheetSnap('half');
+      setHashRoute(dossierHash(vboId, suggestion.id));
 
-        // Phase 1: Quick target building 3D (~2s)
-        void (async () => {
+      setLoadingStep('loading3D');
+      let phase1Promise: Promise<void> | null = null;
+      if (rd_x != null && rd_y != null) {
+        setPropertyWarningsLoading(true);
+        phase1Promise = (async () => {
           try {
-            const target3d = await getBuilding3D(vboId, earlyPandId, rd_x, rd_y, latitude, longitude);
-            const hasTargetBuilding = target3d.buildings.length > 0;
-            if (hasTargetBuilding) {
-              phase1TargetData = target3d;
-            }
-            if (
-              (!phase2Done || !phase2HasRenderableData)
-              && neighborhood3DRequestId.current === requestId
-            ) {
-              if (hasTargetBuilding) {
-                setNeighborhood3D(target3d);
-                setNeighborhood3DLoading(false);
-              }
-            }
-          } catch { /* Phase 2 handles full fetch */ }
-        })();
-
-        // Phase 2: Full neighborhood (~15-22s with reduced scope)
-        void (async () => {
-          try {
-            const n3d = await getNeighborhood3D(vboId, earlyPandId, rd_x, rd_y, latitude, longitude);
-            phase2Done = true;
-            const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
-            phase2HasRenderableData = merged3d.buildings.length > 0;
-            if (neighborhood3DRequestId.current === requestId) {
-              setNeighborhood3D(merged3d);
-              setNeighborhood3DLoading(false);
-              setSurroundingLoading(false);
-              const canCompute = hasSurroundingContext(merged3d);
-              setSunlightUnavailable(!canCompute);
-            }
+            const warnings = await getPropertyWarnings(vboId, rd_x, rd_y, {
+              constructionYear: building?.building?.construction_year ?? undefined,
+              numUnits: building?.building?.num_units ?? undefined,
+              municipality: resolved.municipality ?? undefined,
+            });
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setPropertyWarnings(warnings);
           } catch {
-            phase2Done = true;
-            phase2HasRenderableData = false;
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setPropertyWarningsError(true);
+          } finally {
             if (neighborhood3DRequestId.current === requestId) {
-              setNeighborhood3DLoading(false);
-              setSurroundingLoading(false);
-              setSunlightUnavailable(true);
+              setPropertyWarningsLoading(false);
             }
           }
         })();
       }
 
-      if (vboId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
+      if (phase1Promise) {
+        await settleWithTimeout(phase1Promise, PHASE_1_TIMEOUT_MS);
+      }
+      if (neighborhood3DRequestId.current !== requestId) return;
+
+      setProgressivePhase('risk');
+      setLoadingStep('checkingNoise');
+
+      let phase2Promise: Promise<void> | null = null;
+      if (rd_x != null && rd_y != null && latitude != null && longitude != null) {
         setRiskLoading(true);
-        void (async () => {
+        phase2Promise = (async () => {
           try {
             const risks = await getRiskCards(vboId, rd_x, rd_y, latitude, longitude);
-            if (neighborhood3DRequestId.current === requestId) {
-              setRiskCards(risks);
-              setRiskLoading(false);
-            }
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setRiskCards(risks);
           } catch {
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setRiskError(true);
+          } finally {
             if (neighborhood3DRequestId.current === requestId) {
-              setRiskError(true);
               setRiskLoading(false);
             }
           }
@@ -660,7 +957,7 @@ function App() {
               setRiskComparisons(comparisons);
             }
           } catch {
-            // Risk comparisons are optional — silently ignore
+            // Optional source.
           }
         })();
 
@@ -674,23 +971,44 @@ function App() {
               setViewingQuestions(questions);
             }
           } catch {
-            // Viewing questions are optional — silently ignore
+            // Optional source.
           }
         })();
+      }
 
+      if (phase2Promise) {
+        const phase2State = await settleWithTimeout(phase2Promise, PHASE_2_TIMEOUT_MS);
+        if (phase2State === 'timeout' && neighborhood3DRequestId.current === requestId) {
+          setLoadingWarningKey('loading.warning.risk');
+          window.setTimeout(() => {
+            if (neighborhood3DRequestId.current === requestId) {
+              setLoadingWarningKey(null);
+            }
+          }, 1500);
+        }
+      }
+      if (neighborhood3DRequestId.current !== requestId) return;
+
+      setProgressivePhase('buurt');
+      setLoadingStep('checkingAir');
+
+      if (rd_x != null && rd_y != null && latitude != null && longitude != null) {
         setNeighborhoodStatsLoading(true);
         void (async () => {
           try {
             const stats = await getNeighborhoodStats(
-              vboId, latitude, longitude, resolved.buurt_code ?? undefined,
+              vboId,
+              latitude,
+              longitude,
+              resolved.buurt_code ?? undefined,
             );
-            if (neighborhood3DRequestId.current === requestId) {
-              setNeighborhoodStats(stats);
-              setNeighborhoodStatsLoading(false);
-            }
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setNeighborhoodStats(stats);
           } catch {
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setNeighborhoodStatsError(true);
+          } finally {
             if (neighborhood3DRequestId.current === requestId) {
-              setNeighborhoodStatsError(true);
               setNeighborhoodStatsLoading(false);
             }
           }
@@ -700,13 +1018,13 @@ function App() {
         void (async () => {
           try {
             const livData = await getLivability(vboId, rd_x, rd_y);
-            if (neighborhood3DRequestId.current === requestId) {
-              setLivability(livData);
-              setLivabilityLoading(false);
-            }
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setLivability(livData);
           } catch {
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setLivabilityError(true);
+          } finally {
             if (neighborhood3DRequestId.current === requestId) {
-              setLivabilityError(true);
               setLivabilityLoading(false);
             }
           }
@@ -722,137 +1040,206 @@ function App() {
               houseLetter: resolved.house_letter ?? undefined,
               addition: resolved.addition ?? undefined,
             });
-            if (neighborhood3DRequestId.current === requestId) {
-              setTierBData(tierB);
-              setTierBLoading(false);
-            }
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setTierBData(tierB);
           } catch {
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setTierBError(true);
+          } finally {
             if (neighborhood3DRequestId.current === requestId) {
-              setTierBError(true);
               setTierBLoading(false);
             }
           }
         })();
-
       }
 
-      if (vboId) {
-        const building = await getBuildingFacts(vboId);
-        if (neighborhood3DRequestId.current !== requestId) return;
-        setBuildingResponse(building);
-        setLoading(false);
-        setSheetSnap('half');
+      setLoadingStep('checkingClimate');
+      const pandId = resolved.pand_id ?? building.building?.pand_id ?? null;
+      if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
+        setNeighborhood3DLoading(true);
+        setSurroundingLoading(true);
 
-        // Chain property warnings AFTER building facts — needs constructionYear + numUnits
-        if (rd_x != null && rd_y != null) {
-          setPropertyWarningsLoading(true);
-          const rdXVal = rd_x;
-          const rdYVal = rd_y;
-          void (async () => {
-            try {
-              const warnings = await getPropertyWarnings(vboId, rdXVal, rdYVal, {
-                constructionYear: building?.building?.construction_year ?? undefined,
-                numUnits: building?.building?.num_units ?? undefined,
-                municipality: resolved.municipality ?? undefined,
-              });
-              if (neighborhood3DRequestId.current !== requestId) return;
-              setPropertyWarnings(warnings);
-            } catch {
-              if (neighborhood3DRequestId.current !== requestId) return;
-              setPropertyWarningsError(true);
-            } finally {
-              if (neighborhood3DRequestId.current === requestId) {
-                setPropertyWarningsLoading(false);
-              }
+        const immediateTargetData = createImmediateTarget3D(
+          vboId,
+          pandId,
+          rd_x,
+          rd_y,
+          latitude,
+          longitude,
+          building.building,
+        );
+        setNeighborhood3D(immediateTargetData);
+        setNeighborhood3DLoading(false);
+
+        let phase1TargetData: Neighborhood3DResponse | null = immediateTargetData;
+        let phase2Done = false;
+        let phase2HasRenderableData = false;
+
+        void (async () => {
+          try {
+            const target3d = await getBuilding3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
+            const hasTargetBuilding = target3d.buildings.length > 0;
+            if (hasTargetBuilding) {
+              phase1TargetData = target3d;
             }
-          })();
-        }
-
-        const pandId = building.building?.pand_id;
-
-        // --- PLACEHOLDER: always render from building facts (regardless of early3DStarted) ---
-        let immediateTargetData: Neighborhood3DResponse | null = null;
-        if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
-          immediateTargetData = createImmediateTarget3D(
-            vboId,
-            pandId,
-            rd_x,
-            rd_y,
-            latitude,
-            longitude,
-            building.building,
-          );
-          if (neighborhood3DRequestId.current === requestId) {
-            // Functional setState: only apply placeholder if early fetch hasn't
-            // already produced better data (real 3D model > synthetic placeholder).
-            setNeighborhood3D(prev =>
-              prev && prev.buildings.length > 0 ? prev : immediateTargetData!
-            );
-            setNeighborhood3DLoading(false);
+            if (
+              (!phase2Done || !phase2HasRenderableData)
+              && neighborhood3DRequestId.current === requestId
+              && hasTargetBuilding
+            ) {
+              setNeighborhood3D(target3d);
+            }
+          } catch {
+            // Phase 2 handles fallback.
           }
-        }
+        })();
 
-        // --- 3D API FETCHES: only when early fetch didn't already start them ---
-        if (!early3DStarted && pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
-          setSurroundingLoading(true);
-
-          let phase2Done = false;
-          let phase2HasRenderableData = false;
-          let phase1TargetData: Neighborhood3DResponse | null = immediateTargetData;
-
-          void (async () => {
-            try {
-              const target3d = await getBuilding3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
-              const hasTargetBuilding = target3d.buildings.length > 0;
-              if (hasTargetBuilding) {
-                phase1TargetData = target3d;
-              }
-              if (
-                (!phase2Done || !phase2HasRenderableData)
-                && neighborhood3DRequestId.current === requestId
-              ) {
-                if (hasTargetBuilding) {
-                  setNeighborhood3D(target3d);
-                }
-                setNeighborhood3DLoading(false);
-              }
-            } catch { /* Phase 2 handles full fetch */ }
-          })();
-
-          void (async () => {
-            try {
-              const n3d = await getNeighborhood3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
-              phase2Done = true;
-              const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
-              phase2HasRenderableData = merged3d.buildings.length > 0;
-              if (neighborhood3DRequestId.current === requestId) {
-                setNeighborhood3D(merged3d);
-                setNeighborhood3DLoading(false);
-                setSurroundingLoading(false);
-                const canCompute = hasSurroundingContext(merged3d);
-                setSunlightUnavailable(!canCompute);
-              }
-            } catch {
-              phase2Done = true;
-              phase2HasRenderableData = false;
-              if (neighborhood3DRequestId.current === requestId) {
-                setNeighborhood3DLoading(false);
-                setSurroundingLoading(false);
-                setSunlightUnavailable(true);
-              }
-            }
-          })();
-        } else if (!early3DStarted) {
-          setSunlightUnavailable(true);
-        }
+        void (async () => {
+          try {
+            const n3d = await getNeighborhood3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
+            phase2Done = true;
+            const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
+            phase2HasRenderableData = merged3d.buildings.length > 0;
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setNeighborhood3D(merged3d);
+            setNeighborhood3DLoading(false);
+            setSurroundingLoading(false);
+            setSunlightUnavailable(!hasSurroundingContext(merged3d));
+          } catch {
+            phase2Done = true;
+            phase2HasRenderableData = false;
+            if (neighborhood3DRequestId.current !== requestId) return;
+            setNeighborhood3DLoading(false);
+            setSurroundingLoading(false);
+            setSunlightUnavailable(true);
+          }
+        })();
       } else {
-        setLoading(false);
+        setSunlightUnavailable(true);
       }
+
+      setLoadingStep('calculatingSunlight');
     } catch {
+      if (neighborhood3DRequestId.current !== requestId) return;
       setError(t('error.generic'));
       setLoading(false);
+      setSheetSnap('hidden');
     }
-  };
+  }, [dossierHash, setHashRoute, t]);
+
+  const handleSelectShortlistAddress = useCallback(async (vboId: string) => {
+    const shortlistItem = shortlistItems.find((item) => item.vboId === vboId);
+    if (!shortlistItem) return;
+
+    if (shortlistItem.lookupId) {
+      await handleAddressSelect({
+        id: shortlistItem.lookupId,
+        display_name: shortlistItem.address,
+        type: 'adres',
+        score: 1,
+      });
+      return;
+    }
+
+    try {
+      const suggestions = await suggestAddresses(shortlistItem.address, 1);
+      const fallbackSuggestion = suggestions.suggestions[0];
+      if (fallbackSuggestion) {
+        await handleAddressSelect(fallbackSuggestion);
+        return;
+      }
+    } catch {
+      // Continue to toast fallback.
+    }
+
+    showToast(t('shortlist.reopenError', 'Could not reopen this address. Search for it again.'));
+  }, [handleAddressSelect, shortlistItems, showToast, t]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const applyRoute = () => {
+      const parsed = parseHashRoute(window.location.hash || '#/search');
+      if (parsed.route === 'shortlist') {
+        setActiveTab('saved');
+        setActiveScreen('shortlist');
+        setShortlistItems(getShortlist());
+        return;
+      }
+      if (parsed.route === 'compare') {
+        setActiveTab('saved');
+        setActiveScreen('compare');
+        return;
+      }
+      if (parsed.route === 'settings') {
+        setActiveScreen('settings');
+        return;
+      }
+      if (parsed.route === 'dossier') {
+        setActiveTab('briefing');
+        setActiveScreen('dossier');
+        if (
+          address?.adresseerbaar_object_id
+          && buildingResponse
+          && (!parsed.vboId || parsed.vboId === address.adresseerbaar_object_id)
+        ) {
+          setSheetSnap('half');
+          return;
+        }
+        const shortlistMatch = parsed.vboId
+          ? getShortlist().find((item) => item.vboId === parsed.vboId)
+          : undefined;
+        const routeLookupId = parsed.lookupId ?? shortlistMatch?.lookupId;
+        if (routeLookupId) {
+          const isActiveLookup = routeLookupId === activeLookupId;
+          if (isActiveLookup && (loading || (address?.id === routeLookupId && !!buildingResponse))) {
+            return;
+          }
+          void handleAddressSelect({
+            id: routeLookupId,
+            display_name: shortlistMatch?.address ?? pendingDisplayName ?? routeLookupId,
+            type: 'adres',
+            score: 1,
+          });
+        }
+        return;
+      }
+      setActiveTab('home');
+      setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
+    };
+
+    if (!window.location.hash) {
+      setHashRoute(
+        initialHasDossier
+          ? dossierHash(address?.adresseerbaar_object_id, activeLookupId)
+          : '#/search',
+        { replace: true },
+      );
+    } else {
+      applyRoute();
+    }
+
+    const onHashChange = () => {
+      if (ignoreNextHashRef.current) {
+        ignoreNextHashRef.current = false;
+        return;
+      }
+      applyRoute();
+    };
+
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [
+    activeLookupId,
+    address,
+    buildingResponse,
+    dossierHash,
+    handleAddressSelect,
+    initialHasDossier,
+    loading,
+    pendingDisplayName,
+    setHashRoute,
+  ]);
 
   // Build summary strip pills from risk data
   const summaryPills = (() => {
@@ -984,6 +1371,141 @@ function App() {
             ? t('nav.briefing')
             : 'buurt-check';
 
+  const coverageSummary = useMemo(() => {
+    const isDossierActive = activeScreen === 'dossier' && !!address?.adresseerbaar_object_id;
+    if (!isDossierActive) {
+      return null;
+    }
+
+    const sources: Array<{
+      key: string;
+      status: SourceFetchStatus;
+      date?: string | number | null;
+    }> = [
+      {
+        key: 'building',
+        status: resolveSourceFetchStatus(
+          true,
+          !!buildingResponse?.building,
+          loading,
+          !!(error && !buildingResponse),
+        ),
+        date: buildingResponse?.building?.document_date ?? null,
+      },
+      {
+        key: 'risk',
+        status: resolveSourceFetchStatus(true, !!riskCards, riskLoading, riskError),
+        date: riskCards?.climate_stress.source_date
+          ?? riskCards?.air_quality.source_date
+          ?? riskCards?.noise.source_date
+          ?? null,
+      },
+      {
+        key: 'warnings',
+        status: resolveSourceFetchStatus(
+          progressivePhase !== 'house',
+          !!propertyWarnings,
+          propertyWarningsLoading,
+          propertyWarningsError,
+        ),
+      },
+      {
+        key: 'livability',
+        status: resolveSourceFetchStatus(
+          progressivePhase === 'buurt',
+          !!livability,
+          livabilityLoading,
+          livabilityError,
+        ),
+        date: livability?.available ? (livability.source_date ?? livability.year) : null,
+      },
+      {
+        key: 'neighborhood',
+        status: resolveSourceFetchStatus(
+          progressivePhase === 'buurt',
+          !!neighborhoodStats,
+          neighborhoodStatsLoading,
+          neighborhoodStatsError,
+        ),
+        date: neighborhoodStats?.source_year ?? null,
+      },
+      {
+        key: 'tierB',
+        status: resolveSourceFetchStatus(
+          progressivePhase === 'buurt',
+          !!tierBData,
+          tierBLoading,
+          tierBError,
+        ),
+        date: tierBData?.crime.source_date ?? tierBData?.energy_label.source_date ?? null,
+      },
+      {
+        key: 'sunlight',
+        status: resolveSourceFetchStatus(
+          progressivePhase === 'buurt' && !!neighborhood3D,
+          !!sunlight,
+          surroundingLoading && !sunlight,
+          !!(sunlightUnavailable && !sunlight),
+        ),
+        date: sunlight?.analysisYear ?? null,
+      },
+    ];
+
+    const enabled = sources.filter((source) => source.status !== 'idle');
+    const loaded = enabled.filter((source) => source.status === 'success').length;
+    const failed = enabled.filter((source) => source.status === 'error').length;
+
+    const parsedDates = enabled
+      .map((source) => parseSourceDateValue(source.date))
+      .filter((value): value is ParsedSourceDate => value != null);
+
+    let newest: ParsedSourceDate | null = null;
+    let oldest: ParsedSourceDate | null = null;
+    for (const parsed of parsedDates) {
+      if (!newest || parsed.recencyDate > newest.recencyDate) newest = parsed;
+      if (!oldest || parsed.recencyDate < oldest.recencyDate) oldest = parsed;
+    }
+
+    const staleThreshold = staleThresholdDate();
+    const staleCount = parsedDates.filter((date) => date.recencyDate < staleThreshold).length;
+
+    return {
+      loaded,
+      total: enabled.length,
+      failed,
+      staleCount,
+      newest: newest ? formatCoverageDate(newest, i18n.language) : null,
+      oldest: oldest ? formatCoverageDate(oldest, i18n.language) : null,
+    };
+  }, [
+    activeScreen,
+    address?.adresseerbaar_object_id,
+    buildingResponse,
+    error,
+    i18n.language,
+    livability,
+    livabilityError,
+    livabilityLoading,
+    loading,
+    neighborhood3D,
+    neighborhoodStats,
+    neighborhoodStatsError,
+    neighborhoodStatsLoading,
+    progressivePhase,
+    propertyWarnings,
+    propertyWarningsError,
+    propertyWarningsLoading,
+    riskCards,
+    riskError,
+    riskLoading,
+    sunlight,
+    sunlightUnavailable,
+    surroundingLoading,
+    tierBData,
+    tierBError,
+    tierBLoading,
+  ]);
+
   // Get viewing questions for active detail category
   const activeQuestions = activeDetailCategory
     ? (() => {
@@ -1010,6 +1532,13 @@ function App() {
     })()
     : undefined;
 
+  const showLoadingScreen = (
+    (activeScreen === 'search' || activeScreen === 'dossier')
+    && loading
+    && !buildingResponse
+    && !!pendingDisplayName
+  );
+
   return (
     <div className="app">
       <a href="#main-content" className="sr-only sr-only--focusable" inert={isOverlayModalOpen || undefined}>{t('a11y.skip_to_content')}</a>
@@ -1018,302 +1547,343 @@ function App() {
       <main className="app__main" id="main-content" inert={isOverlayModalOpen || undefined}>
         {(activeScreen === 'search' || activeScreen === 'dossier') && (
           <>
-            <AddressSearch onSelect={handleAddressSelect} />
+            {!showLoadingScreen && <AddressSearch onSelect={handleAddressSelect} />}
             {error && <p className="app__error">{error}</p>}
 
-            {/* DossierSheet is a scrollable dossier container */}
-            <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
-              {address?.latitude && address?.longitude && (
-                <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-                  <BuildingFootprintMap
-                    lat={address.latitude}
-                    lng={address.longitude}
-                    rdX={address.rd_x ?? undefined}
-                    rdY={address.rd_y ?? undefined}
-                    footprint={buildingResponse?.building?.footprint_geojson}
-                    zoom={15}
-                  />
-                </Suspense>
-              )}
+            {showLoadingScreen ? (
+              <LoadingScreen
+                address={address}
+                pendingDisplayName={pendingDisplayName}
+                step={loadingStep}
+                warningKey={loadingWarningKey}
+              />
+            ) : (
+              <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
+                {address && buildingResponse && showDossierJump && (
+                  <div className="app__dossier-jump-nav">
+                    <button type="button" className="app__dossier-jump-address" onClick={handleJumpToHouse}>
+                      {address.display_name}
+                    </button>
+                    <div className="app__dossier-jump-actions">
+                      <button type="button" onClick={handleJumpToHouse}>{t('nav.jumpHouse')}</button>
+                      <button type="button" onClick={handleJumpToBuurt}>{t('nav.jumpBuurt')}</button>
+                      <button type="button" onClick={handleJumpToChecklist}>{t('nav.jumpBriefing')}</button>
+                    </div>
+                  </div>
+                )}
 
-              {/* === DOSSIER CANONICAL ORDER (v7 spec — tasks/todo.md:1076) === */}
+                {address?.latitude && address?.longitude && (
+                  <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                    <BuildingFootprintMap
+                      lat={address.latitude}
+                      lng={address.longitude}
+                      rdX={address.rd_x ?? undefined}
+                      rdY={address.rd_y ?? undefined}
+                      footprint={buildingResponse?.building?.footprint_geojson}
+                      zoom={15}
+                    />
+                  </Suspense>
+                )}
 
-              {/* 1. AttentionSummary — delayed until both risks and warnings resolve */}
-              {((!riskLoading && (riskCards || riskError)) &&
-                (!propertyWarningsLoading && (propertyWarnings || propertyWarningsError))) && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={SPRING_REVEAL}
-                  data-dossier-section="attention-summary"
-                >
-                  <AttentionSummary
-                    riskCards={riskCards ?? undefined}
-                    warnings={propertyWarnings ?? undefined}
-                    sunlightScore={sunlight ? normalizeSunlightScore(sunlight.winter) : undefined}
-                    livability={livability ?? undefined}
-                  />
-                </motion.div>
-              )}
-
-              {/* 2. AddressHeader + bookmark */}
-              {loading && !buildingResponse && pendingDisplayName && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={SPRING_REVEAL}
-                >
-                  <DossierSkeleton />
-                </motion.div>
-              )}
-
-              {address && buildingResponse && (
-                <AddressHeader
-                  address={address}
-                  building={buildingResponse.building ?? undefined}
-                  isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
-                  onBookmarkToggle={handleBookmark}
-                />
-              )}
-
-              {/* 3. SummaryStrip (risk score pills) */}
-              {summaryPills.length > 0 && (
-                <SummaryStrip
-                  pills={summaryPills}
-                  onPillTap={handleRiskTileTap}
-                />
-              )}
-
-              {/* 4. BuildingFactsCard */}
-              {(loading || buildingResponse) && (
-                <BuildingFactsCard
-                  building={buildingResponse?.building ?? undefined}
-                  loading={loading}
-                />
-              )}
-
-              {/* 5. RiskTilesGrid (2x2: noise, air, climate, sunlight) */}
-              {loading && !riskCards && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={SPRING_REVEAL}
-                >
-                  <RiskTileSkeleton />
-                </motion.div>
-              )}
-
-              {(riskLoading || riskCards || riskError || activeDetailCategory) && (
-                <LayoutGroup>
-                  {(riskLoading || riskCards || riskError) && (
-                    <>
-                      <RiskTilesGrid
-                        risks={riskCards ?? undefined}
-                        sunlight={sunlight ?? undefined}
-                        onTileTap={handleRiskTileTap}
+                <section id="section-house-start" role="region" aria-label={t('nav.jumpHouse')}>
+                  {((!riskLoading && (riskCards || riskError)) &&
+                    (!propertyWarningsLoading && (propertyWarnings || propertyWarningsError))) && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={SPRING_REVEAL}
+                      data-dossier-section="attention-summary"
+                    >
+                      <AttentionSummary
+                        riskCards={riskCards ?? undefined}
+                        warnings={propertyWarnings ?? undefined}
+                        sunlightScore={sunlight ? normalizeSunlightScore(sunlight.winter) : undefined}
+                        livability={livability ?? undefined}
                       />
-                      <RiskCardsPanel
-                        risks={riskCards ?? undefined}
-                        loading={riskLoading}
-                        error={riskError}
-                        onRetry={riskError ? handleRetryRiskCards : undefined}
+                    </motion.div>
+                  )}
+
+                  {address && buildingResponse && (
+                    <>
+                      <AddressHeader
+                        address={address}
+                        building={buildingResponse.building ?? undefined}
+                        isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
+                        onBookmarkToggle={handleBookmark}
+                      />
+                      {coverageSummary && (
+                        <div className="app__coverage-strip">
+                          <span>{t('dossier.coverage.loaded', { loaded: coverageSummary.loaded, total: coverageSummary.total })}</span>
+                          {coverageSummary.newest && (
+                            <span>{t('dossier.coverage.newest', { date: coverageSummary.newest })}</span>
+                          )}
+                          {coverageSummary.oldest && (
+                            <span>{t('dossier.coverage.oldest', { date: coverageSummary.oldest })}</span>
+                          )}
+                          {coverageSummary.staleCount > 0 && (
+                            <span className="app__coverage-stale">
+                              {t('dossier.coverage.stale', { count: coverageSummary.staleCount })}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {!!coverageSummary?.failed && (
+                        <div className="app__failed-banner">
+                          <span>{t('dossier.retryBanner', { count: coverageSummary.failed })}</span>
+                          <button
+                            type="button"
+                            className="app__retry-button"
+                            onClick={handleRetryAllFailed}
+                          >
+                            {t('error.retry')}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {progressivePhase !== 'house' && summaryPills.length > 0 && (
+                    <SummaryStrip
+                      pills={summaryPills}
+                      onPillTap={handleSummaryPillTap}
+                    />
+                  )}
+
+                  {(loading || buildingResponse) && (
+                    <BuildingFactsCard
+                      building={buildingResponse?.building ?? undefined}
+                      loading={loading}
+                    />
+                  )}
+
+                  {progressivePhase !== 'house' && loading && !riskCards && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={SPRING_REVEAL}
+                    >
+                      <RiskTileSkeleton />
+                    </motion.div>
+                  )}
+
+                  {progressivePhase !== 'house' && (riskLoading || riskCards || riskError || activeDetailCategory) && (
+                    <LayoutGroup>
+                      {(riskLoading || riskCards || riskError) && (
+                        <>
+                          <RiskTilesGrid
+                            risks={riskCards ?? undefined}
+                            sunlight={sunlight ?? undefined}
+                            onTileTap={handleRiskTileTap}
+                          />
+                          <RiskCardsPanel
+                            risks={riskCards ?? undefined}
+                            loading={riskLoading}
+                            error={riskError}
+                            onRetry={riskError ? handleRetryRiskCards : undefined}
+                          />
+                        </>
+                      )}
+                      <AnimatePresence initial={false} mode="wait">
+                        {activeDetailCategory && (() => {
+                          const detail = getDetailProps(activeDetailCategory);
+                          if (!detail) return null;
+                          return (
+                            <RiskDetailView
+                              key={`${activeDetailCategory}:${useFallbackDetailTransition ? 'fallback' : 'shared'}`}
+                              category={activeDetailCategory}
+                              titleKey={detail.titleKey}
+                              score={detail.score}
+                              severity={detail.severity}
+                              meaning={detail.meaning}
+                              comparisons={detail.comparisons}
+                              questions={activeQuestions}
+                              checkedQuestions={checkedQuestions}
+                              onToggleQuestion={handleToggleQuestion}
+                              source={detail.source}
+                              sourceDate={detail.sourceDate}
+                              useSharedElement={!useFallbackDetailTransition}
+                              onBack={() => {
+                                animationPerformance.stopMonitoring();
+                                setActiveDetailCategory(null);
+                                setIsTransitioning(false);
+                              }}
+                              onAnimationStart={() => {
+                                setIsTransitioning(true);
+                                animationPerformance.startMonitoring();
+                              }}
+                              onAnimationComplete={() => {
+                                animationPerformance.stopMonitoring();
+                                setIsTransitioning(false);
+                              }}
+                            />
+                          );
+                        })()}
+                      </AnimatePresence>
+                    </LayoutGroup>
+                  )}
+
+                  {progressivePhase !== 'house' && (propertyWarningsLoading || propertyWarnings || propertyWarningsError) && (
+                    <>
+                      <h3 id="section-warnings" className="app__section-label">{t('warnings.sectionTitle')}</h3>
+                      <PropertyWarningsCard
+                        data={propertyWarnings ?? undefined}
+                        loading={propertyWarningsLoading}
+                        error={propertyWarningsError}
+                        onRetry={propertyWarningsError ? handleRetryPropertyWarnings : undefined}
                       />
                     </>
                   )}
-                  <AnimatePresence initial={false} mode="wait">
-                    {activeDetailCategory && (() => {
-                      const detail = getDetailProps(activeDetailCategory);
-                      if (!detail) return null;
-                      return (
-                        <RiskDetailView
-                          key={`${activeDetailCategory}:${useFallbackDetailTransition ? 'fallback' : 'shared'}`}
-                          category={activeDetailCategory}
-                          titleKey={detail.titleKey}
-                          score={detail.score}
-                          severity={detail.severity}
-                          meaning={detail.meaning}
-                          comparisons={detail.comparisons}
-                          questions={activeQuestions}
-                          checkedQuestions={checkedQuestions}
-                          onToggleQuestion={handleToggleQuestion}
-                          source={detail.source}
-                          sourceDate={detail.sourceDate}
-                          useSharedElement={!useFallbackDetailTransition}
-                          onBack={() => {
-                            animationPerformance.stopMonitoring();
-                            setActiveDetailCategory(null);
-                            setIsTransitioning(false);
-                          }}
-                          onAnimationStart={() => {
-                            setIsTransitioning(true);
-                            animationPerformance.startMonitoring();
-                          }}
-                          onAnimationComplete={() => {
-                            animationPerformance.stopMonitoring();
-                            setIsTransitioning(false);
-                          }}
+
+                  {progressivePhase !== 'house' && (
+                    <>
+                      <h3 id="section-soil" className="app__section-label">{t('dossier.soilInfo', 'Soil & Pipes')}</h3>
+                      <SoilInfoCard
+                        leadPipeFlagged={propertyWarnings?.lead_pipe?.flagged}
+                        constructionYear={buildingResponse?.building?.construction_year}
+                      />
+                    </>
+                  )}
+                </section>
+
+                {progressivePhase === 'buurt' && (
+                  <>
+                    <div className="app__phase-divider" id="section-buurt-start">
+                      <span>{t('dossier.buurtDivider')}</span>
+                    </div>
+                    <section role="region" aria-label={t('nav.jumpBuurt')}>
+                      {(livabilityLoading || livability || livabilityError) && (
+                        <>
+                          <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
+                          <LivabilityCard
+                            data={livability ?? undefined}
+                            loading={livabilityLoading}
+                            error={livabilityError}
+                            onRetry={livabilityError ? handleRetryLivability : undefined}
+                            onTap={livability?.available ? () => setShowLivabilityDetail(true) : undefined}
+                          />
+                        </>
+                      )}
+
+                      {showLivabilityDetail && livability?.available && (
+                        <LivabilityDetailView
+                          data={livability}
+                          onClose={() => setShowLivabilityDetail(false)}
                         />
-                      );
-                    })()}
-                  </AnimatePresence>
-                </LayoutGroup>
-              )}
+                      )}
 
-              {/* 6. PropertyWarningsCard */}
-              {(propertyWarningsLoading || propertyWarnings || propertyWarningsError) && (
-                <>
-                  <h3 id="section-warnings" className="app__section-label">{t('warnings.sectionTitle')}</h3>
-                  <PropertyWarningsCard
-                    data={propertyWarnings ?? undefined}
-                    loading={propertyWarningsLoading}
-                    error={propertyWarningsError}
+                      {neighborhood3DLoading && (
+                        <div className="viewer-3d-status">
+                          <p>{t('viewer3d.loading')}</p>
+                        </div>
+                      )}
+
+                      {!neighborhood3DLoading && neighborhood3D && neighborhood3D.buildings.length === 0 && (
+                        <div className="viewer-3d-status">
+                          <p>{t('viewer3d.noData')}</p>
+                        </div>
+                      )}
+
+                      {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                        <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                          <NeighborhoodViewer3D
+                            buildings={neighborhood3D.buildings}
+                            targetPandId={neighborhood3D.target_pand_id ?? undefined}
+                            center={neighborhood3D.center}
+                            sunDateTime={sunDateTime}
+                            showHeatmap={showHeatmap}
+                            onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
+                            onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
+                            onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
+                            loading={surroundingLoading}
+                          />
+                        </Suspense>
+                      )}
+
+                      {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                        <ShadowTimeSlider
+                          lat={neighborhood3D.center.lat}
+                          lng={neighborhood3D.center.lng}
+                          onChange={setSunDateTime}
+                        />
+                      )}
+
+                      {(() => {
+                        const canComputeSunlight = hasSurroundingContext(neighborhood3D) && !surroundingLoading;
+                        const sunlightLoading = canComputeSunlight && !sunlight;
+                        const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
+                        if (!showSunlightCard) return null;
+                        const targetOrientation = neighborhood3D?.buildings.find(
+                          b => b.pand_id === neighborhood3D.target_pand_id
+                        )?.orientation_deg;
+                        return (
+                          <SunlightRiskCard
+                            sunlight={sunlight ?? undefined}
+                            loading={sunlightLoading}
+                            unavailable={sunlightUnavailable}
+                            orientationDeg={targetOrientation}
+                            showHeatmap={showHeatmap}
+                            onToggleHeatmap={setShowHeatmap}
+                          />
+                        );
+                      })()}
+
+                      {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
+                        <ShadowSnapshots
+                          snapshots={shadowSnapshots ?? undefined}
+                          loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
+                        />
+                      )}
+
+                      {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
+                        <>
+                          <h3 id="section-neighborhood" className="app__section-label">{t('dossier.neighborhood')}</h3>
+                          <NeighborhoodStatsCard
+                            stats={neighborhoodStats ?? undefined}
+                            loading={neighborhoodStatsLoading}
+                            error={neighborhoodStatsError}
+                            onRetry={neighborhoodStatsError ? handleRetryNeighborhoodStats : undefined}
+                          />
+                        </>
+                      )}
+
+                      {(tierBLoading || tierBData || tierBError) && (
+                        <>
+                          <h3 id="section-tier-b" className="app__section-label">{t('dossier.tierB')}</h3>
+                          <TierBSignalsCard
+                            data={tierBData ?? undefined}
+                            loading={tierBLoading}
+                            error={tierBError}
+                            onRetry={tierBError ? handleRetryTierB : undefined}
+                          />
+                        </>
+                      )}
+                    </section>
+                  </>
+                )}
+
+                {viewingQuestions && viewingQuestions.categories.length > 0 && (
+                  <section role="region" aria-label={t('nav.jumpBriefing')}>
+                    <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
+                    <ViewingChecklist
+                      categories={viewingQuestions.categories}
+                      checkedQuestions={checkedQuestions}
+                      onToggleQuestion={handleToggleQuestion}
+                    />
+                  </section>
+                )}
+
+                {address && buildingResponse && (
+                  <ActionBar
+                    isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
+                    onAddToShortlist={handleBookmark}
+                    onExportBriefing={() => {
+                      hapticTap();
+                      setExportSheetOpen(true);
+                    }}
                   />
-                </>
-              )}
-
-              {/* 7. SoilInfoCard (static info, lead pipe note) */}
-              {propertyWarnings && (
-                <>
-                  <h3 id="section-soil" className="app__section-label">{t('dossier.soilInfo', 'Soil & Pipes')}</h3>
-                  <SoilInfoCard
-                    leadPipeFlagged={propertyWarnings?.lead_pipe?.flagged}
-                    constructionYear={buildingResponse?.building?.construction_year}
-                  />
-                </>
-              )}
-
-              {/* 8. LivabilityCard + detail view */}
-              {(livabilityLoading || livability || livabilityError) && (
-                <>
-                  <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
-                  <LivabilityCard
-                    data={livability ?? undefined}
-                    loading={livabilityLoading}
-                    error={livabilityError}
-                    onTap={livability?.available ? () => setShowLivabilityDetail(true) : undefined}
-                  />
-                </>
-              )}
-
-              {showLivabilityDetail && livability?.available && (
-                <LivabilityDetailView
-                  data={livability}
-                  onClose={() => setShowLivabilityDetail(false)}
-                />
-              )}
-
-              {/* 9. 3D Viewer (NeighborhoodViewer3D) + Sunlight + Shadows */}
-              {neighborhood3DLoading && (
-                <div className="viewer-3d-status">
-                  <p>{t('viewer3d.loading')}</p>
-                </div>
-              )}
-
-              {!neighborhood3DLoading && neighborhood3D && neighborhood3D.buildings.length === 0 && (
-                <div className="viewer-3d-status">
-                  <p>{t('viewer3d.noData')}</p>
-                </div>
-              )}
-
-              {neighborhood3D && neighborhood3D.buildings.length > 0 && (
-                <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-                  <NeighborhoodViewer3D
-                    buildings={neighborhood3D.buildings}
-                    targetPandId={neighborhood3D.target_pand_id ?? undefined}
-                    center={neighborhood3D.center}
-                    sunDateTime={sunDateTime}
-                    showHeatmap={showHeatmap}
-                    onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
-                    onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
-                    onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
-                    loading={surroundingLoading}
-                  />
-                </Suspense>
-              )}
-
-              {neighborhood3D && neighborhood3D.buildings.length > 0 && (
-                <ShadowTimeSlider
-                  lat={neighborhood3D.center.lat}
-                  lng={neighborhood3D.center.lng}
-                  onChange={setSunDateTime}
-                />
-              )}
-
-              {(() => {
-                const canComputeSunlight = hasSurroundingContext(neighborhood3D) && !surroundingLoading;
-                const sunlightLoading = canComputeSunlight && !sunlight;
-                const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
-                if (!showSunlightCard) return null;
-                const targetOrientation = neighborhood3D?.buildings.find(
-                  b => b.pand_id === neighborhood3D.target_pand_id
-                )?.orientation_deg;
-                return (
-                  <SunlightRiskCard
-                    sunlight={sunlight ?? undefined}
-                    loading={sunlightLoading}
-                    unavailable={sunlightUnavailable}
-                    orientationDeg={targetOrientation}
-                    showHeatmap={showHeatmap}
-                    onToggleHeatmap={setShowHeatmap}
-                  />
-                );
-              })()}
-
-              {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
-                <ShadowSnapshots
-                  snapshots={shadowSnapshots ?? undefined}
-                  loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
-                />
-              )}
-
-              {/* 10. NeighborhoodStatsCard */}
-              {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
-                <>
-                  <h3 id="section-neighborhood" className="app__section-label">{t('dossier.neighborhood')}</h3>
-                  <NeighborhoodStatsCard
-                    stats={neighborhoodStats ?? undefined}
-                    loading={neighborhoodStatsLoading}
-                    error={neighborhoodStatsError}
-                  />
-                </>
-              )}
-
-              {/* 11. TierBSignalsCard */}
-              {(tierBLoading || tierBData || tierBError) && (
-                <>
-                  <h3 id="section-tier-b" className="app__section-label">{t('dossier.tierB')}</h3>
-                  <TierBSignalsCard
-                    data={tierBData ?? undefined}
-                    loading={tierBLoading}
-                    error={tierBError}
-                  />
-                </>
-              )}
-
-              {/* 12. ViewingChecklist */}
-              {viewingQuestions && viewingQuestions.categories.length > 0 && (
-                <>
-                  <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
-                  <ViewingChecklist
-                    categories={viewingQuestions.categories}
-                    checkedQuestions={checkedQuestions}
-                    onToggleQuestion={handleToggleQuestion}
-                  />
-                </>
-              )}
-
-              {/* 13. ActionBar (PDF export, share) */}
-              {address && buildingResponse && (
-                <ActionBar
-                  isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
-                  onAddToShortlist={handleBookmark}
-                  onExportBriefing={() => {
-                    hapticTap();
-                    setExportSheetOpen(true);
-                  }}
-                />
-              )}
-            </DossierSheet>
+                )}
+              </DossierSheet>
+            )}
           </>
         )}
 
@@ -1321,8 +1891,11 @@ function App() {
           <ShortlistScreen
             items={shortlistItems}
             onRemove={handleRemoveFromShortlist}
-            onCompare={() => setActiveScreen('compare')}
-            onSelectAddress={() => {}}
+            onCompare={() => {
+              setActiveScreen('compare');
+              setHashRoute('#/compare');
+            }}
+            onSelectAddress={handleSelectShortlistAddress}
           />
         )}
 
@@ -1330,7 +1903,10 @@ function App() {
           <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
             <CompareScreen
               items={shortlistItems}
-              onBack={() => setActiveScreen('shortlist')}
+              onBack={() => {
+                setActiveScreen('shortlist');
+                setHashRoute('#/saved');
+              }}
             />
           </Suspense>
         )}
