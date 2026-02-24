@@ -71,3 +71,18 @@
   flex-shrink: 0;
   color: var(--color-text-tertiary);
 }
+
+.risk-tile--pulse {
+  animation: risk-tile-pulse 300ms ease-out;
+}
+
+@keyframes risk-tile-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(46, 196, 182, 0.35);
+    background: var(--color-accent-light);
+  }
+  100% {
+    box-shadow: var(--elevation-1);
+    background: var(--color-surface);
+  }
+}

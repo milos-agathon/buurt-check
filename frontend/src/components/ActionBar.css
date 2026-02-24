@@ -1,6 +1,6 @@
 .action-bar {
   position: fixed;
-  bottom: var(--tab-bar-height, 56px);
+  bottom: calc(var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   max-width: var(--max-width, 600px);

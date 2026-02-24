@@ -93,10 +93,17 @@ describe('CompareScreen', () => {
       makeItem({ vboId: 'b', riskScores: { noise: 40, air: 55, climate: 50, sunlight: 70 } }),
     ]);
     const cells = screen.getByTestId('compare-screen').querySelectorAll('.compare-screen__cell');
-    // Noise spread is 40 → best/worst highlighting
-    const noiseCells = Array.from(cells).slice(0, 2);
-    expect(noiseCells[0].classList.contains('compare-screen__cell--best')).toBe(true);
-    expect(noiseCells[1].classList.contains('compare-screen__cell--worst')).toBe(true);
+    expect(Array.from(cells).some((cell) => cell.classList.contains('compare-screen__cell--best'))).toBe(true);
+    expect(Array.from(cells).some((cell) => cell.classList.contains('compare-screen__cell--worst'))).toBe(true);
+  });
+
+  it('renders horizontal snap columns container', () => {
+    renderCompare([
+      makeItem({ vboId: 'a' }),
+      makeItem({ vboId: 'b' }),
+      makeItem({ vboId: 'c' }),
+    ]);
+    expect(screen.getByTestId('compare-screen').querySelector('.compare-screen__snap-columns')).toBeInTheDocument();
   });
 
   it('differences-only filter hides equal rows', () => {

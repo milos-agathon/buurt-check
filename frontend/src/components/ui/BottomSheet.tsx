@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import useFocusTrap from '../../hooks/useFocusTrap';
 import './BottomSheet.css';
 
 interface BottomSheetProps {
@@ -27,13 +28,11 @@ export default function BottomSheet({
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose();
-    };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
+  useFocusTrap({
+    isOpen,
+    containerRef: sheetRef,
+    onRequestClose: onClose,
+  });
 
   if (!isOpen) return null;
 

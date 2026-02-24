@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import useFocusTrap from '../hooks/useFocusTrap';
 import type { LivabilityAvailableResponse } from '../types/api';
 import './LivabilityDetailView.css';
 
@@ -16,6 +18,14 @@ function scoreSeverity(normalized: number): string {
 
 export default function LivabilityDetailView({ data, onClose }: Props) {
   const { t } = useTranslation();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap({
+    isOpen: true,
+    containerRef,
+    onRequestClose: onClose,
+    initialFocusSelector: '.livability-detail__back',
+  });
 
   const severity = scoreSeverity(data.overall_normalized);
 
@@ -29,7 +39,7 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
     : [];
 
   return (
-    <div className="livability-detail" data-testid="livability-detail">
+    <div className="livability-detail" data-testid="livability-detail" ref={containerRef}>
       <nav className="livability-detail__nav">
         <button className="livability-detail__back" onClick={onClose} aria-label={t('common.back')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -77,17 +77,6 @@ export default function CompareScreen({ items, onBack }: Props) {
         </button>
       </div>
 
-      <div className="compare-screen__columns" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
-        {items.map(item => (
-          <div key={item.vboId} className="compare-screen__col-header">
-            <span className="compare-screen__col-address">{item.address}</span>
-            <span className="compare-screen__col-city">
-              {[item.postcode, item.city].filter(Boolean).join(' ')}
-            </span>
-          </div>
-        ))}
-      </div>
-
       {chartAxes.length >= 2 && (
         <section className="compare-screen__chart">
           <h3 className="compare-screen__chart-title">{t('compare.parallelTitle')}</h3>
@@ -95,37 +84,43 @@ export default function CompareScreen({ items, onBack }: Props) {
         </section>
       )}
 
-      {filteredMetrics.map(metric => {
-        const scores = items.map(i => i.riskScores[metric.key]);
-        const validScores = scores.filter((s): s is number => s != null);
-        const bestScore = validScores.length > 0 ? Math.max(...validScores) : null;
-        const worstScore = validScores.length > 0 ? Math.min(...validScores) : null;
-        const hasDifference = bestScore != null && worstScore != null && bestScore - worstScore > 15;
+      <div className="compare-screen__snap-columns" role="region" aria-label={t('compare.title')}>
+        {items.map((item, itemIdx) => (
+          <article key={item.vboId} className="compare-screen__snap-column">
+            <div className="compare-screen__col-header">
+              <span className="compare-screen__col-address">{item.address}</span>
+              <span className="compare-screen__col-city">
+                {[item.postcode, item.city].filter(Boolean).join(' ')}
+              </span>
+            </div>
 
-        return (
-          <div key={metric.key} className="compare-screen__metric">
-            <div className="compare-screen__metric-label">{t(metric.labelKey)}</div>
-            <div className="compare-screen__metric-row" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
-              {items.map((item, idx) => {
-                const score = scores[idx];
-                const sev = severityFromScore(score);
-                const isBest = hasDifference && score === bestScore;
-                const isWorst = hasDifference && score === worstScore;
-                return (
+            {filteredMetrics.map(metric => {
+              const scores = items.map(i => i.riskScores[metric.key]);
+              const validScores = scores.filter((s): s is number => s != null);
+              const bestScore = validScores.length > 0 ? Math.max(...validScores) : null;
+              const worstScore = validScores.length > 0 ? Math.min(...validScores) : null;
+              const hasDifference = bestScore != null && worstScore != null && bestScore - worstScore > 15;
+              const score = scores[itemIdx];
+              const sev = severityFromScore(score);
+              const isBest = hasDifference && score === bestScore;
+              const isWorst = hasDifference && score === worstScore;
+
+              return (
+                <section key={metric.key} className="compare-screen__metric">
+                  <div className="compare-screen__metric-label">{t(metric.labelKey)}</div>
                   <div
-                    key={item.vboId}
                     className={`compare-screen__cell ${isBest ? 'compare-screen__cell--best' : ''} ${isWorst ? 'compare-screen__cell--worst' : ''}`}
                   >
                     <span className="compare-screen__score">{score ?? '--'}</span>
                     <ScoreBar score={score ?? 0} severity={sev} />
                     <SeverityBadge severity={sev} size="sm" />
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+                </section>
+              );
+            })}
+          </article>
+        ))}
+      </div>
     </div>
   );
 }

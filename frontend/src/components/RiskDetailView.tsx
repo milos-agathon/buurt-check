@@ -1,9 +1,11 @@
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { SPRING_EXPAND } from '../config/springs';
 import SeverityBadge from './ui/SeverityBadge';
 import ScoreBar from './ui/ScoreBar';
 import AnimatedScore from './ui/AnimatedScore';
+import useFocusTrap from '../hooks/useFocusTrap';
 import type { SeverityLevel, ViewingQuestion } from '../types/api';
 import './RiskDetailView.css';
 
@@ -50,9 +52,18 @@ export default function RiskDetailView({
 }: RiskDetailViewProps) {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap({
+    isOpen: true,
+    containerRef,
+    onRequestClose: onBack,
+    initialFocusSelector: '.risk-detail__back',
+  });
 
   return (
     <motion.div
+      ref={containerRef}
       className="risk-detail"
       layoutId={useSharedElement ? `risk-tile-${category}` : undefined}
       initial={useSharedElement ? undefined : { opacity: 0 }}

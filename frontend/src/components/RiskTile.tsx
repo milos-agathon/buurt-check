@@ -20,6 +20,7 @@ export default function RiskTile({ category, labelKey, score, severity, summary,
   return (
     <motion.button
       className="risk-tile"
+      id={`section-risk-${category}`}
       onClick={onTap}
       whileTap={{ scale: 0.97 }}
       layoutId={`risk-tile-${category}`}
