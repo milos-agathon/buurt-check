@@ -9,6 +9,7 @@ interface TabBarProps {
   onTabChange: (tab: TabId) => void;
   savedCount: number;
   hasDossier?: boolean;
+  inert?: boolean;
 }
 
 const TABS: { id: TabId; icon: string; labelKey: string }[] = [
@@ -17,11 +18,11 @@ const TABS: { id: TabId; icon: string; labelKey: string }[] = [
   { id: 'saved', icon: 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z', labelKey: 'nav.saved' },
 ];
 
-export default function TabBar({ activeTab, onTabChange, savedCount, hasDossier }: TabBarProps) {
+export default function TabBar({ activeTab, onTabChange, savedCount, hasDossier, inert }: TabBarProps) {
   const { t } = useTranslation();
 
   return (
-    <nav className="tab-bar" role="tablist" aria-label={t('nav.primaryTabs')}>
+    <nav className="tab-bar" role="tablist" aria-label={t('nav.primaryTabs')} inert={inert || undefined}>
       {TABS.map(tab => {
         const isActive = activeTab === tab.id;
         const isDisabled = tab.id === 'briefing' && !hasDossier;

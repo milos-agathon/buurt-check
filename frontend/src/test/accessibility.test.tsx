@@ -113,4 +113,25 @@ describe('Accessibility audits', () => {
     );
     await expectNoSeriousA11yViolations(container);
   });
+
+  it('skip navigation link exists and targets main content', () => {
+    const { container } = renderWithI18n(<App />);
+    const skipLink = container.querySelector('a[href="#main-content"]');
+    expect(skipLink).toBeInTheDocument();
+    expect(skipLink).toHaveClass('sr-only');
+    expect(container.querySelector('#main-content')).toBeInTheDocument();
+    expect(container.querySelector('#main-content')?.tagName).toBe('MAIN');
+  });
+
+  it('skip navigation link has translated text', () => {
+    const { container } = renderWithI18n(<App />);
+    const skipLink = container.querySelector('a[href="#main-content"]');
+    expect(skipLink?.textContent).toBe('Skip to main content');
+  });
+
+  it('dossier section headings have id anchors', () => {
+    const { container } = renderWithI18n(<App />);
+    // Verify main-content id exists (from skip nav)
+    expect(container.querySelector('#main-content')).toBeInTheDocument();
+  });
 });

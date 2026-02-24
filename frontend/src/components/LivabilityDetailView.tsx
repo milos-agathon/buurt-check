@@ -31,7 +31,7 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
   return (
     <div className="livability-detail" data-testid="livability-detail">
       <nav className="livability-detail__nav">
-        <button className="livability-detail__back" onClick={onClose} aria-label="Back">
+        <button className="livability-detail__back" onClick={onClose} aria-label={t('common.back')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>

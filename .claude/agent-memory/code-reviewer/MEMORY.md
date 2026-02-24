@@ -9,6 +9,12 @@
 - `get_neighborhood_3d` in `three_d_bag.py`: all partial flags (`bbox_partial`, `near_partial`, `immediate_partial`, `enrich_partial`), `target_found`, and `message` are all in scope at line ~738, just before the final `return`. `message` is assigned in a block ending ~line 737. Any log referencing `message` must be placed strictly after that block ends.
 - Test file `test_three_d_bag.py`: 405+ tests baseline. Uses `_route_responses` helper that routes single-item vs. bbox but NOT near-ring vs. primary-paginated. For near-ring distinctions, use inline `side_effect` like `test_get_neighborhood_3d_keeps_completed_near_ring_context_when_bbox_has_context`.
 
+## Sunlight v1 Corrections (2026-02-23)
+
+- Previous "ShadowTimeSlider orphaned" note is resolved: `App.tsx` renders `ShadowTimeSlider` directly below `NeighborhoodViewer3D` and passes `shadowDateTime` through.
+- `shadow_slider.*` i18n keys are present in both `frontend/src/i18n/en.json` and `frontend/src/i18n/nl.json`.
+- Previous coordinate/Z-sign bug note is resolved: heatmap vertex coloring uses pre-converted roof points (`roofSampling.ts` conversion path), so the old sign-mismatch warning is obsolete.
+
 ## Recurring Anti-Patterns Found
 
 - **DOM element leaks in Three.js useEffect**: any element created inside the init effect (overlay, debug badge, etc.) must be cleaned up in the effect's return function. Only `renderer.domElement` is auto-cleaned — all other appended children are not.

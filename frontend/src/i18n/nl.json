@@ -65,6 +65,10 @@
   "viewer3d.simplifiedView": "Vereenvoudigd beeld. Exporteer PDF voor volledige 3D-analyse.",
   "viewer3d.camera.topDown": "Bovenaanzicht",
   "viewer3d.resetView": "Weergave herstellen",
+  "viewer3d.canvasAria": "3D buurtscene",
+  "viewer3d.altSummaryWithTarget": "3D weergave van {{count}} gebouwen. Doelgebouw is {{height}}m hoog.",
+  "viewer3d.altSummaryNoTarget": "3D weergave van {{count}} gebouwen.",
+  "viewer3d.keyboardHint": "Gebruik pijltjestoetsen om te draaien, plus/min om te zoomen, Home om te resetten.",
   "sunlight.title": "Zonlichtanalyse",
   "sunlight.title_full": "Directe zon (helder weer)",
   "sunlight.subtitle": "Telt de tijd dat de zon boven de horizon staat en niet geblokkeerd wordt door nabije gebouwen.",
@@ -410,5 +414,8 @@
   "soil.lead_pipe_title": "Loden Leidingen Risico",
   "soil.lead_pipe_note": "Gebouwd in {{constructionYear}}, voor 1960. Oorspronkelijke waterleidingen kunnen lood bevatten. Als het pand een tuin heeft die door jonge kinderen wordt gebruikt, of originele waterleidingen van voor 1960, vraag dan een loodtest aan.",
   "soil.lead_pipe_viewing_question": "Heeft dit pand originele waterleidingen (van voor 1960)? Is er een loodtest uitgevoerd op bodem of drinkwater?",
-  "soil.lead_pipe_source": "Bouwjaar: BAG Kadaster. Loden leidingen risico-indicatie op basis van richtlijnen Nederlandse waterbedrijven."
+  "soil.lead_pipe_source": "Bouwjaar: BAG Kadaster. Loden leidingen risico-indicatie op basis van richtlijnen Nederlandse waterbedrijven.",
+
+  "a11y.skip_to_content": "Ga naar hoofdinhoud",
+  "common.back": "Terug"
 }

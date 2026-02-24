@@ -5,11 +5,12 @@ import './TopBar.css';
 interface TopBarProps {
   title: string;
   onSettingsClick?: () => void;
+  inert?: boolean;
 }
 
 const LOGO_TITLE = 'buurt-check';
 
-export default function TopBar({ title, onSettingsClick }: TopBarProps) {
+export default function TopBar({ title, onSettingsClick, inert }: TopBarProps) {
   const { i18n } = useTranslation();
   const [scrolled, setScrolled] = useState(false);
   const isLogo = title === LOGO_TITLE;
@@ -23,7 +24,7 @@ export default function TopBar({ title, onSettingsClick }: TopBarProps) {
   }, []);
 
   return (
-    <header className={`top-bar${scrolled ? ' top-bar--scrolled' : ''}`}>
+    <header className={`top-bar${scrolled ? ' top-bar--scrolled' : ''}`} inert={inert || undefined}>
       {isLogo ? (
         <a className="top-bar__logo" href="/" aria-label="Buurt Check home">
           <img

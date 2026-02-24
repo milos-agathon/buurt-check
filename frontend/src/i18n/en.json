@@ -65,6 +65,10 @@
   "viewer3d.simplifiedView": "Simplified view. Export PDF for full 3D analysis.",
   "viewer3d.camera.topDown": "Top-down",
   "viewer3d.resetView": "Reset view",
+  "viewer3d.canvasAria": "3D neighborhood scene",
+  "viewer3d.altSummaryWithTarget": "3D view of {{count}} buildings. Target building is {{height}}m tall.",
+  "viewer3d.altSummaryNoTarget": "3D view of {{count}} buildings.",
+  "viewer3d.keyboardHint": "Use arrow keys to rotate, plus/minus to zoom, Home to reset.",
   "sunlight.title": "Sunlight Analysis",
   "sunlight.title_full": "Direct sun (clear-sky visibility)",
   "sunlight.subtitle": "Counts time when the sun is above the horizon and not blocked by nearby buildings.",
@@ -410,5 +414,8 @@
   "soil.lead_pipe_title": "Lead Pipe Risk",
   "soil.lead_pipe_note": "Built in {{constructionYear}}, before 1960. Original water supply pipes may contain lead. If the property has a garden used by young children, or original pre-1960 water pipes, request a lead test (loodtest).",
   "soil.lead_pipe_viewing_question": "Does this property have original water pipes (pre-1960)? Has a lead test been conducted on soil or drinking water?",
-  "soil.lead_pipe_source": "Construction year: BAG Kadaster. Lead pipe risk proxy based on Dutch water utility guidelines."
+  "soil.lead_pipe_source": "Construction year: BAG Kadaster. Lead pipe risk proxy based on Dutch water utility guidelines.",
+
+  "a11y.skip_to_content": "Skip to main content",
+  "common.back": "Back"
 }
