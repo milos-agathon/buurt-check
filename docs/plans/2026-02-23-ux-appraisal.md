@@ -350,3 +350,174 @@ The Claude UX audit's overall score of 4.2/10 is **not grounded in code reality*
 **Where the audit adds value:** general product strategy (methodology transparency, offline caching, geolocation, analytics, trust signals) and the reframe of "technology drives experience rather than user needs" — a fair high-level observation, even if the specific evidence cited is often wrong.
 
 **Where the audit misleads:** every specific technical claim should be independently verified. At least 20 of the audit's factual assertions are incorrect.
+
+---
+
+## Simplification Assessment (2026-02-24)
+
+**Method:** Deep component audit (App.tsx state inventory, render tree, CSS visual treatment analysis, information density counts) against the design context: brand personality is *confident, clear, empowering*; emotional target is *calm confidence*. Every complexity source below is evaluated against one question: **does this help or hinder a nervous buyer feeling "someone serious did the work for me"?**
+
+### The Core Problem
+
+The dossier is a **12+ section vertical scroll with no rhythm**. Every section has card-level visual treatment (border + shadow + background). Every section demands equal attention. The result: nothing stands out, nothing can be skimmed, and the user drowns in undifferentiated data. This directly contradicts Design Pillar 1 (editorial restraint) and the "briefing, not dashboard" principle.
+
+The app currently presents data like a thorough research assistant who dumps every finding on the table. It should present like a confident advisor who says: "Here's what matters. Here's what to do."
+
+---
+
+### S1. Risk severity is shown 5 times for the same 4 categories — **CRITICAL**
+
+The same noise/air/climate/sunlight risk data appears in:
+
+| # | Component | What it shows | Location |
+|---|-----------|--------------|----------|
+| 1 | `AttentionSummary` | Flag badges ("Critical noise risk") | Top of dossier |
+| 2 | `SummaryStrip` | Icon + score pills (4 pills) | Below address header |
+| 3 | `RiskTilesGrid` | 2x2 grid: score number + SeverityBadge | House section |
+| 4 | `RiskCardsPanel` | Full article cards: badge + meaning + metric + question + source | Directly below tiles |
+| 5 | `RiskDetailView` | Overlay: score bar + comparison chart + viewing questions | On tile tap |
+
+A user scrolling from top to bottom encounters the same four risk categories **four times before they can tap into a detail**. Then the detail is a fifth presentation.
+
+**Simplification:** Remove `RiskCardsPanel` entirely (183 lines). It duplicates what `RiskDetailView` already shows better. The flow becomes: `AttentionSummary` (flags for anything moderate+) → `SummaryStrip` (at-a-glance scores) → `RiskTilesGrid` (tappable 2x2, the decision point) → `RiskDetailView` (full analysis on tap). Three stops instead of five. The tile-to-detail progressive disclosure is the correct pattern — `RiskCardsPanel` undermines it by dumping the detail inline.
+
+**Impact:** Removes ~200 lines of code + CSS. Eliminates the most direct violation of "briefing, not dashboard." Saves one full scroll-screen of vertical space.
+
+---
+
+### S2. Construction year appears in 3 places simultaneously — **MODERATE**
+
+- `AddressHeader.tsx:26` — inline as "Built 1923"
+- `BuildingFactsCard.tsx:32` — in the facts definition list
+- `PropertyWarningsCard.tsx:75` — in foundation risk description
+
+**Simplification:** Keep it in `AddressHeader` (contextual, prominent) and `BuildingFactsCard` (canonical facts). Remove from `PropertyWarningsCard` — the foundation risk description should reference the age implication ("pre-1970 construction") without repeating the exact year already visible above.
+
+---
+
+### S3. Bookmark action exposed in 2 competing locations — **MODERATE**
+
+Both `AddressHeader.tsx:46` (heart/bookmark icon) and `ActionBar.tsx:19` ("Add to Shortlist" button) perform the same shortlist toggle. Both are visible simultaneously — the header icon is inline in the scroll, the ActionBar button is fixed at the bottom.
+
+**Simplification:** Remove the bookmark icon from `AddressHeader`. The fixed `ActionBar` is the canonical location for primary actions (it's always visible, clearly labeled, proper button size). The inline icon is a secondary affordance that creates ambiguity about which is "the" save action. One save button, one location.
+
+---
+
+### S4. DossierSheet grab handle is a false affordance — **MODERATE**
+
+`DossierSheet.tsx:18-20` renders a visible pill handle with `cursor: grab` and hover feedback (opacity + width expansion). Zero gesture handlers are attached. `onSnapChange` prop is accepted but never called.
+
+**Simplification:** Remove the handle pill entirely. The dossier sheet scrolls via native window scroll, not drag gestures. The handle visually promises drag-to-dismiss behavior that doesn't exist. Either implement drag (complex, not needed for a report-reading flow) or remove the affordance. Removing is simpler and honest.
+
+---
+
+### S5. 47 useState hooks in App.tsx — **STRUCTURAL**
+
+App.tsx (1,986 lines) contains 47 `useState`, 31 `useCallback`, 3 `useMemo`, 4 `useRef`. The data-fetch pattern is repeated 5 times identically:
+
+```
+const [data, setData] = useState(null);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState(null);
+```
+
+× 5 sources (risk, warnings, livability, stats, tierB) = 15 of the 47 states.
+
+This doesn't directly affect UX but creates maintainability complexity that makes UX changes expensive. The 170-line `handleAddressSelect` callback is a sequential async state machine that's difficult to reason about.
+
+**Simplification (code-level):** Extract a `useAsyncData<T>` hook that encapsulates the data/loading/error triad + retry logic. Reduces 15 states to 5 hook calls. Extract `handleAddressSelect` into a `useDossierLoader` hook. Neither changes UX but unblocks future simplification work.
+
+---
+
+### S6. Every card has identical visual weight — **CRITICAL (aesthetic)**
+
+14 dossier component CSS files apply `border: 1px solid var(--color-border)` on cards. 12 files apply `box-shadow`. Several cards layer `--color-surface` → `--color-surface-alt` → `--color-surface-recessed` (3 background levels in one card, e.g. `NeighborhoodStatsCard`).
+
+When every section looks the same — same border, same shadow, same radius, same padding — the user has no visual signal for what's important. The dossier becomes a uniform column of rectangles.
+
+**Simplification:**
+- **Remove borders and shadows from non-interactive cards.** Only interactive elements (RiskTiles that tap to open, shortlist cards) need card elevation. Informational sections (BuildingFacts, SoilInfo, NeighborhoodStats) should use spacing and typography for separation, not containers.
+- **Use the 3-phase dossier structure for visual rhythm.** The House → Buurt → Action phases should have distinct visual treatment: phase dividers, varied spacing, perhaps alternating background tones. Currently the phase dividers exist in code but all cards look identical regardless of phase.
+- **Flatten nested backgrounds.** NeighborhoodStatsCard's 3 background levels (surface → surface-alt → surface-recessed) add visual noise. Use typography weight and spacing instead of nested colored containers.
+
+---
+
+### S7. SummaryStrip pills are icon-only — no category labels — **MODERATE**
+
+`SummaryStrip.tsx:43-48` renders 4 pills showing only an SVG icon + numeric score. No text label identifies the category (noise, air, climate, sunlight). Users must decode the icon meaning — sound waves, leaf, water drop, sun — which is exactly the "GIS portal" anti-reference.
+
+**Simplification:** Add short text labels to each pill ("Noise 72", "Air 85") or remove the strip entirely. If `RiskCardsPanel` is removed per S1, the strip becomes more important as the only at-a-glance risk summary before the tiles. Labels make it self-explanatory.
+
+---
+
+### S8. 11 tappable controls visible simultaneously in dossier — **MODERATE**
+
+When a loaded dossier is visible, the user sees: 4 summary pills + 4 risk tiles + 1 bookmark icon + 2 action bar buttons = 11 tappable controls, plus 3 tab bar buttons = 14 total. The "one dominant action per screen" principle (ui-principles.md §1) is violated.
+
+**Simplification:** After removing the duplicate bookmark (S3), it drops to 10+3. After removing `RiskCardsPanel` (S1), there are no inline retry buttons competing for attention in the risk section. The remaining actions have clear hierarchy: summary pills (navigation), risk tiles (exploration), action bar (commitment). This is acceptable if the visual weight is properly differentiated — pills should look like navigation, tiles like content, action bar like the primary CTA zone.
+
+---
+
+### S9. Viewing questions duplicated in 2 locations — **LOW**
+
+Same questions appear in `RiskDetailView` (per-category modal) and `ViewingChecklist` (persistent bottom section). Both share `checkedQuestions` state, so checkbox sync works. But users who find questions in the detail view wonder why they repeat in the checklist.
+
+**Simplification:** Keep the `ViewingChecklist` as the canonical location (it's the "action" phase of the dossier — the culmination). In `RiskDetailView`, show a brief callout: "These questions are saved to your Viewing Checklist" instead of rendering checkboxes inline. This makes the detail view lighter and drives users toward the checklist as the action-oriented destination.
+
+---
+
+### S10. Dead components consuming maintenance overhead — **LOW**
+
+| Component | Status | Lines |
+|-----------|--------|-------|
+| `SpringTuner` | Never imported outside own test | ~80 |
+| `SkeletonCard` / `SkeletonLine` / `SkeletonGrid` | Never imported outside own test | ~60 |
+| `DossierSkeleton` / `StatsSkeleton` | Never imported in App.tsx | ~90 |
+
+**Simplification:** Delete all three. They have tests that pass but test dead code. ~230 lines of components + CSS + tests that serve no user.
+
+---
+
+### S11. 17 distinct font-size/weight combinations, 4 bypass tokens — **LOW (aesthetic)**
+
+The type system defines 12 named tokens, but 4 hardcoded specs bypass them:
+- `RiskTile.css:51-54` — hardcoded `28px/900` instead of `--type-score-tile`
+- `LivabilityCard.css:63` — hardcoded `700 24px/1` instead of `--type-data`
+- `RiskTile.css:36-38` — hardcoded `13px/600` instead of `--type-caption` or `--type-label`
+- `TierBSignalsCard.css:76` — hardcoded `11px` instead of `--type-micro`
+
+**Simplification:** Replace hardcoded values with tokens. Doesn't change the visual result but enforces the type scale discipline and makes future simplification (reducing the number of type steps) possible.
+
+---
+
+### S12. AttentionSummary has no dismiss — **CONFIRMED (from P0 #3)**
+
+The attention flags are valuable for first impression but persist as visual noise as the user scrolls through the dossier. Once you've seen "3 risks need attention," the banner has done its job.
+
+**Simplification:** Add a collapse/dismiss toggle. Show the count badge ("3 items need attention") in collapsed state. Default to expanded on first view, collapsed on return visits to the same address. Store collapse state in the dossier session (not localStorage — it should reset for new addresses).
+
+---
+
+### Simplification Priority Matrix
+
+| ID | Finding | Impact | Effort | Priority |
+|----|---------|--------|--------|----------|
+| S1 | Remove RiskCardsPanel (5→3 risk presentations) | HIGH | LOW | **Do first** |
+| S6 | Remove uniform card borders/shadows; use spacing | HIGH | MEDIUM | **Do second** |
+| S3 | Remove duplicate bookmark from AddressHeader | MEDIUM | LOW | **Quick win** |
+| S4 | Remove DossierSheet grab handle | MEDIUM | LOW | **Quick win** |
+| S10 | Delete dead components | LOW | LOW | **Quick win** |
+| S7 | Add text labels to SummaryStrip pills | MEDIUM | LOW | **Quick win** |
+| S2 | Remove construction year from PropertyWarningsCard | LOW | LOW | **Quick win** |
+| S12 | Add collapse to AttentionSummary | MEDIUM | MEDIUM | **Sprint 2** |
+| S9 | Replace ViewingChecklist duplication with callout | LOW | LOW | **Sprint 2** |
+| S11 | Replace hardcoded font specs with tokens | LOW | LOW | **Sprint 2** |
+| S5 | Extract useAsyncData hook from App.tsx | HIGH (structural) | HIGH | **Sprint 3** |
+
+### The Simplification Thesis
+
+The dossier currently presents like a research report where every paragraph has equal formatting. The fix isn't removing content — it's creating **hierarchy through visual differentiation**.
+
+The target state: a user scrolls the dossier and their eye is drawn to **three landmarks**: the risk tiles (are there problems?), the 3D viewer (what does it look like?), and the viewing checklist (what do I do?). Everything else — building facts, soil info, neighborhood stats — is supporting context that should recede visually.
+
+Remove `RiskCardsPanel`. Remove uniform card chrome. Let the content breathe. The app already has the right data and the right structure (house → buurt → action). The simplification is about making that structure *visible* instead of buried under identical rectangles.

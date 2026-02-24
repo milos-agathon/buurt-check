@@ -87,6 +87,14 @@ Help expats and first-time buyers **avoid bad purchases and choose the right nei
 * **Expats**: limited Dutch knowledge, high uncertainty, high regret risk.
 * **First-time buyers**: overwhelmed by tradeoffs; need structure and confidence.
 
+### User context & emotional needs
+
+Users are navigating high-stakes property decisions (often six-figure) in an unfamiliar market. They are time-pressured (viewing slots are limited), anxious about hidden risks (noise, flooding, subsidence, pollution), and often lack Dutch language skills or local knowledge. They need a trusted source that does the research for them and tells them exactly what to ask at the viewing.
+
+**Brand personality:** Confident, clear, empowering — like a knowledgeable friend who makes you feel in control of a big decision.
+
+**Emotional target:** Calm confidence — *"Someone serious did the work for me. I can trust this and act on it."*
+
 ## 4. Core user journey (MVP)
 
 1. User pastes **address** (or postcode + house number).

@@ -2,9 +2,11 @@
 
 > **Version:** 3.0 | **Last updated:** 2026-02-16
 > **Design direction:** "Polar Frost" (Phase 1 authority)
+> **Brand personality:** Confident, clear, empowering
+> **Emotional target:** Calm confidence — "Someone serious did the work for me"
 > **Canonical color source:** `frontend/src/styles/tokens.css` and `docs/palette.md`
 
-This document specifies every visual element at pixel-level detail. A developer should be able to implement any screen from this spec alone, without design mockups.
+This document specifies every visual element at pixel-level detail. A developer should be able to implement any screen from this spec alone, without design mockups. Every visual decision should reinforce the brand personality: confident (strong hierarchy, decisive color), clear (generous white space, editorial restraint), empowering (actionable outcomes, not raw data).
 
 ---
 

@@ -46,6 +46,12 @@ buurt-check must feel like a beautifully designed intelligence briefing prepared
 
 **Pillar 4 — Actionability over information.** Every data point connects to a decision. Risk scores aren't abstract numbers — they're paired with plain-language consequences and specific questions to ask at the viewing. The entire dossier funnels toward the "Viewing Checklist" and the PDF export.
 
+### Brand personality & emotional target
+
+**Brand personality (3 words): Confident, clear, empowering.** Like a knowledgeable friend who makes you feel in control of a big decision. Not cold or institutional — warm enough to be approachable, precise enough to be trusted.
+
+**Emotional target:** Calm confidence — *"Someone serious did the work for me. I can trust this and act on it."*
+
 ### Design lineage
 
 This direction synthesizes three proven design traditions:
@@ -53,6 +59,15 @@ This direction synthesizes three proven design traditions:
 - **Scandinavian data elegance** (Hemnet, Shadowmap): Monochromatic restraint, editorial typography, trust through quality
 - **Dutch institutional clarity** (ING Lion system, NS Nessie, Rabobank): Systematic precision, warm neutrals, confidence without coldness
 - **Consumer accessibility** (Tikkie's clarity, Apple Health's categorization): Plain language, intuitive interaction patterns, emotional resonance through simplicity
+
+### Design references & anti-references
+
+**References:** Apple Health (categorized risk data, progressive disclosure, clear severity levels), Hemnet (clean editorial property data, white space + single accent color).
+
+**Anti-references — buurt-check must never look like:**
+- **Funda / Zillow** — listing-heavy marketplace feel. Too commercial, not analytical.
+- **GIS / government portals** — dense data tables, tiny fonts, power-user complexity (PDOK viewer, etc.).
+- **Flashy startup apps** — gamified, emoji-heavy, gradient overload. Too casual for six-figure property decisions.
 
 ---
 

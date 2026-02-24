@@ -1,9 +1,21 @@
 # Mobile UI Design Principles for buurt-check
 
-> **Version:** 2.0 | **Last updated:** 2026-02-16
+> **Version:** 2.1 | **Last updated:** 2026-02-24
 > **Authority note:** This document describes design philosophy and heuristics. Where it conflicts with `design-prd.md` or `design-spec.md`, those documents govern.
 
 A curated set of design principles for a Dutch neighborhood intelligence app with 3D visualization, risk assessments, and interactive maps — targeting expats and first-time home buyers.
+
+### Design context
+
+**Users:** Expats and first-time homebuyers navigating high-stakes property decisions in an unfamiliar Dutch market. Time-pressured, anxious about hidden risks, often lacking local knowledge.
+
+**Brand personality:** Confident, clear, empowering — like a knowledgeable friend who makes you feel in control of a big decision.
+
+**Emotional target:** Calm confidence — *"Someone serious did the work for me. I can trust this and act on it."*
+
+**References:** Apple Health (categorized risk data, progressive disclosure, severity levels), Hemnet (clean editorial property data, white space + single accent).
+
+**Anti-references:** Funda/Zillow (too commercial), GIS portals (too complex), flashy startup apps (too casual for six-figure decisions).
 
 ---
 
