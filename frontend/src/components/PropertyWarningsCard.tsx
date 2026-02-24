@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import type { PropertyWarningsResponse } from '../types/api';
+import type { PropertyWarningsResponse, SeverityLevel } from '../types/api';
+import SeverityBadge from './ui/SeverityBadge';
 import './PropertyWarningsCard.css';
 
 interface Props {
@@ -11,11 +12,15 @@ interface Props {
 
 const ERFPACHT_NOTE_MUNICIPALITY_ONLY = 'ERFPACHT_NOTE_MUNICIPALITY_ONLY';
 
-function severityClass(level: string): string {
+function mapFoundationLevel(level: PropertyWarningsResponse['foundation_risk']['level']): SeverityLevel {
   if (level === 'high') return 'poor';
   if (level === 'medium') return 'moderate';
   if (level === 'low') return 'good';
   return 'unavailable';
+}
+
+function severityClass(level: PropertyWarningsResponse['foundation_risk']['level']): string {
+  return mapFoundationLevel(level);
 }
 
 export default function PropertyWarningsCard({ data, loading, error, onRetry }: Props) {
@@ -67,9 +72,7 @@ export default function PropertyWarningsCard({ data, loading, error, onRetry }: 
       {hasFoundation && (
         <article className={`property-warnings__card property-warnings__card--${severityClass(foundation_risk.level)}`}>
           <h4 className="property-warnings__card-title">{t('warnings.foundation.title')}</h4>
-          <span className={`property-warnings__badge property-warnings__badge--${severityClass(foundation_risk.level)}`}>
-            {foundation_risk.level}
-          </span>
+          <SeverityBadge severity={mapFoundationLevel(foundation_risk.level)} size="sm" />
           <p className="property-warnings__description">
             {t(`warnings.foundation.${foundation_risk.level}`, {
               year: foundation_risk.construction_year ?? '?',

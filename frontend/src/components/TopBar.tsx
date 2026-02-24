@@ -11,7 +11,7 @@ interface TopBarProps {
 const LOGO_TITLE = 'buurt-check';
 
 export default function TopBar({ title, onSettingsClick, inert }: TopBarProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [scrolled, setScrolled] = useState(false);
   const isLogo = title === LOGO_TITLE;
 
@@ -26,7 +26,7 @@ export default function TopBar({ title, onSettingsClick, inert }: TopBarProps) {
   return (
     <header className={`top-bar${scrolled ? ' top-bar--scrolled' : ''}`} inert={inert || undefined}>
       {isLogo ? (
-        <a className="top-bar__logo" href="/" aria-label="Buurt Check home">
+        <a className="top-bar__logo" href="/" aria-label={t('aria.home')}>
           <img
             src="/logos/buurt-check-lockup-horizontal-reverse.svg"
             alt="Buurt Check"
@@ -37,7 +37,7 @@ export default function TopBar({ title, onSettingsClick, inert }: TopBarProps) {
         <h1 className="top-bar__title">{title}</h1>
       )}
       <div className="top-bar__actions">
-        <div className="top-bar__lang-toggle" role="radiogroup" aria-label="Language">
+        <div className="top-bar__lang-toggle" role="radiogroup" aria-label={t('aria.language')}>
           <button
             type="button"
             role="radio"
@@ -58,7 +58,7 @@ export default function TopBar({ title, onSettingsClick, inert }: TopBarProps) {
           </button>
         </div>
         {onSettingsClick && (
-          <button type="button" className="top-bar__settings" onClick={onSettingsClick} aria-label="Settings">
+          <button type="button" className="top-bar__settings" onClick={onSettingsClick} aria-label={t('aria.settings')}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />

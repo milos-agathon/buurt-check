@@ -11,24 +11,30 @@ vi.mock('../services/api', () => ({
 import { suggestAddresses } from '../services/api';
 const mockSuggest = vi.mocked(suggestAddresses);
 
-let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
+let i18nEn: Awaited<ReturnType<typeof setupTestI18n>>;
+let i18nNl: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
-  i18nInstance = await setupTestI18n('en');
+  [i18nEn, i18nNl] = await Promise.all([setupTestI18n('en'), setupTestI18n('nl')]);
 });
 
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-02-24T12:00:00Z'));
   mockSuggest.mockReset();
+  localStorage.removeItem('buurt-check-recent-searches');
 });
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-function renderSearch(onSelect = vi.fn()) {
+function renderSearch(
+  onSelect = vi.fn(),
+  i18n = i18nEn,
+) {
   const result = render(
-    <I18nextProvider i18n={i18nInstance}>
+    <I18nextProvider i18n={i18n}>
       <AddressSearch onSelect={onSelect} />
     </I18nextProvider>,
   );
@@ -298,5 +304,77 @@ describe('error handling', () => {
     await typeAndFlush(screen.getByRole('combobox'), 'am');
 
     expect(screen.queryByText('Could not search addresses')).not.toBeInTheDocument();
+  });
+});
+
+describe('recent search i18n formatting', () => {
+  it('shows Dutch relative time labels in NL mode', () => {
+    const now = Date.now();
+    localStorage.setItem('buurt-check-recent-searches', JSON.stringify([
+      {
+        id: 'recent-1',
+        display_name: 'Prinsengracht 1, Amsterdam',
+        timestamp: now - (5 * 60 * 1000),
+      },
+    ]));
+
+    renderSearch(vi.fn(), i18nNl);
+
+    expect(screen.getByText('5m geleden')).toBeInTheDocument();
+  });
+
+  it('shows English relative time labels in EN mode', () => {
+    const now = Date.now();
+    localStorage.setItem('buurt-check-recent-searches', JSON.stringify([
+      {
+        id: 'recent-1',
+        display_name: 'Prinsengracht 1, Amsterdam',
+        timestamp: now - (5 * 60 * 1000),
+      },
+    ]));
+
+    renderSearch(vi.fn(), i18nEn);
+
+    expect(screen.getByText('5m ago')).toBeInTheDocument();
+  });
+
+  it('passes i18n locale to toLocaleDateString in NL mode', () => {
+    const now = Date.now();
+    localStorage.setItem('buurt-check-recent-searches', JSON.stringify([
+      {
+        id: 'recent-1',
+        display_name: 'Prinsengracht 1, Amsterdam',
+        timestamp: now - (10 * 24 * 60 * 60 * 1000),
+      },
+    ]));
+
+    const dateSpy = vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('formatted-date');
+
+    renderSearch(vi.fn(), i18nNl);
+
+    expect(screen.getByText('formatted-date')).toBeInTheDocument();
+    expect(dateSpy).toHaveBeenCalledWith('nl-NL');
+
+    dateSpy.mockRestore();
+  });
+
+  it('passes i18n locale to toLocaleDateString in EN mode', () => {
+    const now = Date.now();
+    localStorage.setItem('buurt-check-recent-searches', JSON.stringify([
+      {
+        id: 'recent-1',
+        display_name: 'Prinsengracht 1, Amsterdam',
+        timestamp: now - (10 * 24 * 60 * 60 * 1000),
+      },
+    ]));
+
+    const dateSpy = vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('formatted-date');
+
+    renderSearch(vi.fn(), i18nEn);
+
+    expect(screen.getByText('formatted-date')).toBeInTheDocument();
+    expect(dateSpy).toHaveBeenCalledWith('en-US');
+
+    dateSpy.mockRestore();
   });
 });

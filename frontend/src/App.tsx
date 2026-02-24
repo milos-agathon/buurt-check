@@ -1589,7 +1589,7 @@ function App() {
                     </div>
                     <div className="app__dossier-jump-actions">
                       <button type="button" onClick={handleJumpToHouse}>{t('nav.jumpHouse')}</button>
-                      <button type="button" onClick={handleJumpToBuurt}>{t('nav.jumpBuurt')}</button>
+                      <button type="button" onClick={handleJumpToBuurt}>{t('nav.neighborhood')}</button>
                       <button type="button" onClick={handleJumpToChecklist}>{t('nav.jumpBriefing')}</button>
                     </div>
                   </div>
@@ -1773,7 +1773,7 @@ function App() {
                     <div className="app__phase-divider" id="section-buurt-start">
                       <span>{t('dossier.buurtDivider')}</span>
                     </div>
-                    <section role="region" aria-label={t('nav.jumpBuurt')}>
+                    <section role="region" aria-label={t('nav.neighborhood')}>
                       {(livabilityLoading || livability || livabilityError) && (
                         <>
                           <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>

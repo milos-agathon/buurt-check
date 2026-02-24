@@ -172,6 +172,21 @@ describe('AttentionSummary', () => {
     expect(screen.getByText(/geen/i)).toBeInTheDocument();
   });
 
+  it('uses Dutch risk category labels for flagged items', async () => {
+    const nlI18n = await setupTestI18n('nl');
+    render(
+      <I18nextProvider i18n={nlI18n}>
+        <AttentionSummary
+          riskCards={makePoorNoiseRiskCards()}
+          warnings={makeCleanWarnings()}
+          sunlightScore={80}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/geluidrisico/i)).toBeInTheDocument();
+    expect(screen.queryByText(/noise risk/i)).not.toBeInTheDocument();
+  });
+
   it('includes lead pipe flag when flagged', () => {
     const warnings = makePropertyWarningsResponse({
       lead_pipe: { flagged: true, construction_year: 1955, messages: ['LEAD_PIPE_PRE_1960'] },

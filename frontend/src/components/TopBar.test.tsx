@@ -66,4 +66,17 @@ describe('TopBar', () => {
     fireEvent.click(screen.getByLabelText('Settings'));
     expect(onClick).toHaveBeenCalled();
   });
+
+  it('renders translated aria labels in Dutch', async () => {
+    const nlI18n = await setupTestI18n('nl');
+    render(
+      <I18nextProvider i18n={nlI18n}>
+        <TopBar title="buurt-check" onSettingsClick={vi.fn()} />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByLabelText('Startpagina Buurt Check')).toBeInTheDocument();
+    expect(screen.getByLabelText('Taal')).toBeInTheDocument();
+    expect(screen.getByLabelText('Instellingen')).toBeInTheDocument();
+  });
 });

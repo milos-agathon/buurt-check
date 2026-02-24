@@ -9,21 +9,8 @@ interface Props {
   onSelect: (suggestion: AddressSuggestion) => void;
 }
 
-function formatRelativeTime(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days}d ago`;
-  return new Date(timestamp).toLocaleDateString();
-}
-
 export default function AddressSearch({ onSelect }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -138,6 +125,20 @@ export default function AddressSearch({ onSelect }: Props) {
   const refreshRecent = useCallback(() => {
     setRecentSearches(getRecent());
   }, []);
+
+  const formatRelativeTime = useCallback((timestamp: number): string => {
+    const diff = Date.now() - timestamp;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return t('search.recentTime.justNow');
+    if (mins < 60) return t('search.recentTime.minutesAgo', { count: mins });
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return t('search.recentTime.hoursAgo', { count: hrs });
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return t('search.recentTime.yesterday');
+    if (days < 7) return t('search.recentTime.daysAgo', { count: days });
+    const locale = i18n.language === 'nl' ? 'nl-NL' : 'en-US';
+    return new Date(timestamp).toLocaleDateString(locale);
+  }, [i18n.language, t]);
 
   useEffect(() => {
     refreshRecent();

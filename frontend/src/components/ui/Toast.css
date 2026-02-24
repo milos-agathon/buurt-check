@@ -31,6 +31,8 @@
   font: var(--type-small);
   color: var(--color-text-inverse);
   flex: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .toast__action {

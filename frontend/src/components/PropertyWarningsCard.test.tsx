@@ -47,7 +47,8 @@ describe('PropertyWarningsCard', () => {
     });
     renderCard(data);
     expect(screen.getByRole('heading', { name: /foundation risk/i })).toBeInTheDocument();
-    expect(screen.getByText(/high/)).toBeInTheDocument();
+    expect(screen.getByText('Poor')).toBeInTheDocument();
+    expect(screen.queryByText(/\bhigh\b/i)).not.toBeInTheDocument();
   });
 
   it('renders erfpacht card when detected', () => {
@@ -127,5 +128,6 @@ describe('PropertyWarningsCard', () => {
       </I18nextProvider>,
     );
     expect(screen.getByRole('heading', { name: /funderingsrisico/i })).toBeInTheDocument();
+    expect(screen.getByText('Slecht')).toBeInTheDocument();
   });
 });

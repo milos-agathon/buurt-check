@@ -102,10 +102,22 @@
   background: var(--color-badge-caution-bg);
   color: var(--color-badge-caution-text);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--space-sm);
   font: var(--type-small);
+}
+
+.app__failed-banner > span {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.app__failed-banner .app__retry-button {
+  margin-top: 0;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .app__phase-divider {

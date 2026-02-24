@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { SPRING_EXPAND, SPRING_REVEAL, SPRING_SHEET, SPRING_TAB } from '../config/springs';
 import './SpringTuner.css';
 
@@ -9,15 +10,17 @@ const SPRINGS = [
 ];
 
 export default function SpringTuner() {
+  const { t } = useTranslation();
+
   return (
-    <aside className="spring-tuner" data-testid="spring-tuner" aria-label="Spring tuning panel">
+    <aside className="spring-tuner" data-testid="spring-tuner" aria-label={t('aria.springTuner')}>
       <h2 className="spring-tuner__title">Spring Tuner (Dev)</h2>
       <ul className="spring-tuner__list">
         {SPRINGS.map((spring) => (
           <li key={spring.name} className="spring-tuner__item">
             <span className="spring-tuner__name">{spring.name}</span>
             <span className="spring-tuner__value">
-              {`stiffness ${spring.value.stiffness} • damping ${spring.value.damping}`}
+              {`stiffness ${spring.value.stiffness} - damping ${spring.value.damping}`}
             </span>
           </li>
         ))}

@@ -13,7 +13,6 @@ interface Props {
 interface Flag {
   category: string;
   severity: 'critical' | 'elevated' | 'high' | 'medium' | 'info';
-  label: string;
 }
 
 function computeFlags(
@@ -34,50 +33,43 @@ function computeFlags(
   }
   scores.sunlight = sunlightScore;
 
-  const categoryLabels: Record<string, string> = {
-    noise: 'noise risk',
-    air_quality: 'air quality risk',
-    climate: 'climate risk',
-    sunlight: 'sunlight risk',
-  };
-
   for (const [cat, score] of Object.entries(scores)) {
     if (score == null) continue;
     assessed += 1;
     if (score < 30) {
-      flags.push({ category: cat, severity: 'critical', label: `Critical ${categoryLabels[cat]}` });
+      flags.push({ category: cat, severity: 'critical' });
     } else if (score < 50) {
-      flags.push({ category: cat, severity: 'elevated', label: `Elevated ${categoryLabels[cat]}` });
+      flags.push({ category: cat, severity: 'elevated' });
     }
   }
 
   if (warnings) {
     // Foundation risk
     if (warnings.foundation_risk.level === 'high') {
-      flags.push({ category: 'foundation', severity: 'high', label: 'High foundation risk' });
+      flags.push({ category: 'foundation', severity: 'high' });
     } else if (warnings.foundation_risk.level === 'medium') {
-      flags.push({ category: 'foundation', severity: 'medium', label: 'Foundation risk needs verification' });
+      flags.push({ category: 'foundation', severity: 'medium' });
     }
 
     // Erfpacht
     if (warnings.erfpacht.detected) {
-      flags.push({ category: 'erfpacht', severity: 'info', label: 'Erfpacht detected' });
+      flags.push({ category: 'erfpacht', severity: 'info' });
     }
 
     // VvE
     if (warnings.vve.is_apartment) {
-      flags.push({ category: 'vve', severity: 'info', label: 'VvE — review financials' });
+      flags.push({ category: 'vve', severity: 'info' });
     }
 
     // Asbestos — only flag for pre-1980 (extensive structural use)
     const year = warnings.asbestos.construction_year;
     if (warnings.asbestos.flagged && year != null && year < 1980) {
-      flags.push({ category: 'asbestos', severity: 'info', label: 'Pre-1980 asbestos risk' });
+      flags.push({ category: 'asbestos', severity: 'info' });
     }
 
     // Lead pipe — pre-1960 construction
     if (warnings.lead_pipe?.flagged) {
-      flags.push({ category: 'lead_pipe', severity: 'info', label: 'Pre-1960 lead pipe risk' });
+      flags.push({ category: 'lead_pipe', severity: 'info' });
     }
   }
 
@@ -119,7 +111,11 @@ export default function AttentionSummary({ riskCards, warnings, sunlightScore, l
         <ul className="attention-summary__flags" data-testid="attention-flags">
           {flags.map((f) => (
             <li key={f.category} className={`attention-summary__flag attention-summary__flag--${f.severity}`}>
-              {t(`warnings.attention.flag.${f.category}`, f.label)}
+              {t(`risk.category.${f.category}`, {
+                defaultValue: t(`warnings.attention.flag.${f.category}`, {
+                  defaultValue: f.category,
+                }),
+              })}
             </li>
           ))}
         </ul>

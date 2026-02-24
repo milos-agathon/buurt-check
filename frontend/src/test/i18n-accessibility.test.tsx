@@ -119,22 +119,27 @@ describe('AddressSearch NL time formatting', () => {
     // This test verifies the i18n keys exist and translate correctly
     const t = i18nNl.t.bind(i18nNl);
     expect(t('search.recentTime.justNow')).toBe('zojuist');
-    expect(t('search.recentTime.minutesAgo', { mins: 5 })).toBe('5m geleden');
-    expect(t('search.recentTime.hoursAgo', { hrs: 2 })).toBe('2u geleden');
+    expect(t('search.recentTime.minutesAgo', { count: 5 })).toBe('5m geleden');
+    expect(t('search.recentTime.hoursAgo', { count: 2 })).toBe('2u geleden');
     expect(t('search.recentTime.yesterday')).toBe('gisteren');
-    expect(t('search.recentTime.daysAgo', { days: 3 })).toBe('3d geleden');
+    expect(t('search.recentTime.daysAgo', { count: 3 })).toBe('3d geleden');
   });
 });
 
 describe('TopBar i18n aria-labels', () => {
   it('has translated aria-label keys', () => {
     // Verify the keys exist and translate correctly
-    expect(i18nEn.t('nav.home')).toBe('Home');
-    expect(i18nEn.t('nav.languageToggle')).toBe('Language');
-    expect(i18nEn.t('nav.settings')).toBe('Settings');
-    expect(i18nNl.t('nav.home')).toBe('Home');
-    expect(i18nNl.t('nav.languageToggle')).toBe('Taal');
-    expect(i18nNl.t('nav.settings')).toBe('Instellingen');
+    expect(i18nEn.t('aria.home')).toBe('Buurt Check home');
+    expect(i18nEn.t('aria.language')).toBe('Language');
+    expect(i18nEn.t('aria.settings')).toBe('Settings');
+    expect(i18nNl.t('aria.home')).toBe('Startpagina Buurt Check');
+    expect(i18nNl.t('aria.language')).toBe('Taal');
+    expect(i18nNl.t('aria.settings')).toBe('Instellingen');
+  });
+
+  it('translates neighborhood navigation label', () => {
+    expect(i18nEn.t('nav.neighborhood')).toBe('Neighborhood');
+    expect(i18nNl.t('nav.neighborhood')).toBe('Buurt');
   });
 });
 
