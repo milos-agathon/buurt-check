@@ -261,3 +261,92 @@ The gap between "developer's impressive side project" and "tool I'd trust for a 
 | Shortlist tap reopens dossier | design-prd.md | BROKEN |
 | Risk detail as only expanded view | design-prd.md | NO (tiles + cards + detail all visible) |
 | 3D building fade-in by distance (50ms stagger) | animation table | NO |
+
+---
+
+## Cross-Reference: Claude UX Audit (2026-02-24)
+
+**Source:** `docs/plans/claude-ux-audit.md` — 20-section "Senior UX Designer" audit
+**Method:** Every code-verifiable claim assessed against HEAD of `main`, 2026-02-24
+
+### Credibility Assessment
+
+The Claude UX audit contains **20+ factual errors** about the codebase, including getting the tech stack wrong, claiming features exist that don't (premium/paywall, financial intelligence, document translation), and claiming features don't exist that do (recent searches, comparison mode, data attribution, ARIA landmarks, skeleton loading). The audit appears to have been generated without reading the actual codebase — it relies on repo metadata (GitHub language stats, README surface-level reading) and generic PropTech UX heuristics.
+
+**Reliability: LOW for specific technical claims. MODERATE for general UX strategy observations.**
+
+### Factual Errors (claims refuted by code)
+
+| # | Audit Claim | Section | Reality | Evidence |
+|---|-------------|---------|---------|----------|
+| 1 | "FastAPI + PostGIS backend" | Header | No PostGIS, no database. Stateless aggregator with Redis cache | `pyproject.toml`: no PostGIS dependency. `backend/CLAUDE.md`: "No database" |
+| 2 | "Rust/wgpu forge3d renderer" | Header | Plain Three.js v0.182.0 only. No Rust anywhere | `package.json`: `three` dependency. Zero `.rs` files in repo |
+| 3 | "85.5% HTML = substantial static HTML build" | §2.1 | React SPA. GitHub stat reflects generated HTML in build artifacts | Entire app is React + TypeScript components |
+| 4 | Premium/paywall system exists | §7, §17 | Zero payment code — no Stripe, no pricing, no paywall components | Grep for `premium\|paywall\|stripe\|payment`: 0 matches in `src/` or `app/` |
+| 5 | "Financial intelligence" feature | §1.1, §7.1 | Not implemented. Only VvE advisory flag exists | No WOZ, valuation, or mortgage API calls |
+| 6 | "Expat document translation" feature | §7.1, §15.1 | Not implemented. Only UI i18n (en/nl) exists | No translation service in backend |
+| 7 | "33-second cold load" as single wait | §10.1 | 3-phase progressive loading. Phase 1 completes ~1-2s; 3DBAG background is 62-77s | `App.tsx:829-1128`: `settleWithTimeout` with phase budgets |
+| 8 | "No recent searches or saved locations" | §3.1 | Recent searches exist with localStorage + timestamps | `AddressSearch.tsx:187-208`: recent list with `formatRelativeTime` |
+| 9 | "No comparison mode" | §1.1 | `CompareScreen.tsx` — parallel coordinates + side-by-side risk scores | `App.tsx:35`: `lazy(() => import('./components/CompareScreen'))` |
+| 10 | "No visible data source attribution" | §14.1 | Sources cited on every risk card footer, building facts, 3D viewer, soil info | `RiskDetailView.tsx:149-158`, `BuildingFactsCard.tsx:62`, `SoilInfoCard.tsx:49` |
+| 11 | "Color-coded risk scores fail for colorblind" | §9.1 | Four-channel design: color + icon shape + text label + numeric score | `SeverityBadge.tsx:10-46`: distinct SVG path per severity |
+| 12 | "3D has zero screen reader support" | §9.1 | Canvas has `role="application"`, `aria-label`, `aria-describedby`, keyboard nav | `NeighborhoodViewer3D.tsx:1204-1210`: tabIndex, role, handlers |
+| 13 | "Missing ARIA landmarks and roles" | §9.1 | 111 ARIA instances: regions, roles, `aria-live`, `aria-busy`, `role="meter"`, `role="listbox"` | `App.tsx`: 3 `role="region"` sections; components across board |
+| 14 | "No skip-to-content link" | §9.2 | Exists with `.sr-only--focusable` class | `App.tsx:1596`: `<a href="#main-content" className="sr-only sr-only--focusable">` |
+| 15 | "No skeleton loading states" | §10.2 | DossierSkeleton, RiskTileSkeleton, StatsSkeleton, animated LoadingScreen | `LoadingScreen.tsx`: animated SVG + progress bar + ARIA |
+| 16 | "Language toggle buried / no detection" | §2.2, §15.2 | NL/EN toggle visible in TopBar header; browser locale detection via i18next | `TopBar.tsx:40-58`: radiogroup with NL/EN buttons. `i18n/index.ts:3,8`: LanguageDetector |
+| 17 | "No search disambiguation" | §3.1 | PDOK `weergavenaam` includes city (e.g., "Keizersgracht 1, Amsterdam") | `locatieserver.py:49`: `display_name=doc.get("weergavenaam")` |
+| 18 | "Binary risk: high/low only" | §6.1 | Four-level: good (70-100), moderate (40-69), poor (20-39), critical (0-19) with 0-100 scores | `scoring.py`, `SeverityBadge.tsx` |
+| 19 | "No data freshness indicators" | §6.2 | `source_date` displayed in risk card footers; data coverage banner shows freshness ranges | `RiskDetailView.tsx:151`: `t('risk.sourceDate', { source, date: sourceDate })` |
+| 20 | "No error handling for API failures" | §12.1 | Graceful degradation: failed sources show "unavailable" badges, per-section retry | `DataCoverageBanner`, individual card error states |
+
+### Valid Concerns Already in Existing Appraisal
+
+| Audit Claim | Existing Finding | Match |
+|-------------|-----------------|-------|
+| No URL routing / deep linking | Structural UX Gaps | EXACT |
+| Touch targets undersized | NEW-P1 (3 components) | EXACT |
+| No entrance animations | NEW P2 | EXACT |
+| Grab handle misleading | NEW-P2 DossierSheet | EXACT |
+| Shortlist reopen broken | NEW-P0 | EXACT |
+| Data shown in multiple places | NEW-P0 risk tiles + cards + detail | EXACT |
+| Fixed bar viewport consumption | P1 #9 (120-154px) | EXACT |
+| Weak home screen / no emotional hook | P1 #8 | EXACT |
+| No scoring methodology docs | (implicit in product gaps) | PARTIAL |
+
+### Genuinely New Findings (not in existing appraisal)
+
+| # | Finding | Severity | Evidence |
+|---|---------|----------|----------|
+| N1 | No scoring methodology transparency — users cannot see how 0-100 scores are calculated | P2 | No "how calculated" modal/link. Backend `scoring.py` logic not exposed to UI |
+| N2 | No service worker / offline caching — PWA manifest exists but no runtime SW | P3 | `main.tsx`: no `serviceWorker.register()`. No workbox config |
+| N3 | No geolocation button — users at property viewings can't use current location | P3 | Zero `navigator.geolocation` calls in frontend |
+| N4 | No neighborhood-level search — only address entry, no "explore a buurt" mode | P3 | `AddressSearch` only uses PDOK Locatieserver address suggest |
+| N5 | 3D keyboard controls undiscoverable — arrow keys / +/- work but no visual hint | P3 | `NeighborhoodViewer3D.tsx:900+`: keyboard handlers exist, no tooltip/guide |
+
+### Strategic Observations (valid but not code-verifiable bugs)
+
+The audit makes several strategic product observations that are reasonable but not verifiable against code:
+
+- **"Cool palette may feel clinical"** — Subjective. Polar Frost is deliberately professional for a data product. Worth user-testing.
+- **"No guided onboarding for 3D"** — Valid. 3D controls are non-obvious for non-gamers. Camera presets already deferred per PRD.
+- **"No help center / FAQ / methodology docs"** — Valid gap for a consumer product making property claims.
+- **"No event tracking / analytics"** — Valid. No Mixpanel/Amplitude/PostHog.
+- **"No third-party trust signals"** — Valid. No testimonials, press, or partnership logos.
+- **"Tone should be friendly, slightly informal"** — Already largely addressed. Risk detail view translates data into consequences. Some areas (crime stats, building facts) still present raw data.
+
+### Audit Methodology Concerns
+
+1. **Tech stack fabricated.** The audit invents "PostGIS" and "Rust/wgpu forge3d renderer" — components that have never existed in this project. This suggests the audit was generated from surface-level repo metadata rather than code inspection.
+2. **Features assumed.** Premium/paywall (Section 7), financial intelligence, and document translation are treated as existing features. They are aspirational suggestions projected as critique of current state.
+3. **Heuristic scores ungrounded.** The Nielsen heuristic scores (Appendix A) rate features as 1-2 that actually exist and work (e.g., "Recognition over recall: 2" despite recent searches + shortlist; "Help users recover: 2" despite graceful degradation + retry). Scores appear assigned from generic PropTech assumptions, not observation.
+4. **"33-second cold load" misattributed.** The 3DBAG cold latency is real (62-77s) but happens in the background during Phase 3. Users see progressive content within 1-2 seconds. The audit presents this as a blocking first-paint issue, which it is not.
+5. **Conversion funnel fabricated.** The "predicted funnel" in Section 17 assigns specific percentages (60%, 35%, 25%...) without any usage data. These are speculative.
+
+### Revised Summary Incorporating Cross-Reference
+
+The Claude UX audit's overall score of 4.2/10 is **not grounded in code reality**. It penalizes heavily for problems that don't exist (no paywall UX, no attribution, no loading states, no a11y) while missing the actual bugs documented in the main appraisal (shortlist no-op, hardcoded English aria-labels, summary pills not scrolling, checklist not persisting).
+
+**Where the audit adds value:** general product strategy (methodology transparency, offline caching, geolocation, analytics, trust signals) and the reframe of "technology drives experience rather than user needs" — a fair high-level observation, even if the specific evidence cited is often wrong.
+
+**Where the audit misleads:** every specific technical claim should be independently verified. At least 20 of the audit's factual assertions are incorrect.

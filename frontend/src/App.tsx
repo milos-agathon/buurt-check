@@ -669,6 +669,15 @@ function App() {
     window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
   }, []);
 
+  const scrollDossierToTop = useCallback(() => {
+    const root = getDossierScrollContainer();
+    if (hasInternalDossierScroll(root)) {
+      root.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   const highlightRiskTile = useCallback((category: string) => {
     const tile = document.getElementById(`section-risk-${category}`);
     if (!tile) return;
@@ -699,6 +708,11 @@ function App() {
     hapticTap();
     scrollToDossierTarget('section-viewing-checklist');
   }, [scrollToDossierTarget]);
+
+  const handleJumpToTop = useCallback(() => {
+    hapticTap();
+    scrollDossierToTop();
+  }, [scrollDossierToTop]);
 
   const handleSunlightAnalysis = useCallback((result: SunlightResult) => {
     setSunlight(result);
@@ -1561,9 +1575,18 @@ function App() {
               <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
                 {address && buildingResponse && showDossierJump && (
                   <div className="app__dossier-jump-nav">
-                    <button type="button" className="app__dossier-jump-address" onClick={handleJumpToHouse}>
-                      {address.display_name}
-                    </button>
+                    <div className="app__dossier-jump-header">
+                      <button type="button" className="app__dossier-jump-address" onClick={handleJumpToHouse}>
+                        {address.display_name}
+                      </button>
+                      <button
+                        type="button"
+                        className="app__dossier-jump-top"
+                        onClick={handleJumpToTop}
+                      >
+                        {t('nav.backToTop')}
+                      </button>
+                    </div>
                     <div className="app__dossier-jump-actions">
                       <button type="button" onClick={handleJumpToHouse}>{t('nav.jumpHouse')}</button>
                       <button type="button" onClick={handleJumpToBuurt}>{t('nav.jumpBuurt')}</button>

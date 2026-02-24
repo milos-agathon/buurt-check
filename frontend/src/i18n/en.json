@@ -43,6 +43,7 @@
   "nav.jumpHouse": "House",
   "nav.jumpBuurt": "Buurt",
   "nav.jumpBriefing": "Briefing",
+  "nav.backToTop": "Top",
   "loading.findingBuilding": "Finding building...",
   "loading.loading3D": "Loading 3D model...",
   "loading.checkingNoise": "Checking noise levels...",

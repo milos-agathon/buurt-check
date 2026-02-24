@@ -781,6 +781,38 @@ describe('dossier section order (v7 canonical)', () => {
   });
 });
 
+describe('dossier jump navigation', () => {
+  it('shows a back-to-top button and scrolls to the top', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dossier-sheet')).toBeInTheDocument();
+    });
+
+    const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 420 });
+
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+
+    const topButton = await screen.findByRole('button', { name: 'Top' });
+    scrollToSpy.mockClear();
+
+    await act(async () => {
+      fireEvent.click(topButton);
+    });
+
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    scrollToSpy.mockRestore();
+    Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 0 });
+  });
+});
+
 describe('property warnings param forwarding', () => {
   it('calls getPropertyWarnings with constructionYear, numUnits, and municipality from building facts and resolved address', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress({ municipality: 'Amsterdam' }));
