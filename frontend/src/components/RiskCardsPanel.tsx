@@ -6,6 +6,7 @@ interface Props {
   risks?: RiskCardsResponse;
   loading?: boolean;
   error?: boolean;
+  onRetry?: () => void;
 }
 
 interface CardProps {
@@ -51,12 +52,12 @@ function metricOrUnavailable(value: string | null, t: (key: string) => string): 
   return value ?? t('risk.metricUnavailable');
 }
 
-export default function RiskCardsPanel({ risks, loading, error }: Props) {
+export default function RiskCardsPanel({ risks, loading, error, onRetry }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
     return (
-      <section className="risk-cards">
+      <section className="risk-cards" data-testid="risk-cards">
         <h2 className="risk-cards__title">{t('risk.sectionTitle')}</h2>
         <p className="risk-cards__loading">{t('risk.loading')}</p>
       </section>
@@ -128,9 +129,22 @@ export default function RiskCardsPanel({ risks, loading, error }: Props) {
   );
 
   return (
-    <section className="risk-cards">
+    <section className="risk-cards" data-testid="risk-cards">
       <h2 className="risk-cards__title">{t('risk.sectionTitle')}</h2>
-      {error && <p className="risk-cards__error">{t('risk.fetchError')}</p>}
+      {error && (
+        <div className="risk-cards__error-row">
+          <p className="risk-cards__error">{t('risk.fetchError')}</p>
+          {onRetry && (
+            <button
+              type="button"
+              className="app__retry-button risk-cards__retry"
+              onClick={onRetry}
+            >
+              {t('error.retry', 'Retry')}
+            </button>
+          )}
+        </div>
+      )}
       <div className="risk-cards__grid">
         <RiskCard
           id="noise"

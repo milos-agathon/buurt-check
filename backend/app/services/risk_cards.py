@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from app.cache.redis import cache_get
 from app.config import settings
 from app.models.risk import (
     AirQualityRiskCard,
@@ -15,6 +16,7 @@ from app.models.risk import (
     NoiseRiskCard,
     RiskCardsResponse,
     RiskLevel,
+    SunlightRiskCard,
 )
 from app.services.scoring import (
     air_summary,
@@ -785,9 +787,18 @@ async def get_risk_cards(
     climate_card.summary = climate_en
     climate_card.summary_nl = climate_nl
 
+    sunlight_card: SunlightRiskCard | None = None
+    cached_sunlight = await cache_get(f"sunlight:{vbo_id}")
+    if isinstance(cached_sunlight, dict):
+        try:
+            sunlight_card = SunlightRiskCard(**cached_sunlight)
+        except Exception:
+            sunlight_card = None
+
     return RiskCardsResponse(
         address_id=vbo_id,
         noise=noise_card,
         air_quality=air_card,
         climate_stress=climate_card,
+        sunlight=sunlight_card,
     )

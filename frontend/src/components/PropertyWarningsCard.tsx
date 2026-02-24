@@ -6,6 +6,7 @@ interface Props {
   data?: PropertyWarningsResponse;
   loading?: boolean;
   error?: boolean;
+  onRetry?: () => void;
 }
 
 const ERFPACHT_NOTE_MUNICIPALITY_ONLY = 'ERFPACHT_NOTE_MUNICIPALITY_ONLY';
@@ -17,7 +18,7 @@ function severityClass(level: string): string {
   return 'unavailable';
 }
 
-export default function PropertyWarningsCard({ data, loading, error }: Props) {
+export default function PropertyWarningsCard({ data, loading, error, onRetry }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -32,6 +33,15 @@ export default function PropertyWarningsCard({ data, loading, error }: Props) {
     return (
       <section className="property-warnings" data-testid="property-warnings">
         <p className="property-warnings__error">{t('warnings.error')}</p>
+        {onRetry && (
+          <button
+            type="button"
+            className="app__retry-button property-warnings__retry"
+            onClick={onRetry}
+          >
+            {t('error.retry', 'Retry')}
+          </button>
+        )}
       </section>
     );
   }

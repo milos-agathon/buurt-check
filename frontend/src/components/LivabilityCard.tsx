@@ -7,6 +7,7 @@ interface Props {
   loading?: boolean;
   error?: boolean;
   onTap?: () => void;
+  onRetry?: () => void;
 }
 
 function scoreSeverity(normalized: number): SeverityLevel {
@@ -16,7 +17,7 @@ function scoreSeverity(normalized: number): SeverityLevel {
   return 'critical';
 }
 
-export default function LivabilityCard({ data, loading, error, onTap }: Props) {
+export default function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -31,6 +32,15 @@ export default function LivabilityCard({ data, loading, error, onTap }: Props) {
     return (
       <section className="livability-card" data-testid="livability-card">
         <p className="livability-card__error">{t('livability.error')}</p>
+        {onRetry && (
+          <button
+            type="button"
+            className="app__retry-button livability-card__retry"
+            onClick={onRetry}
+          >
+            {t('error.retry', 'Retry')}
+          </button>
+        )}
       </section>
     );
   }

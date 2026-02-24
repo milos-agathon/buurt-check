@@ -6,6 +6,7 @@ interface Props {
   data?: TierBResponse;
   loading?: boolean;
   error?: boolean;
+  onRetry?: () => void;
 }
 
 function formatCrimeValue(
@@ -31,7 +32,7 @@ function formatCbsPeriod(period: string, locale: string): string {
   return `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${year}`;
 }
 
-export default function TierBSignalsCard({ data, loading, error }: Props) {
+export default function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
   const { t, i18n } = useTranslation();
 
   if (loading) {
@@ -46,6 +47,15 @@ export default function TierBSignalsCard({ data, loading, error }: Props) {
     return (
       <section className="tier-b-card" data-testid="tier-b-card">
         <p className="tier-b-card__error">{t('tierB.error')}</p>
+        {onRetry && (
+          <button
+            type="button"
+            className="app__retry-button tier-b-card__retry"
+            onClick={onRetry}
+          >
+            {t('error.retry', 'Retry')}
+          </button>
+        )}
       </section>
     );
   }

@@ -9,6 +9,8 @@ interface Props {
   loading?: boolean;
   unavailable?: boolean;
   orientationDeg?: number;
+  showHeatmap?: boolean;
+  onToggleHeatmap?: (show: boolean) => void;
 }
 
 const AXIS_LABELS: [number, string][] = [
@@ -35,7 +37,20 @@ function getSeverity(winterHours: number): SeverityLevel {
   return 'critical';
 }
 
-export default function SunlightRiskCard({ sunlight, loading, unavailable, orientationDeg }: Props) {
+function svfMeaningKey(svf: number): 'open' | 'moderate' | 'enclosed' {
+  if (svf >= 0.6) return 'open';
+  if (svf >= 0.3) return 'moderate';
+  return 'enclosed';
+}
+
+export default function SunlightRiskCard({
+  sunlight,
+  loading,
+  unavailable,
+  orientationDeg,
+  showHeatmap = false,
+  onToggleHeatmap,
+}: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -65,6 +80,13 @@ export default function SunlightRiskCard({ sunlight, loading, unavailable, orien
 
   const severity = getSeverity(sunlight.winter);
   const sourceDate = sunlight.analysisYear ? String(sunlight.analysisYear) : t('sunlight.currentYear');
+  const hasHeatmapData = (
+    (sunlight.perPointAnnual?.length ?? 0) > 0
+    && (sunlight.roofGridPoints?.length ?? 0) > 0
+    && sunlight.perPointAnnual?.length === sunlight.roofGridPoints?.length
+  );
+  const svfValue = sunlight.svf;
+  const svfPercent = svfValue != null ? Math.round(svfValue * 100) : null;
 
   return (
     <div className="sunlight-card">
@@ -99,6 +121,29 @@ export default function SunlightRiskCard({ sunlight, loading, unavailable, orien
           </tr>
         </tbody>
       </table>
+
+      {hasHeatmapData && (
+        <label className="sunlight-card__heatmap-toggle">
+          <input
+            type="checkbox"
+            checked={showHeatmap}
+            onChange={(event) => onToggleHeatmap?.(event.target.checked)}
+          />
+          {t('sunlight.heatmap_toggle')}
+        </label>
+      )}
+
+      {svfPercent != null && svfValue != null && (
+        <div className="sunlight-card__svf">
+          <h3 className="sunlight-card__svf-title">{t('sunlight.svf_title')}</h3>
+          <p className="sunlight-card__svf-subtitle">{t('sunlight.svf_subtitle')}</p>
+          <p className="sunlight-card__svf-value">{svfPercent}%</p>
+          <p className="sunlight-card__svf-meaning">
+            {t(`sunlight.svf_meaning.${svfMeaningKey(svfValue)}`)}
+          </p>
+          <p className="sunlight-card__svf-note">{t('sunlight.svf_note')}</p>
+        </div>
+      )}
 
       {orientationDeg != null && (
         <div className="sunlight-card__orientation">

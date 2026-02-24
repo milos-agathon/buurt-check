@@ -7,6 +7,7 @@ interface Props {
   stats?: NeighborhoodStatsResponse;
   loading?: boolean;
   error?: boolean;
+  onRetry?: () => void;
 }
 
 function Indicator({
@@ -77,7 +78,7 @@ function formatEuro(value: number | string): string {
   return `€${num.toLocaleString('nl-NL', { maximumFractionDigits: 0 })}`;
 }
 
-export default function NeighborhoodStatsCard({ stats, loading, error }: Props) {
+export default function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -94,6 +95,15 @@ export default function NeighborhoodStatsCard({ stats, loading, error }: Props) 
       <section className="neighborhood-card">
         <h2 className="neighborhood-card__title">{t('neighborhood.title')}</h2>
         <p className="neighborhood-card__error">{t('neighborhood.error')}</p>
+        {onRetry && (
+          <button
+            type="button"
+            className="app__retry-button neighborhood-card__retry"
+            onClick={onRetry}
+          >
+            {t('error.retry', 'Retry')}
+          </button>
+        )}
       </section>
     );
   }

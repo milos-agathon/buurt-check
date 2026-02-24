@@ -30,6 +30,8 @@ from app.models.risk import (
     QuestionCategory,
     RiskCardsResponse,
     RiskLevel,
+    SeverityLevel,
+    SunlightRiskCard,
     ViewingQuestion,
     ViewingQuestionsResponse,
 )
@@ -657,6 +659,98 @@ async def test_risk_cards_endpoint(mock_risk_cards, mock_cache_set, mock_cache_g
     assert data["air_quality"]["pm25_ug_m3"] == 8.8
     assert data["climate_stress"]["level"] == "low"
     mock_cache_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_submit_sunlight_analysis_caches_result(mock_cache_set, client):
+    resp = await client.post(
+        "/api/address/0363010000696734/sunlight",
+        json={
+            "winter_hours": 3.0,
+            "summer_hours": 11.0,
+            "equinox_hours": 7.0,
+            "analysis_year": 2026,
+            "svf": 0.52,
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert data["score"] == 50
+    assert data["severity"] == "moderate"
+
+    mock_cache_set.assert_called_once()
+    cache_key, cached_value = mock_cache_set.call_args.args[:2]
+    assert cache_key == "sunlight:0363010000696734"
+    assert cached_value["score"] == 50
+    assert cached_value["level"] == "moderate"
+    assert cached_value["svf_score"] == 52
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock)
+@patch("app.api.address.risk_cards")
+async def test_risk_cards_merges_cached_sunlight_when_base_cache_has_no_sunlight(
+    mock_risk_cards,
+    mock_cache_get,
+    client,
+):
+    cached_risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.medium,
+            source="RIVM",
+            sampled_at="2026-02-10",
+            score=55,
+            severity="moderate",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM",
+            sampled_at="2026-02-10",
+            score=75,
+            severity="good",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas",
+            sampled_at="2026-02-10",
+            score=85,
+            severity="good",
+        ),
+        sunlight=None,
+    ).model_dump(mode="json")
+    cached_sunlight = SunlightRiskCard(
+        level=SeverityLevel.moderate,
+        winter_hours=3.0,
+        summer_hours=11.0,
+        equinox_hours=7.0,
+        source="3DBAG + SunCalc",
+        score=50,
+        severity="moderate",
+    ).model_dump(mode="json")
+    mock_cache_get.side_effect = [cached_risks, cached_sunlight]
+    mock_risk_cards.get_risk_cards = AsyncMock()
+
+    resp = await client.get(
+        "/api/address/0363010000696734/risks",
+        params={
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["sunlight"]["score"] == 50
+    assert data["sunlight"]["level"] == "moderate"
+    mock_risk_cards.get_risk_cards.assert_not_called()
 
 
 @pytest.mark.asyncio

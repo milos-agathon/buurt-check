@@ -198,7 +198,7 @@ export default function NeighborhoodViewer3D({
   targetPandId,
   center,
   sunDateTime,
-  showHeatmap = true,
+  showHeatmap = false,
   onSunlightAnalysis,
   onSunlightError,
   sunlightRetryToken = 0,

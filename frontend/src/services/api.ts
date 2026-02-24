@@ -7,6 +7,7 @@ import type {
   ResolvedAddress,
   RiskCardsResponse,
   RiskComparisonsResponse,
+  SunlightResult,
   SuggestResponse,
   TierBResponse,
   ViewingQuestionsResponse,
@@ -351,6 +352,43 @@ export async function getPropertyWarnings(
     );
     if (!resp.ok) throw new Error(`Property warnings failed: ${resp.status}`);
     return resp.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export interface SunlightSubmissionPayload {
+  winter_hours: number;
+  summer_hours: number;
+  equinox_hours: number;
+  analysis_year: number;
+  svf?: number;
+}
+
+export async function submitSunlightAnalysis(
+  vboId: string,
+  data: SunlightSubmissionPayload | SunlightResult,
+): Promise<void> {
+  const payload: SunlightSubmissionPayload = 'winter_hours' in data
+    ? data
+    : {
+      winter_hours: data.winter,
+      summer_hours: data.summer,
+      equinox_hours: data.equinox,
+      analysis_year: data.analysisYear ?? new Date().getFullYear(),
+      svf: data.svf,
+    };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(`${API_BASE}/address/${vboId}/sunlight`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`Sunlight submit failed: ${resp.status}`);
   } finally {
     clearTimeout(timeoutId);
   }

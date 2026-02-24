@@ -15,7 +15,6 @@ import {
 vi.mock('./services/api', () => ({
   suggestAddresses: vi.fn(),
   lookupAddress: vi.fn(),
-  lookupAddressByVbo: vi.fn(),
   getBuildingFacts: vi.fn(),
   getBuilding3D: vi.fn(),
   getNeighborhood3D: vi.fn(),
@@ -63,7 +62,6 @@ vi.mock('./components/NeighborhoodStatsCard', () => ({
 
 import {
   lookupAddress,
-  lookupAddressByVbo,
   getBuildingFacts,
   getBuilding3D,
   suggestAddresses,
@@ -79,7 +77,6 @@ import {
 } from './services/api';
 
 const mockLookup = vi.mocked(lookupAddress);
-const mockLookupByVbo = vi.mocked(lookupAddressByVbo);
 const mockBuilding = vi.mocked(getBuildingFacts);
 const mockBuilding3D = vi.mocked(getBuilding3D);
 const mockSuggest = vi.mocked(suggestAddresses);
@@ -102,7 +99,6 @@ beforeAll(async () => {
 beforeEach(() => {
   window.history.replaceState({}, '', '/');
   mockLookup.mockReset();
-  mockLookupByVbo.mockReset();
   mockBuilding.mockReset();
   mockBuilding3D.mockReset();
   mockSuggest.mockReset();
@@ -116,9 +112,6 @@ beforeEach(() => {
   mockLivability.mockReset();
   mockSubmitSunlightAnalysis.mockReset();
 
-  mockLookupByVbo.mockResolvedValue(makeResolvedAddress({
-    adresseerbaar_object_id: '0363010000696734',
-  }));
   mockBuilding3D.mockResolvedValue(
     makeNeighborhood3DResponse({ buildings: [], target_pand_id: undefined }),
   );

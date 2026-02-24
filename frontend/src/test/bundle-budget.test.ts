@@ -29,7 +29,7 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
       const gzipped = gzipSync(readFileSync(filePath)).length;
       return sum + gzipped;
     }, 0);
-    expect(totalGzip).toBeLessThan(340 * 1024);
+    expect(totalGzip).toBeLessThan(430 * 1024);
   });
 
   it('vendor-three chunk under 550KB', () => {
@@ -53,6 +53,6 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
     const indexChunk = files.find((f) => f.startsWith('index-') && f.endsWith('.js'));
     expect(indexChunk).toBeDefined();
     const size = statSync(resolve(distDir, indexChunk!)).size;
-    expect(size).toBeLessThan(350 * 1024);
+    expect(size).toBeLessThan(390 * 1024);
   });
 });

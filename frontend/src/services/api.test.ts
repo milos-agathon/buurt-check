@@ -10,6 +10,7 @@ import {
   getRiskCards,
   getTierBData,
   lookupAddress,
+  submitSunlightAnalysis,
   suggestAddresses,
 } from './api';
 
@@ -192,6 +193,45 @@ describe('getRiskCards', () => {
     // never settles, but we've verified the abort signal fires correctly.
     // Suppress unhandled rejection from the dangling promise.
     promise.catch(() => {});
+  });
+});
+
+describe('submitSunlightAnalysis', () => {
+  it('posts mapped payload to sunlight endpoint', async () => {
+    mockFetch.mockResolvedValue(okResponse({ status: 'ok' }));
+
+    await submitSunlightAnalysis('vbo-1', {
+      winter: 3.1,
+      equinox: 7.2,
+      summer: 10.8,
+      annualAverage: 6.7,
+      analysisYear: 2026,
+      svf: 0.55,
+    });
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/address/vbo-1/sunlight');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body);
+    expect(body).toEqual({
+      winter_hours: 3.1,
+      equinox_hours: 7.2,
+      summer_hours: 10.8,
+      analysis_year: 2026,
+      svf: 0.55,
+    });
+  });
+
+  it('throws on non-OK response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(500));
+    await expect(
+      submitSunlightAnalysis('vbo-1', {
+        winter_hours: 2.4,
+        equinox_hours: 6.4,
+        summer_hours: 9.6,
+        analysis_year: 2026,
+      }),
+    ).rejects.toThrow('Sunlight submit failed: 500');
   });
 });
 

@@ -51,6 +51,8 @@ vi.mock('three', () => {
     this.map = null;
     this.needsUpdate = false;
     this.color = { setHex: vi.fn() };
+    this.copy = vi.fn(() => this);
+    this.clone = vi.fn(() => new (MeshStandardMaterial as any)(opts));
   }
   function MockMesh(this: any) {
     this.rotation = { x: 0 };

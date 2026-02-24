@@ -4,15 +4,7 @@ Normalizes raw risk values to a 0-100 integer score, classifies severity,
 and generates bilingual one-liner summaries for each risk category.
 """
 
-from enum import Enum
-
-
-class SeverityLevel(str, Enum):
-    good = "good"
-    moderate = "moderate"
-    poor = "poor"
-    critical = "critical"
-    unavailable = "unavailable"
+from app.models.risk import SeverityLevel
 
 
 def severity_from_score(score: int) -> SeverityLevel:
@@ -85,6 +77,14 @@ def normalize_sunlight_score(winter_hours: float | None) -> int | None:
     if winter_hours is None:
         return None
     score = winter_hours * (100 / 6)
+    return max(0, min(100, round(score)))
+
+
+def normalize_svf_score(svf: float | None) -> int | None:
+    """Linear mapping: 0.0 = 0, 1.0 = 100. Clamps to 0-100."""
+    if svf is None:
+        return None
+    score = svf * 100
     return max(0, min(100, round(score)))
 
 

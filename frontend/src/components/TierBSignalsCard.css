@@ -21,6 +21,10 @@
   margin: 0;
 }
 
+.tier-b-card__retry {
+  width: fit-content;
+}
+
 .tier-b-card__panel {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

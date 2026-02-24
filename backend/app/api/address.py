@@ -19,6 +19,8 @@ from app.models.risk import (
     RiskCardsResponse,
     RiskComparisonsResponse,
     RiskLevel,
+    SeverityLevel,
+    SunlightRiskCard,
     ViewingQuestionsResponse,
 )
 from app.models.tier_b import TierBResponse
@@ -36,11 +38,35 @@ from app.services import (
 )
 from app.services.pdf_export import generate_full_dossier, generate_quick_brief
 from app.services.risk_comparisons import build_risk_comparisons
+from app.services.scoring import (
+    normalize_sunlight_score,
+    normalize_svf_score,
+    severity_from_score,
+    sunlight_summary,
+)
 from app.services.viewing_questions import build_viewing_questions
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/address", tags=["address"])
+
+
+class SunlightSubmission(BaseModel):
+    winter_hours: float = Field(..., ge=0, le=24)
+    summer_hours: float = Field(..., ge=0, le=24)
+    equinox_hours: float = Field(..., ge=0, le=24)
+    analysis_year: int = Field(..., ge=2000, le=2100)
+    svf: float | None = Field(default=None, ge=0, le=1)
+
+
+async def _get_cached_sunlight_card(vbo_id: str) -> SunlightRiskCard | None:
+    cached = await cache_get(f"sunlight:{vbo_id}")
+    if not isinstance(cached, dict):
+        return None
+    try:
+        return SunlightRiskCard(**cached)
+    except Exception:
+        return None
 
 
 @router.get("/suggest", response_model=SuggestResponse)
@@ -264,6 +290,48 @@ async def neighborhood_3d(
     return result
 
 
+@router.post("/{vbo_id}/sunlight")
+async def submit_sunlight_analysis(
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    body: SunlightSubmission = ...,
+):
+    """Accept client-computed sunlight analysis for caching and downstream use."""
+    sunlight_score = normalize_sunlight_score(body.winter_hours)
+    severity = (
+        severity_from_score(sunlight_score)
+        if sunlight_score is not None
+        else SeverityLevel.unavailable
+    )
+    summary_en, summary_nl = sunlight_summary(sunlight_score, body.winter_hours)
+
+    card = SunlightRiskCard(
+        level=severity,
+        winter_hours=round(body.winter_hours, 1),
+        summer_hours=round(body.summer_hours, 1),
+        equinox_hours=round(body.equinox_hours, 1),
+        svf_percent=round(body.svf * 100, 1) if body.svf is not None else None,
+        source="3DBAG + SunCalc",
+        source_date=str(body.analysis_year),
+        score=sunlight_score,
+        svf_score=normalize_svf_score(body.svf),
+        severity=severity,
+        summary=summary_en,
+        summary_nl=summary_nl,
+    )
+
+    await cache_set(
+        f"sunlight:{vbo_id}",
+        card.model_dump(mode="json"),
+        ttl=settings.cache_ttl_risk_cards,
+    )
+
+    return {
+        "status": "ok",
+        "score": sunlight_score,
+        "severity": severity.value,
+    }
+
+
 @router.get("/{vbo_id}/risks", response_model=RiskCardsResponse)
 async def address_risk_cards(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
@@ -277,10 +345,13 @@ async def address_risk_cards(
     cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
+        cached_result = RiskCardsResponse(**cached)
+        if cached_result.sunlight is None:
+            cached_result.sunlight = await _get_cached_sunlight_card(vbo_id)
         logger.info("risk_cards cache_hit vbo=%s", vbo_id)
         metrics.inc("risks.success")
         metrics.record_latency("risks", (time.monotonic() - t0) * 1000)
-        return RiskCardsResponse(**cached)
+        return cached_result
 
     try:
         result = await risk_cards.get_risk_cards(
@@ -295,10 +366,14 @@ async def address_risk_cards(
         metrics.record_latency("risks", (time.monotonic() - t0) * 1000)
         raise HTTPException(status_code=502, detail="Risk card data sources unavailable") from exc
 
+    if result.sunlight is None:
+        result.sunlight = await _get_cached_sunlight_card(vbo_id)
+
     has_data = (
         result.noise.level != RiskLevel.unavailable
         or result.air_quality.level != RiskLevel.unavailable
         or result.climate_stress.level != RiskLevel.unavailable
+        or result.sunlight is not None
     )
     failure_messages = {
         "NOISE_LAYER_UNAVAILABLE",
@@ -393,6 +468,8 @@ async def risk_comparisons(
                 status_code=502,
                 detail="Risk card data sources unavailable",
             ) from exc
+    if risk_result.sunlight is None:
+        risk_result.sunlight = await _get_cached_sunlight_card(vbo_id)
 
     urbanization = UrbanizationLevel.unknown
     cache_key_neighborhood = (
@@ -466,6 +543,8 @@ async def viewing_questions(
             raise HTTPException(
                 status_code=502, detail="Risk card data sources unavailable"
             ) from exc
+    if risk_result.sunlight is None:
+        risk_result.sunlight = await _get_cached_sunlight_card(vbo_id)
 
     return build_viewing_questions(vbo_id, risk_result, street=street, city=city)
 
@@ -652,15 +731,21 @@ async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float,
     cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
-        return RiskCardsResponse(**cached)
+        cached_result = RiskCardsResponse(**cached)
+        if cached_result.sunlight is None:
+            cached_result.sunlight = await _get_cached_sunlight_card(vbo_id)
+        return cached_result
     try:
         result = await risk_cards.get_risk_cards(
             vbo_id=vbo_id, rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng,
         )
+        if result.sunlight is None:
+            result.sunlight = await _get_cached_sunlight_card(vbo_id)
         has_data = (
             result.noise.level != RiskLevel.unavailable
             or result.air_quality.level != RiskLevel.unavailable
             or result.climate_stress.level != RiskLevel.unavailable
+            or result.sunlight is not None
         )
         if has_data:
             await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_risk_cards)

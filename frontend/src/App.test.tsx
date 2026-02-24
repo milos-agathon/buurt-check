@@ -25,6 +25,7 @@ vi.mock('./services/api', () => ({
   getTierBData: vi.fn(),
   getPropertyWarnings: vi.fn(),
   getLivability: vi.fn(),
+  submitSunlightAnalysis: vi.fn(),
 }));
 
 vi.mock('./components/NeighborhoodViewer3D', () => ({
@@ -32,6 +33,12 @@ vi.mock('./components/NeighborhoodViewer3D', () => ({
     <div data-testid="viewer-3d">
       {loading ? '3D Viewer loading...' : `3D Viewer (${buildings.length} buildings)`}
     </div>
+  ),
+}));
+
+vi.mock('./components/ShadowTimeSlider', () => ({
+  default: () => (
+    <div data-testid="shadow-time-slider">Shadow time slider</div>
   ),
 }));
 
@@ -72,6 +79,7 @@ import {
   getTierBData,
   getPropertyWarnings,
   getLivability,
+  submitSunlightAnalysis,
 } from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
 const mockBuilding = vi.mocked(getBuildingFacts);
@@ -85,6 +93,7 @@ const mockViewingQuestions = vi.mocked(getViewingQuestions);
 const mockTierBData = vi.mocked(getTierBData);
 const mockPropertyWarnings = vi.mocked(getPropertyWarnings);
 const mockLivability = vi.mocked(getLivability);
+const mockSubmitSunlightAnalysis = vi.mocked(submitSunlightAnalysis);
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
@@ -104,6 +113,7 @@ beforeEach(() => {
   mockTierBData.mockReset();
   mockPropertyWarnings.mockReset();
   mockLivability.mockReset();
+  mockSubmitSunlightAnalysis.mockReset();
   // Resolve Phase 1 quickly with empty data so dossier sheet expands while
   // Phase 2 neighborhood fetch still controls 3D content in tests.
   mockBuilding3D.mockResolvedValue(
@@ -141,6 +151,7 @@ beforeEach(() => {
     source: 'Leefbaarometer 3.0',
     messages: [],
   });
+  mockSubmitSunlightAnalysis.mockResolvedValue();
 });
 
 function renderApp() {

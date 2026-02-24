@@ -10,6 +10,14 @@ class RiskLevel(str, Enum):
     unavailable = "unavailable"
 
 
+class SeverityLevel(str, Enum):
+    good = "good"
+    moderate = "moderate"
+    poor = "poor"
+    critical = "critical"
+    unavailable = "unavailable"
+
+
 class NoiseRiskCard(BaseModel):
     level: RiskLevel
     lden_db: float | None = None
@@ -19,7 +27,7 @@ class NoiseRiskCard(BaseModel):
     layer: str | None = None
     message: str | None = None
     score: int | None = None
-    severity: str | None = None
+    severity: SeverityLevel | None = None
     summary: str | None = None
     summary_nl: str | None = None
 
@@ -37,7 +45,7 @@ class AirQualityRiskCard(BaseModel):
     no2_layer: str | None = None
     message: str | None = None
     score: int | None = None
-    severity: str | None = None
+    severity: SeverityLevel | None = None
     summary: str | None = None
     summary_nl: str | None = None
 
@@ -57,17 +65,22 @@ class ClimateStressRiskCard(BaseModel):
     water_signal: str | None = None
     message: str | None = None
     score: int | None = None
-    severity: str | None = None
+    severity: SeverityLevel | None = None
     summary: str | None = None
     summary_nl: str | None = None
 
 
 class SunlightRiskCard(BaseModel):
-    level: RiskLevel
+    level: SeverityLevel = SeverityLevel.unavailable
     winter_hours: float | None = None
+    summer_hours: float | None = None
+    equinox_hours: float | None = None
+    svf_percent: float | None = None
     source: str
+    source_date: str | None = None
     score: int | None = None
-    severity: str | None = None
+    svf_score: int | None = None
+    severity: SeverityLevel | None = None
     summary: str | None = None
     summary_nl: str | None = None
 

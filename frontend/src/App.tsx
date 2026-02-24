@@ -5,6 +5,7 @@ import AddressHeader from './components/AddressHeader';
 import SummaryStrip from './components/SummaryStrip';
 import BuildingFactsCard from './components/BuildingFactsCard';
 import SunlightRiskCard from './components/SunlightRiskCard';
+import ShadowTimeSlider from './components/ShadowTimeSlider';
 import ShadowSnapshots from './components/ShadowSnapshots';
 import RiskCardsPanel from './components/RiskCardsPanel';
 import RiskTilesGrid from './components/RiskTilesGrid';
@@ -43,6 +44,7 @@ import {
   getTierBData,
   getPropertyWarnings,
   getLivability,
+  submitSunlightAnalysis,
 } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
@@ -350,6 +352,8 @@ function App() {
   const [showLivabilityDetail, setShowLivabilityDetail] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(dossierSeed?.sunlight ?? null);
   const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
+  const [sunDateTime, setSunDateTime] = useState<Date | undefined>(undefined);
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(
     dossierSeed?.shadowSnapshots ?? null,
   );
@@ -424,6 +428,7 @@ function App() {
     } else {
       const item: ShortlistItem = {
         vboId,
+        lookupId: address.id,
         address: address.display_name,
         postcode: address.postcode,
         city: address.city,
@@ -490,6 +495,34 @@ function App() {
     setActiveDetailCategory(category);
   }, [animationPerformance, isTransitioning]);
 
+  const handleSunlightAnalysis = useCallback((result: SunlightResult) => {
+    setSunlight(result);
+    setSunlightUnavailable(false);
+    const vboId = address?.adresseerbaar_object_id;
+    if (!vboId) return;
+    void submitSunlightAnalysis(vboId, result).catch(() => {
+      // Client-side card still works even when backend caching fails.
+    });
+  }, [address?.adresseerbaar_object_id]);
+
+  const handleRetryRiskCards = useCallback(() => {
+    if (!address?.adresseerbaar_object_id) return;
+    const { adresseerbaar_object_id: vboId, rd_x, rd_y, latitude, longitude } = address;
+    if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
+    setRiskError(false);
+    setRiskLoading(true);
+    void (async () => {
+      try {
+        const risks = await getRiskCards(vboId, rd_x, rd_y, latitude, longitude);
+        setRiskCards(risks);
+      } catch {
+        setRiskError(true);
+      } finally {
+        setRiskLoading(false);
+      }
+    })();
+  }, [address]);
+
   const handleAddressSelect = async (suggestion: AddressSuggestion) => {
     setLoading(true);
     setError(null);
@@ -516,6 +549,8 @@ function App() {
     setShowLivabilityDetail(false);
     setSunlight(null);
     setSunlightUnavailable(false);
+    setSunDateTime(undefined);
+    setShowHeatmap(false);
     setShadowSnapshots(null);
     setViewingQuestions(null);
     setActiveDetailCategory(null);
@@ -1081,6 +1116,7 @@ function App() {
                         risks={riskCards ?? undefined}
                         loading={riskLoading}
                         error={riskError}
+                        onRetry={riskError ? handleRetryRiskCards : undefined}
                       />
                     </>
                   )}
@@ -1185,11 +1221,22 @@ function App() {
                     buildings={neighborhood3D.buildings}
                     targetPandId={neighborhood3D.target_pand_id ?? undefined}
                     center={neighborhood3D.center}
-                    onSunlightAnalysis={surroundingLoading ? undefined : setSunlight}
+                    sunDateTime={sunDateTime}
+                    showHeatmap={showHeatmap}
+                    onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
+                    onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
                     onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
                     loading={surroundingLoading}
                   />
                 </Suspense>
+              )}
+
+              {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                <ShadowTimeSlider
+                  lat={neighborhood3D.center.lat}
+                  lng={neighborhood3D.center.lng}
+                  onChange={setSunDateTime}
+                />
               )}
 
               {(() => {
@@ -1206,6 +1253,8 @@ function App() {
                     loading={sunlightLoading}
                     unavailable={sunlightUnavailable}
                     orientationDeg={targetOrientation}
+                    showHeatmap={showHeatmap}
+                    onToggleHeatmap={setShowHeatmap}
                   />
                 );
               })()}

@@ -38,6 +38,10 @@
   border-radius: var(--radius-sm);
 }
 
+.neighborhood-card__retry {
+  width: fit-content;
+}
+
 .neighborhood-card__badge {
   width: fit-content;
   border-radius: var(--radius-pill);

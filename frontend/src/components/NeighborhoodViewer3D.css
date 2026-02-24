@@ -18,9 +18,9 @@
   overflow: hidden;
   margin-bottom: var(--space-md);
   background: var(--color-surface-recessed);
-  height: 20vh;
-  min-height: 140px;
-  max-height: 170px;
+  height: 40vh;
+  min-height: 240px;
+  max-height: 360px;
 }
 
 .viewer-3d__canvas:focus-visible {

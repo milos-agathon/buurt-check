@@ -83,6 +83,9 @@ export interface SunlightResult {
   summer: number;
   annualAverage: number;
   analysisYear?: number;
+  svf?: number;
+  perPointAnnual?: number[];
+  roofGridPoints?: [number, number, number][];
 }
 
 export interface ShadowSnapshot {
@@ -148,6 +151,7 @@ export interface ClimateStressRiskCard {
 }
 
 export interface SunlightRiskCard {
+  level?: SeverityLevel;
   score?: number;
   severity?: SeverityLevel;
   summary?: string;
@@ -155,6 +159,10 @@ export interface SunlightRiskCard {
   winter_hours?: number;
   summer_hours?: number;
   equinox_hours?: number;
+  svf_percent?: number;
+  svf_score?: number;
+  source?: string;
+  source_date?: string;
 }
 
 export interface RiskCardsResponse {
@@ -394,6 +402,7 @@ export type LivabilityResponse = LivabilityAvailableResponse | LivabilityUnavail
 
 export interface ShortlistItem {
   vboId: string;
+  lookupId?: string; // locatieserver document ID — enables reopen from shortlist
   address: string;
   postcode?: string;
   city?: string;

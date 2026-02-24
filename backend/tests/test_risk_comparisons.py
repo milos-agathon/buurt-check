@@ -15,6 +15,7 @@ from app.models.risk import (
     NoiseRiskCard,
     RiskCardsResponse,
     RiskLevel,
+    SeverityLevel,
     SunlightRiskCard,
 )
 from app.services.risk_comparisons import build_risk_comparisons
@@ -47,7 +48,7 @@ def _sample_risk_cards() -> RiskCardsResponse:
             score=52,
         ),
         sunlight=SunlightRiskCard(
-            level=RiskLevel.medium,
+            level=SeverityLevel.moderate,
             source="3DBAG + SunCalc",
             winter_hours=2.7,
             score=45,
@@ -75,7 +76,7 @@ def test_build_risk_comparisons_uses_urbanization_profile():
 def test_build_risk_comparisons_sunlight_falls_back_to_winter_hours():
     cards = _sample_risk_cards()
     cards.sunlight = SunlightRiskCard(
-        level=RiskLevel.medium,
+        level=SeverityLevel.moderate,
         source="3DBAG + SunCalc",
         winter_hours=3.0,
         score=None,

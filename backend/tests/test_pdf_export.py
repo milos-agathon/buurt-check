@@ -23,6 +23,7 @@ from app.models.risk import (
     RiskComparisonRow,
     RiskComparisonsResponse,
     RiskLevel,
+    SeverityLevel,
     SunlightRiskCard,
     ViewingQuestion,
     ViewingQuestionsResponse,
@@ -78,7 +79,7 @@ def _make_risks(
             summary_nl="Enig overstromingsrisico",
         ),
         sunlight=SunlightRiskCard(
-            level=RiskLevel.low,
+            level=SeverityLevel.good,
             winter_hours=5.0,
             source="SunCalc + 3DBAG",
             score=sunlight_score,

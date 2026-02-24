@@ -4,6 +4,7 @@ from app.models.risk import (
     NoiseRiskCard,
     RiskCardsResponse,
     RiskLevel,
+    SeverityLevel,
     SunlightRiskCard,
 )
 from app.services.viewing_questions import build_viewing_questions
@@ -38,7 +39,7 @@ def test_build_viewing_questions_uses_address_context_and_scores():
             severity="moderate",
         ),
         sunlight=SunlightRiskCard(
-            level=RiskLevel.medium,
+            level=SeverityLevel.moderate,
             winter_hours=1.8,
             source="3DBAG + SunCalc",
             score=49,
@@ -96,7 +97,7 @@ def test_build_viewing_questions_includes_raw_signals_when_available():
             severity="moderate",
         ),
         sunlight=SunlightRiskCard(
-            level=RiskLevel.medium,
+            level=SeverityLevel.moderate,
             winter_hours=2.4,
             source="3DBAG + SunCalc",
             score=40,

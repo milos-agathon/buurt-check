@@ -15,9 +15,13 @@ vi.mock('../services/api', () => ({
   getBuilding3D: vi.fn(),
   getNeighborhood3D: vi.fn(),
   getRiskCards: vi.fn(),
+  getRiskComparisons: vi.fn(),
   getNeighborhoodStats: vi.fn(),
   getViewingQuestions: vi.fn(),
   getTierBData: vi.fn(),
+  getPropertyWarnings: vi.fn(),
+  getLivability: vi.fn(),
+  submitSunlightAnalysis: vi.fn(),
   exportBriefing: vi.fn(),
 }));
 

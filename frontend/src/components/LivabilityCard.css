@@ -267,6 +267,10 @@
   border-radius: var(--radius-sm);
 }
 
+.livability-card__retry {
+  width: fit-content;
+}
+
 .livability-card__unavailable {
   font: var(--type-small);
   color: var(--color-text-secondary);
