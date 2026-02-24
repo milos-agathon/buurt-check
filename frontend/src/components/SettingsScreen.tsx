@@ -17,14 +17,24 @@ export default function SettingsScreen({ onClearRecent, onClearShortlist, theme 
       <div className="settings-screen__group">
         <div className="settings-screen__row settings-screen__row--toggle">
           <span className="settings-screen__label">{t('settings.language')}</span>
-          <div className="settings-screen__lang-toggle">
+          <div
+            className="settings-screen__lang-toggle"
+            role="radiogroup"
+            aria-label={t('settings.language')}
+          >
             <button
+              type="button"
+              role="radio"
+              aria-checked={i18n.language === 'en'}
               className={`settings-screen__lang-btn ${i18n.language === 'en' ? 'settings-screen__lang-btn--active' : ''}`}
               onClick={() => i18n.changeLanguage('en')}
             >
               EN
             </button>
             <button
+              type="button"
+              role="radio"
+              aria-checked={i18n.language === 'nl'}
               className={`settings-screen__lang-btn ${i18n.language === 'nl' ? 'settings-screen__lang-btn--active' : ''}`}
               onClick={() => i18n.changeLanguage('nl')}
             >
@@ -35,20 +45,34 @@ export default function SettingsScreen({ onClearRecent, onClearShortlist, theme 
         {onThemeChange && (
           <div className="settings-screen__row settings-screen__row--toggle">
             <span className="settings-screen__label">{t('settings.appearance', 'Appearance')}</span>
-            <div className="settings-screen__theme-toggle" data-testid="theme-toggle">
+            <div
+              className="settings-screen__theme-toggle"
+              data-testid="theme-toggle"
+              role="radiogroup"
+              aria-label={t('settings.appearance', 'Appearance')}
+            >
               <button
+                type="button"
+                role="radio"
+                aria-checked={theme === 'system'}
                 className={`settings-screen__theme-btn${theme === 'system' ? ' settings-screen__theme-btn--active' : ''}`}
                 onClick={() => onThemeChange('system')}
               >
                 {t('settings.theme.system', 'System')}
               </button>
               <button
+                type="button"
+                role="radio"
+                aria-checked={theme === 'light'}
                 className={`settings-screen__theme-btn${theme === 'light' ? ' settings-screen__theme-btn--active' : ''}`}
                 onClick={() => onThemeChange('light')}
               >
                 {t('settings.theme.light', 'Light')}
               </button>
               <button
+                type="button"
+                role="radio"
+                aria-checked={theme === 'dark'}
                 className={`settings-screen__theme-btn${theme === 'dark' ? ' settings-screen__theme-btn--active' : ''}`}
                 onClick={() => onThemeChange('dark')}
               >

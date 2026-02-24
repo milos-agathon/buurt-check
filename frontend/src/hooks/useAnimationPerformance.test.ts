@@ -27,6 +27,7 @@ function setupRafQueue() {
 describe('useAnimationPerformance', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    document.documentElement.removeAttribute('data-test-reduced-motion');
   });
 
   afterEach(() => {
@@ -93,5 +94,29 @@ describe('useAnimationPerformance', () => {
     });
 
     expect(result.current.shouldUseFallback()).toBe(false);
+  });
+
+  it('immediately uses fallback when prefers-reduced-motion is enabled', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const { result } = renderHook(() => useAnimationPerformance());
+    expect(result.current.shouldUseFallback()).toBe(true);
+
+    act(() => {
+      result.current.startMonitoring();
+      result.current.stopMonitoring();
+      result.current.resetFallback();
+    });
+
+    expect(result.current.shouldUseFallback()).toBe(true);
   });
 });

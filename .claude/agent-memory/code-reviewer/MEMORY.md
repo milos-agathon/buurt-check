@@ -22,6 +22,13 @@
 - **`import.meta.env.DEV` stored in variable**: storing as `const isDev = import.meta.env.DEV` prevents Vite from tree-shaking the dev branch in production builds. Always use the literal `if (import.meta.env.DEV)` in hot-path code.
 - **DOM textContent updated every frame**: even in dev-only overlays, updating `textContent` every animation frame triggers layout recalculation. Gate updates to a 1-second boundary using a `lastResetRef`.
 - **`any([...])` list literal in Python logging**: prefer `a or b or c or d` over `any([a, b, c, d])` in log arguments. The list form is flagged by ruff in some configurations.
+- **Rules of Hooks before conditional return**: calling `useRef`/`useCallback` AFTER an early `return` inside a custom hook violates React's Rules of Hooks. Seen in `useAnimationPerformance.ts` — reduced-motion check returns early at line 24 before hooks at lines 32-86. Must restructure: call all hooks first, then gate logic on the reduced-motion flag inside callbacks.
+- **Hardcoded strings bypass i18n even when keys exist**: `formatRelativeTime()` in `AddressSearch.tsx` returns English literals ('just now', 'yesterday') while `search.recentTime.*` keys exist in both language files. Any non-hook utility function must receive `t` as a parameter or be moved inside the component.
+- **Combobox aria-expanded when no-results popup is open**: `isExpanded = isOpen && suggestions.length > 0` leaves `aria-expanded=false` while the no-results `<div id="address-suggestions">` is rendered. ARIA spec: `aria-expanded` must reflect popup visibility, not result count.
+- **Duplicate id on conditional elements**: `id="address-suggestions"` is assigned to both the `<ul>` listbox AND the no-results `<div>` in `AddressSearch.tsx`. Though mutually exclusive in DOM, linters and validators flag this as an error.
+- **Hardcoded series colors bypass design tokens**: `SERIES_COLORS` in `ParallelCoordinates.tsx` uses hex literals instead of `var(--color-compare-*)` tokens. Dark mode cannot theme JS-embedded hex values.
+- **Touch targets below 44px in radiogroup toggles**: `settings-screen__lang-btn` and `settings-screen__theme-btn` have `min-height: 28px`. `export-sheet__language-btn` has only `padding: 8px 0` (~30px). Neither meets Apple HIG 44px minimum.
+- **ExportBottomSheet.css missing prefers-reduced-motion**: The `stroke-dashoffset` transition at line 172 has no reduced-motion suppression. The compliance test's `CSS_FILES` array omits this file entirely.
 
 ## Testing Patterns
 

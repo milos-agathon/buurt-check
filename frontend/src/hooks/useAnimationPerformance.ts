@@ -16,6 +16,11 @@ export function useAnimationPerformance({
   frameBudgetMs = 32,
   droppedFrameThreshold = 3,
 }: UseAnimationPerformanceOptions = {}): UseAnimationPerformanceResult {
+  const isReducedMotion =
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   const frameRequestIdRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number | null>(null);
   const droppedFramesRef = useRef(0);
@@ -33,7 +38,7 @@ export function useAnimationPerformance({
   }, [frameBudgetMs]);
 
   const startMonitoring = useCallback(() => {
-    if (fallbackEnabledRef.current) return;
+    if (isReducedMotion || fallbackEnabledRef.current) return;
 
     if (frameRequestIdRef.current != null) {
       cancelAnimationFrame(frameRequestIdRef.current);
@@ -43,7 +48,7 @@ export function useAnimationPerformance({
     droppedFramesRef.current = 0;
     lastFrameTimeRef.current = null;
     frameRequestIdRef.current = requestAnimationFrame(sampleFrame);
-  }, [sampleFrame]);
+  }, [isReducedMotion, sampleFrame]);
 
   const stopMonitoring = useCallback(() => {
     if (frameRequestIdRef.current != null) {
@@ -59,9 +64,13 @@ export function useAnimationPerformance({
     droppedFramesRef.current = 0;
   }, [droppedFrameThreshold]);
 
-  const shouldUseFallback = useCallback(() => fallbackEnabledRef.current, []);
+  const shouldUseFallback = useCallback(
+    () => isReducedMotion || fallbackEnabledRef.current,
+    [isReducedMotion],
+  );
 
   const resetFallback = useCallback(() => {
+    if (isReducedMotion) return;
     fallbackEnabledRef.current = false;
     droppedFramesRef.current = 0;
     lastFrameTimeRef.current = null;
@@ -70,7 +79,7 @@ export function useAnimationPerformance({
       cancelAnimationFrame(frameRequestIdRef.current);
       frameRequestIdRef.current = null;
     }
-  }, []);
+  }, [isReducedMotion]);
 
   return {
     startMonitoring,

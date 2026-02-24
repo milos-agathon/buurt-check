@@ -38,6 +38,12 @@
   background: var(--color-surface-hover);
 }
 
+.risk-detail__back:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 .risk-detail__nav-title {
   font: var(--type-body-medium);
   color: var(--color-text);
@@ -167,6 +173,12 @@
   cursor: pointer;
 }
 
+.risk-detail__question-item:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .risk-detail__checkbox {
   width: 20px;
   height: 20px;
@@ -181,6 +193,12 @@
   cursor: pointer;
   position: relative;
   transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.risk-detail__checkbox:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .risk-detail__checkbox:checked {
@@ -215,4 +233,11 @@
   color: var(--color-text-tertiary);
   margin-top: var(--space-xs);
   font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .risk-detail__comparison-bar-fill,
+  .risk-detail__checkbox {
+    transition: none;
+  }
 }

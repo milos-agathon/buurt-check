@@ -38,6 +38,12 @@
   background: var(--color-surface-hover);
 }
 
+.livability-detail__back:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 .livability-detail__nav-title {
   font: var(--type-body-medium);
   color: var(--color-text);
@@ -293,4 +299,12 @@
 .livability-detail__source {
   font: var(--type-micro);
   color: var(--color-text-tertiary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .livability-detail__dim-fill,
+  .livability-detail__trend-bar,
+  .livability-detail__cmp-fill {
+    transition: none;
+  }
 }

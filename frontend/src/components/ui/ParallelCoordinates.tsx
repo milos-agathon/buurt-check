@@ -1,4 +1,5 @@
-import type { CSSProperties } from 'react';
+import { useId, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import './ParallelCoordinates.css';
 
 export interface ParallelAxis {
@@ -50,9 +51,15 @@ function pointsForSeries(axes: ParallelAxis[], values: Record<string, number | u
 }
 
 export default function ParallelCoordinates({ axes, series }: ParallelCoordinatesProps) {
+  const { t } = useTranslation();
+  const chartDescriptionId = useId();
+
   if (axes.length < 2 || series.length === 0) {
     return null;
   }
+
+  const addressNames = series.map((entry) => entry.label).join(', ');
+  const categoryNames = axes.map((axis) => axis.label).join(', ');
 
   return (
     <div className="parallel-coordinates" data-testid="parallel-coordinates">
@@ -60,8 +67,13 @@ export default function ParallelCoordinates({ axes, series }: ParallelCoordinate
         className="parallel-coordinates__svg"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
-        aria-label="Parallel coordinates chart"
+        aria-label={t('compare.chartLabel', { addresses: addressNames, categories: categoryNames })}
+        aria-describedby={chartDescriptionId}
       >
+        <desc id={chartDescriptionId}>
+          {t('compare.chartDescription', { addresses: addressNames, categories: categoryNames })}
+        </desc>
+
         {[0, 25, 50, 75, 100].map((tick) => (
           <line
             key={tick}

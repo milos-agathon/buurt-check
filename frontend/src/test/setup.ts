@@ -2,6 +2,11 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { createElement } from 'react';
 
+function getReducedMotionMockValue(): boolean {
+  if (typeof document === 'undefined') return false;
+  return document.documentElement.getAttribute('data-test-reduced-motion') === 'true';
+}
+
 // Mock framer-motion — renders motion.div as plain div, etc.
 vi.mock('framer-motion', () => {
   const motion = new Proxy({} as Record<string, unknown>, {
@@ -21,9 +26,28 @@ vi.mock('framer-motion', () => {
   });
   return {
     motion,
+    MotionConfig: ({
+      children,
+      reducedMotion,
+    }: {
+      children: React.ReactNode;
+      reducedMotion?: 'always' | 'never' | 'user';
+    }) => createElement(
+      'div',
+      {
+        'data-testid': 'motion-config',
+        'data-reduced-motion': reducedMotion,
+      },
+      children,
+    ),
     AnimatePresence: ({ children }: { children: React.ReactNode }) => createElement('div', { 'data-testid': 'animate-presence' }, children),
     LayoutGroup: ({ children }: { children: React.ReactNode }) => children,
-    useReducedMotion: () => false,
+    useReducedMotion: () => {
+      if (typeof window.matchMedia === 'function') {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      }
+      return getReducedMotionMockValue();
+    },
     useMotionValue: (initial: number) => ({ get: () => initial, set: () => {} }),
     useDragControls: () => ({ start: () => {} }),
     useAnimation: () => ({ start: () => Promise.resolve(), stop: () => {} }),
@@ -35,7 +59,7 @@ if (typeof window.matchMedia !== 'function') {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => ({
-      matches: false,
+      matches: query === '(prefers-reduced-motion: reduce)' ? getReducedMotionMockValue() : false,
       media: query,
       onchange: null,
       addListener: () => {},

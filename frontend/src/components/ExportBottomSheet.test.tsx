@@ -124,4 +124,24 @@ describe('ExportBottomSheet', () => {
       await Promise.resolve();
     });
   });
+
+  it('adds progressbar ARIA semantics with current progress values', async () => {
+    let resolver: (() => void) | undefined;
+    vi.mocked(api.exportBriefing).mockImplementation(
+      () => new Promise<Blob>((resolve) => { resolver = () => resolve(new Blob(['pdf'])); }),
+    );
+    renderSheet();
+
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    const progressBar = await screen.findByRole('progressbar', { name: 'Generating...' });
+    expect(progressBar).toHaveAttribute('aria-valuemin', '0');
+    expect(progressBar).toHaveAttribute('aria-valuemax', '100');
+    expect(progressBar).toHaveAttribute('aria-valuenow', '65');
+
+    await act(async () => {
+      resolver?.();
+      await Promise.resolve();
+    });
+  });
 });

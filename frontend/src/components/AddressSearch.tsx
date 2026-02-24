@@ -144,6 +144,10 @@ export default function AddressSearch({ onSelect }: Props) {
   }, [refreshRecent]);
 
   const showRecent = query.length < 2 && !isOpen && recentSearches.length > 0;
+  const isExpanded = isOpen && suggestions.length > 0;
+  const activeSuggestionId = isExpanded && activeIndex >= 0
+    ? `address-suggestion-${activeIndex}`
+    : undefined;
 
   return (
     <div className="address-search" ref={containerRef}>
@@ -155,6 +159,11 @@ export default function AddressSearch({ onSelect }: Props) {
         <input
           type="text"
           className="address-search__input"
+          role="combobox"
+          aria-expanded={isExpanded}
+          aria-controls="address-suggestions"
+          aria-activedescendant={activeSuggestionId}
+          aria-autocomplete="list"
           value={query}
           onChange={e => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -164,10 +173,11 @@ export default function AddressSearch({ onSelect }: Props) {
       </div>
       {error && <p className="address-search__error">{t('search.error')}</p>}
       {isOpen && suggestions.length > 0 && (
-        <ul className="address-search__dropdown" role="listbox">
+        <ul className="address-search__dropdown" id="address-suggestions" role="listbox">
           {suggestions.map((s, i) => (
             <li
               key={s.id}
+              id={`address-suggestion-${i}`}
               role="option"
               aria-selected={i === activeIndex}
               className={`address-search__item${i === activeIndex ? ' address-search__item--active' : ''}`}
@@ -180,7 +190,7 @@ export default function AddressSearch({ onSelect }: Props) {
         </ul>
       )}
       {isOpen && suggestions.length === 0 && query.length >= 2 && !error && (
-        <div className="address-search__dropdown">
+        <div className="address-search__dropdown" id="address-suggestions">
           <div className="address-search__no-results">{t('search.noResults')}</div>
         </div>
       )}

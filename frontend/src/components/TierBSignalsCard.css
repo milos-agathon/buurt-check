@@ -25,6 +25,12 @@
   width: fit-content;
 }
 
+.tier-b-card__retry:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 .tier-b-card__panel {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

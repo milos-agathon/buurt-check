@@ -68,7 +68,7 @@ describe('input behavior', () => {
 
   it('does not fetch for queries < 2 chars', async () => {
     renderSearch();
-    await typeInto(screen.getByRole('textbox'), 'a');
+    await typeInto(screen.getByRole('combobox'), 'a');
     await act(async () => {
       vi.advanceTimersByTime(500);
       await Promise.resolve();
@@ -79,7 +79,7 @@ describe('input behavior', () => {
   it('debounces API calls by 300ms', async () => {
     mockSuggest.mockResolvedValue({ suggestions: [] });
     renderSearch();
-    await typeInto(screen.getByRole('textbox'), 'am');
+    await typeInto(screen.getByRole('combobox'), 'am');
 
     // Not called yet — within debounce window
     expect(mockSuggest).not.toHaveBeenCalled();
@@ -95,7 +95,7 @@ describe('input behavior', () => {
   it('cancels pending debounce on new input', async () => {
     mockSuggest.mockResolvedValue({ suggestions: [] });
     renderSearch();
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('combobox');
 
     await typeInto(input, 'am');
     await act(async () => {
@@ -120,7 +120,7 @@ describe('suggestions dropdown', () => {
   it('shows suggestion list when API returns results', async () => {
     mockSuggest.mockResolvedValue(suggestionsResponse(3));
     renderSearch();
-    await typeAndFlush(screen.getByRole('textbox'), 'am');
+    await typeAndFlush(screen.getByRole('combobox'), 'am');
 
     expect(screen.getByRole('listbox')).toBeInTheDocument();
     expect(screen.getAllByRole('option')).toHaveLength(3);
@@ -131,7 +131,7 @@ describe('suggestions dropdown', () => {
     mockSuggest.mockResolvedValue(response);
     const { onSelect } = renderSearch();
 
-    await typeAndFlush(screen.getByRole('textbox'), 'am');
+    await typeAndFlush(screen.getByRole('combobox'), 'am');
 
     // Use fireEvent.mouseDown because the component uses onMouseDown
     await act(async () => {
@@ -147,12 +147,44 @@ describe('suggestions dropdown', () => {
     mockSuggest.mockResolvedValue(response);
     renderSearch();
 
-    await typeAndFlush(screen.getByRole('textbox'), 'am');
+    await typeAndFlush(screen.getByRole('combobox'), 'am');
 
     await act(async () => {
       fireEvent.mouseDown(screen.getByRole('option'));
     });
-    expect(screen.getByRole('textbox')).toHaveValue(response.suggestions[0].display_name);
+    expect(screen.getByRole('combobox')).toHaveValue(response.suggestions[0].display_name);
+  });
+});
+
+describe('combobox accessibility', () => {
+  it('renders combobox semantics on the input and listbox id linkage', async () => {
+    mockSuggest.mockResolvedValue(suggestionsResponse(2));
+    renderSearch();
+
+    const input = screen.getByRole('combobox');
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+    expect(input).toHaveAttribute('aria-controls', 'address-suggestions');
+    expect(input).not.toHaveAttribute('aria-activedescendant');
+
+    await typeAndFlush(input, 'am');
+
+    expect(input).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'address-suggestions');
+  });
+
+  it('updates aria-activedescendant to the highlighted suggestion id', async () => {
+    mockSuggest.mockResolvedValue(suggestionsResponse(3));
+    renderSearch();
+
+    const input = screen.getByRole('combobox');
+    await typeAndFlush(input, 'am');
+
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+    });
+
+    expect(input).toHaveAttribute('aria-activedescendant', 'address-suggestion-0');
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('id', 'address-suggestion-0');
   });
 });
 
@@ -160,7 +192,7 @@ describe('keyboard navigation', () => {
   async function setupWithSuggestions() {
     mockSuggest.mockResolvedValue(suggestionsResponse(3));
     const rendered = renderSearch();
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('combobox');
     await typeAndFlush(input, 'am');
     return { ...rendered, input };
   }
@@ -254,7 +286,7 @@ describe('error handling', () => {
   it('shows error message when API fails', async () => {
     mockSuggest.mockRejectedValue(new Error('Network error'));
     renderSearch();
-    await typeAndFlush(screen.getByRole('textbox'), 'am');
+    await typeAndFlush(screen.getByRole('combobox'), 'am');
 
     expect(screen.getByText('Could not search addresses')).toBeInTheDocument();
   });
@@ -263,7 +295,7 @@ describe('error handling', () => {
     const abortError = new DOMException('Aborted', 'AbortError');
     mockSuggest.mockRejectedValue(abortError);
     renderSearch();
-    await typeAndFlush(screen.getByRole('textbox'), 'am');
+    await typeAndFlush(screen.getByRole('combobox'), 'am');
 
     expect(screen.queryByText('Could not search addresses')).not.toBeInTheDocument();
   });

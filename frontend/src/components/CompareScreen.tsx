@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ShortlistItem, SeverityLevel } from '../types/api';
 import SeverityBadge from './ui/SeverityBadge';
@@ -31,15 +31,8 @@ function severityFromScore(score: number | undefined): SeverityLevel {
 export default function CompareScreen({ items, onBack }: Props) {
   const { t } = useTranslation();
   const [differencesOnly, setDifferencesOnly] = useState(false);
-
-  if (items.length < 2) {
-    return (
-      <div className="compare-screen" data-testid="compare-screen">
-        <button type="button" className="compare-screen__back" onClick={onBack}>&larr; {t('nav.saved')}</button>
-        <p className="compare-screen__no-data">{t('compare.noData')}</p>
-      </div>
-    );
-  }
+  const [activeColumnIndex, setActiveColumnIndex] = useState(0);
+  const columnsRef = useRef<HTMLDivElement>(null);
 
   const filteredMetrics = differencesOnly
     ? METRICS.filter(m => {
@@ -64,6 +57,91 @@ export default function CompareScreen({ items, onBack }: Props) {
     },
   }));
 
+  useEffect(() => {
+    setActiveColumnIndex((prev) => Math.max(0, Math.min(prev, items.length - 1)));
+  }, [items.length]);
+
+  const scrollToColumn = (index: number) => {
+    const container = columnsRef.current;
+    if (!container) return;
+
+    const target = container.querySelector<HTMLElement>(`[data-column-index="${index}"]`);
+    const prefersReducedMotion =
+      typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target?.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'nearest',
+      inline: 'start',
+    });
+  };
+
+  const moveToColumn = (nextIndex: number) => {
+    const clamped = Math.max(0, Math.min(nextIndex, items.length - 1));
+    setActiveColumnIndex(clamped);
+    scrollToColumn(clamped);
+  };
+
+  const handleColumnsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (items.length === 0) return;
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      moveToColumn(activeColumnIndex + 1);
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      moveToColumn(activeColumnIndex - 1);
+      return;
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      moveToColumn(0);
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      moveToColumn(items.length - 1);
+    }
+  };
+
+  const handleColumnsScroll = () => {
+    const container = columnsRef.current;
+    if (!container) return;
+
+    const columns = Array.from(container.querySelectorAll<HTMLElement>('.compare-screen__snap-column'));
+    if (columns.length === 0) return;
+
+    const currentScroll = container.scrollLeft;
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    columns.forEach((column, index) => {
+      const distance = Math.abs(column.offsetLeft - currentScroll);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+
+    setActiveColumnIndex(nearestIndex);
+  };
+
+  const activeAddress = items[activeColumnIndex]?.address ?? '';
+
+  if (items.length < 2) {
+    return (
+      <div className="compare-screen" data-testid="compare-screen">
+        <button type="button" className="compare-screen__back" onClick={onBack}>&larr; {t('nav.saved')}</button>
+        <p className="compare-screen__no-data">{t('compare.noData')}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="compare-screen" data-testid="compare-screen">
       <div className="compare-screen__header">
@@ -84,9 +162,28 @@ export default function CompareScreen({ items, onBack }: Props) {
         </section>
       )}
 
-      <div className="compare-screen__snap-columns" role="region" aria-label={t('compare.title')}>
+      <p id="compare-current-column" className="sr-only" aria-live="polite" aria-atomic="true">
+        {t('compare.currentColumn', { address: activeAddress })}
+      </p>
+
+      <div
+        ref={columnsRef}
+        className="compare-screen__snap-columns"
+        role="region"
+        tabIndex={0}
+        aria-label={t('compare.columns')}
+        aria-describedby="compare-current-column"
+        onKeyDown={handleColumnsKeyDown}
+        onScroll={handleColumnsScroll}
+      >
         {items.map((item, itemIdx) => (
-          <article key={item.vboId} className="compare-screen__snap-column">
+          <article
+            key={item.vboId}
+            id={`compare-column-${item.vboId}`}
+            className="compare-screen__snap-column"
+            data-column-index={itemIdx}
+            aria-current={itemIdx === activeColumnIndex ? 'true' : undefined}
+          >
             <div className="compare-screen__col-header">
               <span className="compare-screen__col-address">{item.address}</span>
               <span className="compare-screen__col-city">

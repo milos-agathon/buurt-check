@@ -29,6 +29,12 @@
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
+.action-bar__btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 .action-bar__icon {
   flex-shrink: 0;
   width: 16px;

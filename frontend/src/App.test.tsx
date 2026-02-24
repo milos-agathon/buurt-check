@@ -173,7 +173,7 @@ async function selectAddress() {
   mockSuggest.mockResolvedValue({ suggestions: [suggestion] });
 
   vi.useFakeTimers();
-  const input = screen.getByRole('textbox');
+  const input = screen.getByRole('combobox');
   await act(async () => {
     fireEvent.change(input, { target: { value: 'keizersgracht' } });
     vi.advanceTimersByTime(300);
@@ -193,7 +193,7 @@ describe('initial render', () => {
   it('renders app title and search input', () => {
     renderApp();
     expect(screen.getByAltText('Buurt Check')).toBeInTheDocument();
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
   it('does not render building card or map', () => {

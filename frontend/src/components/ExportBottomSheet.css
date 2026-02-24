@@ -39,6 +39,12 @@
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
+.export-sheet__template-card:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 .export-sheet__template-card--active {
   background: var(--color-accent-light);
   border-color: var(--color-accent);
@@ -91,6 +97,12 @@
   cursor: pointer;
 }
 
+.export-sheet__language-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 .export-sheet__language-btn--active {
   background: var(--color-accent);
   color: var(--color-text-inverse);
@@ -110,6 +122,12 @@
   width: 20px;
   height: 20px;
   accent-color: var(--color-accent);
+}
+
+.export-sheet__toggle:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .export-sheet__error {
@@ -203,6 +221,12 @@
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s ease;
+}
+
+.export-sheet__btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
 }
 
 .export-sheet__btn:hover:not(:disabled) {

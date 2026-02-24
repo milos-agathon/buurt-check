@@ -267,8 +267,15 @@ export default function ExportBottomSheet({
 
         {generating && (
           <div className="export-sheet__progress" data-testid="export-progress">
-            <div className="export-sheet__progress-ring" aria-label={t('export.generating', 'Generating...')}>
-              <svg viewBox="0 0 40 40" className="export-sheet__progress-svg" role="img" aria-hidden="true">
+            <div
+              className="export-sheet__progress-ring"
+              role="progressbar"
+              aria-label={t('export.generating', 'Generating...')}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPercent}
+            >
+              <svg viewBox="0 0 40 40" className="export-sheet__progress-svg" aria-hidden="true">
                 <circle className="export-sheet__progress-track" cx="20" cy="20" r={ringRadius} />
                 <circle
                   className="export-sheet__progress-value"

@@ -17,6 +17,12 @@
   box-shadow: var(--elevation-2, var(--elevation-1));
 }
 
+.livability-card--tappable:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 .livability-card__header {
   display: flex;
   align-items: center;
@@ -276,4 +282,17 @@
   color: var(--color-text-secondary);
   text-align: center;
   padding: var(--space-md);
+}
+
+.livability-card__retry:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .livability-card__dimension-fill,
+  .livability-card__spark-bar {
+    transition: none;
+  }
 }

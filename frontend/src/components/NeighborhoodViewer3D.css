@@ -54,6 +54,12 @@
   background: var(--color-surface-alt);
 }
 
+.viewer-3d__reset-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 .viewer-3d__source {
   font: var(--type-micro);
   color: var(--color-text-secondary);
@@ -72,4 +78,10 @@
 @keyframes viewer3d-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer-3d__skeleton {
+    animation: none;
+  }
 }

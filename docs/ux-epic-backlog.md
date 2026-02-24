@@ -6,7 +6,7 @@
 
 **Goal:** Transform Buurt Check from a technically solid data aggregator (5.5/10 UX) into a product that earns trust for a EUR 400,000 decision (8+/10 UX).
 
-**Method:** 130+ verified findings deduplicated into 10 epics, 85 stories. Every story specifies exact files, why it matters, what 10/10 looks like, and a binary definition of done.
+**Method:** 130+ verified findings deduplicated into 10 epics, 102 stories. Every story specifies exact files, why it matters, what 10/10 looks like, and a binary definition of done.
 
 **Deduplication key:** Where multiple audit sections reported the same finding (e.g., `formatRelativeTime` appears as C1, H3.1, P3#18, and NEW-P1), they are merged into one story with all source IDs noted.
 
@@ -16,12 +16,28 @@
 
 Each story follows this structure:
 
-- **What:** Exactly what to change, with file paths and line numbers
+- **What:** Exactly what to change, with file paths and stable search anchors
 - **Why:** The user-facing problem this solves
 - **10/10:** What excellence looks like — not just "fixed" but "best-in-class"
 - **DoD:** Binary checklist — every item must be true to close the story
 
+Line references are snapshot hints from commit `6cac7dd`; they may drift after each merged story. Prefer component/function names plus `rg` search anchors during implementation.
+
 Stories are ordered by priority within each epic. Epics are ordered by impact.
+
+**Dependency Notes (Blocking Order)**
+
+- `4.1` blocks `4.2` through `4.7` (motion token foundation first)
+- `9.1` must land before `4.2` (remove duplicated risk panel before introducing stagger reveal)
+- `9.13` should land before `5.2`, `7.2`, and `7.3` (shared async/error/retry abstraction)
+
+**Effort Scale (For Sprint Planning)**
+
+- `XS`: <= 0.5 day
+- `S`: 1-2 days
+- `M`: 3-4 days
+- `L`: 1 sprint
+- `XL`: multi-sprint / needs phased rollout
 
 ---
 
@@ -67,14 +83,21 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 **What:**
 - Currently only 7 `:focus-visible` rules exist across 5 of 50 CSS files (`index.css`, `NeighborhoodViewer3D.css`, `ShadowTimeSlider.css`, `ShortlistScreen.css`, `ToggleSwitch.css`)
 - A global rule exists in `frontend/src/index.css:27` but is overridden or invisible on most components
-- Add explicit `:focus-visible` outline styles to every interactive element across 40+ components. Use `outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: inherit` as the base pattern.
-- Key files needing focus styles: `ActionBar.css`, `AddressSearch.css`, `AttentionSummary.css`, `BuildingFactsCard.css`, `CompareScreen.css`, `ExportBottomSheet.css`, `LivabilityCard.css`, `PropertyWarningsCard.css`, `RiskTile.css`, `SettingsScreen.css`, `SummaryStrip.css`, `TabBar.css`, `TopBar.css`, `ViewingChecklist.css`, `SoilInfoCard.css`, `TierBSignalsCard.css`, `DossierSheet.css`
+- Use split implementation slices (5-10 components each), not a single mega-PR:
+  - Slice A (navigation/search): `TopBar.css`, `TabBar.css`, `AddressSearch.css`, `DossierScrollNav` styles, `ActionBar.css`
+  - Slice B (risk and decision cards): `RiskTile.css`, `RiskDetailView.css`, `SummaryStrip.css`, `AttentionSummary.css`, `PropertyWarningsCard.css`
+  - Slice C (dossier content cards): `BuildingFactsCard.css`, `SoilInfoCard.css`, `NeighborhoodStatsCard.css`, `TierBSignalsCard.css`, `LivabilityCard.css`, `ViewingChecklist.css`
+  - Slice D (secondary flows): `CompareScreen.css`, `ExportBottomSheet.css`, `SettingsScreen.css`, `DossierSheet.css`
+- Base pattern: `outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: inherit`
 
 **Why:** WCAG 2.1 SC 2.4.7 requires visible keyboard focus indicators. Only 10% of CSS files have them. Every keyboard user navigating this app has no visual indication of which element is focused.
 
 **10/10:** Every button, link, input, checkbox, and interactive card in the app shows a visible, consistent Arctic Teal focus ring when navigated via keyboard. Focus rings never appear on mouse click (`:focus-visible` not `:focus`). Dark mode focus ring is equally visible.
 
 **DoD:**
+- [ ] Slice A merged and validated before Slice B starts
+- [ ] Slice B merged and validated before Slice C starts
+- [ ] Slice C merged and validated before Slice D starts
 - [ ] Every component CSS file with interactive elements has `:focus-visible` styles
 - [ ] Focus ring uses `var(--color-accent)` with `2px` width and `2px` offset
 - [ ] Focus ring is visible in both light and dark themes
@@ -481,7 +504,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 **DoD:**
 - [ ] Score displays include "/100" or equivalent scale indicator
-- [ ] Scale indicator uses `--color-text-tertiary` to avoid visual clutter
+- [ ] Scale indicator uses `--color-text-secondary` (not `--color-text-tertiary`, which is decorative-only)
 - [ ] i18n keys for scale label in both locales
 - [ ] `npm run build` passes
 
@@ -615,17 +638,19 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 **What:**
 - Crime stats present raw tabular numbers without severity interpretation
 - Unlike noise (which gets a comparison chart + meaning paragraph), crime data gets no "what does this mean for me"
-- Add severity mapping and plain-language meaning to crime indicators, consistent with the risk card pattern
+- Add backend severity normalization in `backend/app/services/scoring.py` (and related response models) for crime indicators
+- Frontend consumes normalized backend fields and renders plain-language meaning, consistent with the risk card pattern
 
 **Why:** Product principle #1: "Consequences over data." Raw crime numbers violate this principle.
 
 **10/10:** Crime stats follow the risk card pattern: severity badge + "what this means" paragraph + comparison to city/NL average.
 
 **DoD:**
-- [ ] Crime indicators have severity mapping (good/moderate/poor/critical)
+- [ ] Backend crime indicators expose normalized score + severity (good/moderate/poor/critical)
 - [ ] Plain-language meaning text added to crime display
 - [ ] Comparison context (vs city average) included
 - [ ] i18n keys for all new copy in both locales
+- [ ] `pytest -x -q -m "not live"` passes for backend changes
 - [ ] `npm run build` passes
 
 ---
@@ -657,7 +682,9 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 ### 4.1 Add easing tokens and duration scale to design system
 
-**Appraisal IDs:** Animation assessment recommendations
+**Appraisal IDs:** A1, A4, A5 (animation assessment)
+
+**Blocks:** 4.2, 4.3, 4.4, 4.5, 4.6, 4.7
 
 **What:**
 - `frontend/src/styles/tokens.css:172-174` currently has only 3 transition tokens using generic `ease`
@@ -691,6 +718,8 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 **Appraisal IDs:** A1, PRD §11.2
 
+**Depends on:** 4.1, 9.1
+
 **What:**
 - CSS-only implementation. No Framer Motion needed.
 - Each dossier section wrapper in `App.tsx` gets `style={{ '--section-index': N }}` (N = 0-13)
@@ -719,7 +748,8 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 - [ ] `prefers-reduced-motion` makes all sections visible immediately
 - [ ] Total animation time ~1.3s (14 × 80ms + 200ms)
 - [ ] Test: sections render with correct animation-delay values
-- [ ] Profile on mobile: no jank during reveal
+- [ ] Chrome DevTools Performance capture (mobile emulation, 4x CPU throttle) shows no long task > 50ms during reveal
+- [ ] Lighthouse Performance score remains >= 90 after adding stagger
 - [ ] `npm run build` passes
 
 ---
@@ -796,7 +826,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 - [ ] `theme-transitioning` class added/removed around theme toggle
 - [ ] 200ms crossfade visible on all surfaces
 - [ ] `prefers-reduced-motion` skips the transition class
-- [ ] Profile on iPhone SE: no jank during transition
+- [ ] Chrome DevTools Performance capture (mobile emulation, 4x CPU throttle) shows no long task > 50ms during theme transition
 - [ ] `npm run build` passes
 
 ---
@@ -852,7 +882,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 ### 4.8 Clean up unused spring configs
 
-**Appraisal IDs:** Animation inventory
+**Appraisal IDs:** A4, S10
 
 **What:**
 - `frontend/src/config/springs.ts` — `SPRING_SHEET` (stiffness 300, damping 30) is unused in production (only in SpringTuner debug component)
@@ -876,7 +906,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 ### 5.1 Lazy-load dossier components
 
-**Appraisal IDs:** P1 (performance)
+**Appraisal IDs:** P1
 
 **What:**
 - `frontend/src/App.tsx:3-20` — 18 dossier components are synchronously imported
@@ -900,7 +930,9 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 ### 5.2 Add React.memo to leaf components
 
-**Appraisal IDs:** P2 (performance)
+**Appraisal IDs:** P2
+
+**Depends on:** 9.13
 
 **What:**
 - Zero of 87 `.tsx` components use `React.memo()`
@@ -923,7 +955,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 ### 5.3 Replace WOFF with WOFF2 font
 
-**Appraisal IDs:** P3 (performance)
+**Appraisal IDs:** P3
 
 **What:**
 - `frontend/public/fonts/Satoshi-Regular.woff` is 31 KB
@@ -984,30 +1016,30 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 **DoD:**
 - [ ] DossierJumpNav uses solid/semi-transparent background instead of blur
 - [ ] HeatmapLegend blur replaced or justified
-- [ ] Scroll performance improved (no jank on 60fps scroll)
+- [ ] Chrome DevTools Performance capture shows no long task > 50ms during dossier scroll with sticky nav active
 - [ ] `npm run build` passes
 
 ---
 
-### 5.6 Parallelize 3DBAG fetch with Phase 1
+### 5.6 Defer 3DBAG fetch until viewport entry
 
 **Appraisal IDs:** P8
 
 **What:**
-- 3DBAG neighborhood fetch (12-77s) doesn't start until Phase 3 (~9s into dossier load)
-- Start `getBuilding3D()` (target only, ~2s) in Phase 1 alongside `getBuildingFacts()`
-- Start `getNeighborhood3D()` in Phase 2 alongside `getRiskCards()`
-- Sunlight analysis depends on 3D data — earlier fetch doesn't break correctness
+- Replace eager phase-driven neighborhood 3D fetching with viewport-gated loading
+- Add `IntersectionObserver` on the 3D section container; trigger `getBuilding3D()` and `getNeighborhood3D()` only when the section is near viewport (`rootMargin: '400px 0px'`)
+- Keep target building-first sequencing after trigger (`getBuilding3D()` then neighborhood) so progressive rendering still works
+- Show explicit loading skeleton/state until the observer-triggered request resolves
 
-**Why:** The user scrolls past 7 sections before reaching the 3D viewer. Starting the fetch earlier is free — the data arrives 6-9s sooner without blocking any other content.
+**Why:** PRD requires deferring 3D until viewport entry. The user scrolls through house-level sections first; eager 3D fetch spends bandwidth on content the user may never view.
 
-**10/10:** 3D data fetch starts at the same time as building facts. By the time the user scrolls to the 3D viewer, the target building is already rendered.
+**10/10:** 3D requests start only when the 3D section is about to enter view. Users who never reach the section never pay the network/render cost, while users who do reach it see an immediate loading state and progressive target-first render.
 
 **DoD:**
-- [ ] Target building fetch moved to Phase 1
-- [ ] Neighborhood fetch moved to Phase 2
-- [ ] No regression in dossier loading behavior
-- [ ] 3D viewer available 6-9s earlier
+- [ ] `IntersectionObserver` gates both 3D requests
+- [ ] No 3D network calls fire before 3D section reaches observer threshold
+- [ ] 3D section shows explicit loading state after observer trigger
+- [ ] No regression in sunlight analysis correctness
 - [ ] `npm run build` passes
 - [ ] `npm run test` passes
 
@@ -1040,17 +1072,17 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 **Appraisal IDs:** H8.1, H8.2, P9
 
 **What:**
-- Add `loading="lazy"` to aerial photo in `BuildingFootprintMap.tsx` (currently defaults to eager)
-- Add `loading="lazy"` to 3 shadow snapshot images in `ShadowSnapshots.tsx` (potentially 100KB+ each as base64)
-- Replace `height` animations in `LivabilityDetailView.css` and `SettingsScreen.css` with `max-height` transitions (avoids layout recalc)
+- Split into two PRs:
+  - PR-A (image loading): add `loading="lazy"` to aerial photo in `BuildingFootprintMap.tsx` and shadow snapshots in `ShadowSnapshots.tsx`
+  - PR-B (animation cost): replace `height` animations in `LivabilityDetailView.css` and `SettingsScreen.css` with `max-height` or transform-based approach
 
 **Why:** Below-fold images load eagerly, wasting bandwidth. Height animations trigger layout reflow every frame.
 
 **10/10:** All below-fold images use native lazy loading. Expand/collapse animations use `max-height` or `transform: scaleY()` (GPU-composited).
 
 **DoD:**
-- [ ] `loading="lazy"` on aerial photo and shadow snapshots
-- [ ] Height animations replaced with max-height or transform
+- [ ] PR-A merged: `loading="lazy"` on aerial photo and shadow snapshots
+- [ ] PR-B merged: height animations replaced with max-height or transform
 - [ ] No visual regression in expand/collapse behavior
 - [ ] `npm run build` passes
 
@@ -1253,23 +1285,112 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 **What:**
 - `frontend/src/components/SettingsScreen.tsx` (79 lines) — currently: language, theme, clear searches, clear shortlist, version
-- Add "About" section: 1-2 sentences about what the app does
-- Add "Data Sources" section: list of 10+ government APIs with abbreviation + explanation (reuse story 3.8 copy)
-- Add "How Scores Work" link/section: brief 0-100 scale explanation
-- Add "Send Feedback" link (email or GitHub issues)
-- Fix version hardcoded "1.0.0" (F16) — read from `import.meta.env.VITE_APP_VERSION` or `package.json`
+- Split into two PRs:
+  - PR-A (trust content): add "About", "Data Sources", "How Scores Work", and "Send Feedback"
+  - PR-B (version correctness): replace hardcoded "1.0.0" with build-derived version (`import.meta.env.VITE_APP_VERSION` or package metadata)
 
 **Why:** Settings is exclusively destructive actions + preferences. No reason for a curious user to visit, nothing to learn. Missing trust-building content.
 
 **10/10:** Settings becomes a trust-building screen: users learn what data sources power the app, how scores work, and how to give feedback. Version reads from build config.
 
 **DoD:**
-- [ ] About section with app description
-- [ ] Data sources list with explanations
-- [ ] Scoring methodology summary
-- [ ] Feedback link
-- [ ] Version reads from build config (not hardcoded)
+- [ ] PR-A merged: About section with app description
+- [ ] PR-A merged: data sources list with explanations
+- [ ] PR-A merged: scoring methodology summary + feedback link
+- [ ] PR-B merged: version reads from build config (not hardcoded)
 - [ ] All new copy in both locales
+- [ ] `npm run build` passes
+
+---
+
+### 6.9 Add visible dossier orientation
+
+**Appraisal IDs:** O4
+
+**What:**
+- After loading, user is dropped into 14 sections with no sense of progress or hierarchy
+- The 3-phase structure (House → Buurt → Action) exists in code (`DossierPhaseDivider` components) but is styled as thin text separators
+- Enhance phase dividers to be visual landmarks: larger text, icons, progress indication ("2 of 3 sections complete")
+- Add "here's what you'll see" summary at dossier top
+- DossierScrollNav shows current phase on scroll — make it more prominent
+
+**Why:** The three-phase structure is genuinely good IA — architecturally present but perceptually absent. Users scroll through 14 sections with no sense of progress or completion.
+
+**10/10:** Phase transitions are visible landmarks during scroll. User always knows "where am I" in the dossier. Phase dividers feel like turning to a new chapter.
+
+**DoD:**
+- [ ] Phase dividers are visual landmarks (not thin text separators)
+- [ ] Progress indication shows current phase
+- [ ] Scroll nav prominently displays current section
+- [ ] i18n keys for phase names in both locales
+- [ ] `npm run build` passes
+
+---
+
+### 6.10 Add post-dossier "what's next" prompt
+
+**Appraisal IDs:** O8
+
+**What:**
+- After scrolling 14 dossier sections, user reaches ViewingChecklist and ActionBar
+- No guidance on the compare workflow or export workflow
+- Add a contextual prompt after the viewing checklist: "Save this address and search for another to compare" or "Export as PDF to take to your viewing"
+- Bridge the gap between insight (understanding scores) and action (saving, exporting, comparing)
+
+**Why:** The "aha moment" happens mid-scroll. The action moment requires independently discovering ActionBar and Saved tab. No bridge between insight and action.
+
+**10/10:** After completing the dossier scroll, users see a clear "what to do next" section that promotes the three key actions: save, export, compare.
+
+**DoD:**
+- [ ] Post-checklist "next steps" section added
+- [ ] Suggests save, export, and compare actions
+- [ ] i18n keys in both locales
+- [ ] `npm run build` passes
+
+---
+
+### 6.11 Add returning user re-engagement
+
+**Appraisal IDs:** O10
+
+**What:**
+- No "Welcome back" or personalized greeting for returning users
+- No "Your saved addresses" prompt (must navigate to Saved tab manually)
+- No "New data available" indicator for previously searched addresses
+- Value props vanish permanently after first search
+- Use first-visit flag (story 6.5) to show different home screen for returning users: recent searches + saved addresses count + "Continue where you left off"
+
+**Why:** A returning user who hasn't visited in 2 weeks gets no re-orientation. The app treats them identically to a first-time visitor (minus the value props, which are gone).
+
+**10/10:** Returning users see: their recent searches, saved address count, and a "Continue comparing" prompt if they have 2+ saved addresses.
+
+**DoD:**
+- [ ] Returning user home screen differs from first-visit
+- [ ] Shows saved address count and recent searches
+- [ ] Prompt to continue comparison workflow if applicable
+- [ ] `npm run build` passes
+
+---
+
+### 6.12 Add 3D keyboard controls visual hint
+
+**Appraisal IDs:** N5
+
+**What:**
+- `NeighborhoodViewer3D.tsx:900+` — keyboard handlers for arrow keys / +/- exist but have no visual affordance
+- Pinch/rotate/pan gestures are undiscoverable on mobile
+- Add a small overlay hint: "Drag to rotate, pinch to zoom" that fades after 3s on first interaction
+- Show keyboard controls hint on desktop: "Arrow keys to rotate, +/- to zoom"
+
+**Why:** 3D controls are standard for gamers but undiscoverable for the target audience (nervous expats, first-time buyers).
+
+**10/10:** First-time 3D interaction shows a brief, contextual gesture guide that fades after the user interacts. Never shown again.
+
+**DoD:**
+- [ ] Gesture hint overlay appears on first 3D section view
+- [ ] Desktop hint mentions keyboard controls
+- [ ] Hint fades after 3s or first interaction
+- [ ] Tracked in localStorage (shown once)
 - [ ] `npm run build` passes
 
 ---
@@ -1304,6 +1425,8 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 **Appraisal IDs:** H2.1, H2.2, H2.3
 
+**Depends on:** 9.13
+
 **What:**
 - **3D viewer** (`App.tsx:1122-1129`): catch block sets loading=false but no error state. Add `neighborhood3DError` state, render `t('viewer3d.loadError')` with retry button.
 - **ViewingChecklist** (`App.tsx:987-989`): catch is `// Optional source.` — section silently disappears. Add fallback message with retry.
@@ -1327,19 +1450,22 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 **Appraisal IDs:** H5.1, H5.2, H5.3
 
+**Depends on:** 9.13
+
 **What:**
-- **Address lookup collision** (`App.tsx:1144-1169`): rapid shortlist taps fire multiple lookup chains. Add `AbortController` to `handleAddressSelect`, abort previous on each new invocation.
-- **ActionBar double-tap** (`ActionBar.tsx:19-42`): no `disabled` state during bookmark/export operation. Add `disabled={isBookmarkPending}` and debounce.
-- **Tab switch override** (`App.tsx:843-907`): background lookup completes and calls `setActiveScreen('dossier')` even if user switched away. Check `activeScreenRef.current` before setting screen.
+- Split into three independent PRs:
+  - PR-A: **Address lookup collision** — rapid shortlist taps fire multiple lookup chains. Add `AbortController` to `handleAddressSelect`, abort previous on each new invocation.
+  - PR-B: **ActionBar double-tap** — no disabled state during bookmark/export operation. Add disabled + pending state and debounce.
+  - PR-C: **Tab switch override** — background lookup completes and calls `setActiveScreen('dossier')` even if user switched away. Guard with `activeScreenRef.current`.
 
 **Why:** Rapid taps cause duplicate API calls, multiple toast notifications, and unexpected navigation overrides. These are the most common mobile interaction bugs.
 
 **10/10:** Every async operation is cancellable, every button is debounced or disabled during operation, and no background operation overrides user-initiated navigation.
 
 **DoD:**
-- [ ] `handleAddressSelect` uses AbortController, aborts previous on re-entry
-- [ ] ActionBar buttons disabled during async operations
-- [ ] `setActiveScreen('dossier')` guarded by current screen check
+- [ ] PR-A merged: `handleAddressSelect` uses AbortController and aborts previous on re-entry
+- [ ] PR-B merged: ActionBar buttons disabled/debounced during async operations
+- [ ] PR-C merged: `setActiveScreen('dossier')` guarded by current screen check
 - [ ] Test: rapid taps don't cause duplicate operations
 - [ ] `npm run build` passes
 
@@ -1519,6 +1645,72 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 ---
 
+### 7.12 Fix hash routing silent failure on shared links
+
+**Appraisal IDs:** F3
+
+**What:**
+- `applyRoute()` at `App.tsx:1175` — when a shared link `#/address/{vboId}` is opened and PDOK lookup fails, there is no targeted error toast
+- `parseHashRoute()` at line 343 always returns a valid route object
+- Add specific error handling for "address not found from shared link" — show a toast: "We couldn't find the address from this link. Try searching instead."
+
+**Why:** Users sharing dossier links expect them to work. When they don't (PDOK failure, address removed), the failure is silent — no explanation, no guidance.
+
+**10/10:** Shared link failures show a clear, friendly error message with a suggestion to search manually.
+
+**DoD:**
+- [ ] PDOK lookup failure in route hydration shows targeted error toast
+- [ ] Error message uses i18n key
+- [ ] User is left on search screen (not broken state)
+- [ ] `npm run build` passes
+
+---
+
+### 7.13 Add retry mechanism to BuildingFactsCard
+
+**Appraisal IDs:** H2.5
+
+**What:**
+- `BuildingFactsCard.tsx:14-19` — component receives `loading` and `building` props but no `error` prop
+- If `getBuildingFacts()` fails, dossier sheet is hidden entirely
+- Add `error` prop. If error, show `t('building.loadError')` with retry button
+- Retry should re-invoke `getBuildingFacts` without resetting entire dossier
+
+**Why:** Building facts is the anchor section of the dossier. If it fails, the entire dossier hides — nuclear response to a recoverable failure.
+
+**10/10:** Building facts failure shows an error card with retry button. The rest of the dossier still renders (other data sources may have succeeded).
+
+**DoD:**
+- [ ] `error` and `onRetry` props added to BuildingFactsCard
+- [ ] Error state renders retry button instead of hiding dossier
+- [ ] Rest of dossier unaffected by building facts failure
+- [ ] `npm run build` passes
+
+---
+
+### 7.14 Add loading skeleton for individual dossier sections
+
+**Appraisal IDs:** P1#5
+
+**What:**
+- `LoadingScreen` with animated SVG renders during initial fetch. `RiskTileSkeleton` exists for risk cards.
+- But `DossierSkeleton` and `SkeletonCard` are dead code (never imported in App.tsx)
+- Individual dossier sections beyond risk tiles lack skeleton loading states
+- Add lightweight skeletons (shimmer rectangles matching section layout) for BuildingFacts, PropertyWarnings, Livability, NeighborhoodStats during their respective fetch phases
+
+**Why:** When progressive loading transitions from house → buurt phase, new sections pop in with no visual preparation. Skeletons set spatial expectations.
+
+**10/10:** Every data-dependent section shows a skeleton that matches its loaded layout during loading. Zero layout shift when data arrives.
+
+**DoD:**
+- [ ] Skeleton states for major dossier sections (not just risk tiles)
+- [ ] Skeletons match loaded layout dimensions
+- [ ] Skeletons use existing `Skeleton` shimmer component
+- [ ] No layout shift on loading → loaded transition
+- [ ] `npm run build` passes
+
+---
+
 ## Epic 8: Backend Resilience & Security
 
 > **Theme:** Backend has excellent Redis circuit-breaker and graceful degradation. Missing: timeout budgets, input validation, payload limits, rate limiting.
@@ -1598,7 +1790,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 **What:**
 - All `rd_x`, `rd_y`, `lat`, `lng` query parameters across 8+ endpoints are bare `float = Query(...)` with no bounds
-- Add: `Query(..., ge=0, le=300000)` for `rd_x`, `Query(..., ge=300000, le=625000)` for `rd_y`
+- Add: `Query(..., ge=0, le=300000)` for `rd_x`, `Query(..., ge=285000, le=625000)` for `rd_y`
 - Add: `Query(..., ge=50.5, le=53.8)` for `lat`, `Query(..., ge=3.2, le=7.3)` for `lng`
 
 **Why:** Out-of-range coordinates produce meaningless external API calls and waste cache space. All valid Dutch coordinates fall within known bounds.
@@ -1672,6 +1864,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 - Building facts (immutable): `max-age=86400`
 - Risk cards (slow-changing): `max-age=3600, stale-while-revalidate=86400`
 - Search suggestions: `no-cache` (real-time)
+- Respect backend convention: never cache empty/error responses
 
 **Why:** Every page revisit re-fetches all resources. A user checking the same address twice pays the full 9s loading penalty.
 
@@ -1681,6 +1874,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 - [ ] Data endpoints return `Cache-Control` headers
 - [ ] TTLs match data freshness characteristics
 - [ ] Search endpoint uses `no-cache`
+- [ ] Cache-Control headers are NOT added to empty/error responses
 - [ ] `ruff check` passes
 - [ ] `pytest` passes
 
@@ -1693,6 +1887,8 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 ### 9.1 Remove RiskCardsPanel
 
 **Appraisal IDs:** S1, NEW-P0b
+
+**Blocks:** 4.2
 
 **What:**
 - Delete `frontend/src/components/RiskCardsPanel.tsx` (183 lines) and `RiskCardsPanel.css`
@@ -1799,7 +1995,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 - [ ] Non-interactive cards: borders/shadows removed, spacing separates them
 - [ ] Interactive cards: retain elevation treatment
 - [ ] Phase dividers have distinct visual treatment
-- [ ] Visual rhythm tested at 375px
+- [ ] Puppeteer screenshot diff at 375px confirms hierarchy changes (risk tiles and checklist remain visually dominant)
 - [ ] `npm run build` passes
 
 ---
@@ -1878,16 +2074,19 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 - Both Home and Briefing tabs route to `activeScreen='dossier'` when a dossier is loaded
 - `handleAddressSelect()` forces `setActiveTab('briefing')` on every new address
 - Two tabs for the same screen weakens IA clarity
-- Options: (a) merge into single tab that changes label, (b) make Home always show search, or (c) clarify distinct purposes
+- Phase 1 (decision): select one routing model and document it in `docs/ui-principles.md` (or ADR) with rationale
+- Phase 2 (implementation): implement the selected model and update tab labels/copy accordingly
 
 **Why:** Users see two tabs that lead to the same content. Not a functional bug, but a design smell that confuses navigation.
 
 **10/10:** Each tab has a clear, distinct purpose. No two tabs show the same screen.
 
 **DoD:**
+- [ ] Phase 1 complete: decision doc merged with chosen model and rationale
 - [ ] Home and Briefing tabs have distinct routing behavior
 - [ ] No two tabs render the same content
 - [ ] Tab labels clearly communicate their destination
+- [ ] Phase 2 complete: implementation matches documented decision
 - [ ] `npm run build` passes
 
 ---
@@ -1909,8 +2108,101 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 **DoD:**
 - [ ] Search bar collapses or transforms when dossier loads
 - [ ] Recent searches hidden during dossier view
-- [ ] Clear visual transition between states
+- [ ] Transition is verifiable via automated UI check (search-state and dossier-state screenshots at 375px are visually distinct)
 - [ ] Back-to-search is easy to find
+- [ ] `npm run build` passes
+
+---
+
+### 9.11 Remove construction year from PropertyWarningsCard
+
+**Appraisal IDs:** S2
+
+**What:**
+- Construction year appears in 3 places simultaneously: `AddressHeader.tsx:26` ("Built 1923"), `BuildingFactsCard.tsx:32` (facts list), `PropertyWarningsCard.tsx:75` (foundation risk)
+- Keep in AddressHeader (contextual) and BuildingFactsCard (canonical facts)
+- Remove from PropertyWarningsCard — foundation risk should reference age implication ("pre-1970 construction") without repeating the exact year
+
+**Why:** Redundant repetition of the same data point wastes vertical space and dilutes impact.
+
+**10/10:** Each data point appears in exactly one canonical location. References use implications, not repetition.
+
+**DoD:**
+- [ ] Construction year removed from PropertyWarningsCard
+- [ ] Foundation risk text references age range instead of exact year
+- [ ] `npm run build` passes
+
+---
+
+### 9.12 Replace viewing questions duplication with callout
+
+**Appraisal IDs:** S9, P2#14
+
+**What:**
+- Same questions appear in `RiskDetailView` (per-category modal) and `ViewingChecklist` (persistent bottom section)
+- Both share `checkedQuestions` state (syncs correctly)
+- In `RiskDetailView`, replace inline checkboxes with a brief callout: "These questions are saved to your Viewing Checklist"
+- ViewingChecklist remains the canonical action-oriented location
+
+**Why:** Users who find questions in the detail view wonder why they repeat in the checklist. Duplication is by design but confusing.
+
+**10/10:** Detail view shows questions as read-only context with a link to the checklist. Checklist is the single interactive location for checking off questions.
+
+**DoD:**
+- [ ] RiskDetailView shows callout instead of duplicate checkboxes
+- [ ] Callout links/scrolls to ViewingChecklist
+- [ ] ViewingChecklist remains fully interactive
+- [ ] `npm run build` passes
+
+---
+
+### 9.13 Extract useAsyncData hook from App.tsx
+
+**Appraisal IDs:** S5, S-C
+
+**Blocks:** 5.2, 7.2, 7.3
+
+**What:**
+- `App.tsx` (1,986 lines) has 47 `useState` hooks, 31 `useCallback`, 3 `useMemo`
+- The data-fetch pattern is repeated 5 times identically: `[data, setData]` + `[loading, setLoading]` + `[error, setError]`
+- × 5 sources (risk, warnings, livability, stats, tierB) = 15 of 47 states
+- Extract a `useAsyncData<T>` hook encapsulating data/loading/error triad + retry logic
+- Extract `handleAddressSelect` (170 lines) into a `useDossierLoader` hook
+
+**Why:** This doesn't directly affect UX but makes every other UX change cheaper. The 170-line `handleAddressSelect` callback is a sequential async state machine that's difficult to reason about. Every checkbox toggle re-renders the entire tree because of cascading state updates.
+
+**10/10:** App.tsx is reduced to ~1,000 lines. Data fetching logic is in reusable hooks. State changes in one section don't cascade through unrelated sections.
+
+**DoD:**
+- [ ] `useAsyncData<T>` hook created with data/loading/error/retry
+- [ ] 5 data-fetch patterns replaced with hook calls (15 states → 5 hooks)
+- [ ] `handleAddressSelect` extracted to `useDossierLoader`
+- [ ] No behavioral changes
+- [ ] `npm run build` passes
+- [ ] `npm run test` passes
+
+---
+
+### 9.14 Reduce fixed bar viewport consumption
+
+**Appraisal IDs:** P1#9
+
+**What:**
+- ActionBar: `position: fixed`, 48px, z-index 41. TabBar: `position: fixed`, 56px, z-index 50.
+- Total: 104px + safe-area inset (~138px on notched iPhones) = 16-21% of 667px SE screen
+- Phase 1 (decision): resolve PRD SC-4.3.5a vs spec SC-13e conflict and document chosen behavior (scroll-triggered vs always-visible)
+- Phase 2 (implementation): implement chosen behavior and enforce viewport budget
+
+**Why:** 138px of permanently consumed viewport on a small phone is aggressive. Reduces the visible dossier content to ~79% of screen height.
+
+**10/10:** Fixed bars consume ≤ 100px total (excluding safe area). ActionBar appears contextually when it's most useful, not permanently.
+
+**DoD:**
+- [ ] Phase 1 complete: decision documented with rationale
+- [ ] Phase 2 complete: ActionBar behavior matches documented decision
+- [ ] If scroll-triggered: ActionBar appears on checklist section visibility
+- [ ] If always-visible: combined with TabBar to reduce total height
+- [ ] Measured viewport consumption <= 100px on iPhone SE baseline
 - [ ] `npm run build` passes
 
 ---
@@ -1949,17 +2241,18 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 **What:**
 - Compare is accessible only via: search → save 2+ addresses → Saved tab → Compare button
 - Never mentioned in the dossier. Never prompted after saving 2+ addresses.
-- After saving a 2nd address, show a contextual prompt: "You've saved 2 addresses — tap Compare to see them side by side"
-- Or add a "Compare with saved" button in the dossier ActionBar when 2+ addresses are saved
+- Phase 1 (decision): choose one primary discoverability pattern (contextual prompt vs persistent dossier CTA)
+- Phase 2 (implementation): implement only the chosen pattern and remove the unselected path from scope
 
 **Why:** The hero decision-making feature is invisible to users who don't explore the Saved tab. It's a 3-step hidden path.
 
 **10/10:** Users who save 2+ addresses are prompted to compare within one interaction. The compare feature is discoverable from the dossier, not just from the Saved tab.
 
 **DoD:**
-- [ ] Prompt appears after saving 2nd address (toast or inline prompt)
-- [ ] Prompt navigates to compare on tap
-- [ ] Prompt shown once (tracked in localStorage per session)
+- [ ] Phase 1 complete: chosen discoverability pattern documented with rationale
+- [ ] Phase 2 complete: chosen prompt/CTA appears after saving 2nd address
+- [ ] Chosen prompt/CTA navigates to compare on tap
+- [ ] Prompt/CTA exposure behavior documented (once per session vs persistent) and implemented
 - [ ] i18n keys in both locales
 - [ ] `npm run build` passes
 
@@ -2054,16 +2347,17 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 **What:**
 - No aggregate comparison anywhere in CompareScreen
-- Add summary line: "Address A leads in 3 of 4 categories" or similar
-- Or highlight the address with the highest overall score
+- Phase 1 (decision): define summary methodology (category-win count vs weighted aggregate score) and fairness caveats
+- Phase 2 (implementation): render the selected summary method in CompareScreen with explanatory copy
 
 **Why:** Product principle: "Consequences over data." Raw parallel coordinates violate this. Users want to know "which address is better overall?"
 
 **10/10:** The compare screen clearly communicates which address is stronger overall, while showing per-category nuance. Not a simple "winner" — a guided comparison.
 
 **DoD:**
-- [ ] Summary/verdict section at top or bottom of compare view
-- [ ] Overall scoring or category-win count displayed
+- [ ] Phase 1 complete: summary methodology and caveats documented
+- [ ] Phase 2 complete: summary/verdict section rendered in compare view
+- [ ] Selected method (category-win count or weighted aggregate) displayed with explanation
 - [ ] i18n keys in both locales
 - [ ] `npm run build` passes
 
@@ -2129,6 +2423,28 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 ---
 
+### 10.11 Add tap-to-expand for shadow snapshots
+
+**Appraisal IDs:** P2#12
+
+**What:**
+- `ShadowSnapshots.tsx` — responsive thumbnails with labels but no `onClick` handler
+- At mobile widths (~100px per thumbnail), 3D content is hard to distinguish
+- Add tap-to-expand: open a lightbox/modal with full-size snapshot + time label
+- Reuse BottomSheet component for the lightbox
+
+**Why:** Shadow analysis snapshots are the visual evidence for sunlight risk. At thumbnail size, they're decorative rather than informative.
+
+**10/10:** Tapping a snapshot opens a full-screen lightbox with the 3D shadow view at readable size. Swipe between morning/noon/evening.
+
+**DoD:**
+- [ ] Tap handler opens expanded view
+- [ ] Expanded view shows full-size snapshot with label
+- [ ] Dismiss via tap-outside or close button
+- [ ] `npm run build` passes
+
+---
+
 ## Appendix: PRD Compliance Gaps (Cross-Reference)
 
 These PRD requirements are NOT met. Stories above address most of them. Remaining gaps are either deferred features or design conflicts.
@@ -2136,10 +2452,10 @@ These PRD requirements are NOT met. Stories above address most of them. Remainin
 | PRD Requirement | Status | Addressed By |
 |----------------|--------|--------------|
 | Checklist persists across backgrounding (SC-4.3.4c) | NOT IMPLEMENTED | Story 7.9 |
-| ActionBar appears on scroll to checklist (SC-4.3.5a) | CONFLICTS with spec SC-13e | Design decision needed |
+| ActionBar appears on scroll to checklist (SC-4.3.5a) | CONFLICTS with spec SC-13e | Story 9.14 (Phase 1 decision, then implementation) |
 | Summary pills section pulse (SC-4.3.1c) | PARTIAL (scroll works, pulse missing) | Story 4.2 (part of stagger) |
 | Dossier section staggered reveal 80ms (animation table) | NOT IMPLEMENTED | Story 4.2 |
-| 3D deferred until viewport entry | NOT IMPLEMENTED (eager Phase 3) | Story 5.6 (partial — earlier, not deferred) |
+| 3D deferred until viewport entry | NOT IMPLEMENTED | Story 5.6 (IntersectionObserver gating) |
 | Progressive 3D 3-tier fallback (§4.3.2) | NOT IMPLEMENTED | Deferred |
 | Expat concept translation (? icons) (ui-principles §11) | NOT IMPLEMENTED | Deferred |
 | Camera presets (street/balcony/top-down) (design-spec §4.3) | NOT IMPLEMENTED | Deferred |
@@ -2183,277 +2499,13 @@ Findings that appeared in multiple audit sections, merged into single stories:
 
 ---
 
-## Appendix: Additional Stories (Gap Closure)
-
-> Stories below were identified during completeness audit. They close coverage gaps for findings that were planned but not included in the main epic sections above.
-
-### 6.9 Add visible dossier orientation
-
-**Appraisal IDs:** O4
-
-**What:**
-- After loading, user is dropped into 14 sections with no sense of progress or hierarchy
-- The 3-phase structure (House → Buurt → Action) exists in code (`DossierPhaseDivider` components) but is styled as thin text separators
-- Enhance phase dividers to be visual landmarks: larger text, icons, progress indication ("2 of 3 sections complete")
-- Add "here's what you'll see" summary at dossier top
-- DossierScrollNav shows current phase on scroll — make it more prominent
-
-**Why:** The three-phase structure is genuinely good IA — architecturally present but perceptually absent. Users scroll through 14 sections with no sense of progress or completion.
-
-**10/10:** Phase transitions are visible landmarks during scroll. User always knows "where am I" in the dossier. Phase dividers feel like turning to a new chapter.
-
-**DoD:**
-- [ ] Phase dividers are visual landmarks (not thin text separators)
-- [ ] Progress indication shows current phase
-- [ ] Scroll nav prominently displays current section
-- [ ] i18n keys for phase names in both locales
-- [ ] `npm run build` passes
-
----
-
-### 6.10 Add post-dossier "what's next" prompt
-
-**Appraisal IDs:** O8
-
-**What:**
-- After scrolling 14 dossier sections, user reaches ViewingChecklist and ActionBar
-- No guidance on the compare workflow or export workflow
-- Add a contextual prompt after the viewing checklist: "Save this address and search for another to compare" or "Export as PDF to take to your viewing"
-- Bridge the gap between insight (understanding scores) and action (saving, exporting, comparing)
-
-**Why:** The "aha moment" happens mid-scroll. The action moment requires independently discovering ActionBar and Saved tab. No bridge between insight and action.
-
-**10/10:** After completing the dossier scroll, users see a clear "what to do next" section that promotes the three key actions: save, export, compare.
-
-**DoD:**
-- [ ] Post-checklist "next steps" section added
-- [ ] Suggests save, export, and compare actions
-- [ ] i18n keys in both locales
-- [ ] `npm run build` passes
-
----
-
-### 6.11 Add returning user re-engagement
-
-**Appraisal IDs:** O10
-
-**What:**
-- No "Welcome back" or personalized greeting for returning users
-- No "Your saved addresses" prompt (must navigate to Saved tab manually)
-- No "New data available" indicator for previously searched addresses
-- Value props vanish permanently after first search
-- Use first-visit flag (story 6.5) to show different home screen for returning users: recent searches + saved addresses count + "Continue where you left off"
-
-**Why:** A returning user who hasn't visited in 2 weeks gets no re-orientation. The app treats them identically to a first-time visitor (minus the value props, which are gone).
-
-**10/10:** Returning users see: their recent searches, saved address count, and a "Continue comparing" prompt if they have 2+ saved addresses.
-
-**DoD:**
-- [ ] Returning user home screen differs from first-visit
-- [ ] Shows saved address count and recent searches
-- [ ] Prompt to continue comparison workflow if applicable
-- [ ] `npm run build` passes
-
----
-
-### 9.11 Remove construction year from PropertyWarningsCard
-
-**Appraisal IDs:** S2
-
-**What:**
-- Construction year appears in 3 places simultaneously: `AddressHeader.tsx:26` ("Built 1923"), `BuildingFactsCard.tsx:32` (facts list), `PropertyWarningsCard.tsx:75` (foundation risk)
-- Keep in AddressHeader (contextual) and BuildingFactsCard (canonical facts)
-- Remove from PropertyWarningsCard — foundation risk should reference age implication ("pre-1970 construction") without repeating the exact year
-
-**Why:** Redundant repetition of the same data point wastes vertical space and dilutes impact.
-
-**10/10:** Each data point appears in exactly one canonical location. References use implications, not repetition.
-
-**DoD:**
-- [ ] Construction year removed from PropertyWarningsCard
-- [ ] Foundation risk text references age range instead of exact year
-- [ ] `npm run build` passes
-
----
-
-### 9.12 Replace viewing questions duplication with callout
-
-**Appraisal IDs:** S9, P2#14
-
-**What:**
-- Same questions appear in `RiskDetailView` (per-category modal) and `ViewingChecklist` (persistent bottom section)
-- Both share `checkedQuestions` state (syncs correctly)
-- In `RiskDetailView`, replace inline checkboxes with a brief callout: "These questions are saved to your Viewing Checklist"
-- ViewingChecklist remains the canonical action-oriented location
-
-**Why:** Users who find questions in the detail view wonder why they repeat in the checklist. Duplication is by design but confusing.
-
-**10/10:** Detail view shows questions as read-only context with a link to the checklist. Checklist is the single interactive location for checking off questions.
-
-**DoD:**
-- [ ] RiskDetailView shows callout instead of duplicate checkboxes
-- [ ] Callout links/scrolls to ViewingChecklist
-- [ ] ViewingChecklist remains fully interactive
-- [ ] `npm run build` passes
-
----
-
-### 9.13 Extract useAsyncData hook from App.tsx
-
-**Appraisal IDs:** S5, S-C
-
-**What:**
-- `App.tsx` (1,986 lines) has 47 `useState` hooks, 31 `useCallback`, 3 `useMemo`
-- The data-fetch pattern is repeated 5 times identically: `[data, setData]` + `[loading, setLoading]` + `[error, setError]`
-- × 5 sources (risk, warnings, livability, stats, tierB) = 15 of 47 states
-- Extract a `useAsyncData<T>` hook encapsulating data/loading/error triad + retry logic
-- Extract `handleAddressSelect` (170 lines) into a `useDossierLoader` hook
-
-**Why:** This doesn't directly affect UX but makes every other UX change cheaper. The 170-line `handleAddressSelect` callback is a sequential async state machine that's difficult to reason about. Every checkbox toggle re-renders the entire tree because of cascading state updates.
-
-**10/10:** App.tsx is reduced to ~1,000 lines. Data fetching logic is in reusable hooks. State changes in one section don't cascade through unrelated sections.
-
-**DoD:**
-- [ ] `useAsyncData<T>` hook created with data/loading/error/retry
-- [ ] 5 data-fetch patterns replaced with hook calls (15 states → 5 hooks)
-- [ ] `handleAddressSelect` extracted to `useDossierLoader`
-- [ ] No behavioral changes
-- [ ] `npm run build` passes
-- [ ] `npm run test` passes
-
----
-
-### 7.12 Fix hash routing silent failure on shared links
-
-**Appraisal IDs:** F3
-
-**What:**
-- `applyRoute()` at `App.tsx:1175` — when a shared link `#/address/{vboId}` is opened and PDOK lookup fails, there is no targeted error toast
-- `parseHashRoute()` at line 343 always returns a valid route object
-- Add specific error handling for "address not found from shared link" — show a toast: "We couldn't find the address from this link. Try searching instead."
-
-**Why:** Users sharing dossier links expect them to work. When they don't (PDOK failure, address removed), the failure is silent — no explanation, no guidance.
-
-**10/10:** Shared link failures show a clear, friendly error message with a suggestion to search manually.
-
-**DoD:**
-- [ ] PDOK lookup failure in route hydration shows targeted error toast
-- [ ] Error message uses i18n key
-- [ ] User is left on search screen (not broken state)
-- [ ] `npm run build` passes
-
----
-
-### 7.13 Add retry mechanism to BuildingFactsCard
-
-**Appraisal IDs:** H2.5
-
-**What:**
-- `BuildingFactsCard.tsx:14-19` — component receives `loading` and `building` props but no `error` prop
-- If `getBuildingFacts()` fails, dossier sheet is hidden entirely
-- Add `error` prop. If error, show `t('building.loadError')` with retry button
-- Retry should re-invoke `getBuildingFacts` without resetting entire dossier
-
-**Why:** Building facts is the anchor section of the dossier. If it fails, the entire dossier hides — nuclear response to a recoverable failure.
-
-**10/10:** Building facts failure shows an error card with retry button. The rest of the dossier still renders (other data sources may have succeeded).
-
-**DoD:**
-- [ ] `error` and `onRetry` props added to BuildingFactsCard
-- [ ] Error state renders retry button instead of hiding dossier
-- [ ] Rest of dossier unaffected by building facts failure
-- [ ] `npm run build` passes
-
----
-
-### 6.12 Add 3D keyboard controls visual hint
-
-**Appraisal IDs:** N5
-
-**What:**
-- `NeighborhoodViewer3D.tsx:900+` — keyboard handlers for arrow keys / +/- exist but have no visual affordance
-- Pinch/rotate/pan gestures are undiscoverable on mobile
-- Add a small overlay hint: "Drag to rotate, pinch to zoom" that fades after 3s on first interaction
-- Show keyboard controls hint on desktop: "Arrow keys to rotate, +/- to zoom"
-
-**Why:** 3D controls are standard for gamers but undiscoverable for the target audience (nervous expats, first-time buyers).
-
-**10/10:** First-time 3D interaction shows a brief, contextual gesture guide that fades after the user interacts. Never shown again.
-
-**DoD:**
-- [ ] Gesture hint overlay appears on first 3D section view
-- [ ] Desktop hint mentions keyboard controls
-- [ ] Hint fades after 3s or first interaction
-- [ ] Tracked in localStorage (shown once)
-- [ ] `npm run build` passes
-
----
-
-### 7.14 Add loading skeleton for individual dossier sections
-
-**Appraisal IDs:** P1#5
-
-**What:**
-- `LoadingScreen` with animated SVG renders during initial fetch. `RiskTileSkeleton` exists for risk cards.
-- But `DossierSkeleton` and `SkeletonCard` are dead code (never imported in App.tsx)
-- Individual dossier sections beyond risk tiles lack skeleton loading states
-- Add lightweight skeletons (shimmer rectangles matching section layout) for BuildingFacts, PropertyWarnings, Livability, NeighborhoodStats during their respective fetch phases
-
-**Why:** When progressive loading transitions from house → buurt phase, new sections pop in with no visual preparation. Skeletons set spatial expectations.
-
-**10/10:** Every data-dependent section shows a skeleton that matches its loaded layout during loading. Zero layout shift when data arrives.
-
-**DoD:**
-- [ ] Skeleton states for major dossier sections (not just risk tiles)
-- [ ] Skeletons match loaded layout dimensions
-- [ ] Skeletons use existing `Skeleton` shimmer component
-- [ ] No layout shift on loading → loaded transition
-- [ ] `npm run build` passes
-
----
-
-### 10.11 Add tap-to-expand for shadow snapshots
-
-**Appraisal IDs:** P2#12
-
-**What:**
-- `ShadowSnapshots.tsx` — responsive thumbnails with labels but no `onClick` handler
-- At mobile widths (~100px per thumbnail), 3D content is hard to distinguish
-- Add tap-to-expand: open a lightbox/modal with full-size snapshot + time label
-- Reuse BottomSheet component for the lightbox
-
-**Why:** Shadow analysis snapshots are the visual evidence for sunlight risk. At thumbnail size, they're decorative rather than informative.
-
-**10/10:** Tapping a snapshot opens a full-screen lightbox with the 3D shadow view at readable size. Swipe between morning/noon/evening.
-
-**DoD:**
-- [ ] Tap handler opens expanded view
-- [ ] Expanded view shows full-size snapshot with label
-- [ ] Dismiss via tap-outside or close button
-- [ ] `npm run build` passes
-
----
-
-### 9.14 Reduce fixed bar viewport consumption
-
-**Appraisal IDs:** P1#9
-
-**What:**
-- ActionBar: `position: fixed`, 48px, z-index 41. TabBar: `position: fixed`, 56px, z-index 50.
-- Total: 104px + safe-area inset (~138px on notched iPhones) = 16-21% of 667px SE screen
-- PRD SC-4.3.5a says ActionBar should appear on scroll-to-checklist; spec SC-13e says always-visible — CONFLICT
-- Options: (a) make ActionBar scroll-triggered (PRD), (b) combine ActionBar into TabBar area, (c) accept current design
-
-**Why:** 138px of permanently consumed viewport on a small phone is aggressive. Reduces the visible dossier content to ~79% of screen height.
-
-**10/10:** Fixed bars consume ≤ 100px total (excluding safe area). ActionBar appears contextually when it's most useful, not permanently.
-
-**DoD:**
-- [ ] Design decision documented: scroll-triggered vs always-visible
-- [ ] If scroll-triggered: ActionBar appears on checklist section visibility
-- [ ] If always-visible: combined with TabBar to reduce total height
-- [ ] Viewport consumption ≤ 100px on iPhone SE
-- [ ] `npm run build` passes
+## Appendix: Story Integration Notes
+
+Gap-closure stories were integrated into their parent epics in priority order:
+- Epic 6 now includes 6.9-6.12
+- Epic 7 now includes 7.12-7.14
+- Epic 9 now includes 9.11-9.14
+- Epic 10 now includes 10.11
 
 ---
 
@@ -2479,7 +2531,7 @@ Findings that appeared in multiple audit sections, merged into single stories:
 | 7.6 (scroll restoration) | F12, S-B |
 | 9.12 (viewing Q duplication) | S9, P2#14 |
 | 9.13 (useAsyncData) | S5, S-C |
-| 5.2 (React.memo) | P2 perf, S-C (partial) |
+| 5.2 (React.memo) | P2, S-C (partial) |
 
 ## Appendix: Intentionally Excluded Findings
 
@@ -2507,4 +2559,5 @@ These findings were REFUTED, STALE, or intentionally DEFERRED — they are NOT m
 
 ---
 
-**Total: 10 epics, 100 stories, 0 findings discarded, 17 findings intentionally excluded (refuted/stale/deferred).**
+**Total: 10 epics, 102 stories, 0 findings discarded, 17 findings intentionally excluded (refuted/stale/deferred).**
+

@@ -43,6 +43,30 @@ function renderCompare(items: ShortlistItem[] = []) {
 }
 
 describe('CompareScreen', () => {
+  const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+  let scrollIntoViewMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    scrollIntoViewMock = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      writable: true,
+      configurable: true,
+      value: scrollIntoViewMock,
+    });
+  });
+
+  afterEach(() => {
+    if (originalScrollIntoView) {
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        writable: true,
+        configurable: true,
+        value: originalScrollIntoView,
+      });
+    } else {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
   it('shows no-data message with fewer than 2 items', () => {
     renderCompare([makeItem()]);
     expect(screen.getByText(/Select 2-3 saved addresses/)).toBeInTheDocument();
@@ -104,6 +128,37 @@ describe('CompareScreen', () => {
       makeItem({ vboId: 'c' }),
     ]);
     expect(screen.getByTestId('compare-screen').querySelector('.compare-screen__snap-columns')).toBeInTheDocument();
+  });
+
+  it('adds keyboard-accessible semantics to snap columns region', () => {
+    renderCompare([
+      makeItem({ vboId: 'a' }),
+      makeItem({ vboId: 'b' }),
+    ]);
+
+    const region = screen.getByRole('region', { name: 'Comparison columns' });
+    expect(region).toHaveAttribute('tabindex', '0');
+  });
+
+  it('supports Arrow/Home/End keyboard navigation with current-column announcement', () => {
+    renderCompare([
+      makeItem({ vboId: 'a', address: 'Address A' }),
+      makeItem({ vboId: 'b', address: 'Address B' }),
+      makeItem({ vboId: 'c', address: 'Address C' }),
+    ]);
+
+    const region = screen.getByRole('region', { name: 'Comparison columns' });
+    expect(screen.getByText('Current column: Address A')).toBeInTheDocument();
+
+    fireEvent.keyDown(region, { key: 'End' });
+    expect(screen.getByText('Current column: Address C')).toBeInTheDocument();
+
+    fireEvent.keyDown(region, { key: 'ArrowLeft' });
+    expect(screen.getByText('Current column: Address B')).toBeInTheDocument();
+
+    fireEvent.keyDown(region, { key: 'Home' });
+    expect(screen.getByText('Current column: Address A')).toBeInTheDocument();
+    expect(scrollIntoViewMock).toHaveBeenCalled();
   });
 
   it('differences-only filter hides equal rows', () => {
