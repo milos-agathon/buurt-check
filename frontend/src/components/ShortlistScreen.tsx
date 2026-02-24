@@ -41,7 +41,32 @@ export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAd
     <div className="shortlist-screen" data-testid="shortlist-screen">
       <div className="shortlist-screen__list">
         {items.map(item => (
-          <div key={item.vboId} className="shortlist-screen__card" onClick={() => onSelectAddress(item.vboId)}>
+          <div
+            key={item.vboId}
+            className="shortlist-screen__card"
+            onClick={() => onSelectAddress(item.vboId)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onSelectAddress(item.vboId);
+              }
+            }}
+          >
+            <div className="shortlist-screen__thumb" aria-hidden="true">
+              <svg className="shortlist-screen__thumb-map" viewBox="0 0 56 56">
+                <rect x="1" y="1" width="54" height="54" rx="12" />
+                <path d="M12 20h32M12 30h32M12 40h32M20 12v32M30 12v32M40 12v32" />
+              </svg>
+              <svg className="shortlist-screen__thumb-pin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M12 22s-6-5.3-6-10a6 6 0 1112 0c0 4.7-6 10-6 10z" />
+                <circle cx="12" cy="12" r="2.2" />
+              </svg>
+              {item.buildingYear && (
+                <span className="shortlist-screen__thumb-year">{item.buildingYear}</span>
+              )}
+            </div>
             <div className="shortlist-screen__card-info">
               <span className="shortlist-screen__card-address">{item.address}</span>
               <span className="shortlist-screen__card-city">
