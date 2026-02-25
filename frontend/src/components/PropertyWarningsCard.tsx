@@ -36,7 +36,7 @@ export default function PropertyWarningsCard({ data, loading, error, onRetry }: 
 
   if (error && !data) {
     return (
-      <section className="property-warnings" data-testid="property-warnings">
+      <section className="property-warnings" data-testid="property-warnings" data-state="error">
         <p className="property-warnings__error">{error || t('warnings.error')}</p>
         {onRetry && (
           <button

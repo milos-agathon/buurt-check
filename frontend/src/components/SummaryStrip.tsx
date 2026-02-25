@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { SeverityLevel } from '../types/api';
+import AnimatedScore from './ui/AnimatedScore';
 import './SummaryStrip.css';
 
 interface SummaryPill {
@@ -48,14 +49,13 @@ export default function SummaryStrip({ pills, onPillTap }: SummaryStripProps) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d={CATEGORY_ICONS[pill.category] || CATEGORY_ICONS.noise} />
           </svg>
-          <span className="summary-strip__score" aria-hidden="true">
-            {pill.score != null ? (
-              <>
-                {pill.score}
-                <span className="summary-strip__scale">{t('score.scale', '/100')}</span>
-              </>
-            ) : '--'}
-          </span>
+          {pill.score != null ? (
+            <span aria-hidden="true">
+              <AnimatedScore value={pill.score} className="summary-strip__score" showScale />
+            </span>
+          ) : (
+            <span className="summary-strip__score" aria-hidden="true">--</span>
+          )}
         </button>
       ))}
     </div>

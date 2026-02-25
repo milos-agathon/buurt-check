@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import AddressSearch from './components/AddressSearch';
 import AddressHeader from './components/AddressHeader';
@@ -23,7 +23,7 @@ import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
 import RiskTileSkeleton from './components/RiskTileSkeleton';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
-import { SPRING_REVEAL } from './config/springs';
+import { SPRING_TAB } from './config/springs';
 import { hapticTap } from './utils/haptic';
 import { useAnimationPerformance } from './hooks/useAnimationPerformance';
 import ActionBar from './components/ActionBar';
@@ -375,6 +375,10 @@ function hasInternalDossierScroll(container: HTMLElement | null): container is H
   return container.scrollHeight > container.clientHeight + 2;
 }
 
+function dossierSectionStyle(index: number): CSSProperties {
+  return { '--section-index': index } as CSSProperties;
+}
+
 function App() {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
@@ -559,7 +563,6 @@ function App() {
       };
       const added = addToShortlist(item);
       if (added) {
-        hapticTap();
         showToast(t('toast.addressSaved'));
       } else {
         showToast(t('shortlist.maxReached'));
@@ -1560,8 +1563,16 @@ function App() {
       <TopBar title={topBarTitle} onSettingsClick={openSettings} inert={isOverlayModalOpen || undefined} />
 
       <main className="app__main" id="main-content" inert={isOverlayModalOpen || undefined}>
-        {(activeScreen === 'search' || activeScreen === 'dossier') && (
-          <>
+        <AnimatePresence initial={false} mode="wait">
+          {(activeScreen === 'search' || activeScreen === 'dossier') && (
+            <motion.div
+              key={`screen-${activeScreen}`}
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
             {!showLoadingScreen && <AddressSearch onSelect={handleAddressSelect} />}
             {error && <p className="app__error">{error}</p>}
 
@@ -1612,10 +1623,10 @@ function App() {
                 <section id="section-house-start" role="region" aria-label={t('nav.jumpHouse')}>
                   {((!riskLoading && (riskCards || riskError)) &&
                     (!propertyWarningsLoading && (propertyWarnings || propertyWarningsError))) && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={SPRING_REVEAL}
+                    <div
+                      className="dossier-section"
+                      style={dossierSectionStyle(0)}
+                      data-section-index={0}
                       data-dossier-section="attention-summary"
                     >
                       <AttentionSummary
@@ -1624,11 +1635,11 @@ function App() {
                         sunlightScore={sunlight ? normalizeSunlightScore(sunlight.winter) : undefined}
                         livability={livability ?? undefined}
                       />
-                    </motion.div>
+                    </div>
                   )}
 
                   {address && buildingResponse && (
-                    <>
+                    <div className="dossier-section" style={dossierSectionStyle(1)} data-section-index={1}>
                       <AddressHeader
                         address={address}
                         building={buildingResponse.building ?? undefined}
@@ -1663,91 +1674,91 @@ function App() {
                           </button>
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
 
                   {progressivePhase !== 'house' && summaryPills.length > 0 && (
-                    <SummaryStrip
-                      pills={summaryPills}
-                      onPillTap={handleSummaryPillTap}
-                    />
+                    <div className="dossier-section" style={dossierSectionStyle(2)} data-section-index={2}>
+                      <SummaryStrip
+                        pills={summaryPills}
+                        onPillTap={handleSummaryPillTap}
+                      />
+                    </div>
                   )}
 
                   {(loading || buildingResponse) && (
-                    <BuildingFactsCard
-                      building={buildingResponse?.building ?? undefined}
-                      loading={loading}
-                    />
+                    <div className="dossier-section" style={dossierSectionStyle(3)} data-section-index={3}>
+                      <BuildingFactsCard
+                        building={buildingResponse?.building ?? undefined}
+                        loading={loading}
+                      />
+                    </div>
                   )}
 
-                  {progressivePhase !== 'house' && loading && !riskCards && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={SPRING_REVEAL}
-                    >
-                      <RiskTileSkeleton />
-                    </motion.div>
-                  )}
-
-                  {progressivePhase !== 'house' && (riskLoading || riskCards || riskError || activeDetailCategory) && (
-                    <LayoutGroup>
-                      {(riskLoading || riskCards || riskError) && (
-                        <>
-                          <RiskTilesGrid
-                            risks={riskCards ?? undefined}
-                            sunlight={sunlight ?? undefined}
-                            onTileTap={handleRiskTileTap}
-                          />
-                          <RiskCardsPanel
-                            risks={riskCards ?? undefined}
-                            loading={riskLoading}
-                            error={riskError}
-                            onRetry={riskError ? handleRetryRiskCards : undefined}
-                          />
-                        </>
-                      )}
-                      <AnimatePresence initial={false} mode="wait">
-                        {activeDetailCategory && (() => {
-                          const detail = getDetailProps(activeDetailCategory);
-                          if (!detail) return null;
-                          return (
-                            <RiskDetailView
-                              key={`${activeDetailCategory}:${useFallbackDetailTransition ? 'fallback' : 'shared'}`}
-                              category={activeDetailCategory}
-                              titleKey={detail.titleKey}
-                              score={detail.score}
-                              severity={detail.severity}
-                              meaning={detail.meaning}
-                              comparisons={detail.comparisons}
-                              questions={activeQuestions}
-                              checkedQuestions={checkedQuestions}
-                              onToggleQuestion={handleToggleQuestion}
-                              source={detail.source}
-                              sourceDate={detail.sourceDate}
-                              useSharedElement={!useFallbackDetailTransition}
-                              onBack={() => {
-                                animationPerformance.stopMonitoring();
-                                setActiveDetailCategory(null);
-                                setIsTransitioning(false);
-                              }}
-                              onAnimationStart={() => {
-                                setIsTransitioning(true);
-                                animationPerformance.startMonitoring();
-                              }}
-                              onAnimationComplete={() => {
-                                animationPerformance.stopMonitoring();
-                                setIsTransitioning(false);
-                              }}
-                            />
-                          );
-                        })()}
-                      </AnimatePresence>
-                    </LayoutGroup>
-                  )}
+                  {progressivePhase !== 'house' &&
+                    ((loading && !riskCards) || riskLoading || riskCards || riskError || activeDetailCategory) && (
+                      <div className="dossier-section" style={dossierSectionStyle(4)} data-section-index={4}>
+                        {loading && !riskCards && <RiskTileSkeleton />}
+                        {(riskLoading || riskCards || riskError || activeDetailCategory) && (
+                          <LayoutGroup>
+                            {(riskLoading || riskCards || riskError) && (
+                              <>
+                                <RiskTilesGrid
+                                  risks={riskCards ?? undefined}
+                                  sunlight={sunlight ?? undefined}
+                                  onTileTap={handleRiskTileTap}
+                                />
+                                <RiskCardsPanel
+                                  risks={riskCards ?? undefined}
+                                  loading={riskLoading}
+                                  error={riskError}
+                                  onRetry={riskError ? handleRetryRiskCards : undefined}
+                                />
+                              </>
+                            )}
+                            <AnimatePresence initial={false} mode="wait">
+                              {activeDetailCategory && (() => {
+                                const detail = getDetailProps(activeDetailCategory);
+                                if (!detail) return null;
+                                return (
+                                  <RiskDetailView
+                                    key={`${activeDetailCategory}:${useFallbackDetailTransition ? 'fallback' : 'shared'}`}
+                                    category={activeDetailCategory}
+                                    titleKey={detail.titleKey}
+                                    score={detail.score}
+                                    severity={detail.severity}
+                                    meaning={detail.meaning}
+                                    comparisons={detail.comparisons}
+                                    questions={activeQuestions}
+                                    checkedQuestions={checkedQuestions}
+                                    onToggleQuestion={handleToggleQuestion}
+                                    source={detail.source}
+                                    sourceDate={detail.sourceDate}
+                                    useSharedElement={!useFallbackDetailTransition}
+                                    onBack={() => {
+                                      animationPerformance.stopMonitoring();
+                                      setActiveDetailCategory(null);
+                                      setIsTransitioning(false);
+                                    }}
+                                    onAnimationStart={() => {
+                                      setIsTransitioning(true);
+                                      animationPerformance.startMonitoring();
+                                    }}
+                                    onAnimationComplete={() => {
+                                      animationPerformance.stopMonitoring();
+                                      setIsTransitioning(false);
+                                    }}
+                                  />
+                                );
+                              })()}
+                            </AnimatePresence>
+                          </LayoutGroup>
+                        )}
+                      </div>
+                    )}
 
                   {progressivePhase !== 'house' && (propertyWarningsLoading || propertyWarnings || propertyWarningsError) && (
-                    <>
+                    <div className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5}>
                       <h3 id="section-warnings" className="app__section-label">{t('warnings.sectionTitle')}</h3>
                       <PropertyWarningsCard
                         data={propertyWarnings ?? undefined}
@@ -1755,17 +1766,17 @@ function App() {
                         error={propertyWarningsError}
                         onRetry={propertyWarningsError ? handleRetryPropertyWarnings : undefined}
                       />
-                    </>
+                    </div>
                   )}
 
                   {progressivePhase !== 'house' && (
-                    <>
+                    <div className="dossier-section" style={dossierSectionStyle(6)} data-section-index={6}>
                       <h3 id="section-soil" className="app__section-label">{t('dossier.soilInfo', 'Soil & Pipes')}</h3>
                       <SoilInfoCard
                         leadPipeFlagged={propertyWarnings?.lead_pipe?.flagged}
                         constructionYear={buildingResponse?.building?.construction_year}
                       />
-                    </>
+                    </div>
                   )}
                 </section>
 
@@ -1776,7 +1787,7 @@ function App() {
                     </div>
                     <section role="region" aria-label={t('nav.neighborhood')}>
                       {(livabilityLoading || livability || livabilityError) && (
-                        <>
+                        <div className="dossier-section" style={dossierSectionStyle(7)} data-section-index={7}>
                           <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
                           <LivabilityCard
                             data={livability ?? undefined}
@@ -1785,7 +1796,7 @@ function App() {
                             onRetry={livabilityError ? handleRetryLivability : undefined}
                             onTap={livability?.available ? () => setShowLivabilityDetail(true) : undefined}
                           />
-                        </>
+                        </div>
                       )}
 
                       {showLivabilityDetail && livability?.available && (
@@ -1795,41 +1806,50 @@ function App() {
                         />
                       )}
 
-                      {neighborhood3DLoading && (
-                        <div className="viewer-3d-status">
-                          <p>{t('viewer3d.loading')}</p>
-                        </div>
-                      )}
+                      <div className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8}>
+                        {neighborhood3DLoading && (
+                          <div className="viewer-3d-status">
+                            <p>{t('viewer3d.loading')}</p>
+                          </div>
+                        )}
 
-                      {!neighborhood3DLoading && neighborhood3D && neighborhood3D.buildings.length === 0 && (
-                        <div className="viewer-3d-status">
-                          <p>{t('viewer3d.noData')}</p>
-                        </div>
-                      )}
+                        {!neighborhood3DLoading && neighborhood3D && neighborhood3D.buildings.length === 0 && (
+                          <div className="viewer-3d-status">
+                            <p>{t('viewer3d.noData')}</p>
+                          </div>
+                        )}
 
-                      {neighborhood3D && neighborhood3D.buildings.length > 0 && (
-                        <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-                          <NeighborhoodViewer3D
-                            buildings={neighborhood3D.buildings}
-                            targetPandId={neighborhood3D.target_pand_id ?? undefined}
-                            center={neighborhood3D.center}
-                            sunDateTime={sunDateTime}
-                            showHeatmap={showHeatmap}
-                            onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
-                            onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
-                            onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
-                            loading={surroundingLoading}
+                        {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                          <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                            <NeighborhoodViewer3D
+                              buildings={neighborhood3D.buildings}
+                              targetPandId={neighborhood3D.target_pand_id ?? undefined}
+                              center={neighborhood3D.center}
+                              sunDateTime={sunDateTime}
+                              showHeatmap={showHeatmap}
+                              onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
+                              onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
+                              onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
+                              loading={surroundingLoading}
+                            />
+                          </Suspense>
+                        )}
+
+                        {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                          <ShadowTimeSlider
+                            lat={neighborhood3D.center.lat}
+                            lng={neighborhood3D.center.lng}
+                            onChange={setSunDateTime}
                           />
-                        </Suspense>
-                      )}
+                        )}
 
-                      {neighborhood3D && neighborhood3D.buildings.length > 0 && (
-                        <ShadowTimeSlider
-                          lat={neighborhood3D.center.lat}
-                          lng={neighborhood3D.center.lng}
-                          onChange={setSunDateTime}
-                        />
-                      )}
+                        {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
+                          <ShadowSnapshots
+                            snapshots={shadowSnapshots ?? undefined}
+                            loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
+                          />
+                        )}
+                      </div>
 
                       {(() => {
                         const canComputeSunlight = hasSurroundingContext(neighborhood3D) && !surroundingLoading;
@@ -1840,26 +1860,20 @@ function App() {
                           b => b.pand_id === neighborhood3D.target_pand_id
                         )?.orientation_deg;
                         return (
-                          <SunlightRiskCard
-                            sunlight={sunlight ?? undefined}
-                            loading={sunlightLoading}
-                            unavailable={sunlightUnavailable}
-                            orientationDeg={targetOrientation}
-                            showHeatmap={showHeatmap}
-                            onToggleHeatmap={setShowHeatmap}
-                          />
+                          <div className="dossier-section" style={dossierSectionStyle(9)} data-section-index={9}>
+                            <SunlightRiskCard
+                              sunlight={sunlight ?? undefined}
+                              loading={sunlightLoading}
+                              unavailable={sunlightUnavailable}
+                              orientationDeg={targetOrientation}
+                              showHeatmap={showHeatmap}
+                              onToggleHeatmap={setShowHeatmap}
+                            />
+                          </div>
                         );
                       })()}
-
-                      {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
-                        <ShadowSnapshots
-                          snapshots={shadowSnapshots ?? undefined}
-                          loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
-                        />
-                      )}
-
                       {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
-                        <>
+                        <div className="dossier-section" style={dossierSectionStyle(10)} data-section-index={10}>
                           <h3 id="section-neighborhood" className="app__section-label">{t('dossier.neighborhood')}</h3>
                           <NeighborhoodStatsCard
                             stats={neighborhoodStats ?? undefined}
@@ -1867,11 +1881,11 @@ function App() {
                             error={neighborhoodStatsError}
                             onRetry={neighborhoodStatsError ? handleRetryNeighborhoodStats : undefined}
                           />
-                        </>
+                        </div>
                       )}
 
                       {(tierBLoading || tierBData || tierBError) && (
-                        <>
+                        <div className="dossier-section" style={dossierSectionStyle(11)} data-section-index={11}>
                           <h3 id="section-tier-b" className="app__section-label">{t('dossier.tierB')}</h3>
                           <TierBSignalsCard
                             data={tierBData ?? undefined}
@@ -1879,72 +1893,104 @@ function App() {
                             error={tierBError}
                             onRetry={tierBError ? handleRetryTierB : undefined}
                           />
-                        </>
+                        </div>
                       )}
                     </section>
                   </>
                 )}
 
                 {viewingQuestions && viewingQuestions.categories.length > 0 && (
-                  <section role="region" aria-label={t('nav.jumpBriefing')}>
-                    <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
-                    <ViewingChecklist
-                      categories={viewingQuestions.categories}
-                      checkedQuestions={checkedQuestions}
-                      onToggleQuestion={handleToggleQuestion}
-                    />
-                  </section>
+                  <div className="dossier-section" style={dossierSectionStyle(12)} data-section-index={12}>
+                    <section role="region" aria-label={t('nav.jumpBriefing')}>
+                      <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
+                      <ViewingChecklist
+                        categories={viewingQuestions.categories}
+                        checkedQuestions={checkedQuestions}
+                        onToggleQuestion={handleToggleQuestion}
+                      />
+                    </section>
+                  </div>
                 )}
 
                 {address && buildingResponse && (
-                  <ActionBar
-                    isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
-                    onAddToShortlist={handleBookmark}
-                    onExportBriefing={() => {
-                      hapticTap();
-                      setExportSheetOpen(true);
-                    }}
-                  />
+                  <div className="dossier-section" style={dossierSectionStyle(13)} data-section-index={13}>
+                    <ActionBar
+                      isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
+                      onAddToShortlist={handleBookmark}
+                      onExportBriefing={() => {
+                        hapticTap();
+                        setExportSheetOpen(true);
+                      }}
+                    />
+                  </div>
                 )}
               </DossierSheet>
             )}
-          </>
-        )}
+            </motion.div>
+          )}
 
-        {activeScreen === 'shortlist' && (
-          <ShortlistScreen
-            items={shortlistItems}
-            onRemove={handleRemoveFromShortlist}
-            onCompare={() => {
-              setActiveScreen('compare');
-              setHashRoute('#/compare');
-            }}
-            onSelectAddress={handleSelectShortlistAddress}
-          />
-        )}
+          {activeScreen === 'shortlist' && (
+            <motion.div
+              key="screen-shortlist"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <ShortlistScreen
+                items={shortlistItems}
+                onRemove={handleRemoveFromShortlist}
+                onCompare={() => {
+                  setActiveScreen('compare');
+                  setHashRoute('#/compare');
+                }}
+                onSelectAddress={handleSelectShortlistAddress}
+              />
+            </motion.div>
+          )}
 
-        {activeScreen === 'compare' && (
-          <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-            <CompareScreen
-              items={shortlistItems}
-              onBack={() => {
-                setActiveScreen('shortlist');
-                setHashRoute('#/saved');
-              }}
-            />
-          </Suspense>
-        )}
+          {activeScreen === 'compare' && (
+            <motion.div
+              key="screen-compare"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                <CompareScreen
+                  items={shortlistItems}
+                  onBack={() => {
+                    setActiveScreen('shortlist');
+                    setHashRoute('#/saved');
+                  }}
+                />
+              </Suspense>
+            </motion.div>
+          )}
 
-        {activeScreen === 'settings' && (
-          <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-            <SettingsScreen
-              onClearRecent={handleClearRecent}
-              onClearShortlist={handleClearShortlist}
-              theme={themePreference}
-              onThemeChange={handleThemeChange}
-            />
-          </Suspense>
-        )}
+          {activeScreen === 'settings' && (
+            <motion.div
+              key="screen-settings"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                <SettingsScreen
+                  onClearRecent={handleClearRecent}
+                  onClearShortlist={handleClearShortlist}
+                  theme={themePreference}
+                  onThemeChange={handleThemeChange}
+                />
+              </Suspense>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* Export bottom sheet */}

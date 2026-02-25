@@ -112,12 +112,13 @@ describe('SunlightRiskCard', () => {
   });
 
   it('shows full unavailable card structure when no 3D context', () => {
-    renderCard(undefined, false, 'en', true);
+    const { container } = renderCard(undefined, false, 'en', true);
     expect(screen.getByText('Direct sun (clear-sky visibility)')).toBeInTheDocument();
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
     expect(screen.getByText(/No 3D building context available/)).toBeInTheDocument();
     expect(screen.getByText(/Ask the seller/)).toBeInTheDocument();
     expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
+    expect(container.querySelector('.sunlight-card')).toHaveAttribute('data-state', 'unavailable');
   });
 
   it('shows full unavailable card structure in Dutch', () => {

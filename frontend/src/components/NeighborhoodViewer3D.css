@@ -71,7 +71,7 @@
   inset: 0;
   background: var(--color-surface);
   border-radius: var(--radius-sm);
-  animation: viewer3d-pulse 1.4s ease-in-out infinite;
+  animation: viewer3d-pulse 1.4s var(--ease-out-subtle) infinite;
   z-index: 5;
 }
 

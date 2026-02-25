@@ -46,7 +46,7 @@ export default function TierBSignalsCard({ data, loading, error, onRetry }: Prop
 
   if (error && !data) {
     return (
-      <section className="tier-b-card" data-testid="tier-b-card">
+      <section className="tier-b-card" data-testid="tier-b-card" data-state="error">
         <p className="tier-b-card__error">{error || t('tierB.error')}</p>
         {onRetry && (
           <button

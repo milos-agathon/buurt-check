@@ -22,7 +22,7 @@
   justify-content: space-between;
   gap: 12px;
   box-shadow: var(--elevation-3);
-  animation: toastSlideUp 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  animation: toastSlideUp var(--duration-moderate) var(--ease-out-quart);
   pointer-events: auto;
   cursor: pointer;
 }

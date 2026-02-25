@@ -92,7 +92,7 @@ export default function NeighborhoodStatsCard({ stats, loading, error, onRetry }
 
   if (error && !stats) {
     return (
-      <section className="neighborhood-card">
+      <section className="neighborhood-card" data-state="error">
         <h2 className="neighborhood-card__title">{t('neighborhood.title')}</h2>
         <p className="neighborhood-card__error">{error || t('neighborhood.error')}</p>
         {onRetry && (

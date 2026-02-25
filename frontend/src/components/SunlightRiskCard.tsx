@@ -65,7 +65,7 @@ export default function SunlightRiskCard({
 
   if (unavailable) {
     return (
-      <div className="sunlight-card">
+      <div className="sunlight-card" data-state="unavailable">
         <h2 className="sunlight-card__title">{t('sunlight.title_full')}</h2>
         <p className="sunlight-card__subtitle">{t('sunlight.subtitle')}</p>
         <SeverityBadge severity="unavailable" />
