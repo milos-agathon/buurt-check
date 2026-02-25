@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PropertyWarningsResponse, SeverityLevel } from '../types/api';
 import SeverityBadge from './ui/SeverityBadge';
@@ -23,7 +24,7 @@ function severityClass(level: PropertyWarningsResponse['foundation_risk']['level
   return mapFoundationLevel(level);
 }
 
-export default function PropertyWarningsCard({ data, loading, error, onRetry }: Props) {
+function PropertyWarningsCard({ data, loading, error, onRetry }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -170,3 +171,5 @@ export default function PropertyWarningsCard({ data, loading, error, onRetry }: 
     </section>
   );
 }
+
+export default memo(PropertyWarningsCard);

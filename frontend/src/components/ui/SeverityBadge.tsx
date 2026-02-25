@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SeverityLevel } from '../../types/api';
 import './SeverityBadge.css';
@@ -15,7 +16,7 @@ const SEVERITY_ICONS: Record<SeverityLevel, string> = {
   unavailable: 'M12 8v4M12 16h.01',          // question-like
 };
 
-export default function SeverityBadge({ severity, size = 'md' }: SeverityBadgeProps) {
+function SeverityBadge({ severity, size = 'md' }: SeverityBadgeProps) {
   const { t } = useTranslation();
 
   const label = t(`severity.${severity}`, severity);
@@ -46,3 +47,5 @@ export default function SeverityBadge({ severity, size = 'md' }: SeverityBadgePr
     </span>
   );
 }
+
+export default memo(SeverityBadge);

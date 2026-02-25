@@ -8,6 +8,22 @@ let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeEach(async () => {
   i18n = await setupTestI18n('en');
+  // ActionBar bookmark animation is intentionally skipped when reduced-motion is active.
+  // Override the global mock (setup.ts defaults to reduced-motion: true for AnimatedScore)
+  // so animation tests can verify the saving/removing CSS classes.
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
 });
 
 function renderActionBar(props: Partial<Parameters<typeof ActionBar>[0]> = {}) {

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ShadowSnapshot } from '../types/api';
 import './ShadowSnapshots.css';
@@ -19,7 +20,7 @@ const HOURS: Record<string, number> = {
   evening: 17,
 };
 
-export default function ShadowSnapshots({ snapshots, loading }: Props) {
+function ShadowSnapshots({ snapshots, loading }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -44,6 +45,7 @@ export default function ShadowSnapshots({ snapshots, loading }: Props) {
               src={snap.dataUrl}
               alt={`${t(LABEL_KEYS[snap.label] ?? snap.label)} (${HOURS[snap.label] ?? snap.hour}:00)`}
               className="shadow-snapshots__image"
+              loading="lazy"
             />
             <span className="shadow-snapshots__label">
               {t(LABEL_KEYS[snap.label] ?? snap.label)} ({HOURS[snap.label] ?? snap.hour}:00)
@@ -55,3 +57,5 @@ export default function ShadowSnapshots({ snapshots, loading }: Props) {
     </div>
   );
 }
+
+export default memo(ShadowSnapshots);

@@ -7,6 +7,7 @@
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-sm) - 2px);
+  contain: content;
 }
 
 .livability-card--tappable {
@@ -181,7 +182,13 @@
   flex: 1;
   border-radius: 2px 2px 0 0;
   min-height: 4px;
-  transition: height var(--duration-moderate) var(--ease-out-expo);
+  transform-origin: bottom;
+  animation: spark-bar-grow var(--duration-moderate) var(--ease-out-expo) both;
+}
+
+@keyframes spark-bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
 }
 
 .livability-card__spark-bar--good {
@@ -302,8 +309,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .livability-card__dimension-fill,
-  .livability-card__spark-bar {
+  .livability-card__dimension-fill {
     transition: none;
+  }
+  .livability-card__spark-bar {
+    animation: none;
   }
 }

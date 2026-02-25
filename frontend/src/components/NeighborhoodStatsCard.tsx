@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import QuartileDots from './ui/QuartileDots';
 import type { NeighborhoodStatsResponse, NeighborhoodIndicator, AgeProfile } from '../types/api';
@@ -78,7 +79,7 @@ function formatEuro(value: number | string): string {
   return `€${num.toLocaleString('nl-NL', { maximumFractionDigits: 0 })}`;
 }
 
-export default function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
+function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -173,3 +174,5 @@ export default function NeighborhoodStatsCard({ stats, loading, error, onRetry }
     </section>
   );
 }
+
+export default memo(NeighborhoodStatsCard);

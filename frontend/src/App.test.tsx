@@ -107,6 +107,9 @@ beforeAll(async () => {
 
 beforeEach(() => {
   window.history.replaceState({}, '', '/');
+  // Reset IntersectionObserver globals between tests to prevent leakage
+  (globalThis as Record<string, unknown>).__intersectionObserverCallback = null;
+  (globalThis as Record<string, unknown>).__intersectionObserverTarget = null;
   mockLookup.mockReset();
   mockBuilding.mockReset();
   mockBuilding3D.mockReset();
@@ -166,6 +169,41 @@ function renderApp() {
       <App />
     </I18nextProvider>,
   );
+}
+
+/**
+ * Simulates the 3D section scrolling into the viewport by triggering the
+ * IntersectionObserver that watches the viewer-3d-sentinel element.
+ * Must be called after selectAddress() so the observer has been created.
+ *
+ * Uses the array-based mock to find the observer whose target is the sentinel,
+ * avoiding conflicts with AnimatedScore observers that also use IntersectionObserver.
+ */
+interface MockObserverEntry { callback: IntersectionObserverCallback; targets: Set<Element>; disconnected: boolean }
+async function triggerViewer3DIntersection() {
+  // Wait for the sentinel element to be observed
+  await waitFor(() => {
+    const observers = (globalThis as Record<string, unknown>).__intersectionObservers as MockObserverEntry[];
+    const sentinel = document.querySelector('[data-testid="viewer-3d-sentinel"]');
+    expect(sentinel).not.toBeNull();
+    const match = observers.find(o => !o.disconnected && sentinel && o.targets.has(sentinel));
+    expect(match).toBeDefined();
+  });
+
+  const observers = (globalThis as Record<string, unknown>).__intersectionObservers as MockObserverEntry[];
+  const sentinel = document.querySelector('[data-testid="viewer-3d-sentinel"]')!;
+  const match = observers.find(o => !o.disconnected && o.targets.has(sentinel))!;
+  await act(async () => {
+    match.callback([{
+      isIntersecting: true,
+      target: sentinel,
+      boundingClientRect: {} as DOMRectReadOnly,
+      intersectionRatio: 1,
+      intersectionRect: {} as DOMRectReadOnly,
+      rootBounds: null,
+      time: Date.now(),
+    }], {} as IntersectionObserver);
+  });
 }
 
 /**
@@ -405,6 +443,7 @@ describe('3D viewer integration', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
@@ -419,6 +458,7 @@ describe('3D viewer integration', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     // Should still render building facts card without error
     await waitFor(() => {
@@ -439,6 +479,7 @@ describe('3D viewer integration', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
@@ -454,6 +495,7 @@ describe('3D viewer integration', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(screen.getByText('3D Viewer loading...')).toBeInTheDocument();
@@ -473,6 +515,7 @@ describe('3D viewer integration', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
@@ -494,6 +537,7 @@ describe('3D viewer integration', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
@@ -512,6 +556,7 @@ describe('3D viewer integration', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
@@ -527,6 +572,7 @@ describe('3D viewer integration', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(screen.getByText('Loading sunlight...')).toBeInTheDocument();
@@ -542,6 +588,7 @@ describe('3D viewer integration', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(screen.getByText('Loading sunlight...')).toBeInTheDocument();
@@ -725,6 +772,7 @@ describe('dossier section order (v7 canonical)', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     // Wait for all sections to render (including 3D and sunlight)
     await waitFor(() => {
@@ -808,9 +856,12 @@ describe('dossier section order (v7 canonical)', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(screen.getByTestId('action-bar')).toBeInTheDocument();
+      // Sunlight card needs 3D data (triggered above) to render
+      expect(screen.getByTestId('sunlight-card')).toBeInTheDocument();
     });
 
     const dossier = screen.getByTestId('dossier-sheet');
@@ -948,6 +999,10 @@ describe('early 3D fetch from lookup pand_id', () => {
       await Promise.resolve();
     });
 
+    // After building facts resolves, deferred3DParams are set and observer is re-attached.
+    // Trigger the IntersectionObserver to start the actual 3D fetches.
+    await triggerViewer3DIntersection();
+
     await waitFor(() => {
       expect(mockBuilding3D).toHaveBeenCalledWith(
         'vbo-123',
@@ -978,6 +1033,7 @@ describe('early 3D fetch from lookup pand_id', () => {
 
     renderApp();
     await selectAddress();
+    await triggerViewer3DIntersection();
 
     await waitFor(() => {
       expect(mockBuilding3D).toHaveBeenCalled();

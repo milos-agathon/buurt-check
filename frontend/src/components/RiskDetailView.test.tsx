@@ -5,6 +5,24 @@ import RiskDetailView from './RiskDetailView';
 import { setupTestI18n } from '../test/helpers';
 import type { SeverityLevel } from '../types/api';
 
+// Mock prefers-reduced-motion so AnimatedScore renders values immediately
+// (skips IntersectionObserver + requestAnimationFrame animation)
+beforeEach(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+});
+
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeEach(async () => {

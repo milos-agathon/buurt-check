@@ -51,7 +51,7 @@
   font-weight: 600;
   color: var(--color-text);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
   min-width: 34px;
 }
 
@@ -114,7 +114,7 @@
   font-weight: 600;
   color: var(--color-text);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
   min-width: 44px;
 }
 

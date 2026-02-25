@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import SeverityBadge from './ui/SeverityBadge';
 import type { QuestionCategory, SeverityLevel } from '../types/api';
@@ -9,7 +10,7 @@ interface ViewingChecklistProps {
   onToggleQuestion: (id: string) => void;
 }
 
-export default function ViewingChecklist({
+function ViewingChecklist({
   categories,
   checkedQuestions,
   onToggleQuestion,
@@ -56,3 +57,5 @@ export default function ViewingChecklist({
     </div>
   );
 }
+
+export default memo(ViewingChecklist);

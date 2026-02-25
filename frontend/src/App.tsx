@@ -1,37 +1,41 @@
 import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import AddressSearch from './components/AddressSearch';
-import AddressHeader from './components/AddressHeader';
-import SummaryStrip from './components/SummaryStrip';
-import BuildingFactsCard from './components/BuildingFactsCard';
-import SunlightRiskCard from './components/SunlightRiskCard';
-import ShadowTimeSlider from './components/ShadowTimeSlider';
-import ShadowSnapshots from './components/ShadowSnapshots';
-import RiskCardsPanel from './components/RiskCardsPanel';
-import RiskTilesGrid from './components/RiskTilesGrid';
-import RiskDetailView from './components/RiskDetailView';
-import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
-import TierBSignalsCard from './components/TierBSignalsCard';
-import AttentionSummary from './components/AttentionSummary';
-import PropertyWarningsCard from './components/PropertyWarningsCard';
-import LivabilityCard from './components/LivabilityCard';
-import LivabilityDetailView from './components/LivabilityDetailView';
-import SoilInfoCard from './components/SoilInfoCard';
-import ViewingChecklist from './components/ViewingChecklist';
-import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
-import DossierSheet from './components/DossierSheet';
-import type { SheetSnap } from './components/DossierSheet';
+import ErrorBoundary from './components/ErrorBoundary';
 import RiskTileSkeleton from './components/RiskTileSkeleton';
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
+import type { SheetSnap } from './components/DossierSheet';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
 import { SPRING_TAB } from './config/springs';
 import { hapticTap } from './utils/haptic';
 import { useAnimationPerformance } from './hooks/useAnimationPerformance';
-import ActionBar from './components/ActionBar';
-import ExportBottomSheet from './components/ExportBottomSheet';
 import ShortlistScreen from './components/ShortlistScreen';
 import TabBar from './components/TabBar';
 import TopBar from './components/TopBar';
 import type { TabId } from './components/TabBar';
+
+// Lazy-loaded dossier components — loaded in parallel with API calls
+const AddressHeader = lazy(() => import('./components/AddressHeader'));
+const SummaryStrip = lazy(() => import('./components/SummaryStrip'));
+const BuildingFactsCard = lazy(() => import('./components/BuildingFactsCard'));
+const SunlightRiskCard = lazy(() => import('./components/SunlightRiskCard'));
+const ShadowTimeSlider = lazy(() => import('./components/ShadowTimeSlider'));
+const ShadowSnapshots = lazy(() => import('./components/ShadowSnapshots'));
+const RiskCardsPanel = lazy(() => import('./components/RiskCardsPanel'));
+const RiskTilesGrid = lazy(() => import('./components/RiskTilesGrid'));
+const RiskDetailView = lazy(() => import('./components/RiskDetailView'));
+const NeighborhoodStatsCard = lazy(() => import('./components/NeighborhoodStatsCard'));
+const TierBSignalsCard = lazy(() => import('./components/TierBSignalsCard'));
+const AttentionSummary = lazy(() => import('./components/AttentionSummary'));
+const PropertyWarningsCard = lazy(() => import('./components/PropertyWarningsCard'));
+const LivabilityCard = lazy(() => import('./components/LivabilityCard'));
+const LivabilityDetailView = lazy(() => import('./components/LivabilityDetailView'));
+const SoilInfoCard = lazy(() => import('./components/SoilInfoCard'));
+const ViewingChecklist = lazy(() => import('./components/ViewingChecklist'));
+const DossierSheet = lazy(() => import('./components/DossierSheet'));
+
+const ActionBar = lazy(() => import('./components/ActionBar'));
+const ExportBottomSheet = lazy(() => import('./components/ExportBottomSheet'));
 import {
   suggestAddresses,
   lookupAddress,
@@ -444,6 +448,21 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const neighborhood3DRequestId = useRef(0);
   const previousScreenRef = useRef<Screen>('search');
+
+  // Deferred 3D fetch: store parameters when address resolves, trigger when viewport-near
+  const viewer3DSectionRef = useRef<HTMLDivElement | null>(null);
+  const viewer3DObserverRef = useRef<IntersectionObserver | null>(null);
+  const deferred3DParamsRef = useRef<{
+    vboId: string;
+    pandId: string;
+    rdX: number;
+    rdY: number;
+    lat: number;
+    lng: number;
+    building: BuildingFactsResponse['building'] | undefined;
+    requestId: number;
+  } | null>(null);
+  const [viewer3DTriggered, setViewer3DTriggered] = useState(false);
   const [shortlistItems, setShortlistItems] = useState<ShortlistItem[]>(getShortlist());
 
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
@@ -825,6 +844,10 @@ function App() {
     })();
   }, [address, t]);
 
+  const handleLivabilityTap = useCallback(() => {
+    setShowLivabilityDetail(true);
+  }, []);
+
   const handleRetryAllFailed = useCallback(() => {
     if (riskError) handleRetryRiskCards();
     if (propertyWarningsError) handleRetryPropertyWarnings();
@@ -844,6 +867,118 @@ function App() {
     tierBError,
   ]);
 
+  // Trigger 3D fetch — called by IntersectionObserver when 3D section nears viewport
+  const trigger3DFetch = useCallback(() => {
+    const params = deferred3DParamsRef.current;
+    if (!params) return;
+    const { vboId, pandId, rdX, rdY, lat, lng, building, requestId } = params;
+    // Clear params so we don't re-trigger
+    deferred3DParamsRef.current = null;
+
+    setNeighborhood3DLoading(true);
+    setSurroundingLoading(true);
+
+    const immediateTargetData = createImmediateTarget3D(
+      vboId,
+      pandId,
+      rdX,
+      rdY,
+      lat,
+      lng,
+      building,
+    );
+    setNeighborhood3D(immediateTargetData);
+    setNeighborhood3DLoading(false);
+
+    let phase1TargetData: Neighborhood3DResponse | null = immediateTargetData;
+    let phase2Done = false;
+    let phase2HasRenderableData = false;
+
+    void (async () => {
+      try {
+        const target3d = await getBuilding3D(vboId, pandId, rdX, rdY, lat, lng);
+        const hasTargetBuilding = target3d.buildings.length > 0;
+        if (hasTargetBuilding) {
+          phase1TargetData = target3d;
+        }
+        if (
+          (!phase2Done || !phase2HasRenderableData)
+          && neighborhood3DRequestId.current === requestId
+          && hasTargetBuilding
+        ) {
+          setNeighborhood3D(target3d);
+        }
+      } catch {
+        // Phase 2 handles fallback.
+      }
+    })();
+
+    void (async () => {
+      try {
+        const n3d = await getNeighborhood3D(vboId, pandId, rdX, rdY, lat, lng);
+        phase2Done = true;
+        const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
+        phase2HasRenderableData = merged3d.buildings.length > 0;
+        if (neighborhood3DRequestId.current !== requestId) return;
+        setNeighborhood3D(merged3d);
+        setNeighborhood3DLoading(false);
+        setSurroundingLoading(false);
+        setSunlightUnavailable(!hasSurroundingContext(merged3d));
+      } catch {
+        phase2Done = true;
+        phase2HasRenderableData = false;
+        if (neighborhood3DRequestId.current !== requestId) return;
+        setNeighborhood3DLoading(false);
+        setSurroundingLoading(false);
+        setSunlightUnavailable(true);
+      }
+    })();
+  }, []);
+
+  // IntersectionObserver callback ref for the 3D section
+  const viewer3DRefCallback = useCallback((node: HTMLDivElement | null) => {
+    // Disconnect existing observer
+    if (viewer3DObserverRef.current) {
+      viewer3DObserverRef.current.disconnect();
+      viewer3DObserverRef.current = null;
+    }
+
+    viewer3DSectionRef.current = node;
+
+    if (!node) return;
+
+    // If already triggered (params consumed), nothing to observe
+    if (!deferred3DParamsRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            observer.disconnect();
+            viewer3DObserverRef.current = null;
+            setViewer3DTriggered(true);
+            trigger3DFetch();
+            break;
+          }
+        }
+      },
+      { rootMargin: '400px 0px' },
+    );
+
+    observer.observe(node);
+    viewer3DObserverRef.current = observer;
+  }, [trigger3DFetch]);
+
+  // Clean up observer on unmount
+  useEffect(() => {
+    return () => {
+      if (viewer3DObserverRef.current) {
+        viewer3DObserverRef.current.disconnect();
+        viewer3DObserverRef.current = null;
+      }
+    };
+  }, []);
+
   const handleAddressSelect = useCallback(async (suggestion: AddressSuggestion) => {
     setLoading(true);
     setLoadingStep('findingBuilding');
@@ -856,6 +991,12 @@ function App() {
     setNeighborhood3D(null);
     setNeighborhood3DLoading(false);
     setSurroundingLoading(false);
+    setViewer3DTriggered(false);
+    deferred3DParamsRef.current = null;
+    if (viewer3DObserverRef.current) {
+      viewer3DObserverRef.current.disconnect();
+      viewer3DObserverRef.current = null;
+    }
     setRiskCards(null);
     setRiskComparisons(null);
     setRiskLoading(false);
@@ -1074,64 +1215,38 @@ function App() {
       setLoadingStep('checkingClimate');
       const pandId = resolved.pand_id ?? building.building?.pand_id ?? null;
       if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
-        setNeighborhood3DLoading(true);
-        setSurroundingLoading(true);
-
-        const immediateTargetData = createImmediateTarget3D(
+        // Defer 3D fetch until the 3D section is near the viewport.
+        // Store the parameters and let IntersectionObserver trigger the actual fetch.
+        deferred3DParamsRef.current = {
           vboId,
           pandId,
-          rd_x,
-          rd_y,
-          latitude,
-          longitude,
-          building.building,
-        );
-        setNeighborhood3D(immediateTargetData);
-        setNeighborhood3DLoading(false);
-
-        let phase1TargetData: Neighborhood3DResponse | null = immediateTargetData;
-        let phase2Done = false;
-        let phase2HasRenderableData = false;
-
-        void (async () => {
-          try {
-            const target3d = await getBuilding3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
-            const hasTargetBuilding = target3d.buildings.length > 0;
-            if (hasTargetBuilding) {
-              phase1TargetData = target3d;
-            }
-            if (
-              (!phase2Done || !phase2HasRenderableData)
-              && neighborhood3DRequestId.current === requestId
-              && hasTargetBuilding
-            ) {
-              setNeighborhood3D(target3d);
-            }
-          } catch {
-            // Phase 2 handles fallback.
-          }
-        })();
-
-        void (async () => {
-          try {
-            const n3d = await getNeighborhood3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
-            phase2Done = true;
-            const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
-            phase2HasRenderableData = merged3d.buildings.length > 0;
-            if (neighborhood3DRequestId.current !== requestId) return;
-            setNeighborhood3D(merged3d);
-            setNeighborhood3DLoading(false);
-            setSurroundingLoading(false);
-            setSunlightUnavailable(!hasSurroundingContext(merged3d));
-          } catch {
-            phase2Done = true;
-            phase2HasRenderableData = false;
-            if (neighborhood3DRequestId.current !== requestId) return;
-            setNeighborhood3DLoading(false);
-            setSurroundingLoading(false);
-            setSunlightUnavailable(true);
-          }
-        })();
+          rdX: rd_x,
+          rdY: rd_y,
+          lat: latitude,
+          lng: longitude,
+          building: building.building,
+          requestId,
+        };
+        // Re-attach observer if the section ref is already mounted
+        if (viewer3DSectionRef.current && !viewer3DObserverRef.current) {
+          const node = viewer3DSectionRef.current;
+          const observer = new IntersectionObserver(
+            (entries) => {
+              for (const entry of entries) {
+                if (entry.isIntersecting) {
+                  observer.disconnect();
+                  viewer3DObserverRef.current = null;
+                  setViewer3DTriggered(true);
+                  trigger3DFetch();
+                  break;
+                }
+              }
+            },
+            { rootMargin: '400px 0px' },
+          );
+          observer.observe(node);
+          viewer3DObserverRef.current = observer;
+        }
       } else {
         setSunlightUnavailable(true);
       }
@@ -1259,8 +1374,8 @@ function App() {
     setHashRoute,
   ]);
 
-  // Build summary strip pills from risk data
-  const summaryPills = (() => {
+  // Build summary strip pills from risk data (memoized to prevent new array on every render)
+  const summaryPills = useMemo(() => {
     if (!riskCards && !sunlight) return [];
     const pills = [];
     if (riskCards) {
@@ -1276,7 +1391,7 @@ function App() {
       : 'unavailable';
     pills.push({ category: 'sunlight', labelKey: 'sunlight.title', score: sunlightScore, severity: sunlightSeverity });
     return pills;
-  })();
+  }, [riskCards, sunlight]);
 
   const comparisonLabel = useCallback((code: string): string => {
     if (code === 'city_avg') return t('risk.detail.cityAvg');
@@ -1584,6 +1699,8 @@ function App() {
                 warningKey={loadingWarningKey}
               />
             ) : (
+              <ErrorBoundary fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
+              <Suspense fallback={null}>
               <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
                 {address && buildingResponse && showDossierJump && (
                   <div className="app__dossier-jump-nav">
@@ -1794,7 +1911,7 @@ function App() {
                             loading={livabilityLoading}
                             error={livabilityError}
                             onRetry={livabilityError ? handleRetryLivability : undefined}
-                            onTap={livability?.available ? () => setShowLivabilityDetail(true) : undefined}
+                            onTap={livability?.available ? handleLivabilityTap : undefined}
                           />
                         </div>
                       )}
@@ -1806,7 +1923,13 @@ function App() {
                         />
                       )}
 
-                      <div className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8}>
+                      <div ref={viewer3DRefCallback} className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8} data-testid="viewer-3d-sentinel">
+                        {!viewer3DTriggered && !neighborhood3D && (
+                          <div className="viewer-3d-status">
+                            <p>{t('viewer3d.loading')}</p>
+                          </div>
+                        )}
+
                         {neighborhood3DLoading && (
                           <div className="viewer-3d-status">
                             <p>{t('viewer3d.loading')}</p>
@@ -1818,6 +1941,7 @@ function App() {
                             <p>{t('viewer3d.noData')}</p>
                           </div>
                         )}
+
 
                         {neighborhood3D && neighborhood3D.buildings.length > 0 && (
                           <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
@@ -1925,6 +2049,8 @@ function App() {
                   </div>
                 )}
               </DossierSheet>
+              </Suspense>
+              </ErrorBoundary>
             )}
             </motion.div>
           )}
@@ -1959,7 +2085,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+              <Suspense fallback={null}>
                 <CompareScreen
                   items={shortlistItems}
                   onBack={() => {
@@ -1980,7 +2106,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+              <Suspense fallback={null}>
                 <SettingsScreen
                   onClearRecent={handleClearRecent}
                   onClearShortlist={handleClearShortlist}
@@ -1995,27 +2121,31 @@ function App() {
 
       {/* Export bottom sheet */}
       {address?.adresseerbaar_object_id && address.rd_x != null && address.rd_y != null && address.latitude != null && address.longitude != null && (
-        <ExportBottomSheet
-          isOpen={exportSheetOpen}
-          onClose={() => setExportSheetOpen(false)}
-          vboId={address.adresseerbaar_object_id}
-          rdX={address.rd_x}
-          rdY={address.rd_y}
-          lat={address.latitude}
-          lng={address.longitude}
-          address={address.display_name}
-          street={address.street ?? undefined}
-          city={address.city ?? undefined}
-          buurtCode={address.buurt_code ?? undefined}
-          postcode={address.postcode ?? undefined}
-          houseNumber={address.house_number ?? undefined}
-          houseLetter={address.house_letter ?? undefined}
-          addition={address.addition ?? undefined}
-          shadowSnapshots={shadowSnapshots}
-          onGenerateStart={() => showToast(t('toast.exportStarted'))}
-          onGenerateSuccess={() => showToast(t('toast.exportReady'))}
-          onGenerateError={() => showToast(t('export.error'))}
-        />
+        <ErrorBoundary fallback={null}>
+        <Suspense fallback={null}>
+          <ExportBottomSheet
+            isOpen={exportSheetOpen}
+            onClose={() => setExportSheetOpen(false)}
+            vboId={address.adresseerbaar_object_id}
+            rdX={address.rd_x}
+            rdY={address.rd_y}
+            lat={address.latitude}
+            lng={address.longitude}
+            address={address.display_name}
+            street={address.street ?? undefined}
+            city={address.city ?? undefined}
+            buurtCode={address.buurt_code ?? undefined}
+            postcode={address.postcode ?? undefined}
+            houseNumber={address.house_number ?? undefined}
+            houseLetter={address.house_letter ?? undefined}
+            addition={address.addition ?? undefined}
+            shadowSnapshots={shadowSnapshots}
+            onGenerateStart={() => showToast(t('toast.exportStarted'))}
+            onGenerateSuccess={() => showToast(t('toast.exportReady'))}
+            onGenerateError={() => showToast(t('export.error'))}
+          />
+        </Suspense>
+        </ErrorBoundary>
       )}
 
       <TabBar

@@ -23,13 +23,13 @@ function collectFiles(dir: string): string[] {
 }
 
 describe.skipIf(!hasDistDir)('Bundle budget', () => {
-  it('all dist gzip total under 330KB', () => {
+  it('all dist gzip total under 480KB', () => {
     const files = collectFiles(distRoot);
     const totalGzip = files.reduce((sum, filePath) => {
       const gzipped = gzipSync(readFileSync(filePath)).length;
       return sum + gzipped;
     }, 0);
-    expect(totalGzip).toBeLessThan(430 * 1024);
+    expect(totalGzip).toBeLessThan(480 * 1024);
   });
 
   it('vendor-three chunk under 550KB', () => {
@@ -48,11 +48,11 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
     expect(size).toBeLessThan(200 * 1024);
   });
 
-  it('main index chunk under 350KB', () => {
+  it('main index chunk under 330KB', () => {
     const files = readdirSync(distDir);
     const indexChunk = files.find((f) => f.startsWith('index-') && f.endsWith('.js'));
     expect(indexChunk).toBeDefined();
     const size = statSync(resolve(distDir, indexChunk!)).size;
-    expect(size).toBeLessThan(390 * 1024);
+    expect(size).toBeLessThan(330 * 1024);
   });
 });

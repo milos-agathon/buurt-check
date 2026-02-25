@@ -6,6 +6,7 @@
   margin: 0;
   border-radius: var(--radius-card);
   flex-wrap: wrap;
+  contain: content;
 }
 
 .attention-summary--green {

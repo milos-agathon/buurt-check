@@ -5,6 +5,7 @@
   gap: var(--space-md);
   margin: var(--space-base) 0;
   padding: var(--space-base);
+  contain: content;
 }
 
 .address-header__info {

@@ -39,6 +39,7 @@
   "error.data_source": "We konden deze databron nu niet laden. Probeer het over een moment opnieuw.",
   "error.server": "Onze server heeft een tijdelijk probleem. Probeer het over een moment opnieuw.",
   "error.retry": "Opnieuw proberen",
+  "error.dossierLoadFailed": "We konden de dossierweergave niet laden. Probeer de pagina te vernieuwen.",
   "dossier.buurtDivider": "Buurtcontext",
   "dossier.coverage.loaded": "{{loaded}}/{{total}} bronnen geladen",
   "dossier.coverage.newest": "Nieuwste: {{date}}",

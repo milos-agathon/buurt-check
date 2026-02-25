@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LivabilityResponse, RiskCardsResponse, PropertyWarningsResponse } from '../types/api';
 import './AttentionSummary.css';
@@ -79,7 +79,7 @@ function computeFlags(
   return { flags, assessed };
 }
 
-export default function AttentionSummary({ riskCards, warnings, sunlightScore, livability }: Props) {
+function AttentionSummary({ riskCards, warnings, sunlightScore, livability }: Props) {
   const { t } = useTranslation();
 
   const { flags, assessed } = useMemo(
@@ -139,3 +139,5 @@ export default function AttentionSummary({ riskCards, warnings, sunlightScore, l
     </div>
   );
 }
+
+export default memo(AttentionSummary);

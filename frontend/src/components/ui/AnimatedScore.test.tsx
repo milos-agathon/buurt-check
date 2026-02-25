@@ -8,6 +8,9 @@ let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeEach(async () => {
   i18n = await setupTestI18n('en');
+  // AnimatedScore animation tests need reduced-motion=false to verify counting behavior.
+  // Global setup.ts defaults to true (for other components that embed AnimatedScore).
+  document.documentElement.setAttribute('data-test-reduced-motion', 'false');
 });
 
 function renderScore(props: Parameters<typeof AnimatedScore>[0]) {

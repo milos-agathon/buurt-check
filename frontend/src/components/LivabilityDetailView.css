@@ -185,7 +185,17 @@
   width: 100%;
   border-radius: 4px 4px 0 0;
   min-height: 4px;
-  transition: height var(--duration-emphasis) var(--ease-out-expo);
+  transform-origin: bottom;
+  animation: livability-bar-grow var(--duration-emphasis) var(--ease-out-expo) both;
+}
+
+@keyframes livability-bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 
 .livability-detail__trend-bar--good { background: var(--color-risk-good); }
@@ -312,8 +322,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .livability-detail__dim-fill,
-  .livability-detail__trend-bar,
   .livability-detail__cmp-fill {
     transition: none;
+  }
+
+  .livability-detail__trend-bar {
+    animation: none;
   }
 }
