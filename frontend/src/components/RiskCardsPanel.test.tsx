@@ -98,7 +98,7 @@ describe('RiskCardsPanel', () => {
     });
     renderPanel(risks);
     expect(screen.getByText(/dataset date unknown/)).toBeInTheDocument();
-    expect(screen.getByText(/sampled 2026-02-05/)).toBeInTheDocument();
+    expect(screen.getByText(/measured 2026-02-05/)).toBeInTheDocument();
   });
 
   it('renders error state', () => {
