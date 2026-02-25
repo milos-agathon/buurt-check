@@ -618,6 +618,19 @@ function App() {
     showToast(t('toast.recentCleared'));
   }, [showToast, t]);
 
+  const handleNavigateToSaved = useCallback(() => {
+    setActiveTab('saved');
+    setShortlistItems(getShortlist());
+    setActiveScreen('shortlist');
+    setHashRoute('#/saved');
+  }, [setHashRoute]);
+
+  const handleNavigateToCompare = useCallback(() => {
+    setActiveTab('saved');
+    setActiveScreen('compare');
+    setHashRoute('#/compare');
+  }, [setHashRoute]);
+
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab);
     if (tab === 'home') {
@@ -1711,7 +1724,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-            {!showLoadingScreen && <AddressSearch onSelect={handleAddressSelect} />}
+            {!showLoadingScreen && <AddressSearch onSelect={handleAddressSelect} shortlistCount={shortlistItems.length} onNavigateToSaved={handleNavigateToSaved} onNavigateToCompare={handleNavigateToCompare} />}
             {error && <p className="app__error">{error}</p>}
 
             {showLoadingScreen ? (

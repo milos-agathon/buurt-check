@@ -2,14 +2,18 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { suggestAddresses } from '../services/api';
 import { getRecent, addRecent, type RecentSearch } from '../services/recentSearches';
+import { isFirstVisit } from '../services/firstVisit';
 import type { AddressSuggestion } from '../types/api';
 import './AddressSearch.css';
 
 interface Props {
   onSelect: (suggestion: AddressSuggestion) => void;
+  shortlistCount?: number;
+  onNavigateToSaved?: () => void;
+  onNavigateToCompare?: () => void;
 }
 
-export default function AddressSearch({ onSelect }: Props) {
+export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigateToSaved, onNavigateToCompare }: Props) {
   const { t, i18n } = useTranslation();
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -235,7 +239,7 @@ export default function AddressSearch({ onSelect }: Props) {
           </ul>
         </div>
       )}
-      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && (
+      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && isFirstVisit() && (
         <div className="address-search__value-props" data-testid="value-props">
           <div className="address-search__value-row">
             <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
@@ -271,6 +275,43 @@ export default function AddressSearch({ onSelect }: Props) {
             {t('search.exampleAddress')}
           </button>
           <p className="address-search__trust-signal">{t('search.trustSignal')}</p>
+        </div>
+      )}
+      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && !isFirstVisit() && (
+        <div className="address-search__welcome-back" data-testid="welcome-back">
+          <h3 className="address-search__welcome-back-title">{t('search.welcomeBack')}</h3>
+          {shortlistCount > 0 && (
+            <p className="address-search__welcome-back-saved">
+              {t('search.savedCount', { count: shortlistCount })}
+            </p>
+          )}
+          {shortlistCount > 0 && onNavigateToSaved && (
+            <button
+              type="button"
+              className="address-search__welcome-back-action"
+              onClick={onNavigateToSaved}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+              </svg>
+              {t('search.viewSaved')}
+            </button>
+          )}
+          {shortlistCount >= 2 && onNavigateToCompare && (
+            <button
+              type="button"
+              className="address-search__welcome-back-action"
+              onClick={onNavigateToCompare}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+              {t('search.compareSaved')}
+            </button>
+          )}
+          <p className="address-search__welcome-back-prompt">{t('search.searchAnother')}</p>
         </div>
       )}
     </div>
