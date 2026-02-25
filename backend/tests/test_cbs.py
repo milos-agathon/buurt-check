@@ -455,4 +455,4 @@ async def test_get_neighborhood_stats_backfills_housing_access_from_2023():
     assert result.stats.avg_property_value.value == 428000.0
     assert result.stats.distance_to_train_km.value == 5.2
     assert result.stats.distance_to_supermarket_km.value == 1.0
-    assert result.source == "CBS Wijken & Buurten 2024 + 2023 fallback"
+    assert result.source == "CBS (Statistics Netherlands)"

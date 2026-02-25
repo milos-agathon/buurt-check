@@ -301,7 +301,7 @@ async def get_neighborhood_stats(
 ) -> NeighborhoodStatsResponse:
     """Fetch CBS neighborhood statistics for a resolved address."""
     feature = None
-    source = "CBS Wijken & Buurten 2024"
+    source = "CBS (Statistics Netherlands)"
 
     # Primary: direct buurt_code lookup
     if buurt_code:
@@ -351,7 +351,7 @@ async def get_neighborhood_stats(
             if legacy_stats is not None:
                 stats = _merge_missing_housing_access(stats, legacy_stats)
                 if not _needs_housing_access_backfill(stats):
-                    source = "CBS Wijken & Buurten 2024 + 2023 fallback"
+                    source = "CBS (Statistics Netherlands)"
 
     return NeighborhoodStatsResponse(
         address_id=vbo_id,

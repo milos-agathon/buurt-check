@@ -19,7 +19,7 @@ class CrimeStatsCard(BaseModel):
     burglary_count: float | None = None
     violent_count: float | None = None
     monthly_total_count: float | None = None
-    source: str = "CBS OData 47018NED/47022NED"
+    source: str = "CBS (Statistics Netherlands)"
     source_date: str | None = None
     message: str | None = None
 
