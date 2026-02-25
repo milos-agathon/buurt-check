@@ -1,37 +1,39 @@
 import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import AddressSearch from './components/AddressSearch';
-import AddressHeader from './components/AddressHeader';
-import SummaryStrip from './components/SummaryStrip';
-import BuildingFactsCard from './components/BuildingFactsCard';
-import SunlightRiskCard from './components/SunlightRiskCard';
-import ShadowTimeSlider from './components/ShadowTimeSlider';
-import ShadowSnapshots from './components/ShadowSnapshots';
-import RiskCardsPanel from './components/RiskCardsPanel';
-import RiskTilesGrid from './components/RiskTilesGrid';
-import RiskDetailView from './components/RiskDetailView';
-import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
-import TierBSignalsCard from './components/TierBSignalsCard';
-import AttentionSummary from './components/AttentionSummary';
-import PropertyWarningsCard from './components/PropertyWarningsCard';
-import LivabilityCard from './components/LivabilityCard';
-import LivabilityDetailView from './components/LivabilityDetailView';
-import SoilInfoCard from './components/SoilInfoCard';
-import ViewingChecklist from './components/ViewingChecklist';
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
-import DossierSheet from './components/DossierSheet';
 import type { SheetSnap } from './components/DossierSheet';
-import RiskTileSkeleton from './components/RiskTileSkeleton';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
 import { SPRING_REVEAL } from './config/springs';
 import { hapticTap } from './utils/haptic';
 import { useAnimationPerformance } from './hooks/useAnimationPerformance';
-import ActionBar from './components/ActionBar';
-import ExportBottomSheet from './components/ExportBottomSheet';
 import ShortlistScreen from './components/ShortlistScreen';
 import TabBar from './components/TabBar';
 import TopBar from './components/TopBar';
 import type { TabId } from './components/TabBar';
+
+// Lazy-loaded dossier components — loaded in parallel with API calls
+const AddressHeader = lazy(() => import('./components/AddressHeader'));
+const SummaryStrip = lazy(() => import('./components/SummaryStrip'));
+const BuildingFactsCard = lazy(() => import('./components/BuildingFactsCard'));
+const SunlightRiskCard = lazy(() => import('./components/SunlightRiskCard'));
+const ShadowTimeSlider = lazy(() => import('./components/ShadowTimeSlider'));
+const ShadowSnapshots = lazy(() => import('./components/ShadowSnapshots'));
+const RiskCardsPanel = lazy(() => import('./components/RiskCardsPanel'));
+const RiskTilesGrid = lazy(() => import('./components/RiskTilesGrid'));
+const RiskDetailView = lazy(() => import('./components/RiskDetailView'));
+const NeighborhoodStatsCard = lazy(() => import('./components/NeighborhoodStatsCard'));
+const TierBSignalsCard = lazy(() => import('./components/TierBSignalsCard'));
+const AttentionSummary = lazy(() => import('./components/AttentionSummary'));
+const PropertyWarningsCard = lazy(() => import('./components/PropertyWarningsCard'));
+const LivabilityCard = lazy(() => import('./components/LivabilityCard'));
+const LivabilityDetailView = lazy(() => import('./components/LivabilityDetailView'));
+const SoilInfoCard = lazy(() => import('./components/SoilInfoCard'));
+const ViewingChecklist = lazy(() => import('./components/ViewingChecklist'));
+const DossierSheet = lazy(() => import('./components/DossierSheet'));
+const RiskTileSkeleton = lazy(() => import('./components/RiskTileSkeleton'));
+const ActionBar = lazy(() => import('./components/ActionBar'));
+const ExportBottomSheet = lazy(() => import('./components/ExportBottomSheet'));
 import {
   suggestAddresses,
   lookupAddress,
@@ -1573,6 +1575,7 @@ function App() {
                 warningKey={loadingWarningKey}
               />
             ) : (
+              <Suspense fallback={null}>
               <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
                 {address && buildingResponse && showDossierJump && (
                   <div className="app__dossier-jump-nav">
@@ -1907,6 +1910,7 @@ function App() {
                   />
                 )}
               </DossierSheet>
+              </Suspense>
             )}
           </>
         )}
@@ -1949,27 +1953,29 @@ function App() {
 
       {/* Export bottom sheet */}
       {address?.adresseerbaar_object_id && address.rd_x != null && address.rd_y != null && address.latitude != null && address.longitude != null && (
-        <ExportBottomSheet
-          isOpen={exportSheetOpen}
-          onClose={() => setExportSheetOpen(false)}
-          vboId={address.adresseerbaar_object_id}
-          rdX={address.rd_x}
-          rdY={address.rd_y}
-          lat={address.latitude}
-          lng={address.longitude}
-          address={address.display_name}
-          street={address.street ?? undefined}
-          city={address.city ?? undefined}
-          buurtCode={address.buurt_code ?? undefined}
-          postcode={address.postcode ?? undefined}
-          houseNumber={address.house_number ?? undefined}
-          houseLetter={address.house_letter ?? undefined}
-          addition={address.addition ?? undefined}
-          shadowSnapshots={shadowSnapshots}
-          onGenerateStart={() => showToast(t('toast.exportStarted'))}
-          onGenerateSuccess={() => showToast(t('toast.exportReady'))}
-          onGenerateError={() => showToast(t('export.error'))}
-        />
+        <Suspense fallback={null}>
+          <ExportBottomSheet
+            isOpen={exportSheetOpen}
+            onClose={() => setExportSheetOpen(false)}
+            vboId={address.adresseerbaar_object_id}
+            rdX={address.rd_x}
+            rdY={address.rd_y}
+            lat={address.latitude}
+            lng={address.longitude}
+            address={address.display_name}
+            street={address.street ?? undefined}
+            city={address.city ?? undefined}
+            buurtCode={address.buurt_code ?? undefined}
+            postcode={address.postcode ?? undefined}
+            houseNumber={address.house_number ?? undefined}
+            houseLetter={address.house_letter ?? undefined}
+            addition={address.addition ?? undefined}
+            shadowSnapshots={shadowSnapshots}
+            onGenerateStart={() => showToast(t('toast.exportStarted'))}
+            onGenerateSuccess={() => showToast(t('toast.exportReady'))}
+            onGenerateError={() => showToast(t('export.error'))}
+          />
+        </Suspense>
       )}
 
       <TabBar

@@ -48,11 +48,11 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
     expect(size).toBeLessThan(200 * 1024);
   });
 
-  it('main index chunk under 350KB', () => {
+  it('main index chunk under 330KB', () => {
     const files = readdirSync(distDir);
     const indexChunk = files.find((f) => f.startsWith('index-') && f.endsWith('.js'));
     expect(indexChunk).toBeDefined();
     const size = statSync(resolve(distDir, indexChunk!)).size;
-    expect(size).toBeLessThan(390 * 1024);
+    expect(size).toBeLessThan(330 * 1024);
   });
 });
