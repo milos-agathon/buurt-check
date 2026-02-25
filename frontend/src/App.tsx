@@ -1367,8 +1367,8 @@ function App() {
     setHashRoute,
   ]);
 
-  // Build summary strip pills from risk data
-  const summaryPills = (() => {
+  // Build summary strip pills from risk data (memoized to prevent new array on every render)
+  const summaryPills = useMemo(() => {
     if (!riskCards && !sunlight) return [];
     const pills = [];
     if (riskCards) {
@@ -1384,7 +1384,7 @@ function App() {
       : 'unavailable';
     pills.push({ category: 'sunlight', labelKey: 'sunlight.title', score: sunlightScore, severity: sunlightSeverity });
     return pills;
-  })();
+  }, [riskCards, sunlight]);
 
   const comparisonLabel = useCallback((code: string): string => {
     if (code === 'city_avg') return t('risk.detail.cityAvg');
