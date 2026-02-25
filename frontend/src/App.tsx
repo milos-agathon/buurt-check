@@ -1,6 +1,8 @@
 import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import AddressSearch from './components/AddressSearch';
+import ErrorBoundary from './components/ErrorBoundary';
+import RiskTileSkeleton from './components/RiskTileSkeleton';
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import type { SheetSnap } from './components/DossierSheet';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
@@ -31,7 +33,7 @@ const LivabilityDetailView = lazy(() => import('./components/LivabilityDetailVie
 const SoilInfoCard = lazy(() => import('./components/SoilInfoCard'));
 const ViewingChecklist = lazy(() => import('./components/ViewingChecklist'));
 const DossierSheet = lazy(() => import('./components/DossierSheet'));
-const RiskTileSkeleton = lazy(() => import('./components/RiskTileSkeleton'));
+
 const ActionBar = lazy(() => import('./components/ActionBar'));
 const ExportBottomSheet = lazy(() => import('./components/ExportBottomSheet'));
 import {
@@ -1575,6 +1577,7 @@ function App() {
                 warningKey={loadingWarningKey}
               />
             ) : (
+              <ErrorBoundary fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
               <Suspense fallback={null}>
               <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
                 {address && buildingResponse && showDossierJump && (
@@ -1911,6 +1914,7 @@ function App() {
                 )}
               </DossierSheet>
               </Suspense>
+              </ErrorBoundary>
             )}
           </>
         )}
@@ -1953,6 +1957,7 @@ function App() {
 
       {/* Export bottom sheet */}
       {address?.adresseerbaar_object_id && address.rd_x != null && address.rd_y != null && address.latitude != null && address.longitude != null && (
+        <ErrorBoundary fallback={null}>
         <Suspense fallback={null}>
           <ExportBottomSheet
             isOpen={exportSheetOpen}
@@ -1976,6 +1981,7 @@ function App() {
             onGenerateError={() => showToast(t('export.error'))}
           />
         </Suspense>
+        </ErrorBoundary>
       )}
 
       <TabBar
