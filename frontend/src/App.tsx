@@ -444,6 +444,21 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const neighborhood3DRequestId = useRef(0);
   const previousScreenRef = useRef<Screen>('search');
+
+  // Deferred 3D fetch: store parameters when address resolves, trigger when viewport-near
+  const viewer3DSectionRef = useRef<HTMLDivElement | null>(null);
+  const viewer3DObserverRef = useRef<IntersectionObserver | null>(null);
+  const deferred3DParamsRef = useRef<{
+    vboId: string;
+    pandId: string;
+    rdX: number;
+    rdY: number;
+    lat: number;
+    lng: number;
+    building: BuildingFactsResponse['building'] | undefined;
+    requestId: number;
+  } | null>(null);
+  const [viewer3DTriggered, setViewer3DTriggered] = useState(false);
   const [shortlistItems, setShortlistItems] = useState<ShortlistItem[]>(getShortlist());
 
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
@@ -845,6 +860,118 @@ function App() {
     tierBError,
   ]);
 
+  // Trigger 3D fetch — called by IntersectionObserver when 3D section nears viewport
+  const trigger3DFetch = useCallback(() => {
+    const params = deferred3DParamsRef.current;
+    if (!params) return;
+    const { vboId, pandId, rdX, rdY, lat, lng, building, requestId } = params;
+    // Clear params so we don't re-trigger
+    deferred3DParamsRef.current = null;
+
+    setNeighborhood3DLoading(true);
+    setSurroundingLoading(true);
+
+    const immediateTargetData = createImmediateTarget3D(
+      vboId,
+      pandId,
+      rdX,
+      rdY,
+      lat,
+      lng,
+      building,
+    );
+    setNeighborhood3D(immediateTargetData);
+    setNeighborhood3DLoading(false);
+
+    let phase1TargetData: Neighborhood3DResponse | null = immediateTargetData;
+    let phase2Done = false;
+    let phase2HasRenderableData = false;
+
+    void (async () => {
+      try {
+        const target3d = await getBuilding3D(vboId, pandId, rdX, rdY, lat, lng);
+        const hasTargetBuilding = target3d.buildings.length > 0;
+        if (hasTargetBuilding) {
+          phase1TargetData = target3d;
+        }
+        if (
+          (!phase2Done || !phase2HasRenderableData)
+          && neighborhood3DRequestId.current === requestId
+          && hasTargetBuilding
+        ) {
+          setNeighborhood3D(target3d);
+        }
+      } catch {
+        // Phase 2 handles fallback.
+      }
+    })();
+
+    void (async () => {
+      try {
+        const n3d = await getNeighborhood3D(vboId, pandId, rdX, rdY, lat, lng);
+        phase2Done = true;
+        const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
+        phase2HasRenderableData = merged3d.buildings.length > 0;
+        if (neighborhood3DRequestId.current !== requestId) return;
+        setNeighborhood3D(merged3d);
+        setNeighborhood3DLoading(false);
+        setSurroundingLoading(false);
+        setSunlightUnavailable(!hasSurroundingContext(merged3d));
+      } catch {
+        phase2Done = true;
+        phase2HasRenderableData = false;
+        if (neighborhood3DRequestId.current !== requestId) return;
+        setNeighborhood3DLoading(false);
+        setSurroundingLoading(false);
+        setSunlightUnavailable(true);
+      }
+    })();
+  }, []);
+
+  // IntersectionObserver callback ref for the 3D section
+  const viewer3DRefCallback = useCallback((node: HTMLDivElement | null) => {
+    // Disconnect existing observer
+    if (viewer3DObserverRef.current) {
+      viewer3DObserverRef.current.disconnect();
+      viewer3DObserverRef.current = null;
+    }
+
+    viewer3DSectionRef.current = node;
+
+    if (!node) return;
+
+    // If already triggered (params consumed), nothing to observe
+    if (!deferred3DParamsRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            observer.disconnect();
+            viewer3DObserverRef.current = null;
+            setViewer3DTriggered(true);
+            trigger3DFetch();
+            break;
+          }
+        }
+      },
+      { rootMargin: '400px 0px' },
+    );
+
+    observer.observe(node);
+    viewer3DObserverRef.current = observer;
+  }, [trigger3DFetch]);
+
+  // Clean up observer on unmount
+  useEffect(() => {
+    return () => {
+      if (viewer3DObserverRef.current) {
+        viewer3DObserverRef.current.disconnect();
+        viewer3DObserverRef.current = null;
+      }
+    };
+  }, []);
+
   const handleAddressSelect = useCallback(async (suggestion: AddressSuggestion) => {
     setLoading(true);
     setLoadingStep('findingBuilding');
@@ -857,6 +984,12 @@ function App() {
     setNeighborhood3D(null);
     setNeighborhood3DLoading(false);
     setSurroundingLoading(false);
+    setViewer3DTriggered(false);
+    deferred3DParamsRef.current = null;
+    if (viewer3DObserverRef.current) {
+      viewer3DObserverRef.current.disconnect();
+      viewer3DObserverRef.current = null;
+    }
     setRiskCards(null);
     setRiskComparisons(null);
     setRiskLoading(false);
@@ -1075,64 +1208,38 @@ function App() {
       setLoadingStep('checkingClimate');
       const pandId = resolved.pand_id ?? building.building?.pand_id ?? null;
       if (pandId && rd_x != null && rd_y != null && latitude != null && longitude != null) {
-        setNeighborhood3DLoading(true);
-        setSurroundingLoading(true);
-
-        const immediateTargetData = createImmediateTarget3D(
+        // Defer 3D fetch until the 3D section is near the viewport.
+        // Store the parameters and let IntersectionObserver trigger the actual fetch.
+        deferred3DParamsRef.current = {
           vboId,
           pandId,
-          rd_x,
-          rd_y,
-          latitude,
-          longitude,
-          building.building,
-        );
-        setNeighborhood3D(immediateTargetData);
-        setNeighborhood3DLoading(false);
-
-        let phase1TargetData: Neighborhood3DResponse | null = immediateTargetData;
-        let phase2Done = false;
-        let phase2HasRenderableData = false;
-
-        void (async () => {
-          try {
-            const target3d = await getBuilding3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
-            const hasTargetBuilding = target3d.buildings.length > 0;
-            if (hasTargetBuilding) {
-              phase1TargetData = target3d;
-            }
-            if (
-              (!phase2Done || !phase2HasRenderableData)
-              && neighborhood3DRequestId.current === requestId
-              && hasTargetBuilding
-            ) {
-              setNeighborhood3D(target3d);
-            }
-          } catch {
-            // Phase 2 handles fallback.
-          }
-        })();
-
-        void (async () => {
-          try {
-            const n3d = await getNeighborhood3D(vboId, pandId, rd_x, rd_y, latitude, longitude);
-            phase2Done = true;
-            const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
-            phase2HasRenderableData = merged3d.buildings.length > 0;
-            if (neighborhood3DRequestId.current !== requestId) return;
-            setNeighborhood3D(merged3d);
-            setNeighborhood3DLoading(false);
-            setSurroundingLoading(false);
-            setSunlightUnavailable(!hasSurroundingContext(merged3d));
-          } catch {
-            phase2Done = true;
-            phase2HasRenderableData = false;
-            if (neighborhood3DRequestId.current !== requestId) return;
-            setNeighborhood3DLoading(false);
-            setSurroundingLoading(false);
-            setSunlightUnavailable(true);
-          }
-        })();
+          rdX: rd_x,
+          rdY: rd_y,
+          lat: latitude,
+          lng: longitude,
+          building: building.building,
+          requestId,
+        };
+        // Re-attach observer if the section ref is already mounted
+        if (viewer3DSectionRef.current && !viewer3DObserverRef.current) {
+          const node = viewer3DSectionRef.current;
+          const observer = new IntersectionObserver(
+            (entries) => {
+              for (const entry of entries) {
+                if (entry.isIntersecting) {
+                  observer.disconnect();
+                  viewer3DObserverRef.current = null;
+                  setViewer3DTriggered(true);
+                  trigger3DFetch();
+                  break;
+                }
+              }
+            },
+            { rootMargin: '400px 0px' },
+          );
+          observer.observe(node);
+          viewer3DObserverRef.current = observer;
+        }
       } else {
         setSunlightUnavailable(true);
       }
@@ -1801,41 +1908,49 @@ function App() {
                         />
                       )}
 
-                      {neighborhood3DLoading && (
-                        <div className="viewer-3d-status">
-                          <p>{t('viewer3d.loading')}</p>
-                        </div>
-                      )}
+                      <div ref={viewer3DRefCallback} data-testid="viewer-3d-sentinel">
+                        {!viewer3DTriggered && !neighborhood3D && (
+                          <div className="viewer-3d-status">
+                            <p>{t('viewer3d.loading')}</p>
+                          </div>
+                        )}
 
-                      {!neighborhood3DLoading && neighborhood3D && neighborhood3D.buildings.length === 0 && (
-                        <div className="viewer-3d-status">
-                          <p>{t('viewer3d.noData')}</p>
-                        </div>
-                      )}
+                        {neighborhood3DLoading && (
+                          <div className="viewer-3d-status">
+                            <p>{t('viewer3d.loading')}</p>
+                          </div>
+                        )}
 
-                      {neighborhood3D && neighborhood3D.buildings.length > 0 && (
-                        <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-                          <NeighborhoodViewer3D
-                            buildings={neighborhood3D.buildings}
-                            targetPandId={neighborhood3D.target_pand_id ?? undefined}
-                            center={neighborhood3D.center}
-                            sunDateTime={sunDateTime}
-                            showHeatmap={showHeatmap}
-                            onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
-                            onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
-                            onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
-                            loading={surroundingLoading}
+                        {!neighborhood3DLoading && neighborhood3D && neighborhood3D.buildings.length === 0 && (
+                          <div className="viewer-3d-status">
+                            <p>{t('viewer3d.noData')}</p>
+                          </div>
+                        )}
+
+                        {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                          <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                            <NeighborhoodViewer3D
+                              buildings={neighborhood3D.buildings}
+                              targetPandId={neighborhood3D.target_pand_id ?? undefined}
+                              center={neighborhood3D.center}
+                              sunDateTime={sunDateTime}
+                              showHeatmap={showHeatmap}
+                              onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
+                              onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
+                              onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
+                              loading={surroundingLoading}
+                            />
+                          </Suspense>
+                        )}
+
+                        {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                          <ShadowTimeSlider
+                            lat={neighborhood3D.center.lat}
+                            lng={neighborhood3D.center.lng}
+                            onChange={setSunDateTime}
                           />
-                        </Suspense>
-                      )}
-
-                      {neighborhood3D && neighborhood3D.buildings.length > 0 && (
-                        <ShadowTimeSlider
-                          lat={neighborhood3D.center.lat}
-                          lng={neighborhood3D.center.lng}
-                          onChange={setSunDateTime}
-                        />
-                      )}
+                        )}
+                      </div>
 
                       {(() => {
                         const canComputeSunlight = hasSurroundingContext(neighborhood3D) && !surroundingLoading;

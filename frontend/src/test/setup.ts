@@ -71,4 +71,25 @@ if (typeof window.matchMedia !== 'function') {
   });
 }
 
+// Mock IntersectionObserver for jsdom (required by viewport-gated 3D fetch)
+// Stores the most recent callback and target so tests can simulate intersections.
+(globalThis as Record<string, unknown>).__intersectionObserverCallback = null;
+(globalThis as Record<string, unknown>).__intersectionObserverTarget = null;
+
+if (typeof globalThis.IntersectionObserver === 'undefined') {
+  const MockIntersectionObserver = function (this: Record<string, unknown>, callback: IntersectionObserverCallback) {
+    (globalThis as Record<string, unknown>).__intersectionObserverCallback = callback;
+    this.observe = (target: Element) => {
+      (globalThis as Record<string, unknown>).__intersectionObserverTarget = target;
+    };
+    this.unobserve = () => {};
+    this.disconnect = () => {};
+    this.takeRecords = () => [];
+    this.root = null;
+    this.rootMargin = '';
+    this.thresholds = [0];
+  } as unknown as typeof IntersectionObserver;
+  globalThis.IntersectionObserver = MockIntersectionObserver;
+}
+
 afterEach(cleanup);
