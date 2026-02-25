@@ -2,6 +2,22 @@ import { useTranslation } from 'react-i18next';
 import type { ThemePreference } from '../services/theme';
 import './SettingsScreen.css';
 
+const GITHUB_ISSUES_URL = 'https://github.com/milosblag/buurt-check/issues';
+
+const DATA_SOURCE_KEYS = [
+  'bag',
+  'threebag',
+  'rivm',
+  'climate',
+  'cbs',
+  'livability',
+  'energy',
+  'suncalc',
+  'pdok',
+] as const;
+
+const appVersion = import.meta.env.VITE_APP_VERSION || __APP_VERSION__ || '0.0.0';
+
 interface Props {
   onClearRecent: () => void;
   onClearShortlist: () => void;
@@ -92,10 +108,43 @@ export default function SettingsScreen({ onClearRecent, onClearShortlist, theme 
         </button>
       </div>
 
+      <div className="settings-screen__group settings-screen__group--info">
+        <h3 className="settings-screen__section-title">{t('settings.about.title')}</h3>
+        <p className="settings-screen__description">{t('settings.about.description')}</p>
+      </div>
+
+      <div className="settings-screen__group settings-screen__group--info">
+        <h3 className="settings-screen__section-title">{t('settings.data_sources.title')}</h3>
+        <ul className="settings-screen__source-list">
+          {DATA_SOURCE_KEYS.map((key) => (
+            <li key={key} className="settings-screen__source-item">
+              {t(`settings.data_sources.${key}`)}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="settings-screen__group settings-screen__group--info">
+        <h3 className="settings-screen__section-title">{t('settings.scoring.title')}</h3>
+        <p className="settings-screen__description">{t('settings.scoring.description')}</p>
+      </div>
+
+      <div className="settings-screen__group settings-screen__group--info">
+        <h3 className="settings-screen__section-title">{t('settings.feedback.title')}</h3>
+        <a
+          href={GITHUB_ISSUES_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="settings-screen__link"
+        >
+          {t('settings.feedback.link')}
+        </a>
+      </div>
+
       <div className="settings-screen__group">
         <div className="settings-screen__row">
           <span className="settings-screen__label">{t('settings.version')}</span>
-          <span className="settings-screen__value">1.0.0</span>
+          <span className="settings-screen__value">{appVersion}</span>
         </div>
       </div>
     </div>
