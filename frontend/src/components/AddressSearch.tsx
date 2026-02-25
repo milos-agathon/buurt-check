@@ -238,17 +238,16 @@ export default function AddressSearch({ onSelect }: Props) {
         <div className="address-search__value-props" data-testid="value-props">
           <div className="address-search__value-row">
             <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            <span className="address-search__value-text">{t('search.valueProp.risk')}</span>
+          </div>
+          <div className="address-search__value-row">
+            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
               <circle cx="12" cy="12" r="5" />
               <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
             </svg>
             <span className="address-search__value-text">{t('search.valueProp.sunlight')}</span>
-          </div>
-          <div className="address-search__value-row">
-            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
-              <path d="M12 22c4-4 8-7.58 8-12a8 8 0 10-16 0c0 4.42 4 8 8 12z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-            <span className="address-search__value-text">{t('search.valueProp.risk')}</span>
           </div>
           <div className="address-search__value-row">
             <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
@@ -258,6 +257,19 @@ export default function AddressSearch({ onSelect }: Props) {
             </svg>
             <span className="address-search__value-text">{t('search.valueProp.checklist')}</span>
           </div>
+          <button
+            type="button"
+            className="address-search__example-link"
+            onClick={() => onSelect({
+              id: 'adr-d3836e3ae5e5c07f18109908abba6dab',
+              display_name: 'Keizersgracht 1, 1015CD Amsterdam',
+              type: 'adres',
+              score: 1,
+            })}
+          >
+            {t('search.exampleAddress')}
+          </button>
+          <p className="address-search__trust-signal">{t('search.trustSignal')}</p>
         </div>
       )}
     </div>
