@@ -23,7 +23,7 @@ function collectFiles(dir: string): string[] {
 }
 
 describe.skipIf(!hasDistDir)('Bundle budget', () => {
-  it('all dist gzip total under 330KB', () => {
+  it('all dist gzip total under 430KB', () => {
     const files = collectFiles(distRoot);
     const totalGzip = files.reduce((sum, filePath) => {
       const gzipped = gzipSync(readFileSync(filePath)).length;
