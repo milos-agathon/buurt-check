@@ -9,7 +9,7 @@
   padding: var(--space-xs) var(--space-sm);
   display: grid;
   gap: var(--space-3xs);
-  backdrop-filter: blur(6px);
+  /* Removed backdrop-filter: blur(6px) — solid dark overlay is sufficient */
 }
 
 .heatmap-legend__title {
