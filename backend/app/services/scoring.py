@@ -200,6 +200,46 @@ def climate_summary(
     )
 
 
+def normalize_crime_score(total_per_1000: float | None) -> int | None:
+    """Linear inverse mapping: 20/1000 = 100 (very safe), 100/1000 = 0 (high crime).
+
+    Dutch national average ~52/1000. Clamps to 0-100.
+    """
+    if total_per_1000 is None:
+        return None
+    score = 100 - (total_per_1000 - 20) * (100 / 80)
+    return max(0, min(100, round(score)))
+
+
+def crime_summary(
+    score: int | None, total_per_1000: float | None
+) -> tuple[str, str]:
+    """Return (en, nl) one-liner summaries for crime based on score."""
+    if score is None or total_per_1000 is None:
+        return ("Crime data unavailable", "Criminaliteitsgegevens niet beschikbaar")
+    sev = severity_from_score(score)
+    rate = f"{total_per_1000:.1f}"
+    if sev == SeverityLevel.good:
+        return (
+            f"Low crime area ({rate}/1,000 residents) — well below national average",
+            f"Weinig criminaliteit ({rate}/1.000 inwoners) — ruim onder landelijk gemiddelde",
+        )
+    if sev == SeverityLevel.moderate:
+        return (
+            f"Average crime rate ({rate}/1,000 residents) — near national average",
+            f"Gemiddelde criminaliteit ({rate}/1.000 inwoners) — nabij landelijk gemiddelde",
+        )
+    if sev == SeverityLevel.poor:
+        return (
+            f"High crime area ({rate}/1,000 residents) — ask about security at viewing",
+            f"Hoge criminaliteit ({rate}/1.000 inwoners) — vraag naar beveiliging bij bezichtiging",
+        )
+    return (
+        f"Very high crime ({rate}/1,000 residents) — serious safety concern for this area",
+        f"Zeer hoge criminaliteit ({rate}/1.000 inwoners) — ernstig veiligheidsprobleem",
+    )
+
+
 def sunlight_summary(
     score: int | None, winter_hours: float | None
 ) -> tuple[str, str]:

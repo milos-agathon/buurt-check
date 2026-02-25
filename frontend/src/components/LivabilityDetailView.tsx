@@ -132,7 +132,8 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
                           className={`livability-detail__dim-trend-bar livability-detail__dim-trend-bar--${barSev}`}
                           style={{ height: `${Math.max(10, dim.normalized_score)}%` }}
                           key={point.year}
-                          title={`${point.year}: ${dim.normalized_score}`}
+                          role="img"
+                          aria-label={`${point.year}: ${dim.normalized_score}`}
                         />
                       );
                     })}

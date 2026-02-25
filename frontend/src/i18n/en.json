@@ -366,6 +366,9 @@
   "tierB.crime.rawNote": "Per-capita rates unavailable — showing total registered incidents.",
   "tierB.crime.municipalityNote": "Neighborhood-level data unavailable — showing municipality-wide figures.",
   "tierB.crime.period": "Latest month: {{period}}",
+  "tierB.crime.comparison.title": "How it compares (per 1,000 residents)",
+  "tierB.crime.comparison.thisArea": "This area",
+  "tierB.crime.comparison.national": "National avg.",
   "tierB.source.energy": "Source + date: {{source}} ({{date}})",
   "tierB.source.crime": "Source + date: {{source}} ({{date}})",
 

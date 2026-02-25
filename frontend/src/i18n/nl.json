@@ -366,6 +366,9 @@
   "tierB.crime.rawNote": "Cijfers per inwoner niet beschikbaar — totaal geregistreerde incidenten getoond.",
   "tierB.crime.municipalityNote": "Buurtgegevens niet beschikbaar — gemeentecijfers worden getoond.",
   "tierB.crime.period": "Laatste maand: {{period}}",
+  "tierB.crime.comparison.title": "Vergelijking (per 1.000 inwoners)",
+  "tierB.crime.comparison.thisArea": "Dit gebied",
+  "tierB.crime.comparison.national": "Landelijk gem.",
   "tierB.source.energy": "Bron + datum: {{source}} ({{date}})",
   "tierB.source.crime": "Bron + datum: {{source}} ({{date}})",
 

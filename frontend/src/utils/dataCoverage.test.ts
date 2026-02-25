@@ -32,6 +32,14 @@ describe('resolveSourceFetchStatus', () => {
   it('hasData takes precedence over loading', () => {
     expect(resolveSourceFetchStatus(true, true, true, false)).toBe('success');
   });
+
+  it('returns error when error is a non-empty string', () => {
+    expect(resolveSourceFetchStatus(true, false, false, 'Something went wrong')).toBe('error');
+  });
+
+  it('returns loading when error is null', () => {
+    expect(resolveSourceFetchStatus(true, false, false, null)).toBe('loading');
+  });
 });
 
 describe('buildParsedSourceDate', () => {

@@ -5,7 +5,7 @@ import './LivabilityCard.css';
 interface Props {
   data?: LivabilityResponse;
   loading?: boolean;
-  error?: boolean;
+  error?: string | null;
   onTap?: () => void;
   onRetry?: () => void;
 }
@@ -31,7 +31,7 @@ export default function LivabilityCard({ data, loading, error, onTap, onRetry }:
   if (error && !data) {
     return (
       <section className="livability-card" data-testid="livability-card">
-        <p className="livability-card__error">{t('livability.error')}</p>
+        <p className="livability-card__error">{error || t('livability.error')}</p>
         {onRetry && (
           <button
             type="button"
@@ -119,7 +119,8 @@ export default function LivabilityCard({ data, loading, error, onTap, onRetry }:
                   key={point.year}
                   className={`livability-card__spark-bar livability-card__spark-bar--${barSeverity}`}
                   style={{ height: `${pctHeight}%` }}
-                  title={`${point.year}: ${point.overall_normalized}/100`}
+                  role="img"
+                  aria-label={`${point.year}: ${point.overall_normalized}/100`}
                 />
               );
             })}

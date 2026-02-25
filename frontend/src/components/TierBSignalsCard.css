@@ -47,6 +47,30 @@
   line-height: 1.15;
 }
 
+.tier-b-card__severity-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.tier-b-card__crime-score {
+  font: var(--type-score-tile);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tier-b-card__crime-score-scale {
+  font: var(--type-small);
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.tier-b-card__meaning {
+  font: var(--type-body-friendly);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
 .tier-b-card__metrics {
   display: grid;
   gap: 4px;
@@ -89,6 +113,63 @@
   border-left: 3px solid var(--color-warning);
   padding: 3px var(--space-xs);
   border-radius: var(--radius-sm);
+}
+
+.tier-b-card__comparison {
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-card);
+  padding: var(--space-sm) var(--space-base);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.tier-b-card__cmp-title {
+  font: var(--type-small);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.tier-b-card__cmp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 32px;
+}
+
+.tier-b-card__cmp-label {
+  width: 96px;
+  flex-shrink: 0;
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+}
+
+.tier-b-card__cmp-track {
+  flex: 1;
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tier-b-card__cmp-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 4px;
+  transition: width 600ms ease-out;
+}
+
+.tier-b-card__cmp-fill--reference {
+  opacity: 0.7;
+}
+
+.tier-b-card__cmp-value {
+  width: 36px;
+  flex-shrink: 0;
+  text-align: right;
+  font: var(--type-small);
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .tier-b-card__disclaimer {

@@ -6,7 +6,7 @@ import './PropertyWarningsCard.css';
 interface Props {
   data?: PropertyWarningsResponse;
   loading?: boolean;
-  error?: boolean;
+  error?: string | null;
   onRetry?: () => void;
 }
 
@@ -37,7 +37,7 @@ export default function PropertyWarningsCard({ data, loading, error, onRetry }: 
   if (error && !data) {
     return (
       <section className="property-warnings" data-testid="property-warnings">
-        <p className="property-warnings__error">{t('warnings.error')}</p>
+        <p className="property-warnings__error">{error || t('warnings.error')}</p>
         {onRetry && (
           <button
             type="button"

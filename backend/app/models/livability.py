@@ -45,6 +45,6 @@ class LivabilityResponse(BaseModel):
     dimensions: list[LivabilityDimension] = Field(default_factory=list)
     trend: list[LivabilityTrendPoint] = Field(default_factory=list)
     comparison: list[LivabilityComparisonRow] = Field(default_factory=list)
-    source: str = "Leefbaarometer 3.0, Ministerie van BZK"
+    source: str = "Leefbaarometer (Dutch Livability Index)"
     source_date: str | None = None
     messages: list[str] = Field(default_factory=list)

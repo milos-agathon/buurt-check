@@ -46,6 +46,7 @@ import {
   getPropertyWarnings,
   getLivability,
   submitSunlightAnalysis,
+  mapApiError,
 } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
@@ -398,25 +399,25 @@ function App() {
     dossierSeed?.riskComparisons ?? null,
   );
   const [riskLoading, setRiskLoading] = useState(false);
-  const [riskError, setRiskError] = useState(false);
+  const [riskError, setRiskError] = useState<string | null>(null);
   const [neighborhoodStats, setNeighborhoodStats] = useState<NeighborhoodStatsResponse | null>(
     dossierSeed?.neighborhoodStats ?? null,
   );
   const [neighborhoodStatsLoading, setNeighborhoodStatsLoading] = useState(false);
-  const [neighborhoodStatsError, setNeighborhoodStatsError] = useState(false);
+  const [neighborhoodStatsError, setNeighborhoodStatsError] = useState<string | null>(null);
   const [tierBData, setTierBData] = useState<TierBResponse | null>(dossierSeed?.tierBData ?? null);
   const [tierBLoading, setTierBLoading] = useState(false);
-  const [tierBError, setTierBError] = useState(false);
+  const [tierBError, setTierBError] = useState<string | null>(null);
   const [propertyWarnings, setPropertyWarnings] = useState<PropertyWarningsResponse | null>(
     dossierSeed?.propertyWarnings ?? null,
   );
   const [propertyWarningsLoading, setPropertyWarningsLoading] = useState(false);
-  const [propertyWarningsError, setPropertyWarningsError] = useState(false);
+  const [propertyWarningsError, setPropertyWarningsError] = useState<string | null>(null);
   const [livability, setLivability] = useState<LivabilityResponse | null>(
     dossierSeed?.livability ?? null,
   );
   const [livabilityLoading, setLivabilityLoading] = useState(false);
-  const [livabilityError, setLivabilityError] = useState(false);
+  const [livabilityError, setLivabilityError] = useState<string | null>(null);
   const [showLivabilityDetail, setShowLivabilityDetail] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(dossierSeed?.sunlight ?? null);
   const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
@@ -728,23 +729,23 @@ function App() {
     if (!address?.adresseerbaar_object_id) return;
     const { adresseerbaar_object_id: vboId, rd_x, rd_y, latitude, longitude } = address;
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
-    setRiskError(false);
+    setRiskError(null);
     setRiskLoading(true);
     void (async () => {
       try {
         const risks = await getRiskCards(vboId, rd_x, rd_y, latitude, longitude);
         setRiskCards(risks);
-      } catch {
-        setRiskError(true);
+      } catch (err) {
+        setRiskError(mapApiError(err, t));
       } finally {
         setRiskLoading(false);
       }
     })();
-  }, [address]);
+  }, [address, t]);
 
   const handleRetryPropertyWarnings = useCallback(() => {
     if (!address?.adresseerbaar_object_id || address.rd_x == null || address.rd_y == null) return;
-    setPropertyWarningsError(false);
+    setPropertyWarningsError(null);
     setPropertyWarningsLoading(true);
     void (async () => {
       try {
@@ -754,17 +755,17 @@ function App() {
           municipality: address.municipality ?? undefined,
         });
         setPropertyWarnings(warnings);
-      } catch {
-        setPropertyWarningsError(true);
+      } catch (err) {
+        setPropertyWarningsError(mapApiError(err, t));
       } finally {
         setPropertyWarningsLoading(false);
       }
     })();
-  }, [address, buildingResponse?.building?.construction_year, buildingResponse?.building?.num_units]);
+  }, [address, buildingResponse?.building?.construction_year, buildingResponse?.building?.num_units, t]);
 
   const handleRetryNeighborhoodStats = useCallback(() => {
     if (!address?.adresseerbaar_object_id || address.latitude == null || address.longitude == null) return;
-    setNeighborhoodStatsError(false);
+    setNeighborhoodStatsError(null);
     setNeighborhoodStatsLoading(true);
     void (async () => {
       try {
@@ -775,17 +776,17 @@ function App() {
           address.buurt_code ?? undefined,
         );
         setNeighborhoodStats(stats);
-      } catch {
-        setNeighborhoodStatsError(true);
+      } catch (err) {
+        setNeighborhoodStatsError(mapApiError(err, t));
       } finally {
         setNeighborhoodStatsLoading(false);
       }
     })();
-  }, [address]);
+  }, [address, t]);
 
   const handleRetryTierB = useCallback(() => {
     if (!address?.adresseerbaar_object_id) return;
-    setTierBError(false);
+    setTierBError(null);
     setTierBLoading(true);
     void (async () => {
       try {
@@ -797,29 +798,29 @@ function App() {
           addition: address.addition ?? undefined,
         });
         setTierBData(tierB);
-      } catch {
-        setTierBError(true);
+      } catch (err) {
+        setTierBError(mapApiError(err, t));
       } finally {
         setTierBLoading(false);
       }
     })();
-  }, [address]);
+  }, [address, t]);
 
   const handleRetryLivability = useCallback(() => {
     if (!address?.adresseerbaar_object_id || address.rd_x == null || address.rd_y == null) return;
-    setLivabilityError(false);
+    setLivabilityError(null);
     setLivabilityLoading(true);
     void (async () => {
       try {
         const livData = await getLivability(address.adresseerbaar_object_id!, address.rd_x!, address.rd_y!);
         setLivability(livData);
-      } catch {
-        setLivabilityError(true);
+      } catch (err) {
+        setLivabilityError(mapApiError(err, t));
       } finally {
         setLivabilityLoading(false);
       }
     })();
-  }, [address]);
+  }, [address, t]);
 
   const handleRetryAllFailed = useCallback(() => {
     if (riskError) handleRetryRiskCards();
@@ -855,19 +856,19 @@ function App() {
     setRiskCards(null);
     setRiskComparisons(null);
     setRiskLoading(false);
-    setRiskError(false);
+    setRiskError(null);
     setNeighborhoodStats(null);
     setNeighborhoodStatsLoading(false);
-    setNeighborhoodStatsError(false);
+    setNeighborhoodStatsError(null);
     setTierBData(null);
     setTierBLoading(false);
-    setTierBError(false);
+    setTierBError(null);
     setPropertyWarnings(null);
     setPropertyWarningsLoading(false);
-    setPropertyWarningsError(false);
+    setPropertyWarningsError(null);
     setLivability(null);
     setLivabilityLoading(false);
-    setLivabilityError(false);
+    setLivabilityError(null);
     setShowLivabilityDetail(false);
     setSunlight(null);
     setSunlightUnavailable(false);
@@ -920,9 +921,9 @@ function App() {
             });
             if (neighborhood3DRequestId.current !== requestId) return;
             setPropertyWarnings(warnings);
-          } catch {
+          } catch (err) {
             if (neighborhood3DRequestId.current !== requestId) return;
-            setPropertyWarningsError(true);
+            setPropertyWarningsError(mapApiError(err, t));
           } finally {
             if (neighborhood3DRequestId.current === requestId) {
               setPropertyWarningsLoading(false);
@@ -947,9 +948,9 @@ function App() {
             const risks = await getRiskCards(vboId, rd_x, rd_y, latitude, longitude);
             if (neighborhood3DRequestId.current !== requestId) return;
             setRiskCards(risks);
-          } catch {
+          } catch (err) {
             if (neighborhood3DRequestId.current !== requestId) return;
-            setRiskError(true);
+            setRiskError(mapApiError(err, t));
           } finally {
             if (neighborhood3DRequestId.current === requestId) {
               setRiskLoading(false);
@@ -1018,9 +1019,9 @@ function App() {
             );
             if (neighborhood3DRequestId.current !== requestId) return;
             setNeighborhoodStats(stats);
-          } catch {
+          } catch (err) {
             if (neighborhood3DRequestId.current !== requestId) return;
-            setNeighborhoodStatsError(true);
+            setNeighborhoodStatsError(mapApiError(err, t));
           } finally {
             if (neighborhood3DRequestId.current === requestId) {
               setNeighborhoodStatsLoading(false);
@@ -1034,9 +1035,9 @@ function App() {
             const livData = await getLivability(vboId, rd_x, rd_y);
             if (neighborhood3DRequestId.current !== requestId) return;
             setLivability(livData);
-          } catch {
+          } catch (err) {
             if (neighborhood3DRequestId.current !== requestId) return;
-            setLivabilityError(true);
+            setLivabilityError(mapApiError(err, t));
           } finally {
             if (neighborhood3DRequestId.current === requestId) {
               setLivabilityLoading(false);
@@ -1056,9 +1057,9 @@ function App() {
             });
             if (neighborhood3DRequestId.current !== requestId) return;
             setTierBData(tierB);
-          } catch {
+          } catch (err) {
             if (neighborhood3DRequestId.current !== requestId) return;
-            setTierBError(true);
+            setTierBError(mapApiError(err, t));
           } finally {
             if (neighborhood3DRequestId.current === requestId) {
               setTierBLoading(false);
@@ -1133,9 +1134,9 @@ function App() {
       }
 
       setLoadingStep('calculatingSunlight');
-    } catch {
+    } catch (err) {
       if (neighborhood3DRequestId.current !== requestId) return;
-      setError(t('error.generic'));
+      setError(mapApiError(err, t));
       setLoading(false);
       setSheetSnap('hidden');
     }

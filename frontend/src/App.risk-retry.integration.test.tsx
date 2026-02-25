@@ -12,21 +12,26 @@ import {
   setupTestI18n,
 } from './test/helpers';
 
-vi.mock('./services/api', () => ({
-  suggestAddresses: vi.fn(),
-  lookupAddress: vi.fn(),
-  getBuildingFacts: vi.fn(),
-  getBuilding3D: vi.fn(),
-  getNeighborhood3D: vi.fn(),
-  getRiskCards: vi.fn(),
-  getRiskComparisons: vi.fn(),
-  getNeighborhoodStats: vi.fn(),
-  getViewingQuestions: vi.fn(),
-  getTierBData: vi.fn(),
-  getPropertyWarnings: vi.fn(),
-  getLivability: vi.fn(),
-  submitSunlightAnalysis: vi.fn(),
-}));
+vi.mock('./services/api', async () => {
+  const actual = await vi.importActual<typeof import('./services/api')>('./services/api');
+  return {
+    suggestAddresses: vi.fn(),
+    lookupAddress: vi.fn(),
+    getBuildingFacts: vi.fn(),
+    getBuilding3D: vi.fn(),
+    getNeighborhood3D: vi.fn(),
+    getRiskCards: vi.fn(),
+    getRiskComparisons: vi.fn(),
+    getNeighborhoodStats: vi.fn(),
+    getViewingQuestions: vi.fn(),
+    getTierBData: vi.fn(),
+    getPropertyWarnings: vi.fn(),
+    getLivability: vi.fn(),
+    submitSunlightAnalysis: vi.fn(),
+    mapApiError: actual.mapApiError,
+    ApiError: actual.ApiError,
+  };
+});
 
 vi.mock('./components/NeighborhoodViewer3D', () => ({
   default: ({ buildings, loading }: { buildings: unknown[]; loading?: boolean }) => (
@@ -53,7 +58,7 @@ vi.mock('./components/SunlightRiskCard', () => ({
 }));
 
 vi.mock('./components/NeighborhoodStatsCard', () => ({
-  default: ({ loading, error }: { loading?: boolean; error?: boolean }) => (
+  default: ({ loading, error }: { loading?: boolean; error?: string | null }) => (
     <div data-testid="neighborhood-stats">
       {loading ? 'Loading neighborhood...' : error ? 'Neighborhood error' : 'Neighborhood stats'}
     </div>
@@ -74,6 +79,7 @@ import {
   getPropertyWarnings,
   getLivability,
   submitSunlightAnalysis,
+  ApiError,
 } from './services/api';
 
 const mockLookup = vi.mocked(lookupAddress);
@@ -186,7 +192,7 @@ describe('App risk retry integration', () => {
   it('renders the real risk retry button and retries risk cards from App', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
-    mockRiskCards.mockRejectedValueOnce(new Error('Risk API down'));
+    mockRiskCards.mockRejectedValueOnce(new ApiError('error.data_source', 500));
     mockRiskCards.mockResolvedValueOnce(makeRiskCardsResponse());
 
     renderApp();
@@ -194,7 +200,7 @@ describe('App risk retry integration', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("We couldn't reach the risk data source. The government API may be slow — try again in a moment."),
+        screen.getByText("We couldn't load data from this source right now. Try again in a moment."),
       ).toBeInTheDocument();
     });
 
@@ -209,7 +215,7 @@ describe('App risk retry integration', () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByText('Risk data could not be loaded right now. Please try again later.'),
+        screen.queryByText("We couldn't load data from this source right now. Try again in a moment."),
       ).not.toBeInTheDocument();
     });
     expect(mockRiskCards).toHaveBeenCalledTimes(2);

@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import type { TierBResponse } from '../types/api';
+import type { TierBResponse, SeverityLevel } from '../types/api';
+import SeverityBadge from './ui/SeverityBadge';
 import './TierBSignalsCard.css';
 
 interface Props {
   data?: TierBResponse;
   loading?: boolean;
-  error?: boolean;
+  error?: string | null;
   onRetry?: () => void;
 }
 
@@ -46,7 +47,7 @@ export default function TierBSignalsCard({ data, loading, error, onRetry }: Prop
   if (error && !data) {
     return (
       <section className="tier-b-card" data-testid="tier-b-card">
-        <p className="tier-b-card__error">{t('tierB.error')}</p>
+        <p className="tier-b-card__error">{error || t('tierB.error')}</p>
         {onRetry && (
           <button
             type="button"
@@ -77,6 +78,48 @@ export default function TierBSignalsCard({ data, loading, error, onRetry }: Prop
     <section className="tier-b-card" data-testid="tier-b-card">
       <article className="tier-b-card__panel">
         <h3 className="tier-b-card__panel-title">{t('tierB.crime.title')}</h3>
+        {data.crime.severity && (
+          <div className="tier-b-card__severity-row">
+            <SeverityBadge severity={data.crime.severity as SeverityLevel} />
+            {data.crime.score != null && (
+              <span className="tier-b-card__crime-score">
+                {data.crime.score}
+                <span className="tier-b-card__crime-score-scale">/100</span>
+              </span>
+            )}
+          </div>
+        )}
+        {(() => {
+          const meaning = i18n.language === 'nl' ? data.crime.meaning_nl : data.crime.meaning_en;
+          return meaning ? (
+            <p className="tier-b-card__meaning">{meaning}</p>
+          ) : null;
+        })()}
+        {hasRates && (
+          <div className="tier-b-card__comparison">
+            <span className="tier-b-card__cmp-title">{t('tierB.crime.comparison.title')}</span>
+            <div className="tier-b-card__cmp-row">
+              <span className="tier-b-card__cmp-label">{t('tierB.crime.comparison.thisArea')}</span>
+              <div className="tier-b-card__cmp-track">
+                <div
+                  className="tier-b-card__cmp-fill"
+                  style={{ width: `${Math.min(100, data.crime.total_per_1000!)}%` }}
+                />
+              </div>
+              <span className="tier-b-card__cmp-value">{data.crime.total_per_1000!.toFixed(1)}</span>
+            </div>
+            <div className="tier-b-card__cmp-row">
+              <span className="tier-b-card__cmp-label">{t('tierB.crime.comparison.national')}</span>
+              <div className="tier-b-card__cmp-track">
+                <div
+                  className="tier-b-card__cmp-fill tier-b-card__cmp-fill--reference"
+                  style={{ width: '52%' }}
+                />
+              </div>
+              <span className="tier-b-card__cmp-value">52.0</span>
+            </div>
+          </div>
+        )}
         <dl className="tier-b-card__metrics">
           <div className="tier-b-card__metric-row">
             <dt>{t('tierB.crime.total')}</dt>

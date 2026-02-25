@@ -5,7 +5,7 @@ import './RiskCardsPanel.css';
 interface Props {
   risks?: RiskCardsResponse;
   loading?: boolean;
-  error?: boolean;
+  error?: string | null;
   onRetry?: () => void;
 }
 
@@ -136,7 +136,7 @@ export default function RiskCardsPanel({ risks, loading, error, onRetry }: Props
       <h2 className="risk-cards__title">{t('risk.sectionTitle')}</h2>
       {error && (
         <div className="risk-cards__error-row">
-          <p className="risk-cards__error">{t('risk.fetchError')}</p>
+          <p className="risk-cards__error">{error || t('risk.fetchError')}</p>
           {onRetry && (
             <button
               type="button"

@@ -39,7 +39,7 @@ function makeLivabilityResponse(overrides: Partial<LivabilityAvailableResponse> 
   };
 }
 
-function renderCard(data?: LivabilityResponse, loading = false, error = false) {
+function renderCard(data?: LivabilityResponse, loading = false, error: string | null = null) {
   return render(
     <I18nextProvider i18n={i18n}>
       <LivabilityCard data={data} loading={loading} error={error} />
@@ -60,9 +60,9 @@ describe('LivabilityCard', () => {
   });
 
   it('shows error state', () => {
-    renderCard(undefined, false, true);
+    renderCard(undefined, false, 'Test error message');
     expect(screen.getByTestId('livability-card')).toBeInTheDocument();
-    expect(screen.getByText(/couldn't load livability/i)).toBeInTheDocument();
+    expect(screen.getByText('Test error message')).toBeInTheDocument();
   });
 
   it('shows unavailable when available=false', () => {

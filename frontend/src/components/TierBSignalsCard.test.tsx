@@ -10,7 +10,7 @@ beforeAll(async () => {
   i18n = await setupTestI18n('en');
 });
 
-function renderCard(props: { data?: TierBResponse; loading?: boolean; error?: boolean }) {
+function renderCard(props: { data?: TierBResponse; loading?: boolean; error?: string | null }) {
   return render(
     <I18nextProvider i18n={i18n}>
       <TierBSignalsCard {...props} />
@@ -45,9 +45,45 @@ describe('TierBSignalsCard', () => {
     });
 
     expect(screen.getByText('Crime (registered)')).toBeInTheDocument();
-    expect(screen.getByText('12.5')).toBeInTheDocument();
+    expect(screen.getAllByText('12.5').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Source \+ date: CBS OData/)).toBeInTheDocument();
     expect(screen.getByText('Latest month: December 2025')).toBeInTheDocument();
+  });
+
+  it('renders comparison bars when per-1000 rates are available', () => {
+    renderCard({
+      data: {
+        address_id: 'vbo-1',
+        energy_label: { source: 'EP-Online' },
+        crime: {
+          total_per_1000: 25.3,
+          source: 'CBS',
+          score: 72,
+          severity: 'good',
+        },
+      },
+    });
+
+    expect(screen.getByText('How it compares (per 1,000 residents)')).toBeInTheDocument();
+    expect(screen.getByText('This area')).toBeInTheDocument();
+    expect(screen.getByText('National avg.')).toBeInTheDocument();
+    expect(screen.getByText('52.0')).toBeInTheDocument();
+    expect(screen.getAllByText('25.3').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not render comparison bars when only raw counts are available', () => {
+    renderCard({
+      data: {
+        address_id: 'vbo-1',
+        energy_label: { source: 'EP-Online' },
+        crime: {
+          total_count: 150,
+          source: 'CBS',
+        },
+      },
+    });
+
+    expect(screen.queryByText('How it compares (per 1,000 residents)')).not.toBeInTheDocument();
   });
 
   it('renders fallback values when data is unavailable', () => {

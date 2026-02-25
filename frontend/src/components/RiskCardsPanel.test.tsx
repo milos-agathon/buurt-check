@@ -104,11 +104,11 @@ describe('RiskCardsPanel', () => {
   it('renders error state', () => {
     render(
       <I18nextProvider i18n={i18nEn}>
-        <RiskCardsPanel error />
+        <RiskCardsPanel error="Data source temporarily unavailable" />
       </I18nextProvider>,
     );
     expect(screen.getByText('Environmental Risk Cards')).toBeInTheDocument();
-    expect(screen.getByText("We couldn't reach the risk data source. The government API may be slow — try again in a moment.")).toBeInTheDocument();
+    expect(screen.getByText('Data source temporarily unavailable')).toBeInTheDocument();
     expect(screen.getByText('Road Traffic Noise')).toBeInTheDocument();
     expect(screen.getByText('Air Quality')).toBeInTheDocument();
     expect(screen.getByText('Climate Risk')).toBeInTheDocument();
