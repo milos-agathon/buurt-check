@@ -33,7 +33,7 @@ describe('Keyboard navigation', () => {
     expect(onTabChange).toHaveBeenCalledWith('home');
 
     await user.tab();
-    expect(screen.getByRole('tab', { name: 'Briefing' })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: 'Viewing checklist' })).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(onTabChange).toHaveBeenCalledWith('briefing');
 
@@ -67,12 +67,12 @@ describe('Keyboard navigation', () => {
     );
 
     await user.tab();
-    expect(screen.getByRole('button', { name: /Add to Shortlist|Opslaan in lijst/i })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /^Save$|^Opslaan$/i })).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(onAdd).toHaveBeenCalledTimes(1);
 
     await user.tab();
-    expect(screen.getByRole('button', { name: /Export Briefing|Exporteer briefing/i })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /Download viewing checklist|Bezichtigingschecklist downloaden/i })).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(onExport).toHaveBeenCalledTimes(1);
   });

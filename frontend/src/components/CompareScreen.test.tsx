@@ -69,7 +69,7 @@ describe('CompareScreen', () => {
 
   it('shows no-data message with fewer than 2 items', () => {
     renderCompare([makeItem()]);
-    expect(screen.getByText(/Select 2-3 saved addresses/)).toBeInTheDocument();
+    expect(screen.getByText(/Select 2-3 saved properties/)).toBeInTheDocument();
   });
 
   it('renders 2 columns for 2 items', () => {

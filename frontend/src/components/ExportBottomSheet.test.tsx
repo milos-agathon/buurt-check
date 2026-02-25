@@ -41,8 +41,8 @@ describe('ExportBottomSheet', () => {
   it('renders when open', () => {
     renderSheet();
     expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
-    expect(screen.getByText('Export Briefing')).toBeInTheDocument();
-    expect(screen.getByText('Quick Brief')).toBeInTheDocument();
+    expect(screen.getByText('Download viewing checklist')).toBeInTheDocument();
+    expect(screen.getByText('Quick checklist')).toBeInTheDocument();
   });
 
   it('shows updated Full Dossier page metadata', () => {

@@ -23,7 +23,7 @@ describe('AddressHeader shortlist aria labels', () => {
       </I18nextProvider>,
     );
 
-    expect(screen.getByLabelText('Add to shortlist')).toBeInTheDocument();
+    expect(screen.getByLabelText('Save property')).toBeInTheDocument();
   });
 
   it('uses translated remove label in Dutch', () => {
@@ -37,6 +37,6 @@ describe('AddressHeader shortlist aria labels', () => {
       </I18nextProvider>,
     );
 
-    expect(screen.getByLabelText('Verwijderen uit lijst')).toBeInTheDocument();
+    expect(screen.getByLabelText('Woning verwijderen uit opgeslagen')).toBeInTheDocument();
   });
 });
