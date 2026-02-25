@@ -54,6 +54,7 @@ import {
 } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
+import { markVisited } from './services/firstVisit';
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import type { Geometry, Position } from 'geojson';
@@ -486,6 +487,15 @@ function App() {
     const cleanup = listenForSystemChanges(() => {});
     return cleanup;
   }, [themePreference]);
+
+  // Mark first visit complete when dossier loads (address + building resolved)
+  const hasMarkedVisited = useRef(false);
+  useEffect(() => {
+    if (address && buildingResponse && !hasMarkedVisited.current) {
+      hasMarkedVisited.current = true;
+      markVisited();
+    }
+  }, [address, buildingResponse]);
 
   const handleThemeChange = useCallback((pref: ThemePreference) => {
     setTheme(pref);
