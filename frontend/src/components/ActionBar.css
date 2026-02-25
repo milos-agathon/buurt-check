@@ -41,6 +41,50 @@
   height: 16px;
 }
 
+.action-bar__bookmark-icon {
+  --bookmark-draw-duration: 250ms;
+  --bookmark-fill-duration: var(--duration-fast);
+}
+
+.action-bar__bookmark-fill {
+  fill: currentColor;
+  opacity: 0;
+}
+
+.action-bar__bookmark-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.action-bar__bookmark-icon--saved .action-bar__bookmark-fill {
+  opacity: 1;
+}
+
+.action-bar__bookmark-icon--saving .action-bar__bookmark-stroke {
+  stroke-dashoffset: 1;
+  animation: action-bar-bookmark-draw var(--bookmark-draw-duration) var(--ease-out-expo) forwards;
+}
+
+.action-bar__bookmark-icon--saving .action-bar__bookmark-fill {
+  opacity: 0;
+  animation: action-bar-bookmark-fill-in var(--bookmark-fill-duration) var(--ease-out-subtle) var(--bookmark-draw-duration) forwards;
+}
+
+.action-bar__bookmark-icon--removing .action-bar__bookmark-fill {
+  opacity: 1;
+  animation: action-bar-bookmark-fill-out var(--bookmark-fill-duration) var(--ease-out-subtle) forwards;
+}
+
+.action-bar__bookmark-icon--removing .action-bar__bookmark-stroke {
+  stroke-dashoffset: 0;
+  animation: action-bar-bookmark-erase var(--bookmark-draw-duration) var(--ease-out-quart) var(--bookmark-fill-duration) forwards;
+}
+
 .action-bar__btn--primary {
   background: var(--color-accent);
   color: var(--color-text-inverse);
@@ -64,4 +108,53 @@
   background: var(--color-accent-light);
   color: var(--color-accent-text);
   border-color: var(--color-accent);
+}
+
+@keyframes action-bar-bookmark-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes action-bar-bookmark-erase {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes action-bar-bookmark-fill-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes action-bar-bookmark-fill-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-bar__bookmark-icon--saving .action-bar__bookmark-stroke,
+  .action-bar__bookmark-icon--saving .action-bar__bookmark-fill,
+  .action-bar__bookmark-icon--removing .action-bar__bookmark-stroke,
+  .action-bar__bookmark-icon--removing .action-bar__bookmark-fill {
+    animation: none;
+  }
+
+  .action-bar__bookmark-icon--saved .action-bar__bookmark-fill {
+    opacity: 1;
+  }
 }

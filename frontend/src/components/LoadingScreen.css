@@ -51,7 +51,7 @@
   stroke-dashoffset: 1;
   animation-name: loading-screen-draw;
   animation-fill-mode: forwards;
-  animation-timing-function: ease-out;
+  animation-timing-function: var(--ease-out-expo);
 }
 
 .loading-screen__segment[data-segment="foundation"] {
@@ -98,7 +98,7 @@
   border-radius: 50%;
   background: var(--color-accent);
   flex-shrink: 0;
-  animation: loading-screen-dot 1.2s ease-in-out infinite;
+  animation: loading-screen-dot 1.2s var(--ease-out-subtle) infinite;
 }
 
 .loading-screen__warning-icon {
@@ -110,7 +110,7 @@
   margin: 0;
   font: var(--type-small);
   color: var(--color-text-secondary);
-  animation: loading-screen-text 200ms ease-out;
+  animation: loading-screen-text var(--duration-base) var(--ease-out-expo);
 }
 
 .loading-screen__status--warning .loading-screen__status-text {
@@ -137,7 +137,7 @@
   background: var(--color-accent);
   transform-origin: left center;
   transform: scaleX(0);
-  transition: transform 300ms ease-out;
+  transition: transform var(--duration-moderate) var(--ease-out-expo);
 }
 
 @keyframes loading-screen-draw {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import LivabilityCard from './LivabilityCard';
 import { setupTestI18n } from '../test/helpers';
@@ -61,19 +61,22 @@ describe('LivabilityCard', () => {
 
   it('shows error state', () => {
     renderCard(undefined, false, 'Test error message');
-    expect(screen.getByTestId('livability-card')).toBeInTheDocument();
+    expect(screen.getByTestId('livability-card')).toHaveAttribute('data-state', 'error');
     expect(screen.getByText('Test error message')).toBeInTheDocument();
   });
 
   it('shows unavailable when available=false', () => {
     renderCard({ available: false, message: 'LIVABILITY_NO_DATA' });
+    expect(screen.getByTestId('livability-card')).toHaveAttribute('data-state', 'unavailable');
     expect(screen.getByText(/leefbaarometer coverage/i)).toBeInTheDocument();
   });
 
-  it('renders overall score badge', () => {
+  it('renders overall score badge', async () => {
     renderCard(makeLivabilityResponse());
-    const badge = screen.getByTestId('livability-card').querySelector('.livability-card__score-value');
-    expect(badge).toHaveTextContent('75');
+    await waitFor(() => {
+      const badge = screen.getByTestId('livability-card').querySelector('.livability-card__score-value');
+      expect(badge).toHaveTextContent('75');
+    });
   });
 
   it('renders buurt name and gemeente', () => {

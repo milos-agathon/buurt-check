@@ -138,7 +138,7 @@
 .livability-detail__dim-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 600ms ease-out;
+  transition: width var(--duration-emphasis) var(--ease-out-expo);
 }
 
 .livability-detail__dim-fill--good { background: var(--color-risk-good); }
@@ -185,7 +185,7 @@
   width: 100%;
   border-radius: 4px 4px 0 0;
   min-height: 4px;
-  transition: height 600ms ease-out;
+  transition: height var(--duration-emphasis) var(--ease-out-expo);
 }
 
 .livability-detail__trend-bar--good { background: var(--color-risk-good); }
@@ -287,7 +287,7 @@
   height: 100%;
   background: var(--color-accent);
   border-radius: 4px;
-  transition: width 600ms ease-out;
+  transition: width var(--duration-emphasis) var(--ease-out-expo);
 }
 
 .livability-detail__cmp-value {

@@ -1,9 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { SPRING_EXPAND, SPRING_REVEAL, SPRING_SHEET, SPRING_TAB } from '../config/springs';
+import { SPRING_EXPAND, SPRING_REVEAL, SPRING_TAB } from '../config/springs';
 import './SpringTuner.css';
 
 const SPRINGS = [
-  { name: 'SPRING_SHEET', value: SPRING_SHEET },
   { name: 'SPRING_EXPAND', value: SPRING_EXPAND },
   { name: 'SPRING_REVEAL', value: SPRING_REVEAL },
   { name: 'SPRING_TAB', value: SPRING_TAB },

@@ -17,7 +17,7 @@ describe('SpringTuner', () => {
       </I18nextProvider>,
     );
     expect(screen.getByTestId('spring-tuner')).toBeInTheDocument();
-    expect(screen.getByText('SPRING_SHEET')).toBeInTheDocument();
     expect(screen.getByText('SPRING_EXPAND')).toBeInTheDocument();
+    expect(screen.getByText('SPRING_TAB')).toBeInTheDocument();
   });
 });

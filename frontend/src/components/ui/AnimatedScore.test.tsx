@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import AnimatedScore from './AnimatedScore';
 import { setupTestI18n } from '../../test/helpers';
@@ -69,5 +69,45 @@ describe('AnimatedScore', () => {
     renderScore({ value: 65, showScale: false });
     const el = screen.getByLabelText('65');
     expect(el.textContent).not.toContain('/100');
+  });
+
+  it('starts counting when element enters viewport', async () => {
+    let observerCallback: IntersectionObserverCallback | null = null;
+    const originalObserver = (window as unknown as { IntersectionObserver?: typeof IntersectionObserver }).IntersectionObserver;
+
+    class MockIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      observe() {}
+
+      unobserve() {}
+
+      disconnect() {}
+
+      takeRecords() {
+        return [];
+      }
+    }
+
+    (window as unknown as { IntersectionObserver: typeof IntersectionObserver }).IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver;
+
+    renderScore({ value: 55, duration: 50 });
+    const el = screen.getByLabelText('55');
+    expect(el).toHaveTextContent('0');
+
+    act(() => {
+      observerCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+
+    await waitFor(() => {
+      expect(el).toHaveTextContent('55');
+    });
+
+    (window as unknown as { IntersectionObserver?: typeof IntersectionObserver }).IntersectionObserver = originalObserver;
   });
 });

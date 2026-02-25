@@ -105,4 +105,10 @@ describe('TierBSignalsCard', () => {
     expect(screen.getByText('Per-capita rates unavailable — showing total registered incidents.')).toBeInTheDocument();
     expect(screen.getByText('Population data unavailable for this neighborhood. Showing raw registered incident counts. Data is indicative.')).toBeInTheDocument();
   });
+
+  it('renders error state marker when data request fails', () => {
+    const { container } = renderCard({ error: 'Tier B temporarily unavailable' });
+    expect(screen.getByText('Tier B temporarily unavailable')).toBeInTheDocument();
+    expect(container.querySelector('.tier-b-card')).toHaveAttribute('data-state', 'error');
+  });
 });

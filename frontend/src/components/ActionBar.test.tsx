@@ -37,6 +37,52 @@ describe('ActionBar', () => {
     expect(saved?.textContent).toBe('Saved');
   });
 
+  it('sets aria-pressed on bookmark button', () => {
+    const { container } = renderActionBar({ isBookmarked: true });
+    const secondary = container.querySelector('.action-bar__btn--secondary');
+    expect(secondary).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('animates bookmark icon to saving state on save transition', () => {
+    const { rerender, container } = render(
+      <I18nextProvider i18n={i18n}>
+        <ActionBar isBookmarked={false} />
+      </I18nextProvider>,
+    );
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <ActionBar isBookmarked />
+      </I18nextProvider>,
+    );
+
+    const icon = container.querySelector('.action-bar__bookmark-icon');
+    expect(icon).toHaveClass('action-bar__bookmark-icon--saving');
+  });
+
+  it('fires navigator.vibrate(10) on save transition', () => {
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, 'vibrate', {
+      value: vibrate,
+      writable: true,
+      configurable: true,
+    });
+
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <ActionBar isBookmarked={false} />
+      </I18nextProvider>,
+    );
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <ActionBar isBookmarked />
+      </I18nextProvider>,
+    );
+
+    expect(vibrate).toHaveBeenCalledWith(10);
+  });
+
   it('fires onAddToShortlist when secondary button clicked', () => {
     const onClick = vi.fn();
     const { container } = renderActionBar({ onAddToShortlist: onClick });

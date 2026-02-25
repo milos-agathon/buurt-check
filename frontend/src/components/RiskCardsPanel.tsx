@@ -132,7 +132,7 @@ export default function RiskCardsPanel({ risks, loading, error, onRetry }: Props
   );
 
   return (
-    <section className="risk-cards" data-testid="risk-cards">
+    <section className="risk-cards" data-testid="risk-cards" data-state={error ? 'error' : undefined}>
       <h2 className="risk-cards__title">{t('risk.sectionTitle')}</h2>
       {error && (
         <div className="risk-cards__error-row">

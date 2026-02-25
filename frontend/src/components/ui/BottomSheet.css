@@ -5,7 +5,7 @@
   z-index: 100;
   display: flex;
   align-items: flex-end;
-  animation: bottomSheetBackdropIn 200ms ease-out;
+  animation: bottomSheetBackdropIn var(--duration-base) var(--ease-out-expo);
 }
 
 .bottom-sheet {
@@ -15,7 +15,7 @@
   background: var(--color-surface);
   border-radius: var(--radius-card) var(--radius-card) 0 0;
   overflow-y: auto;
-  animation: bottomSheetSlideUp 350ms cubic-bezier(0.32, 0.72, 0, 1);
+  animation: bottomSheetSlideUp var(--duration-moderate) var(--ease-out-quart);
 }
 
 .bottom-sheet__handle {

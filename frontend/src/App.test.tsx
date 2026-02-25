@@ -208,6 +208,16 @@ describe('initial render', () => {
   });
 });
 
+describe('tab content transitions', () => {
+  it('renders saved content after switching tabs', async () => {
+    renderApp();
+    fireEvent.click(screen.getByRole('tab', { name: 'Saved' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('shortlist-screen')).toBeInTheDocument();
+    });
+  });
+});
+
 describe('address selection flow', () => {
   it('calls lookupAddress then getBuildingFacts on selection', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
@@ -783,6 +793,40 @@ describe('dossier section order (v7 canonical)', () => {
     ];
     const filtered = order.filter(s => expected.includes(s));
     expect(filtered).toEqual(expected);
+  });
+
+  it('applies stagger indexes to dossier sections for reveal animation', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    const n3d = makeNeighborhood3DResponse();
+    mockBuilding3D.mockResolvedValue(n3d);
+    mockNeighborhood3D.mockResolvedValue(n3d);
+    mockViewingQuestions.mockResolvedValue({
+      address_id: 'vbo-123',
+      categories: [{ name: 'general', name_nl: 'Algemeen', severity: 'moderate', questions: [{ text_en: 'Q', text_nl: 'V' }] }],
+    });
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('action-bar')).toBeInTheDocument();
+    });
+
+    const dossier = screen.getByTestId('dossier-sheet');
+    const sections = Array.from(dossier.querySelectorAll('.dossier-section'));
+    const indexes = sections
+      .map((section) => Number(section.getAttribute('data-section-index')))
+      .filter((value) => Number.isInteger(value));
+    const uniqueIndexes = [...new Set(indexes)];
+
+    expect(indexes).toEqual(uniqueIndexes);
+    expect(uniqueIndexes).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    sections.forEach((section) => {
+      const attr = section.getAttribute('data-section-index');
+      if (attr == null) return;
+      expect((section as HTMLElement).style.getPropertyValue('--section-index')).toBe(attr);
+    });
   });
 });
 

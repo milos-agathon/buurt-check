@@ -14,9 +14,12 @@ function easeOutCubic(t: number): number {
 }
 
 export default function AnimatedScore({ value, duration = 600, className, showScale = false }: AnimatedScoreProps) {
-  const [display, setDisplay] = useState(value);
+  const [display, setDisplay] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
   const rafRef = useRef<number>(0);
   const prefersReducedMotion = useRef(false);
+  const animatedValueRef = useRef<number | null>(null);
+  const elementRef = useRef<HTMLSpanElement | null>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -25,19 +28,53 @@ export default function AnimatedScore({ value, duration = 600, className, showSc
     } catch {
       prefersReducedMotion.current = false;
     }
+    if (prefersReducedMotion.current) {
+      setIsVisible(true);
+    }
   }, []);
 
   useEffect(() => {
-    if (prefersReducedMotion.current) {
-      setDisplay(value);
+    if (prefersReducedMotion.current || isVisible) return;
+
+    const node = elementRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
       return;
     }
 
-    const startTime = performance.now();
-    const startValue = 0;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+            observer.disconnect();
+            break;
+          }
+        }
+      },
+      { threshold: 0.25 },
+    );
 
-    const animate = (now: number) => {
-      const elapsed = now - startTime;
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (!isVisible) return;
+
+    if (prefersReducedMotion.current) {
+      setDisplay(value);
+      animatedValueRef.current = value;
+      return;
+    }
+
+    if (animatedValueRef.current === value) return;
+
+    const startTime = performance.now();
+    const startValue = animatedValueRef.current ?? 0;
+
+    const animate = () => {
+      const elapsed = Math.max(0, performance.now() - startTime);
       const progress = Math.min(1, elapsed / duration);
       const eased = easeOutCubic(progress);
       const current = Math.round(startValue + (value - startValue) * eased);
@@ -45,8 +82,16 @@ export default function AnimatedScore({ value, duration = 600, className, showSc
 
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(animate);
+      } else {
+        animatedValueRef.current = value;
       }
     };
+
+    if (duration <= 0) {
+      setDisplay(value);
+      animatedValueRef.current = value;
+      return;
+    }
 
     rafRef.current = requestAnimationFrame(animate);
 
@@ -55,10 +100,10 @@ export default function AnimatedScore({ value, duration = 600, className, showSc
         cancelAnimationFrame(rafRef.current);
       }
     };
-  }, [value, duration]);
+  }, [value, duration, isVisible]);
 
   return (
-    <span className={className} aria-live="polite" aria-label={String(value)}>
+    <span ref={elementRef} className={className} aria-live="polite" aria-label={String(value)}>
       {display}
       {showScale && (
         <span className="animated-score__scale" aria-hidden="true">
