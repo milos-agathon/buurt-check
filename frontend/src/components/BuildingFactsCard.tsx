@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BuildingFacts } from '../types/api';
 import './BuildingFactsCard.css';
@@ -7,7 +8,7 @@ interface Props {
   loading: boolean;
 }
 
-export default function BuildingFactsCard({ building, loading }: Props) {
+function BuildingFactsCard({ building, loading }: Props) {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
 
@@ -66,3 +67,5 @@ export default function BuildingFactsCard({ building, loading }: Props) {
     </div>
   );
 }
+
+export default memo(BuildingFactsCard);

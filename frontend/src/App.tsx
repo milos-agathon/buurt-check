@@ -841,6 +841,10 @@ function App() {
     })();
   }, [address, t]);
 
+  const handleLivabilityTap = useCallback(() => {
+    setShowLivabilityDetail(true);
+  }, []);
+
   const handleRetryAllFailed = useCallback(() => {
     if (riskError) handleRetryRiskCards();
     if (propertyWarningsError) handleRetryPropertyWarnings();
@@ -1896,7 +1900,7 @@ function App() {
                             loading={livabilityLoading}
                             error={livabilityError}
                             onRetry={livabilityError ? handleRetryLivability : undefined}
-                            onTap={livability?.available ? () => setShowLivabilityDetail(true) : undefined}
+                            onTap={livability?.available ? handleLivabilityTap : undefined}
                           />
                         </>
                       )}

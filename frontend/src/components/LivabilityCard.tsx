@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LivabilityResponse, SeverityLevel } from '../types/api';
 import './LivabilityCard.css';
@@ -17,7 +18,7 @@ function scoreSeverity(normalized: number): SeverityLevel {
   return 'critical';
 }
 
-export default function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
+function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -163,3 +164,5 @@ export default function LivabilityCard({ data, loading, error, onTap, onRetry }:
     </section>
   );
 }
+
+export default memo(LivabilityCard);

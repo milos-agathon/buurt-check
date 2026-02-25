@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import SeverityBadge from './ui/SeverityBadge';
@@ -14,7 +15,7 @@ interface RiskTileProps {
   onTap?: () => void;
 }
 
-export default function RiskTile({ category, labelKey, score, severity, summary, onTap }: RiskTileProps) {
+function RiskTile({ category, labelKey, score, severity, summary, onTap }: RiskTileProps) {
   const { t } = useTranslation();
 
   return (
@@ -49,3 +50,5 @@ export default function RiskTile({ category, labelKey, score, severity, summary,
     </motion.button>
   );
 }
+
+export default memo(RiskTile);

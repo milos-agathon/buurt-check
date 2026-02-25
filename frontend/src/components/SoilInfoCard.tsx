@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import './SoilInfoCard.css';
 
@@ -6,7 +7,7 @@ interface SoilInfoCardProps {
   constructionYear?: number;
 }
 
-export default function SoilInfoCard({ leadPipeFlagged, constructionYear }: SoilInfoCardProps) {
+function SoilInfoCard({ leadPipeFlagged, constructionYear }: SoilInfoCardProps) {
   const { t } = useTranslation();
 
   return (
@@ -55,3 +56,5 @@ export default function SoilInfoCard({ leadPipeFlagged, constructionYear }: Soil
     </section>
   );
 }
+
+export default memo(SoilInfoCard);

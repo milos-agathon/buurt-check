@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePressable } from '../hooks/usePressable';
 import type { ResolvedAddress, BuildingFacts } from '../types/api';
@@ -10,7 +11,7 @@ interface AddressHeaderProps {
   onBookmarkToggle?: () => void;
 }
 
-export default function AddressHeader({ address, building, isBookmarked = false, onBookmarkToggle }: AddressHeaderProps) {
+function AddressHeader({ address, building, isBookmarked = false, onBookmarkToggle }: AddressHeaderProps) {
   const { t, i18n } = useTranslation();
   const { isPressed, pressableProps } = usePressable({ onPress: onBookmarkToggle });
 
@@ -56,3 +57,5 @@ export default function AddressHeader({ address, building, isBookmarked = false,
     </div>
   );
 }
+
+export default memo(AddressHeader);

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TierBResponse, SeverityLevel } from '../types/api';
 import SeverityBadge from './ui/SeverityBadge';
@@ -33,7 +34,7 @@ function formatCbsPeriod(period: string, locale: string): string {
   return `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${year}`;
 }
 
-export default function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
+function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
   const { t, i18n } = useTranslation();
 
   if (loading) {
@@ -160,3 +161,5 @@ export default function TierBSignalsCard({ data, loading, error, onRetry }: Prop
     </section>
   );
 }
+
+export default memo(TierBSignalsCard);

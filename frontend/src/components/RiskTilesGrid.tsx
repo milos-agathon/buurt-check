@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import RiskTile from './RiskTile';
 import type { RiskCardsResponse, SunlightResult, SeverityLevel, RiskLevel } from '../types/api';
 import './RiskTilesGrid.css';
@@ -27,7 +28,7 @@ function normalizeSunlightScore(winterHours: number): number {
   return Math.max(0, Math.min(100, Math.round((winterHours / 6) * 100)));
 }
 
-export default function RiskTilesGrid({ risks, sunlight, onTileTap }: RiskTilesGridProps) {
+function RiskTilesGrid({ risks, sunlight, onTileTap }: RiskTilesGridProps) {
   const sunlightScore = sunlight ? normalizeSunlightScore(sunlight.winter) : undefined;
   const sunlightSeverity: SeverityLevel = sunlightScore != null
     ? (sunlightScore >= 70 ? 'good' : sunlightScore >= 40 ? 'moderate' : sunlightScore >= 20 ? 'poor' : 'critical')
@@ -66,3 +67,5 @@ export default function RiskTilesGrid({ risks, sunlight, onTileTap }: RiskTilesG
     </div>
   );
 }
+
+export default memo(RiskTilesGrid);

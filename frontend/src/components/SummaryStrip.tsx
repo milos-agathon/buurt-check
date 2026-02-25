@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SeverityLevel } from '../types/api';
 import './SummaryStrip.css';
@@ -29,7 +30,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   sunlight: 'M12 3v1m0 16v1m9-9h-1M4 12H3m3.343-5.657L5.636 5.636m12.728 0l-.707.707',
 };
 
-export default function SummaryStrip({ pills, onPillTap }: SummaryStripProps) {
+function SummaryStrip({ pills, onPillTap }: SummaryStripProps) {
   const { t } = useTranslation();
 
   return (
@@ -61,3 +62,5 @@ export default function SummaryStrip({ pills, onPillTap }: SummaryStripProps) {
     </div>
   );
 }
+
+export default memo(SummaryStrip);
