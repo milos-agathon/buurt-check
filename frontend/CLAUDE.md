@@ -104,3 +104,86 @@ npx vitest --watch   # Watch mode
 ## Coordinate Conversion (added 2026-02-17)
 
 - **WGS84-to-RD linear approximation:** 68710 m/deg longitude, 111320 m/deg latitude at ~52°N (Amsterdam). Sufficient for ±500m bbox calculations
+
+## Resilience & Polish Patterns (added 2026-02-25)
+
+### Error State Contract
+
+Every async-loaded component must have `error: string | null` + `onRetry: () => void` props. Never silently swallow failures:
+- State in `App.tsx`: `const [xError, setXError] = useState<string | null>(null)`
+- Clear error before retrying: `setXError(null); /* ...fetch... */`
+- Clear all section errors on new address select (reset alongside data)
+- Map caught errors via `mapApiError(err, t)` for user-friendly messages
+- Affected in this session: `NeighborhoodViewer3D`, `ViewingChecklist`, `RiskDetailView`, `BuildingFactsCard`
+
+### Concurrent Operation Safety
+
+Three separate patterns for different race conditions:
+
+**A — Re-entrant async handlers (rapid shortlist taps):**
+Use `abortControllerRef = useRef<AbortController | null>(null)`. Call `.abort()` at the top of the handler before creating a new controller. Pass signal to fetch calls.
+
+**B — Boolean guards for sync-looking operations (double-tap bookmark/export):**
+`isBookmarking`/`isExporting` state guards. Check at top of handler, `setX(true)` at start, `setX(false)` in `finally`. Pass to `ActionBar` to disable buttons during operation.
+
+**C — Post-await screen guard (background lookup overwriting current screen):**
+`activeScreenRef = useRef<Screen>(initialScreen)`. Sync via `useEffect(() => { activeScreenRef.current = activeScreen; }, [activeScreen])`. After any `await`, check `activeScreenRef.current` before updating screen-specific state.
+
+### Timer Cleanup
+
+Store ALL timer IDs in refs, never state. Clear in `useEffect` cleanup AND on address reset:
+- `pulseTimerRef.current` for Three.js pulse animation (clear on viewer unmount AND address change)
+- Toast's `timeoutId` stored in component-level ref, cleared on unmount
+- Basemap `img.onload`: null-check that element is still in DOM before invoking callback
+- Pattern: `if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }`
+
+### Scroll Position Restoration
+
+Use `scrollPositionsRef = useRef<Map<string, number>>(new Map())` to save/restore per screen:
+1. Save scroll **before** changing screen: read `getDossierScrollContainer()?.scrollTop` or `window.scrollY`
+2. Restore **after** DOM update via `requestAnimationFrame(() => { el.scrollTop = savedPos; })`
+3. Distinguish internal scroll (`.dossier-sheet__content` with `overflow-y: auto`) from `window.scrollY`
+4. New address selection resets dossier scroll to 0 (fresh start, not restoration)
+
+### sessionStorage for Per-Address State
+
+Use `services/checklistStorage.ts` pattern for any state that should survive tab switches:
+- Key: `checklist:{vboId}`. Load on address open, save on every toggle. Session-scoped (clears on page close).
+- Service exports: `saveCheckedQuestions(vboId, Set<string>)` + `loadCheckedQuestions(vboId): Set<string>`
+
+### Skeleton Layout Fidelity
+
+- `RiskTileSkeleton` must mirror `RiskTilesGrid`'s exact CSS grid (2 columns, 2 rows, same gap). Mismatched structures cause layout shift on load. Validate at 375px (iPhone) and 360px (Android).
+- `SectionSkeleton` (`components/ui/SectionSkeleton.tsx`): variant-based skeleton for building-facts, property-warnings, livability, neighborhood-stats. Uses `Skeleton` atom, `aria-hidden="true"`, `data-testid` prop.
+
+### ConfirmSheet Pattern
+
+Reusable bottom-sheet for destructive action confirmation (`components/ui/ConfirmSheet.tsx`). Props: `open`, `title`, `body`, `confirmLabel`, `cancelLabel`, `onConfirm`, `onCancel`. Required i18n keys: `common.cancel` + `common.confirm`. Used for Settings "Clear" actions.
+
+### Text Overflow Protection
+
+Required for any container with dynamic/translated text:
+- Long Dutch street names (47+ chars): `overflow-wrap: break-word` on `AddressHeader` street element
+- Risk tile labels (e.g., "Wegverkeersgeluid"): `white-space: nowrap; overflow: hidden; text-overflow: ellipsis`
+- Two-column stat layouts: ellipsis on BOTH label and value cells to prevent overflow at 360px
+
+### Deep-Link Error Handling
+
+URL pattern `#/address/{vboId}?lookup=...` must handle PDOK lookup failure:
+1. Show user-facing toast with localized error message
+2. Navigate to search screen (not leave user on broken dossier)
+3. Handle both cases: lookup failure AND missing `lookupId`
+
+### 3D Viewer Retry Pattern
+
+Retry clears `viewer3DTriggered` flag and resets `deferred3DParamsRef`, then re-triggers with a 0ms `setTimeout`:
+```ts
+setViewer3DTriggered(false);
+deferred3DParamsRef.current = { ...params };
+setTimeout(() => { setViewer3DTriggered(true); trigger3DFetch(); }, 0);
+```
+
+### ExportBottomSheet UX Rules
+
+- Hide "Generate PDF" button when `progressStage === 'ready'` (show Share/Download instead)
+- Show spinner + "Exporting..." in ActionBar export button when `isExporting` is true

@@ -53,10 +53,10 @@ describe('LivabilityCard', () => {
     expect(container.querySelector('.livability-card')).not.toBeInTheDocument();
   });
 
-  it('shows loading state', () => {
+  it('shows loading skeleton', () => {
     renderCard(undefined, true);
     expect(screen.getByTestId('livability-card')).toBeInTheDocument();
-    expect(screen.getByText(/loading livability/i)).toBeInTheDocument();
+    expect(screen.getByTestId('section-skeleton-livability')).toBeInTheDocument();
   });
 
   it('shows error state', () => {

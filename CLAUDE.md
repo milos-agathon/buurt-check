@@ -98,3 +98,14 @@ Every risk card must have: (1) score 0-100 + severity, (2) plain-language meanin
 - `frontend/CLAUDE.md` — Frontend-specific conventions
 - Data source endpoints + API quirks → already in auto-memory (MEMORY.md)
 - Historical session learnings → already in auto-memory (MEMORY.md)
+
+## Session Learnings (2026-02-25) � Resilience and Polish
+
+Key patterns from the resilience hardening session, documented in full in `frontend/CLAUDE.md`:
+
+- **Graceful degradation is not optional**: Every async section needs `error + onRetry` props. Silent swallowing = broken UX. Components fixed this session: NeighborhoodViewer3D, ViewingChecklist, RiskDetailView, BuildingFactsCard.
+- **Three race conditions to handle in every re-entrant async handler**: (A) AbortController for duplicate API chains, (B) boolean guard for double-tap on sync-looking ops, (C) activeScreenRef for post-await screen staleness.
+- **All timer IDs live in refs**: setTimeout/setInterval/rAF IDs stored in useRef, cleared in cleanup AND on address reset. Missing cleanup causes memory leaks and phantom callbacks.
+- **Skeleton layout must mirror loaded layout exactly**: Mismatches cause layout shift. Validate at 375px and 360px widths.
+- **Hardcoded hex in components is a recurring bug**: Always use var(--color-*) tokens. Scan new components for hex literals before committing.
+- **Deep-link failures need toast + redirect**: URL with ?lookup=... must handle PDOK failure gracefully: toast then navigate to search, not a broken dossier screen.

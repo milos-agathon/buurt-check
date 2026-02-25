@@ -25,14 +25,15 @@ function renderCard(
 }
 
 describe('loading state', () => {
-  it('shows "Loading building facts..." when loading=true', () => {
+  it('shows skeleton when loading=true', () => {
     renderCard(undefined, true, 'en');
-    expect(screen.getByText('Loading building facts...')).toBeInTheDocument();
+    expect(screen.getByTestId('building-facts-skeleton')).toBeInTheDocument();
+    expect(screen.getByTestId('section-skeleton-building-facts')).toBeInTheDocument();
   });
 
-  it('shows Dutch loading message when lang=nl', () => {
+  it('shows skeleton in Dutch mode too', () => {
     renderCard(undefined, true, 'nl');
-    expect(screen.getByText('Gebouwgegevens laden...')).toBeInTheDocument();
+    expect(screen.getByTestId('building-facts-skeleton')).toBeInTheDocument();
   });
 });
 

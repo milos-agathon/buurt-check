@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BuildingFacts } from '../types/api';
+import SectionSkeleton from './ui/SectionSkeleton';
 import './BuildingFactsCard.css';
 
 interface Props {
@@ -13,7 +14,11 @@ function BuildingFactsCard({ building, loading }: Props) {
   const isNl = i18n.language === 'nl';
 
   if (loading) {
-    return <div className="building-card building-card--loading">{t('building.loading')}</div>;
+    return (
+      <div className="building-card" data-testid="building-facts-skeleton">
+        <SectionSkeleton variant="building-facts" />
+      </div>
+    );
   }
 
   if (!building) {

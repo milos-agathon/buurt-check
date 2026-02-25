@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LivabilityResponse, SeverityLevel } from '../types/api';
 import AnimatedScore from './ui/AnimatedScore';
+import SectionSkeleton from './ui/SectionSkeleton';
 import './LivabilityCard.css';
 
 interface Props {
@@ -25,7 +26,7 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
   if (loading) {
     return (
       <section className="livability-card" data-testid="livability-card">
-        <p className="livability-card__loading">{t('livability.loading')}</p>
+        <SectionSkeleton variant="livability" />
       </section>
     );
   }

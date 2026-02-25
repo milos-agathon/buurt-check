@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PropertyWarningsResponse, SeverityLevel } from '../types/api';
 import SeverityBadge from './ui/SeverityBadge';
+import SectionSkeleton from './ui/SectionSkeleton';
 import './PropertyWarningsCard.css';
 
 interface Props {
@@ -30,7 +31,7 @@ function PropertyWarningsCard({ data, loading, error, onRetry }: Props) {
   if (loading) {
     return (
       <section className="property-warnings" data-testid="property-warnings">
-        <p className="property-warnings__loading">{t('warnings.loading')}</p>
+        <SectionSkeleton variant="property-warnings" />
       </section>
     );
   }
