@@ -2089,6 +2089,72 @@ function App() {
                   </>
                 )}
 
+                {address && (
+                  <div className="app__next-steps" data-testid="next-steps">
+                    <h3 className="app__next-steps-title">{t('dossier.nextSteps.title')}</h3>
+                    <ul className="app__next-steps-list">
+                      <li>
+                        <button
+                          className={`app__next-steps-action${address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id) ? ' app__next-steps-action--saved' : ''}`}
+                          onClick={() => {
+                            hapticTap();
+                            if (address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)) {
+                              setActiveScreen('search');
+                              setActiveTab('home');
+                              setHashRoute('#/search');
+                            } else {
+                              handleBookmark();
+                            }
+                          }}
+                        >
+                          <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            {address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id) ? (
+                              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
+                            ) : (
+                              <path d="M5 4a1 1 0 00-1 1v11.586l5.707-3.805a1 1 0 011.086 0L16 16.586V5a1 1 0 00-1-1H5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                            )}
+                          </svg>
+                          {address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)
+                            ? t('dossier.nextSteps.saved')
+                            : t('dossier.nextSteps.save')}
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          className="app__next-steps-action"
+                          onClick={() => {
+                            hapticTap();
+                            setExportSheetOpen(true);
+                          }}
+                        >
+                          <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <path d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414a1 1 0 00-.293-.707l-3.414-3.414A1 1 0 0011.586 3H6z" stroke="currentColor" strokeWidth="1.5"/>
+                            <path d="M10 10v4m0 0l-2-2m2 2l2-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          {t('dossier.nextSteps.export')}
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          className="app__next-steps-action"
+                          onClick={() => {
+                            hapticTap();
+                            setActiveScreen('search');
+                            setActiveTab('home');
+                            setHashRoute('#/search');
+                          }}
+                        >
+                          <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <circle cx="8.5" cy="8.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
+                            <path d="M14.5 14.5L18 18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                          </svg>
+                          {t('dossier.nextSteps.search')}
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
+                )}
+
                 {address && buildingResponse && (
                   <div className="dossier-section" style={dossierSectionStyle(13)} data-section-index={13}>
                     <ActionBar
