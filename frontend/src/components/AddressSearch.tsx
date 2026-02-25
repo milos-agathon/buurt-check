@@ -165,6 +165,8 @@ export default function AddressSearch({ onSelect }: Props) {
           aria-controls="address-suggestions"
           aria-activedescendant={activeSuggestionId}
           aria-autocomplete="list"
+          inputMode="search"
+          maxLength={200}
           value={query}
           onChange={e => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}

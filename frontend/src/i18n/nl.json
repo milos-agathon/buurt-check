@@ -1,7 +1,7 @@
 {
   "app.title": "buurt-check",
   "app.subtitle": "Voorbereidende informatie voor woningkopers",
-  "search.placeholder": "Plak of typ een adres...",
+  "search.placeholder": "Bijv. Keizersgracht 1, Amsterdam",
   "search.minChars": "Typ minimaal 2 tekens",
   "search.noResults": "Geen adressen gevonden",
   "search.error": "We konden nu geen adressen zoeken. Controleer je verbinding en probeer het opnieuw.",

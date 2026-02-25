@@ -1,7 +1,7 @@
 {
   "app.title": "buurt-check",
   "app.subtitle": "Pre-viewing intelligence for property buyers",
-  "search.placeholder": "Paste or type an address...",
+  "search.placeholder": "e.g. Keizersgracht 1, Amsterdam",
   "search.minChars": "Type at least 2 characters",
   "search.noResults": "No addresses found",
   "search.error": "We couldn't search addresses right now. Check your connection and try again.",
