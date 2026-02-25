@@ -143,11 +143,11 @@
   background: var(--color-border);
 }
 
-.app__phase-divider:first-of-type {
+.app__phase-divider--first {
   margin-top: var(--space-sm);
 }
 
-.app__phase-divider:first-of-type::before {
+.app__phase-divider--first::before {
   display: none;
 }
 

@@ -266,7 +266,7 @@
 
 .address-search__welcome-back-title {
   margin: 0;
-  font: var(--type-heading-small);
+  font: var(--type-h3);
   color: var(--color-primary);
 }
 

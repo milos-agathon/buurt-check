@@ -1773,7 +1773,7 @@ function App() {
                   </Suspense>
                 )}
 
-                <div className="app__phase-divider" id="section-house-start">
+                <div className="app__phase-divider app__phase-divider--first" id="section-house-start">
                   <div className="app__phase-divider-header">
                     <span className="app__phase-divider-step">{t('dossier.phaseOf', { current: 1, total: 3 })}</span>
                     <svg className="app__phase-divider-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -2108,6 +2108,7 @@ function App() {
                     <ul className="app__next-steps-list">
                       <li>
                         <button
+                          type="button"
                           className={`app__next-steps-action${address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id) ? ' app__next-steps-action--saved' : ''}`}
                           onClick={() => {
                             hapticTap();
@@ -2134,6 +2135,7 @@ function App() {
                       </li>
                       <li>
                         <button
+                          type="button"
                           className="app__next-steps-action"
                           onClick={() => {
                             hapticTap();
@@ -2149,6 +2151,7 @@ function App() {
                       </li>
                       <li>
                         <button
+                          type="button"
                           className="app__next-steps-action"
                           onClick={() => {
                             hapticTap();

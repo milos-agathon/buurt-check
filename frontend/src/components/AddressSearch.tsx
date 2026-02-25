@@ -22,6 +22,7 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
   const [error, setError] = useState(false);
   const [searching, setSearching] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(getRecent());
+  const [isFirst] = useState(() => isFirstVisit());
 
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -239,7 +240,7 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
           </ul>
         </div>
       )}
-      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && isFirstVisit() && (
+      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && isFirst && (
         <div className="address-search__value-props" data-testid="value-props">
           <div className="address-search__value-row">
             <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
@@ -277,7 +278,7 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
           <p className="address-search__trust-signal">{t('search.trustSignal')}</p>
         </div>
       )}
-      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && !isFirstVisit() && (
+      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && !isFirst && (
         <div className="address-search__welcome-back" data-testid="welcome-back">
           <h3 className="address-search__welcome-back-title">{t('search.welcomeBack')}</h3>
           {shortlistCount > 0 && (
