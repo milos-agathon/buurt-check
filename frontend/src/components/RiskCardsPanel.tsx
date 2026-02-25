@@ -48,9 +48,6 @@ function RiskCard({
   );
 }
 
-function metricOrUnavailable(value: string | null, t: (key: string) => string): string {
-  return value ?? t('risk.metricUnavailable');
-}
 
 export default function RiskCardsPanel({ risks, loading, error, onRetry }: Props) {
   const { t } = useTranslation();
@@ -97,7 +94,13 @@ export default function RiskCardsPanel({ risks, loading, error, onRetry }: Props
   if (!riskData) return null;
 
   const noiseMetric = riskData.noise.lden_db != null
-    ? t('risk.noise.metric', { value: riskData.noise.lden_db.toFixed(1) })
+    ? (
+      <>
+        {t('risk.noise.metric', { value: riskData.noise.lden_db.toFixed(1) })}
+        <br />
+        <span className="risk-card__metric-note">{t('risk.noise.lden_note')}</span>
+      </>
+    )
     : null;
 
   const pm25Text = riskData.air_quality.pm25_ug_m3 != null
@@ -149,7 +152,7 @@ export default function RiskCardsPanel({ risks, loading, error, onRetry }: Props
         <RiskCard
           id="noise"
           level={riskData.noise.level}
-          metric={metricOrUnavailable(noiseMetric, t)}
+          metric={noiseMetric ?? t('risk.metricUnavailable')}
           questionKey="risk.noise.question"
           source={riskData.noise.source}
           sourceDate={riskData.noise.source_date}
