@@ -70,6 +70,7 @@ export default function LivabilityCard({ data, loading, error, onTap, onRetry }:
       <div className="livability-card__header">
         <div className={`livability-card__score-badge livability-card__score-badge--${severity}`}>
           <span className="livability-card__score-value">{data.overall_normalized}</span>
+          <span className="livability-card__score-scale" aria-hidden="true">{t('score.scale', '/100')}</span>
         </div>
         <div className="livability-card__header-text">
           <p className="livability-card__buurt-name">{data.buurt_name}</p>

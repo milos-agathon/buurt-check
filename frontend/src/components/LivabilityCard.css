@@ -36,13 +36,15 @@
 }
 
 .livability-card__score-badge {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-round);
+  width: 56px;
+  min-height: 48px;
+  border-radius: var(--radius-card);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  padding: 4px 0;
 }
 
 .livability-card__score-badge--good {
@@ -67,6 +69,15 @@
 
 .livability-card__score-value {
   font: 700 24px/1 var(--font-family);
+}
+
+.livability-card__score-scale {
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
 }
 
 .livability-card__header-text {

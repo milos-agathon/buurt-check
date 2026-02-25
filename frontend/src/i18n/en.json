@@ -465,5 +465,6 @@
   "soil.lead_pipe_source": "Construction year: BAG Kadaster. Lead pipe risk proxy based on Dutch water utility guidelines.",
 
   "a11y.skip_to_content": "Skip to main content",
-  "common.back": "Back"
+  "common.back": "Back",
+  "score.scale": "/100"
 }

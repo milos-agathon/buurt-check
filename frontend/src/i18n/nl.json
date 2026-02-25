@@ -465,5 +465,6 @@
   "soil.lead_pipe_source": "Bouwjaar: BAG Kadaster. Loden leidingen risico-indicatie op basis van richtlijnen Nederlandse waterbedrijven.",
 
   "a11y.skip_to_content": "Ga naar hoofdinhoud",
-  "common.back": "Terug"
+  "common.back": "Terug",
+  "score.scale": "/100"
 }

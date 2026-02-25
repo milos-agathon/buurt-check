@@ -43,7 +43,7 @@ describe('RiskTile', () => {
   it('displays numeric score when provided', () => {
     const { container } = renderTile({ score: 72 });
     const score = container.querySelector('.risk-tile__score');
-    expect(score?.textContent).toBe('72');
+    expect(score?.textContent).toBe('72/100');
   });
 
   it('displays -- when score is undefined', () => {
@@ -64,7 +64,7 @@ describe('RiskTile', () => {
 
   it('renders score text when score is provided', () => {
     const { container } = renderTile({ score: 60, severity: 'moderate' });
-    expect(container.querySelector('.risk-tile__score')?.textContent).toBe('60');
+    expect(container.querySelector('.risk-tile__score')?.textContent).toBe('60/100');
   });
 
   it('renders unavailable score when score is undefined', () => {
