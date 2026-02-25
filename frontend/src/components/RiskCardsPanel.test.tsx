@@ -127,4 +127,39 @@ describe('RiskCardsPanel', () => {
     expect(screen.getByText('Luchtkwaliteit')).toBeInTheDocument();
     expect(screen.getByText('Klimaatrisico')).toBeInTheDocument();
   });
+
+  it('EN: renders plain-language noise metric with dB value and (Lden)', () => {
+    renderPanel();
+    expect(screen.getByText(/Average noise level:/)).toBeInTheDocument();
+    expect(screen.getByText(/60\.5 dB/)).toBeInTheDocument();
+    expect(screen.getByText(/\(Lden\)/)).toBeInTheDocument();
+  });
+
+  it('EN: renders lden_note explanation text', () => {
+    renderPanel();
+    expect(screen.getByText(/Lden is the EU standard/)).toBeInTheDocument();
+  });
+
+  it('NL: renders Dutch plain-language noise metric', async () => {
+    const i18nNl = await setupTestI18n('nl');
+    const risks = makeRiskCardsResponse();
+    render(
+      <I18nextProvider i18n={i18nNl}>
+        <RiskCardsPanel risks={risks} loading={false} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/Gemiddeld geluidsniveau:/)).toBeInTheDocument();
+    expect(screen.getByText(/60\.5 dB/)).toBeInTheDocument();
+  });
+
+  it('NL: renders Dutch lden_note explanation text', async () => {
+    const i18nNl = await setupTestI18n('nl');
+    const risks = makeRiskCardsResponse();
+    render(
+      <I18nextProvider i18n={i18nNl}>
+        <RiskCardsPanel risks={risks} loading={false} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/Lden is de EU-standaard/)).toBeInTheDocument();
+  });
 });
