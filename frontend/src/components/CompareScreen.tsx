@@ -9,6 +9,7 @@ import './CompareScreen.css';
 interface Props {
   items: ShortlistItem[];
   onBack: () => void;
+  onSearchAddress: () => void;
 }
 
 type MetricKey = 'noise' | 'air' | 'climate' | 'sunlight';
@@ -28,7 +29,7 @@ function severityFromScore(score: number | undefined): SeverityLevel {
   return 'critical';
 }
 
-export default function CompareScreen({ items, onBack }: Props) {
+export default function CompareScreen({ items, onBack, onSearchAddress }: Props) {
   const { t } = useTranslation();
   const [differencesOnly, setDifferencesOnly] = useState(false);
   const [activeColumnIndex, setActiveColumnIndex] = useState(0);
@@ -138,6 +139,13 @@ export default function CompareScreen({ items, onBack }: Props) {
       <div className="compare-screen" data-testid="compare-screen">
         <button type="button" className="compare-screen__back" onClick={onBack}>&larr; {t('nav.saved')}</button>
         <p className="compare-screen__no-data">{t('compare.noData')}</p>
+        <button
+          type="button"
+          className="compare-screen__cta"
+          onClick={onSearchAddress}
+        >
+          {t('compare.searchCta')}
+        </button>
       </div>
     );
   }

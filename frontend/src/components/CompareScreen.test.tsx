@@ -34,12 +34,13 @@ function makeItem(overrides: Partial<ShortlistItem> = {}): ShortlistItem {
 
 function renderCompare(items: ShortlistItem[] = []) {
   const onBack = vi.fn();
+  const onSearchAddress = vi.fn();
   render(
     <I18nextProvider i18n={i18n}>
-      <CompareScreen items={items} onBack={onBack} />
+      <CompareScreen items={items} onBack={onBack} onSearchAddress={onSearchAddress} />
     </I18nextProvider>,
   );
-  return { onBack };
+  return { onBack, onSearchAddress };
 }
 
 describe('CompareScreen', () => {

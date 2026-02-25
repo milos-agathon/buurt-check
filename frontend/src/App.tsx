@@ -2082,6 +2082,11 @@ function App() {
                   setHashRoute('#/compare');
                 }}
                 onSelectAddress={handleSelectShortlistAddress}
+                onSearchAddress={() => {
+                  setActiveScreen('search');
+                  setActiveTab('home');
+                  setHashRoute('#/search');
+                }}
               />
             </motion.div>
           )}
@@ -2101,6 +2106,11 @@ function App() {
                   onBack={() => {
                     setActiveScreen('shortlist');
                     setHashRoute('#/saved');
+                  }}
+                  onSearchAddress={() => {
+                    setActiveScreen('search');
+                    setActiveTab('home');
+                    setHashRoute('#/search');
                   }}
                 />
               </Suspense>

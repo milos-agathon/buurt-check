@@ -28,12 +28,13 @@ function renderScreen(items: ShortlistItem[] = []) {
   const onRemove = vi.fn();
   const onCompare = vi.fn();
   const onSelectAddress = vi.fn();
+  const onSearchAddress = vi.fn();
   render(
     <I18nextProvider i18n={i18n}>
-      <ShortlistScreen items={items} onRemove={onRemove} onCompare={onCompare} onSelectAddress={onSelectAddress} />
+      <ShortlistScreen items={items} onRemove={onRemove} onCompare={onCompare} onSelectAddress={onSelectAddress} onSearchAddress={onSearchAddress} />
     </I18nextProvider>,
   );
-  return { onRemove, onCompare, onSelectAddress };
+  return { onRemove, onCompare, onSelectAddress, onSearchAddress };
 }
 
 describe('ShortlistScreen', () => {

@@ -206,9 +206,10 @@ export default function AddressSearch({ onSelect }: Props) {
           ))}
         </ul>
       )}
-      {isOpen && suggestions.length === 0 && query.length >= 2 && !error && (
+      {!searching && suggestions.length === 0 && query.length >= 2 && !error && (
         <div className="address-search__dropdown" id="address-suggestions">
           <div className="address-search__no-results">{t('search.noResults')}</div>
+          <div className="address-search__no-results-hint">{t('search.noResultsHint')}</div>
         </div>
       )}
       {showRecent && (

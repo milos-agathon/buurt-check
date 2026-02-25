@@ -85,9 +85,15 @@
 }
 
 .address-search__no-results {
-  padding: var(--space-sm) var(--space-base);
+  padding: var(--space-sm) var(--space-base) 0;
   color: var(--color-text-tertiary);
   font: var(--type-body);
+}
+
+.address-search__no-results-hint {
+  padding: var(--space-xs) var(--space-base) var(--space-sm);
+  color: var(--color-text-secondary);
+  font: var(--type-small);
 }
 
 .address-search__searching {

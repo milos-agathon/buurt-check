@@ -92,7 +92,7 @@ describe('Accessibility audits', () => {
 
   it('Compare screen has no serious/critical violations', async () => {
     const { container } = renderWithI18n(
-      <CompareScreen items={makeCompareItems()} onBack={() => {}} />,
+      <CompareScreen items={makeCompareItems()} onBack={() => {}} onSearchAddress={() => {}} />,
     );
     await expectNoSeriousA11yViolations(container);
   });

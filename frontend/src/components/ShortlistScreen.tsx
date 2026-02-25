@@ -8,6 +8,7 @@ interface Props {
   onRemove: (vboId: string) => void;
   onCompare: () => void;
   onSelectAddress: (vboId: string) => void;
+  onSearchAddress: () => void;
 }
 
 function severityFromScore(score: number | undefined): SeverityLevel {
@@ -20,7 +21,7 @@ function severityFromScore(score: number | undefined): SeverityLevel {
 
 const DOT_CATEGORIES = ['noise', 'air', 'climate', 'sunlight'] as const;
 
-export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAddress }: Props) {
+export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAddress, onSearchAddress }: Props) {
   const { t } = useTranslation();
 
   if (items.length === 0) {
@@ -32,6 +33,13 @@ export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAd
           </svg>
           <h2 className="shortlist-screen__empty-title">{t('shortlist.empty')}</h2>
           <p className="shortlist-screen__empty-subtitle">{t('shortlist.emptySubtitle')}</p>
+          <button
+            type="button"
+            className="shortlist-screen__cta"
+            onClick={onSearchAddress}
+          >
+            {t('shortlist.searchCta')}
+          </button>
         </div>
       </div>
     );
