@@ -4,6 +4,7 @@
   gap: var(--space-xs);
   margin: 0;
   padding: 4px var(--space-base);
+  contain: content;
 }
 
 .summary-strip__pill {

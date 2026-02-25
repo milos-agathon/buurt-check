@@ -4,6 +4,7 @@
   border-radius: var(--radius-card);
   padding: var(--space-md);
   margin: 0;
+  contain: content;
 }
 
 .sunlight-card__title {

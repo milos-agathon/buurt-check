@@ -12,6 +12,7 @@
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   z-index: 41;
+  will-change: transform;
 }
 
 .action-bar__btn {

@@ -10,6 +10,7 @@
   min-height: 148px;
   min-width: 0;
   box-sizing: border-box;
+  contain: content;
 }
 
 .soil-info-card__title {

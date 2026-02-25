@@ -4,6 +4,7 @@
   padding: var(--space-md);
   margin: var(--space-sm) 0;
   border: 1px solid var(--color-border);
+  contain: content;
 }
 
 .viewer-3d__title {

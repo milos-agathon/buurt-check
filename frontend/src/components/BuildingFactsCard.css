@@ -5,6 +5,7 @@
   margin: var(--space-base) 0;
   padding: var(--space-base);
   box-shadow: var(--elevation-1);
+  contain: content;
 }
 
 .building-card--loading,

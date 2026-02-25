@@ -4,6 +4,7 @@
   gap: var(--space-sm);
   padding-top: var(--space-lg);
   padding-bottom: var(--space-md);
+  contain: content;
 }
 
 .risk-cards__title {
