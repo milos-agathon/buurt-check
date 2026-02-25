@@ -182,7 +182,13 @@
   flex: 1;
   border-radius: 2px 2px 0 0;
   min-height: 4px;
-  transition: height 0.3s ease-out;
+  transform-origin: bottom;
+  animation: spark-bar-grow 0.3s ease-out both;
+}
+
+@keyframes spark-bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
 }
 
 .livability-card__spark-bar--good {
@@ -303,8 +309,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .livability-card__dimension-fill,
-  .livability-card__spark-bar {
+  .livability-card__dimension-fill {
     transition: none;
+  }
+  .livability-card__spark-bar {
+    animation: none;
   }
 }
