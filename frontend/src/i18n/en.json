@@ -110,6 +110,8 @@
   "viewer3d.altSummaryWithTarget": "3D view of {{count}} buildings. Target building is {{height}}m tall.",
   "viewer3d.altSummaryNoTarget": "3D view of {{count}} buildings.",
   "viewer3d.keyboardHint": "Use arrow keys to rotate, plus/minus to zoom, Home to reset.",
+  "viewer3d.controlsHint.touch": "Drag to rotate \u2022 Pinch to zoom",
+  "viewer3d.controlsHint.desktop": "Drag to rotate \u2022 Scroll to zoom \u2022 Arrow keys to pan",
   "viewer3d.heatmapLegend": "Roof sun-hours heatmap",
   "shadow_slider.winter": "Winter",
   "shadow_slider.equinox": "Spring (Mar 21)",

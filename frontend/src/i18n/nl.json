@@ -110,6 +110,8 @@
   "viewer3d.altSummaryWithTarget": "3D weergave van {{count}} gebouwen. Doelgebouw is {{height}}m hoog.",
   "viewer3d.altSummaryNoTarget": "3D weergave van {{count}} gebouwen.",
   "viewer3d.keyboardHint": "Gebruik pijltjestoetsen om te draaien, plus/min om te zoomen, Home om te resetten.",
+  "viewer3d.controlsHint.touch": "Sleep om te draaien \u2022 Knijp om te zoomen",
+  "viewer3d.controlsHint.desktop": "Sleep om te draaien \u2022 Scroll om te zoomen \u2022 Pijltjestoetsen om te bewegen",
   "viewer3d.heatmapLegend": "Warmtekaart zonuren dak",
   "shadow_slider.winter": "Winter",
   "shadow_slider.equinox": "Lente (21 mrt)",
