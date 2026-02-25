@@ -90,6 +90,36 @@
   font: var(--type-body);
 }
 
+.address-search__searching {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-base);
+  color: var(--color-text-secondary);
+  font: var(--type-body);
+}
+
+.address-search__searching-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  animation: address-search-pulse 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes address-search-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .address-search__searching-dot {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 .address-search__error {
   color: var(--color-danger);
   font: var(--type-small);

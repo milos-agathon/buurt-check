@@ -16,6 +16,7 @@ export default function AddressSearch({ onSelect }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(getRecent());
 
   const abortRef = useRef<AbortController | null>(null);
@@ -27,18 +28,22 @@ export default function AddressSearch({ onSelect }: Props) {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    setSearching(true);
     try {
       const data = await suggestAddresses(q, 7, controller.signal);
       setSuggestions(data.suggestions);
       setIsOpen(data.suggestions.length > 0);
       setActiveIndex(-1);
       setError(false);
+      setSearching(false);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         setError(true);
         setSuggestions([]);
         setIsOpen(false);
+        setSearching(false);
       }
+      // On AbortError, a new fetch is starting — leave searching=true
     }
   }, []);
 
@@ -50,6 +55,7 @@ export default function AddressSearch({ onSelect }: Props) {
       setSuggestions([]);
       setIsOpen(false);
       setError(false);
+      setSearching(false);
       return;
     }
 
@@ -175,6 +181,14 @@ export default function AddressSearch({ onSelect }: Props) {
         />
       </div>
       {error && <p className="address-search__error">{t('search.error')}</p>}
+      {searching && !isOpen && !error && (
+        <div className="address-search__dropdown" id="address-suggestions">
+          <div className="address-search__searching">
+            <span className="address-search__searching-dot" />
+            {t('search.searching')}
+          </div>
+        </div>
+      )}
       {isOpen && suggestions.length > 0 && (
         <ul className="address-search__dropdown" id="address-suggestions" role="listbox">
           {suggestions.map((s, i) => (

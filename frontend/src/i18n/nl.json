@@ -3,6 +3,7 @@
   "app.subtitle": "Voorbereidende informatie voor woningkopers",
   "search.placeholder": "Bijv. Keizersgracht 1, Amsterdam",
   "search.minChars": "Typ minimaal 2 tekens",
+  "search.searching": "Zoeken...",
   "search.noResults": "Geen adressen gevonden",
   "search.error": "We konden nu geen adressen zoeken. Controleer je verbinding en probeer het opnieuw.",
   "search.valueProp1": "Milieurisicobeoordeling voor elk Nederlands adres",
