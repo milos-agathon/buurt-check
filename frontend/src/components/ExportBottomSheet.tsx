@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import BottomSheet from './ui/BottomSheet';
+import ContextualTooltip from './ui/ContextualTooltip';
+import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import { downloadPdfBlob, exportBriefing } from '../services/api';
 import type { ShadowSnapshot } from '../types/api';
 import './ExportBottomSheet.css';
@@ -59,6 +61,12 @@ export default function ExportBottomSheet({
   const [error, setError] = useState(false);
   const [shareError, setShareError] = useState(false);
   const [generatedBlob, setGeneratedBlob] = useState<Blob | null>(null);
+  const [exportTooltipVisible, setExportTooltipVisible] = useState(false);
+
+  const dismissExportTooltip = useCallback(() => {
+    setExportTooltipVisible(false);
+    markTooltipSeen('export');
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -66,6 +74,7 @@ export default function ExportBottomSheet({
       setError(false);
       setShareError(false);
       setGeneratedBlob(null);
+      setExportTooltipVisible(false);
       setExportLanguage(i18n.language === 'nl' ? 'nl' : 'en');
     }
   }, [i18n.language, isOpen]);
@@ -129,6 +138,9 @@ export default function ExportBottomSheet({
       setProgressStage('downloading');
       setGeneratedBlob(blob);
       setProgressStage('ready');
+      if (!hasSeenTooltip('export')) {
+        setExportTooltipVisible(true);
+      }
       onGenerateSuccess?.();
     } catch {
       setError(true);
@@ -304,9 +316,18 @@ export default function ExportBottomSheet({
 
         {progressStage === 'ready' && generatedBlob && (
           <div className="export-sheet__ready" data-testid="export-ready-actions">
-            <p className="export-sheet__progress-text">
-              {t('export.progress.ready', 'PDF is ready. Share it or download a copy.')}
-            </p>
+            <div className="export-sheet__ready-header">
+              <p className="export-sheet__progress-text">
+                {t('export.progress.ready', 'PDF is ready. Share it or download a copy.')}
+              </p>
+              {exportTooltipVisible && (
+                <ContextualTooltip
+                  message={t('tooltip.export')}
+                  onDismiss={dismissExportTooltip}
+                  position="below"
+                />
+              )}
+            </div>
             <div className="export-sheet__actions">
               <button type="button" className="export-sheet__btn export-sheet__btn--secondary" onClick={handleShare}>
                 {t('export.share', 'Share PDF')}

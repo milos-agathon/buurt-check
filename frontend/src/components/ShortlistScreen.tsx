@@ -1,5 +1,8 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import ContextualTooltip from './ui/ContextualTooltip';
+import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import type { ShortlistItem, SeverityLevel } from '../types/api';
 import './ShortlistScreen.css';
 
@@ -23,6 +26,22 @@ const DOT_CATEGORIES = ['noise', 'air', 'climate', 'sunlight'] as const;
 
 export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAddress, onSearchAddress }: Props) {
   const { t } = useTranslation();
+
+  // Compare tooltip: show once when 2+ items
+  const [compareTooltipVisible, setCompareTooltipVisible] = useState(false);
+  const compareTooltipChecked = useRef(false);
+
+  useEffect(() => {
+    if (items.length >= 2 && !compareTooltipChecked.current && !hasSeenTooltip('compare')) {
+      compareTooltipChecked.current = true;
+      setCompareTooltipVisible(true);
+    }
+  }, [items.length]);
+
+  const dismissCompareTooltip = useCallback(() => {
+    setCompareTooltipVisible(false);
+    markTooltipSeen('compare');
+  }, []);
 
   if (items.length === 0) {
     return (
@@ -106,13 +125,22 @@ export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAd
           </div>
         ))}
       </div>
-      <button
-        className="shortlist-screen__compare-btn"
-        onClick={onCompare}
-        disabled={items.length < 2}
-      >
-        {t('shortlist.compare')}
-      </button>
+      <div className="shortlist-screen__compare-wrapper">
+        <button
+          className="shortlist-screen__compare-btn"
+          onClick={onCompare}
+          disabled={items.length < 2}
+        >
+          {t('shortlist.compare')}
+        </button>
+        {compareTooltipVisible && (
+          <ContextualTooltip
+            message={t('tooltip.compare')}
+            onDismiss={dismissCompareTooltip}
+            position="above"
+          />
+        )}
+      </div>
     </div>
   );
 }

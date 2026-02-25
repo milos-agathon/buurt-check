@@ -511,5 +511,10 @@
 
   "a11y.skip_to_content": "Skip to main content",
   "common.back": "Back",
-  "score.scale": "/100"
+  "score.scale": "/100",
+
+  "tooltip.bookmark": "Save this address to compare it with others later",
+  "tooltip.compare": "Tap Compare to see addresses side by side",
+  "tooltip.export": "Take this to your viewing appointment",
+  "tooltip.dismiss": "Dismiss"
 }

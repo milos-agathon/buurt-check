@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ContextualTooltip from './ui/ContextualTooltip';
+import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import './ActionBar.css';
 
 interface ActionBarProps {
   isBookmarked?: boolean;
   onAddToShortlist?: () => void;
   onExportBriefing?: () => void;
+  showBookmarkTooltip?: boolean;
 }
 
 type BookmarkAnimationState = 'saving' | 'removing' | null;
@@ -24,12 +27,29 @@ export default function ActionBar({
   isBookmarked = false,
   onAddToShortlist,
   onExportBriefing,
+  showBookmarkTooltip = false,
 }: ActionBarProps) {
   const { t } = useTranslation();
   const [bookmarkAnimation, setBookmarkAnimation] = useState<BookmarkAnimationState>(null);
   const previousBookmarked = useRef(isBookmarked);
   const userTapped = useRef(false);
   const animationTimeout = useRef<number | null>(null);
+
+  // Bookmark tooltip: show once on first dossier load
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const tooltipChecked = useRef(false);
+
+  useEffect(() => {
+    if (showBookmarkTooltip && !tooltipChecked.current && !hasSeenTooltip('bookmark')) {
+      tooltipChecked.current = true;
+      setTooltipVisible(true);
+    }
+  }, [showBookmarkTooltip]);
+
+  const dismissBookmarkTooltip = useCallback(() => {
+    setTooltipVisible(false);
+    markTooltipSeen('bookmark');
+  }, []);
 
   const handleBookmarkClick = () => {
     userTapped.current = true;
@@ -80,20 +100,29 @@ export default function ActionBar({
 
   return (
     <div className="action-bar" data-testid="action-bar">
-      <button
-        type="button"
-        className={`action-bar__btn action-bar__btn--secondary${isBookmarked ? ' action-bar__btn--saved' : ''}`}
-        onClick={handleBookmarkClick}
-        aria-pressed={isBookmarked}
-      >
-        <svg className={bookmarkIconClass} width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-          <path className="action-bar__bookmark-fill" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-          <path className="action-bar__bookmark-stroke" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" pathLength={1} />
-        </svg>
-        {isBookmarked
-          ? t('action.saved', 'Saved')
-          : t('action.addToShortlist', 'Add to Shortlist')}
-      </button>
+      <div className="action-bar__btn-wrapper">
+        <button
+          type="button"
+          className={`action-bar__btn action-bar__btn--secondary${isBookmarked ? ' action-bar__btn--saved' : ''}`}
+          onClick={handleBookmarkClick}
+          aria-pressed={isBookmarked}
+        >
+          <svg className={bookmarkIconClass} width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path className="action-bar__bookmark-fill" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            <path className="action-bar__bookmark-stroke" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" pathLength={1} />
+          </svg>
+          {isBookmarked
+            ? t('action.saved', 'Saved')
+            : t('action.addToShortlist', 'Add to Shortlist')}
+        </button>
+        {tooltipVisible && (
+          <ContextualTooltip
+            message={t('tooltip.bookmark')}
+            onDismiss={dismissBookmarkTooltip}
+            position="above"
+          />
+        )}
+      </div>
       <button
         type="button"
         className="action-bar__btn action-bar__btn--primary"

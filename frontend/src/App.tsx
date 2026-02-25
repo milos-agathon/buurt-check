@@ -2164,6 +2164,7 @@ function App() {
                         hapticTap();
                         setExportSheetOpen(true);
                       }}
+                      showBookmarkTooltip={!!(address && buildingResponse)}
                     />
                   </div>
                 )}

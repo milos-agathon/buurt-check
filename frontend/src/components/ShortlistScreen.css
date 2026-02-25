@@ -181,6 +181,10 @@
   color: var(--color-text);
 }
 
+.shortlist-screen__compare-wrapper {
+  position: relative;
+}
+
 .shortlist-screen__compare-btn {
   width: 100%;
   height: 48px;
