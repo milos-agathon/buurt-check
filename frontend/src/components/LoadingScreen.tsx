@@ -77,7 +77,7 @@ export default function LoadingScreen({
   const stepIndex = LOADING_PROGRESS_SEQUENCE.indexOf(step);
   const progressPercent = ((stepIndex + 1) / LOADING_PROGRESS_SEQUENCE.length) * 100;
   const statusKey = warningKey ?? STEP_TO_KEY[step];
-  const statusText = t(statusKey);
+  const statusLabel = t(statusKey);
   const showWarning = !!warningKey;
   const addressLine1 = line1 || t('loading.addressFallbackLine1');
   const addressLine2 = line2 || t('loading.addressFallbackLine2');
@@ -159,7 +159,7 @@ export default function LoadingScreen({
           </svg>
         )}
         <p className="loading-screen__status-text" key={statusKey} data-testid="loading-screen-status-text">
-          {statusText}
+          {statusLabel}
         </p>
       </div>
 

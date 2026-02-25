@@ -191,7 +191,7 @@ async def building_facts(
     except ValueError as exc:
         metrics.inc("building.error")
         metrics.record_latency("building", (time.monotonic() - t0) * 1000)
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail="Building data unavailable") from exc
     except Exception as exc:
         metrics.inc("building.error")
         metrics.record_latency("building", (time.monotonic() - t0) * 1000)
@@ -271,7 +271,7 @@ async def neighborhood_3d(
             vbo_id=vbo_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail="3D building data unavailable") from exc
     except Exception as exc:
         raise HTTPException(
             status_code=502, detail="3D building data unavailable"
