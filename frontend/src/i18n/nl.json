@@ -109,7 +109,7 @@
   "sunlight.meaning.critical": "Zwaar beschaduwde locatie. Zeer weinig direct zonlicht in wintermaanden.",
   "sunlight.meaning.unavailable": "Geen 3D-gebouwcontext beschikbaar — zonlichtanalyse vereist omliggende gebouwen.",
   "sunlight.winterHours": "Winterzonnewende",
-  "sunlight.equinoxHours": "Lente (21 mrt) — typisch midden van het jaar",
+  "sunlight.equinoxHours": "Lente (21 mrt) — dag en nacht even lang, typische schatting voor het midden van het jaar",
   "sunlight.summerHours": "Zomerzonnewende",
   "sunlight.annualAverage": "Jaargemiddelde (dagelijks)",
   "sunlight.hoursUnit": "uur",

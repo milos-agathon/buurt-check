@@ -109,7 +109,7 @@
   "sunlight.meaning.critical": "Heavily shadowed location. Very little direct sunlight in winter months.",
   "sunlight.meaning.unavailable": "No 3D building context available — sunlight analysis requires surrounding buildings.",
   "sunlight.winterHours": "Winter solstice",
-  "sunlight.equinoxHours": "Spring (Mar 21) — typical mid-year",
+  "sunlight.equinoxHours": "Spring (Mar 21) — when day and night are equal length, giving a typical mid-year sunlight estimate",
   "sunlight.summerHours": "Summer solstice",
   "sunlight.annualAverage": "Annual average (daily)",
   "sunlight.hoursUnit": "hrs",
