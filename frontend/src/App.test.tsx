@@ -682,7 +682,7 @@ describe('livability unavailable flow', () => {
     await waitFor(() => {
       expect(screen.getByTestId('livability-card')).toBeInTheDocument();
     });
-    expect(screen.getByText(/not available/i)).toBeInTheDocument();
+    expect(screen.getByText(/leefbaarometer coverage/i)).toBeInTheDocument();
 
     // Detail view should NOT be present (no tap handler when unavailable)
     expect(screen.queryByTestId('livability-detail')).not.toBeInTheDocument();

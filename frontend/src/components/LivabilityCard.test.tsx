@@ -67,7 +67,7 @@ describe('LivabilityCard', () => {
 
   it('shows unavailable when available=false', () => {
     renderCard({ available: false, message: 'LIVABILITY_NO_DATA' });
-    expect(screen.getByText(/not available/i)).toBeInTheDocument();
+    expect(screen.getByText(/leefbaarometer coverage/i)).toBeInTheDocument();
   });
 
   it('renders overall score badge', () => {
