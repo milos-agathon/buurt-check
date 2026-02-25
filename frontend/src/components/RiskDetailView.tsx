@@ -87,7 +87,7 @@ export default function RiskDetailView({
         <div className="risk-detail__score-section">
           <div className="risk-detail__score-row">
             {score != null ? (
-              <AnimatedScore value={score} className={`risk-detail__score risk-detail__score--${severity}`} />
+              <AnimatedScore value={score} className={`risk-detail__score risk-detail__score--${severity}`} showScale />
             ) : (
               <span className="risk-detail__score risk-detail__score--unavailable">--</span>
             )}

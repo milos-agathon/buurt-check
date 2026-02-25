@@ -69,6 +69,15 @@
   font: var(--type-score-large);
 }
 
+.livability-detail__score-scale {
+  font-size: 0.45em;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-left: 2px;
+  vertical-align: middle;
+  line-height: 1;
+}
+
 .livability-detail__score--good { color: var(--color-risk-good); }
 .livability-detail__score--moderate { color: var(--color-risk-moderate); }
 .livability-detail__score--poor { color: var(--color-risk-poor); }

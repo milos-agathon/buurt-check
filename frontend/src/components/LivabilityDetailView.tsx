@@ -54,6 +54,7 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
         <div className="livability-detail__score-section">
           <div className={`livability-detail__score livability-detail__score--${severity}`}>
             {data.overall_normalized}
+            <span className="livability-detail__score-scale" aria-hidden="true">{t('score.scale', '/100')}</span>
           </div>
           <p className="livability-detail__score-label">
             {data.buurt_name}, {data.gemeente}

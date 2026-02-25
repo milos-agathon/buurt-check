@@ -1,10 +1,26 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { I18nextProvider } from 'react-i18next';
 import AnimatedScore from './AnimatedScore';
+import { setupTestI18n } from '../../test/helpers';
+
+let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
+
+beforeEach(async () => {
+  i18n = await setupTestI18n('en');
+});
+
+function renderScore(props: Parameters<typeof AnimatedScore>[0]) {
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <AnimatedScore {...props} />
+    </I18nextProvider>,
+  );
+}
 
 describe('AnimatedScore', () => {
   it('renders the final value', () => {
-    render(<AnimatedScore value={75} />);
+    renderScore({ value: 75 });
     // aria-label should have final value for accessibility
     const el = screen.getByLabelText('75');
     expect(el).toBeInTheDocument();
@@ -27,7 +43,7 @@ describe('AnimatedScore', () => {
       }),
     });
 
-    render(<AnimatedScore value={42} />);
+    renderScore({ value: 42 });
     expect(screen.getByLabelText('42')).toHaveTextContent('42');
 
     // Restore
@@ -38,8 +54,20 @@ describe('AnimatedScore', () => {
   });
 
   it('applies custom className', () => {
-    render(<AnimatedScore value={80} className="my-score" />);
+    renderScore({ value: 80, className: 'my-score' });
     const el = screen.getByLabelText('80');
     expect(el).toHaveClass('my-score');
+  });
+
+  it('renders /100 scale when showScale is true', () => {
+    renderScore({ value: 65, showScale: true });
+    const el = screen.getByLabelText('65');
+    expect(el.textContent).toContain('/100');
+  });
+
+  it('does not render scale text when showScale is false', () => {
+    renderScore({ value: 65, showScale: false });
+    const el = screen.getByLabelText('65');
+    expect(el.textContent).not.toContain('/100');
   });
 });
