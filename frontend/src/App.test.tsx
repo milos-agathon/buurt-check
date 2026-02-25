@@ -830,6 +830,34 @@ describe('dossier section order (v7 canonical)', () => {
   });
 });
 
+describe('tab transition reduced-motion safety', () => {
+  it('tab screen wrappers have no inline opacity/transition styles (Framer-only motion)', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dossier-sheet')).toBeInTheDocument();
+    });
+
+    // All .app__screen divs should have no inline opacity or transition CSS
+    // Tab transitions must come exclusively from Framer Motion (covered by MotionConfig reducedMotion="user")
+    const screens = document.querySelectorAll('.app__screen');
+    screens.forEach((el) => {
+      const style = (el as HTMLElement).style;
+      expect(style.transition).toBe('');
+      expect(style.opacity).toBe('');
+    });
+  });
+
+  // MotionConfig reducedMotion="user" wrapping is tested in main.test.tsx.
+  // Combined with the assertion above (no inline transition/opacity), this ensures
+  // all tab screen motion comes exclusively from Framer Motion (which respects
+  // prefers-reduced-motion via MotionConfig).
+});
+
 describe('dossier jump navigation', () => {
   it('shows a back-to-top button and scrolls to the top', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());

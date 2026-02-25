@@ -13,28 +13,25 @@ function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
+function getReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
 export default function AnimatedScore({ value, duration = 600, className, showScale = false }: AnimatedScoreProps) {
-  const [display, setDisplay] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
+  const reducedMotion = useRef(getReducedMotion());
+  const [display, setDisplay] = useState(() => reducedMotion.current ? value : 0);
+  const [isVisible, setIsVisible] = useState(() => reducedMotion.current);
   const rafRef = useRef<number>(0);
-  const prefersReducedMotion = useRef(false);
-  const animatedValueRef = useRef<number | null>(null);
+  const animatedValueRef = useRef<number | null>(reducedMotion.current ? value : null);
   const elementRef = useRef<HTMLSpanElement | null>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
-    try {
-      prefersReducedMotion.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    } catch {
-      prefersReducedMotion.current = false;
-    }
-    if (prefersReducedMotion.current) {
-      setIsVisible(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (prefersReducedMotion.current || isVisible) return;
+    if (reducedMotion.current || isVisible) return;
 
     const node = elementRef.current;
     if (!node || typeof IntersectionObserver === 'undefined') {
@@ -62,7 +59,7 @@ export default function AnimatedScore({ value, duration = 600, className, showSc
   useEffect(() => {
     if (!isVisible) return;
 
-    if (prefersReducedMotion.current) {
+    if (reducedMotion.current) {
       setDisplay(value);
       animatedValueRef.current = value;
       return;

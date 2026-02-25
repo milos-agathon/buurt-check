@@ -53,6 +53,32 @@ describe('AnimatedScore', () => {
     });
   });
 
+  it('never flashes 0 under reduced-motion (regression)', () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: (query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    });
+
+    const { container } = renderScore({ value: 73 });
+    // On the very first synchronous render, display must show target value
+    expect(container.textContent).toContain('73');
+
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: originalMatchMedia,
+    });
+  });
+
   it('applies custom className', () => {
     renderScore({ value: 80, className: 'my-score' });
     const el = screen.getByLabelText('80');
