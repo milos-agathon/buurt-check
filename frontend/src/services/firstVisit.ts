@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'buurtcheck_visited';
+const STORAGE_KEY = 'buurt-check-visited';
 
 /**
  * Returns true if the user has never completed a dossier load.

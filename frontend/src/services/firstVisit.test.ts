@@ -19,7 +19,7 @@ describe('firstVisit service', () => {
     markVisited();
     // Simulate re-read (as if page reloaded)
     expect(isFirstVisit()).toBe(false);
-    expect(localStorage.getItem('buurtcheck_visited')).toBe('1');
+    expect(localStorage.getItem('buurt-check-visited')).toBe('1');
   });
 
   it('handles localStorage.getItem throwing (private browsing)', () => {
@@ -40,16 +40,16 @@ describe('firstVisit service', () => {
   });
 
   it('does not treat other storage values as visited', () => {
-    localStorage.setItem('buurtcheck_visited', 'false');
+    localStorage.setItem('buurt-check-visited', 'false');
     expect(isFirstVisit()).toBe(true);
   });
 
   it('only recognizes exact value "1"', () => {
-    localStorage.setItem('buurtcheck_visited', '0');
+    localStorage.setItem('buurt-check-visited', '0');
     expect(isFirstVisit()).toBe(true);
-    localStorage.setItem('buurtcheck_visited', 'true');
+    localStorage.setItem('buurt-check-visited', 'true');
     expect(isFirstVisit()).toBe(true);
-    localStorage.setItem('buurtcheck_visited', '1');
+    localStorage.setItem('buurt-check-visited', '1');
     expect(isFirstVisit()).toBe(false);
   });
 });
