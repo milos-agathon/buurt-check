@@ -43,6 +43,6 @@ class NeighborhoodStats(BaseModel):
 class NeighborhoodStatsResponse(BaseModel):
     address_id: str
     stats: NeighborhoodStats | None = None
-    source: str = "CBS Wijken & Buurten 2024"
+    source: str = "CBS (Statistics Netherlands)"
     source_year: int = 2024
     message: str | None = None

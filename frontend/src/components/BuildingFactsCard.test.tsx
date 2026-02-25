@@ -73,7 +73,7 @@ describe('data rendering', () => {
 
   it('always shows pand_id', () => {
     renderCard(makeBuildingFacts({ construction_year: undefined, floor_area_m2: undefined, num_units: undefined }), false);
-    expect(screen.getByText('Building ID')).toBeInTheDocument();
+    expect(screen.getByText('Building registry number')).toBeInTheDocument();
     expect(screen.getByText('0363100012345678')).toBeInTheDocument();
   });
 
@@ -115,6 +115,6 @@ describe('bilingual rendering', () => {
 
   it('shows source attribution text', () => {
     renderCard(makeBuildingFacts(), false, 'en');
-    expect(screen.getByText('Source: BAG (Kadaster)')).toBeInTheDocument();
+    expect(screen.getByText('Source: BAG (Building & Address Registry)')).toBeInTheDocument();
   });
 });

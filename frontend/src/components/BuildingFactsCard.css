@@ -42,6 +42,13 @@
   font-size: 0.8125rem;
 }
 
+.building-card__field-note {
+  display: block;
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
 .building-card__source {
   margin: var(--space-base) 0 0;
   font: var(--type-micro);

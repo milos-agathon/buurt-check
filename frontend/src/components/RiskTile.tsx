@@ -31,7 +31,7 @@ export default function RiskTile({ category, labelKey, score, severity, summary,
     >
       <div className="risk-tile__score-area">
         {score != null ? (
-          <AnimatedScore value={score} className={`risk-tile__score risk-tile__score--${severity}`} />
+          <AnimatedScore value={score} className={`risk-tile__score risk-tile__score--${severity}`} showScale />
         ) : (
           <span className="risk-tile__score risk-tile__score--unavailable">--</span>
         )}

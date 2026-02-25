@@ -294,7 +294,7 @@ describe('error handling', () => {
     renderSearch();
     await typeAndFlush(screen.getByRole('combobox'), 'am');
 
-    expect(screen.getByText('Could not search addresses')).toBeInTheDocument();
+    expect(screen.getByText("We couldn't search addresses right now. Check your connection and try again.")).toBeInTheDocument();
   });
 
   it('ignores AbortError (no error message shown)', async () => {

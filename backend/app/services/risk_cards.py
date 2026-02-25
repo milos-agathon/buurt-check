@@ -516,7 +516,7 @@ async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseR
         if layer is None:
             return NoiseRiskCard(
                 level=RiskLevel.unavailable,
-                source="RIVM / Atlas Leefomgeving WMS",
+                source="RIVM (Dutch National Health Institute)",
                 sampled_at=sampled_at,
                 message="NOISE_LAYER_UNAVAILABLE",
             )
@@ -531,7 +531,7 @@ async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseR
         if value is None:
             return NoiseRiskCard(
                 level=RiskLevel.unavailable,
-                source="RIVM / Atlas Leefomgeving WMS",
+                source="RIVM (Dutch National Health Institute)",
                 source_date=_extract_layer_date(layer),
                 sampled_at=sampled_at,
                 layer=layer,
@@ -546,7 +546,7 @@ async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseR
         return NoiseRiskCard(
             level=level,
             lden_db=round(value, 1),
-            source="RIVM / Atlas Leefomgeving WMS",
+            source="RIVM (Dutch National Health Institute)",
             source_date=_extract_layer_date(layer),
             sampled_at=sampled_at,
             layer=layer,
@@ -554,7 +554,7 @@ async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseR
     except Exception:
         return NoiseRiskCard(
             level=RiskLevel.unavailable,
-            source="RIVM / Atlas Leefomgeving WMS",
+            source="RIVM (Dutch National Health Institute)",
             sampled_at=sampled_at,
             message="NOISE_LOOKUP_FAILED",
         )
@@ -610,7 +610,7 @@ async def _build_air_card(rd_x: float, rd_y: float, sampled_at: str) -> AirQuali
             no2_ug_m3=round(no2_value, 2) if no2_value is not None else None,
             pm25_level=pm25_level,
             no2_level=no2_level,
-            source="RIVM GCN WMS",
+            source="RIVM (Dutch National Health Institute)",
             source_date=source_date,
             sampled_at=sampled_at,
             pm25_layer=pm25_layer,
@@ -620,7 +620,7 @@ async def _build_air_card(rd_x: float, rd_y: float, sampled_at: str) -> AirQuali
     except Exception:
         return AirQualityRiskCard(
             level=RiskLevel.unavailable,
-            source="RIVM GCN WMS",
+            source="RIVM (Dutch National Health Institute)",
             sampled_at=sampled_at,
             message="AIR_LOOKUP_FAILED",
         )
@@ -700,7 +700,7 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
             heat_level=heat_level,
             water_value=water_value,
             water_level=water_level,
-            source="Klimaateffectatlas WMS/WFS",
+            source="Klimaateffectatlas (Dutch Climate Atlas)",
             source_date=source_date,
             sampled_at=sampled_at,
             heat_layer=heat_layer_used,
@@ -712,7 +712,7 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
     except Exception:
         return ClimateStressRiskCard(
             level=RiskLevel.unavailable,
-            source="Klimaateffectatlas WMS/WFS",
+            source="Klimaateffectatlas (Dutch Climate Atlas)",
             sampled_at=sampled_at,
             message="CLIMATE_LOOKUP_FAILED",
         )

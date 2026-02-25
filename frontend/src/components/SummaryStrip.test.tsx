@@ -27,8 +27,8 @@ describe('SummaryStrip', () => {
   it('renders score values in pills', () => {
     const { container } = render(<SummaryStrip pills={mockPills} />);
     const scores = container.querySelectorAll('.summary-strip__score');
-    expect(scores[0].textContent).toBe('59');
-    expect(scores[2].textContent).toBe('85');
+    expect(scores[0].textContent).toBe('59/100');
+    expect(scores[2].textContent).toBe('85/100');
   });
 
   it('renders -- for unavailable scores', () => {

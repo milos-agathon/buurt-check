@@ -87,7 +87,7 @@ async def address_suggest(
     try:
         suggestions = await locatieserver.suggest(q, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Locatieserver unavailable: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Address search unavailable") from exc
 
     await cache_set(
         cache_key,
@@ -110,7 +110,7 @@ async def address_lookup(
     try:
         resolved = await locatieserver.lookup(id)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Locatieserver unavailable: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Address lookup unavailable") from exc
 
     if resolved is None:
         raise HTTPException(status_code=404, detail="Address not found")
@@ -191,12 +191,12 @@ async def building_facts(
     except ValueError as exc:
         metrics.inc("building.error")
         metrics.record_latency("building", (time.monotonic() - t0) * 1000)
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail="Building data unavailable") from exc
     except Exception as exc:
         metrics.inc("building.error")
         metrics.record_latency("building", (time.monotonic() - t0) * 1000)
         raise HTTPException(
-            status_code=502, detail=f"BAG API unavailable: {exc}"
+            status_code=502, detail="Building data unavailable"
         ) from exc
 
     if facts is None:
@@ -237,7 +237,7 @@ async def building_3d(
         )
     except Exception as exc:
         raise HTTPException(
-            status_code=502, detail=f"3DBAG API unavailable: {exc}"
+            status_code=502, detail="3D building data unavailable"
         ) from exc
 
     if result.buildings:
@@ -271,10 +271,10 @@ async def neighborhood_3d(
             vbo_id=vbo_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail="3D building data unavailable") from exc
     except Exception as exc:
         raise HTTPException(
-            status_code=502, detail=f"3DBAG API unavailable: {exc}"
+            status_code=502, detail="3D building data unavailable"
         ) from exc
 
     is_partial = bool(result.message and result.message.startswith("Partial neighborhood data"))

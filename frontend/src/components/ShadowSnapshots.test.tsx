@@ -53,7 +53,7 @@ describe('ShadowSnapshots', () => {
 
   it('shows source attribution', () => {
     renderSnapshots(makeShadowSnapshots());
-    expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
+    expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
   });
 
   it('shows subtitle about winter solstice', () => {

@@ -13,7 +13,7 @@ export function resolveSourceFetchStatus(
   enabled: boolean,
   hasData: boolean,
   loading: boolean,
-  error: boolean,
+  error: boolean | string | null,
 ): SourceFetchStatus {
   if (!enabled) return 'idle';
   if (hasData) return 'success';

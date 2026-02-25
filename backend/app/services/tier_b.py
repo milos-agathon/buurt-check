@@ -6,6 +6,7 @@ import httpx
 
 from app.config import settings
 from app.models.tier_b import CrimeStatsCard, EnergyLabelCard, TierBResponse
+from app.services.scoring import crime_summary, normalize_crime_score, severity_from_score
 
 logger = logging.getLogger(__name__)
 
@@ -277,8 +278,13 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     elif total_count is None:
         message = "CRIME_NO_DATA"
 
+    total_rate = _per_1000(total_count, population)
+    score = normalize_crime_score(total_rate)
+    severity = severity_from_score(score).value if score is not None else None
+    meaning_en, meaning_nl = crime_summary(score, total_rate)
+
     return CrimeStatsCard(
-        total_per_1000=_per_1000(total_count, population),
+        total_per_1000=total_rate,
         burglary_per_1000=_per_1000(burglary_count, population),
         violent_per_1000=_per_1000(violent_count, population),
         yearly_period=latest_year,
@@ -288,6 +294,10 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
         burglary_count=burglary_count,
         violent_count=violent_count if violent_count else None,
         monthly_total_count=monthly_count,
+        score=score,
+        severity=severity,
+        meaning_en=meaning_en if score is not None else None,
+        meaning_nl=meaning_nl if score is not None else None,
         source_date=latest_year,
         message=message,
     )

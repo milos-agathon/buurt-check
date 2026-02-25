@@ -25,10 +25,10 @@ describe('ActionBar', () => {
     expect(btns.length).toBe(2);
   });
 
-  it('shows "Add to Shortlist" when not bookmarked', () => {
+  it('shows "Save" when not bookmarked', () => {
     const { container } = renderActionBar({ isBookmarked: false });
     const secondary = container.querySelector('.action-bar__btn--secondary');
-    expect(secondary?.textContent).toBe('Add to Shortlist');
+    expect(secondary?.textContent).toBe('Save');
   });
 
   it('shows "Saved" when bookmarked', () => {

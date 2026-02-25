@@ -95,6 +95,11 @@
   color: var(--color-text-tertiary);
 }
 
+.risk-card__metric-note {
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+}
+
 .risk-card__question {
   font: var(--type-small);
   background: var(--color-accent-light);

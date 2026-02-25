@@ -11,7 +11,7 @@ beforeEach(async () => {
   i18n = await setupTestI18n('en');
 });
 
-function renderCard(data?: PropertyWarningsResponse, loading = false, error = false) {
+function renderCard(data?: PropertyWarningsResponse, loading = false, error: string | null = null) {
   return render(
     <I18nextProvider i18n={i18n}>
       <PropertyWarningsCard data={data} loading={loading} error={error} />
@@ -31,8 +31,8 @@ describe('PropertyWarningsCard', () => {
   });
 
   it('shows error state', () => {
-    renderCard(undefined, false, true);
-    expect(screen.getByText(/could not be loaded/i)).toBeInTheDocument();
+    renderCard(undefined, false, 'Test error message');
+    expect(screen.getByText('Test error message')).toBeInTheDocument();
   });
 
   it('renders foundation risk card with high level', () => {

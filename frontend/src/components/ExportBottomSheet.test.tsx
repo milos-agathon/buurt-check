@@ -41,8 +41,8 @@ describe('ExportBottomSheet', () => {
   it('renders when open', () => {
     renderSheet();
     expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
-    expect(screen.getByText('Export Briefing')).toBeInTheDocument();
-    expect(screen.getByText('Quick Brief')).toBeInTheDocument();
+    expect(screen.getByText('Download viewing checklist')).toBeInTheDocument();
+    expect(screen.getByText('Quick checklist')).toBeInTheDocument();
   });
 
   it('shows updated Full Dossier page metadata', () => {
@@ -100,7 +100,7 @@ describe('ExportBottomSheet', () => {
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
     await waitFor(() => {
-      expect(screen.getByText('Export failed. Please try again.')).toBeInTheDocument();
+      expect(screen.getByText("We couldn't generate the PDF. Try again — your dossier data is still available.")).toBeInTheDocument();
     });
     expect(mockClose).not.toHaveBeenCalled();
   });

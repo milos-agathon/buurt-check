@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { SeverityLevel } from '../types/api';
 import './SummaryStrip.css';
 
@@ -29,6 +30,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export default function SummaryStrip({ pills, onPillTap }: SummaryStripProps) {
+  const { t } = useTranslation();
 
   return (
     <div className="summary-strip" data-testid="summary-strip" role="list">
@@ -39,12 +41,20 @@ export default function SummaryStrip({ pills, onPillTap }: SummaryStripProps) {
           role="listitem"
           style={{ '--pill-color': SEVERITY_COLORS[pill.severity] } as React.CSSProperties}
           onClick={() => onPillTap?.(pill.category)}
+          aria-label={pill.score != null
+            ? t('risk.tileAria', { label: t(pill.labelKey), score: pill.score, max: 100 })
+            : t('risk.tileAriaUnavailable', { label: t(pill.labelKey) })}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d={CATEGORY_ICONS[pill.category] || CATEGORY_ICONS.noise} />
           </svg>
-          <span className="summary-strip__score">
-            {pill.score != null ? pill.score : '--'}
+          <span className="summary-strip__score" aria-hidden="true">
+            {pill.score != null ? (
+              <>
+                {pill.score}
+                <span className="summary-strip__scale">{t('score.scale', '/100')}</span>
+              </>
+            ) : '--'}
           </span>
         </button>
       ))}

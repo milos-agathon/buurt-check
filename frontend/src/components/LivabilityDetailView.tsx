@@ -54,6 +54,7 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
         <div className="livability-detail__score-section">
           <div className={`livability-detail__score livability-detail__score--${severity}`}>
             {data.overall_normalized}
+            <span className="livability-detail__score-scale" aria-hidden="true">{t('score.scale', '/100')}</span>
           </div>
           <p className="livability-detail__score-label">
             {data.buurt_name}, {data.gemeente}
@@ -131,7 +132,8 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
                           className={`livability-detail__dim-trend-bar livability-detail__dim-trend-bar--${barSev}`}
                           style={{ height: `${Math.max(10, dim.normalized_score)}%` }}
                           key={point.year}
-                          title={`${point.year}: ${dim.normalized_score}`}
+                          role="img"
+                          aria-label={`${point.year}: ${dim.normalized_score}`}
                         />
                       );
                     })}

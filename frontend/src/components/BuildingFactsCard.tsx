@@ -57,7 +57,10 @@ export default function BuildingFactsCard({ building, loading }: Props) {
           </>
         )}
         <dt>{t('building.pandId')}</dt>
-        <dd className="building-card__mono">{building.pand_id}</dd>
+        <dd>
+          <span className="building-card__mono">{building.pand_id}</span>
+          <span className="building-card__field-note">{t('building.pandIdNote')}</span>
+        </dd>
       </dl>
       <p className="building-card__source">{t('building.source')}</p>
     </div>

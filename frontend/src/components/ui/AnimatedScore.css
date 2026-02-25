@@ -1,0 +1,8 @@
+.animated-score__scale {
+  font-size: 0.45em;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-left: 2px;
+  vertical-align: middle;
+  line-height: 1;
+}

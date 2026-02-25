@@ -279,6 +279,10 @@ export interface CrimeStatsCard {
   burglary_count?: number;
   violent_count?: number;
   monthly_total_count?: number;
+  score?: number;
+  severity?: SeverityLevel;
+  meaning_en?: string;
+  meaning_nl?: string;
   source: string;
   source_date?: string;
   message?: string;

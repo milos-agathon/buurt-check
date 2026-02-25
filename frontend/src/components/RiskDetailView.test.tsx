@@ -42,7 +42,7 @@ describe('RiskDetailView', () => {
   it('displays the numeric score', () => {
     const { container } = renderDetail({ score: 72, severity: 'good' });
     const score = container.querySelector('.risk-detail__score--good');
-    expect(score?.textContent).toBe('72');
+    expect(score?.textContent).toBe('72/100');
   });
 
   it('displays -- when score is undefined', () => {

@@ -6,7 +6,7 @@ import './NeighborhoodStatsCard.css';
 interface Props {
   stats?: NeighborhoodStatsResponse;
   loading?: boolean;
-  error?: boolean;
+  error?: string | null;
   onRetry?: () => void;
 }
 
@@ -94,7 +94,7 @@ export default function NeighborhoodStatsCard({ stats, loading, error, onRetry }
     return (
       <section className="neighborhood-card">
         <h2 className="neighborhood-card__title">{t('neighborhood.title')}</h2>
-        <p className="neighborhood-card__error">{t('neighborhood.error')}</p>
+        <p className="neighborhood-card__error">{error || t('neighborhood.error')}</p>
         {onRetry && (
           <button
             type="button"

@@ -39,8 +39,8 @@ function renderScreen(items: ShortlistItem[] = []) {
 describe('ShortlistScreen', () => {
   it('renders empty state when no items', () => {
     renderScreen([]);
-    expect(screen.getByText('No saved addresses yet')).toBeInTheDocument();
-    expect(screen.getByText(/Bookmark addresses/)).toBeInTheDocument();
+    expect(screen.getByText('No saved properties yet')).toBeInTheDocument();
+    expect(screen.getByText(/Save properties from your search/)).toBeInTheDocument();
   });
 
   it('renders address cards when items exist', () => {
