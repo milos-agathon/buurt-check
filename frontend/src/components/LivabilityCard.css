@@ -72,7 +72,7 @@
   font: 700 24px/1 var(--font-family);
 }
 
-.livability-card__score-scale {
+.livability-card__score-value .animated-score__scale {
   font-family: var(--font-family);
   font-size: 11px;
   font-weight: 500;
@@ -130,7 +130,7 @@
 .livability-card__dimension-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 0.4s ease-out;
+  transition: width var(--duration-slow) var(--ease-out-expo);
 }
 
 .livability-card__dimension-fill--good {
@@ -183,7 +183,7 @@
   border-radius: 2px 2px 0 0;
   min-height: 4px;
   transform-origin: bottom;
-  animation: spark-bar-grow 0.3s ease-out both;
+  animation: spark-bar-grow var(--duration-moderate) var(--ease-out-expo) both;
 }
 
 @keyframes spark-bar-grow {

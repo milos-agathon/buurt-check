@@ -169,7 +169,7 @@
   stroke: var(--color-accent);
   stroke-width: 3;
   stroke-linecap: round;
-  transition: stroke-dashoffset 220ms ease-out;
+  transition: stroke-dashoffset var(--duration-base) var(--ease-out-expo);
 }
 
 .export-sheet__progress-icon {
@@ -220,7 +220,7 @@
   font: var(--type-body);
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--duration-fast) var(--ease-out-subtle);
 }
 
 .export-sheet__btn:focus-visible {

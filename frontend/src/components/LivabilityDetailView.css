@@ -138,7 +138,7 @@
 .livability-detail__dim-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 600ms ease-out;
+  transition: width var(--duration-emphasis) var(--ease-out-expo);
 }
 
 .livability-detail__dim-fill--good { background: var(--color-risk-good); }
@@ -186,7 +186,7 @@
   border-radius: 4px 4px 0 0;
   min-height: 4px;
   transform-origin: bottom;
-  animation: livability-bar-grow 600ms ease-out both;
+  animation: livability-bar-grow var(--duration-emphasis) var(--ease-out-expo) both;
 }
 
 @keyframes livability-bar-grow {
@@ -297,7 +297,7 @@
   height: 100%;
   background: var(--color-accent);
   border-radius: 4px;
-  transition: width 600ms ease-out;
+  transition: width var(--duration-emphasis) var(--ease-out-expo);
 }
 
 .livability-detail__cmp-value {

@@ -28,3 +28,11 @@ ul {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+html.theme-transitioning,
+html.theme-transitioning * {
+  transition:
+    background-color var(--duration-base) var(--ease-out-subtle),
+    color var(--duration-base) var(--ease-out-subtle),
+    border-color var(--duration-base) var(--ease-out-subtle) !important;
+}

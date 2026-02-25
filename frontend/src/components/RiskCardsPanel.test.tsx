@@ -102,7 +102,7 @@ describe('RiskCardsPanel', () => {
   });
 
   it('renders error state', () => {
-    render(
+    const { container } = render(
       <I18nextProvider i18n={i18nEn}>
         <RiskCardsPanel error="Data source temporarily unavailable" />
       </I18nextProvider>,
@@ -113,6 +113,7 @@ describe('RiskCardsPanel', () => {
     expect(screen.getByText('Air Quality')).toBeInTheDocument();
     expect(screen.getByText('Climate Risk')).toBeInTheDocument();
     expect(screen.getAllByText('Source + date: Source unknown (date unknown)')).toHaveLength(3);
+    expect(container.querySelector('.risk-cards')).toHaveAttribute('data-state', 'error');
   });
 
   it('renders Dutch card titles when language is nl', async () => {

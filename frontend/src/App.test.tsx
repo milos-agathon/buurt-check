@@ -173,26 +173,30 @@ function renderApp() {
 
 /**
  * Simulates the 3D section scrolling into the viewport by triggering the
- * IntersectionObserver callback stored by the mock in setup.ts.
+ * IntersectionObserver that watches the viewer-3d-sentinel element.
  * Must be called after selectAddress() so the observer has been created.
  *
- * Waits for the observer callback to be registered on globalThis before firing,
- * because deferred3DParamsRef is set asynchronously inside handleAddressSelect
- * (after phase1/phase2 awaits), and the observer is created only after that.
+ * Uses the array-based mock to find the observer whose target is the sentinel,
+ * avoiding conflicts with AnimatedScore observers that also use IntersectionObserver.
  */
+interface MockObserverEntry { callback: IntersectionObserverCallback; targets: Set<Element>; disconnected: boolean }
 async function triggerViewer3DIntersection() {
-  // Wait for the IntersectionObserver to be created and registered
+  // Wait for the sentinel element to be observed
   await waitFor(() => {
-    const cb = (globalThis as Record<string, unknown>).__intersectionObserverCallback;
-    expect(cb).not.toBeNull();
+    const observers = (globalThis as Record<string, unknown>).__intersectionObservers as MockObserverEntry[];
+    const sentinel = document.querySelector('[data-testid="viewer-3d-sentinel"]');
+    expect(sentinel).not.toBeNull();
+    const match = observers.find(o => !o.disconnected && sentinel && o.targets.has(sentinel));
+    expect(match).toBeDefined();
   });
 
-  const callback = (globalThis as Record<string, unknown>).__intersectionObserverCallback as IntersectionObserverCallback;
-  const target = (globalThis as Record<string, unknown>).__intersectionObserverTarget as Element;
+  const observers = (globalThis as Record<string, unknown>).__intersectionObservers as MockObserverEntry[];
+  const sentinel = document.querySelector('[data-testid="viewer-3d-sentinel"]')!;
+  const match = observers.find(o => !o.disconnected && o.targets.has(sentinel))!;
   await act(async () => {
-    callback([{
+    match.callback([{
       isIntersecting: true,
-      target,
+      target: sentinel,
       boundingClientRect: {} as DOMRectReadOnly,
       intersectionRatio: 1,
       intersectionRect: {} as DOMRectReadOnly,
@@ -239,6 +243,16 @@ describe('initial render', () => {
     renderApp();
     expect(screen.queryByText('Building Facts')).not.toBeInTheDocument();
     expect(screen.queryByTestId('map')).not.toBeInTheDocument();
+  });
+});
+
+describe('tab content transitions', () => {
+  it('renders saved content after switching tabs', async () => {
+    renderApp();
+    fireEvent.click(screen.getByRole('tab', { name: 'Saved' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('shortlist-screen')).toBeInTheDocument();
+    });
   });
 });
 
@@ -828,6 +842,71 @@ describe('dossier section order (v7 canonical)', () => {
     const filtered = order.filter(s => expected.includes(s));
     expect(filtered).toEqual(expected);
   });
+
+  it('applies stagger indexes to dossier sections for reveal animation', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    const n3d = makeNeighborhood3DResponse();
+    mockBuilding3D.mockResolvedValue(n3d);
+    mockNeighborhood3D.mockResolvedValue(n3d);
+    mockViewingQuestions.mockResolvedValue({
+      address_id: 'vbo-123',
+      categories: [{ name: 'general', name_nl: 'Algemeen', severity: 'moderate', questions: [{ text_en: 'Q', text_nl: 'V' }] }],
+    });
+
+    renderApp();
+    await selectAddress();
+    await triggerViewer3DIntersection();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('action-bar')).toBeInTheDocument();
+      // Sunlight card needs 3D data (triggered above) to render
+      expect(screen.getByTestId('sunlight-card')).toBeInTheDocument();
+    });
+
+    const dossier = screen.getByTestId('dossier-sheet');
+    const sections = Array.from(dossier.querySelectorAll('.dossier-section'));
+    const indexes = sections
+      .map((section) => Number(section.getAttribute('data-section-index')))
+      .filter((value) => Number.isInteger(value));
+    const uniqueIndexes = [...new Set(indexes)];
+
+    expect(indexes).toEqual(uniqueIndexes);
+    expect(uniqueIndexes).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    sections.forEach((section) => {
+      const attr = section.getAttribute('data-section-index');
+      if (attr == null) return;
+      expect((section as HTMLElement).style.getPropertyValue('--section-index')).toBe(attr);
+    });
+  });
+});
+
+describe('tab transition reduced-motion safety', () => {
+  it('tab screen wrappers have no inline opacity/transition styles (Framer-only motion)', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dossier-sheet')).toBeInTheDocument();
+    });
+
+    // All .app__screen divs should have no inline opacity or transition CSS
+    // Tab transitions must come exclusively from Framer Motion (covered by MotionConfig reducedMotion="user")
+    const screens = document.querySelectorAll('.app__screen');
+    screens.forEach((el) => {
+      const style = (el as HTMLElement).style;
+      expect(style.transition).toBe('');
+      expect(style.opacity).toBe('');
+    });
+  });
+
+  // MotionConfig reducedMotion="user" wrapping is tested in main.test.tsx.
+  // Combined with the assertion above (no inline transition/opacity), this ensures
+  // all tab screen motion comes exclusively from Framer Motion (which respects
+  // prefers-reduced-motion via MotionConfig).
 });
 
 describe('dossier jump navigation', () => {

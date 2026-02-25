@@ -91,7 +91,7 @@
   content: '\25B6';
   font-size: 10px;
   color: var(--color-text-tertiary);
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-base) var(--ease-out-subtle);
 }
 
 .soil-info-card__questions[open] > .soil-info-card__questions-summary::after {

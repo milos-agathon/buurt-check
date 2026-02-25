@@ -27,7 +27,9 @@ function setupRafQueue() {
 describe('useAnimationPerformance', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    document.documentElement.removeAttribute('data-test-reduced-motion');
+    // Global setup.ts defaults reduced-motion to true (for AnimatedScore).
+    // This hook needs reduced-motion=false for frame monitoring tests.
+    document.documentElement.setAttribute('data-test-reduced-motion', 'false');
   });
 
   afterEach(() => {

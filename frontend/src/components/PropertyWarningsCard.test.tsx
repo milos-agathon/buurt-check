@@ -31,8 +31,9 @@ describe('PropertyWarningsCard', () => {
   });
 
   it('shows error state', () => {
-    renderCard(undefined, false, 'Test error message');
+    const { container } = renderCard(undefined, false, 'Test error message');
     expect(screen.getByText('Test error message')).toBeInTheDocument();
+    expect(container.querySelector('.property-warnings')).toHaveAttribute('data-state', 'error');
   });
 
   it('renders foundation risk card with high level', () => {

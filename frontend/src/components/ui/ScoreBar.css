@@ -20,7 +20,7 @@
 }
 
 .score-bar__fill--animated {
-  transition: width 600ms ease-out;
+  transition: width var(--duration-emphasis) var(--ease-out-expo);
 }
 
 .score-bar__fill--good { background: var(--color-risk-good); }
@@ -40,7 +40,7 @@
 }
 
 .score-bar__dot--animated {
-  animation: scoreBarDotFadeIn 200ms ease-out 400ms both;
+  animation: scoreBarDotFadeIn var(--duration-base) var(--ease-out-expo) calc(var(--duration-base) * 2) both;
 }
 
 .score-bar__dot--good { background: var(--color-risk-good); }

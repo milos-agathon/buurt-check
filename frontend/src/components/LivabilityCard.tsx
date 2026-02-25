@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LivabilityResponse, SeverityLevel } from '../types/api';
+import AnimatedScore from './ui/AnimatedScore';
 import './LivabilityCard.css';
 
 interface Props {
@@ -31,7 +32,7 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
 
   if (error && !data) {
     return (
-      <section className="livability-card" data-testid="livability-card">
+      <section className="livability-card" data-testid="livability-card" data-state="error">
         <p className="livability-card__error">{error || t('livability.error')}</p>
         {onRetry && (
           <button
@@ -50,7 +51,7 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
 
   if (!data.available) {
     return (
-      <section className="livability-card" data-testid="livability-card">
+      <section className="livability-card" data-testid="livability-card" data-state="unavailable">
         <p className="livability-card__unavailable">{t('livability.unavailable')}</p>
       </section>
     );
@@ -70,8 +71,7 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
       {/* Score badge + buurt name */}
       <div className="livability-card__header">
         <div className={`livability-card__score-badge livability-card__score-badge--${severity}`}>
-          <span className="livability-card__score-value">{data.overall_normalized}</span>
-          <span className="livability-card__score-scale" aria-hidden="true">{t('score.scale', '/100')}</span>
+          <AnimatedScore value={data.overall_normalized} className="livability-card__score-value" showScale />
         </div>
         <div className="livability-card__header-text">
           <p className="livability-card__buurt-name">{data.buurt_name}</p>

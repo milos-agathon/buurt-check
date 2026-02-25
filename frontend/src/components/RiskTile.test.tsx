@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import RiskTile from './RiskTile';
 import { setupTestI18n } from '../test/helpers';
@@ -40,10 +40,12 @@ describe('RiskTile', () => {
     expect(label?.textContent).toBe('Road Traffic Noise');
   });
 
-  it('displays numeric score when provided', () => {
+  it('displays numeric score when provided', async () => {
     const { container } = renderTile({ score: 72 });
-    const score = container.querySelector('.risk-tile__score');
-    expect(score?.textContent).toBe('72/100');
+    await waitFor(() => {
+      const score = container.querySelector('.risk-tile__score');
+      expect(score?.textContent).toBe('72/100');
+    });
   });
 
   it('displays -- when score is undefined', () => {
@@ -62,9 +64,11 @@ describe('RiskTile', () => {
     expect(container.querySelector('.severity-badge')).toBeInTheDocument();
   });
 
-  it('renders score text when score is provided', () => {
+  it('renders score text when score is provided', async () => {
     const { container } = renderTile({ score: 60, severity: 'moderate' });
-    expect(container.querySelector('.risk-tile__score')?.textContent).toBe('60/100');
+    await waitFor(() => {
+      expect(container.querySelector('.risk-tile__score')?.textContent).toBe('60/100');
+    });
   });
 
   it('renders unavailable score when score is undefined', () => {

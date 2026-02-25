@@ -44,7 +44,7 @@
   line-height: 1;
 }
 
-.summary-strip__scale {
+.summary-strip__score .animated-score__scale {
   font-size: 9px;
   font-weight: 500;
   color: var(--color-text-secondary);

@@ -39,8 +39,9 @@ describe('NeighborhoodStatsCard', () => {
   });
 
   it('shows error state when no stats', () => {
-    renderCard({ error: "We couldn't load neighborhood data. The statistics service may be temporarily slow — try again." });
+    const { container } = renderCard({ error: "We couldn't load neighborhood data. The statistics service may be temporarily slow — try again." });
     expect(screen.getByText("We couldn't load neighborhood data. The statistics service may be temporarily slow — try again.")).toBeInTheDocument();
+    expect(container.querySelector('.neighborhood-card')).toHaveAttribute('data-state', 'error');
   });
 
   it('renders null when stats is undefined and not loading/error', () => {

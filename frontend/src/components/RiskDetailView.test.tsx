@@ -1,9 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import RiskDetailView from './RiskDetailView';
 import { setupTestI18n } from '../test/helpers';
 import type { SeverityLevel } from '../types/api';
+
+// Mock prefers-reduced-motion so AnimatedScore renders values immediately
+// (skips IntersectionObserver + requestAnimationFrame animation)
+beforeEach(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+});
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -39,10 +57,12 @@ describe('RiskDetailView', () => {
     expect(navTitle?.textContent).toBe('Road Traffic Noise');
   });
 
-  it('displays the numeric score', () => {
+  it('displays the numeric score', async () => {
     const { container } = renderDetail({ score: 72, severity: 'good' });
-    const score = container.querySelector('.risk-detail__score--good');
-    expect(score?.textContent).toBe('72/100');
+    await waitFor(() => {
+      const score = container.querySelector('.risk-detail__score--good');
+      expect(score?.textContent).toBe('72/100');
+    });
   });
 
   it('displays -- when score is undefined', () => {

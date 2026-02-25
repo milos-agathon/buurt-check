@@ -79,7 +79,7 @@
 }
 
 .risk-tile--pulse {
-  animation: risk-tile-pulse 300ms ease-out;
+  animation: risk-tile-pulse var(--duration-moderate) var(--ease-out-expo);
 }
 
 @keyframes risk-tile-pulse {

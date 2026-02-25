@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getTheme, setTheme, getEffectiveTheme, applyTheme } from './theme';
 
 // Mock matchMedia for jsdom
@@ -20,6 +20,12 @@ describe('theme service', () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
+    document.documentElement.classList.remove('theme-transitioning');
+    vi.useRealTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('returns system as default theme', () => {
@@ -30,6 +36,14 @@ describe('theme service', () => {
     setTheme('dark');
     expect(getTheme()).toBe('dark');
     expect(localStorage.getItem('buurt-check-theme')).toBe('dark');
+  });
+
+  it('adds and removes theme-transitioning class around explicit theme changes', () => {
+    vi.useFakeTimers();
+    setTheme('dark');
+    expect(document.documentElement.classList.contains('theme-transitioning')).toBe(true);
+    vi.advanceTimersByTime(250);
+    expect(document.documentElement.classList.contains('theme-transitioning')).toBe(false);
   });
 
   it('returns stored light preference', () => {
@@ -62,5 +76,30 @@ describe('theme service', () => {
   it('ignores invalid localStorage values', () => {
     localStorage.setItem('buurt-check-theme', 'purple');
     expect(getTheme()).toBe('system');
+  });
+
+  it('skips theme-transitioning when prefers-reduced-motion is enabled', () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: (query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+
+    setTheme('dark');
+    expect(document.documentElement.classList.contains('theme-transitioning')).toBe(false);
+
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: originalMatchMedia,
+    });
   });
 });

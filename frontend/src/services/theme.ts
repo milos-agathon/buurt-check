@@ -1,6 +1,14 @@
 const STORAGE_KEY = 'buurt-check-theme';
+const THEME_TRANSITION_CLASS = 'theme-transitioning';
+const THEME_TRANSITION_TIMEOUT_MS = 250;
+
+let themeTransitionTimeout: number | null = null;
 
 export type ThemePreference = 'light' | 'dark' | 'system';
+
+interface ApplyThemeOptions {
+  withTransition?: boolean;
+}
 
 export function getTheme(): ThemePreference {
   const stored = localStorage.getItem(STORAGE_KEY);
@@ -10,7 +18,7 @@ export function getTheme(): ThemePreference {
 
 export function setTheme(pref: ThemePreference): void {
   localStorage.setItem(STORAGE_KEY, pref);
-  applyTheme(pref);
+  applyTheme(pref, { withTransition: true });
 }
 
 export function getEffectiveTheme(pref?: ThemePreference): 'light' | 'dark' {
@@ -23,8 +31,45 @@ export function getEffectiveTheme(pref?: ThemePreference): 'light' | 'dark' {
   }
 }
 
-export function applyTheme(pref?: ThemePreference): void {
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
+function clearThemeTransitionTimeout(): void {
+  if (themeTransitionTimeout != null) {
+    window.clearTimeout(themeTransitionTimeout);
+    themeTransitionTimeout = null;
+  }
+}
+
+function beginThemeTransition(): void {
+  const root = document.documentElement;
+  clearThemeTransitionTimeout();
+  root.classList.add(THEME_TRANSITION_CLASS);
+  themeTransitionTimeout = window.setTimeout(() => {
+    root.classList.remove(THEME_TRANSITION_CLASS);
+    themeTransitionTimeout = null;
+  }, THEME_TRANSITION_TIMEOUT_MS);
+}
+
+function cancelThemeTransition(): void {
+  clearThemeTransitionTimeout();
+  document.documentElement.classList.remove(THEME_TRANSITION_CLASS);
+}
+
+export function applyTheme(pref?: ThemePreference, options: ApplyThemeOptions = {}): void {
   const effective = getEffectiveTheme(pref);
+  if (options.withTransition) {
+    if (prefersReducedMotion()) {
+      cancelThemeTransition();
+    } else {
+      beginThemeTransition();
+    }
+  }
   document.documentElement.setAttribute('data-theme', effective);
 }
 

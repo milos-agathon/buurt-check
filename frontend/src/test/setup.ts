@@ -3,8 +3,12 @@ import { cleanup } from '@testing-library/react';
 import { createElement } from 'react';
 
 function getReducedMotionMockValue(): boolean {
-  if (typeof document === 'undefined') return false;
-  return document.documentElement.getAttribute('data-test-reduced-motion') === 'true';
+  if (typeof document === 'undefined') return true;
+  const attr = document.documentElement.getAttribute('data-test-reduced-motion');
+  // Default to true (so AnimatedScore renders immediately in tests).
+  // Only return false when explicitly set to 'false'.
+  if (attr === 'false') return false;
+  return true;
 }
 
 // Mock framer-motion — renders motion.div as plain div, etc.
@@ -54,36 +58,43 @@ vi.mock('framer-motion', () => {
   };
 });
 
-// Mock matchMedia for jsdom (required by theme service)
-if (typeof window.matchMedia !== 'function') {
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (query: string) => ({
-      matches: query === '(prefers-reduced-motion: reduce)' ? getReducedMotionMockValue() : false,
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    }),
-  });
-}
+// Mock matchMedia for jsdom (required by theme service + AnimatedScore)
+// Default: reduced-motion=true so AnimatedScore renders immediately.
+// Override per-test via data-test-reduced-motion="false" attribute or local matchMedia override.
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: query === '(prefers-reduced-motion: reduce)' ? getReducedMotionMockValue() : false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
+});
 
-// Mock IntersectionObserver for jsdom (required by viewport-gated 3D fetch)
-// Stores the most recent callback and target so tests can simulate intersections.
+// Mock IntersectionObserver for jsdom (required by viewport-gated 3D fetch + AnimatedScore)
+// Stores ALL observer instances so tests can trigger specific ones or broadcast to all.
+interface MockObserverEntry { callback: IntersectionObserverCallback; targets: Set<Element>; disconnected: boolean }
+(globalThis as Record<string, unknown>).__intersectionObservers = [] as MockObserverEntry[];
+// Legacy single-callback for backward compat with existing test helpers
 (globalThis as Record<string, unknown>).__intersectionObserverCallback = null;
 (globalThis as Record<string, unknown>).__intersectionObserverTarget = null;
 
 if (typeof globalThis.IntersectionObserver === 'undefined') {
   const MockIntersectionObserver = function (this: Record<string, unknown>, callback: IntersectionObserverCallback) {
+    const entry: MockObserverEntry = { callback, targets: new Set(), disconnected: false };
+    ((globalThis as Record<string, unknown>).__intersectionObservers as MockObserverEntry[]).push(entry);
+    // Legacy: also store last callback for simple helpers
     (globalThis as Record<string, unknown>).__intersectionObserverCallback = callback;
     this.observe = (target: Element) => {
+      entry.targets.add(target);
       (globalThis as Record<string, unknown>).__intersectionObserverTarget = target;
     };
-    this.unobserve = () => {};
-    this.disconnect = () => {};
+    this.unobserve = (target: Element) => { entry.targets.delete(target); };
+    this.disconnect = () => { entry.disconnected = true; entry.targets.clear(); };
     this.takeRecords = () => [];
     this.root = null;
     this.rootMargin = '';

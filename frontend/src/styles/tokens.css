@@ -168,10 +168,27 @@
   --top-bar-height: 44px;
   --action-bar-height: 64px;
 
+  /* ── Motion: Easing ── */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-subtle: cubic-bezier(0.33, 1, 0.68, 1);
+
+  /* ── Motion: Duration Scale ── */
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-moderate: 300ms;
+  --duration-slow: 500ms;
+  --duration-emphasis: 600ms;
+
+  /* ── Motion: Stagger ── */
+  --stagger-section: 80ms;
+  --stagger-item: 50ms;
+
   /* ── Transitions ── */
-  --transition-fast: 150ms ease;
-  --transition-base: 200ms ease;
-  --transition-slow: 300ms ease;
+  --transition-fast: var(--duration-fast) var(--ease-out-subtle);
+  --transition-base: var(--duration-base) var(--ease-out-subtle);
+  --transition-slow: var(--duration-moderate) var(--ease-out-subtle);
 
   /* ── Focus Ring ── */
   --focus-ring-accent: 0 0 0 4px rgba(46, 196, 182, 0.12);
