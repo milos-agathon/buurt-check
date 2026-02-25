@@ -86,3 +86,34 @@
     animation: none;
   }
 }
+
+.viewer-3d__controls-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  z-index: 8;
+  animation: viewer3d-hint-fade 3s ease-in forwards;
+}
+
+.viewer-3d__controls-hint-text {
+  font: var(--type-caption);
+  color: var(--color-text-inverse);
+  text-align: center;
+  padding: var(--space-sm) var(--space-md);
+}
+
+@keyframes viewer3d-hint-fade {
+  0%, 83% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer-3d__controls-hint {
+    animation: none;
+  }
+}

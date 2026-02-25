@@ -169,7 +169,7 @@ async function selectAddress() {
   const suggestion = makeSuggestion();
   mockSuggest.mockResolvedValue({ suggestions: [suggestion] });
 
-  fireEvent.change(screen.getByPlaceholderText('Paste or type an address...'), {
+  fireEvent.change(screen.getByPlaceholderText('e.g. Keizersgracht 1, Amsterdam'), {
     target: { value: 'Keizers' },
   });
   vi.useFakeTimers();

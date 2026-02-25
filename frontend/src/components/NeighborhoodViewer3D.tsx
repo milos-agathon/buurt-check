@@ -32,6 +32,7 @@ import HeatmapLegend from './HeatmapLegend';
 import { sunHoursToColor } from '../utils/heatmapColors';
 import { getSunDirection, SUN_DISTANCE } from '../utils/sunPosition';
 import { buildRoofPointGrid } from '../utils/spatialHashGrid';
+import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import './NeighborhoodViewer3D.css';
 
 /**
@@ -238,6 +239,7 @@ export default function NeighborhoodViewer3D({
   const neighborBuildFrameRef = useRef<number | null>(null);
   const dampingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [heatmapRange, setHeatmapRange] = useState<HeatmapRange | null>(null);
+  const [showControlsHint, setShowControlsHint] = useState(() => !hasSeenTooltip('3d-controls'));
   const targetBuilding = buildings.find((building) => building.pand_id === targetPandId) ?? buildings[0];
   const staticSceneSummary = targetBuilding
     ? t(
@@ -265,6 +267,35 @@ export default function NeighborhoodViewer3D({
       current.renderQueued = false;
     });
   }, []);
+
+  // Controls hint: auto-dismiss after 3s or on first interaction
+  const dismissControlsHint = useCallback(() => {
+    setShowControlsHint(false);
+    markTooltipSeen('3d-controls');
+  }, []);
+
+  useEffect(() => {
+    if (!showControlsHint) return;
+    const timer = setTimeout(dismissControlsHint, 3000);
+    const el = containerRef.current;
+    if (el) {
+      el.addEventListener('mousedown', dismissControlsHint, { once: true });
+      el.addEventListener('touchstart', dismissControlsHint, { once: true });
+      el.addEventListener('wheel', dismissControlsHint, { once: true });
+    }
+    return () => {
+      clearTimeout(timer);
+      if (el) {
+        el.removeEventListener('mousedown', dismissControlsHint);
+        el.removeEventListener('touchstart', dismissControlsHint);
+        el.removeEventListener('wheel', dismissControlsHint);
+      }
+    };
+  }, [showControlsHint, dismissControlsHint]);
+
+  // Detect pointer type for hint text: coarse = touch, fine = desktop
+  const isTouchDevice = typeof window !== 'undefined'
+    && window.matchMedia('(pointer: coarse)').matches;
 
   // Extract camera framing into a callable function
   const frameCamera = useCallback(() => {
@@ -1228,6 +1259,15 @@ export default function NeighborhoodViewer3D({
           minHours={heatmapRange?.minHours ?? 0}
           maxHours={heatmapRange?.maxHours ?? 0}
         />
+        {showControlsHint && !loading && (
+          <div className="viewer-3d__controls-hint" aria-hidden="true">
+            <span className="viewer-3d__controls-hint-text">
+              {isTouchDevice
+                ? t('viewer3d.controlsHint.touch')
+                : t('viewer3d.controlsHint.desktop')}
+            </span>
+          </div>
+        )}
       </div>
       <p id={sceneSummaryId} className="viewer-3d__summary">
         {staticSceneSummary} {t('viewer3d.keyboardHint')}

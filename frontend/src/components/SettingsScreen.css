@@ -96,6 +96,57 @@
   border-top: 1px solid var(--color-border);
 }
 
+.settings-screen__group--info {
+  padding: var(--space-base) var(--space-lg);
+}
+
+.settings-screen__section-title {
+  font: var(--type-body);
+  font-weight: 700;
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.settings-screen__description {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.settings-screen__source-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.settings-screen__source-item {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.settings-screen__link {
+  font: var(--type-small);
+  color: var(--color-accent-text);
+  text-decoration: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.settings-screen__link:hover {
+  text-decoration: underline;
+}
+
+.settings-screen__link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .settings-screen__theme-toggle {
   display: flex;
   border: 1px solid var(--color-border);

@@ -2,21 +2,27 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { suggestAddresses } from '../services/api';
 import { getRecent, addRecent, type RecentSearch } from '../services/recentSearches';
+import { isFirstVisit } from '../services/firstVisit';
 import type { AddressSuggestion } from '../types/api';
 import './AddressSearch.css';
 
 interface Props {
   onSelect: (suggestion: AddressSuggestion) => void;
+  shortlistCount?: number;
+  onNavigateToSaved?: () => void;
+  onNavigateToCompare?: () => void;
 }
 
-export default function AddressSearch({ onSelect }: Props) {
+export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigateToSaved, onNavigateToCompare }: Props) {
   const { t, i18n } = useTranslation();
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(getRecent());
+  const [isFirst] = useState(() => isFirstVisit());
 
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -27,18 +33,22 @@ export default function AddressSearch({ onSelect }: Props) {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    setSearching(true);
     try {
       const data = await suggestAddresses(q, 7, controller.signal);
       setSuggestions(data.suggestions);
       setIsOpen(data.suggestions.length > 0);
       setActiveIndex(-1);
       setError(false);
+      setSearching(false);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         setError(true);
         setSuggestions([]);
         setIsOpen(false);
+        setSearching(false);
       }
+      // On AbortError, a new fetch is starting — leave searching=true
     }
   }, []);
 
@@ -50,6 +60,7 @@ export default function AddressSearch({ onSelect }: Props) {
       setSuggestions([]);
       setIsOpen(false);
       setError(false);
+      setSearching(false);
       return;
     }
 
@@ -165,6 +176,8 @@ export default function AddressSearch({ onSelect }: Props) {
           aria-controls="address-suggestions"
           aria-activedescendant={activeSuggestionId}
           aria-autocomplete="list"
+          inputMode="search"
+          maxLength={200}
           value={query}
           onChange={e => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -173,6 +186,14 @@ export default function AddressSearch({ onSelect }: Props) {
         />
       </div>
       {error && <p className="address-search__error">{t('search.error')}</p>}
+      {searching && !isOpen && !error && (
+        <div className="address-search__dropdown" id="address-suggestions">
+          <div className="address-search__searching">
+            <span className="address-search__searching-dot" />
+            {t('search.searching')}
+          </div>
+        </div>
+      )}
       {isOpen && suggestions.length > 0 && (
         <ul className="address-search__dropdown" id="address-suggestions" role="listbox">
           {suggestions.map((s, i) => (
@@ -190,9 +211,10 @@ export default function AddressSearch({ onSelect }: Props) {
           ))}
         </ul>
       )}
-      {isOpen && suggestions.length === 0 && query.length >= 2 && !error && (
+      {!searching && suggestions.length === 0 && query.length >= 2 && !error && (
         <div className="address-search__dropdown" id="address-suggestions">
           <div className="address-search__no-results">{t('search.noResults')}</div>
+          <div className="address-search__no-results-hint">{t('search.noResultsHint')}</div>
         </div>
       )}
       {showRecent && (
@@ -218,8 +240,14 @@ export default function AddressSearch({ onSelect }: Props) {
           </ul>
         </div>
       )}
-      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && (
+      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && isFirst && (
         <div className="address-search__value-props" data-testid="value-props">
+          <div className="address-search__value-row">
+            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            <span className="address-search__value-text">{t('search.valueProp.risk')}</span>
+          </div>
           <div className="address-search__value-row">
             <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
               <circle cx="12" cy="12" r="5" />
@@ -229,19 +257,62 @@ export default function AddressSearch({ onSelect }: Props) {
           </div>
           <div className="address-search__value-row">
             <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
-              <path d="M12 22c4-4 8-7.58 8-12a8 8 0 10-16 0c0 4.42 4 8 8 12z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-            <span className="address-search__value-text">{t('search.valueProp.risk')}</span>
-          </div>
-          <div className="address-search__value-row">
-            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
               <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
               <rect x="9" y="3" width="6" height="4" rx="1" />
               <path d="M9 14l2 2 4-4" />
             </svg>
             <span className="address-search__value-text">{t('search.valueProp.checklist')}</span>
           </div>
+          <button
+            type="button"
+            className="address-search__example-link"
+            onClick={() => onSelect({
+              id: 'adr-d3836e3ae5e5c07f18109908abba6dab',
+              display_name: 'Keizersgracht 1, 1015CD Amsterdam',
+              type: 'adres',
+              score: 1,
+            })}
+          >
+            {t('search.exampleAddress')}
+          </button>
+          <p className="address-search__trust-signal">{t('search.trustSignal')}</p>
+        </div>
+      )}
+      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && !isFirst && (
+        <div className="address-search__welcome-back" data-testid="welcome-back">
+          <h3 className="address-search__welcome-back-title">{t('search.welcomeBack')}</h3>
+          {shortlistCount > 0 && (
+            <p className="address-search__welcome-back-saved">
+              {t('search.savedCount', { count: shortlistCount })}
+            </p>
+          )}
+          {shortlistCount > 0 && onNavigateToSaved && (
+            <button
+              type="button"
+              className="address-search__welcome-back-action"
+              onClick={onNavigateToSaved}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+              </svg>
+              {t('search.viewSaved')}
+            </button>
+          )}
+          {shortlistCount >= 2 && onNavigateToCompare && (
+            <button
+              type="button"
+              className="address-search__welcome-back-action"
+              onClick={onNavigateToCompare}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+              {t('search.compareSaved')}
+            </button>
+          )}
+          <p className="address-search__welcome-back-prompt">{t('search.searchAnother')}</p>
         </div>
       )}
     </div>

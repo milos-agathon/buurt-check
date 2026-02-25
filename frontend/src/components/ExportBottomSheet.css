@@ -202,6 +202,10 @@
   border-radius: var(--radius-md);
 }
 
+.export-sheet__ready-header {
+  position: relative;
+}
+
 .export-sheet__actions {
   display: flex;
   flex-direction: column;

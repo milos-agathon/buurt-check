@@ -27,6 +27,7 @@ describe('Performance budgets (unit-level)', () => {
       const { unmount } = renderWithI18n(
         <CompareScreen
           onBack={() => {}}
+          onSearchAddress={() => {}}
           items={[
             {
               vboId: `vbo-a-${i}`,

@@ -80,6 +80,7 @@ describe('ShortlistScreen accessible risk dots', () => {
           onRemove={() => {}}
           onCompare={() => {}}
           onSelectAddress={() => {}}
+          onSearchAddress={() => {}}
         />
       </I18nextProvider>,
     );

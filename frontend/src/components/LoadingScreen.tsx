@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ResolvedAddress } from '../types/api';
 import './LoadingScreen.css';
@@ -28,6 +28,15 @@ const STEP_TO_KEY: Record<LoadingProgressStep, string> = {
   checkingAir: 'loading.samplingAir',
   checkingClimate: 'loading.analyzingClimate',
   calculatingSunlight: 'loading.computingSunlight',
+};
+
+const STEP_TO_SUBKEY: Record<LoadingProgressStep, string> = {
+  findingBuilding: 'loading.sub.findingBuilding',
+  loading3D: 'loading.sub.loading3D',
+  checkingNoise: 'loading.sub.checkingNoise',
+  checkingAir: 'loading.sub.checkingAir',
+  checkingClimate: 'loading.sub.checkingClimate',
+  calculatingSunlight: 'loading.sub.calculatingSunlight',
 };
 
 function parsePendingDisplayName(displayName: string | null): { line1: string; line2: string } {
@@ -68,6 +77,23 @@ export default function LoadingScreen({
   warningKey,
 }: LoadingScreenProps) {
   const { t } = useTranslation();
+
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const [subLineVisible, setSubLineVisible] = useState(prefersReducedMotion);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setSubLineVisible(true);
+      return;
+    }
+
+    setSubLineVisible(false);
+    const timer = setTimeout(() => setSubLineVisible(true), 1000);
+    return () => clearTimeout(timer);
+  }, [step, prefersReducedMotion]);
 
   const { line1, line2 } = useMemo(
     () => formatAddressLines(address, pendingDisplayName),
@@ -162,6 +188,12 @@ export default function LoadingScreen({
           {statusLabel}
         </p>
       </div>
+
+      {subLineVisible && !showWarning && (
+        <p className="loading-screen__sub-text" data-testid="loading-screen-sub-text">
+          {t(STEP_TO_SUBKEY[step])}
+        </p>
+      )}
 
       <div
         className="loading-screen__progress"

@@ -15,6 +15,12 @@
   will-change: transform;
 }
 
+.action-bar__btn-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
 .action-bar__btn {
   flex: 1;
   height: 48px;

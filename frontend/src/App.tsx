@@ -54,6 +54,7 @@ import {
 } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
+import { markVisited } from './services/firstVisit';
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import type { Geometry, Position } from 'geojson';
@@ -477,6 +478,7 @@ function App() {
   const [useFallbackDetailTransition, setUseFallbackDetailTransition] = useState(false);
   const [checkedQuestions, setCheckedQuestions] = useState<Set<string>>(new Set());
   const [showDossierJump, setShowDossierJump] = useState(false);
+  const [activePhase, setActivePhase] = useState<'house' | 'buurt' | 'action'>('house');
   const animationPerformance = useAnimationPerformance();
   const ignoreNextHashRef = useRef(false);
 
@@ -486,6 +488,15 @@ function App() {
     const cleanup = listenForSystemChanges(() => {});
     return cleanup;
   }, [themePreference]);
+
+  // Mark first visit complete when dossier loads (address + building resolved)
+  const hasMarkedVisited = useRef(false);
+  useEffect(() => {
+    if (address && buildingResponse && !hasMarkedVisited.current) {
+      hasMarkedVisited.current = true;
+      markVisited();
+    }
+  }, [address, buildingResponse]);
 
   const handleThemeChange = useCallback((pref: ThemePreference) => {
     setTheme(pref);
@@ -607,6 +618,19 @@ function App() {
     showToast(t('toast.recentCleared'));
   }, [showToast, t]);
 
+  const handleNavigateToSaved = useCallback(() => {
+    setActiveTab('saved');
+    setShortlistItems(getShortlist());
+    setActiveScreen('shortlist');
+    setHashRoute('#/saved');
+  }, [setHashRoute]);
+
+  const handleNavigateToCompare = useCallback(() => {
+    setActiveTab('saved');
+    setActiveScreen('compare');
+    setHashRoute('#/compare');
+  }, [setHashRoute]);
+
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab);
     if (tab === 'home') {
@@ -651,10 +675,22 @@ function App() {
     const updateJumpVisibility = () => {
       if (useInternalScroll && root) {
         setShowDossierJump(root.scrollTop > 360);
-        return;
+      } else {
+        const windowScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+        setShowDossierJump(windowScrollTop > 360);
       }
-      const windowScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-      setShowDossierJump(windowScrollTop > 360);
+
+      // Track active phase based on which phase divider is above viewport center
+      const actionEl = document.getElementById('section-action-start');
+      const buurtEl = document.getElementById('section-buurt-start');
+      const viewportMid = window.innerHeight / 2;
+      if (actionEl && actionEl.getBoundingClientRect().top < viewportMid) {
+        setActivePhase('action');
+      } else if (buurtEl && buurtEl.getBoundingClientRect().top < viewportMid) {
+        setActivePhase('buurt');
+      } else {
+        setActivePhase('house');
+      }
     };
 
     updateJumpVisibility();
@@ -1688,7 +1724,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-            {!showLoadingScreen && <AddressSearch onSelect={handleAddressSelect} />}
+            {!showLoadingScreen && <AddressSearch onSelect={handleAddressSelect} shortlistCount={shortlistItems.length} onNavigateToSaved={handleNavigateToSaved} onNavigateToCompare={handleNavigateToCompare} />}
             {error && <p className="app__error">{error}</p>}
 
             {showLoadingScreen ? (
@@ -1717,9 +1753,9 @@ function App() {
                       </button>
                     </div>
                     <div className="app__dossier-jump-actions">
-                      <button type="button" onClick={handleJumpToHouse}>{t('nav.jumpHouse')}</button>
-                      <button type="button" onClick={handleJumpToBuurt}>{t('nav.neighborhood')}</button>
-                      <button type="button" onClick={handleJumpToChecklist}>{t('nav.jumpBriefing')}</button>
+                      <button type="button" className={activePhase === 'house' ? 'app__jump-btn--active' : ''} onClick={handleJumpToHouse}>{t('nav.jumpHouse')}</button>
+                      <button type="button" className={activePhase === 'buurt' ? 'app__jump-btn--active' : ''} onClick={handleJumpToBuurt}>{t('nav.neighborhood')}</button>
+                      <button type="button" className={activePhase === 'action' ? 'app__jump-btn--active' : ''} onClick={handleJumpToChecklist}>{t('nav.jumpBriefing')}</button>
                     </div>
                   </div>
                 )}
@@ -1737,7 +1773,18 @@ function App() {
                   </Suspense>
                 )}
 
-                <section id="section-house-start" role="region" aria-label={t('nav.jumpHouse')}>
+                <div className="app__phase-divider app__phase-divider--first" id="section-house-start">
+                  <div className="app__phase-divider-header">
+                    <span className="app__phase-divider-step">{t('dossier.phaseOf', { current: 1, total: 3 })}</span>
+                    <svg className="app__phase-divider-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M3 10.5V17h5v-4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V17h5v-6.5M1 11l9-8 9 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <span className="app__phase-divider-title">{t('dossier.houseDivider')}</span>
+                  </div>
+                  <p className="app__phase-divider-subtitle">{t('dossier.houseSubtitle')}</p>
+                </div>
+
+                <section role="region" aria-label={t('nav.jumpHouse')}>
                   {((!riskLoading && (riskCards || riskError)) &&
                     (!propertyWarningsLoading && (propertyWarnings || propertyWarningsError))) && (
                     <div
@@ -1900,7 +1947,14 @@ function App() {
                 {progressivePhase === 'buurt' && (
                   <>
                     <div className="app__phase-divider" id="section-buurt-start">
-                      <span>{t('dossier.buurtDivider')}</span>
+                      <div className="app__phase-divider-header">
+                        <span className="app__phase-divider-step">{t('dossier.phaseOf', { current: 2, total: 3 })}</span>
+                        <svg className="app__phase-divider-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                          <path d="M3 3h4v4H3zM8 3h4v4H8zM13 3h4v4h-4zM3 8h4v4H3zM8 8h4v4H8zM13 8h4v4h-4zM3 13h4v4H3zM8 13h4v4H8zM13 13h4v4h-4z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                        </svg>
+                        <span className="app__phase-divider-title">{t('dossier.buurtDivider')}</span>
+                      </div>
+                      <p className="app__phase-divider-subtitle">{t('dossier.buurtSubtitle')}</p>
                     </div>
                     <section role="region" aria-label={t('nav.neighborhood')}>
                       {(livabilityLoading || livability || livabilityError) && (
@@ -2024,6 +2078,17 @@ function App() {
                 )}
 
                 {viewingQuestions && viewingQuestions.categories.length > 0 && (
+                  <>
+                  <div className="app__phase-divider" id="section-action-start">
+                    <div className="app__phase-divider-header">
+                      <span className="app__phase-divider-step">{t('dossier.phaseOf', { current: 3, total: 3 })}</span>
+                      <svg className="app__phase-divider-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M4 10.5l4 4 8-9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span className="app__phase-divider-title">{t('dossier.actionDivider')}</span>
+                    </div>
+                    <p className="app__phase-divider-subtitle">{t('dossier.actionSubtitle')}</p>
+                  </div>
                   <div className="dossier-section" style={dossierSectionStyle(12)} data-section-index={12}>
                     <section role="region" aria-label={t('nav.jumpBriefing')}>
                       <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
@@ -2033,6 +2098,76 @@ function App() {
                         onToggleQuestion={handleToggleQuestion}
                       />
                     </section>
+                  </div>
+                  </>
+                )}
+
+                {address && (
+                  <div className="app__next-steps" data-testid="next-steps">
+                    <h3 className="app__next-steps-title">{t('dossier.nextSteps.title')}</h3>
+                    <ul className="app__next-steps-list">
+                      <li>
+                        <button
+                          type="button"
+                          className={`app__next-steps-action${address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id) ? ' app__next-steps-action--saved' : ''}`}
+                          onClick={() => {
+                            hapticTap();
+                            if (address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)) {
+                              setActiveScreen('search');
+                              setActiveTab('home');
+                              setHashRoute('#/search');
+                            } else {
+                              handleBookmark();
+                            }
+                          }}
+                        >
+                          <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            {address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id) ? (
+                              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
+                            ) : (
+                              <path d="M5 4a1 1 0 00-1 1v11.586l5.707-3.805a1 1 0 011.086 0L16 16.586V5a1 1 0 00-1-1H5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                            )}
+                          </svg>
+                          {address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)
+                            ? t('dossier.nextSteps.saved')
+                            : t('dossier.nextSteps.save')}
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          type="button"
+                          className="app__next-steps-action"
+                          onClick={() => {
+                            hapticTap();
+                            setExportSheetOpen(true);
+                          }}
+                        >
+                          <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <path d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414a1 1 0 00-.293-.707l-3.414-3.414A1 1 0 0011.586 3H6z" stroke="currentColor" strokeWidth="1.5"/>
+                            <path d="M10 10v4m0 0l-2-2m2 2l2-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          {t('dossier.nextSteps.export')}
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          type="button"
+                          className="app__next-steps-action"
+                          onClick={() => {
+                            hapticTap();
+                            setActiveScreen('search');
+                            setActiveTab('home');
+                            setHashRoute('#/search');
+                          }}
+                        >
+                          <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <circle cx="8.5" cy="8.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
+                            <path d="M14.5 14.5L18 18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                          </svg>
+                          {t('dossier.nextSteps.search')}
+                        </button>
+                      </li>
+                    </ul>
                   </div>
                 )}
 
@@ -2045,6 +2180,7 @@ function App() {
                         hapticTap();
                         setExportSheetOpen(true);
                       }}
+                      showBookmarkTooltip={!!(address && buildingResponse)}
                     />
                   </div>
                 )}
@@ -2072,6 +2208,11 @@ function App() {
                   setHashRoute('#/compare');
                 }}
                 onSelectAddress={handleSelectShortlistAddress}
+                onSearchAddress={() => {
+                  setActiveScreen('search');
+                  setActiveTab('home');
+                  setHashRoute('#/search');
+                }}
               />
             </motion.div>
           )}
@@ -2091,6 +2232,11 @@ function App() {
                   onBack={() => {
                     setActiveScreen('shortlist');
                     setHashRoute('#/saved');
+                  }}
+                  onSearchAddress={() => {
+                    setActiveScreen('search');
+                    setActiveTab('home');
+                    setHashRoute('#/search');
                   }}
                 />
               </Suspense>

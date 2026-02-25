@@ -8,8 +8,14 @@ vi.mock('../services/api', () => ({
   suggestAddresses: vi.fn(),
 }));
 
+vi.mock('../services/firstVisit', () => ({
+  isFirstVisit: vi.fn(() => true),
+}));
+
 import { suggestAddresses } from '../services/api';
+import { isFirstVisit } from '../services/firstVisit';
 const mockSuggest = vi.mocked(suggestAddresses);
+const mockIsFirstVisit = vi.mocked(isFirstVisit);
 
 let i18nEn: Awaited<ReturnType<typeof setupTestI18n>>;
 let i18nNl: Awaited<ReturnType<typeof setupTestI18n>>;
@@ -22,20 +28,54 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-02-24T12:00:00Z'));
   mockSuggest.mockReset();
+  mockIsFirstVisit.mockReset();
+  mockIsFirstVisit.mockReturnValue(true);
   localStorage.removeItem('buurt-check-recent-searches');
+  localStorage.removeItem('buurt-check-visited');
 });
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-function renderSearch(
-  onSelect = vi.fn(),
-  i18n = i18nEn,
-) {
+interface RenderSearchOptions {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onSelect?: (...args: any[]) => any;
+  i18n?: Awaited<ReturnType<typeof setupTestI18n>>;
+  shortlistCount?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onNavigateToSaved?: (...args: any[]) => any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onNavigateToCompare?: (...args: any[]) => any;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderSearch(optionsOrOnSelect?: RenderSearchOptions | any, i18nArg?: Awaited<ReturnType<typeof setupTestI18n>>) {
+  // Support legacy call signature: renderSearch(onSelect, i18n)
+  let opts: RenderSearchOptions;
+  if (typeof optionsOrOnSelect === 'function' || optionsOrOnSelect === undefined) {
+    opts = {
+      onSelect: optionsOrOnSelect ?? vi.fn(),
+      i18n: i18nArg ?? i18nEn,
+    };
+  } else {
+    opts = optionsOrOnSelect;
+  }
+
+  const onSelect = opts.onSelect ?? vi.fn();
+  const i18n = opts.i18n ?? i18nEn;
+  const shortlistCount = opts.shortlistCount ?? 0;
+  const onNavigateToSaved = opts.onNavigateToSaved;
+  const onNavigateToCompare = opts.onNavigateToCompare;
+
   const result = render(
     <I18nextProvider i18n={i18n}>
-      <AddressSearch onSelect={onSelect} />
+      <AddressSearch
+        onSelect={onSelect}
+        shortlistCount={shortlistCount}
+        onNavigateToSaved={onNavigateToSaved}
+        onNavigateToCompare={onNavigateToCompare}
+      />
     </I18nextProvider>,
   );
   return { ...result, onSelect };
@@ -69,7 +109,7 @@ async function typeAndFlush(input: HTMLElement, value: string) {
 describe('input behavior', () => {
   it('renders input with translated placeholder', () => {
     renderSearch();
-    expect(screen.getByPlaceholderText('Paste or type an address...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('e.g. Keizersgracht 1, Amsterdam')).toBeInTheDocument();
   });
 
   it('does not fetch for queries < 2 chars', async () => {
@@ -376,5 +416,89 @@ describe('recent search i18n formatting', () => {
     expect(dateSpy).toHaveBeenCalledWith('en-US');
 
     dateSpy.mockRestore();
+  });
+});
+
+describe('returning user re-engagement', () => {
+  beforeEach(() => {
+    mockIsFirstVisit.mockReturnValue(false);
+  });
+
+  it('shows welcome-back section for returning users with no recent searches', () => {
+    renderSearch();
+    expect(screen.getByTestId('welcome-back')).toBeInTheDocument();
+    expect(screen.getByText('Welcome back')).toBeInTheDocument();
+    expect(screen.queryByTestId('value-props')).not.toBeInTheDocument();
+  });
+
+  it('shows value props for first-time users (not welcome-back)', () => {
+    mockIsFirstVisit.mockReturnValue(true);
+    renderSearch();
+    expect(screen.getByTestId('value-props')).toBeInTheDocument();
+    expect(screen.queryByTestId('welcome-back')).not.toBeInTheDocument();
+  });
+
+  it('shows saved address count when shortlistCount > 0', () => {
+    renderSearch({ shortlistCount: 3 });
+    expect(screen.getByText('You have 3 saved addresses')).toBeInTheDocument();
+  });
+
+  it('shows singular form for 1 saved address', () => {
+    renderSearch({ shortlistCount: 1 });
+    expect(screen.getByText('You have 1 saved address')).toBeInTheDocument();
+  });
+
+  it('shows "View saved properties" button when shortlistCount > 0', () => {
+    const onNavigateToSaved = vi.fn();
+    renderSearch({ shortlistCount: 2, onNavigateToSaved });
+    const btn = screen.getByText('View saved properties');
+    expect(btn).toBeInTheDocument();
+
+    fireEvent.click(btn);
+    expect(onNavigateToSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows "Compare" button when shortlistCount >= 2', () => {
+    const onNavigateToCompare = vi.fn();
+    renderSearch({ shortlistCount: 2, onNavigateToCompare });
+    const btn = screen.getByText('Compare your saved addresses');
+    expect(btn).toBeInTheDocument();
+
+    fireEvent.click(btn);
+    expect(onNavigateToCompare).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show compare button when shortlistCount < 2', () => {
+    renderSearch({ shortlistCount: 1 });
+    expect(screen.queryByText('Compare your saved addresses')).not.toBeInTheDocument();
+  });
+
+  it('does not show saved count when shortlistCount is 0', () => {
+    renderSearch({ shortlistCount: 0 });
+    expect(screen.queryByText(/saved address/)).not.toBeInTheDocument();
+  });
+
+  it('shows search prompt for returning users', () => {
+    renderSearch();
+    expect(screen.getByText('Search for a new address')).toBeInTheDocument();
+  });
+
+  it('shows recent searches instead of welcome-back when recent searches exist', () => {
+    const now = Date.now();
+    localStorage.setItem('buurt-check-recent-searches', JSON.stringify([
+      { id: 'r1', display_name: 'Herengracht 1, Amsterdam', timestamp: now - 60000 },
+    ]));
+
+    renderSearch();
+    expect(screen.getByTestId('recent-searches')).toBeInTheDocument();
+    expect(screen.queryByTestId('welcome-back')).not.toBeInTheDocument();
+  });
+
+  it('shows Dutch welcome-back text in NL mode', () => {
+    renderSearch({ i18n: i18nNl, shortlistCount: 2, onNavigateToSaved: vi.fn(), onNavigateToCompare: vi.fn() });
+    expect(screen.getByText('Welkom terug')).toBeInTheDocument();
+    expect(screen.getByText('Je hebt 2 opgeslagen adressen')).toBeInTheDocument();
+    expect(screen.getByText('Bekijk opgeslagen woningen')).toBeInTheDocument();
+    expect(screen.getByText('Vergelijk je opgeslagen adressen')).toBeInTheDocument();
   });
 });
