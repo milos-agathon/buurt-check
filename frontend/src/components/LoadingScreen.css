@@ -117,6 +117,24 @@
   color: var(--color-warning);
 }
 
+.loading-screen__sub-text {
+  margin: 6px 0 0;
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  text-align: center;
+  max-width: 280px;
+  animation: loading-screen-sub-fade 400ms var(--ease-out-expo);
+}
+
+@keyframes loading-screen-sub-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .loading-screen__progress {
   margin-top: 12px;
   width: 200px;
@@ -182,5 +200,9 @@
 
   .loading-screen__progress-fill {
     transition: none;
+  }
+
+  .loading-screen__sub-text {
+    animation: none;
   }
 }
