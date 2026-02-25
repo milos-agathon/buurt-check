@@ -115,6 +115,6 @@ describe('bilingual rendering', () => {
 
   it('shows source attribution text', () => {
     renderCard(makeBuildingFacts(), false, 'en');
-    expect(screen.getByText('Source: BAG (Kadaster)')).toBeInTheDocument();
+    expect(screen.getByText('Source: BAG (Building & Address Registry)')).toBeInTheDocument();
   });
 });

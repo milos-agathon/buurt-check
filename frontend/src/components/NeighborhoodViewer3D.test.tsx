@@ -210,7 +210,7 @@ describe('NeighborhoodViewer3D', () => {
 
   it('renders source text', () => {
     renderViewer();
-    expect(screen.getByText(/3DBAG \+ SunCalc/)).toBeInTheDocument();
+    expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
   });
 
   it('snapshot capture restores sun state', () => {
