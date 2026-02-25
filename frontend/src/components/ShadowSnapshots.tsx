@@ -44,6 +44,7 @@ export default function ShadowSnapshots({ snapshots, loading }: Props) {
               src={snap.dataUrl}
               alt={`${t(LABEL_KEYS[snap.label] ?? snap.label)} (${HOURS[snap.label] ?? snap.hour}:00)`}
               className="shadow-snapshots__image"
+              loading="lazy"
             />
             <span className="shadow-snapshots__label">
               {t(LABEL_KEYS[snap.label] ?? snap.label)} ({HOURS[snap.label] ?? snap.hour}:00)
