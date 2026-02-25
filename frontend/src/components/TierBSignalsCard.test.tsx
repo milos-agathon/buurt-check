@@ -21,7 +21,7 @@ function renderCard(props: { data?: TierBResponse; loading?: boolean; error?: bo
 describe('TierBSignalsCard', () => {
   it('renders loading state', () => {
     renderCard({ loading: true });
-    expect(screen.getByText('Loading Tier-B signals...')).toBeInTheDocument();
+    expect(screen.getByText('Loading additional property data...')).toBeInTheDocument();
   });
 
   it('renders data values and sources', () => {
