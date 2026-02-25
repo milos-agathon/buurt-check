@@ -156,7 +156,7 @@ export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint }: 
               alt={t('map.aerialTitle', 'Luchtfoto')}
               className="footprint-map__aerial-img"
               onError={() => setImgError(true)}
-              loading="lazy"
+              loading="eager"
             />
             {overlayPath && (
               <svg

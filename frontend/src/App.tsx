@@ -2047,7 +2047,7 @@ function App() {
         )}
 
         {activeScreen === 'compare' && (
-          <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+          <Suspense fallback={null}>
             <CompareScreen
               items={shortlistItems}
               onBack={() => {
@@ -2059,7 +2059,7 @@ function App() {
         )}
 
         {activeScreen === 'settings' && (
-          <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+          <Suspense fallback={null}>
             <SettingsScreen
               onClearRecent={handleClearRecent}
               onClearShortlist={handleClearShortlist}
