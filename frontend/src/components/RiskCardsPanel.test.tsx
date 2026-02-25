@@ -67,7 +67,7 @@ describe('RiskCardsPanel', () => {
       },
     });
     renderPanel(risks);
-    expect(screen.getByText('Noise data could not be retrieved right now.')).toBeInTheDocument();
+    expect(screen.getByText("We couldn't retrieve noise data right now. The government data source may be slow — try again.")).toBeInTheDocument();
   });
 
   it('renders "Metric unavailable for this location" when lden_db is missing', () => {
@@ -108,7 +108,7 @@ describe('RiskCardsPanel', () => {
       </I18nextProvider>,
     );
     expect(screen.getByText('Environmental Risk Cards')).toBeInTheDocument();
-    expect(screen.getByText('Risk data could not be loaded right now. Please try again later.')).toBeInTheDocument();
+    expect(screen.getByText("We couldn't reach the risk data source. The government API may be slow — try again in a moment.")).toBeInTheDocument();
     expect(screen.getByText('Road Traffic Noise')).toBeInTheDocument();
     expect(screen.getByText('Air Quality')).toBeInTheDocument();
     expect(screen.getByText('Climate Risk')).toBeInTheDocument();

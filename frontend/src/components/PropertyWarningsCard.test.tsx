@@ -32,7 +32,7 @@ describe('PropertyWarningsCard', () => {
 
   it('shows error state', () => {
     renderCard(undefined, false, true);
-    expect(screen.getByText(/could not be loaded/i)).toBeInTheDocument();
+    expect(screen.getByText(/couldn't load property warnings/i)).toBeInTheDocument();
   });
 
   it('renders foundation risk card with high level', () => {

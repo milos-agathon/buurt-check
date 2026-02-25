@@ -40,7 +40,7 @@ describe('NeighborhoodStatsCard', () => {
 
   it('shows error state when no stats', () => {
     renderCard({ error: true });
-    expect(screen.getByText('Neighborhood data could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText("We couldn't load neighborhood data. The statistics service may be temporarily slow — try again.")).toBeInTheDocument();
   });
 
   it('renders null when stats is undefined and not loading/error', () => {

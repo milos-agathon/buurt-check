@@ -194,7 +194,7 @@ describe('App risk retry integration', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Risk data could not be loaded right now. Please try again later.'),
+        screen.getByText("We couldn't reach the risk data source. The government API may be slow — try again in a moment."),
       ).toBeInTheDocument();
     });
 

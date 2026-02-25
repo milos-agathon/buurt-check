@@ -294,7 +294,7 @@ describe('error handling', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument();
+      expect(screen.getByText('Something went wrong on our end. Your data is safe — try refreshing.')).toBeInTheDocument();
     });
   });
 
@@ -306,7 +306,7 @@ describe('error handling', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument();
+      expect(screen.getByText('Something went wrong on our end. Your data is safe — try refreshing.')).toBeInTheDocument();
     });
   });
 
@@ -317,7 +317,7 @@ describe('error handling', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument();
+      expect(screen.getByText('Something went wrong on our end. Your data is safe — try refreshing.')).toBeInTheDocument();
     });
 
     // Second selection succeeds
@@ -327,7 +327,7 @@ describe('error handling', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument();
+      expect(screen.queryByText('Something went wrong on our end. Your data is safe — try refreshing.')).not.toBeInTheDocument();
     });
   });
 
@@ -344,7 +344,7 @@ describe('error handling', () => {
       expect(screen.getByText('Building Facts')).toBeInTheDocument();
     });
     // No error shown to user for risk cards failure
-    expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Something went wrong on our end. Your data is safe — try refreshing.')).not.toBeInTheDocument();
   });
 
   it('clears previous building data on new selection', async () => {
@@ -412,7 +412,7 @@ describe('3D viewer integration', () => {
     expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     expect(screen.getByText(/1 buildings/)).toBeInTheDocument();
     // No error shown to user for 3D failure
-    expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Something went wrong on our end. Your data is safe — try refreshing.')).not.toBeInTheDocument();
     // Loading indicator should not be stuck after failure
     expect(screen.queryByText('Loading 3D data...')).not.toBeInTheDocument();
   });
@@ -652,7 +652,7 @@ describe('neighborhood stats integration', () => {
     await waitFor(() => {
       expect(screen.getByText('Building Facts')).toBeInTheDocument();
     });
-    expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Something went wrong on our end. Your data is safe — try refreshing.')).not.toBeInTheDocument();
   });
 
   it('shows neighborhood error state when fetch fails', async () => {

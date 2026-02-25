@@ -100,7 +100,7 @@ describe('ExportBottomSheet', () => {
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
     await waitFor(() => {
-      expect(screen.getByText('Export failed. Please try again.')).toBeInTheDocument();
+      expect(screen.getByText("We couldn't generate the PDF. Please try again — your dossier data is still available.")).toBeInTheDocument();
     });
     expect(mockClose).not.toHaveBeenCalled();
   });

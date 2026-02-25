@@ -62,7 +62,7 @@ describe('LivabilityCard', () => {
   it('shows error state', () => {
     renderCard(undefined, false, true);
     expect(screen.getByTestId('livability-card')).toBeInTheDocument();
-    expect(screen.getByText(/could not load livability/i)).toBeInTheDocument();
+    expect(screen.getByText(/couldn't load livability/i)).toBeInTheDocument();
   });
 
   it('shows unavailable when available=false', () => {
