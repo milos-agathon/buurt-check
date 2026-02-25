@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import type {
   BuildingFactsResponse,
   LivabilityResponse,
@@ -15,6 +16,66 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
+/**
+ * Typed API error that carries a human-friendly i18n key.
+ * Components can call mapApiError() to get a translated string,
+ * or catch ApiError directly to inspect the errorKey.
+ */
+export class ApiError extends Error {
+  readonly errorKey: string;
+  readonly httpStatus: number | undefined;
+
+  constructor(errorKey: string, httpStatus?: number) {
+    super(errorKey);
+    this.name = 'ApiError';
+    this.errorKey = errorKey;
+    this.httpStatus = httpStatus;
+  }
+}
+
+/**
+ * Maps any caught error to a human-friendly translated string.
+ * Guarantees that no technical error text (status codes, hostnames,
+ * exception messages) ever reaches component render output.
+ *
+ * @param err    The caught error (unknown type)
+ * @param t      i18next TFunction for translation
+ * @returns      A human-friendly, translated error message
+ */
+export function mapApiError(err: unknown, t: TFunction): string {
+  // Already-mapped typed errors: use their key directly
+  if (err instanceof ApiError) {
+    return t(err.errorKey);
+  }
+
+  // AbortError: request was cancelled by an AbortController (timeout)
+  if (err instanceof DOMException && err.name === 'AbortError') {
+    return t('error.timeout');
+  }
+
+  // TypeError: network failure, DNS error, CORS, offline
+  if (err instanceof TypeError) {
+    return t('error.network');
+  }
+
+  // Fallback for any other error
+  return t('error.generic');
+}
+
+/**
+ * Throw a typed ApiError based on an HTTP response status.
+ * Never re-exposes statusText or response body to callers.
+ */
+function throwHttpError(status: number): never {
+  if (status >= 400 && status < 500) {
+    throw new ApiError('error.data_source', status);
+  }
+  if (status >= 500) {
+    throw new ApiError('error.server', status);
+  }
+  throw new ApiError('error.generic', status);
+}
+
 export async function suggestAddresses(
   query: string,
   limit: number = 7,
@@ -22,14 +83,14 @@ export async function suggestAddresses(
 ): Promise<SuggestResponse> {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   const resp = await fetch(`${API_BASE}/address/suggest?${params}`, { signal });
-  if (!resp.ok) throw new Error(`Suggest failed: ${resp.status}`);
+  if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
 
 export async function lookupAddress(id: string): Promise<ResolvedAddress> {
   const params = new URLSearchParams({ id });
   const resp = await fetch(`${API_BASE}/address/lookup?${params}`);
-  if (!resp.ok) throw new Error(`Lookup failed: ${resp.status}`);
+  if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
 
@@ -37,7 +98,7 @@ export async function getBuildingFacts(
   vboId: string,
 ): Promise<BuildingFactsResponse> {
   const resp = await fetch(`${API_BASE}/address/${vboId}/building`);
-  if (!resp.ok) throw new Error(`Building facts failed: ${resp.status}`);
+  if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
 
@@ -57,7 +118,7 @@ export async function getBuilding3D(
     lng: String(lng),
   });
   const resp = await fetch(`${API_BASE}/address/${vboId}/building3d?${params}`);
-  if (!resp.ok) throw new Error(`Building 3D failed: ${resp.status}`);
+  if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
 
@@ -84,7 +145,7 @@ export async function getNeighborhood3D(
       `${API_BASE}/address/${vboId}/neighborhood3d?${params}`,
       { signal: controller.signal },
     );
-    if (!resp.ok) throw new Error(`Neighborhood 3D failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);
@@ -110,7 +171,7 @@ export async function getRiskCards(
     const resp = await fetch(`${API_BASE}/address/${vboId}/risks?${params}`, {
       signal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`Risk cards failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);
@@ -136,7 +197,7 @@ export async function getNeighborhoodStats(
     const resp = await fetch(`${API_BASE}/address/${vboId}/neighborhood?${params}`, {
       signal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`Neighborhood stats failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);
@@ -164,7 +225,7 @@ export async function getRiskComparisons(
     const resp = await fetch(`${API_BASE}/address/${vboId}/risk-comparisons?${params}`, {
       signal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`Risk comparisons failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);
@@ -193,7 +254,7 @@ export async function getViewingQuestions(
     const resp = await fetch(`${API_BASE}/address/${vboId}/viewing-questions?${params}`, {
       signal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`Viewing questions failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);
@@ -250,7 +311,7 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
         signal: controller.signal,
       },
     );
-    if (!resp.ok) throw new Error(`Export failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
     return resp.blob();
   } finally {
     clearTimeout(timeoutId);
@@ -291,7 +352,7 @@ export async function getTierBData(
     const resp = await fetch(`${API_BASE}/address/${vboId}/tier-b?${params}`, {
       signal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`Tier-B failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);
@@ -313,7 +374,7 @@ export async function getLivability(
     const resp = await fetch(`${API_BASE}/address/${vboId}/livability?${params}`, {
       signal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`Livability failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
     const data = await resp.json();
     // Contract: backend always returns 200. available:false means no data for location.
     // Return the full response so LivabilityCard can render the unavailable state.
@@ -350,7 +411,7 @@ export async function getPropertyWarnings(
       `${API_BASE}/address/${vboId}/property-warnings?${params}`,
       { signal: controller.signal },
     );
-    if (!resp.ok) throw new Error(`Property warnings failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
     clearTimeout(timeoutId);
@@ -388,7 +449,7 @@ export async function submitSunlightAnalysis(
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`Sunlight submit failed: ${resp.status}`);
+    if (!resp.ok) throwHttpError(resp.status);
   } finally {
     clearTimeout(timeoutId);
   }

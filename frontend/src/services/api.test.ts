@@ -1,4 +1,6 @@
+import type { TFunction } from 'i18next';
 import {
+  ApiError,
   downloadPdfBlob,
   exportBriefing,
   getBuildingFacts,
@@ -10,9 +12,14 @@ import {
   getRiskCards,
   getTierBData,
   lookupAddress,
+  mapApiError,
   submitSunlightAnalysis,
   suggestAddresses,
 } from './api';
+
+// Minimal stand-in TFunction for mapApiError unit tests — returns the key unchanged.
+// Cast needed because TFunction carries a branded type not satisfiable by a plain lambda.
+const t = ((key: string) => key) as unknown as TFunction;
 
 const mockFetch = vi.fn();
 beforeEach(() => {
@@ -27,6 +34,93 @@ function okResponse(body: unknown) {
 function errorResponse(status: number) {
   return { ok: false, status } as Response;
 }
+
+// ─── mapApiError ─────────────────────────────────────────────────────────────
+
+describe('mapApiError', () => {
+  it('returns error.timeout for AbortError (DOMException)', () => {
+    const abortErr = new DOMException('The user aborted a request.', 'AbortError');
+    expect(mapApiError(abortErr, t)).toBe('error.timeout');
+  });
+
+  it('returns error.network for TypeError (network failure)', () => {
+    const networkErr = new TypeError('Failed to fetch');
+    expect(mapApiError(networkErr, t)).toBe('error.network');
+  });
+
+  it('returns error.data_source for ApiError with 4xx key', () => {
+    const apiErr = new ApiError('error.data_source', 404);
+    expect(mapApiError(apiErr, t)).toBe('error.data_source');
+  });
+
+  it('returns error.server for ApiError with 5xx key', () => {
+    const apiErr = new ApiError('error.server', 503);
+    expect(mapApiError(apiErr, t)).toBe('error.server');
+  });
+
+  it('returns error.generic for unknown errors', () => {
+    expect(mapApiError(new Error('something weird'), t)).toBe('error.generic');
+    expect(mapApiError('string error', t)).toBe('error.generic');
+    expect(mapApiError(null, t)).toBe('error.generic');
+    expect(mapApiError(undefined, t)).toBe('error.generic');
+  });
+});
+
+// ─── ApiError class ──────────────────────────────────────────────────────────
+
+describe('ApiError', () => {
+  it('stores errorKey and httpStatus', () => {
+    const err = new ApiError('error.server', 502);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.errorKey).toBe('error.server');
+    expect(err.httpStatus).toBe(502);
+    expect(err.name).toBe('ApiError');
+  });
+
+  it('works without httpStatus', () => {
+    const err = new ApiError('error.generic');
+    expect(err.httpStatus).toBeUndefined();
+  });
+});
+
+// ─── HTTP error mapping ───────────────────────────────────────────────────────
+
+describe('HTTP status → ApiError mapping', () => {
+  it('maps 4xx responses to error.data_source', async () => {
+    mockFetch.mockResolvedValue(errorResponse(404));
+    const err = await lookupAddress('bad-id').catch(e => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.errorKey).toBe('error.data_source');
+    expect(err.httpStatus).toBe(404);
+  });
+
+  it('maps 5xx responses to error.server', async () => {
+    mockFetch.mockResolvedValue(errorResponse(502));
+    const err = await getBuildingFacts('vbo-1').catch(e => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.errorKey).toBe('error.server');
+    expect(err.httpStatus).toBe(502);
+  });
+
+  it('maps 401 responses to error.data_source', async () => {
+    mockFetch.mockResolvedValue(errorResponse(401));
+    const err = await suggestAddresses('test').catch(e => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.errorKey).toBe('error.data_source');
+    expect(err.httpStatus).toBe(401);
+  });
+
+  it('maps 500 responses to error.server', async () => {
+    mockFetch.mockResolvedValue(errorResponse(500));
+    const err = await getLivability('vbo-1', 121286, 487296).catch(e => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.errorKey).toBe('error.server');
+    expect(err.httpStatus).toBe(500);
+  });
+});
+
+// ─── suggestAddresses ─────────────────────────────────────────────────────────
 
 describe('suggestAddresses', () => {
   it('sends GET with query and limit params', async () => {
@@ -56,11 +150,17 @@ describe('suggestAddresses', () => {
     expect(opts.signal).toBe(controller.signal);
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(500));
-    await expect(suggestAddresses('test')).rejects.toThrow('Suggest failed: 500');
+    await expect(suggestAddresses('test')).rejects.toBeInstanceOf(ApiError);
+    await expect(suggestAddresses('test')).rejects.toMatchObject({
+      errorKey: 'error.server',
+      httpStatus: 500,
+    });
   });
 });
+
+// ─── lookupAddress ────────────────────────────────────────────────────────────
 
 describe('lookupAddress', () => {
   it('sends GET with id param', async () => {
@@ -72,11 +172,17 @@ describe('lookupAddress', () => {
     expect(url).toContain('id=adr-123');
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(404));
-    await expect(lookupAddress('bad-id')).rejects.toThrow('Lookup failed: 404');
+    await expect(lookupAddress('bad-id')).rejects.toBeInstanceOf(ApiError);
+    await expect(lookupAddress('bad-id')).rejects.toMatchObject({
+      errorKey: 'error.data_source',
+      httpStatus: 404,
+    });
   });
 });
+
+// ─── getBuildingFacts ─────────────────────────────────────────────────────────
 
 describe('getBuildingFacts', () => {
   it('sends GET with vboId in path and no query params', async () => {
@@ -87,11 +193,17 @@ describe('getBuildingFacts', () => {
     expect(url).toBe('/api/address/vbo-1/building');
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(502));
-    await expect(getBuildingFacts('vbo-1')).rejects.toThrow('Building facts failed: 502');
+    await expect(getBuildingFacts('vbo-1')).rejects.toBeInstanceOf(ApiError);
+    await expect(getBuildingFacts('vbo-1')).rejects.toMatchObject({
+      errorKey: 'error.server',
+      httpStatus: 502,
+    });
   });
 });
+
+// ─── getNeighborhood3D ────────────────────────────────────────────────────────
 
 describe('getNeighborhood3D', () => {
   it('sends GET with vboId in path and query params', async () => {
@@ -107,11 +219,14 @@ describe('getNeighborhood3D', () => {
     expect(url).toContain('lng=4.892');
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(502));
     await expect(
       getNeighborhood3D('vbo-1', 'pand-1', 121286, 487296, 52.372, 4.892),
-    ).rejects.toThrow('Neighborhood 3D failed: 502');
+    ).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      getNeighborhood3D('vbo-1', 'pand-1', 121286, 487296, 52.372, 4.892),
+    ).rejects.toMatchObject({ errorKey: 'error.server', httpStatus: 502 });
   });
 
   it('sends AbortSignal for timeout', async () => {
@@ -141,6 +256,8 @@ describe('getNeighborhood3D', () => {
   });
 });
 
+// ─── getRiskCards ─────────────────────────────────────────────────────────────
+
 describe('getRiskCards', () => {
   it('sends GET with vboId in path and location query params', async () => {
     mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1' }));
@@ -154,11 +271,14 @@ describe('getRiskCards', () => {
     expect(url).toContain('lng=4.892');
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(502));
     await expect(
       getRiskCards('vbo-1', 121286, 487296, 52.372, 4.892),
-    ).rejects.toThrow('Risk cards failed: 502');
+    ).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      getRiskCards('vbo-1', 121286, 487296, 52.372, 4.892),
+    ).rejects.toMatchObject({ errorKey: 'error.server', httpStatus: 502 });
   });
 
   it('sends AbortSignal for timeout', async () => {
@@ -196,6 +316,8 @@ describe('getRiskCards', () => {
   });
 });
 
+// ─── submitSunlightAnalysis ───────────────────────────────────────────────────
+
 describe('submitSunlightAnalysis', () => {
   it('posts mapped payload to sunlight endpoint', async () => {
     mockFetch.mockResolvedValue(okResponse({ status: 'ok' }));
@@ -222,7 +344,7 @@ describe('submitSunlightAnalysis', () => {
     });
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(500));
     await expect(
       submitSunlightAnalysis('vbo-1', {
@@ -231,9 +353,19 @@ describe('submitSunlightAnalysis', () => {
         summer_hours: 9.6,
         analysis_year: 2026,
       }),
-    ).rejects.toThrow('Sunlight submit failed: 500');
+    ).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      submitSunlightAnalysis('vbo-1', {
+        winter_hours: 2.4,
+        equinox_hours: 6.4,
+        summer_hours: 9.6,
+        analysis_year: 2026,
+      }),
+    ).rejects.toMatchObject({ errorKey: 'error.server', httpStatus: 500 });
   });
 });
+
+// ─── getNeighborhoodStats ─────────────────────────────────────────────────────
 
 describe('getNeighborhoodStats', () => {
   it('sends GET with vboId in path and lat/lng params', async () => {
@@ -262,11 +394,14 @@ describe('getNeighborhoodStats', () => {
     expect(url).not.toContain('buurt_code');
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(502));
     await expect(
       getNeighborhoodStats('vbo-1', 52.372, 4.892),
-    ).rejects.toThrow('Neighborhood stats failed: 502');
+    ).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      getNeighborhoodStats('vbo-1', 52.372, 4.892),
+    ).rejects.toMatchObject({ errorKey: 'error.server', httpStatus: 502 });
   });
 
   it('sends AbortSignal for timeout', async () => {
@@ -304,6 +439,8 @@ describe('getNeighborhoodStats', () => {
   });
 });
 
+// ─── getRiskComparisons ───────────────────────────────────────────────────────
+
 describe('getRiskComparisons', () => {
   it('sends GET with risk-comparisons endpoint and buurt_code', async () => {
     mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1' }));
@@ -318,13 +455,18 @@ describe('getRiskComparisons', () => {
     expect(url).toContain('buurt_code=BU0363AD07');
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(502));
     await expect(
       getRiskComparisons('vbo-1', 121286, 487296, 52.372, 4.892),
-    ).rejects.toThrow('Risk comparisons failed: 502');
+    ).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      getRiskComparisons('vbo-1', 121286, 487296, 52.372, 4.892),
+    ).rejects.toMatchObject({ errorKey: 'error.server', httpStatus: 502 });
   });
 });
+
+// ─── getTierBData ─────────────────────────────────────────────────────────────
 
 describe('getTierBData', () => {
   it('sends GET with tier-b query params', async () => {
@@ -346,6 +488,8 @@ describe('getTierBData', () => {
     expect(url).toContain('addition=1');
   });
 });
+
+// ─── exportBriefing ───────────────────────────────────────────────────────────
 
 describe('exportBriefing', () => {
   it('passes selected template and canonical export fields to export endpoint', async () => {
@@ -385,6 +529,8 @@ describe('exportBriefing', () => {
   });
 });
 
+// ─── downloadPdfBlob ──────────────────────────────────────────────────────────
+
 describe('downloadPdfBlob', () => {
   it('creates and clicks a download link', () => {
     const appendChildSpy = vi.spyOn(document.body, 'appendChild');
@@ -410,6 +556,8 @@ describe('downloadPdfBlob', () => {
     revokeObjectURLSpy.mockRestore();
   });
 });
+
+// ─── getPropertyWarnings ──────────────────────────────────────────────────────
 
 describe('getPropertyWarnings', () => {
   it('sends GET with required params', async () => {
@@ -448,13 +596,18 @@ describe('getPropertyWarnings', () => {
     expect(url).toContain('municipality=Amsterdam');
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(502));
     await expect(
       getPropertyWarnings('0363200000000001', 121000, 487000),
-    ).rejects.toThrow('Property warnings failed: 502');
+    ).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      getPropertyWarnings('0363200000000001', 121000, 487000),
+    ).rejects.toMatchObject({ errorKey: 'error.server', httpStatus: 502 });
   });
 });
+
+// ─── getLivability ────────────────────────────────────────────────────────────
 
 describe('getLivability', () => {
   it('sends GET with rd_x and rd_y params', async () => {
@@ -486,11 +639,14 @@ describe('getLivability', () => {
     expect(url).toContain('rd_y=487296');
   });
 
-  it('throws on non-OK response', async () => {
+  it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(500));
     await expect(
       getLivability('0363200000000001', 121286, 487296),
-    ).rejects.toThrow('Livability failed: 500');
+    ).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      getLivability('0363200000000001', 121286, 487296),
+    ).rejects.toMatchObject({ errorKey: 'error.server', httpStatus: 500 });
   });
 
   it('returns response with available:false when backend says unavailable', async () => {
