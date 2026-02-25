@@ -31,6 +31,7 @@ import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api
 import HeatmapLegend from './HeatmapLegend';
 import { sunHoursToColor } from '../utils/heatmapColors';
 import { getSunDirection, SUN_DISTANCE } from '../utils/sunPosition';
+import { buildRoofPointGrid } from '../utils/spatialHashGrid';
 import './NeighborhoodViewer3D.css';
 
 /**
@@ -439,6 +440,11 @@ export default function NeighborhoodViewer3D({
     const colors = new Float32BufferAttribute(positions.count * 3, 3);
     const baseColor = toRgbComponents(TARGET_COLOR);
 
+    // Pre-compute spatial index for O(1) amortized nearest-neighbor lookups
+    // instead of O(m) brute-force per vertex. Cell size 5m covers ~2.5x the
+    // typical 2m roof grid spacing, so 3x3 neighborhood search is sufficient.
+    const roofGrid = buildRoofPointGrid(roofPoints, 5);
+
     for (let i = 0; i < positions.count; i++) {
       const normalY = normals ? normals.getY(i) : 1;
       if (normalY < HEATMAP_ROOF_NORMAL_MIN_Y) {
@@ -449,26 +455,14 @@ export default function NeighborhoodViewer3D({
       const vx = positions.getX(i);
       const vz = positions.getZ(i);
 
-      let nearestIdx = -1;
-      let nearestDistanceSq = Infinity;
-      for (let j = 0; j < roofPoints.length; j++) {
-        const point = roofPoints[j];
-        const dx = point[0] - vx;
-        // Roof points already use viewer Z (north is negative Z), so compare directly.
-        const dz = point[2] - vz;
-        const distanceSq = (dx * dx) + (dz * dz);
-        if (distanceSq < nearestDistanceSq) {
-          nearestDistanceSq = distanceSq;
-          nearestIdx = j;
-        }
-      }
+      const nearest = roofGrid.findNearest(vx, vz, roofPoints);
 
-      if (nearestIdx < 0) {
+      if (!nearest) {
         colors.setXYZ(i, baseColor[0], baseColor[1], baseColor[2]);
         continue;
       }
 
-      const sampleHours = perPointAnnual[nearestIdx];
+      const sampleHours = perPointAnnual[nearest.index];
       const [r, g, b] = sunHoursToColor(sampleHours, range.minHours, range.maxHours);
       colors.setXYZ(i, r, g, b);
     }
