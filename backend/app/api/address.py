@@ -49,6 +49,12 @@ from app.services.viewing_questions import build_viewing_questions
 
 logger = logging.getLogger(__name__)
 
+# HTTP Cache-Control header values by data freshness tier
+_CACHE_IMMUTABLE = "public, max-age=86400"
+_CACHE_DATA = "public, max-age=3600, stale-while-revalidate=86400"
+_CACHE_REALTIME = "no-cache"
+_CACHE_NO_STORE = "no-store"
+
 router = APIRouter(prefix="/address", tags=["address"])
 
 
@@ -82,6 +88,7 @@ async def address_suggest(
     cache_key = f"suggest:{q}:{limit}"
     cached = await cache_get(cache_key)
     if cached is not None:
+        response.headers["Cache-Control"] = _CACHE_REALTIME
         return SuggestResponse(
             suggestions=[
                 locatieserver.AddressSuggestion(**s) for s in cached
@@ -99,17 +106,20 @@ async def address_suggest(
         [s.model_dump() for s in suggestions],
         ttl=settings.cache_ttl_suggest,
     )
+    response.headers["Cache-Control"] = _CACHE_REALTIME
     return SuggestResponse(suggestions=suggestions)
 
 
 @router.get("/lookup", response_model=ResolvedAddress)
 async def address_lookup(
+    response: Response,
     id: str = Query(..., description="Locatieserver document ID"),
 ):
     """Resolve a locatieserver suggestion to full address details."""
     cache_key = f"lookup:v2:{id}"
     cached = await cache_get(cache_key)
     if cached is not None:
+        response.headers["Cache-Control"] = _CACHE_IMMUTABLE
         return ResolvedAddress(**cached)
 
     try:
@@ -141,6 +151,7 @@ async def address_lookup(
         ttl = min(ttl, 300)
 
     await cache_set(cache_key, resolved.model_dump(), ttl=ttl)
+    response.headers["Cache-Control"] = _CACHE_IMMUTABLE
     return resolved
 
 
@@ -168,7 +179,11 @@ async def wms_tile_proxy(
     cached = await cache_get(cache_key)
     if cached is not None:
         tile_bytes = base64.b64decode(cached)
-        return Response(content=tile_bytes, media_type=media_type)
+        return Response(
+            content=tile_bytes,
+            media_type=media_type,
+            headers={"Cache-Control": _CACHE_IMMUTABLE},
+        )
 
     tile_bytes = await wms_tile.get_wms_tile(type, rd_x, rd_y, radius=radius, size=size)
     if tile_bytes is None:
@@ -176,11 +191,16 @@ async def wms_tile_proxy(
 
     encoded = base64.b64encode(tile_bytes).decode()
     await cache_set(cache_key, encoded, ttl=settings.cache_ttl_wms_tile)
-    return Response(content=tile_bytes, media_type=media_type)
+    return Response(
+        content=tile_bytes,
+        media_type=media_type,
+        headers={"Cache-Control": _CACHE_IMMUTABLE},
+    )
 
 
 @router.get("/{vbo_id}/building", response_model=BuildingFactsResponse)
 async def building_facts(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
 ):
     """Fetch building facts from BAG for a verblijfsobject."""
@@ -190,6 +210,7 @@ async def building_facts(
     if cached is not None:
         metrics.inc("building.success")
         metrics.record_latency("building", (time.monotonic() - t0) * 1000)
+        response.headers["Cache-Control"] = _CACHE_IMMUTABLE
         return BuildingFactsResponse(**cached)
 
     try:
@@ -215,15 +236,17 @@ async def building_facts(
             message="No building found for this address",
         )
 
-    response = BuildingFactsResponse(address_id=vbo_id, building=facts)
-    await cache_set(cache_key, response.model_dump(), ttl=settings.cache_ttl_building)
+    result = BuildingFactsResponse(address_id=vbo_id, building=facts)
+    await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_building)
     metrics.inc("building.success")
     metrics.record_latency("building", (time.monotonic() - t0) * 1000)
-    return response
+    response.headers["Cache-Control"] = _CACHE_IMMUTABLE
+    return result
 
 
 @router.get("/{vbo_id}/building3d", response_model=Neighborhood3DResponse)
 async def building_3d(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     pand_id: str = Query(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
@@ -235,6 +258,7 @@ async def building_3d(
     cache_key = f"building3d:{pand_id}"
     cached = await cache_get(cache_key)
     if cached is not None:
+        response.headers["Cache-Control"] = _CACHE_IMMUTABLE
         return Neighborhood3DResponse(**cached)
 
     try:
@@ -252,11 +276,13 @@ async def building_3d(
         await cache_set(
             cache_key, result.model_dump(), ttl=settings.cache_ttl_building,
         )
+        response.headers["Cache-Control"] = _CACHE_IMMUTABLE
     return result
 
 
 @router.get("/{vbo_id}/neighborhood3d", response_model=Neighborhood3DResponse)
 async def neighborhood_3d(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     pand_id: str = Query(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
@@ -271,6 +297,7 @@ async def neighborhood_3d(
     cache_key = f"neighborhood3d:v26:{mode}:{pand_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
+        response.headers["Cache-Control"] = _CACHE_IMMUTABLE
         return Neighborhood3DResponse(**cached)
 
     try:
@@ -296,11 +323,14 @@ async def neighborhood_3d(
         await cache_set(
             cache_key, result.model_dump(), ttl=settings.cache_ttl_neighborhood_3d,
         )
+    if result.buildings:
+        response.headers["Cache-Control"] = _CACHE_IMMUTABLE
     return result
 
 
 @router.post("/{vbo_id}/sunlight")
 async def submit_sunlight_analysis(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     body: SunlightSubmission = ...,
 ):
@@ -334,6 +364,7 @@ async def submit_sunlight_analysis(
         ttl=settings.cache_ttl_risk_cards,
     )
 
+    response.headers["Cache-Control"] = _CACHE_NO_STORE
     return {
         "status": "ok",
         "score": sunlight_score,
@@ -363,6 +394,7 @@ async def address_risk_cards(
         logger.info("risk_cards cache_hit vbo=%s", vbo_id)
         metrics.inc("risks.success")
         metrics.record_latency("risks", (time.monotonic() - t0) * 1000)
+        response.headers["Cache-Control"] = _CACHE_DATA
         return cached_result
 
     try:
@@ -415,11 +447,14 @@ async def address_risk_cards(
         logger.info("risk_cards cache_set vbo=%s", vbo_id)
     metrics.inc("risks.success")
     metrics.record_latency("risks", (time.monotonic() - t0) * 1000)
+    if has_data:
+        response.headers["Cache-Control"] = _CACHE_DATA
     return result
 
 
 @router.get("/{vbo_id}/neighborhood", response_model=NeighborhoodStatsResponse)
 async def neighborhood_stats(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
@@ -433,6 +468,7 @@ async def neighborhood_stats(
     )
     cached = await cache_get(cache_key)
     if cached is not None:
+        response.headers["Cache-Control"] = _CACHE_DATA
         return NeighborhoodStatsResponse(**cached)
 
     try:
@@ -454,11 +490,14 @@ async def neighborhood_stats(
             result.model_dump(),
             ttl=settings.cache_ttl_neighborhood,
         )
+    if result.stats is not None:
+        response.headers["Cache-Control"] = _CACHE_DATA
     return result
 
 
 @router.get("/{vbo_id}/risk-comparisons", response_model=RiskComparisonsResponse)
 async def risk_comparisons(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
     rd_y: float = Query(..., ge=285000, le=625000),
@@ -519,6 +558,7 @@ async def risk_comparisons(
         except Exception:
             logger.warning("Failed to fetch neighborhood stats for risk comparisons")
 
+    response.headers["Cache-Control"] = _CACHE_DATA
     return build_risk_comparisons(
         vbo_id=vbo_id,
         cards=risk_result,
@@ -530,6 +570,7 @@ async def risk_comparisons(
     "/{vbo_id}/viewing-questions", response_model=ViewingQuestionsResponse
 )
 async def viewing_questions(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
     rd_y: float = Query(..., ge=285000, le=625000),
@@ -565,11 +606,13 @@ async def viewing_questions(
     if risk_result.sunlight is None:
         risk_result.sunlight = await _get_cached_sunlight_card(vbo_id)
 
+    response.headers["Cache-Control"] = _CACHE_DATA
     return build_viewing_questions(vbo_id, risk_result, street=street, city=city)
 
 
 @router.get("/{vbo_id}/tier-b", response_model=TierBResponse)
 async def tier_b_signals(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     buurt_code: str | None = Query(None),
     postcode: str | None = Query(None),
@@ -584,6 +627,7 @@ async def tier_b_signals(
     )
     cached = await cache_get(cache_key)
     if cached is not None:
+        response.headers["Cache-Control"] = _CACHE_DATA
         return TierBResponse(**cached)
 
     try:
@@ -609,11 +653,13 @@ async def tier_b_signals(
     )
     if has_any_data:
         await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_tier_b)
+        response.headers["Cache-Control"] = _CACHE_DATA
     return result
 
 
 @router.get("/{vbo_id}/livability")
 async def address_livability(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
     rd_y: float = Query(..., ge=285000, le=625000),
@@ -622,6 +668,7 @@ async def address_livability(
     cache_key = f"livability_full:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
     if cached is not None:
+        response.headers["Cache-Control"] = _CACHE_DATA
         return LivabilityResponse(**cached)
 
     try:
@@ -647,6 +694,7 @@ async def address_livability(
             current.model_dump(),
             ttl=settings.cache_ttl_livability,
         )
+        response.headers["Cache-Control"] = _CACHE_DATA
         return current
     except Exception as exc:
         logger.exception("livability failed vbo=%s: %s", vbo_id, exc)
@@ -657,6 +705,7 @@ async def address_livability(
 
 @router.get("/{vbo_id}/property-warnings", response_model=PropertyWarningsResponse)
 async def address_property_warnings(
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
     rd_y: float = Query(..., ge=285000, le=625000),
@@ -676,6 +725,7 @@ async def address_property_warnings(
     cached = await cache_get(cache_key)
     if cached is not None:
         logger.info("property_warnings cache_hit vbo=%s", vbo_id)
+        response.headers["Cache-Control"] = _CACHE_DATA
         return PropertyWarningsResponse(**cached)
 
     try:
@@ -705,6 +755,7 @@ async def address_property_warnings(
             vbo_id,
             (time.monotonic() - t0) * 1000,
         )
+        response.headers["Cache-Control"] = _CACHE_DATA
 
     return result
 
@@ -937,7 +988,10 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": _CACHE_NO_STORE,
+        },
     )
 
 
