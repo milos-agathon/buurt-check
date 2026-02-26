@@ -260,6 +260,13 @@ export default function ExportBottomSheet({
               {t('export.languageNl', 'NL')}
             </button>
           </div>
+          {exportLanguage !== i18n.language && (
+            <p className="export-sheet__language-warning" data-testid="export-language-warning">
+              {t('export.languageMismatch', {
+                language: exportLanguage === 'en' ? 'English' : 'Nederlands',
+              })}
+            </p>
+          )}
         </div>
 
         {hasShadows && (

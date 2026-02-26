@@ -93,6 +93,44 @@ describe('ExportBottomSheet', () => {
     });
   });
 
+  it('shows language mismatch warning when export language differs from UI language', () => {
+    renderSheet();
+    // UI language is 'en', default export language matches
+    expect(screen.queryByTestId('export-language-warning')).not.toBeInTheDocument();
+
+    // Switch export language to NL while UI is EN
+    fireEvent.click(screen.getByRole('radio', { name: 'NL' }));
+    expect(screen.getByTestId('export-language-warning')).toBeInTheDocument();
+    expect(screen.getByTestId('export-language-warning')).toHaveTextContent('PDF will be generated in Nederlands');
+  });
+
+  it('hides language mismatch warning when export language matches UI language', () => {
+    renderSheet();
+    // Switch to NL then back to EN
+    fireEvent.click(screen.getByRole('radio', { name: 'NL' }));
+    expect(screen.getByTestId('export-language-warning')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'EN' }));
+    expect(screen.queryByTestId('export-language-warning')).not.toBeInTheDocument();
+  });
+
+  it('shows language mismatch warning with NL UI language', async () => {
+    const nlI18n = await setupTestI18n('nl');
+    render(
+      <I18nextProvider i18n={nlI18n}>
+        <ExportBottomSheet {...defaultProps} />
+      </I18nextProvider>,
+    );
+
+    // Default export language should match NL UI — no warning
+    expect(screen.queryByTestId('export-language-warning')).not.toBeInTheDocument();
+
+    // Switch export to EN while UI is NL
+    fireEvent.click(screen.getByRole('radio', { name: 'EN' }));
+    expect(screen.getByTestId('export-language-warning')).toBeInTheDocument();
+    expect(screen.getByTestId('export-language-warning')).toHaveTextContent('PDF wordt gegenereerd in het English');
+  });
+
   it('shows error when export fails', async () => {
     vi.mocked(api.exportBriefing).mockRejectedValue(new Error('fail'));
     renderSheet();

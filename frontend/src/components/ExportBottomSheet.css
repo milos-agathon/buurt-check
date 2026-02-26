@@ -108,6 +108,12 @@
   color: var(--color-text-inverse);
 }
 
+.export-sheet__language-warning {
+  margin: var(--space-xs) 0 0;
+  font: var(--type-micro);
+  color: var(--color-badge-caution-text);
+}
+
 .export-sheet__toggle {
   display: flex;
   align-items: center;
