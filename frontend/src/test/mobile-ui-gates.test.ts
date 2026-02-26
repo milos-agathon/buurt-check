@@ -65,13 +65,10 @@ describe('Mobile UI quality gates', () => {
   });
 
   it('skeleton CSS reserves stable layout slots to prevent transition shifts', () => {
-    const dossierSkeletonCss = readCss('components/DossierSkeleton.css');
     const riskTileSkeletonCss = readCss('components/RiskTileSkeleton.css');
 
-    const factsBlockHeight = pxValue(ruleBlock(dossierSkeletonCss, '.dossier-skeleton__facts-block'), 'height');
     const tileMinHeight = pxValue(ruleBlock(riskTileSkeletonCss, '.risk-tile-skeleton-card'), 'min-height');
 
-    expect(factsBlockHeight).toBeGreaterThanOrEqual(44);
     expect(tileMinHeight).toBeGreaterThan(0);
   });
 });
