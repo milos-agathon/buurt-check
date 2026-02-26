@@ -163,7 +163,7 @@ describe('ExportBottomSheet', () => {
     });
   });
 
-  it('adds progressbar ARIA semantics with current progress values', async () => {
+  it('uses indeterminate progressbar during API call (no aria-valuenow)', async () => {
     let resolver: (() => void) | undefined;
     vi.mocked(api.exportBriefing).mockImplementation(
       () => new Promise<Blob>((resolve) => { resolver = () => resolve(new Blob(['pdf'])); }),
@@ -175,7 +175,15 @@ describe('ExportBottomSheet', () => {
     const progressBar = await screen.findByRole('progressbar', { name: 'Generating...' });
     expect(progressBar).toHaveAttribute('aria-valuemin', '0');
     expect(progressBar).toHaveAttribute('aria-valuemax', '100');
-    expect(progressBar).toHaveAttribute('aria-valuenow', '65');
+    // During API call, progress is indeterminate — no aria-valuenow
+    expect(progressBar).not.toHaveAttribute('aria-valuenow');
+
+    // The SVG should have the indeterminate animation class
+    const svg = progressBar.querySelector('.export-sheet__progress-svg');
+    expect(svg).toHaveClass('export-sheet__progress-svg--indeterminate');
+
+    // Percentage text should be hidden during indeterminate phase
+    expect(progressBar.querySelector('.export-sheet__progress-percent')).toBeNull();
 
     await act(async () => {
       resolver?.();
