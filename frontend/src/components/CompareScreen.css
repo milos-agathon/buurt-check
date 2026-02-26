@@ -100,7 +100,7 @@
 
 .compare-screen__snap-column {
   flex: 0 0 calc(50vw - var(--space-base));
-  min-width: 170px;
+  min-width: 140px;
   max-width: 220px;
   scroll-snap-align: start;
   display: flex;
