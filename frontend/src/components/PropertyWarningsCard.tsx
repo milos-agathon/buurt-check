@@ -77,7 +77,6 @@ function PropertyWarningsCard({ data, loading, error, onRetry }: Props) {
           <SeverityBadge severity={mapFoundationLevel(foundation_risk.level)} size="sm" />
           <p className="property-warnings__description">
             {t(`warnings.foundation.${foundation_risk.level}`, {
-              year: foundation_risk.construction_year ?? '?',
               soil: foundation_risk.soil_type ?? '?',
               rate: foundation_risk.subsidence_rate_mm_per_year ?? '?',
             })}

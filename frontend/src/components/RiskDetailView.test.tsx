@@ -43,8 +43,6 @@ function renderDetail(props: Partial<Parameters<typeof RiskDetailView>[0]> = {})
         comparisonsError={props.comparisonsError}
         onRetryComparisons={props.onRetryComparisons}
         questions={props.questions}
-        checkedQuestions={props.checkedQuestions}
-        onToggleQuestion={props.onToggleQuestion}
         source={props.source}
         sourceDate={props.sourceDate}
       />
@@ -177,37 +175,16 @@ describe('RiskDetailView', () => {
     expect(onRetryComparisons).toHaveBeenCalledOnce();
   });
 
-  it('renders viewing questions with checkboxes', () => {
+  it('renders checklist callout instead of inline questions', () => {
     const { container } = renderDetail({
       questions: [
         { text_en: 'Can you hear traffic?', text_nl: 'Hoort u verkeer?' },
         { text_en: 'Check ventilation', text_nl: 'Controleer ventilatie' },
       ],
     });
-    const items = container.querySelectorAll('.risk-detail__question-item');
-    expect(items.length).toBe(2);
-    expect(items[0].textContent).toContain('Can you hear traffic?');
-  });
-
-  it('fires onToggleQuestion when checkbox clicked', () => {
-    const onToggle = vi.fn();
-    const { container } = renderDetail({
-      questions: [{ text_en: 'Q1', text_nl: 'V1' }],
-      onToggleQuestion: onToggle,
-    });
-    const checkbox = container.querySelector('.risk-detail__checkbox') as HTMLInputElement;
-    fireEvent.click(checkbox);
-    expect(onToggle).toHaveBeenCalledWith('noise-q-0');
-  });
-
-  it('shows checked state from checkedQuestions set', () => {
-    const checked = new Set(['noise-q-0']);
-    const { container } = renderDetail({
-      questions: [{ text_en: 'Q1', text_nl: 'V1' }],
-      checkedQuestions: checked,
-    });
-    const checkbox = container.querySelector('.risk-detail__checkbox') as HTMLInputElement;
-    expect(checkbox.checked).toBe(true);
+    const callout = container.querySelector('.risk-detail__checklist-callout');
+    expect(callout).toBeInTheDocument();
+    expect(container.querySelectorAll('.risk-detail__question-item').length).toBe(0);
   });
 
   it('renders source and disclaimer', () => {

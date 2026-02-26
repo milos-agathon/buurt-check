@@ -29,8 +29,6 @@ interface RiskDetailViewProps {
   comparisonsError?: string | null;
   onRetryComparisons?: () => void;
   questions?: ViewingQuestion[];
-  checkedQuestions?: Set<string>;
-  onToggleQuestion?: (id: string) => void;
   source?: string;
   sourceDate?: string;
   onBack: () => void;
@@ -49,16 +47,13 @@ export default function RiskDetailView({
   comparisonsError,
   onRetryComparisons,
   questions,
-  checkedQuestions,
-  onToggleQuestion,
   source,
   sourceDate,
   onBack,
   onAnimationStart,
   onAnimationComplete,
 }: RiskDetailViewProps) {
-  const { t, i18n } = useTranslation();
-  const isNl = i18n.language === 'nl';
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useFocusTrap({
@@ -170,24 +165,18 @@ export default function RiskDetailView({
         </section>
 
         {questions && questions.length > 0 && (
-          <section className="risk-detail__section risk-detail__questions">
-            <h3 className="risk-detail__section-title">{t('risk.detail.askAtViewing', 'Ask at your viewing')}</h3>
-            <div className="risk-detail__question-list">
-              {questions.map((q, i) => {
-                const id = `${category}-q-${i}`;
-                const text = isNl ? q.text_nl : q.text_en;
-                return (
-                  <label key={id} className="risk-detail__question-item">
-                    <input
-                      type="checkbox"
-                      className="risk-detail__checkbox"
-                      checked={checkedQuestions?.has(id) ?? false}
-                      onChange={() => onToggleQuestion?.(id)}
-                    />
-                    <span>{text}</span>
-                  </label>
-                );
-              })}
+          <section className="risk-detail__section">
+            <div className="risk-detail__checklist-callout">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+              </svg>
+              <span>
+                {t('risk.detail.checklistCallout', {
+                  count: questions.length,
+                  defaultValue: '{{count}} viewing questions saved to your checklist',
+                })}
+              </span>
             </div>
           </section>
         )}

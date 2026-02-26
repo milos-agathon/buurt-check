@@ -21,7 +21,6 @@ const BuildingFactsCard = lazy(() => import('./components/BuildingFactsCard'));
 const SunlightRiskCard = lazy(() => import('./components/SunlightRiskCard'));
 const ShadowTimeSlider = lazy(() => import('./components/ShadowTimeSlider'));
 const ShadowSnapshots = lazy(() => import('./components/ShadowSnapshots'));
-const RiskCardsPanel = lazy(() => import('./components/RiskCardsPanel'));
 const RiskTilesGrid = lazy(() => import('./components/RiskTilesGrid'));
 const RiskDetailView = lazy(() => import('./components/RiskDetailView'));
 const NeighborhoodStatsCard = lazy(() => import('./components/NeighborhoodStatsCard'));
@@ -514,6 +513,12 @@ function App() {
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [exportGenerating, setExportGenerating] = useState(false);
 
+  // ActionBar visibility: shown when ViewingChecklist section enters viewport
+  // or user has scrolled past 75% of dossier content.
+  const [actionBarVisible, setActionBarVisible] = useState(false);
+  const actionBarObserverRef = useRef<IntersectionObserver | null>(null);
+  const actionBarSentinelRef = useRef<HTMLDivElement | null>(null);
+
   // When an overlay modal (e.g. ExportBottomSheet) is open, mark background
   // content as inert so screen readers cannot access it (WCAG best practice).
   const isOverlayModalOpen = exportSheetOpen;
@@ -762,31 +767,25 @@ function App() {
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab);
     if (tab === 'home') {
-      const hasDossier = !!address;
-      setActiveScreen(hasDossier ? 'dossier' : 'search');
-      if (hasDossier) {
-        setSheetSnap('half');
-        setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
-      } else {
-        setHashRoute('#/search');
-      }
+      setActiveScreen('search');
+      setHashRoute('#/search');
       return;
     }
     if (tab === 'briefing') {
       const hasDossier = !!address;
-      setActiveScreen(hasDossier ? 'dossier' : 'search');
+      setActiveScreen('dossier');
       if (hasDossier) {
         setSheetSnap('half');
         setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
       } else {
-        setHashRoute('#/search');
+        setHashRoute('#/briefing');
       }
     } else if (tab === 'saved') {
       setShortlistItems(getShortlist());
       setActiveScreen('shortlist');
       setHashRoute('#/saved');
     }
-  }, [activeLookupId, address, buildingResponse, dossierHash, setHashRoute]);
+  }, [activeLookupId, address, dossierHash, setHashRoute]);
 
   useEffect(() => {
     if (activeScreen !== 'dossier') {
@@ -1328,6 +1327,46 @@ function App() {
     };
   }, []);
 
+  // ActionBar visibility — IntersectionObserver on ViewingChecklist sentinel.
+  // Shows ActionBar when user scrolls near the checklist section or past 75% of dossier.
+  const actionBarSentinelRefCallback = useCallback((node: HTMLDivElement | null) => {
+    if (actionBarObserverRef.current) {
+      actionBarObserverRef.current.disconnect();
+      actionBarObserverRef.current = null;
+    }
+
+    actionBarSentinelRef.current = node;
+
+    if (!node) {
+      // Sentinel removed from DOM — hide ActionBar
+      setActionBarVisible(false);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          setActionBarVisible(entry.isIntersecting);
+        }
+      },
+      // rootMargin: trigger when section is within 200px of the viewport bottom
+      { rootMargin: '200px 0px' },
+    );
+
+    observer.observe(node);
+    actionBarObserverRef.current = observer;
+  }, []);
+
+  // Clean up ActionBar observer on unmount
+  useEffect(() => {
+    return () => {
+      if (actionBarObserverRef.current) {
+        actionBarObserverRef.current.disconnect();
+        actionBarObserverRef.current = null;
+      }
+    };
+  }, []);
+
   const handleAddressSelect = useCallback(async (suggestion: AddressSuggestion) => {
     addressRequestAbortRef.current?.abort();
     const requestAbortController = new AbortController();
@@ -1355,6 +1394,7 @@ function App() {
       viewer3DObserverRef.current.disconnect();
       viewer3DObserverRef.current = null;
     }
+    setActionBarVisible(false);
     setRiskCards(null);
     setRiskComparisons(null);
     setRiskComparisonsError(null);
@@ -1761,7 +1801,7 @@ function App() {
         return;
       }
       setActiveTab('home');
-      setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
+      setActiveScreen('search');
     };
 
     if (!window.location.hash) {
@@ -2099,7 +2139,7 @@ function App() {
     : undefined;
 
   const showLoadingScreen = (
-    (activeScreen === 'search' || activeScreen === 'dossier')
+    activeScreen === 'dossier'
     && loading
     && !buildingResponse
     && !!pendingDisplayName
@@ -2117,16 +2157,28 @@ function App() {
 
       <main className="app__main" id="main-content" inert={isOverlayModalOpen || undefined}>
         <AnimatePresence initial={false} mode="wait">
-          {(activeScreen === 'search' || activeScreen === 'dossier') && (
+          {activeScreen === 'search' && (
             <motion.div
-              key={`screen-${activeScreen}`}
+              key="screen-search"
               className="app__screen"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-            {!showLoadingScreen && <AddressSearch onSelect={handleAddressSelect} shortlistCount={shortlistItems.length} onNavigateToSaved={handleNavigateToSaved} onNavigateToCompare={handleNavigateToCompare} />}
+              <AddressSearch onSelect={handleAddressSelect} shortlistCount={shortlistItems.length} onNavigateToSaved={handleNavigateToSaved} onNavigateToCompare={handleNavigateToCompare} />
+            </motion.div>
+          )}
+
+          {activeScreen === 'dossier' && (
+            <motion.div
+              key="screen-dossier"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
             {error && <p className="app__error">{error}</p>}
 
             {showLoadingScreen ? (
@@ -2136,10 +2188,29 @@ function App() {
                 step={loadingStep}
                 warningKey={loadingWarningKey}
               />
+            ) : !address ? (
+              <div className="app__briefing-empty">
+                <svg className="app__briefing-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" />
+                </svg>
+                <h2 className="app__briefing-empty-title">{t('nav.briefingEmptyTitle')}</h2>
+                <p className="app__briefing-empty-description">{t('nav.briefingEmptyDescription')}</p>
+                <button
+                  type="button"
+                  className="app__briefing-empty-action"
+                  onClick={() => {
+                    setActiveTab('home');
+                    setActiveScreen('search');
+                    setHashRoute('#/search');
+                  }}
+                >
+                  {t('nav.briefingEmptyAction')}
+                </button>
+              </div>
             ) : (
               <ErrorBoundary fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
               <Suspense fallback={null}>
-              <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
+              <DossierSheet snap={sheetSnap} actionBarVisible={actionBarVisible}>
                 {address && showDossierJump && (
                   <div className="app__dossier-jump-nav">
                     <div className="app__dossier-jump-header">
@@ -2209,8 +2280,12 @@ function App() {
                       <AddressHeader
                         address={address}
                         building={buildingResponse?.building ?? undefined}
-                        isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
-                        onBookmarkToggle={handleBookmark}
+                        onChangeAddress={() => {
+                          hapticTap();
+                          setActiveTab('home');
+                          setActiveScreen('search');
+                          setHashRoute('#/search');
+                        }}
                       />
                       {coverageSummary && (
                         <div className="app__coverage-strip">
@@ -2270,19 +2345,11 @@ function App() {
                         {(riskLoading || riskCards || riskError || activeDetailCategory) && (
                           <LayoutGroup>
                             {(riskLoading || riskCards || riskError) && (
-                              <>
-                                <RiskTilesGrid
-                                  risks={riskCards ?? undefined}
-                                  sunlight={sunlight ?? undefined}
-                                  onTileTap={handleRiskTileTap}
-                                />
-                                <RiskCardsPanel
-                                  risks={riskCards ?? undefined}
-                                  loading={riskLoading}
-                                  error={riskError}
-                                  onRetry={riskError ? handleRetryRiskCards : undefined}
-                                />
-                              </>
+                              <RiskTilesGrid
+                                risks={riskCards ?? undefined}
+                                sunlight={sunlight ?? undefined}
+                                onTileTap={handleRiskTileTap}
+                              />
                             )}
                             <AnimatePresence initial={false} mode="wait">
                               {activeDetailCategory && (() => {
@@ -2300,8 +2367,6 @@ function App() {
                                     comparisonsError={riskComparisonsError}
                                     onRetryComparisons={riskComparisonsError ? handleRetryRiskComparisons : undefined}
                                     questions={activeQuestions}
-                                    checkedQuestions={checkedQuestions}
-                                    onToggleQuestion={handleToggleQuestion}
                                     source={detail.source}
                                     sourceDate={detail.sourceDate}
                                     useSharedElement={!useFallbackDetailTransition}
@@ -2510,7 +2575,7 @@ function App() {
                     </div>
                     <p className="app__phase-divider-subtitle">{t('dossier.actionSubtitle')}</p>
                   </div>
-                  <div className="dossier-section" style={dossierSectionStyle(12)} data-section-index={12}>
+                  <div ref={actionBarSentinelRefCallback} className="dossier-section" style={dossierSectionStyle(12)} data-section-index={12}>
                     <section role="region" aria-label={t('nav.jumpBriefing')}>
                       <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
                       <ViewingChecklist
@@ -2606,6 +2671,7 @@ function App() {
                       showBookmarkTooltip={!!address}
                       bookmarkPending={loading || buildingLoading}
                       exportPending={exportGenerating}
+                      visible={actionBarVisible}
                     />
                   </div>
                 )}
@@ -2735,7 +2801,6 @@ function App() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         savedCount={shortlistItems.length}
-        hasDossier={!!address}
         inert={isOverlayModalOpen || undefined}
       />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
