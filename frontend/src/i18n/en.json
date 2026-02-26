@@ -376,6 +376,8 @@
   "settings.feedback.title": "Send Feedback",
   "settings.feedback.link": "Report an issue on GitHub",
   "toast.addressSaved": "Property saved",
+  "toast.addressSavedCompare": "Property saved — ready to compare!",
+  "toast.compareAction": "Compare",
   "toast.addressRemoved": "Property removed from saved",
   "toast.recentCleared": "Recent searches cleared",
   "toast.shortlistCleared": "All saved properties removed",

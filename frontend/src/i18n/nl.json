@@ -376,6 +376,8 @@
   "settings.feedback.title": "Feedback sturen",
   "settings.feedback.link": "Meld een probleem op GitHub",
   "toast.addressSaved": "Woning opgeslagen",
+  "toast.addressSavedCompare": "Woning opgeslagen — klaar om te vergelijken!",
+  "toast.compareAction": "Vergelijk",
   "toast.addressRemoved": "Woning verwijderd uit opgeslagen",
   "toast.recentCleared": "Recente zoekopdrachten gewist",
   "toast.shortlistCleared": "Alle opgeslagen woningen verwijderd",
