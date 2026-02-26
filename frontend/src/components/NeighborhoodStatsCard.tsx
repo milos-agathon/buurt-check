@@ -85,7 +85,7 @@ function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
 
   if (loading) {
     return (
-      <section className="neighborhood-card">
+      <section className="neighborhood-card" data-state="loading" aria-busy="true">
         <SectionSkeleton variant="neighborhood-stats" />
       </section>
     );

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ThemePreference } from '../services/theme';
+import ConfirmSheet from './ui/ConfirmSheet';
 import './SettingsScreen.css';
 
 const GITHUB_ISSUES_URL = 'https://github.com/milosblag/buurt-check/issues';
@@ -27,6 +29,16 @@ interface Props {
 
 export default function SettingsScreen({ onClearRecent, onClearShortlist, theme = 'system', onThemeChange }: Props) {
   const { t, i18n } = useTranslation();
+  const [confirmTarget, setConfirmTarget] = useState<'recent' | 'shortlist' | null>(null);
+
+  const handleConfirmClear = () => {
+    if (confirmTarget === 'recent') {
+      onClearRecent();
+    } else if (confirmTarget === 'shortlist') {
+      onClearShortlist();
+    }
+    setConfirmTarget(null);
+  };
 
   return (
     <div className="settings-screen" data-testid="settings-screen">
@@ -100,10 +112,16 @@ export default function SettingsScreen({ onClearRecent, onClearShortlist, theme 
       </div>
 
       <div className="settings-screen__group">
-        <button className="settings-screen__action settings-screen__action--danger" onClick={onClearRecent}>
+        <button
+          className="settings-screen__action settings-screen__action--danger"
+          onClick={() => setConfirmTarget('recent')}
+        >
           {t('settings.clearRecent')}
         </button>
-        <button className="settings-screen__action settings-screen__action--danger" onClick={onClearShortlist}>
+        <button
+          className="settings-screen__action settings-screen__action--danger"
+          onClick={() => setConfirmTarget('shortlist')}
+        >
           {t('settings.clearShortlist')}
         </button>
       </div>
@@ -147,6 +165,18 @@ export default function SettingsScreen({ onClearRecent, onClearShortlist, theme 
           <span className="settings-screen__value">{appVersion}</span>
         </div>
       </div>
+
+      <ConfirmSheet
+        isOpen={confirmTarget != null}
+        onClose={() => setConfirmTarget(null)}
+        title={t('settings.clearConfirmTitle', 'Confirm clear')}
+        message={confirmTarget === 'shortlist'
+          ? t('settings.clearShortlistConfirmMessage', 'This removes all saved properties from this device.')
+          : t('settings.clearRecentConfirmMessage', 'This removes your recent address history from this device.')}
+        confirmLabel={t('settings.clearConfirmAction', 'Clear now')}
+        cancelLabel={t('settings.clearConfirmCancel', 'Cancel')}
+        onConfirm={handleConfirmClear}
+      />
     </div>
   );
 }

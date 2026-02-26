@@ -30,7 +30,7 @@ function PropertyWarningsCard({ data, loading, error, onRetry }: Props) {
 
   if (loading) {
     return (
-      <section className="property-warnings" data-testid="property-warnings">
+      <section className="property-warnings" data-testid="property-warnings" data-state="loading" aria-busy="true">
         <SectionSkeleton variant="property-warnings" />
       </section>
     );

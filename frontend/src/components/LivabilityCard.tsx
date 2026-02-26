@@ -25,7 +25,7 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
 
   if (loading) {
     return (
-      <section className="livability-card" data-testid="livability-card">
+      <section className="livability-card" data-testid="livability-card" data-state="loading" aria-busy="true">
         <SectionSkeleton variant="livability" />
       </section>
     );

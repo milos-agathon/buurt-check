@@ -7,16 +7,35 @@ import './BuildingFactsCard.css';
 interface Props {
   building: BuildingFacts | undefined;
   loading: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
-function BuildingFactsCard({ building, loading }: Props) {
+function BuildingFactsCard({ building, loading, error, onRetry }: Props) {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
 
   if (loading) {
     return (
-      <div className="building-card" data-testid="building-facts-skeleton">
+      <div className="building-card" data-testid="building-facts-skeleton" data-state="loading" aria-busy="true">
         <SectionSkeleton variant="building-facts" />
+      </div>
+    );
+  }
+
+  if (error && !building) {
+    return (
+      <div className="building-card building-card--error" data-state="error">
+        <p className="building-card__error">{error}</p>
+        {onRetry && (
+          <button
+            type="button"
+            className="app__retry-button building-card__retry"
+            onClick={onRetry}
+          >
+            {t('error.retry', 'Retry')}
+          </button>
+        )}
       </div>
     );
   }

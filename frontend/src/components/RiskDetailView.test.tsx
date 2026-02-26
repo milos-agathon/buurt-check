@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import RiskDetailView from './RiskDetailView';
 import { setupTestI18n } from '../test/helpers';
@@ -40,6 +40,8 @@ function renderDetail(props: Partial<Parameters<typeof RiskDetailView>[0]> = {})
         onBack={props.onBack ?? vi.fn()}
         meaning={props.meaning}
         comparisons={props.comparisons}
+        comparisonsError={props.comparisonsError}
+        onRetryComparisons={props.onRetryComparisons}
         questions={props.questions}
         checkedQuestions={props.checkedQuestions}
         onToggleQuestion={props.onToggleQuestion}
@@ -115,6 +117,25 @@ describe('RiskDetailView', () => {
       comparisons: [{ label: 'WHO', value: 70, pattern: 'dashed' }],
     });
     expect(container.querySelector('.risk-detail__comparison-bar-fill--dashed')).toBeInTheDocument();
+  });
+
+  it('renders comparisons unavailable fallback when rows are missing', () => {
+    renderDetail({ comparisons: [] });
+    expect(
+      screen.getByText('Comparison benchmarks are temporarily unavailable for this address.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows comparison retry button and triggers callback when comparisons fail', () => {
+    const onRetryComparisons = vi.fn();
+    renderDetail({
+      comparisons: [],
+      comparisonsError: 'Comparison endpoint timeout',
+      onRetryComparisons,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(screen.getByText('Comparison endpoint timeout')).toBeInTheDocument();
+    expect(onRetryComparisons).toHaveBeenCalledOnce();
   });
 
   it('renders viewing questions with checkboxes', () => {

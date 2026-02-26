@@ -16,6 +16,36 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
+interface TimeoutSignal {
+  signal: AbortSignal;
+  cleanup: () => void;
+}
+
+function withTimeoutSignal(timeoutMs: number, externalSignal?: AbortSignal): TimeoutSignal {
+  const controller = new AbortController();
+
+  const abortFromExternal = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener('abort', abortFromExternal, { once: true });
+    }
+  }
+
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timeoutId);
+      if (externalSignal) {
+        externalSignal.removeEventListener('abort', abortFromExternal);
+      }
+    },
+  };
+}
+
 /**
  * Typed API error that carries a human-friendly i18n key.
  * Components can call mapApiError() to get a translated string,
@@ -87,17 +117,18 @@ export async function suggestAddresses(
   return resp.json();
 }
 
-export async function lookupAddress(id: string): Promise<ResolvedAddress> {
+export async function lookupAddress(id: string, signal?: AbortSignal): Promise<ResolvedAddress> {
   const params = new URLSearchParams({ id });
-  const resp = await fetch(`${API_BASE}/address/lookup?${params}`);
+  const resp = await fetch(`${API_BASE}/address/lookup?${params}`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
 
 export async function getBuildingFacts(
   vboId: string,
+  signal?: AbortSignal,
 ): Promise<BuildingFactsResponse> {
-  const resp = await fetch(`${API_BASE}/address/${vboId}/building`);
+  const resp = await fetch(`${API_BASE}/address/${vboId}/building`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
@@ -109,6 +140,7 @@ export async function getBuilding3D(
   rdY: number,
   lat: number,
   lng: number,
+  signal?: AbortSignal,
 ): Promise<Neighborhood3DResponse> {
   const params = new URLSearchParams({
     pand_id: pandId,
@@ -117,7 +149,7 @@ export async function getBuilding3D(
     lat: String(lat),
     lng: String(lng),
   });
-  const resp = await fetch(`${API_BASE}/address/${vboId}/building3d?${params}`);
+  const resp = await fetch(`${API_BASE}/address/${vboId}/building3d?${params}`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
@@ -129,6 +161,7 @@ export async function getNeighborhood3D(
   rdY: number,
   lat: number,
   lng: number,
+  signal?: AbortSignal,
 ): Promise<Neighborhood3DResponse> {
   const params = new URLSearchParams({
     pand_id: pandId,
@@ -137,18 +170,17 @@ export async function getNeighborhood3D(
     lat: String(lat),
     lng: String(lng),
   });
-  const controller = new AbortController();
   // Some 3DBAG areas need additional retries + slower server-side processing.
-  const timeoutId = setTimeout(() => controller.abort(), 90000);
+  const timeout = withTimeoutSignal(90000, signal);
   try {
     const resp = await fetch(
       `${API_BASE}/address/${vboId}/neighborhood3d?${params}`,
-      { signal: controller.signal },
+      { signal: timeout.signal },
     );
     if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
-    clearTimeout(timeoutId);
+    timeout.cleanup();
   }
 }
 
@@ -158,6 +190,7 @@ export async function getRiskCards(
   rdY: number,
   lat: number,
   lng: number,
+  signal?: AbortSignal,
 ): Promise<RiskCardsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -165,16 +198,15 @@ export async function getRiskCards(
     lat: String(lat),
     lng: String(lng),
   });
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeout = withTimeoutSignal(20000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/risks?${params}`, {
-      signal: controller.signal,
+      signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
-    clearTimeout(timeoutId);
+    timeout.cleanup();
   }
 }
 
@@ -183,6 +215,7 @@ export async function getNeighborhoodStats(
   lat: number,
   lng: number,
   buurtCode?: string,
+  signal?: AbortSignal,
 ): Promise<NeighborhoodStatsResponse> {
   const params = new URLSearchParams({
     lat: String(lat),
@@ -191,16 +224,15 @@ export async function getNeighborhoodStats(
   if (buurtCode) {
     params.set('buurt_code', buurtCode);
   }
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeout = withTimeoutSignal(15000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/neighborhood?${params}`, {
-      signal: controller.signal,
+      signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
-    clearTimeout(timeoutId);
+    timeout.cleanup();
   }
 }
 
@@ -211,6 +243,7 @@ export async function getRiskComparisons(
   lat: number,
   lng: number,
   buurtCode?: string,
+  signal?: AbortSignal,
 ): Promise<RiskComparisonsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -219,16 +252,15 @@ export async function getRiskComparisons(
     lng: String(lng),
   });
   if (buurtCode) params.set('buurt_code', buurtCode);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeout = withTimeoutSignal(20000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/risk-comparisons?${params}`, {
-      signal: controller.signal,
+      signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
-    clearTimeout(timeoutId);
+    timeout.cleanup();
   }
 }
 
@@ -239,6 +271,7 @@ export async function getViewingQuestions(
   lat: number,
   lng: number,
   context?: { street?: string; city?: string },
+  signal?: AbortSignal,
 ): Promise<ViewingQuestionsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -248,16 +281,15 @@ export async function getViewingQuestions(
   });
   if (context?.street) params.set('street', context.street);
   if (context?.city) params.set('city', context.city);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeout = withTimeoutSignal(20000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/viewing-questions?${params}`, {
-      signal: controller.signal,
+      signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
-    clearTimeout(timeoutId);
+    timeout.cleanup();
   }
 }
 
@@ -338,6 +370,7 @@ export async function getTierBData(
     houseLetter?: string;
     addition?: string;
   },
+  signal?: AbortSignal,
 ): Promise<TierBResponse> {
   const params = new URLSearchParams();
   if (options.buurtCode) params.set('buurt_code', options.buurtCode);
@@ -346,16 +379,15 @@ export async function getTierBData(
   if (options.houseLetter) params.set('house_letter', options.houseLetter);
   if (options.addition) params.set('addition', options.addition);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeout = withTimeoutSignal(20000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/tier-b?${params}`, {
-      signal: controller.signal,
+      signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
-    clearTimeout(timeoutId);
+    timeout.cleanup();
   }
 }
 
@@ -363,16 +395,16 @@ export async function getLivability(
   vboId: string,
   rdX: number,
   rdY: number,
+  signal?: AbortSignal,
 ): Promise<LivabilityResponse | null> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
     rd_y: String(rdY),
   });
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeout = withTimeoutSignal(15000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/livability?${params}`, {
-      signal: controller.signal,
+      signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
     const data = await resp.json();
@@ -380,7 +412,7 @@ export async function getLivability(
     // Return the full response so LivabilityCard can render the unavailable state.
     return data;
   } finally {
-    clearTimeout(timeoutId);
+    timeout.cleanup();
   }
 }
 
@@ -393,6 +425,7 @@ export async function getPropertyWarnings(
     numUnits?: number;
     municipality?: string;
   },
+  signal?: AbortSignal,
 ): Promise<PropertyWarningsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -404,17 +437,16 @@ export async function getPropertyWarnings(
     params.set('num_units', String(options.numUnits));
   if (options?.municipality) params.set('municipality', options.municipality);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeout = withTimeoutSignal(15000, signal);
   try {
     const resp = await fetch(
       `${API_BASE}/address/${vboId}/property-warnings?${params}`,
-      { signal: controller.signal },
+      { signal: timeout.signal },
     );
     if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
   } finally {
-    clearTimeout(timeoutId);
+    timeout.cleanup();
   }
 }
 

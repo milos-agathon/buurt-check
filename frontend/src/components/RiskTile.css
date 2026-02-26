@@ -42,6 +42,10 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--color-primary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .risk-tile__score-area {

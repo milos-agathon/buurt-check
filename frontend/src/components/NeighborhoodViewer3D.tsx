@@ -74,6 +74,8 @@ interface Props {
   sunlightRetryToken?: number;
   onShadowSnapshots?: (snapshots: ShadowSnapshot[]) => void;
   loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 interface HeatmapRange {
@@ -206,6 +208,8 @@ export default function NeighborhoodViewer3D({
   sunlightRetryToken = 0,
   onShadowSnapshots,
   loading = false,
+  error,
+  onRetry,
 }: Props) {
   const { t } = useTranslation();
   const sceneSummaryId = useId();
@@ -975,6 +979,8 @@ export default function NeighborhoodViewer3D({
   useEffect(() => {
     const ctx = sceneRef.current;
     if (!ctx || !center.lat || !center.lng) return;
+    let cancelled = false;
+    const pendingImages: HTMLImageElement[] = [];
 
     for (const mesh of basemapMeshesRef.current) {
       ctx.scene.remove(mesh);
@@ -1018,9 +1024,10 @@ export default function NeighborhoodViewer3D({
       const url = `https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/${zoom}/${tileX}/${tileY}.png`;
 
       const img = new Image();
+      pendingImages.push(img);
       img.crossOrigin = 'anonymous';
       img.onload = () => {
-        if (!sceneRef.current) return;
+        if (cancelled || !sceneRef.current) return;
 
         let texture: Texture;
         if (isDark) {
@@ -1059,6 +1066,7 @@ export default function NeighborhoodViewer3D({
         renderOnce();
       };
       img.onerror = () => {
+        if (cancelled) return;
         if (import.meta.env.DEV) {
           console.warn(`[3D] Basemap tile failed: ${url}`);
         }
@@ -1067,6 +1075,12 @@ export default function NeighborhoodViewer3D({
     });
 
     return () => {
+      cancelled = true;
+      for (const img of pendingImages) {
+        img.onload = null;
+        img.onerror = null;
+        img.src = '';
+      }
       for (const mesh of basemapMeshesRef.current) {
         sceneRef.current?.scene.remove(mesh);
         if ((mesh.material as MeshStandardMaterial).map) {
@@ -1266,6 +1280,20 @@ export default function NeighborhoodViewer3D({
                 ? t('viewer3d.controlsHint.touch')
                 : t('viewer3d.controlsHint.desktop')}
             </span>
+          </div>
+        )}
+        {error && !loading && (
+          <div className="viewer-3d__error" role="status">
+            <p className="viewer-3d__error-text">{error}</p>
+            {onRetry && (
+              <button
+                type="button"
+                className="app__retry-button viewer-3d__retry"
+                onClick={onRetry}
+              >
+                {t('error.retry', 'Retry')}
+              </button>
+            )}
           </div>
         )}
       </div>

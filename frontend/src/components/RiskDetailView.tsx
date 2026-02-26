@@ -23,6 +23,8 @@ interface RiskDetailViewProps {
   useSharedElement?: boolean;
   meaning?: string;
   comparisons?: ComparisonRow[];
+  comparisonsError?: string | null;
+  onRetryComparisons?: () => void;
   questions?: ViewingQuestion[];
   checkedQuestions?: Set<string>;
   onToggleQuestion?: (id: string) => void;
@@ -41,6 +43,8 @@ export default function RiskDetailView({
   useSharedElement = true,
   meaning,
   comparisons,
+  comparisonsError,
+  onRetryComparisons,
   questions,
   checkedQuestions,
   onToggleQuestion,
@@ -103,9 +107,9 @@ export default function RiskDetailView({
           </section>
         )}
 
-        {comparisons && comparisons.length > 0 && (
-          <section className="risk-detail__section">
-            <h3 className="risk-detail__section-title">{t('risk.detail.howItCompares', 'How it compares')}</h3>
+        <section className="risk-detail__section">
+          <h3 className="risk-detail__section-title">{t('risk.detail.howItCompares', 'How it compares')}</h3>
+          {comparisons && comparisons.length > 0 ? (
             <div className="risk-detail__comparisons">
               {comparisons.map((row) => (
                 <div key={row.label} className="risk-detail__comparison-row">
@@ -120,8 +124,32 @@ export default function RiskDetailView({
                 </div>
               ))}
             </div>
-          </section>
-        )}
+          ) : (
+            <div
+              className="risk-detail__comparison-unavailable"
+              role={comparisonsError ? 'alert' : undefined}
+            >
+              <p className="risk-detail__comparison-unavailable-text">
+                {t(
+                  'risk.detail.comparisonsUnavailable',
+                  'Comparison benchmarks are temporarily unavailable for this address.',
+                )}
+              </p>
+              {comparisonsError && (
+                <p className="risk-detail__comparison-error">{comparisonsError}</p>
+              )}
+              {comparisonsError && onRetryComparisons && (
+                <button
+                  type="button"
+                  className="app__retry-button risk-detail__comparison-retry"
+                  onClick={onRetryComparisons}
+                >
+                  {t('error.retry', 'Retry')}
+                </button>
+              )}
+            </div>
+          )}
+        </section>
 
         {questions && questions.length > 0 && (
           <section className="risk-detail__section risk-detail__questions">

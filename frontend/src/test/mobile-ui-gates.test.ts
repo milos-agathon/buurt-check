@@ -59,10 +59,8 @@ describe('Mobile UI quality gates', () => {
     const loadedMinHeight = pxValue(ruleBlock(riskTileCss, '.risk-tile'), 'min-height');
     const skeletonMinHeight = pxValue(ruleBlock(riskTileSkeletonCss, '.risk-tile-skeleton-card'), 'min-height');
 
-    // Skeleton cards currently reserve additional vertical room for richer placeholders.
-    expect(skeletonMinHeight).toBeGreaterThanOrEqual(loadedMinHeight);
-    expect(Math.abs(loadedMinHeight - skeletonMinHeight)).toBeLessThanOrEqual(120);
-    expect(ruleBlock(riskTileSkeletonCss, '.risk-tile-skeleton-grid')).toContain('gap: var(--space-md)');
+    expect(Math.abs(loadedMinHeight - skeletonMinHeight)).toBeLessThanOrEqual(4);
+    expect(ruleBlock(riskTileSkeletonCss, '.risk-tile-skeleton-grid')).toContain('gap: var(--space-sm)');
     expect(ruleBlock(riskTilesGridCss, '.risk-tiles-grid')).toContain('gap: var(--space-sm)');
   });
 

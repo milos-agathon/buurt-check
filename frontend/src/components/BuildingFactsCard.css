@@ -15,6 +15,27 @@
   padding: var(--space-xl) var(--space-lg);
 }
 
+.building-card--error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-base);
+}
+
+.building-card__error {
+  margin: 0;
+  font: var(--type-small);
+  color: var(--color-badge-caution-text);
+  background: var(--color-badge-caution-bg);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-base);
+}
+
+.building-card__retry {
+  width: fit-content;
+}
+
 .building-card__title {
   font: var(--type-h3);
   margin: 0 0 var(--space-base);

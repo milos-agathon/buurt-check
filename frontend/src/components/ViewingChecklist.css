@@ -8,6 +8,28 @@
   contain-intrinsic-size: auto 300px;
 }
 
+.viewing-checklist--error {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-md);
+}
+
+.viewing-checklist__error {
+  margin: 0;
+  font: var(--type-small);
+  color: var(--color-badge-caution-text);
+  background: var(--color-badge-caution-bg);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-base);
+}
+
+.viewing-checklist__retry {
+  width: fit-content;
+  margin-top: var(--space-xs);
+}
+
 .viewing-checklist__group {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

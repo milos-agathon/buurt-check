@@ -34,6 +34,7 @@ describe('loading state', () => {
   it('shows skeleton in Dutch mode too', () => {
     renderCard(undefined, true, 'nl');
     expect(screen.getByTestId('building-facts-skeleton')).toBeInTheDocument();
+    expect(screen.getByTestId('section-skeleton-building-facts')).toBeInTheDocument();
   });
 });
 

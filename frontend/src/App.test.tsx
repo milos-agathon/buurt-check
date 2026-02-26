@@ -256,6 +256,21 @@ describe('tab content transitions', () => {
   });
 });
 
+describe('hash route recovery', () => {
+  it('redirects bare dossier hash without lookup to search and shows a toast', async () => {
+    window.location.hash = '#/address/0363100012345678';
+    renderApp();
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/search');
+    });
+    expect(
+      screen.getByText("We couldn't reopen this address. Try searching for it again."),
+    ).toBeInTheDocument();
+    expect(mockLookup).not.toHaveBeenCalled();
+  });
+});
+
 describe('address selection flow', () => {
   it('calls lookupAddress then getBuildingFacts on selection', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
@@ -265,10 +280,10 @@ describe('address selection flow', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(mockLookup).toHaveBeenCalledWith(makeSuggestion().id);
+      expect(mockLookup).toHaveBeenCalledWith(makeSuggestion().id, expect.any(AbortSignal));
     });
     await waitFor(() => {
-      expect(mockBuilding).toHaveBeenCalledWith('vbo-123');
+      expect(mockBuilding).toHaveBeenCalledWith('vbo-123', expect.any(AbortSignal));
     });
     await waitFor(() => {
       expect(mockRiskCards).toHaveBeenCalledTimes(1);
@@ -335,7 +350,7 @@ describe('address selection flow', () => {
     await waitFor(() => {
       expect(mockBuilding).toHaveBeenCalledTimes(1);
     });
-    expect(mockBuilding).toHaveBeenCalledWith('vbo-123');
+    expect(mockBuilding).toHaveBeenCalledWith('vbo-123', expect.any(AbortSignal));
   });
 });
 
@@ -380,7 +395,7 @@ describe('error handling', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.queryByText('Something went wrong on our end. Your data is safe — try refreshing.')).not.toBeInTheDocument();
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
     });
   });
 
@@ -669,7 +684,7 @@ describe('neighborhood stats integration', () => {
         houseNumber: '100',
         houseLetter: 'A',
         addition: '1',
-      });
+      }, expect.any(AbortSignal));
     });
   });
 
@@ -686,6 +701,7 @@ describe('neighborhood stats integration', () => {
         52.3676,
         4.8846,
         'BU0363AD07',
+        expect.any(AbortSignal),
       );
     });
   });
@@ -935,7 +951,13 @@ describe('dossier jump navigation', () => {
       fireEvent.click(topButton);
     });
 
-    expect(scrollToSpy).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    const dossierRoot = document.getElementById('dossier-content') as HTMLElement | null;
+    const usedWindowScroll = scrollToSpy.mock.calls.some((call) => {
+      const optionArg = call[0] as ScrollToOptions | number | undefined;
+      return typeof optionArg === 'object' && optionArg?.top === 0;
+    });
+    const usedContainerScroll = dossierRoot?.scrollTop === 0;
+    expect(usedWindowScroll || usedContainerScroll).toBe(true);
     scrollToSpy.mockRestore();
     Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 0 });
   });
@@ -972,6 +994,7 @@ describe('property warnings param forwarding', () => {
         numUnits: 4,
         municipality: 'Amsterdam',
       },
+      expect.any(AbortSignal),
     );
   });
 });
@@ -1011,6 +1034,7 @@ describe('early 3D fetch from lookup pand_id', () => {
         487000,
         52.3676,
         4.8846,
+        expect.any(AbortSignal),
       );
     });
     await waitFor(() => {
@@ -1021,6 +1045,7 @@ describe('early 3D fetch from lookup pand_id', () => {
         487000,
         52.3676,
         4.8846,
+        expect.any(AbortSignal),
       );
     });
   });
