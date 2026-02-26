@@ -174,6 +174,31 @@ describe('CompareScreen', () => {
     expect(screen.queryByText('Noise')).not.toBeInTheDocument();
   });
 
+  it('shows filter hint when differences-only is active', () => {
+    renderCompare([
+      makeItem({ vboId: 'a', riskScores: { noise: 80, air: 60, climate: 50, sunlight: 70 } }),
+      makeItem({ vboId: 'b', riskScores: { noise: 40, air: 55, climate: 50, sunlight: 70 } }),
+    ]);
+    // Hint should not be visible initially
+    expect(screen.queryByText(/differ by more than 15 points/)).not.toBeInTheDocument();
+    // Activate filter
+    fireEvent.click(screen.getByText('Differences only'));
+    // Hint should now be visible
+    expect(screen.getByText(/differ by more than 15 points/)).toBeInTheDocument();
+  });
+
+  it('hides filter hint when differences-only is deactivated', () => {
+    renderCompare([
+      makeItem({ vboId: 'a', riskScores: { noise: 80, air: 60, climate: 50, sunlight: 70 } }),
+      makeItem({ vboId: 'b', riskScores: { noise: 40, air: 55, climate: 50, sunlight: 70 } }),
+    ]);
+    // Activate then deactivate
+    fireEvent.click(screen.getByText('Differences only'));
+    expect(screen.getByText(/differ by more than 15 points/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Differences only'));
+    expect(screen.queryByText(/differ by more than 15 points/)).not.toBeInTheDocument();
+  });
+
   it('back button fires onBack callback', () => {
     const { onBack } = renderCompare([
       makeItem({ vboId: 'a' }),

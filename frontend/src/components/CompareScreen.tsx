@@ -14,6 +14,8 @@ interface Props {
 
 type MetricKey = 'noise' | 'air' | 'climate' | 'sunlight';
 
+const DIFFERENCE_THRESHOLD = 15;
+
 const METRICS: { key: MetricKey; labelKey: string }[] = [
   { key: 'noise', labelKey: 'risk.noise.tileLabel' },
   { key: 'air', labelKey: 'risk.air.tileLabel' },
@@ -40,7 +42,7 @@ export default function CompareScreen({ items, onBack, onSearchAddress }: Props)
         const scores = items.map(i => i.riskScores[m.key]);
         const valid = scores.filter((s): s is number => s != null);
         if (valid.length < 2) return true; // show if data missing
-        return Math.max(...valid) - Math.min(...valid) > 15;
+        return Math.max(...valid) - Math.min(...valid) > DIFFERENCE_THRESHOLD;
       })
     : METRICS;
   const chartAxes = filteredMetrics.map((metric) => ({
@@ -163,6 +165,12 @@ export default function CompareScreen({ items, onBack, onSearchAddress }: Props)
         </button>
       </div>
 
+      {differencesOnly && (
+        <p className="compare-screen__filter-hint">
+          {t('compare.filter_hint', { threshold: DIFFERENCE_THRESHOLD })}
+        </p>
+      )}
+
       {chartAxes.length >= 2 && (
         <section className="compare-screen__chart">
           <h3 className="compare-screen__chart-title">{t('compare.parallelTitle')}</h3>
@@ -204,7 +212,7 @@ export default function CompareScreen({ items, onBack, onSearchAddress }: Props)
               const validScores = scores.filter((s): s is number => s != null);
               const bestScore = validScores.length > 0 ? Math.max(...validScores) : null;
               const worstScore = validScores.length > 0 ? Math.min(...validScores) : null;
-              const hasDifference = bestScore != null && worstScore != null && bestScore - worstScore > 15;
+              const hasDifference = bestScore != null && worstScore != null && bestScore - worstScore > DIFFERENCE_THRESHOLD;
               const score = scores[itemIdx];
               const sev = severityFromScore(score);
               const isBest = hasDifference && score === bestScore;

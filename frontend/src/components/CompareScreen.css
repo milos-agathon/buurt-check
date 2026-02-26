@@ -48,6 +48,12 @@
   border-color: var(--color-accent);
 }
 
+.compare-screen__filter-hint {
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
 .compare-screen__no-data {
   font: var(--type-body);
   color: var(--color-text-secondary);
