@@ -1,6 +1,5 @@
 .livability-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: var(--space-md);
   margin: 0;
@@ -12,6 +11,8 @@
 
 .livability-card--tappable {
   cursor: pointer;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--elevation-1);
 }
 
 .livability-card--tappable:hover {
