@@ -100,9 +100,9 @@ describe('RiskDetailView', () => {
   it('renders comparison bars with correct widths', () => {
     const { container } = renderDetail({
       comparisons: [
-        { label: 'This address', value: 59 },
-        { label: 'City avg', value: 45 },
-        { label: 'WHO limit', value: 70, pattern: 'dashed' },
+        { label: 'This address', value: 59, colorKey: 'address' },
+        { label: 'City avg', value: 45, colorKey: 'city' },
+        { label: 'WHO limit', value: 70, pattern: 'dashed', colorKey: 'who' },
       ],
     });
     const rows = container.querySelectorAll('.risk-detail__comparison-row');
@@ -114,9 +114,48 @@ describe('RiskDetailView', () => {
 
   it('renders dashed pattern for WHO limit', () => {
     const { container } = renderDetail({
-      comparisons: [{ label: 'WHO', value: 70, pattern: 'dashed' }],
+      comparisons: [{ label: 'WHO', value: 70, pattern: 'dashed', colorKey: 'who' }],
     });
     expect(container.querySelector('.risk-detail__comparison-bar-fill--dashed')).toBeInTheDocument();
+  });
+
+  it('applies color-key class to comparison bar fills', () => {
+    const { container } = renderDetail({
+      comparisons: [
+        { label: 'This address', value: 59, colorKey: 'address' },
+        { label: 'City avg', value: 45, colorKey: 'city' },
+        { label: 'NL avg', value: 50, colorKey: 'nl' },
+        { label: 'WHO limit', value: 70, pattern: 'dashed', colorKey: 'who' },
+      ],
+    });
+    expect(container.querySelector('.risk-detail__comparison-bar-fill--address')).toBeInTheDocument();
+    expect(container.querySelector('.risk-detail__comparison-bar-fill--city')).toBeInTheDocument();
+    expect(container.querySelector('.risk-detail__comparison-bar-fill--nl')).toBeInTheDocument();
+    expect(container.querySelector('.risk-detail__comparison-bar-fill--who')).toBeInTheDocument();
+  });
+
+  it('renders legend with only present color keys', () => {
+    renderDetail({
+      comparisons: [
+        { label: 'This address', value: 59, colorKey: 'address' },
+        { label: 'City avg', value: 45, colorKey: 'city' },
+      ],
+    });
+    const legend = screen.getByTestId('comparison-legend');
+    expect(legend).toBeInTheDocument();
+    expect(legend.querySelectorAll('.risk-detail__legend-item')).toHaveLength(2);
+    expect(legend.querySelector('.risk-detail__legend-dot--address')).toBeInTheDocument();
+    expect(legend.querySelector('.risk-detail__legend-dot--city')).toBeInTheDocument();
+    expect(legend.querySelector('.risk-detail__legend-dot--who')).not.toBeInTheDocument();
+  });
+
+  it('renders directionality label', () => {
+    renderDetail({
+      comparisons: [
+        { label: 'This address', value: 59, colorKey: 'address' },
+      ],
+    });
+    expect(screen.getByTestId('comparison-directionality')).toBeInTheDocument();
   });
 
   it('renders comparisons unavailable fallback when rows are missing', () => {

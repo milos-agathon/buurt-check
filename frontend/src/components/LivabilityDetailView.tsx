@@ -16,6 +16,12 @@ function scoreSeverity(normalized: number): string {
   return 'critical';
 }
 
+function levelToColorKey(level: string): 'address' | 'city' | 'nl' {
+  if (level === 'buurt') return 'address';
+  if (level === 'wijk') return 'city';
+  return 'nl';
+}
+
 export default function LivabilityDetailView({ data, onClose }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -148,20 +154,36 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
         {data.comparison.length > 0 && (
           <section className="livability-detail__section" data-testid="livability-detail-comparison">
             <h3 className="livability-detail__section-title">{t('livability.comparison')}</h3>
-            <div className="livability-detail__comparisons">
-              {data.comparison.map((row) => (
-                <div className="livability-detail__cmp-row" key={row.level}>
-                  <span className="livability-detail__cmp-label">{row.name}</span>
-                  <div className="livability-detail__cmp-track">
-                    <div
-                      className="livability-detail__cmp-fill"
-                      style={{ width: `${row.overall_normalized}%` }}
-                    />
-                  </div>
-                  <span className="livability-detail__cmp-value">{row.overall_normalized}</span>
-                </div>
-              ))}
+            <div className="livability-detail__legend" data-testid="livability-comparison-legend">
+              {(['address', 'city', 'nl'] as const)
+                .filter((key) => data.comparison.some((r) => levelToColorKey(r.level) === key))
+                .map((key) => (
+                  <span key={key} className="livability-detail__legend-item">
+                    <span className={`livability-detail__legend-dot livability-detail__legend-dot--${key}`} />
+                    {t(`compare.legend.${key}`)}
+                  </span>
+                ))}
             </div>
+            <div className="livability-detail__comparisons">
+              {data.comparison.map((row) => {
+                const colorKey = levelToColorKey(row.level);
+                return (
+                  <div className="livability-detail__cmp-row" key={row.level}>
+                    <span className="livability-detail__cmp-label">{row.name}</span>
+                    <div className="livability-detail__cmp-track">
+                      <div
+                        className={`livability-detail__cmp-fill livability-detail__cmp-fill--${colorKey}`}
+                        style={{ width: `${row.overall_normalized}%` }}
+                      />
+                    </div>
+                    <span className="livability-detail__cmp-value">{row.overall_normalized}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="livability-detail__directionality" data-testid="livability-comparison-directionality">
+              {t('compare.legend.higher_is_better')}
+            </p>
           </section>
         )}
 

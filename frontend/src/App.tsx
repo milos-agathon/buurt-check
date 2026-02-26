@@ -92,7 +92,8 @@ const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
 type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
-type ComparisonRow = { label: string; value: number; pattern?: 'dashed' };
+type ComparisonColorKey = 'address' | 'city' | 'nl' | 'who';
+type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
 interface DossierSeedState {
   address?: ResolvedAddress;
@@ -1833,6 +1834,12 @@ function App() {
       label: comparisonLabel(row.label_code),
       value: row.value,
       pattern: row.pattern === 'dashed' ? 'dashed' : undefined,
+      colorKey: (
+        row.label_code === 'city_avg' ? 'city'
+        : row.label_code === 'nl_avg' ? 'nl'
+        : row.label_code === 'who_limit' || row.label_code === 'adaptation_target' || row.label_code === 'daylight_target' ? 'who'
+        : 'address'
+      ) as ComparisonColorKey,
     }));
   }, [comparisonLabel, riskComparisons]);
 
