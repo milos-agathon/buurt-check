@@ -2121,7 +2121,7 @@ function App() {
             ) : (
               <ErrorBoundary fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
               <Suspense fallback={null}>
-              <DossierSheet snap={sheetSnap} onSnapChange={setSheetSnap}>
+              <DossierSheet snap={sheetSnap}>
                 {address && showDossierJump && (
                   <div className="app__dossier-jump-nav">
                     <div className="app__dossier-jump-header">
@@ -2191,8 +2191,6 @@ function App() {
                       <AddressHeader
                         address={address}
                         building={buildingResponse?.building ?? undefined}
-                        isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
-                        onBookmarkToggle={handleBookmark}
                       />
                       {coverageSummary && (
                         <div className="app__coverage-strip">

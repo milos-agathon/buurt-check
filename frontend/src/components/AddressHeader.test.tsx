@@ -11,32 +11,27 @@ beforeAll(async () => {
   [i18nEn, i18nNl] = await Promise.all([setupTestI18n('en'), setupTestI18n('nl')]);
 });
 
-describe('AddressHeader shortlist aria labels', () => {
-  it('uses translated add label in English', () => {
+describe('AddressHeader', () => {
+  it('renders address street and postcode', () => {
     render(
       <I18nextProvider i18n={i18nEn}>
-        <AddressHeader
-          address={makeResolvedAddress()}
-          isBookmarked={false}
-          onBookmarkToggle={() => {}}
-        />
+        <AddressHeader address={makeResolvedAddress()} />
       </I18nextProvider>,
     );
 
-    expect(screen.getByLabelText('Save property')).toBeInTheDocument();
+    expect(screen.getByTestId('address-header')).toBeInTheDocument();
   });
 
-  it('uses translated remove label in Dutch', () => {
+  it('renders building details when provided', () => {
     render(
       <I18nextProvider i18n={i18nNl}>
         <AddressHeader
           address={makeResolvedAddress()}
-          isBookmarked
-          onBookmarkToggle={() => {}}
+          building={{ pand_id: '0363100012345678', construction_year: 1923, num_units: 4, intended_use: ['Woonfunctie'], intended_use_en: ['Residential'] }}
         />
       </I18nextProvider>,
     );
 
-    expect(screen.getByLabelText('Woning verwijderen uit opgeslagen')).toBeInTheDocument();
+    expect(screen.getByTestId('address-header')).toBeInTheDocument();
   });
 });

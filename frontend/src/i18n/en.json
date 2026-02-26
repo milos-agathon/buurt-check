@@ -441,9 +441,9 @@
   "warnings.attention.flag.lead_pipe": "Lead pipe risk",
 
   "warnings.foundation.title": "Foundation Risk",
-  "warnings.foundation.high": "Built in {{year}} on {{soil}} soil with {{rate}} mm/year subsidence. Pre-1970 buildings on soft soil are most affected. Repair costs typically range from EUR 60,000 to EUR 100,000+.",
-  "warnings.foundation.medium": "Built in {{year}} on {{soil}} soil. Constructed during a transition period in foundation practices. The soft soil in this area warrants verification.",
-  "warnings.foundation.low": "Built in {{year}} on {{soil}} soil. Modern foundation practices and stable soil conditions indicate low foundation risk.",
+  "warnings.foundation.high": "Pre-1970 construction on {{soil}} soil with {{rate}} mm/year subsidence. Buildings from this era on soft soil are most affected. Repair costs typically range from EUR 60,000 to EUR 100,000+.",
+  "warnings.foundation.medium": "Transition-era construction on {{soil}} soil. Foundation practices from this period vary. The soft soil in this area warrants verification.",
+  "warnings.foundation.low": "Modern foundation on {{soil}} soil. Stable soil conditions indicate low foundation risk.",
   "warnings.foundation.unavailable": "We couldn't fully assess foundation risk — soil type data isn't available for this location.",
   "warnings.foundation.question_1": "Has a foundation inspection (funderingsonderzoek) been performed? Request the report.",
   "warnings.foundation.question_2": "Look for visible signs: cracks near windows and doors, tilting walls, doors that stick, uneven floors.",

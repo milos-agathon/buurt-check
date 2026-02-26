@@ -4,7 +4,6 @@ export type SheetSnap = 'hidden' | 'peek' | 'half' | 'full';
 
 interface DossierSheetProps {
   snap: SheetSnap;
-  onSnapChange: (snap: SheetSnap) => void;
   children: React.ReactNode;
 }
 
@@ -15,9 +14,6 @@ export default function DossierSheet({ snap, children }: DossierSheetProps) {
 
   return (
     <section data-testid="dossier-sheet" className="dossier-sheet">
-      <div className="dossier-sheet__handle" aria-hidden="true">
-        <div className="dossier-sheet__handle-pill" />
-      </div>
       <div id="dossier-content" className="dossier-sheet__content">
         {children}
       </div>

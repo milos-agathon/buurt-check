@@ -441,9 +441,9 @@
   "warnings.attention.flag.lead_pipe": "Loden leidingrisico",
 
   "warnings.foundation.title": "Funderingsrisico",
-  "warnings.foundation.high": "Gebouwd in {{year}} op {{soil}}-grond met {{rate}} mm/jaar bodemdaling. Woningen van voor 1970 op slappe grond lopen het meeste risico. Herstelkosten liggen doorgaans tussen EUR 60.000 en EUR 100.000+.",
-  "warnings.foundation.medium": "Gebouwd in {{year}} op {{soil}}-grond. Gebouwd tijdens een overgangsperiode in funderingspraktijken. De slappe grond in dit gebied verdient verificatie.",
-  "warnings.foundation.low": "Gebouwd in {{year}} op {{soil}}-grond. Moderne funderingspraktijken en stabiele bodemcondities wijzen op laag funderingsrisico.",
+  "warnings.foundation.high": "Bouw van voor 1970 op {{soil}}-grond met {{rate}} mm/jaar bodemdaling. Woningen uit dit tijdperk op slappe grond lopen het meeste risico. Herstelkosten liggen doorgaans tussen EUR 60.000 en EUR 100.000+.",
+  "warnings.foundation.medium": "Bouw uit een overgangsperiode op {{soil}}-grond. Funderingspraktijken uit deze periode variëren. De slappe grond in dit gebied verdient verificatie.",
+  "warnings.foundation.low": "Moderne fundering op {{soil}}-grond. Stabiele bodemcondities wijzen op laag funderingsrisico.",
   "warnings.foundation.unavailable": "We konden het funderingsrisico niet volledig beoordelen — bodemtype-data is niet beschikbaar voor deze locatie.",
   "warnings.foundation.question_1": "Is er een funderingsonderzoek uitgevoerd? Vraag het rapport op.",
   "warnings.foundation.question_2": "Let op zichtbare tekenen: scheuren bij ramen en deuren, scheve muren, klemmende deuren, ongelijke vloeren.",

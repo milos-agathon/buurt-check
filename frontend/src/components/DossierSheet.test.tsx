@@ -1,11 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import DossierSheet from './DossierSheet';
 
 describe('DossierSheet', () => {
   const defaultProps = {
     snap: 'half' as const,
-    onSnapChange: vi.fn(),
     children: <div data-testid="sheet-content">Content</div>,
   };
 
