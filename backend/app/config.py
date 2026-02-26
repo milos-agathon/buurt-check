@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     enable_lod22_context_enrichment: bool = False
     three_d_conservative_mode: bool = False
 
+    # Rate limiting
+    rate_limit_enabled: bool = True
+
     # Cache TTLs (seconds)
     cache_ttl_suggest: int = 3600  # 1 hour
     cache_ttl_lookup: int = 86400  # 24 hours

@@ -3,7 +3,7 @@ import base64
 import logging
 import time
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Path, Query, Request
 from fastapi.responses import Response
 from pydantic import AliasChoices, BaseModel, Field
 
@@ -24,6 +24,7 @@ from app.models.risk import (
     ViewingQuestionsResponse,
 )
 from app.models.tier_b import TierBResponse
+from app.rate_limit import limiter
 from app.services import (
     bag,
     cbs,
@@ -70,7 +71,10 @@ async def _get_cached_sunlight_card(vbo_id: str) -> SunlightRiskCard | None:
 
 
 @router.get("/suggest", response_model=SuggestResponse)
+@limiter.limit("30/minute")
 async def address_suggest(
+    request: Request,
+    response: Response,
     q: str = Query(..., min_length=2, description="Search query"),
     limit: int = Query(7, ge=1, le=20, description="Max results"),
 ):
@@ -338,7 +342,10 @@ async def submit_sunlight_analysis(
 
 
 @router.get("/{vbo_id}/risks", response_model=RiskCardsResponse)
+@limiter.limit("10/minute")
 async def address_risk_cards(
+    request: Request,
+    response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
     rd_y: float = Query(..., ge=285000, le=625000),
@@ -826,17 +833,8 @@ async def _fetch_tier_b_for_export(vbo_id: str, buurt_code: str | None,
     return None
 
 
-@router.post("/{vbo_id}/export")
-async def export_briefing(
-    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
-    body: ExportRequest = ...,
-):
-    """Export a PDF viewing briefing for the address.
-
-    POST body accepts all parameters including base64 shadow image,
-    avoiding URL-length limits. Full Dossier fetches additional data
-    (neighborhood stats, tier-b, risk comparisons) in parallel.
-    """
+async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
+    """Core export logic shared by POST and GET endpoints."""
     if body.template not in ("quick_brief", "full_dossier"):
         raise HTTPException(
             status_code=422,
@@ -943,8 +941,26 @@ async def export_briefing(
     )
 
 
+@router.post("/{vbo_id}/export")
+@limiter.limit("5/minute")
+async def export_briefing(
+    request: Request,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    body: ExportRequest = ...,
+):
+    """Export a PDF viewing briefing for the address.
+
+    POST body accepts all parameters including base64 shadow image,
+    avoiding URL-length limits. Full Dossier fetches additional data
+    (neighborhood stats, tier-b, risk comparisons) in parallel.
+    """
+    return await _do_export_briefing(vbo_id, body)
+
+
 @router.get("/{vbo_id}/export")
+@limiter.limit("5/minute")
 async def export_briefing_get(
+    request: Request,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
     rd_y: float = Query(..., ge=285000, le=625000),
@@ -963,7 +979,7 @@ async def export_briefing_get(
     house_letter: str | None = Query(None),
     addition: str | None = Query(None),
 ):
-    """Backward-compatible GET endpoint for PDF export (deprecated — prefer POST)."""
+    """Backward-compatible GET endpoint for PDF export (deprecated -- prefer POST)."""
     resolved_shadow = shadow_image_b64 or shadow_image
     body = ExportRequest(
         rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng, address=address,
@@ -971,5 +987,5 @@ async def export_briefing_get(
         street=street, city=city, buurt_code=buurt_code, postcode=postcode,
         house_number=house_number, house_letter=house_letter, addition=addition,
     )
-    return await export_briefing(vbo_id=vbo_id, body=body)
+    return await _do_export_briefing(vbo_id, body)
 
