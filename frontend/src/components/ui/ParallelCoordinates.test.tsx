@@ -98,6 +98,55 @@ describe('ParallelCoordinates', () => {
     expect(swatches[3]).toHaveClass('parallel-coordinates__legend-swatch--who');
   });
 
+  it('applies textLength constraint only to labels that exceed available slot width', () => {
+    renderChart(
+      <ParallelCoordinates
+        axes={[
+          { key: 'a', label: 'Luchtkwaliteit' },    // 14 chars * 6.5 = 91 > slot width
+          { key: 'b', label: 'Air' },                 // 3 chars * 6.5 = 19.5 < slot width
+          { key: 'c', label: 'Wegverkeersgeluid' },   // 17 chars * 6.5 = 110.5 > slot width
+        ]}
+        series={[
+          { id: 's1', label: 'Addr', values: { a: 50, b: 60, c: 70 } },
+        ]}
+      />,
+    );
+
+    const labels = document.querySelectorAll('.parallel-coordinates__axis-label');
+    expect(labels).toHaveLength(3);
+
+    // Long labels should have textLength attribute
+    expect(labels[0]).toHaveAttribute('textLength');
+    expect(labels[0]).toHaveAttribute('lengthAdjust', 'spacingAndGlyphs');
+
+    // Short label should NOT have textLength (avoids stretching)
+    expect(labels[1]).not.toHaveAttribute('textLength');
+
+    // Long label should have textLength
+    expect(labels[2]).toHaveAttribute('textLength');
+    expect(labels[2]).toHaveAttribute('lengthAdjust', 'spacingAndGlyphs');
+  });
+
+  it('does not apply textLength to short labels', () => {
+    renderChart(
+      <ParallelCoordinates
+        axes={[
+          { key: 'noise', label: 'Noise' },
+          { key: 'air', label: 'Air' },
+        ]}
+        series={[
+          { id: 's1', label: 'Addr', values: { noise: 50, air: 60 } },
+        ]}
+      />,
+    );
+
+    const labels = document.querySelectorAll('.parallel-coordinates__axis-label');
+    expect(labels).toHaveLength(2);
+    // Both labels are short — neither should have textLength
+    expect(labels[0]).not.toHaveAttribute('textLength');
+    expect(labels[1]).not.toHaveAttribute('textLength');
+  });
+
   it('uses translated aria-label and descriptive <desc> with addresses and categories', () => {
     renderChart(
       <ParallelCoordinates

@@ -20,7 +20,7 @@ interface ParallelCoordinatesProps {
 
 const WIDTH = 360;
 const HEIGHT = 190;
-const PADDING_X = 26;
+const PADDING_X = 36;
 const PADDING_TOP = 16;
 const PADDING_BOTTOM = 42;
 const SERIES_CLASSES = ['address', 'city', 'nl', 'who'];
@@ -33,6 +33,16 @@ function axisX(index: number, axisCount: number): number {
   if (axisCount <= 1) return WIDTH / 2;
   const span = WIDTH - PADDING_X * 2;
   return PADDING_X + (index / (axisCount - 1)) * span;
+}
+
+/** Maximum width a label may occupy without overlapping its neighbors. */
+function maxLabelWidth(axisCount: number): number {
+  if (axisCount <= 1) return WIDTH - PADDING_X * 2;
+  const span = WIDTH - PADDING_X * 2;
+  const gap = span / (axisCount - 1);
+  // Edge labels are bounded by padding on one side and half-gap on the other.
+  // Use the smaller constraint (gap) minus a small margin.
+  return Math.min(gap, PADDING_X * 2) - 4;
 }
 
 function scoreY(score: number): number {
@@ -87,6 +97,11 @@ export default function ParallelCoordinates({ axes, series }: ParallelCoordinate
 
         {axes.map((axis, index) => {
           const x = axisX(index, axes.length);
+          const labelMax = maxLabelWidth(axes.length);
+          // Estimate natural width: ~6.5px per character at 11px font size.
+          // Only constrain labels that would exceed the available slot width.
+          const estimatedWidth = axis.label.length * 6.5;
+          const needsConstraint = estimatedWidth > labelMax;
           return (
             <g key={axis.key}>
               <line
@@ -101,6 +116,7 @@ export default function ParallelCoordinates({ axes, series }: ParallelCoordinate
                 y={HEIGHT - 22}
                 textAnchor="middle"
                 className="parallel-coordinates__axis-label"
+                {...(needsConstraint ? { textLength: labelMax, lengthAdjust: 'spacingAndGlyphs' } : {})}
               >
                 {axis.label}
               </text>
