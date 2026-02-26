@@ -43,6 +43,18 @@
   stroke-width: 2;
 }
 
+/* ── Series color classes (set --series-color for line + point) ── */
+.parallel-coordinates__series--address { --series-color: var(--color-compare-address); }
+.parallel-coordinates__series--city    { --series-color: var(--color-compare-city); }
+.parallel-coordinates__series--nl      { --series-color: var(--color-compare-nl); }
+.parallel-coordinates__series--who     { --series-color: var(--color-compare-who); }
+
+/* ── Legend swatch colors ── */
+.parallel-coordinates__legend-swatch--address { background-color: var(--color-compare-address); }
+.parallel-coordinates__legend-swatch--city    { background-color: var(--color-compare-city); }
+.parallel-coordinates__legend-swatch--nl      { background-color: var(--color-compare-nl); }
+.parallel-coordinates__legend-swatch--who     { background-color: var(--color-compare-who); }
+
 .parallel-coordinates__legend {
   display: flex;
   flex-wrap: wrap;

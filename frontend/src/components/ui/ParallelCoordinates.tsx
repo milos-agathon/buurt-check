@@ -1,4 +1,4 @@
-import { useId, type CSSProperties } from 'react';
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import './ParallelCoordinates.css';
 
@@ -23,7 +23,7 @@ const HEIGHT = 190;
 const PADDING_X = 26;
 const PADDING_TOP = 16;
 const PADDING_BOTTOM = 42;
-const SERIES_COLORS = ['#00897B', '#9AA0A6', '#D1D5DB', '#E8913A'];
+const SERIES_CLASSES = ['address', 'city', 'nl', 'who'];
 
 function clampScore(score: number): number {
   return Math.max(0, Math.min(100, score));
@@ -111,11 +111,10 @@ export default function ParallelCoordinates({ axes, series }: ParallelCoordinate
         {series.map((entry, index) => {
           const points = pointsForSeries(axes, entry.values);
           if (!points || points.split(' ').length < 2) return null;
-          const color = SERIES_COLORS[index % SERIES_COLORS.length];
-          const style = { '--series-color': color } as CSSProperties;
+          const seriesClass = SERIES_CLASSES[index % SERIES_CLASSES.length];
 
           return (
-            <g key={entry.id} style={style}>
+            <g key={entry.id} className={`parallel-coordinates__series--${seriesClass}`}>
               <polyline points={points} className="parallel-coordinates__line" />
               {points.split(' ').map((point, pointIndex) => {
                 const [x, y] = point.split(',');
@@ -136,12 +135,11 @@ export default function ParallelCoordinates({ axes, series }: ParallelCoordinate
 
       <div className="parallel-coordinates__legend">
         {series.map((entry, index) => {
-          const color = SERIES_COLORS[index % SERIES_COLORS.length];
+          const seriesClass = SERIES_CLASSES[index % SERIES_CLASSES.length];
           return (
             <div key={entry.id} className="parallel-coordinates__legend-item">
               <span
-                className="parallel-coordinates__legend-swatch"
-                style={{ backgroundColor: color }}
+                className={`parallel-coordinates__legend-swatch parallel-coordinates__legend-swatch--${seriesClass}`}
               />
               <span className="parallel-coordinates__legend-label">{entry.label}</span>
             </div>

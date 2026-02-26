@@ -62,6 +62,42 @@ describe('ParallelCoordinates', () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it('uses CSS class-based series colors instead of inline styles', () => {
+    renderChart(
+      <ParallelCoordinates
+        axes={[
+          { key: 'noise', label: 'Noise' },
+          { key: 'air', label: 'Air' },
+        ]}
+        series={[
+          { id: 'a', label: 'Address A', values: { noise: 72, air: 65 } },
+          { id: 'b', label: 'Address B', values: { noise: 50, air: 60 } },
+          { id: 'c', label: 'Address C', values: { noise: 40, air: 70 } },
+          { id: 'd', label: 'Address D', values: { noise: 80, air: 55 } },
+        ]}
+      />,
+    );
+
+    // SVG series groups use class-based --series-color, not inline style
+    const seriesGroups = document.querySelectorAll('[class*="parallel-coordinates__series--"]');
+    expect(seriesGroups).toHaveLength(4);
+    expect(seriesGroups[0]).toHaveClass('parallel-coordinates__series--address');
+    expect(seriesGroups[1]).toHaveClass('parallel-coordinates__series--city');
+    expect(seriesGroups[2]).toHaveClass('parallel-coordinates__series--nl');
+    expect(seriesGroups[3]).toHaveClass('parallel-coordinates__series--who');
+
+    // Legend swatches use class-based background, not inline style
+    const swatches = document.querySelectorAll('.parallel-coordinates__legend-swatch');
+    expect(swatches).toHaveLength(4);
+    swatches.forEach((swatch) => {
+      expect(swatch).not.toHaveAttribute('style');
+    });
+    expect(swatches[0]).toHaveClass('parallel-coordinates__legend-swatch--address');
+    expect(swatches[1]).toHaveClass('parallel-coordinates__legend-swatch--city');
+    expect(swatches[2]).toHaveClass('parallel-coordinates__legend-swatch--nl');
+    expect(swatches[3]).toHaveClass('parallel-coordinates__legend-swatch--who');
+  });
+
   it('uses translated aria-label and descriptive <desc> with addresses and categories', () => {
     renderChart(
       <ParallelCoordinates

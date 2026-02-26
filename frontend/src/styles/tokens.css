@@ -280,6 +280,12 @@
   --focus-ring-accent: 0 0 0 4px rgba(46, 196, 182, 0.2);
   --focus-ring-danger: 0 0 0 4px rgba(239, 68, 68, 0.2);
 
+  /* Comparison Series — brighter for dark backgrounds */
+  --color-compare-address: #4DB6AC;
+  --color-compare-city: #B0B7BF;
+  --color-compare-nl: #8A9BB0;
+  --color-compare-who: #FFA726;
+
   /* Skeleton */
   --color-skeleton: rgba(255, 255, 255, 0.08);
   --color-skeleton-shimmer: rgba(255, 255, 255, 0.04);
