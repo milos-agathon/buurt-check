@@ -435,7 +435,7 @@ async def test_endpoint_no_cache_on_empty():
         # First call — no data
         resp1 = client.get(
             "/api/address/0363200012345678/livability",
-            params={"rd_x": "0", "rd_y": "0"},
+            params={"rd_x": "121000", "rd_y": "487000"},
         )
         assert resp1.status_code == 200
         assert resp1.json()["available"] is False
@@ -449,7 +449,7 @@ async def test_endpoint_no_cache_on_empty():
         # Second call — should hit WFS again (not cached)
         resp2 = client.get(
             "/api/address/0363200012345678/livability",
-            params={"rd_x": "0", "rd_y": "0"},
+            params={"rd_x": "121000", "rd_y": "487000"},
         )
         assert resp2.status_code == 200
         assert resp2.json()["available"] is False

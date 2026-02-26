@@ -144,8 +144,8 @@ VALID_TILE_TYPES = {"noise", "air_quality", "climate", "luchtfoto"}
 @router.get("/wms-tile")
 async def wms_tile_proxy(
     type: str = Query(..., description="Tile type: noise, air_quality, climate, or luchtfoto"),
-    rd_x: float = Query(..., description="RD X coordinate"),
-    rd_y: float = Query(..., description="RD Y coordinate"),
+    rd_x: float = Query(..., ge=0, le=300000, description="RD X coordinate"),
+    rd_y: float = Query(..., ge=285000, le=625000, description="RD Y coordinate"),
     radius: float = Query(250.0, ge=10, le=500, description="Tile radius in meters"),
     size: int = Query(512, ge=128, le=2048, description="Tile size in pixels"),
 ):
@@ -219,10 +219,10 @@ async def building_facts(
 async def building_3d(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     pand_id: str = Query(..., pattern=r"^[0-9]{16}$"),
-    rd_x: float = Query(...),
-    rd_y: float = Query(...),
-    lat: float = Query(...),
-    lng: float = Query(...),
+    rd_x: float = Query(..., ge=0, le=300000),
+    rd_y: float = Query(..., ge=285000, le=625000),
+    lat: float = Query(..., ge=50.5, le=53.8),
+    lng: float = Query(..., ge=3.2, le=7.3),
 ):
     """Fast Phase 1: fetch only the target building (~2s, no bbox)."""
     cache_key = f"building3d:{pand_id}"
@@ -251,10 +251,10 @@ async def building_3d(
 async def neighborhood_3d(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     pand_id: str = Query(..., pattern=r"^[0-9]{16}$"),
-    rd_x: float = Query(...),
-    rd_y: float = Query(...),
-    lat: float = Query(...),
-    lng: float = Query(...),
+    rd_x: float = Query(..., ge=0, le=300000),
+    rd_y: float = Query(..., ge=285000, le=625000),
+    lat: float = Query(..., ge=50.5, le=53.8),
+    lng: float = Query(..., ge=3.2, le=7.3),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
     # v26: parallel quadrant strategy for accelerated mode (4 concurrent bbox queries at 120m).
@@ -335,10 +335,10 @@ async def submit_sunlight_analysis(
 @router.get("/{vbo_id}/risks", response_model=RiskCardsResponse)
 async def address_risk_cards(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
-    rd_x: float = Query(...),
-    rd_y: float = Query(...),
-    lat: float = Query(...),
-    lng: float = Query(...),
+    rd_x: float = Query(..., ge=0, le=300000),
+    rd_y: float = Query(..., ge=285000, le=625000),
+    lat: float = Query(..., ge=50.5, le=53.8),
+    lng: float = Query(..., ge=3.2, le=7.3),
 ):
     """Fetch F3 risk cards (noise, air quality, climate stress)."""
     t0 = time.monotonic()
@@ -408,8 +408,8 @@ async def address_risk_cards(
 @router.get("/{vbo_id}/neighborhood", response_model=NeighborhoodStatsResponse)
 async def neighborhood_stats(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
-    lat: float = Query(...),
-    lng: float = Query(...),
+    lat: float = Query(..., ge=50.5, le=53.8),
+    lng: float = Query(..., ge=3.2, le=7.3),
     buurt_code: str | None = Query(None),
 ):
     """Fetch CBS neighborhood statistics for an address."""
@@ -446,10 +446,10 @@ async def neighborhood_stats(
 @router.get("/{vbo_id}/risk-comparisons", response_model=RiskComparisonsResponse)
 async def risk_comparisons(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
-    rd_x: float = Query(...),
-    rd_y: float = Query(...),
-    lat: float = Query(...),
-    lng: float = Query(...),
+    rd_x: float = Query(..., ge=0, le=300000),
+    rd_y: float = Query(..., ge=285000, le=625000),
+    lat: float = Query(..., ge=50.5, le=53.8),
+    lng: float = Query(..., ge=3.2, le=7.3),
     buurt_code: str | None = Query(None),
 ):
     """Return data-driven comparison rows for risk detail views."""
@@ -516,10 +516,10 @@ async def risk_comparisons(
 )
 async def viewing_questions(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
-    rd_x: float = Query(...),
-    rd_y: float = Query(...),
-    lat: float = Query(...),
-    lng: float = Query(...),
+    rd_x: float = Query(..., ge=0, le=300000),
+    rd_y: float = Query(..., ge=285000, le=625000),
+    lat: float = Query(..., ge=50.5, le=53.8),
+    lng: float = Query(..., ge=3.2, le=7.3),
     street: str | None = Query(None, description="Street name for contextualized questions"),
     city: str | None = Query(None, description="City name for contextualized questions"),
 ):
@@ -598,8 +598,8 @@ async def tier_b_signals(
 @router.get("/{vbo_id}/livability")
 async def address_livability(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
-    rd_x: float = Query(...),
-    rd_y: float = Query(...),
+    rd_x: float = Query(..., ge=0, le=300000),
+    rd_y: float = Query(..., ge=285000, le=625000),
 ):
     """Fetch Leefbaarometer livability data: current score + trend + comparison."""
     cache_key = f"livability_full:{rd_x:.0f}:{rd_y:.0f}"
@@ -641,8 +641,8 @@ async def address_livability(
 @router.get("/{vbo_id}/property-warnings", response_model=PropertyWarningsResponse)
 async def address_property_warnings(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
-    rd_x: float = Query(...),
-    rd_y: float = Query(...),
+    rd_x: float = Query(..., ge=0, le=300000),
+    rd_y: float = Query(..., ge=285000, le=625000),
     construction_year: int | None = Query(None),
     num_units: int | None = Query(None),
     municipality: str | None = Query(None),
@@ -697,10 +697,10 @@ class ExportRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-    rd_x: float
-    rd_y: float
-    lat: float
-    lng: float
+    rd_x: float = Field(ge=0, le=300000)
+    rd_y: float = Field(ge=285000, le=625000)
+    lat: float = Field(ge=50.5, le=53.8)
+    lng: float = Field(ge=3.2, le=7.3)
     address: str = Field(max_length=500)
     template: str = "quick_brief"
     language: str = "en"
@@ -936,10 +936,10 @@ async def export_briefing(
 @router.get("/{vbo_id}/export")
 async def export_briefing_get(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
-    rd_x: float = Query(...),
-    rd_y: float = Query(...),
-    lat: float = Query(...),
-    lng: float = Query(...),
+    rd_x: float = Query(..., ge=0, le=300000),
+    rd_y: float = Query(..., ge=285000, le=625000),
+    lat: float = Query(..., ge=50.5, le=53.8),
+    lng: float = Query(..., ge=3.2, le=7.3),
     address: str = Query(...),
     template: str = Query("quick_brief"),
     language: str = Query("en"),
