@@ -313,6 +313,7 @@
   "risk.detail.whatThisMeans": "What this means",
   "risk.detail.howItCompares": "How it compares",
   "risk.detail.askAtViewing": "Ask at your viewing",
+  "risk.detail.checklistCallout": "{{count}} viewing questions saved to your checklist",
   "action.addToShortlist": "Save",
   "action.saved": "Saved",
   "action.exportBriefing": "Download viewing checklist",

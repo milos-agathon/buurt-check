@@ -2272,8 +2272,6 @@ function App() {
                                     comparisonsError={riskComparisonsError}
                                     onRetryComparisons={riskComparisonsError ? handleRetryRiskComparisons : undefined}
                                     questions={activeQuestions}
-                                    checkedQuestions={checkedQuestions}
-                                    onToggleQuestion={handleToggleQuestion}
                                     source={detail.source}
                                     sourceDate={detail.sourceDate}
                                     useSharedElement={!useFallbackDetailTransition}

@@ -313,6 +313,7 @@
   "risk.detail.whatThisMeans": "Wat dit betekent",
   "risk.detail.howItCompares": "Hoe het zich verhoudt",
   "risk.detail.askAtViewing": "Vraag bij uw bezichtiging",
+  "risk.detail.checklistCallout": "{{count}} bezichtigingsvragen opgeslagen in uw checklist",
   "action.addToShortlist": "Opslaan",
   "action.saved": "Opgeslagen",
   "action.exportBriefing": "Bezichtigingschecklist downloaden",
