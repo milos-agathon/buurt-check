@@ -607,29 +607,35 @@ async def address_livability(
     if cached is not None:
         return LivabilityResponse(**cached)
 
-    current = await leefbaarometer.get_livability(rd_x, rd_y)
-    if current is None:
-        return {"available": False, "message": "LIVABILITY_NO_DATA"}
+    try:
+        current = await leefbaarometer.get_livability(rd_x, rd_y)
+        if current is None:
+            return {"available": False, "message": "LIVABILITY_NO_DATA"}
 
-    # Fetch trend + comparison in parallel
-    trend_task = leefbaarometer.get_livability_trend(rd_x, rd_y)
-    comparison_task = leefbaarometer.get_livability_comparison(rd_x, rd_y)
-    trend, comparison = await asyncio.gather(
-        trend_task, comparison_task, return_exceptions=True
-    )
+        # Fetch trend + comparison in parallel
+        trend_task = leefbaarometer.get_livability_trend(rd_x, rd_y)
+        comparison_task = leefbaarometer.get_livability_comparison(rd_x, rd_y)
+        trend, comparison = await asyncio.gather(
+            trend_task, comparison_task, return_exceptions=True
+        )
 
-    current.trend = trend if isinstance(trend, list) else []
-    current.comparison = (
-        comparison.rows if isinstance(comparison, LivabilityComparison) else []
-    )
+        current.trend = trend if isinstance(trend, list) else []
+        current.comparison = (
+            comparison.rows if isinstance(comparison, LivabilityComparison) else []
+        )
 
-    # Cache the fully assembled response
-    await cache_set(
-        cache_key,
-        current.model_dump(),
-        ttl=settings.cache_ttl_livability,
-    )
-    return current
+        # Cache the fully assembled response
+        await cache_set(
+            cache_key,
+            current.model_dump(),
+            ttl=settings.cache_ttl_livability,
+        )
+        return current
+    except Exception as exc:
+        logger.exception("livability failed vbo=%s: %s", vbo_id, exc)
+        raise HTTPException(
+            status_code=502, detail="Livability data unavailable"
+        ) from exc
 
 
 @router.get("/{vbo_id}/property-warnings", response_model=PropertyWarningsResponse)
