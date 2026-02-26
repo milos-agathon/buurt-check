@@ -380,6 +380,9 @@ async def address_risk_cards(
         "NOISE_LOOKUP_FAILED",
         "AIR_LOOKUP_FAILED",
         "CLIMATE_LOOKUP_FAILED",
+        "NOISE_TIMEOUT",
+        "AIR_TIMEOUT",
+        "CLIMATE_TIMEOUT",
     }
     has_failure = any(
         msg in failure_messages

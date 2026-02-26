@@ -447,13 +447,8 @@ async def test_build_card_with_timeout_returns_fallback_on_timeout():
 
     fallback = "timeout_fallback"
 
-    # Temporarily set a very short timeout to avoid test slowness
-    original = risk_cards._PER_CARD_TIMEOUT_SECONDS
-    try:
-        risk_cards._PER_CARD_TIMEOUT_SECONDS = 0.05
+    with patch.object(risk_cards, "_PER_CARD_TIMEOUT_SECONDS", 0.05):
         result = await _build_card_with_timeout(slow_coro(), fallback, "test")
-    finally:
-        risk_cards._PER_CARD_TIMEOUT_SECONDS = original
 
     assert result == "timeout_fallback"
 
@@ -496,10 +491,7 @@ async def test_get_risk_cards_timeout_on_one_card(mock_climate, mock_air, mock_n
         sampled_at="2026-02-05",
     )
 
-    original = risk_cards._PER_CARD_TIMEOUT_SECONDS
-    try:
-        risk_cards._PER_CARD_TIMEOUT_SECONDS = 0.05
-
+    with patch.object(risk_cards, "_PER_CARD_TIMEOUT_SECONDS", 0.05):
         resp = await get_risk_cards(
             vbo_id="0363010000696734",
             rd_x=121286.0,
@@ -507,8 +499,6 @@ async def test_get_risk_cards_timeout_on_one_card(mock_climate, mock_air, mock_n
             lat=52.372,
             lng=4.892,
         )
-    finally:
-        risk_cards._PER_CARD_TIMEOUT_SECONDS = original
 
     # Noise card should be unavailable due to timeout
     assert resp.noise.level == RiskLevel.unavailable
@@ -534,10 +524,7 @@ async def test_get_risk_cards_all_cards_timeout(mock_climate, mock_air, mock_noi
     mock_air.side_effect = slow
     mock_climate.side_effect = slow
 
-    original = risk_cards._PER_CARD_TIMEOUT_SECONDS
-    try:
-        risk_cards._PER_CARD_TIMEOUT_SECONDS = 0.05
-
+    with patch.object(risk_cards, "_PER_CARD_TIMEOUT_SECONDS", 0.05):
         resp = await get_risk_cards(
             vbo_id="0363010000696734",
             rd_x=121286.0,
@@ -545,8 +532,6 @@ async def test_get_risk_cards_all_cards_timeout(mock_climate, mock_air, mock_noi
             lat=52.372,
             lng=4.892,
         )
-    finally:
-        risk_cards._PER_CARD_TIMEOUT_SECONDS = original
 
     assert resp.noise.level == RiskLevel.unavailable
     assert resp.noise.message == "NOISE_TIMEOUT"
