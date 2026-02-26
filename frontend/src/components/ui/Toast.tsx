@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import './Toast.css';
 
 interface ToastMessage {
@@ -10,18 +10,36 @@ interface ToastMessage {
 export function useToast() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextId = useRef(0);
+  const timeoutIds = useRef(new Map<number, number>());
+
+  const clearToastTimer = useCallback((id: number) => {
+    const timeoutId = timeoutIds.current.get(id);
+    if (timeoutId == null) return;
+    window.clearTimeout(timeoutId);
+    timeoutIds.current.delete(id);
+  }, []);
 
   const showToast = useCallback((text: string, action?: { label: string; onClick: () => void }) => {
     const id = nextId.current++;
     setToasts(prev => [...prev, { id, text, action }]);
     const delay = action ? 6000 : 4000;
-    setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
+      timeoutIds.current.delete(id);
       setToasts(prev => prev.filter(t => t.id !== id));
     }, delay);
+    timeoutIds.current.set(id, timeoutId);
   }, []);
 
   const dismissToast = useCallback((id: number) => {
+    clearToastTimer(id);
     setToasts(prev => prev.filter(t => t.id !== id));
+  }, [clearToastTimer]);
+
+  useEffect(() => () => {
+    for (const timeoutId of timeoutIds.current.values()) {
+      window.clearTimeout(timeoutId);
+    }
+    timeoutIds.current.clear();
   }, []);
 
   return { toasts, showToast, dismissToast };

@@ -27,7 +27,7 @@ describe('PropertyWarningsCard', () => {
 
   it('shows loading state', () => {
     renderCard(undefined, true);
-    expect(screen.getByText(/analyzing property warnings/i)).toBeInTheDocument();
+    expect(screen.getByTestId('section-skeleton-property-warnings')).toBeInTheDocument();
   });
 
   it('shows error state', () => {

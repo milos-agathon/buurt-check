@@ -6,22 +6,40 @@ interface TopBarProps {
   title: string;
   onSettingsClick?: () => void;
   inert?: boolean;
+  activeScreen?: string;
 }
 
 const LOGO_TITLE = 'buurt-check';
 
-export default function TopBar({ title, onSettingsClick, inert }: TopBarProps) {
+export default function TopBar({ title, onSettingsClick, inert, activeScreen }: TopBarProps) {
   const { t, i18n } = useTranslation();
   const [scrolled, setScrolled] = useState(false);
   const isLogo = title === LOGO_TITLE;
 
   useEffect(() => {
+    let dossierScrollRoot: HTMLElement | null = null;
+
     const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
+      const windowTop = window.scrollY || document.documentElement.scrollTop || 0;
+      const internalTop = dossierScrollRoot?.scrollTop ?? 0;
+      setScrolled(windowTop > 10 || internalTop > 10);
     };
+
+    if (activeScreen === 'dossier') {
+      const candidate = document.getElementById('dossier-content');
+      if (candidate instanceof HTMLElement) {
+        dossierScrollRoot = candidate;
+        dossierScrollRoot.addEventListener('scroll', handleScroll, { passive: true });
+      }
+    }
+
+    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      dossierScrollRoot?.removeEventListener('scroll', handleScroll);
+    };
+  }, [activeScreen]);
 
   return (
     <header className={`top-bar${scrolled ? ' top-bar--scrolled' : ''}`} inert={inert || undefined}>

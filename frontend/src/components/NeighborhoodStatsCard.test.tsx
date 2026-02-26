@@ -34,8 +34,7 @@ function renderCard(
 describe('NeighborhoodStatsCard', () => {
   it('shows loading state', () => {
     renderCard({ loading: true });
-    expect(screen.getByText('Neighborhood Snapshot')).toBeInTheDocument();
-    expect(screen.getByText('Loading neighborhood data...')).toBeInTheDocument();
+    expect(screen.getByTestId('section-skeleton-neighborhood-stats')).toBeInTheDocument();
   });
 
   it('shows error state when no stats', () => {

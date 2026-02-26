@@ -343,17 +343,19 @@ export default function ExportBottomSheet({
           <p className="export-sheet__error">{t('export.shareError', 'Could not share PDF. Try downloading instead.')}</p>
         )}
 
-        <button
-          type="button"
-          className="export-sheet__btn"
-          onClick={handleGenerate}
-          disabled={generating}
-          data-testid="export-generate-btn"
-        >
-          {generating
-            ? t('export.generating', 'Generating...')
-            : t('export.generate', 'Generate PDF')}
-        </button>
+        {progressStage !== 'ready' && (
+          <button
+            type="button"
+            className="export-sheet__btn"
+            onClick={handleGenerate}
+            disabled={generating}
+            data-testid="export-generate-btn"
+          >
+            {generating
+              ? t('export.generating', 'Generating...')
+              : t('export.generate', 'Generate PDF')}
+          </button>
+        )}
       </div>
     </BottomSheet>
   );

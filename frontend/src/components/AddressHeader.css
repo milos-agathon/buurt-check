@@ -17,6 +17,7 @@
   font: var(--type-h1);
   color: var(--color-text);
   letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
 }
 
 .address-header__postcode {

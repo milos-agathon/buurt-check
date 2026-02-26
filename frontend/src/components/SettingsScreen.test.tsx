@@ -16,18 +16,20 @@ beforeEach(async () => {
 
 function renderSettings(overrides?: Partial<ComponentProps<typeof SettingsScreen>>) {
   const onThemeChange = vi.fn();
+  const onClearRecent = vi.fn();
+  const onClearShortlist = vi.fn();
   render(
     <I18nextProvider i18n={i18nInstance}>
       <SettingsScreen
-        onClearRecent={vi.fn()}
-        onClearShortlist={vi.fn()}
+        onClearRecent={onClearRecent}
+        onClearShortlist={onClearShortlist}
         theme="light"
         onThemeChange={onThemeChange}
         {...overrides}
       />
     </I18nextProvider>,
   );
-  return { onThemeChange };
+  return { onThemeChange, onClearRecent, onClearShortlist };
 }
 
 describe('SettingsScreen accessibility semantics', () => {
@@ -62,5 +64,16 @@ describe('SettingsScreen accessibility semantics', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: /Dark|Donker/i }));
     expect(onThemeChange).toHaveBeenCalledWith('dark');
+  });
+
+  it('requires confirmation before clearing recent searches', () => {
+    const { onClearRecent } = renderSettings();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear recent searches' }));
+    expect(onClearRecent).not.toHaveBeenCalled();
+    expect(screen.getByTestId('confirm-sheet')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear now' }));
+    expect(onClearRecent).toHaveBeenCalledTimes(1);
   });
 });

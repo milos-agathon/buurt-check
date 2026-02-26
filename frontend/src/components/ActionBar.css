@@ -36,6 +36,11 @@
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
+.action-bar__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .action-bar__btn:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;

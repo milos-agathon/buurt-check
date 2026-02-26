@@ -5,23 +5,44 @@ import type { QuestionCategory, SeverityLevel } from '../types/api';
 import './ViewingChecklist.css';
 
 interface ViewingChecklistProps {
-  categories: QuestionCategory[];
+  categories?: QuestionCategory[];
   checkedQuestions: Set<string>;
   onToggleQuestion: (id: string) => void;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 function ViewingChecklist({
-  categories,
+  categories = [],
   checkedQuestions,
   onToggleQuestion,
+  error,
+  onRetry,
 }: ViewingChecklistProps) {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const isNl = i18n.language === 'nl';
 
   // Only show moderate or worse categories
   const visibleCategories = categories.filter(
     (c) => c.severity === 'moderate' || c.severity === 'poor' || c.severity === 'critical',
   );
+
+  if (error) {
+    return (
+      <div className="viewing-checklist viewing-checklist--error" data-testid="viewing-checklist">
+        <p className="viewing-checklist__error">{error}</p>
+        {onRetry && (
+          <button
+            type="button"
+            className="app__retry-button viewing-checklist__retry"
+            onClick={onRetry}
+          >
+            {t('error.retry', 'Retry')}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   if (visibleCategories.length === 0) return null;
 

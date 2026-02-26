@@ -105,6 +105,33 @@
   padding: var(--space-base);
 }
 
+.risk-detail__comparison-unavailable {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  align-items: flex-start;
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-card);
+  padding: var(--space-base);
+}
+
+.risk-detail__comparison-unavailable-text {
+  margin: 0;
+}
+
+.risk-detail__comparison-error {
+  margin: 0;
+  font: var(--type-micro);
+  color: var(--color-badge-caution-text);
+}
+
+.risk-detail__comparison-retry {
+  width: fit-content;
+}
+
 .risk-detail__comparison-row {
   display: flex;
   align-items: center;

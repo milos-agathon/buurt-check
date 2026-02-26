@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import QuartileDots from './ui/QuartileDots';
 import type { NeighborhoodStatsResponse, NeighborhoodIndicator, AgeProfile } from '../types/api';
+import SectionSkeleton from './SectionSkeleton';
 import './NeighborhoodStatsCard.css';
 
 interface Props {
@@ -84,9 +85,8 @@ function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
 
   if (loading) {
     return (
-      <section className="neighborhood-card">
-        <h2 className="neighborhood-card__title">{t('neighborhood.title')}</h2>
-        <p className="neighborhood-card__loading">{t('neighborhood.loading')}</p>
+      <section className="neighborhood-card" data-state="loading" aria-busy="true">
+        <SectionSkeleton variant="neighborhood-stats" />
       </section>
     );
   }

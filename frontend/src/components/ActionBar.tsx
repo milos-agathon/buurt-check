@@ -9,6 +9,8 @@ interface ActionBarProps {
   onAddToShortlist?: () => void;
   onExportBriefing?: () => void;
   showBookmarkTooltip?: boolean;
+  bookmarkPending?: boolean;
+  exportPending?: boolean;
 }
 
 type BookmarkAnimationState = 'saving' | 'removing' | null;
@@ -28,6 +30,8 @@ export default function ActionBar({
   onAddToShortlist,
   onExportBriefing,
   showBookmarkTooltip = false,
+  bookmarkPending = false,
+  exportPending = false,
 }: ActionBarProps) {
   const { t } = useTranslation();
   const [bookmarkAnimation, setBookmarkAnimation] = useState<BookmarkAnimationState>(null);
@@ -52,6 +56,7 @@ export default function ActionBar({
   }, []);
 
   const handleBookmarkClick = () => {
+    if (bookmarkPending) return;
     userTapped.current = true;
     onAddToShortlist?.();
   };
@@ -106,6 +111,8 @@ export default function ActionBar({
           className={`action-bar__btn action-bar__btn--secondary${isBookmarked ? ' action-bar__btn--saved' : ''}`}
           onClick={handleBookmarkClick}
           aria-pressed={isBookmarked}
+          disabled={bookmarkPending}
+          aria-busy={bookmarkPending || undefined}
         >
           <svg className={bookmarkIconClass} width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
             <path className="action-bar__bookmark-fill" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -127,11 +134,15 @@ export default function ActionBar({
         type="button"
         className="action-bar__btn action-bar__btn--primary"
         onClick={onExportBriefing}
+        disabled={exportPending}
+        aria-busy={exportPending || undefined}
       >
         <svg className="action-bar__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
         </svg>
-        {t('action.exportBriefing', 'Export Briefing')}
+        {exportPending
+          ? t('export.generating', 'Generating...')
+          : t('action.exportBriefing', 'Export Briefing')}
       </button>
     </div>
   );

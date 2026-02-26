@@ -9,7 +9,7 @@
   flex-direction: column;
   align-items: center;
   padding: 64px var(--space-lg) 0;
-  background: #ffffff;
+  background: var(--color-bg);
 }
 
 .loading-screen__address {
@@ -144,7 +144,7 @@
   width: 100%;
   height: 3px;
   border-radius: 999px;
-  background: #e2e7ed;
+  background: var(--color-border);
   overflow: hidden;
 }
 
