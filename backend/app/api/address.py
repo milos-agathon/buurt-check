@@ -87,6 +87,7 @@ async def address_suggest(
     try:
         suggestions = await locatieserver.suggest(q, limit)
     except Exception as exc:
+        logger.exception("address_suggest failed: %s", exc)
         raise HTTPException(status_code=502, detail="Address search unavailable") from exc
 
     await cache_set(
@@ -110,6 +111,7 @@ async def address_lookup(
     try:
         resolved = await locatieserver.lookup(id)
     except Exception as exc:
+        logger.exception("address_lookup failed: %s", exc)
         raise HTTPException(status_code=502, detail="Address lookup unavailable") from exc
 
     if resolved is None:
@@ -193,6 +195,7 @@ async def building_facts(
         metrics.record_latency("building", (time.monotonic() - t0) * 1000)
         raise HTTPException(status_code=422, detail="Building data unavailable") from exc
     except Exception as exc:
+        logger.exception("building_facts failed: %s", exc)
         metrics.inc("building.error")
         metrics.record_latency("building", (time.monotonic() - t0) * 1000)
         raise HTTPException(
@@ -236,6 +239,7 @@ async def building_3d(
             vbo_id=vbo_id,
         )
     except Exception as exc:
+        logger.exception("building_3d failed: %s", exc)
         raise HTTPException(
             status_code=502, detail="3D building data unavailable"
         ) from exc
@@ -273,6 +277,7 @@ async def neighborhood_3d(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="3D building data unavailable") from exc
     except Exception as exc:
+        logger.exception("neighborhood_3d failed: %s", exc)
         raise HTTPException(
             status_code=502, detail="3D building data unavailable"
         ) from exc
@@ -362,6 +367,7 @@ async def address_risk_cards(
             lng=lng,
         )
     except Exception as exc:
+        logger.exception("address_risk_cards failed: %s", exc)
         metrics.inc("risks.error")
         metrics.record_latency("risks", (time.monotonic() - t0) * 1000)
         raise HTTPException(status_code=502, detail="Risk card data sources unavailable") from exc
@@ -430,6 +436,7 @@ async def neighborhood_stats(
             buurt_code=buurt_code,
         )
     except Exception as exc:
+        logger.exception("neighborhood_stats failed: %s", exc)
         raise HTTPException(
             status_code=502, detail="CBS API unavailable"
         ) from exc
@@ -467,6 +474,7 @@ async def risk_comparisons(
                 lng=lng,
             )
         except Exception as exc:
+            logger.exception("risk_comparisons failed: %s", exc)
             raise HTTPException(
                 status_code=502,
                 detail="Risk card data sources unavailable",
@@ -543,6 +551,7 @@ async def viewing_questions(
                 lng=lng,
             )
         except Exception as exc:
+            logger.exception("viewing_questions failed: %s", exc)
             raise HTTPException(
                 status_code=502, detail="Risk card data sources unavailable"
             ) from exc
@@ -580,6 +589,7 @@ async def tier_b_signals(
             addition=addition,
         )
     except Exception as exc:
+        logger.exception("tier_b_signals failed: %s", exc)
         raise HTTPException(
             status_code=502,
             detail="Tier-B data sources unavailable",
@@ -671,7 +681,7 @@ async def address_property_warnings(
             municipality=municipality,
         )
     except Exception as exc:
-        logger.error("property_warnings failed vbo=%s: %s", vbo_id, exc)
+        logger.exception("property_warnings failed vbo=%s: %s", vbo_id, exc)
         raise HTTPException(
             status_code=502, detail="Property warnings fetch failed"
         ) from exc
