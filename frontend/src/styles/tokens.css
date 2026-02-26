@@ -100,6 +100,9 @@
   --color-compare-nl: #D1D5DB;        /* NL average (Light gray) */
   --color-compare-who: #E8913A;       /* WHO/EU limit (Amber) */
 
+  /* ── Colors: Thumb Badge ── */
+  --color-thumb-badge-bg: rgba(28, 45, 63, 0.86); /* Year badge on thumbnail */
+
   /* ── Colors: Misc ── */
   --color-backdrop: rgba(28, 45, 63, 0.48); /* Bottom sheet/modal backdrop */
   --color-toast-bg: #1C2D3F;       /* Toast background */
@@ -263,6 +266,9 @@
   --color-overlay-dark: rgba(0, 0, 0, 0.85);
   --color-overlay-text: #FFFFFF;
   --color-border-strong: var(--slate-200);
+
+  /* Thumb Badge — solid for OLED (semi-transparent on #000 is invisible) */
+  --color-thumb-badge-bg: #2E4459;
 
   /* Misc */
   --color-backdrop: rgba(0, 0, 0, 0.6);
