@@ -35,6 +35,7 @@
   "building.pandIdNote": "Official government building identifier (BAG)",
   "building.noBuilding": "No building data found for this address.",
   "building.source": "Source: BAG (Building & Address Registry)",
+  "address_header.change_address": "Change address",
   "building.loading": "Loading building facts...",
   "map.title": "Building Footprint",
   "map.aerialTitle": "Aerial photo",

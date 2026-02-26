@@ -35,6 +35,7 @@
   "building.pandIdNote": "Officieel overheidsidentificatienummer (BAG)",
   "building.noBuilding": "Geen gebouwgegevens gevonden voor dit adres.",
   "building.source": "Bron: BAG (Basisregistratie Adressen en Gebouwen)",
+  "address_header.change_address": "Ander adres",
   "building.loading": "Gebouwgegevens laden...",
   "map.title": "Gebouwcontour",
   "map.aerialTitle": "Luchtfoto",

@@ -2216,6 +2216,12 @@ function App() {
                       <AddressHeader
                         address={address}
                         building={buildingResponse?.building ?? undefined}
+                        onChangeAddress={() => {
+                          hapticTap();
+                          setActiveTab('home');
+                          setActiveScreen('search');
+                          setHashRoute('#/search');
+                        }}
                       />
                       {coverageSummary && (
                         <div className="app__coverage-strip">
