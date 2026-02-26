@@ -202,10 +202,21 @@ async function triggerViewer3DIntersection() {
  * Simulates selecting an address: type query, trigger debounce, click suggestion.
  * Uses fake timers briefly to advance the 300ms debounce, then restores real timers
  * so waitFor can poll normally for async state updates.
+ *
+ * If the search screen is not visible (e.g. we're on the dossier screen),
+ * navigates to the Home tab first so the combobox is rendered.
  */
 async function selectAddress() {
   const suggestion = makeSuggestion();
   mockSuggest.mockResolvedValue({ suggestions: [suggestion] });
+
+  // If on the dossier/briefing screen, navigate to Home tab first
+  if (!screen.queryByRole('combobox')) {
+    const homeTab = screen.getByRole('tab', { name: 'Home' });
+    await act(async () => {
+      fireEvent.click(homeTab);
+    });
+  }
 
   vi.useFakeTimers();
   const input = screen.getByRole('combobox');

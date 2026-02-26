@@ -750,31 +750,25 @@ function App() {
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab);
     if (tab === 'home') {
-      const hasDossier = !!address;
-      setActiveScreen(hasDossier ? 'dossier' : 'search');
-      if (hasDossier) {
-        setSheetSnap('half');
-        setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
-      } else {
-        setHashRoute('#/search');
-      }
+      setActiveScreen('search');
+      setHashRoute('#/search');
       return;
     }
     if (tab === 'briefing') {
       const hasDossier = !!address;
-      setActiveScreen(hasDossier ? 'dossier' : 'search');
+      setActiveScreen('dossier');
       if (hasDossier) {
         setSheetSnap('half');
         setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
       } else {
-        setHashRoute('#/search');
+        setHashRoute('#/briefing');
       }
     } else if (tab === 'saved') {
       setShortlistItems(getShortlist());
       setActiveScreen('shortlist');
       setHashRoute('#/saved');
     }
-  }, [activeLookupId, address, buildingResponse, dossierHash, setHashRoute]);
+  }, [activeLookupId, address, dossierHash, setHashRoute]);
 
   useEffect(() => {
     if (activeScreen !== 'dossier') {
@@ -1749,7 +1743,7 @@ function App() {
         return;
       }
       setActiveTab('home');
-      setActiveScreen(address && buildingResponse ? 'dossier' : 'search');
+      setActiveScreen('search');
     };
 
     if (!window.location.hash) {
@@ -2081,7 +2075,7 @@ function App() {
     : undefined;
 
   const showLoadingScreen = (
-    (activeScreen === 'search' || activeScreen === 'dossier')
+    activeScreen === 'dossier'
     && loading
     && !buildingResponse
     && !!pendingDisplayName
@@ -2099,16 +2093,28 @@ function App() {
 
       <main className="app__main" id="main-content" inert={isOverlayModalOpen || undefined}>
         <AnimatePresence initial={false} mode="wait">
-          {(activeScreen === 'search' || activeScreen === 'dossier') && (
+          {activeScreen === 'search' && (
             <motion.div
-              key={`screen-${activeScreen}`}
+              key="screen-search"
               className="app__screen"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-            {!showLoadingScreen && <AddressSearch onSelect={handleAddressSelect} shortlistCount={shortlistItems.length} onNavigateToSaved={handleNavigateToSaved} onNavigateToCompare={handleNavigateToCompare} />}
+              <AddressSearch onSelect={handleAddressSelect} shortlistCount={shortlistItems.length} onNavigateToSaved={handleNavigateToSaved} onNavigateToCompare={handleNavigateToCompare} />
+            </motion.div>
+          )}
+
+          {activeScreen === 'dossier' && (
+            <motion.div
+              key="screen-dossier"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
             {error && <p className="app__error">{error}</p>}
 
             {showLoadingScreen ? (
@@ -2118,6 +2124,25 @@ function App() {
                 step={loadingStep}
                 warningKey={loadingWarningKey}
               />
+            ) : !address ? (
+              <div className="app__briefing-empty">
+                <svg className="app__briefing-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" />
+                </svg>
+                <h2 className="app__briefing-empty-title">{t('nav.briefingEmptyTitle')}</h2>
+                <p className="app__briefing-empty-description">{t('nav.briefingEmptyDescription')}</p>
+                <button
+                  type="button"
+                  className="app__briefing-empty-action"
+                  onClick={() => {
+                    setActiveTab('home');
+                    setActiveScreen('search');
+                    setHashRoute('#/search');
+                  }}
+                >
+                  {t('nav.briefingEmptyAction')}
+                </button>
+              </div>
             ) : (
               <ErrorBoundary fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
               <Suspense fallback={null}>
@@ -2705,7 +2730,6 @@ function App() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         savedCount={shortlistItems.length}
-        hasDossier={!!address}
         inert={isOverlayModalOpen || undefined}
       />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
