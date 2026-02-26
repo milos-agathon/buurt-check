@@ -246,6 +246,8 @@
   "snapshots.morning": "Morning",
   "snapshots.noon": "Noon",
   "snapshots.evening": "Evening",
+  "snapshots.expandLabel": "View full size",
+  "snapshots.closeLabel": "Close full size view",
   "snapshots.source": "Source: 3DBAG (Dutch 3D Buildings) + SunCalc (indicative)",
   "overlays.layers": "Layers",
   "overlays.opacity": "Opacity",

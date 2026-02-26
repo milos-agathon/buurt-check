@@ -246,6 +246,8 @@
   "snapshots.morning": "Ochtend",
   "snapshots.noon": "Middag",
   "snapshots.evening": "Avond",
+  "snapshots.expandLabel": "Bekijk op volledig formaat",
+  "snapshots.closeLabel": "Sluit volledige weergave",
   "snapshots.source": "Bron: 3DBAG (Nationaal 3D Gebouwenbestand) + SunCalc (indicatief)",
   "overlays.layers": "Lagen",
   "overlays.opacity": "Transparantie",
