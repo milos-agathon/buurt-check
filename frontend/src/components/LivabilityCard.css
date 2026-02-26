@@ -69,12 +69,13 @@
 }
 
 .livability-card__score-value {
-  font: 700 24px/1 var(--font-family);
+  font: var(--type-data);
+  font-weight: 700;
+  line-height: 1;
 }
 
 .livability-card__score-value .animated-score__scale {
-  font-family: var(--font-family);
-  font-size: 11px;
+  font: var(--type-micro);
   font-weight: 500;
   line-height: 1;
   color: var(--color-text-secondary);

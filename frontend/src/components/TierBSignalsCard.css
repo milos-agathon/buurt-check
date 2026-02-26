@@ -104,9 +104,8 @@
 }
 
 .tier-b-card__metric-suffix {
-  font-weight: 400;
+  font: var(--type-micro);
   color: var(--color-text-tertiary);
-  font-size: 11px;
 }
 
 .tier-b-card__note {
