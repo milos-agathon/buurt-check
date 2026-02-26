@@ -1,8 +1,8 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import QuartileDots from './ui/QuartileDots';
+import SectionSkeleton from './ui/SectionSkeleton';
 import type { NeighborhoodStatsResponse, NeighborhoodIndicator, AgeProfile } from '../types/api';
-import SectionSkeleton from './SectionSkeleton';
 import './NeighborhoodStatsCard.css';
 
 interface Props {

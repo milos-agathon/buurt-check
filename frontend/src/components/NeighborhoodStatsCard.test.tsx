@@ -32,7 +32,7 @@ function renderCard(
 }
 
 describe('NeighborhoodStatsCard', () => {
-  it('shows loading state', () => {
+  it('shows loading skeleton', () => {
     renderCard({ loading: true });
     expect(screen.getByTestId('section-skeleton-neighborhood-stats')).toBeInTheDocument();
   });

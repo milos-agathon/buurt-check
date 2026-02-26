@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LivabilityResponse, SeverityLevel } from '../types/api';
 import AnimatedScore from './ui/AnimatedScore';
-import SectionSkeleton from './SectionSkeleton';
+import SectionSkeleton from './ui/SectionSkeleton';
 import './LivabilityCard.css';
 
 interface Props {

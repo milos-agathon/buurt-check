@@ -49,3 +49,41 @@
 ## Links to Topic Files
 
 - See `patterns.md` for more detail on Three.js instrumentation patterns.
+
+## Resilience & Concurrent Safety Patterns (2026-02-25)
+
+### Three Race Conditions Fixed in App.tsx
+
+**A — Re-entrant async (rapid shortlist taps):** `abortControllerRef.current?.abort()` at top of `handleAddressSelect`, new controller created each call. Prevents duplicate API chains.
+
+**B — Double-tap synchronous ops:** `isBookmarking`/`isExporting` boolean state guards. Check `if (isBookmarking) return;` at top, `setX(true)` before operation, `setX(false)` in `finally`. Pass as props to disable buttons in `ActionBar`.
+
+**C — Post-await screen staleness:** `activeScreenRef` synced via `useEffect`. After any `await`, check `activeScreenRef.current !== 'dossier'` before updating screen state. Without this, backgrounded lookups can overwrite the current screen.
+
+### Timer Cleanup Pattern
+
+All `setTimeout`/`setInterval`/`requestAnimationFrame` IDs must be stored in `useRef`, not component state. Clear in:
+1. `useEffect` cleanup return
+2. On address reset (`handleAddressSelect` start)
+3. On component unmount
+
+Missing cleanup found in: Three.js pulse animation (`pulseTimerRef`), Toast timers, basemap `img.onload` callbacks.
+
+### Error State Standard
+
+Every async-fetched section follows this pattern in App.tsx:
+```ts
+const [xError, setXError] = useState<string | null>(null);
+// On fetch: setXError(null); try { fetch } catch(err) { setXError(mapApiError(err, t)); }
+// Pass to component: <Comp error={xError} onRetry={handleRetryX} />
+// On address reset: setXError(null);
+```
+Components that previously had NO error state and were silently failing: `NeighborhoodViewer3D`, `ViewingChecklist`, `RiskDetailView`, `BuildingFactsCard`.
+
+### Scroll Position Restoration
+
+`scrollPositionsRef = useRef<Map<string, number>>(new Map())`. Save before tab change (use `getDossierScrollContainer()?.scrollTop` for internal scroll, `window.scrollY` for others). Restore in `requestAnimationFrame` callback after tab change.
+
+### sessionStorage Pattern
+
+`checklistStorage.ts` service: key `checklist:{vboId}`, stores `Set<string>` as JSON array. Load on address open, save on every toggle. Session-scoped only. This pattern applies to any per-address transient state.

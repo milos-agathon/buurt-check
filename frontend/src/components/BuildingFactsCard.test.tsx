@@ -25,13 +25,15 @@ function renderCard(
 }
 
 describe('loading state', () => {
-  it('shows building facts skeleton when loading=true', () => {
+  it('shows skeleton when loading=true', () => {
     renderCard(undefined, true, 'en');
+    expect(screen.getByTestId('building-facts-skeleton')).toBeInTheDocument();
     expect(screen.getByTestId('section-skeleton-building-facts')).toBeInTheDocument();
   });
 
-  it('shows same skeleton in Dutch when loading=true', () => {
+  it('shows skeleton in Dutch mode too', () => {
     renderCard(undefined, true, 'nl');
+    expect(screen.getByTestId('building-facts-skeleton')).toBeInTheDocument();
     expect(screen.getByTestId('section-skeleton-building-facts')).toBeInTheDocument();
   });
 });

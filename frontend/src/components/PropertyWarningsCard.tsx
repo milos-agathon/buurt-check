@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PropertyWarningsResponse, SeverityLevel } from '../types/api';
 import SeverityBadge from './ui/SeverityBadge';
-import SectionSkeleton from './SectionSkeleton';
+import SectionSkeleton from './ui/SectionSkeleton';
 import './PropertyWarningsCard.css';
 
 interface Props {

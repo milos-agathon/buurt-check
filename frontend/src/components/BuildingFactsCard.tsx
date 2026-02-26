@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BuildingFacts } from '../types/api';
-import SectionSkeleton from './SectionSkeleton';
+import SectionSkeleton from './ui/SectionSkeleton';
 import './BuildingFactsCard.css';
 
 interface Props {
@@ -17,7 +17,7 @@ function BuildingFactsCard({ building, loading, error, onRetry }: Props) {
 
   if (loading) {
     return (
-      <div className="building-card" data-state="loading" aria-busy="true">
+      <div className="building-card" data-testid="building-facts-skeleton" data-state="loading" aria-busy="true">
         <SectionSkeleton variant="building-facts" />
       </div>
     );

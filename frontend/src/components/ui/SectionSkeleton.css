@@ -1,0 +1,120 @@
+/* ── Shared section skeleton layout ── */
+
+.section-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.section-skeleton__source {
+  margin-top: var(--space-xs);
+}
+
+.section-skeleton__badge {
+  border-radius: var(--radius-pill);
+}
+
+/* ── Building Facts skeleton ── */
+
+.section-skeleton--building-facts {
+  padding: var(--space-base);
+}
+
+.section-skeleton__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px var(--space-lg);
+}
+
+.section-skeleton__row {
+  display: contents;
+}
+
+/* ── Property Warnings skeleton ── */
+
+.section-skeleton--property-warnings {
+  gap: var(--space-sm);
+}
+
+.section-skeleton__warning-card {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-sm) - 2px);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  border-left: 3px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* ── Livability skeleton ── */
+
+.section-skeleton--livability {
+  padding: var(--space-md);
+  gap: calc(var(--space-sm) - 2px);
+}
+
+.section-skeleton__livability-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.section-skeleton__score-box {
+  border-radius: var(--radius-card);
+  flex-shrink: 0;
+}
+
+.section-skeleton__livability-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  flex: 1;
+  min-width: 0;
+}
+
+.section-skeleton__dimensions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.section-skeleton__dimension-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.section-skeleton__dimension-track {
+  flex: 1;
+}
+
+/* ── Neighborhood Stats skeleton ── */
+
+.section-skeleton--neighborhood-stats {
+  padding: var(--space-md);
+}
+
+.section-skeleton__ns-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.section-skeleton__ns-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.section-skeleton__ns-indicator {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 40px;
+  padding: var(--space-sm);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+}
