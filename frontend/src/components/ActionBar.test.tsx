@@ -178,4 +178,27 @@ describe('ActionBar', () => {
     const { getByTestId } = renderActionBar();
     expect(getByTestId('action-bar')).toBeInTheDocument();
   });
+
+  it('applies visible class and aria-hidden=false when visible', () => {
+    const { getByTestId } = renderActionBar({ visible: true });
+    const bar = getByTestId('action-bar');
+    expect(bar).toHaveClass('action-bar--visible');
+    expect(bar).not.toHaveClass('action-bar--hidden');
+    expect(bar).toHaveAttribute('aria-hidden', 'false');
+  });
+
+  it('applies hidden class and aria-hidden=true when not visible', () => {
+    const { getByTestId } = renderActionBar({ visible: false });
+    const bar = getByTestId('action-bar');
+    expect(bar).toHaveClass('action-bar--hidden');
+    expect(bar).not.toHaveClass('action-bar--visible');
+    expect(bar).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('defaults to visible=true', () => {
+    const { getByTestId } = renderActionBar();
+    const bar = getByTestId('action-bar');
+    expect(bar).toHaveClass('action-bar--visible');
+    expect(bar).toHaveAttribute('aria-hidden', 'false');
+  });
 });

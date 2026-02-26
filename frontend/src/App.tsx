@@ -511,6 +511,12 @@ function App() {
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [exportGenerating, setExportGenerating] = useState(false);
 
+  // ActionBar visibility: shown when ViewingChecklist section enters viewport
+  // or user has scrolled past 75% of dossier content.
+  const [actionBarVisible, setActionBarVisible] = useState(false);
+  const actionBarObserverRef = useRef<IntersectionObserver | null>(null);
+  const actionBarSentinelRef = useRef<HTMLDivElement | null>(null);
+
   // When an overlay modal (e.g. ExportBottomSheet) is open, mark background
   // content as inert so screen readers cannot access it (WCAG best practice).
   const isOverlayModalOpen = exportSheetOpen;
@@ -1310,6 +1316,46 @@ function App() {
     };
   }, []);
 
+  // ActionBar visibility — IntersectionObserver on ViewingChecklist sentinel.
+  // Shows ActionBar when user scrolls near the checklist section or past 75% of dossier.
+  const actionBarSentinelRefCallback = useCallback((node: HTMLDivElement | null) => {
+    if (actionBarObserverRef.current) {
+      actionBarObserverRef.current.disconnect();
+      actionBarObserverRef.current = null;
+    }
+
+    actionBarSentinelRef.current = node;
+
+    if (!node) {
+      // Sentinel removed from DOM — hide ActionBar
+      setActionBarVisible(false);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          setActionBarVisible(entry.isIntersecting);
+        }
+      },
+      // rootMargin: trigger when section is within 200px of the viewport bottom
+      { rootMargin: '200px 0px' },
+    );
+
+    observer.observe(node);
+    actionBarObserverRef.current = observer;
+  }, []);
+
+  // Clean up ActionBar observer on unmount
+  useEffect(() => {
+    return () => {
+      if (actionBarObserverRef.current) {
+        actionBarObserverRef.current.disconnect();
+        actionBarObserverRef.current = null;
+      }
+    };
+  }, []);
+
   const handleAddressSelect = useCallback(async (suggestion: AddressSuggestion) => {
     addressRequestAbortRef.current?.abort();
     const requestAbortController = new AbortController();
@@ -1337,6 +1383,7 @@ function App() {
       viewer3DObserverRef.current.disconnect();
       viewer3DObserverRef.current = null;
     }
+    setActionBarVisible(false);
     setRiskCards(null);
     setRiskComparisons(null);
     setRiskComparisonsError(null);
@@ -2146,7 +2193,7 @@ function App() {
             ) : (
               <ErrorBoundary fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
               <Suspense fallback={null}>
-              <DossierSheet snap={sheetSnap}>
+              <DossierSheet snap={sheetSnap} actionBarVisible={actionBarVisible}>
                 {address && showDossierJump && (
                   <div className="app__dossier-jump-nav">
                     <div className="app__dossier-jump-header">
@@ -2511,7 +2558,7 @@ function App() {
                     </div>
                     <p className="app__phase-divider-subtitle">{t('dossier.actionSubtitle')}</p>
                   </div>
-                  <div className="dossier-section" style={dossierSectionStyle(12)} data-section-index={12}>
+                  <div ref={actionBarSentinelRefCallback} className="dossier-section" style={dossierSectionStyle(12)} data-section-index={12}>
                     <section role="region" aria-label={t('nav.jumpBriefing')}>
                       <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
                       <ViewingChecklist
@@ -2607,6 +2654,7 @@ function App() {
                       showBookmarkTooltip={!!address}
                       bookmarkPending={loading || buildingLoading}
                       exportPending={exportGenerating}
+                      visible={actionBarVisible}
                     />
                   </div>
                 )}

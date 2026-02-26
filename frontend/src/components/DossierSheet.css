@@ -18,5 +18,5 @@
   flex-direction: column;
   gap: var(--space-base);
   overflow: visible;
-  padding: 0 var(--space-base) calc(var(--tab-bar-height, 56px) + var(--action-bar-height, 64px) + env(safe-area-inset-bottom, 0px) + var(--space-lg));
+  padding: 0 var(--space-base) calc(var(--tab-bar-height, 56px) + var(--dossier-action-bar-offset, 0px) + env(safe-area-inset-bottom, 0px) + var(--space-lg));
 }
