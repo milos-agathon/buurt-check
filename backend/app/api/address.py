@@ -701,11 +701,12 @@ class ExportRequest(BaseModel):
     rd_y: float
     lat: float
     lng: float
-    address: str
+    address: str = Field(max_length=500)
     template: str = "quick_brief"
     language: str = "en"
     shadow_image_b64: str | None = Field(
         default=None,
+        max_length=2_000_000,
         validation_alias=AliasChoices("shadow_image_b64", "shadow_image"),
     )
     street: str | None = None
