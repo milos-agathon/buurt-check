@@ -46,6 +46,16 @@
 - Test C (near-ring skip test): checks URL pattern `bbox=120897,486897` for 108m near-ring at rd_x=121005, rd_y=487005. Math: max(120*0.9, 100)=108; 121005-108=120897, 487005-108=486897. ✅
 - Stale comment at `test_three_d_bag.py` line 1169: "Target + 1 neighbor from Q0" — "Q0" is meaningless in conservative-only test context. Minor but misleading.
 
+## slowapi Rate Limiting Patterns (Task 8.6, 2026-02-26)
+
+- **Middleware + decorator architecture:** SlowAPIMiddleware (outermost) handles default limits. `@limiter.limit()` decorator handles route-specific limits. No double-counting because `_check_request_limit(in_middleware=True)` skips route limits for `__marked_for_limiting` routes.
+- **`override_defaults=True` is default:** Route-specific `@limiter.limit('N/minute')` REPLACES the default limit, not adds to it. Endpoints without decorator use default 20/min.
+- **`app.add_exception_handler(RateLimitExceeded, ...)` handles decorator-path 429s** (when limit exceeded inside route handler). SlowAPIMiddleware handles its own 429s via `sync_check_limits` + `_rate_limit_exceeded_handler` directly (falls back from async exception handler).
+- **`get_remote_address` does NOT read X-Forwarded-For.** Behind a reverse proxy, all clients share the proxy's IP. Production fix: add uvicorn's `ProxyHeadersMiddleware` to populate `request.client.host` correctly. `slowapi.util.get_ipaddr` is NOT a safe alternative (uses `X_FORWARDED_FOR` key with underscores, which Starlette does not match against `x-forwarded-for` headers).
+- **`limiter.reset()` autouse fixture:** Default scope is `function`. Double reset (autouse + test-local fixture) is harmless. Reset is sync -- no async needed.
+- **Export endpoints do NOT need `response: Response` param** for header injection: when the route handler returns an explicit `fastapi.responses.Response` instance, the decorator injects headers directly into it. `response: Response` FastAPI injection param is only needed when the handler returns a dict (FastAPI creates the Response internally).
+- **`_do_export_briefing` extraction is correct:** Removes code duplication between POST and GET export endpoints without breaking rate limiting (each route handler still has `request: Request` and `@limiter.limit` decorator).
+
 ## Links to Topic Files
 
 - See `patterns.md` for more detail on Three.js instrumentation patterns.

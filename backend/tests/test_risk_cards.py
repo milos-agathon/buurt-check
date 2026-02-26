@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -6,7 +7,9 @@ from app.models.risk import AirQualityRiskCard, ClimateStressRiskCard, NoiseRisk
 from app.services.risk_cards import (
     _CLIMATE_HEAT_LAYERS,
     _CLIMATE_WATER_LAYERS,
+    _PER_CARD_TIMEOUT_SECONDS,
     _build_air_card,
+    _build_card_with_timeout,
     _build_climate_card,
     _build_noise_card,
     _classify_heat_from_properties,
@@ -408,3 +411,142 @@ async def test_build_noise_card_filters_sentinel(mock_layers, mock_sample):
 
     assert card.level == RiskLevel.unavailable
     assert card.lden_db is None
+
+
+# ---------------------------------------------------------------------------
+# Per-card timeout tests
+# ---------------------------------------------------------------------------
+
+
+def test_per_card_timeout_constant_within_backend_budget():
+    """Per-card timeout must fit within the 20s backend budget."""
+    assert _PER_CARD_TIMEOUT_SECONDS <= 20.0
+    assert _PER_CARD_TIMEOUT_SECONDS > 0
+
+
+@pytest.mark.asyncio
+async def test_build_card_with_timeout_returns_result_on_success():
+    """When coroutine finishes in time, return the real result."""
+
+    async def fast_coro():
+        return "real_result"
+
+    fallback = "fallback"
+    result = await _build_card_with_timeout(fast_coro(), fallback, "test")
+    assert result == "real_result"
+
+
+@pytest.mark.asyncio
+async def test_build_card_with_timeout_returns_fallback_on_timeout():
+    """When coroutine exceeds timeout, return the fallback card."""
+    from app.services import risk_cards
+
+    async def slow_coro():
+        await asyncio.sleep(100)  # Way longer than any timeout
+        return "should_not_reach"
+
+    fallback = "timeout_fallback"
+
+    with patch.object(risk_cards, "_PER_CARD_TIMEOUT_SECONDS", 0.05):
+        result = await _build_card_with_timeout(slow_coro(), fallback, "test")
+
+    assert result == "timeout_fallback"
+
+
+@pytest.mark.asyncio
+@patch("app.services.risk_cards._build_noise_card", new_callable=AsyncMock)
+@patch("app.services.risk_cards._build_air_card", new_callable=AsyncMock)
+@patch("app.services.risk_cards._build_climate_card", new_callable=AsyncMock)
+async def test_get_risk_cards_timeout_on_one_card(mock_climate, mock_air, mock_noise):
+    """When one card times out, other cards still return real data."""
+    from app.services import risk_cards
+
+    # Noise will be slow (exceed timeout)
+    async def slow_noise(*args, **kwargs):
+        await asyncio.sleep(100)
+        return NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=50.0,
+            source="RIVM (Dutch National Health Institute)",
+            sampled_at="2026-02-05",
+        )
+
+    mock_noise.side_effect = slow_noise
+
+    # Air and climate return normally
+    mock_air.return_value = AirQualityRiskCard(
+        level=RiskLevel.medium,
+        pm25_ug_m3=8.0,
+        no2_ug_m3=17.0,
+        pm25_level=RiskLevel.medium,
+        no2_level=RiskLevel.medium,
+        source="RIVM GCN WMS",
+        sampled_at="2026-02-05",
+    )
+    mock_climate.return_value = ClimateStressRiskCard(
+        level=RiskLevel.high,
+        heat_level=RiskLevel.high,
+        water_level=RiskLevel.medium,
+        source="Klimaateffectatlas WMS/WFS",
+        sampled_at="2026-02-05",
+    )
+
+    with patch.object(risk_cards, "_PER_CARD_TIMEOUT_SECONDS", 0.05):
+        resp = await get_risk_cards(
+            vbo_id="0363010000696734",
+            rd_x=121286.0,
+            rd_y=487296.0,
+            lat=52.372,
+            lng=4.892,
+        )
+
+    # Noise card should be unavailable due to timeout
+    assert resp.noise.level == RiskLevel.unavailable
+    assert resp.noise.message == "NOISE_TIMEOUT"
+
+    # Air and climate should have real data
+    assert resp.air_quality.level == RiskLevel.medium
+    assert resp.climate_stress.level == RiskLevel.high
+
+
+@pytest.mark.asyncio
+@patch("app.services.risk_cards._build_noise_card", new_callable=AsyncMock)
+@patch("app.services.risk_cards._build_air_card", new_callable=AsyncMock)
+@patch("app.services.risk_cards._build_climate_card", new_callable=AsyncMock)
+async def test_get_risk_cards_all_cards_timeout(mock_climate, mock_air, mock_noise):
+    """When all cards time out, all return unavailable with timeout messages."""
+    from app.services import risk_cards
+
+    async def slow(*args, **kwargs):
+        await asyncio.sleep(100)
+
+    mock_noise.side_effect = slow
+    mock_air.side_effect = slow
+    mock_climate.side_effect = slow
+
+    with patch.object(risk_cards, "_PER_CARD_TIMEOUT_SECONDS", 0.05):
+        resp = await get_risk_cards(
+            vbo_id="0363010000696734",
+            rd_x=121286.0,
+            rd_y=487296.0,
+            lat=52.372,
+            lng=4.892,
+        )
+
+    assert resp.noise.level == RiskLevel.unavailable
+    assert resp.noise.message == "NOISE_TIMEOUT"
+    assert resp.air_quality.level == RiskLevel.unavailable
+    assert resp.air_quality.message == "AIR_TIMEOUT"
+    assert resp.climate_stress.level == RiskLevel.unavailable
+    assert resp.climate_stress.message == "CLIMATE_TIMEOUT"
+
+
+@pytest.mark.asyncio
+async def test_build_card_with_timeout_does_not_swallow_non_timeout_errors():
+    """Non-timeout exceptions should propagate, not be silently caught."""
+
+    async def error_coro():
+        raise ValueError("not a timeout")
+
+    with pytest.raises(ValueError, match="not a timeout"):
+        await _build_card_with_timeout(error_coro(), "fallback", "test")

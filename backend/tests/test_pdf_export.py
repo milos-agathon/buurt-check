@@ -764,6 +764,64 @@ async def test_export_endpoint_invalid_vbo_id(client):
 
 
 # ---------------------------------------------------------------------------
+# Payload size limit tests (Task 8.3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_export_rejects_oversized_address(client):
+    """Address exceeding max_length=500 returns 422."""
+    resp = await client.post(
+        "/api/address/0363010012345678/export",
+        json={
+            "rd_x": 121000,
+            "rd_y": 487000,
+            "lat": 52.37,
+            "lng": 4.89,
+            "address": "A" * 501,
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_export_accepts_max_length_address(client):
+    """Address exactly at max_length=500 is accepted (not rejected)."""
+    # We only need to verify Pydantic accepts it — the endpoint will
+    # proceed but may fail later on service mocks; 422 from validation
+    # is the thing we do NOT want.
+    resp = await client.post(
+        "/api/address/0363010012345678/export",
+        json={
+            "rd_x": 121000,
+            "rd_y": 487000,
+            "lat": 52.37,
+            "lng": 4.89,
+            "address": "A" * 500,
+        },
+    )
+    # Should NOT be 422 from validation — may be 200 or 500 depending on mocks
+    assert resp.status_code != 422
+
+
+@pytest.mark.asyncio
+async def test_export_rejects_oversized_shadow_image(client):
+    """shadow_image_b64 exceeding max_length=2_000_000 returns 422."""
+    resp = await client.post(
+        "/api/address/0363010012345678/export",
+        json={
+            "rd_x": 121000,
+            "rd_y": 487000,
+            "lat": 52.37,
+            "lng": 4.89,
+            "address": "Test",
+            "shadow_image_b64": "A" * 2_000_001,
+        },
+    )
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
 # Targeted endpoint assertions (Finding 7)
 # ---------------------------------------------------------------------------
 

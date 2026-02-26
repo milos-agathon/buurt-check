@@ -1316,3 +1316,26 @@ async def test_property_warnings_cache_key_uses_casefold(
     assert "straße" not in cache_key, (
         f"Cache key should NOT contain non-casefolded 'ß', got: '{cache_key}'"
     )
+
+
+# --- Livability endpoint ---
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_livability_returns_502_on_unhandled_exception(
+    mock_cache_set, mock_cache_get, client,
+):
+    """If get_livability() raises unexpectedly, endpoint returns 502."""
+    with patch(
+        "app.api.address.leefbaarometer.get_livability",
+        new_callable=AsyncMock,
+        side_effect=ValueError("non-numeric kscore"),
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/livability",
+            params={"rd_x": "121286", "rd_y": "487296"},
+        )
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "Livability data unavailable"

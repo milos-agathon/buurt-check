@@ -4,9 +4,13 @@ import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.router import router
 from app.config import settings
+from app.rate_limit import limiter
 
 _access = logging.getLogger("buurt.access")
 
@@ -16,6 +20,9 @@ app = FastAPI(
     description="Pre-viewing intelligence for property buyers in the Netherlands",
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -24,6 +31,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+# SlowAPIMiddleware added last = outermost, so GZip can still measure response
+# sizes before compressing (SlowAPIMiddleware StreamingResponse wrapping doesn't
+# interfere with GZip's minimum_size check).
+app.add_middleware(SlowAPIMiddleware)
 
 app.include_router(router)
 
