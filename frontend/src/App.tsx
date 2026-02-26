@@ -21,7 +21,6 @@ const BuildingFactsCard = lazy(() => import('./components/BuildingFactsCard'));
 const SunlightRiskCard = lazy(() => import('./components/SunlightRiskCard'));
 const ShadowTimeSlider = lazy(() => import('./components/ShadowTimeSlider'));
 const ShadowSnapshots = lazy(() => import('./components/ShadowSnapshots'));
-const RiskCardsPanel = lazy(() => import('./components/RiskCardsPanel'));
 const RiskTilesGrid = lazy(() => import('./components/RiskTilesGrid'));
 const RiskDetailView = lazy(() => import('./components/RiskDetailView'));
 const NeighborhoodStatsCard = lazy(() => import('./components/NeighborhoodStatsCard'));
@@ -2253,19 +2252,11 @@ function App() {
                         {(riskLoading || riskCards || riskError || activeDetailCategory) && (
                           <LayoutGroup>
                             {(riskLoading || riskCards || riskError) && (
-                              <>
-                                <RiskTilesGrid
-                                  risks={riskCards ?? undefined}
-                                  sunlight={sunlight ?? undefined}
-                                  onTileTap={handleRiskTileTap}
-                                />
-                                <RiskCardsPanel
-                                  risks={riskCards ?? undefined}
-                                  loading={riskLoading}
-                                  error={riskError}
-                                  onRetry={riskError ? handleRetryRiskCards : undefined}
-                                />
-                              </>
+                              <RiskTilesGrid
+                                risks={riskCards ?? undefined}
+                                sunlight={sunlight ?? undefined}
+                                onTileTap={handleRiskTileTap}
+                              />
                             )}
                             <AnimatePresence initial={false} mode="wait">
                               {activeDetailCategory && (() => {
