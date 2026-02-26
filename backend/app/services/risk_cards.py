@@ -718,6 +718,62 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
         )
 
 
+_PER_CARD_TIMEOUT_SECONDS = 18.0
+
+
+def _noise_timeout_card(sampled_at: str) -> NoiseRiskCard:
+    """Return an unavailable noise card for timeout scenarios."""
+    return NoiseRiskCard(
+        level=RiskLevel.unavailable,
+        source="RIVM (Dutch National Health Institute)",
+        sampled_at=sampled_at,
+        message="NOISE_TIMEOUT",
+    )
+
+
+def _air_timeout_card(sampled_at: str) -> AirQualityRiskCard:
+    """Return an unavailable air quality card for timeout scenarios."""
+    return AirQualityRiskCard(
+        level=RiskLevel.unavailable,
+        source="RIVM (Dutch National Health Institute)",
+        sampled_at=sampled_at,
+        message="AIR_TIMEOUT",
+    )
+
+
+def _climate_timeout_card(sampled_at: str) -> ClimateStressRiskCard:
+    """Return an unavailable climate card for timeout scenarios."""
+    return ClimateStressRiskCard(
+        level=RiskLevel.unavailable,
+        source="Klimaateffectatlas (Dutch Climate Atlas)",
+        sampled_at=sampled_at,
+        message="CLIMATE_TIMEOUT",
+    )
+
+
+async def _build_card_with_timeout(
+    coro,
+    timeout_card,
+    card_name: str,
+):
+    """Wrap a card-builder coroutine in a per-card timeout.
+
+    If the coroutine exceeds *_PER_CARD_TIMEOUT_SECONDS*, log a warning and
+    return *timeout_card* (an unavailable card) instead of propagating the
+    TimeoutError.  This ensures that slow external APIs degrade one card at a
+    time while the other cards still return data.
+    """
+    try:
+        return await asyncio.wait_for(coro, timeout=_PER_CARD_TIMEOUT_SECONDS)
+    except TimeoutError:
+        logger.warning(
+            "risk_card_timeout card=%s timeout=%.1fs",
+            card_name,
+            _PER_CARD_TIMEOUT_SECONDS,
+        )
+        return timeout_card
+
+
 async def get_risk_cards(
     *,
     vbo_id: str,
@@ -732,9 +788,21 @@ async def get_risk_cards(
 
     start = time.monotonic()
     noise_card, air_card, climate_card = await asyncio.gather(
-        _build_noise_card(rd_x, rd_y, sampled_at),
-        _build_air_card(rd_x, rd_y, sampled_at),
-        _build_climate_card(rd_x, rd_y, sampled_at),
+        _build_card_with_timeout(
+            _build_noise_card(rd_x, rd_y, sampled_at),
+            _noise_timeout_card(sampled_at),
+            "noise",
+        ),
+        _build_card_with_timeout(
+            _build_air_card(rd_x, rd_y, sampled_at),
+            _air_timeout_card(sampled_at),
+            "air",
+        ),
+        _build_card_with_timeout(
+            _build_climate_card(rd_x, rd_y, sampled_at),
+            _climate_timeout_card(sampled_at),
+            "climate",
+        ),
     )
     total_ms = (time.monotonic() - start) * 1000
 
