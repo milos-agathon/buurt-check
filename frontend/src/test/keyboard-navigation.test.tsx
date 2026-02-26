@@ -25,7 +25,7 @@ describe('Keyboard navigation', () => {
   it('TabBar tabs can be activated with keyboard', async () => {
     const user = userEvent.setup();
     const onTabChange = vi.fn();
-    renderWithI18n(<TabBar activeTab="home" onTabChange={onTabChange} savedCount={2} hasDossier />);
+    renderWithI18n(<TabBar activeTab="home" onTabChange={onTabChange} savedCount={2} />);
 
     await user.tab();
     expect(screen.getByRole('tab', { name: 'Home' })).toHaveFocus();
@@ -33,7 +33,7 @@ describe('Keyboard navigation', () => {
     expect(onTabChange).toHaveBeenCalledWith('home');
 
     await user.tab();
-    expect(screen.getByRole('tab', { name: 'Viewing checklist' })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: 'Briefing' })).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(onTabChange).toHaveBeenCalledWith('briefing');
 

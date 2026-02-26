@@ -13,31 +13,10 @@
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
 }
 
-.dossier-sheet__handle {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-sm) 0 var(--space-3xs);
-  cursor: grab;
-}
-
-.dossier-sheet__handle-pill {
-  width: 36px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--color-text-tertiary);
-  opacity: 0.5;
-  transition: opacity var(--transition-fast), width var(--transition-fast);
-}
-
-.dossier-sheet__handle:hover .dossier-sheet__handle-pill {
-  opacity: 0.8;
-  width: 48px;
-}
-
 .dossier-sheet__content {
   display: flex;
   flex-direction: column;
   gap: var(--space-base);
   overflow: visible;
-  padding: 0 var(--space-base) calc(var(--tab-bar-height, 56px) + var(--action-bar-height, 64px) + env(safe-area-inset-bottom, 0px) + var(--space-lg));
+  padding: 0 var(--space-base) calc(var(--tab-bar-height, 56px) + var(--dossier-action-bar-offset, 0px) + env(safe-area-inset-bottom, 0px) + var(--space-lg));
 }

@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LivabilityResponse, RiskCardsResponse, PropertyWarningsResponse } from '../types/api';
 import './AttentionSummary.css';
@@ -81,6 +81,7 @@ function computeFlags(
 
 function AttentionSummary({ riskCards, warnings, sunlightScore, livability }: Props) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(true);
 
   const { flags, assessed } = useMemo(
     () => computeFlags(riskCards, warnings, sunlightScore, livability),
@@ -103,39 +104,65 @@ function AttentionSummary({ riskCards, warnings, sunlightScore, livability }: Pr
 
   return (
     <div className={`attention-summary attention-summary--${badgeVariant}`} data-testid="attention-summary">
-      <span className={`attention-summary__badge attention-summary__badge--${badgeVariant}`}>
-        {badgeText}
-      </span>
-
-      {flags.length > 0 && (
-        <ul className="attention-summary__flags" data-testid="attention-flags">
-          {flags.map((f) => (
-            <li key={f.category} className={`attention-summary__flag attention-summary__flag--${f.severity}`}>
-              {t(`risk.category.${f.category}`, {
-                defaultValue: t(`warnings.attention.flag.${f.category}`, {
-                  defaultValue: f.category,
-                }),
-              })}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {flags.length === 0 && assessed > 0 && (
-        <span className="attention-summary__detail" data-testid="attention-detail">
-          {t('warnings.attention.no_flags_detail')}
+      <button
+        type="button"
+        className="attention-summary__toggle"
+        onClick={() => setExpanded(prev => !prev)}
+        aria-expanded={expanded}
+        aria-controls="attention-details"
+      >
+        <span className={`attention-summary__badge attention-summary__badge--${badgeVariant}`}>
+          {badgeText}
         </span>
-      )}
+        <svg
+          className={`attention-summary__chevron${expanded ? ' attention-summary__chevron--expanded' : ''}`}
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
 
-      {missing > 0 && (
-        <span className="attention-summary__missing" data-testid="attention-missing">
-          {t('warnings.attention.missing_categories', { missing, total })}
-        </span>
-      )}
+      {expanded && (
+        <div id="attention-details" className="attention-summary__details">
+          {flags.length > 0 && (
+            <ul className="attention-summary__flags" data-testid="attention-flags">
+              {flags.map((f) => (
+                <li key={f.category} className={`attention-summary__flag attention-summary__flag--${f.severity}`}>
+                  {t(`risk.category.${f.category}`, {
+                    defaultValue: t(`warnings.attention.flag.${f.category}`, {
+                      defaultValue: f.category,
+                    }),
+                  })}
+                </li>
+              ))}
+            </ul>
+          )}
 
-      <span className="attention-summary__completeness">
-        {t('warnings.attention.based_on', { assessed, total })}
-      </span>
+          {flags.length === 0 && assessed > 0 && (
+            <span className="attention-summary__detail" data-testid="attention-detail">
+              {t('warnings.attention.no_flags_detail')}
+            </span>
+          )}
+
+          {missing > 0 && (
+            <span className="attention-summary__missing" data-testid="attention-missing">
+              {t('warnings.attention.missing_categories', { missing, total })}
+            </span>
+          )}
+
+          <span className="attention-summary__completeness">
+            {t('warnings.attention.based_on', { assessed, total })}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

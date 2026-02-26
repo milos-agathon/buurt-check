@@ -13,6 +13,18 @@
   border-top: 1px solid var(--color-border);
   z-index: 41;
   will-change: transform;
+  transform: translateY(0);
+  transition: transform var(--duration-normal, 250ms) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.action-bar--visible {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.action-bar--hidden {
+  transform: translateY(calc(100% + var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px)));
+  pointer-events: none;
 }
 
 .action-bar__btn-wrapper {
@@ -159,6 +171,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .action-bar {
+    transition: none;
+  }
+
   .action-bar__bookmark-icon--saving .action-bar__bookmark-stroke,
   .action-bar__bookmark-icon--saving .action-bar__bookmark-fill,
   .action-bar__bookmark-icon--removing .action-bar__bookmark-stroke,

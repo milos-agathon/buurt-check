@@ -55,14 +55,6 @@ vi.mock('./components/SunlightRiskCard', () => ({
   ),
 }));
 
-vi.mock('./components/RiskCardsPanel', () => ({
-  default: ({ loading, error }: { loading?: boolean; error?: string | null }) => (
-    <div data-testid="risk-cards">
-      {loading ? 'Loading risk cards...' : error ? 'Risk cards error' : 'Risk cards'}
-    </div>
-  ),
-}));
-
 vi.mock('./components/NeighborhoodStatsCard', () => ({
   default: ({ loading, error }: { loading?: boolean; error?: string | null }) => (
     <div data-testid="neighborhood-stats">
@@ -210,10 +202,21 @@ async function triggerViewer3DIntersection() {
  * Simulates selecting an address: type query, trigger debounce, click suggestion.
  * Uses fake timers briefly to advance the 300ms debounce, then restores real timers
  * so waitFor can poll normally for async state updates.
+ *
+ * If the search screen is not visible (e.g. we're on the dossier screen),
+ * navigates to the Home tab first so the combobox is rendered.
  */
 async function selectAddress() {
   const suggestion = makeSuggestion();
   mockSuggest.mockResolvedValue({ suggestions: [suggestion] });
+
+  // If on the dossier/briefing screen, navigate to Home tab first
+  if (!screen.queryByRole('combobox')) {
+    const homeTab = screen.getByRole('tab', { name: 'Home' });
+    await act(async () => {
+      fireEvent.click(homeTab);
+    });
+  }
 
   vi.useFakeTimers();
   const input = screen.getByRole('combobox');
@@ -300,19 +303,6 @@ describe('address selection flow', () => {
       expect(screen.getByTestId('loading-screen')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('dossier-sheet')).not.toBeInTheDocument();
-  });
-
-  it('shows risk loading state while risk cards are fetching', async () => {
-    mockLookup.mockResolvedValue(makeResolvedAddress());
-    mockBuilding.mockResolvedValue(makeBuildingResponse());
-    mockRiskCards.mockReturnValue(new Promise(() => {}));
-
-    renderApp();
-    await selectAddress();
-
-    await waitFor(() => {
-      expect(screen.getByText('Loading risk cards...')).toBeInTheDocument();
-    });
   });
 
   it('renders building facts after successful fetch', async () => {
@@ -612,45 +602,6 @@ describe('3D viewer integration', () => {
   });
 });
 
-describe('risk cards error handling', () => {
-  it('shows risk error state when getRiskCards fails', async () => {
-    mockLookup.mockResolvedValue(makeResolvedAddress());
-    mockBuilding.mockResolvedValue(makeBuildingResponse());
-    mockRiskCards.mockRejectedValue(new Error('Risk API down'));
-
-    renderApp();
-    await selectAddress();
-
-    await waitFor(() => {
-      expect(screen.getByText('Risk cards error')).toBeInTheDocument();
-    });
-    // Building facts should still show
-    expect(screen.getByText('Building Facts')).toBeInTheDocument();
-  });
-
-  it('clears risk error on new address selection', async () => {
-    mockLookup.mockResolvedValue(makeResolvedAddress());
-    mockBuilding.mockResolvedValue(makeBuildingResponse());
-    mockRiskCards.mockRejectedValueOnce(new Error('Risk API down'));
-
-    renderApp();
-    await selectAddress();
-
-    await waitFor(() => {
-      expect(screen.getByText('Risk cards error')).toBeInTheDocument();
-    });
-
-    // Second selection succeeds
-    mockRiskCards.mockResolvedValue(makeRiskCardsResponse());
-    await selectAddress();
-
-    await waitFor(() => {
-      expect(screen.getByText('Risk cards')).toBeInTheDocument();
-    });
-    expect(screen.queryByText('Risk cards error')).not.toBeInTheDocument();
-  });
-});
-
 describe('neighborhood stats integration', () => {
   it('calls getNeighborhoodStats on address selection', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
@@ -796,7 +747,7 @@ describe('dossier section order (v7 canonical)', () => {
       expect(screen.getByTestId('address-header')).toBeInTheDocument();
       expect(screen.getByTestId('summary-strip')).toBeInTheDocument();
       expect(screen.getByText('Building Facts')).toBeInTheDocument();
-      expect(screen.getByTestId('risk-cards')).toBeInTheDocument();
+      expect(document.querySelector('.risk-tiles-grid')).toBeInTheDocument();
       expect(screen.getByTestId('property-warnings')).toBeInTheDocument();
       expect(screen.getByTestId('soil-info-card')).toBeInTheDocument();
       expect(screen.getByTestId('livability-card')).toBeInTheDocument();
@@ -815,7 +766,7 @@ describe('dossier section order (v7 canonical)', () => {
       '[data-testid="address-header"], ' +
       '[data-testid="summary-strip"], ' +
       '.building-card, ' +
-      '[data-testid="risk-cards"], ' +
+      '.risk-tiles-grid, ' +
       '[data-testid="property-warnings"], ' +
       '[data-testid="soil-info-card"], ' +
       '[data-testid="livability-card"], ' +
@@ -832,7 +783,7 @@ describe('dossier section order (v7 canonical)', () => {
       if (tid === 'address-header') return 'address-header';
       if (tid === 'summary-strip') return 'summary-strip';
       if (el.classList.contains('building-card')) return 'building';
-      if (tid === 'risk-cards') return 'risk';
+      if (el.classList.contains('risk-tiles-grid')) return 'risk';
       if (tid === 'property-warnings') return 'warnings';
       if (tid === 'soil-info-card') return 'soil';
       if (tid === 'livability-card') return 'livability';
@@ -845,7 +796,7 @@ describe('dossier section order (v7 canonical)', () => {
       return 'unknown';
     });
 
-    // Verify full v7 canonical order (tasks/todo.md:1076-1097)
+    // Verify canonical dossier order:
     // AttentionSummary → AddressHeader → SummaryStrip → BuildingFacts →
     // RiskTiles → PropertyWarnings → SoilInfo → Livability →
     // 3D Viewer → Sunlight → NeighborhoodStats → TierB →

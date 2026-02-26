@@ -38,8 +38,7 @@
 }
 
 .risk-tile__label {
-  font-family: var(--font-family);
-  font-size: 13px;
+  font: var(--type-small);
   font-weight: 600;
   color: var(--color-primary);
   max-width: 100%;
@@ -57,10 +56,8 @@
 }
 
 .risk-tile__score {
-  font-family: var(--font-family);
-  font-size: 28px;
+  font: var(--type-display);
   line-height: 1;
-  font-weight: 900;
 }
 
 .risk-tile__score--good { color: var(--color-risk-good); }

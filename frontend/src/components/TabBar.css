@@ -43,11 +43,6 @@
   color: var(--color-accent-text);
 }
 
-.tab-bar__tab--disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
 .tab-bar__icon-wrapper {
   position: relative;
   display: flex;

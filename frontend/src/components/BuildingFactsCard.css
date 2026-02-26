@@ -1,10 +1,8 @@
 .building-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   margin: var(--space-base) 0;
   padding: var(--space-base);
-  box-shadow: var(--elevation-1);
   contain: content;
 }
 

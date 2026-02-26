@@ -44,9 +44,15 @@ describe('SummaryStrip', () => {
     const { container } = renderSummaryStrip();
     await waitFor(() => {
       const scores = container.querySelectorAll('.summary-strip__score');
-      expect(scores[0].textContent).toBe('59/100');
-      expect(scores[2].textContent).toBe('85/100');
+      expect(scores[0].textContent).toBe('59');
+      expect(scores[2].textContent).toBe('85');
     });
+  });
+
+  it('renders category labels in pills', () => {
+    const { container } = renderSummaryStrip();
+    const labels = container.querySelectorAll('.summary-strip__label');
+    expect(labels.length).toBe(4);
   });
 
   it('renders -- for unavailable scores', () => {
