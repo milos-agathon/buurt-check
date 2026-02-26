@@ -14,6 +14,8 @@ interface Props {
 
 type MetricKey = 'noise' | 'air' | 'climate' | 'sunlight';
 
+const DIFFERENCE_THRESHOLD = 15;
+
 const METRICS: { key: MetricKey; labelKey: string }[] = [
   { key: 'noise', labelKey: 'risk.noise.tileLabel' },
   { key: 'air', labelKey: 'risk.air.tileLabel' },
@@ -35,12 +37,32 @@ export default function CompareScreen({ items, onBack, onSearchAddress }: Props)
   const [activeColumnIndex, setActiveColumnIndex] = useState(0);
   const columnsRef = useRef<HTMLDivElement>(null);
 
+  // Compute category wins for each address
+  const winCounts = items.map(() => 0);
+  for (const metric of METRICS) {
+    const scores = items.map(i => i.riskScores[metric.key]);
+    const valid = scores.filter((s): s is number => s != null);
+    if (valid.length < 2) continue;
+    const best = Math.max(...valid);
+    // Only count a win if exactly one address has the best score (no ties on this metric)
+    const bestIndices = scores
+      .map((s, i) => (s === best ? i : -1))
+      .filter(i => i >= 0);
+    if (bestIndices.length === 1) {
+      winCounts[bestIndices[0]]++;
+    }
+  }
+
+  const maxWins = Math.max(...winCounts);
+  const leadersCount = winCounts.filter(w => w === maxWins).length;
+  const isTiedOverall = leadersCount > 1 || maxWins === 0;
+
   const filteredMetrics = differencesOnly
     ? METRICS.filter(m => {
         const scores = items.map(i => i.riskScores[m.key]);
         const valid = scores.filter((s): s is number => s != null);
         if (valid.length < 2) return true; // show if data missing
-        return Math.max(...valid) - Math.min(...valid) > 15;
+        return Math.max(...valid) - Math.min(...valid) > DIFFERENCE_THRESHOLD;
       })
     : METRICS;
   const chartAxes = filteredMetrics.map((metric) => ({
@@ -163,6 +185,32 @@ export default function CompareScreen({ items, onBack, onSearchAddress }: Props)
         </button>
       </div>
 
+      {differencesOnly && (
+        <p className="compare-screen__filter-hint">
+          {t('compare.filter_hint', { threshold: DIFFERENCE_THRESHOLD })}
+        </p>
+      )}
+
+      <section className="compare-screen__summary" data-testid="compare-summary">
+        <h3 className="compare-screen__summary-title">{t('compare.summary.title')}</h3>
+        {isTiedOverall ? (
+          <p className="compare-screen__summary-tie">{t('compare.summary.tie')}</p>
+        ) : (
+          items.map((item, idx) => (
+            <div
+              key={item.vboId}
+              className={`compare-screen__summary-row ${winCounts[idx] === maxWins ? 'compare-screen__summary-row--leader' : ''}`}
+            >
+              <span className="compare-screen__summary-address">{item.address}</span>
+              <span className="compare-screen__summary-wins">
+                {t('compare.summary.wins', { count: winCounts[idx] })}
+              </span>
+            </div>
+          ))
+        )}
+        <p className="compare-screen__summary-caveat">{t('compare.summary.caveat')}</p>
+      </section>
+
       {chartAxes.length >= 2 && (
         <section className="compare-screen__chart">
           <h3 className="compare-screen__chart-title">{t('compare.parallelTitle')}</h3>
@@ -204,7 +252,7 @@ export default function CompareScreen({ items, onBack, onSearchAddress }: Props)
               const validScores = scores.filter((s): s is number => s != null);
               const bestScore = validScores.length > 0 ? Math.max(...validScores) : null;
               const worstScore = validScores.length > 0 ? Math.min(...validScores) : null;
-              const hasDifference = bestScore != null && worstScore != null && bestScore - worstScore > 15;
+              const hasDifference = bestScore != null && worstScore != null && bestScore - worstScore > DIFFERENCE_THRESHOLD;
               const score = scores[itemIdx];
               const sev = severityFromScore(score);
               const isBest = hasDifference && score === bestScore;

@@ -79,6 +79,26 @@ describe('LivabilityDetailView', () => {
     expect(screen.getByText('Amsterdam')).toBeInTheDocument();
   });
 
+  it('renders comparison legend with color-coded entries', () => {
+    renderDetail(makeData());
+    const legend = screen.getByTestId('livability-comparison-legend');
+    expect(legend).toBeInTheDocument();
+    // wijk -> city, gemeente -> nl
+    expect(legend.querySelector('.livability-detail__legend-dot--city')).toBeInTheDocument();
+    expect(legend.querySelector('.livability-detail__legend-dot--nl')).toBeInTheDocument();
+  });
+
+  it('applies color-key class to comparison fills', () => {
+    const { container } = renderDetail(makeData());
+    expect(container.querySelector('.livability-detail__cmp-fill--city')).toBeInTheDocument();
+    expect(container.querySelector('.livability-detail__cmp-fill--nl')).toBeInTheDocument();
+  });
+
+  it('renders directionality label in comparison section', () => {
+    renderDetail(makeData());
+    expect(screen.getByTestId('livability-comparison-directionality')).toBeInTheDocument();
+  });
+
   it('renders source and year', () => {
     renderDetail(makeData());
     expect(screen.getByText(/Leefbaarometer/)).toBeInTheDocument();

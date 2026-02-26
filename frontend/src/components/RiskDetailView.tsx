@@ -9,10 +9,13 @@ import useFocusTrap from '../hooks/useFocusTrap';
 import type { SeverityLevel, ViewingQuestion } from '../types/api';
 import './RiskDetailView.css';
 
+type ComparisonColorKey = 'address' | 'city' | 'nl' | 'who';
+
 interface ComparisonRow {
   label: string;
   value: number;
   pattern?: 'dashed';
+  colorKey: ComparisonColorKey;
 }
 
 interface RiskDetailViewProps {
@@ -105,20 +108,35 @@ export default function RiskDetailView({
         <section className="risk-detail__section">
           <h3 className="risk-detail__section-title">{t('risk.detail.howItCompares', 'How it compares')}</h3>
           {comparisons && comparisons.length > 0 ? (
-            <div className="risk-detail__comparisons">
-              {comparisons.map((row) => (
-                <div key={row.label} className="risk-detail__comparison-row">
-                  <span className="risk-detail__comparison-label">{row.label}</span>
-                  <div className="risk-detail__comparison-bar-track">
-                    <div
-                      className={`risk-detail__comparison-bar-fill${row.pattern === 'dashed' ? ' risk-detail__comparison-bar-fill--dashed' : ''}`}
-                      style={{ width: `${Math.min(100, Math.max(0, row.value))}%` }}
-                    />
+            <>
+              <div className="risk-detail__legend" data-testid="comparison-legend">
+                {(['address', 'city', 'nl', 'who'] as const)
+                  .filter((key) => comparisons.some((r) => r.colorKey === key))
+                  .map((key) => (
+                    <span key={key} className="risk-detail__legend-item">
+                      <span className={`risk-detail__legend-dot risk-detail__legend-dot--${key}`} />
+                      {t(`compare.legend.${key}`)}
+                    </span>
+                  ))}
+              </div>
+              <div className="risk-detail__comparisons">
+                {comparisons.map((row) => (
+                  <div key={row.label} className="risk-detail__comparison-row">
+                    <span className="risk-detail__comparison-label">{row.label}</span>
+                    <div className="risk-detail__comparison-bar-track">
+                      <div
+                        className={`risk-detail__comparison-bar-fill risk-detail__comparison-bar-fill--${row.colorKey}${row.pattern === 'dashed' ? ' risk-detail__comparison-bar-fill--dashed' : ''}`}
+                        style={{ width: `${Math.min(100, Math.max(0, row.value))}%` }}
+                      />
+                    </div>
+                    <span className="risk-detail__comparison-value">{row.value}</span>
                   </div>
-                  <span className="risk-detail__comparison-value">{row.value}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              <p className="risk-detail__directionality" data-testid="comparison-directionality">
+                {t('compare.legend.higher_is_better')}
+              </p>
+            </>
           ) : (
             <div
               className="risk-detail__comparison-unavailable"

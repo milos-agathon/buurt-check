@@ -36,12 +36,30 @@
   align-items: center;
 }
 
+.shadow-snapshots__thumbnail-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.shadow-snapshots__thumbnail-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 .shadow-snapshots__image {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
+  display: block;
 }
 
 .shadow-snapshots__label {
@@ -53,4 +71,77 @@
 .shadow-snapshots__source {
   font: var(--type-micro);
   color: var(--color-text-tertiary);
+}
+
+/* Lightbox overlay */
+.shadow-snapshots__lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .shadow-snapshots__lightbox {
+    animation: snapshot-lightbox-fade-in 200ms ease-out;
+  }
+}
+
+@keyframes snapshot-lightbox-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.shadow-snapshots__lightbox-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.shadow-snapshots__lightbox-close {
+  position: absolute;
+  top: calc(-1 * var(--space-xl));
+  right: calc(-1 * var(--space-xs));
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--color-overlay-text, #ffffff);
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.shadow-snapshots__lightbox-close:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+.shadow-snapshots__lightbox-img {
+  max-width: 90vw;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.shadow-snapshots__lightbox-label {
+  font: var(--type-body);
+  color: var(--color-overlay-text, #ffffff);
+  text-align: center;
 }

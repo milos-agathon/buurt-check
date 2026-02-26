@@ -93,6 +93,44 @@ describe('ExportBottomSheet', () => {
     });
   });
 
+  it('shows language mismatch warning when export language differs from UI language', () => {
+    renderSheet();
+    // UI language is 'en', default export language matches
+    expect(screen.queryByTestId('export-language-warning')).not.toBeInTheDocument();
+
+    // Switch export language to NL while UI is EN
+    fireEvent.click(screen.getByRole('radio', { name: 'NL' }));
+    expect(screen.getByTestId('export-language-warning')).toBeInTheDocument();
+    expect(screen.getByTestId('export-language-warning')).toHaveTextContent('PDF will be generated in Nederlands');
+  });
+
+  it('hides language mismatch warning when export language matches UI language', () => {
+    renderSheet();
+    // Switch to NL then back to EN
+    fireEvent.click(screen.getByRole('radio', { name: 'NL' }));
+    expect(screen.getByTestId('export-language-warning')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'EN' }));
+    expect(screen.queryByTestId('export-language-warning')).not.toBeInTheDocument();
+  });
+
+  it('shows language mismatch warning with NL UI language', async () => {
+    const nlI18n = await setupTestI18n('nl');
+    render(
+      <I18nextProvider i18n={nlI18n}>
+        <ExportBottomSheet {...defaultProps} />
+      </I18nextProvider>,
+    );
+
+    // Default export language should match NL UI — no warning
+    expect(screen.queryByTestId('export-language-warning')).not.toBeInTheDocument();
+
+    // Switch export to EN while UI is NL
+    fireEvent.click(screen.getByRole('radio', { name: 'EN' }));
+    expect(screen.getByTestId('export-language-warning')).toBeInTheDocument();
+    expect(screen.getByTestId('export-language-warning')).toHaveTextContent('PDF wordt gegenereerd in het English');
+  });
+
   it('shows error when export fails', async () => {
     vi.mocked(api.exportBriefing).mockRejectedValue(new Error('fail'));
     renderSheet();
@@ -125,7 +163,7 @@ describe('ExportBottomSheet', () => {
     });
   });
 
-  it('adds progressbar ARIA semantics with current progress values', async () => {
+  it('uses indeterminate progressbar during API call (no aria-valuenow)', async () => {
     let resolver: (() => void) | undefined;
     vi.mocked(api.exportBriefing).mockImplementation(
       () => new Promise<Blob>((resolve) => { resolver = () => resolve(new Blob(['pdf'])); }),
@@ -137,7 +175,15 @@ describe('ExportBottomSheet', () => {
     const progressBar = await screen.findByRole('progressbar', { name: 'Generating...' });
     expect(progressBar).toHaveAttribute('aria-valuemin', '0');
     expect(progressBar).toHaveAttribute('aria-valuemax', '100');
-    expect(progressBar).toHaveAttribute('aria-valuenow', '65');
+    // During API call, progress is indeterminate — no aria-valuenow
+    expect(progressBar).not.toHaveAttribute('aria-valuenow');
+
+    // The SVG should have the indeterminate animation class
+    const svg = progressBar.querySelector('.export-sheet__progress-svg');
+    expect(svg).toHaveClass('export-sheet__progress-svg--indeterminate');
+
+    // Percentage text should be hidden during indeterminate phase
+    expect(progressBar.querySelector('.export-sheet__progress-percent')).toBeNull();
 
     await act(async () => {
       resolver?.();

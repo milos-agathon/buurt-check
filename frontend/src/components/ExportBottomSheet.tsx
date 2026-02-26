@@ -84,18 +84,17 @@ export default function ExportBottomSheet({
     return `buurt-check-${suffix}-${vboId}.pdf`;
   }, [template, vboId]);
 
-  const progressPercent = progressStage === 'collecting'
-    ? 25
-    : progressStage === 'rendering'
-      ? 65
-      : progressStage === 'downloading'
-        ? 90
-        : progressStage === 'ready'
-          ? 100
-          : 0;
+  const isIndeterminate = progressStage === 'collecting' || progressStage === 'rendering';
+  const progressPercent = progressStage === 'downloading'
+    ? 90
+    : progressStage === 'ready'
+      ? 100
+      : 0;
   const ringRadius = 17;
   const ringCircumference = 2 * Math.PI * ringRadius;
-  const ringDashOffset = ringCircumference - (progressPercent / 100) * ringCircumference;
+  const ringDashOffset = isIndeterminate
+    ? ringCircumference * 0.75
+    : ringCircumference - (progressPercent / 100) * ringCircumference;
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -260,6 +259,13 @@ export default function ExportBottomSheet({
               {t('export.languageNl', 'NL')}
             </button>
           </div>
+          {exportLanguage !== i18n.language && (
+            <p className="export-sheet__language-warning" data-testid="export-language-warning">
+              {t('export.languageMismatch', {
+                language: exportLanguage === 'en' ? 'English' : 'Nederlands',
+              })}
+            </p>
+          )}
         </div>
 
         {hasShadows && (
@@ -285,12 +291,16 @@ export default function ExportBottomSheet({
               aria-label={t('export.generating', 'Generating...')}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={progressPercent}
+              {...(isIndeterminate ? {} : { 'aria-valuenow': progressPercent })}
             >
-              <svg viewBox="0 0 40 40" className="export-sheet__progress-svg" aria-hidden="true">
+              <svg
+                viewBox="0 0 40 40"
+                className={`export-sheet__progress-svg${isIndeterminate ? ' export-sheet__progress-svg--indeterminate' : ''}`}
+                aria-hidden="true"
+              >
                 <circle className="export-sheet__progress-track" cx="20" cy="20" r={ringRadius} />
                 <circle
-                  className="export-sheet__progress-value"
+                  className={`export-sheet__progress-value${isIndeterminate ? ' export-sheet__progress-value--indeterminate' : ''}`}
                   cx="20"
                   cy="20"
                   r={ringRadius}
@@ -304,7 +314,9 @@ export default function ExportBottomSheet({
                 <path d="M7 3h7l5 5v13H7z" />
                 <path d="M14 3v6h5" />
               </svg>
-              <span className="export-sheet__progress-percent">{progressPercent}%</span>
+              {!isIndeterminate && (
+                <span className="export-sheet__progress-percent">{progressPercent}%</span>
+              )}
             </div>
             <p className="export-sheet__progress-text">
               {progressStage === 'collecting' && t('export.progress.collecting', 'Collecting data...')}

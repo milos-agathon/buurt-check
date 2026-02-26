@@ -1,4 +1,4 @@
-import { useId, type CSSProperties } from 'react';
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import './ParallelCoordinates.css';
 
@@ -20,10 +20,10 @@ interface ParallelCoordinatesProps {
 
 const WIDTH = 360;
 const HEIGHT = 190;
-const PADDING_X = 26;
+const PADDING_X = 36;
 const PADDING_TOP = 16;
 const PADDING_BOTTOM = 42;
-const SERIES_COLORS = ['#00897B', '#9AA0A6', '#D1D5DB', '#E8913A'];
+const SERIES_CLASSES = ['address', 'city', 'nl', 'who'];
 
 function clampScore(score: number): number {
   return Math.max(0, Math.min(100, score));
@@ -33,6 +33,16 @@ function axisX(index: number, axisCount: number): number {
   if (axisCount <= 1) return WIDTH / 2;
   const span = WIDTH - PADDING_X * 2;
   return PADDING_X + (index / (axisCount - 1)) * span;
+}
+
+/** Maximum width a label may occupy without overlapping its neighbors. */
+function maxLabelWidth(axisCount: number): number {
+  if (axisCount <= 1) return WIDTH - PADDING_X * 2;
+  const span = WIDTH - PADDING_X * 2;
+  const gap = span / (axisCount - 1);
+  // Edge labels are bounded by padding on one side and half-gap on the other.
+  // Use the smaller constraint (gap) minus a small margin.
+  return Math.min(gap, PADDING_X * 2) - 4;
 }
 
 function scoreY(score: number): number {
@@ -87,6 +97,11 @@ export default function ParallelCoordinates({ axes, series }: ParallelCoordinate
 
         {axes.map((axis, index) => {
           const x = axisX(index, axes.length);
+          const labelMax = maxLabelWidth(axes.length);
+          // Estimate natural width: ~6.5px per character at 11px font size.
+          // Only constrain labels that would exceed the available slot width.
+          const estimatedWidth = axis.label.length * 6.5;
+          const needsConstraint = estimatedWidth > labelMax;
           return (
             <g key={axis.key}>
               <line
@@ -101,6 +116,7 @@ export default function ParallelCoordinates({ axes, series }: ParallelCoordinate
                 y={HEIGHT - 22}
                 textAnchor="middle"
                 className="parallel-coordinates__axis-label"
+                {...(needsConstraint ? { textLength: labelMax, lengthAdjust: 'spacingAndGlyphs' } : {})}
               >
                 {axis.label}
               </text>
@@ -111,11 +127,10 @@ export default function ParallelCoordinates({ axes, series }: ParallelCoordinate
         {series.map((entry, index) => {
           const points = pointsForSeries(axes, entry.values);
           if (!points || points.split(' ').length < 2) return null;
-          const color = SERIES_COLORS[index % SERIES_COLORS.length];
-          const style = { '--series-color': color } as CSSProperties;
+          const seriesClass = SERIES_CLASSES[index % SERIES_CLASSES.length];
 
           return (
-            <g key={entry.id} style={style}>
+            <g key={entry.id} className={`parallel-coordinates__series--${seriesClass}`}>
               <polyline points={points} className="parallel-coordinates__line" />
               {points.split(' ').map((point, pointIndex) => {
                 const [x, y] = point.split(',');
@@ -136,12 +151,11 @@ export default function ParallelCoordinates({ axes, series }: ParallelCoordinate
 
       <div className="parallel-coordinates__legend">
         {series.map((entry, index) => {
-          const color = SERIES_COLORS[index % SERIES_COLORS.length];
+          const seriesClass = SERIES_CLASSES[index % SERIES_CLASSES.length];
           return (
             <div key={entry.id} className="parallel-coordinates__legend-item">
               <span
-                className="parallel-coordinates__legend-swatch"
-                style={{ backgroundColor: color }}
+                className={`parallel-coordinates__legend-swatch parallel-coordinates__legend-swatch--${seriesClass}`}
               />
               <span className="parallel-coordinates__legend-label">{entry.label}</span>
             </div>

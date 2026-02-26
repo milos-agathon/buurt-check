@@ -91,7 +91,8 @@ const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
 type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
-type ComparisonRow = { label: string; value: number; pattern?: 'dashed' };
+type ComparisonColorKey = 'address' | 'city' | 'nl' | 'who';
+type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
 interface DossierSeedState {
   address?: ResolvedAddress;
@@ -505,6 +506,7 @@ function App() {
   const viewer3DObserverRef = useRef<IntersectionObserver | null>(null);
   const deferred3DParamsRef = useRef<Deferred3DParams | null>(null);
   const last3DParamsRef = useRef<Deferred3DParams | null>(null);
+  const comparePromptShownRef = useRef(false);
   const [viewer3DTriggered, setViewer3DTriggered] = useState(false);
   const [shortlistItems, setShortlistItems] = useState<ShortlistItem[]>(getShortlist());
 
@@ -691,6 +693,12 @@ function App() {
     });
   }, []);
 
+  const handleNavigateToCompare = useCallback(() => {
+    setActiveTab('saved');
+    setActiveScreen('compare');
+    setHashRoute('#/compare');
+  }, [setHashRoute]);
+
   const handleBookmark = useCallback(() => {
     if (!address?.adresseerbaar_object_id) return;
     const vboId = address.adresseerbaar_object_id;
@@ -715,13 +723,22 @@ function App() {
       };
       const added = addToShortlist(item);
       if (added) {
-        showToast(t('toast.addressSaved'));
+        const updatedShortlist = getShortlist();
+        if (updatedShortlist.length >= 2 && !comparePromptShownRef.current) {
+          comparePromptShownRef.current = true;
+          showToast(t('toast.addressSavedCompare'), {
+            label: t('toast.compareAction'),
+            onClick: handleNavigateToCompare,
+          });
+        } else {
+          showToast(t('toast.addressSaved'));
+        }
       } else {
         showToast(t('shortlist.maxReached'));
       }
     }
     setShortlistItems(getShortlist());
-  }, [address, buildingResponse, riskCards, showToast, sunlight, t]);
+  }, [address, buildingResponse, riskCards, showToast, sunlight, t, handleNavigateToCompare]);
 
   const handleRemoveFromShortlist = useCallback((vboId: string) => {
     removeFromShortlist(vboId);
@@ -745,12 +762,6 @@ function App() {
     setShortlistItems(getShortlist());
     setActiveScreen('shortlist');
     setHashRoute('#/saved');
-  }, [setHashRoute]);
-
-  const handleNavigateToCompare = useCallback(() => {
-    setActiveTab('saved');
-    setActiveScreen('compare');
-    setHashRoute('#/compare');
   }, [setHashRoute]);
 
   const handleTabChange = useCallback((tab: TabId) => {
@@ -1873,6 +1884,12 @@ function App() {
       label: comparisonLabel(row.label_code),
       value: row.value,
       pattern: row.pattern === 'dashed' ? 'dashed' : undefined,
+      colorKey: (
+        row.label_code === 'city_avg' ? 'city'
+        : row.label_code === 'nl_avg' ? 'nl'
+        : row.label_code === 'who_limit' || row.label_code === 'adaptation_target' || row.label_code === 'daylight_target' ? 'who'
+        : 'address'
+      ) as ComparisonColorKey,
     }));
   }, [comparisonLabel, riskComparisons]);
 

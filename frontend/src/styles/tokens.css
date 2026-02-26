@@ -100,6 +100,9 @@
   --color-compare-nl: #D1D5DB;        /* NL average (Light gray) */
   --color-compare-who: #E8913A;       /* WHO/EU limit (Amber) */
 
+  /* ── Colors: Thumb Badge ── */
+  --color-thumb-badge-bg: rgba(28, 45, 63, 0.86); /* Year badge on thumbnail */
+
   /* ── Colors: Misc ── */
   --color-backdrop: rgba(28, 45, 63, 0.48); /* Bottom sheet/modal backdrop */
   --color-toast-bg: #1C2D3F;       /* Toast background */
@@ -264,6 +267,9 @@
   --color-overlay-text: #FFFFFF;
   --color-border-strong: var(--slate-200);
 
+  /* Thumb Badge — solid for OLED (semi-transparent on #000 is invisible) */
+  --color-thumb-badge-bg: #2E4459;
+
   /* Misc */
   --color-backdrop: rgba(0, 0, 0, 0.6);
   --color-toast-bg: #142131;
@@ -279,6 +285,12 @@
   /* Focus Ring */
   --focus-ring-accent: 0 0 0 4px rgba(46, 196, 182, 0.2);
   --focus-ring-danger: 0 0 0 4px rgba(239, 68, 68, 0.2);
+
+  /* Comparison Series — brighter for dark backgrounds */
+  --color-compare-address: #4DB6AC;
+  --color-compare-city: #B0B7BF;
+  --color-compare-nl: #8A9BB0;
+  --color-compare-who: #FFA726;
 
   /* Skeleton */
   --color-skeleton: rgba(255, 255, 255, 0.08);
