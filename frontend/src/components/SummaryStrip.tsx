@@ -47,12 +47,13 @@ function SummaryStrip({ pills, onPillTap }: SummaryStripProps) {
             ? t('risk.tileAria', { label: t(pill.labelKey), score: pill.score, max: 100 })
             : t('risk.tileAriaUnavailable', { label: t(pill.labelKey) })}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d={CATEGORY_ICONS[pill.category] || CATEGORY_ICONS.noise} />
           </svg>
+          <span className="summary-strip__label" aria-hidden="true">{t(`risk.pill.${pill.category}`)}</span>
           {pill.score != null ? (
             <span aria-hidden="true">
-              <AnimatedScore value={pill.score} className="summary-strip__score" showScale />
+              <AnimatedScore value={pill.score} className="summary-strip__score" />
             </span>
           ) : (
             <span className="summary-strip__score" aria-hidden="true">--</span>
