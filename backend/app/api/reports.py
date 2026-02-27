@@ -59,8 +59,9 @@ async def create_short_report(request: Request, body: ShortReportRequest):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
 
+@limiter.limit("30/minute")
 @router.get("/{report_id}/entitlement", response_model=EntitlementResponse)
-async def get_entitlement(report_id: str):
+async def get_entitlement(request: Request, report_id: str):
     """Check whether a report has an active entitlement.
 
     Called by the frontend after Stripe checkout redirect to verify that
