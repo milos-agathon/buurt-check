@@ -238,24 +238,33 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     pop_task = asyncio.create_task(_fetch_population(cleaned_buurt))
 
     try:
-        latest_year, latest_month = await asyncio.gather(
-            _fetch_latest_period(settings.cbs_crime_yearly_base),
-            _fetch_latest_period(settings.cbs_crime_monthly_base),
-        )
-        if not latest_year or not latest_month:
+        try:
+            latest_year, latest_month = await asyncio.gather(
+                _fetch_latest_period(settings.cbs_crime_yearly_base),
+                _fetch_latest_period(settings.cbs_crime_monthly_base),
+            )
+            if not latest_year or not latest_month:
+                pop_task.cancel()
+                return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
+        except Exception:
             pop_task.cancel()
-            return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
-    except Exception:
-        pop_task.cancel()
-        logger.exception("Crime lookup failed for buurt=%s", cleaned_buurt)
-        return CrimeStatsCard(message="CRIME_LOOKUP_FAILED")
+            logger.exception("Crime lookup failed for buurt=%s", cleaned_buurt)
+            return CrimeStatsCard(message="CRIME_LOOKUP_FAILED")
 
-    # Collect population (non-fatal)
-    try:
-        population = await pop_task
-    except Exception:
-        logger.exception("Population lookup failed for buurt=%s", cleaned_buurt)
-        population = None
+        # Collect population (non-fatal)
+        try:
+            population = await pop_task
+        except Exception:
+            logger.exception("Population lookup failed for buurt=%s", cleaned_buurt)
+            population = None
+    finally:
+        # Guard against CancelledError (BaseException) leaking pop_task
+        if not pop_task.done():
+            pop_task.cancel()
+            try:
+                await pop_task
+            except BaseException:
+                pass
 
     # Phase 2: Crime rows (depends on period results)
     try:
