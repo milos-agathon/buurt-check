@@ -13,12 +13,11 @@ from stripe import SignatureVerificationError
 from app.config import settings
 from app.rate_limit import limiter
 from app.services.reports import (
-    activate_entitlement,
     get_report,
     get_report_by_payment_intent,
-    revoke_entitlement,
+    refund_report,
     store_provider_session,
-    update_payment_status,
+    unlock_report,
 )
 
 logger = logging.getLogger(__name__)
@@ -160,14 +159,12 @@ async def _handle_checkout_completed(report_id: str, session: dict) -> None:
 
     now = datetime.now(timezone.utc).isoformat()
 
-    await update_payment_status(
+    await unlock_report(
         report_id,
-        "paid",
         provider="stripe",
         provider_payment_id=session.get("payment_intent"),
         purchased_at=now,
     )
-    await activate_entitlement(report_id)
     logger.info("Webhook: report %s unlocked", report_id)
 
 
@@ -186,8 +183,7 @@ async def _handle_charge_refunded(payment_intent_id: str) -> None:
         )
         return
 
-    await update_payment_status(report.report_id, "refunded")
-    await revoke_entitlement(report.report_id)
+    await refund_report(report.report_id)
     logger.info(
         "Refund webhook: report %s entitlement revoked", report.report_id,
     )
