@@ -1,16 +1,25 @@
-"""Billing endpoints — Stripe Checkout Session creation."""
+"""Billing endpoints — Stripe Checkout Session creation + webhook handling."""
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 import aiosqlite
 import stripe
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+from stripe import SignatureVerificationError
 
 from app.config import settings
 from app.rate_limit import limiter
-from app.services.reports import get_report, store_provider_session
+from app.services.reports import (
+    activate_entitlement,
+    get_report,
+    get_report_by_payment_intent,
+    revoke_entitlement,
+    store_provider_session,
+    update_payment_status,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -87,3 +96,98 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
         # Stripe session already exists — return URL anyway; webhook will reconcile.
 
     return CheckoutResponse(checkout_url=session.url)
+
+
+# ---------------------------------------------------------------------------
+# Stripe Webhook
+# ---------------------------------------------------------------------------
+
+
+@router.post("/webhook")
+async def stripe_webhook(request: Request):
+    """Receive and verify Stripe webhook events.
+
+    Returns 200 to Stripe even on internal processing errors (logged).
+    Only returns 400 when the signature is invalid.
+    """
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, settings.stripe_webhook_secret,
+        )
+    except (ValueError, SignatureVerificationError) as e:
+        logger.warning("Webhook signature verification failed: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        report_id = session.get("metadata", {}).get("report_id")
+        if report_id:
+            try:
+                await _handle_checkout_completed(report_id, session)
+            except Exception:
+                logger.exception(
+                    "Failed to process checkout.session.completed for report %s",
+                    report_id,
+                )
+
+    elif event["type"] == "charge.refunded":
+        charge = event["data"]["object"]
+        payment_intent_id = charge.get("payment_intent")
+        if payment_intent_id:
+            try:
+                await _handle_charge_refunded(payment_intent_id)
+            except Exception:
+                logger.exception(
+                    "Failed to process charge.refunded for pi %s",
+                    payment_intent_id,
+                )
+
+    return {"status": "ok"}
+
+
+async def _handle_checkout_completed(report_id: str, session: dict) -> None:
+    """Activate entitlement after successful checkout."""
+    report = await get_report(report_id)
+    if not report:
+        logger.error("Webhook: report %s not found", report_id)
+        return
+    if report.payment_status == "paid":
+        logger.info("Webhook: report %s already paid (idempotent)", report_id)
+        return
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    await update_payment_status(
+        report_id,
+        "paid",
+        provider="stripe",
+        provider_payment_id=session.get("payment_intent"),
+        purchased_at=now,
+    )
+    await activate_entitlement(report_id)
+    logger.info("Webhook: report %s unlocked", report_id)
+
+
+async def _handle_charge_refunded(payment_intent_id: str) -> None:
+    """Revoke entitlement when a charge is refunded."""
+    report = await get_report_by_payment_intent(payment_intent_id)
+    if not report:
+        logger.warning(
+            "Refund webhook: no report found for pi %s", payment_intent_id,
+        )
+        return
+    if report.payment_status == "refunded":
+        logger.info(
+            "Refund webhook: report %s already refunded (idempotent)",
+            report.report_id,
+        )
+        return
+
+    await update_payment_status(report.report_id, "refunded")
+    await revoke_entitlement(report.report_id)
+    logger.info(
+        "Refund webhook: report %s entitlement revoked", report.report_id,
+    )
