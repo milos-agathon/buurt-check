@@ -23,14 +23,26 @@ export function addRecent(search: Omit<RecentSearch, 'timestamp'>): void {
   const items = getRecent().filter(s => s.id !== search.id);
   items.unshift({ ...search, timestamp: Date.now() });
   if (items.length > MAX_RECENT) items.length = MAX_RECENT;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // Safari private browsing or quota exceeded — silently fail
+  }
 }
 
 export function removeRecent(id: string): void {
   const items = getRecent().filter(s => s.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // Safari private browsing or quota exceeded — silently fail
+  }
 }
 
 export function clearRecent(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Safari private browsing — silently fail
+  }
 }

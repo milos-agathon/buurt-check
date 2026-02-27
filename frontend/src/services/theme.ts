@@ -17,7 +17,11 @@ export function getTheme(): ThemePreference {
 }
 
 export function setTheme(pref: ThemePreference): void {
-  localStorage.setItem(STORAGE_KEY, pref);
+  try {
+    localStorage.setItem(STORAGE_KEY, pref);
+  } catch {
+    // Safari private browsing or quota exceeded — silently fail
+  }
   applyTheme(pref, { withTransition: true });
 }
 
