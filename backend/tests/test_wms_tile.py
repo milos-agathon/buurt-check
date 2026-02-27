@@ -9,7 +9,7 @@ from app.services.wms_tile import get_wms_tile
 
 
 @pytest.mark.asyncio
-@patch("app.services.wms_tile._get_client")
+@patch("app.services.wms_tile._client.get")
 @patch("app.services.wms_tile._get_alo_layers", new_callable=AsyncMock)
 @patch("app.services.wms_tile._select_noise_layer")
 async def test_get_wms_tile_noise_success(
@@ -38,7 +38,7 @@ async def test_get_wms_tile_noise_success(
 
 
 @pytest.mark.asyncio
-@patch("app.services.wms_tile._get_client")
+@patch("app.services.wms_tile._client.get")
 @patch("app.services.wms_tile._get_gcn_layers", new_callable=AsyncMock)
 @patch("app.services.wms_tile._select_air_layer")
 async def test_get_wms_tile_air_success(
@@ -64,7 +64,7 @@ async def test_get_wms_tile_air_success(
 
 
 @pytest.mark.asyncio
-@patch("app.services.wms_tile._get_client")
+@patch("app.services.wms_tile._client.get")
 @patch("app.services.wms_tile._get_climate_layer_names", new_callable=AsyncMock)
 async def test_get_wms_tile_climate_success(mock_climate_layers, mock_get_client):
     mock_climate_layers.return_value = {
@@ -100,7 +100,7 @@ async def test_get_wms_tile_no_layer_available(mock_select, mock_layers):
 
 
 @pytest.mark.asyncio
-@patch("app.services.wms_tile._get_client")
+@patch("app.services.wms_tile._client.get")
 @patch("app.services.wms_tile._get_alo_layers", new_callable=AsyncMock)
 @patch("app.services.wms_tile._select_noise_layer")
 async def test_get_wms_tile_non_image_response(
@@ -123,7 +123,7 @@ async def test_get_wms_tile_non_image_response(
 
 
 @pytest.mark.asyncio
-@patch("app.services.wms_tile._get_client")
+@patch("app.services.wms_tile._client.get")
 @patch("app.services.wms_tile._get_alo_layers", new_callable=AsyncMock)
 @patch("app.services.wms_tile._select_noise_layer")
 async def test_get_wms_tile_timeout(mock_select, mock_layers, mock_get_client):

@@ -298,7 +298,7 @@ async def test_fetch_by_buurt_code_returns_feature():
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("app.services.cbs._get_client", return_value=mock_client):
+    with patch("app.services.cbs._client.get", return_value=mock_client):
         result = await _fetch_by_buurt_code("BU0363AD07")
 
     assert result is not None
@@ -316,7 +316,7 @@ async def test_fetch_by_buurt_code_empty():
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("app.services.cbs._get_client", return_value=mock_client):
+    with patch("app.services.cbs._client.get", return_value=mock_client):
         result = await _fetch_by_buurt_code("BU0000XX00")
 
     assert result is None
@@ -349,7 +349,7 @@ async def test_fetch_by_bbox_with_point_in_polygon():
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("app.services.cbs._get_client", return_value=mock_client):
+    with patch("app.services.cbs._client.get", return_value=mock_client):
         result = await _fetch_by_bbox(52.37, 4.89)
 
     assert result is not None
@@ -368,7 +368,7 @@ async def test_fetch_by_bbox_fallback_first_feature():
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("app.services.cbs._get_client", return_value=mock_client):
+    with patch("app.services.cbs._client.get", return_value=mock_client):
         result = await _fetch_by_bbox(52.37, 4.89)
 
     assert result is not None

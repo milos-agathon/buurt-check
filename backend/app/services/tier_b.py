@@ -7,22 +7,16 @@ import httpx
 
 from app.config import settings
 from app.models.tier_b import CrimeStatsCard, EnergyLabelCard, TierBResponse
+from app.services.http_client import LoopAwareClient
 from app.services.scoring import crime_summary, normalize_crime_score, severity_from_score
 
 logger = logging.getLogger(__name__)
 
-_client: httpx.AsyncClient | None = None
+_client = LoopAwareClient(timeout=httpx.Timeout(15.0, connect=4.0))
 
 _CRIME_TOTAL_KEY = "0.0.0 "
 _CRIME_BURGLARY_KEY = "1.1.1 "
 _CRIME_VIOLENT_KEYS = {"1.4.2 ", "1.4.3 ", "1.4.4 ", "1.4.5 ", "1.4.6 ", "1.4.7 "}
-
-
-def _get_client() -> httpx.AsyncClient:
-    global _client
-    if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=4.0))
-    return _client
 
 
 _BUURT_CODE_RE = re.compile(r"^BU[0-9]{4}[A-Z0-9]{4}$")
@@ -64,7 +58,7 @@ def _per_1000(count: float | None, population: float | None) -> float | None:
 
 
 async def _fetch_latest_period(base_url: str) -> str | None:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         f"{base_url}/Perioden",
         params={"$format": "json"},
@@ -84,7 +78,7 @@ async def _fetch_typed_rows(
     filter_expr: str,
     top: int = 200,
 ) -> list[dict[str, Any]]:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         f"{base_url}/TypedDataSet",
         params={
@@ -98,7 +92,7 @@ async def _fetch_typed_rows(
 
 
 async def _fetch_population(buurt_code: str) -> float | None:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         f"{settings.cbs_wijken_buurten_base}/collections/buurten/items",
         params={
@@ -127,7 +121,7 @@ async def _get_energy_label(
     if not postcode or not house_number:
         return EnergyLabelCard(message="ENERGY_INPUT_MISSING")
 
-    client = _get_client()
+    client = _client.get()
     headers: dict[str, str] = {}
     if settings.energy_label_api_key:
         headers["X-Api-Key"] = settings.energy_label_api_key
@@ -239,18 +233,32 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     if not cleaned_buurt:
         return CrimeStatsCard(message="CRIME_NO_BUURT_CODE")
 
+    # Phase 1: Population + period lookups in parallel.
+    # Population failure is non-fatal; period failures are fatal.
+    pop_task = asyncio.create_task(_fetch_population(cleaned_buurt))
+
     try:
-        population = await _fetch_population(cleaned_buurt)
+        latest_year, latest_month = await asyncio.gather(
+            _fetch_latest_period(settings.cbs_crime_yearly_base),
+            _fetch_latest_period(settings.cbs_crime_monthly_base),
+        )
+        if not latest_year or not latest_month:
+            pop_task.cancel()
+            return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
+    except Exception:
+        pop_task.cancel()
+        logger.exception("Crime lookup failed for buurt=%s", cleaned_buurt)
+        return CrimeStatsCard(message="CRIME_LOOKUP_FAILED")
+
+    # Collect population (non-fatal)
+    try:
+        population = await pop_task
     except Exception:
         logger.exception("Population lookup failed for buurt=%s", cleaned_buurt)
         population = None
 
+    # Phase 2: Crime rows (depends on period results)
     try:
-        latest_year = await _fetch_latest_period(settings.cbs_crime_yearly_base)
-        latest_month = await _fetch_latest_period(settings.cbs_crime_monthly_base)
-        if not latest_year or not latest_month:
-            return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
-
         # Try buurt-level first
         yearly_rows, monthly_rows = await _fetch_crime_rows(
             cleaned_buurt, latest_year, latest_month,
