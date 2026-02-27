@@ -11,13 +11,21 @@ interface ApplyThemeOptions {
 }
 
 export function getTheme(): ThemePreference {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
+  } catch {
+    // Safari private browsing throws on localStorage access
+  }
   return 'system';
 }
 
 export function setTheme(pref: ThemePreference): void {
-  localStorage.setItem(STORAGE_KEY, pref);
+  try {
+    localStorage.setItem(STORAGE_KEY, pref);
+  } catch {
+    // Safari private browsing or quota exceeded — silently ignore
+  }
   applyTheme(pref, { withTransition: true });
 }
 
