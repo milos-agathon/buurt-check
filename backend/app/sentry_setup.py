@@ -33,4 +33,6 @@ def init_sentry() -> None:
             FastApiIntegration(transaction_style="endpoint"),
         ],
     )
+    # TODO(Epic 3): Tag transactions with report_type when report endpoints exist.
+    # Use sentry_sdk.set_tag("report_type", ...) in the billing/reports router.
     logger.info("Sentry initialized (env=%s)", settings.sentry_environment)
