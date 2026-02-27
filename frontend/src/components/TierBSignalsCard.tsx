@@ -64,12 +64,6 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
 
   if (!data) return null;
 
-  const energyLabel = data.energy_label;
-  const energySourceDate = energyLabel.source_date ?? t('risk.dateUnknown');
-  const energyBadgeClass = energyLabel.label
-    ? `tier-b-card__energy-badge tier-b-card__energy-badge--${energyLabel.label.charAt(0).toLowerCase()}`
-    : '';
-
   const unavailable = t('tierB.unavailable');
   const crimeSourceDate = data.crime.source_date ?? data.crime.yearly_period ?? t('risk.dateUnknown');
   const per1000Suffix = ' / 1,000';
@@ -83,33 +77,6 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
 
   return (
     <section className="tier-b-card" data-testid="tier-b-card">
-      <article className="tier-b-card__panel" data-testid="energy-label-panel">
-        <h3 className="tier-b-card__panel-title">{t('tierB.energy.title')}</h3>
-        {energyLabel.label ? (
-          <>
-            <div className="tier-b-card__energy-label-row">
-              <span
-                className={energyBadgeClass}
-                role="img"
-                aria-label={`${t('tierB.energy.title')}: ${energyLabel.label}`}
-              >
-                {energyLabel.label}
-              </span>
-            </div>
-            <p className="tier-b-card__meaning">{t('tierB.energy.meaning')}</p>
-          </>
-        ) : (
-          <p className="tier-b-card__energy-message">
-            {energyLabel.message
-              ? t(`tierB.energy.message.${energyLabel.message}`, t('tierB.energy.message.default'))
-              : t('tierB.energy.message.default')}
-          </p>
-        )}
-        <p className="tier-b-card__source-line">
-          {t('tierB.source.energy', { source: energyLabel.source, date: energySourceDate })}
-        </p>
-      </article>
-
       <article className="tier-b-card__panel">
         <h3 className="tier-b-card__panel-title">{t('tierB.crime.title')}</h3>
         {data.crime.severity && (

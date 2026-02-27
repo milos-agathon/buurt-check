@@ -101,12 +101,11 @@ async def address_suggest(
         logger.exception("address_suggest failed: %s", exc)
         raise HTTPException(status_code=502, detail="Address search unavailable") from exc
 
-    if suggestions:
-        await cache_set(
-            cache_key,
-            [s.model_dump() for s in suggestions],
-            ttl=settings.cache_ttl_suggest,
-        )
+    await cache_set(
+        cache_key,
+        [s.model_dump() for s in suggestions],
+        ttl=settings.cache_ttl_suggest,
+    )
     response.headers["Cache-Control"] = _CACHE_REALTIME
     return SuggestResponse(suggestions=suggestions)
 
@@ -684,18 +683,17 @@ async def address_livability(
             trend_task, comparison_task, return_exceptions=True
         )
 
-        trend_ok = isinstance(trend, list)
-        comparison_ok = isinstance(comparison, LivabilityComparison)
-        current.trend = trend if trend_ok else []
-        current.comparison = comparison.rows if comparison_ok else []
+        current.trend = trend if isinstance(trend, list) else []
+        current.comparison = (
+            comparison.rows if isinstance(comparison, LivabilityComparison) else []
+        )
 
-        # Only cache if all gathered results succeeded (no partial failures)
-        if trend_ok and comparison_ok:
-            await cache_set(
-                cache_key,
-                current.model_dump(),
-                ttl=settings.cache_ttl_livability,
-            )
+        # Cache the fully assembled response
+        await cache_set(
+            cache_key,
+            current.model_dump(),
+            ttl=settings.cache_ttl_livability,
+        )
         response.headers["Cache-Control"] = _CACHE_DATA
         return current
     except Exception as exc:
@@ -827,25 +825,7 @@ async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float,
             or result.climate_stress.level != RiskLevel.unavailable
             or result.sunlight is not None
         )
-        failure_messages = {
-            "NOISE_LAYER_UNAVAILABLE",
-            "NOISE_LOOKUP_FAILED",
-            "AIR_LOOKUP_FAILED",
-            "CLIMATE_LOOKUP_FAILED",
-            "NOISE_TIMEOUT",
-            "AIR_TIMEOUT",
-            "CLIMATE_TIMEOUT",
-        }
-        has_failure = any(
-            msg in failure_messages
-            for msg in (
-                result.noise.message,
-                result.air_quality.message,
-                result.climate_stress.message,
-            )
-            if msg
-        )
-        if has_data and not has_failure:
+        if has_data:
             await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_risk_cards)
         return result
     except Exception:
