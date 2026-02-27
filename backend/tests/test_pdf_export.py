@@ -673,12 +673,14 @@ async def test_export_endpoint_invalid_template(client):
 
 
 @pytest.mark.asyncio
+@patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
 @patch("app.api.address.risk_cards")
 async def test_export_endpoint_full_dossier_template(
-    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, client
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
+    mock_entitlement, client
 ):
     mock_bag.get_building_facts = AsyncMock(
         return_value=BuildingFacts(
@@ -698,6 +700,7 @@ async def test_export_endpoint_full_dossier_template(
             "lng": 4.89,
             "address": "Kalverstraat 1, Amsterdam",
             "template": "full_dossier",
+            "report_id": "test-report-id",
         },
     )
     assert resp.status_code == 200
@@ -894,6 +897,7 @@ async def test_export_accepts_shadow_image_b64_alias(
 
 
 @pytest.mark.asyncio
+@patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
@@ -902,7 +906,7 @@ async def test_export_accepts_shadow_image_b64_alias(
 @patch("app.api.address.tier_b")
 async def test_export_full_dossier_fetches_additional_data(
     mock_tier_b, mock_cbs, mock_risk_cards, mock_bag,
-    mock_cache_set, mock_cache_get, client
+    mock_cache_set, mock_cache_get, mock_entitlement, client
 ):
     """Full Dossier template fetches neighborhood stats and tier-b in parallel."""
     mock_bag.get_building_facts = AsyncMock(return_value=None)
@@ -921,6 +925,7 @@ async def test_export_full_dossier_fetches_additional_data(
             "lng": 4.89,
             "address": "Kalverstraat 1, Amsterdam",
             "template": "full_dossier",
+            "report_id": "test-report-id",
             "buurt_code": "BU03630000",
             "postcode": "1012NX",
             "house_number": "1",
@@ -945,6 +950,7 @@ async def test_export_full_dossier_fetches_additional_data(
 
 
 @pytest.mark.asyncio
+@patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
@@ -953,7 +959,7 @@ async def test_export_full_dossier_fetches_additional_data(
 @patch("app.api.address.tier_b")
 async def test_export_tier_b_uses_neighborhood_buurt_code_fallback(
     mock_tier_b, mock_cbs, mock_risk_cards, mock_bag,
-    mock_cache_set, mock_cache_get, client
+    mock_cache_set, mock_cache_get, mock_entitlement, client
 ):
     """Tier-B uses neighborhood-resolved buurt_code when request has none."""
     mock_bag.get_building_facts = AsyncMock(return_value=None)
@@ -972,6 +978,7 @@ async def test_export_tier_b_uses_neighborhood_buurt_code_fallback(
             "lng": 4.89,
             "address": "Kalverstraat 1, Amsterdam",
             "template": "full_dossier",
+            "report_id": "test-report-id",
             # NOTE: no buurt_code in request — should resolve from neighborhood
             "postcode": "1012NX",
             "house_number": "1",

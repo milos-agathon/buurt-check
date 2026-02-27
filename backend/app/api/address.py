@@ -799,6 +799,7 @@ class ExportRequest(BaseModel):
         max_length=2_000_000,
         validation_alias=AliasChoices("shadow_image_b64", "shadow_image"),
     )
+    report_id: str | None = None
     street: str | None = None
     city: str | None = None
     buurt_code: str | None = None
@@ -915,6 +916,15 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
         )
     if body.language not in ("en", "nl"):
         raise HTTPException(status_code=422, detail="Language must be 'en' or 'nl'")
+
+    # --- Entitlement gate: full_dossier requires a paid report ---
+    if body.template == "full_dossier":
+        if not body.report_id:
+            raise HTTPException(status_code=402, detail="Payment required")
+        from app.services.reports import check_entitlement
+
+        if not await check_entitlement(body.report_id):
+            raise HTTPException(status_code=402, detail="Payment required")
 
     # --- Phase 1: Fetch building + risks in parallel ---
     building_resp, risks = await asyncio.gather(
