@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # Rate limiting
     rate_limit_enabled: bool = True
 
+    # Sentry (error monitoring)
+    sentry_dsn: str = ""
+    sentry_environment: str = "dev"
+
     # Cache TTLs (seconds)
     cache_ttl_suggest: int = 3600  # 1 hour
     cache_ttl_lookup: int = 86400  # 24 hours

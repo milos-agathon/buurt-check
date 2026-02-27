@@ -127,7 +127,7 @@
 
 .viewer-3d__controls-hint-text {
   font: var(--type-caption);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
   text-align: center;
   padding: var(--space-sm) var(--space-md);
 }

@@ -44,7 +44,7 @@
 
 .compare-screen__filter--active {
   background: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
   border-color: var(--color-accent);
 }
 
@@ -138,7 +138,7 @@
 
 .compare-screen__cta:hover {
   background: var(--color-accent-text);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
 }
 
 .compare-screen__cta:active {

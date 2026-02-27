@@ -11,8 +11,11 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.api.router import router
 from app.config import settings
 from app.rate_limit import limiter
+from app.sentry_setup import init_sentry
 
 _access = logging.getLogger("buurt.access")
+
+init_sentry()
 
 app = FastAPI(
     title="buurt-check API",

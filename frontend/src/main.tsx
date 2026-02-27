@@ -1,11 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MotionConfig } from 'framer-motion'
+import { initSentry } from './services/sentry'
 import './i18n'
 import './styles/satoshi.css'
 import './styles/tokens.css'
 import './index.css'
 import App from './App.tsx'
+
+initSentry()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

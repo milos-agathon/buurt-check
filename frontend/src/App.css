@@ -165,7 +165,7 @@
   height: 28px;
   border-radius: var(--radius-pill);
   background: var(--color-accent);
-  color: var(--color-text-inverse, #fff);
+  color: var(--color-overlay-text);
   font: var(--type-label);
   font-weight: 700;
   letter-spacing: 0;
@@ -286,7 +286,7 @@
 
 .app__dossier-jump-actions button.app__jump-btn--active {
   background: var(--color-accent);
-  color: var(--color-text-inverse, #fff);
+  color: var(--color-overlay-text);
   border-color: var(--color-accent);
 }
 
@@ -435,7 +435,7 @@
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-button, 12px);
   background: var(--color-accent);
-  color: var(--color-text-inverse, #fff);
+  color: var(--color-overlay-text);
   font: var(--type-body);
   font-weight: 600;
   cursor: pointer;

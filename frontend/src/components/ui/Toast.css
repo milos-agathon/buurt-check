@@ -14,7 +14,7 @@
 
 .toast {
   background: var(--color-toast-bg);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
   padding: 12px 16px;
   border-radius: var(--radius-button);
   display: flex;
@@ -29,7 +29,7 @@
 
 .toast__text {
   font: var(--type-small);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
   flex: 1;
   white-space: normal;
   overflow-wrap: anywhere;
