@@ -353,7 +353,11 @@ async def test_endpoint_cache_hit():
     """First call caches, second call returns cached data without hitting WFS."""
     from starlette.testclient import TestClient
 
+    from app.api.dependencies import require_entitlement
     from app.main import app
+
+    async def _noop():
+        return None
 
     mock_resp = _make_mock_response(MOCK_BUURT_RESPONSE)
     mock_cl = _mock_client(mock_resp)
@@ -366,39 +370,43 @@ async def test_endpoint_cache_hit():
     async def mock_cache_set(key: str, value: object, ttl: int = 0):
         cache_store[key] = value
 
-    with (
-        patch("app.services.leefbaarometer._client") as m_client,
-        patch("app.api.address.cache_get", side_effect=mock_cache_get),
-        patch("app.api.address.cache_set", side_effect=mock_cache_set),
-    ):
-        m_client.get.return_value = mock_cl
+    app.dependency_overrides[require_entitlement] = _noop
+    try:
+        with (
+            patch("app.services.leefbaarometer._client") as m_client,
+            patch("app.api.address.cache_get", side_effect=mock_cache_get),
+            patch("app.api.address.cache_set", side_effect=mock_cache_set),
+        ):
+            m_client.get.return_value = mock_cl
 
-        client = TestClient(app)
+            client = TestClient(app)
 
-        # First call — should hit WFS
-        resp1 = client.get(
-            "/api/address/0363200012345678/livability",
-            params={"rd_x": "121000", "rd_y": "487000"},
-        )
-        assert resp1.status_code == 200
-        data1 = resp1.json()
-        assert data1["available"] is True
+            # First call — should hit WFS
+            resp1 = client.get(
+                "/api/address/0363200012345678/livability",
+                params={"rd_x": "121000", "rd_y": "487000"},
+            )
+            assert resp1.status_code == 200
+            data1 = resp1.json()
+            assert data1["available"] is True
 
-        # Record WFS call count after first request
-        wfs_call_count_after_first = m_client.get.call_count
+            # Record WFS call count after first request
+            wfs_call_count_after_first = m_client.get.call_count
 
-        # Second call — should come from cache, WFS call count must NOT increase
-        resp2 = client.get(
-            "/api/address/0363200012345678/livability",
-            params={"rd_x": "121000", "rd_y": "487000"},
-        )
-        assert resp2.status_code == 200
-        data2 = resp2.json()
-        assert data2["available"] is True
-        assert data2["buurt_name"] == data1["buurt_name"]
+            # Second call — should come from cache, WFS call count must NOT increase
+            resp2 = client.get(
+                "/api/address/0363200012345678/livability",
+                params={"rd_x": "121000", "rd_y": "487000"},
+            )
+            assert resp2.status_code == 200
+            data2 = resp2.json()
+            assert data2["available"] is True
+            assert data2["buurt_name"] == data1["buurt_name"]
 
-        # Assert WFS was NOT called again on second request (cache hit)
-        assert m_client.get.call_count == wfs_call_count_after_first
+            # Assert WFS was NOT called again on second request (cache hit)
+            assert m_client.get.call_count == wfs_call_count_after_first
+    finally:
+        app.dependency_overrides.pop(require_entitlement, None)
 
 
 @pytest.mark.asyncio
@@ -410,7 +418,11 @@ async def test_endpoint_no_cache_on_empty():
     """
     from starlette.testclient import TestClient
 
+    from app.api.dependencies import require_entitlement
     from app.main import app
+
+    async def _noop():
+        return None
 
     mock_resp = _make_mock_response(MOCK_EMPTY_RESPONSE)
     mock_cl = _mock_client(mock_resp)
@@ -423,42 +435,46 @@ async def test_endpoint_no_cache_on_empty():
     async def mock_cache_set(key: str, value: object, ttl: int = 0):
         cache_store[key] = value
 
-    with (
-        patch("app.services.leefbaarometer._client") as m_client,
-        patch("app.api.address.cache_get", side_effect=mock_cache_get),
-        patch("app.api.address.cache_set", side_effect=mock_cache_set),
-    ):
-        m_client.get.return_value = mock_cl
+    app.dependency_overrides[require_entitlement] = _noop
+    try:
+        with (
+            patch("app.services.leefbaarometer._client") as m_client,
+            patch("app.api.address.cache_get", side_effect=mock_cache_get),
+            patch("app.api.address.cache_set", side_effect=mock_cache_set),
+        ):
+            m_client.get.return_value = mock_cl
 
-        client = TestClient(app)
+            client = TestClient(app)
 
-        # First call — no data
-        resp1 = client.get(
-            "/api/address/0363200012345678/livability",
-            params={"rd_x": "121000", "rd_y": "487000"},
-        )
-        assert resp1.status_code == 200
-        assert resp1.json()["available"] is False
+            # First call — no data
+            resp1 = client.get(
+                "/api/address/0363200012345678/livability",
+                params={"rd_x": "121000", "rd_y": "487000"},
+            )
+            assert resp1.status_code == 200
+            assert resp1.json()["available"] is False
 
-        # Verify nothing was cached
-        assert len(cache_store) == 0
+            # Verify nothing was cached
+            assert len(cache_store) == 0
 
-        # Record WFS call count after first request
-        wfs_call_count_after_first = m_client.get.call_count
+            # Record WFS call count after first request
+            wfs_call_count_after_first = m_client.get.call_count
 
-        # Second call — should hit WFS again (not cached)
-        resp2 = client.get(
-            "/api/address/0363200012345678/livability",
-            params={"rd_x": "121000", "rd_y": "487000"},
-        )
-        assert resp2.status_code == 200
-        assert resp2.json()["available"] is False
+            # Second call — should hit WFS again (not cached)
+            resp2 = client.get(
+                "/api/address/0363200012345678/livability",
+                params={"rd_x": "121000", "rd_y": "487000"},
+            )
+            assert resp2.status_code == 200
+            assert resp2.json()["available"] is False
 
-        # Assert WFS was called again (empty results were NOT cached)
-        assert m_client.get.call_count > wfs_call_count_after_first
+            # Assert WFS was called again (empty results were NOT cached)
+            assert m_client.get.call_count > wfs_call_count_after_first
 
-        # Still nothing in cache
-        assert len(cache_store) == 0
+            # Still nothing in cache
+            assert len(cache_store) == 0
+    finally:
+        app.dependency_overrides.pop(require_entitlement, None)
 
 
 # ═══════ Data validation tests — non-numeric kscore (#11) ═══════
