@@ -358,7 +358,8 @@ export function downloadPdfBlob(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Delay revocation — Safari iOS starts downloads asynchronously after click
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export async function getTierBData(

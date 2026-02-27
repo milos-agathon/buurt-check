@@ -533,6 +533,7 @@ describe('exportBriefing', () => {
 
 describe('downloadPdfBlob', () => {
   it('creates and clicks a download link', () => {
+    vi.useFakeTimers();
     const appendChildSpy = vi.spyOn(document.body, 'appendChild');
     const removeChildSpy = vi.spyOn(document.body, 'removeChild');
     const createElementSpy = vi.spyOn(document, 'createElement');
@@ -547,6 +548,9 @@ describe('downloadPdfBlob', () => {
 
     expect(click).toHaveBeenCalledTimes(1);
     expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+    // Revocation is delayed for Safari iOS compatibility
+    expect(revokeObjectURLSpy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(60_000);
     expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
 
     appendChildSpy.mockRestore();
@@ -554,6 +558,7 @@ describe('downloadPdfBlob', () => {
     createElementSpy.mockRestore();
     createObjectURLSpy.mockRestore();
     revokeObjectURLSpy.mockRestore();
+    vi.useRealTimers();
   });
 });
 
