@@ -1,7 +1,9 @@
 # Buurt-check assessment — updated for freemium dossier monetization (no subscription MVP)
 
-**Date:** 2026-02-25  
-**Project:** buurt-check  
+> **SUPERSEDED (2026-02-27):** This document's content has been merged into `docs/plans/2026-02-13-premium-features-design.md` (Phase 2: Monetization Infrastructure). Refer to that document for the current canonical version. This file is retained for historical reference only.
+
+**Date:** 2026-02-25
+**Project:** buurt-check
 **Context:** This is an adjusted version of the earlier technical strategy assessment, reflecting the new monetization decision: **free short report + paid long dossier (6 pages)**, **no subscription in MVP**.
 
 ---

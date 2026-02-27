@@ -1,6 +1,6 @@
 # Premium Features Design — buurt-check
 
-**Date:** 2026-02-13
+**Date:** 2026-02-13 | **Revised:** 2026-02-27
 **Goal:** Transform buurt-check from a free MVP into a premium product that Dutch Reddit users would pay for
 **Quality bar:** Every feature must address a real, documented pain point from Dutch homebuyer forums
 **Phasing:** Feature-led (Approach A) — ship value free first, monetize after demand validation
@@ -11,11 +11,14 @@
 
 **Phase 1 (immediate):** Property Warnings — 5 new warning signals derived from existing or cheaply-available data. Ship fully free. Goal: Reddit buzz, organic sharing, product-market fit validation.
 
-**Phase 2 (after 2-4 weeks of usage data):** Monetization Infrastructure — Supabase Auth + Postgres for user state, Stripe for payments. Freemium model based on real usage patterns observed in Phase 1.
+**Phase 2 (after 2-4 weeks of usage data):** Monetization Infrastructure — Stripe one-time payments, per-report entitlements, conversion analytics. No subscriptions, no user accounts in MVP. Free short report + paid long dossier.
 
 **Phase 3 (behind premium paywall):** Financial Intelligence — closing cost calculator, energy renovation estimates, street-level sale price history from Kadaster.
 
-**Key principle:** Ship free, earn trust, then monetize. No paywall before Reddit buzz. No infrastructure before product-market fit signal.
+**Key principles:**
+- Ship free, earn trust, then monetize. No paywall before Reddit buzz. No infrastructure before product-market fit signal.
+- One-time dossier purchase fits the product's value delivery: a high-value, address-specific decision artifact for a one-off buyer need.
+- No auth until a concrete requirement forces it (cross-device access, saved purchase history, support workflows keyed by user identity).
 
 ---
 
@@ -315,7 +318,7 @@ Three states:
 **Rendering strategy: Delayed appearance, no skeleton.** The AttentionSummary depends on risk scores (T+2-5s) AND property warnings (T+2-3s). A premature "No flags raised" badge that flips to "2 items need attention" seconds later would undermine the trust this component is designed to build. Therefore:
 
 - **Do NOT render the AttentionSummary component at all** until both risk data and property warnings have resolved (loaded or errored).
-- While waiting, the dossier flows directly from AddressHeader into SummaryStrip → RiskTilesGrid. No gap, no skeleton, no placeholder.
+- While waiting, the dossier flows directly from AddressHeader into SummaryStrip -> RiskTilesGrid. No gap, no skeleton, no placeholder.
 - When all input data resolves, the AttentionSummary animates in with `SPRING_REVEAL` and pushes content below it down. This is a layout shift, but a *meaningful* one — the user sees the summary "arrive" as a coherent verdict.
 - If risk data errors out, the summary still renders using whatever data is available, with the data completeness suffix explaining the gap.
 
@@ -328,50 +331,168 @@ Three states:
 
 ## Phase 2: Monetization Infrastructure (Deferred — after usage validation)
 
+> **Decision (2026-02-25):** One-time dossier purchase, no subscriptions, no user accounts in MVP. Auth deferred until a concrete requirement forces it. This is architecturally cleaner than a subscription MVP — it fits buurt-check's value delivery: a high-value, address-specific decision artifact for a one-off buyer need.
+
 ### Freemium Model
 
-Designed during brainstorming, to be implemented after 2-4 weeks of free usage data.
-
-**Free preview (unlimited, before first unlock):**
+**Free short report (always available, unlimited):**
 - Full address search with map
-- Preview dossier: 2x2 risk tile grid with scores + severity labels + one-line summary per tile
-- AttentionSummary badge (e.g., "2 items need attention") — **always visible**, even in preview
+- Dossier with: 2x2 risk tile grid (scores + severity labels + one-line summary per tile)
+- AttentionSummary badge (e.g., "2 items need attention") — **always visible**
 - Neighborhood stats card (summary level)
-- No risk detail views, no viewing questions, no individual warning cards, no PDF
+- Building facts card
 
-**Free tier (3 full unlocks per month, rolling):**
-- Full dossier unlock: all detail views, viewing questions, individual property warning cards, neighborhood stats, Tier B data
-- First unlock is completely ungated (user experiences full product before any gate)
-- Second unlock triggers soft sign-up prompt: "Create a free account to save this briefing and unlock 2 more this month"
-
-**Premium (EUR 9.99/mo or EUR 79.99/yr — pricing TBD from usage data):**
-- Unlimited full dossier unlocks
-- PDF export (both templates)
-- Compare (side-by-side)
+**Paid long dossier (one-time purchase per address):**
+- Full 6-page dossier: all risk detail views, viewing questions, individual property warning cards, neighborhood stats, Tier B data
+- PDF export (both `quick_brief` and `full_dossier` templates)
+- Compare (side-by-side, for purchased dossiers)
 - Future: financial intelligence features (Phase 3)
 
 **Conversion triggers:**
-- AttentionSummary shows flag count in preview ("2 items need attention") but individual warning cards are gated — user sees *that* flags exist but can't read *what* they are
-- Compare is the natural trigger (user has saved 3 free dossiers, wants to compare)
-- Viewing checklist behind blurred preview (the "viewing is next Tuesday" FOMO)
+- AttentionSummary shows flag count in free report ("2 items need attention") but individual warning cards are gated — user sees *that* flags exist but can't read *what* they are
+- Upgrade CTA clearly shows what the long dossier adds
+- First full dossier is completely ungated (per `ui-principles.md` Section 13: "Let users search and view at least one full neighborhood dossier before asking them to create an account")
 
-### Technical Stack
-
-- **Auth:** Supabase Auth (social login, magic link — zero password friction)
-- **User state:** Supabase Postgres (saved dossiers, unlock counts, shortlist, comparison history)
-- **Payments:** Stripe (subscription billing, webhook for status sync)
-- **Migration:** localStorage data migrates to Supabase on account creation
-
-### Soft Gate UX
+### Conversion Flow (MVP)
 
 ```
-User taps risk tile to expand (2nd+ time):
-  → If not authenticated → Supabase social login / magic link (one tap)
-  → If authenticated + unlocks_this_month < 3 → unlock, increment counter
-  → If authenticated + unlocks_this_month >= 3 → show Stripe checkout for premium
+1. User enters address
+2. Generate and show free short report immediately
+3. Highlight the value they already got
+4. Show what the 6-page dossier adds (value delta)
+5. CTA: "Unlock full dossier"
+6. Stripe Checkout (one-time payment)
+7. Return directly to unlocked dossier/export
 ```
 
-First full dossier is completely ungated (per ui-principles.md Section 13: "Let users search and view at least one full neighborhood dossier before asking them to create an account").
+**Key rule:** Do NOT paywall before showing value. If users must pay before seeing anything, conversion will be materially worse.
+
+### Pricing
+
+- Start at **EUR 14.99** for the 6-page dossier
+- Free short report always available
+- No subscription in MVP
+- Store pricing config in one place so you can test EUR 9.99 / 14.99 / 19.99 without touching entitlement logic
+
+### Entitlement Model
+
+Per-report entitlements, not user-based. No accounts needed.
+
+**Required data model primitives (MVP-safe):**
+
+| Field | Type | Purpose |
+|---|---|---|
+| `report_id` | UUID | Immutable ID for a generated report snapshot |
+| `report_type` | `short` / `long` | Which report variant |
+| `address_key` | string | Normalized address or source lookup key |
+| `generation_version` | string | Track report schema/content version |
+| `payment_status` | `unpaid` / `paid` / `failed` / `refunded` | Payment lifecycle |
+| `entitlement_scope` | string | `report:<report_id>` (not user-wide) |
+| `entitlement_status` | `active` / `revoked` | Access state |
+| `purchase_id` | UUID | Internal purchase record |
+| `provider` | string | `stripe` |
+| `provider_payment_id` | string | Stripe checkout/payment ID |
+| `purchased_at` | datetime | Purchase timestamp |
+
+This design supports future additions (user accounts, multi-report bundles, subscriptions, agency plans) without rewriting the access model.
+
+### Technical Stack (Phase 2)
+
+- **Payments:** Stripe (one-time checkout only)
+- **Auth:** Deferred — no Supabase Auth, no Clerk, no accounts in MVP
+- **Entitlements:** Server-side per-report lookup. Payment tied to `report_id`, one-time unlock token or signed receipt
+- **User state:** No persistent user state in MVP. localStorage for shortlist (existing)
+
+**Stripe MVP scope (implement only these):**
+- One-time checkout session creation
+- Payment success webhook (signature-verified)
+- Dossier entitlement unlock on confirmed payment
+- Refund-safe state handling (basic)
+- Payment failure + retry UX
+
+**Do NOT build in MVP:**
+- Subscriptions or recurring billing
+- Billing portal or invoice admin
+- User accounts or identity flows
+- Credits, wallet, or coupon engine
+- Custom payment gateway
+- "Universal entitlements platform"
+- PDF customization settings panel
+
+### Technical Flow
+
+**Frontend:**
+1. User submits address
+2. Call backend to generate/retrieve `short` report
+3. Render short report
+4. Show upgrade CTA with clear value delta
+5. CTA calls backend `POST /billing/checkout-session` with `report_id`
+6. Redirect to Stripe Checkout
+7. On success redirect, call backend `GET /reports/{report_id}/entitlement`
+8. If paid, load `long` dossier + unlock export
+
+**Backend:**
+1. `POST /reports/short` returns short report + `report_id`
+2. `POST /billing/checkout-session` validates `report_id`, creates Stripe checkout
+3. `POST /billing/webhook` verifies Stripe signature
+4. On payment success: mark `payment_status = paid`, create `entitlement_scope = report:<report_id>`
+5. `GET /reports/{report_id}/long` checks entitlement before returning dossier
+6. `POST /exports/pdf` checks entitlement before generating full export
+
+**Security/robustness:**
+- Never trust frontend payment success query params alone
+- Unlock only after webhook-confirmed payment state
+- Make webhook handling idempotent
+- Log/report all unlock failures
+
+### Analytics (Required — conversion instrumentation)
+
+Analytics is essential to tune pricing, paywall placement, upgrade copy, and checkout conversion. Track these events from day one:
+
+**Funnel events:**
+- `address_search_submitted`
+- `short_report_generated`
+- `upgrade_cta_viewed`
+- `upgrade_cta_clicked`
+- `checkout_started`
+- `checkout_completed`
+- `checkout_failed`
+- `dossier_unlocked`
+- `pdf_export_clicked`
+- `pdf_export_completed`
+
+**Quality/UX events:**
+- `report_generation_failed`
+- `3d_view_opened`
+- `3d_view_failed`
+- `slow_report_generation` (threshold-based)
+
+Without this, you won't know whether low revenue is caused by weak pricing, weak perceived value, broken payment flow, report generation latency, or unclear upgrade UX.
+
+### Error Monitoring (Sentry — required before payment launch)
+
+Add Sentry before payment launch so you can debug failed unlocks, webhook mismatches, export failures after payment, and frontend state issues after checkout redirect.
+
+**Coverage:**
+- Frontend (React/Vite)
+- Backend (FastAPI)
+- Payment webhook path
+- Report generation pipeline
+- PDF export pipeline
+
+**Tagging:**
+- Environment: `dev`, `staging`, `prod`
+- Release version
+- Report type: `short`, `long`
+- Payment flow stage (if relevant)
+
+### Preview Deployments
+
+Freemium introduces higher regression risk: checkout button hidden/broken, wrong dossier sections shown, paid users seeing free content only, broken redirect after payment.
+
+- Frontend preview deploy on every PR
+- Staging backend for preview environment
+- Test checklist for payment + unlock + export in staging before merge
 
 ---
 
@@ -410,17 +531,17 @@ First full dossier is completely ungated (per ui-principles.md Section 13: "Let 
 - Solar panels (optional): EUR X-Y
 - Available subsidies (ISDE): estimated EUR X back
 
-**Implementation:** Backend lookup table mapping (current_label, building_type, era) → cost ranges. Based on Milieu Centraal / RVO published renovation cost data.
+**Implementation:** Backend lookup table mapping (current_label, building_type, era) -> cost ranges. Based on Milieu Centraal / RVO published renovation cost data.
 
 ### 3C. Street-Level Sale Price History (Future — requires Kadaster data)
 
 **Data source:** Kadaster BRK — historical sale prices. EUR 3.50 per lookup.
 
-**Output:** "Recent sales near this address" — 5 most recent sales in the same 4-digit postcode. Shows: address, asking price (if available from Funda scraping — legally complex), sale price, date, overbid percentage.
+**Output:** "Recent sales near this address" — 5 most recent sales in the same 4-digit postcode. Shows: address, sale price, date, overbid percentage.
 
-**Architecture:** Requires Supabase Postgres to cache Kadaster lookups (shared across users for same postcode). Revenue must exceed Kadaster data costs.
+**Architecture:** Requires persistent database to cache Kadaster lookups (shared across users for same postcode). Revenue must exceed Kadaster data costs.
 
-**Deferred:** Design the API contract now, build when premium subscriber count justifies Kadaster costs.
+**Deferred:** Design the API contract now, build when paid dossier revenue justifies Kadaster costs.
 
 ---
 
@@ -501,8 +622,8 @@ handleAddressSelect():
   4. setAddress(resolved)
   5. setSheetSnap('half')
   6. Fire parallel IIFEs:
-     ├── Existing: risks, stats, tier-b, building3d, neighborhood3d
-     └── NEW: void (async () => {
+     +-- Existing: risks, stats, tier-b, building3d, neighborhood3d
+     +-- NEW: void (async () => {
            const warnings = await getPropertyWarnings(
              vboId, rdX, rdY, lat, lng,
              constructionYear, municipality
@@ -515,17 +636,17 @@ handleAddressSelect():
 
 ```
 DossierSheet:
-  ├── AttentionSummary (NEW — synthesis badge)
-  ├── AddressHeader + bookmark
-  ├── SummaryStrip (individual risk score pills)
-  ├── BuildingFactsCard (with erfpacht badge + asbestos flag inline)
-  ├── RiskTilesGrid (2x2: noise, air, climate, sunlight)
-  ├── PropertyWarningsCard (NEW — foundation + VvE cards)
-  ├── 3D Viewer (NeighborhoodViewer3D)
-  ├── NeighborhoodStatsCard
-  ├── TierBSignalsCard
-  ├── ViewingChecklist
-  └── ActionBar (PDF export, share)
+  +-- AttentionSummary (NEW — synthesis badge)
+  +-- AddressHeader + bookmark
+  +-- SummaryStrip (individual risk score pills)
+  +-- BuildingFactsCard (with erfpacht badge + asbestos flag inline)
+  +-- RiskTilesGrid (2x2: noise, air, climate, sunlight)
+  +-- PropertyWarningsCard (NEW — foundation + VvE cards)
+  +-- 3D Viewer (NeighborhoodViewer3D)
+  +-- NeighborhoodStatsCard
+  +-- TierBSignalsCard
+  +-- ViewingChecklist
+  +-- ActionBar (PDF export, share)
 ```
 
 ### i18n Keys (New — ~50 keys per language)
@@ -590,6 +711,29 @@ warnings.asbestos.disclaimer
 
 ---
 
+## Phase 2 Priority Order
+
+### Tier 0 — Before payment launch
+1. Sentry (frontend + backend)
+2. Secrets hygiene audit (rotate if needed)
+3. Analytics events for funnel + failures
+4. Entitlement model (per-report unlock)
+5. README update for payment/env/webhook setup
+
+### Tier 1 — Launch freemium
+6. Stripe one-time checkout
+7. Webhook-based unlock flow
+8. Upgrade CTA UX and value framing
+9. Paid dossier export path (entitlement-gated)
+
+### Tier 2 — Tighten conversion after launch
+10. Improve onboarding copy
+11. Improve free report previews of locked content
+12. Price experiments
+13. Reduce drop-off points in checkout and post-payment redirect
+
+---
+
 ## Dependencies and Risks
 
 ### API Research Required Before Implementation
@@ -607,3 +751,10 @@ All Phase 1 features use existing React + CSS tokens + i18n infrastructure. No n
 ### No Backend Dependencies Added
 
 PDOK BRO WFS uses the same httpx + PDOK pattern as existing BAG/CBS/Klimaateffectatlas integrations. No new Python packages required.
+
+---
+
+## Document History
+
+- **2026-02-13:** Initial version. Phase 1 property warnings, Phase 2 subscription-based freemium with Supabase Auth, Phase 3 financial intelligence.
+- **2026-02-27:** Revised Phase 2 to one-time dossier purchase model (no subscriptions, no auth in MVP). Integrated analytics event taxonomy, Sentry requirements, entitlement data model, priority ordering, and "what NOT to build" guardrails from the ChatGPT freemium assessment (`docs/plans/chatgpt-vibecoding-checklist.md`, now superseded by this document).
