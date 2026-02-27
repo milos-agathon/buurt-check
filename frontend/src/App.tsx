@@ -2208,7 +2208,7 @@ function App() {
                 </button>
               </div>
             ) : (
-              <ErrorBoundary fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
+              <ErrorBoundary key={address?.adresseerbaar_object_id ?? 'none'} fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
               <Suspense fallback={null}>
               <DossierSheet snap={sheetSnap} actionBarVisible={actionBarVisible}>
                 {address && showDossierJump && (
@@ -2758,7 +2758,7 @@ function App() {
 
       {/* Export bottom sheet */}
       {address?.adresseerbaar_object_id && address.rd_x != null && address.rd_y != null && address.latitude != null && address.longitude != null && (
-        <ErrorBoundary fallback={null}>
+        <ErrorBoundary key={`export-${address?.adresseerbaar_object_id ?? 'none'}`} fallback={null}>
         <Suspense fallback={null}>
           <ExportBottomSheet
             isOpen={exportSheetOpen}
