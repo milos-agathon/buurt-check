@@ -140,7 +140,7 @@ async def test_get_building_facts(httpx_mock):
     )
 
     import app.services.bag as bag_module
-    bag_module._client = None
+    bag_module._client._client = None
 
     result = await get_building_facts("0363010000696734")
 
@@ -156,7 +156,7 @@ async def test_get_building_facts(httpx_mock):
     assert result.footprint_geojson is not None
     assert result.footprint_geojson["type"] == "Polygon"
 
-    bag_module._client = None
+    bag_module._client._client = None
 
 
 @pytest.mark.asyncio
@@ -167,12 +167,12 @@ async def test_get_building_facts_no_vbo(httpx_mock):
     )
 
     import app.services.bag as bag_module
-    bag_module._client = None
+    bag_module._client._client = None
 
     result = await get_building_facts("0000000000000000")
     assert result is None
 
-    bag_module._client = None
+    bag_module._client._client = None
 
 
 @pytest.mark.asyncio
@@ -201,12 +201,12 @@ async def test_get_pand_id_returns_pand_from_vbo(httpx_mock):
     )
 
     import app.services.bag as bag_module
-    bag_module._client = None
+    bag_module._client._client = None
 
     result = await get_pand_id("0363010000696734")
     assert result == "0363100012253924"
 
-    bag_module._client = None
+    bag_module._client._client = None
 
 
 @pytest.mark.asyncio
@@ -217,12 +217,12 @@ async def test_get_pand_id_returns_none_on_missing_vbo(httpx_mock):
     )
 
     import app.services.bag as bag_module
-    bag_module._client = None
+    bag_module._client._client = None
 
     result = await get_pand_id("0000000000000000")
     assert result is None
 
-    bag_module._client = None
+    bag_module._client._client = None
 
 
 def test_validate_bag_id_valid():

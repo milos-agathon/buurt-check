@@ -556,5 +556,8 @@
   "tooltip.bookmark": "Sla dit adres op om het later met andere te vergelijken",
   "tooltip.compare": "Tik op Vergelijken om adressen naast elkaar te zien",
   "tooltip.export": "Neem dit mee naar je bezichtiging",
-  "tooltip.dismiss": "Sluiten"
+  "tooltip.dismiss": "Sluiten",
+  "common.quartile": "Kwartiel {{quartile}} van {{total}}",
+  "tierB.crime.per_1000_suffix": " / 1.000",
+  "tierB.crime.score_scale": "/100"
 }

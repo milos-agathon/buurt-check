@@ -42,6 +42,9 @@
   font: var(--type-caption);
   cursor: pointer;
   padding: 4px 8px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   border-radius: var(--radius-sm);
   white-space: nowrap;
 }

@@ -56,7 +56,7 @@ function getPrimaryRing(geometry?: Geometry): Position[] | undefined {
 /**
  * Convert WGS84 footprint ring to SVG path on the aerial tile.
  * Uses a local linear approximation: at the center point we know both WGS84 and RD.
- * At ~52N: 1 degree lng ≈ 68_710m, 1 degree lat ≈ 111_320m in RD meters.
+ * mPerDegLng is computed dynamically from latitude: 111320 * cos(lat).
  */
 function wgs84RingToSvgPath(
   ring: Position[],
@@ -65,7 +65,7 @@ function wgs84RingToSvgPath(
   tileRadius: number,
 ): string | undefined {
   if (ring.length < 3) return undefined;
-  const mPerDegLng = 68710; // at ~52N latitude
+  const mPerDegLng = 111320 * Math.cos(centerLat * Math.PI / 180);
   const mPerDegLat = 111320;
   const bboxMinX = centerRdX - tileRadius;
   const bboxMinY = centerRdY - tileRadius;

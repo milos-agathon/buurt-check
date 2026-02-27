@@ -57,7 +57,7 @@ async def test_suggest_returns_suggestions(httpx_mock):
 
     # Reset the client so httpx_mock is used
     import app.services.locatieserver as ls
-    ls._client = None
+    ls._client._client = None
 
     results = await suggest("kalverstraat 1 amsterdam", limit=5)
     assert len(results) == 2
@@ -65,7 +65,7 @@ async def test_suggest_returns_suggestions(httpx_mock):
     assert results[0].display_name == "Kalverstraat 1, 1012NX Amsterdam"
     assert results[0].score == 7.5
 
-    ls._client = None
+    ls._client._client = None
 
 
 @pytest.mark.asyncio
@@ -78,12 +78,12 @@ async def test_suggest_empty_results(httpx_mock):
     )
 
     import app.services.locatieserver as ls
-    ls._client = None
+    ls._client._client = None
 
     results = await suggest("xyznonexistent")
     assert results == []
 
-    ls._client = None
+    ls._client._client = None
 
 
 @pytest.mark.asyncio
@@ -115,7 +115,7 @@ async def test_lookup_returns_address(httpx_mock):
     )
 
     import app.services.locatieserver as ls
-    ls._client = None
+    ls._client._client = None
 
     result = await lookup("adr-abc123")
     assert result is not None
@@ -127,7 +127,7 @@ async def test_lookup_returns_address(httpx_mock):
     assert result.rd_y == 487296.0
     assert result.adresseerbaar_object_id == "0363010000696734"
 
-    ls._client = None
+    ls._client._client = None
 
 
 @pytest.mark.asyncio
@@ -137,12 +137,12 @@ async def test_lookup_not_found(httpx_mock):
     )
 
     import app.services.locatieserver as ls
-    ls._client = None
+    ls._client._client = None
 
     result = await lookup("adr-nonexistent")
     assert result is None
 
-    ls._client = None
+    ls._client._client = None
 
 
 @pytest.mark.asyncio
@@ -169,10 +169,10 @@ async def test_lookup_maps_huisnummertoevoeging(httpx_mock):
     )
 
     import app.services.locatieserver as ls
-    ls._client = None
+    ls._client._client = None
 
     result = await lookup("adr-toev")
     assert result is not None
     assert result.addition == "3"
 
-    ls._client = None
+    ls._client._client = None

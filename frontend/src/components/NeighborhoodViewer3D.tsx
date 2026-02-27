@@ -679,6 +679,20 @@ export default function NeighborhoodViewer3D({
       if (onControlEnd) controls.removeEventListener('end', onControlEnd);
       cancelAnimationFrame(sceneRef.current?.animId ?? 0);
       controls.dispose();
+      // Dispose all scene resources (geometries, materials, textures, shadow maps)
+      scene.traverse((obj) => {
+        if (obj instanceof Mesh) {
+          obj.geometry?.dispose();
+          if (Array.isArray(obj.material)) {
+            (obj.material as Material[]).forEach((m) => m.dispose());
+          } else {
+            (obj.material as Material)?.dispose();
+          }
+        }
+        if (obj instanceof DirectionalLight && obj.shadow?.map) {
+          obj.shadow.map.dispose();
+        }
+      });
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -1098,13 +1112,14 @@ export default function NeighborhoodViewer3D({
     const ctx = sceneRef.current;
     const callback = onSunlightAnalysisRef.current;
     if (!ctx || !callback || buildings.length === 0 || !targetPandId) return;
-    if (!allBuildingsReadyRef.current || sunlightComputed.current) return;
+    if (!allBuildingsReadyRef.current) return;
 
     const target = buildings.find((building) => building.pand_id === targetPandId);
     if (!target || target.footprint.length < 3) return;
 
-    sunlightComputed.current = true;
+    // Allow re-entry: abort previous computation, then mark as computing
     sunlightAbortRef.current?.abort();
+    sunlightComputed.current = true;
     const abortController = new AbortController();
     sunlightAbortRef.current = abortController;
 

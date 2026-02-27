@@ -18,6 +18,9 @@
   color: var(--color-accent-text);
   cursor: pointer;
   padding: var(--space-xs);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .compare-screen__back:focus-visible {
@@ -28,6 +31,7 @@
 
 .compare-screen__filter {
   padding: var(--space-xs) var(--space-sm);
+  min-height: 44px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: var(--color-surface);

@@ -556,5 +556,8 @@
   "tooltip.bookmark": "Save this address to compare it with others later",
   "tooltip.compare": "Tap Compare to see addresses side by side",
   "tooltip.export": "Take this to your viewing appointment",
-  "tooltip.dismiss": "Dismiss"
+  "tooltip.dismiss": "Dismiss",
+  "common.quartile": "Quartile {{quartile}} of {{total}}",
+  "tierB.crime.per_1000_suffix": " / 1,000",
+  "tierB.crime.score_scale": "/100"
 }

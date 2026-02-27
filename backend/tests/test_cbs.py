@@ -237,6 +237,52 @@ def test_geometry_contains_point_multipolygon():
     assert _geometry_contains_point(geom, 7, 7) is False
 
 
+def test_geometry_contains_point_polygon_with_hole():
+    """Point inside hole of polygon should return False (bug #19)."""
+    geom = {
+        "type": "Polygon",
+        "coordinates": [
+            # Outer ring: 0-20 square
+            [[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]],
+            # Inner ring (hole): 5-15 square
+            [[5, 5], [15, 5], [15, 15], [5, 15], [5, 5]],
+        ],
+    }
+    # Point inside the hole → should be False
+    assert _geometry_contains_point(geom, 10, 10) is False
+    # Point between outer and inner ring → should be True
+    assert _geometry_contains_point(geom, 2, 2) is True
+    # Point outside outer ring → should be False
+    assert _geometry_contains_point(geom, 25, 25) is False
+
+
+def test_geometry_contains_point_multipolygon_with_hole():
+    """MultiPolygon with hole should also respect inner rings (bug #19)."""
+    geom = {
+        "type": "MultiPolygon",
+        "coordinates": [
+            [
+                # First polygon outer ring
+                [[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]],
+                # First polygon hole
+                [[5, 5], [15, 5], [15, 15], [5, 15], [5, 5]],
+            ],
+            [
+                # Second polygon, no hole
+                [[30, 30], [40, 30], [40, 40], [30, 40], [30, 30]],
+            ],
+        ],
+    }
+    # Point in hole of first polygon → False
+    assert _geometry_contains_point(geom, 10, 10) is False
+    # Point in solid area of first polygon → True
+    assert _geometry_contains_point(geom, 2, 2) is True
+    # Point in second polygon → True
+    assert _geometry_contains_point(geom, 35, 35) is True
+    # Point outside all → False
+    assert _geometry_contains_point(geom, 50, 50) is False
+
+
 def test_geometry_contains_point_none():
     assert _geometry_contains_point(None, 5, 5) is False
 
@@ -252,7 +298,7 @@ async def test_fetch_by_buurt_code_returns_feature():
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("app.services.cbs._get_client", return_value=mock_client):
+    with patch("app.services.cbs._client.get", return_value=mock_client):
         result = await _fetch_by_buurt_code("BU0363AD07")
 
     assert result is not None
@@ -270,7 +316,7 @@ async def test_fetch_by_buurt_code_empty():
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("app.services.cbs._get_client", return_value=mock_client):
+    with patch("app.services.cbs._client.get", return_value=mock_client):
         result = await _fetch_by_buurt_code("BU0000XX00")
 
     assert result is None
@@ -303,7 +349,7 @@ async def test_fetch_by_bbox_with_point_in_polygon():
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("app.services.cbs._get_client", return_value=mock_client):
+    with patch("app.services.cbs._client.get", return_value=mock_client):
         result = await _fetch_by_bbox(52.37, 4.89)
 
     assert result is not None
@@ -322,7 +368,7 @@ async def test_fetch_by_bbox_fallback_first_feature():
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("app.services.cbs._get_client", return_value=mock_client):
+    with patch("app.services.cbs._client.get", return_value=mock_client):
         result = await _fetch_by_bbox(52.37, 4.89)
 
     assert result is not None
