@@ -527,6 +527,26 @@ describe('exportBriefing', () => {
     expect(body.lat).toBe(3);
     expect(blob).toBe(expectedBlob);
   });
+
+  it('includes report_id when provided for full_dossier entitlement checks', async () => {
+    const expectedBlob = new Blob(['pdf']);
+    mockFetch.mockResolvedValue({ ok: true, blob: () => Promise.resolve(expectedBlob) } as Response);
+
+    await exportBriefing({
+      vboId: 'vbo-1',
+      rdX: 1,
+      rdY: 2,
+      lat: 3,
+      lng: 4,
+      address: 'Test',
+      template: 'full_dossier',
+      reportId: 'report-123',
+    });
+
+    const [, init] = mockFetch.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.report_id).toBe('report-123');
+  });
 });
 
 // ─── downloadPdfBlob ──────────────────────────────────────────────────────────

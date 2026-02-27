@@ -309,6 +309,7 @@ export interface ExportOptions {
   lng: number;
   address: string;
   template?: 'quick_brief' | 'full_dossier';
+  reportId?: string;
   street?: string;
   city?: string;
   language?: string;
@@ -331,6 +332,7 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
     language: options.language || 'en',
   };
   if (options.shadowImageB64) body.shadow_image_b64 = options.shadowImageB64;
+  if (options.reportId) body.report_id = options.reportId;
   if (options.street) body.street = options.street;
   if (options.city) body.city = options.city;
   if (options.buurtCode) body.buurt_code = options.buurtCode;

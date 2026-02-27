@@ -1064,6 +1064,7 @@ async def export_briefing_get(
     address: str = Query(...),
     template: str = Query("quick_brief"),
     language: str = Query("en"),
+    report_id: str | None = Query(None),
     shadow_image_b64: str | None = Query(None),
     shadow_image: str | None = Query(None),
     street: str | None = Query(None),
@@ -1079,6 +1080,7 @@ async def export_briefing_get(
     body = ExportRequest(
         rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng, address=address,
         template=template, language=language, shadow_image_b64=resolved_shadow,
+        report_id=report_id,
         street=street, city=city, buurt_code=buurt_code, postcode=postcode,
         house_number=house_number, house_letter=house_letter, addition=addition,
     )

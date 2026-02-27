@@ -16,6 +16,7 @@ interface ExportBottomSheetProps {
   lat: number;
   lng: number;
   address: string;
+  reportId?: string;
   street?: string;
   city?: string;
   buurtCode?: string;
@@ -38,6 +39,7 @@ export default function ExportBottomSheet({
   lat,
   lng,
   address,
+  reportId,
   street,
   city,
   buurtCode,
@@ -123,6 +125,7 @@ export default function ExportBottomSheet({
         lat,
         lng,
         address,
+        reportId,
         template,
         street,
         city,
