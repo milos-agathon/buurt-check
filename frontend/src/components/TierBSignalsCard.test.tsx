@@ -111,4 +111,99 @@ describe('TierBSignalsCard', () => {
     expect(screen.getByText('Tier B temporarily unavailable')).toBeInTheDocument();
     expect(container.querySelector('.tier-b-card')).toHaveAttribute('data-state', 'error');
   });
+
+  describe('energy label panel', () => {
+    it('renders energy label badge when label is available', () => {
+      renderCard({
+        data: {
+          address_id: 'vbo-1',
+          energy_label: { label: 'A', source: 'EP-Online', source_date: '2024-03-15' },
+          crime: { source: 'CBS' },
+        },
+      });
+
+      const badge = screen.getByRole('img', { name: /Energy label: A/ });
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveClass('tier-b-card__energy-badge--a');
+      expect(screen.getByText('Verify the label document and insulation details at viewing.')).toBeInTheDocument();
+      expect(screen.getByText(/Source \+ date: EP-Online/)).toBeInTheDocument();
+    });
+
+    it('renders A++ label with correct --a class', () => {
+      renderCard({
+        data: {
+          address_id: 'vbo-1',
+          energy_label: { label: 'A++', source: 'EP-Online' },
+          crime: { source: 'CBS' },
+        },
+      });
+
+      const badge = screen.getByRole('img', { name: /Energy label: A\+\+/ });
+      expect(badge).toHaveTextContent('A++');
+      expect(badge).toHaveClass('tier-b-card__energy-badge--a');
+    });
+
+    it('renders G label with correct --g class', () => {
+      renderCard({
+        data: {
+          address_id: 'vbo-1',
+          energy_label: { label: 'G', source: 'EP-Online' },
+          crime: { source: 'CBS' },
+        },
+      });
+
+      const badge = screen.getByRole('img', { name: /Energy label: G/ });
+      expect(badge).toHaveClass('tier-b-card__energy-badge--g');
+    });
+
+    it('renders translated message when label is missing but message exists', () => {
+      renderCard({
+        data: {
+          address_id: 'vbo-1',
+          energy_label: { source: 'EP-Online', message: 'ENERGY_NOT_FOUND' },
+          crime: { source: 'CBS' },
+        },
+      });
+
+      expect(screen.getByText('No energy label found for this address.')).toBeInTheDocument();
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    });
+
+    it('renders default message when both label and message are missing', () => {
+      renderCard({
+        data: {
+          address_id: 'vbo-1',
+          energy_label: { source: 'EP-Online' },
+          crime: { source: 'CBS' },
+        },
+      });
+
+      expect(screen.getByText('Energy label unavailable')).toBeInTheDocument();
+    });
+
+    it('renders energy panel above crime panel', () => {
+      renderCard({
+        data: {
+          address_id: 'vbo-1',
+          energy_label: { label: 'B', source: 'EP-Online' },
+          crime: { source: 'CBS', total_per_1000: 10 },
+        },
+      });
+
+      const panels = screen.getAllByRole('article');
+      expect(panels[0]).toHaveAttribute('data-testid', 'energy-label-panel');
+    });
+
+    it('renders source line with date unknown fallback', () => {
+      renderCard({
+        data: {
+          address_id: 'vbo-1',
+          energy_label: { source: 'EP-Online' },
+          crime: { source: 'CBS' },
+        },
+      });
+
+      expect(screen.getByText(/Source \+ date: EP-Online \(date unknown\)/)).toBeInTheDocument();
+    });
+  });
 });

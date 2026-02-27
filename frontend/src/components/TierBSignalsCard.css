@@ -97,10 +97,59 @@
   font-weight: 500;
 }
 
+.tier-b-card__energy-label-row {
+  display: flex;
+  align-items: center;
+}
+
+.tier-b-card__energy-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 48px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-button);
+  font: var(--type-score-tile);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-surface);
+  background: var(--color-text-secondary);
+}
+
+.tier-b-card__energy-badge--a,
+.tier-b-card__energy-badge--b {
+  background: var(--color-risk-good);
+  color: var(--color-badge-positive-text);
+}
+
+.tier-b-card__energy-badge--c,
+.tier-b-card__energy-badge--d {
+  background: var(--color-risk-moderate);
+  color: var(--color-badge-caution-text);
+}
+
+.tier-b-card__energy-badge--e,
+.tier-b-card__energy-badge--f {
+  background: var(--color-risk-poor);
+  color: var(--color-surface);
+}
+
+.tier-b-card__energy-badge--g {
+  background: var(--color-risk-critical);
+  color: var(--color-surface);
+}
+
+.tier-b-card__energy-message {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
 .tier-b-card__source-line,
 .tier-b-card__period {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }
 
 .tier-b-card__metric-suffix {
@@ -176,7 +225,7 @@
 
 .tier-b-card__disclaimer {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   margin: 0;
   padding: 0 var(--space-base);
 }
