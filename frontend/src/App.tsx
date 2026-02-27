@@ -359,11 +359,15 @@ function parseHashRoute(hash: string): ParsedHashRoute {
 
   const dossierMatch = path.match(/^\/address\/([^/]+)$/);
   if (dossierMatch) {
-    return {
-      route: 'dossier',
-      vboId: decodeURIComponent(dossierMatch[1]),
-      lookupId: params.get('lookup') ?? undefined,
-    };
+    try {
+      return {
+        route: 'dossier',
+        vboId: decodeURIComponent(dossierMatch[1]),
+        lookupId: params.get('lookup') ?? undefined,
+      };
+    } catch {
+      return { route: 'search' };
+    }
   }
 
   if (path === '/briefing') return { route: 'dossier' };
@@ -1417,6 +1421,8 @@ function App() {
       viewer3DObserverRef.current.disconnect();
       viewer3DObserverRef.current = null;
     }
+    setExportSheetOpen(false);
+    setExportGenerating(false);
     setActionBarVisible(false);
     setRiskCards(null);
     setRiskComparisons(null);
@@ -1449,6 +1455,7 @@ function App() {
     const requestId = ++neighborhood3DRequestId.current;
 
     setActiveScreen('dossier');
+    // Sync immediately — post-await checks read this ref before useEffect fires
     activeScreenRef.current = 'dossier';
     setActiveTab('briefing');
     setSheetSnap('peek');
@@ -1729,7 +1736,6 @@ function App() {
       showToast(mapped);
       setActiveTab('home');
       setActiveScreen('search');
-      activeScreenRef.current = 'search';
       setHashRoute('#/search', { replace: true });
     }
   }, [dossierHash, isActiveDossierRequest, setHashRoute, showToast, t, trigger3DFetch]);
@@ -1739,13 +1745,17 @@ function App() {
     if (!shortlistItem) return;
 
     if (shortlistItem.lookupId) {
-      await handleAddressSelect({
-        id: shortlistItem.lookupId,
-        display_name: shortlistItem.address,
-        type: 'adres',
-        score: 1,
-      });
-      return;
+      try {
+        await handleAddressSelect({
+          id: shortlistItem.lookupId,
+          display_name: shortlistItem.address,
+          type: 'adres',
+          score: 1,
+        });
+        return;
+      } catch {
+        // Fall through to toast below
+      }
     }
 
     try {
@@ -1801,7 +1811,6 @@ function App() {
           showToast(t('shortlist.reopenError', 'Could not reopen this address. Search for it again.'));
           setActiveTab('home');
           setActiveScreen('search');
-          activeScreenRef.current = 'search';
           setSheetSnap('hidden');
           setHashRoute('#/search', { replace: true });
         }

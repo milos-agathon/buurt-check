@@ -1098,13 +1098,14 @@ export default function NeighborhoodViewer3D({
     const ctx = sceneRef.current;
     const callback = onSunlightAnalysisRef.current;
     if (!ctx || !callback || buildings.length === 0 || !targetPandId) return;
-    if (!allBuildingsReadyRef.current || sunlightComputed.current) return;
+    if (!allBuildingsReadyRef.current) return;
 
     const target = buildings.find((building) => building.pand_id === targetPandId);
     if (!target || target.footprint.length < 3) return;
 
-    sunlightComputed.current = true;
+    // Allow re-entry: abort previous computation, then mark as computing
     sunlightAbortRef.current?.abort();
+    sunlightComputed.current = true;
     const abortController = new AbortController();
     sunlightAbortRef.current = abortController;
 
