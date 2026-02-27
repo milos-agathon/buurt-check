@@ -1,6 +1,8 @@
 import type { TFunction } from 'i18next';
 import type {
   BuildingFactsResponse,
+  CheckoutSessionResponse,
+  EntitlementResponse,
   LivabilityResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
@@ -8,6 +10,7 @@ import type {
   ResolvedAddress,
   RiskCardsResponse,
   RiskComparisonsResponse,
+  ShortReportResponse,
   SunlightResult,
   SuggestResponse,
   TierBResponse,
@@ -120,6 +123,40 @@ export async function suggestAddresses(
 export async function lookupAddress(id: string, signal?: AbortSignal): Promise<ResolvedAddress> {
   const params = new URLSearchParams({ id });
   const resp = await fetch(`${API_BASE}/address/lookup?${params}`, { signal });
+  if (!resp.ok) throwHttpError(resp.status);
+  return resp.json();
+}
+
+export async function createShortReport(
+  vboId: string,
+  addressKey: string,
+  firstFree: boolean = false,
+): Promise<ShortReportResponse> {
+  const resp = await fetch(`${API_BASE}/reports/short`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vbo_id: vboId,
+      address_key: addressKey,
+      first_free: firstFree,
+    }),
+  });
+  if (!resp.ok) throwHttpError(resp.status);
+  return resp.json();
+}
+
+export async function checkEntitlement(reportId: string): Promise<EntitlementResponse> {
+  const resp = await fetch(`${API_BASE}/reports/${reportId}/entitlement`);
+  if (!resp.ok) throwHttpError(resp.status);
+  return resp.json();
+}
+
+export async function createCheckoutSession(reportId: string): Promise<CheckoutSessionResponse> {
+  const resp = await fetch(`${API_BASE}/billing/checkout-session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ report_id: reportId }),
+  });
   if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }

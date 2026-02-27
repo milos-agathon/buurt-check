@@ -1,6 +1,9 @@
 import type { TFunction } from 'i18next';
 import {
   ApiError,
+  checkEntitlement,
+  createCheckoutSession,
+  createShortReport,
   downloadPdfBlob,
   exportBriefing,
   getBuildingFacts,
@@ -546,6 +549,73 @@ describe('exportBriefing', () => {
     const [, init] = mockFetch.mock.calls[0];
     const body = JSON.parse(init.body);
     expect(body.report_id).toBe('report-123');
+  });
+});
+
+// ─── reports + billing (monetization) ───────────────────────────────────────
+
+describe('createShortReport', () => {
+  it('posts vbo_id, address_key, and first_free', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+        report_type: 'short',
+        already_purchased: false,
+      }),
+    );
+
+    const result = await createShortReport(
+      '0363100012345678',
+      'Keizersgracht 1, Amsterdam',
+      true,
+    );
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/reports/short');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body);
+    expect(body).toEqual({
+      vbo_id: '0363100012345678',
+      address_key: 'Keizersgracht 1, Amsterdam',
+      first_free: true,
+    });
+    expect(result.report_id).toBe('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
+  });
+});
+
+describe('checkEntitlement', () => {
+  it('fetches entitlement by report id', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+        entitled: true,
+        report_type: 'short',
+      }),
+    );
+
+    const result = await checkEntitlement('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/reports/7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de/entitlement');
+    expect(result.entitled).toBe(true);
+  });
+});
+
+describe('createCheckoutSession', () => {
+  it('posts report_id and returns checkout_url', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({ checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_123' }),
+    );
+
+    const result = await createCheckoutSession('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/billing/checkout-session');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({
+      report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+    });
+    expect(result.checkout_url).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
   });
 });
 

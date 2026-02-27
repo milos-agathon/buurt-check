@@ -11,6 +11,22 @@ export interface SuggestResponse {
   suggestions: AddressSuggestion[];
 }
 
+export interface ShortReportResponse {
+  report_id: string;
+  report_type: 'short' | 'long';
+  already_purchased: boolean;
+}
+
+export interface EntitlementResponse {
+  report_id: string;
+  entitled: boolean;
+  report_type: 'short' | 'long';
+}
+
+export interface CheckoutSessionResponse {
+  checkout_url: string;
+}
+
 export interface ResolvedAddress {
   id: string;
   nummeraanduiding_id?: string;
