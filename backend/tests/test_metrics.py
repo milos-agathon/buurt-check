@@ -178,3 +178,4 @@ class TestRequestLoggingMiddleware:
                 assert args[1] == "GET"       # method
                 assert args[2] == "/health"   # path
                 assert args[3] == 200         # status
+                assert isinstance(args[4], float) and args[4] >= 0  # duration_ms
