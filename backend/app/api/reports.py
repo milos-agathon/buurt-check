@@ -2,7 +2,8 @@
 
 import logging
 
-from fastapi import APIRouter, Request
+import aiosqlite
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.rate_limit import limiter
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 class ShortReportRequest(BaseModel):
     vbo_id: str = Field(..., pattern=r"^[0-9]{16}$")
-    address_key: str = Field(..., min_length=1)
+    address_key: str = Field(..., min_length=1, max_length=500)
 
 
 class ShortReportResponse(BaseModel):
@@ -31,13 +32,17 @@ async def create_short_report(request: Request, body: ShortReportRequest):
     If a paid + active report already exists for this vbo_id, return that
     instead so the frontend can skip the purchase flow.
     """
-    existing = await find_existing_paid_report(body.vbo_id)
-    if existing:
-        return ShortReportResponse(
-            report_id=existing.report_id,
-            report_type=existing.report_type,
-            already_purchased=True,
-        )
+    try:
+        existing = await find_existing_paid_report(body.vbo_id)
+        if existing:
+            return ShortReportResponse(
+                report_id=existing.report_id,
+                report_type=existing.report_type,
+                already_purchased=True,
+            )
 
-    report_id = await create_report(body.vbo_id, body.address_key, "short")
-    return ShortReportResponse(report_id=report_id, report_type="short")
+        report_id = await create_report(body.vbo_id, body.address_key, "short")
+        return ShortReportResponse(report_id=report_id, report_type="short")
+    except aiosqlite.Error:
+        logger.exception("Database error creating short report for vbo_id=%s", body.vbo_id)
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
