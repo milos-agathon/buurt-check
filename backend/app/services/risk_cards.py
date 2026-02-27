@@ -16,6 +16,7 @@ from app.models.risk import (
     NoiseRiskCard,
     RiskCardsResponse,
     RiskLevel,
+    SeverityLevel,
     SunlightRiskCard,
 )
 from app.services.scoring import (
@@ -818,9 +819,9 @@ async def get_risk_cards(
     noise_score = normalize_noise_score(noise_card.lden_db)
     noise_card.score = noise_score
     noise_card.severity = (
-        severity_from_score(noise_score).value
+        severity_from_score(noise_score)
         if noise_score is not None
-        else "unavailable"
+        else SeverityLevel.unavailable
     )
     noise_en, noise_nl = noise_summary(noise_score, noise_card.lden_db)
     noise_card.summary = noise_en
@@ -829,9 +830,9 @@ async def get_risk_cards(
     air_score = normalize_air_score(air_card.pm25_ug_m3, air_card.no2_ug_m3)
     air_card.score = air_score
     air_card.severity = (
-        severity_from_score(air_score).value
+        severity_from_score(air_score)
         if air_score is not None
-        else "unavailable"
+        else SeverityLevel.unavailable
     )
     air_en, air_nl = air_summary(air_score, air_card.pm25_ug_m3, air_card.no2_ug_m3)
     air_card.summary = air_en
@@ -843,9 +844,9 @@ async def get_risk_cards(
     )
     climate_card.score = climate_score
     climate_card.severity = (
-        severity_from_score(climate_score).value
+        severity_from_score(climate_score)
         if climate_score is not None
-        else "unavailable"
+        else SeverityLevel.unavailable
     )
     climate_en, climate_nl = climate_summary(
         climate_score,

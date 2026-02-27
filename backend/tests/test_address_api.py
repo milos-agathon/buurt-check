@@ -78,6 +78,24 @@ async def test_suggest_too_short(client):
 @pytest.mark.asyncio
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.locatieserver")
+async def test_suggest_cache_key_normalized(mock_ls, mock_cache_set, mock_cache_get, client):
+    """Cache key for suggest should normalize q with strip().casefold() (bug #20)."""
+    mock_ls.suggest = AsyncMock(return_value=[])
+    mock_ls.AddressSuggestion = AddressSuggestion
+
+    await client.get("/api/address/suggest", params={"q": "  Kalverstraat  "})
+    await client.get("/api/address/suggest", params={"q": "kalverstraat"})
+
+    # Both queries should produce the same cache key: "suggest:kalverstraat:7"
+    cache_get_keys = [call.args[0] for call in mock_cache_get.call_args_list]
+    assert cache_get_keys[0] == "suggest:kalverstraat:7"
+    assert cache_get_keys[1] == "suggest:kalverstraat:7"
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
 @patch("app.api.address.locatieserver")
 async def test_lookup_endpoint(mock_ls, mock_bag, mock_cache_set, mock_cache_get, client):

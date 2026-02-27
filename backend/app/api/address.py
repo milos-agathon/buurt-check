@@ -106,7 +106,7 @@ async def address_suggest(
     limit: int = Query(7, ge=1, le=20, description="Max results"),
 ):
     """Autocomplete address suggestions from PDOK Locatieserver."""
-    cache_key = f"suggest:{q}:{limit}"
+    cache_key = f"suggest:{q.strip().casefold()}:{limit}"
     cached = await cache_get(cache_key)
     if cached is not None:
         response.headers["Cache-Control"] = _CACHE_REALTIME
@@ -196,7 +196,7 @@ async def wms_tile_proxy(
         )
 
     media_type = "image/jpeg" if type == "luchtfoto" else "image/png"
-    cache_key = f"wms_tile:{type}:{rd_x:.0f}:{rd_y:.0f}:{radius:.0f}"
+    cache_key = f"wms_tile:{type}:{rd_x:.0f}:{rd_y:.0f}:{radius:.0f}:{size}"
     cached = await cache_get(cache_key)
     if cached is not None:
         tile_bytes = base64.b64decode(cached)
