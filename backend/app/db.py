@@ -5,6 +5,7 @@ Provides async access via aiosqlite with WAL mode for concurrent reads/writes.
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -12,9 +13,11 @@ import aiosqlite
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 _SCHEMA = """\
 CREATE TABLE IF NOT EXISTS reports (
-    report_id TEXT PRIMARY KEY,
+    report_id TEXT NOT NULL PRIMARY KEY,
     report_type TEXT NOT NULL CHECK(report_type IN ('short', 'long')),
     address_key TEXT NOT NULL,
     vbo_id TEXT NOT NULL,
@@ -31,6 +34,7 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 CREATE INDEX IF NOT EXISTS idx_reports_vbo_id ON reports(vbo_id);
 CREATE INDEX IF NOT EXISTS idx_reports_provider_session ON reports(provider_session_id);
+CREATE INDEX IF NOT EXISTS idx_reports_provider_payment ON reports(provider_payment_id);
 """
 
 
@@ -45,11 +49,15 @@ async def init_db(db_path: str | None = None) -> None:
         await db.execute("PRAGMA journal_mode=WAL")
         await db.executescript(_SCHEMA)
         await db.commit()
+    logger.info("Database initialized at %s", path)
 
 
 @asynccontextmanager
 async def get_db(db_path: str | None = None) -> AsyncIterator[aiosqlite.Connection]:
     """Async context manager returning an aiosqlite connection with Row factory.
+
+    Callers MUST call ``await db.commit()`` after writes — this context manager
+    does NOT commit on exit.
 
     Args:
         db_path: Path to the SQLite database file. Uses settings.database_path if None.
