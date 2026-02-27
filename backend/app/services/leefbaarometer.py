@@ -49,13 +49,23 @@ def _normalize_score(raw: int) -> int:
     return round((raw - 1) / 8 * 100)
 
 
+def _safe_int(value: object) -> int | None:
+    """Safely cast a WFS property value to int. Returns None for non-numeric."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_dimensions(props: dict) -> list[LivabilityDimension]:
     """Extract 5 dimensions from WFS feature properties."""
     dims = []
     for field, name in DIMENSION_MAP:
         raw = props.get(field)
-        if raw is not None:
-            raw_int = int(raw)
+        raw_int = _safe_int(raw)
+        if raw_int is not None:
             dims.append(LivabilityDimension(
                 name=name,
                 raw_score=raw_int,
@@ -107,11 +117,10 @@ async def get_livability(rd_x: float, rd_y: float) -> LivabilityResponse | None:
     if props is None:
         return None
 
-    kscore = props.get("kscore")
-    if kscore is None:
+    kscore_int = _safe_int(props.get("kscore"))
+    if kscore_int is None:
         return None
 
-    kscore_int = int(kscore)
     return LivabilityResponse(
         available=True,
         buurt_code=str(props.get("id", "")),
@@ -132,10 +141,9 @@ async def _fetch_year(
     props = await _fetch_feature(f"lbm3:buurtscore{year_suffix}", rd_x, rd_y)
     if props is None:
         return None
-    kscore = props.get("kscore")
-    if kscore is None:
+    kscore_int = _safe_int(props.get("kscore"))
+    if kscore_int is None:
         return None
-    kscore_int = int(kscore)
     return LivabilityTrendPoint(
         year=str(props.get("year", f"20{year_suffix}")),
         overall_score=kscore_int,
@@ -165,10 +173,9 @@ async def _fetch_comparison_row(
     props = await _fetch_feature(type_name, rd_x, rd_y)
     if props is None:
         return None
-    kscore = props.get("kscore")
-    if kscore is None:
+    kscore_int = _safe_int(props.get("kscore"))
+    if kscore_int is None:
         return None
-    kscore_int = int(kscore)
     return LivabilityComparisonRow(
         level=level,
         name=str(props.get("name", "")),

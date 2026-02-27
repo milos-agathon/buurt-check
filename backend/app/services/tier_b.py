@@ -261,10 +261,13 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
 
     total_count = code_to_count.get(_CRIME_TOTAL_KEY)
     burglary_count = code_to_count.get(_CRIME_BURGLARY_KEY)
-    violent_count = sum(
-        value or 0.0
-        for code, value in code_to_count.items()
+    # Distinguish "no violent crime categories in data" (None) from "zero crimes" (0.0)
+    violent_entries = [
+        value for code, value in code_to_count.items()
         if code in _CRIME_VIOLENT_KEYS
+    ]
+    violent_count: float | None = (
+        sum(v or 0.0 for v in violent_entries) if violent_entries else None
     )
     monthly_count = None
     if monthly_rows:
@@ -292,7 +295,7 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
         monthly_period=latest_month,
         total_count=total_count,
         burglary_count=burglary_count,
-        violent_count=violent_count if violent_count else None,
+        violent_count=violent_count,
         monthly_total_count=monthly_count,
         score=score,
         severity=severity,
