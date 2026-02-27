@@ -62,6 +62,7 @@ async def test_update_payment_status(db_path):
     )
     report = await get_report(report_id, db_path=db_path)
     assert report.payment_status == "paid"
+    assert report.provider_payment_id == "pi_123"
 
 
 @pytest.mark.asyncio
