@@ -151,3 +151,42 @@ async def test_missing_fields_rejected(client):
         json={},
     )
     assert response.status_code == 422
+
+
+# --- Entitlement check (Story 2.2) ---
+
+
+@pytest.mark.asyncio
+async def test_entitlement_check_false(client, db_path):
+    """Newly created report should NOT be entitled."""
+    from app.services.reports import create_report
+
+    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    response = await client.get(f"/api/reports/{rid}/entitlement")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["report_id"] == rid
+    assert data["entitled"] is False
+    assert data["report_type"] == "long"
+
+
+@pytest.mark.asyncio
+async def test_entitlement_check_true(client, db_path):
+    """After activation, report should be entitled."""
+    from app.services.reports import activate_entitlement, create_report
+
+    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    await activate_entitlement(rid, db_path=db_path)
+    response = await client.get(f"/api/reports/{rid}/entitlement")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["report_id"] == rid
+    assert data["entitled"] is True
+    assert data["report_type"] == "long"
+
+
+@pytest.mark.asyncio
+async def test_entitlement_check_not_found(client):
+    """Unknown report_id returns 404."""
+    response = await client.get("/api/reports/nonexistent/entitlement")
+    assert response.status_code == 404

@@ -7,7 +7,12 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.rate_limit import limiter
-from app.services.reports import create_report, find_existing_paid_report
+from app.services.reports import (
+    check_entitlement,
+    create_report,
+    find_existing_paid_report,
+    get_report,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -22,6 +27,12 @@ class ShortReportResponse(BaseModel):
     report_id: str
     report_type: str
     already_purchased: bool = False
+
+
+class EntitlementResponse(BaseModel):
+    report_id: str
+    entitled: bool
+    report_type: str
 
 
 @limiter.limit("10/minute")
@@ -45,4 +56,26 @@ async def create_short_report(request: Request, body: ShortReportRequest):
         return ShortReportResponse(report_id=report_id, report_type="short")
     except aiosqlite.Error:
         logger.exception("Database error creating short report for vbo_id=%s", body.vbo_id)
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+
+@router.get("/{report_id}/entitlement", response_model=EntitlementResponse)
+async def get_entitlement(report_id: str):
+    """Check whether a report has an active entitlement.
+
+    Called by the frontend after Stripe checkout redirect to verify that
+    payment went through and the user is entitled to view the full report.
+    """
+    try:
+        report = await get_report(report_id)
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+        entitled = await check_entitlement(report_id)
+        return EntitlementResponse(
+            report_id=report_id,
+            entitled=entitled,
+            report_type=report.report_type,
+        )
+    except aiosqlite.Error:
+        logger.exception("Database error checking entitlement for report_id=%s", report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
