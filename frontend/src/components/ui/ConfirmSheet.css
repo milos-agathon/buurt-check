@@ -44,5 +44,5 @@
 .confirm-sheet__btn--danger {
   border: 1px solid var(--color-risk-poor);
   background: var(--color-risk-poor);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
 }

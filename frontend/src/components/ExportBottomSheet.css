@@ -105,7 +105,7 @@
 
 .export-sheet__language-btn--active {
   background: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
 }
 
 .export-sheet__language-warning {
@@ -255,7 +255,7 @@
   margin-top: var(--space-lg);
   padding: var(--space-md) var(--space-lg);
   background: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
   border: none;
   border-radius: var(--radius-md);
   font: var(--type-body);

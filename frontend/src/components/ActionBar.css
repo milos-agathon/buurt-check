@@ -111,7 +111,7 @@
 
 .action-bar__btn--primary {
   background: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: var(--color-overlay-text);
 }
 
 .action-bar__btn--primary:hover {
