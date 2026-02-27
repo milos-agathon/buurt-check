@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import logging
+import re
 import time
 
 from fastapi import APIRouter, HTTPException, Path, Query, Request
@@ -48,6 +49,26 @@ from app.services.scoring import (
 from app.services.viewing_questions import build_viewing_questions
 
 logger = logging.getLogger(__name__)
+
+_BUURT_CODE_RE = re.compile(r"^BU[0-9]{4}[A-Z0-9]{4}$")
+
+
+def _validate_buurt_code(buurt_code: str | None) -> str | None:
+    """Validate buurt_code format at the route layer.
+
+    Returns the cleaned value or raises HTTPException 422 if the format
+    is invalid.  ``None`` passes through (buurt_code is optional).
+    """
+    if buurt_code is None:
+        return None
+    cleaned = buurt_code.strip().upper()
+    if not _BUURT_CODE_RE.match(cleaned):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid buurt_code format: expected BUxxxxxxxx (e.g. BU05370606)",
+        )
+    return cleaned
+
 
 # HTTP Cache-Control header values by data freshness tier
 _CACHE_IMMUTABLE = "public, max-age=86400"
@@ -621,6 +642,7 @@ async def tier_b_signals(
     addition: str | None = Query(None),
 ):
     """Fetch Tier-B signals: energy label + crime context."""
+    buurt_code = _validate_buurt_code(buurt_code)
     cache_key = (
         f"tier-b:{vbo_id}:{buurt_code or '-'}:{postcode or '-'}:{house_number or '-'}"
         f":{house_letter or '-'}:{addition or '-'}"

@@ -1,6 +1,7 @@
 """Tests for the Tier B service — crime stats data validation.
 
-Focuses on the zero-crime falsy check bug (#42) and related edge cases.
+Focuses on the zero-crime falsy check bug (#42), buurt_code validation (#48),
+and related edge cases.
 """
 from __future__ import annotations
 
@@ -9,7 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.tier_b import CrimeStatsCard
-from app.services.tier_b import _get_crime_stats, _to_float
+from app.services.tier_b import (
+    _clean_buurt_code,
+    _get_crime_stats,
+    _odata_escape,
+    _to_float,
+)
 
 # ───────── Helpers ──────────
 
@@ -220,3 +226,91 @@ def test_to_float_edge_cases():
     assert _to_float(0.0) == 0.0
     assert _to_float("3.14") == 3.14
     assert _to_float(42) == 42.0
+
+
+# ═══════ buurt_code validation (#48) ═══════
+
+
+class TestCleanBuurtCode:
+    """Strict regex validation on buurt_code prevents OData injection."""
+
+    def test_valid_all_numeric(self):
+        assert _clean_buurt_code("BU05370606") == "BU05370606"
+
+    def test_valid_alphanumeric_suffix(self):
+        assert _clean_buurt_code("BU0363AD07") == "BU0363AD07"
+
+    def test_valid_with_whitespace(self):
+        assert _clean_buurt_code("  BU05370606  ") == "BU05370606"
+
+    def test_valid_lowercase_normalized(self):
+        assert _clean_buurt_code("bu0363ad07") == "BU0363AD07"
+
+    def test_none_returns_none(self):
+        assert _clean_buurt_code(None) is None
+
+    def test_empty_string_returns_none(self):
+        assert _clean_buurt_code("") is None
+
+    def test_wrong_prefix_returns_none(self):
+        assert _clean_buurt_code("WK05370606") is None
+
+    def test_too_short_returns_none(self):
+        assert _clean_buurt_code("BU0537") is None
+
+    def test_too_long_returns_none(self):
+        assert _clean_buurt_code("BU053706060") is None
+
+    def test_single_quote_injection_rejected(self):
+        """A crafted buurt_code with quotes must be rejected."""
+        assert _clean_buurt_code("BU0537'OR1") is None
+
+    def test_double_quote_injection_rejected(self):
+        assert _clean_buurt_code('BU0537"OR1') is None
+
+    def test_space_injection_rejected(self):
+        assert _clean_buurt_code("BU0537 606") is None
+
+    def test_semicolon_injection_rejected(self):
+        assert _clean_buurt_code("BU0537;606") is None
+
+    def test_parenthesis_injection_rejected(self):
+        assert _clean_buurt_code("BU0537)606") is None
+
+
+class TestOdataEscape:
+    """Defense-in-depth: single quotes doubled in OData string literals."""
+
+    def test_no_quotes_unchanged(self):
+        assert _odata_escape("BU05370606") == "BU05370606"
+
+    def test_single_quote_doubled(self):
+        assert _odata_escape("BU0537'606") == "BU0537''606"
+
+    def test_multiple_quotes_all_doubled(self):
+        assert _odata_escape("a'b'c") == "a''b''c"
+
+    def test_empty_string(self):
+        assert _odata_escape("") == ""
+
+
+@pytest.mark.asyncio
+async def test_invalid_buurt_code_returns_no_buurt_message():
+    """_get_crime_stats returns CRIME_NO_BUURT_CODE for invalid codes."""
+    result = await _get_crime_stats("BU0537'OR 1 eq 1--")
+    assert isinstance(result, CrimeStatsCard)
+    assert result.message == "CRIME_NO_BUURT_CODE"
+
+
+@pytest.mark.asyncio
+async def test_valid_buurt_code_passes_through():
+    """_get_crime_stats accepts a well-formed buurt code."""
+    yearly_rows = _make_yearly_rows(total=50.0, burglary=5.0)
+    side_effect = _build_side_effect(yearly_rows)
+    mock_cl = _mock_client_with_side_effect(side_effect)
+
+    with patch("app.services.tier_b._get_client", return_value=mock_cl):
+        result = await _get_crime_stats("BU0363AD07")
+
+    assert isinstance(result, CrimeStatsCard)
+    assert result.message != "CRIME_NO_BUURT_CODE"

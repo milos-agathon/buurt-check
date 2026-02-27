@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -24,11 +25,19 @@ def _get_client() -> httpx.AsyncClient:
     return _client
 
 
+_BUURT_CODE_RE = re.compile(r"^BU[0-9]{4}[A-Z0-9]{4}$")
+
+
 def _clean_buurt_code(value: str | None) -> str | None:
+    """Validate and normalise a buurt code.
+
+    Returns the cleaned code if it matches ``^BU[0-9]{4}[A-Z0-9]{4}$``, else ``None``.
+    This strict check prevents OData query-manipulation via crafted inputs.
+    """
     if not value:
         return None
     cleaned = value.strip().upper()
-    return cleaned if cleaned.startswith("BU") else None
+    return cleaned if _BUURT_CODE_RE.match(cleaned) else None
 
 
 def _first_present(obj: dict[str, Any], keys: list[str]) -> str | None:
@@ -193,16 +202,24 @@ def _buurt_to_gemeente(buurt_code: str) -> str:
     return f"GM{digits}"
 
 
+def _odata_escape(value: str) -> str:
+    """Escape single quotes for OData string literals (defense in depth)."""
+    return value.replace("'", "''")
+
+
 async def _fetch_crime_rows(
     area_code: str,
     latest_year: str,
     latest_month: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Fetch yearly + monthly crime rows for a given area code."""
+    safe_code = _odata_escape(area_code)
+    safe_year = _odata_escape(latest_year)
+    safe_month = _odata_escape(latest_month)
     yearly_rows = await _fetch_typed_rows(
         settings.cbs_crime_yearly_base,
         filter_expr=(
-            f"startswith(WijkenEnBuurten,'{area_code}') and Perioden eq '{latest_year}'"
+            f"startswith(WijkenEnBuurten,'{safe_code}') and Perioden eq '{safe_year}'"
         ),
         top=250,
     )
@@ -210,7 +227,7 @@ async def _fetch_crime_rows(
         settings.cbs_crime_monthly_base,
         filter_expr=(
             f"SoortMisdrijf eq '{_CRIME_TOTAL_KEY}' and "
-            f"startswith(WijkenEnBuurten,'{area_code}') and Perioden eq '{latest_month}'"
+            f"startswith(WijkenEnBuurten,'{safe_code}') and Perioden eq '{safe_month}'"
         ),
         top=5,
     )
