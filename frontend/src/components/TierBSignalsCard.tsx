@@ -34,6 +34,9 @@ function formatCbsPeriod(period: string, locale: string): string {
   return `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${year}`;
 }
 
+/** National crime average per 1,000 residents (CBS 2024). */
+const NATIONAL_CRIME_RATE = 52.0;
+
 function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
   const { t, i18n } = useTranslation();
 
@@ -66,7 +69,7 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
 
   const unavailable = t('tierB.unavailable');
   const crimeSourceDate = data.crime.source_date ?? data.crime.yearly_period ?? t('risk.dateUnknown');
-  const per1000Suffix = ' / 1,000';
+  const per1000Suffix = t('tierB.crime.per_1000_suffix');
   const rawSuffix = ` ${t('tierB.crime.rawSuffix')}`;
   const hasRates = data.crime.total_per_1000 != null;
 
@@ -85,7 +88,7 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
             {data.crime.score != null && (
               <span className="tier-b-card__crime-score">
                 {data.crime.score}
-                <span className="tier-b-card__crime-score-scale">/100</span>
+                <span className="tier-b-card__crime-score-scale">{t('tierB.crime.score_scale')}</span>
               </span>
             )}
           </div>
@@ -114,10 +117,10 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
               <div className="tier-b-card__cmp-track">
                 <div
                   className="tier-b-card__cmp-fill tier-b-card__cmp-fill--reference"
-                  style={{ width: '52%' }}
+                  style={{ width: `${Math.min(100, NATIONAL_CRIME_RATE)}%` }}
                 />
               </div>
-              <span className="tier-b-card__cmp-value">52.0</span>
+              <span className="tier-b-card__cmp-value">{NATIONAL_CRIME_RATE.toFixed(1)}</span>
             </div>
           </div>
         )}
