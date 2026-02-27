@@ -141,6 +141,7 @@ export async function getBuilding3D(
   lat: number,
   lng: number,
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<Neighborhood3DResponse> {
   const params = new URLSearchParams({
     pand_id: pandId,
@@ -149,6 +150,7 @@ export async function getBuilding3D(
     lat: String(lat),
     lng: String(lng),
   });
+  if (reportId) params.set('report_id', reportId);
   const resp = await fetch(`${API_BASE}/address/${vboId}/building3d?${params}`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
@@ -162,6 +164,7 @@ export async function getNeighborhood3D(
   lat: number,
   lng: number,
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<Neighborhood3DResponse> {
   const params = new URLSearchParams({
     pand_id: pandId,
@@ -170,6 +173,7 @@ export async function getNeighborhood3D(
     lat: String(lat),
     lng: String(lng),
   });
+  if (reportId) params.set('report_id', reportId);
   // Some 3DBAG areas need additional retries + slower server-side processing.
   const timeout = withTimeoutSignal(90000, signal);
   try {
@@ -244,6 +248,7 @@ export async function getRiskComparisons(
   lng: number,
   buurtCode?: string,
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<RiskComparisonsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -252,6 +257,7 @@ export async function getRiskComparisons(
     lng: String(lng),
   });
   if (buurtCode) params.set('buurt_code', buurtCode);
+  if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(20000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/risk-comparisons?${params}`, {
@@ -272,6 +278,7 @@ export async function getViewingQuestions(
   lng: number,
   context?: { street?: string; city?: string },
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<ViewingQuestionsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -281,6 +288,7 @@ export async function getViewingQuestions(
   });
   if (context?.street) params.set('street', context.street);
   if (context?.city) params.set('city', context.city);
+  if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(20000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/viewing-questions?${params}`, {
@@ -372,6 +380,7 @@ export async function getTierBData(
     addition?: string;
   },
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<TierBResponse> {
   const params = new URLSearchParams();
   if (options.buurtCode) params.set('buurt_code', options.buurtCode);
@@ -379,6 +388,7 @@ export async function getTierBData(
   if (options.houseNumber) params.set('house_number', options.houseNumber);
   if (options.houseLetter) params.set('house_letter', options.houseLetter);
   if (options.addition) params.set('addition', options.addition);
+  if (reportId) params.set('report_id', reportId);
 
   const timeout = withTimeoutSignal(20000, signal);
   try {
@@ -397,11 +407,13 @@ export async function getLivability(
   rdX: number,
   rdY: number,
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<LivabilityResponse | null> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
     rd_y: String(rdY),
   });
+  if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(15000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/livability?${params}`, {
@@ -427,6 +439,7 @@ export async function getPropertyWarnings(
     municipality?: string;
   },
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<PropertyWarningsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -437,6 +450,7 @@ export async function getPropertyWarnings(
   if (options?.numUnits != null)
     params.set('num_units', String(options.numUnits));
   if (options?.municipality) params.set('municipality', options.municipality);
+  if (reportId) params.set('report_id', reportId);
 
   const timeout = withTimeoutSignal(15000, signal);
   try {

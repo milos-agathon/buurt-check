@@ -10,6 +10,7 @@ interface Props {
   rdY?: number;
   footprint?: Geometry;
   zoom?: number;
+  reportId?: string;
 }
 
 const VIEWBOX_SIZE = 100;
@@ -113,7 +114,7 @@ function toPath(points: { x: number; y: number }[]): string | undefined {
   return cmds.join(' ');
 }
 
-export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint }: Props) {
+export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint, reportId }: Props) {
   const { t } = useTranslation();
   const [imgError, setImgError] = useState(false);
 
@@ -129,9 +130,10 @@ export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint }: 
       radius: String(TILE_RADIUS),
       size: '512',
     });
+    if (reportId) params.set('report_id', reportId);
     const base = import.meta.env.VITE_API_BASE || '/api';
     return `${base}/address/wms-tile?${params}`;
-  }, [rdX, rdY]);
+  }, [rdX, rdY, reportId]);
 
   // Map footprint WGS84 coords to SVG overlay on the aerial image
   const overlayPath = useMemo(() => {

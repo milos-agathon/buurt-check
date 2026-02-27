@@ -559,5 +559,10 @@
   "tooltip.dismiss": "Sluiten",
   "common.quartile": "Kwartiel {{quartile}} van {{total}}",
   "tierB.crime.per_1000_suffix": " / 1.000",
-  "tierB.crime.score_scale": "/100"
+  "tierB.crime.score_scale": "/100",
+  "premium.locked.title": "Premiuminhoud",
+  "premium.locked.subtitle": "Ontgrendel {{section}} met een volledig dossier",
+  "premium.locked.cta": "Volledig dossier ontgrendelen",
+  "premium.locked.aria": "Vergrendelde sectie: {{section}}",
+  "premium.locked.upgradePrompt": "Koop een volledig dossier om deze functie te gebruiken"
 }

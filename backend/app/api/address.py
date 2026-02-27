@@ -4,10 +4,11 @@ import logging
 import re
 import time
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import Response
 from pydantic import AliasChoices, BaseModel, Field
 
+from app.api.dependencies import require_entitlement
 from app.cache.redis import cache_get, cache_set
 from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
@@ -186,6 +187,7 @@ async def wms_tile_proxy(
     rd_y: float = Query(..., ge=285000, le=625000, description="RD Y coordinate"),
     radius: float = Query(250.0, ge=10, le=500, description="Tile radius in meters"),
     size: int = Query(512, ge=128, le=2048, description="Tile size in pixels"),
+    _: None = Depends(require_entitlement),
 ):
     """Proxy WMS GetMap tiles to avoid CORS issues in the browser."""
     if type not in VALID_TILE_TYPES:
@@ -274,6 +276,7 @@ async def building_3d(
     rd_y: float = Query(..., ge=285000, le=625000),
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
+    _: None = Depends(require_entitlement),
 ):
     """Fast Phase 1: fetch only the target building (~2s, no bbox)."""
     cache_key = f"building3d:{pand_id}"
@@ -310,6 +313,7 @@ async def neighborhood_3d(
     rd_y: float = Query(..., ge=285000, le=625000),
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
+    _: None = Depends(require_entitlement),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
     # v26: parallel quadrant strategy for accelerated mode (4 concurrent bbox queries at 120m).
@@ -525,6 +529,7 @@ async def risk_comparisons(
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
     buurt_code: str | None = Query(None),
+    _: None = Depends(require_entitlement),
 ):
     """Return data-driven comparison rows for risk detail views."""
     cache_key_risks = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
@@ -599,6 +604,7 @@ async def viewing_questions(
     lng: float = Query(..., ge=3.2, le=7.3),
     street: str | None = Query(None, description="Street name for contextualized questions"),
     city: str | None = Query(None, description="City name for contextualized questions"),
+    _: None = Depends(require_entitlement),
 ):
     """Generate viewing questions based on risk card scores.
 
@@ -640,6 +646,7 @@ async def tier_b_signals(
     house_number: str | None = Query(None),
     house_letter: str | None = Query(None),
     addition: str | None = Query(None),
+    _: None = Depends(require_entitlement),
 ):
     """Fetch Tier-B signals: energy label + crime context."""
     buurt_code = _validate_buurt_code(buurt_code)
@@ -685,6 +692,7 @@ async def address_livability(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
     rd_y: float = Query(..., ge=285000, le=625000),
+    _: None = Depends(require_entitlement),
 ):
     """Fetch Leefbaarometer livability data: current score + trend + comparison."""
     cache_key = f"livability_full:{rd_x:.0f}:{rd_y:.0f}"
@@ -734,6 +742,7 @@ async def address_property_warnings(
     construction_year: int | None = Query(None),
     num_units: int | None = Query(None),
     municipality: str | None = Query(None),
+    _: None = Depends(require_entitlement),
 ):
     """Property warnings: foundation risk, erfpacht, VvE, asbestos."""
     t0 = time.monotonic()
@@ -799,6 +808,7 @@ class ExportRequest(BaseModel):
         max_length=2_000_000,
         validation_alias=AliasChoices("shadow_image_b64", "shadow_image"),
     )
+    report_id: str | None = None
     street: str | None = None
     city: str | None = None
     buurt_code: str | None = None
@@ -915,6 +925,15 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
         )
     if body.language not in ("en", "nl"):
         raise HTTPException(status_code=422, detail="Language must be 'en' or 'nl'")
+
+    # --- Entitlement gate: full_dossier requires a paid report ---
+    if body.template == "full_dossier":
+        if not body.report_id:
+            raise HTTPException(status_code=402, detail="Payment required")
+        from app.services.reports import check_entitlement
+
+        if not await check_entitlement(body.report_id):
+            raise HTTPException(status_code=402, detail="Payment required")
 
     # --- Phase 1: Fetch building + risks in parallel ---
     building_resp, risks = await asyncio.gather(

@@ -51,7 +51,7 @@ async def cache_get(key: str) -> dict | list | None:
         return None
 
 
-async def cache_set(key: str, value: dict | list, ttl: int | None = None) -> None:
+async def cache_set(key: str, value: dict | list | str, ttl: int | None = None) -> None:
     """Set a cached value. Silently skips if Redis is unavailable."""
     if _circuit_is_open():
         return
