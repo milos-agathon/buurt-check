@@ -69,14 +69,21 @@ async def get_entitlement(request: Request, report_id: str):
     """
     try:
         report = await get_report(report_id)
-        if not report:
-            raise HTTPException(status_code=404, detail="Report not found")
-        entitled = await check_entitlement(report_id)
-        return EntitlementResponse(
-            report_id=report_id,
-            entitled=entitled,
-            report_type=report.report_type,
-        )
     except aiosqlite.Error:
         logger.exception("Database error checking entitlement for report_id=%s", report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    try:
+        entitled = await check_entitlement(report_id)
+    except aiosqlite.Error:
+        logger.exception("Database error checking entitlement for report_id=%s", report_id)
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    return EntitlementResponse(
+        report_id=report_id,
+        entitled=entitled,
+        report_type=report.report_type,
+    )

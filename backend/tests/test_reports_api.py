@@ -1,4 +1,4 @@
-"""Tests for the reports API endpoint (Story 2.1)."""
+"""Tests for the reports API endpoints (Stories 2.1, 2.2)."""
 
 import uuid
 from unittest.mock import patch
