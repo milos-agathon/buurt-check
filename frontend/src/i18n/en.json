@@ -559,5 +559,10 @@
   "tooltip.dismiss": "Dismiss",
   "common.quartile": "Quartile {{quartile}} of {{total}}",
   "tierB.crime.per_1000_suffix": " / 1,000",
-  "tierB.crime.score_scale": "/100"
+  "tierB.crime.score_scale": "/100",
+  "premium.locked.title": "Premium content",
+  "premium.locked.subtitle": "Unlock {{section}} with a full dossier purchase",
+  "premium.locked.cta": "Unlock full dossier",
+  "premium.locked.aria": "Locked section: {{section}}",
+  "premium.locked.upgradePrompt": "Purchase a full dossier to access this feature"
 }
