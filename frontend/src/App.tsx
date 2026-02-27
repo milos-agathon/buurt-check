@@ -7,6 +7,7 @@ import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import type { SheetSnap } from './components/DossierSheet';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
 import { SPRING_TAB } from './config/springs';
+import { fetchPrice, getDossierPrice } from './config/pricing';
 import { hapticTap } from './utils/haptic';
 import { useAnimationPerformance } from './hooks/useAnimationPerformance';
 import ShortlistScreen from './components/ShortlistScreen';
@@ -337,8 +338,6 @@ const PHASE_1_TIMEOUT_MS = 7000;
 const PHASE_2_TIMEOUT_MS = 9000;
 const CHECKLIST_SESSION_KEY = 'buurt-check:viewing-checklist';
 const REPORT_LOOKUP_SESSION_KEY = 'buurt-check:report-lookup';
-const DOSSIER_PRICE_EUR = import.meta.env.VITE_DOSSIER_PRICE_EUR || '14.99';
-
 interface ParsedHashRoute {
   route: HashRoute;
   vboId?: string;
@@ -474,6 +473,7 @@ function App() {
   const [address, setAddress] = useState<ResolvedAddress | null>(dossierSeed?.address ?? null);
   const [activeLookupId, setActiveLookupId] = useState<string | null>(dossierSeed?.address?.id ?? null);
   const [reportId, setReportId] = useState<string | null>(null);
+  const [dossierPriceEur, setDossierPriceEur] = useState(() => getDossierPrice());
   const [isEntitled, setIsEntitled] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutStatusMessage, setCheckoutStatusMessage] = useState<string | null>(null);
@@ -546,6 +546,7 @@ function App() {
   const riskTilePulseTimeoutRef = useRef<number | null>(null);
   const previousScreenRef = useRef<Screen>('search');
   const handledCheckoutParamsRef = useRef<string | null>(null);
+  const tracked3DOpenKeyRef = useRef<string | null>(null);
 
   // Deferred 3D fetch: store parameters when address resolves, trigger when viewport-near
   type Deferred3DParams = {
@@ -672,6 +673,18 @@ function App() {
     return cleanup;
   }, [themePreference]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPrice().then((price) => {
+      if (!cancelled) {
+        setDossierPriceEur(price);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Mark first visit complete when dossier loads (address + building resolved)
   const hasMarkedVisited = useRef(false);
   useEffect(() => {
@@ -768,17 +781,17 @@ function App() {
 
     setIsCheckingOut(true);
     setCheckoutStatusMessage(null);
-    trackEvent('checkout_started', { report_id: reportId });
+    trackEvent('checkout_started', { report_id: reportId, price_eur: dossierPriceEur });
 
     try {
       const session = await createCheckoutSession(reportId);
       window.location.href = session.checkout_url;
     } catch {
-      trackEvent('checkout_failed', { report_id: reportId });
+      trackEvent('checkout_failed', { report_id: reportId, reason: 'session_creation' });
       setIsCheckingOut(false);
       showToast(t('premium.checkout.startFailed'));
     }
-  }, [activeLookupId, isCheckingOut, reportId, showToast, t]);
+  }, [activeLookupId, dossierPriceEur, isCheckingOut, reportId, showToast, t]);
 
   const handleToggleQuestion = useCallback((id: string) => {
     hapticTap();
@@ -1423,7 +1436,17 @@ function App() {
         if (!isActiveDossierRequest(requestId)) return;
         const isAbort = err instanceof DOMException && err.name === 'AbortError';
         if (!isAbort) {
-          setNeighborhood3DError(mapApiError(err, t));
+          const mapped = mapApiError(err, t);
+          setNeighborhood3DError(mapped);
+          trackEvent('3d_view_failed', {
+            report_id: reportId,
+            vbo_id: vboId,
+          });
+          trackEvent('report_generation_failed', {
+            stage: 'neighborhood_3d',
+            report_id: reportId,
+            vbo_id: vboId,
+          });
         }
         setNeighborhood3DLoading(false);
         setSurroundingLoading(false);
@@ -1445,6 +1468,21 @@ function App() {
     setViewer3DTriggered(true);
     trigger3DFetch();
   }, [isEntitled, trigger3DFetch]);
+
+  useEffect(() => {
+    const vboId = address?.adresseerbaar_object_id;
+    if (!vboId || !neighborhood3D || neighborhood3D.buildings.length === 0) return;
+
+    const key = `${vboId}:${reportId ?? 'none'}`;
+    if (tracked3DOpenKeyRef.current === key) return;
+    tracked3DOpenKeyRef.current = key;
+
+    trackEvent('3d_view_opened', {
+      report_id: reportId ?? 'none',
+      vbo_id: vboId,
+      building_count: neighborhood3D.buildings.length,
+    });
+  }, [address?.adresseerbaar_object_id, neighborhood3D, reportId]);
 
   useEffect(() => {
     if (!isEntitled || !reportId || !address?.adresseerbaar_object_id) return;
@@ -1739,12 +1777,28 @@ function App() {
       }
 
       let building: BuildingFactsResponse | null = null;
+      const buildingFetchStartedAt = performance.now();
       try {
         building = await getBuildingFacts(vboId, requestSignal);
       } catch (err) {
         const isAbort = err instanceof DOMException && err.name === 'AbortError';
         if (isAbort || !isActiveDossierRequest(requestId)) return;
-        setBuildingError(mapApiError(err, t));
+        const mapped = mapApiError(err, t);
+        setBuildingError(mapped);
+        trackEvent('report_generation_failed', {
+          stage: 'building_facts',
+          report_id: activeReportId ?? 'none',
+          vbo_id: vboId,
+        });
+      }
+      const buildingFetchDurationMs = Math.round(performance.now() - buildingFetchStartedAt);
+      if (buildingFetchDurationMs > 5000) {
+        trackEvent('slow_report_generation', {
+          stage: 'building_facts',
+          duration_ms: buildingFetchDurationMs,
+          report_id: activeReportId ?? 'none',
+          vbo_id: vboId,
+        });
       }
       if (!isActiveDossierRequest(requestId)) return;
 
@@ -1777,7 +1831,13 @@ function App() {
           } catch (err) {
             const isAbort = err instanceof DOMException && err.name === 'AbortError';
             if (isAbort || !isActiveDossierRequest(requestId)) return;
-            setPropertyWarningsError(mapApiError(err, t));
+            const mapped = mapApiError(err, t);
+            setPropertyWarningsError(mapped);
+            trackEvent('report_generation_failed', {
+              stage: 'property_warnings',
+              report_id: activeReportId ?? 'none',
+              vbo_id: vboId,
+            });
           } finally {
             if (isActiveDossierRequest(requestId)) {
               setPropertyWarningsLoading(false);
@@ -1805,7 +1865,13 @@ function App() {
           } catch (err) {
             const isAbort = err instanceof DOMException && err.name === 'AbortError';
             if (isAbort || !isActiveDossierRequest(requestId)) return;
-            setRiskError(mapApiError(err, t));
+            const mapped = mapApiError(err, t);
+            setRiskError(mapped);
+            trackEvent('report_generation_failed', {
+              stage: 'risk_cards',
+              report_id: activeReportId ?? 'none',
+              vbo_id: vboId,
+            });
           } finally {
             if (isActiveDossierRequest(requestId)) {
               setRiskLoading(false);
@@ -1833,7 +1899,13 @@ function App() {
             } catch (err) {
               const isAbort = err instanceof DOMException && err.name === 'AbortError';
               if (isAbort || !isActiveDossierRequest(requestId)) return;
-              setRiskComparisonsError(mapApiError(err, t));
+              const mapped = mapApiError(err, t);
+              setRiskComparisonsError(mapped);
+              trackEvent('report_generation_failed', {
+                stage: 'risk_comparisons',
+                report_id: activeReportId ?? 'none',
+                vbo_id: vboId,
+              });
             }
           })();
 
@@ -1859,7 +1931,13 @@ function App() {
             } catch (err) {
               const isAbort = err instanceof DOMException && err.name === 'AbortError';
               if (isAbort || !isActiveDossierRequest(requestId)) return;
-              setViewingQuestionsError(mapApiError(err, t));
+              const mapped = mapApiError(err, t);
+              setViewingQuestionsError(mapped);
+              trackEvent('report_generation_failed', {
+                stage: 'viewing_questions',
+                report_id: activeReportId ?? 'none',
+                vbo_id: vboId,
+              });
             }
           })();
         }
@@ -1897,7 +1975,13 @@ function App() {
           } catch (err) {
             const isAbort = err instanceof DOMException && err.name === 'AbortError';
             if (isAbort || !isActiveDossierRequest(requestId)) return;
-            setNeighborhoodStatsError(mapApiError(err, t));
+            const mapped = mapApiError(err, t);
+            setNeighborhoodStatsError(mapped);
+            trackEvent('report_generation_failed', {
+              stage: 'neighborhood_stats',
+              report_id: activeReportId ?? 'none',
+              vbo_id: vboId,
+            });
           } finally {
             if (isActiveDossierRequest(requestId)) {
               setNeighborhoodStatsLoading(false);
@@ -1915,7 +1999,13 @@ function App() {
             } catch (err) {
               const isAbort = err instanceof DOMException && err.name === 'AbortError';
               if (isAbort || !isActiveDossierRequest(requestId)) return;
-              setLivabilityError(mapApiError(err, t));
+              const mapped = mapApiError(err, t);
+              setLivabilityError(mapped);
+              trackEvent('report_generation_failed', {
+                stage: 'livability',
+                report_id: activeReportId ?? 'none',
+                vbo_id: vboId,
+              });
             } finally {
               if (isActiveDossierRequest(requestId)) {
                 setLivabilityLoading(false);
@@ -1943,7 +2033,13 @@ function App() {
             } catch (err) {
               const isAbort = err instanceof DOMException && err.name === 'AbortError';
               if (isAbort || !isActiveDossierRequest(requestId)) return;
-              setTierBError(mapApiError(err, t));
+              const mapped = mapApiError(err, t);
+              setTierBError(mapped);
+              trackEvent('report_generation_failed', {
+                stage: 'tier_b',
+                report_id: activeReportId ?? 'none',
+                vbo_id: vboId,
+              });
             } finally {
               if (isActiveDossierRequest(requestId)) {
                 setTierBLoading(false);
@@ -2004,6 +2100,10 @@ function App() {
       const isAbort = err instanceof DOMException && err.name === 'AbortError';
       if (isAbort) return;
       const mapped = mapApiError(err, t);
+      trackEvent('report_generation_failed', {
+        stage: 'initial_lookup',
+        lookup_id: suggestion.id,
+      });
       setError(null);
       setLoading(false);
       setBuildingLoading(false);
@@ -2183,14 +2283,17 @@ function App() {
             showToast(t('premium.checkout.success'));
             return;
           }
-        } catch {
-          if (cancelled) return;
-          if (checkoutVerification.sessionId) {
-            trackEvent('checkout_failed', { report_id: checkoutVerification.reportId });
-            setCheckoutStatusMessage(t('premium.checkout.failed'));
-            showToast(t('premium.checkout.failed'));
-          }
-          return;
+          } catch {
+            if (cancelled) return;
+            if (checkoutVerification.sessionId) {
+              trackEvent('checkout_failed', {
+                report_id: checkoutVerification.reportId,
+                reason: 'entitlement_check_error',
+              });
+              setCheckoutStatusMessage(t('premium.checkout.failed'));
+              showToast(t('premium.checkout.failed'));
+            }
+            return;
         }
 
         if (!checkoutVerification.sessionId || attempt >= maxAttempts) {
@@ -2204,6 +2307,10 @@ function App() {
       }
 
       if (!cancelled && checkoutVerification.sessionId) {
+        trackEvent('checkout_failed', {
+          report_id: checkoutVerification.reportId,
+          reason: 'entitlement_not_active',
+        });
         setCheckoutStatusMessage(t('premium.checkout.delayed'));
         showToast(t('premium.checkout.delayed'));
       }
@@ -2773,7 +2880,7 @@ function App() {
                     <div className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5}>
                       <UpgradeCTA
                         onUpgrade={handleUpgrade}
-                        price={DOSSIER_PRICE_EUR}
+                        price={dossierPriceEur}
                         disabled={isCheckingOut}
                       />
                     </div>
@@ -2797,6 +2904,7 @@ function App() {
                         <LockedSection
                           sectionName={t('premium.section.warnings', 'property warnings')}
                           onUpgrade={handleUpgrade}
+                          price={dossierPriceEur}
                         />
                       )}
                     </div>
@@ -2818,6 +2926,7 @@ function App() {
                         <LockedSection
                           sectionName={t('premium.section.soil', 'soil information')}
                           onUpgrade={handleUpgrade}
+                          price={dossierPriceEur}
                         />
                       )}
                     </div>
@@ -2954,12 +3063,14 @@ function App() {
                             <LockedSection
                               sectionName={t('premium.section.livability', 'livability analysis')}
                               onUpgrade={handleUpgrade}
+                              price={dossierPriceEur}
                             />
                           </div>
                           <div className="dossier-section" style={dossierSectionStyle(9)} data-section-index={9}>
                             <LockedSection
                               sectionName={t('premium.section.3d', '3D building analysis')}
                               onUpgrade={handleUpgrade}
+                              price={dossierPriceEur}
                             />
                           </div>
                         </>
@@ -2990,6 +3101,7 @@ function App() {
                             <LockedSection
                               sectionName={t('premium.section.tierb', 'energy & crime data')}
                               onUpgrade={handleUpgrade}
+                              price={dossierPriceEur}
                             />
                           )}
                         </div>
@@ -3027,6 +3139,7 @@ function App() {
                         <LockedSection
                           sectionName={t('premium.section.viewing', 'viewing questions')}
                           onUpgrade={handleUpgrade}
+                          price={dossierPriceEur}
                         />
                       )}
                     </section>

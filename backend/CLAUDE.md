@@ -1,20 +1,25 @@
-# Backend — FastAPI + httpx + Pydantic + Redis
+# Backend — FastAPI + httpx + Pydantic + Redis + SQLite + Stripe
 
-Python 3.12 stateless API aggregator. No database — all data from Dutch government APIs with Redis caching.
+Python 3.12 API aggregator. External data stays stateless/cached, monetization state is stored in SQLite (per-report entitlements, payments; no user accounts).
 
 ## Commands
 
 ```bash
 uvicorn app.main:app --reload --port 8000   # Dev server
-pytest -x -q -m "not live"                  # CI tests (432+ baseline)
+pytest -x -q -m "not live"                  # CI tests (613+ baseline)
 pytest -x -q                                # Including live API smoke tests
 ruff check . && ruff format .               # MUST pass before commit
 ```
 
-## API endpoints (all under `/api/address/`)
+## API endpoints
 
 | Endpoint | Description |
 |----------|-------------|
+| `GET /api/pricing` | Authoritative dossier price from backend config |
+| `POST /api/reports/short` | Create/report short dossier record |
+| `GET /api/reports/{report_id}/entitlement` | Check entitlement status |
+| `POST /api/billing/checkout-session` | Create Stripe Checkout Session |
+| `POST /api/billing/webhook` | Stripe webhook (checkout + refund) |
 | `GET /suggest?q=` | Autocomplete via PDOK Locatieserver |
 | `GET /lookup?id=` | Resolve BAG IDs + coordinates |
 | `GET /{vbo_id}/building` | Building facts from BAG WFS |
@@ -42,6 +47,10 @@ ruff check . && ruff format .               # MUST pass before commit
 - **Pydantic v2**: Use `Field(default_factory=list)` for list defaults, never bare `= []`
 - **Feature flags**: `BUURT_ENABLE_LOD22_ROOFS` etc. Toggle requires cache invalidation
 - **CBS crime normalization**: per-1,000 residents (`raw / population * 1000`). Population can be suppressed (`-99995`) → `CRIME_NO_POPULATION`
+- **SQLite access**: use `aiosqlite` via `get_db()` context manager; DB runs in WAL mode for concurrent reads
+- **Server-side gating**: premium endpoints must depend on `Depends(require_entitlement)`
+- **Webhook safety**: webhook handlers must remain idempotent (safe on duplicate Stripe events)
+- **Entitlement reads are not cached**: always query SQLite for latest payment state
 
 ## Anti-patterns
 
@@ -51,7 +60,7 @@ ruff check . && ruff format .               # MUST pass before commit
 - WGS84 coordinates in responses → everything EPSG:28992
 - `sampled_at` as `source_date` → let it be `None`
 - Hardcoded URLs in services → all in `config.py`
-- SQLAlchemy / PostGIS / any ORM → this is stateless, no DB
+- SQLAlchemy / PostGIS / any ORM → use direct `aiosqlite` for this MVP
 
 ## Scoring reference (0-100)
 

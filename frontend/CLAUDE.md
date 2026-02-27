@@ -7,7 +7,7 @@ Mobile-first SPA with "Polar Frost" design system. Framer Motion gestures, Three
 ```bash
 npm run dev          # Dev server (proxies /api to localhost:8000)
 npm run build        # MUST pass before commit (strict TS: noUnusedLocals)
-npm run test         # Vitest (448+ baseline)
+npm run test         # Vitest (713+ baseline)
 npx vitest --watch   # Watch mode
 ```
 
@@ -32,6 +32,19 @@ npx vitest --watch   # Watch mode
 - All strings via `useTranslation()` hook. Both `en.json` + `nl.json` updated together
 - Key format: dot notation (`risk.noise.title`). Snake_case segments
 - Warning codes: `t('feature.warning.${code}', code)` with fallback
+- Keep EN/NL key parity; current floor assertion is 396+ keys per language, including `premium.*` monetization keys
+
+### Entitlement & gating
+- `isEntitled` + `reportId` state in `App.tsx` controls premium access per selected address
+- Premium sections render `LockedSection` when not entitled; server-side entitlement remains the source of truth
+- Premium API calls must forward `report_id` so backend `require_entitlement` can validate access
+- First dossier free rule is local-only (`services/firstDossier.ts` with `buurt-check:first-dossier-used` localStorage key)
+
+### Checkout flow
+- Upgrade actions call `createCheckoutSession(report_id)` then redirect to Stripe URL
+- Post-redirect verification reads hash query params (`report`, `session_id`) and polls entitlement state
+- Guard against duplicate checkout starts with `isCheckingOut` boolean
+- Funnel events are tracked in `services/analytics.ts` (checkout started/completed/failed, dossier unlocked, etc.)
 
 ### Three.js (NeighborhoodViewer3D.tsx)
 - Plain Three.js only — NOT react-three-fiber

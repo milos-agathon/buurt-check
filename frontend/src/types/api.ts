@@ -27,6 +27,12 @@ export interface CheckoutSessionResponse {
   checkout_url: string;
 }
 
+export interface PricingResponse {
+  price_cents: number;
+  price_eur: string;
+  currency: string;
+}
+
 export interface ResolvedAddress {
   id: string;
   nummeraanduiding_id?: string;

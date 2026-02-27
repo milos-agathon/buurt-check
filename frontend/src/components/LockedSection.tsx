@@ -4,9 +4,10 @@ import './LockedSection.css';
 interface LockedSectionProps {
   sectionName: string;
   onUpgrade: () => void;
+  price: string;
 }
 
-export default function LockedSection({ sectionName, onUpgrade }: LockedSectionProps) {
+export default function LockedSection({ sectionName, onUpgrade, price }: LockedSectionProps) {
   const { t } = useTranslation();
 
   return (
@@ -19,7 +20,7 @@ export default function LockedSection({ sectionName, onUpgrade }: LockedSectionP
       <p className="locked-section__title">{t('premium.locked.title')}</p>
       <p className="locked-section__subtitle">{t('premium.locked.subtitle', { section: sectionName })}</p>
       <button type="button" className="locked-section__cta" onClick={onUpgrade}>
-        {t('premium.locked.cta')}
+        {t('premium.locked.cta', { price })}
       </button>
     </section>
   );

@@ -41,6 +41,26 @@ def _billing_patches(db_path, extra_settings=None):
 
 
 @pytest.mark.asyncio
+async def test_get_pricing_returns_backend_authoritative_price(db_path):
+    """GET /api/pricing should derive EUR display from backend cents config."""
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "stripe_price_cents", 1999),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/pricing")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "price_cents": 1999,
+        "price_eur": "19.99",
+        "currency": "EUR",
+    }
+
+
+@pytest.mark.asyncio
 async def test_create_checkout_session(db_path):
     """stripe.checkout.Session.create is called via asyncio.to_thread."""
     from app.services.reports import create_report

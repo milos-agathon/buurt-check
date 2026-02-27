@@ -12,10 +12,16 @@ vi.mock('../services/firstVisit', () => ({
   isFirstVisit: vi.fn(() => true),
 }));
 
+vi.mock('../services/analytics', () => ({
+  trackEvent: vi.fn(),
+}));
+
 import { suggestAddresses } from '../services/api';
 import { isFirstVisit } from '../services/firstVisit';
+import { trackEvent } from '../services/analytics';
 const mockSuggest = vi.mocked(suggestAddresses);
 const mockIsFirstVisit = vi.mocked(isFirstVisit);
+const mockTrackEvent = vi.mocked(trackEvent);
 
 let i18nEn: Awaited<ReturnType<typeof setupTestI18n>>;
 let i18nNl: Awaited<ReturnType<typeof setupTestI18n>>;
@@ -29,6 +35,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-02-24T12:00:00Z'));
   mockSuggest.mockReset();
   mockIsFirstVisit.mockReset();
+  mockTrackEvent.mockReset();
   mockIsFirstVisit.mockReturnValue(true);
   localStorage.removeItem('buurt-check-recent-searches');
   localStorage.removeItem('buurt-check-visited');
@@ -185,6 +192,10 @@ describe('suggestions dropdown', () => {
     });
 
     expect(onSelect).toHaveBeenCalledWith(response.suggestions[1]);
+    expect(mockTrackEvent).toHaveBeenCalledWith('address_search_submitted', {
+      lookup_id: response.suggestions[1].id,
+      source: 'search',
+    });
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 

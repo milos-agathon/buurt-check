@@ -36,6 +36,11 @@ vi.mock('./services/api', async () => {
   };
 });
 
+vi.mock('./config/pricing', () => ({
+  fetchPrice: vi.fn().mockResolvedValue('14.99'),
+  getDossierPrice: vi.fn(() => '14.99'),
+}));
+
 vi.mock('./components/NeighborhoodViewer3D', () => ({
   default: ({ buildings, loading }: { buildings: unknown[]; loading?: boolean }) => (
     <div data-testid="viewer-3d">
