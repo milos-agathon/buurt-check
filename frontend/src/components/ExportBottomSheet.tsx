@@ -4,6 +4,7 @@ import BottomSheet from './ui/BottomSheet';
 import ContextualTooltip from './ui/ContextualTooltip';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import { downloadPdfBlob, exportBriefing } from '../services/api';
+import { trackEvent } from '../services/analytics';
 import type { ShadowSnapshot } from '../types/api';
 import './ExportBottomSheet.css';
 
@@ -16,6 +17,7 @@ interface ExportBottomSheetProps {
   lat: number;
   lng: number;
   address: string;
+  reportId?: string;
   street?: string;
   city?: string;
   buurtCode?: string;
@@ -38,6 +40,7 @@ export default function ExportBottomSheet({
   lat,
   lng,
   address,
+  reportId,
   street,
   city,
   buurtCode,
@@ -97,6 +100,11 @@ export default function ExportBottomSheet({
     : ringCircumference - (progressPercent / 100) * ringCircumference;
 
   const handleGenerate = async () => {
+    trackEvent('pdf_export_clicked', {
+      template,
+      report_id: reportId ?? 'none',
+      vbo_id: vboId,
+    });
     setGenerating(true);
     setProgressStage('collecting');
     setError(false);
@@ -123,6 +131,7 @@ export default function ExportBottomSheet({
         lat,
         lng,
         address,
+        reportId,
         template,
         street,
         city,
@@ -140,6 +149,11 @@ export default function ExportBottomSheet({
       if (!hasSeenTooltip('export')) {
         setExportTooltipVisible(true);
       }
+      trackEvent('pdf_export_completed', {
+        template,
+        report_id: reportId ?? 'none',
+        vbo_id: vboId,
+      });
       onGenerateSuccess?.();
     } catch {
       setError(true);

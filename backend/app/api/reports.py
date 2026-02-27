@@ -1,6 +1,7 @@
 """Report endpoints — freemium funnel entry point."""
 
 import logging
+from datetime import datetime, timezone
 
 import aiosqlite
 from fastapi import APIRouter, HTTPException, Request
@@ -12,6 +13,7 @@ from app.services.reports import (
     create_report,
     find_existing_paid_report,
     get_report,
+    unlock_report,
 )
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 class ShortReportRequest(BaseModel):
     vbo_id: str = Field(..., pattern=r"^[0-9]{16}$")
     address_key: str = Field(..., min_length=1, max_length=500)
+    first_free: bool = False
 
 
 class ShortReportResponse(BaseModel):
@@ -53,6 +56,13 @@ async def create_short_report(request: Request, body: ShortReportRequest):
             )
 
         report_id = await create_report(body.vbo_id, body.address_key, "short")
+        if body.first_free:
+            await unlock_report(
+                report_id=report_id,
+                provider="first_free",
+                provider_payment_id=None,
+                purchased_at=datetime.now(timezone.utc).isoformat(),
+            )
         return ShortReportResponse(report_id=report_id, report_type="short")
     except aiosqlite.Error:
         logger.exception("Database error creating short report for vbo_id=%s", body.vbo_id)

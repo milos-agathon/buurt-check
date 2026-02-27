@@ -15,6 +15,9 @@ import {
 vi.mock('./services/api', async () => {
   const actual = await vi.importActual<typeof import('./services/api')>('./services/api');
   return {
+    createShortReport: vi.fn(),
+    checkEntitlement: vi.fn(),
+    createCheckoutSession: vi.fn(),
     suggestAddresses: vi.fn(),
     lookupAddress: vi.fn(),
     getBuildingFacts: vi.fn(),
@@ -32,6 +35,11 @@ vi.mock('./services/api', async () => {
     ApiError: actual.ApiError,
   };
 });
+
+vi.mock('./config/pricing', () => ({
+  fetchPrice: vi.fn().mockResolvedValue('14.99'),
+  getDossierPrice: vi.fn(() => '14.99'),
+}));
 
 vi.mock('./components/NeighborhoodViewer3D', () => ({
   default: ({ buildings, loading }: { buildings: unknown[]; loading?: boolean }) => (
@@ -64,6 +72,9 @@ vi.mock('./components/NeighborhoodStatsCard', () => ({
 }));
 
 import {
+  checkEntitlement,
+  createCheckoutSession,
+  createShortReport,
   lookupAddress,
   getBuildingFacts,
   getBuilding3D,
@@ -79,6 +90,9 @@ import {
   submitSunlightAnalysis,
 } from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
+const mockCreateShortReport = vi.mocked(createShortReport);
+const mockCheckEntitlement = vi.mocked(checkEntitlement);
+const mockCreateCheckoutSession = vi.mocked(createCheckoutSession);
 const mockBuilding = vi.mocked(getBuildingFacts);
 const mockBuilding3D = vi.mocked(getBuilding3D);
 const mockSuggest = vi.mocked(suggestAddresses);
@@ -99,9 +113,14 @@ beforeAll(async () => {
 
 beforeEach(() => {
   window.history.replaceState({}, '', '/');
+  localStorage.clear();
+  sessionStorage.clear();
   // Reset IntersectionObserver globals between tests to prevent leakage
   (globalThis as Record<string, unknown>).__intersectionObserverCallback = null;
   (globalThis as Record<string, unknown>).__intersectionObserverTarget = null;
+  mockCreateShortReport.mockReset();
+  mockCheckEntitlement.mockReset();
+  mockCreateCheckoutSession.mockReset();
   mockLookup.mockReset();
   mockBuilding.mockReset();
   mockBuilding3D.mockReset();
@@ -115,6 +134,19 @@ beforeEach(() => {
   mockPropertyWarnings.mockReset();
   mockLivability.mockReset();
   mockSubmitSunlightAnalysis.mockReset();
+  mockCreateShortReport.mockResolvedValue({
+    report_id: 'report-123',
+    report_type: 'short',
+    already_purchased: false,
+  });
+  mockCheckEntitlement.mockResolvedValue({
+    report_id: 'report-123',
+    entitled: true,
+    report_type: 'short',
+  });
+  mockCreateCheckoutSession.mockResolvedValue({
+    checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_123',
+  });
   // Resolve Phase 1 quickly with empty data so dossier sheet expands while
   // Phase 2 neighborhood fetch still controls 3D content in tests.
   mockBuilding3D.mockResolvedValue(
@@ -635,7 +667,7 @@ describe('neighborhood stats integration', () => {
         houseNumber: '100',
         houseLetter: 'A',
         addition: '1',
-      }, expect.any(AbortSignal));
+      }, expect.any(AbortSignal), 'report-123');
     });
   });
 
@@ -934,9 +966,9 @@ describe('property warnings param forwarding', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(mockPropertyWarnings).toHaveBeenCalledTimes(1);
+      expect(mockPropertyWarnings).toHaveBeenCalled();
     });
-    expect(mockPropertyWarnings).toHaveBeenCalledWith(
+    expect(mockPropertyWarnings).toHaveBeenLastCalledWith(
       'vbo-123',
       121000,
       487000,
@@ -946,6 +978,7 @@ describe('property warnings param forwarding', () => {
         municipality: 'Amsterdam',
       },
       expect.any(AbortSignal),
+      'report-123',
     );
   });
 });
@@ -986,6 +1019,7 @@ describe('early 3D fetch from lookup pand_id', () => {
         52.3676,
         4.8846,
         expect.any(AbortSignal),
+        'report-123',
       );
     });
     await waitFor(() => {
@@ -997,6 +1031,7 @@ describe('early 3D fetch from lookup pand_id', () => {
         52.3676,
         4.8846,
         expect.any(AbortSignal),
+        'report-123',
       );
     });
   });

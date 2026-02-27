@@ -68,6 +68,28 @@ async def test_create_short_report_returns_uuid(client):
 
 
 @pytest.mark.asyncio
+async def test_create_short_report_first_free_unlocks_entitlement(client, db_path):
+    """first_free=True should auto-unlock the created report."""
+    from app.services.reports import get_report
+
+    response = await client.post(
+        "/api/reports/short",
+        json={
+            "vbo_id": "0363010012345678",
+            "address_key": "Damrak 1, Amsterdam",
+            "first_free": True,
+        },
+    )
+    assert response.status_code == 200
+    rid = response.json()["report_id"]
+    report = await get_report(rid, db_path=db_path)
+    assert report is not None
+    assert report.payment_status == "paid"
+    assert report.entitlement_status == "active"
+    assert report.provider == "first_free"
+
+
+@pytest.mark.asyncio
 async def test_returns_existing_paid_report(client, db_path):
     """If a paid+active report exists for the vbo_id, return it instead."""
     from app.services.reports import (

@@ -17,6 +17,7 @@ function renderLockedSection(props?: Partial<ComponentProps<typeof LockedSection
       <LockedSection
         sectionName="property warnings"
         onUpgrade={vi.fn()}
+        price="14.99"
         {...props}
       />
     </I18nextProvider>,

@@ -76,6 +76,23 @@ async def test_full_dossier_rejects_without_report_id(db_path):
 
 
 @pytest.mark.asyncio
+async def test_full_dossier_get_rejects_without_report_id(db_path):
+    """GET full_dossier also returns 402 when no report_id is provided."""
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(
+                f"/api/address/{_VBO_ID}/export",
+                params={**_BASE_BODY, "template": "full_dossier"},
+            )
+    assert response.status_code == 402
+    assert "Payment required" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_full_dossier_rejects_unentitled_report(db_path):
     """full_dossier template returns 402 for unpaid report_id."""
     from app.services.reports import create_report
@@ -150,6 +167,37 @@ async def test_full_dossier_allowed_with_entitled_report(
                     "template": "full_dossier",
                     "report_id": rid,
                 },
+            )
+    assert response.status_code == 200
+    assert response.content[:5] == b"%PDF-"
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+@patch("app.api.address.risk_cards")
+async def test_full_dossier_get_allowed_with_entitled_report(
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, db_path
+):
+    """GET full_dossier succeeds when report has active entitlement."""
+    from app.services.reports import activate_entitlement, create_report
+
+    rid = await create_report(_VBO_ID, "Test 1", "long", db_path=db_path)
+    await activate_entitlement(rid, db_path=db_path)
+
+    mock_bag.get_building_facts = AsyncMock(return_value=None)
+    mock_risk_cards.get_risk_cards = AsyncMock(return_value=None)
+
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(
+                f"/api/address/{_VBO_ID}/export",
+                params={**_BASE_BODY, "template": "full_dossier", "report_id": rid},
             )
     assert response.status_code == 200
     assert response.content[:5] == b"%PDF-"
