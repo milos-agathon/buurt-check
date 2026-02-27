@@ -9,12 +9,6 @@ export const SPRING_EXPAND = {
   damping: 28,
 };
 
-export const SPRING_REVEAL = {
-  type: 'spring' as const,
-  stiffness: 200,
-  damping: 22,
-};
-
 export const SPRING_TAB = {
   type: 'spring' as const,
   stiffness: 400,
