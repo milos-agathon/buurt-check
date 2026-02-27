@@ -141,3 +141,28 @@ async def test_revoke_entitlement(db_path):
     assert await check_entitlement(report_id, db_path=db_path) is False
     report = await get_report(report_id, db_path=db_path)
     assert report.entitlement_status == "revoked"
+
+
+@pytest.mark.asyncio
+async def test_write_functions_return_false_for_nonexistent_id(db_path):
+    """All write functions return False when report_id does not exist."""
+    fake_id = "nonexistent-id"
+    assert await update_payment_status(fake_id, "paid", db_path=db_path) is False
+    assert await store_provider_session(fake_id, "cs_xxx", db_path=db_path) is False
+    assert await activate_entitlement(fake_id, db_path=db_path) is False
+    assert await revoke_entitlement(fake_id, db_path=db_path) is False
+
+
+@pytest.mark.asyncio
+async def test_find_existing_paid_report_excludes_revoked(db_path):
+    """Paid but revoked reports must NOT be returned by find_existing_paid_report."""
+    report_id = await create_report(
+        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+    )
+    await update_payment_status(report_id, "paid", db_path=db_path)
+    await activate_entitlement(report_id, db_path=db_path)
+    # Verify it's found when active
+    assert await find_existing_paid_report("0363010012345678", db_path=db_path) is not None
+    # Revoke and verify it's no longer found
+    await revoke_entitlement(report_id, db_path=db_path)
+    assert await find_existing_paid_report("0363010012345678", db_path=db_path) is None

@@ -1,6 +1,8 @@
 """Report repository — all report CRUD operations.
 
 Route handlers and billing logic call these functions. Never use raw SQL elsewhere.
+DB exceptions (aiosqlite.OperationalError, IntegrityError) propagate to callers —
+route handlers must catch and convert to appropriate HTTP responses.
 """
 
 from __future__ import annotations
@@ -9,7 +11,7 @@ import logging
 import uuid
 
 from app.db import get_db
-from app.models.report import Report
+from app.models.report import PaymentStatus, Report, ReportType
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 async def create_report(
     vbo_id: str,
     address_key: str,
-    report_type: str,
+    report_type: ReportType,
     db_path: str | None = None,
 ) -> str:
     """Generate a UUID, insert a new report row, and return the report_id."""
@@ -51,7 +53,7 @@ async def get_report(
 
 async def update_payment_status(
     report_id: str,
-    status: str,
+    status: PaymentStatus,
     provider: str | None = None,
     provider_payment_id: str | None = None,
     purchased_at: str | None = None,

@@ -1,17 +1,25 @@
 """Pydantic model for the report entity."""
 
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
+
+ReportType = Literal["short", "long"]
+PaymentStatus = Literal["unpaid", "paid", "failed", "refunded"]
+EntitlementStatus = Literal["active", "inactive", "revoked"]
 
 
 class Report(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     report_id: str
-    report_type: str  # 'short' | 'long'
+    report_type: ReportType
     address_key: str
     vbo_id: str
     generation_version: str
-    created_at: str
-    payment_status: str  # 'unpaid' | 'paid' | 'failed' | 'refunded'
-    entitlement_status: str  # 'active' | 'inactive' | 'revoked'
+    created_at: str  # ISO 8601 (from SQLite strftime default)
+    payment_status: PaymentStatus
+    entitlement_status: EntitlementStatus
     provider: str | None = None
     provider_payment_id: str | None = None
     provider_session_id: str | None = None
