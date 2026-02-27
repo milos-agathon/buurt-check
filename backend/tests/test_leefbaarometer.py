@@ -1,6 +1,6 @@
-"""Tests for the Leefbaarometer livability service (15 tests).
+"""Tests for the Leefbaarometer livability service.
 
-13 service-level tests + 2 endpoint-level cache tests.
+13 service-level tests + 2 endpoint-level cache tests + data validation tests.
 """
 from __future__ import annotations
 
@@ -459,3 +459,151 @@ async def test_endpoint_no_cache_on_empty():
 
         # Still nothing in cache
         assert len(cache_store) == 0
+
+
+# ═══════ Data validation tests — non-numeric kscore (#11) ═══════
+
+
+def _make_buurt_response_with_kscore(kscore_value: object) -> dict:
+    """Build a WFS response with a custom kscore value."""
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "gemeente": "Amsterdam",
+                    "name": "TestBuurt",
+                    "id": "BU0363XX00",
+                    "year": "2024",
+                    "kscore": kscore_value,
+                    "kfys": 5,
+                    "konv": 3,
+                    "ksoc": 3,
+                    "kvrz": 9,
+                    "kwon": 5,
+                },
+            }
+        ],
+        "totalFeatures": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_livability_non_numeric_kscore_returns_none():
+    """kscore='N/A' from WFS → returns None, does not crash (bug #11)."""
+    data = _make_buurt_response_with_kscore("N/A")
+    mock_resp = _make_mock_response(data)
+    mock_cl = _mock_client(mock_resp)
+
+    with patch("app.services.leefbaarometer._client") as m:
+        m.get.return_value = mock_cl
+        result = await get_livability(121000, 487000)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_livability_empty_string_kscore_returns_none():
+    """kscore='' from WFS → returns None."""
+    data = _make_buurt_response_with_kscore("")
+    mock_resp = _make_mock_response(data)
+    mock_cl = _mock_client(mock_resp)
+
+    with patch("app.services.leefbaarometer._client") as m:
+        m.get.return_value = mock_cl
+        result = await get_livability(121000, 487000)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_livability_string_numeric_kscore_works():
+    """kscore='7' (string) from WFS → parsed as int 7, works correctly."""
+    data = _make_buurt_response_with_kscore("7")
+    mock_resp = _make_mock_response(data)
+    mock_cl = _mock_client(mock_resp)
+
+    with patch("app.services.leefbaarometer._client") as m:
+        m.get.return_value = mock_cl
+        result = await get_livability(121000, 487000)
+
+    assert result is not None
+    assert result.overall_score == 7
+    assert result.overall_normalized == 75
+
+
+@pytest.mark.asyncio
+async def test_trend_non_numeric_kscore_skipped():
+    """Non-numeric kscore in a historical year → that year is skipped, others work."""
+    call_idx = 0
+
+    async def _side_effect(*args, **kwargs):
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx == 3:
+            # Return non-numeric kscore for one year
+            return _make_mock_response(_make_buurt_response_with_kscore("N/A"))
+        return _make_mock_response(MOCK_BUURT_RESPONSE)
+
+    mock_cl = AsyncMock()
+    mock_cl.get = _side_effect
+
+    with patch("app.services.leefbaarometer._client") as m:
+        m.get.return_value = mock_cl
+        result = await get_livability_trend(121000, 487000)
+
+    # Should have 8 results (9 minus 1 non-numeric kscore)
+    assert len(result) == 8
+
+
+@pytest.mark.asyncio
+async def test_dimensions_non_numeric_skipped():
+    """Non-numeric dimension value → that dimension skipped, others parsed."""
+    data = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "gemeente": "Amsterdam",
+                    "name": "TestBuurt",
+                    "id": "BU0363XX00",
+                    "year": "2024",
+                    "kscore": 7,
+                    "kfys": "N/A",  # non-numeric dimension
+                    "konv": 3,
+                    "ksoc": 3,
+                    "kvrz": 9,
+                    "kwon": 5,
+                },
+            }
+        ],
+        "totalFeatures": 1,
+    }
+    mock_resp = _make_mock_response(data)
+    mock_cl = _mock_client(mock_resp)
+
+    with patch("app.services.leefbaarometer._client") as m:
+        m.get.return_value = mock_cl
+        result = await get_livability(121000, 487000)
+
+    assert result is not None
+    assert result.overall_score == 7
+    # Only 4 dimensions (physical/kfys was skipped)
+    assert len(result.dimensions) == 4
+    names = {d.name for d in result.dimensions}
+    assert "physical" not in names
+
+
+def test_safe_int_edge_cases():
+    """_safe_int handles various edge cases without crashing."""
+    from app.services.leefbaarometer import _safe_int
+
+    assert _safe_int(None) is None
+    assert _safe_int("N/A") is None
+    assert _safe_int("") is None
+    assert _safe_int("abc") is None
+    assert _safe_int(5) == 5
+    assert _safe_int("7") == 7
+    assert _safe_int(3.9) == 3  # float truncated to int

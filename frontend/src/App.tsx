@@ -487,6 +487,7 @@ function App() {
   const screenScrollPositionsRef = useRef(new Map<Screen, number>());
   const previousScreenForScrollRef = useRef<Screen>(initialHasDossier ? 'dossier' : 'search');
   const addressRequestAbortRef = useRef<AbortController | null>(null);
+  const retryControllersRef = useRef<Set<AbortController>>(new Set());
   const riskTilePulseTimeoutRef = useRef<number | null>(null);
   const previousScreenRef = useRef<Screen>('search');
 
@@ -585,6 +586,8 @@ function App() {
   useEffect(() => {
     return () => {
       addressRequestAbortRef.current?.abort();
+      retryControllersRef.current.forEach(c => c.abort());
+      retryControllersRef.current.clear();
       if (riskTilePulseTimeoutRef.current != null) {
         window.clearTimeout(riskTilePulseTimeoutRef.current);
       }
@@ -939,6 +942,7 @@ function App() {
     setBuildingError(null);
     setBuildingLoading(true);
     const controller = new AbortController();
+    retryControllersRef.current.add(controller);
     void (async () => {
       try {
         const building = await getBuildingFacts(address.adresseerbaar_object_id!, controller.signal);
@@ -949,6 +953,7 @@ function App() {
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setBuildingError(mapApiError(err, t));
       } finally {
+        retryControllersRef.current.delete(controller);
         if (activeScreenRef.current === 'dossier') {
           setBuildingLoading(false);
         }
@@ -963,6 +968,7 @@ function App() {
     setRiskError(null);
     setRiskLoading(true);
     const controller = new AbortController();
+    retryControllersRef.current.add(controller);
     void (async () => {
       try {
         const risks = await getRiskCards(vboId, rd_x, rd_y, latitude, longitude, controller.signal);
@@ -973,6 +979,7 @@ function App() {
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setRiskError(mapApiError(err, t));
       } finally {
+        retryControllersRef.current.delete(controller);
         if (activeScreenRef.current === 'dossier') {
           setRiskLoading(false);
         }
@@ -986,6 +993,7 @@ function App() {
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
     setRiskComparisonsError(null);
     const controller = new AbortController();
+    retryControllersRef.current.add(controller);
     void (async () => {
       try {
         const comparisons = await getRiskComparisons(
@@ -1004,6 +1012,8 @@ function App() {
         const isAbort = err instanceof DOMException && err.name === 'AbortError';
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setRiskComparisonsError(mapApiError(err, t));
+      } finally {
+        retryControllersRef.current.delete(controller);
       }
     })();
   }, [address, t]);
@@ -1013,6 +1023,7 @@ function App() {
     setPropertyWarningsError(null);
     setPropertyWarningsLoading(true);
     const controller = new AbortController();
+    retryControllersRef.current.add(controller);
     void (async () => {
       try {
         const warnings = await getPropertyWarnings(
@@ -1033,6 +1044,7 @@ function App() {
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setPropertyWarningsError(mapApiError(err, t));
       } finally {
+        retryControllersRef.current.delete(controller);
         if (activeScreenRef.current === 'dossier') {
           setPropertyWarningsLoading(false);
         }
@@ -1045,6 +1057,7 @@ function App() {
     setNeighborhoodStatsError(null);
     setNeighborhoodStatsLoading(true);
     const controller = new AbortController();
+    retryControllersRef.current.add(controller);
     void (async () => {
       try {
         const stats = await getNeighborhoodStats(
@@ -1061,6 +1074,7 @@ function App() {
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setNeighborhoodStatsError(mapApiError(err, t));
       } finally {
+        retryControllersRef.current.delete(controller);
         if (activeScreenRef.current === 'dossier') {
           setNeighborhoodStatsLoading(false);
         }
@@ -1073,6 +1087,7 @@ function App() {
     setTierBError(null);
     setTierBLoading(true);
     const controller = new AbortController();
+    retryControllersRef.current.add(controller);
     void (async () => {
       try {
         const tierB = await getTierBData(
@@ -1093,6 +1108,7 @@ function App() {
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setTierBError(mapApiError(err, t));
       } finally {
+        retryControllersRef.current.delete(controller);
         if (activeScreenRef.current === 'dossier') {
           setTierBLoading(false);
         }
@@ -1105,6 +1121,7 @@ function App() {
     setLivabilityError(null);
     setLivabilityLoading(true);
     const controller = new AbortController();
+    retryControllersRef.current.add(controller);
     void (async () => {
       try {
         const livData = await getLivability(
@@ -1120,6 +1137,7 @@ function App() {
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setLivabilityError(mapApiError(err, t));
       } finally {
+        retryControllersRef.current.delete(controller);
         if (activeScreenRef.current === 'dossier') {
           setLivabilityLoading(false);
         }
@@ -1133,6 +1151,7 @@ function App() {
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
     setViewingQuestionsError(null);
     const controller = new AbortController();
+    retryControllersRef.current.add(controller);
     void (async () => {
       try {
         const questions = await getViewingQuestions(
@@ -1153,6 +1172,8 @@ function App() {
         const isAbort = err instanceof DOMException && err.name === 'AbortError';
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setViewingQuestionsError(mapApiError(err, t));
+      } finally {
+        retryControllersRef.current.delete(controller);
       }
     })();
   }, [address, t]);
@@ -1369,6 +1390,8 @@ function App() {
 
   const handleAddressSelect = useCallback(async (suggestion: AddressSuggestion) => {
     addressRequestAbortRef.current?.abort();
+    retryControllersRef.current.forEach(c => c.abort());
+    retryControllersRef.current.clear();
     const requestAbortController = new AbortController();
     addressRequestAbortRef.current = requestAbortController;
     const requestSignal = requestAbortController.signal;
@@ -1739,70 +1762,72 @@ function App() {
     showToast(t('shortlist.reopenError', 'Could not reopen this address. Search for it again.'));
   }, [handleAddressSelect, shortlistItems, showToast, t]);
 
+  // Ref-based applyRoute — always reads current state without triggering effect re-runs
+  const applyRouteRef = useRef<() => void>(() => {});
+  applyRouteRef.current = () => {
+    const parsed = parseHashRoute(window.location.hash || '#/search');
+    if (parsed.route === 'shortlist') {
+      setActiveTab('saved');
+      setActiveScreen('shortlist');
+      setShortlistItems(getShortlist());
+      return;
+    }
+    if (parsed.route === 'compare') {
+      setActiveTab('saved');
+      setActiveScreen('compare');
+      return;
+    }
+    if (parsed.route === 'settings') {
+      setActiveScreen('settings');
+      return;
+    }
+    if (parsed.route === 'dossier') {
+      setActiveTab('briefing');
+      setActiveScreen('dossier');
+      if (
+        address?.adresseerbaar_object_id
+        && (buildingResponse || buildingError || buildingLoading)
+        && (!parsed.vboId || parsed.vboId === address.adresseerbaar_object_id)
+      ) {
+        setSheetSnap('half');
+        return;
+      }
+      const shortlistMatch = parsed.vboId
+        ? getShortlist().find((item) => item.vboId === parsed.vboId)
+        : undefined;
+      const routeLookupId = parsed.lookupId ?? shortlistMatch?.lookupId;
+      if (!routeLookupId) {
+        if (parsed.vboId) {
+          showToast(t('shortlist.reopenError', 'Could not reopen this address. Search for it again.'));
+          setActiveTab('home');
+          setActiveScreen('search');
+          activeScreenRef.current = 'search';
+          setSheetSnap('hidden');
+          setHashRoute('#/search', { replace: true });
+        }
+        return;
+      }
+      const isActiveLookup = routeLookupId === activeLookupId;
+      if (
+        isActiveLookup
+        && (loading || (address?.id === routeLookupId && !!(buildingResponse || buildingError || buildingLoading)))
+      ) {
+        return;
+      }
+      void handleAddressSelect({
+        id: routeLookupId,
+        display_name: shortlistMatch?.address ?? pendingDisplayName ?? routeLookupId,
+        type: 'adres',
+        score: 1,
+      });
+      return;
+    }
+    setActiveTab('home');
+    setActiveScreen('search');
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const applyRoute = () => {
-      const parsed = parseHashRoute(window.location.hash || '#/search');
-      if (parsed.route === 'shortlist') {
-        setActiveTab('saved');
-        setActiveScreen('shortlist');
-        setShortlistItems(getShortlist());
-        return;
-      }
-      if (parsed.route === 'compare') {
-        setActiveTab('saved');
-        setActiveScreen('compare');
-        return;
-      }
-      if (parsed.route === 'settings') {
-        setActiveScreen('settings');
-        return;
-      }
-      if (parsed.route === 'dossier') {
-        setActiveTab('briefing');
-        setActiveScreen('dossier');
-        if (
-          address?.adresseerbaar_object_id
-          && (buildingResponse || buildingError || buildingLoading)
-          && (!parsed.vboId || parsed.vboId === address.adresseerbaar_object_id)
-        ) {
-          setSheetSnap('half');
-          return;
-        }
-        const shortlistMatch = parsed.vboId
-          ? getShortlist().find((item) => item.vboId === parsed.vboId)
-          : undefined;
-        const routeLookupId = parsed.lookupId ?? shortlistMatch?.lookupId;
-        if (!routeLookupId) {
-          if (parsed.vboId) {
-            showToast(t('shortlist.reopenError', 'Could not reopen this address. Search for it again.'));
-            setActiveTab('home');
-            setActiveScreen('search');
-            activeScreenRef.current = 'search';
-            setSheetSnap('hidden');
-            setHashRoute('#/search', { replace: true });
-          }
-          return;
-        }
-        const isActiveLookup = routeLookupId === activeLookupId;
-        if (
-          isActiveLookup
-          && (loading || (address?.id === routeLookupId && !!(buildingResponse || buildingError || buildingLoading)))
-        ) {
-          return;
-        }
-        void handleAddressSelect({
-          id: routeLookupId,
-          display_name: shortlistMatch?.address ?? pendingDisplayName ?? routeLookupId,
-          type: 'adres',
-          score: 1,
-        });
-        return;
-      }
-      setActiveTab('home');
-      setActiveScreen('search');
-    };
 
     if (!window.location.hash) {
       setHashRoute(
@@ -1812,7 +1837,7 @@ function App() {
         { replace: true },
       );
     } else {
-      applyRoute();
+      applyRouteRef.current();
     }
 
     const onHashChange = () => {
@@ -1820,26 +1845,13 @@ function App() {
         ignoreNextHashRef.current = false;
         return;
       }
-      applyRoute();
+      applyRouteRef.current();
     };
 
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
-  }, [
-    activeLookupId,
-    address,
-    buildingError,
-    buildingLoading,
-    buildingResponse,
-    dossierHash,
-    handleAddressSelect,
-    initialHasDossier,
-    loading,
-    pendingDisplayName,
-    setHashRoute,
-    showToast,
-    t,
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Build summary strip pills from risk data (memoized to prevent new array on every render)
   const summaryPills = useMemo(() => {

@@ -995,6 +995,36 @@ async def test_tier_b_endpoint_returns_data_and_caches(
     mock_cache_set.assert_called_once()
 
 
+@pytest.mark.asyncio
+async def test_tier_b_rejects_invalid_buurt_code(client):
+    """Route returns 422 for malformed buurt_code (OData injection guard)."""
+    resp = await client.get(
+        "/api/address/0363010000696734/tier-b",
+        params={
+            "buurt_code": "BU0537'OR 1 eq 1--",
+            "postcode": "1012NX",
+            "house_number": "1",
+        },
+    )
+    assert resp.status_code == 422
+    assert "Invalid buurt_code format" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_tier_b_accepts_none_buurt_code(client):
+    """Route accepts None buurt_code (it is optional)."""
+    # This should not 422 — buurt_code is optional. It will likely 502
+    # without mocking, but the point is it does NOT 422.
+    resp = await client.get(
+        "/api/address/0363010000696734/tier-b",
+        params={
+            "postcode": "1012NX",
+            "house_number": "1",
+        },
+    )
+    assert resp.status_code != 422
+
+
 # --- Neighborhood stats endpoint ---
 
 def _make_neighborhood_stats_response() -> NeighborhoodStatsResponse:

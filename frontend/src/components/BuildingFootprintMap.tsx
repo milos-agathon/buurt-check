@@ -129,7 +129,8 @@ export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint }: 
       radius: String(TILE_RADIUS),
       size: '512',
     });
-    return `/api/address/wms-tile?${params}`;
+    const base = import.meta.env.VITE_API_BASE || '/api';
+    return `${base}/address/wms-tile?${params}`;
   }, [rdX, rdY]);
 
   // Map footprint WGS84 coords to SVG overlay on the aerial image

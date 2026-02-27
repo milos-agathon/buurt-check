@@ -3,18 +3,36 @@ import type { ShortlistItem } from '../types/api';
 const STORAGE_KEY = 'buurt-check-shortlist';
 const MAX_ITEMS = 3;
 
+function isValidItem(item: unknown): item is ShortlistItem {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    typeof obj.vboId === 'string' &&
+    typeof obj.address === 'string' &&
+    typeof obj.savedAt === 'number' &&
+    obj.riskScores != null &&
+    typeof obj.riskScores === 'object'
+  );
+}
+
 function readStorage(): ShortlistItem[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as ShortlistItem[];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isValidItem);
   } catch {
     return [];
   }
 }
 
 function writeStorage(items: ShortlistItem[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // Safari private browsing or quota exceeded — silently fail
+  }
 }
 
 export function getShortlist(): ShortlistItem[] {
@@ -44,5 +62,9 @@ export function getShortlistCount(): number {
 }
 
 export function clearShortlist(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Safari private browsing — silently fail
+  }
 }
