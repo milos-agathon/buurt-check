@@ -75,7 +75,7 @@ async def test_checkout_rejects_nonexistent_report(db_path):
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post(
                 "/api/billing/checkout-session",
-                json={"report_id": "nonexistent"},
+                json={"report_id": "00000000-0000-0000-0000-000000000000"},
             )
     assert response.status_code == 404
 
