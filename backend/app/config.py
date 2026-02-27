@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Leefbaarometer
     leefbaarometer_wfs_base: str = "https://geo.leefbaarometer.nl/lbm3/ows"
 
+    # Database
+    database_path: str = "buurt_check.db"
+
     # Redis
     redis_url: str = "redis://localhost:6379"
 

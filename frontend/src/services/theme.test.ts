@@ -78,6 +78,24 @@ describe('theme service', () => {
     expect(getTheme()).toBe('system');
   });
 
+  it('getTheme returns system when localStorage.getItem throws (Safari private browsing)', () => {
+    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('The operation is insecure.');
+    });
+    expect(getTheme()).toBe('system');
+    spy.mockRestore();
+  });
+
+  it('setTheme still applies theme when localStorage.setItem throws', () => {
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('The operation is insecure.');
+    });
+    // Should not throw, and should still apply theme
+    expect(() => setTheme('dark')).not.toThrow();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    spy.mockRestore();
+  });
+
   it('skips theme-transitioning when prefers-reduced-motion is enabled', () => {
     const originalMatchMedia = window.matchMedia;
     Object.defineProperty(window, 'matchMedia', {
