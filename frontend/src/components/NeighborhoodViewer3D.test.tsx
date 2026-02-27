@@ -16,6 +16,7 @@ vi.mock('three', () => {
     this.remove = vi.fn();
     this.background = null;
     this.children = [];
+    this.traverse = vi.fn();
   }
   function PerspectiveCamera(this: any) {
     this.position = { set: vi.fn(), clone: vi.fn(() => ({ copy: vi.fn() })), copy: vi.fn() };

@@ -43,7 +43,7 @@
 
 .settings-screen__lang-btn {
   padding: 3px 10px;
-  min-height: 28px;
+  min-height: 44px;
   border: none;
   background: var(--color-surface);
   font-size: 12px;
@@ -157,7 +157,7 @@
 
 .settings-screen__theme-btn {
   padding: 3px 10px;
-  min-height: 28px;
+  min-height: 44px;
   border: none;
   background: var(--color-surface);
   font-size: 12px;

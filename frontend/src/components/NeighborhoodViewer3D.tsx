@@ -679,6 +679,20 @@ export default function NeighborhoodViewer3D({
       if (onControlEnd) controls.removeEventListener('end', onControlEnd);
       cancelAnimationFrame(sceneRef.current?.animId ?? 0);
       controls.dispose();
+      // Dispose all scene resources (geometries, materials, textures, shadow maps)
+      scene.traverse((obj) => {
+        if (obj instanceof Mesh) {
+          obj.geometry?.dispose();
+          if (Array.isArray(obj.material)) {
+            (obj.material as Material[]).forEach((m) => m.dispose());
+          } else {
+            (obj.material as Material)?.dispose();
+          }
+        }
+        if (obj instanceof DirectionalLight && obj.shadow?.map) {
+          obj.shadow.map.dispose();
+        }
+      });
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
