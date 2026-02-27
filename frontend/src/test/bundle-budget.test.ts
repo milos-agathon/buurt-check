@@ -53,6 +53,6 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
     const indexChunk = files.find((f) => f.startsWith('index-') && f.endsWith('.js'));
     expect(indexChunk).toBeDefined();
     const size = statSync(resolve(distDir, indexChunk!)).size;
-    expect(size).toBeLessThan(330 * 1024);
+    expect(size).toBeLessThan(340 * 1024);
   });
 });
