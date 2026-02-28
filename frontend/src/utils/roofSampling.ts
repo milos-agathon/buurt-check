@@ -1,5 +1,12 @@
 export type RoofPoint3D = [number, number, number];
 export type PolygonPoint2D = [number, number];
+export type CardinalOrientation = 'north' | 'south' | 'east' | 'west';
+
+export interface FacadePoint {
+  point: RoofPoint3D;
+  orientation: CardinalOrientation;
+  heightLabel: string;
+}
 
 export interface RoofSamplingOptions {
   gridSpacingMeters?: number;
@@ -10,6 +17,9 @@ export interface RoofSamplingOptions {
 
 export const DEFAULT_GRID_SPACING_METERS = 2;
 export const DEFAULT_MAX_ROOF_POINTS = 64;
+
+export const HIGH_DENSITY_GRID_SPACING = 1;
+export const HIGH_DENSITY_MAX_POINTS = 256;
 
 function toPointKey(x: number, z: number): string {
   return `${x.toFixed(2)}:${z.toFixed(2)}`;
@@ -139,4 +149,115 @@ export function generateRoofSamplePoints(
   }
 
   return reduced;
+}
+
+function computeSignedArea2D(polygon: number[][]): number {
+  let area = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const j = (i + 1) % polygon.length;
+    area += polygon[i][0] * polygon[j][1];
+    area -= polygon[j][0] * polygon[i][1];
+  }
+  return area / 2;
+}
+
+function ensureCW(footprint: number[][]): number[][] {
+  if (footprint.length < 3) return footprint;
+  const area = computeSignedArea2D(footprint);
+  return area > 0 ? [...footprint].reverse() : footprint;
+}
+
+export function getEdgeOrientation(
+  p1: number[],
+  p2: number[],
+): CardinalOrientation {
+  const edx = p2[0] - p1[0];
+  const edy = p2[1] - p1[1];
+
+  // CW footprint outward normal in RD: (edy, -edx)
+  // Viewer north is -Z, so +Z points south.
+  const nx = edy;
+  const nz = edx;
+
+  if (Math.abs(nz) > Math.abs(nx)) {
+    return nz > 0 ? 'south' : 'north';
+  }
+
+  return nx > 0 ? 'east' : 'west';
+}
+
+export function generateFacadePoints(
+  footprint: number[][],
+  groundHeight: number,
+  windowHeights: number[] = [1.5, 4.5],
+): FacadePoint[] {
+  if (!Number.isFinite(groundHeight) || footprint.length < 3) return [];
+
+  const cwFootprint = ensureCW(footprint);
+  const points: FacadePoint[] = [];
+  const offsetMeters = 0.5;
+
+  for (let i = 0; i < cwFootprint.length; i++) {
+    const p1 = cwFootprint[i];
+    const p2 = cwFootprint[(i + 1) % cwFootprint.length];
+
+    const edx = p2[0] - p1[0];
+    const edy = p2[1] - p1[1];
+    const length = Math.hypot(edx, edy);
+    if (length < 0.1) continue;
+
+    const mx = (p1[0] + p2[0]) / 2;
+    const my = (p1[1] + p2[1]) / 2;
+    const nx = edy / length;
+    const ny = -edx / length;
+
+    const rdX = mx + (nx * offsetMeters);
+    const rdY = my + (ny * offsetMeters);
+    const orientation = getEdgeOrientation(p1, p2);
+
+    for (const height of windowHeights) {
+      if (!Number.isFinite(height)) continue;
+      points.push({
+        point: [rdX, groundHeight + height, -rdY],
+        orientation,
+        heightLabel: `${height}m`,
+      });
+    }
+  }
+
+  return points;
+}
+
+const EYE_HEIGHT_METERS = 1.5;
+
+export function generateGroundProxyPoints(
+  footprint: number[][],
+  groundHeight: number,
+  bufferDistance: number = 5,
+  numPoints: number = 8,
+): RoofPoint3D[] {
+  if (!Number.isFinite(groundHeight) || footprint.length < 3) return [];
+
+  const safeBuffer = Number.isFinite(bufferDistance) ? Math.max(0, bufferDistance) : 0;
+  const safeNumPoints = Number.isFinite(numPoints) ? Math.max(0, Math.floor(numPoints)) : 0;
+  if (safeNumPoints <= 0) return [];
+
+  const centroidX = footprint.reduce((sum, point) => sum + point[0], 0) / footprint.length;
+  const centroidY = footprint.reduce((sum, point) => sum + point[1], 0) / footprint.length;
+
+  const maxDistFromCentroid = Math.max(
+    ...footprint.map((point) => Math.hypot(point[0] - centroidX, point[1] - centroidY)),
+  );
+
+  const radius = maxDistFromCentroid + safeBuffer;
+  const points: RoofPoint3D[] = [];
+
+  for (let i = 0; i < safeNumPoints; i++) {
+    const angle = (2 * Math.PI * i) / safeNumPoints;
+    const rdX = centroidX + (radius * Math.cos(angle));
+    const rdY = centroidY + (radius * Math.sin(angle));
+    points.push([rdX, groundHeight + EYE_HEIGHT_METERS, -rdY]);
+  }
+
+  return points;
 }

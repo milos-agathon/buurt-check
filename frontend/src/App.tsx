@@ -15,11 +15,8 @@ import TabBar from './components/TabBar';
 import TopBar from './components/TopBar';
 import type { TabId } from './components/TabBar';
 import AddressHeader from './components/AddressHeader';
-import SummaryStrip from './components/SummaryStrip';
 import BuildingFactsCard from './components/BuildingFactsCard';
-import SunlightRiskCard from './components/SunlightRiskCard';
 import ShadowTimeSlider from './components/ShadowTimeSlider';
-import ShadowSnapshots from './components/ShadowSnapshots';
 import RiskTilesGrid from './components/RiskTilesGrid';
 import RiskDetailView from './components/RiskDetailView';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
@@ -28,10 +25,8 @@ import AttentionSummary from './components/AttentionSummary';
 import PropertyWarningsCard from './components/PropertyWarningsCard';
 import LivabilityCard from './components/LivabilityCard';
 import LivabilityDetailView from './components/LivabilityDetailView';
-import SoilInfoCard from './components/SoilInfoCard';
 import ViewingChecklist from './components/ViewingChecklist';
 import LockedSection from './components/LockedSection';
-import UpgradeCTA from './components/UpgradeCTA';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
 
@@ -527,9 +522,7 @@ function App() {
   const [showLivabilityDetail, setShowLivabilityDetail] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(dossierSeed?.sunlight ?? null);
   const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
-  const [sunlightRetryToken, setSunlightRetryToken] = useState(0);
   const [sunDateTime, setSunDateTime] = useState<Date | undefined>(undefined);
-  const [showHeatmap, setShowHeatmap] = useState(false);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(
     dossierSeed?.shadowSnapshots ?? null,
   );
@@ -552,7 +545,6 @@ function App() {
   const previousScreenForScrollRef = useRef<Screen>(initialHasDossier ? 'dossier' : 'search');
   const addressRequestAbortRef = useRef<AbortController | null>(null);
   const retryControllersRef = useRef<Set<AbortController>>(new Set());
-  const riskTilePulseTimeoutRef = useRef<number | null>(null);
   const previousScreenRef = useRef<Screen>('search');
   const handledCheckoutParamsRef = useRef<string | null>(null);
   const tracked3DOpenKeyRef = useRef<string | null>(null);
@@ -653,9 +645,6 @@ function App() {
       addressRequestAbortRef.current?.abort();
       retryControllersRef.current.forEach(c => c.abort());
       retryControllersRef.current.clear();
-      if (riskTilePulseTimeoutRef.current != null) {
-        window.clearTimeout(riskTilePulseTimeoutRef.current);
-      }
     };
   }, []);
 
@@ -952,14 +941,14 @@ function App() {
 
   const handleRiskTileTap = useCallback((category: string) => {
     if (!isEntitled) {
-      void handleUpgrade();
+      setExportSheetOpen(true);
       return;
     }
     if (isTransitioning) return;
     hapticTap();
     setUseFallbackDetailTransition(animationPerformance.shouldUseFallback());
     setActiveDetailCategory(category);
-  }, [animationPerformance, handleUpgrade, isEntitled, isTransitioning]);
+  }, [animationPerformance, isEntitled, isTransitioning]);
 
   const scrollToDossierTarget = useCallback((elementId: string) => {
     const root = getDossierScrollContainer();
@@ -1004,28 +993,6 @@ function App() {
     }
   }, []);
 
-  const highlightRiskTile = useCallback((category: string) => {
-    const tile = document.getElementById(`section-risk-${category}`);
-    if (!tile) return;
-    tile.classList.remove('risk-tile--pulse');
-    // Force reflow so repeated taps still replay the pulse animation.
-    void tile.getBoundingClientRect();
-    tile.classList.add('risk-tile--pulse');
-    if (riskTilePulseTimeoutRef.current != null) {
-      window.clearTimeout(riskTilePulseTimeoutRef.current);
-    }
-    riskTilePulseTimeoutRef.current = window.setTimeout(() => {
-      tile.classList.remove('risk-tile--pulse');
-      riskTilePulseTimeoutRef.current = null;
-    }, 320);
-  }, []);
-
-  const handleSummaryPillTap = useCallback((category: string) => {
-    hapticTap();
-    scrollToDossierTarget(`section-risk-${category}`);
-    highlightRiskTile(category);
-  }, [highlightRiskTile, scrollToDossierTarget]);
-
   const handleJumpToHouse = useCallback(() => {
     hapticTap();
     scrollToDossierTarget('section-house-start');
@@ -1055,12 +1022,6 @@ function App() {
       // Client-side card still works even when backend caching fails.
     });
   }, [address?.adresseerbaar_object_id, isEntitled, reportId]);
-
-  const handleRetrySunlight = useCallback(() => {
-    setSunlight(null);
-    setSunlightUnavailable(false);
-    setSunlightRetryToken((token) => token + 1);
-  }, []);
 
   const isActiveDossierRequest = useCallback((requestId: number) => {
     return neighborhood3DRequestId.current === requestId && activeScreenRef.current === 'dossier';
@@ -1733,9 +1694,7 @@ function App() {
     setShowLivabilityDetail(false);
     setSunlight(null);
     setSunlightUnavailable(false);
-    setSunlightRetryToken(0);
     setSunDateTime(undefined);
-    setShowHeatmap(false);
     setShadowSnapshots(null);
     setViewingQuestions(null);
     setViewingQuestionsError(null);
@@ -2335,25 +2294,6 @@ function App() {
     };
   }, [address?.adresseerbaar_object_id, checkoutVerification, showToast, t]);
 
-  // Build summary strip pills from risk data (memoized to prevent new array on every render)
-  const summaryPills = useMemo(() => {
-    if (!riskCards && !sunlight) return [];
-    const pills = [];
-    if (riskCards) {
-      pills.push(
-        { category: 'noise', labelKey: 'risk.noise.title', score: riskCards.noise.score, severity: levelToSeverity(riskCards.noise.level, riskCards.noise.score) },
-        { category: 'air', labelKey: 'risk.air.title', score: riskCards.air_quality.score, severity: levelToSeverity(riskCards.air_quality.level, riskCards.air_quality.score) },
-        { category: 'climate', labelKey: 'risk.climate.title', score: riskCards.climate_stress.score, severity: levelToSeverity(riskCards.climate_stress.level, riskCards.climate_stress.score) },
-      );
-    }
-    const sunlightScore = sunlight ? normalizeSunlightScore(sunlight.winter) : undefined;
-    const sunlightSeverity: SeverityLevel = sunlightScore != null
-      ? (sunlightScore >= 70 ? 'good' : sunlightScore >= 40 ? 'moderate' : sunlightScore >= 20 ? 'poor' : 'critical')
-      : 'unavailable';
-    pills.push({ category: 'sunlight', labelKey: 'sunlight.title', score: sunlightScore, severity: sunlightSeverity });
-    return pills;
-  }, [riskCards, sunlight]);
-
   const comparisonLabel = useCallback((code: string): string => {
     if (code === 'city_avg') return t('risk.detail.cityAvg');
     if (code === 'nl_avg') return t('risk.detail.nlAvg');
@@ -2766,6 +2706,7 @@ function App() {
                         warnings={propertyWarnings ?? undefined}
                         sunlightScore={sunlight ? normalizeSunlightScore(sunlight.winter) : undefined}
                         livability={livability ?? undefined}
+                        includeAsbestos={false}
                       />
                     </div>
                   )}
@@ -2813,17 +2754,8 @@ function App() {
                     </div>
                   )}
 
-                  {progressivePhase !== 'house' && summaryPills.length > 0 && (
-                    <div className="dossier-section" style={dossierSectionStyle(2)} data-section-index={2}>
-                      <SummaryStrip
-                        pills={summaryPills}
-                        onPillTap={handleSummaryPillTap}
-                      />
-                    </div>
-                  )}
-
                   {(buildingLoading || buildingResponse || buildingError) && (
-                    <div className="dossier-section" style={dossierSectionStyle(3)} data-section-index={3}>
+                    <div className="dossier-section" style={dossierSectionStyle(2)} data-section-index={2}>
                       <BuildingFactsCard
                         building={buildingResponse?.building ?? undefined}
                         loading={buildingLoading}
@@ -2835,7 +2767,7 @@ function App() {
 
                   {progressivePhase !== 'house' &&
                     ((loading && !riskCards) || riskLoading || riskCards || riskError || activeDetailCategory) && (
-                      <div className="dossier-section" style={dossierSectionStyle(4)} data-section-index={4}>
+                      <div className="dossier-section" style={dossierSectionStyle(3)} data-section-index={3}>
                         {loading && !riskCards && <RiskTileSkeleton />}
                         {(riskLoading || riskCards || riskError || activeDetailCategory) && (
                           <LayoutGroup>
@@ -2887,21 +2819,11 @@ function App() {
                       </div>
                     )}
 
-                  {progressivePhase !== 'house' && !isEntitled && (
-                    <div className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5}>
-                      <UpgradeCTA
-                        onUpgrade={handleUpgrade}
-                        price={dossierPriceEur}
-                        disabled={isCheckingOut}
-                      />
-                    </div>
-                  )}
-
                   {progressivePhase !== 'house' && (isEntitled ? (propertyWarningsLoading || propertyWarnings || propertyWarningsError) : true) && (
                     <div
                       className="dossier-section"
-                      style={dossierSectionStyle(isEntitled ? 5 : 6)}
-                      data-section-index={isEntitled ? 5 : 6}
+                      style={dossierSectionStyle(4)}
+                      data-section-index={4}
                     >
                       <h3 id="section-warnings" className="app__section-label">{t('warnings.sectionTitle')}</h3>
                       {isEntitled ? (
@@ -2910,34 +2832,11 @@ function App() {
                           loading={propertyWarningsLoading}
                           error={propertyWarningsError}
                           onRetry={propertyWarningsError ? handleRetryPropertyWarnings : undefined}
+                          showAsbestos={false}
                         />
                       ) : (
                         <LockedSection
                           sectionName={t('premium.section.warnings', 'property warnings')}
-                          onUpgrade={handleUpgrade}
-                          price={dossierPriceEur}
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {progressivePhase !== 'house' && (
-                    <div
-                      className="dossier-section"
-                      style={dossierSectionStyle(isEntitled ? 6 : 7)}
-                      data-section-index={isEntitled ? 6 : 7}
-                    >
-                      <h3 id="section-soil" className="app__section-label">{t('dossier.soilInfo', 'Soil & Pipes')}</h3>
-                      {isEntitled ? (
-                        <SoilInfoCard
-                          leadPipeFlagged={propertyWarnings?.lead_pipe?.flagged}
-                          constructionYear={buildingResponse?.building?.construction_year}
-                        />
-                      ) : (
-                        <LockedSection
-                          sectionName={t('premium.section.soil', 'soil information')}
-                          onUpgrade={handleUpgrade}
-                          price={dossierPriceEur}
                         />
                       )}
                     </div>
@@ -2960,7 +2859,7 @@ function App() {
                       {isEntitled ? (
                         <>
                           {(livabilityLoading || livability || livabilityError) && (
-                            <div className="dossier-section" style={dossierSectionStyle(7)} data-section-index={7}>
+                            <div className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5}>
                               <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
                               <LivabilityCard
                                 data={livability ?? undefined}
@@ -2979,7 +2878,7 @@ function App() {
                             />
                           )}
 
-                          <div ref={viewer3DRefCallback} className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8} data-testid="viewer-3d-sentinel">
+                          <div ref={viewer3DRefCallback} className="dossier-section" style={dossierSectionStyle(6)} data-section-index={6} data-testid="viewer-3d-sentinel">
                             {!viewer3DTriggered && !neighborhood3D && (
                               <div className="viewer-3d-status">
                                 <p>{t('viewer3d.loading')}</p>
@@ -3018,10 +2917,8 @@ function App() {
                                   targetPandId={neighborhood3D.target_pand_id ?? undefined}
                                   center={neighborhood3D.center}
                                   sunDateTime={sunDateTime}
-                                  showHeatmap={showHeatmap}
                                   onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
                                   onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
-                                  sunlightRetryToken={sunlightRetryToken}
                                   onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
                                   loading={surroundingLoading}
                                   error={neighborhood3DError}
@@ -3037,60 +2934,25 @@ function App() {
                                 onChange={setSunDateTime}
                               />
                             )}
-
-                            {(shadowSnapshots || (neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots)) && (
-                              <ShadowSnapshots
-                                snapshots={shadowSnapshots ?? undefined}
-                                loading={!!neighborhood3D && neighborhood3D.buildings.length > 0 && !shadowSnapshots}
-                              />
-                            )}
                           </div>
-
-                          {(() => {
-                            const canComputeSunlight = hasSurroundingContext(neighborhood3D) && !surroundingLoading;
-                            const sunlightLoading = canComputeSunlight && !sunlight;
-                            const showSunlightCard = sunlightLoading || !!sunlight || sunlightUnavailable;
-                            if (!showSunlightCard) return null;
-                            const targetOrientation = neighborhood3D?.buildings.find(
-                              b => b.pand_id === neighborhood3D.target_pand_id,
-                            )?.orientation_deg;
-                            return (
-                              <div className="dossier-section" style={dossierSectionStyle(9)} data-section-index={9}>
-                                <SunlightRiskCard
-                                  sunlight={sunlight ?? undefined}
-                                  loading={sunlightLoading}
-                                  unavailable={sunlightUnavailable}
-                                  error={neighborhood3DError}
-                                  onRetry={sunlightUnavailable && canComputeSunlight ? handleRetrySunlight : undefined}
-                                  orientationDeg={targetOrientation}
-                                  showHeatmap={showHeatmap}
-                                  onToggleHeatmap={setShowHeatmap}
-                                />
-                              </div>
-                            );
-                          })()}
                         </>
                       ) : (
                         <>
-                          <div className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8}>
+                          <div className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5}>
                             <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
                             <LockedSection
                               sectionName={t('premium.section.livability', 'livability analysis')}
-                              onUpgrade={handleUpgrade}
-                              price={dossierPriceEur}
                             />
                           </div>
-                          <div className="dossier-section" style={dossierSectionStyle(9)} data-section-index={9}>
+                          <div className="dossier-section" style={dossierSectionStyle(6)} data-section-index={6}>
                             <LockedSection
                               sectionName={t('premium.section.3d', '3D building analysis')}
-                              onUpgrade={handleUpgrade}
-                              price={dossierPriceEur}
                             />
                           </div>
                         </>
                       )}
                       {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
-                        <div className="dossier-section" style={dossierSectionStyle(10)} data-section-index={10}>
+                        <div className="dossier-section" style={dossierSectionStyle(7)} data-section-index={7}>
                           <h3 id="section-neighborhood" className="app__section-label">{t('dossier.neighborhood')}</h3>
                           <NeighborhoodStatsCard
                             stats={neighborhoodStats ?? undefined}
@@ -3102,7 +2964,7 @@ function App() {
                       )}
 
                       {(isEntitled ? (tierBLoading || tierBData || tierBError) : true) && (
-                        <div className="dossier-section" style={dossierSectionStyle(11)} data-section-index={11}>
+                        <div className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8}>
                           <h3 id="section-tier-b" className="app__section-label">{t('dossier.tierB')}</h3>
                           {isEntitled ? (
                             <TierBSignalsCard
@@ -3113,9 +2975,7 @@ function App() {
                             />
                           ) : (
                             <LockedSection
-                              sectionName={t('premium.section.tierb', 'energy & crime data')}
-                              onUpgrade={handleUpgrade}
-                              price={dossierPriceEur}
+                              sectionName={t('premium.section.tierb', 'crime data')}
                             />
                           )}
                         </div>
@@ -3138,7 +2998,7 @@ function App() {
                     </div>
                     <p className="app__phase-divider-subtitle">{t('dossier.actionSubtitle')}</p>
                   </div>
-                  <div ref={actionBarSentinelRefCallback} className="dossier-section" style={dossierSectionStyle(12)} data-section-index={12}>
+                  <div ref={actionBarSentinelRefCallback} className="dossier-section" style={dossierSectionStyle(9)} data-section-index={9}>
                     <section role="region" aria-label={t('nav.jumpBriefing')}>
                       <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
                       {isEntitled ? (
@@ -3152,8 +3012,6 @@ function App() {
                       ) : (
                         <LockedSection
                           sectionName={t('premium.section.viewing', 'viewing questions')}
-                          onUpgrade={handleUpgrade}
-                          price={dossierPriceEur}
                         />
                       )}
                     </section>
@@ -3198,22 +3056,6 @@ function App() {
                           className="app__next-steps-action"
                           onClick={() => {
                             hapticTap();
-                            setExportSheetOpen(true);
-                          }}
-                        >
-                          <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414a1 1 0 00-.293-.707l-3.414-3.414A1 1 0 0011.586 3H6z" stroke="currentColor" strokeWidth="1.5"/>
-                            <path d="M10 10v4m0 0l-2-2m2 2l2-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                          {t('dossier.nextSteps.export')}
-                        </button>
-                      </li>
-                      <li>
-                        <button
-                          type="button"
-                          className="app__next-steps-action"
-                          onClick={() => {
-                            hapticTap();
                             setActiveScreen('search');
                             setActiveTab('home');
                             setHashRoute('#/search');
@@ -3231,7 +3073,7 @@ function App() {
                 )}
 
                 {address && (
-                  <div className="dossier-section" style={dossierSectionStyle(13)} data-section-index={13}>
+                  <div className="dossier-section" style={dossierSectionStyle(10)} data-section-index={10}>
                     <ActionBar
                       isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
                       onAddToShortlist={handleBookmark}
@@ -3351,6 +3193,11 @@ function App() {
             houseLetter={address.house_letter ?? undefined}
             addition={address.addition ?? undefined}
             shadowSnapshots={shadowSnapshots}
+            isEntitled={isEntitled}
+            onBuyFullDossier={() => {
+              void handleUpgrade();
+            }}
+            buyPending={isCheckingOut}
             onGenerateStart={() => {
               setExportGenerating(true);
               showToast(t('toast.exportStarted'));

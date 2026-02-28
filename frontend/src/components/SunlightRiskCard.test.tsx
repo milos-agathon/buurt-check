@@ -103,6 +103,40 @@ describe('SunlightRiskCard', () => {
     expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
   });
 
+  it('renders facade sunlight rows by orientation when available', () => {
+    renderCard(makeSunlightResult({
+      facadeResults: [
+        {
+          orientation: 'south',
+          heightLabel: '1.5m',
+          winterHours: 3.2,
+          summerHours: 10.1,
+          annualAverage: 6.5,
+        },
+        {
+          orientation: 'north',
+          heightLabel: '1.5m',
+          winterHours: 0.5,
+          summerHours: 4.2,
+          annualAverage: 2.1,
+        },
+      ],
+    }));
+
+    expect(screen.getByText(/Window-level sunlight/i)).toBeInTheDocument();
+    expect(screen.getByText(/South \(1.5m\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/North \(1.5m\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/3.2 hrs/)).toBeInTheDocument();
+    expect(screen.getByText(/4.2 hrs/)).toBeInTheDocument();
+  });
+
+  it('renders ground sunlight aggregate when available', () => {
+    renderCard(makeSunlightResult({ groundAnnualAverage: 5.4 }));
+
+    expect(screen.getByText(/Garden\/yard sunlight/i)).toBeInTheDocument();
+    expect(screen.getByText('5.4 hrs')).toBeInTheDocument();
+  });
+
   it('renders in Dutch', () => {
     renderCard(makeSunlightResult({ winter: 1 }), false, 'nl');
     expect(screen.getByText('Directe zon (helder weer)')).toBeInTheDocument();

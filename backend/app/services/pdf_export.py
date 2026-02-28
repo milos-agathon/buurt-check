@@ -9,6 +9,7 @@ from pathlib import Path
 from fpdf import FPDF
 
 from app.models.neighborhood import AgeProfile, NeighborhoodStats, UrbanizationLevel
+from app.models.property_warnings import PropertyWarningsResponse
 from app.models.risk import (
     ComparisonPattern,
     RiskCardsResponse,
@@ -16,6 +17,7 @@ from app.models.risk import (
     ViewingQuestionsResponse,
 )
 from app.models.tier_b import TierBResponse
+from app.services.scoring import severity_from_score
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +42,7 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
 def _severity_for_score(score: int | None) -> str:
     if score is None:
         return "unavailable"
-    if score >= 70:
-        return "good"
-    if score >= 40:
-        return "moderate"
-    if score >= 20:
-        return "poor"
-    return "critical"
+    return severity_from_score(score).value
 
 
 def _severity_color(score: int | None) -> tuple[int, int, int]:
@@ -553,6 +549,7 @@ def generate_full_dossier(
     neighborhood_stats: NeighborhoodStats | None = None,
     tier_b: TierBResponse | None = None,
     risk_comparisons: RiskComparisonsResponse | None = None,
+    property_warnings_data: PropertyWarningsResponse | None = None,
 ) -> bytes:
     """Generate 5+ page Full Dossier with Polar Frost branding."""
     is_nl = language == "nl"
@@ -576,12 +573,24 @@ def generate_full_dossier(
     pdf.add_page()
     _draw_neighborhood_page(pdf, neighborhood_stats, tier_b, is_nl)
 
-    # Page 4: Viewing Checklist
+    # Page 4: Premium Property Checks
+    pdf.section_title = "EXTRA CONTROLES" if is_nl else "ADDITIONAL CHECKS"
+    pdf.add_page()
+    _draw_property_checks_page(
+        pdf=pdf,
+        risks=risks,
+        sunlight_score=sunlight_score,
+        shadow_image_b64=shadow_image_b64,
+        property_warnings=property_warnings_data,
+        is_nl=is_nl,
+    )
+
+    # Page 5: Viewing Checklist
     pdf.section_title = "BEZICHTIGINGSCHECKLIST" if is_nl else "VIEWING CHECKLIST"
     pdf.add_page()
     _draw_checklist_page(pdf, address, risks, sunlight_score, viewing_questions, is_nl)
 
-    # Page 5: Methodology + Notes
+    # Page 6: Methodology + Notes
     pdf.section_title = "METHODOLOGIE" if is_nl else "METHODOLOGY"
     pdf.add_page()
     _draw_methodology_page(pdf, is_nl)
@@ -951,6 +960,174 @@ def _draw_neighborhood_page(
         )
         pdf.cell(0, 6, no_data, new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
+
+
+def _draw_checks_subsection(
+    pdf: BuurtCheckPDF, title: str, body: str, source: str,
+) -> None:
+    """Render a single subsection: bold title, body text, muted source, divider."""
+    pdf.set_font("Satoshi", "B", 11)
+    pdf.cell(0, 6, title, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Satoshi", "", 10)
+    pdf.multi_cell(0, 5, body, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(0, 4, source, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SLATE)
+    pdf.draw_divider("light")
+
+
+def _draw_property_checks_page(
+    pdf: BuurtCheckPDF,
+    risks: RiskCardsResponse | None,
+    sunlight_score: int | None,
+    shadow_image_b64: str | None,
+    property_warnings: PropertyWarningsResponse | None,
+    is_nl: bool,
+) -> None:
+    """Page 4: premium-only checks required in the paid Full Dossier."""
+    pdf.set_font("Satoshi", "B", 12)
+    title = "Aanvullende vastgoedcontroles" if is_nl else "Additional Property Checks"
+    pdf.cell(0, 7, title, new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(1)
+
+    # 1) Asbestos Awareness
+    if property_warnings:
+        if property_warnings.asbestos.flagged:
+            cy = property_warnings.asbestos.construction_year
+            year_text = f"{cy}" if cy is not None else "\u2014"
+            asbestos_text = (
+                f"Mogelijk asbestrisico op basis van bouwjaar ({year_text}). "
+                "Vraag een asbestinventarisatie aan voor verbouwing."
+                if is_nl
+                else f"Potential asbestos risk flagged from construction year ({year_text}). "
+                "Request an asbestos inventory before renovation."
+            )
+        else:
+            asbestos_text = (
+                "Geen leeftijdsgebonden asbestsignaal in beschikbare gebouwdata."
+                if is_nl
+                else "No age-based asbestos flag in available building data."
+            )
+    else:
+        asbestos_text = (
+            "Asbeststatus niet beschikbaar in de exportketen."
+            if is_nl
+            else "Asbestos status unavailable in export pipeline."
+        )
+    asbestos_source = (
+        "Bron: BAG-bouwjaarheuristiek" if is_nl
+        else "Source: BAG construction year heuristic"
+    )
+    _draw_checks_subsection(
+        pdf,
+        title="Asbestbewustzijn" if is_nl else "Asbestos Awareness",
+        body=asbestos_text,
+        source=asbestos_source,
+    )
+
+    # 2) Soil Contamination Check
+    climate_summary = ""
+    if risks and risks.climate_stress:
+        climate_summary = (
+            risks.climate_stress.summary_nl if is_nl else risks.climate_stress.summary
+        ) or ""
+    if climate_summary:
+        soil_text = (
+            f"Gerelateerde klimaatcontext: {climate_summary}. "
+            "Perceelgebonden bodemverontreiniging vereist nog steeds een Bodemloket-uittreksel."
+            if is_nl
+            else f"Related climate context: {climate_summary}. "
+            "Parcel-level contamination still requires a municipal Bodemloket extract."
+        )
+    else:
+        soil_text = (
+            "Er is hier geen perceelgebonden verontreinigingsdataset gekoppeld. "
+            "Vraag een gemeentelijk Bodemloket-uittreksel aan voor de officiële historie."
+            if is_nl
+            else "No parcel-level contamination dataset is configured here. "
+            "Request a municipal Bodemloket extract for official contamination history."
+        )
+    soil_source = (
+        "Bron: Gemeentelijk Bodemloket (handmatige verificatie)" if is_nl
+        else "Source: Municipal Bodemloket (manual verification)"
+    )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "Bodemverontreinigingscontrole" if is_nl
+            else "Soil Contamination Check"
+        ),
+        body=soil_text,
+        source=soil_source,
+    )
+
+    # 3) Direct sun (clear-sky visibility)
+    sun = risks.sunlight if risks else None
+    if sun and (
+        sun.winter_hours is not None
+        or sun.equinox_hours is not None
+        or sun.summer_hours is not None
+    ):
+        w = f"{sun.winter_hours:.1f}h" if sun.winter_hours is not None else "\u2014"
+        e = f"{sun.equinox_hours:.1f}h" if sun.equinox_hours is not None else "\u2014"
+        s = f"{sun.summer_hours:.1f}h" if sun.summer_hours is not None else "\u2014"
+        score_text = str(sunlight_score) if sunlight_score is not None else "\u2014"
+        sun_text = (
+            f"Geschat direct zonlicht: winter {w}/dag, equinox {e}/dag, zomer {s}/dag. "
+            f"Score: {score_text}/100."
+            if is_nl
+            else f"Estimated direct sunlight: winter {w}/day, equinox {e}/day, summer {s}/day. "
+            f"Score: {score_text}/100."
+        )
+    else:
+        sun_text = (
+            "Schatting van direct zonlicht niet beschikbaar voor deze export."
+            if is_nl
+            else "Direct sun estimate unavailable for this export."
+        )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "Direct zonlicht (helderheidsschatting)" if is_nl
+            else "Direct sun (clear-sky visibility)"
+        ),
+        body=sun_text,
+        source=(
+            "Bron: SunCalc + 3DBAG" if is_nl
+            else "Source: SunCalc + 3DBAG"
+        ),
+    )
+
+    # 4) Shadow Snapshots
+    shadow_title = "Schaduwopnamen" if is_nl else "Shadow Snapshots"
+    if shadow_image_b64:
+        snapshot_text = (
+            "Schaduwopname op winterzonnewende, gegenereerd op basis van omliggende 3D-geometrie."
+            if is_nl
+            else "Winter-solstice shadow snapshot generated from surrounding 3D geometry."
+        )
+    else:
+        snapshot_text = (
+            "Er is geen schaduwopname aangeleverd voor deze export."
+            if is_nl
+            else "No shadow snapshot was supplied for this export."
+        )
+    shadow_source = (
+        "Bron: SunCalc ray-casting op 3DBAG-meshes"
+        if is_nl
+        else "Source: SunCalc ray-casting over 3DBAG meshes"
+    )
+    # Section 4 has an image between body and source, so render manually
+    pdf.set_font("Satoshi", "B", 11)
+    pdf.cell(0, 6, shadow_title, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Satoshi", "", 10)
+    pdf.multi_cell(0, 5, snapshot_text, new_x="LMARGIN", new_y="NEXT")
+    _draw_shadow_image(pdf, shadow_image_b64, is_nl)
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(0, 4, shadow_source, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SLATE)
 
 
 def _draw_indicator(pdf: BuurtCheckPDF, label: str, indicator) -> None:

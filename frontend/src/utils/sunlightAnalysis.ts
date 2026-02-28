@@ -1,5 +1,5 @@
 import { Raycaster, Vector3 } from 'three';
-import type { SunlightResult } from '../types/api';
+import type { FacadeSunlightResult, SunlightResult } from '../types/api';
 import {
   getDaylightRange,
   getRepresentativeDates,
@@ -9,7 +9,6 @@ import {
 } from './sunPosition';
 import {
   buildSunlightEvaluationPoints,
-  type SunlightEvaluationPoints,
 } from './sunlightSampling';
 import {
   DEFAULT_GRID_SPACING_METERS,
@@ -54,14 +53,26 @@ export interface SunlightAnalysisOptions {
   groundOffsetMeters?: number;
   facadeHeightMeters?: number;
   groundHeightOffsetMeters?: number;
+  extraEvalPoints?: {
+    points: [number, number, number][];
+    labels: string[];
+    skipSelfShadow: boolean;
+  };
   raycaster?: RaycasterLike;
   yieldControl?: () => Promise<void>;
   abortSignal?: AbortSignal;
+  onMonthComplete?: (monthIdx: number, totalMonths: number) => void;
 }
 
 const DEFAULT_INTERVAL_MINUTES = 30;
 const DEFAULT_CHUNK_RAYCASTS = 200;
 const SELF_HIT_EPSILON_METERS = 0.15;
+const ORIENTATION_ORDER: Record<FacadeSunlightResult['orientation'], number> = {
+  north: 0,
+  east: 1,
+  south: 2,
+  west: 3,
+};
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
@@ -132,24 +143,60 @@ function isSameSurfaceSelfHit(hit: RaycastHitLike, origin: Vector3): boolean {
   return false;
 }
 
-function buildDefaultResult(year: number, points: SunlightEvaluationPoints): SunlightResult {
+type PointCategory = 'roof' | 'facade' | 'ground' | 'extra';
+type SelfShadowPolicy = 'epsilon' | 'always-skip' | 'always-block';
+
+function parsePointCategory(label: string): PointCategory {
+  if (label.startsWith('facade:')) return 'facade';
+  if (label.startsWith('ground:')) return 'ground';
+  return 'extra';
+}
+
+function parseFacadeLabel(label: string): {
+  orientation: FacadeSunlightResult['orientation'];
+  heightLabel: string;
+} | null {
+  const [, orientationRaw, heightLabel = '1.5m'] = label.split(':');
+  if (
+    orientationRaw !== 'north'
+    && orientationRaw !== 'south'
+    && orientationRaw !== 'east'
+    && orientationRaw !== 'west'
+  ) {
+    return null;
+  }
+
+  return {
+    orientation: orientationRaw,
+    heightLabel,
+  };
+}
+
+function buildDefaultResult(
+  year: number,
+  roofGridPoints: [number, number, number][],
+  facadeProxyPoints: [number, number, number][],
+  groundProxyPoints: [number, number, number][],
+): SunlightResult {
   return {
     winter: 0,
     equinox: 0,
     summer: 0,
     annualAverage: 0,
     analysisYear: year,
-    roofGridPoints: points.roofGridPoints,
-    facadeProxyPoints: points.facadeProxyPoints,
-    groundProxyPoints: points.groundProxyPoints,
-    perPointAnnual: points.roofGridPoints.map(() => 0),
-    perFacadeAnnual: points.facadeProxyPoints.map(() => 0),
-    perGroundAnnual: points.groundProxyPoints.map(() => 0),
+    roofGridPoints,
+    facadeProxyPoints,
+    groundProxyPoints,
+    perPointAnnual: roofGridPoints.map(() => 0),
+    perFacadeAnnual: facadeProxyPoints.map(() => 0),
+    perGroundAnnual: groundProxyPoints.map(() => 0),
+    facadeResults: [],
+    groundAnnualAverage: 0,
     samplingBreakdown: {
-      roof: points.roofGridPoints.length,
-      facade: points.facadeProxyPoints.length,
-      ground: points.groundProxyPoints.length,
-      total: points.allPoints.length,
+      roof: roofGridPoints.length,
+      facade: facadeProxyPoints.length,
+      ground: groundProxyPoints.length,
+      total: roofGridPoints.length + facadeProxyPoints.length + groundProxyPoints.length,
     },
   };
 }
@@ -178,9 +225,11 @@ export async function analyzeSunlight(
     groundOffsetMeters = 3,
     facadeHeightMeters = 1.5,
     groundHeightOffsetMeters = 0.1,
+    extraEvalPoints,
     raycaster = new Raycaster() as unknown as RaycasterLike,
     yieldControl = yieldToMainThread,
     abortSignal,
+    onMonthComplete,
   } = options;
 
   if (abortSignal?.aborted) return null;
@@ -198,12 +247,28 @@ export async function analyzeSunlight(
     groundHeightOffsetMeters,
   });
   const roofGridPoints = sampledPoints.roofGridPoints;
-  const facadeProxyPoints = sampledPoints.facadeProxyPoints;
-  const groundProxyPoints = sampledPoints.groundProxyPoints;
-  const allPoints = sampledPoints.allPoints;
+  const legacyFacadeProxyPoints = sampledPoints.facadeProxyPoints;
+  const legacyGroundProxyPoints = sampledPoints.groundProxyPoints;
+
+  const extraPoints = extraEvalPoints?.points ?? [];
+  const extraLabels = extraEvalPoints?.labels ?? [];
+  const extraCategories = extraPoints.map((_, index) => parsePointCategory(extraLabels[index] ?? ''));
+  const extraPolicy: SelfShadowPolicy = extraEvalPoints
+    ? (extraEvalPoints.skipSelfShadow ? 'always-skip' : 'always-block')
+    : 'always-block';
+
+  const allPoints = [
+    ...sampledPoints.allPoints,
+    ...extraPoints,
+  ];
+
+  const pointSelfShadowPolicy: SelfShadowPolicy[] = [
+    ...sampledPoints.allPoints.map(() => 'epsilon' as const),
+    ...extraPoints.map(() => extraPolicy),
+  ];
 
   if (allPoints.length === 0) {
-    return buildDefaultResult(year, sampledPoints);
+    return buildDefaultResult(year, roofGridPoints, legacyFacadeProxyPoints, legacyGroundProxyPoints);
   }
 
   const monthlyDates = getRepresentativeDates(year);
@@ -213,7 +278,8 @@ export async function analyzeSunlight(
   const maxChunk = Math.max(1, Math.floor(chunkRaycasts));
   let raycastsSinceYield = 0;
 
-  for (const date of monthlyDates) {
+  for (let monthIdx = 0; monthIdx < monthlyDates.length; monthIdx++) {
+    const date = monthlyDates[monthIdx];
     const { sunrise, sunset } = getDaylightRange(date, lat, lng);
     const sampleMinutes = getSampleMinutesForDay(sunrise, sunset, intervalMinutes);
     monthlySampleWeights.push(sampleMinutes.length);
@@ -234,9 +300,12 @@ export async function analyzeSunlight(
         raycaster.far = SUN_DISTANCE * 2;
 
         const intersections = raycaster.intersectObjects(buildingMeshes);
+        const selfShadowPolicy = pointSelfShadowPolicy[pointIdx] ?? 'epsilon';
         const blocked = intersections.some((hit) => {
           if (hit.object?.userData?.isGround) return false;
           if (hit.object?.userData?.pandId === targetPandId) {
+            if (selfShadowPolicy === 'always-skip') return false;
+            if (selfShadowPolicy === 'always-block') return true;
             return !isSameSurfaceSelfHit(hit, origin);
           }
           return true;
@@ -256,30 +325,108 @@ export async function analyzeSunlight(
 
       perPointMonthly[pointIdx].push(round1(sunlitHours));
     }
+
+    onMonthComplete?.(monthIdx, monthlyDates.length);
   }
 
-  const meanMonthly = Array.from({ length: 12 }, (_, monthIdx) => {
-    const sum = perPointMonthly.reduce((acc, pointMonths) => acc + (pointMonths[monthIdx] ?? 0), 0);
-    return round1(sum / allPoints.length);
+  const roofPointCount = roofGridPoints.length;
+  const roofMeanMonthly = Array.from({ length: 12 }, (_, monthIdx) => {
+    if (roofPointCount <= 0) return 0;
+    let sum = 0;
+    for (let pointIdx = 0; pointIdx < roofPointCount; pointIdx++) {
+      sum += perPointMonthly[pointIdx][monthIdx] ?? 0;
+    }
+    return round1(sum / roofPointCount);
   });
 
   const perPointAnnualByEvalPoint = perPointMonthly.map((pointMonths) =>
     round1(weightedAverage(pointMonths, monthlySampleWeights))
   );
-  const perPointAnnual = perPointAnnualByEvalPoint.slice(0, roofGridPoints.length);
-  const perFacadeAnnual = perPointAnnualByEvalPoint.slice(
-    roofGridPoints.length,
-    roofGridPoints.length + facadeProxyPoints.length,
+  const perPointAnnual = perPointAnnualByEvalPoint.slice(0, roofPointCount);
+  const annualAverage = round1(weightedAverage(roofMeanMonthly, monthlySampleWeights));
+
+  const facadeProxyPoints: [number, number, number][] = [...legacyFacadeProxyPoints];
+  const groundProxyPoints: [number, number, number][] = [...legacyGroundProxyPoints];
+  const perFacadeAnnual: number[] = perPointAnnualByEvalPoint.slice(
+    roofPointCount,
+    roofPointCount + legacyFacadeProxyPoints.length,
   );
-  const perGroundAnnual = perPointAnnualByEvalPoint.slice(
-    roofGridPoints.length + facadeProxyPoints.length,
+  const perGroundAnnual: number[] = perPointAnnualByEvalPoint.slice(
+    roofPointCount + legacyFacadeProxyPoints.length,
+    roofPointCount + legacyFacadeProxyPoints.length + legacyGroundProxyPoints.length,
   );
-  const annualAverage = round1(weightedAverage(meanMonthly, monthlySampleWeights));
+
+  const facadeBuckets = new Map<string, {
+    orientation: FacadeSunlightResult['orientation'];
+    heightLabel: string;
+    winterSum: number;
+    summerSum: number;
+    annualSum: number;
+    count: number;
+  }>();
+
+  const extraStartIdx = sampledPoints.allPoints.length;
+  for (let i = 0; i < extraPoints.length; i++) {
+    const label = extraLabels[i] ?? '';
+    const category = extraCategories[i];
+    const globalIdx = extraStartIdx + i;
+    const annual = perPointAnnualByEvalPoint[globalIdx] ?? 0;
+    const point = extraPoints[i];
+
+    if (category === 'facade') {
+      const parsed = parseFacadeLabel(label);
+      facadeProxyPoints.push(point);
+      perFacadeAnnual.push(annual);
+
+      if (!parsed) continue;
+
+      const monthly = perPointMonthly[globalIdx] ?? [];
+      const key = `${parsed.orientation}:${parsed.heightLabel}`;
+      const bucket = facadeBuckets.get(key) ?? {
+        orientation: parsed.orientation,
+        heightLabel: parsed.heightLabel,
+        winterSum: 0,
+        summerSum: 0,
+        annualSum: 0,
+        count: 0,
+      };
+
+      bucket.winterSum += monthly[11] ?? 0;
+      bucket.summerSum += monthly[5] ?? 0;
+      bucket.annualSum += annual;
+      bucket.count += 1;
+      facadeBuckets.set(key, bucket);
+      continue;
+    }
+
+    if (category === 'ground') {
+      groundProxyPoints.push(point);
+      perGroundAnnual.push(annual);
+    }
+  }
+
+  const facadeResults = Array.from(facadeBuckets.values())
+    .map((bucket): FacadeSunlightResult => ({
+      orientation: bucket.orientation,
+      heightLabel: bucket.heightLabel,
+      winterHours: round1(bucket.winterSum / Math.max(1, bucket.count)),
+      summerHours: round1(bucket.summerSum / Math.max(1, bucket.count)),
+      annualAverage: round1(bucket.annualSum / Math.max(1, bucket.count)),
+    }))
+    .sort((a, b) => {
+      const orientationDelta = ORIENTATION_ORDER[a.orientation] - ORIENTATION_ORDER[b.orientation];
+      if (orientationDelta !== 0) return orientationDelta;
+      return parseFloat(a.heightLabel) - parseFloat(b.heightLabel);
+    });
+
+  const groundAnnualAverage = perGroundAnnual.length > 0
+    ? round1(perGroundAnnual.reduce((sum, value) => sum + value, 0) / perGroundAnnual.length)
+    : undefined;
 
   return {
-    winter: meanMonthly[11],
-    equinox: meanMonthly[2],
-    summer: meanMonthly[5],
+    winter: roofMeanMonthly[11],
+    equinox: roofMeanMonthly[2],
+    summer: roofMeanMonthly[5],
     annualAverage,
     analysisYear: year,
     roofGridPoints,
@@ -288,6 +435,8 @@ export async function analyzeSunlight(
     perPointAnnual,
     perFacadeAnnual,
     perGroundAnnual,
+    facadeResults,
+    groundAnnualAverage,
     samplingBreakdown: {
       roof: roofGridPoints.length,
       facade: facadeProxyPoints.length,

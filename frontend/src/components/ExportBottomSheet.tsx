@@ -26,6 +26,9 @@ interface ExportBottomSheetProps {
   houseLetter?: string;
   addition?: string;
   shadowSnapshots?: ShadowSnapshot[] | null;
+  isEntitled?: boolean;
+  onBuyFullDossier?: () => void;
+  buyPending?: boolean;
   onGenerateStart?: () => void;
   onGenerateSuccess?: () => void;
   onGenerateError?: () => void;
@@ -49,6 +52,9 @@ export default function ExportBottomSheet({
   houseLetter,
   addition,
   shadowSnapshots,
+  isEntitled = false,
+  onBuyFullDossier,
+  buyPending = false,
   onGenerateStart,
   onGenerateSuccess,
   onGenerateError,
@@ -100,6 +106,11 @@ export default function ExportBottomSheet({
     : ringCircumference - (progressPercent / 100) * ringCircumference;
 
   const handleGenerate = async () => {
+    if (template === 'full_dossier' && !isEntitled) {
+      onBuyFullDossier?.();
+      return;
+    }
+
     trackEvent('pdf_export_clicked', {
       template,
       report_id: reportId ?? 'none',
@@ -200,6 +211,7 @@ export default function ExportBottomSheet({
   };
 
   const hasShadows = shadowSnapshots && shadowSnapshots.length > 0;
+  const requiresPurchase = template === 'full_dossier' && !isEntitled;
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} height="45vh" ariaLabel={t('export.title')}>
@@ -374,10 +386,13 @@ export default function ExportBottomSheet({
             type="button"
             className="export-sheet__btn"
             onClick={handleGenerate}
-            disabled={generating}
+            disabled={generating || (requiresPurchase && (buyPending || !onBuyFullDossier))}
+            aria-busy={(requiresPurchase && buyPending) || undefined}
             data-testid="export-generate-btn"
           >
-            {generating
+            {requiresPurchase
+              ? t('export.buyFullDossier', 'Buy Full Dossier')
+              : generating
               ? t('export.generating', 'Generating...')
               : t('export.generate', 'Generate PDF')}
           </button>

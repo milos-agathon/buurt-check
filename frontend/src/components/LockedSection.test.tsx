@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { ComponentProps } from 'react';
 import { setupTestI18n } from '../test/helpers';
 import LockedSection from './LockedSection';
@@ -16,8 +16,6 @@ function renderLockedSection(props?: Partial<ComponentProps<typeof LockedSection
     <I18nextProvider i18n={i18n}>
       <LockedSection
         sectionName="property warnings"
-        onUpgrade={vi.fn()}
-        price="14.99"
         {...props}
       />
     </I18nextProvider>,
@@ -30,11 +28,9 @@ describe('LockedSection', () => {
     expect(screen.getByText(/property warnings/i)).toBeInTheDocument();
   });
 
-  it('calls onUpgrade when CTA is clicked', () => {
-    const onUpgrade = vi.fn();
-    renderLockedSection({ onUpgrade });
-    fireEvent.click(screen.getByRole('button'));
-    expect(onUpgrade).toHaveBeenCalledOnce();
+  it('does not render an inline purchase button', () => {
+    renderLockedSection();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('has an accessible region label', () => {

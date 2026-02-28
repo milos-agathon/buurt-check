@@ -56,6 +56,13 @@
 - **Export endpoints do NOT need `response: Response` param** for header injection: when the route handler returns an explicit `fastapi.responses.Response` instance, the decorator injects headers directly into it. `response: Response` FastAPI injection param is only needed when the handler returns a dict (FastAPI creates the Response internally).
 - **`_do_export_briefing` extraction is correct:** Removes code duplication between POST and GET export endpoints without breaking rate limiting (each route handler still has `request: Request` and `@limiter.limit` decorator).
 
+## Code Reuse Anti-Patterns Found (2026-02-28)
+
+- **`_severity_for_score` in `pdf_export.py` duplicates `severity_from_score` in `scoring.py`.** The canonical function is in `scoring.py` and imported by every other service. `pdf_export.py` reimplements it with slightly different signature (`int | None` vs `int`, returns `str` vs `SeverityLevel`). Divergence risk: if score thresholds change in `scoring.py`, the PDF silently uses wrong colors. Fix: call `severity_from_score(score).value` and handle None at call site.
+- **Facade-label encoding/decoding contract is stringly-typed.** `roofSampling.ts` produces labels like `facade:north:1.5m` as template literals in `NeighborhoodViewer3D.tsx:1267`. `sunlightAnalysis.ts:parseFacadeLabel` decodes by splitting on `:`. No TypeScript type enforces the schema. Fix: export a `buildFacadeLabel(orientation, height)` helper from `roofSampling.ts`.
+- **`computeSignedArea2D` (`roofSampling.ts`) duplicates `signedArea` (`sunlightSampling.ts`).** Identical shoelace formula, different polygon type (`number[][]` vs `PolygonPoint2D[]`). Export the primitive and share it.
+- **Property-warnings cache key constructed in two places** in `address.py`: route handler (lines 744-750) and `_fetch_property_warnings_for_export` (lines 935-941). Extract a `_property_warnings_cache_key(...)` helper function.
+
 ## Links to Topic Files
 
 - See `patterns.md` for more detail on Three.js instrumentation patterns.

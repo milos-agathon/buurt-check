@@ -38,6 +38,24 @@ describe('sunHoursToColor', () => {
     expect(above).toEqual(atMax);
   });
 
+  it('handles 256 evaluation points without error and produces valid RGB', () => {
+    const pointCount = 256;
+    const min = 0;
+    const max = 16;
+
+    for (let i = 0; i < pointCount; i++) {
+      const hours = (i / (pointCount - 1)) * max;
+      const [r, g, b] = sunHoursToColor(hours, min, max);
+
+      expect(r).toBeGreaterThanOrEqual(0);
+      expect(r).toBeLessThanOrEqual(1);
+      expect(g).toBeGreaterThanOrEqual(0);
+      expect(g).toBeLessThanOrEqual(1);
+      expect(b).toBeGreaterThanOrEqual(0);
+      expect(b).toBeLessThanOrEqual(1);
+    }
+  });
+
   it('exposes a gradient CSS string that matches heatmap stops', () => {
     const gradient = getSunHoursGradientCss();
     expect(gradient).toContain('rgb(224 64 64)');

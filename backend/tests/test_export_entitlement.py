@@ -143,8 +143,9 @@ async def test_full_dossier_rejects_nonexistent_report(db_path):
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
 @patch("app.api.address.risk_cards")
+@patch("app.api.address.property_warnings")
 async def test_full_dossier_allowed_with_entitled_report(
-    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, db_path
+    mock_property_warnings, mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, db_path
 ):
     """full_dossier template succeeds when report has active entitlement."""
     from app.services.reports import activate_entitlement, create_report
@@ -154,6 +155,7 @@ async def test_full_dossier_allowed_with_entitled_report(
 
     mock_bag.get_building_facts = AsyncMock(return_value=None)
     mock_risk_cards.get_risk_cards = AsyncMock(return_value=None)
+    mock_property_warnings.get_property_warnings = AsyncMock(return_value=None)
 
     with (
         patch.object(settings, "database_path", db_path),
@@ -178,8 +180,9 @@ async def test_full_dossier_allowed_with_entitled_report(
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
 @patch("app.api.address.risk_cards")
+@patch("app.api.address.property_warnings")
 async def test_full_dossier_get_allowed_with_entitled_report(
-    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, db_path
+    mock_property_warnings, mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, db_path
 ):
     """GET full_dossier succeeds when report has active entitlement."""
     from app.services.reports import activate_entitlement, create_report
@@ -189,6 +192,7 @@ async def test_full_dossier_get_allowed_with_entitled_report(
 
     mock_bag.get_building_facts = AsyncMock(return_value=None)
     mock_risk_cards.get_risk_cards = AsyncMock(return_value=None)
+    mock_property_warnings.get_property_warnings = AsyncMock(return_value=None)
 
     with (
         patch.object(settings, "database_path", db_path),

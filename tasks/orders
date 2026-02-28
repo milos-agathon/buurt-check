@@ -1,10 +1,42 @@
-1) these are the functionalities that must appear only in the Full Dossier but not in the app frontend viewer because they bring value to the final report:
-- Asbestos Awareness
-- Soil Contamination Check
-- Shadow Snapshots
-- Direct sun (clear-sky visibility)
-2) The "Buy Full Dossier" button must appear only once the user clicks on "Buy Full Dossier" button. It must not appear anywhere else
-3) When you click on "Download viewing checklist" Quick checklist button must have clearly indicated FREE text on it and it must be downloadable as a PDF
-4) Risk cards between "Building Facts" and street name must be deleted because they are redundant (there are risk cards just below)
-5) Neighborhood Snapshot cards People/Housing/Accessibility must not have truncated text on them
-6) Download viewing checklist as PDF is redundant because the download button is below it
+ORDERS - IMPLEMENTATION ACCEPTANCE CRITERIA
+
+Scope definition
+- Frontend viewer: on-screen app experience before purchase.
+- Full Dossier/PDF: paid downloadable report.
+
+1. Premium-only content visibility
+- The following items must NOT be shown in the frontend viewer:
+  - Asbestos Awareness
+  - Soil Contamination Check
+  - Shadow Snapshots
+  - Direct sun (clear-sky visibility)
+  - Property Warnings
+- The same items MUST remain available in the paid Full Dossier/PDF output.
+- Pass condition: these items are absent from viewer UI and present in Full Dossier/PDF generation.
+
+2. Full Dossier purchase and download flow
+- The user-visible entry point in the viewer is "Full Dossier".
+- The "Buy Full Dossier" CTA is shown only after the user selects "Full Dossier".
+- "Buy Full Dossier" must not be rendered in any other viewer location.
+- Clicking "Buy Full Dossier" starts checkout/payment.
+- After successful payment, the user can download the Full Dossier.
+- Pass condition: no duplicate buy CTA in viewer, checkout starts from buy CTA, paid users can download dossier.
+
+3. Viewing checklist CTA (single source of truth)
+- Keep only one checklist download CTA in this section.
+- Remove redundant "Download viewing checklist as PDF" text/button if a dedicated download button already exists below.
+- The remaining checklist CTA/button label must clearly include "FREE".
+- Clicking it downloads the viewing checklist as a PDF.
+- Pass condition: exactly one checklist download CTA is visible, includes "FREE", and downloads PDF.
+
+4. Remove redundant risk cards block
+- Remove the risk cards block located between "Building Facts" and the street name section.
+- Keep the main risk cards section that appears below (do not remove it).
+- Pass condition: intermediate duplicate risk cards are gone; primary risk cards remain.
+
+5. Neighborhood Snapshot text layout
+- Cards: People, Housing, Accessibility.
+- Text must not be truncated or clipped.
+- Text should wrap to additional lines as needed.
+- This must hold on mobile widths starting at 320px and larger.
+- Pass condition: no cut-off labels/content on these cards across supported mobile breakpoints.

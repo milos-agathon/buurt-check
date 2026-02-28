@@ -101,6 +101,9 @@ export default function SunlightRiskCard({
   );
   const svfValue = sunlight.svf;
   const svfPercent = svfValue != null ? Math.round(svfValue * 100) : null;
+  const facadeResults = sunlight.facadeResults ?? [];
+  const hasFacadeResults = facadeResults.length > 0;
+  const hasGroundResult = sunlight.groundAnnualAverage != null;
 
   return (
     <div className="sunlight-card">
@@ -166,6 +169,47 @@ export default function SunlightRiskCard({
           </p>
           <p className="sunlight-card__orientation-note">{t('sunlight.orientationNote')}</p>
         </div>
+      )}
+
+      {hasFacadeResults && (
+        <section className="sunlight-card__surface sunlight-card__surface--facade">
+          <h3 className="sunlight-card__surface-title">{t('sunlight.facade_title')}</h3>
+          <p className="sunlight-card__surface-subtitle">{t('sunlight.facade_subtitle')}</p>
+          <table className="sunlight-card__surface-table">
+            <thead>
+              <tr>
+                <th>{t('sunlight.facade_col_orientation')}</th>
+                <th>{t('sunlight.facade_col_winter')}</th>
+                <th>{t('sunlight.facade_col_summer')}</th>
+                <th>{t('sunlight.facade_col_annual')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {facadeResults.map((entry) => (
+                <tr key={`${entry.orientation}:${entry.heightLabel}`}>
+                  <td>
+                    {t(`sunlight.cardinal.${entry.orientation}`)} ({entry.heightLabel})
+                  </td>
+                  <td>{entry.winterHours} {t('sunlight.hoursUnit')}</td>
+                  <td>{entry.summerHours} {t('sunlight.hoursUnit')}</td>
+                  <td>{entry.annualAverage} {t('sunlight.hoursUnit')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="sunlight-card__surface-note">{t('sunlight.facade_disclaimer')}</p>
+        </section>
+      )}
+
+      {hasGroundResult && (
+        <section className="sunlight-card__surface sunlight-card__surface--ground">
+          <h3 className="sunlight-card__surface-title">{t('sunlight.ground_title')}</h3>
+          <p className="sunlight-card__surface-subtitle">{t('sunlight.ground_subtitle')}</p>
+          <p className="sunlight-card__surface-value">
+            {sunlight.groundAnnualAverage} {t('sunlight.hoursUnit')}
+          </p>
+          <p className="sunlight-card__surface-note">{t('sunlight.ground_disclaimer')}</p>
+        </section>
       )}
 
       <div className="sunlight-card__disclaimers">

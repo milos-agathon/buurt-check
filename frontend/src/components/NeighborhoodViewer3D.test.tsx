@@ -8,7 +8,12 @@ mockCanvas.toDataURL = vi.fn(() => 'data:image/png;base64,mock');
 const orbitControlsInstances: any[] = [];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const materialCalls: { args: any; instance: any }[] = [];
-const analyzeSunlightInWorkerMock = vi.hoisted(() => vi.fn());
+const serializeBuildingsMock = vi.hoisted(() => vi.fn(() => []));
+const isWorkerSupportedMock = vi.hoisted(() => vi.fn(() => true));
+const runSunlightInWorkerMock = vi.hoisted(() => vi.fn());
+const analyzeSunlightMock = vi.hoisted(() => vi.fn());
+const isOffscreenCanvasSupportedMock = vi.hoisted(() => vi.fn(() => false));
+const runSvfInWorkerMock = vi.hoisted(() => vi.fn());
 const sunCalcGetPositionMock = vi.hoisted(() => vi.fn(() => ({ azimuth: 0.5, altitude: 0.8 })));
 const sunCalcGetTimesMock = vi.hoisted(() => vi.fn(() => ({
   sunrise: new Date(2026, 0, 1, 8, 0),
@@ -207,8 +212,22 @@ vi.mock('suncalc', () => ({
   },
 }));
 
-vi.mock('../utils/sunlightWorkerClient', () => ({
-  analyzeSunlightInWorker: analyzeSunlightInWorkerMock,
+vi.mock('../workers/geometrySerialization', () => ({
+  serializeBuildings: serializeBuildingsMock,
+}));
+
+vi.mock('../workers/sunlightBridge', () => ({
+  isWorkerSupported: isWorkerSupportedMock,
+  runSunlightInWorker: runSunlightInWorkerMock,
+}));
+
+vi.mock('../workers/svfBridge', () => ({
+  isOffscreenCanvasSupported: isOffscreenCanvasSupportedMock,
+  runSvfInWorker: runSvfInWorkerMock,
+}));
+
+vi.mock('../utils/sunlightAnalysis', () => ({
+  analyzeSunlight: analyzeSunlightMock,
 }));
 
 // Must import after mocks
@@ -226,8 +245,12 @@ beforeEach(() => {
   rafId = 0;
   orbitControlsInstances.length = 0;
   materialCalls.length = 0;
-  analyzeSunlightInWorkerMock.mockReset();
-  analyzeSunlightInWorkerMock.mockResolvedValue({
+  serializeBuildingsMock.mockReset();
+  serializeBuildingsMock.mockReturnValue([]);
+  isWorkerSupportedMock.mockReset();
+  isWorkerSupportedMock.mockReturnValue(true);
+  runSunlightInWorkerMock.mockReset();
+  runSunlightInWorkerMock.mockResolvedValue({
     winter: 2.4,
     equinox: 5.8,
     summer: 9.7,
@@ -237,6 +260,10 @@ beforeEach(() => {
     perPointAnnual: [4.2, 7.6],
     analysisMethod: 'cpu-raycast-worker',
   });
+  analyzeSunlightMock.mockReset();
+  isOffscreenCanvasSupportedMock.mockReset();
+  isOffscreenCanvasSupportedMock.mockReturnValue(false);
+  runSvfInWorkerMock.mockReset();
   sunCalcGetPositionMock.mockClear();
   sunCalcGetTimesMock.mockClear();
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => {
@@ -375,6 +402,28 @@ describe('NeighborhoodViewer3D', () => {
     );
   });
 
+  it('passes labeled facade and ground extra evaluation points to Worker analysis', async () => {
+    const target = n3d.buildings.find((building) => building.pand_id === n3d.target_pand_id) ?? n3d.buildings[0];
+
+    renderViewer({
+      buildings: [target],
+      targetPandId: target.pand_id,
+    });
+
+    await waitFor(() => {
+      expect(runSunlightInWorkerMock).toHaveBeenCalled();
+    });
+
+    const workerInput = runSunlightInWorkerMock.mock.calls[0][0] as {
+      extraEvalPoints?: { points: [number, number, number][]; labels: string[]; skipSelfShadow: boolean };
+    };
+    expect(workerInput.extraEvalPoints).toBeDefined();
+    expect(workerInput.extraEvalPoints?.points.length).toBe(16);
+    expect(workerInput.extraEvalPoints?.labels.some((label) => label.startsWith('facade:'))).toBe(true);
+    expect(workerInput.extraEvalPoints?.labels.some((label) => label.startsWith('ground:ring:'))).toBe(true);
+    expect(workerInput.extraEvalPoints?.skipSelfShadow).toBe(false);
+  });
+
   it('shows heatmap legend when heatmap is enabled and per-point data exists', async () => {
     const target = n3d.buildings.find((building) => building.pand_id === n3d.target_pand_id) ?? n3d.buildings[0];
 
@@ -470,6 +519,92 @@ describe('NeighborhoodViewer3D', () => {
     expect(targetCall).toBeDefined();
     expect(targetCall!.args.color).toBe(0x2EC4B6);
     expect(targetCall!.args.emissiveIntensity).toBe(0.40); // light mode (jsdom default)
+  });
+
+  it('falls back to main-thread analysis with 64 points at 2m spacing when Worker unsupported', async () => {
+    isWorkerSupportedMock.mockReturnValue(false);
+    runSunlightInWorkerMock.mockReset(); // Should not be called
+
+    const fallbackResult = {
+      winter: 1.5,
+      equinox: 4.0,
+      summer: 8.0,
+      annualAverage: 4.5,
+      analysisYear: 2026,
+      roofGridPoints: [[0, 10, 0], [5, 10, -5]] as [number, number, number][],
+      perPointAnnual: [3.0, 6.0],
+      analysisMethod: 'cpu-raycast-main' as const,
+    };
+    analyzeSunlightMock.mockResolvedValue(fallbackResult);
+
+    const target = n3d.buildings.find((b) => b.pand_id === n3d.target_pand_id) ?? n3d.buildings[0];
+    const onSunlightAnalysis = vi.fn();
+
+    renderViewer({
+      buildings: [target],
+      targetPandId: target.pand_id,
+      onSunlightAnalysis,
+    });
+
+    await waitFor(() => {
+      expect(analyzeSunlightMock).toHaveBeenCalled();
+    });
+
+    // Worker bridge should NOT have been called
+    expect(runSunlightInWorkerMock).not.toHaveBeenCalled();
+
+    // Fallback path must use low-density defaults (64 points, 2m spacing)
+    const callArgs = analyzeSunlightMock.mock.calls[0][0] as {
+      gridSpacingMeters?: number;
+      maxPoints?: number;
+    };
+    expect(callArgs.gridSpacingMeters).toBe(2);
+    expect(callArgs.maxPoints).toBe(64);
+  });
+
+  it('applies heatmap with 256 evaluation points producing valid color buffer', async () => {
+    const pointCount = 256;
+    const roofGridPoints: [number, number, number][] = Array.from(
+      { length: pointCount },
+      (_, i) => [i % 16, 10, -Math.floor(i / 16)],
+    );
+    const perPointAnnual = Array.from({ length: pointCount }, (_, i) => (i / pointCount) * 8);
+
+    runSunlightInWorkerMock.mockResolvedValue({
+      winter: 2.0,
+      equinox: 5.0,
+      summer: 9.0,
+      annualAverage: 5.3,
+      analysisYear: 2026,
+      roofGridPoints,
+      perPointAnnual,
+      analysisMethod: 'cpu-raycast-worker',
+    });
+
+    const target = n3d.buildings.find((b) => b.pand_id === n3d.target_pand_id) ?? n3d.buildings[0];
+    const onSunlightAnalysis = vi.fn();
+
+    renderViewer({
+      buildings: [target],
+      targetPandId: target.pand_id,
+      onSunlightAnalysis,
+      showHeatmap: true,
+    });
+
+    await waitFor(() => {
+      expect(onSunlightAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          perPointAnnual: expect.arrayContaining([expect.any(Number)]),
+          roofGridPoints: expect.arrayContaining([expect.any(Array)]),
+        }),
+      );
+    });
+
+    // Verify heatmap data was processed — the Worker result with 256 points
+    // should have been passed through without error
+    const result = onSunlightAnalysis.mock.calls[0][0];
+    expect(result.perPointAnnual).toHaveLength(pointCount);
+    expect(result.roofGridPoints).toHaveLength(pointCount);
   });
 
   it('uses dark-mode material values when data-theme is dark', () => {

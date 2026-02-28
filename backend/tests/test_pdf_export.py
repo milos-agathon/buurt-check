@@ -13,6 +13,15 @@ from app.models.neighborhood import (
     NeighborhoodStats,
     UrbanizationLevel,
 )
+from app.models.property_warnings import (
+    AsbestosWarning,
+    AttentionSummary,
+    ErfpachtWarning,
+    FoundationRisk,
+    LeadPipeWarning,
+    PropertyWarningsResponse,
+    VvEInfo,
+)
 from app.models.risk import (
     AirQualityRiskCard,
     ClimateStressRiskCard,
@@ -139,6 +148,23 @@ def _make_tier_b() -> TierBResponse:
             violent_per_1000=1.8,
             yearly_period="2024",
         ),
+    )
+
+
+def _make_property_warnings() -> PropertyWarningsResponse:
+    return PropertyWarningsResponse(
+        address_id="0363010012345678",
+        attention_summary=AttentionSummary(
+            flag_count=1,
+            flags=[],
+            risk_categories_assessed=4,
+            risk_categories_total=4,
+        ),
+        foundation_risk=FoundationRisk(level="low", construction_year=1970),
+        erfpacht=ErfpachtWarning(detected=False),
+        vve=VvEInfo(is_apartment=False),
+        asbestos=AsbestosWarning(flagged=True, construction_year=1970),
+        lead_pipe=LeadPipeWarning(flagged=False),
     )
 
 
@@ -288,15 +314,6 @@ class TestBuurtCheckPDF:
             ("WHO guideline", 74, (234, 179, 8), True),
         ]
         pdf.draw_comparison_chart(10, 30, 180, rows)
-        result = bytes(pdf.output())
-        assert result[:5] == b"%PDF-"
-
-    def test_draw_energy_badge(self):
-        pdf = BuurtCheckPDF()
-        pdf.add_page()
-        for label in ["A", "B", "C", "D", "E", "F", "G"]:
-            pdf.draw_energy_badge(label, 10, pdf.get_y())
-            pdf.ln(10)
         result = bytes(pdf.output())
         assert result[:5] == b"%PDF-"
 
@@ -469,6 +486,7 @@ class TestGenerateFullDossier:
             neighborhood_stats=_make_neighborhood_stats(),
             tier_b=_make_tier_b(),
             risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
         )
         assert isinstance(result, bytes)
         assert result[:5] == b"%PDF-"
@@ -486,6 +504,7 @@ class TestGenerateFullDossier:
             neighborhood_stats=_make_neighborhood_stats(),
             tier_b=_make_tier_b(),
             risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
         )
         assert isinstance(result, bytes)
         assert result[:5] == b"%PDF-"
@@ -566,6 +585,24 @@ class TestGenerateFullDossier:
         )
         assert isinstance(result, bytes)
         assert result[:5] == b"%PDF-"
+
+    def test_full_dossier_contains_required_premium_sections(self):
+        result = generate_full_dossier(
+            address="Kalverstraat 1, 1012 Amsterdam",
+            building_year=1970,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        assert "Asbestos Awareness" in text
+        assert "Soil Contamination Check" in text
+        assert "Direct sun (clear-sky visibility)" in text
+        assert "Shadow Snapshots" in text
 
 
 # --- API endpoint tests ---
@@ -675,10 +712,14 @@ async def test_export_endpoint_invalid_template(client):
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
 @patch("app.api.address.risk_cards")
+@patch("app.api.address.property_warnings")
 async def test_export_endpoint_full_dossier_template(
-    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
+    mock_property_warnings, mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
     mock_entitlement, client
 ):
+    mock_property_warnings.get_property_warnings = AsyncMock(
+        return_value=_make_property_warnings()
+    )
     mock_bag.get_building_facts = AsyncMock(
         return_value=BuildingFacts(
             pand_id="0363100012345678",
@@ -901,11 +942,15 @@ async def test_export_accepts_shadow_image_b64_alias(
 @patch("app.api.address.risk_cards")
 @patch("app.api.address.cbs")
 @patch("app.api.address.tier_b")
+@patch("app.api.address.property_warnings")
 async def test_export_full_dossier_fetches_additional_data(
-    mock_tier_b, mock_cbs, mock_risk_cards, mock_bag,
+    mock_property_warnings, mock_tier_b, mock_cbs, mock_risk_cards, mock_bag,
     mock_cache_set, mock_cache_get, mock_entitlement, client
 ):
     """Full Dossier template fetches neighborhood stats and tier-b in parallel."""
+    mock_property_warnings.get_property_warnings = AsyncMock(
+        return_value=_make_property_warnings()
+    )
     mock_bag.get_building_facts = AsyncMock(return_value=None)
     mock_risk_cards.get_risk_cards = AsyncMock(return_value=_make_risks())
     mock_cbs.get_neighborhood_stats = AsyncMock(
@@ -939,10 +984,7 @@ async def test_export_full_dossier_fetches_additional_data(
 
     mock_tier_b.get_tier_b_data.assert_called_once()
     tb_kwargs = mock_tier_b.get_tier_b_data.call_args
-    assert tb_kwargs.kwargs.get("postcode") == "1012NX"
-    assert tb_kwargs.kwargs.get("house_number") == "1"
-    assert tb_kwargs.kwargs.get("house_letter") == "A"
-    assert tb_kwargs.kwargs.get("addition") == "2"
+    assert tb_kwargs.kwargs.get("vbo_id") == "0363010012345678"
     assert tb_kwargs.kwargs.get("buurt_code") == "BU03630000"
 
 
@@ -954,11 +996,15 @@ async def test_export_full_dossier_fetches_additional_data(
 @patch("app.api.address.risk_cards")
 @patch("app.api.address.cbs")
 @patch("app.api.address.tier_b")
+@patch("app.api.address.property_warnings")
 async def test_export_tier_b_uses_neighborhood_buurt_code_fallback(
-    mock_tier_b, mock_cbs, mock_risk_cards, mock_bag,
+    mock_property_warnings, mock_tier_b, mock_cbs, mock_risk_cards, mock_bag,
     mock_cache_set, mock_cache_get, mock_entitlement, client
 ):
     """Tier-B uses neighborhood-resolved buurt_code when request has none."""
+    mock_property_warnings.get_property_warnings = AsyncMock(
+        return_value=_make_property_warnings()
+    )
     mock_bag.get_building_facts = AsyncMock(return_value=None)
     mock_risk_cards.get_risk_cards = AsyncMock(return_value=_make_risks())
     mock_cbs.get_neighborhood_stats = AsyncMock(

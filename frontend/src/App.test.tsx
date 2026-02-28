@@ -508,7 +508,7 @@ describe('3D viewer integration', () => {
     expect(screen.queryByText('Loading 3D data...')).not.toBeInTheDocument();
   });
 
-  it('shows sunlight unavailable when 3D fetch fails', async () => {
+  it('does not render sunlight card when 3D fetch fails', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockRejectedValue(new Error('3DBAG down'));
@@ -518,8 +518,9 @@ describe('3D viewer integration', () => {
     await triggerViewer3DIntersection();
 
     await waitFor(() => {
-      expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
+    expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
   });
 
@@ -580,10 +581,10 @@ describe('3D viewer integration', () => {
       expect(screen.getByText(/1 buildings/)).toBeInTheDocument();
     });
     expect(screen.queryByText('No 3D building data available.')).not.toBeInTheDocument();
-    expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
   });
 
-  it('shows sunlight unavailable when 3D returns empty buildings', async () => {
+  it('does not render sunlight card when 3D returns empty buildings', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(
@@ -595,13 +596,13 @@ describe('3D viewer integration', () => {
     await triggerViewer3DIntersection();
 
     await waitFor(() => {
-      expect(screen.getByText('Sunlight unavailable')).toBeInTheDocument();
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
-    // Should NOT show loading spinner
+    expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
   });
 
-  it('shows sunlight loading when 3D has buildings and sunlight pending', async () => {
+  it('does not render sunlight loading card when sunlight is pending', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
@@ -611,11 +612,12 @@ describe('3D viewer integration', () => {
     await triggerViewer3DIntersection();
 
     await waitFor(() => {
-      expect(screen.getByText('Loading sunlight...')).toBeInTheDocument();
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
+    expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
   });
 
-  it('keeps sunlight loading when neighborhood omits target_pand_id but instant target exists', async () => {
+  it('does not render sunlight card when neighborhood omits target_pand_id', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(
@@ -627,8 +629,9 @@ describe('3D viewer integration', () => {
     await triggerViewer3DIntersection();
 
     await waitFor(() => {
-      expect(screen.getByText('Loading sunlight...')).toBeInTheDocument();
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
+    expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
     expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
   });
 });
@@ -745,7 +748,7 @@ describe('dossier section order (v7 canonical)', () => {
   it('renders sections in the full v7 canonical order', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
-    // Provide 3D data so viewer-3d and sunlight-card render deterministically
+    // Provide 3D data so viewer-3d renders deterministically
     const n3d = makeNeighborhood3DResponse();
     mockBuilding3D.mockResolvedValue(n3d);
     mockNeighborhood3D.mockResolvedValue(n3d);
@@ -764,18 +767,15 @@ describe('dossier section order (v7 canonical)', () => {
     await selectAddress();
     await triggerViewer3DIntersection();
 
-    // Wait for all sections to render (including 3D and sunlight)
+    // Wait for all sections to render in the viewer
     await waitFor(() => {
       expect(screen.getByTestId('attention-summary')).toBeInTheDocument();
       expect(screen.getByTestId('address-header')).toBeInTheDocument();
-      expect(screen.getByTestId('summary-strip')).toBeInTheDocument();
       expect(screen.getByText('Building Facts')).toBeInTheDocument();
       expect(document.querySelector('.risk-tiles-grid')).toBeInTheDocument();
       expect(screen.getByTestId('property-warnings')).toBeInTheDocument();
-      expect(screen.getByTestId('soil-info-card')).toBeInTheDocument();
       expect(screen.getByTestId('livability-card')).toBeInTheDocument();
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
-      expect(screen.getByTestId('sunlight-card')).toBeInTheDocument();
       expect(screen.getByTestId('neighborhood-stats')).toBeInTheDocument();
       expect(screen.getByTestId('tier-b-card')).toBeInTheDocument();
       expect(screen.getByTestId('viewing-checklist')).toBeInTheDocument();
@@ -787,14 +787,11 @@ describe('dossier section order (v7 canonical)', () => {
     const all = dossier.querySelectorAll(
       '[data-testid="attention-summary"], ' +
       '[data-testid="address-header"], ' +
-      '[data-testid="summary-strip"], ' +
       '.building-card, ' +
       '.risk-tiles-grid, ' +
       '[data-testid="property-warnings"], ' +
-      '[data-testid="soil-info-card"], ' +
       '[data-testid="livability-card"], ' +
       '[data-testid="viewer-3d"], ' +
-      '[data-testid="sunlight-card"], ' +
       '[data-testid="neighborhood-stats"], ' +
       '[data-testid="tier-b-card"], ' +
       '[data-testid="viewing-checklist"], ' +
@@ -804,14 +801,11 @@ describe('dossier section order (v7 canonical)', () => {
       const tid = el.getAttribute('data-testid');
       if (tid === 'attention-summary') return 'attention';
       if (tid === 'address-header') return 'address-header';
-      if (tid === 'summary-strip') return 'summary-strip';
       if (el.classList.contains('building-card')) return 'building';
       if (el.classList.contains('risk-tiles-grid')) return 'risk';
       if (tid === 'property-warnings') return 'warnings';
-      if (tid === 'soil-info-card') return 'soil';
       if (tid === 'livability-card') return 'livability';
       if (tid === 'viewer-3d') return 'viewer-3d';
-      if (tid === 'sunlight-card') return 'sunlight';
       if (tid === 'neighborhood-stats') return 'stats';
       if (tid === 'tier-b-card') return 'tierb';
       if (tid === 'viewing-checklist') return 'checklist';
@@ -820,13 +814,13 @@ describe('dossier section order (v7 canonical)', () => {
     });
 
     // Verify canonical dossier order:
-    // AttentionSummary → AddressHeader → SummaryStrip → BuildingFacts →
-    // RiskTiles → PropertyWarnings → SoilInfo → Livability →
-    // 3D Viewer → Sunlight → NeighborhoodStats → TierB →
+    // AttentionSummary → AddressHeader → BuildingFacts →
+    // RiskTiles → PropertyWarnings → Livability →
+    // 3D Viewer → NeighborhoodStats → TierB →
     // ViewingChecklist → ActionBar
     const expected = [
-      'attention', 'address-header', 'summary-strip', 'building', 'risk',
-      'warnings', 'soil', 'livability', 'viewer-3d', 'sunlight',
+      'attention', 'address-header', 'building', 'risk',
+      'warnings', 'livability', 'viewer-3d',
       'stats', 'tierb', 'checklist', 'actionbar',
     ];
     const filtered = order.filter(s => expected.includes(s));
@@ -850,8 +844,6 @@ describe('dossier section order (v7 canonical)', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('action-bar')).toBeInTheDocument();
-      // Sunlight card needs 3D data (triggered above) to render
-      expect(screen.getByTestId('sunlight-card')).toBeInTheDocument();
     });
 
     const dossier = screen.getByTestId('dossier-sheet');
@@ -862,7 +854,7 @@ describe('dossier section order (v7 canonical)', () => {
     const uniqueIndexes = [...new Set(indexes)];
 
     expect(indexes).toEqual(uniqueIndexes);
-    expect(uniqueIndexes).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(uniqueIndexes).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     sections.forEach((section) => {
       const attr = section.getAttribute('data-section-index');
       if (attr == null) return;

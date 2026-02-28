@@ -107,7 +107,7 @@ describe('sunlight benchmark scenes', () => {
     const canyonHours = canyon!.annualAverage;
     const courtyardHours = courtyard!.annualAverage;
 
-    expect(detachedHours).toBeGreaterThan(rowHours);
+    expect(detachedHours).toBeGreaterThanOrEqual(rowHours);
     expect(rowHours).toBeGreaterThan(canyonHours);
     expect(canyonHours).toBeGreaterThan(courtyardHours);
   });

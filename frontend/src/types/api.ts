@@ -99,6 +99,14 @@ export interface Neighborhood3DResponse {
   message?: string;
 }
 
+export interface FacadeSunlightResult {
+  orientation: 'north' | 'south' | 'east' | 'west';
+  heightLabel: string;
+  winterHours: number;
+  summerHours: number;
+  annualAverage: number;
+}
+
 export interface SunlightResult {
   winter: number;
   equinox: number;
@@ -112,6 +120,8 @@ export interface SunlightResult {
   groundProxyPoints?: [number, number, number][];
   perFacadeAnnual?: number[];
   perGroundAnnual?: number[];
+  facadeResults?: FacadeSunlightResult[];
+  groundAnnualAverage?: number;
   samplingBreakdown?: {
     roof: number;
     facade: number;

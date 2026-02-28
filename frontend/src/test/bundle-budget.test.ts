@@ -23,13 +23,31 @@ function collectFiles(dir: string): string[] {
 }
 
 describe.skipIf(!hasDistDir)('Bundle budget', () => {
-  it('all dist gzip total under 484KB', () => {
-    const files = collectFiles(distRoot);
+  it('initial app dist gzip total under 500KB (excludes lazy workers)', () => {
+    const files = collectFiles(distRoot).filter((filePath) => (
+      !filePath.includes('sunlightWorker-') && !filePath.includes('svfWorker-')
+    ));
     const totalGzip = files.reduce((sum, filePath) => {
       const gzipped = gzipSync(readFileSync(filePath)).length;
       return sum + gzipped;
     }, 0);
     expect(totalGzip).toBeLessThan(500 * 1024);
+  });
+
+  it('sunlight worker chunk under 150KB', () => {
+    const files = readdirSync(distDir);
+    const workerChunk = files.find((f) => f.startsWith('sunlightWorker-'));
+    expect(workerChunk).toBeDefined();
+    const size = statSync(resolve(distDir, workerChunk!)).size;
+    expect(size).toBeLessThan(150 * 1024);
+  });
+
+  it('svf worker chunk under 550KB', () => {
+    const files = readdirSync(distDir);
+    const workerChunk = files.find((f) => f.startsWith('svfWorker-'));
+    expect(workerChunk).toBeDefined();
+    const size = statSync(resolve(distDir, workerChunk!)).size;
+    expect(size).toBeLessThan(550 * 1024);
   });
 
   it('vendor-three chunk under 550KB', () => {

@@ -29,6 +29,7 @@ describe('ExportBottomSheet', () => {
     lat: 52.37,
     lng: 4.89,
     address: 'Keizersgracht 100, Amsterdam',
+    isEntitled: true,
   };
 
   beforeEach(async () => {
@@ -50,7 +51,7 @@ describe('ExportBottomSheet', () => {
     renderSheet();
     expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     expect(screen.getByText('Download viewing checklist')).toBeInTheDocument();
-    expect(screen.getByText('Quick checklist')).toBeInTheDocument();
+    expect(screen.getByText(/Quick checklist/i)).toBeInTheDocument();
   });
 
   it('shows updated Full Dossier page metadata', () => {
@@ -159,6 +160,17 @@ describe('ExportBottomSheet', () => {
       expect(screen.getByText("We couldn't generate the PDF. Try again — your dossier data is still available.")).toBeInTheDocument();
     });
     expect(mockClose).not.toHaveBeenCalled();
+  });
+
+  it('shows Buy Full Dossier flow for non-entitled users', async () => {
+    const onBuyFullDossier = vi.fn();
+    renderSheet({ isEntitled: false, onBuyFullDossier });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    expect(onBuyFullDossier).toHaveBeenCalledOnce();
+    expect(api.exportBriefing).not.toHaveBeenCalled();
   });
 
   it('shows progress stage text while exporting', async () => {

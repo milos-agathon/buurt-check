@@ -33,7 +33,11 @@ import { sunHoursToColor } from '../utils/heatmapColors';
 import { createDateInTimeZone, getSunDirection, setTimeInTimeZone, SUN_DISTANCE } from '../utils/sunPosition';
 import { buildRoofPointGrid } from '../utils/spatialHashGrid';
 import { ROOF_EVALUATION_OFFSET_METERS } from '../utils/sunlightConstants';
+import { generateFacadePoints, generateGroundProxyPoints } from '../utils/roofSampling';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
+import { serializeBuildings } from '../workers/geometrySerialization';
+import { isWorkerSupported, runSunlightInWorker } from '../workers/sunlightBridge';
+import { isOffscreenCanvasSupported, runSvfInWorker } from '../workers/svfBridge';
 import './NeighborhoodViewer3D.css';
 
 /**
@@ -88,7 +92,6 @@ interface HeatmapRange {
 const SHADOW_MAP_SIZE = Number(import.meta.env.VITE_VIEWER3D_SHADOW_SIZE) || 2048;
 const DPR_CAP = Number(import.meta.env.VITE_VIEWER3D_DPR_CAP) || 2;
 const TILE_GRID: '3x3' | '2x2' = import.meta.env.VITE_VIEWER3D_TILE_GRID === '2x2' ? '2x2' : '3x3';
-const SUNLIGHT_CULL_DISTANCE_METERS = Number(import.meta.env.VITE_SUNLIGHT_CULL_DISTANCE_METERS) || 120;
 const SVF_SAMPLE_POINTS = Math.max(1, Number(import.meta.env.VITE_SVF_SAMPLE_POINTS) || 5);
 const SVF_SAMPLE_POINTS_MOBILE = Math.max(1, Number(import.meta.env.VITE_SVF_SAMPLE_POINTS_MOBILE) || 3);
 const SVF_IDLE_TIMEOUT_MS = Math.max(0, Number(import.meta.env.VITE_SVF_IDLE_TIMEOUT_MS) || 200);
@@ -1256,45 +1259,68 @@ export default function NeighborhoodViewer3D({
       const year = new Date().getFullYear();
       let result: SunlightResult | null = null;
 
-      if (USE_SUNLIGHT_WORKER) {
-        const { analyzeSunlightInWorker } = await import('../utils/sunlightWorkerClient');
-        result = await analyzeSunlightInWorker({
-          buildings,
-          targetPandId,
-          lat: center.lat,
-          lng: center.lng,
-          year,
-          intervalMinutes: 30,
-          chunkRaycasts: 200,
-          gridSpacingMeters: 2,
-          maxRoofPoints: 64,
-          includeFacadePoints: true,
-          includeGroundPoints: true,
-          facadePointCount: 2,
-          groundPointCount: 1,
-          cullDistanceMeters: SUNLIGHT_CULL_DISTANCE_METERS,
-        }, abortController.signal);
+      const facadePoints = generateFacadePoints(target.footprint, groundY, [1.5, 4.5]);
+      const groundPoints = generateGroundProxyPoints(target.footprint, groundY, 5, 8);
+      const extraEvalPointsLabeled = [
+        ...facadePoints.map((entry) => ({
+          point: entry.point,
+          label: `facade:${entry.orientation}:${entry.heightLabel}`,
+        })),
+        ...groundPoints.map((point, index) => ({
+          point,
+          label: `ground:ring:${index}`,
+        })),
+      ];
+      const extraEvalPoints = extraEvalPointsLabeled.length > 0
+        ? {
+          points: extraEvalPointsLabeled.map((entry) => entry.point),
+          labels: extraEvalPointsLabeled.map((entry) => entry.label),
+          skipSelfShadow: false,
+        }
+        : undefined;
+
+      const analysisParams = {
+        footprint: target.footprint,
+        roofY,
+        groundY,
+        targetPandId,
+        lat: center.lat,
+        lng: center.lng,
+        year,
+        intervalMinutes: 30,
+        chunkRaycasts: 200,
+        extraEvalPoints,
+      };
+
+      // Serialize once — buffers are NOT transferred (no zero-copy), so they
+      // remain readable and can be reused for the SVF worker call below.
+      const serialized = (USE_SUNLIGHT_WORKER && isWorkerSupported())
+        ? serializeBuildings(ctx.buildingMeshes)
+        : null;
+
+      if (serialized) {
+        try {
+          result = await runSunlightInWorker({
+            buildings: serialized,
+            ...analysisParams,
+            // Worker bridge defaults: 256 points at 1m grid spacing
+            abortSignal: abortController.signal,
+          });
+        } catch (workerError) {
+          if (import.meta.env.DEV) {
+            console.warn('[3D] Sunlight Worker failed, falling back to main thread', workerError);
+          }
+        }
       }
 
       if (!result && !abortController.signal.aborted) {
         const { analyzeSunlight } = await import('../utils/sunlightAnalysis');
         result = await analyzeSunlight({
           buildingMeshes: ctx.buildingMeshes,
-          targetPandId,
-          footprint: target.footprint,
-          roofY,
-          groundY,
-          lat: center.lat,
-          lng: center.lng,
-          year,
-          intervalMinutes: 30,
-          chunkRaycasts: 200,
+          ...analysisParams,
+          // Main-thread fallback: lower density for UI responsiveness
           gridSpacingMeters: 2,
           maxPoints: 64,
-          includeFacadePoints: true,
-          includeGroundPoints: true,
-          facadePointCount: 2,
-          groundPointCount: 1,
           abortSignal: abortController.signal,
         });
       }
@@ -1317,8 +1343,31 @@ export default function NeighborhoodViewer3D({
         typeof rendererWithReadback.setRenderTarget === 'function'
         && typeof rendererWithReadback.readRenderTargetPixels === 'function'
       );
+      let svf: number | undefined;
 
-      if (canComputeSvf && result.roofGridPoints && result.roofGridPoints.length > 0) {
+      if (
+        isOffscreenCanvasSupported()
+        && result.roofGridPoints
+        && result.roofGridPoints.length > 0
+      ) {
+        // Reuse serialized data from sunlight pass, or serialize now for main-thread fallback path
+        const svfBuildings = serialized ?? serializeBuildings(ctx.buildingMeshes);
+        const svfSamplePointBudget = getSvfSamplePointBudget();
+        try {
+          svf = await runSvfInWorker(svfBuildings, result.roofGridPoints, svfSamplePointBudget);
+        } catch (workerError) {
+          if (import.meta.env.DEV) {
+            console.warn('[3D] SVF Worker failed, falling back to main thread', workerError);
+          }
+        }
+      }
+
+      if (
+        svf === undefined
+        && canComputeSvf
+        && result.roofGridPoints
+        && result.roofGridPoints.length > 0
+      ) {
         await waitForNextPaint(abortController.signal);
         if (abortController.signal.aborted) {
           sunlightComputed.current = false;
@@ -1332,17 +1381,16 @@ export default function NeighborhoodViewer3D({
 
         const { computeSvfMultiPoint } = await import('../utils/svfComputation');
         const svfSamplePointBudget = getSvfSamplePointBudget();
-        const svf = computeSvfMultiPoint(
+        svf = computeSvfMultiPoint(
           ctx.renderer,
           ctx.buildingMeshes,
           result.roofGridPoints,
           svfSamplePointBudget,
         );
-        if (Number.isFinite(svf)) {
-          nextResult = { ...result, svf: round3(svf), analysisMethod };
-        } else {
-          nextResult = { ...result, analysisMethod };
-        }
+      }
+
+      if (svf !== undefined && Number.isFinite(svf)) {
+        nextResult = { ...result, svf: round3(svf), analysisMethod };
       } else {
         nextResult = { ...result, analysisMethod };
       }

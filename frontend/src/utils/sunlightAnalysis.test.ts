@@ -192,4 +192,91 @@ describe('analyzeSunlight', () => {
       daylightRangeMock.mockImplementation(() => ({ sunrise: 8, sunset: 9 }));
     }
   });
+
+  it('computes facade and ground breakdowns from labeled extra eval points without changing roof aggregates', async () => {
+    const raycaster = {
+      far: 0,
+      set: vi.fn(),
+      intersectObjects: vi.fn(() => []),
+    };
+
+    const result = await analyzeSunlight({
+      buildingMeshes: [{ userData: { pandId: 'target' } }],
+      targetPandId: 'target',
+      footprint: [[0, 0], [4, 0], [4, 4], [0, 4]],
+      roofY: 10,
+      lat: 52.37,
+      lng: 4.9,
+      intervalMinutes: 30,
+      raycaster,
+      yieldControl: async () => {},
+      extraEvalPoints: {
+        points: [
+          [5, 3.5, -5],
+          [8, 1.5, -8],
+        ],
+        labels: [
+          'facade:south:1.5m',
+          'ground:ring:0',
+        ],
+        skipSelfShadow: false,
+      },
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.perPointAnnual).toEqual([1.5, 1.5]);
+    expect(result!.facadeResults).toEqual([
+      {
+        orientation: 'south',
+        heightLabel: '1.5m',
+        winterHours: 1.5,
+        summerHours: 1.5,
+        annualAverage: 1.5,
+      },
+    ]);
+    expect(result!.groundAnnualAverage).toBe(1.5);
+    expect(result!.samplingBreakdown).toEqual({
+      roof: 2,
+      facade: 1,
+      ground: 1,
+      total: 4,
+    });
+  });
+
+  it('counts target-building hits as blocking for extra points when skipSelfShadow is false', async () => {
+    const raycaster = {
+      far: 0,
+      set: vi.fn(),
+      intersectObjects: vi.fn(() => [{ distance: 0, object: { userData: { pandId: 'target' } } }]),
+    };
+
+    const result = await analyzeSunlight({
+      buildingMeshes: [{ userData: { pandId: 'target' } }],
+      targetPandId: 'target',
+      footprint: [[0, 0], [4, 0], [4, 4], [0, 4]],
+      roofY: 10,
+      lat: 52.37,
+      lng: 4.9,
+      intervalMinutes: 30,
+      raycaster,
+      yieldControl: async () => {},
+      extraEvalPoints: {
+        points: [[5, 3.5, -5]],
+        labels: ['facade:south:1.5m'],
+        skipSelfShadow: false,
+      },
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.winter).toBe(1.5);
+    expect(result!.facadeResults).toEqual([
+      {
+        orientation: 'south',
+        heightLabel: '1.5m',
+        winterHours: 0,
+        summerHours: 0,
+        annualAverage: 0,
+      },
+    ]);
+  });
 });

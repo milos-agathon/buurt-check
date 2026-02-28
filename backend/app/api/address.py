@@ -77,6 +77,33 @@ _CACHE_DATA = "public, max-age=3600, stale-while-revalidate=86400"
 _CACHE_REALTIME = "no-cache"
 _CACHE_NO_STORE = "no-store"
 
+_RISK_FAILURE_MESSAGES: frozenset[str] = frozenset({
+    "NOISE_LAYER_UNAVAILABLE",
+    "NOISE_LOOKUP_FAILED",
+    "AIR_LOOKUP_FAILED",
+    "CLIMATE_LOOKUP_FAILED",
+    "NOISE_TIMEOUT",
+    "AIR_TIMEOUT",
+    "CLIMATE_TIMEOUT",
+})
+
+def _property_warnings_cache_key(
+    vbo_id: str,
+    rd_x: float,
+    rd_y: float,
+    construction_year: int | None,
+    num_units: int | None,
+    municipality: str | None,
+) -> str:
+    _cy = construction_year if construction_year is not None else ""
+    _nu = num_units if num_units is not None else ""
+    _mu = (municipality or "").strip().casefold()
+    return (
+        f"property_warnings:v2:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
+        f":{_cy}:{_nu}:{_mu}"
+    )
+
+
 router = APIRouter(prefix="/address", tags=["address"])
 
 
@@ -451,17 +478,8 @@ async def address_risk_cards(
         or result.climate_stress.level != RiskLevel.unavailable
         or result.sunlight is not None
     )
-    failure_messages = {
-        "NOISE_LAYER_UNAVAILABLE",
-        "NOISE_LOOKUP_FAILED",
-        "AIR_LOOKUP_FAILED",
-        "CLIMATE_LOOKUP_FAILED",
-        "NOISE_TIMEOUT",
-        "AIR_TIMEOUT",
-        "CLIMATE_TIMEOUT",
-    }
     has_failure = any(
-        msg in failure_messages
+        msg in _RISK_FAILURE_MESSAGES
         for msg in (
             result.noise.message,
             result.air_quality.message,
@@ -741,12 +759,8 @@ async def address_property_warnings(
 ):
     """Property warnings: foundation risk, erfpacht, VvE, asbestos."""
     t0 = time.monotonic()
-    _cy = construction_year if construction_year is not None else ""
-    _nu = num_units if num_units is not None else ""
-    _mu = (municipality or "").strip().casefold()
-    cache_key = (
-        f"property_warnings:v2:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
-        f":{_cy}:{_nu}:{_mu}"
+    cache_key = _property_warnings_cache_key(
+        vbo_id, rd_x, rd_y, construction_year, num_units, municipality,
     )
     cached = await cache_get(cache_key)
     if cached is not None:
@@ -852,17 +866,8 @@ async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float,
             or result.climate_stress.level != RiskLevel.unavailable
             or result.sunlight is not None
         )
-        failure_messages = {
-            "NOISE_LAYER_UNAVAILABLE",
-            "NOISE_LOOKUP_FAILED",
-            "AIR_LOOKUP_FAILED",
-            "CLIMATE_LOOKUP_FAILED",
-            "NOISE_TIMEOUT",
-            "AIR_TIMEOUT",
-            "CLIMATE_TIMEOUT",
-        }
         has_failure = any(
-            msg in failure_messages
+            msg in _RISK_FAILURE_MESSAGES
             for msg in (
                 result.noise.message,
                 result.air_quality.message,
@@ -923,6 +928,42 @@ async def _fetch_tier_b_for_export(vbo_id: str, buurt_code: str | None):
     return None
 
 
+async def _fetch_property_warnings_for_export(
+    vbo_id: str,
+    rd_x: float,
+    rd_y: float,
+    construction_year: int | None,
+    num_units: int | None,
+    municipality: str | None,
+) -> PropertyWarningsResponse | None:
+    """Cache-first property warnings fetch for Full Dossier export."""
+    cache_key = _property_warnings_cache_key(
+        vbo_id, rd_x, rd_y, construction_year, num_units, municipality,
+    )
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return PropertyWarningsResponse(**cached)
+    try:
+        result = await property_warnings.get_property_warnings(
+            vbo_id=vbo_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            construction_year=construction_year,
+            num_units=num_units,
+            municipality=municipality,
+        )
+        if result.foundation_risk.level != "unavailable":
+            await cache_set(
+                cache_key,
+                result.model_dump(),
+                ttl=settings.cache_ttl_property_warnings,
+            )
+        return result
+    except Exception:
+        logger.warning("Failed to fetch property warnings for PDF export")
+    return None
+
+
 async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     """Core export logic shared by POST and GET endpoints."""
     if body.template not in ("quick_brief", "full_dossier"):
@@ -951,9 +992,11 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     building_year: int | None = None
     building_use: str | None = None
     floor_area: int | None = None
+    num_units: int | None = None
     if building_resp and building_resp.building:
         building_year = building_resp.building.construction_year
         floor_area = building_resp.building.floor_area_m2
+        num_units = building_resp.building.num_units
         if building_resp.building.intended_use_en:
             building_use = ", ".join(building_resp.building.intended_use_en)
 
@@ -971,15 +1014,24 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     neighborhood_stats = None
     tier_b_data = None
     risk_comparisons_data = None
+    property_warnings_data: PropertyWarningsResponse | None = None
 
     if body.template == "full_dossier":
-        # Fetch neighborhood + tier-b in parallel first.
-        neighborhood_stats, tier_b_data = await asyncio.gather(
+        # Fetch full-dossier-only enrichments in parallel.
+        neighborhood_stats, tier_b_data, property_warnings_data = await asyncio.gather(
             _fetch_neighborhood_for_export(
                 vbo_id, body.lat, body.lng, body.buurt_code,
             ),
             _fetch_tier_b_for_export(
                 vbo_id, body.buurt_code,
+            ),
+            _fetch_property_warnings_for_export(
+                vbo_id=vbo_id,
+                rd_x=body.rd_x,
+                rd_y=body.rd_y,
+                construction_year=building_year,
+                num_units=num_units,
+                municipality=body.city,
             ),
         )
 
@@ -1016,6 +1068,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             neighborhood_stats=neighborhood_stats,
             tier_b=tier_b_data,
             risk_comparisons=risk_comparisons_data,
+            property_warnings_data=property_warnings_data,
         )
     else:
         pdf_bytes = generate_quick_brief(

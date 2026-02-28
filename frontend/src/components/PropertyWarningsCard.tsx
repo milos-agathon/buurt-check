@@ -10,6 +10,7 @@ interface Props {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  showAsbestos?: boolean;
 }
 
 const ERFPACHT_NOTE_MUNICIPALITY_ONLY = 'ERFPACHT_NOTE_MUNICIPALITY_ONLY';
@@ -25,7 +26,7 @@ function severityClass(level: PropertyWarningsResponse['foundation_risk']['level
   return mapFoundationLevel(level);
 }
 
-function PropertyWarningsCard({ data, loading, error, onRetry }: Props) {
+function PropertyWarningsCard({ data, loading, error, onRetry, showAsbestos = true }: Props) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -59,7 +60,7 @@ function PropertyWarningsCard({ data, loading, error, onRetry }: Props) {
   const hasFoundation = foundation_risk.level !== 'low' || foundation_risk.soil_type;
   const hasErfpacht = erfpacht.detected;
   const hasVve = vve.is_apartment;
-  const hasAsbestos = asbestos.flagged;
+  const hasAsbestos = showAsbestos && asbestos.flagged;
   const erfpachtBadge =
     erfpacht.confidence === 'confirmed'
       ? t('warnings.erfpacht.badge.confirmed')

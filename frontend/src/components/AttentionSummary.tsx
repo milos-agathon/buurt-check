@@ -8,6 +8,7 @@ interface Props {
   warnings?: PropertyWarningsResponse;
   sunlightScore?: number;
   livability?: LivabilityResponse | null;
+  includeAsbestos?: boolean;
 }
 
 interface Flag {
@@ -20,6 +21,7 @@ function computeFlags(
   warnings: PropertyWarningsResponse | undefined,
   sunlightScore: number | undefined,
   _livability: LivabilityResponse | null | undefined,
+  includeAsbestos: boolean,
 ): { flags: Flag[]; assessed: number } {
   const flags: Flag[] = [];
   let assessed = 0;
@@ -63,7 +65,7 @@ function computeFlags(
 
     // Asbestos — only flag for pre-1980 (extensive structural use)
     const year = warnings.asbestos.construction_year;
-    if (warnings.asbestos.flagged && year != null && year < 1980) {
+    if (includeAsbestos && warnings.asbestos.flagged && year != null && year < 1980) {
       flags.push({ category: 'asbestos', severity: 'info' });
     }
 
@@ -79,13 +81,19 @@ function computeFlags(
   return { flags, assessed };
 }
 
-function AttentionSummary({ riskCards, warnings, sunlightScore, livability }: Props) {
+function AttentionSummary({
+  riskCards,
+  warnings,
+  sunlightScore,
+  livability,
+  includeAsbestos = true,
+}: Props) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
 
   const { flags, assessed } = useMemo(
-    () => computeFlags(riskCards, warnings, sunlightScore, livability),
-    [riskCards, warnings, sunlightScore, livability],
+    () => computeFlags(riskCards, warnings, sunlightScore, livability, includeAsbestos),
+    [includeAsbestos, riskCards, warnings, sunlightScore, livability],
   );
 
   // Don't render if no data at all

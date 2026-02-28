@@ -85,50 +85,48 @@
 .neighborhood-card__indicator {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  min-height: 40px;
+  align-items: flex-start;
+  min-height: 44px;
   padding: var(--space-sm);
   font: var(--type-body);
   background: var(--color-surface-alt);
   border-radius: var(--radius-sm);
+  gap: var(--space-sm);
 }
 
 .neighborhood-card__indicator-label {
   color: var(--color-text-secondary);
   font: var(--type-small);
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .neighborhood-card__indicator-right {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: flex-end;
   gap: var(--space-sm);
+  flex: 0 1 48%;
   min-width: 0;
 }
 
 .neighborhood-card__indicator-value {
   font: var(--type-body-medium);
   color: var(--color-text);
-  white-space: nowrap;
-  flex-shrink: 0;
-  max-width: 132px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .neighborhood-card__indicator-value--unavailable {
   font: var(--type-small);
   font-style: italic;
   color: var(--color-text-tertiary);
-  white-space: nowrap;
-  max-width: 132px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .neighborhood-card__age-bars {
