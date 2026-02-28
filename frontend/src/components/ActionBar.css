@@ -14,7 +14,7 @@
   z-index: 41;
   will-change: transform;
   transform: translateY(0);
-  transition: transform var(--duration-normal, 250ms) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: transform var(--duration-moderate) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 .action-bar--visible {

@@ -21,7 +21,7 @@ backend/           # FastAPI stateless API aggregator — NO database, all data 
   app/models/      # Pydantic response models
   app/cache/       # Redis with circuit breaker
   app/config.py    # pydantic-settings (BUURT_* env prefix)
-  tests/           # pytest (405+ non-live tests)
+  tests/           # pytest (565+ non-live tests)
 frontend/          # React + Vite + TypeScript
   src/components/  # All UI components (dossier cards, navigation, search, shortlist)
   src/styles/      # tokens.css (195 CSS custom properties), satoshi.css (font)
@@ -36,13 +36,13 @@ docs/              # Design specs, plans, palette, UI principles
 ```bash
 # Backend
 cd backend && uvicorn app.main:app --reload --port 8000
-cd backend && pytest -x -q -m "not live"   # CI tests (405+ baseline)
+cd backend && pytest -x -q -m "not live"   # CI tests (565+ baseline)
 cd backend && ruff check .                  # MUST pass before commit
 
 # Frontend
 cd frontend && npm run dev                  # Dev server (proxies /api to :8000)
 cd frontend && npm run build                # MUST pass before commit (strict TS)
-cd frontend && npm run test                 # Vitest (421+ baseline)
+cd frontend && npm run test                 # Vitest (705+ baseline)
 ```
 
 ## Architecture decisions

@@ -114,14 +114,14 @@
 
 .soil-info-card__disclaimer {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
 .soil-info-card__source {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   line-height: 1.25;
   overflow-wrap: anywhere;
 }

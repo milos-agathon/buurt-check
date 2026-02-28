@@ -7,11 +7,12 @@ import httpx
 
 from app.config import settings
 from app.models.tier_b import CrimeStatsCard, EnergyLabelCard, TierBResponse
+from app.services.http_client import LoopAwareClient
 from app.services.scoring import crime_summary, normalize_crime_score, severity_from_score
 
 logger = logging.getLogger(__name__)
 
-_client: httpx.AsyncClient | None = None
+_client = LoopAwareClient(timeout=httpx.Timeout(15.0, connect=4.0))
 
 _CRIME_TOTAL_KEY = "0.0.0 "
 _CRIME_BURGLARY_KEY = "1.1.1 "
@@ -19,10 +20,7 @@ _CRIME_VIOLENT_KEYS = {"1.4.2 ", "1.4.3 ", "1.4.4 ", "1.4.5 ", "1.4.6 ", "1.4.7 
 
 
 def _get_client() -> httpx.AsyncClient:
-    global _client
-    if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=4.0))
-    return _client
+    return _client.get()
 
 
 _BUURT_CODE_RE = re.compile(r"^BU[0-9]{4}[A-Z0-9]{4}$")
@@ -216,14 +214,14 @@ async def _fetch_crime_rows(
     safe_code = _odata_escape(area_code)
     safe_year = _odata_escape(latest_year)
     safe_month = _odata_escape(latest_month)
-    yearly_rows = await _fetch_typed_rows(
+    yearly_task = _fetch_typed_rows(
         settings.cbs_crime_yearly_base,
         filter_expr=(
             f"startswith(WijkenEnBuurten,'{safe_code}') and Perioden eq '{safe_year}'"
         ),
         top=250,
     )
-    monthly_rows = await _fetch_typed_rows(
+    monthly_task = _fetch_typed_rows(
         settings.cbs_crime_monthly_base,
         filter_expr=(
             f"SoortMisdrijf eq '{_CRIME_TOTAL_KEY}' and "
@@ -231,6 +229,7 @@ async def _fetch_crime_rows(
         ),
         top=5,
     )
+    yearly_rows, monthly_rows = await asyncio.gather(yearly_task, monthly_task)
     return yearly_rows, monthly_rows
 
 
@@ -239,18 +238,30 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     if not cleaned_buurt:
         return CrimeStatsCard(message="CRIME_NO_BUURT_CODE")
 
-    try:
-        population = await _fetch_population(cleaned_buurt)
-    except Exception:
+    population_result, latest_year_result, latest_month_result = await asyncio.gather(
+        _fetch_population(cleaned_buurt),
+        _fetch_latest_period(settings.cbs_crime_yearly_base),
+        _fetch_latest_period(settings.cbs_crime_monthly_base),
+        return_exceptions=True,
+    )
+
+    population: float | None
+    if isinstance(population_result, Exception):
         logger.exception("Population lookup failed for buurt=%s", cleaned_buurt)
         population = None
+    else:
+        population = population_result
+
+    if isinstance(latest_year_result, Exception) or isinstance(latest_month_result, Exception):
+        logger.exception("Crime period lookup failed for buurt=%s", cleaned_buurt)
+        return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
+
+    latest_year = latest_year_result
+    latest_month = latest_month_result
+    if not latest_year or not latest_month:
+        return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
 
     try:
-        latest_year = await _fetch_latest_period(settings.cbs_crime_yearly_base)
-        latest_month = await _fetch_latest_period(settings.cbs_crime_monthly_base)
-        if not latest_year or not latest_month:
-            return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
-
         # Try buurt-level first
         yearly_rows, monthly_rows = await _fetch_crime_rows(
             cleaned_buurt, latest_year, latest_month,

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getRecent, addRecent, removeRecent, clearRecent } from './recentSearches';
 
 describe('recentSearches', () => {
@@ -66,6 +66,16 @@ describe('recentSearches', () => {
     expect(getRecent()).toEqual([]);
   });
 
+  it('filters malformed recent-search entries', () => {
+    localStorage.setItem('buurt-check-recent-searches', JSON.stringify([
+      { id: 'ok', display_name: 'Valid', timestamp: 123 },
+      { id: 123, display_name: 'Broken', timestamp: 'bad' },
+    ]));
+    const recent = getRecent();
+    expect(recent).toHaveLength(1);
+    expect(recent[0].id).toBe('ok');
+  });
+
   it('stores postcode and city when provided', () => {
     addRecent({ id: '1', display_name: 'Damrak 1', postcode: '1012LG', city: 'Amsterdam' });
     const recent = getRecent();
@@ -77,5 +87,14 @@ describe('recentSearches', () => {
     addRecent({ id: '1', display_name: 'First' });
     removeRecent('99');
     expect(getRecent()).toHaveLength(1);
+  });
+
+  it('ignores write failures from localStorage.setItem', () => {
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded');
+    });
+    expect(() => addRecent({ id: '1', display_name: 'First' })).not.toThrow();
+    expect(() => removeRecent('1')).not.toThrow();
+    spy.mockRestore();
   });
 });

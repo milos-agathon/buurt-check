@@ -4,18 +4,22 @@ import httpx
 
 from app.config import settings
 from app.models.address import AddressSuggestion, ResolvedAddress
+from app.services.http_client import LoopAwareClient
 
-_client: httpx.AsyncClient | None = None
+_client: LoopAwareClient | None = LoopAwareClient(
+    base_url=settings.locatieserver_base,
+    timeout=10.0,
+)
 
 
 def _get_client() -> httpx.AsyncClient:
     global _client
-    if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(
+    if _client is None:
+        _client = LoopAwareClient(
             base_url=settings.locatieserver_base,
             timeout=10.0,
         )
-    return _client
+    return _client.get()
 
 
 _WKT_POINT = re.compile(r"POINT\(([0-9.]+)\s+([0-9.]+)\)")

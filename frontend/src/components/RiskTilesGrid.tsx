@@ -59,7 +59,7 @@ function RiskTilesGrid({ risks, sunlight, onTileTap }: RiskTilesGridProps) {
       />
       <RiskTile
         category="sunlight"
-        labelKey="sunlight.title"
+        labelKey="risk.sunlight.title"
         score={sunlightScore}
         severity={sunlightSeverity}
         onTap={() => onTileTap?.('sunlight')}

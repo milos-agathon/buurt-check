@@ -8,6 +8,10 @@ class RiskLevel(str, Enum):
     medium = "medium"
     high = "high"
     unavailable = "unavailable"
+    # Canonical naming aliases (keeps wire values backward-compatible).
+    good = low
+    moderate = medium
+    poor = high
 
 
 class SeverityLevel(str, Enum):

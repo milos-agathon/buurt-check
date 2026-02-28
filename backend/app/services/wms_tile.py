@@ -5,6 +5,7 @@ import logging
 import httpx
 
 from app.config import settings
+from app.services.http_client import LoopAwareClient
 from app.services.risk_cards import (
     _CLIMATE_HEAT_LAYERS,
     _get_alo_layers,
@@ -16,14 +17,14 @@ from app.services.risk_cards import (
 
 logger = logging.getLogger(__name__)
 
-_client: httpx.AsyncClient | None = None
+_client: LoopAwareClient | None = LoopAwareClient(timeout=httpx.Timeout(10.0, connect=3.0))
 
 
 def _get_client() -> httpx.AsyncClient:
     global _client
-    if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=3.0))
-    return _client
+    if _client is None:
+        _client = LoopAwareClient(timeout=httpx.Timeout(10.0, connect=3.0))
+    return _client.get()
 
 
 async def _resolve_layer(tile_type: str) -> tuple[str | None, str]:

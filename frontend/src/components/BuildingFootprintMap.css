@@ -35,15 +35,15 @@
 }
 
 .footprint-map__shape {
-  fill: rgba(46, 196, 182, 0.40);
-  stroke: rgba(46, 196, 182, 0.95);
+  fill: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  stroke: color-mix(in srgb, var(--color-accent) 95%, transparent);
   stroke-width: 1.7;
   vector-effect: non-scaling-stroke;
 }
 
 [data-theme="dark"] .footprint-map__shape {
-  fill: rgba(87, 212, 200, 0.50);
-  stroke: rgba(87, 212, 200, 1.0);
+  fill: color-mix(in srgb, var(--color-accent) 50%, transparent);
+  stroke: var(--color-accent);
 }
 
 /* Fallback SVG grid mode */
@@ -54,7 +54,7 @@
 }
 
 .footprint-map__bg {
-  fill: rgba(5, 11, 18, 0.6);
+  fill: color-mix(in srgb, var(--color-bg) 60%, transparent);
 }
 
 .footprint-map__grid {
@@ -62,13 +62,13 @@
 }
 
 .footprint-map__grid-line {
-  stroke: rgba(255, 255, 255, 0.12);
+  stroke: color-mix(in srgb, var(--color-overlay-text) 12%, transparent);
   stroke-width: 0.8;
 }
 
 .footprint-map__pin {
   fill: var(--color-accent);
-  stroke: #ffffff;
+  stroke: var(--color-overlay-text);
   stroke-width: 0.6;
 }
 
@@ -81,9 +81,9 @@
 }
 
 [data-theme="light"] .footprint-map__bg {
-  fill: rgba(255, 255, 255, 0.74);
+  fill: color-mix(in srgb, var(--color-bg-elevated) 74%, transparent);
 }
 
 [data-theme="light"] .footprint-map__grid-line {
-  stroke: rgba(17, 43, 64, 0.16);
+  stroke: color-mix(in srgb, var(--color-primary) 16%, transparent);
 }

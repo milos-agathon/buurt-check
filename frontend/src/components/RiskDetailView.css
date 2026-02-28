@@ -256,12 +256,12 @@
 
 .risk-detail__source {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }
 
 .risk-detail__disclaimer {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   margin-top: var(--space-xs);
   font-style: italic;
 }

@@ -11,17 +11,15 @@ from app.models.neighborhood import (
     NeighborhoodStatsResponse,
     UrbanizationLevel,
 )
+from app.services.http_client import LoopAwareClient
 
 logger = logging.getLogger(__name__)
 
-_client: httpx.AsyncClient | None = None
+_client = LoopAwareClient(timeout=httpx.Timeout(15.0, connect=4.0))
 
 
 def _get_client() -> httpx.AsyncClient:
-    global _client
-    if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=4.0))
-    return _client
+    return _client.get()
 
 
 def _is_sentinel(value: Any) -> bool:
@@ -177,6 +175,17 @@ def _point_in_ring(x: float, y: float, ring: list[list[float]]) -> bool:
     return inside
 
 
+def _point_in_polygon(x: float, y: float, rings: list[list[list[float]]]) -> bool:
+    if not rings:
+        return False
+    if not _point_in_ring(x, y, rings[0]):
+        return False
+    for hole in rings[1:]:
+        if _point_in_ring(x, y, hole):
+            return False
+    return True
+
+
 def _geometry_contains_point(
     geom: dict[str, Any] | None, x: float, y: float
 ) -> bool:
@@ -187,9 +196,9 @@ def _geometry_contains_point(
     if not coords:
         return False
     if geom_type == "Polygon":
-        return _point_in_ring(x, y, coords[0])
+        return _point_in_polygon(x, y, coords)
     if geom_type in {"MultiPolygon", "MultiSurface"}:
-        return any(_point_in_ring(x, y, polygon[0]) for polygon in coords)
+        return any(_point_in_polygon(x, y, polygon) for polygon in coords)
     return False
 
 

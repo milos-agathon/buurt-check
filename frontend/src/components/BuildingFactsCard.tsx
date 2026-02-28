@@ -17,7 +17,13 @@ function BuildingFactsCard({ building, loading, error, onRetry }: Props) {
 
   if (loading) {
     return (
-      <div className="building-card" data-testid="building-facts-skeleton" data-state="loading" aria-busy="true">
+      <div
+        className="building-card"
+        data-testid="building-facts-skeleton"
+        data-state="loading"
+        aria-busy="true"
+        aria-label={t('building.loading')}
+      >
         <SectionSkeleton variant="building-facts" />
       </div>
     );

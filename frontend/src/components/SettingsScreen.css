@@ -43,7 +43,7 @@
 
 .settings-screen__lang-btn {
   padding: 3px 10px;
-  min-height: 28px;
+  min-height: 44px;
   border: none;
   background: var(--color-surface);
   font-size: 12px;
@@ -52,7 +52,7 @@
   color: var(--color-text);
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast);
-  min-width: 34px;
+  min-width: 44px;
 }
 
 .settings-screen__lang-btn:focus-visible {
@@ -157,7 +157,7 @@
 
 .settings-screen__theme-btn {
   padding: 3px 10px;
-  min-height: 28px;
+  min-height: 44px;
   border: none;
   background: var(--color-surface);
   font-size: 12px;
@@ -193,11 +193,11 @@
 
   .settings-screen__row--toggle .settings-screen__lang-btn {
     padding: 3px 8px;
-    min-width: 32px;
+    min-width: 44px;
   }
 
   .settings-screen__row--toggle .settings-screen__theme-btn {
     padding: 3px 8px;
-    min-width: 40px;
+    min-width: 44px;
   }
 }

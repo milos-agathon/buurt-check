@@ -359,11 +359,15 @@ function parseHashRoute(hash: string): ParsedHashRoute {
 
   const dossierMatch = path.match(/^\/address\/([^/]+)$/);
   if (dossierMatch) {
-    return {
-      route: 'dossier',
-      vboId: decodeURIComponent(dossierMatch[1]),
-      lookupId: params.get('lookup') ?? undefined,
-    };
+    try {
+      return {
+        route: 'dossier',
+        vboId: decodeURIComponent(dossierMatch[1]),
+        lookupId: params.get('lookup') ?? undefined,
+      };
+    } catch {
+      return { route: 'search' };
+    }
   }
 
   if (path === '/briefing') return { route: 'dossier' };
@@ -421,7 +425,7 @@ function App() {
   const initialHasDossier = !!(dossierSeed?.address && dossierSeed?.buildingResponse);
   const { toasts, showToast, dismissToast } = useToast();
   const [activeTab, setActiveTab] = useState<TabId>(initialHasDossier ? 'briefing' : 'home');
-  const [activeScreen, setActiveScreen] = useState<Screen>(
+  const [activeScreen, setActiveScreenState] = useState<Screen>(
     initialHasDossier ? 'dossier' : 'search',
   );
   const [themePreference, setThemePreference] = useState<ThemePreference>(getTheme());
@@ -487,8 +491,17 @@ function App() {
   const screenScrollPositionsRef = useRef(new Map<Screen, number>());
   const previousScreenForScrollRef = useRef<Screen>(initialHasDossier ? 'dossier' : 'search');
   const addressRequestAbortRef = useRef<AbortController | null>(null);
+  const retryControllersRef = useRef<Set<AbortController>>(new Set());
+  const loadingWarningTimeoutRef = useRef<number | null>(null);
   const riskTilePulseTimeoutRef = useRef<number | null>(null);
   const previousScreenRef = useRef<Screen>('search');
+  const addressRef = useRef<ResolvedAddress | null>(address);
+  const buildingResponseRef = useRef<BuildingFactsResponse | null>(buildingResponse);
+  const buildingErrorRef = useRef<string | null>(buildingError);
+  const buildingLoadingRef = useRef(buildingLoading);
+  const loadingRef = useRef(loading);
+  const pendingDisplayNameRef = useRef<string | null>(pendingDisplayName);
+  const activeLookupIdRef = useRef<string | null>(activeLookupId);
 
   // Deferred 3D fetch: store parameters when address resolves, trigger when viewport-near
   type Deferred3DParams = {
@@ -533,6 +546,25 @@ function App() {
   const animationPerformance = useAnimationPerformance();
   const ignoreNextHashRef = useRef(false);
 
+  const setActiveScreen = useCallback((next: Screen) => {
+    activeScreenRef.current = next;
+    setActiveScreenState(next);
+  }, []);
+
+  const abortRetryControllers = useCallback(() => {
+    retryControllersRef.current.forEach((controller) => controller.abort());
+    retryControllersRef.current.clear();
+  }, []);
+
+  const createRetryController = useCallback(() => {
+    const controller = new AbortController();
+    retryControllersRef.current.add(controller);
+    const cleanup = () => {
+      retryControllersRef.current.delete(controller);
+    };
+    return { controller, cleanup };
+  }, []);
+
   const readScreenScrollPosition = useCallback((screen: Screen): number => {
     if (screen === 'dossier') {
       const root = getDossierScrollContainer();
@@ -568,6 +600,24 @@ function App() {
   }, [activeScreen]);
 
   useEffect(() => {
+    addressRef.current = address;
+    buildingResponseRef.current = buildingResponse;
+    buildingErrorRef.current = buildingError;
+    buildingLoadingRef.current = buildingLoading;
+    loadingRef.current = loading;
+    pendingDisplayNameRef.current = pendingDisplayName;
+    activeLookupIdRef.current = activeLookupId;
+  }, [
+    activeLookupId,
+    address,
+    buildingError,
+    buildingLoading,
+    buildingResponse,
+    loading,
+    pendingDisplayName,
+  ]);
+
+  useEffect(() => {
     const previousScreen = previousScreenForScrollRef.current;
     if (previousScreen !== activeScreen) {
       screenScrollPositionsRef.current.set(
@@ -585,11 +635,15 @@ function App() {
   useEffect(() => {
     return () => {
       addressRequestAbortRef.current?.abort();
+      abortRetryControllers();
+      if (loadingWarningTimeoutRef.current != null) {
+        window.clearTimeout(loadingWarningTimeoutRef.current);
+      }
       if (riskTilePulseTimeoutRef.current != null) {
         window.clearTimeout(riskTilePulseTimeoutRef.current);
       }
     };
-  }, []);
+  }, [abortRetryControllers]);
 
   useEffect(() => {
     const vboId = address?.adresseerbaar_object_id;
@@ -938,7 +992,7 @@ function App() {
     if (!address?.adresseerbaar_object_id) return;
     setBuildingError(null);
     setBuildingLoading(true);
-    const controller = new AbortController();
+    const { controller, cleanup } = createRetryController();
     void (async () => {
       try {
         const building = await getBuildingFacts(address.adresseerbaar_object_id!, controller.signal);
@@ -952,9 +1006,10 @@ function App() {
         if (activeScreenRef.current === 'dossier') {
           setBuildingLoading(false);
         }
+        cleanup();
       }
     })();
-  }, [address?.adresseerbaar_object_id, t]);
+  }, [address?.adresseerbaar_object_id, createRetryController, t]);
 
   const handleRetryRiskCards = useCallback(() => {
     if (!address?.adresseerbaar_object_id) return;
@@ -962,7 +1017,7 @@ function App() {
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
     setRiskError(null);
     setRiskLoading(true);
-    const controller = new AbortController();
+    const { controller, cleanup } = createRetryController();
     void (async () => {
       try {
         const risks = await getRiskCards(vboId, rd_x, rd_y, latitude, longitude, controller.signal);
@@ -976,16 +1031,17 @@ function App() {
         if (activeScreenRef.current === 'dossier') {
           setRiskLoading(false);
         }
+        cleanup();
       }
     })();
-  }, [address, t]);
+  }, [address, createRetryController, t]);
 
   const handleRetryRiskComparisons = useCallback(() => {
     if (!address?.adresseerbaar_object_id) return;
     const { adresseerbaar_object_id: vboId, rd_x, rd_y, latitude, longitude } = address;
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
     setRiskComparisonsError(null);
-    const controller = new AbortController();
+    const { controller, cleanup } = createRetryController();
     void (async () => {
       try {
         const comparisons = await getRiskComparisons(
@@ -1004,15 +1060,17 @@ function App() {
         const isAbort = err instanceof DOMException && err.name === 'AbortError';
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setRiskComparisonsError(mapApiError(err, t));
+      } finally {
+        cleanup();
       }
     })();
-  }, [address, t]);
+  }, [address, createRetryController, t]);
 
   const handleRetryPropertyWarnings = useCallback(() => {
     if (!address?.adresseerbaar_object_id || address.rd_x == null || address.rd_y == null) return;
     setPropertyWarningsError(null);
     setPropertyWarningsLoading(true);
-    const controller = new AbortController();
+    const { controller, cleanup } = createRetryController();
     void (async () => {
       try {
         const warnings = await getPropertyWarnings(
@@ -1036,15 +1094,16 @@ function App() {
         if (activeScreenRef.current === 'dossier') {
           setPropertyWarningsLoading(false);
         }
+        cleanup();
       }
     })();
-  }, [address, buildingResponse?.building?.construction_year, buildingResponse?.building?.num_units, t]);
+  }, [address, buildingResponse?.building?.construction_year, buildingResponse?.building?.num_units, createRetryController, t]);
 
   const handleRetryNeighborhoodStats = useCallback(() => {
     if (!address?.adresseerbaar_object_id || address.latitude == null || address.longitude == null) return;
     setNeighborhoodStatsError(null);
     setNeighborhoodStatsLoading(true);
-    const controller = new AbortController();
+    const { controller, cleanup } = createRetryController();
     void (async () => {
       try {
         const stats = await getNeighborhoodStats(
@@ -1064,15 +1123,16 @@ function App() {
         if (activeScreenRef.current === 'dossier') {
           setNeighborhoodStatsLoading(false);
         }
+        cleanup();
       }
     })();
-  }, [address, t]);
+  }, [address, createRetryController, t]);
 
   const handleRetryTierB = useCallback(() => {
     if (!address?.adresseerbaar_object_id) return;
     setTierBError(null);
     setTierBLoading(true);
-    const controller = new AbortController();
+    const { controller, cleanup } = createRetryController();
     void (async () => {
       try {
         const tierB = await getTierBData(
@@ -1096,15 +1156,16 @@ function App() {
         if (activeScreenRef.current === 'dossier') {
           setTierBLoading(false);
         }
+        cleanup();
       }
     })();
-  }, [address, t]);
+  }, [address, createRetryController, t]);
 
   const handleRetryLivability = useCallback(() => {
     if (!address?.adresseerbaar_object_id || address.rd_x == null || address.rd_y == null) return;
     setLivabilityError(null);
     setLivabilityLoading(true);
-    const controller = new AbortController();
+    const { controller, cleanup } = createRetryController();
     void (async () => {
       try {
         const livData = await getLivability(
@@ -1123,16 +1184,17 @@ function App() {
         if (activeScreenRef.current === 'dossier') {
           setLivabilityLoading(false);
         }
+        cleanup();
       }
     })();
-  }, [address, t]);
+  }, [address, createRetryController, t]);
 
   const handleRetryViewingQuestions = useCallback(() => {
     if (!address?.adresseerbaar_object_id) return;
     const { adresseerbaar_object_id: vboId, rd_x, rd_y, latitude, longitude } = address;
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
     setViewingQuestionsError(null);
-    const controller = new AbortController();
+    const { controller, cleanup } = createRetryController();
     void (async () => {
       try {
         const questions = await getViewingQuestions(
@@ -1153,9 +1215,11 @@ function App() {
         const isAbort = err instanceof DOMException && err.name === 'AbortError';
         if (isAbort || activeScreenRef.current !== 'dossier') return;
         setViewingQuestionsError(mapApiError(err, t));
+      } finally {
+        cleanup();
       }
     })();
-  }, [address, t]);
+  }, [address, createRetryController, t]);
 
   const handleLivabilityTap = useCallback(() => {
     setShowLivabilityDetail(true);
@@ -1369,6 +1433,11 @@ function App() {
 
   const handleAddressSelect = useCallback(async (suggestion: AddressSuggestion) => {
     addressRequestAbortRef.current?.abort();
+    abortRetryControllers();
+    if (loadingWarningTimeoutRef.current != null) {
+      window.clearTimeout(loadingWarningTimeoutRef.current);
+      loadingWarningTimeoutRef.current = null;
+    }
     const requestAbortController = new AbortController();
     addressRequestAbortRef.current = requestAbortController;
     const requestSignal = requestAbortController.signal;
@@ -1422,11 +1491,12 @@ function App() {
     setViewingQuestionsError(null);
     setActiveDetailCategory(null);
     setCheckedQuestions(new Set());
+    setExportSheetOpen(false);
+    setExportGenerating(false);
     screenScrollPositionsRef.current.set('dossier', 0);
     const requestId = ++neighborhood3DRequestId.current;
 
     setActiveScreen('dossier');
-    activeScreenRef.current = 'dossier';
     setActiveTab('briefing');
     setSheetSnap('peek');
     setPendingDisplayName(suggestion.display_name);
@@ -1573,10 +1643,14 @@ function App() {
         const phase2State = await settleWithTimeout(phase2Promise, PHASE_2_TIMEOUT_MS);
         if (phase2State === 'timeout' && isActiveDossierRequest(requestId)) {
           setLoadingWarningKey('loading.warning.risk');
-          window.setTimeout(() => {
+          if (loadingWarningTimeoutRef.current != null) {
+            window.clearTimeout(loadingWarningTimeoutRef.current);
+          }
+          loadingWarningTimeoutRef.current = window.setTimeout(() => {
             if (isActiveDossierRequest(requestId)) {
               setLoadingWarningKey(null);
             }
+            loadingWarningTimeoutRef.current = null;
           }, 1500);
         }
       }
@@ -1706,23 +1780,26 @@ function App() {
       showToast(mapped);
       setActiveTab('home');
       setActiveScreen('search');
-      activeScreenRef.current = 'search';
       setHashRoute('#/search', { replace: true });
     }
-  }, [dossierHash, isActiveDossierRequest, setHashRoute, showToast, t, trigger3DFetch]);
+  }, [abortRetryControllers, dossierHash, isActiveDossierRequest, setHashRoute, showToast, t, trigger3DFetch]);
 
   const handleSelectShortlistAddress = useCallback(async (vboId: string) => {
     const shortlistItem = shortlistItems.find((item) => item.vboId === vboId);
     if (!shortlistItem) return;
 
     if (shortlistItem.lookupId) {
-      await handleAddressSelect({
-        id: shortlistItem.lookupId,
-        display_name: shortlistItem.address,
-        type: 'adres',
-        score: 1,
-      });
-      return;
+      try {
+        await handleAddressSelect({
+          id: shortlistItem.lookupId,
+          display_name: shortlistItem.address,
+          type: 'adres',
+          score: 1,
+        });
+        return;
+      } catch {
+        // Continue to fallback toast.
+      }
     }
 
     try {
@@ -1743,6 +1820,13 @@ function App() {
     if (typeof window === 'undefined') return;
 
     const applyRoute = () => {
+      const currentAddress = addressRef.current;
+      const currentBuildingResponse = buildingResponseRef.current;
+      const currentBuildingError = buildingErrorRef.current;
+      const currentBuildingLoading = buildingLoadingRef.current;
+      const currentLoading = loadingRef.current;
+      const currentPendingDisplayName = pendingDisplayNameRef.current;
+      const currentActiveLookupId = activeLookupIdRef.current;
       const parsed = parseHashRoute(window.location.hash || '#/search');
       if (parsed.route === 'shortlist') {
         setActiveTab('saved');
@@ -1763,9 +1847,9 @@ function App() {
         setActiveTab('briefing');
         setActiveScreen('dossier');
         if (
-          address?.adresseerbaar_object_id
-          && (buildingResponse || buildingError || buildingLoading)
-          && (!parsed.vboId || parsed.vboId === address.adresseerbaar_object_id)
+          currentAddress?.adresseerbaar_object_id
+          && (currentBuildingResponse || currentBuildingError || currentBuildingLoading)
+          && (!parsed.vboId || parsed.vboId === currentAddress.adresseerbaar_object_id)
         ) {
           setSheetSnap('half');
           return;
@@ -1779,22 +1863,24 @@ function App() {
             showToast(t('shortlist.reopenError', 'Could not reopen this address. Search for it again.'));
             setActiveTab('home');
             setActiveScreen('search');
-            activeScreenRef.current = 'search';
             setSheetSnap('hidden');
             setHashRoute('#/search', { replace: true });
           }
           return;
         }
-        const isActiveLookup = routeLookupId === activeLookupId;
+        const isActiveLookup = routeLookupId === currentActiveLookupId;
         if (
           isActiveLookup
-          && (loading || (address?.id === routeLookupId && !!(buildingResponse || buildingError || buildingLoading)))
+          && (
+            currentLoading
+            || (currentAddress?.id === routeLookupId && !!(currentBuildingResponse || currentBuildingError || currentBuildingLoading))
+          )
         ) {
           return;
         }
         void handleAddressSelect({
           id: routeLookupId,
-          display_name: shortlistMatch?.address ?? pendingDisplayName ?? routeLookupId,
+          display_name: shortlistMatch?.address ?? currentPendingDisplayName ?? routeLookupId,
           type: 'adres',
           score: 1,
         });
@@ -1807,7 +1893,7 @@ function App() {
     if (!window.location.hash) {
       setHashRoute(
         initialHasDossier
-          ? dossierHash(address?.adresseerbaar_object_id, activeLookupId)
+          ? dossierHash(addressRef.current?.adresseerbaar_object_id, activeLookupIdRef.current)
           : '#/search',
         { replace: true },
       );
@@ -1826,16 +1912,10 @@ function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, [
-    activeLookupId,
-    address,
-    buildingError,
-    buildingLoading,
-    buildingResponse,
     dossierHash,
     handleAddressSelect,
     initialHasDossier,
-    loading,
-    pendingDisplayName,
+    setActiveScreen,
     setHashRoute,
     showToast,
     t,
@@ -1856,7 +1936,7 @@ function App() {
     const sunlightSeverity: SeverityLevel = sunlightScore != null
       ? (sunlightScore >= 70 ? 'good' : sunlightScore >= 40 ? 'moderate' : sunlightScore >= 20 ? 'poor' : 'critical')
       : 'unavailable';
-    pills.push({ category: 'sunlight', labelKey: 'sunlight.title', score: sunlightScore, severity: sunlightSeverity });
+    pills.push({ category: 'sunlight', labelKey: 'risk.sunlight.title', score: sunlightScore, severity: sunlightSeverity });
     return pills;
   }, [riskCards, sunlight]);
 
@@ -1953,7 +2033,7 @@ function App() {
         sourceDate: currentRiskCards?.climate_stress.source_date,
       };
       case 'sunlight': return {
-        titleKey: 'sunlight.title',
+        titleKey: 'risk.sunlight.title',
         score: sunlightScore,
         severity: sunlightSeverity,
         meaning: sunlightMeaning,

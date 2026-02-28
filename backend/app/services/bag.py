@@ -4,6 +4,7 @@ import httpx
 
 from app.config import settings
 from app.models.building import BuildingFacts
+from app.services.http_client import LoopAwareClient
 
 _BAG_ID_PATTERN = re.compile(r"^[0-9]{16}$")
 
@@ -12,7 +13,7 @@ def _validate_bag_id(identifier: str, label: str = "ID") -> None:
     if not _BAG_ID_PATTERN.match(identifier):
         raise ValueError(f"Invalid BAG {label}: must be 16 digits, got '{identifier}'")
 
-_client: httpx.AsyncClient | None = None
+_client: LoopAwareClient | None = LoopAwareClient(timeout=15.0)
 
 # Dutch -> English translation for pand/VBO status
 STATUS_TRANSLATIONS: dict[str, str] = {
@@ -53,9 +54,9 @@ GEBRUIKSDOEL_TRANSLATIONS: dict[str, str] = {
 
 def _get_client() -> httpx.AsyncClient:
     global _client
-    if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(timeout=15.0)
-    return _client
+    if _client is None:
+        _client = LoopAwareClient(timeout=15.0)
+    return _client.get()
 
 
 def _translate_status(status: str | None) -> str | None:

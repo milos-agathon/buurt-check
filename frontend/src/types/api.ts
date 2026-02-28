@@ -270,6 +270,7 @@ export interface EnergyLabelCard {
 
 export interface CrimeStatsCard {
   total_per_1000?: number;
+  national_per_1000?: number;
   burglary_per_1000?: number;
   violent_per_1000?: number;
   yearly_period?: string;

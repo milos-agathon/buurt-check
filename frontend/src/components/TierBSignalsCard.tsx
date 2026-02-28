@@ -34,6 +34,14 @@ function formatCbsPeriod(period: string, locale: string): string {
   return `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${year}`;
 }
 
+function getEnergyBadgeClass(label: string): string {
+  const band = label.trim().charAt(0).toLowerCase();
+  if (band >= 'a' && band <= 'g') {
+    return `tier-b-card__energy-badge tier-b-card__energy-badge--${band}`;
+  }
+  return 'tier-b-card__energy-badge';
+}
+
 function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
   const { t, i18n } = useTranslation();
 
@@ -64,11 +72,19 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
 
   if (!data) return null;
 
+  const energyLabel = data.energy_label;
+  const energySourceDate = energyLabel.source_date ?? t('risk.dateUnknown');
+  const energyMessage = energyLabel.message
+    ? t(`tierB.energy.message.${energyLabel.message}`, { defaultValue: t('tierB.energy.message.default') })
+    : t('tierB.energy.message.default');
+
   const unavailable = t('tierB.unavailable');
   const crimeSourceDate = data.crime.source_date ?? data.crime.yearly_period ?? t('risk.dateUnknown');
-  const per1000Suffix = ' / 1,000';
+  const per1000Suffix = ` / ${new Intl.NumberFormat(i18n.language).format(1000)}`;
   const rawSuffix = ` ${t('tierB.crime.rawSuffix')}`;
   const hasRates = data.crime.total_per_1000 != null;
+  const nationalRate = data.crime.national_per_1000;
+  const maxComparisonRate = Math.max(data.crime.total_per_1000 ?? 0, nationalRate ?? 0, 1);
 
   const total = formatCrimeValue(data.crime.total_per_1000, data.crime.total_count, unavailable, per1000Suffix, rawSuffix);
   const burglary = formatCrimeValue(data.crime.burglary_per_1000, data.crime.burglary_count, unavailable, per1000Suffix, rawSuffix);
@@ -77,6 +93,29 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
 
   return (
     <section className="tier-b-card" data-testid="tier-b-card">
+      <article className="tier-b-card__panel" data-testid="energy-label-panel">
+        <h3 className="tier-b-card__panel-title">{t('tierB.energy.title')}</h3>
+        {energyLabel.label ? (
+          <>
+            <div className="tier-b-card__energy-label-row">
+              <span
+                className={getEnergyBadgeClass(energyLabel.label)}
+                role="img"
+                aria-label={t('tierB.energy.badgeAria', { label: energyLabel.label })}
+              >
+                {energyLabel.label}
+              </span>
+            </div>
+            <p className="tier-b-card__meaning">{t('tierB.energy.meaning')}</p>
+          </>
+        ) : (
+          <p className="tier-b-card__energy-message">{energyMessage}</p>
+        )}
+        <p className="tier-b-card__source-line">
+          {t('tierB.source.energy', { source: energyLabel.source, date: energySourceDate })}
+        </p>
+      </article>
+
       <article className="tier-b-card__panel">
         <h3 className="tier-b-card__panel-title">{t('tierB.crime.title')}</h3>
         {data.crime.severity && (
@@ -85,7 +124,7 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
             {data.crime.score != null && (
               <span className="tier-b-card__crime-score">
                 {data.crime.score}
-                <span className="tier-b-card__crime-score-scale">/100</span>
+                <span className="tier-b-card__crime-score-scale">{t('tierB.crime.scoreScale', '/100')}</span>
               </span>
             )}
           </div>
@@ -104,21 +143,23 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
               <div className="tier-b-card__cmp-track">
                 <div
                   className="tier-b-card__cmp-fill"
-                  style={{ width: `${Math.min(100, data.crime.total_per_1000!)}%` }}
+                  style={{ width: `${Math.min(100, (data.crime.total_per_1000! / maxComparisonRate) * 100)}%` }}
                 />
               </div>
               <span className="tier-b-card__cmp-value">{data.crime.total_per_1000!.toFixed(1)}</span>
             </div>
-            <div className="tier-b-card__cmp-row">
-              <span className="tier-b-card__cmp-label">{t('tierB.crime.comparison.national')}</span>
-              <div className="tier-b-card__cmp-track">
-                <div
-                  className="tier-b-card__cmp-fill tier-b-card__cmp-fill--reference"
-                  style={{ width: '52%' }}
-                />
+            {nationalRate != null && (
+              <div className="tier-b-card__cmp-row">
+                <span className="tier-b-card__cmp-label">{t('tierB.crime.comparison.national')}</span>
+                <div className="tier-b-card__cmp-track">
+                  <div
+                    className="tier-b-card__cmp-fill tier-b-card__cmp-fill--reference"
+                    style={{ width: `${Math.min(100, (nationalRate / maxComparisonRate) * 100)}%` }}
+                  />
+                </div>
+                <span className="tier-b-card__cmp-value">{nationalRate.toFixed(1)}</span>
               </div>
-              <span className="tier-b-card__cmp-value">52.0</span>
-            </div>
+            )}
           </div>
         )}
         <dl className="tier-b-card__metrics">

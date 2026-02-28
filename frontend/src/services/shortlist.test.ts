@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   getShortlist,
   addToShortlist,
@@ -78,6 +78,24 @@ describe('shortlist service', () => {
   it('handles corrupted localStorage gracefully', () => {
     localStorage.setItem('buurt-check-shortlist', 'not-json');
     expect(getShortlist()).toEqual([]);
+  });
+
+  it('filters malformed shortlist entries', () => {
+    localStorage.setItem('buurt-check-shortlist', JSON.stringify([
+      makeItem({ vboId: 'valid' }),
+      { vboId: 123, address: 'broken', savedAt: Date.now(), riskScores: {} },
+    ]));
+    const items = getShortlist();
+    expect(items).toHaveLength(1);
+    expect(items[0].vboId).toBe('valid');
+  });
+
+  it('ignores write failures from localStorage.setItem', () => {
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded');
+    });
+    expect(() => addToShortlist(makeItem())).not.toThrow();
+    spy.mockRestore();
   });
 
   it('persists across calls', () => {

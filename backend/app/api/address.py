@@ -106,7 +106,11 @@ async def address_suggest(
     limit: int = Query(7, ge=1, le=20, description="Max results"),
 ):
     """Autocomplete address suggestions from PDOK Locatieserver."""
-    cache_key = f"suggest:{q}:{limit}"
+    query = q.strip()
+    if len(query) < 2:
+        response.headers["Cache-Control"] = _CACHE_REALTIME
+        return SuggestResponse(suggestions=[])
+    cache_key = f"suggest:{query.casefold()}:{limit}"
     cached = await cache_get(cache_key)
     if cached is not None:
         response.headers["Cache-Control"] = _CACHE_REALTIME
@@ -117,16 +121,17 @@ async def address_suggest(
         )
 
     try:
-        suggestions = await locatieserver.suggest(q, limit)
+        suggestions = await locatieserver.suggest(query, limit)
     except Exception as exc:
         logger.exception("address_suggest failed: %s", exc)
         raise HTTPException(status_code=502, detail="Address search unavailable") from exc
 
-    await cache_set(
-        cache_key,
-        [s.model_dump() for s in suggestions],
-        ttl=settings.cache_ttl_suggest,
-    )
+    if suggestions:
+        await cache_set(
+            cache_key,
+            [s.model_dump() for s in suggestions],
+            ttl=settings.cache_ttl_suggest,
+        )
     response.headers["Cache-Control"] = _CACHE_REALTIME
     return SuggestResponse(suggestions=suggestions)
 
@@ -196,7 +201,7 @@ async def wms_tile_proxy(
         )
 
     media_type = "image/jpeg" if type == "luchtfoto" else "image/png"
-    cache_key = f"wms_tile:{type}:{rd_x:.0f}:{rd_y:.0f}:{radius:.0f}"
+    cache_key = f"wms_tile:{type}:{rd_x:.0f}:{rd_y:.0f}:{radius:.0f}:{size}"
     cached = await cache_get(cache_key)
     if cached is not None:
         tile_bytes = base64.b64decode(cached)
@@ -705,17 +710,18 @@ async def address_livability(
             trend_task, comparison_task, return_exceptions=True
         )
 
-        current.trend = trend if isinstance(trend, list) else []
-        current.comparison = (
-            comparison.rows if isinstance(comparison, LivabilityComparison) else []
-        )
+        trend_ok = isinstance(trend, list)
+        comparison_ok = isinstance(comparison, LivabilityComparison)
+        current.trend = trend if trend_ok else []
+        current.comparison = comparison.rows if comparison_ok else []
 
-        # Cache the fully assembled response
-        await cache_set(
-            cache_key,
-            current.model_dump(),
-            ttl=settings.cache_ttl_livability,
-        )
+        # Only cache fully assembled responses (no partial failures).
+        if trend_ok and comparison_ok:
+            await cache_set(
+                cache_key,
+                current.model_dump(),
+                ttl=settings.cache_ttl_livability,
+            )
         response.headers["Cache-Control"] = _CACHE_DATA
         return current
     except Exception as exc:
@@ -847,7 +853,25 @@ async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float,
             or result.climate_stress.level != RiskLevel.unavailable
             or result.sunlight is not None
         )
-        if has_data:
+        failure_messages = {
+            "NOISE_LAYER_UNAVAILABLE",
+            "NOISE_LOOKUP_FAILED",
+            "AIR_LOOKUP_FAILED",
+            "CLIMATE_LOOKUP_FAILED",
+            "NOISE_TIMEOUT",
+            "AIR_TIMEOUT",
+            "CLIMATE_TIMEOUT",
+        }
+        has_failure = any(
+            msg in failure_messages
+            for msg in (
+                result.noise.message,
+                result.air_quality.message,
+                result.climate_stress.message,
+            )
+            if msg
+        )
+        if has_data and not has_failure:
             await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_risk_cards)
         return result
     except Exception:
@@ -908,6 +932,7 @@ async def _fetch_tier_b_for_export(vbo_id: str, buurt_code: str | None,
 
 async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     """Core export logic shared by POST and GET endpoints."""
+    body.buurt_code = _validate_buurt_code(body.buurt_code)
     if body.template not in ("quick_brief", "full_dossier"):
         raise HTTPException(
             status_code=422,

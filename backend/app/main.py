@@ -58,7 +58,7 @@ async def request_logging_middleware(request: Request, call_next):
     response = await call_next(request)
     duration_ms = (time.monotonic() - start) * 1000
     _access.info(
-        "%s %s %s %.0fms",
+        "%.0fms %s %s %s",
         duration_ms,
         request.method,
         request.url.path,

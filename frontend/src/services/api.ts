@@ -114,14 +114,14 @@ export async function suggestAddresses(
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   const resp = await fetch(`${API_BASE}/address/suggest?${params}`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
-  return resp.json();
+  return await resp.json();
 }
 
 export async function lookupAddress(id: string, signal?: AbortSignal): Promise<ResolvedAddress> {
   const params = new URLSearchParams({ id });
   const resp = await fetch(`${API_BASE}/address/lookup?${params}`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
-  return resp.json();
+  return await resp.json();
 }
 
 export async function getBuildingFacts(
@@ -130,7 +130,7 @@ export async function getBuildingFacts(
 ): Promise<BuildingFactsResponse> {
   const resp = await fetch(`${API_BASE}/address/${vboId}/building`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
-  return resp.json();
+  return await resp.json();
 }
 
 export async function getBuilding3D(
@@ -151,7 +151,7 @@ export async function getBuilding3D(
   });
   const resp = await fetch(`${API_BASE}/address/${vboId}/building3d?${params}`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
-  return resp.json();
+  return await resp.json();
 }
 
 export async function getNeighborhood3D(
@@ -178,7 +178,7 @@ export async function getNeighborhood3D(
       { signal: timeout.signal },
     );
     if (!resp.ok) throwHttpError(resp.status);
-    return resp.json();
+    return await resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -204,7 +204,7 @@ export async function getRiskCards(
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return resp.json();
+    return await resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -230,7 +230,7 @@ export async function getNeighborhoodStats(
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return resp.json();
+    return await resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -258,7 +258,7 @@ export async function getRiskComparisons(
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return resp.json();
+    return await resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -287,7 +287,7 @@ export async function getViewingQuestions(
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return resp.json();
+    return await resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -358,7 +358,8 @@ export function downloadPdfBlob(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Safari can start downloads asynchronously; defer revoke to avoid empty files.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export async function getTierBData(
@@ -385,7 +386,7 @@ export async function getTierBData(
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return resp.json();
+    return await resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -444,7 +445,7 @@ export async function getPropertyWarnings(
       { signal: timeout.signal },
     );
     if (!resp.ok) throwHttpError(resp.status);
-    return resp.json();
+    return await resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -486,3 +487,4 @@ export async function submitSunlightAnalysis(
     clearTimeout(timeoutId);
   }
 }
+

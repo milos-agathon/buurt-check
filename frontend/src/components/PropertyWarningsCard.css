@@ -154,11 +154,11 @@
 
 .property-warnings__source {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   line-height: 1.25;
 }
 
 .property-warnings__disclaimer {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }

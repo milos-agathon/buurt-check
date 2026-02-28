@@ -35,7 +35,7 @@ def _get_redis() -> redis.Redis:
     return _pool
 
 
-async def cache_get(key: str) -> dict | list | None:
+async def cache_get(key: str) -> dict | list | str | None:
     """Get a cached value. Returns None if Redis is unavailable or key doesn't exist."""
     if _circuit_is_open():
         return None

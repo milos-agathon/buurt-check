@@ -369,7 +369,7 @@
 
 .livability-detail__source {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }
 
 @media (prefers-reduced-motion: reduce) {

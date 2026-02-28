@@ -15,6 +15,7 @@ interface Props {
 const VIEWBOX_SIZE = 100;
 const VIEWBOX_PADDING = 8;
 const TILE_RADIUS = 80; // meters around center
+const API_BASE = (import.meta.env.VITE_API_BASE || '/api').replace(/\/$/, '');
 
 function polygonArea(ring: Position[]): number {
   let area = 0;
@@ -54,34 +55,64 @@ function getPrimaryRing(geometry?: Geometry): Position[] | undefined {
 }
 
 /**
- * Convert WGS84 footprint ring to SVG path on the aerial tile.
- * Uses a local linear approximation: at the center point we know both WGS84 and RD.
- * At ~52N: 1 degree lng ≈ 68_710m, 1 degree lat ≈ 111_320m in RD meters.
+ * Convert WGS84 (EPSG:4326) to RD New (EPSG:28992).
+ * Formula source: Rijksdriehoekstelsel polynomial approximation.
  */
+function wgs84ToRd(lat: number, lng: number): { x: number; y: number } | null {
+  if (lat < 50 || lat > 54 || lng < 3 || lng > 8) return null;
+
+  const dLat = 0.36 * (lat - 52.1551744);
+  const dLng = 0.36 * (lng - 5.38720621);
+
+  const x = 155000
+    + (190094.945 * dLng)
+    + (-11832.228 * dLat * dLng)
+    + (-114.221 * dLat * dLat * dLng)
+    + (-32.391 * dLng * dLng * dLng)
+    + (-0.705 * dLat)
+    + (-2.34 * dLat * dLat)
+    + (-0.608 * dLat * dLat * dLat)
+    + (-0.008 * dLng * dLng)
+    + (0.148 * dLat * dLng * dLng);
+
+  const y = 463000
+    + (309056.544 * dLat)
+    + (3638.893 * dLng * dLng)
+    + (73.077 * dLat * dLat)
+    + (-157.984 * dLat * dLng * dLng)
+    + (59.788 * dLat * dLat * dLat)
+    + (0.433 * dLng)
+    + (-6.439 * dLat * dLat * dLng)
+    + (-0.032 * dLat * dLng)
+    + (0.092 * dLng * dLng * dLng * dLng)
+    + (-0.054 * dLat * dLat * dLat * dLat);
+
+  return { x, y };
+}
+
 function wgs84RingToSvgPath(
   ring: Position[],
-  centerLng: number, centerLat: number,
   centerRdX: number, centerRdY: number,
   tileRadius: number,
 ): string | undefined {
   if (ring.length < 3) return undefined;
-  const mPerDegLng = 68710; // at ~52N latitude
-  const mPerDegLat = 111320;
   const bboxMinX = centerRdX - tileRadius;
   const bboxMinY = centerRdY - tileRadius;
   const bboxSize = tileRadius * 2;
   const scale = VIEWBOX_SIZE / bboxSize;
 
   const points = ring.map(([lng, lat]) => {
-    const rdX = centerRdX + (lng - centerLng) * mPerDegLng;
-    const rdY = centerRdY + (lat - centerLat) * mPerDegLat;
+    const rd = wgs84ToRd(lat, lng);
+    if (!rd) return null;
     return {
-      x: (rdX - bboxMinX) * scale,
-      y: VIEWBOX_SIZE - (rdY - bboxMinY) * scale,
+      x: (rd.x - bboxMinX) * scale,
+      y: VIEWBOX_SIZE - (rd.y - bboxMinY) * scale,
     };
   });
 
-  const [first, ...rest] = points;
+  if (points.some((point) => point == null)) return undefined;
+  const concretePoints = points as { x: number; y: number }[];
+  const [first, ...rest] = concretePoints;
   const cmds = [`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`];
   for (const p of rest) cmds.push(`L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
   cmds.push('Z');
@@ -129,14 +160,14 @@ export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint }: 
       radius: String(TILE_RADIUS),
       size: '512',
     });
-    return `/api/address/wms-tile?${params}`;
+    return `${API_BASE}/address/wms-tile?${params.toString()}`;
   }, [rdX, rdY]);
 
   // Map footprint WGS84 coords to SVG overlay on the aerial image
   const overlayPath = useMemo(() => {
     if (!ring || ring.length < 3 || rdX == null || rdY == null) return undefined;
-    return wgs84RingToSvgPath(ring, lng, lat, rdX, rdY, TILE_RADIUS);
-  }, [ring, lng, lat, rdX, rdY]);
+    return wgs84RingToSvgPath(ring, rdX, rdY, TILE_RADIUS);
+  }, [ring, rdX, rdY]);
 
   // Fallback SVG path (when no aerial photo available)
   const fallbackPath = useMemo(() => {

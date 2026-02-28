@@ -72,5 +72,5 @@
 .building-card__source {
   margin: var(--space-base) 0 0;
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }

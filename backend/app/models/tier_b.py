@@ -10,6 +10,7 @@ class EnergyLabelCard(BaseModel):
 
 class CrimeStatsCard(BaseModel):
     total_per_1000: float | None = None
+    national_per_1000: float | None = None
     burglary_per_1000: float | None = None
     violent_per_1000: float | None = None
     yearly_period: str | None = None

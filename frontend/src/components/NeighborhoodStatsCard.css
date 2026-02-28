@@ -189,7 +189,7 @@
 
 .neighborhood-card__source {
   font: var(--type-micro);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }
 
 @media (min-width: 600px) {

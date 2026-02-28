@@ -12,12 +12,17 @@
 }
 
 .compare-screen__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: none;
   font: var(--type-body);
   color: var(--color-accent-text);
   cursor: pointer;
-  padding: var(--space-xs);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-sm);
 }
 
 .compare-screen__back:focus-visible {
@@ -27,7 +32,12 @@
 }
 
 .compare-screen__filter {
-  padding: var(--space-xs) var(--space-sm);
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: var(--color-surface);
@@ -56,7 +66,7 @@
 
 .compare-screen__summary {
   background: var(--color-surface-alt);
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-card);
   padding: var(--space-base);
   display: flex;
   flex-direction: column;

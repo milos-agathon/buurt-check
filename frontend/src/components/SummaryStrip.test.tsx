@@ -16,7 +16,7 @@ const mockPills: SummaryPill[] = [
   { category: 'noise', labelKey: 'risk.noise.title', score: 59, severity: 'moderate' },
   { category: 'air', labelKey: 'risk.air.title', score: 55, severity: 'moderate' },
   { category: 'climate', labelKey: 'risk.climate.title', score: 85, severity: 'good' },
-  { category: 'sunlight', labelKey: 'sunlight.title', score: 50, severity: 'moderate' },
+  { category: 'sunlight', labelKey: 'risk.sunlight.title', score: 50, severity: 'moderate' },
 ];
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;

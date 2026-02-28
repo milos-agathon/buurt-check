@@ -533,6 +533,7 @@ describe('exportBriefing', () => {
 
 describe('downloadPdfBlob', () => {
   it('creates and clicks a download link', () => {
+    vi.useFakeTimers();
     const appendChildSpy = vi.spyOn(document.body, 'appendChild');
     const removeChildSpy = vi.spyOn(document.body, 'removeChild');
     const createElementSpy = vi.spyOn(document, 'createElement');
@@ -543,17 +544,22 @@ describe('downloadPdfBlob', () => {
     appendChildSpy.mockImplementation(() => ({}) as Node);
     removeChildSpy.mockImplementation(() => ({}) as Node);
 
-    downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
+    try {
+      downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
 
-    expect(click).toHaveBeenCalledTimes(1);
-    expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
-
-    appendChildSpy.mockRestore();
-    removeChildSpy.mockRestore();
-    createElementSpy.mockRestore();
-    createObjectURLSpy.mockRestore();
-    revokeObjectURLSpy.mockRestore();
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURLSpy).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(60_000);
+      expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+      appendChildSpy.mockRestore();
+      removeChildSpy.mockRestore();
+      createElementSpy.mockRestore();
+      createObjectURLSpy.mockRestore();
+      revokeObjectURLSpy.mockRestore();
+    }
   });
 });
 
