@@ -7,7 +7,7 @@ Mobile-first SPA with "Polar Frost" design system. Framer Motion gestures, Three
 ```bash
 npm run dev          # Dev server (proxies /api to localhost:8000)
 npm run build        # MUST pass before commit (strict TS: noUnusedLocals)
-npm run test         # Vitest (713+ baseline)
+npm run test         # Vitest (796+ baseline)
 npx vitest --watch   # Watch mode
 ```
 
@@ -200,3 +200,28 @@ setTimeout(() => { setViewer3DTriggered(true); trigger3DFetch(); }, 0);
 
 - Hide "Generate PDF" button when `progressStage === 'ready'` (show Share/Download instead)
 - Show spinner + "Exporting..." in ActionBar export button when `isExporting` is true
+
+
+## Sunlight Workers & Web Worker Patterns (added 2026-02-28)
+
+- **Worker density bifurcation**: Bridge defaults to 256 points at 1m grid spacing. Main-thread fallback explicitly 64 points at 2m spacing. Constants exported from roofSampling.ts (HIGH_DENSITY_GRID_SPACING, HIGH_DENSITY_MAX_POINTS)
+- **Transferable ownership trap**: postMessage(data, transferList) detaches ArrayBuffer ownership -- .byteLength becomes 0 in sender. If you serialize geometry once and transfer it, you cannot reuse those buffers for a second Worker. Drop transferables when compute time (30-120s) dwarfs copy cost (3-6MB)
+- **Persistent Workers must dispose per-message allocations**: Sunlight Worker (persistent) accumulates deserialized mesh geometries across address changes. Added finally block to iterate and dispose all mesh geometries. SVF Worker (ephemeral, per-call) correctly relies on termination
+- **Raycaster hoisted to module scope** in persistent Worker: created once, reused across messages
+- **Dead old Worker system deleted**: sunlight.worker.ts, sunlightWorkerClient.ts, sunlightWorkerProtocol.ts (243 lines) -- superseded by workers/ directory
+- **Shared analysis params object**: 8 hardcoded values (intervalMinutes, maxPoints, etc.) extracted to shared analysisParams used by both Worker and main-thread paths. Prevents silent drift between paths
+- **Worker-vs-main-thread in jsdom**: jsdom lacks Worker constructor, so all Worker tests exercise main-thread fallback. Use MockWorker class with emit() helper for Worker-specific tests
+- **SVF Worker has no dedup/abort guard**: retrying sunlight analysis 3 times spawns 3 independent SVF Workers. Each creates WebGL context (100-500ms on mobile)
+
+## Code Simplification Patterns (added 2026-02-28)
+
+- **Deduplicate by export + import**: toViewerPolygon was byte-for-byte identical in roofSampling.ts and sunlightSampling.ts. Export from source, import in consumer
+- **Unnecessary array copy**: ensureCW non-reversing branch used [...footprint] for no reason. Just return footprint directly
+- **Dead ?? fallbacks**: Nullish coalescing fallbacks on Worker result fields that are always present are unreachable dead code
+- **Redundant mutable tracking**: method variable tracked analysisMethod across async branches, but Worker already stamps analysisMethod on its result. Derive from result instead
+- **updateMatrixWorld(true) redundancy**: Calling per-mesh in serializeBuildings triggers 150 redundant parent traversals for direct scene children. Call scene.updateMatrixWorld(false) once before loop, then obj.updateMatrix() inside
+
+## Test Baseline (updated 2026-02-28)
+
+- **Vitest**: 796 tests (post-simplify + Phase 3 workers)
+- **i18n**: 396+ keys per language with parity + floor assertions

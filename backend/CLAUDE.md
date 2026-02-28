@@ -6,7 +6,7 @@ Python 3.12 API aggregator. External data stays stateless/cached, monetization s
 
 ```bash
 uvicorn app.main:app --reload --port 8000   # Dev server
-pytest -x -q -m "not live"                  # CI tests (613+ baseline)
+pytest -x -q -m "not live"                  # CI tests (624+ baseline)
 pytest -x -q                                # Including live API smoke tests
 ruff check . && ruff format .               # MUST pass before commit
 ```
@@ -85,3 +85,16 @@ ruff check . && ruff format .               # MUST pass before commit
 - **LoD 2.2 is mandatory for all buildings** (including neighbors). Sunlight shadow analysis requires accurate roof geometry
 - **Cold latency baselines (Feb 17, pre-optimization):** Damrak 1 = 77s/167 buildings, Kerkstraat 10 = 62s/251 buildings. 90%+ of wait time is 3DBAG API latency
 - **PDOK Luchtfoto RGB:** `service.pdok.nl/hwh/luchtfotorgb/wms/v1_0`, layer `Actueel_orthoHR`, JPEG format, CC BY 4.0 license
+
+
+## Session Learnings (2026-02-28)
+
+- **Webhook DB writes must be atomic**: both payment status and entitlement updates in a single transaction. Non-atomic two-step writes risk permanent user lockout if process dies between steps
+- **HTTPException outside aiosqlite.Error try blocks**: broadening except clauses later would silently convert 404->503. Structure: separate try/except per DB call with logic between them
+- **Severity delegates to canonical function**: PDF export _severity_for_score delegates to scoring.py severity_from_score. Never re-implement the 70/40/20 thresholds
+- **Duplicated code extracted**: _RISK_FAILURE_MESSAGES (frozenset), _property_warnings_cache_key() (helper), both extracted from two inline copies in address.py
+- **CancelledError handling**: catch BaseException, not just Exception, for asyncio.CancelledError in gather callbacks (e.g., crime stats pop_task)
+- **SlowAPI decorator order depends on response: Response param**: @limiter.limit as outer when no Response param, inner when Response is present. Two valid patterns exist -- do not blindly standardize
+- **limiter.reset() in test fixtures**: prevents cross-test rate limit pollution for rate-limited endpoints
+- **patch.object(settings, field, value) is sufficient** for pydantic-settings singleton patching -- no ExitStack needed
+- **Test baseline**: 624 tests (post-Phase-2 + bug audit, 2026-02-28)

@@ -38,7 +38,7 @@ docs/              # Design specs, plans, palette, UI principles
 ```bash
 # Backend
 cd backend && uvicorn app.main:app --reload --port 8000
-cd backend && pytest -x -q -m "not live"   # CI tests (613+ baseline)
+cd backend && pytest -x -q -m "not live"   # CI tests (624+ baseline)
 cd backend && ruff check .                  # MUST pass before commit
 # Payment features require BUURT_STRIPE_SECRET_KEY, BUURT_STRIPE_WEBHOOK_SECRET,
 # BUURT_STRIPE_PRICE_CENTS, BUURT_BASE_URL, BUURT_DATABASE_PATH.
@@ -46,7 +46,7 @@ cd backend && ruff check .                  # MUST pass before commit
 # Frontend
 cd frontend && npm run dev                  # Dev server (proxies /api to :8000)
 cd frontend && npm run build                # MUST pass before commit (strict TS)
-cd frontend && npm run test                 # Vitest (713+ baseline)
+cd frontend && npm run test                 # Vitest (796+ baseline)
 ```
 
 ## Architecture decisions
