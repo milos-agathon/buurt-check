@@ -7,6 +7,13 @@ import pytest
 import app.cache.redis as cache_module
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.models.building import BuildingFacts
+from app.models.livability import (
+    LivabilityComparison,
+    LivabilityComparisonRow,
+    LivabilityDimension,
+    LivabilityResponse,
+    LivabilityTrendPoint,
+)
 from app.models.neighborhood import (
     AgeProfile,
     NeighborhoodIndicator,
@@ -1387,3 +1394,360 @@ async def test_livability_returns_502_on_unhandled_exception(
         )
     assert resp.status_code == 502
     assert resp.json()["detail"] == "Livability data unavailable"
+
+
+# --- Bug #8: Empty suggestion list should NOT be cached ---
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.locatieserver")
+async def test_suggest_empty_result_not_cached(
+    mock_ls, mock_cache_set, mock_cache_get, client,
+):
+    """When PDOK returns no suggestions, the empty list must NOT be cached."""
+    mock_ls.suggest = AsyncMock(return_value=[])
+    mock_ls.AddressSuggestion = AddressSuggestion
+
+    resp = await client.get("/api/address/suggest", params={"q": "xyznonexistent"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["suggestions"] == []
+    mock_cache_set.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.locatieserver")
+async def test_suggest_nonempty_result_is_cached(
+    mock_ls, mock_cache_set, mock_cache_get, client,
+):
+    """When PDOK returns results, they should be cached (positive control)."""
+    mock_ls.suggest = AsyncMock(
+        return_value=[
+            AddressSuggestion(
+                id="adr-1",
+                display_name="Damrak 1, Amsterdam",
+                type="adres",
+                score=9.0,
+            )
+        ]
+    )
+    mock_ls.AddressSuggestion = AddressSuggestion
+
+    resp = await client.get("/api/address/suggest", params={"q": "damrak"})
+    assert resp.status_code == 200
+    mock_cache_set.assert_called_once()
+
+
+# --- Bug #9: Incomplete livability (trend/comparison failure) should NOT be cached ---
+
+
+def _make_livability_current():
+    """Helper: minimal valid LivabilityResponse (current data only)."""
+    return LivabilityResponse(
+        available=True,
+        buurt_code="BU03630001",
+        buurt_name="Centrum",
+        gemeente="Amsterdam",
+        year="2024",
+        overall_score=7,
+        overall_normalized=75,
+        dimensions=[
+            LivabilityDimension(
+                name="physical", raw_score=7, normalized_score=75,
+                label_code="livability.dimension.physical",
+            ),
+        ],
+        source="Leefbaarometer (Dutch Livability Index)",
+    )
+
+
+def _make_trend():
+    """Helper: minimal trend data."""
+    return [
+        LivabilityTrendPoint(
+            year="2024", overall_score=7, overall_normalized=75,
+        ),
+    ]
+
+
+def _make_comparison():
+    """Helper: minimal comparison data."""
+    return LivabilityComparison(
+        rows=[
+            LivabilityComparisonRow(
+                level="gemeente", name="Amsterdam",
+                overall_score=6, overall_normalized=62,
+            ),
+        ]
+    )
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_livability_not_cached_when_trend_fails(
+    mock_cache_set, mock_cache_get, client,
+):
+    """If trend gather returns an Exception, livability must NOT be cached."""
+    current = _make_livability_current()
+    comparison = _make_comparison()
+
+    with (
+        patch(
+            "app.api.address.leefbaarometer.get_livability",
+            new_callable=AsyncMock,
+            return_value=current,
+        ),
+        patch(
+            "app.api.address.leefbaarometer.get_livability_trend",
+            new_callable=AsyncMock,
+            side_effect=ConnectionError("PDOK timeout"),
+        ),
+        patch(
+            "app.api.address.leefbaarometer.get_livability_comparison",
+            new_callable=AsyncMock,
+            return_value=comparison,
+        ),
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/livability",
+            params={"rd_x": "121286", "rd_y": "487296"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True
+    # Trend failed, so trend should be empty in response
+    assert data["trend"] == []
+    # Comparison succeeded
+    assert len(data["comparison"]) > 0
+    # Must NOT cache partial result
+    mock_cache_set.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_livability_not_cached_when_comparison_fails(
+    mock_cache_set, mock_cache_get, client,
+):
+    """If comparison gather returns an Exception, livability must NOT be cached."""
+    current = _make_livability_current()
+    trend = _make_trend()
+
+    with (
+        patch(
+            "app.api.address.leefbaarometer.get_livability",
+            new_callable=AsyncMock,
+            return_value=current,
+        ),
+        patch(
+            "app.api.address.leefbaarometer.get_livability_trend",
+            new_callable=AsyncMock,
+            return_value=trend,
+        ),
+        patch(
+            "app.api.address.leefbaarometer.get_livability_comparison",
+            new_callable=AsyncMock,
+            side_effect=ConnectionError("WFS timeout"),
+        ),
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/livability",
+            params={"rd_x": "121286", "rd_y": "487296"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    # Comparison failed, so comparison should be empty
+    assert data["comparison"] == []
+    # Trend succeeded
+    assert len(data["trend"]) > 0
+    mock_cache_set.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_livability_cached_when_all_succeed(
+    mock_cache_set, mock_cache_get, client,
+):
+    """When current + trend + comparison all succeed, result IS cached (positive control)."""
+    current = _make_livability_current()
+    trend = _make_trend()
+    comparison = _make_comparison()
+
+    with (
+        patch(
+            "app.api.address.leefbaarometer.get_livability",
+            new_callable=AsyncMock,
+            return_value=current,
+        ),
+        patch(
+            "app.api.address.leefbaarometer.get_livability_trend",
+            new_callable=AsyncMock,
+            return_value=trend,
+        ),
+        patch(
+            "app.api.address.leefbaarometer.get_livability_comparison",
+            new_callable=AsyncMock,
+            return_value=comparison,
+        ),
+    ):
+        resp = await client.get(
+            "/api/address/0363010000696734/livability",
+            params={"rd_x": "121286", "rd_y": "487296"},
+        )
+
+    assert resp.status_code == 200
+    mock_cache_set.assert_called_once()
+
+
+# --- Bug #10: Export risk cache guard must check has_failure ---
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_export_risks_not_cached_with_failure_message(
+    mock_cache_set, mock_cache_get,
+):
+    """_fetch_risks_for_export must NOT cache when a card has a failure message."""
+    from app.api.address import _fetch_risks_for_export
+
+    failed_result = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.unavailable,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+            message="NOISE_LOOKUP_FAILED",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+    )
+
+    with patch(
+        "app.api.address.risk_cards.get_risk_cards",
+        new_callable=AsyncMock,
+        return_value=failed_result,
+    ):
+        result = await _fetch_risks_for_export(
+            "0363010000696734", 121286.0, 487296.0, 52.372, 4.892,
+        )
+
+    assert result is not None
+    # has_data is True (air + climate are available), but has_failure is True
+    # so cache_set must NOT be called
+    mock_cache_set.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_export_risks_not_cached_with_timeout_message(
+    mock_cache_set, mock_cache_get,
+):
+    """_fetch_risks_for_export must NOT cache when a card has a timeout message."""
+    from app.api.address import _fetch_risks_for_export
+
+    timeout_result = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.unavailable,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+            message="AIR_TIMEOUT",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+    )
+
+    with patch(
+        "app.api.address.risk_cards.get_risk_cards",
+        new_callable=AsyncMock,
+        return_value=timeout_result,
+    ):
+        result = await _fetch_risks_for_export(
+            "0363010000696734", 121286.0, 487296.0, 52.372, 4.892,
+        )
+
+    assert result is not None
+    mock_cache_set.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+async def test_export_risks_cached_when_no_failures(
+    mock_cache_set, mock_cache_get,
+):
+    """Export risk cache: data present + no failures -> cached (positive control)."""
+    from app.api.address import _fetch_risks_for_export
+
+    ok_result = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+    )
+
+    with patch(
+        "app.api.address.risk_cards.get_risk_cards",
+        new_callable=AsyncMock,
+        return_value=ok_result,
+    ):
+        result = await _fetch_risks_for_export(
+            "0363010000696734", 121286.0, 487296.0, 52.372, 4.892,
+        )
+
+    assert result is not None
+    mock_cache_set.assert_called_once()
