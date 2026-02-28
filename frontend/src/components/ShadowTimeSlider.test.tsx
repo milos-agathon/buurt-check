@@ -3,6 +3,7 @@ import { I18nextProvider } from 'react-i18next';
 import { vi } from 'vitest';
 import ShadowTimeSlider from './ShadowTimeSlider';
 import { setupTestI18n } from '../test/helpers';
+import { getDatePartsInTimeZone } from '../utils/sunPosition';
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -53,8 +54,9 @@ describe('ShadowTimeSlider', () => {
     fireEvent.click(screen.getByRole('button', { name: /winter/i }));
 
     const emittedDate = onChange.mock.calls[0][0] as Date;
-    expect(emittedDate.getFullYear()).toBe(2026);
-    expect(emittedDate.getMonth()).toBe(11);
+    const parts = getDatePartsInTimeZone(emittedDate);
+    expect(parts.year).toBe(2026);
+    expect(parts.month).toBe(12);
   });
 
   it('renders play/pause button', () => {
@@ -74,7 +76,8 @@ describe('ShadowTimeSlider', () => {
 
     expect(onChange).toHaveBeenCalled();
     const emittedDate = onChange.mock.calls[0][0] as Date;
-    expect(emittedDate.getHours()).toBe(14);
-    expect(emittedDate.getMinutes()).toBe(30);
+    const parts = getDatePartsInTimeZone(emittedDate);
+    expect(parts.hour).toBe(14);
+    expect(parts.minute).toBe(30);
   });
 });

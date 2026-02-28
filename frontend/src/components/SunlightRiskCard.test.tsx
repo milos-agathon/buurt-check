@@ -83,9 +83,10 @@ describe('SunlightRiskCard', () => {
 
   it('renders all three PRD-mandated disclaimers', () => {
     renderCard(makeSunlightResult());
+    expect(screen.getByText(/EN 17037/i)).toBeInTheDocument();
     expect(screen.getByText(/geometry-based estimate/i)).toBeInTheDocument();
     expect(screen.getByText(/interior layout/i)).toBeInTheDocument();
-    expect(screen.getByText(/approximated from building geometry/i)).toBeInTheDocument();
+    expect(screen.getByText(/roof-level exposure only/i)).toBeInTheDocument();
   });
 
   it('shows source', () => {

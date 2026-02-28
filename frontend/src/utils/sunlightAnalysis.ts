@@ -1,6 +1,12 @@
 import { Raycaster, Vector3 } from 'three';
 import type { SunlightResult } from '../types/api';
-import { getDaylightRange, getRepresentativeDates, getSunDirection, SUN_DISTANCE } from './sunPosition';
+import {
+  getDaylightRange,
+  getRepresentativeDates,
+  getSunDirection,
+  setTimeInTimeZone,
+  SUN_DISTANCE,
+} from './sunPosition';
 import {
   DEFAULT_GRID_SPACING_METERS,
   DEFAULT_MAX_ROOF_POINTS,
@@ -9,6 +15,8 @@ import {
 } from './roofSampling';
 
 interface RaycastHitLike {
+  distance?: number;
+  point?: Vector3;
   object?: {
     userData?: {
       pandId?: string;
@@ -42,6 +50,7 @@ export interface SunlightAnalysisOptions {
 
 const DEFAULT_INTERVAL_MINUTES = 30;
 const DEFAULT_CHUNK_RAYCASTS = 200;
+const SELF_HIT_EPSILON_METERS = 0.15;
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
@@ -83,6 +92,16 @@ export function yieldToMainThread(): Promise<void> {
     }
     setTimeout(resolve, 0);
   });
+}
+
+function isSameSurfaceSelfHit(hit: RaycastHitLike, origin: Vector3): boolean {
+  if (typeof hit.distance === 'number') {
+    return hit.distance <= SELF_HIT_EPSILON_METERS;
+  }
+  if (hit.point && typeof hit.point.distanceTo === 'function') {
+    return hit.point.distanceTo(origin) <= SELF_HIT_EPSILON_METERS;
+  }
+  return false;
 }
 
 function buildDefaultResult(year: number, roofGridPoints: RoofPoint3D[]): SunlightResult {
@@ -148,8 +167,7 @@ export async function analyzeSunlight(
       for (const minuteOfDay of sampleMinutes) {
         if (abortSignal?.aborted) return null;
 
-        const sampleDate = new Date(date);
-        sampleDate.setHours(Math.floor(minuteOfDay / 60), minuteOfDay % 60, 0, 0);
+        const sampleDate = setTimeInTimeZone(date, minuteOfDay);
         const sunDir = getSunDirection(sampleDate, lat, lng);
         if (!sunDir) continue;
 
@@ -157,10 +175,13 @@ export async function analyzeSunlight(
         raycaster.far = SUN_DISTANCE * 2;
 
         const intersections = raycaster.intersectObjects(buildingMeshes);
-        const blocked = intersections.some((hit) => (
-          hit.object?.userData?.pandId !== targetPandId
-          && !hit.object?.userData?.isGround
-        ));
+        const blocked = intersections.some((hit) => {
+          if (hit.object?.userData?.isGround) return false;
+          if (hit.object?.userData?.pandId === targetPandId) {
+            return !isSameSurfaceSelfHit(hit, origin);
+          }
+          return true;
+        });
 
         if (!blocked) {
           sunlitHours += hoursPerSample;

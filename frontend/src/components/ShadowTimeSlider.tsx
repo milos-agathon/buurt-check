@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getDaylightRange } from '../utils/sunPosition';
+import {
+  createDateInTimeZone,
+  getDatePartsInTimeZone,
+  getDaylightRange,
+  setTimeInTimeZone,
+} from '../utils/sunPosition';
 import './ShadowTimeSlider.css';
 
 interface Props {
@@ -18,13 +23,15 @@ const PLAYBACK_UI_SYNC_MINUTES = 15;
 function getPresetDate(preset: DatePreset, year: number): Date {
   switch (preset) {
     case 'winter':
-      return new Date(year, 11, 21);
+      return createDateInTimeZone(year, 11, 21, 12, 0);
     case 'equinox':
-      return new Date(year, 2, 21);
+      return createDateInTimeZone(year, 2, 21, 12, 0);
     case 'summer':
-      return new Date(year, 5, 21);
-    case 'today':
-      return new Date();
+      return createDateInTimeZone(year, 5, 21, 12, 0);
+    case 'today': {
+      const today = getDatePartsInTimeZone(new Date());
+      return createDateInTimeZone(today.year, today.month - 1, today.day, 12, 0);
+    }
   }
 }
 
@@ -55,9 +62,7 @@ export default function ShadowTimeSlider({ lat, lng, onChange }: Props) {
   const emitChange = useCallback(
     (mins: number, date: Date, min: number, max: number) => {
       const clamped = clampMinutes(mins, min, max);
-      const d = new Date(date);
-      d.setHours(Math.floor(clamped / 60), clamped % 60, 0, 0);
-      onChange(d);
+      onChange(setTimeInTimeZone(date, clamped));
     },
     [onChange],
   );

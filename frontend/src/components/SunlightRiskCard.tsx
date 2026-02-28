@@ -155,6 +155,7 @@ export default function SunlightRiskCard({
       )}
 
       <div className="sunlight-card__disclaimers">
+        <p className="sunlight-card__disclaimer">{t('sunlight.benchmark_note')}</p>
         <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_geometry')}</p>
         <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_objects')}</p>
         <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_approx')}</p>

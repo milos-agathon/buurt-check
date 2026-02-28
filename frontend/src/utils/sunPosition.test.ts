@@ -1,5 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { getSunDirection, getDaylightRange, getRepresentativeDates } from './sunPosition';
+import SunCalc from 'suncalc';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  getSunDirection,
+  getDaylightRange,
+  getRepresentativeDates,
+  getDatePartsInTimeZone,
+} from './sunPosition';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('getSunDirection', () => {
   it('returns normalized Vector3 for summer noon Amsterdam', () => {
@@ -48,14 +58,39 @@ describe('getDaylightRange', () => {
     const summerLen = summer.sunset - summer.sunrise;
     expect(winterLen).toBeLessThan(summerLen);
   });
+
+  it('uses NL timezone extraction instead of Date.getHours/getMinutes', () => {
+    class ThrowingDate extends Date {
+      override getHours(): number {
+        throw new Error('local hours should not be used');
+      }
+
+      override getMinutes(): number {
+        throw new Error('local minutes should not be used');
+      }
+    }
+
+    const sunrise = new ThrowingDate('2025-06-21T03:30:00.000Z'); // 05:30 in NL (CEST)
+    const sunset = new ThrowingDate('2025-06-21T20:00:00.000Z'); // 22:00 in NL (CEST)
+    vi.spyOn(SunCalc, 'getTimes').mockReturnValue({
+      sunrise,
+      sunset,
+    } as unknown as ReturnType<typeof SunCalc.getTimes>);
+
+    const range = getDaylightRange(new Date(2025, 5, 21), 52.37, 4.90);
+    expect(range.sunrise).toBeCloseTo(5.5, 1);
+    expect(range.sunset).toBeCloseTo(22, 1);
+  });
 });
 
 describe('getRepresentativeDates', () => {
   it('returns 12 dates (21st of each month) for given year', () => {
     const dates = getRepresentativeDates(2025);
     expect(dates).toHaveLength(12);
-    expect(dates[0].getMonth()).toBe(0);
-    expect(dates[11].getMonth()).toBe(11);
-    dates.forEach((d) => expect(d.getDate()).toBe(21));
+    const first = getDatePartsInTimeZone(dates[0]);
+    const last = getDatePartsInTimeZone(dates[11]);
+    expect(first.month).toBe(1);
+    expect(last.month).toBe(12);
+    dates.forEach((date) => expect(getDatePartsInTimeZone(date).day).toBe(21));
   });
 });

@@ -30,7 +30,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
 import HeatmapLegend from './HeatmapLegend';
 import { sunHoursToColor } from '../utils/heatmapColors';
-import { getSunDirection, SUN_DISTANCE } from '../utils/sunPosition';
+import { createDateInTimeZone, getSunDirection, setTimeInTimeZone, SUN_DISTANCE } from '../utils/sunPosition';
 import { buildRoofPointGrid } from '../utils/spatialHashGrid';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import './NeighborhoodViewer3D.css';
@@ -723,7 +723,7 @@ export default function NeighborhoodViewer3D({
     ctx.camera.updateProjectionMatrix();
 
     const year = new Date().getFullYear();
-    const winterSolstice = new Date(year, 11, 21);
+    const winterSolstice = createDateInTimeZone(year, 11, 21, 12, 0);
     const snapshotConfigs = [
       { hour: 9, label: 'morning' },
       { hour: 12, label: 'noon' },
@@ -733,8 +733,7 @@ export default function NeighborhoodViewer3D({
     const snapshots: ShadowSnapshot[] = [];
 
     for (const config of snapshotConfigs) {
-      const date = new Date(winterSolstice);
-      date.setHours(config.hour, 0, 0, 0);
+      const date = setTimeInTimeZone(winterSolstice, config.hour * 60);
 
       const sunDir = getSunDirection(date, center.lat, center.lng);
 
@@ -946,7 +945,7 @@ export default function NeighborhoodViewer3D({
     if (!ctx) return;
 
     const year = new Date().getFullYear();
-    const summerNoon = new Date(year, 5, 21, 12, 0, 0);
+    const summerNoon = createDateInTimeZone(year, 5, 21, 12, 0);
     const sunDir = getSunDirection(summerNoon, center.lat, center.lng);
 
     if (!sunDir) {

@@ -7,6 +7,11 @@ vi.mock('./sunPosition', () => ({
   getRepresentativeDates: vi.fn((year: number) =>
     Array.from({ length: 12 }, (_, month) => new Date(year, month, 21))),
   getSunDirection: vi.fn(() => ({ x: 1, y: 1, z: 1 })),
+  setTimeInTimeZone: vi.fn((date: Date, minuteOfDay: number) => {
+    const sample = new Date(date);
+    sample.setHours(Math.floor(minuteOfDay / 60), minuteOfDay % 60, 0, 0);
+    return sample;
+  }),
 }));
 
 vi.mock('./roofSampling', () => ({
@@ -68,6 +73,54 @@ describe('analyzeSunlight', () => {
       far: 0,
       set: vi.fn(),
       intersectObjects: vi.fn(() => [{ object: { userData: { pandId: 'other' } } }]),
+    };
+
+    const result = await analyzeSunlight({
+      buildingMeshes: [{ userData: { pandId: 'target' } }],
+      targetPandId: 'target',
+      footprint: [[0, 0], [4, 0], [4, 4], [0, 4]],
+      roofY: 10,
+      lat: 52.37,
+      lng: 4.9,
+      intervalMinutes: 30,
+      raycaster,
+      yieldControl: async () => {},
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.annualAverage).toBe(0);
+    expect(result!.perPointAnnual).toEqual([0, 0]);
+  });
+
+  it('ignores same-surface self-hits at ray origin', async () => {
+    const raycaster = {
+      far: 0,
+      set: vi.fn(),
+      intersectObjects: vi.fn(() => [{ distance: 0, object: { userData: { pandId: 'target' } } }]),
+    };
+
+    const result = await analyzeSunlight({
+      buildingMeshes: [{ userData: { pandId: 'target' } }],
+      targetPandId: 'target',
+      footprint: [[0, 0], [4, 0], [4, 4], [0, 4]],
+      roofY: 10,
+      lat: 52.37,
+      lng: 4.9,
+      intervalMinutes: 30,
+      raycaster,
+      yieldControl: async () => {},
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.annualAverage).toBe(1.5);
+    expect(result!.perPointAnnual).toEqual([1.5, 1.5]);
+  });
+
+  it('counts distant self-hits as real self-shadowing', async () => {
+    const raycaster = {
+      far: 0,
+      set: vi.fn(),
+      intersectObjects: vi.fn(() => [{ distance: 1.25, object: { userData: { pandId: 'target' } } }]),
     };
 
     const result = await analyzeSunlight({

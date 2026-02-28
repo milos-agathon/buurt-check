@@ -7,6 +7,11 @@ vi.mock('./sunPosition', () => ({
   getRepresentativeDates: vi.fn((year: number) =>
     Array.from({ length: 12 }, (_, month) => new Date(year, month, 21))),
   getSunDirection: vi.fn(() => ({ x: 1, y: 1, z: 1 })),
+  setTimeInTimeZone: vi.fn((date: Date, minuteOfDay: number) => {
+    const sample = new Date(date);
+    sample.setHours(Math.floor(minuteOfDay / 60), minuteOfDay % 60, 0, 0);
+    return sample;
+  }),
 }));
 
 function createBoundaryRaycaster() {
