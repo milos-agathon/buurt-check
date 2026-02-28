@@ -6,20 +6,10 @@ from app.config import settings
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.services.http_client import LoopAwareClient
 
-_client: LoopAwareClient | None = LoopAwareClient(
+_client = LoopAwareClient(
     base_url=settings.locatieserver_base,
-    timeout=10.0,
+    timeout=httpx.Timeout(10.0),
 )
-
-
-def _get_client() -> httpx.AsyncClient:
-    global _client
-    if _client is None:
-        _client = LoopAwareClient(
-            base_url=settings.locatieserver_base,
-            timeout=10.0,
-        )
-    return _client.get()
 
 
 _WKT_POINT = re.compile(r"POINT\(([0-9.]+)\s+([0-9.]+)\)")
@@ -35,7 +25,7 @@ def _parse_wkt_point(wkt: str | None) -> tuple[float, float] | None:
 
 
 async def suggest(query: str, limit: int = 7) -> list[AddressSuggestion]:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         "/suggest",
         params={"q": query, "fq": "type:adres", "rows": limit},
@@ -60,7 +50,7 @@ async def suggest(query: str, limit: int = 7) -> list[AddressSuggestion]:
 
 
 async def lookup(locatieserver_id: str) -> ResolvedAddress | None:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         "/lookup",
         params={"id": locatieserver_id, "fl": "*"},

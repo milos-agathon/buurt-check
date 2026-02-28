@@ -15,7 +15,7 @@ export function getTheme(): ThemePreference {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
   } catch {
-    // Safari private browsing can throw on localStorage access.
+    return 'system';
   }
   return 'system';
 }
@@ -24,7 +24,7 @@ export function setTheme(pref: ThemePreference): void {
   try {
     localStorage.setItem(STORAGE_KEY, pref);
   } catch {
-    // Ignore persistence failures (private mode, quota exceeded).
+    // Safari private browsing or quota exceeded — silently fail
   }
   applyTheme(pref, { withTransition: true });
 }

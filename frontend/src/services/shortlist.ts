@@ -3,32 +3,15 @@ import type { ShortlistItem } from '../types/api';
 const STORAGE_KEY = 'buurt-check-shortlist';
 const MAX_ITEMS = 3;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function isRiskScores(value: unknown): value is ShortlistItem['riskScores'] {
-  if (!isRecord(value)) return false;
-  const maybeNumber = (candidate: unknown) => candidate == null || typeof candidate === 'number';
+function isValidItem(item: unknown): item is ShortlistItem {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
   return (
-    maybeNumber(value.noise)
-    && maybeNumber(value.air)
-    && maybeNumber(value.climate)
-    && maybeNumber(value.sunlight)
-  );
-}
-
-function isShortlistItem(value: unknown): value is ShortlistItem {
-  if (!isRecord(value)) return false;
-  return (
-    typeof value.vboId === 'string'
-    && typeof value.address === 'string'
-    && typeof value.savedAt === 'number'
-    && isRiskScores(value.riskScores)
-    && (value.lookupId == null || typeof value.lookupId === 'string')
-    && (value.postcode == null || typeof value.postcode === 'string')
-    && (value.city == null || typeof value.city === 'string')
-    && (value.buildingYear == null || typeof value.buildingYear === 'number')
+    typeof obj.vboId === 'string' &&
+    typeof obj.address === 'string' &&
+    typeof obj.savedAt === 'number' &&
+    obj.riskScores != null &&
+    typeof obj.riskScores === 'object'
   );
 }
 
@@ -38,7 +21,7 @@ function readStorage(): ShortlistItem[] {
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isShortlistItem);
+    return parsed.filter(isValidItem);
   } catch {
     return [];
   }
@@ -48,7 +31,7 @@ function writeStorage(items: ShortlistItem[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   } catch {
-    // Ignore localStorage write failures (private mode, quota exceeded).
+    // Safari private browsing or quota exceeded — silently fail
   }
 }
 
@@ -79,5 +62,9 @@ export function getShortlistCount(): number {
 }
 
 export function clearShortlist(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Safari private browsing — silently fail
+  }
 }

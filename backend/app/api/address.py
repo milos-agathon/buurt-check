@@ -4,10 +4,11 @@ import logging
 import re
 import time
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import Response
 from pydantic import AliasChoices, BaseModel, Field
 
+from app.api.dependencies import require_entitlement
 from app.cache.redis import cache_get, cache_set
 from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
@@ -106,11 +107,7 @@ async def address_suggest(
     limit: int = Query(7, ge=1, le=20, description="Max results"),
 ):
     """Autocomplete address suggestions from PDOK Locatieserver."""
-    query = q.strip()
-    if len(query) < 2:
-        response.headers["Cache-Control"] = _CACHE_REALTIME
-        return SuggestResponse(suggestions=[])
-    cache_key = f"suggest:{query.casefold()}:{limit}"
+    cache_key = f"suggest:{q.strip().casefold()}:{limit}"
     cached = await cache_get(cache_key)
     if cached is not None:
         response.headers["Cache-Control"] = _CACHE_REALTIME
@@ -121,17 +118,16 @@ async def address_suggest(
         )
 
     try:
-        suggestions = await locatieserver.suggest(query, limit)
+        suggestions = await locatieserver.suggest(q, limit)
     except Exception as exc:
         logger.exception("address_suggest failed: %s", exc)
         raise HTTPException(status_code=502, detail="Address search unavailable") from exc
 
-    if suggestions:
-        await cache_set(
-            cache_key,
-            [s.model_dump() for s in suggestions],
-            ttl=settings.cache_ttl_suggest,
-        )
+    await cache_set(
+        cache_key,
+        [s.model_dump() for s in suggestions],
+        ttl=settings.cache_ttl_suggest,
+    )
     response.headers["Cache-Control"] = _CACHE_REALTIME
     return SuggestResponse(suggestions=suggestions)
 
@@ -191,6 +187,7 @@ async def wms_tile_proxy(
     rd_y: float = Query(..., ge=285000, le=625000, description="RD Y coordinate"),
     radius: float = Query(250.0, ge=10, le=500, description="Tile radius in meters"),
     size: int = Query(512, ge=128, le=2048, description="Tile size in pixels"),
+    _: None = Depends(require_entitlement),
 ):
     """Proxy WMS GetMap tiles to avoid CORS issues in the browser."""
     if type not in VALID_TILE_TYPES:
@@ -279,6 +276,7 @@ async def building_3d(
     rd_y: float = Query(..., ge=285000, le=625000),
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
+    _: None = Depends(require_entitlement),
 ):
     """Fast Phase 1: fetch only the target building (~2s, no bbox)."""
     cache_key = f"building3d:{pand_id}"
@@ -315,6 +313,7 @@ async def neighborhood_3d(
     rd_y: float = Query(..., ge=285000, le=625000),
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
+    _: None = Depends(require_entitlement),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
     # v26: parallel quadrant strategy for accelerated mode (4 concurrent bbox queries at 120m).
@@ -359,6 +358,7 @@ async def submit_sunlight_analysis(
     response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     body: SunlightSubmission = ...,
+    _: None = Depends(require_entitlement),
 ):
     """Accept client-computed sunlight analysis for caching and downstream use."""
     sunlight_score = normalize_sunlight_score(body.winter_hours)
@@ -530,6 +530,7 @@ async def risk_comparisons(
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
     buurt_code: str | None = Query(None),
+    _: None = Depends(require_entitlement),
 ):
     """Return data-driven comparison rows for risk detail views."""
     cache_key_risks = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
@@ -604,6 +605,7 @@ async def viewing_questions(
     lng: float = Query(..., ge=3.2, le=7.3),
     street: str | None = Query(None, description="Street name for contextualized questions"),
     city: str | None = Query(None, description="City name for contextualized questions"),
+    _: None = Depends(require_entitlement),
 ):
     """Generate viewing questions based on risk card scores.
 
@@ -645,6 +647,7 @@ async def tier_b_signals(
     house_number: str | None = Query(None),
     house_letter: str | None = Query(None),
     addition: str | None = Query(None),
+    _: None = Depends(require_entitlement),
 ):
     """Fetch Tier-B signals: energy label + crime context."""
     buurt_code = _validate_buurt_code(buurt_code)
@@ -690,6 +693,7 @@ async def address_livability(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
     rd_y: float = Query(..., ge=285000, le=625000),
+    _: None = Depends(require_entitlement),
 ):
     """Fetch Leefbaarometer livability data: current score + trend + comparison."""
     cache_key = f"livability_full:{rd_x:.0f}:{rd_y:.0f}"
@@ -710,18 +714,17 @@ async def address_livability(
             trend_task, comparison_task, return_exceptions=True
         )
 
-        trend_ok = isinstance(trend, list)
-        comparison_ok = isinstance(comparison, LivabilityComparison)
-        current.trend = trend if trend_ok else []
-        current.comparison = comparison.rows if comparison_ok else []
+        current.trend = trend if isinstance(trend, list) else []
+        current.comparison = (
+            comparison.rows if isinstance(comparison, LivabilityComparison) else []
+        )
 
-        # Only cache fully assembled responses (no partial failures).
-        if trend_ok and comparison_ok:
-            await cache_set(
-                cache_key,
-                current.model_dump(),
-                ttl=settings.cache_ttl_livability,
-            )
+        # Cache the fully assembled response
+        await cache_set(
+            cache_key,
+            current.model_dump(),
+            ttl=settings.cache_ttl_livability,
+        )
         response.headers["Cache-Control"] = _CACHE_DATA
         return current
     except Exception as exc:
@@ -740,6 +743,7 @@ async def address_property_warnings(
     construction_year: int | None = Query(None),
     num_units: int | None = Query(None),
     municipality: str | None = Query(None),
+    _: None = Depends(require_entitlement),
 ):
     """Property warnings: foundation risk, erfpacht, VvE, asbestos."""
     t0 = time.monotonic()
@@ -805,6 +809,7 @@ class ExportRequest(BaseModel):
         max_length=2_000_000,
         validation_alias=AliasChoices("shadow_image_b64", "shadow_image"),
     )
+    report_id: str | None = None
     street: str | None = None
     city: str | None = None
     buurt_code: str | None = None
@@ -853,25 +858,7 @@ async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float,
             or result.climate_stress.level != RiskLevel.unavailable
             or result.sunlight is not None
         )
-        failure_messages = {
-            "NOISE_LAYER_UNAVAILABLE",
-            "NOISE_LOOKUP_FAILED",
-            "AIR_LOOKUP_FAILED",
-            "CLIMATE_LOOKUP_FAILED",
-            "NOISE_TIMEOUT",
-            "AIR_TIMEOUT",
-            "CLIMATE_TIMEOUT",
-        }
-        has_failure = any(
-            msg in failure_messages
-            for msg in (
-                result.noise.message,
-                result.air_quality.message,
-                result.climate_stress.message,
-            )
-            if msg
-        )
-        if has_data and not has_failure:
+        if has_data:
             await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_risk_cards)
         return result
     except Exception:
@@ -932,7 +919,6 @@ async def _fetch_tier_b_for_export(vbo_id: str, buurt_code: str | None,
 
 async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     """Core export logic shared by POST and GET endpoints."""
-    body.buurt_code = _validate_buurt_code(body.buurt_code)
     if body.template not in ("quick_brief", "full_dossier"):
         raise HTTPException(
             status_code=422,
@@ -940,6 +926,15 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
         )
     if body.language not in ("en", "nl"):
         raise HTTPException(status_code=422, detail="Language must be 'en' or 'nl'")
+
+    # --- Entitlement gate: full_dossier requires a paid report ---
+    if body.template == "full_dossier":
+        if not body.report_id:
+            raise HTTPException(status_code=402, detail="Payment required")
+        from app.services.reports import check_entitlement
+
+        if not await check_entitlement(body.report_id):
+            raise HTTPException(status_code=402, detail="Payment required")
 
     # --- Phase 1: Fetch building + risks in parallel ---
     building_resp, risks = await asyncio.gather(
@@ -1070,6 +1065,7 @@ async def export_briefing_get(
     address: str = Query(...),
     template: str = Query("quick_brief"),
     language: str = Query("en"),
+    report_id: str | None = Query(None),
     shadow_image_b64: str | None = Query(None),
     shadow_image: str | None = Query(None),
     street: str | None = Query(None),
@@ -1085,6 +1081,7 @@ async def export_briefing_get(
     body = ExportRequest(
         rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng, address=address,
         template=template, language=language, shadow_image_b64=resolved_shadow,
+        report_id=report_id,
         street=street, city=city, buurt_code=buurt_code, postcode=postcode,
         house_number=house_number, house_letter=house_letter, addition=addition,
     )

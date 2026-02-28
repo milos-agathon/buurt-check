@@ -10,6 +10,13 @@ vi.mock('../services/api', () => ({
   downloadPdfBlob: vi.fn(),
 }));
 
+vi.mock('../services/analytics', () => ({
+  trackEvent: vi.fn(),
+}));
+
+import { trackEvent } from '../services/analytics';
+const mockTrackEvent = vi.mocked(trackEvent);
+
 describe('ExportBottomSheet', () => {
   let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
   const mockClose = vi.fn();
@@ -26,6 +33,7 @@ describe('ExportBottomSheet', () => {
 
   beforeEach(async () => {
     vi.mocked(api.exportBriefing).mockReset();
+    mockTrackEvent.mockReset();
     mockClose.mockReset();
     i18nInstance = await setupTestI18n('en');
   });
@@ -72,9 +80,19 @@ describe('ExportBottomSheet', () => {
         }),
       );
     });
+    expect(mockTrackEvent).toHaveBeenCalledWith('pdf_export_clicked', {
+      template: 'full_dossier',
+      report_id: 'none',
+      vbo_id: '0363010012345678',
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith('pdf_export_completed', {
+      template: 'full_dossier',
+      report_id: 'none',
+      vbo_id: '0363010012345678',
     });
     expect(mockClose).not.toHaveBeenCalled();
   });

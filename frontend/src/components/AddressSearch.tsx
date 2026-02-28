@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { suggestAddresses } from '../services/api';
+import { trackEvent } from '../services/analytics';
 import { getRecent, addRecent, type RecentSearch } from '../services/recentSearches';
 import { isFirstVisit } from '../services/firstVisit';
 import type { AddressSuggestion } from '../types/api';
@@ -67,7 +68,10 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
     debounceRef.current = setTimeout(() => fetchSuggestions(value), 300);
   };
 
-  const handleSelect = (suggestion: AddressSuggestion) => {
+  const handleSelect = (
+    suggestion: AddressSuggestion,
+    source: 'search' | 'recent' | 'example' = 'search',
+  ) => {
     setQuery(suggestion.display_name);
     setIsOpen(false);
     setSuggestions([]);
@@ -76,6 +80,10 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
       display_name: suggestion.display_name,
     });
     setRecentSearches(getRecent());
+    trackEvent('address_search_submitted', {
+      lookup_id: suggestion.id,
+      source,
+    });
     onSelect(suggestion);
   };
 
@@ -86,7 +94,7 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
       type: 'adres',
       score: 1,
     };
-    handleSelect(suggestion);
+    handleSelect(suggestion, 'recent');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -266,12 +274,12 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
           <button
             type="button"
             className="address-search__example-link"
-            onClick={() => onSelect({
+            onClick={() => handleSelect({
               id: 'adr-d3836e3ae5e5c07f18109908abba6dab',
               display_name: 'Keizersgracht 1, 1015CD Amsterdam',
               type: 'adres',
               score: 1,
-            })}
+            }, 'example')}
           >
             {t('search.exampleAddress')}
           </button>

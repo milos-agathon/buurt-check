@@ -1,6 +1,8 @@
 import type { TFunction } from 'i18next';
 import type {
   BuildingFactsResponse,
+  CheckoutSessionResponse,
+  EntitlementResponse,
   LivabilityResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
@@ -8,6 +10,7 @@ import type {
   ResolvedAddress,
   RiskCardsResponse,
   RiskComparisonsResponse,
+  ShortReportResponse,
   SunlightResult,
   SuggestResponse,
   TierBResponse,
@@ -114,14 +117,48 @@ export async function suggestAddresses(
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   const resp = await fetch(`${API_BASE}/address/suggest?${params}`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
-  return await resp.json();
+  return resp.json();
 }
 
 export async function lookupAddress(id: string, signal?: AbortSignal): Promise<ResolvedAddress> {
   const params = new URLSearchParams({ id });
   const resp = await fetch(`${API_BASE}/address/lookup?${params}`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
-  return await resp.json();
+  return resp.json();
+}
+
+export async function createShortReport(
+  vboId: string,
+  addressKey: string,
+  firstFree: boolean = false,
+): Promise<ShortReportResponse> {
+  const resp = await fetch(`${API_BASE}/reports/short`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vbo_id: vboId,
+      address_key: addressKey,
+      first_free: firstFree,
+    }),
+  });
+  if (!resp.ok) throwHttpError(resp.status);
+  return resp.json();
+}
+
+export async function checkEntitlement(reportId: string): Promise<EntitlementResponse> {
+  const resp = await fetch(`${API_BASE}/reports/${reportId}/entitlement`);
+  if (!resp.ok) throwHttpError(resp.status);
+  return resp.json();
+}
+
+export async function createCheckoutSession(reportId: string): Promise<CheckoutSessionResponse> {
+  const resp = await fetch(`${API_BASE}/billing/checkout-session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ report_id: reportId }),
+  });
+  if (!resp.ok) throwHttpError(resp.status);
+  return resp.json();
 }
 
 export async function getBuildingFacts(
@@ -130,7 +167,7 @@ export async function getBuildingFacts(
 ): Promise<BuildingFactsResponse> {
   const resp = await fetch(`${API_BASE}/address/${vboId}/building`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
-  return await resp.json();
+  return resp.json();
 }
 
 export async function getBuilding3D(
@@ -141,6 +178,7 @@ export async function getBuilding3D(
   lat: number,
   lng: number,
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<Neighborhood3DResponse> {
   const params = new URLSearchParams({
     pand_id: pandId,
@@ -149,9 +187,10 @@ export async function getBuilding3D(
     lat: String(lat),
     lng: String(lng),
   });
+  if (reportId) params.set('report_id', reportId);
   const resp = await fetch(`${API_BASE}/address/${vboId}/building3d?${params}`, { signal });
   if (!resp.ok) throwHttpError(resp.status);
-  return await resp.json();
+  return resp.json();
 }
 
 export async function getNeighborhood3D(
@@ -162,6 +201,7 @@ export async function getNeighborhood3D(
   lat: number,
   lng: number,
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<Neighborhood3DResponse> {
   const params = new URLSearchParams({
     pand_id: pandId,
@@ -170,6 +210,7 @@ export async function getNeighborhood3D(
     lat: String(lat),
     lng: String(lng),
   });
+  if (reportId) params.set('report_id', reportId);
   // Some 3DBAG areas need additional retries + slower server-side processing.
   const timeout = withTimeoutSignal(90000, signal);
   try {
@@ -178,7 +219,7 @@ export async function getNeighborhood3D(
       { signal: timeout.signal },
     );
     if (!resp.ok) throwHttpError(resp.status);
-    return await resp.json();
+    return resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -204,7 +245,7 @@ export async function getRiskCards(
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return await resp.json();
+    return resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -230,7 +271,7 @@ export async function getNeighborhoodStats(
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return await resp.json();
+    return resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -244,6 +285,7 @@ export async function getRiskComparisons(
   lng: number,
   buurtCode?: string,
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<RiskComparisonsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -252,13 +294,14 @@ export async function getRiskComparisons(
     lng: String(lng),
   });
   if (buurtCode) params.set('buurt_code', buurtCode);
+  if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(20000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/risk-comparisons?${params}`, {
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return await resp.json();
+    return resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -272,6 +315,7 @@ export async function getViewingQuestions(
   lng: number,
   context?: { street?: string; city?: string },
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<ViewingQuestionsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -281,13 +325,14 @@ export async function getViewingQuestions(
   });
   if (context?.street) params.set('street', context.street);
   if (context?.city) params.set('city', context.city);
+  if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(20000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/viewing-questions?${params}`, {
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return await resp.json();
+    return resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -301,6 +346,7 @@ export interface ExportOptions {
   lng: number;
   address: string;
   template?: 'quick_brief' | 'full_dossier';
+  reportId?: string;
   street?: string;
   city?: string;
   language?: string;
@@ -323,6 +369,7 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
     language: options.language || 'en',
   };
   if (options.shadowImageB64) body.shadow_image_b64 = options.shadowImageB64;
+  if (options.reportId) body.report_id = options.reportId;
   if (options.street) body.street = options.street;
   if (options.city) body.city = options.city;
   if (options.buurtCode) body.buurt_code = options.buurtCode;
@@ -358,7 +405,7 @@ export function downloadPdfBlob(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  // Safari can start downloads asynchronously; defer revoke to avoid empty files.
+  // Delay revocation — Safari iOS starts downloads asynchronously after click
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
@@ -372,6 +419,7 @@ export async function getTierBData(
     addition?: string;
   },
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<TierBResponse> {
   const params = new URLSearchParams();
   if (options.buurtCode) params.set('buurt_code', options.buurtCode);
@@ -379,6 +427,7 @@ export async function getTierBData(
   if (options.houseNumber) params.set('house_number', options.houseNumber);
   if (options.houseLetter) params.set('house_letter', options.houseLetter);
   if (options.addition) params.set('addition', options.addition);
+  if (reportId) params.set('report_id', reportId);
 
   const timeout = withTimeoutSignal(20000, signal);
   try {
@@ -386,7 +435,7 @@ export async function getTierBData(
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
-    return await resp.json();
+    return resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -397,11 +446,13 @@ export async function getLivability(
   rdX: number,
   rdY: number,
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<LivabilityResponse | null> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
     rd_y: String(rdY),
   });
+  if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(15000, signal);
   try {
     const resp = await fetch(`${API_BASE}/address/${vboId}/livability?${params}`, {
@@ -427,6 +478,7 @@ export async function getPropertyWarnings(
     municipality?: string;
   },
   signal?: AbortSignal,
+  reportId?: string,
 ): Promise<PropertyWarningsResponse> {
   const params = new URLSearchParams({
     rd_x: String(rdX),
@@ -437,6 +489,7 @@ export async function getPropertyWarnings(
   if (options?.numUnits != null)
     params.set('num_units', String(options.numUnits));
   if (options?.municipality) params.set('municipality', options.municipality);
+  if (reportId) params.set('report_id', reportId);
 
   const timeout = withTimeoutSignal(15000, signal);
   try {
@@ -445,7 +498,7 @@ export async function getPropertyWarnings(
       { signal: timeout.signal },
     );
     if (!resp.ok) throwHttpError(resp.status);
-    return await resp.json();
+    return resp.json();
   } finally {
     timeout.cleanup();
   }
@@ -462,6 +515,7 @@ export interface SunlightSubmissionPayload {
 export async function submitSunlightAnalysis(
   vboId: string,
   data: SunlightSubmissionPayload | SunlightResult,
+  reportId?: string,
 ): Promise<void> {
   const payload: SunlightSubmissionPayload = 'winter_hours' in data
     ? data
@@ -472,11 +526,15 @@ export async function submitSunlightAnalysis(
       analysis_year: data.analysisYear ?? new Date().getFullYear(),
       svf: data.svf,
     };
+  const params = new URLSearchParams();
+  if (reportId) params.set('report_id', reportId);
+  const query = params.toString();
+  const endpoint = `${API_BASE}/address/${vboId}/sunlight${query ? `?${query}` : ''}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
   try {
-    const resp = await fetch(`${API_BASE}/address/${vboId}/sunlight`, {
+    const resp = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -487,4 +545,3 @@ export async function submitSunlightAnalysis(
     clearTimeout(timeoutId);
   }
 }
-

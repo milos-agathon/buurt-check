@@ -1,6 +1,9 @@
 import type { TFunction } from 'i18next';
 import {
   ApiError,
+  checkEntitlement,
+  createCheckoutSession,
+  createShortReport,
   downloadPdfBlob,
   exportBriefing,
   getBuildingFacts,
@@ -344,6 +347,20 @@ describe('submitSunlightAnalysis', () => {
     });
   });
 
+  it('includes report_id query parameter when provided', async () => {
+    mockFetch.mockResolvedValue(okResponse({ status: 'ok' }));
+
+    await submitSunlightAnalysis('vbo-1', {
+      winter_hours: 2.4,
+      equinox_hours: 6.4,
+      summer_hours: 9.6,
+      analysis_year: 2026,
+    }, 'rpt-123');
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/address/vbo-1/sunlight?report_id=rpt-123');
+  });
+
   it('throws ApiError on non-OK response', async () => {
     mockFetch.mockResolvedValue(errorResponse(500));
     await expect(
@@ -527,6 +544,93 @@ describe('exportBriefing', () => {
     expect(body.lat).toBe(3);
     expect(blob).toBe(expectedBlob);
   });
+
+  it('includes report_id when provided for full_dossier entitlement checks', async () => {
+    const expectedBlob = new Blob(['pdf']);
+    mockFetch.mockResolvedValue({ ok: true, blob: () => Promise.resolve(expectedBlob) } as Response);
+
+    await exportBriefing({
+      vboId: 'vbo-1',
+      rdX: 1,
+      rdY: 2,
+      lat: 3,
+      lng: 4,
+      address: 'Test',
+      template: 'full_dossier',
+      reportId: 'report-123',
+    });
+
+    const [, init] = mockFetch.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.report_id).toBe('report-123');
+  });
+});
+
+// ─── reports + billing (monetization) ───────────────────────────────────────
+
+describe('createShortReport', () => {
+  it('posts vbo_id, address_key, and first_free', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+        report_type: 'short',
+        already_purchased: false,
+      }),
+    );
+
+    const result = await createShortReport(
+      '0363100012345678',
+      'Keizersgracht 1, Amsterdam',
+      true,
+    );
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/reports/short');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body);
+    expect(body).toEqual({
+      vbo_id: '0363100012345678',
+      address_key: 'Keizersgracht 1, Amsterdam',
+      first_free: true,
+    });
+    expect(result.report_id).toBe('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
+  });
+});
+
+describe('checkEntitlement', () => {
+  it('fetches entitlement by report id', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+        entitled: true,
+        report_type: 'short',
+      }),
+    );
+
+    const result = await checkEntitlement('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/reports/7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de/entitlement');
+    expect(result.entitled).toBe(true);
+  });
+});
+
+describe('createCheckoutSession', () => {
+  it('posts report_id and returns checkout_url', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({ checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_123' }),
+    );
+
+    const result = await createCheckoutSession('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/billing/checkout-session');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({
+      report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+    });
+    expect(result.checkout_url).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
+  });
 });
 
 // ─── downloadPdfBlob ──────────────────────────────────────────────────────────
@@ -544,22 +648,21 @@ describe('downloadPdfBlob', () => {
     appendChildSpy.mockImplementation(() => ({}) as Node);
     removeChildSpy.mockImplementation(() => ({}) as Node);
 
-    try {
-      downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
+    downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
 
-      expect(click).toHaveBeenCalledTimes(1);
-      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
-      expect(revokeObjectURLSpy).not.toHaveBeenCalled();
-      vi.advanceTimersByTime(60_000);
-      expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-      appendChildSpy.mockRestore();
-      removeChildSpy.mockRestore();
-      createElementSpy.mockRestore();
-      createObjectURLSpy.mockRestore();
-      revokeObjectURLSpy.mockRestore();
-    }
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+    // Revocation is delayed for Safari iOS compatibility
+    expect(revokeObjectURLSpy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(60_000);
+    expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
+
+    appendChildSpy.mockRestore();
+    removeChildSpy.mockRestore();
+    createElementSpy.mockRestore();
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+    vi.useRealTimers();
   });
 });
 

@@ -13,7 +13,7 @@ def _validate_bag_id(identifier: str, label: str = "ID") -> None:
     if not _BAG_ID_PATTERN.match(identifier):
         raise ValueError(f"Invalid BAG {label}: must be 16 digits, got '{identifier}'")
 
-_client: LoopAwareClient | None = LoopAwareClient(timeout=15.0)
+_client = LoopAwareClient(timeout=httpx.Timeout(15.0))
 
 # Dutch -> English translation for pand/VBO status
 STATUS_TRANSLATIONS: dict[str, str] = {
@@ -52,12 +52,6 @@ GEBRUIKSDOEL_TRANSLATIONS: dict[str, str] = {
 }
 
 
-def _get_client() -> httpx.AsyncClient:
-    global _client
-    if _client is None:
-        _client = LoopAwareClient(timeout=15.0)
-    return _client.get()
-
 
 def _translate_status(status: str | None) -> str | None:
     if not status:
@@ -87,7 +81,7 @@ def _ogc_id_filter(property_name: str, value: str) -> str:
 async def _fetch_verblijfsobject(vbo_id: str) -> dict | None:
     """Fetch verblijfsobject from BAG WFS by identificatie (direct ID lookup)."""
     _validate_bag_id(vbo_id, "VBO ID")
-    client = _get_client()
+    client = _client.get()
 
     resp = await client.get(
         settings.bag_wfs_base,
@@ -114,7 +108,7 @@ async def _fetch_verblijfsobject(vbo_id: str) -> dict | None:
 async def _fetch_pand(pand_id: str) -> dict | None:
     """Fetch pand (building) from BAG WFS by identificatie, with footprint geometry in WGS84."""
     _validate_bag_id(pand_id, "pand ID")
-    client = _get_client()
+    client = _client.get()
 
     resp = await client.get(
         settings.bag_wfs_base,

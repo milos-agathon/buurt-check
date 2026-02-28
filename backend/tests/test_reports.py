@@ -1,6 +1,7 @@
 """Tests for the report repository service (Story 1.2)."""
 
 import pytest
+import pytest_asyncio
 
 from app.db import init_db
 from app.services.reports import (
@@ -16,7 +17,7 @@ from app.services.reports import (
 )
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_path(tmp_path):
     path = str(tmp_path / "test.db")
     await init_db(path)

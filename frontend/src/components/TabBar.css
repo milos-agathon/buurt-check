@@ -28,7 +28,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--color-text-secondary);
+  color: var(--color-nav-text-dimmed);
   transition: color var(--transition-fast);
   -webkit-tap-highlight-color: transparent;
 }

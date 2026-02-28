@@ -138,6 +138,48 @@ async def activate_entitlement(
         return cursor.rowcount > 0
 
 
+async def unlock_report(
+    report_id: str,
+    provider: str,
+    provider_payment_id: str | None,
+    purchased_at: str,
+    db_path: str | None = None,
+) -> bool:
+    """Atomically set paid + active in a single UPDATE.
+
+    Prevents partial-write risk where a crash between separate
+    update_payment_status and activate_entitlement calls leaves the
+    report paid but inactive — and the idempotency guard blocks retries.
+    """
+    async with get_db(db_path) as db:
+        cursor = await db.execute(
+            "UPDATE reports SET payment_status = 'paid', provider = ?, "
+            "provider_payment_id = ?, purchased_at = ?, "
+            "entitlement_status = 'active' WHERE report_id = ?",
+            (provider, provider_payment_id, purchased_at, report_id),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def refund_report(
+    report_id: str,
+    db_path: str | None = None,
+) -> bool:
+    """Atomically set refunded + revoked in a single UPDATE.
+
+    Same atomicity rationale as unlock_report.
+    """
+    async with get_db(db_path) as db:
+        cursor = await db.execute(
+            "UPDATE reports SET payment_status = 'refunded', "
+            "entitlement_status = 'revoked' WHERE report_id = ?",
+            (report_id,),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
 async def find_existing_paid_report(
     vbo_id: str,
     db_path: str | None = None,

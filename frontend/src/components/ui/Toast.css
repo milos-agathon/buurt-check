@@ -36,17 +36,15 @@
 }
 
 .toast__action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   background: none;
   border: none;
   color: var(--color-accent);
   font: var(--type-caption);
   cursor: pointer;
-  min-width: 44px;
+  padding: 4px 8px;
   min-height: 44px;
-  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
   border-radius: var(--radius-sm);
   white-space: nowrap;
 }

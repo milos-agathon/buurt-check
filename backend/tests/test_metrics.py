@@ -175,6 +175,7 @@ class TestRequestLoggingMiddleware:
                 mock_logger.info.assert_called_once()
                 args = mock_logger.info.call_args[0]
                 # args[0] is the format string, args[1:] are values
-                assert args[2] == "GET"       # method
-                assert args[3] == "/health"   # path
-                assert args[4] == 200         # status
+                assert args[1] == "GET"       # method
+                assert args[2] == "/health"   # path
+                assert args[3] == 200         # status
+                assert isinstance(args[4], float) and args[4] >= 0  # duration_ms

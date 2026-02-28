@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     enable_lod22_context_enrichment: bool = False
     three_d_conservative_mode: bool = False
 
+    # Stripe
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_cents: int = 1499  # EUR 14.99
+    base_url: str = "http://localhost:5173"
+
     # Rate limiting
     rate_limit_enabled: bool = True
 

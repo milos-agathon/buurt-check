@@ -19,10 +19,6 @@ _CRIME_BURGLARY_KEY = "1.1.1 "
 _CRIME_VIOLENT_KEYS = {"1.4.2 ", "1.4.3 ", "1.4.4 ", "1.4.5 ", "1.4.6 ", "1.4.7 "}
 
 
-def _get_client() -> httpx.AsyncClient:
-    return _client.get()
-
-
 _BUURT_CODE_RE = re.compile(r"^BU[0-9]{4}[A-Z0-9]{4}$")
 
 
@@ -62,7 +58,7 @@ def _per_1000(count: float | None, population: float | None) -> float | None:
 
 
 async def _fetch_latest_period(base_url: str) -> str | None:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         f"{base_url}/Perioden",
         params={"$format": "json"},
@@ -82,7 +78,7 @@ async def _fetch_typed_rows(
     filter_expr: str,
     top: int = 200,
 ) -> list[dict[str, Any]]:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         f"{base_url}/TypedDataSet",
         params={
@@ -96,7 +92,7 @@ async def _fetch_typed_rows(
 
 
 async def _fetch_population(buurt_code: str) -> float | None:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         f"{settings.cbs_wijken_buurten_base}/collections/buurten/items",
         params={
@@ -125,7 +121,7 @@ async def _get_energy_label(
     if not postcode or not house_number:
         return EnergyLabelCard(message="ENERGY_INPUT_MISSING")
 
-    client = _get_client()
+    client = _client.get()
     headers: dict[str, str] = {}
     if settings.energy_label_api_key:
         headers["X-Api-Key"] = settings.energy_label_api_key
@@ -214,14 +210,14 @@ async def _fetch_crime_rows(
     safe_code = _odata_escape(area_code)
     safe_year = _odata_escape(latest_year)
     safe_month = _odata_escape(latest_month)
-    yearly_task = _fetch_typed_rows(
+    yearly_rows = await _fetch_typed_rows(
         settings.cbs_crime_yearly_base,
         filter_expr=(
             f"startswith(WijkenEnBuurten,'{safe_code}') and Perioden eq '{safe_year}'"
         ),
         top=250,
     )
-    monthly_task = _fetch_typed_rows(
+    monthly_rows = await _fetch_typed_rows(
         settings.cbs_crime_monthly_base,
         filter_expr=(
             f"SoortMisdrijf eq '{_CRIME_TOTAL_KEY}' and "
@@ -229,7 +225,6 @@ async def _fetch_crime_rows(
         ),
         top=5,
     )
-    yearly_rows, monthly_rows = await asyncio.gather(yearly_task, monthly_task)
     return yearly_rows, monthly_rows
 
 
@@ -238,29 +233,40 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     if not cleaned_buurt:
         return CrimeStatsCard(message="CRIME_NO_BUURT_CODE")
 
-    population_result, latest_year_result, latest_month_result = await asyncio.gather(
-        _fetch_population(cleaned_buurt),
-        _fetch_latest_period(settings.cbs_crime_yearly_base),
-        _fetch_latest_period(settings.cbs_crime_monthly_base),
-        return_exceptions=True,
-    )
+    # Phase 1: Population + period lookups in parallel.
+    # Population failure is non-fatal; period failures are fatal.
+    pop_task = asyncio.create_task(_fetch_population(cleaned_buurt))
 
-    population: float | None
-    if isinstance(population_result, Exception):
-        logger.exception("Population lookup failed for buurt=%s", cleaned_buurt)
-        population = None
-    else:
-        population = population_result
+    try:
+        try:
+            latest_year, latest_month = await asyncio.gather(
+                _fetch_latest_period(settings.cbs_crime_yearly_base),
+                _fetch_latest_period(settings.cbs_crime_monthly_base),
+            )
+            if not latest_year or not latest_month:
+                pop_task.cancel()
+                return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
+        except Exception:
+            pop_task.cancel()
+            logger.exception("Crime lookup failed for buurt=%s", cleaned_buurt)
+            return CrimeStatsCard(message="CRIME_LOOKUP_FAILED")
 
-    if isinstance(latest_year_result, Exception) or isinstance(latest_month_result, Exception):
-        logger.exception("Crime period lookup failed for buurt=%s", cleaned_buurt)
-        return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
+        # Collect population (non-fatal)
+        try:
+            population = await pop_task
+        except Exception:
+            logger.exception("Population lookup failed for buurt=%s", cleaned_buurt)
+            population = None
+    finally:
+        # Guard against CancelledError (BaseException) leaking pop_task
+        if not pop_task.done():
+            pop_task.cancel()
+            try:
+                await pop_task
+            except BaseException:
+                pass
 
-    latest_year = latest_year_result
-    latest_month = latest_month_result
-    if not latest_year or not latest_month:
-        return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
-
+    # Phase 2: Crime rows (depends on period results)
     try:
         # Try buurt-level first
         yearly_rows, monthly_rows = await _fetch_crime_rows(

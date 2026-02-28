@@ -3,7 +3,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.models.risk import AirQualityRiskCard, ClimateStressRiskCard, NoiseRiskCard, RiskLevel
+from app.models.risk import (
+    AirQualityRiskCard,
+    ClimateStressRiskCard,
+    NoiseRiskCard,
+    RiskLevel,
+    SeverityLevel,
+)
 from app.services.risk_cards import (
     _CLIMATE_HEAT_LAYERS,
     _CLIMATE_WATER_LAYERS,
@@ -144,15 +150,18 @@ async def test_get_risk_cards_assembly(mock_climate, mock_air, mock_noise):
     assert resp.air_quality.level == RiskLevel.medium
     assert resp.climate_stress.level == RiskLevel.high
     assert resp.noise.score == 80
-    assert resp.noise.severity == "good"
+    assert resp.noise.severity == SeverityLevel.good
+    assert isinstance(resp.noise.severity, SeverityLevel)
     assert resp.noise.summary is not None
     assert resp.noise.summary_nl is not None
     assert resp.air_quality.score == 77
-    assert resp.air_quality.severity == "good"
+    assert resp.air_quality.severity == SeverityLevel.good
+    assert isinstance(resp.air_quality.severity, SeverityLevel)
     assert resp.air_quality.summary is not None
     assert resp.air_quality.summary_nl is not None
     assert resp.climate_stress.score == 15
-    assert resp.climate_stress.severity == "critical"
+    assert resp.climate_stress.severity == SeverityLevel.critical
+    assert isinstance(resp.climate_stress.severity, SeverityLevel)
     assert resp.climate_stress.summary is not None
     assert resp.climate_stress.summary_nl is not None
 
@@ -539,6 +548,47 @@ async def test_get_risk_cards_all_cards_timeout(mock_climate, mock_air, mock_noi
     assert resp.air_quality.message == "AIR_TIMEOUT"
     assert resp.climate_stress.level == RiskLevel.unavailable
     assert resp.climate_stress.message == "CLIMATE_TIMEOUT"
+
+
+@pytest.mark.asyncio
+@patch("app.services.risk_cards._build_noise_card", new_callable=AsyncMock)
+@patch("app.services.risk_cards._build_air_card", new_callable=AsyncMock)
+@patch("app.services.risk_cards._build_climate_card", new_callable=AsyncMock)
+async def test_severity_is_enum_not_string(mock_climate, mock_air, mock_noise):
+    """Severity must be SeverityLevel enum, not a plain string (bug #21)."""
+    # Card with no score (lden_db=None) → severity = unavailable enum
+    mock_noise.return_value = NoiseRiskCard(
+        level=RiskLevel.unavailable,
+        lden_db=None,
+        source="RIVM",
+        sampled_at="2026-02-05",
+    )
+    mock_air.return_value = AirQualityRiskCard(
+        level=RiskLevel.unavailable,
+        source="RIVM GCN WMS",
+        sampled_at="2026-02-05",
+    )
+    mock_climate.return_value = ClimateStressRiskCard(
+        level=RiskLevel.unavailable,
+        source="Klimaateffectatlas WMS/WFS",
+        sampled_at="2026-02-05",
+    )
+
+    resp = await get_risk_cards(
+        vbo_id="0363010000696734",
+        rd_x=121286.0,
+        rd_y=487296.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+    # All scores are None → severity must be SeverityLevel.unavailable (enum)
+    assert resp.noise.severity == SeverityLevel.unavailable
+    assert isinstance(resp.noise.severity, SeverityLevel)
+    assert resp.air_quality.severity == SeverityLevel.unavailable
+    assert isinstance(resp.air_quality.severity, SeverityLevel)
+    assert resp.climate_stress.severity == SeverityLevel.unavailable
+    assert isinstance(resp.climate_stress.severity, SeverityLevel)
 
 
 @pytest.mark.asyncio

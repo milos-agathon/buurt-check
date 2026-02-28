@@ -18,10 +18,6 @@ logger = logging.getLogger(__name__)
 _client = LoopAwareClient(timeout=httpx.Timeout(15.0, connect=4.0))
 
 
-def _get_client() -> httpx.AsyncClient:
-    return _client.get()
-
-
 def _is_sentinel(value: Any) -> bool:
     """CBS uses large negative values as no-data sentinels."""
     if not isinstance(value, (int, float)):
@@ -175,7 +171,10 @@ def _point_in_ring(x: float, y: float, ring: list[list[float]]) -> bool:
     return inside
 
 
-def _point_in_polygon(x: float, y: float, rings: list[list[list[float]]]) -> bool:
+def _point_in_polygon(
+    x: float, y: float, rings: list[list[list[float]]]
+) -> bool:
+    """Check if point is in polygon, respecting holes (inner rings)."""
     if not rings:
         return False
     if not _point_in_ring(x, y, rings[0]):
@@ -203,7 +202,7 @@ def _geometry_contains_point(
 
 
 async def _fetch_by_buurt_code(buurt_code: str) -> dict[str, Any] | None:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         f"{settings.cbs_wijken_buurten_base}/collections/buurten/items",
         params={
@@ -221,7 +220,7 @@ async def _fetch_by_buurt_code(buurt_code: str) -> dict[str, Any] | None:
 async def _fetch_by_buurt_code_from_base(
     buurt_code: str, base_url: str
 ) -> dict[str, Any] | None:
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         f"{base_url}/collections/buurten/items",
         params={
@@ -276,7 +275,7 @@ def _merge_missing_housing_access(
 async def _fetch_by_bbox(lat: float, lng: float) -> dict[str, Any] | None:
     delta = 0.001
     bbox = f"{lng - delta},{lat - delta},{lng + delta},{lat + delta}"
-    client = _get_client()
+    client = _client.get()
     resp = await client.get(
         f"{settings.cbs_wijken_buurten_base}/collections/buurten/items",
         params={

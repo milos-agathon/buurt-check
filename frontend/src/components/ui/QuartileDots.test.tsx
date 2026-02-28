@@ -1,18 +1,18 @@
-import { beforeAll, describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import QuartileDots from './QuartileDots';
 import { setupTestI18n } from '../../test/helpers';
 
-let i18nEn: Awaited<ReturnType<typeof setupTestI18n>>;
+let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
-  i18nEn = await setupTestI18n('en');
+  i18n = await setupTestI18n('en');
 });
 
 function renderDots(quartile: number) {
   return render(
-    <I18nextProvider i18n={i18nEn}>
+    <I18nextProvider i18n={i18n}>
       <QuartileDots quartile={quartile} />
     </I18nextProvider>,
   );

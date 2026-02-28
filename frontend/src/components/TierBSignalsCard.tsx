@@ -34,12 +34,21 @@ function formatCbsPeriod(period: string, locale: string): string {
   return `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${year}`;
 }
 
-function getEnergyBadgeClass(label: string): string {
-  const band = label.trim().charAt(0).toLowerCase();
-  if (band >= 'a' && band <= 'g') {
-    return `tier-b-card__energy-badge tier-b-card__energy-badge--${band}`;
-  }
-  return 'tier-b-card__energy-badge';
+function energyBadgeClass(label?: string): string {
+  const normalized = (label ?? '').trim().toLowerCase();
+  if (normalized.startsWith('a')) return 'tier-b-card__energy-badge--a';
+  if (normalized.startsWith('b')) return 'tier-b-card__energy-badge--b';
+  if (normalized.startsWith('c')) return 'tier-b-card__energy-badge--c';
+  if (normalized.startsWith('d')) return 'tier-b-card__energy-badge--d';
+  if (normalized.startsWith('e')) return 'tier-b-card__energy-badge--e';
+  if (normalized.startsWith('f')) return 'tier-b-card__energy-badge--f';
+  if (normalized.startsWith('g')) return 'tier-b-card__energy-badge--g';
+  return '';
+}
+
+function resolveEnergyMessageKey(message?: string): string {
+  if (!message) return 'tierB.energy.message.default';
+  return `tierB.energy.message.${message}`;
 }
 
 function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
@@ -72,19 +81,16 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
 
   if (!data) return null;
 
-  const energyLabel = data.energy_label;
-  const energySourceDate = energyLabel.source_date ?? t('risk.dateUnknown');
-  const energyMessage = energyLabel.message
-    ? t(`tierB.energy.message.${energyLabel.message}`, { defaultValue: t('tierB.energy.message.default') })
-    : t('tierB.energy.message.default');
-
   const unavailable = t('tierB.unavailable');
+  const energyDate = data.energy_label.source_date ?? t('risk.dateUnknown');
+  const energyLabel = data.energy_label.label?.trim() || unavailable;
+  const energyMessageKey = resolveEnergyMessageKey(data.energy_label.message);
+  const energyMessage = t(energyMessageKey, t('tierB.energy.message.default'));
   const crimeSourceDate = data.crime.source_date ?? data.crime.yearly_period ?? t('risk.dateUnknown');
-  const per1000Suffix = ` / ${new Intl.NumberFormat(i18n.language).format(1000)}`;
+  const per1000Suffix = t('tierB.crime.per_1000_suffix');
   const rawSuffix = ` ${t('tierB.crime.rawSuffix')}`;
   const hasRates = data.crime.total_per_1000 != null;
   const nationalRate = data.crime.national_per_1000;
-  const maxComparisonRate = Math.max(data.crime.total_per_1000 ?? 0, nationalRate ?? 0, 1);
 
   const total = formatCrimeValue(data.crime.total_per_1000, data.crime.total_count, unavailable, per1000Suffix, rawSuffix);
   const burglary = formatCrimeValue(data.crime.burglary_per_1000, data.crime.burglary_count, unavailable, per1000Suffix, rawSuffix);
@@ -93,26 +99,22 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
 
   return (
     <section className="tier-b-card" data-testid="tier-b-card">
-      <article className="tier-b-card__panel" data-testid="energy-label-panel">
+      <article className="tier-b-card__panel">
         <h3 className="tier-b-card__panel-title">{t('tierB.energy.title')}</h3>
-        {energyLabel.label ? (
-          <>
-            <div className="tier-b-card__energy-label-row">
-              <span
-                className={getEnergyBadgeClass(energyLabel.label)}
-                role="img"
-                aria-label={t('tierB.energy.badgeAria', { label: energyLabel.label })}
-              >
-                {energyLabel.label}
-              </span>
-            </div>
-            <p className="tier-b-card__meaning">{t('tierB.energy.meaning')}</p>
-          </>
-        ) : (
-          <p className="tier-b-card__energy-message">{energyMessage}</p>
-        )}
+        <div className="tier-b-card__energy-label-row">
+          <span
+            className={`tier-b-card__energy-badge ${energyBadgeClass(data.energy_label.label)}`.trim()}
+            role="img"
+            aria-label={t('tierB.energy.badgeAria', { label: energyLabel })}
+          >
+            {energyLabel}
+          </span>
+        </div>
+        <p className="tier-b-card__energy-message">
+          {data.energy_label.label ? t('tierB.energy.meaning') : energyMessage}
+        </p>
         <p className="tier-b-card__source-line">
-          {t('tierB.source.energy', { source: energyLabel.source, date: energySourceDate })}
+          {t('tierB.source.energy', { source: data.energy_label.source, date: energyDate })}
         </p>
       </article>
 
@@ -124,7 +126,7 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
             {data.crime.score != null && (
               <span className="tier-b-card__crime-score">
                 {data.crime.score}
-                <span className="tier-b-card__crime-score-scale">{t('tierB.crime.scoreScale', '/100')}</span>
+                <span className="tier-b-card__crime-score-scale">{t('tierB.crime.score_scale')}</span>
               </span>
             )}
           </div>
@@ -143,7 +145,7 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
               <div className="tier-b-card__cmp-track">
                 <div
                   className="tier-b-card__cmp-fill"
-                  style={{ width: `${Math.min(100, (data.crime.total_per_1000! / maxComparisonRate) * 100)}%` }}
+                  style={{ width: `${Math.min(100, data.crime.total_per_1000!)}%` }}
                 />
               </div>
               <span className="tier-b-card__cmp-value">{data.crime.total_per_1000!.toFixed(1)}</span>
@@ -154,7 +156,7 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
                 <div className="tier-b-card__cmp-track">
                   <div
                     className="tier-b-card__cmp-fill tier-b-card__cmp-fill--reference"
-                    style={{ width: `${Math.min(100, (nationalRate / maxComparisonRate) * 100)}%` }}
+                    style={{ width: `${Math.min(100, nationalRate)}%` }}
                   />
                 </div>
                 <span className="tier-b-card__cmp-value">{nationalRate.toFixed(1)}</span>

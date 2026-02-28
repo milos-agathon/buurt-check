@@ -21,6 +21,7 @@ import {
   Scene,
   Shape,
   Spherical,
+  Texture,
   Vector3,
   WebGLRenderer,
 } from 'three';
@@ -107,25 +108,6 @@ function getCanvasDimensions(container: HTMLDivElement) {
   const fallbackHeight = Math.min(width * VIEWER_FALLBACK_ASPECT, VIEWER_FALLBACK_MAX_HEIGHT);
   const height = Math.max(container.clientHeight || fallbackHeight, 1);
   return { width, height };
-}
-
-function isDisposableTexture(value: unknown): value is { dispose: () => void } {
-  return (
-    typeof value === 'object'
-    && value !== null
-    && (value as { isTexture?: unknown }).isTexture === true
-    && typeof (value as { dispose?: unknown }).dispose === 'function'
-  );
-}
-
-function disposeMaterial(material: Material): void {
-  const materialWithProps = material as Material & Record<string, unknown>;
-  for (const value of Object.values(materialWithProps)) {
-    if (isDisposableTexture(value)) {
-      value.dispose();
-    }
-  }
-  material.dispose();
 }
 
 /**
@@ -248,7 +230,6 @@ export default function NeighborhoodViewer3D({
   const targetMeshRef = useRef<Mesh | null>(null);
   const targetMaterialCloneRef = useRef<MeshStandardMaterial | null>(null);
   const sunlightComputed = useRef(false);
-  const sunlightInFlightRef = useRef(false);
   const sunlightResultRef = useRef<SunlightResult | null>(null);
   const sunlightAbortRef = useRef<AbortController | null>(null);
   const snapshotsCaptured = useRef(false);
@@ -688,7 +669,6 @@ export default function NeighborhoodViewer3D({
     return () => {
       sunlightAbortRef.current?.abort();
       sunlightAbortRef.current = null;
-      sunlightInFlightRef.current = false;
       if (dampingTimerRef.current) {
         clearTimeout(dampingTimerRef.current);
         dampingTimerRef.current = null;
@@ -699,38 +679,20 @@ export default function NeighborhoodViewer3D({
       if (onControlEnd) controls.removeEventListener('end', onControlEnd);
       cancelAnimationFrame(sceneRef.current?.animId ?? 0);
       controls.dispose();
-      const currentScene = sceneRef.current?.scene;
-      if (currentScene) {
-        const sceneWithCleanup = currentScene as Scene & {
-          traverse?: (callback: (object: unknown) => void) => void;
-          clear?: () => void;
-        };
-        if (typeof sceneWithCleanup.traverse === 'function') {
-          sceneWithCleanup.traverse((object) => {
-            const maybeGeometry = (object as { geometry?: BufferGeometry }).geometry;
-            if (maybeGeometry instanceof BufferGeometry) {
-              maybeGeometry.dispose();
-            }
-
-            const maybeMaterial = (object as { material?: Material | Material[] }).material;
-            if (Array.isArray(maybeMaterial)) {
-              for (const material of maybeMaterial) {
-                disposeMaterial(material);
-              }
-            } else if (maybeMaterial) {
-              disposeMaterial(maybeMaterial);
-            }
-          });
+      // Dispose all scene resources (geometries, materials, textures, shadow maps)
+      scene.traverse((obj) => {
+        if (obj instanceof Mesh) {
+          obj.geometry?.dispose();
+          if (Array.isArray(obj.material)) {
+            (obj.material as Material[]).forEach((m) => m.dispose());
+          } else {
+            (obj.material as Material)?.dispose();
+          }
         }
-        const background = (currentScene as { background?: unknown }).background;
-        if (isDisposableTexture(background)) {
-          background.dispose();
+        if (obj instanceof DirectionalLight && obj.shadow?.map) {
+          obj.shadow.map.dispose();
         }
-        sceneWithCleanup.clear?.();
-      }
-      sunLight.shadow.map?.dispose?.();
-      const renderLists = (renderer as { renderLists?: { dispose?: () => void } }).renderLists;
-      renderLists?.dispose?.();
+      });
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -819,7 +781,6 @@ export default function NeighborhoodViewer3D({
     // Remove old buildings
     sunlightAbortRef.current?.abort();
     sunlightAbortRef.current = null;
-    sunlightInFlightRef.current = false;
     targetMeshRef.current = null;
     targetMaterialCloneRef.current?.dispose();
     targetMaterialCloneRef.current = null;
@@ -896,7 +857,6 @@ export default function NeighborhoodViewer3D({
     }
 
     sunlightComputed.current = false;
-    sunlightInFlightRef.current = false;
     snapshotsCaptured.current = false;
     allBuildingsReadyRef.current = false;
 
@@ -1083,7 +1043,7 @@ export default function NeighborhoodViewer3D({
       img.onload = () => {
         if (cancelled || !sceneRef.current) return;
 
-        let texture: CanvasTexture<HTMLCanvasElement | HTMLImageElement>;
+        let texture: Texture;
         if (isDark) {
           const canvas = document.createElement('canvas');
           canvas.width = img.width;
@@ -1093,7 +1053,7 @@ export default function NeighborhoodViewer3D({
           c.drawImage(img, 0, 0);
           texture = new CanvasTexture(canvas);
         } else {
-          texture = new CanvasTexture(img);
+          texture = new Texture(img);
           texture.needsUpdate = true;
         }
         texture.colorSpace = SRGBColorSpace;
@@ -1152,13 +1112,14 @@ export default function NeighborhoodViewer3D({
     const ctx = sceneRef.current;
     const callback = onSunlightAnalysisRef.current;
     if (!ctx || !callback || buildings.length === 0 || !targetPandId) return;
-    if (!allBuildingsReadyRef.current || sunlightComputed.current || sunlightInFlightRef.current) return;
+    if (!allBuildingsReadyRef.current) return;
 
     const target = buildings.find((building) => building.pand_id === targetPandId);
     if (!target || target.footprint.length < 3) return;
 
-    sunlightInFlightRef.current = true;
+    // Allow re-entry: abort previous computation, then mark as computing
     sunlightAbortRef.current?.abort();
+    sunlightComputed.current = true;
     const abortController = new AbortController();
     sunlightAbortRef.current = abortController;
 
@@ -1185,6 +1146,7 @@ export default function NeighborhoodViewer3D({
         if (!result && !abortController.signal.aborted) {
           onSunlightErrorRef.current?.();
         }
+        sunlightComputed.current = false;
         return;
       }
 
@@ -1203,6 +1165,7 @@ export default function NeighborhoodViewer3D({
           requestAnimationFrame(() => resolve());
         });
         if (abortController.signal.aborted) {
+          sunlightComputed.current = false;
           return;
         }
 
@@ -1219,10 +1182,10 @@ export default function NeighborhoodViewer3D({
       }
 
       if (abortController.signal.aborted) {
+        sunlightComputed.current = false;
         return;
       }
 
-      sunlightComputed.current = true;
       sunlightResultRef.current = nextResult;
       const range = applyTargetHeatmap(nextResult);
       setHeatmapRange(range);
@@ -1236,8 +1199,8 @@ export default function NeighborhoodViewer3D({
       if (!isAbort) {
         onSunlightErrorRef.current?.();
       }
+      sunlightComputed.current = false;
     } finally {
-      sunlightInFlightRef.current = false;
       if (sunlightAbortRef.current === abortController) {
         sunlightAbortRef.current = null;
       }
@@ -1266,12 +1229,7 @@ export default function NeighborhoodViewer3D({
 
   // Fallback: run sunlight analysis when callback arrives after buildings are ready.
   useEffect(() => {
-    if (
-      onSunlightAnalysis
-      && allBuildingsReadyRef.current
-      && !sunlightComputed.current
-      && !sunlightInFlightRef.current
-    ) {
+    if (onSunlightAnalysis && allBuildingsReadyRef.current && !sunlightComputed.current) {
       void computeSunlight();
     }
   }, [onSunlightAnalysis, computeSunlight]);
@@ -1282,7 +1240,7 @@ export default function NeighborhoodViewer3D({
     setHeatmapRange(null);
     resetTargetHeatmap();
     renderOnce();
-    if (onSunlightAnalysis && allBuildingsReadyRef.current && !loading && !sunlightInFlightRef.current) {
+    if (onSunlightAnalysis && allBuildingsReadyRef.current && !loading) {
       void computeSunlight();
     }
   }, [

@@ -9,36 +9,24 @@ export interface RecentSearch {
   timestamp: number;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
 function isRecentSearch(value: unknown): value is RecentSearch {
-  if (!isRecord(value)) return false;
-  return (
-    typeof value.id === 'string'
-    && typeof value.display_name === 'string'
-    && typeof value.timestamp === 'number'
-    && (value.postcode == null || typeof value.postcode === 'string')
-    && (value.city == null || typeof value.city === 'string')
-  );
-}
-
-function writeRecent(items: RecentSearch[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  } catch {
-    // Ignore localStorage write failures (private mode, quota exceeded).
-  }
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<RecentSearch>;
+  if (typeof candidate.id !== 'string') return false;
+  if (typeof candidate.display_name !== 'string') return false;
+  if (typeof candidate.timestamp !== 'number' || !Number.isFinite(candidate.timestamp)) return false;
+  if (candidate.postcode != null && typeof candidate.postcode !== 'string') return false;
+  if (candidate.city != null && typeof candidate.city !== 'string') return false;
+  return true;
 }
 
 export function getRecent(): RecentSearch[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isRecentSearch);
+    return parsed.filter(isRecentSearch).slice(0, MAX_RECENT);
   } catch {
     return [];
   }
@@ -48,14 +36,26 @@ export function addRecent(search: Omit<RecentSearch, 'timestamp'>): void {
   const items = getRecent().filter(s => s.id !== search.id);
   items.unshift({ ...search, timestamp: Date.now() });
   if (items.length > MAX_RECENT) items.length = MAX_RECENT;
-  writeRecent(items);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // Safari private browsing or quota exceeded — silently fail
+  }
 }
 
 export function removeRecent(id: string): void {
   const items = getRecent().filter(s => s.id !== id);
-  writeRecent(items);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // Safari private browsing or quota exceeded — silently fail
+  }
 }
 
 export function clearRecent(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Safari private browsing — silently fail
+  }
 }

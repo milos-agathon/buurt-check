@@ -136,7 +136,7 @@ async def test_zero_violent_crimes_not_treated_as_unavailable():
     side_effect = _build_side_effect(yearly_rows)
     mock_cl = _mock_client_with_side_effect(side_effect)
 
-    with patch("app.services.tier_b._get_client", return_value=mock_cl):
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
         result = await _get_crime_stats("BU05370606")
 
     assert isinstance(result, CrimeStatsCard)
@@ -160,7 +160,7 @@ async def test_nonzero_violent_crimes_reported_correctly():
     side_effect = _build_side_effect(yearly_rows)
     mock_cl = _mock_client_with_side_effect(side_effect)
 
-    with patch("app.services.tier_b._get_client", return_value=mock_cl):
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
         result = await _get_crime_stats("BU05370606")
 
     assert isinstance(result, CrimeStatsCard)
@@ -178,7 +178,7 @@ async def test_no_violent_keys_in_data_returns_none():
     side_effect = _build_side_effect(yearly_rows)
     mock_cl = _mock_client_with_side_effect(side_effect)
 
-    with patch("app.services.tier_b._get_client", return_value=mock_cl):
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
         result = await _get_crime_stats("BU05370606")
 
     assert isinstance(result, CrimeStatsCard)
@@ -192,7 +192,7 @@ async def test_zero_total_count_not_treated_as_unavailable():
     side_effect = _build_side_effect(yearly_rows)
     mock_cl = _mock_client_with_side_effect(side_effect)
 
-    with patch("app.services.tier_b._get_client", return_value=mock_cl):
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
         result = await _get_crime_stats("BU05370606")
 
     assert isinstance(result, CrimeStatsCard)
@@ -207,7 +207,7 @@ async def test_zero_burglary_count_preserved():
     side_effect = _build_side_effect(yearly_rows)
     mock_cl = _mock_client_with_side_effect(side_effect)
 
-    with patch("app.services.tier_b._get_client", return_value=mock_cl):
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
         result = await _get_crime_stats("BU05370606")
 
     assert isinstance(result, CrimeStatsCard)
@@ -309,7 +309,7 @@ async def test_valid_buurt_code_passes_through():
     side_effect = _build_side_effect(yearly_rows)
     mock_cl = _mock_client_with_side_effect(side_effect)
 
-    with patch("app.services.tier_b._get_client", return_value=mock_cl):
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
         result = await _get_crime_stats("BU0363AD07")
 
     assert isinstance(result, CrimeStatsCard)

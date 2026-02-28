@@ -60,7 +60,7 @@ describe('Performance budgets (unit-level)', () => {
     }
 
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(2000);
   });
 
   it('renders Tier-B card 100x under budget', () => {

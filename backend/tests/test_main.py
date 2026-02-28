@@ -3,8 +3,13 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
+from app.api.dependencies import require_entitlement
 from app.main import app
 from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
+
+
+async def _entitlement_noop():
+    return None
 
 
 def test_gzip_middleware_registered():
@@ -41,27 +46,31 @@ async def test_gzip_compresses_large_3d_response():
         buildings=buildings,
     )
 
-    with (
-        patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None),
-        patch("app.api.address.cache_set", new_callable=AsyncMock),
-        patch("app.api.address.three_d_bag") as mock_3d,
-    ):
-        mock_3d.get_neighborhood_3d = AsyncMock(return_value=large_response)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
-            base_url="http://test",
-            headers={"Accept-Encoding": "gzip"},
-        ) as client:
-            resp = await client.get(
-                "/api/address/0363010000696734/neighborhood3d",
-                params={
-                    "pand_id": "0363100012253924",
-                    "rd_x": "121005.0",
-                    "rd_y": "487005.0",
-                    "lat": "52.37",
-                    "lng": "4.89",
-                },
-            )
+    app.dependency_overrides[require_entitlement] = _entitlement_noop
+    try:
+        with (
+            patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None),
+            patch("app.api.address.cache_set", new_callable=AsyncMock),
+            patch("app.api.address.three_d_bag") as mock_3d,
+        ):
+            mock_3d.get_neighborhood_3d = AsyncMock(return_value=large_response)
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://test",
+                headers={"Accept-Encoding": "gzip"},
+            ) as client:
+                resp = await client.get(
+                    "/api/address/0363010000696734/neighborhood3d",
+                    params={
+                        "pand_id": "0363100012253924",
+                        "rd_x": "121005.0",
+                        "rd_y": "487005.0",
+                        "lat": "52.37",
+                        "lng": "4.89",
+                    },
+                )
+    finally:
+        app.dependency_overrides.pop(require_entitlement, None)
 
     assert resp.status_code == 200
     assert resp.headers.get("content-encoding") == "gzip"

@@ -4,12 +4,13 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+import pytest_asyncio
 
 from app.main import app
 from app.rate_limit import limiter
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def rate_client():
     """Client for rate limit tests — each test gets a fresh limiter state."""
     limiter.reset()
