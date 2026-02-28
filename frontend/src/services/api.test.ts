@@ -487,22 +487,14 @@ describe('getRiskComparisons', () => {
 
 describe('getTierBData', () => {
   it('sends GET with tier-b query params', async () => {
-    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1', energy_label: {}, crime: {} }));
+    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1', crime: {} }));
     await getTierBData('vbo-1', {
       buurtCode: 'BU0363AD07',
-      postcode: '1012NX',
-      houseNumber: '1',
-      houseLetter: 'A',
-      addition: '1',
     });
 
     const [url] = mockFetch.mock.calls[0];
     expect(url).toContain('/api/address/vbo-1/tier-b?');
     expect(url).toContain('buurt_code=BU0363AD07');
-    expect(url).toContain('postcode=1012NX');
-    expect(url).toContain('house_number=1');
-    expect(url).toContain('house_letter=A');
-    expect(url).toContain('addition=1');
   });
 });
 

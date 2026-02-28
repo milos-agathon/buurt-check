@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
+import { vi } from 'vitest';
 import SunlightRiskCard, { getAxisLabel } from './SunlightRiskCard';
 import { setupTestI18n, makeSunlightResult } from '../test/helpers';
 
@@ -17,6 +18,10 @@ function renderCard(
   lang: 'en' | 'nl' = 'en',
   unavailable = false,
   orientationDeg?: number,
+  showHeatmap = false,
+  onToggleHeatmap?: (show: boolean) => void,
+  error?: string | null,
+  onRetry?: () => void,
 ) {
   const i18n = lang === 'en' ? i18nEn : i18nNl;
   return render(
@@ -26,6 +31,10 @@ function renderCard(
         loading={loading}
         unavailable={unavailable}
         orientationDeg={orientationDeg}
+        showHeatmap={showHeatmap}
+        onToggleHeatmap={onToggleHeatmap}
+        error={error}
+        onRetry={onRetry}
       />
     </I18nextProvider>,
   );
@@ -86,7 +95,7 @@ describe('SunlightRiskCard', () => {
     expect(screen.getByText(/EN 17037/i)).toBeInTheDocument();
     expect(screen.getByText(/geometry-based estimate/i)).toBeInTheDocument();
     expect(screen.getByText(/interior layout/i)).toBeInTheDocument();
-    expect(screen.getByText(/roof-level exposure only/i)).toBeInTheDocument();
+    expect(screen.getByText(/inferred facade and ground proxy points/i)).toBeInTheDocument();
   });
 
   it('shows source', () => {
@@ -107,6 +116,56 @@ describe('SunlightRiskCard', () => {
     expect(screen.getByText('7.5 hrs')).toBeInTheDocument();
   });
 
+  it('renders SVF as open at threshold (>= 0.6)', () => {
+    renderCard(makeSunlightResult({ svf: 0.6 }));
+    expect(screen.getByText(/Diffuse light/i)).toBeInTheDocument();
+    expect(screen.getByText('60%')).toBeInTheDocument();
+    expect(screen.getByText(/Good sky access/i)).toBeInTheDocument();
+  });
+
+  it('renders SVF as moderate at threshold (>= 0.3 and < 0.6)', () => {
+    renderCard(makeSunlightResult({ svf: 0.3 }));
+    expect(screen.getByText('30%')).toBeInTheDocument();
+    expect(screen.getByText(/Moderate sky access/i)).toBeInTheDocument();
+  });
+
+  it('renders SVF as enclosed below threshold (< 0.3)', () => {
+    renderCard(makeSunlightResult({ svf: 0.29 }));
+    expect(screen.getByText('29%')).toBeInTheDocument();
+    expect(screen.getByText(/Limited sky access/i)).toBeInTheDocument();
+  });
+
+  it('shows heatmap toggle when per-point roof data is available and toggles state', () => {
+    const onToggleHeatmap = vi.fn();
+    renderCard(
+      makeSunlightResult({
+        perPointAnnual: [5.1, 7.4],
+        roofGridPoints: [[0, 10, 0], [2, 10, -2]],
+      }),
+      false,
+      'en',
+      false,
+      undefined,
+      true,
+      onToggleHeatmap,
+    );
+
+    const checkbox = screen.getByRole('checkbox');
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
+    expect(onToggleHeatmap).toHaveBeenCalledWith(false);
+  });
+
+  it('hides heatmap toggle when per-point and roof arrays do not match', () => {
+    renderCard(
+      makeSunlightResult({
+        perPointAnnual: [5.1],
+        roofGridPoints: [[0, 10, 0], [2, 10, -2]],
+      }),
+    );
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
   it('still uses winter hours for risk classification', () => {
     renderCard(makeSunlightResult({ winter: 1, annualAverage: 8.0 }));
     expect(screen.getByText('Critical')).toBeInTheDocument();
@@ -120,6 +179,14 @@ describe('SunlightRiskCard', () => {
     expect(screen.getByText(/Ask the seller/)).toBeInTheDocument();
     expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
     expect(container.querySelector('.sunlight-card')).toHaveAttribute('data-state', 'unavailable');
+  });
+
+  it('renders optional error text and retry action in unavailable state', () => {
+    const onRetry = vi.fn();
+    renderCard(undefined, false, 'en', true, undefined, false, undefined, 'Computation failed', onRetry);
+    expect(screen.getByText('Computation failed')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
   it('shows full unavailable card structure in Dutch', () => {

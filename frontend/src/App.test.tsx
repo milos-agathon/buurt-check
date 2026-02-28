@@ -158,7 +158,6 @@ beforeEach(() => {
   mockViewingQuestions.mockResolvedValue({ address_id: 'vbo-123', categories: [] });
   mockTierBData.mockResolvedValue({
     address_id: 'vbo-123',
-    energy_label: { source: 'EP-Online' },
     crime: { source: 'CBS OData 47018NED/47022NED' },
   });
   mockPropertyWarnings.mockResolvedValue({
@@ -650,10 +649,6 @@ describe('neighborhood stats integration', () => {
   it('calls getTierBData with resolved address context', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress({
       buurt_code: 'BU0363AD07',
-      postcode: '1015AA',
-      house_number: '100',
-      house_letter: 'A',
-      addition: '1',
     }));
     mockBuilding.mockResolvedValue(makeBuildingResponse());
 
@@ -663,10 +658,6 @@ describe('neighborhood stats integration', () => {
     await waitFor(() => {
       expect(mockTierBData).toHaveBeenCalledWith('vbo-123', {
         buurtCode: 'BU0363AD07',
-        postcode: '1015AA',
-        houseNumber: '100',
-        houseLetter: 'A',
-        addition: '1',
       }, expect.any(AbortSignal), 'report-123');
     });
   });

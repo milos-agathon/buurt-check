@@ -8,6 +8,12 @@ mockCanvas.toDataURL = vi.fn(() => 'data:image/png;base64,mock');
 const orbitControlsInstances: any[] = [];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const materialCalls: { args: any; instance: any }[] = [];
+const analyzeSunlightInWorkerMock = vi.hoisted(() => vi.fn());
+const sunCalcGetPositionMock = vi.hoisted(() => vi.fn(() => ({ azimuth: 0.5, altitude: 0.8 })));
+const sunCalcGetTimesMock = vi.hoisted(() => vi.fn(() => ({
+  sunrise: new Date(2026, 0, 1, 8, 0),
+  sunset: new Date(2026, 0, 1, 16, 0),
+})));
 
 vi.mock('three', () => {
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -55,19 +61,49 @@ vi.mock('three', () => {
     this.copy = vi.fn(() => this);
     this.clone = vi.fn(() => new (MeshStandardMaterial as any)(opts));
   }
-  function MockMesh(this: any) {
+  function makeAttribute(values: number[], itemSize = 3) {
+    return {
+      itemSize,
+      count: Math.floor(values.length / itemSize),
+      getX: vi.fn((i: number) => values[(i * itemSize)] ?? 0),
+      getY: vi.fn((i: number) => values[(i * itemSize) + 1] ?? 0),
+      getZ: vi.fn((i: number) => values[(i * itemSize) + 2] ?? 0),
+      setXYZ: vi.fn((i: number, x: number, y: number, z: number) => {
+        values[(i * itemSize)] = x;
+        values[(i * itemSize) + 1] = y;
+        values[(i * itemSize) + 2] = z;
+      }),
+    };
+  }
+  function attachGeometryAttributes(instance: any) {
+    instance.__attrs = {
+      position: makeAttribute([0, 10, 0, 5, 10, 0, 5, 10, -5, 0, 10, -5]),
+      normal: makeAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]),
+    };
+    instance.getAttribute = vi.fn((name: string) => instance.__attrs[name]);
+    instance.setAttribute = vi.fn((name: string, value: unknown) => {
+      instance.__attrs[name] = value;
+      return instance;
+    });
+    instance.deleteAttribute = vi.fn((name: string) => {
+      delete instance.__attrs[name];
+    });
+  }
+  function MockMesh(this: any, geometry?: any, material?: any) {
     this.rotation = { x: 0 };
     this.position = { x: 0, y: 0, z: 0, set: vi.fn() };
     this.scale = { x: 1, y: 1, z: 1, set: vi.fn() };
     this.castShadow = false;
     this.receiveShadow = false;
     this.userData = {};
-    this.geometry = { dispose: vi.fn() };
-    this.material = {
+    this.geometry = geometry ?? { dispose: vi.fn() };
+    this.material = material ?? {
       dispose: vi.fn(),
       map: null,
       needsUpdate: false,
       color: { setHex: vi.fn() },
+      clone: vi.fn(),
+      copy: vi.fn(),
     };
   }
   function Shape(this: any) {
@@ -75,15 +111,33 @@ vi.mock('three', () => {
     this.lineTo = vi.fn();
     this.closePath = vi.fn();
   }
-  function ExtrudeGeometry(this: any) { this.dispose = vi.fn(); this.deleteAttribute = vi.fn(); }
-  ExtrudeGeometry.prototype.applyMatrix4 = vi.fn();
+  function ExtrudeGeometry(this: any) {
+    this.dispose = vi.fn();
+    this.applyMatrix4 = vi.fn();
+    attachGeometryAttributes(this);
+  }
   function BufferGeometry(this: any) {
-    this.setAttribute = vi.fn();
+    attachGeometryAttributes(this);
     this.setIndex = vi.fn();
     this.computeVertexNormals = vi.fn();
     this.dispose = vi.fn();
   }
-  function Float32BufferAttribute(this: any) { }
+  function Float32BufferAttribute(this: any, arrayOrLength: number[] | number, itemSize: number) {
+    const values = Array.isArray(arrayOrLength)
+      ? [...arrayOrLength]
+      : new Array(arrayOrLength).fill(0);
+    this.array = values;
+    this.itemSize = itemSize;
+    this.count = Math.floor(values.length / itemSize);
+    this.getX = vi.fn((i: number) => values[(i * itemSize)] ?? 0);
+    this.getY = vi.fn((i: number) => values[(i * itemSize) + 1] ?? 0);
+    this.getZ = vi.fn((i: number) => values[(i * itemSize) + 2] ?? 0);
+    this.setXYZ = vi.fn((i: number, x: number, y: number, z: number) => {
+      values[(i * itemSize)] = x;
+      values[(i * itemSize) + 1] = y;
+      values[(i * itemSize) + 2] = z;
+    });
+  }
   function Color(this: any) { }
   function Vec3(this: any) {
     this.set = vi.fn().mockReturnThis();
@@ -148,12 +202,13 @@ vi.mock('three/addons/utils/BufferGeometryUtils.js', () => ({
 
 vi.mock('suncalc', () => ({
   default: {
-    getPosition: vi.fn(() => ({ azimuth: 0.5, altitude: 0.8 })),
-    getTimes: vi.fn(() => ({
-      sunrise: new Date(2026, 0, 1, 8, 0),
-      sunset: new Date(2026, 0, 1, 16, 0),
-    })),
+    getPosition: sunCalcGetPositionMock,
+    getTimes: sunCalcGetTimesMock,
   },
+}));
+
+vi.mock('../utils/sunlightWorkerClient', () => ({
+  analyzeSunlightInWorker: analyzeSunlightInWorkerMock,
 }));
 
 // Must import after mocks
@@ -171,6 +226,19 @@ beforeEach(() => {
   rafId = 0;
   orbitControlsInstances.length = 0;
   materialCalls.length = 0;
+  analyzeSunlightInWorkerMock.mockReset();
+  analyzeSunlightInWorkerMock.mockResolvedValue({
+    winter: 2.4,
+    equinox: 5.8,
+    summer: 9.7,
+    annualAverage: 5.9,
+    analysisYear: 2026,
+    roofGridPoints: [[0, 10, 0], [5, 10, -5]],
+    perPointAnnual: [4.2, 7.6],
+    analysisMethod: 'cpu-raycast-worker',
+  });
+  sunCalcGetPositionMock.mockClear();
+  sunCalcGetTimesMock.mockClear();
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => {
     return ++rafId;
   });
@@ -284,6 +352,60 @@ describe('NeighborhoodViewer3D', () => {
   it('shows reset button when loading=false', () => {
     renderViewer({ loading: false });
     expect(screen.getByRole('button', { name: /reset/i })).toBeInTheDocument();
+  });
+
+  it('invokes onSunlightAnalysis when worker analysis completes', async () => {
+    const target = n3d.buildings.find((building) => building.pand_id === n3d.target_pand_id) ?? n3d.buildings[0];
+    const onSunlightAnalysis = vi.fn();
+
+    renderViewer({
+      buildings: [target],
+      targetPandId: target.pand_id,
+      onSunlightAnalysis,
+    });
+
+    await waitFor(() => {
+      expect(onSunlightAnalysis).toHaveBeenCalledTimes(1);
+    });
+    expect(onSunlightAnalysis).toHaveBeenCalledWith(
+      expect.objectContaining({
+        winter: expect.any(Number),
+        annualAverage: expect.any(Number),
+      }),
+    );
+  });
+
+  it('shows heatmap legend when heatmap is enabled and per-point data exists', async () => {
+    const target = n3d.buildings.find((building) => building.pand_id === n3d.target_pand_id) ?? n3d.buildings[0];
+
+    renderViewer({
+      buildings: [target],
+      targetPandId: target.pand_id,
+      showHeatmap: true,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('heatmap-legend')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Roof sun-hours heatmap')).toBeInTheDocument();
+  });
+
+  it('uses sunDateTime prop when computing sun direction override', async () => {
+    const sliderDate = new Date('2026-12-21T09:00:00.000Z');
+    renderViewer({ sunDateTime: sliderDate });
+
+    await waitFor(() => {
+      const hasSliderCall = sunCalcGetPositionMock.mock.calls.some((call) => {
+        const [date, lat, lng] = call as unknown as [Date, number, number];
+        return (
+          date instanceof Date
+          && date.getTime() === sliderDate.getTime()
+          && lat === n3d.center.lat
+          && lng === n3d.center.lng
+        );
+      });
+      expect(hasSliderCall).toBe(true);
+    });
   });
 
   it('captures shadow snapshots only after all neighbor chunks are processed', async () => {

@@ -8,6 +8,8 @@ interface Props {
   sunlight?: SunlightResult;
   loading?: boolean;
   unavailable?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   orientationDeg?: number;
   showHeatmap?: boolean;
   onToggleHeatmap?: (show: boolean) => void;
@@ -47,6 +49,8 @@ export default function SunlightRiskCard({
   sunlight,
   loading,
   unavailable,
+  error,
+  onRetry,
   orientationDeg,
   showHeatmap = false,
   onToggleHeatmap,
@@ -70,6 +74,16 @@ export default function SunlightRiskCard({
         <p className="sunlight-card__subtitle">{t('sunlight.subtitle')}</p>
         <SeverityBadge severity="unavailable" />
         <p className="sunlight-card__meaning">{t('sunlight.meaning.unavailable')}</p>
+        {error && <p className="sunlight-card__error">{error}</p>}
+        {onRetry && (
+          <button
+            type="button"
+            className="app__retry-button sunlight-card__retry"
+            onClick={onRetry}
+          >
+            {t('error.retry', 'Retry')}
+          </button>
+        )}
         <p className="sunlight-card__tip">{t('sunlight.viewingTip')}</p>
         <p className="sunlight-card__source">{t('sunlight.sourceUnavailable')}</p>
       </div>

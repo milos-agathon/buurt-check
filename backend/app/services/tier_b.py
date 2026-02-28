@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 
 from app.config import settings
-from app.models.tier_b import CrimeStatsCard, EnergyLabelCard, TierBResponse
+from app.models.tier_b import CrimeStatsCard, TierBResponse
 from app.services.http_client import LoopAwareClient
 from app.services.scoring import crime_summary, normalize_crime_score, severity_from_score
 
@@ -32,14 +32,6 @@ def _clean_buurt_code(value: str | None) -> str | None:
         return None
     cleaned = value.strip().upper()
     return cleaned if _BUURT_CODE_RE.match(cleaned) else None
-
-
-def _first_present(obj: dict[str, Any], keys: list[str]) -> str | None:
-    for key in keys:
-        value = obj.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
 
 
 def _to_float(value: Any) -> float | None:
@@ -110,84 +102,6 @@ async def _fetch_population(buurt_code: str) -> float | None:
     if not isinstance(inhabitants, (int, float)) or inhabitants <= 0 or inhabitants <= -99990:
         return None
     return float(inhabitants)
-
-
-async def _get_energy_label(
-    postcode: str | None,
-    house_number: str | None,
-    house_letter: str | None,
-    addition: str | None,
-) -> EnergyLabelCard:
-    if not postcode or not house_number:
-        return EnergyLabelCard(message="ENERGY_INPUT_MISSING")
-
-    client = _client.get()
-    headers: dict[str, str] = {}
-    if settings.energy_label_api_key:
-        headers["X-Api-Key"] = settings.energy_label_api_key
-
-    params = {
-        "postcode": postcode.replace(" ", "").upper(),
-        "huisnummer": house_number,
-    }
-    if house_letter:
-        params["huisletter"] = house_letter
-    if addition:
-        params["huisnummertoevoeging"] = addition
-
-    try:
-        resp = await client.get(settings.energy_label_base, params=params, headers=headers)
-    except Exception:
-        logger.exception("Energy label lookup failed")
-        return EnergyLabelCard(message="ENERGY_LOOKUP_FAILED")
-
-    if resp.status_code == 401:
-        return EnergyLabelCard(message="ENERGY_AUTH_REQUIRED")
-    if resp.status_code == 404:
-        return EnergyLabelCard(message="ENERGY_NOT_FOUND")
-    if resp.status_code >= 400:
-        return EnergyLabelCard(message="ENERGY_LOOKUP_FAILED")
-
-    payload = resp.json()
-    if isinstance(payload, list):
-        record = payload[0] if payload else {}
-    elif isinstance(payload, dict):
-        if isinstance(payload.get("items"), list):
-            items = payload.get("items") or []
-            record = items[0] if items else {}
-        else:
-            record = payload
-    else:
-        record = {}
-
-    label = _first_present(
-        record,
-        [
-            "label",
-            "Label",
-            "labelLetter",
-            "LabelLetter",
-            "Energielabel",
-            "EnergieLabel",
-            "labelKlasse",
-            "energyLabel",
-            "EnergyLabel",
-        ],
-    )
-    source_date = _first_present(
-        record,
-        [
-            "RegistratieDatum",
-            "registratieDatum",
-            "Opnamedatum",
-            "Datum",
-            "date",
-        ],
-    )
-
-    if label is None:
-        return EnergyLabelCard(source_date=source_date, message="ENERGY_NOT_FOUND")
-    return EnergyLabelCard(label=label, source_date=source_date)
 
 
 def _buurt_to_gemeente(buurt_code: str) -> str:
@@ -344,12 +258,6 @@ async def get_tier_b_data(
     *,
     vbo_id: str,
     buurt_code: str | None,
-    postcode: str | None,
-    house_number: str | None,
-    house_letter: str | None,
-    addition: str | None,
 ) -> TierBResponse:
-    energy_task = _get_energy_label(postcode, house_number, house_letter, addition)
-    crime_task = _get_crime_stats(buurt_code)
-    energy, crime = await asyncio.gather(energy_task, crime_task)
-    return TierBResponse(address_id=vbo_id, energy_label=energy, crime=crime)
+    crime = await _get_crime_stats(buurt_code)
+    return TierBResponse(address_id=vbo_id, crime=crime)

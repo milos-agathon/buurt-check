@@ -132,11 +132,6 @@ const DOSSIER_SEED = {
   },
   tierBData: {
     address_id: '0363010000696734',
-    energy_label: {
-      label: 'A',
-      source: 'EP-Online',
-      source_date: '2025-05-01',
-    },
     crime: {
       total_per_1000: 12.5,
       burglary_per_1000: 1.2,

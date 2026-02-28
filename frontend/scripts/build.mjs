@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import { resolve } from 'node:path';
 import process from 'node:process';
 
 function quoteArg(arg) {
@@ -34,6 +36,9 @@ function runNpm(args, extraEnv = {}) {
 
 async function main() {
   await runNpm(['exec', '--', 'tsc', '-b']);
+
+  // Avoid stale hashed assets inflating bundle-budget checks.
+  rmSync(resolve(process.cwd(), 'dist'), { recursive: true, force: true });
 
   // Prevent esbuild OOM crashes seen on constrained Windows hosts.
   const goMaxProcs = process.env.GOMAXPROCS ?? '1';

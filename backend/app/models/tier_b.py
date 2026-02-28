@@ -1,13 +1,6 @@
 from pydantic import BaseModel
 
 
-class EnergyLabelCard(BaseModel):
-    label: str | None = None
-    source: str = "EP-Online"
-    source_date: str | None = None
-    message: str | None = None
-
-
 class CrimeStatsCard(BaseModel):
     total_per_1000: float | None = None
     national_per_1000: float | None = None
@@ -31,5 +24,4 @@ class CrimeStatsCard(BaseModel):
 
 class TierBResponse(BaseModel):
     address_id: str
-    energy_label: EnergyLabelCard
     crime: CrimeStatsCard

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { analyzeSunlight, getSampleMinutesForDay } from './sunlightAnalysis';
+import { getDaylightRange } from './sunPosition';
 
 vi.mock('./sunPosition', () => ({
   SUN_DISTANCE: 300,
@@ -155,5 +156,40 @@ describe('analyzeSunlight', () => {
     });
 
     expect(result).toBeNull();
+  });
+
+  it('computes annual averages using daylight-weighted monthly means', async () => {
+    const daylightRangeMock = vi.mocked(getDaylightRange);
+    daylightRangeMock.mockImplementation((date: Date) => {
+      return date.getMonth() < 6
+        ? { sunrise: 8, sunset: 9 }
+        : { sunrise: 8, sunset: 11 };
+    });
+
+    const raycaster = {
+      far: 0,
+      set: vi.fn(),
+      intersectObjects: vi.fn(() => []),
+    };
+
+    try {
+      const result = await analyzeSunlight({
+        buildingMeshes: [{ userData: { pandId: 'target' } }],
+        targetPandId: 'target',
+        footprint: [[0, 0], [4, 0], [4, 4], [0, 4]],
+        roofY: 10,
+        lat: 52.37,
+        lng: 4.9,
+        intervalMinutes: 60,
+        raycaster,
+        yieldControl: async () => {},
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.annualAverage).toBe(3.3);
+      expect(result!.perPointAnnual).toEqual([3.3, 3.3]);
+    } finally {
+      daylightRangeMock.mockImplementation(() => ({ sunrise: 8, sunset: 9 }));
+    }
   });
 });

@@ -36,9 +36,28 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-i18next', 'i18next', 'framer-motion'],
-          'vendor-three': ['three', 'suncalc'],
+        manualChunks: (id) => {
+          const path = id.replace(/\\/g, '/');
+          if (
+            path.includes('/node_modules/react/')
+            || path.includes('/node_modules/react-dom/')
+          ) {
+            return 'vendor-react';
+          }
+          if (
+            path.includes('/node_modules/react-i18next/')
+            || path.includes('/node_modules/i18next/')
+            || path.includes('/node_modules/framer-motion/')
+          ) {
+            return 'vendor-ui-i18n';
+          }
+          if (path.includes('/node_modules/three/') || path.includes('/node_modules/suncalc/')) {
+            return 'vendor-three';
+          }
+          if (path.includes('/src/i18n/')) {
+            return 'i18n-resources';
+          }
+          return undefined;
         },
       },
     },

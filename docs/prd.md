@@ -62,8 +62,6 @@ These are the ones where you can make a *real market contribution* fast:
 5. **Neighborhood "fit" cards (CBS Wijken & Buurten)**
    Demographics, density, etc. This exists in various places, but rarely packaged for *buyers* with "so what?" explanations. ([pdok.nl][5])
 
-6. **Energy label lookup + "upgrade reality"**
-   You *can* integrate EP-Online, but it requires an API key and careful caching. Still valuable for first buyers' running costs. ([RVO.nl][6])
 
 ### Tier C — don't attempt in MVP (either not open or you'll get wrecked legally/operationally)
 
@@ -101,7 +99,6 @@ Users are navigating high-stakes property decisions (often six-figure) in an unf
 2. App generates a dossier following the **"house first, buurt second"** principle:
    * **House details:** Building facts (BAG), risk assessment (noise, air, climate, sunlight), property warnings, soil info
    * **Neighborhood context:** Livability (Leefbaarometer), 3D block view + sunlight & shadow analysis (3DBAG + Three.js + SunCalc), neighborhood snapshot (CBS)
-   * *If available:* **Energy label** (EP-Online) + **Crime signal** (CBS OData) — Tier B
 3. User explores **3D shadow timeline**: drags time slider to see how shadows fall on the property at different times of day and seasons.
 4. User saves to a **Shortlist**, compares up to **3 homes**, exports a **PDF "Viewing Briefing"** with forge3d-rendered shadow snapshots.
 5. At viewing: user opens "**Questions to ask**" checklist auto-generated from detected risks.
@@ -122,7 +119,6 @@ Feature delivery labels for this PRD:
 | F4 | Implemented now | Neighborhood snapshot indicators. |
 | F5 | Implemented now | Shortlist + compare + dual-template PDF export. |
 | F6 | Implemented now | Crime signal card. |
-| F7 | Implemented now | Energy label card. |
 | P1 | Post-MVP | Web rendering migration away from Three.js. |
 | P2 | Post-MVP | Full architecture migration (Zustand/Tailwind/Framer). |
 
@@ -203,9 +199,7 @@ Cards in MVP:
 * Present as crimes per 1,000 residents; sub-cards: burglary, violent crime
 * Mandatory disclaimers about registered vs. total crime
 
-#### F7 — Energy label lookup (Tier B)
 
-* EP-Online API v5 (API key required); cache and rate-limit
 * Useful for running costs and "upgrade reality" scenarios
 
 ## 6. Out of scope (explicit)
@@ -267,7 +261,6 @@ Define these before launch. Track outcomes, not outputs.
 | Road traffic noise (Lden) | **RIVM / Atlas Leefomgeving noise** | NL | WMS + ZIP | WMS: `https://data.rivm.nl/geo/alo/wms?request=GetCapabilities` + ZIPs on data.overheid ([data.overheid.nl][3]) | Periodic | Indicative; show disclaimer |
 | Air quality PM2.5 / NO2 | **RIVM GCN** | NL | WMS/WCS + ZIP | WMS: `https://data.rivm.nl/geo/gcn/wms?request=GetCapabilities` WCS: `…/wcs?request=GetCapabilities` ([data.overheid.nl][9]) | Annual + scenarios | Public domain |
 | Climate stress layers | **Klimaateffectatlas** | NL | WMS/WFS (GeoServer) | WMS/WFS: `https://maps1.klimaatatlas.net/geoserver/ows` ([klimaateffectatlas.nl][4]) | Periodic | CC BY 4.0 attribution required |
-| Energy label lookup | **EP-Online Public API v5** | NL | REST (API key) + bulk | `https://public.ep-online.nl/api/v5/PandEnergielabel/Adres` ([RVO.nl][6]) | Daily mut., monthly full | Needs API key; cache + rate-limit |
 | Crime statistics | **CBS OData** | NL | OData API | `https://dataderden.cbs.nl/ODataApi/OData/47018NED` ([data.overheid.nl][13]) | Annual (yearly table), monthly | Official CBS; privacy suppression applies |
 
 ### Integration details per source
@@ -332,10 +325,7 @@ Recommended for MVP: 3DBAG API for geometry + attributes. Kadaster 3D Basisvoorz
   * `GET /collections/buurten/items?bbox=…` then point-in-polygon in server, or
   * `GET /collections/buurten/items/{id}` for cached lookups
 
-#### H) Energy label (Tier B)
 
-* **Energy label by address**: `https://public.ep-online.nl/api/v5/PandEnergielabel/Adres?postcode=…&huisnummer=…` ([RVO.nl][6])
-* **Bulk file discovery**: `https://public.ep-online.nl/api/v5/Mutatiebestand/DownloadInfo` ([RVO.nl][6])
 * Requires API key; cache and rate-limit.
 
 #### I) Crime statistics (Tier B)
@@ -542,7 +532,6 @@ These require additional engineering effort and are explicitly out of scope for 
 ### Data ingestion
 
 * **On-demand**: WMS/WCS sampling and API aggregation with caching.
-* **Real-time**: BAG/Locatieserver, CBS, 3DBAG, risk sources, EP-Online lookups with cache + fallback behavior.
 
 ### API serving
 
@@ -627,7 +616,6 @@ These require additional engineering effort and are explicitly out of scope for 
   - PDOK Luchtfoto: CC BY 4.0 attribution required
   - CBS, BAG, RIVM: public services, attribution as good practice
 * **Disclaimers:** All environmental, noise, air quality, and crime data is presented as indicative. The app does not provide professional advice. Disclaimer text shown on every dossier and PDF.
-* **API terms of service:** BAG/PDOK, RIVM, CBS, and Klimaateffectatlas are public services. Respect rate limits, cache aggressively, and do not scrape. EP-Online requires an API key with separate terms.
 
 ---
 
@@ -644,7 +632,6 @@ These require additional engineering effort and are explicitly out of scope for 
 | forge3d server GPU availability | Medium | Medium — blocks PDF export | Fall back to Three.js client-side `toDataURL()` capture. Use spot/preemptible GPU instances with queue. Cache renders aggressively (7-day TTL). |
 | forge3d render parity with Three.js | Low | Low — visual inconsistency | Both consume identical geometry + sun positions. Accept minor lighting differences (PBR vs MeshStandardMaterial) as a quality improvement, not a bug. |
 | PDOK orthophoto CORS or availability | Low | Low — no roof textures | Fall back to solid semantic roof colors. Scene remains fully functional. |
-| EP-Online API key revocation | Low | Low — Tier B feature | Energy label is optional in MVP. Degrade gracefully. |
 | WebGPU browser support fragmentation | N/A | N/A | Not relevant for MVP (forge3d is server-side only). Monitor for Phase 2 WASM migration. |
 | Google 3D Tiles API blocked for EU | N/A | N/A | Not a dependency. Google stopped serving Photorealistic 3D Tiles to EU/EEA billing addresses (July 2025, DMA compliance). buurt-check uses open 3DBAG data exclusively. |
 
@@ -667,7 +654,6 @@ The dual-renderer architecture is a genuine competitive advantage: Three.js deli
 [3]: https://data.overheid.nl/dataset/5589-geluid-in-nederland-van-wegverkeer--lden- "Geluid van wegverkeer (Lden) | Data overheid"
 [4]: https://www.klimaateffectatlas.nl/nl/faq "FAQ"
 [5]: https://www.pdok.nl/ogc-apis/-/article/cbs-wijken-en-buurten "CBS Wijken en Buurten - (OGC) API's"
-[6]: https://www.rvo.nl/sites/default/files/2025-02/handleiding-ep-online-opvragen-van-bestanden.pdf "Handleiding EP-online.nl Opvragen van bestanden (handmatig en automatisch)  versie 1.0 2025"
 [7]: https://www.kadaster.nl/zakelijk/producten/geo-informatie/3d-producten/3d-basisvoorziening "3D Basisvoorziening | download kosteloos"
 [8]: https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1 "CBS Wijken en Buurten 2024 (OGC API)"
 [9]: https://data.overheid.nl/dataset/65786-fijnstof--pm2-5--grootschalige-concentratiekaarten-nederland--inspire-as-is-dataset- "Fijnstof (PM2.5) Grootschalige concentratiekaarten Nederland (INSPIRE as-is Dataset) | Data overheid"

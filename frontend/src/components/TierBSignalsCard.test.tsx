@@ -24,14 +24,10 @@ describe('TierBSignalsCard', () => {
     expect(screen.getByText('Loading additional property data...')).toBeInTheDocument();
   });
 
-  it('renders data values and sources', () => {
+  it('renders crime values and source', () => {
     renderCard({
       data: {
         address_id: 'vbo-1',
-        energy_label: {
-          source: 'EP-Online',
-          source_date: '2025-01-01',
-        },
         crime: {
           total_per_1000: 12.5,
           burglary_per_1000: 1.1,
@@ -48,14 +44,12 @@ describe('TierBSignalsCard', () => {
     expect(screen.getAllByText('12.5').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Source \+ date: CBS OData/)).toBeInTheDocument();
     expect(screen.getByText('Latest month: December 2025')).toBeInTheDocument();
-    expect(screen.getByText('Energy label')).toBeInTheDocument();
   });
 
   it('renders comparison bars when per-1000 rates are available', () => {
     renderCard({
       data: {
         address_id: 'vbo-1',
-        energy_label: { source: 'EP-Online' },
         crime: {
           total_per_1000: 25.3,
           national_per_1000: 52.0,
@@ -77,7 +71,6 @@ describe('TierBSignalsCard', () => {
     renderCard({
       data: {
         address_id: 'vbo-1',
-        energy_label: { source: 'EP-Online' },
         crime: {
           total_per_1000: 25.3,
           source: 'CBS',
@@ -92,7 +85,6 @@ describe('TierBSignalsCard', () => {
     renderCard({
       data: {
         address_id: 'vbo-1',
-        energy_label: { source: 'EP-Online' },
         crime: {
           total_count: 150,
           source: 'CBS',
@@ -107,10 +99,6 @@ describe('TierBSignalsCard', () => {
     renderCard({
       data: {
         address_id: 'vbo-1',
-        energy_label: {
-          source: 'EP-Online',
-          message: 'ENERGY_LABEL_NO_DATA',
-        },
         crime: {
           source: 'CBS OData 47018NED/47022NED',
           message: 'CRIME_NO_DATA',
@@ -127,19 +115,5 @@ describe('TierBSignalsCard', () => {
     const { container } = renderCard({ error: 'Tier B temporarily unavailable' });
     expect(screen.getByText('Tier B temporarily unavailable')).toBeInTheDocument();
     expect(container.querySelector('.tier-b-card')).toHaveAttribute('data-state', 'error');
-  });
-
-  it('renders energy label badge and message', () => {
-    renderCard({
-      data: {
-        address_id: 'vbo-1',
-        energy_label: { label: 'A++', source: 'EP-Online', source_date: '2024-03-15' },
-        crime: { source: 'CBS' },
-      },
-    });
-
-    expect(screen.getByRole('img', { name: /Energy label: A\+\+/ })).toBeInTheDocument();
-    expect(screen.getByText('Verify the label document and insulation details at viewing.')).toBeInTheDocument();
-    expect(screen.getByText(/Source \+ date: EP-Online/)).toBeInTheDocument();
   });
 });

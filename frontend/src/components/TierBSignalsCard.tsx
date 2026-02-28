@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TierBResponse, SeverityLevel } from '../types/api';
+import type { SeverityLevel, TierBResponse } from '../types/api';
 import SeverityBadge from './ui/SeverityBadge';
 import './TierBSignalsCard.css';
 
@@ -34,23 +34,6 @@ function formatCbsPeriod(period: string, locale: string): string {
   return `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${year}`;
 }
 
-function energyBadgeClass(label?: string): string {
-  const normalized = (label ?? '').trim().toLowerCase();
-  if (normalized.startsWith('a')) return 'tier-b-card__energy-badge--a';
-  if (normalized.startsWith('b')) return 'tier-b-card__energy-badge--b';
-  if (normalized.startsWith('c')) return 'tier-b-card__energy-badge--c';
-  if (normalized.startsWith('d')) return 'tier-b-card__energy-badge--d';
-  if (normalized.startsWith('e')) return 'tier-b-card__energy-badge--e';
-  if (normalized.startsWith('f')) return 'tier-b-card__energy-badge--f';
-  if (normalized.startsWith('g')) return 'tier-b-card__energy-badge--g';
-  return '';
-}
-
-function resolveEnergyMessageKey(message?: string): string {
-  if (!message) return 'tierB.energy.message.default';
-  return `tierB.energy.message.${message}`;
-}
-
 function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
   const { t, i18n } = useTranslation();
 
@@ -82,10 +65,6 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
   if (!data) return null;
 
   const unavailable = t('tierB.unavailable');
-  const energyDate = data.energy_label.source_date ?? t('risk.dateUnknown');
-  const energyLabel = data.energy_label.label?.trim() || unavailable;
-  const energyMessageKey = resolveEnergyMessageKey(data.energy_label.message);
-  const energyMessage = t(energyMessageKey, t('tierB.energy.message.default'));
   const crimeSourceDate = data.crime.source_date ?? data.crime.yearly_period ?? t('risk.dateUnknown');
   const per1000Suffix = t('tierB.crime.per_1000_suffix');
   const rawSuffix = ` ${t('tierB.crime.rawSuffix')}`;
@@ -99,25 +78,6 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
 
   return (
     <section className="tier-b-card" data-testid="tier-b-card">
-      <article className="tier-b-card__panel">
-        <h3 className="tier-b-card__panel-title">{t('tierB.energy.title')}</h3>
-        <div className="tier-b-card__energy-label-row">
-          <span
-            className={`tier-b-card__energy-badge ${energyBadgeClass(data.energy_label.label)}`.trim()}
-            role="img"
-            aria-label={t('tierB.energy.badgeAria', { label: energyLabel })}
-          >
-            {energyLabel}
-          </span>
-        </div>
-        <p className="tier-b-card__energy-message">
-          {data.energy_label.label ? t('tierB.energy.meaning') : energyMessage}
-        </p>
-        <p className="tier-b-card__source-line">
-          {t('tierB.source.energy', { source: data.energy_label.source, date: energyDate })}
-        </p>
-      </article>
-
       <article className="tier-b-card__panel">
         <h3 className="tier-b-card__panel-title">{t('tierB.crime.title')}</h3>
         {data.crime.severity && (

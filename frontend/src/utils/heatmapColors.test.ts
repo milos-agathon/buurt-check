@@ -26,6 +26,18 @@ describe('sunHoursToColor', () => {
     expect(r).toBeLessThanOrEqual(1);
   });
 
+  it('uses midpoint color when min and max are identical', () => {
+    const color = sunHoursToColor(6, 6, 6);
+    const midpoint = sunHoursToColor(8, 0, 16);
+    expect(color).toEqual(midpoint);
+  });
+
+  it('clamps values above max to the best (green-ish) endpoint', () => {
+    const above = sunHoursToColor(20, 0, 16);
+    const atMax = sunHoursToColor(16, 0, 16);
+    expect(above).toEqual(atMax);
+  });
+
   it('exposes a gradient CSS string that matches heatmap stops', () => {
     const gradient = getSunHoursGradientCss();
     expect(gradient).toContain('rgb(224 64 64)');

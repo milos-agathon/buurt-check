@@ -28,7 +28,7 @@ from app.models.risk import (
     ViewingQuestion,
     ViewingQuestionsResponse,
 )
-from app.models.tier_b import CrimeStatsCard, EnergyLabelCard, TierBResponse
+from app.models.tier_b import CrimeStatsCard, TierBResponse
 from app.services.pdf_export import (
     BuurtCheckPDF,
     _build_risk_cells,
@@ -133,7 +133,6 @@ def _make_neighborhood_stats() -> NeighborhoodStats:
 def _make_tier_b() -> TierBResponse:
     return TierBResponse(
         address_id="0363010012345678",
-        energy_label=EnergyLabelCard(label="C", source_date="2024-03-15"),
         crime=CrimeStatsCard(
             total_per_1000=65.3,
             burglary_per_1000=4.2,
@@ -505,10 +504,9 @@ class TestGenerateFullDossier:
         assert isinstance(result, bytes)
         assert result[:5] == b"%PDF-"
 
-    def test_partial_tier_b_no_energy(self):
+    def test_partial_tier_b_with_crime_only(self):
         tier_b = TierBResponse(
             address_id="0363010012345678",
-            energy_label=EnergyLabelCard(message="Auth required"),
             crime=CrimeStatsCard(total_per_1000=55.0),
         )
         result = generate_full_dossier(
@@ -527,7 +525,6 @@ class TestGenerateFullDossier:
     def test_partial_tier_b_no_crime(self):
         tier_b = TierBResponse(
             address_id="0363010012345678",
-            energy_label=EnergyLabelCard(label="B"),
             crime=CrimeStatsCard(message="No data available"),
         )
         result = generate_full_dossier(

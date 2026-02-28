@@ -8,10 +8,12 @@ import {
   SUN_DISTANCE,
 } from './sunPosition';
 import {
+  buildSunlightEvaluationPoints,
+  type SunlightEvaluationPoints,
+} from './sunlightSampling';
+import {
   DEFAULT_GRID_SPACING_METERS,
   DEFAULT_MAX_ROOF_POINTS,
-  generateRoofSamplePoints,
-  type RoofPoint3D,
 } from './roofSampling';
 
 interface RaycastHitLike {
@@ -36,6 +38,7 @@ export interface SunlightAnalysisOptions {
   targetPandId: string;
   footprint: number[][];
   roofY: number;
+  groundY?: number;
   lat: number;
   lng: number;
   year?: number;
@@ -43,6 +46,14 @@ export interface SunlightAnalysisOptions {
   chunkRaycasts?: number;
   gridSpacingMeters?: number;
   maxPoints?: number;
+  includeFacadePoints?: boolean;
+  includeGroundPoints?: boolean;
+  facadePointCount?: number;
+  groundPointCount?: number;
+  facadeOffsetMeters?: number;
+  groundOffsetMeters?: number;
+  facadeHeightMeters?: number;
+  groundHeightOffsetMeters?: number;
   raycaster?: RaycasterLike;
   yieldControl?: () => Promise<void>;
   abortSignal?: AbortSignal;
@@ -54,6 +65,23 @@ const SELF_HIT_EPSILON_METERS = 0.15;
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function weightedAverage(values: number[], weights: number[]): number {
+  let weightedSum = 0;
+  let totalWeight = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const weight = Math.max(0, weights[i] ?? 0);
+    weightedSum += values[i] * weight;
+    totalWeight += weight;
+  }
+
+  if (totalWeight <= 0) {
+    return 0;
+  }
+
+  return weightedSum / totalWeight;
 }
 
 export function getSampleMinutesForDay(
@@ -104,15 +132,25 @@ function isSameSurfaceSelfHit(hit: RaycastHitLike, origin: Vector3): boolean {
   return false;
 }
 
-function buildDefaultResult(year: number, roofGridPoints: RoofPoint3D[]): SunlightResult {
+function buildDefaultResult(year: number, points: SunlightEvaluationPoints): SunlightResult {
   return {
     winter: 0,
     equinox: 0,
     summer: 0,
     annualAverage: 0,
     analysisYear: year,
-    roofGridPoints,
-    perPointAnnual: roofGridPoints.map(() => 0),
+    roofGridPoints: points.roofGridPoints,
+    facadeProxyPoints: points.facadeProxyPoints,
+    groundProxyPoints: points.groundProxyPoints,
+    perPointAnnual: points.roofGridPoints.map(() => 0),
+    perFacadeAnnual: points.facadeProxyPoints.map(() => 0),
+    perGroundAnnual: points.groundProxyPoints.map(() => 0),
+    samplingBreakdown: {
+      roof: points.roofGridPoints.length,
+      facade: points.facadeProxyPoints.length,
+      ground: points.groundProxyPoints.length,
+      total: points.allPoints.length,
+    },
   };
 }
 
@@ -124,6 +162,7 @@ export async function analyzeSunlight(
     targetPandId,
     footprint,
     roofY,
+    groundY = roofY,
     lat,
     lng,
     year = new Date().getFullYear(),
@@ -131,6 +170,14 @@ export async function analyzeSunlight(
     chunkRaycasts = DEFAULT_CHUNK_RAYCASTS,
     gridSpacingMeters = DEFAULT_GRID_SPACING_METERS,
     maxPoints = DEFAULT_MAX_ROOF_POINTS,
+    includeFacadePoints = false,
+    includeGroundPoints = false,
+    facadePointCount = 2,
+    groundPointCount = 1,
+    facadeOffsetMeters = 0.75,
+    groundOffsetMeters = 3,
+    facadeHeightMeters = 1.5,
+    groundHeightOffsetMeters = 0.1,
     raycaster = new Raycaster() as unknown as RaycasterLike,
     yieldControl = yieldToMainThread,
     abortSignal,
@@ -138,19 +185,30 @@ export async function analyzeSunlight(
 
   if (abortSignal?.aborted) return null;
 
-  const roofGridPoints = generateRoofSamplePoints(footprint, roofY, {
+  const sampledPoints = buildSunlightEvaluationPoints(footprint, roofY, groundY, {
     gridSpacingMeters,
-    maxPoints,
-    includeFootprintVertices: true,
-    includeCentroid: true,
+    maxRoofPoints: maxPoints,
+    includeFacadePoints,
+    includeGroundPoints,
+    facadePointCount,
+    groundPointCount,
+    facadeOffsetMeters,
+    groundOffsetMeters,
+    facadeHeightMeters,
+    groundHeightOffsetMeters,
   });
+  const roofGridPoints = sampledPoints.roofGridPoints;
+  const facadeProxyPoints = sampledPoints.facadeProxyPoints;
+  const groundProxyPoints = sampledPoints.groundProxyPoints;
+  const allPoints = sampledPoints.allPoints;
 
-  if (roofGridPoints.length === 0) {
-    return buildDefaultResult(year, roofGridPoints);
+  if (allPoints.length === 0) {
+    return buildDefaultResult(year, sampledPoints);
   }
 
   const monthlyDates = getRepresentativeDates(year);
-  const perPointMonthly = roofGridPoints.map((): number[] => []);
+  const perPointMonthly = allPoints.map((): number[] => []);
+  const monthlySampleWeights: number[] = [];
   const hoursPerSample = intervalMinutes / 60;
   const maxChunk = Math.max(1, Math.floor(chunkRaycasts));
   let raycastsSinceYield = 0;
@@ -158,9 +216,10 @@ export async function analyzeSunlight(
   for (const date of monthlyDates) {
     const { sunrise, sunset } = getDaylightRange(date, lat, lng);
     const sampleMinutes = getSampleMinutesForDay(sunrise, sunset, intervalMinutes);
+    monthlySampleWeights.push(sampleMinutes.length);
 
-    for (let pointIdx = 0; pointIdx < roofGridPoints.length; pointIdx++) {
-      const [x, y, z] = roofGridPoints[pointIdx];
+    for (let pointIdx = 0; pointIdx < allPoints.length; pointIdx++) {
+      const [x, y, z] = allPoints[pointIdx];
       const origin = new Vector3(x, y, z);
       let sunlitHours = 0;
 
@@ -201,13 +260,21 @@ export async function analyzeSunlight(
 
   const meanMonthly = Array.from({ length: 12 }, (_, monthIdx) => {
     const sum = perPointMonthly.reduce((acc, pointMonths) => acc + (pointMonths[monthIdx] ?? 0), 0);
-    return round1(sum / roofGridPoints.length);
+    return round1(sum / allPoints.length);
   });
 
-  const perPointAnnual = perPointMonthly.map((pointMonths) =>
-    round1(pointMonths.reduce((sum, value) => sum + value, 0) / pointMonths.length)
+  const perPointAnnualByEvalPoint = perPointMonthly.map((pointMonths) =>
+    round1(weightedAverage(pointMonths, monthlySampleWeights))
   );
-  const annualAverage = round1(meanMonthly.reduce((sum, value) => sum + value, 0) / meanMonthly.length);
+  const perPointAnnual = perPointAnnualByEvalPoint.slice(0, roofGridPoints.length);
+  const perFacadeAnnual = perPointAnnualByEvalPoint.slice(
+    roofGridPoints.length,
+    roofGridPoints.length + facadeProxyPoints.length,
+  );
+  const perGroundAnnual = perPointAnnualByEvalPoint.slice(
+    roofGridPoints.length + facadeProxyPoints.length,
+  );
+  const annualAverage = round1(weightedAverage(meanMonthly, monthlySampleWeights));
 
   return {
     winter: meanMonthly[11],
@@ -216,6 +283,16 @@ export async function analyzeSunlight(
     annualAverage,
     analysisYear: year,
     roofGridPoints,
+    facadeProxyPoints,
+    groundProxyPoints,
     perPointAnnual,
+    perFacadeAnnual,
+    perGroundAnnual,
+    samplingBreakdown: {
+      roof: roofGridPoints.length,
+      facade: facadeProxyPoints.length,
+      ground: groundProxyPoints.length,
+      total: allPoints.length,
+    },
   };
 }

@@ -413,20 +413,12 @@ export async function getTierBData(
   vboId: string,
   options: {
     buurtCode?: string;
-    postcode?: string;
-    houseNumber?: string;
-    houseLetter?: string;
-    addition?: string;
   },
   signal?: AbortSignal,
   reportId?: string,
 ): Promise<TierBResponse> {
   const params = new URLSearchParams();
   if (options.buurtCode) params.set('buurt_code', options.buurtCode);
-  if (options.postcode) params.set('postcode', options.postcode);
-  if (options.houseNumber) params.set('house_number', options.houseNumber);
-  if (options.houseLetter) params.set('house_letter', options.houseLetter);
-  if (options.addition) params.set('addition', options.addition);
   if (reportId) params.set('report_id', reportId);
 
   const timeout = withTimeoutSignal(20000, signal);

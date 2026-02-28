@@ -151,6 +151,16 @@
   margin-bottom: var(--space-sm);
 }
 
+.sunlight-card__error {
+  font: var(--type-small);
+  color: var(--color-danger);
+  margin-bottom: var(--space-sm);
+}
+
+.sunlight-card__retry {
+  margin-bottom: var(--space-sm);
+}
+
 .sunlight-card__source {
   font: var(--type-micro);
   color: var(--color-text-secondary);

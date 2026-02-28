@@ -42,7 +42,7 @@ from app.models.risk import (
     ViewingQuestion,
     ViewingQuestionsResponse,
 )
-from app.models.tier_b import CrimeStatsCard, EnergyLabelCard, TierBResponse
+from app.models.tier_b import CrimeStatsCard, TierBResponse
 
 
 @pytest.mark.asyncio
@@ -993,7 +993,6 @@ async def test_tier_b_endpoint_returns_data_and_caches(
     mock_tier_b.get_tier_b_data = AsyncMock(
         return_value=TierBResponse(
             address_id="0363010000696734",
-            energy_label=EnergyLabelCard(label="A", source_date="2025-05-01"),
             crime=CrimeStatsCard(
                 total_per_1000=12.5,
                 burglary_per_1000=1.2,
@@ -1009,13 +1008,10 @@ async def test_tier_b_endpoint_returns_data_and_caches(
         "/api/address/0363010000696734/tier-b",
         params={
             "buurt_code": "BU0363AD07",
-            "postcode": "1012NX",
-            "house_number": "1",
         },
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["energy_label"]["label"] == "A"
     assert data["crime"]["total_per_1000"] == 12.5
     mock_cache_set.assert_called_once()
 
@@ -1027,8 +1023,6 @@ async def test_tier_b_rejects_invalid_buurt_code(client):
         "/api/address/0363010000696734/tier-b",
         params={
             "buurt_code": "BU0537'OR 1 eq 1--",
-            "postcode": "1012NX",
-            "house_number": "1",
         },
     )
     assert resp.status_code == 422
@@ -1042,10 +1036,6 @@ async def test_tier_b_accepts_none_buurt_code(client):
     # without mocking, but the point is it does NOT 422.
     resp = await client.get(
         "/api/address/0363010000696734/tier-b",
-        params={
-            "postcode": "1012NX",
-            "house_number": "1",
-        },
     )
     assert resp.status_code != 422
 

@@ -32,13 +32,7 @@
 **Recovery:** CBS OGC API is generally stable. Outages are rare.
 **Verify:** `curl "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1/collections/buurten/items?limit=1"`
 
-## 5. EP-Online auth failure
 
-**Symptoms:** Energy label shows "unavailable" in Tier B signals card.
-**Log grep:** `ENERGY_AUTH_REQUIRED`, `ENERGY_TIMEOUT`
-**Mitigation:** Crime data still works. Set `BUURT_ENERGY_LABEL_API_KEY` env var.
-**Recovery:** Obtain API key from EP-Online portal. Restart backend.
-**Verify:** Check `BUURT_ENERGY_LABEL_API_KEY` is set in environment.
 
 ## 6. All APIs down
 

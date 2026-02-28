@@ -205,7 +205,6 @@ Built on an **8pt base grid** with 4pt half-steps for fine adjustments.
 | Risk: Climate | Water drop + heat lines | 32px / 20px | Climate stress risk card |
 | Risk: Sunlight | Sun with radiating lines | 32px / 20px | Sunlight risk card |
 | Risk: Crime | Shield | 32px / 20px | Crime risk card (Tier B) |
-| Risk: Energy | Lightning bolt | 32px / 20px | Energy label card (Tier B) |
 | Severity: Good | Checkmark in circle | 16px | Inline severity indicator |
 | Severity: Moderate | Horizontal dash in circle | 16px | Inline severity indicator |
 | Severity: Poor | Triangle (exclamation) | 16px | Inline severity indicator |
@@ -297,7 +296,6 @@ A minimal top bar appears on all screens:
 │       │   └── Shadow timeline (slider + season presets)
 │       ├── Sunlight analysis card
 │       ├── Neighborhood snapshot (CBS stats)
-│       ├── [Tier B] Crime card + Energy label
 │       ├── ── ACTION ──
 │       ├── Viewing checklist (aggregated questions)
 │       └── Action bar: Add to Shortlist | Export PDF (fixed bottom)

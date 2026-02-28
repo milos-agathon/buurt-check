@@ -229,7 +229,6 @@ class FoundationRisk(BaseModel):
 
 ### 1E. Attention Summary (Confidence Synthesis)
 
-**Problem it solves:** Decision paralysis. First-time buyers are overwhelmed by the number of factors (noise, flooding, air quality, sunlight, foundation, erfpacht, VvE, asbestos, energy label, neighborhood stats). They need a single, scannable synthesis that tells them where to focus attention.
 
 **Design choice: Descriptive, not prescriptive.** Uses "items need attention" language that describes the situation, not "Proceed/Caution/Investigate" language that implies professional advice. This is the analyst presenting findings, not the advisor recommending action.
 
@@ -522,7 +521,6 @@ Freemium introduces higher regression risk: checkout button hidden/broken, wrong
 
 ### 3B. Energy Renovation Cost Estimate
 
-**Inputs:** Current energy label (from Tier B EP-Online), construction year, building type (house/apartment), floor area (from BAG if available)
 
 **Output:** "Estimated cost to reach Label A: EUR 15,000-30,000" with breakdown:
 - Insulation (walls, floor, roof): EUR X-Y

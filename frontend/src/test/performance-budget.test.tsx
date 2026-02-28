@@ -71,11 +71,6 @@ describe('Performance budgets (unit-level)', () => {
         <TierBSignalsCard
           data={{
             address_id: `vbo-${i}`,
-            energy_label: {
-              label: 'A',
-              source: 'EP-Online',
-              source_date: '2025-05-01',
-            },
             crime: {
               total_per_1000: 12.5,
               burglary_per_1000: 1.1,

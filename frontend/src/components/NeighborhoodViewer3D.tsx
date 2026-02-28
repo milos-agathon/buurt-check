@@ -32,6 +32,7 @@ import HeatmapLegend from './HeatmapLegend';
 import { sunHoursToColor } from '../utils/heatmapColors';
 import { createDateInTimeZone, getSunDirection, setTimeInTimeZone, SUN_DISTANCE } from '../utils/sunPosition';
 import { buildRoofPointGrid } from '../utils/spatialHashGrid';
+import { ROOF_EVALUATION_OFFSET_METERS } from '../utils/sunlightConstants';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import './NeighborhoodViewer3D.css';
 
@@ -87,6 +88,11 @@ interface HeatmapRange {
 const SHADOW_MAP_SIZE = Number(import.meta.env.VITE_VIEWER3D_SHADOW_SIZE) || 2048;
 const DPR_CAP = Number(import.meta.env.VITE_VIEWER3D_DPR_CAP) || 2;
 const TILE_GRID: '3x3' | '2x2' = import.meta.env.VITE_VIEWER3D_TILE_GRID === '2x2' ? '2x2' : '3x3';
+const SUNLIGHT_CULL_DISTANCE_METERS = Number(import.meta.env.VITE_SUNLIGHT_CULL_DISTANCE_METERS) || 120;
+const SVF_SAMPLE_POINTS = Math.max(1, Number(import.meta.env.VITE_SVF_SAMPLE_POINTS) || 5);
+const SVF_SAMPLE_POINTS_MOBILE = Math.max(1, Number(import.meta.env.VITE_SVF_SAMPLE_POINTS_MOBILE) || 3);
+const SVF_IDLE_TIMEOUT_MS = Math.max(0, Number(import.meta.env.VITE_SVF_IDLE_TIMEOUT_MS) || 200);
+const USE_SUNLIGHT_WORKER = import.meta.env.VITE_SUNLIGHT_USE_WORKER !== 'false';
 const GROUND_SIZE = 750;
 const FRUSTUM = 300;
 const TARGET_COLOR = 0x2EC4B6;
@@ -103,11 +109,128 @@ const GROUND_COLOR_LIGHT = 0xDDE3EA;
 const GROUND_COLOR_DARK = 0x1A2838;
 const HEATMAP_ROOF_NORMAL_MIN_Y = 0.25;
 
+type IdleWindow = Window & {
+  requestIdleCallback?: (
+    callback: (deadline: { didTimeout: boolean; timeRemaining: () => number }) => void,
+    options?: { timeout?: number },
+  ) => number;
+  cancelIdleCallback?: (id: number) => void;
+};
+
 function getCanvasDimensions(container: HTMLDivElement) {
   const width = Math.max(container.clientWidth, 1);
   const fallbackHeight = Math.min(width * VIEWER_FALLBACK_ASPECT, VIEWER_FALLBACK_MAX_HEIGHT);
   const height = Math.max(container.clientHeight || fallbackHeight, 1);
   return { width, height };
+}
+
+function isLikelyMobileDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+
+  if (typeof window.matchMedia === 'function') {
+    if (window.matchMedia('(pointer: coarse)').matches) return true;
+    if (window.matchMedia('(max-width: 768px)').matches) return true;
+  }
+
+  const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (typeof nav.userAgentData?.mobile === 'boolean') {
+    return nav.userAgentData.mobile;
+  }
+
+  return /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+function getSvfSamplePointBudget(): number {
+  if (!isLikelyMobileDevice()) {
+    return SVF_SAMPLE_POINTS;
+  }
+  return Math.min(SVF_SAMPLE_POINTS, SVF_SAMPLE_POINTS_MOBILE);
+}
+
+function waitForNextPaint(abortSignal: AbortSignal): Promise<void> {
+  if (abortSignal.aborted) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let frameId: number | null = null;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      abortSignal.removeEventListener('abort', finish);
+      if (frameId != null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(frameId);
+      }
+      if (timeoutId != null) {
+        clearTimeout(timeoutId);
+      }
+      resolve();
+    };
+
+    abortSignal.addEventListener('abort', finish, { once: true });
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      frameId = window.requestAnimationFrame(() => finish());
+      timeoutId = setTimeout(finish, 32);
+      return;
+    }
+
+    timeoutId = setTimeout(finish, 0);
+  });
+}
+
+function waitForMainThreadIdle(abortSignal: AbortSignal, timeoutMs: number): Promise<void> {
+  if (abortSignal.aborted) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let idleId: number | null = null;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      abortSignal.removeEventListener('abort', finish);
+
+      if (timeoutId != null) {
+        clearTimeout(timeoutId);
+      }
+
+      if (
+        idleId != null
+        && typeof window !== 'undefined'
+      ) {
+        const idleWindow = window as IdleWindow;
+        if (typeof idleWindow.cancelIdleCallback === 'function') {
+          idleWindow.cancelIdleCallback(idleId);
+        }
+      }
+
+      resolve();
+    };
+
+    abortSignal.addEventListener('abort', finish, { once: true });
+
+    if (typeof window === 'undefined') {
+      timeoutId = setTimeout(finish, 0);
+      return;
+    }
+
+    const idleWindow = window as IdleWindow;
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      idleId = idleWindow.requestIdleCallback(() => finish(), { timeout: timeoutMs });
+      return;
+    }
+
+    timeoutId = setTimeout(finish, 16);
+  });
 }
 
 /**
@@ -1124,22 +1247,57 @@ export default function NeighborhoodViewer3D({
 
     try {
       const minGround = Math.min(...buildings.map((building) => building.ground_height));
-      const roofY = (target.ground_height - minGround) + target.building_height + 0.5;
+      const roofY = (
+        (target.ground_height - minGround)
+        + target.building_height
+        + ROOF_EVALUATION_OFFSET_METERS
+      );
+      const groundY = target.ground_height - minGround;
       const year = new Date().getFullYear();
-      const { analyzeSunlight } = await import('../utils/sunlightAnalysis');
+      let result: SunlightResult | null = null;
 
-      const result = await analyzeSunlight({
-        buildingMeshes: ctx.buildingMeshes,
-        targetPandId,
-        footprint: target.footprint,
-        roofY,
-        lat: center.lat,
-        lng: center.lng,
-        year,
-        intervalMinutes: 30,
-        chunkRaycasts: 200,
-        abortSignal: abortController.signal,
-      });
+      if (USE_SUNLIGHT_WORKER) {
+        const { analyzeSunlightInWorker } = await import('../utils/sunlightWorkerClient');
+        result = await analyzeSunlightInWorker({
+          buildings,
+          targetPandId,
+          lat: center.lat,
+          lng: center.lng,
+          year,
+          intervalMinutes: 30,
+          chunkRaycasts: 200,
+          gridSpacingMeters: 2,
+          maxRoofPoints: 64,
+          includeFacadePoints: true,
+          includeGroundPoints: true,
+          facadePointCount: 2,
+          groundPointCount: 1,
+          cullDistanceMeters: SUNLIGHT_CULL_DISTANCE_METERS,
+        }, abortController.signal);
+      }
+
+      if (!result && !abortController.signal.aborted) {
+        const { analyzeSunlight } = await import('../utils/sunlightAnalysis');
+        result = await analyzeSunlight({
+          buildingMeshes: ctx.buildingMeshes,
+          targetPandId,
+          footprint: target.footprint,
+          roofY,
+          groundY,
+          lat: center.lat,
+          lng: center.lng,
+          year,
+          intervalMinutes: 30,
+          chunkRaycasts: 200,
+          gridSpacingMeters: 2,
+          maxPoints: 64,
+          includeFacadePoints: true,
+          includeGroundPoints: true,
+          facadePointCount: 2,
+          groundPointCount: 1,
+          abortSignal: abortController.signal,
+        });
+      }
 
       if (!result || abortController.signal.aborted) {
         if (!result && !abortController.signal.aborted) {
@@ -1149,6 +1307,7 @@ export default function NeighborhoodViewer3D({
         return;
       }
 
+      const analysisMethod: SunlightResult['analysisMethod'] = result.analysisMethod ?? 'cpu-raycast-main';
       let nextResult: SunlightResult = result;
       const rendererWithReadback = ctx.renderer as unknown as {
         setRenderTarget?: (...args: unknown[]) => void;
@@ -1160,24 +1319,32 @@ export default function NeighborhoodViewer3D({
       );
 
       if (canComputeSvf && result.roofGridPoints && result.roofGridPoints.length > 0) {
-        await new Promise<void>((resolve) => {
-          requestAnimationFrame(() => resolve());
-        });
+        await waitForNextPaint(abortController.signal);
+        if (abortController.signal.aborted) {
+          sunlightComputed.current = false;
+          return;
+        }
+        await waitForMainThreadIdle(abortController.signal, SVF_IDLE_TIMEOUT_MS);
         if (abortController.signal.aborted) {
           sunlightComputed.current = false;
           return;
         }
 
         const { computeSvfMultiPoint } = await import('../utils/svfComputation');
+        const svfSamplePointBudget = getSvfSamplePointBudget();
         const svf = computeSvfMultiPoint(
           ctx.renderer,
           ctx.buildingMeshes,
           result.roofGridPoints,
-          5,
+          svfSamplePointBudget,
         );
         if (Number.isFinite(svf)) {
-          nextResult = { ...result, svf: round3(svf) };
+          nextResult = { ...result, svf: round3(svf), analysisMethod };
+        } else {
+          nextResult = { ...result, analysisMethod };
         }
+      } else {
+        nextResult = { ...result, analysisMethod };
       }
 
       if (abortController.signal.aborted) {

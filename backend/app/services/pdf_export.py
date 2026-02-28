@@ -37,17 +37,6 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "critical": (185, 28, 28),  # #B91C1C
 }
 
-ENERGY_LABEL_COLORS: dict[str, tuple[int, int, int]] = {
-    "A": (34, 197, 94),
-    "B": (132, 204, 22),
-    "C": (234, 179, 8),
-    "D": (245, 158, 11),
-    "E": (249, 115, 22),
-    "F": (239, 68, 68),
-    "G": (185, 28, 28),
-}
-
-
 def _severity_for_score(score: int | None) -> str:
     if score is None:
         return "unavailable"
@@ -268,17 +257,6 @@ class BuurtCheckPDF(FPDF):
 
         self.set_text_color(*SLATE)
         return y + rows_needed * (cell_h + gap)
-
-    def draw_energy_badge(self, label: str, x: float, y: float) -> None:
-        """Draw colored energy label badge."""
-        color = ENERGY_LABEL_COLORS.get(label.upper(), MUTED)
-        self.set_fill_color(*color)
-        self.rect(x, y, 10, 7, "F")
-        self.set_font("Satoshi", "B", 9)
-        self.set_text_color(*WHITE)
-        self.set_xy(x, y)
-        self.cell(10, 7, label.upper(), align="C")
-        self.set_text_color(*SLATE)
 
     def draw_age_bars(
         self, x: float, y: float, width: float, age_data: AgeProfile
@@ -809,7 +787,7 @@ def _draw_neighborhood_page(
     tier_b_data: TierBResponse | None,
     is_nl: bool,
 ) -> None:
-    """Page 3: neighborhood stats + energy label + crime."""
+    """Page 3: neighborhood stats + crime."""
     if stats:
         # Buurt name + urbanization
         pdf.set_font("Satoshi", "B", 16)
@@ -913,34 +891,11 @@ def _draw_neighborhood_page(
     # Divider before Tier B
     pdf.draw_divider("strong")
 
-    # Energy & Safety
-    pdf.draw_section_label("Energie & Veiligheid" if is_nl else "Energy & Safety")
+    # Safety
+    pdf.draw_section_label("Veiligheid" if is_nl else "Safety")
     pdf.ln(1)
 
     if tier_b_data:
-        el = tier_b_data.energy_label
-        if el.label:
-            pdf.set_font("Satoshi", "B", 11)
-            pdf.cell(30, 7, "Energielabel" if is_nl else "Energy Label")
-            pdf.draw_energy_badge(el.label, pdf.get_x() + 2, pdf.get_y())
-            pdf.ln(8)
-            if el.source_date:
-                pdf.set_font("Satoshi", "", 8)
-                pdf.set_text_color(*MUTED)
-                src_prefix = "Bron" if is_nl else "Source"
-                pdf.cell(
-                    0, 4, f"{src_prefix}: EP-Online \u00b7 {el.source_date}",
-                    new_x="LMARGIN", new_y="NEXT",
-                )
-                pdf.set_text_color(*SLATE)
-        elif el.message:
-            pdf.set_font("Satoshi", "", 9)
-            pdf.set_text_color(*MUTED)
-            label_prefix = "Energielabel" if is_nl else "Energy label"
-            pdf.cell(0, 6, f"{label_prefix}: {el.message}", new_x="LMARGIN", new_y="NEXT")
-            pdf.set_text_color(*SLATE)
-        pdf.ln(3)
-
         crime = tier_b_data.crime
         if crime.total_per_1000 is not None:
             pdf.set_font("Satoshi", "B", 11)
@@ -990,9 +945,9 @@ def _draw_neighborhood_page(
         pdf.set_font("Satoshi", "", 9)
         pdf.set_text_color(*MUTED)
         no_data = (
-            "Energie- en criminaliteitsgegevens niet beschikbaar."
+            "Criminaliteitsgegevens niet beschikbaar."
             if is_nl
-            else "Energy and crime data unavailable."
+            else "Crime data unavailable."
         )
         pdf.cell(0, 6, no_data, new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
@@ -1095,7 +1050,6 @@ def _draw_methodology_page(pdf: BuurtCheckPDF, is_nl: bool) -> None:
         ("RIVM", "Geluid, luchtkwaliteit" if is_nl else "Noise, air quality"),
         ("Klimaateffectatlas", "Klimaatstress" if is_nl else "Climate stress"),
         ("CBS", "Buurtstatistieken" if is_nl else "Neighborhood stats"),
-        ("EP-Online", "Energielabels" if is_nl else "Energy labels"),
     ]
     for name, desc in sources:
         pdf.draw_indicator_row(name, desc)

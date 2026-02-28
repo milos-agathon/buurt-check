@@ -1,10 +1,12 @@
 import SunCalc from 'suncalc';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  createDateInTimeZone,
   getSunDirection,
   getDaylightRange,
   getRepresentativeDates,
   getDatePartsInTimeZone,
+  setTimeInTimeZone,
 } from './sunPosition';
 
 afterEach(() => {
@@ -92,5 +94,66 @@ describe('getRepresentativeDates', () => {
     expect(first.month).toBe(1);
     expect(last.month).toBe(12);
     dates.forEach((date) => expect(getDatePartsInTimeZone(date).day).toBe(21));
+  });
+});
+
+describe('time-zone date helpers', () => {
+  it('createDateInTimeZone creates the requested local NL date/time', () => {
+    const date = createDateInTimeZone(2026, 5, 21, 12, 45);
+    const parts = getDatePartsInTimeZone(date);
+
+    expect(parts.year).toBe(2026);
+    expect(parts.month).toBe(6);
+    expect(parts.day).toBe(21);
+    expect(parts.hour).toBe(12);
+    expect(parts.minute).toBe(45);
+  });
+
+  it('setTimeInTimeZone keeps date parts and updates time-of-day', () => {
+    const baseDate = createDateInTimeZone(2026, 2, 21, 6, 0);
+    const shifted = setTimeInTimeZone(baseDate, 14 * 60 + 15);
+    const parts = getDatePartsInTimeZone(shifted);
+
+    expect(parts.year).toBe(2026);
+    expect(parts.month).toBe(3);
+    expect(parts.day).toBe(21);
+    expect(parts.hour).toBe(14);
+    expect(parts.minute).toBe(15);
+  });
+
+  it('handles spring DST jump (Europe/Amsterdam) without a two-hour drift', () => {
+    const before = createDateInTimeZone(2026, 2, 29, 1, 30);
+    const after = createDateInTimeZone(2026, 2, 29, 3, 30);
+
+    const beforeParts = getDatePartsInTimeZone(before);
+    const afterParts = getDatePartsInTimeZone(after);
+
+    expect(beforeParts.hour).toBe(1);
+    expect(afterParts.hour).toBe(3);
+    expect((after.getTime() - before.getTime()) / (60 * 60 * 1000)).toBe(1);
+  });
+
+  it('handles autumn DST fallback (Europe/Amsterdam) with repeated local hour', () => {
+    const before = createDateInTimeZone(2026, 9, 25, 1, 30);
+    const after = createDateInTimeZone(2026, 9, 25, 3, 30);
+
+    const beforeParts = getDatePartsInTimeZone(before);
+    const afterParts = getDatePartsInTimeZone(after);
+
+    expect(beforeParts.hour).toBe(1);
+    expect(afterParts.hour).toBe(3);
+    expect((after.getTime() - before.getTime()) / (60 * 60 * 1000)).toBe(3);
+  });
+
+  it('setTimeInTimeZone applies DST-aware conversion on transition days', () => {
+    const baseDate = createDateInTimeZone(2026, 2, 29, 12, 0);
+    const shifted = setTimeInTimeZone(baseDate, 3 * 60 + 30);
+    const parts = getDatePartsInTimeZone(shifted);
+
+    expect(parts.year).toBe(2026);
+    expect(parts.month).toBe(3);
+    expect(parts.day).toBe(29);
+    expect(parts.hour).toBe(3);
+    expect(parts.minute).toBe(30);
   });
 });

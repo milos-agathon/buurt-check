@@ -15,7 +15,7 @@ function toPointKey(x: number, z: number): string {
   return `${x.toFixed(2)}:${z.toFixed(2)}`;
 }
 
-function toViewerPolygon(footprint: number[][]): PolygonPoint2D[] {
+export function toViewerPolygon(footprint: number[][]): PolygonPoint2D[] {
   const polygon: PolygonPoint2D[] = [];
   for (const point of footprint) {
     const x = point[0];

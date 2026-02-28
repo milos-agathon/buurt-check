@@ -4,7 +4,7 @@ import AddressSearch from './components/AddressSearch';
 import ErrorBoundary from './components/ErrorBoundary';
 import RiskTileSkeleton from './components/RiskTileSkeleton';
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
-import type { SheetSnap } from './components/DossierSheet';
+import DossierSheet, { type SheetSnap } from './components/DossierSheet';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
 import { SPRING_TAB } from './config/springs';
 import { fetchPrice, getDossierPrice } from './config/pricing';
@@ -14,30 +14,27 @@ import ShortlistScreen from './components/ShortlistScreen';
 import TabBar from './components/TabBar';
 import TopBar from './components/TopBar';
 import type { TabId } from './components/TabBar';
+import AddressHeader from './components/AddressHeader';
+import SummaryStrip from './components/SummaryStrip';
+import BuildingFactsCard from './components/BuildingFactsCard';
+import SunlightRiskCard from './components/SunlightRiskCard';
+import ShadowTimeSlider from './components/ShadowTimeSlider';
+import ShadowSnapshots from './components/ShadowSnapshots';
+import RiskTilesGrid from './components/RiskTilesGrid';
+import RiskDetailView from './components/RiskDetailView';
+import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
+import TierBSignalsCard from './components/TierBSignalsCard';
+import AttentionSummary from './components/AttentionSummary';
+import PropertyWarningsCard from './components/PropertyWarningsCard';
+import LivabilityCard from './components/LivabilityCard';
+import LivabilityDetailView from './components/LivabilityDetailView';
+import SoilInfoCard from './components/SoilInfoCard';
+import ViewingChecklist from './components/ViewingChecklist';
+import LockedSection from './components/LockedSection';
+import UpgradeCTA from './components/UpgradeCTA';
+import ActionBar from './components/ActionBar';
+import ExportBottomSheet from './components/ExportBottomSheet';
 
-// Lazy-loaded dossier components — loaded in parallel with API calls
-const AddressHeader = lazy(() => import('./components/AddressHeader'));
-const SummaryStrip = lazy(() => import('./components/SummaryStrip'));
-const BuildingFactsCard = lazy(() => import('./components/BuildingFactsCard'));
-const SunlightRiskCard = lazy(() => import('./components/SunlightRiskCard'));
-const ShadowTimeSlider = lazy(() => import('./components/ShadowTimeSlider'));
-const ShadowSnapshots = lazy(() => import('./components/ShadowSnapshots'));
-const RiskTilesGrid = lazy(() => import('./components/RiskTilesGrid'));
-const RiskDetailView = lazy(() => import('./components/RiskDetailView'));
-const NeighborhoodStatsCard = lazy(() => import('./components/NeighborhoodStatsCard'));
-const TierBSignalsCard = lazy(() => import('./components/TierBSignalsCard'));
-const AttentionSummary = lazy(() => import('./components/AttentionSummary'));
-const PropertyWarningsCard = lazy(() => import('./components/PropertyWarningsCard'));
-const LivabilityCard = lazy(() => import('./components/LivabilityCard'));
-const LivabilityDetailView = lazy(() => import('./components/LivabilityDetailView'));
-const SoilInfoCard = lazy(() => import('./components/SoilInfoCard'));
-const ViewingChecklist = lazy(() => import('./components/ViewingChecklist'));
-const LockedSection = lazy(() => import('./components/LockedSection'));
-const UpgradeCTA = lazy(() => import('./components/UpgradeCTA'));
-const DossierSheet = lazy(() => import('./components/DossierSheet'));
-
-const ActionBar = lazy(() => import('./components/ActionBar'));
-const ExportBottomSheet = lazy(() => import('./components/ExportBottomSheet'));
 import {
   checkEntitlement,
   createCheckoutSession,
@@ -338,6 +335,17 @@ const PHASE_1_TIMEOUT_MS = 7000;
 const PHASE_2_TIMEOUT_MS = 9000;
 const CHECKLIST_SESSION_KEY = 'buurt-check:viewing-checklist';
 const REPORT_LOOKUP_SESSION_KEY = 'buurt-check:report-lookup';
+
+function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
+  if (value == null) return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return fallback;
+}
+
+const TEMP_DISABLE_PAYMENTS = readBooleanEnv(import.meta.env.VITE_PREVIEW_DISABLE_PAYMENTS, true);
+const TEMP_FORCE_FULL_DOSSIER_VIEW = readBooleanEnv(import.meta.env.VITE_PREVIEW_FORCE_FULL_DOSSIER_VIEW, true);
 interface ParsedHashRoute {
   route: HashRoute;
   vboId?: string;
@@ -474,7 +482,7 @@ function App() {
   const [activeLookupId, setActiveLookupId] = useState<string | null>(dossierSeed?.address?.id ?? null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [dossierPriceEur, setDossierPriceEur] = useState(() => getDossierPrice());
-  const [isEntitled, setIsEntitled] = useState(false);
+  const [isEntitled, setIsEntitled] = useState(TEMP_FORCE_FULL_DOSSIER_VIEW);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutStatusMessage, setCheckoutStatusMessage] = useState<string | null>(null);
   const [pendingFirstDossierMark, setPendingFirstDossierMark] = useState(false);
@@ -519,6 +527,7 @@ function App() {
   const [showLivabilityDetail, setShowLivabilityDetail] = useState(false);
   const [sunlight, setSunlight] = useState<SunlightResult | null>(dossierSeed?.sunlight ?? null);
   const [sunlightUnavailable, setSunlightUnavailable] = useState(false);
+  const [sunlightRetryToken, setSunlightRetryToken] = useState(0);
   const [sunDateTime, setSunDateTime] = useState<Date | undefined>(undefined);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(
@@ -571,8 +580,7 @@ function App() {
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [exportGenerating, setExportGenerating] = useState(false);
 
-  // ActionBar visibility: shown when ViewingChecklist section enters viewport
-  // or user has scrolled past 75% of dossier content.
+  // ActionBar visibility: shown when ViewingChecklist section enters viewport.
   const [actionBarVisible, setActionBarVisible] = useState(false);
   const actionBarObserverRef = useRef<IntersectionObserver | null>(null);
   const actionBarSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -769,6 +777,10 @@ function App() {
   ]);
 
   const handleUpgrade = useCallback(async () => {
+    if (TEMP_DISABLE_PAYMENTS) {
+      showToast(t('premium.checkout.startFailed'));
+      return;
+    }
     if (isCheckingOut) return;
     if (!reportId) {
       showToast(t('premium.checkout.startFailed'));
@@ -1044,6 +1056,12 @@ function App() {
     });
   }, [address?.adresseerbaar_object_id, isEntitled, reportId]);
 
+  const handleRetrySunlight = useCallback(() => {
+    setSunlight(null);
+    setSunlightUnavailable(false);
+    setSunlightRetryToken((token) => token + 1);
+  }, []);
+
   const isActiveDossierRequest = useCallback((requestId: number) => {
     return neighborhood3DRequestId.current === requestId && activeScreenRef.current === 'dossier';
   }, []);
@@ -1220,10 +1238,6 @@ function App() {
           address.adresseerbaar_object_id!,
           {
             buurtCode: address.buurt_code ?? undefined,
-            postcode: address.postcode ?? undefined,
-            houseNumber: address.house_number ?? undefined,
-            houseLetter: address.house_letter ?? undefined,
-            addition: address.addition ?? undefined,
           },
           controller.signal,
           reportId,
@@ -1679,7 +1693,7 @@ function App() {
     setAddress(null);
     setActiveLookupId(suggestion.id);
     setReportId(null);
-    setIsEntitled(false);
+    setIsEntitled(TEMP_FORCE_FULL_DOSSIER_VIEW);
     setIsCheckingOut(false);
     setCheckoutStatusMessage(null);
     setPendingFirstDossierMark(false);
@@ -1719,6 +1733,7 @@ function App() {
     setShowLivabilityDetail(false);
     setSunlight(null);
     setSunlightUnavailable(false);
+    setSunlightRetryToken(0);
     setSunDateTime(undefined);
     setShowHeatmap(false);
     setShadowSnapshots(null);
@@ -1752,27 +1767,28 @@ function App() {
         return;
       }
 
-      let activeReportId = options?.forcedReportId ?? null;
+      let activeReportId = TEMP_FORCE_FULL_DOSSIER_VIEW ? null : (options?.forcedReportId ?? null);
       let entitledForAddress = false;
 
       if (activeReportId) {
         const entitlement = await checkEntitlement(activeReportId);
         entitledForAddress = entitlement.entitled;
       } else {
-        const firstFreeAvailable = isFirstDossierAvailable();
+        const firstFreeAvailable = TEMP_FORCE_FULL_DOSSIER_VIEW ? true : isFirstDossierAvailable();
         const shortReport = await createShortReport(vboId, resolved.display_name, firstFreeAvailable);
         activeReportId = shortReport.report_id;
         entitledForAddress = shortReport.already_purchased || firstFreeAvailable;
-        if (firstFreeAvailable && entitledForAddress) {
+        if (!TEMP_FORCE_FULL_DOSSIER_VIEW && firstFreeAvailable && entitledForAddress) {
           setPendingFirstDossierMark(true);
         }
         trackEvent('short_report_generated', { report_id: shortReport.report_id, vbo_id: vboId });
       }
 
+      const effectiveEntitlement = TEMP_FORCE_FULL_DOSSIER_VIEW || entitledForAddress;
       setReportId(activeReportId);
-      setIsEntitled(entitledForAddress);
+      setIsEntitled(effectiveEntitlement);
       if (activeReportId) {
-        storeEntitlement(vboId, activeReportId, entitledForAddress);
+        storeEntitlement(vboId, activeReportId, effectiveEntitlement);
         storeReportLookup(activeReportId, suggestion.id);
       }
 
@@ -1810,7 +1826,7 @@ function App() {
 
       setLoadingStep('loading3D');
       let phase1Promise: Promise<void> | null = null;
-      if (entitledForAddress && activeReportId && rd_x != null && rd_y != null) {
+      if (effectiveEntitlement && activeReportId && rd_x != null && rd_y != null) {
         setPropertyWarningsLoading(true);
         phase1Promise = (async () => {
           try {
@@ -1879,7 +1895,7 @@ function App() {
           }
         })();
 
-        if (entitledForAddress && activeReportId) {
+        if (effectiveEntitlement && activeReportId) {
           void (async () => {
             try {
               const comparisons = await getRiskComparisons(
@@ -1989,7 +2005,7 @@ function App() {
           }
         })();
 
-        if (entitledForAddress && activeReportId) {
+        if (effectiveEntitlement && activeReportId) {
           setLivabilityLoading(true);
           void (async () => {
             try {
@@ -2020,10 +2036,6 @@ function App() {
                 vboId,
                 {
                   buurtCode: resolved.buurt_code ?? undefined,
-                  postcode: resolved.postcode ?? undefined,
-                  houseNumber: resolved.house_number ?? undefined,
-                  houseLetter: resolved.house_letter ?? undefined,
-                  addition: resolved.addition ?? undefined,
                 },
                 requestSignal,
                 activeReportId,
@@ -2052,7 +2064,7 @@ function App() {
       setLoadingStep('checkingClimate');
       const pandId = resolved.pand_id ?? building?.building?.pand_id ?? null;
       if (
-        entitledForAddress
+        effectiveEntitlement
         && activeReportId
         && pandId
         && rd_x != null
@@ -2525,7 +2537,7 @@ function App() {
           tierBLoading,
           tierBError,
         ),
-        date: tierBData?.crime.source_date ?? tierBData?.energy_label.source_date ?? null,
+        date: tierBData?.crime.source_date ?? null,
       },
       {
         key: 'sunlight',
@@ -2692,7 +2704,6 @@ function App() {
               </div>
             ) : (
               <ErrorBoundary key={address?.adresseerbaar_object_id ?? 'none'} fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
-              <Suspense fallback={null}>
               <DossierSheet snap={sheetSnap} actionBarVisible={actionBarVisible}>
                 {address && showDossierJump && (
                   <div className="app__dossier-jump-nav">
@@ -3010,6 +3021,7 @@ function App() {
                                   showHeatmap={showHeatmap}
                                   onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
                                   onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
+                                  sunlightRetryToken={sunlightRetryToken}
                                   onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
                                   loading={surroundingLoading}
                                   error={neighborhood3DError}
@@ -3048,6 +3060,8 @@ function App() {
                                   sunlight={sunlight ?? undefined}
                                   loading={sunlightLoading}
                                   unavailable={sunlightUnavailable}
+                                  error={neighborhood3DError}
+                                  onRetry={sunlightUnavailable && canComputeSunlight ? handleRetrySunlight : undefined}
                                   orientationDeg={targetOrientation}
                                   showHeatmap={showHeatmap}
                                   onToggleHeatmap={setShowHeatmap}
@@ -3148,7 +3162,7 @@ function App() {
                 )}
 
                 {address && (
-                  <div className="app__next-steps" data-testid="next-steps">
+                  <div className={`app__next-steps${actionBarVisible ? ' app__next-steps--with-action-bar' : ''}`} data-testid="next-steps">
                     <h3 className="app__next-steps-title">{t('dossier.nextSteps.title')}</h3>
                     <ul className="app__next-steps-list">
                       <li>
@@ -3233,7 +3247,6 @@ function App() {
                   </div>
                 )}
               </DossierSheet>
-              </Suspense>
               </ErrorBoundary>
             )}
             </motion.div>

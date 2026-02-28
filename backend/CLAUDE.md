@@ -30,7 +30,7 @@ ruff check . && ruff format .               # MUST pass before commit
 | `GET /{vbo_id}/wms-tile?source=&rd_x=&rd_y=&radius=` | WMS tile proxy (PNG) |
 | `GET /{vbo_id}/viewing-questions` | Bilingual viewing questions |
 | `GET /{vbo_id}/risk-comparisons` | Urbanization-stratified baselines |
-| `GET /{vbo_id}/tier-b?postcode=&huisnummer=` | Energy label + crime |
+| `GET /{vbo_id}/tier-b?buurt_code=` | Crime context |
 | `GET /{vbo_id}/property-warnings` | Foundation, erfpacht, VvE, asbestos |
 | `GET /{vbo_id}/livability?rd_x=&rd_y=` | Leefbaarometer scores + trend |
 | `POST /{vbo_id}/export` | PDF (quick_brief / full_dossier) |
@@ -67,7 +67,7 @@ ruff check . && ruff format .               # MUST pass before commit
 - Noise: 40dB=100, 53dB=74 (WHO), 63dB=50, 90dB=0
 - Air: worst of PM2.5 and NO2 sub-scores
 - Climate: categorical (low=85, medium=50, high=15)
-- Sunlight: 0h=0, 2h=40, 4h=80, 6h+=100 (winter solstice)
+- Sunlight: 0h=0, 2h=33, 4h=67, 6h+=100 (winter solstice)
 - Severity: 70-100=good, 40-69=moderate, 20-39=poor, 0-19=critical
 
 ## 3DBAG & 3D Viewer

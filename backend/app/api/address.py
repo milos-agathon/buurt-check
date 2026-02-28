@@ -109,6 +109,10 @@ async def address_suggest(
     """Autocomplete address suggestions from PDOK Locatieserver."""
     cache_key = f"suggest:{q.strip().casefold()}:{limit}"
     cached = await cache_get(cache_key)
+    # Historical safeguard: ignore empty cached suggestion lists that may
+    # have been written before the "never cache empty responses" fix.
+    if isinstance(cached, list) and len(cached) == 0:
+        cached = None
     if cached is not None:
         response.headers["Cache-Control"] = _CACHE_REALTIME
         return SuggestResponse(
@@ -644,18 +648,11 @@ async def tier_b_signals(
     response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     buurt_code: str | None = Query(None),
-    postcode: str | None = Query(None),
-    house_number: str | None = Query(None),
-    house_letter: str | None = Query(None),
-    addition: str | None = Query(None),
     _: None = Depends(require_entitlement),
 ):
-    """Fetch Tier-B signals: energy label + crime context."""
+    """Fetch Tier-B signals: crime context."""
     buurt_code = _validate_buurt_code(buurt_code)
-    cache_key = (
-        f"tier-b:{vbo_id}:{buurt_code or '-'}:{postcode or '-'}:{house_number or '-'}"
-        f":{house_letter or '-'}:{addition or '-'}"
-    )
+    cache_key = f"tier-b:{vbo_id}:{buurt_code or '-'}"
     cached = await cache_get(cache_key)
     if cached is not None:
         response.headers["Cache-Control"] = _CACHE_DATA
@@ -665,10 +662,6 @@ async def tier_b_signals(
         result = await tier_b.get_tier_b_data(
             vbo_id=vbo_id,
             buurt_code=buurt_code,
-            postcode=postcode,
-            house_number=house_number,
-            house_letter=house_letter,
-            addition=addition,
         )
     except Exception as exc:
         logger.exception("tier_b_signals failed: %s", exc)
@@ -678,8 +671,7 @@ async def tier_b_signals(
         ) from exc
 
     has_any_data = bool(
-        result.energy_label.label
-        or result.crime.total_per_1000 is not None
+        result.crime.total_per_1000 is not None
         or result.crime.monthly_total_per_1000 is not None
     )
     if has_any_data:
@@ -908,25 +900,19 @@ async def _fetch_neighborhood_for_export(vbo_id: str, lat: float, lng: float,
     return None
 
 
-async def _fetch_tier_b_for_export(vbo_id: str, buurt_code: str | None,
-                                   postcode: str | None, house_number: str | None,
-                                   house_letter: str | None, addition: str | None):
+async def _fetch_tier_b_for_export(vbo_id: str, buurt_code: str | None):
     """Cache-first Tier-B signals fetch for export."""
-    cache_key = (
-        f"tier-b:{vbo_id}:{buurt_code or '-'}:{postcode or '-'}"
-        f":{house_number or '-'}:{house_letter or '-'}:{addition or '-'}"
-    )
+    cache_key = f"tier-b:{vbo_id}:{buurt_code or '-'}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return TierBResponse(**cached)
     try:
         result = await tier_b.get_tier_b_data(
-            vbo_id=vbo_id, buurt_code=buurt_code, postcode=postcode,
-            house_number=house_number, house_letter=house_letter, addition=addition,
+            vbo_id=vbo_id,
+            buurt_code=buurt_code,
         )
         has_data = bool(
-            result.energy_label.label
-            or result.crime.total_per_1000 is not None
+            result.crime.total_per_1000 is not None
             or result.crime.monthly_total_per_1000 is not None
         )
         if has_data:
@@ -993,8 +979,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
                 vbo_id, body.lat, body.lng, body.buurt_code,
             ),
             _fetch_tier_b_for_export(
-                vbo_id, body.buurt_code, body.postcode,
-                body.house_number, body.house_letter, body.addition,
+                vbo_id, body.buurt_code,
             ),
         )
 
@@ -1005,8 +990,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             and neighborhood_stats.buurt_code
         ):
             tier_b_data = await _fetch_tier_b_for_export(
-                vbo_id, neighborhood_stats.buurt_code, body.postcode,
-                body.house_number, body.house_letter, body.addition,
+                vbo_id, neighborhood_stats.buurt_code,
             )
 
         urbanization = UrbanizationLevel.unknown

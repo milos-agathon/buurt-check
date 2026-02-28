@@ -108,6 +108,17 @@ export interface SunlightResult {
   svf?: number;
   perPointAnnual?: number[];
   roofGridPoints?: [number, number, number][];
+  facadeProxyPoints?: [number, number, number][];
+  groundProxyPoints?: [number, number, number][];
+  perFacadeAnnual?: number[];
+  perGroundAnnual?: number[];
+  samplingBreakdown?: {
+    roof: number;
+    facade: number;
+    ground: number;
+    total: number;
+  };
+  analysisMethod?: 'cpu-raycast-main' | 'cpu-raycast-worker';
 }
 
 export interface ShadowSnapshot {
@@ -283,13 +294,6 @@ export interface ViewingQuestionsResponse {
   categories: QuestionCategory[];
 }
 
-export interface EnergyLabelCard {
-  label?: string;
-  source: string;
-  source_date?: string;
-  message?: string;
-}
-
 export interface CrimeStatsCard {
   total_per_1000?: number;
   national_per_1000?: number;
@@ -313,7 +317,6 @@ export interface CrimeStatsCard {
 
 export interface TierBResponse {
   address_id: string;
-  energy_label: EnergyLabelCard;
   crime: CrimeStatsCard;
 }
 

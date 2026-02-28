@@ -48,10 +48,6 @@ class Settings(BaseSettings):
         "Gouda", "Arnhem", "Tiel",
     ]
 
-    # Tier-B data
-    energy_label_base: str = "https://public.ep-online.nl/api/v5/PandEnergielabel/Adres"
-    energy_label_api_key: str | None = None
-
     # Metrics / observability
     metrics_enabled: bool = False
     metrics_token: str | None = None

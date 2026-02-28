@@ -339,6 +339,10 @@
   margin: var(--space-md) 0;
 }
 
+.app__next-steps--with-action-bar {
+  margin-bottom: calc(var(--action-bar-height, 64px) + var(--space-md));
+}
+
 .app__next-steps-title {
   font: var(--type-label);
   font-weight: 700;

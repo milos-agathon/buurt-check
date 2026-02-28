@@ -1,0 +1,10 @@
+1) these are the functionalities that must appear only in the Full Dossier but not in the app frontend viewer because they bring value to the final report:
+- Asbestos Awareness
+- Soil Contamination Check
+- Shadow Snapshots
+- Direct sun (clear-sky visibility)
+2) The "Buy Full Dossier" button must appear only once the user clicks on "Buy Full Dossier" button. It must not appear anywhere else
+3) When you click on "Download viewing checklist" Quick checklist button must have clearly indicated FREE text on it and it must be downloadable as a PDF
+4) Risk cards between "Building Facts" and street name must be deleted because they are redundant (there are risk cards just below)
+5) Neighborhood Snapshot cards People/Housing/Accessibility must not have truncated text on them
+6) Download viewing checklist as PDF is redundant because the download button is below it
