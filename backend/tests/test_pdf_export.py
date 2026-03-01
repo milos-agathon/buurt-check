@@ -144,9 +144,15 @@ def _make_tier_b() -> TierBResponse:
         address_id="0363010012345678",
         crime=CrimeStatsCard(
             total_per_1000=65.3,
+            national_per_1000=52.1,
             burglary_per_1000=4.2,
             violent_per_1000=1.8,
             yearly_period="2024",
+            score=42,
+            severity="moderate",
+            meaning_en="Crime rate is somewhat above the national average.",
+            meaning_nl="Criminaliteitscijfer is enigszins boven het landelijk gemiddelde.",
+            source_date="2024",
         ),
     )
 
@@ -661,6 +667,177 @@ class TestGenerateFullDossier:
         )
         assert isinstance(result, bytes)
         assert result[:5] == b"%PDF-"
+
+    def test_crime_scored_risk_card_en(self):
+        """Crime section renders score badge, severity, meaning, comparison, source."""
+        tier_b = TierBResponse(
+            address_id="0363010012345678",
+            crime=CrimeStatsCard(
+                total_per_1000=65.3,
+                national_per_1000=52.1,
+                burglary_per_1000=4.2,
+                violent_per_1000=1.8,
+                yearly_period="2024",
+                score=42,
+                severity="moderate",
+                meaning_en="Crime rate is somewhat above the national average.",
+                meaning_nl="Criminaliteitscijfer is enigszins boven het landelijk gemiddelde.",
+                source_date="2024",
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test Address",
+            building_year=2000,
+            building_use="Residence",
+            risks=_make_risks(),
+            sunlight_score=75,
+            viewing_questions=None,
+            language="en",
+            tier_b=tier_b,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        # Score badge
+        assert "42" in all_text
+        # Severity label
+        assert "Moderate" in all_text
+        # Meaning sentence
+        assert "Crime rate is somewhat above the national average" in all_text
+        # National comparison
+        assert "52.1" in all_text
+        assert "National avg" in all_text
+        # Sub-rates
+        assert "Burglary" in all_text
+        assert "4.2" in all_text
+        assert "Violent" in all_text
+        assert "1.8" in all_text
+        # Source with year
+        assert "CBS" in all_text
+        assert "2024" in all_text
+
+    def test_crime_scored_risk_card_nl(self):
+        """Crime section renders NL meaning + labels."""
+        tier_b = TierBResponse(
+            address_id="0363010012345678",
+            crime=CrimeStatsCard(
+                total_per_1000=65.3,
+                national_per_1000=52.1,
+                burglary_per_1000=4.2,
+                violent_per_1000=1.8,
+                score=42,
+                severity="moderate",
+                meaning_en="Crime rate is somewhat above the national average.",
+                meaning_nl="Criminaliteitscijfer is enigszins boven het landelijk gemiddelde.",
+                source_date="2024",
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test Address",
+            building_year=2000,
+            building_use="Residence",
+            risks=_make_risks(),
+            sunlight_score=75,
+            viewing_questions=None,
+            language="nl",
+            tier_b=tier_b,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        # NL severity label
+        assert "Matig" in all_text
+        # NL meaning
+        assert "boven het landelijk gemiddelde" in all_text
+        # NL comparison labels
+        assert "Dit adres" in all_text
+        assert "Landelijk" in all_text
+        # NL source
+        assert "Bron" in all_text
+        # Sub-rates with NL labels
+        assert "Inbraak" in all_text
+        assert "Geweld" in all_text
+
+    def test_crime_card_without_score(self):
+        """Crime renders gracefully when score is None (legacy data)."""
+        tier_b = TierBResponse(
+            address_id="0363010012345678",
+            crime=CrimeStatsCard(
+                total_per_1000=55.0,
+                burglary_per_1000=3.0,
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test",
+            building_year=2000,
+            building_use="Office",
+            risks=_make_risks(),
+            sunlight_score=75,
+            viewing_questions=None,
+            language="en",
+            tier_b=tier_b,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        # Score shows em-dash when None
+        assert "\u2014" in all_text
+        # N/A severity label
+        assert "N/A" in all_text
+        # Sub-rates still rendered
+        assert "3.0" in all_text
+
+    def test_crime_card_without_national_average(self):
+        """Comparison section skipped when national average is missing."""
+        tier_b = TierBResponse(
+            address_id="0363010012345678",
+            crime=CrimeStatsCard(
+                total_per_1000=45.0,
+                score=58,
+                severity="moderate",
+                meaning_en="Moderate crime rate.",
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test",
+            building_year=2000,
+            building_use=None,
+            risks=_make_risks(),
+            sunlight_score=75,
+            viewing_questions=None,
+            language="en",
+            tier_b=tier_b,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        # Score and meaning present
+        assert "58" in all_text
+        assert "Moderate crime rate." in all_text
+        # No national comparison
+        assert "National avg" not in all_text
+
+    def test_crime_card_source_falls_back_to_yearly_period(self):
+        """Source line uses yearly_period when source_date is absent."""
+        tier_b = TierBResponse(
+            address_id="0363010012345678",
+            crime=CrimeStatsCard(
+                total_per_1000=30.0,
+                score=75,
+                severity="good",
+                yearly_period="2023",
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test",
+            building_year=2000,
+            building_use=None,
+            risks=_make_risks(),
+            sunlight_score=75,
+            viewing_questions=None,
+            language="en",
+            tier_b=tier_b,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "2023" in all_text
+        assert "Source" in all_text
 
     def test_unavailable_neighborhood_indicators(self):
         """Stats with unavailable indicators render dash."""

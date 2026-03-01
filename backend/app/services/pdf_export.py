@@ -1030,17 +1030,80 @@ def _draw_neighborhood_page(
     if tier_b_data:
         crime = tier_b_data.crime
         if crime.total_per_1000 is not None:
-            pdf.set_font("Satoshi", "B", 11)
+            score = crime.score
+            color = _severity_color(score)
+            cat_name = "Criminaliteit" if is_nl else "Crime Rate"
+
+            # Teal accent bar + category name + score badge
+            cy = pdf.get_y()
+            pdf.set_fill_color(*TEAL)
+            pdf.rect(pdf.l_margin, cy, 1.5, 8, "F")
+
+            pdf.set_x(pdf.l_margin + 4)
+            pdf.set_font("Satoshi", "B", 14)
+            pdf.set_text_color(*SLATE)
+            pdf.cell(100, 8, cat_name)
+
+            pdf.set_font("SatoshiBlack", "", 14)
+            pdf.set_text_color(*color)
+            score_text = str(score) if score is not None else "\u2014"
+            pdf.cell(0, 8, score_text, align="R", new_x="LMARGIN", new_y="NEXT")
+
+            # Score bar
+            bar_w = pdf.w - pdf.l_margin - pdf.r_margin
+            pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=1.2)
+            pdf.ln(3)
+
+            # Severity label
+            pdf.set_font("Satoshi", "", 9)
+            pdf.set_text_color(*color)
             pdf.cell(
-                0, 7, "Criminaliteit" if is_nl else "Crime Rate",
+                0, 4, _severity_label(score, is_nl),
                 new_x="LMARGIN", new_y="NEXT",
             )
-            pdf.set_font("Satoshi", "", 10)
-            per_label = "per 1.000 inwoners" if is_nl else "per 1,000 residents"
-            pdf.cell(
-                0, 6, f"{crime.total_per_1000:.1f} {per_label}",
-                new_x="LMARGIN", new_y="NEXT",
-            )
+            pdf.set_text_color(*SLATE)
+            pdf.ln(1)
+
+            # Meaning sentence
+            meaning = (crime.meaning_nl if is_nl else crime.meaning_en)
+            if meaning:
+                pdf.set_font("Satoshi", "", 10)
+                pdf.multi_cell(0, 5, meaning, new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(2)
+
+            # Comparison: this address vs national average
+            if crime.national_per_1000 is not None:
+                per_label = "per 1.000" if is_nl else "per 1,000"
+                addr_label = (
+                    f"{'Dit adres' if is_nl else 'This address'}"
+                    f": {crime.total_per_1000:.1f} {per_label}"
+                )
+                nat_label = (
+                    f"{'Landelijk' if is_nl else 'National avg'}"
+                    f": {crime.national_per_1000:.1f} {per_label}"
+                )
+                # Normalise rates to bar widths (higher rate = longer bar)
+                max_rate = max(crime.total_per_1000, crime.national_per_1000, 1.0)
+                addr_pct = int(crime.total_per_1000 / max_rate * 100)
+                nat_pct = int(crime.national_per_1000 / max_rate * 100)
+                comp_rows: list[tuple[str, int, tuple[int, int, int], bool]] = [
+                    (addr_label, addr_pct, color, False),
+                    (nat_label, nat_pct, MUTED, True),
+                ]
+                chart_title = (
+                    f"{cat_name} \u2014 vergelijking" if is_nl
+                    else f"{cat_name} \u2014 comparison"
+                )
+                chart_end_y = pdf.draw_comparison_chart(
+                    x=pdf.l_margin, y=pdf.get_y(),
+                    width=pdf.w - pdf.l_margin - pdf.r_margin,
+                    rows=comp_rows,
+                    chart_title=chart_title,
+                    is_nl=is_nl,
+                )
+                pdf.set_y(chart_end_y + 2)
+
+            # Sub-rates: burglary + violent as detail lines
             if crime.burglary_per_1000 is not None:
                 pdf.set_font("Satoshi", "", 9)
                 pdf.set_x(pdf.l_margin + 5)
@@ -1050,6 +1113,7 @@ def _draw_neighborhood_page(
                     new_x="LMARGIN", new_y="NEXT",
                 )
             if crime.violent_per_1000 is not None:
+                pdf.set_font("Satoshi", "", 9)
                 pdf.set_x(pdf.l_margin + 5)
                 geweld = "Geweld" if is_nl else "Violent"
                 pdf.cell(
@@ -1057,8 +1121,21 @@ def _draw_neighborhood_page(
                     new_x="LMARGIN", new_y="NEXT",
                 )
             pdf.ln(2)
-            pdf.set_font("Satoshi", "I", 8)
+
+            # Source + data year
+            pdf.set_font("Satoshi", "", 8)
             pdf.set_text_color(*MUTED)
+            source_parts = [crime.source]
+            if crime.source_date:
+                source_parts.append(crime.source_date)
+            elif crime.yearly_period:
+                source_parts.append(crime.yearly_period)
+            joined = " \u00b7 ".join(source_parts)
+            source_line = f"Bron: {joined}" if is_nl else f"Source: {joined}"
+            pdf.cell(0, 4, source_line, new_x="LMARGIN", new_y="NEXT")
+
+            # Disclaimer
+            pdf.set_font("Satoshi", "I", 8)
             disclaimer = (
                 "Criminaliteitscijfers zijn per gemeente, niet per straat. "
                 "Alleen geregistreerde misdrijven."
