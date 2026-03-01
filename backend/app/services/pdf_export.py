@@ -1026,7 +1026,247 @@ def _draw_property_checks_page(
         source=asbestos_source,
     )
 
-    # 2) Soil Contamination Check
+    # 2) Foundation Risk
+    if property_warnings:
+        fr = property_warnings.foundation_risk
+        if fr.level == "unavailable":
+            foundation_text = (
+                "Funderingsrisico kon niet worden beoordeeld "
+                "(bouwjaar onbekend)."
+                if is_nl
+                else "Foundation risk could not be assessed "
+                "(construction year unknown)."
+            )
+        elif fr.level == "high":
+            soil_part = (
+                f" Grondsoort: {fr.soil_type}."
+                if fr.soil_type else ""
+            )
+            sub_part = (
+                f" Bodemdalingssnelheid: "
+                f"{fr.subsidence_rate_mm_per_year:.1f} mm/jaar."
+                if fr.subsidence_rate_mm_per_year is not None
+                else ""
+            )
+            foundation_text = (
+                "Hoog funderingsrisico vastgesteld."
+                f"{soil_part}{sub_part} "
+                "Laat een funderingsinspectie uitvoeren "
+                "voor aankoop."
+                if is_nl
+                else "High foundation risk identified."
+                f"{soil_part}{sub_part} "
+                "Commission a foundation inspection "
+                "before purchase."
+            )
+        elif fr.level == "medium":
+            soil_part = (
+                f" Grondsoort: {fr.soil_type}."
+                if fr.soil_type else ""
+            )
+            sub_part = (
+                f" Bodemdalingssnelheid: "
+                f"{fr.subsidence_rate_mm_per_year:.1f} mm/jaar."
+                if fr.subsidence_rate_mm_per_year is not None
+                else ""
+            )
+            foundation_text = (
+                f"Matig funderingsrisico.{soil_part}{sub_part}"
+                " Overweeg een funderingsonderzoek."
+                if is_nl
+                else "Moderate foundation risk."
+                f"{soil_part}{sub_part}"
+                " Consider a foundation survey."
+            )
+        else:
+            foundation_text = (
+                "Geen funderingsrisicosignaal gedetecteerd "
+                "op basis van beschikbare gegevens."
+                if is_nl
+                else "No foundation risk signal detected "
+                "from available data."
+            )
+    else:
+        foundation_text = (
+            "Funderingsrisico niet beschikbaar "
+            "in de exportketen."
+            if is_nl
+            else "Foundation risk unavailable "
+            "in export pipeline."
+        )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "Funderingsrisico" if is_nl
+            else "Foundation Risk"
+        ),
+        body=foundation_text,
+        source=(
+            "Bron: BRO bodemdata + Klimaateffectatlas "
+            "bodemdaling"
+            if is_nl
+            else "Source: BRO soil data + "
+            "Klimaateffectatlas subsidence"
+        ),
+    )
+
+    # 3) Erfpacht (Ground Lease)
+    if property_warnings:
+        ep = property_warnings.erfpacht
+        if ep.detected:
+            conf_part = (
+                " (bevestigd)"
+                if ep.confidence == "confirmed"
+                else " (op basis van gemeente)"
+                if ep.confidence == "municipality_based"
+                else ""
+            )
+            mu_part = (
+                f" Gemeente: {ep.municipality}."
+                if ep.municipality else ""
+            )
+            erfpacht_text = (
+                f"Erfpacht gedetecteerd{conf_part}."
+                f"{mu_part} Controleer de "
+                "erfpachtvoorwaarden, canon en einddatum "
+                "bij de notaris."
+                if is_nl
+                else "Ground lease (erfpacht) detected"
+                f"{conf_part}.{mu_part} "
+                "Verify lease terms, canon amount, and "
+                "expiry date with the notary."
+            )
+        else:
+            erfpacht_text = (
+                "Geen erfpachtsignaal gedetecteerd. "
+                "Dit pand lijkt op eigen grond te staan."
+                if is_nl
+                else "No ground lease signal detected. "
+                "This property appears to be on "
+                "freehold land."
+            )
+    else:
+        erfpacht_text = (
+            "Erfpachtstatus niet beschikbaar "
+            "in de exportketen."
+            if is_nl
+            else "Ground lease status unavailable "
+            "in export pipeline."
+        )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "Erfpacht (grondhuur)" if is_nl
+            else "Ground Lease (Erfpacht)"
+        ),
+        body=erfpacht_text,
+        source=(
+            "Bron: Gemeentelijke erfpachtlijst"
+            if is_nl
+            else "Source: Municipal ground lease registry"
+        ),
+    )
+
+    # 4) VvE (Owners' Association)
+    if property_warnings:
+        vve = property_warnings.vve
+        if vve.is_apartment:
+            units_part = (
+                f" ({vve.num_units} eenheden)"
+                if vve.num_units else ""
+            )
+            vve_text = (
+                "Dit is een appartementsrecht"
+                f"{units_part}. Vraag de VvE-jaarstukken "
+                "op: reservefonds, onderhoudsplan en "
+                "notulen van de laatste vergadering."
+                if is_nl
+                else "This is an apartment right"
+                f"{units_part}. Request VvE annual "
+                "documents: reserve fund, maintenance "
+                "plan, and minutes from the last meeting."
+            )
+        else:
+            vve_text = (
+                "Geen VvE van toepassing. Dit pand is "
+                "geen appartementsrecht."
+                if is_nl
+                else "No owners' association applicable. "
+                "This property is not an apartment right."
+            )
+    else:
+        vve_text = (
+            "VvE-status niet beschikbaar "
+            "in de exportketen."
+            if is_nl
+            else "VvE status unavailable "
+            "in export pipeline."
+        )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "VvE (Vereniging van Eigenaren)" if is_nl
+            else "VvE (Owners' Association)"
+        ),
+        body=vve_text,
+        source=(
+            "Bron: BAG verblijfsobjecten" if is_nl
+            else "Source: BAG dwelling unit count"
+        ),
+    )
+
+    # 5) Lead Pipe Risk
+    if property_warnings:
+        lp = property_warnings.lead_pipe
+        if lp.flagged:
+            lp_year = (
+                f"{lp.construction_year}"
+                if lp.construction_year is not None
+                else "\u2014"
+            )
+            lead_text = (
+                "Mogelijk loden leidingen op basis van "
+                f"bouwjaar ({lp_year}). Laat een watertest "
+                "uitvoeren en vraag leidinggegevens op "
+                "bij het waterbedrijf."
+                if is_nl
+                else "Potential lead pipes flagged from "
+                f"construction year ({lp_year}). "
+                "Commission a water test and request "
+                "pipe records from the water utility."
+            )
+        else:
+            lead_text = (
+                "Geen signaal voor loden leidingen "
+                "op basis van beschikbare gebouwdata."
+                if is_nl
+                else "No lead pipe signal detected "
+                "from available building data."
+            )
+    else:
+        lead_text = (
+            "Loden leidingen status niet beschikbaar "
+            "in de exportketen."
+            if is_nl
+            else "Lead pipe status unavailable "
+            "in export pipeline."
+        )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "Loden leidingen" if is_nl
+            else "Lead Pipe Risk"
+        ),
+        body=lead_text,
+        source=(
+            "Bron: BAG-bouwjaarheuristiek (pre-1960)"
+            if is_nl
+            else "Source: BAG construction year "
+            "heuristic (pre-1960)"
+        ),
+    )
+
+    # 6) Soil Contamination Check
     climate_summary = ""
     if risks and risks.climate_stress:
         climate_summary = (
@@ -1062,7 +1302,7 @@ def _draw_property_checks_page(
         source=soil_source,
     )
 
-    # 3) Direct sun (clear-sky visibility)
+    # 7) Direct sun (clear-sky visibility)
     sun = risks.sunlight if risks else None
     if sun and (
         sun.winter_hours is not None
@@ -1099,7 +1339,7 @@ def _draw_property_checks_page(
         ),
     )
 
-    # 4) Shadow Snapshots
+    # 8) Shadow Snapshots
     shadow_title = "Schaduwopnamen" if is_nl else "Shadow Snapshots"
     if shadow_image_b64:
         snapshot_text = (

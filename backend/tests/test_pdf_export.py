@@ -600,9 +600,489 @@ class TestGenerateFullDossier:
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(page.extract_text() or "" for page in reader.pages)
         assert "Asbestos Awareness" in text
+        assert "Foundation Risk" in text
+        assert "Ground Lease (Erfpacht)" in text
+        assert "Owners' Association" in text
+        assert "Lead Pipe Risk" in text
         assert "Soil Contamination Check" in text
         assert "Direct sun (clear-sky visibility)" in text
         assert "Shadow Snapshots" in text
+
+
+def _norm(text: str) -> str:
+    """Collapse multi-space gaps from pypdf extraction."""
+    import re
+    return re.sub(r"\s+", " ", text)
+
+
+class TestPropertyWarningsPdfSections:
+    """Tests for all 5 property warning categories in PDF."""
+
+    def test_foundation_high_with_soil(self):
+        """High foundation risk renders soil type + subsidence."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=1, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(
+                level="high", construction_year=1950,
+                soil_type="klei",
+                subsidence_rate_mm_per_year=3.5,
+            ),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=1950,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "Foundation Risk" in text
+        assert "High foundation risk identified" in text
+        assert "klei" in text
+        assert "3.5" in text
+
+    def test_foundation_low_no_signal(self):
+        """Low foundation risk shows no risk signal."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=0, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(level="low"),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "No foundation risk signal detected" in text
+
+    def test_foundation_unavailable(self):
+        """Unavailable foundation risk explains why."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=0, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(level="unavailable"),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "could not be assessed" in text
+
+    def test_foundation_medium(self):
+        """Medium foundation risk shows moderate language."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=0, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(
+                level="medium", construction_year=1965,
+                soil_type="klei",
+            ),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=1965,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "Moderate foundation risk" in text
+
+    def test_erfpacht_detected(self):
+        """Erfpacht detected renders municipality."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=1, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(level="low"),
+            erfpacht=ErfpachtWarning(
+                detected=True,
+                confidence="municipality_based",
+                municipality="Amsterdam",
+            ),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "Ground Lease (Erfpacht)" in text
+        assert "detected" in text.lower()
+        assert "Amsterdam" in text
+
+    def test_erfpacht_not_detected(self):
+        """No erfpacht shows freehold message."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=0, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(level="low"),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "freehold" in text.lower()
+
+    def test_vve_apartment(self):
+        """VvE apartment renders advice."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=0, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(level="low"),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=True, num_units=12),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "apartment right" in text.lower()
+        assert "reserve fund" in text.lower()
+
+    def test_vve_not_apartment(self):
+        """Non-apartment shows no VvE applicable."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=0, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(level="low"),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "not an apartment" in text.lower()
+
+    def test_lead_pipe_flagged(self):
+        """Lead pipe flagged renders year and advice."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=1, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(level="low"),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(
+                flagged=True, construction_year=1945,
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=1945,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "Lead Pipe Risk" in text
+        assert "1945" in text
+        assert "water test" in text.lower()
+
+    def test_lead_pipe_not_flagged(self):
+        """Unflagged lead pipe shows no signal."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=0, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(level="low"),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "No lead pipe signal detected" in text
+
+    def test_all_warnings_active_en(self):
+        """All 5 categories flagged in EN."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=5, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(
+                level="high", construction_year=1930,
+                soil_type="veen",
+                subsidence_rate_mm_per_year=4.2,
+            ),
+            erfpacht=ErfpachtWarning(
+                detected=True, confidence="confirmed",
+                municipality="Amsterdam",
+            ),
+            vve=VvEInfo(is_apartment=True, num_units=8),
+            asbestos=AsbestosWarning(
+                flagged=True, construction_year=1930,
+            ),
+            lead_pipe=LeadPipeWarning(
+                flagged=True, construction_year=1930,
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=1930,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "Asbestos Awareness" in text
+        assert "Foundation Risk" in text
+        assert "Ground Lease (Erfpacht)" in text
+        assert "Owners' Association" in text
+        assert "Lead Pipe Risk" in text
+        assert "Source: BRO soil data" in text
+        assert "Source: Municipal ground lease registry" in text
+        assert "Source: BAG dwelling unit count" in text
+
+    def test_all_warnings_active_nl(self):
+        """All 5 categories flagged in NL."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=5, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(
+                level="high", construction_year=1930,
+                soil_type="klei",
+                subsidence_rate_mm_per_year=3.0,
+            ),
+            erfpacht=ErfpachtWarning(
+                detected=True,
+                confidence="municipality_based",
+                municipality="Amsterdam",
+            ),
+            vve=VvEInfo(is_apartment=True, num_units=6),
+            asbestos=AsbestosWarning(
+                flagged=True, construction_year=1930,
+            ),
+            lead_pipe=LeadPipeWarning(
+                flagged=True, construction_year=1930,
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=1930,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="nl",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "Asbestbewustzijn" in text
+        assert "Funderingsrisico" in text
+        assert "Erfpacht (grondhuur)" in text
+        assert "VvE (Vereniging van Eigenaren)" in text
+        assert "Loden leidingen" in text
+        assert "Bron: BRO bodemdata" in text
+        assert "Bron: Gemeentelijke erfpachtlijst" in text
+        assert "Bron: BAG verblijfsobjecten" in text
+
+    def test_none_warnings_shows_unavailable(self):
+        """When property_warnings is None, show unavailable."""
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=None,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm(
+            "\n".join(
+                p.extract_text() or "" for p in reader.pages
+            )
+        )
+        assert "Foundation risk unavailable" in text
+        assert "Ground lease status unavailable" in text
+        assert "VvE status unavailable" in text
+        assert "Lead pipe status unavailable" in text
+        assert "Asbestos status unavailable" in text
 
 
 # --- API endpoint tests ---
