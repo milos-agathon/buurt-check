@@ -313,7 +313,110 @@ class TestBuurtCheckPDF:
             ("City average", 55, (138, 155, 176), False),
             ("WHO benchmark (mapped to score)", 74, (234, 179, 8), True),
         ]
-        pdf.draw_comparison_chart(10, 30, 180, rows)
+        end_y = pdf.draw_comparison_chart(10, 30, 180, rows)
+        result = bytes(pdf.output())
+        assert result[:5] == b"%PDF-"
+        # Returns y after axis labels
+        assert end_y > 30
+
+    def test_draw_comparison_chart_returns_y_after_bars_and_axis(self):
+        """Chart returns y position after all bars + axis labels."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        rows = [
+            ("This address", 65, (46, 196, 182), False),
+            ("Netherlands", 50, (226, 231, 237), False),
+        ]
+        end_y = pdf.draw_comparison_chart(10, 30, 180, rows)
+        # 2 rows * 7.0 row_h = 14, plus axis labels ~3.5
+        assert end_y > 30 + 14
+
+    def test_draw_comparison_chart_with_title(self):
+        """Chart title renders above bars and shifts content down."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        rows = [
+            ("This address", 80, (46, 196, 182), False),
+        ]
+        end_no_title = pdf.draw_comparison_chart(10, 30, 180, rows)
+        pdf2 = BuurtCheckPDF()
+        pdf2.add_page()
+        end_with_title = pdf2.draw_comparison_chart(
+            10, 30, 180, rows, chart_title="Noise — comparison",
+        )
+        # Title adds ~5mm to chart height
+        assert end_with_title > end_no_title
+
+    def test_draw_comparison_chart_with_legend(self):
+        """Legend renders below bars and increases chart height."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        rows = [
+            ("This address", 65, (46, 196, 182), False),
+        ]
+        end_no_legend = pdf.draw_comparison_chart(10, 30, 180, rows)
+        pdf2 = BuurtCheckPDF()
+        pdf2.add_page()
+        end_with_legend = pdf2.draw_comparison_chart(
+            10, 30, 180, rows, show_legend=True, is_nl=True,
+        )
+        # Legend adds ~4mm
+        assert end_with_legend > end_no_legend
+
+    def test_draw_comparison_chart_legend_bilingual(self):
+        """Legend text changes between NL and EN."""
+        pdf_nl = BuurtCheckPDF()
+        pdf_nl.add_page()
+        rows = [("Dit adres", 65, (46, 196, 182), False)]
+        pdf_nl.draw_comparison_chart(
+            10, 30, 180, rows, show_legend=True, is_nl=True,
+        )
+        nl_output = bytes(pdf_nl.output())
+
+        pdf_en = BuurtCheckPDF()
+        pdf_en.add_page()
+        rows_en = [("This address", 65, (46, 196, 182), False)]
+        pdf_en.draw_comparison_chart(
+            10, 30, 180, rows_en, show_legend=True, is_nl=False,
+        )
+        en_output = bytes(pdf_en.output())
+
+        # Both produce valid PDFs with different content
+        assert nl_output[:5] == b"%PDF-"
+        assert en_output[:5] == b"%PDF-"
+        assert nl_output != en_output
+
+    def test_draw_comparison_chart_gridlines_do_not_crash(self):
+        """Gridlines at 25/50/75 render without errors for various row counts."""
+        for n_rows in (1, 2, 4):
+            pdf = BuurtCheckPDF()
+            pdf.add_page()
+            rows = [
+                (f"Row {i}", i * 25, (46, 196, 182), False)
+                for i in range(n_rows)
+            ]
+            end_y = pdf.draw_comparison_chart(10, 30, 180, rows)
+            assert end_y > 30
+            result = bytes(pdf.output())
+            assert result[:5] == b"%PDF-"
+
+    def test_draw_comparison_chart_full_features(self):
+        """Chart with title + legend + all row types produces valid PDF."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        rows = [
+            ("Dit adres", 65, (46, 196, 182), False),
+            ("Vergelijkingswaarde", 55, (138, 155, 176), False),
+            ("Nederland", 50, (226, 231, 237), False),
+            ("WHO-doel", 74, (234, 179, 8), True),
+        ]
+        end_y = pdf.draw_comparison_chart(
+            10, 30, 180, rows,
+            chart_title="Geluid — vergelijking",
+            show_legend=True,
+            is_nl=True,
+        )
+        assert end_y > 30
         result = bytes(pdf.output())
         assert result[:5] == b"%PDF-"
 

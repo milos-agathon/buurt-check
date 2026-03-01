@@ -33,6 +33,7 @@ BORDER = (226, 231, 237)  # #E2E7ED — borders, dividers, score track
 WHITE = (255, 255, 255)
 AMBER_WARN = (234, 179, 8)  # #EAB308 — amber for warnings
 SECONDARY = (99, 120, 146)  # #637892 — --color-text-secondary (WCAG AA)
+GRIDLINE = (240, 242, 245)  # Very light gray for chart gridlines
 
 SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "good": (34, 197, 94),  # #22C55E
@@ -168,26 +169,50 @@ class BuurtCheckPDF(FPDF):
         y: float,
         width: float,
         rows: list[tuple[str, int, tuple[int, int, int], bool]],
-    ) -> None:
-        """Draw horizontal comparison bars.
+        chart_title: str = "",
+        show_legend: bool = False,
+        is_nl: bool = True,
+    ) -> float:
+        """Draw horizontal comparison bars with axis, gridlines, title, legend.
 
         Each row: (label, score_value, fill_color_rgb, is_dashed).
+        Returns y position after the chart (including axis labels and legend).
         """
         label_w = 40
         score_w = 15
         bar_w = width - label_w - score_w - 4
         bar_h = 3.0
         row_h = 7.0
+        bar_x = x + label_w + 2
+        cur_y = y
 
+        # --- Chart title ---
+        if chart_title:
+            self.set_font("SatoshiMedium", "", 8)
+            self.set_text_color(*SLATE)
+            self.set_xy(x, cur_y)
+            self.cell(width, 5, chart_title)
+            cur_y += 5
+
+        # --- Gridlines (behind bars) at 25%, 50%, 75% ---
+        bars_top = cur_y
+        bars_bottom = cur_y + len(rows) * row_h
+        self.set_draw_color(*GRIDLINE)
+        self.set_line_width(0.15)
+        for pct in (25, 50, 75):
+            gx = bar_x + bar_w * pct / 100
+            self.line(gx, bars_top, gx, bars_bottom)
+        self.set_line_width(0.1)
+
+        # --- Data rows ---
         for i, (label, value, color, dashed) in enumerate(rows):
-            ry = y + i * row_h
+            ry = cur_y + i * row_h
 
             self.set_font("Satoshi", "", 8)
             self.set_text_color(*SLATE)
             self.set_xy(x, ry)
             self.cell(label_w, row_h, label)
 
-            bar_x = x + label_w + 2
             bar_y = ry + (row_h - bar_h) / 2
             self.set_fill_color(*BORDER)
             self.rect(bar_x, bar_y, bar_w, bar_h, "F")
@@ -211,6 +236,66 @@ class BuurtCheckPDF(FPDF):
             self.set_font("Satoshi", "B", 8)
             self.set_xy(x + width - score_w, ry)
             self.cell(score_w, row_h, str(value), align="R")
+
+        # --- Axis labels ("0" and "100") below bars ---
+        axis_y = bars_bottom + 0.5
+        self.set_font("Satoshi", "", 6)
+        self.set_text_color(*MUTED)
+        self.set_xy(bar_x, axis_y)
+        self.cell(10, 3, "0")
+        self.set_xy(bar_x + bar_w - 10, axis_y)
+        self.cell(10, 3, "100", align="R")
+        cur_y = axis_y + 3.5
+
+        # --- Legend (first chart only) ---
+        if show_legend:
+            legend_y = cur_y + 1
+            lx = x
+            swatch_w = 5
+            swatch_h = 2.0
+            gap = 2
+
+            self.set_font("Satoshi", "", 6)
+            self.set_text_color(*MUTED)
+
+            # Teal swatch — "Dit adres" / "This address"
+            self.set_fill_color(*TEAL)
+            self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
+            lx += swatch_w + 1
+            label_text = "Dit adres" if is_nl else "This address"
+            self.set_xy(lx, legend_y)
+            self.cell(20, 3, label_text)
+            lx += 20 + gap
+
+            # Gray swatch — "Vergelijkingswaarde" / "Comparison"
+            self.set_fill_color(*MUTED)
+            self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
+            lx += swatch_w + 1
+            label_text = "Vergelijkingswaarde" if is_nl else "Comparison"
+            self.set_xy(lx, legend_y)
+            self.cell(28, 3, label_text)
+            lx += 28 + gap
+
+            # Dashed swatch — "Richtlijn" / "Benchmark"
+            self.set_draw_color(*AMBER_WARN)
+            self.set_line_width(swatch_h)
+            dash_len = 1.2
+            dash_gap = 0.8
+            dx = lx
+            while dx < lx + swatch_w:
+                end = min(dx + dash_len, lx + swatch_w)
+                self.line(dx, legend_y + 0.5 + swatch_h / 2, end, legend_y + 0.5 + swatch_h / 2)
+                dx = end + dash_gap
+            self.set_line_width(0.1)
+            lx += swatch_w + 1
+            label_text = "Richtlijn" if is_nl else "Benchmark"
+            self.set_xy(lx, legend_y)
+            self.cell(20, 3, label_text)
+
+            cur_y = legend_y + 4
+
+        self.set_text_color(*SLATE)
+        return cur_y
 
     def draw_risk_grid(
         self,
@@ -660,6 +745,7 @@ def _draw_risk_details_page(
     pdf.ln(2)
 
     categories = _build_risk_detail_data(risks, sunlight_score, comparisons, is_nl)
+    first_chart_drawn = False
 
     for cat_name, score, summary, source_text, comp_rows in categories:
         color = _severity_color(score)
@@ -699,13 +785,21 @@ def _draw_risk_details_page(
 
         # Comparison chart
         if comp_rows:
-            pdf.draw_section_label("Hoe het vergelijkt" if is_nl else "How it compares")
-            pdf.draw_comparison_chart(
+            chart_title = (
+                f"{cat_name} \u2014 vergelijking" if is_nl
+                else f"{cat_name} \u2014 comparison"
+            )
+            show_legend = not first_chart_drawn
+            chart_end_y = pdf.draw_comparison_chart(
                 x=pdf.l_margin, y=pdf.get_y(),
                 width=pdf.w - pdf.l_margin - pdf.r_margin,
                 rows=comp_rows,
+                chart_title=chart_title,
+                show_legend=show_legend,
+                is_nl=is_nl,
             )
-            pdf.ln(len(comp_rows) * 7 + 2)
+            first_chart_drawn = True
+            pdf.set_y(chart_end_y + 2)
 
             # Scale declaration caption (Task E4-S1)
             pdf.set_font("Satoshi", "", 7)
