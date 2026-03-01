@@ -311,7 +311,7 @@ class TestBuurtCheckPDF:
         rows = [
             ("This address", 65, (46, 196, 182), False),
             ("City average", 55, (138, 155, 176), False),
-            ("WHO guideline", 74, (234, 179, 8), True),
+            ("WHO benchmark (mapped to score)", 74, (234, 179, 8), True),
         ]
         pdf.draw_comparison_chart(10, 30, 180, rows)
         result = bytes(pdf.output())
@@ -607,6 +607,54 @@ class TestGenerateFullDossier:
         assert "Soil Contamination Check" in text
         assert "Direct sun (clear-sky visibility)" in text
         assert "Shadow Snapshots" in text
+
+
+class TestComparisonChartScaleDeclaration:
+    """E4-S1: Every comparison chart has a scale declaration caption."""
+
+    def _extract_full_text(self, language: str) -> str:
+        result = generate_full_dossier(
+            address="Kalverstraat 1, 1012 Amsterdam",
+            building_year=1920,
+            building_use="Residential" if language == "en" else "Woonfunctie",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language=language,
+            floor_area=95,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+    def test_scale_caption_present_en(self):
+        """English PDF contains scale declaration caption."""
+        text = self._extract_full_text("en")
+        assert "0\u2013100 score scale" in text
+        assert "Higher = better" in text
+
+    def test_scale_caption_present_nl(self):
+        """Dutch PDF contains scale declaration caption."""
+        text = self._extract_full_text("nl")
+        assert "0\u2013100 scoreschaal" in text
+        assert "Hoger = beter" in text
+
+    def test_who_label_en_includes_score_qualifier(self):
+        """WHO label in EN explicitly says 'mapped to score'."""
+        text = self._extract_full_text("en")
+        assert "mapped to score" in text
+        # Old unqualified label must not appear
+        assert "WHO guideline\n" not in text
+
+    def test_who_label_nl_includes_score_qualifier(self):
+        """WHO label in NL explicitly says 'op scoreschaal'."""
+        text = self._extract_full_text("nl")
+        assert "op scoreschaal" in text
+        # Old unqualified label must not appear
+        assert "WHO-richtlijn\n" not in text
 
 
 def _norm(text: str) -> str:

@@ -704,6 +704,20 @@ def _draw_risk_details_page(
             )
             pdf.ln(len(comp_rows) * 7 + 2)
 
+            # Scale declaration caption (Task E4-S1)
+            pdf.set_font("Satoshi", "", 7)
+            pdf.set_text_color(*MUTED)
+            scale_caption = (
+                "Referentiebalken zijn op de buurt-check 0\u2013100 scoreschaal "
+                "(niet dB / \u00b5g/m\u00b3). Hoger = beter."
+                if is_nl
+                else "Reference bars are on the buurt-check 0\u2013100 score scale "
+                "(not dB / \u00b5g/m\u00b3). Higher = better."
+            )
+            pdf.cell(0, 3, scale_caption, new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(*SLATE)
+            pdf.ln(1)
+
         # Source (with "date unknown" fallback per Finding 9)
         pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*MUTED)
@@ -725,9 +739,18 @@ def _build_risk_detail_data(
         "address": ("Dit adres" if is_nl else "This address", TEAL, False),
         "city_avg": ("Stadsgemiddelde" if is_nl else "City average", MUTED, False),
         "nl_avg": ("Nederland" if is_nl else "Netherlands", BORDER, False),
-        "who_limit": ("WHO-richtlijn" if is_nl else "WHO guideline", AMBER_WARN, True),
-        "adaptation_target": ("Doelstelling" if is_nl else "Target", AMBER_WARN, True),
-        "daylight_target": ("Daglichtdoel" if is_nl else "Daylight target", AMBER_WARN, True),
+        "who_limit": (
+            "WHO-doel (op scoreschaal)" if is_nl
+            else "WHO benchmark (mapped to score)", AMBER_WARN, True,
+        ),
+        "adaptation_target": (
+            "Doelstelling (op scoreschaal)" if is_nl
+            else "Target (mapped to score)", AMBER_WARN, True,
+        ),
+        "daylight_target": (
+            "Daglichtdoel (op scoreschaal)" if is_nl
+            else "Daylight target (mapped to score)", AMBER_WARN, True,
+        ),
     }
 
     def _comp_rows(category_rows: list | None) -> list:
