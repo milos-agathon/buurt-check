@@ -17,6 +17,7 @@ from app.models.livability import LivabilityComparison, LivabilityResponse
 from app.models.neighborhood import NeighborhoodStatsResponse, UrbanizationLevel
 from app.models.neighborhood3d import Neighborhood3DResponse
 from app.models.property_warnings import PropertyWarningsResponse
+from app.models.report import ProvenanceData
 from app.models.risk import (
     FacadeResult,
     RiskCardsResponse,
@@ -1129,6 +1130,31 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
 
     # --- Generate PDF ---
     if body.template == "full_dossier":
+        # Build provenance metadata for reproducibility
+        pand_id: str | None = None
+        if building_resp and building_resp.building:
+            pand_id = building_resp.building.pand_id
+
+        provenance_buurt = body.buurt_code
+        provenance_gemeente = body.city
+        if neighborhood_stats:
+            provenance_buurt = provenance_buurt or neighborhood_stats.buurt_code
+            provenance_gemeente = (
+                provenance_gemeente or neighborhood_stats.gemeente_name
+            )
+
+        provenance = ProvenanceData(
+            report_id=body.report_id,
+            vbo_id=vbo_id,
+            pand_id=pand_id,
+            buurt_code=provenance_buurt,
+            gemeente_name=provenance_gemeente,
+            lat=body.lat,
+            lng=body.lng,
+            rd_x=body.rd_x,
+            rd_y=body.rd_y,
+        )
+
         pdf_bytes = generate_full_dossier(
             address=body.address,
             building_year=building_year,
@@ -1143,6 +1169,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             tier_b=tier_b_data,
             risk_comparisons=risk_comparisons_data,
             property_warnings_data=property_warnings_data,
+            provenance=provenance,
         )
     else:
         pdf_bytes = generate_quick_brief(

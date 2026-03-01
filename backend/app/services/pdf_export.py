@@ -3,13 +3,14 @@
 import base64
 import io
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fpdf import FPDF
 
 from app.models.neighborhood import AgeProfile, NeighborhoodStats, UrbanizationLevel
 from app.models.property_warnings import PropertyWarningsResponse
+from app.models.report import ProvenanceData
 from app.models.risk import (
     ComparisonPattern,
     RiskCardsResponse,
@@ -31,6 +32,7 @@ MUTED = (138, 155, 176)  # #8A9BB0 — muted text / unavailable
 BORDER = (226, 231, 237)  # #E2E7ED — borders, dividers, score track
 WHITE = (255, 255, 255)
 AMBER_WARN = (234, 179, 8)  # #EAB308 — amber for warnings
+SECONDARY = (99, 120, 146)  # #637892 — --color-text-secondary (WCAG AA)
 
 SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "good": (34, 197, 94),  # #22C55E
@@ -550,6 +552,7 @@ def generate_full_dossier(
     tier_b: TierBResponse | None = None,
     risk_comparisons: RiskComparisonsResponse | None = None,
     property_warnings_data: PropertyWarningsResponse | None = None,
+    provenance: ProvenanceData | None = None,
 ) -> bytes:
     """Generate 5+ page Full Dossier with Polar Frost branding."""
     is_nl = language == "nl"
@@ -593,7 +596,7 @@ def generate_full_dossier(
     # Page 6: Methodology + Notes
     pdf.section_title = "METHODOLOGIE" if is_nl else "METHODOLOGY"
     pdf.add_page()
-    _draw_methodology_page(pdf, is_nl)
+    _draw_methodology_page(pdf, is_nl, provenance=provenance)
 
     return bytes(pdf.output())
 
@@ -1455,8 +1458,99 @@ def _draw_checklist_page(
     _draw_branded_questions(pdf, viewing_questions, is_nl, max_questions=None)
 
 
-def _draw_methodology_page(pdf: BuurtCheckPDF, is_nl: bool) -> None:
-    """Page 5: methodology, data sources, limitations, and note lines."""
+def _draw_provenance_block(
+    pdf: BuurtCheckPDF,
+    prov: ProvenanceData,
+    is_nl: bool,
+) -> None:
+    """Render the Report Details provenance panel on the methodology page."""
+    pdf.draw_divider("strong")
+    pdf.ln(2)
+
+    pdf.set_font("Satoshi", "B", 12)
+    pdf.set_text_color(*SLATE)
+    pdf.cell(
+        0, 7,
+        "Rapportgegevens" if is_nl else "Report Details",
+        new_x="LMARGIN", new_y="NEXT",
+    )
+    pdf.ln(1)
+
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*SECONDARY)
+
+    generated_at = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+    # Row 1: Report ID + Generated timestamp
+    parts_row1: list[str] = []
+    if prov.report_id:
+        parts_row1.append(f"Report ID: {prov.report_id}")
+    parts_row1.append(
+        f"{'Gegenereerd' if is_nl else 'Generated'}: {generated_at}"
+    )
+    pdf.cell(0, 4, " | ".join(parts_row1), new_x="LMARGIN", new_y="NEXT")
+
+    # Row 2: VBO + Pand IDs
+    parts_row2: list[str] = []
+    if prov.vbo_id:
+        parts_row2.append(f"VBO: {prov.vbo_id}")
+    if prov.pand_id:
+        parts_row2.append(f"Pand: {prov.pand_id}")
+    if parts_row2:
+        pdf.cell(0, 4, " | ".join(parts_row2), new_x="LMARGIN", new_y="NEXT")
+
+    # Row 3: Buurt + Gemeente
+    parts_row3: list[str] = []
+    if prov.buurt_code:
+        parts_row3.append(f"Buurt: {prov.buurt_code}")
+    gemeente_code = prov.gemeente_code
+    if prov.gemeente_name and gemeente_code:
+        parts_row3.append(f"Gemeente: {prov.gemeente_name} ({gemeente_code})")
+    elif prov.gemeente_name:
+        parts_row3.append(f"Gemeente: {prov.gemeente_name}")
+    if parts_row3:
+        pdf.cell(0, 4, " | ".join(parts_row3), new_x="LMARGIN", new_y="NEXT")
+
+    # Row 4: Coordinates (both WGS84 and RD)
+    parts_row4: list[str] = []
+    if prov.lat is not None and prov.lng is not None:
+        parts_row4.append(f"{prov.lat:.4f}N, {prov.lng:.4f}E (WGS84)")
+    if prov.rd_x is not None and prov.rd_y is not None:
+        parts_row4.append(f"{prov.rd_x:.0f}, {prov.rd_y:.0f} (EPSG:28992)")
+    if parts_row4:
+        coord_label = "Co\u00f6rdinaten" if is_nl else "Coordinates"
+        pdf.cell(
+            0, 4,
+            f"{coord_label}: {' / '.join(parts_row4)}",
+            new_x="LMARGIN", new_y="NEXT",
+        )
+
+    # Row 5: Geocoding method
+    geocoding_label = (
+        "Geocodering: BAG-adreslokatie (gebouwcentro\u00efde)"
+        if is_nl
+        else "Geocoding: BAG address point (building centroid)"
+    )
+    pdf.cell(0, 4, geocoding_label, new_x="LMARGIN", new_y="NEXT")
+
+    # Row 6: Methodology version
+    method_label = "Methodologie" if is_nl else "Methodology"
+    pdf.cell(
+        0, 4,
+        f"{method_label}: {prov.methodology_version}",
+        new_x="LMARGIN", new_y="NEXT",
+    )
+
+    pdf.set_text_color(*SLATE)
+    pdf.ln(4)
+
+
+def _draw_methodology_page(
+    pdf: BuurtCheckPDF,
+    is_nl: bool,
+    provenance: ProvenanceData | None = None,
+) -> None:
+    """Page 6: methodology, data sources, limitations, provenance, and note lines."""
     pdf.set_font("Satoshi", "B", 12)
     pdf.cell(
         0, 7,
@@ -1535,6 +1629,10 @@ def _draw_methodology_page(pdf: BuurtCheckPDF, is_nl: bool) -> None:
     )
     pdf.multi_cell(0, 5, limitations, new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
+
+    # Provenance / Report Details block
+    if provenance:
+        _draw_provenance_block(pdf, provenance, is_nl)
 
     pdf.draw_divider("strong")
 

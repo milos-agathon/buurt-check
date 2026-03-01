@@ -1189,6 +1189,150 @@ class TestPropertyWarningsPdfSections:
         assert "Asbestos status unavailable" in text
 
 
+# --- Provenance block tests (E5-S1) ---
+
+
+class TestProvenanceBlock:
+    """E5-S1: Full dossier contains a provenance block for reproducibility."""
+
+    def _make_provenance(self, **overrides):
+        from app.models.report import ProvenanceData
+
+        defaults = dict(
+            report_id="rpt_test123xyz",
+            vbo_id="0441010000123456",
+            pand_id="0441100000654321",
+            buurt_code="BU04410203",
+            gemeente_name="Katwijk",
+            lat=52.1831,
+            lng=4.4328,
+            rd_x=92145.0,
+            rd_y=467832.0,
+        )
+        defaults.update(overrides)
+        return ProvenanceData(**defaults)
+
+    def _extract_full_text(self, language: str = "en", provenance=None) -> str:
+        result = generate_full_dossier(
+            address="Kerkstraat 10, Katwijk",
+            building_year=1970,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language=language,
+            floor_area=95,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            provenance=provenance,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+    def test_report_id_printed(self):
+        """PDF contains the unique report_id."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(provenance=prov))
+        assert "rpt_test123xyz" in text
+
+    def test_wgs84_coordinates_printed(self):
+        """PDF contains WGS84 coordinates."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(provenance=prov))
+        assert "52.1831" in text
+        assert "4.4328" in text
+        assert "WGS84" in text
+
+    def test_epsg28992_coordinates_printed(self):
+        """PDF contains EPSG:28992 (RD New) coordinates."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(provenance=prov))
+        assert "92145" in text
+        assert "467832" in text
+        assert "EPSG:28992" in text
+
+    def test_vbo_and_pand_ids_printed(self):
+        """PDF contains VBO ID and pand ID."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(provenance=prov))
+        assert "0441010000123456" in text
+        assert "0441100000654321" in text
+
+    def test_buurt_code_printed(self):
+        """PDF contains buurt code."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(provenance=prov))
+        assert "BU04410203" in text
+
+    def test_gemeente_name_and_code_printed(self):
+        """PDF contains gemeente name with derived code."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(provenance=prov))
+        assert "Katwijk" in text
+        assert "0441" in text
+
+    def test_methodology_version_printed(self):
+        """PDF contains the methodology version string."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(provenance=prov))
+        assert "v2.1" in text
+
+    def test_geocoding_method_printed_en(self):
+        """English PDF contains geocoding method."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(language="en", provenance=prov))
+        assert "BAG address point" in text
+
+    def test_geocoding_method_printed_nl(self):
+        """Dutch PDF contains geocoding method."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(language="nl", provenance=prov))
+        assert "BAG-adreslokatie" in text
+
+    def test_report_details_heading_en(self):
+        """English PDF contains Report Details heading."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(language="en", provenance=prov))
+        assert "Report Details" in text
+
+    def test_report_details_heading_nl(self):
+        """Dutch PDF contains Rapportgegevens heading."""
+        prov = self._make_provenance()
+        text = _norm(self._extract_full_text(language="nl", provenance=prov))
+        assert "Rapportgegevens" in text
+
+    def test_no_provenance_graceful(self):
+        """Full dossier without provenance still renders successfully."""
+        text = self._extract_full_text(provenance=None)
+        assert "Methodology" in _norm(text) or "How we score" in _norm(text)
+
+    def test_partial_provenance_graceful(self):
+        """Provenance with missing optional fields still renders."""
+        from app.models.report import ProvenanceData
+
+        prov = ProvenanceData(report_id="rpt_partial", vbo_id="0363010012345678")
+        text = _norm(self._extract_full_text(provenance=prov))
+        assert "rpt_partial" in text
+        # No coordinates should still work fine
+        assert "Generated" in text or "Gegenereerd" in text
+
+    def test_gemeente_code_derived_from_buurt_code(self):
+        """ProvenanceData.gemeente_code correctly derived from buurt_code."""
+        from app.models.report import ProvenanceData
+
+        prov = ProvenanceData(buurt_code="BU04410203")
+        assert prov.gemeente_code == "0441"
+
+    def test_gemeente_code_none_without_buurt_code(self):
+        """ProvenanceData.gemeente_code is None when buurt_code is missing."""
+        from app.models.report import ProvenanceData
+
+        prov = ProvenanceData()
+        assert prov.gemeente_code is None
+
+
 # --- API endpoint tests ---
 
 
