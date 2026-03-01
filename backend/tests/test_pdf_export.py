@@ -663,6 +663,62 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
+class TestPeerBaselineLabels:
+    """E4-S2: City average relabeled to peer baseline."""
+
+    def _extract_full_text(self, language: str) -> str:
+        result = generate_full_dossier(
+            address="Kalverstraat 1, 1012 Amsterdam",
+            building_year=1920,
+            building_use="Residential" if language == "en" else "Woonfunctie",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language=language,
+            floor_area=95,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+    def test_no_city_average_in_en(self):
+        """English PDF must not contain old 'City average' label."""
+        text = _norm(self._extract_full_text("en"))
+        assert "City average" not in text
+
+    def test_no_stadsgemiddelde_in_nl(self):
+        """Dutch PDF must not contain old 'Stadsgemiddelde' label."""
+        text = _norm(self._extract_full_text("nl"))
+        assert "Stadsgemiddelde" not in text
+
+    def test_peer_baseline_label_en(self):
+        """English PDF uses 'Peer baseline (urbanization)' label."""
+        text = _norm(self._extract_full_text("en"))
+        assert "Peer baseline" in text
+        assert "urbanization" in text
+
+    def test_vergelijkingswaarde_label_nl(self):
+        """Dutch PDF uses 'Vergelijkingswaarde (stedelijkheid)' label."""
+        text = _norm(self._extract_full_text("nl"))
+        assert "Vergelijkingswaarde" in text
+        assert "stedelijkheid" in text
+
+    def test_methodology_disclosure_en(self):
+        """English methodology page discloses peer baseline is modeled."""
+        text = _norm(self._extract_full_text("en"))
+        assert "urbanization category" in text.lower()
+        assert "not averaged from the municipality" in text
+
+    def test_methodology_disclosure_nl(self):
+        """Dutch methodology page discloses peer baseline is modeled."""
+        text = _norm(self._extract_full_text("nl"))
+        assert "stedelijkheidscategorie" in text.lower()
+        assert "niet gemiddeld over" in text
+
+
 class TestPropertyWarningsPdfSections:
     """Tests for all 5 property warning categories in PDF."""
 

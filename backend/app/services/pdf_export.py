@@ -737,7 +737,10 @@ def _build_risk_detail_data(
 
     _COMPARISON_LABELS = {
         "address": ("Dit adres" if is_nl else "This address", TEAL, False),
-        "city_avg": ("Stadsgemiddelde" if is_nl else "City average", MUTED, False),
+        "city_avg": (
+            "Vergelijkingswaarde (stedelijkheid)" if is_nl
+            else "Peer baseline (urbanization)", MUTED, False,
+        ),
         "nl_avg": ("Nederland" if is_nl else "Netherlands", BORDER, False),
         "who_limit": (
             "WHO-doel (op scoreschaal)" if is_nl
@@ -1493,6 +1496,22 @@ def _draw_methodology_page(pdf: BuurtCheckPDF, is_nl: bool) -> None:
     ]
     for name, desc in sources:
         pdf.draw_indicator_row(name, desc)
+    pdf.ln(3)
+
+    # Peer baseline disclosure (Task E4-S2)
+    pdf.set_font("Satoshi", "", 9)
+    pdf.set_text_color(*MUTED)
+    baseline_disclosure = (
+        "Waar 'vergelijkingswaarde' wordt getoond, zijn waarden gemodelleerd op basis "
+        "van de stedelijkheidscategorie (CBS) van het adres, niet gemiddeld over de "
+        "volledige verdeling van de gemeente."
+        if is_nl
+        else "Where 'peer baseline' is shown, values are modeled from the address's "
+        "urbanization category (CBS), not averaged from the municipality's full "
+        "distribution."
+    )
+    pdf.multi_cell(0, 4, baseline_disclosure, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SLATE)
     pdf.ln(3)
 
     # Limitations
