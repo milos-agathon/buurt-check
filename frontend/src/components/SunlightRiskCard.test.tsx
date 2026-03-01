@@ -181,6 +181,28 @@ describe('SunlightRiskCard', () => {
     expect(screen.queryByText(/Weighted sky openness/i)).not.toBeInTheDocument();
   });
 
+  it('shows EN 17037 and TNO benchmarks when equinox data is available', () => {
+    renderCard(makeSunlightResult({ equinox: 3.5, winter: 6.2 }));
+
+    expect(screen.getByText(/How does this compare\?/i)).toBeInTheDocument();
+    expect(screen.getByText(/EN 17037 "medium"/i)).toBeInTheDocument();
+    expect(screen.getByText(/TNO bezonningsnorm "strict \(streng\)"/i)).toBeInTheDocument();
+  });
+
+  it('includes benchmark non-compliance disclaimer', () => {
+    renderCard(makeSunlightResult({ equinox: 3.5 }));
+
+    expect(
+      screen.getByText(/informational comparisons to recognized standards, not compliance claims/i),
+    ).toBeInTheDocument();
+  });
+
+  it('hides benchmark section when equinox hours are unavailable', () => {
+    renderCard(makeSunlightResult({ equinox: Number.NaN as unknown as number }));
+
+    expect(screen.queryByText(/How does this compare\?/i)).not.toBeInTheDocument();
+  });
+
   it('renders irradiance metrics when available', () => {
     renderCard(makeSunlightResult({
       irradianceKwhM2: 948.4,

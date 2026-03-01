@@ -118,6 +118,32 @@
   border-radius: var(--radius-sm);
 }
 
+.sunlight-card__benchmark {
+  margin-bottom: var(--space-sm);
+  padding: var(--space-sm) var(--space-base);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+}
+
+.sunlight-card__benchmark-title {
+  font: var(--type-small);
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+
+.sunlight-card__benchmark-item {
+  font: var(--type-small);
+  line-height: 1.4;
+  margin-bottom: var(--space-3xs);
+}
+
+.sunlight-card__benchmark-note {
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  margin-top: var(--space-xs);
+}
+
 .sunlight-card__orientation-label {
   font: var(--type-small);
   font-weight: 600;

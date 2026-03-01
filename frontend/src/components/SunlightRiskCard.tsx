@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import SeverityBadge from './ui/SeverityBadge';
 import type { SunlightResult } from '../types/api';
 import type { SeverityLevel } from '../types/api';
+import { getEN17037Level, getTNOBenchmark } from '../utils/standardsBenchmark';
 import './SunlightRiskCard.css';
 
 interface Props {
@@ -22,6 +23,7 @@ const AXIS_LABELS: [number, string][] = [
   [157.5, 'senw'],
   [180.1, 'ns'],
 ];
+const TNO_WINTER_REFERENCE_POSSIBLE_HOURS = 7.5;
 
 export function getAxisLabel(deg: number): string {
   const normalized = ((deg % 180) + 180) % 180;
@@ -105,6 +107,19 @@ export default function SunlightRiskCard({
   const hasFacadeResults = facadeResults.length > 0;
   const hasGroundResult = sunlight.groundAnnualAverage != null;
   const hasIrradiance = sunlight.irradianceKwhM2 != null;
+  const hasBenchmarks = Number.isFinite(sunlight.equinox) && Number.isFinite(sunlight.winter);
+  const en17037Level = hasBenchmarks ? getEN17037Level(sunlight.equinox) : null;
+  const tnoLevel = hasBenchmarks
+    ? getTNOBenchmark(sunlight.winter, TNO_WINTER_REFERENCE_POSSIBLE_HOURS)
+    : null;
+  const tnoPercent = hasBenchmarks
+    ? Math.round(
+      Math.max(
+        0,
+        Math.min(100, (sunlight.winter / TNO_WINTER_REFERENCE_POSSIBLE_HOURS) * 100),
+      ),
+    )
+    : null;
   const geometryDisclaimerKey = hasIrradiance
     ? 'sunlight.disclaimer_geometry_with_weather'
     : 'sunlight.disclaimer_geometry';
@@ -173,6 +188,27 @@ export default function SunlightRiskCard({
           <p className="sunlight-card__svf-value">{Math.round(sunlight.svfAnisotropic * 100)}%</p>
           <p className="sunlight-card__svf-note">{t('sunlight.svf_aniso_note')}</p>
         </div>
+      )}
+
+      {hasBenchmarks && en17037Level && tnoLevel && tnoPercent != null && (
+        <section className="sunlight-card__benchmark">
+          <h3 className="sunlight-card__benchmark-title">{t('sunlight.benchmark_title')}</h3>
+          <p className="sunlight-card__benchmark-item">
+            {t('sunlight.benchmark_en17037', {
+              level: t(`sunlight.en17037_${en17037Level}`),
+              hours: sunlight.equinox,
+            })}
+          </p>
+          <p className="sunlight-card__benchmark-item">
+            {t('sunlight.benchmark_tno', {
+              level: t(`sunlight.tno_${tnoLevel}`),
+              percent: tnoPercent,
+            })}
+          </p>
+          <p className="sunlight-card__benchmark-note">
+            {t('sunlight.benchmark_disclaimer')}
+          </p>
+        </section>
       )}
 
       {orientationDeg != null && (
@@ -250,7 +286,6 @@ export default function SunlightRiskCard({
       )}
 
       <div className="sunlight-card__disclaimers">
-        <p className="sunlight-card__disclaimer">{t('sunlight.benchmark_note')}</p>
         <p className="sunlight-card__disclaimer">{t(geometryDisclaimerKey)}</p>
         <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_objects')}</p>
         <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_approx')}</p>
