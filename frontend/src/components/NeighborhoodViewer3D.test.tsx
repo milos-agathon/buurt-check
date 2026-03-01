@@ -11,6 +11,7 @@ const materialCalls: { args: any; instance: any }[] = [];
 const serializeBuildingsMock = vi.hoisted(() => vi.fn(() => []));
 const isWorkerSupportedMock = vi.hoisted(() => vi.fn(() => true));
 const runSunlightInWorkerMock = vi.hoisted(() => vi.fn());
+const fetchWeatherTmyMock = vi.hoisted(() => vi.fn());
 const analyzeSunlightMock = vi.hoisted(() => vi.fn());
 const isOffscreenCanvasSupportedMock = vi.hoisted(() => vi.fn(() => false));
 const runSvfInWorkerMock = vi.hoisted(() => vi.fn());
@@ -221,6 +222,10 @@ vi.mock('../workers/sunlightBridge', () => ({
   runSunlightInWorker: runSunlightInWorkerMock,
 }));
 
+vi.mock('../services/api', () => ({
+  fetchWeatherTmy: fetchWeatherTmyMock,
+}));
+
 vi.mock('../workers/svfBridge', () => ({
   isOffscreenCanvasSupported: isOffscreenCanvasSupportedMock,
   runSvfInWorker: runSvfInWorkerMock,
@@ -260,6 +265,8 @@ beforeEach(() => {
     perPointAnnual: [4.2, 7.6],
     analysisMethod: 'cpu-raycast-worker',
   });
+  fetchWeatherTmyMock.mockReset();
+  fetchWeatherTmyMock.mockResolvedValue(null);
   analyzeSunlightMock.mockReset();
   isOffscreenCanvasSupportedMock.mockReset();
   isOffscreenCanvasSupportedMock.mockReturnValue(false);
@@ -415,8 +422,10 @@ describe('NeighborhoodViewer3D', () => {
     });
 
     const workerInput = runSunlightInWorkerMock.mock.calls[0][0] as {
+      emitPerTimestep?: boolean;
       extraEvalPoints?: { points: [number, number, number][]; labels: string[]; skipSelfShadow: boolean };
     };
+    expect(workerInput.emitPerTimestep).toBe(true);
     expect(workerInput.extraEvalPoints).toBeDefined();
     expect(workerInput.extraEvalPoints?.points.length).toBe(16);
     expect(workerInput.extraEvalPoints?.labels.some((label) => label.startsWith('facade:'))).toBe(true);
@@ -605,6 +614,111 @@ describe('NeighborhoodViewer3D', () => {
     const result = onSunlightAnalysis.mock.calls[0][0];
     expect(result.perPointAnnual).toHaveLength(pointCount);
     expect(result.roofGridPoints).toHaveLength(pointCount);
+  });
+
+  it('fetches weather data for irradiance when SVF and per-timestep visibility are available', async () => {
+    isOffscreenCanvasSupportedMock.mockReturnValue(true);
+    runSvfInWorkerMock.mockResolvedValue(0.6);
+    fetchWeatherTmyMock.mockResolvedValue([
+      { date: '2005-01-21T08:00:00Z', minuteOfDay: 480, dni_w_m2: 400, dhi_w_m2: 120 },
+      { date: '2005-01-21T08:30:00Z', minuteOfDay: 510, dni_w_m2: 420, dhi_w_m2: 130 },
+      { date: '2005-01-21T09:00:00Z', minuteOfDay: 540, dni_w_m2: 450, dhi_w_m2: 140 },
+    ]);
+    runSunlightInWorkerMock.mockResolvedValue({
+      winter: 2.4,
+      equinox: 5.8,
+      summer: 9.7,
+      annualAverage: 5.9,
+      analysisYear: 2026,
+      roofGridPoints: [[0, 10, 0], [5, 10, -5]],
+      perPointAnnual: [4.2, 7.6],
+      perTimestepVisibility: [[1, 1, 1], [1, 1, 1]],
+      timestepMeta: [
+        { date: '2026-01-21T08:00:00.000Z', minuteOfDay: 480 },
+        { date: '2026-01-21T08:30:00.000Z', minuteOfDay: 510 },
+        { date: '2026-01-21T09:00:00.000Z', minuteOfDay: 540 },
+      ],
+      analysisMethod: 'cpu-raycast-worker',
+    });
+
+    const target = n3d.buildings.find((b) => b.pand_id === n3d.target_pand_id) ?? n3d.buildings[0];
+    const onSunlightAnalysis = vi.fn();
+    renderViewer({
+      addressId: '0363010000696734',
+      reportId: 'report-123',
+      buildings: [target],
+      targetPandId: target.pand_id,
+      onSunlightAnalysis,
+    });
+
+    await waitFor(() => {
+      expect(onSunlightAnalysis).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(fetchWeatherTmyMock).toHaveBeenCalledWith(
+        '0363010000696734',
+        n3d.center.lat,
+        n3d.center.lng,
+        expect.any(Object),
+        'report-123',
+      );
+    });
+
+    await waitFor(() => {
+      expect(onSunlightAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          irradianceKwhM2: expect.any(Number),
+          irradianceDirectKwhM2: expect.any(Number),
+          irradianceDiffuseKwhM2: expect.any(Number),
+        }),
+      );
+    });
+  });
+
+  it('skips weather fetch when reportId is missing', async () => {
+    isOffscreenCanvasSupportedMock.mockReturnValue(true);
+    runSvfInWorkerMock.mockResolvedValue(0.6);
+    fetchWeatherTmyMock.mockResolvedValue([
+      { date: '2005-01-21T08:00:00Z', minuteOfDay: 480, dni_w_m2: 400, dhi_w_m2: 120 },
+      { date: '2005-01-21T08:30:00Z', minuteOfDay: 510, dni_w_m2: 420, dhi_w_m2: 130 },
+      { date: '2005-01-21T09:00:00Z', minuteOfDay: 540, dni_w_m2: 450, dhi_w_m2: 140 },
+    ]);
+    runSunlightInWorkerMock.mockResolvedValue({
+      winter: 2.4,
+      equinox: 5.8,
+      summer: 9.7,
+      annualAverage: 5.9,
+      analysisYear: 2026,
+      roofGridPoints: [[0, 10, 0], [5, 10, -5]],
+      perPointAnnual: [4.2, 7.6],
+      perTimestepVisibility: [[1, 1, 1], [1, 1, 1]],
+      timestepMeta: [
+        { date: '2026-01-21T08:00:00.000Z', minuteOfDay: 480 },
+        { date: '2026-01-21T08:30:00.000Z', minuteOfDay: 510 },
+        { date: '2026-01-21T09:00:00.000Z', minuteOfDay: 540 },
+      ],
+      analysisMethod: 'cpu-raycast-worker',
+    });
+
+    const target = n3d.buildings.find((b) => b.pand_id === n3d.target_pand_id) ?? n3d.buildings[0];
+    const onSunlightAnalysis = vi.fn();
+    renderViewer({
+      addressId: '0363010000696734',
+      buildings: [target],
+      targetPandId: target.pand_id,
+      onSunlightAnalysis,
+    });
+
+    await waitFor(() => {
+      expect(onSunlightAnalysis).toHaveBeenCalledTimes(1);
+    });
+    expect(fetchWeatherTmyMock).not.toHaveBeenCalled();
+    expect(onSunlightAnalysis).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        irradianceKwhM2: expect.any(Number),
+      }),
+    );
   });
 
   it('uses dark-mode material values when data-theme is dark', () => {

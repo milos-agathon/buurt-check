@@ -8,9 +8,20 @@ import {
   makeRiskComparisonsResponse,
   makeResolvedAddress,
   makeRiskCardsResponse,
+  makeSunlightResult,
   makeSuggestion,
   setupTestI18n,
 } from './test/helpers';
+
+type MockNeighborhoodViewer3DProps = {
+  buildings: unknown[];
+  loading?: boolean;
+  onSunlightAnalysis?: (result: unknown) => void;
+};
+
+const neighborhoodViewer3DPropsRef = vi.hoisted(
+  () => ({ current: null as MockNeighborhoodViewer3DProps | null }),
+);
 
 vi.mock('./services/api', async () => {
   const actual = await vi.importActual<typeof import('./services/api')>('./services/api');
@@ -42,11 +53,15 @@ vi.mock('./config/pricing', () => ({
 }));
 
 vi.mock('./components/NeighborhoodViewer3D', () => ({
-  default: ({ buildings, loading }: { buildings: unknown[]; loading?: boolean }) => (
+  default: (props: MockNeighborhoodViewer3DProps) => {
+    neighborhoodViewer3DPropsRef.current = props;
+    const { buildings, loading } = props;
+    return (
     <div data-testid="viewer-3d">
       {loading ? '3D Viewer loading...' : `3D Viewer (${buildings.length} buildings)`}
     </div>
-  ),
+    );
+  },
 }));
 
 vi.mock('./components/ShadowTimeSlider', () => ({
@@ -134,6 +149,7 @@ beforeEach(() => {
   mockPropertyWarnings.mockReset();
   mockLivability.mockReset();
   mockSubmitSunlightAnalysis.mockReset();
+  neighborhoodViewer3DPropsRef.current = null;
   mockCreateShortReport.mockResolvedValue({
     report_id: 'report-123',
     report_type: 'short',
@@ -485,6 +501,39 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
       expect(screen.getByText(/2 buildings/)).toBeInTheDocument();
     });
+  });
+
+  it('submits sunlight analysis only once when irradiance enrichment triggers a second callback', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+
+    renderApp();
+    await selectAddress();
+    await triggerViewer3DIntersection();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+      expect(neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis).toBeTypeOf('function');
+    });
+
+    const baseResult = makeSunlightResult({ svf: 0.63 });
+    const enrichedResult = {
+      ...baseResult,
+      irradianceKwhM2: 948.4,
+      irradianceDirectKwhM2: 612.1,
+      irradianceDiffuseKwhM2: 336.3,
+    };
+
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(baseResult);
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(enrichedResult);
+    });
+
+    await waitFor(() => {
+      expect(mockSubmitSunlightAnalysis).toHaveBeenCalledTimes(1);
+    });
+    expect(mockSubmitSunlightAnalysis).toHaveBeenCalledWith('vbo-123', baseResult, 'report-123');
   });
 
   it('does not crash when getNeighborhood3D fails', async () => {

@@ -169,6 +169,47 @@ describe('SunlightRiskCard', () => {
     expect(screen.getByText(/Limited sky access/i)).toBeInTheDocument();
   });
 
+  it('renders anisotropic SVF when available', () => {
+    renderCard(makeSunlightResult({ svf: 0.6, svfAnisotropic: 0.55 }));
+    expect(screen.getByText(/Weighted sky openness/i)).toBeInTheDocument();
+    expect(screen.getByText('55%')).toBeInTheDocument();
+    expect(screen.getByText(/Accounts for sun position/i)).toBeInTheDocument();
+  });
+
+  it('hides anisotropic SVF when not available', () => {
+    renderCard(makeSunlightResult({ svf: 0.6 }));
+    expect(screen.queryByText(/Weighted sky openness/i)).not.toBeInTheDocument();
+  });
+
+  it('renders irradiance metrics when available', () => {
+    renderCard(makeSunlightResult({
+      irradianceKwhM2: 948.4,
+      irradianceDirectKwhM2: 612.1,
+      irradianceDiffuseKwhM2: 336.3,
+    }));
+
+    expect(screen.getByText(/Estimated solar irradiance/i)).toBeInTheDocument();
+    expect(screen.getByText(/948 kWh\/m²\/yr/i)).toBeInTheDocument();
+    expect(screen.getByText(/Direct: 612 kWh\/m²\/yr/i)).toBeInTheDocument();
+    expect(screen.getByText(/Diffuse: 336 kWh\/m²\/yr/i)).toBeInTheDocument();
+  });
+
+  it('switches geometry disclaimer copy when irradiance is available', () => {
+    renderCard(makeSunlightResult({
+      irradianceKwhM2: 948.4,
+      irradianceDirectKwhM2: 612.1,
+      irradianceDiffuseKwhM2: 336.3,
+    }));
+
+    expect(screen.getByText(/Irradiance additionally uses PVGIS typical-weather data/i)).toBeInTheDocument();
+    expect(screen.queryByText(/does not include clouds, haze, or weather/i)).not.toBeInTheDocument();
+  });
+
+  it('hides irradiance section when unavailable', () => {
+    renderCard(makeSunlightResult());
+    expect(screen.queryByText(/Estimated solar irradiance/i)).not.toBeInTheDocument();
+  });
+
   it('shows heatmap toggle when per-point roof data is available and toggles state', () => {
     const onToggleHeatmap = vi.fn();
     renderCard(

@@ -112,6 +112,12 @@ describe('runSunlightInWorker', () => {
         analysisYear: 2026,
         perPointAnnual: [5.9],
         roofGridPoints: [[0, 10, 0]],
+        perTimestepVisibility: [[1, 0, 1]],
+        timestepMeta: [
+          { date: '2026-01-21T08:00:00.000Z', minuteOfDay: 480 },
+          { date: '2026-01-21T08:30:00.000Z', minuteOfDay: 510 },
+          { date: '2026-01-21T09:00:00.000Z', minuteOfDay: 540 },
+        ],
         facadeResults: [{
           orientation: 'south',
           heightLabel: '1.5m',
@@ -127,6 +133,7 @@ describe('runSunlightInWorker', () => {
       winter: 2.1,
       annualAverage: 5.9,
       groundAnnualAverage: 4.2,
+      perTimestepVisibility: [[1, 0, 1]],
       analysisMethod: 'cpu-raycast-worker',
     });
   });

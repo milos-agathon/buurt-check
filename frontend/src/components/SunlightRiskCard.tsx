@@ -104,6 +104,10 @@ export default function SunlightRiskCard({
   const facadeResults = sunlight.facadeResults ?? [];
   const hasFacadeResults = facadeResults.length > 0;
   const hasGroundResult = sunlight.groundAnnualAverage != null;
+  const hasIrradiance = sunlight.irradianceKwhM2 != null;
+  const geometryDisclaimerKey = hasIrradiance
+    ? 'sunlight.disclaimer_geometry_with_weather'
+    : 'sunlight.disclaimer_geometry';
 
   return (
     <div className="sunlight-card">
@@ -162,6 +166,15 @@ export default function SunlightRiskCard({
         </div>
       )}
 
+      {sunlight.svfAnisotropic != null && (
+        <div className="sunlight-card__svf sunlight-card__svf--aniso">
+          <h3 className="sunlight-card__svf-title">{t('sunlight.svf_aniso_label')}</h3>
+          <p className="sunlight-card__svf-subtitle">{t('sunlight.svf_aniso_subtitle')}</p>
+          <p className="sunlight-card__svf-value">{Math.round(sunlight.svfAnisotropic * 100)}%</p>
+          <p className="sunlight-card__svf-note">{t('sunlight.svf_aniso_note')}</p>
+        </div>
+      )}
+
       {orientationDeg != null && (
         <div className="sunlight-card__orientation">
           <p className="sunlight-card__orientation-label">
@@ -212,9 +225,33 @@ export default function SunlightRiskCard({
         </section>
       )}
 
+      {hasIrradiance && (
+        <section className="sunlight-card__surface sunlight-card__surface--irradiance">
+          <h3 className="sunlight-card__surface-title">{t('sunlight.irradiance_label')}</h3>
+          <p className="sunlight-card__surface-value">
+            {sunlight.irradianceKwhM2?.toFixed(0)} kWh/m²/yr
+          </p>
+          {sunlight.irradianceDirectKwhM2 != null && (
+            <p className="sunlight-card__surface-subtitle">
+              {t('sunlight.irradiance_direct', {
+                value: sunlight.irradianceDirectKwhM2.toFixed(0),
+              })}
+            </p>
+          )}
+          {sunlight.irradianceDiffuseKwhM2 != null && (
+            <p className="sunlight-card__surface-subtitle">
+              {t('sunlight.irradiance_diffuse', {
+                value: sunlight.irradianceDiffuseKwhM2.toFixed(0),
+              })}
+            </p>
+          )}
+          <p className="sunlight-card__surface-note">{t('sunlight.irradiance_disclaimer')}</p>
+        </section>
+      )}
+
       <div className="sunlight-card__disclaimers">
         <p className="sunlight-card__disclaimer">{t('sunlight.benchmark_note')}</p>
-        <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_geometry')}</p>
+        <p className="sunlight-card__disclaimer">{t(geometryDisclaimerKey)}</p>
         <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_objects')}</p>
         <p className="sunlight-card__disclaimer">{t('sunlight.disclaimer_approx')}</p>
       </div>

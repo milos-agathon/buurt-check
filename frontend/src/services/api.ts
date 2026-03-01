@@ -16,6 +16,7 @@ import type {
   TierBResponse,
   ViewingQuestionsResponse,
 } from '../types/api';
+import type { HourlyWeatherRecord } from '../utils/irradianceComputation';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
@@ -491,6 +492,79 @@ export async function getPropertyWarnings(
     );
     if (!resp.ok) throwHttpError(resp.status);
     return resp.json();
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+interface WeatherTmyApiRecord {
+  date?: string;
+  minute_of_day?: number;
+  dni_w_m2?: number;
+  dhi_w_m2?: number;
+  ghi_w_m2?: number;
+}
+
+interface WeatherTmyApiResponse {
+  data?: WeatherTmyApiRecord[];
+}
+
+function parseMinuteOfDayFromDate(dateRaw: string): number | null {
+  const parsed = new Date(dateRaw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return (parsed.getUTCHours() * 60) + parsed.getUTCMinutes();
+  }
+  const compact = dateRaw.match(/^(\d{4})(\d{2})(\d{2}):(\d{2})(\d{2})$/);
+  if (!compact) return null;
+  const [, , , , hh, mm] = compact;
+  return (Number(hh) * 60) + Number(mm);
+}
+
+function parseWeatherRecord(entry: WeatherTmyApiRecord): HourlyWeatherRecord | null {
+  if (!entry.date) return null;
+  const minuteOfDay = Number.isFinite(entry.minute_of_day)
+    ? Number(entry.minute_of_day)
+    : parseMinuteOfDayFromDate(entry.date);
+  if (minuteOfDay == null) return null;
+
+  return {
+    date: entry.date,
+    minuteOfDay,
+    ghi_w_m2: Number(entry.ghi_w_m2 ?? 0),
+    dni_w_m2: Number(entry.dni_w_m2 ?? 0),
+    dhi_w_m2: Number(entry.dhi_w_m2 ?? 0),
+  };
+}
+
+export async function fetchWeatherTmy(
+  vboId: string,
+  lat: number,
+  lng: number,
+  signal?: AbortSignal,
+  reportId?: string,
+): Promise<HourlyWeatherRecord[] | null> {
+  const timeout = withTimeoutSignal(25000, signal);
+  try {
+    const params = new URLSearchParams({
+      lat: String(lat),
+      lng: String(lng),
+    });
+    if (reportId) params.set('report_id', reportId);
+    const resp = await fetch(
+      `${API_BASE}/address/${vboId}/weather-tmy?${params}`,
+      { signal: timeout.signal },
+    );
+    if (!resp.ok) return null;
+
+    const json = await resp.json() as WeatherTmyApiResponse;
+    const raw = Array.isArray(json.data) ? json.data : [];
+    const parsed = raw
+      .map(parseWeatherRecord)
+      .filter((entry): entry is HourlyWeatherRecord => entry != null);
+
+    return parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
   } finally {
     timeout.cleanup();
   }

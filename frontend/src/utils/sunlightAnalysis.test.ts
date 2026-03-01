@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { analyzeSunlight, getSampleMinutesForDay } from './sunlightAnalysis';
-import { getDaylightRange } from './sunPosition';
+import { getDaylightRange, getSunDirection } from './sunPosition';
 
 vi.mock('./sunPosition', () => ({
   SUN_DISTANCE: 300,
@@ -67,6 +67,124 @@ describe('analyzeSunlight', () => {
       [2, 10, -2],
     ]);
     expect(yieldControl).toHaveBeenCalled();
+  });
+
+  it('returns per-timestep visibility matrix when requested', async () => {
+    const raycaster = {
+      far: 0,
+      set: vi.fn(),
+      intersectObjects: vi.fn(() => []),
+    };
+
+    const result = await analyzeSunlight({
+      buildingMeshes: [{ userData: { pandId: 'target' } }],
+      targetPandId: 'target',
+      footprint: [[0, 0], [4, 0], [4, 4], [0, 4]],
+      roofY: 10,
+      lat: 52.37,
+      lng: 4.9,
+      intervalMinutes: 30,
+      raycaster,
+      yieldControl: async () => {},
+      emitPerTimestep: true,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.perTimestepVisibility).toBeDefined();
+    expect(result!.timestepMeta).toBeDefined();
+
+    const visibility = result!.perTimestepVisibility!;
+    const timestepMeta = result!.timestepMeta!;
+
+    expect(visibility.length).toBe(result!.roofGridPoints?.length ?? 0);
+    expect(timestepMeta.length).toBeGreaterThan(0);
+
+    const timestepCount = visibility[0]?.length ?? 0;
+    expect(timestepCount).toBe(timestepMeta.length);
+
+    for (const perPoint of visibility) {
+      expect(perPoint.length).toBe(timestepCount);
+      for (const value of perPoint) {
+        expect(value === 0 || value === 1).toBe(true);
+      }
+    }
+  });
+
+  it('keeps timestep metadata and visibility aligned when sun direction is unavailable', async () => {
+    const sunDirectionMock = vi.mocked(getSunDirection);
+    sunDirectionMock.mockImplementation((date: Date) => {
+      if (date.getMinutes() === 30) {
+        return null;
+      }
+      return { x: 1, y: 1, z: 1 } as any;
+    });
+
+    const raycaster = {
+      far: 0,
+      set: vi.fn(),
+      intersectObjects: vi.fn(() => []),
+    };
+
+    try {
+      const result = await analyzeSunlight({
+        buildingMeshes: [{ userData: { pandId: 'target' } }],
+        targetPandId: 'target',
+        footprint: [[0, 0], [4, 0], [4, 4], [0, 4]],
+        roofY: 10,
+        lat: 52.37,
+        lng: 4.9,
+        intervalMinutes: 30,
+        raycaster,
+        yieldControl: async () => {},
+        emitPerTimestep: true,
+      });
+
+      expect(result).not.toBeNull();
+      const visibility = result!.perTimestepVisibility!;
+      const timestepMeta = result!.timestepMeta!;
+
+      expect(visibility[0].length).toBe(timestepMeta.length);
+      expect(visibility[0]).toContain(0);
+    } finally {
+      sunDirectionMock.mockImplementation(() => ({ x: 1, y: 1, z: 1 } as any));
+    }
+  });
+
+  it('emits per-timestep visibility for roof points only when extra eval points are present', async () => {
+    const raycaster = {
+      far: 0,
+      set: vi.fn(),
+      intersectObjects: vi.fn(() => []),
+    };
+
+    const result = await analyzeSunlight({
+      buildingMeshes: [{ userData: { pandId: 'target' } }],
+      targetPandId: 'target',
+      footprint: [[0, 0], [4, 0], [4, 4], [0, 4]],
+      roofY: 10,
+      lat: 52.37,
+      lng: 4.9,
+      intervalMinutes: 30,
+      raycaster,
+      yieldControl: async () => {},
+      emitPerTimestep: true,
+      extraEvalPoints: {
+        points: [
+          [5, 3.5, -5],
+          [8, 1.5, -8],
+        ],
+        labels: [
+          'facade:south:1.5m',
+          'ground:ring:0',
+        ],
+        skipSelfShadow: false,
+      },
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.roofGridPoints).toHaveLength(2);
+    expect(result!.samplingBreakdown?.total).toBe(4);
+    expect(result!.perTimestepVisibility).toHaveLength(2);
   });
 
   it('treats intersections from other buildings as blocked', async () => {

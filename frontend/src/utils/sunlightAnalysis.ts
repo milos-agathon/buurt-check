@@ -58,6 +58,8 @@ export interface SunlightAnalysisOptions {
     labels: string[];
     skipSelfShadow: boolean;
   };
+  /** Emit per-point per-timestep visibility for irradiance post-processing. */
+  emitPerTimestep?: boolean;
   raycaster?: RaycasterLike;
   yieldControl?: () => Promise<void>;
   abortSignal?: AbortSignal;
@@ -226,6 +228,7 @@ export async function analyzeSunlight(
     facadeHeightMeters = 1.5,
     groundHeightOffsetMeters = 0.1,
     extraEvalPoints,
+    emitPerTimestep = false,
     raycaster = new Raycaster() as unknown as RaycasterLike,
     yieldControl = yieldToMainThread,
     abortSignal,
@@ -268,11 +271,22 @@ export async function analyzeSunlight(
   ];
 
   if (allPoints.length === 0) {
-    return buildDefaultResult(year, roofGridPoints, legacyFacadeProxyPoints, legacyGroundProxyPoints);
+    const empty = buildDefaultResult(year, roofGridPoints, legacyFacadeProxyPoints, legacyGroundProxyPoints);
+    if (emitPerTimestep) {
+      empty.perTimestepVisibility = [];
+      empty.timestepMeta = [];
+    }
+    return empty;
   }
 
   const monthlyDates = getRepresentativeDates(year);
   const perPointMonthly = allPoints.map((): number[] => []);
+  const perTimestepVisibility = emitPerTimestep
+    ? roofGridPoints.map((): (0 | 1)[] => [])
+    : undefined;
+  const timestepMeta = emitPerTimestep
+    ? [] as { date: string; minuteOfDay: number }[]
+    : undefined;
   const monthlySampleWeights: number[] = [];
   const hoursPerSample = intervalMinutes / 60;
   const maxChunk = Math.max(1, Math.floor(chunkRaycasts));
@@ -284,6 +298,16 @@ export async function analyzeSunlight(
     const sampleMinutes = getSampleMinutesForDay(sunrise, sunset, intervalMinutes);
     monthlySampleWeights.push(sampleMinutes.length);
 
+    if (emitPerTimestep && timestepMeta) {
+      for (const minuteOfDay of sampleMinutes) {
+        const sampleDate = setTimeInTimeZone(date, minuteOfDay);
+        timestepMeta.push({
+          date: sampleDate.toISOString(),
+          minuteOfDay,
+        });
+      }
+    }
+
     for (let pointIdx = 0; pointIdx < allPoints.length; pointIdx++) {
       const [x, y, z] = allPoints[pointIdx];
       const origin = new Vector3(x, y, z);
@@ -294,7 +318,16 @@ export async function analyzeSunlight(
 
         const sampleDate = setTimeInTimeZone(date, minuteOfDay);
         const sunDir = getSunDirection(sampleDate, lat, lng);
-        if (!sunDir) continue;
+        if (!sunDir) {
+          if (
+            emitPerTimestep
+            && perTimestepVisibility
+            && pointIdx < roofGridPoints.length
+          ) {
+            perTimestepVisibility[pointIdx].push(0);
+          }
+          continue;
+        }
 
         raycaster.set(origin, sunDir);
         raycaster.far = SUN_DISTANCE * 2;
@@ -311,8 +344,16 @@ export async function analyzeSunlight(
           return true;
         });
 
-        if (!blocked) {
+        const lit: 0 | 1 = blocked ? 0 : 1;
+        if (lit === 1) {
           sunlitHours += hoursPerSample;
+        }
+        if (
+          emitPerTimestep
+          && perTimestepVisibility
+          && pointIdx < roofGridPoints.length
+        ) {
+          perTimestepVisibility[pointIdx].push(lit);
         }
 
         raycastsSinceYield++;
@@ -443,5 +484,7 @@ export async function analyzeSunlight(
       ground: groundProxyPoints.length,
       total: allPoints.length,
     },
+    perTimestepVisibility,
+    timestepMeta,
   };
 }

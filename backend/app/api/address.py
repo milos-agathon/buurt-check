@@ -48,6 +48,7 @@ from app.services.scoring import (
     sunlight_summary,
 )
 from app.services.viewing_questions import build_viewing_questions
+from app.services.weather import fetch_tmy_data
 
 logger = logging.getLogger(__name__)
 
@@ -383,6 +384,35 @@ async def neighborhood_3d(
     if result.buildings:
         response.headers["Cache-Control"] = _CACHE_IMMUTABLE
     return result
+
+
+@router.get("/{vbo_id}/weather-tmy")
+async def weather_tmy(
+    response: Response,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    lat: float = Query(..., ge=50.5, le=53.8),
+    lng: float = Query(..., ge=3.2, le=7.3),
+    _: None = Depends(require_entitlement),
+):
+    """Fetch PVGIS TMY weather data (hourly GHI/DHI/DNI) for irradiance estimation."""
+    try:
+        data = await fetch_tmy_data(lat, lng)
+    except Exception as exc:
+        logger.exception("weather_tmy failed vbo=%s lat=%.4f lng=%.4f: %s", vbo_id, lat, lng, exc)
+        raise HTTPException(
+            status_code=502,
+            detail="Weather TMY data unavailable",
+        ) from exc
+
+    if data:
+        response.headers["Cache-Control"] = _CACHE_DATA
+
+    return {
+        "source": "PVGIS TMY v5.2 (European Commission JRC)",
+        "grid_resolution_deg": 0.05,
+        "hourly_records": len(data),
+        "data": data,
+    }
 
 
 @router.post("/{vbo_id}/sunlight")

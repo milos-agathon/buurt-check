@@ -140,6 +140,15 @@ export function getRepresentativeDates(year: number): Date[] {
 }
 
 /**
+ * Convert SunCalc azimuth (0 = south, clockwise) to geographic azimuth (0 = north, clockwise).
+ * SunCalc convention: 0 = south, π/2 = west, π = north, -π/2 = east
+ * Geographic convention: 0 = north, π/2 = east, π = south, 3π/2 = west
+ */
+export function sunCalcToNorthAzimuth(sunCalcAz: number): number {
+  return sunCalcAz + Math.PI;
+}
+
+/**
  * Radius for positioning directional sunlight from scene center.
  * Also used as raycast range for obstruction checks.
  */

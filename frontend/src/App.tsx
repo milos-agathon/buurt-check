@@ -141,6 +141,19 @@ function normalizeSunlightScore(winterHours: number): number {
   return Math.max(0, Math.min(100, Math.round((winterHours / 6) * 100)));
 }
 
+function sunlightSubmissionKey(vboId: string, reportId: string, result: SunlightResult): string {
+  const analysisYear = result.analysisYear ?? new Date().getFullYear();
+  return [
+    vboId,
+    reportId,
+    result.winter,
+    result.equinox,
+    result.summer,
+    analysisYear,
+    result.svf ?? 'na',
+  ].join('|');
+}
+
 function fallbackSunlightQuestions(score: number | undefined) {
   const enBase = score != null
     ? `Sunlight score is ${score}/100.`
@@ -548,6 +561,7 @@ function App() {
   const previousScreenRef = useRef<Screen>('search');
   const handledCheckoutParamsRef = useRef<string | null>(null);
   const tracked3DOpenKeyRef = useRef<string | null>(null);
+  const latestSunlightSubmissionKeyRef = useRef<string | null>(null);
 
   // Deferred 3D fetch: store parameters when address resolves, trigger when viewport-near
   type Deferred3DParams = {
@@ -1018,7 +1032,13 @@ function App() {
     setSunlightUnavailable(false);
     const vboId = address?.adresseerbaar_object_id;
     if (!vboId || !isEntitled || !reportId) return;
+    const submissionKey = sunlightSubmissionKey(vboId, reportId, result);
+    if (latestSunlightSubmissionKeyRef.current === submissionKey) return;
+    latestSunlightSubmissionKeyRef.current = submissionKey;
     void submitSunlightAnalysis(vboId, result, reportId).catch(() => {
+      if (latestSunlightSubmissionKeyRef.current === submissionKey) {
+        latestSunlightSubmissionKeyRef.current = null;
+      }
       // Client-side card still works even when backend caching fails.
     });
   }, [address?.adresseerbaar_object_id, isEntitled, reportId]);
@@ -2913,6 +2933,8 @@ function App() {
                             {neighborhood3D && neighborhood3D.buildings.length > 0 && (
                               <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
                                 <NeighborhoodViewer3D
+                                  addressId={address.adresseerbaar_object_id ?? undefined}
+                                  reportId={isEntitled ? reportId ?? undefined : undefined}
                                   buildings={neighborhood3D.buildings}
                                   targetPandId={neighborhood3D.target_pand_id ?? undefined}
                                   center={neighborhood3D.center}

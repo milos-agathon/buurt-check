@@ -107,6 +107,11 @@ export interface FacadeSunlightResult {
   annualAverage: number;
 }
 
+export interface SunlightTimestepMeta {
+  date: string;
+  minuteOfDay: number;
+}
+
 export interface SunlightResult {
   winter: number;
   equinox: number;
@@ -114,6 +119,7 @@ export interface SunlightResult {
   annualAverage: number;
   analysisYear?: number;
   svf?: number;
+  svfAnisotropic?: number;
   perPointAnnual?: number[];
   roofGridPoints?: [number, number, number][];
   facadeProxyPoints?: [number, number, number][];
@@ -128,6 +134,11 @@ export interface SunlightResult {
     ground: number;
     total: number;
   };
+  perTimestepVisibility?: (0 | 1)[][];
+  timestepMeta?: SunlightTimestepMeta[];
+  irradianceKwhM2?: number;
+  irradianceDirectKwhM2?: number;
+  irradianceDiffuseKwhM2?: number;
   analysisMethod?: 'cpu-raycast-main' | 'cpu-raycast-worker';
 }
 

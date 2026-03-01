@@ -37,6 +37,7 @@ export interface WorkerAnalysisInput {
     labels: string[];
     skipSelfShadow: boolean;
   };
+  emitPerTimestep?: boolean;
   abortSignal?: AbortSignal;
   onProgress?: (monthsDone: number, totalMonths: number) => void;
 }
@@ -116,6 +117,8 @@ function handleWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
         facadeResults: msg.result.facadeResults,
         groundAnnualAverage: msg.result.groundAnnualAverage,
         samplingBreakdown: msg.result.samplingBreakdown,
+        perTimestepVisibility: msg.result.perTimestepVisibility,
+        timestepMeta: msg.result.timestepMeta,
         analysisMethod: 'cpu-raycast-worker',
       });
     });
@@ -234,6 +237,7 @@ export function runSunlightInWorker(
       facadeHeightMeters: input.facadeHeightMeters,
       groundHeightOffsetMeters: input.groundHeightOffsetMeters,
       extraEvalPoints: input.extraEvalPoints,
+      emitPerTimestep: input.emitPerTimestep,
     };
 
     try {

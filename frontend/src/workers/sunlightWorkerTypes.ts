@@ -42,6 +42,8 @@ export interface SunlightWorkerRequest {
     labels: string[];
     skipSelfShadow: boolean;
   };
+  /** Emit per-point per-timestep visibility for irradiance post-processing. */
+  emitPerTimestep?: boolean;
 }
 
 /** Progress message: sunlight Worker -> main thread. */
@@ -72,6 +74,8 @@ export interface SunlightWorkerResultData {
     ground: number;
     total: number;
   };
+  perTimestepVisibility?: (0 | 1)[][];
+  timestepMeta?: { date: string; minuteOfDay: number }[];
 }
 
 /** Result message: sunlight Worker -> main thread. */

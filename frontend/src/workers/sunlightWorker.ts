@@ -44,6 +44,7 @@ ctx.addEventListener('message', async (event: MessageEvent<SunlightWorkerRequest
       facadeHeightMeters: msg.facadeHeightMeters,
       groundHeightOffsetMeters: msg.groundHeightOffsetMeters,
       extraEvalPoints: msg.extraEvalPoints,
+      emitPerTimestep: msg.emitPerTimestep,
       raycaster: sharedRaycaster,
       yieldControl: noopYield,
       onMonthComplete: (monthIdx: number, totalMonths: number) => {
@@ -75,6 +76,8 @@ ctx.addEventListener('message', async (event: MessageEvent<SunlightWorkerRequest
         facadeResults: result.facadeResults,
         groundAnnualAverage: result.groundAnnualAverage,
         samplingBreakdown: result.samplingBreakdown,
+        perTimestepVisibility: result.perTimestepVisibility,
+        timestepMeta: result.timestepMeta,
       } : null,
     };
     ctx.postMessage(response);

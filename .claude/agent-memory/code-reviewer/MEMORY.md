@@ -63,6 +63,53 @@
 - **`computeSignedArea2D` (`roofSampling.ts`) duplicates `signedArea` (`sunlightSampling.ts`).** Identical shoelace formula, different polygon type (`number[][]` vs `PolygonPoint2D[]`). Export the primitive and share it.
 - **Property-warnings cache key constructed in two places** in `address.py`: route handler (lines 744-750) and `_fetch_property_warnings_for_export` (lines 935-941). Extract a `_property_warnings_cache_key(...)` helper function.
 
+## Tregenza 145-Patch Sky Discretization (Task 4.1, 2026-03-01)
+
+- **File:** `frontend/src/utils/tregenzaPatches.ts`
+- **Export:** `getTregenzaPatches(): TregenzaPatch[]` — pure function, no state, deterministic
+- **Architecture:** 8 rows (0-7), patch counts [30, 30, 24, 24, 18, 12, 6, 1] = 145 total
+- **Math verified:**
+  - Row altitude range: 6° to 90° (center of band)
+  - Band width: fixed 12° per row, clamped to horizon (0°) and zenith (90°)
+  - Solid angles: calculated via spherical cap formula `2π(sin(altHigh) - sin(altLow))`
+  - Total solid angle: 2π steradians (hemisphere), no loss of precision
+  - Azimuth uniform: `(2π * i) / count` patches per row, wraps cleanly at 2π
+  - Circular boundary handling: test at `anisotropicSvf.test.ts:53` correctly handles azimuth wrap-around with `Math.abs(az - 0) < π/4 || Math.abs(az - 2π) < π/4` (boundary at 45° is tight but works)
+- **Interface correctness:** `TregenzaPatch { altitude, azimuth, solidAngle (all radians/steradians), row }`
+- **Test coverage:** 4 tests covering count, bounds, summation, and gradient. All pass.
+- **Potential issues:** None found. Code is mathematically correct and well-documented.
+
+## Anisotropic SVF via Perez Weighting (Task 4.3, 2026-03-01)
+
+- **File:** `frontend/src/utils/anisotropicSvf.ts` + test
+- **Formula:** `SVF = Σ(visible patches: lum*Ω*sin(alt)) / Σ(all patches: lum*Ω*sin(alt))`
+- **Dependencies:** `getTregenzaPatches()` (discretization), `perezLuminance()` (weighting)
+- **Callback interface:** `isVisible(altitude, azimuth): boolean` — clean, composable, caller-provided obstruction logic
+- **Math verified:**
+  - Tregenza + Perez weighting captures circumsolar and horizon brightening
+  - `sin(altitude) = cos(zenith)` correctly applies cosine factor for horizontal plane
+  - Normalization guard: `totalWeight > 0 ? visible/total : 0` safe (but Perez should never zero all patches)
+- **Test coverage:** 8 tests (all visible/none visible, sun-facing vs. opposite, determinism, ranges, sun extremes)
+- **Minor warnings:**
+  1. `.toBeCloseTo(1.0, 1)` tolerance on open-sky tests may hide numerical drift — add explicit `weightSum === totalWeight` check
+  2. No edge case test for `sunAlt < 0` (night) — behavior undefined, should clarify intent or clamp
+  3. Comment at line 29 could note `sin(altitude)` implementation more clearly
+- **Ready for:** Task 4.4 (viewer integration) — no external APIs, pure function, fast (145 iterations)
+
+## Task 4.4: Anisotropic SVF Viewer Integration (2026-03-01)
+
+- **New functions in `svfComputation.ts`:** `directionToFaceUV`, `isCubemapPixelSky`, `renderCubemapFaces`, `computeAnisotropicSvfFromCubemap`, `computeAnisotropicSvfMultiPoint`
+- **Cubemap inverse mapping verified:** `directionToFaceUV` is algebraically the exact inverse of `cosineWeightForCubemapPixel`'s face assignment. Pixel reconstruction uses `floor(((u+1)/2)*size)` — 0.5 pixel off due to missing `-0.5`, acceptable at 64x64 resolution.
+- **Azimuth convention chain verified consistent:** Tregenza azimuth 0=north; `isCubemapPixelSky` 0=north; `getSunDirection` uses SunCalc raw (0=south); viewer adds π before passing to `computeAnisotropicSvfMultiPoint` → all consistent.
+- **Disposal in renderCubemapFaces:** `obstructionMat.dispose()` + `cubeTarget.dispose()` in `finally`. Clones removed from scene. `svfScene` itself is not disposed (has no GPU resources when not attached to renderer) — consistent with isotropic path.
+- **renderCubemapFaces duplicates computeSvf setup:** ~35 lines of scene setup/teardown are copy-pasted. Minor code-reuse issue.
+- **CRITICAL: No idle/paint wait guards before anisotropic SVF.** The isotropic main-thread fallback (lines 1410-1415) calls `waitForNextPaint` + `waitForMainThreadIdle` before computing. The anisotropic block (lines 1437-1472) runs immediately after, with no yield point. On mobile at 5 sample points, this renders 5 cubemaps × 6 faces = 30 GPU readbacks consecutively, stalling main thread for ~200-400ms.
+- **Hardcoded unit string:** `SunlightRiskCard.tsx` line 179 has `kWh/m²/yr` hardcoded in JSX (not via i18n). The direct/diffuse values use `irradiance_direct`/`irradiance_diffuse` keys correctly (they include the unit). The main `irradianceKwhM2` display does not.
+- **svfAnisotropic preserved in enrichedResult:** `enrichedResult` spreads from `sunlightResultRef.current ?? nextResult`, and `nextResult` contains `svfAnisotropic`. If `sunlightResultRef.current` was updated after anisotropic SVF was set and before weather resolves, `svfAnisotropic` is preserved ✓.
+- **weatherPromise started before result is available:** `weatherPromise` is created at line 1296, before `result` is populated (lines 1342-1365). Network call is pre-fired. This is intentional and correct — parallel execution.
+- **canEstimateIrradiance checks `nextResult.svf` but irradiance uses diffuse sky SVF:** Could be `svfAnisotropic` for better accuracy, but using isotropic `svf` for diffuse sky fraction is physically reasonable. Not a bug.
+- **No test coverage for the new viewer wiring:** The viewer's anisotropic SVF branch is not tested in isolation. Only `computeAnisotropicSvf` unit tests and `anisotropicSvf.test.ts` exist. No test exercises the `computeAnisotropicSvfFromCubemap` → `isCubemapPixelSky` → `directionToFaceUV` chain with a real Three.js scene.
+
 ## Links to Topic Files
 
 - See `patterns.md` for more detail on Three.js instrumentation patterns.

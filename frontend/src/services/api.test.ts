@@ -6,6 +6,7 @@ import {
   createShortReport,
   downloadPdfBlob,
   exportBriefing,
+  fetchWeatherTmy,
   getBuildingFacts,
   getLivability,
   getNeighborhood3D,
@@ -766,5 +767,55 @@ describe('getLivability', () => {
     await getLivability('vbo-1', 121286, 487296);
     const [, init] = mockFetch.mock.calls[0];
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+// ─── fetchWeatherTmy ──────────────────────────────────────────────────────────
+
+describe('fetchWeatherTmy', () => {
+  it('includes report_id and parses weather records', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        data: [
+          {
+            date: '20050101:0030',
+            minute_of_day: 30,
+            dni_w_m2: 450,
+            dhi_w_m2: 120,
+            ghi_w_m2: 570,
+          },
+        ],
+      }),
+    );
+
+    const result = await fetchWeatherTmy(
+      '0363010000696734',
+      52.37,
+      4.9,
+      undefined,
+      'report-123',
+    );
+
+    expect(result).toEqual([
+      {
+        date: '20050101:0030',
+        minuteOfDay: 30,
+        dni_w_m2: 450,
+        dhi_w_m2: 120,
+        ghi_w_m2: 570,
+      },
+    ]);
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toContain('/weather-tmy?');
+    expect(url).toContain('report_id=report-123');
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('returns null on non-OK response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(402));
+
+    const result = await fetchWeatherTmy('0363010000696734', 52.37, 4.9);
+
+    expect(result).toBeNull();
   });
 });

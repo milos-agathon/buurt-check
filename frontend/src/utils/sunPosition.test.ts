@@ -7,6 +7,7 @@ import {
   getRepresentativeDates,
   getDatePartsInTimeZone,
   setTimeInTimeZone,
+  sunCalcToNorthAzimuth,
 } from './sunPosition';
 
 afterEach(() => {
@@ -94,6 +95,24 @@ describe('getRepresentativeDates', () => {
     expect(first.month).toBe(1);
     expect(last.month).toBe(12);
     dates.forEach((date) => expect(getDatePartsInTimeZone(date).day).toBe(21));
+  });
+});
+
+describe('sunCalcToNorthAzimuth', () => {
+  it('converts south (SunCalc 0) to 180 degrees north-origin', () => {
+    expect(sunCalcToNorthAzimuth(0)).toBeCloseTo(Math.PI);
+  });
+
+  it('converts west (SunCalc pi/2) to 270 degrees north-origin', () => {
+    expect(sunCalcToNorthAzimuth(Math.PI / 2)).toBeCloseTo(3 * Math.PI / 2);
+  });
+
+  it('converts north (SunCalc pi) to 360 degrees / 0 degrees north-origin', () => {
+    expect(sunCalcToNorthAzimuth(Math.PI)).toBeCloseTo(2 * Math.PI);
+  });
+
+  it('converts east (SunCalc -pi/2) to 90 degrees north-origin', () => {
+    expect(sunCalcToNorthAzimuth(-Math.PI / 2)).toBeCloseTo(Math.PI / 2);
   });
 });
 

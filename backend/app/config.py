@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     rivm_gcn_wms_base: str = "https://data.rivm.nl/geo/gcn/wms"
     climate_atlas_wms_base: str = "https://maps1.klimaatatlas.net/geoserver/ows"
     climate_atlas_layers_index: str = "https://maps1.klimaatatlas.net/geoserver/rest/layers.json"
+    pvgis_tmy_base: str = "https://re.jrc.ec.europa.eu/api/v5_2/tmy"
 
     # PDOK Luchtfoto (aerial orthophotography — Kadaster, CC BY 4.0)
     luchtfoto_wms_base: str = "https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0"
@@ -82,6 +83,7 @@ class Settings(BaseSettings):
     cache_ttl_property_warnings: int = 604800  # 7 days
     cache_ttl_foundation: int = 2592000  # 30 days (soil doesn't change)
     cache_ttl_livability: int = 2592000  # 30 days
+    cache_ttl_weather_tmy: int = 31536000  # 365 days (TMY is static climatology)
 
     # Load env vars whether uvicorn is started from repo root or backend/.
     model_config = {

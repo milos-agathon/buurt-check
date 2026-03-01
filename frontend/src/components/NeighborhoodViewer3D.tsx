@@ -30,11 +30,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
 import HeatmapLegend from './HeatmapLegend';
 import { sunHoursToColor } from '../utils/heatmapColors';
-import { createDateInTimeZone, getSunDirection, setTimeInTimeZone, SUN_DISTANCE } from '../utils/sunPosition';
+import { createDateInTimeZone, getSunDirection, setTimeInTimeZone, sunCalcToNorthAzimuth, SUN_DISTANCE } from '../utils/sunPosition';
 import { buildRoofPointGrid } from '../utils/spatialHashGrid';
 import { ROOF_EVALUATION_OFFSET_METERS } from '../utils/sunlightConstants';
 import { generateFacadePoints, generateGroundProxyPoints } from '../utils/roofSampling';
+import { computeIrradiance } from '../utils/irradianceComputation';
+import { computeRoofNormal } from '../utils/surfaceNormals';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
+import { fetchWeatherTmy } from '../services/api';
 import { serializeBuildings } from '../workers/geometrySerialization';
 import { isWorkerSupported, runSunlightInWorker } from '../workers/sunlightBridge';
 import { isOffscreenCanvasSupported, runSvfInWorker } from '../workers/svfBridge';
@@ -69,6 +72,8 @@ function latLngToTile(lat: number, lng: number, zoom: number) {
 }
 
 interface Props {
+  addressId?: string;
+  reportId?: string;
   buildings: BuildingBlock[];
   targetPandId?: string;
   center: { lat: number; lng: number; rd_x: number; rd_y: number };
@@ -302,6 +307,32 @@ function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
+function getRoofNormal(building: BuildingBlock): [number, number, number] {
+  const surfaces = building.roof_surfaces;
+  if (!surfaces || surfaces.length === 0) {
+    return [0, 1, 0];
+  }
+
+  let topSurface: number[][] | null = null;
+  let topSurfaceAvgY = -Infinity;
+
+  for (const surface of surfaces) {
+    if (!surface || surface.length < 3) continue;
+
+    const avgY = surface.reduce((sum, vert) => sum + (vert[2] ?? 0), 0) / surface.length;
+    if (avgY > topSurfaceAvgY) {
+      topSurfaceAvgY = avgY;
+      topSurface = surface.map((vert) => [vert[0], vert[2], -vert[1]]);
+    }
+  }
+
+  if (!topSurface || topSurface.length < 3) {
+    return [0, 1, 0];
+  }
+
+  return computeRoofNormal(topSurface);
+}
+
 function getHeatmapRange(values: number[]): HeatmapRange | null {
   if (values.length === 0) return null;
   let min = Infinity;
@@ -324,6 +355,8 @@ function toRgbComponents(hexColor: number): [number, number, number] {
 }
 
 export default function NeighborhoodViewer3D({
+  addressId,
+  reportId,
   buildings,
   targetPandId,
   center,
@@ -1258,6 +1291,9 @@ export default function NeighborhoodViewer3D({
       const groundY = target.ground_height - minGround;
       const year = new Date().getFullYear();
       let result: SunlightResult | null = null;
+      const weatherPromise = addressId && reportId
+        ? fetchWeatherTmy(addressId, center.lat, center.lng, abortController.signal, reportId)
+        : Promise.resolve(null);
 
       const facadePoints = generateFacadePoints(target.footprint, groundY, [1.5, 4.5]);
       const groundPoints = generateGroundProxyPoints(target.footprint, groundY, 5, 8);
@@ -1290,6 +1326,7 @@ export default function NeighborhoodViewer3D({
         intervalMinutes: 30,
         chunkRaycasts: 200,
         extraEvalPoints,
+        emitPerTimestep: true,
       };
 
       // Serialize once — buffers are NOT transferred (no zero-copy), so they
@@ -1389,8 +1426,51 @@ export default function NeighborhoodViewer3D({
         );
       }
 
+      // Compute anisotropic SVF on main thread when renderer supports readback
+      let svfAnisotropic: number | undefined;
+      if (
+        canComputeSvf
+        && result.roofGridPoints
+        && result.roofGridPoints.length > 0
+        && svf !== undefined
+      ) {
+        // Get sun position for Perez luminance model
+        const SunCalc = (await import('suncalc')).default;
+        if (abortController.signal.aborted) {
+          sunlightComputed.current = false;
+          return;
+        }
+        const sunPos = SunCalc.getPosition(new Date(), center.lat, center.lng);
+        const sunAlt = Math.max(0, sunPos.altitude); // Clamp negative altitude
+        const sunAz = sunCalcToNorthAzimuth(sunPos.azimuth);
+
+        if (sunAlt > 0) { // Only compute during daylight
+          const { computeAnisotropicSvfMultiPoint } = await import('../utils/svfComputation');
+          if (abortController.signal.aborted) {
+            sunlightComputed.current = false;
+            return;
+          }
+          const svfSamplePointBudget = getSvfSamplePointBudget();
+          svfAnisotropic = computeAnisotropicSvfMultiPoint(
+            ctx.renderer,
+            ctx.buildingMeshes,
+            result.roofGridPoints,
+            sunAlt,
+            sunAz,
+            svfSamplePointBudget,
+          );
+        }
+      }
+
       if (svf !== undefined && Number.isFinite(svf)) {
-        nextResult = { ...result, svf: round3(svf), analysisMethod };
+        nextResult = {
+          ...result,
+          svf: round3(svf),
+          ...(svfAnisotropic !== undefined && Number.isFinite(svfAnisotropic)
+            ? { svfAnisotropic: round3(svfAnisotropic) }
+            : {}),
+          analysisMethod,
+        };
       } else {
         nextResult = { ...result, analysisMethod };
       }
@@ -1405,6 +1485,66 @@ export default function NeighborhoodViewer3D({
       setHeatmapRange(range);
       callback(nextResult);
       renderOnce();
+
+      const canEstimateIrradiance = (
+        nextResult.svf != null
+        && (result.perTimestepVisibility?.length ?? 0) > 0
+        && (result.timestepMeta?.length ?? 0) > 0
+      );
+
+      if (canEstimateIrradiance) {
+        void weatherPromise.then((weather) => {
+          if (abortController.signal.aborted || !weather || weather.length === 0) {
+            return;
+          }
+
+          const perTimestepVisibility = result?.perTimestepVisibility;
+          const timestepMeta = result?.timestepMeta;
+          const svfValue = nextResult.svf;
+          if (
+            !perTimestepVisibility
+            || !timestepMeta
+            || timestepMeta.length === 0
+            || svfValue == null
+          ) {
+            return;
+          }
+
+          const sunDirections = timestepMeta.map((step) => {
+            const sunDir = getSunDirection(new Date(step.date), center.lat, center.lng);
+            if (!sunDir) return [0, 0, 0];
+            return [sunDir.x, sunDir.y, sunDir.z];
+          });
+
+          const roofNormal = getRoofNormal(target);
+          const irradiance = computeIrradiance({
+            perTimestepVisibility,
+            timestepMeta,
+            sunDirections,
+            surfaceNormal: roofNormal,
+            svf: svfValue,
+            weather,
+            intervalMinutes: analysisParams.intervalMinutes,
+          });
+
+          if (abortController.signal.aborted) {
+            return;
+          }
+
+          const enrichedResult: SunlightResult = {
+            ...(sunlightResultRef.current ?? nextResult),
+            irradianceKwhM2: round3(irradiance.totalKwhM2),
+            irradianceDirectKwhM2: round3(irradiance.directKwhM2),
+            irradianceDiffuseKwhM2: round3(irradiance.diffuseKwhM2),
+          };
+
+          sunlightResultRef.current = enrichedResult;
+          callback(enrichedResult);
+          renderOnce();
+        }).catch(() => {
+          // Graceful degradation: keep sunlight hours and SVF even if weather fetch fails.
+        });
+      }
     } catch (error) {
       const isAbort = error instanceof DOMException && error.name === 'AbortError';
       if (!isAbort && import.meta.env.DEV) {
@@ -1419,7 +1559,7 @@ export default function NeighborhoodViewer3D({
         sunlightAbortRef.current = null;
       }
     }
-  }, [applyTargetHeatmap, buildings, center.lat, center.lng, renderOnce, targetPandId]);
+  }, [addressId, applyTargetHeatmap, buildings, center.lat, center.lng, renderOnce, reportId, targetPandId]);
 
   useEffect(() => {
     const result = sunlightResultRef.current;
