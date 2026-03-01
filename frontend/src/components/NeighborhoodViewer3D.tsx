@@ -1426,7 +1426,9 @@ export default function NeighborhoodViewer3D({
         );
       }
 
-      // Compute anisotropic SVF on main thread when renderer supports readback
+      // Compute anisotropic SVF on main thread when renderer supports readback.
+      // Uses summer solstice noon as deterministic reference — always daytime,
+      // consistent across sessions, and representative of peak diffuse conditions.
       let svfAnisotropic: number | undefined;
       if (
         canComputeSvf
@@ -1434,32 +1436,30 @@ export default function NeighborhoodViewer3D({
         && result.roofGridPoints.length > 0
         && svf !== undefined
       ) {
-        // Get sun position for Perez luminance model
         const SunCalc = (await import('suncalc')).default;
         if (abortController.signal.aborted) {
           sunlightComputed.current = false;
           return;
         }
-        const sunPos = SunCalc.getPosition(new Date(), center.lat, center.lng);
-        const sunAlt = Math.max(0, sunPos.altitude); // Clamp negative altitude
+        const refDate = createDateInTimeZone(year, 5, 21, 12, 0); // June 21 noon
+        const sunPos = SunCalc.getPosition(refDate, center.lat, center.lng);
+        const sunAlt = Math.max(0, sunPos.altitude);
         const sunAz = sunCalcToNorthAzimuth(sunPos.azimuth);
 
-        if (sunAlt > 0) { // Only compute during daylight
-          const { computeAnisotropicSvfMultiPoint } = await import('../utils/svfComputation');
-          if (abortController.signal.aborted) {
-            sunlightComputed.current = false;
-            return;
-          }
-          const svfSamplePointBudget = getSvfSamplePointBudget();
-          svfAnisotropic = computeAnisotropicSvfMultiPoint(
-            ctx.renderer,
-            ctx.buildingMeshes,
-            result.roofGridPoints,
-            sunAlt,
-            sunAz,
-            svfSamplePointBudget,
-          );
+        const { computeAnisotropicSvfMultiPoint } = await import('../utils/svfComputation');
+        if (abortController.signal.aborted) {
+          sunlightComputed.current = false;
+          return;
         }
+        const svfSamplePointBudget = getSvfSamplePointBudget();
+        svfAnisotropic = computeAnisotropicSvfMultiPoint(
+          ctx.renderer,
+          ctx.buildingMeshes,
+          result.roofGridPoints,
+          sunAlt,
+          sunAz,
+          svfSamplePointBudget,
+        );
       }
 
       if (svf !== undefined && Number.isFinite(svf)) {
