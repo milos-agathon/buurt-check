@@ -18,6 +18,7 @@ from app.models.neighborhood import NeighborhoodStatsResponse, UrbanizationLevel
 from app.models.neighborhood3d import Neighborhood3DResponse
 from app.models.property_warnings import PropertyWarningsResponse
 from app.models.risk import (
+    FacadeResult,
     RiskCardsResponse,
     RiskComparisonsResponse,
     RiskLevel,
@@ -108,12 +109,26 @@ def _property_warnings_cache_key(
 router = APIRouter(prefix="/address", tags=["address"])
 
 
+class FacadeSubmission(BaseModel):
+    orientation: str
+    height_label: str = Field(default="")
+    winter_hours: float = Field(..., ge=0, le=24)
+    summer_hours: float = Field(..., ge=0, le=24)
+    annual_average: float = Field(..., ge=0, le=24)
+
+
 class SunlightSubmission(BaseModel):
     winter_hours: float = Field(..., ge=0, le=24)
     summer_hours: float = Field(..., ge=0, le=24)
     equinox_hours: float = Field(..., ge=0, le=24)
     analysis_year: int = Field(..., ge=2000, le=2100)
     svf: float | None = Field(default=None, ge=0, le=1)
+    # Extended fields
+    facade_results: list[FacadeSubmission] = Field(default_factory=list)
+    annual_average: float | None = Field(default=None, ge=0, le=24)
+    ground_annual_average: float | None = Field(default=None, ge=0, le=24)
+    svf_anisotropic: float | None = Field(default=None, ge=0, le=1)
+    irradiance_kwh_m2: float | None = Field(default=None, ge=0)
 
 
 async def _get_cached_sunlight_card(vbo_id: str) -> SunlightRiskCard | None:
@@ -431,6 +446,18 @@ async def submit_sunlight_analysis(
     )
     summary_en, summary_nl = sunlight_summary(sunlight_score, body.winter_hours)
 
+    # Map facade submissions to FacadeResult models
+    facade_results = [
+        FacadeResult(
+            orientation=f.orientation,
+            height_label=f.height_label,
+            winter_hours=round(f.winter_hours, 1),
+            summer_hours=round(f.summer_hours, 1),
+            annual_average=round(f.annual_average, 1),
+        )
+        for f in body.facade_results
+    ]
+
     card = SunlightRiskCard(
         level=severity,
         winter_hours=round(body.winter_hours, 1),
@@ -444,6 +471,23 @@ async def submit_sunlight_analysis(
         severity=severity,
         summary=summary_en,
         summary_nl=summary_nl,
+        facade_results=facade_results,
+        annual_average=(
+            round(body.annual_average, 1)
+            if body.annual_average is not None
+            else None
+        ),
+        ground_annual_average=(
+            round(body.ground_annual_average, 1)
+            if body.ground_annual_average is not None
+            else None
+        ),
+        svf_anisotropic=body.svf_anisotropic,
+        irradiance_kwh_m2=(
+            round(body.irradiance_kwh_m2, 1)
+            if body.irradiance_kwh_m2 is not None
+            else None
+        ),
     )
 
     await cache_set(

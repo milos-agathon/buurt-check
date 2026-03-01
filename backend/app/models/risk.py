@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RiskLevel(str, Enum):
@@ -74,6 +74,14 @@ class ClimateStressRiskCard(BaseModel):
     summary_nl: str | None = None
 
 
+class FacadeResult(BaseModel):
+    orientation: str
+    height_label: str = Field(default="")
+    winter_hours: float
+    summer_hours: float
+    annual_average: float
+
+
 class SunlightRiskCard(BaseModel):
     level: SeverityLevel = SeverityLevel.unavailable
     winter_hours: float | None = None
@@ -87,6 +95,12 @@ class SunlightRiskCard(BaseModel):
     severity: SeverityLevel | None = None
     summary: str | None = None
     summary_nl: str | None = None
+    # Extended fields (Phase 6 sunlight data)
+    facade_results: list[FacadeResult] = Field(default_factory=list)
+    annual_average: float | None = Field(default=None)
+    ground_annual_average: float | None = Field(default=None)
+    svf_anisotropic: float | None = Field(default=None)
+    irradiance_kwh_m2: float | None = Field(default=None)
 
 
 class RiskCardsResponse(BaseModel):

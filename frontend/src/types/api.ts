@@ -204,6 +204,14 @@ export interface ClimateStressRiskCard {
   summary_nl?: string;
 }
 
+export interface FacadeResultApi {
+  orientation: string;
+  height_label: string;
+  winter_hours: number;
+  summer_hours: number;
+  annual_average: number;
+}
+
 export interface SunlightRiskCard {
   level?: SeverityLevel;
   score?: number;
@@ -217,6 +225,12 @@ export interface SunlightRiskCard {
   svf_score?: number;
   source?: string;
   source_date?: string;
+  // Extended fields (Phase 6 sunlight data)
+  facade_results?: FacadeResultApi[];
+  annual_average?: number;
+  ground_annual_average?: number;
+  svf_anisotropic?: number;
+  irradiance_kwh_m2?: number;
 }
 
 export interface RiskCardsResponse {
