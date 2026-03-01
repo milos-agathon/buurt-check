@@ -6,7 +6,7 @@ Python 3.12 API aggregator. External data stays stateless/cached, monetization s
 
 ```bash
 uvicorn app.main:app --reload --port 8000   # Dev server
-pytest -x -q -m "not live"                  # CI tests (624+ baseline)
+pytest -x -q -m "not live"                  # CI tests (629+ baseline)
 pytest -x -q                                # Including live API smoke tests
 ruff check . && ruff format .               # MUST pass before commit
 ```
@@ -97,4 +97,4 @@ ruff check . && ruff format .               # MUST pass before commit
 - **SlowAPI decorator order depends on response: Response param**: @limiter.limit as outer when no Response param, inner when Response is present. Two valid patterns exist -- do not blindly standardize
 - **limiter.reset() in test fixtures**: prevents cross-test rate limit pollution for rate-limited endpoints
 - **patch.object(settings, field, value) is sufficient** for pydantic-settings singleton patching -- no ExitStack needed
-- **Test baseline**: 624 tests (post-Phase-2 + bug audit, 2026-02-28)
+- **Test baseline**: 629 tests (post-Sunlight v2 weather service, 2026-03-01)

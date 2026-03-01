@@ -22,7 +22,7 @@ backend/           # FastAPI API aggregator + SQLite entitlements (no user accou
   app/models/      # Pydantic response models
   app/cache/       # Redis with circuit breaker
   app/config.py    # pydantic-settings (BUURT_* env prefix)
-  tests/           # pytest (613+ non-live tests)
+  tests/           # pytest (629+ non-live tests)
 frontend/          # React + Vite + TypeScript
   src/components/  # All UI components (dossier cards, navigation, search, shortlist)
   src/styles/      # tokens.css (195 CSS custom properties), satoshi.css (font)
@@ -38,7 +38,7 @@ docs/              # Design specs, plans, palette, UI principles
 ```bash
 # Backend
 cd backend && uvicorn app.main:app --reload --port 8000
-cd backend && pytest -x -q -m "not live"   # CI tests (624+ baseline)
+cd backend && pytest -x -q -m "not live"   # CI tests (629+ baseline)
 cd backend && ruff check .                  # MUST pass before commit
 # Payment features require BUURT_STRIPE_SECRET_KEY, BUURT_STRIPE_WEBHOOK_SECRET,
 # BUURT_STRIPE_PRICE_CENTS, BUURT_BASE_URL, BUURT_DATABASE_PATH.
@@ -46,7 +46,7 @@ cd backend && ruff check .                  # MUST pass before commit
 # Frontend
 cd frontend && npm run dev                  # Dev server (proxies /api to :8000)
 cd frontend && npm run build                # MUST pass before commit (strict TS)
-cd frontend && npm run test                 # Vitest (796+ baseline)
+cd frontend && npm run test                 # Vitest (867+ baseline)
 ```
 
 ## Architecture decisions
@@ -119,3 +119,15 @@ Key patterns from the resilience hardening session, documented in full in `front
 - **Deep-link failures need toast + redirect**: URL with ?lookup=... must handle PDOK failure gracefully: toast then navigate to search, not a broken dossier screen.
 
 
+
+## Session Learnings (2026-03-01) — Sunlight v2 + PDF Diagnostic
+
+Key patterns from 13 sessions implementing Sunlight v2 Phases 3-6, adversarial code reviews, and PDF dossier quality audit:
+
+- **Deterministic timestamps for solar computations**: Perez luminance weighting uses sun altitude — `new Date()` at night zeroes SVF entirely. Always use a fixed summer noon reference (June 21 12:00 local) for Perez weighting.
+- **UTC/local timezone trap in weather alignment**: `getUTCHours()` is mandatory for extracting minutes from ISO date strings. Local extraction drifts 1-2 hours with DST.
+- **Codex adversarial review sandbox limitation**: Codex can't execute `npm run test` or `pytest` in its sandbox. This inflates false-negative rate to ~30-50%. Always cross-verify Codex "FAIL" verdicts with actual test runs.
+- **Concurrent sessions modify working tree mid-review**: Another session can fix bugs during a long review, causing stale findings. Always verify findings against HEAD before acting on them.
+- **Untracked files masquerade as missing**: `git diff` only shows tracked file changes. New files (`??` in git status) won't appear — check `git status` not just `git diff`.
+- **Phase scope bleed causes test failures**: Phase 5 work (~60%) leaked into Phase 4 sessions. Keep implementation sessions strictly scoped to one phase.
+- **PDF root cause is rendering, not data**: Backend computes sunlight, livability, property warnings, crime — but drops them at the fpdf2 rendering boundary. The dossier PDF uses minimal primitives (1mm bars, no axes/legends). This is a rendering gap, not a data gap.

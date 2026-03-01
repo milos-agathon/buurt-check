@@ -7,7 +7,7 @@ Mobile-first SPA with "Polar Frost" design system. Framer Motion gestures, Three
 ```bash
 npm run dev          # Dev server (proxies /api to localhost:8000)
 npm run build        # MUST pass before commit (strict TS: noUnusedLocals)
-npm run test         # Vitest (796+ baseline)
+npm run test         # Vitest (867+ baseline)
 npx vitest --watch   # Watch mode
 ```
 
@@ -221,7 +221,31 @@ setTimeout(() => { setViewer3DTriggered(true); trigger3DFetch(); }, 0);
 - **Redundant mutable tracking**: method variable tracked analysisMethod across async branches, but Worker already stamps analysisMethod on its result. Derive from result instead
 - **updateMatrixWorld(true) redundancy**: Calling per-mesh in serializeBuildings triggers 150 redundant parent traversals for direct scene children. Call scene.updateMatrixWorld(false) once before loop, then obj.updateMatrix() inside
 
-## Test Baseline (updated 2026-02-28)
+## Sunlight v2 Phases 4-6 (added 2026-03-01)
 
-- **Vitest**: 796 tests (post-simplify + Phase 3 workers)
+### Phase 4: Anisotropic Sky View Factor
+
+- **Tregenza 145-patch sky discretization:** 8 elevation bands with patch counts [30, 30, 24, 24, 18, 12, 6, 1]. Memoize at module level — `getTregenzaPatches()` allocates fresh array per call
+- **Perez all-weather sky luminance model:** CIE clear sky type 12 coefficients. Sensitive to sun position (altitude/azimuth)
+- **Deterministic summer noon for Perez weighting:** `new Date()` breaks at night — sun altitude=0 zeroes anisotropic SVF entirely. Use fixed June 21 noon timestamp for consistent results regardless of when computation runs
+- **Cubemap scene resource lifecycle:** `createSvfSceneResources()`/`disposeSvfSceneResources()` for allocation/cleanup. Do not recreate per evaluation point
+- **Geometry mapping functions (`directionToFaceUV`, `isCubemapPixelSky`)** are geometrically tricky — need dedicated unit tests, not just integration coverage
+- **SunCalcToNorthAzimuth helper:** +Math.PI convention for SunCalc-to-north conversion. Has dedicated tests documenting the convention
+
+### Phase 5: Weather-Corrected Irradiance
+
+- **UTC time extraction:** Use `getUTCHours()` for minute extraction from ISO date strings. Local time extraction is off by 1-2 hours (DST-dependent)
+- **Multi-point majority-vote averaging** for irradiance is better than single eval point
+- **`alignWeather()` 30-minute max-distance guard:** Weather TMY data aligned to nearest timestep; reject if >30min gap
+- **Conditional disclaimer text:** Switch to weather-aware disclaimer when weather data is actually used
+- **`emitPerTimestep` overhead:** Flag always enabled even when irradiance not needed. Memory overhead but not a correctness issue
+
+### Phase 6: Standards Benchmarking
+
+- **Pure computation functions** for EN 17037 daylight exposure bands and TNO benchmark levels in `standardsBenchmark.ts`. 20 boundary-tested edge cases
+- **SunlightRiskCard UI:** Bilingual display of standards benchmarks with i18n labels
+
+## Test Baseline (updated 2026-03-01)
+
+- **Vitest**: 867 tests (post-Sunlight v2 Phases 4-6)
 - **i18n**: 396+ keys per language with parity + floor assertions
