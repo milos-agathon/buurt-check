@@ -65,6 +65,19 @@ describe('getTregenzaPatches', () => {
     }
   });
 
+  it('each patch has a row index 0-7', () => {
+    const patches = getTregenzaPatches();
+    for (const patch of patches) {
+      expect(patch.row).toBeGreaterThanOrEqual(0);
+      expect(patch.row).toBeLessThanOrEqual(7);
+    }
+    // Zenith patch is row 7
+    expect(patches[patches.length - 1].row).toBe(7);
+    // Row 0 patches
+    const row0 = patches.filter((p) => p.row === 0);
+    expect(row0).toHaveLength(30);
+  });
+
   it('azimuths within a row are evenly spaced', () => {
     const patches = getTregenzaPatches();
     // Check row 0 (30 patches at altitude ≈ 6°)
