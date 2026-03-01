@@ -502,7 +502,7 @@ def _draw_branded_questions(
             pdf.set_xy(qx + 5, qy)
             pdf.multi_cell(
                 pdf.w - pdf.r_margin - qx - 5, 5, text,
-                new_x="LMARGIN", new_y="NEXT",
+                align="L", new_x="LMARGIN", new_y="NEXT",
             )
             count += 1
         pdf.ln(1)
@@ -544,7 +544,7 @@ def _draw_address_block(
     """Draw address + building facts."""
     pdf.set_font("SatoshiBlack", "", font_size)
     pdf.set_text_color(*SLATE)
-    pdf.multi_cell(0, 7, address, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 7, address, align="L", new_x="LMARGIN", new_y="NEXT")
 
     facts_parts: list[str] = []
     if building_year:
@@ -780,7 +780,7 @@ def _draw_risk_details_page(
         # What this means
         if summary:
             pdf.set_font("Satoshi", "", 10)
-            pdf.multi_cell(0, 5, summary, new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(0, 5, summary, align="L", new_x="LMARGIN", new_y="NEXT")
             pdf.ln(2)
 
         # Comparison chart
@@ -1068,7 +1068,7 @@ def _draw_neighborhood_page(
             meaning = (crime.meaning_nl if is_nl else crime.meaning_en)
             if meaning:
                 pdf.set_font("Satoshi", "", 10)
-                pdf.multi_cell(0, 5, meaning, new_x="LMARGIN", new_y="NEXT")
+                pdf.multi_cell(0, 5, meaning, align="L", new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(2)
 
             # Comparison: this address vs national average
@@ -1143,7 +1143,7 @@ def _draw_neighborhood_page(
                 else "Crime data is per municipality, not per street. "
                 "Registered crimes only."
             )
-            pdf.multi_cell(0, 4, disclaimer, new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(0, 4, disclaimer, align="L", new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(*SLATE)
         elif crime.message:
             pdf.set_font("Satoshi", "", 9)
@@ -1169,7 +1169,7 @@ def _draw_checks_subsection(
     pdf.set_font("Satoshi", "B", 11)
     pdf.cell(0, 6, title, new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Satoshi", "", 10)
-    pdf.multi_cell(0, 5, body, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 5, body, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Satoshi", "", 8)
     pdf.set_text_color(*MUTED)
     pdf.cell(0, 4, source, new_x="LMARGIN", new_y="NEXT")
@@ -1562,7 +1562,7 @@ def _draw_property_checks_page(
     pdf.set_font("Satoshi", "B", 11)
     pdf.cell(0, 6, shadow_title, new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Satoshi", "", 10)
-    pdf.multi_cell(0, 5, snapshot_text, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 5, snapshot_text, align="L", new_x="LMARGIN", new_y="NEXT")
     _draw_shadow_image(pdf, shadow_image_b64, is_nl)
     pdf.set_font("Satoshi", "", 8)
     pdf.set_text_color(*MUTED)
@@ -1747,7 +1747,7 @@ def _draw_methodology_page(
         "3D building geometry from 3DBAG. The winter solstice (worst case) "
         "determines the risk classification."
     )
-    pdf.multi_cell(0, 5, methodology, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 5, methodology, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(3)
 
     # Data sources table
@@ -1775,7 +1775,7 @@ def _draw_methodology_page(
         "urbanization category (CBS), not averaged from the municipality's full "
         "distribution."
     )
-    pdf.multi_cell(0, 4, baseline_disclosure, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 4, baseline_disclosure, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(*SLATE)
     pdf.ln(3)
 
@@ -1798,7 +1798,7 @@ def _draw_methodology_page(
         "inspection. Crime data is per municipality, not per street. "
         "Environmental measurements may not reflect micro-local conditions."
     )
-    pdf.multi_cell(0, 5, limitations, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 5, limitations, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
     # Provenance / Report Details block
