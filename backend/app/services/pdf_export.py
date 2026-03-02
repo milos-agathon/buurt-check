@@ -67,9 +67,14 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
 #               |                        |      |           | chart axis labels, image captions
 #               | Satoshi Bold (sub-var) | 8pt  | SLATE     | Chart emphasis (address row label,
 #               |                        |      |           | score values, map "N" arrow)
-# Footer        | Satoshi Regular        | 7pt  | SECONDARY | Page footer disclaimer + page no.
+# Footer        | SatoshiBlack           | 8pt  | SLATE     | Footer brand name
+#               | Satoshi Regular        | 8pt  | SECONDARY | Footer disclaimer
+#               | Satoshi Regular        | 8pt  | TEAL      | Footer page number
 #
 # Brand         | SatoshiBlack           | 9pt  | SLATE     | "buurt-check" in header
+# Brand-cover   | SatoshiBlack           | 16pt | SLATE     | "buurt-check" wordmark on cover
+# Premium badge | SatoshiMedium          | 7pt  | TEAL      | "PREMIUM" pill on premium sections
+# Section band  | Satoshi Bold           | 12pt | SLATE     | Section label on TEAL_LIGHT band
 #
 # Rules:
 # - No Regular 9pt exists as a distinct level. Everything at 9pt is either
@@ -758,7 +763,7 @@ class BuurtCheckPDF(FPDF):
             self.set_font("Satoshi", "B", 12)
             self.set_text_color(*SLATE)
             self.set_xy(self.l_margin + 2, band_y + 0.5)
-            self.cell(band_w - 4, band_h - 1, text, new_x="LMARGIN")
+            self.cell(band_w - 4, band_h - 1, text.upper(), new_x="LMARGIN")
             self.set_y(band_y + band_h + 1)
         else:
             self.set_font("SatoshiMedium", "", 9)
@@ -1014,7 +1019,8 @@ def _draw_shadow_triptych(
     # Aspect ratio 16:9 -> height = width * 9/16
     img_h = img_w * 9 / 16
 
-    # Section label
+    # Section label with premium badge
+    pdf.draw_premium_badge()
     pdf.draw_section_label(
         "Schaduwanalyse \u2014 winterzonnewende"
         if is_nl
@@ -1369,7 +1375,11 @@ def _draw_cover_page(
     livability: LivabilityResponse | None = None,
 ) -> None:
     """Page 1: cover with address hero, shadow image, executive summary, risk grid."""
-    pdf.ln(4)
+    # Cover wordmark — larger brand presence
+    pdf.set_font("SatoshiBlack", "", 16)
+    pdf.set_text_color(*SLATE)
+    pdf.cell(0, 8, "buurt-check", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
 
     _draw_address_block(pdf, address, building_year, building_use, floor_area, is_nl, font_size=20)
     # Prefer triptych (3 images) over single shadow image
@@ -1380,8 +1390,9 @@ def _draw_cover_page(
 
     # Executive summary narrative
     summary_text = _generate_executive_summary(risks, sunlight_score, livability, is_nl)
-    pdf.draw_section_label("Samenvatting" if is_nl else "Executive Summary")
-    pdf.ln(1)
+    pdf.draw_section_label(
+        "Samenvatting" if is_nl else "Executive Summary", band=True,
+    )
     pdf.set_font("Satoshi", "", 10)
     pdf.set_text_color(*SLATE)
     pdf.multi_cell(
@@ -1391,8 +1402,9 @@ def _draw_cover_page(
     pdf.ln(3)
 
     # Risk summary strip (4-column)
-    pdf.draw_section_label("Risico-overzicht" if is_nl else "Risk Summary")
-    pdf.ln(1)
+    pdf.draw_section_label(
+        "Risico-overzicht" if is_nl else "Risk Summary", band=True,
+    )
     cells = _build_risk_cells(risks, sunlight_score, is_nl)
     grid_end_y = pdf.draw_risk_grid(
         x=pdf.l_margin, y=pdf.get_y(),
@@ -2395,9 +2407,11 @@ def _draw_livability_section(
 
     pdf.draw_divider("strong")
 
-    # Section header
-    pdf.draw_section_label("Leefbaarheid" if is_nl else "Livability")
-    pdf.ln(1)
+    # Section header with premium badge
+    pdf.draw_premium_badge()
+    pdf.draw_section_label(
+        "Leefbaarheid" if is_nl else "Livability", band=True,
+    )
 
     # Overall score with severity
     score = livability.overall_normalized
@@ -2604,6 +2618,7 @@ def _draw_property_checks_page(
     shadow_images: list[dict] | None = None,
 ) -> None:
     """Page 4: premium-only checks required in the paid Full Dossier."""
+    pdf.draw_premium_badge()
     pdf.set_font("Satoshi", "B", 12)
     title = "Aanvullende vastgoedcontroles" if is_nl else "Additional Property Checks"
     pdf.cell(0, 7, title, new_x="LMARGIN", new_y="NEXT")
