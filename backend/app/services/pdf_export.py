@@ -165,15 +165,22 @@ class BuurtCheckPDF(FPDF):
     # --- Drawing primitives ---
 
     def draw_score_bar(
-        self, x: float, y: float, width: float, score: int | None, height: float = 1.0
+        self, x: float, y: float, width: float, score: int | None, height: float = 4.0
     ) -> None:
-        """Draw horizontal score bar: gray track + colored fill proportional to score."""
+        """Draw horizontal score bar: gray track + colored fill + severity tick marks."""
         self.set_fill_color(*BORDER)
         self.rect(x, y, width, height, "F")
         if score is not None and score > 0:
-            fill_w = width * min(score, 100) / 100
+            fill_w = max(width * min(score, 100) / 100, 1.0)
             self.set_fill_color(*_severity_color(score))
             self.rect(x, y, fill_w, height, "F")
+        # Severity zone tick marks at scores 20, 40, 70
+        self.set_draw_color(*SECONDARY)
+        self.set_line_width(0.15)
+        for threshold in (20, 40, 70):
+            tick_x = x + width * threshold / 100
+            self.line(tick_x, y, tick_x, y + height)
+        self.set_line_width(0.1)
 
     def draw_checkbox(self, x: float, y: float, size: float = 3.0) -> None:
         """Draw an empty checkbox square."""
@@ -824,7 +831,7 @@ def _draw_risk_details_page(
 
         # Score bar
         bar_w = pdf.w - pdf.l_margin - pdf.r_margin
-        pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=1.2)
+        pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=5.0)
         pdf.ln(3)
 
         # Severity label
@@ -1108,7 +1115,7 @@ def _draw_neighborhood_page(
 
             # Score bar
             bar_w = pdf.w - pdf.l_margin - pdf.r_margin
-            pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=1.2)
+            pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=5.0)
             pdf.ln(3)
 
             # Severity label

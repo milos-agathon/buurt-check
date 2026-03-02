@@ -489,6 +489,65 @@ class TestBuurtCheckPDF:
         result = bytes(pdf.output())
         assert result[:5] == b"%PDF-"
 
+    def test_draw_score_bar_default_height_is_4mm(self):
+        """E9-S1: Default bar height is 4mm (not 1mm)."""
+        import inspect
+
+        sig = inspect.signature(BuurtCheckPDF.draw_score_bar)
+        assert sig.parameters["height"].default == 4.0
+
+    def test_draw_score_bar_tick_marks_at_severity_thresholds(self):
+        """E9-S1: Tick marks are drawn at scores 20, 40, 70."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        # Track line calls
+        original_line = pdf.line
+        line_calls = []
+
+        def tracking_line(x1, y1, x2, y2):
+            line_calls.append((x1, y1, x2, y2))
+            return original_line(x1, y1, x2, y2)
+
+        pdf.line = tracking_line
+        bar_x, bar_y, bar_w, bar_h = 10.0, 50.0, 100.0, 4.0
+        pdf.draw_score_bar(bar_x, bar_y, bar_w, 75, height=bar_h)
+
+        # Check tick marks at 20, 40, 70
+        expected_ticks = [
+            bar_x + bar_w * 20 / 100,
+            bar_x + bar_w * 40 / 100,
+            bar_x + bar_w * 70 / 100,
+        ]
+        for tick_x in expected_ticks:
+            matching = [
+                c for c in line_calls
+                if abs(c[0] - tick_x) < 0.01 and abs(c[2] - tick_x) < 0.01
+                and abs(c[1] - bar_y) < 0.01 and abs(c[3] - (bar_y + bar_h)) < 0.01
+            ]
+            assert len(matching) == 1, f"Missing tick at x={tick_x}"
+
+    def test_draw_score_bar_minimum_fill_width(self):
+        """E9-S1: Score=1 produces fill_w >= 1mm (visible)."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        # Track rect calls to find the fill rect
+        original_rect = pdf.rect
+        rect_calls = []
+
+        def tracking_rect(x, y, w, h, style=""):
+            rect_calls.append((x, y, w, h, style))
+            return original_rect(x, y, w, h, style)
+
+        pdf.rect = tracking_rect
+        pdf.draw_score_bar(10, 50, 100, 1, height=4.0)
+
+        # Filter fill rects at x=10, y=50 (both track and fill are at same position)
+        fill_rects = [c for c in rect_calls if c[0] == 10 and c[1] == 50 and c[4] == "F"]
+        # Should have 2: track (100mm wide) and fill (>= 1mm wide)
+        assert len(fill_rects) == 2
+        fill_rect = fill_rects[1]  # Second fill rect is the colored one
+        assert fill_rect[2] >= 1.0, f"Fill width {fill_rect[2]} < 1mm minimum"
+
     def test_draw_checkbox(self):
         pdf = BuurtCheckPDF()
         pdf.add_page()
