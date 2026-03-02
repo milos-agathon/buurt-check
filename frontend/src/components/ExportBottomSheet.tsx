@@ -264,14 +264,14 @@ export default function ExportBottomSheet({
             </button>
           </div>
 
-          {template === 'full_dossier' && !sunlightReady && (
-            <p className="export-sheet__sunlight-status" data-testid="export-sunlight-computing">
+          {template === 'full_dossier' && !requiresPurchase && !sunlightReady && (
+            <p id="sunlight-computing-msg" role="status" className="export-sheet__sunlight-status" data-testid="export-sunlight-computing">
               {t('export.sunlightComputing', 'Calculating sunlight analysis...')}
             </p>
           )}
 
           {template === 'full_dossier' && sunlightReady && sunlightFailed && (
-            <p className="export-sheet__sunlight-warning" data-testid="export-sunlight-warning">
+            <p id="sunlight-warning-msg" role="status" className="export-sheet__sunlight-warning" data-testid="export-sunlight-warning">
               {t('export.sunlightUnavailableWarning', 'Sunlight data unavailable — dossier will show N/A')}
             </p>
           )}
@@ -402,8 +402,15 @@ export default function ExportBottomSheet({
             type="button"
             className="export-sheet__btn"
             onClick={handleGenerate}
-            disabled={generating || (requiresPurchase && (buyPending || !onBuyFullDossier)) || (template === 'full_dossier' && !sunlightReady)}
+            disabled={generating || (requiresPurchase && (buyPending || !onBuyFullDossier)) || (!requiresPurchase && template === 'full_dossier' && !sunlightReady)}
             aria-busy={(requiresPurchase && buyPending) || undefined}
+            aria-describedby={
+              !requiresPurchase && template === 'full_dossier' && !sunlightReady
+                ? 'sunlight-computing-msg'
+                : template === 'full_dossier' && sunlightReady && sunlightFailed
+                  ? 'sunlight-warning-msg'
+                  : undefined
+            }
             data-testid="export-generate-btn"
           >
             {requiresPurchase
