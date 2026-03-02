@@ -30,7 +30,7 @@ _FONTS_DIR = Path(__file__).parent.parent / "assets" / "fonts"
 # Contrast ratios are vs white (#FFFFFF) unless noted.
 TEAL = (46, 196, 182)  # #2EC4B6 — Arctic Teal accent (2.17:1 — fill only, never text)
 SLATE = (28, 45, 63)  # #1C2D3F — Polar Slate primary text (12.6:1)
-MUTED = (138, 155, 176)  # #8A9BB0 — decorative / unavailable only (2.75:1, fails AA)
+MUTED = (120, 140, 165)  # #788CA5 — peer/comparison bar fill (3.44:1, >= 3:1 graphical AA)
 BORDER = (226, 231, 237)  # #E2E7ED — borders, dividers, score track (1.3:1, non-data)
 WHITE = (255, 255, 255)
 AMBER_WARN = (234, 179, 8)  # #EAB308 — amber for warnings (1.87:1 — fill/dashed only)
@@ -406,14 +406,14 @@ class BuurtCheckPDF(FPDF):
             self.cell(20, 3, label_text)
             lx += 20 + gap
 
-            # Gray swatch — "Vergelijkingswaarde" / "Peer" (city_avg)
+            # Gray swatch — "Vergelijkingsgroep" / "Peer group" (city_avg)
             self.set_fill_color(*MUTED)
             self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
             lx += swatch_w + 1
-            label_text = "Stedelijk" if is_nl else "Peer"
+            label_text = "Vergelijkingsgroep" if is_nl else "Peer group"
             self.set_xy(lx, legend_y)
-            self.cell(14, 3, label_text)
-            lx += 14 + gap
+            self.cell(22, 3, label_text)
+            lx += 22 + gap
 
             # Darker gray swatch — "Nationaal" / "National" (nl_avg)
             self.set_fill_color(*NATIONAL)
@@ -1363,9 +1363,26 @@ def _build_risk_detail_data(
             unit = "u/dag" if is_nl else "h/day"
             val = format_number(sun.winter_hours, 1, is_nl)
             sun_meas.append(("Winter", f"{val} {unit}"))
+        if sun.annual_average is not None:
+            unit = "u/dag" if is_nl else "h/day"
+            label = "Jaargemiddelde" if is_nl else "Annual average"
+            val = format_number(sun.annual_average, 1, is_nl)
+            sun_meas.append((label, f"{val} {unit}"))
         if sun.svf_percent is not None:
             val = format_number(sun.svf_percent, 0, is_nl)
             sun_meas.append(("SVF", f"{val}%"))
+        if (
+            sun.svf_anisotropic is not None
+            and sun.svf_anisotropic != sun.svf_percent
+        ):
+            label = "SVF (anisotropisch)" if is_nl else "SVF (anisotropic)"
+            val = format_number(sun.svf_anisotropic, 0, is_nl)
+            sun_meas.append((label, f"{val}%"))
+        if sun.irradiance_kwh_m2 is not None:
+            label = "Zonnestraling" if is_nl else "Solar irradiance"
+            unit = "kWh/m\u00b2/jaar" if is_nl else "kWh/m\u00b2/year"
+            val = format_number(sun.irradiance_kwh_m2, 0, is_nl)
+            sun_meas.append((label, f"{val} {unit}"))
         if sun_meas:
             sun_measurements = sun_meas
     sun_comp = _comp_rows(
@@ -2209,6 +2226,27 @@ def _draw_property_checks_page(
             else f"Estimated direct sunlight: winter {w}/day, equinox {e}/day, summer {s}/day. "
             f"Score: {score_text}/100."
         )
+        # Append extended sunlight metrics if available
+        extra_lines: list[str] = []
+        if sun.annual_average is not None:
+            label = "Jaargemiddelde" if is_nl else "Annual average"
+            val = _fn(sun.annual_average, 1, is_nl)
+            unit = "u/dag" if is_nl else "h/day"
+            extra_lines.append(f"{label}: {val} {unit}")
+        if (
+            sun.svf_anisotropic is not None
+            and sun.svf_anisotropic != sun.svf_percent
+        ):
+            label = "SVF (anisotropisch)" if is_nl else "SVF (anisotropic)"
+            val = _fn(sun.svf_anisotropic, 0, is_nl)
+            extra_lines.append(f"{label}: {val}%")
+        if sun.irradiance_kwh_m2 is not None:
+            label = "Zonnestraling" if is_nl else "Solar irradiance"
+            unit = "kWh/m\u00b2/jaar" if is_nl else "kWh/m\u00b2/year"
+            val = _fn(sun.irradiance_kwh_m2, 0, is_nl)
+            extra_lines.append(f"{label}: {val} {unit}")
+        if extra_lines:
+            sun_text += " " + " | ".join(extra_lines) + "."
     else:
         sun_text = (
             "Schatting van direct zonlicht niet beschikbaar voor deze export."

@@ -3059,7 +3059,7 @@ class TestDifferentiatedBarColors:
         pdf.add_page()
         rows = [
             ("Dit adres", 65, TEAL, False),
-            ("Stedelijk", 55, MUTED, False),
+            ("Vergelijkingsgroep", 55, MUTED, False),
             ("Nationaal", 50, NATIONAL, False),
             ("Richtlijn", 74, (234, 179, 8), True),
         ]
@@ -4024,3 +4024,311 @@ async def test_export_full_dossier_fetches_livability(
     reader = PdfReader(io.BytesIO(resp.content))
     all_text = "".join(p.extract_text() or "" for p in reader.pages)
     assert "Livability" in all_text or "Leefbaarheid" in all_text
+
+
+# ---------------------------------------------------------------------------
+# MUTED bar fill meets >= 3:1 graphical contrast (WCAG AA)
+# ---------------------------------------------------------------------------
+
+class TestMutedGraphicalContrast:
+    """MUTED bar fill must achieve >= 3:1 contrast vs white for WCAG AA graphical."""
+
+    def test_muted_meets_graphical_contrast(self):
+        """MUTED bar fill must have >= 3:1 contrast vs white."""
+        def _luminance(rgb: tuple[int, int, int]) -> float:
+            vals = []
+            for c in rgb:
+                s = c / 255.0
+                vals.append(s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4)
+            return 0.2126 * vals[0] + 0.7152 * vals[1] + 0.0722 * vals[2]
+
+        white = (255, 255, 255)
+        l_muted = _luminance(MUTED)
+        l_white = _luminance(white)
+        cr = (l_white + 0.05) / (l_muted + 0.05)
+        assert cr >= 3.0, f"MUTED contrast {cr:.2f} < 3:1 graphical minimum"
+
+    def test_legend_label_vergelijkingsgroep_nl(self):
+        """Dutch legend renders 'Vergelijkingsgroep' (not old 'Stedelijk')."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        rows = [
+            ("Dit adres", 65, TEAL, False),
+            ("Vergelijkingsgroep", 55, MUTED, False),
+        ]
+        pdf.draw_comparison_chart(10, 30, 180, rows, show_legend=True, is_nl=True)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Vergelijkingsgroep" in text
+        assert "Stedelijk" not in text
+
+    def test_legend_label_peer_group_en(self):
+        """English legend renders 'Peer group' (not old 'Peer')."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        rows = [
+            ("This address", 65, TEAL, False),
+            ("Peer group", 55, MUTED, False),
+        ]
+        pdf.draw_comparison_chart(10, 30, 180, rows, show_legend=True, is_nl=False)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Peer group" in text
+
+
+# ---------------------------------------------------------------------------
+# Expanded sunlight measurements in risk detail data
+# ---------------------------------------------------------------------------
+
+class TestExpandedSunlightMeasurements:
+    """Extended sunlight fields render in risk detail measurements block."""
+
+    def _make_sunlight_risks(self, **overrides) -> RiskCardsResponse:
+        """Create risks with extended sunlight fields."""
+        sun_kwargs = {
+            "level": SeverityLevel.good,
+            "winter_hours": 5.0,
+            "summer_hours": 10.0,
+            "equinox_hours": 7.5,
+            "svf_percent": 62.0,
+            "source": "SunCalc + 3DBAG",
+            "score": 80,
+            "severity": "good",
+            "summary": "Good sunlight",
+            "summary_nl": "Goed zonlicht",
+        }
+        sun_kwargs.update(overrides)
+        return RiskCardsResponse(
+            address_id="0363010012345678",
+            noise=NoiseRiskCard(
+                level=RiskLevel.medium,
+                lden_db=58.0,
+                source="RIVM",
+                sampled_at="2026-01-01",
+                score=65,
+                severity="moderate",
+                summary="Moderate traffic noise",
+                summary_nl="Matig verkeerslawaai",
+            ),
+            air_quality=AirQualityRiskCard(
+                level=RiskLevel.low,
+                no2_ug_m3=18.0,
+                source="RIVM GCN",
+                sampled_at="2026-01-01",
+                score=72,
+                severity="good",
+                summary="Good air quality",
+                summary_nl="Goede luchtkwaliteit",
+            ),
+            climate_stress=ClimateStressRiskCard(
+                level=RiskLevel.medium,
+                source="Klimaateffectatlas",
+                sampled_at="2026-01-01",
+                score=45,
+                severity="moderate",
+                summary="Some flood risk",
+                summary_nl="Enig overstromingsrisico",
+            ),
+            sunlight=SunlightRiskCard(**sun_kwargs),
+        )
+
+    def test_annual_average_in_risk_detail(self):
+        """annual_average appears as measurement when available."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(annual_average=6.3)
+        data = _build_risk_detail_data(risks, 80, None, False)
+        # Sunlight is last entry
+        sunlight_entry = data[-1]
+        measurements = sunlight_entry[5]
+        labels = [m[0] for m in measurements]
+        assert "Annual average" in labels
+        annual_val = [m[1] for m in measurements if m[0] == "Annual average"][0]
+        assert "6.3" in annual_val
+        assert "h/day" in annual_val
+
+    def test_annual_average_nl_label(self):
+        """annual_average uses Dutch label in NL mode."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(annual_average=6.3)
+        data = _build_risk_detail_data(risks, 80, None, True)
+        sunlight_entry = data[-1]
+        measurements = sunlight_entry[5]
+        labels = [m[0] for m in measurements]
+        assert "Jaargemiddelde" in labels
+
+    def test_svf_anisotropic_in_risk_detail(self):
+        """svf_anisotropic appears when different from svf_percent."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(svf_percent=62.0, svf_anisotropic=58.0)
+        data = _build_risk_detail_data(risks, 80, None, False)
+        sunlight_entry = data[-1]
+        measurements = sunlight_entry[5]
+        labels = [m[0] for m in measurements]
+        assert "SVF (anisotropic)" in labels
+
+    def test_svf_anisotropic_skipped_when_same_as_svf(self):
+        """svf_anisotropic is NOT shown when equal to svf_percent."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(svf_percent=62.0, svf_anisotropic=62.0)
+        data = _build_risk_detail_data(risks, 80, None, False)
+        sunlight_entry = data[-1]
+        measurements = sunlight_entry[5]
+        labels = [m[0] for m in measurements]
+        assert "SVF (anisotropic)" not in labels
+
+    def test_svf_anisotropic_skipped_when_none(self):
+        """svf_anisotropic is NOT shown when None."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(svf_percent=62.0, svf_anisotropic=None)
+        data = _build_risk_detail_data(risks, 80, None, False)
+        sunlight_entry = data[-1]
+        measurements = sunlight_entry[5]
+        labels = [m[0] for m in measurements]
+        assert "SVF (anisotropic)" not in labels
+
+    def test_irradiance_in_risk_detail(self):
+        """irradiance_kwh_m2 appears as measurement when available."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(irradiance_kwh_m2=985.0)
+        data = _build_risk_detail_data(risks, 80, None, False)
+        sunlight_entry = data[-1]
+        measurements = sunlight_entry[5]
+        labels = [m[0] for m in measurements]
+        assert "Solar irradiance" in labels
+        irr_val = [m[1] for m in measurements if m[0] == "Solar irradiance"][0]
+        assert "985" in irr_val
+        assert "kWh/m" in irr_val
+
+    def test_irradiance_nl_label(self):
+        """irradiance uses Dutch label and units in NL mode."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(irradiance_kwh_m2=985.0)
+        data = _build_risk_detail_data(risks, 80, None, True)
+        sunlight_entry = data[-1]
+        measurements = sunlight_entry[5]
+        labels = [m[0] for m in measurements]
+        assert "Zonnestraling" in labels
+        irr_val = [m[1] for m in measurements if m[0] == "Zonnestraling"][0]
+        assert "jaar" in irr_val
+
+    def test_all_extended_fields_together(self):
+        """All extended fields render when all are present."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(
+            annual_average=6.3,
+            svf_anisotropic=58.0,
+            irradiance_kwh_m2=985.0,
+        )
+        data = _build_risk_detail_data(risks, 80, None, False)
+        sunlight_entry = data[-1]
+        measurements = sunlight_entry[5]
+        labels = [m[0] for m in measurements]
+        assert "Winter" in labels
+        assert "Annual average" in labels
+        assert "SVF" in labels
+        assert "SVF (anisotropic)" in labels
+        assert "Solar irradiance" in labels
+
+    def test_no_extended_fields_graceful(self):
+        """When no extended fields, only basic measurements appear."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks()
+        data = _build_risk_detail_data(risks, 80, None, False)
+        sunlight_entry = data[-1]
+        measurements = sunlight_entry[5]
+        labels = [m[0] for m in measurements]
+        assert "Winter" in labels
+        assert "SVF" in labels
+        assert "Annual average" not in labels
+        assert "SVF (anisotropic)" not in labels
+        assert "Solar irradiance" not in labels
+
+    def test_expanded_sunlight_in_property_checks_en(self):
+        """Extended sunlight fields appear in property checks section (EN)."""
+        risks = self._make_sunlight_risks(
+            annual_average=6.3,
+            svf_anisotropic=58.0,
+            irradiance_kwh_m2=985.0,
+        )
+        result = generate_full_dossier(
+            address="Teststraat 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=risks,
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            floor_area=80,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Annual average" in text
+        assert "SVF (anisotropic)" in text
+        assert "Solar irradiance" in text
+
+    def test_expanded_sunlight_in_property_checks_nl(self):
+        """Extended sunlight fields appear in property checks section (NL)."""
+        risks = self._make_sunlight_risks(
+            annual_average=6.3,
+            svf_anisotropic=58.0,
+            irradiance_kwh_m2=985.0,
+        )
+        result = generate_full_dossier(
+            address="Teststraat 1, Amsterdam",
+            building_year=2000,
+            building_use="Woonfunctie",
+            risks=risks,
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="nl",
+            floor_area=80,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Jaargemiddelde" in text
+        assert "SVF (anisotropisch)" in text
+        assert "Zonnestraling" in text
+
+    def test_no_extended_sunlight_in_property_checks_when_absent(self):
+        """Property checks section works without extended fields."""
+        risks = self._make_sunlight_risks()
+        result = generate_full_dossier(
+            address="Teststraat 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=risks,
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            floor_area=80,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        # Basic sunlight should still be there
+        assert "sunlight" in text.lower() or "zonlicht" in text.lower()
+        # Extended fields should NOT be there
+        assert "Annual average" not in text
+        assert "Solar irradiance" not in text
