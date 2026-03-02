@@ -37,6 +37,7 @@ AMBER_WARN = (234, 179, 8)  # #EAB308 — amber for warnings (1.87:1 — fill/da
 SECONDARY = (99, 120, 146)  # #637892 — essential info text (4.52:1 — WCAG AA pass)
 NATIONAL = (110, 130, 155)  # #6E829B — "Nederland" bar fill (3.94:1, >= 3:1 graphical)
 GRIDLINE = (240, 242, 245)  # Very light gray for chart gridlines (decorative)
+TEAL_LIGHT = (232, 248, 246)  # #E8F8F6 — light teal for section bands, premium badges
 
 # --- CBS 2024 national age distribution averages (%) ---
 NL_AGE_0_24 = 28.0
@@ -420,23 +421,32 @@ class BuurtCheckPDF(FPDF):
         self.set_text_color(*SLATE)
 
     def footer(self) -> None:
-        """Brand + disclaimer + page number."""
+        """Brand + disclaimer + teal page number."""
         self.set_y(-15)
         self.set_draw_color(*BORDER)
         self.set_line_width(0.1)
         self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
 
         self.set_y(-12)
-        self.set_font("Satoshi", "", 7)
-        self.set_text_color(*SECONDARY)
 
+        # Brand name — SatoshiBlack 8pt for stronger presence
+        self.set_font("SatoshiBlack", "", 8)
+        self.set_text_color(*SLATE)
         self.cell(30, 4, "buurt-check")
+
+        # Disclaimer — Regular 8pt secondary
+        self.set_font("Satoshi", "", 8)
+        self.set_text_color(*SECONDARY)
         disclaimer = (
             "Data is indicatief. Verifieer op locatie."
             if self.is_nl
             else "Data is indicative. Verify on-site."
         )
         self.cell(0, 4, disclaimer, align="C")
+
+        # Page number — teal accent
+        self.set_font("Satoshi", "", 8)
+        self.set_text_color(*TEAL)
         self.cell(30, 4, f"p. {self.page_no()}", align="R", new_x="LMARGIN")
         self.set_text_color(*SLATE)
 
@@ -736,12 +746,51 @@ class BuurtCheckPDF(FPDF):
         self.set_text_color(*SLATE)
         return y + len(bands) * row_h
 
-    def draw_section_label(self, text: str) -> None:
-        """Draw an uppercase section label."""
-        self.set_font("SatoshiMedium", "", 9)
-        self.set_text_color(*SECONDARY)
-        self.cell(0, 5, text.upper(), new_x="LMARGIN", new_y="NEXT")
+    def draw_section_label(self, text: str, *, band: bool = False) -> None:
+        """Draw an uppercase section label, optionally with a light teal band."""
+        if band:
+            band_y = self.get_y()
+            band_h = 7.0
+            band_w = self.w - self.l_margin - self.r_margin
+            self.set_fill_color(*TEAL_LIGHT)
+            self.rect(self.l_margin, band_y, band_w, band_h, "F")
+            # Draw text on top of band, vertically centered
+            self.set_font("Satoshi", "B", 12)
+            self.set_text_color(*SLATE)
+            self.set_xy(self.l_margin + 2, band_y + 0.5)
+            self.cell(band_w - 4, band_h - 1, text, new_x="LMARGIN")
+            self.set_y(band_y + band_h + 1)
+        else:
+            self.set_font("SatoshiMedium", "", 9)
+            self.set_text_color(*SECONDARY)
+            self.cell(0, 5, text.upper(), new_x="LMARGIN", new_y="NEXT")
         self.set_text_color(*SLATE)
+
+    def draw_premium_badge(self) -> None:
+        """Draw a small teal 'PREMIUM' pill badge at the current cursor position."""
+        badge_text = "PREMIUM"
+        self.set_font("SatoshiMedium", "", 7)
+        text_w = self.get_string_width(badge_text)
+        badge_w = text_w + 4  # 2mm padding each side
+        badge_h = 4.0
+        badge_x = self.w - self.r_margin - badge_w
+        badge_y = self.get_y()
+
+        # Light teal fill with teal border
+        self.set_fill_color(*TEAL_LIGHT)
+        self.set_draw_color(*TEAL)
+        self.set_line_width(0.3)
+        self.rect(badge_x, badge_y, badge_w, badge_h, "DF")
+        self.set_line_width(0.1)
+
+        # PREMIUM text in teal
+        self.set_text_color(*TEAL)
+        self.set_xy(badge_x, badge_y + 0.2)
+        self.cell(badge_w, badge_h - 0.4, badge_text, align="C")
+
+        # Restore defaults
+        self.set_text_color(*SLATE)
+        self.set_draw_color(*BORDER)
 
     def draw_divider(self, style: str = "light") -> None:
         """Draw a horizontal divider line."""
@@ -1523,6 +1572,274 @@ def _draw_risk_details_page(
         pdf.cell(0, 4, source_text, new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
         pdf.ln(4)
+
+        # Sunlight-specific visualizations (E2-S3 + E2-S4)
+        if cat_name in ("Zonlicht", "Sunlight") and risks:
+            _draw_sunlight_details(pdf, risks, is_nl)
+
+
+def _draw_sunlight_details(
+    pdf: BuurtCheckPDF,
+    risks: RiskCardsResponse,
+    is_nl: bool,
+) -> None:
+    """Draw sunlight seasonal chart, SVF gauge, and facade table (E2-S3 + E2-S4)."""
+    sun = risks.sunlight
+    if not sun:
+        return
+
+    content_w = pdf.w - pdf.l_margin - pdf.r_margin
+
+    # --- Seasonal hours chart (E2-S3) ---
+    has_seasonal = (
+        sun.winter_hours is not None or sun.summer_hours is not None
+    )
+    if has_seasonal:
+        # Page overflow guard: need ~40mm for seasonal chart
+        remaining = pdf.h - pdf.get_y() - 20
+        if remaining < 40 and pdf.get_y() > 40:
+            pdf.add_page()
+
+        # Section label
+        pdf.set_font("SatoshiMedium", "", 9)
+        pdf.set_text_color(*SECONDARY)
+        label = "ZONNE-UREN PER SEIZOEN" if is_nl else "SEASONAL SUNLIGHT HOURS"
+        pdf.cell(0, 5, label, new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
+
+        # Build season rows: (label, hours)
+        max_hours = 8.0  # scale reference
+        bar_area_w = content_w - 55  # leave space for label + value
+        seasons: list[tuple[str, float | None]] = []
+        if sun.winter_hours is not None:
+            seasons.append((
+                "Winter" if is_nl else "Winter",
+                sun.winter_hours,
+            ))
+        if sun.equinox_hours is not None:
+            seasons.append((
+                "Equinox" if is_nl else "Equinox",
+                sun.equinox_hours,
+            ))
+        elif sun.winter_hours is not None and sun.summer_hours is not None:
+            # Estimate equinox as midpoint
+            avg = (sun.winter_hours + sun.summer_hours) / 2
+            seasons.append(("Equinox", avg))
+        if sun.summer_hours is not None:
+            seasons.append((
+                "Zomer" if is_nl else "Summer",
+                sun.summer_hours,
+            ))
+
+        for season_label, hours in seasons:
+            if hours is None:
+                continue
+            row_y = pdf.get_y()
+
+            # Season label (Medium 9pt SECONDARY)
+            pdf.set_font("SatoshiMedium", "", 9)
+            pdf.set_text_color(*SECONDARY)
+            pdf.set_xy(pdf.l_margin, row_y)
+            pdf.cell(30, 6, season_label)
+
+            # Teal bar
+            bar_x = pdf.l_margin + 32
+            bar_y = row_y + 1.5
+            bar_h = 3.0
+            fill_w = max(bar_area_w * min(hours, max_hours) / max_hours, 1.0)
+
+            # Track background
+            pdf.set_fill_color(*BORDER)
+            pdf.rect(bar_x, bar_y, bar_area_w, bar_h, "F")
+            # Teal fill
+            pdf.set_fill_color(*TEAL)
+            pdf.rect(bar_x, bar_y, fill_w, bar_h, "F")
+
+            # Hours value (Bold 9pt SLATE)
+            pdf.set_font("Satoshi", "B", 9)
+            pdf.set_text_color(*SLATE)
+            unit = "u" if is_nl else "h"
+            val = format_number(hours, 1, is_nl)
+            pdf.set_xy(bar_x + bar_area_w + 2, row_y)
+            pdf.cell(20, 6, f"{val}{unit}")
+
+            pdf.set_y(row_y + 7)
+
+        pdf.ln(2)
+
+    # --- SVF gauge (E2-S3) ---
+    svf = sun.svf_anisotropic if sun.svf_anisotropic is not None else sun.svf_percent
+    if svf is not None:
+        # Page overflow guard: need ~25mm for SVF gauge
+        remaining = pdf.h - pdf.get_y() - 20
+        if remaining < 25 and pdf.get_y() > 40:
+            pdf.add_page()
+
+        # Section label
+        pdf.set_font("SatoshiMedium", "", 9)
+        pdf.set_text_color(*SECONDARY)
+        label = "HEMELZICHTFACTOR (SVF)" if is_nl else "SKY VIEW FACTOR (SVF)"
+        pdf.cell(0, 5, label, new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
+
+        # Gauge bar
+        gauge_y = pdf.get_y()
+        bar_h = 4.0
+        pdf.set_fill_color(*BORDER)
+        pdf.rect(pdf.l_margin, gauge_y, content_w, bar_h, "F")
+
+        svf_clamped = max(0.0, min(svf, 100.0))
+        fill_w = max(content_w * svf_clamped / 100, 1.0)
+        pdf.set_fill_color(*TEAL)
+        pdf.rect(pdf.l_margin, gauge_y, fill_w, bar_h, "F")
+
+        # Threshold tick marks at 30% and 60%
+        pdf.set_draw_color(*SECONDARY)
+        pdf.set_line_width(0.15)
+        for threshold in (30, 60):
+            tick_x = pdf.l_margin + content_w * threshold / 100
+            pdf.line(tick_x, gauge_y, tick_x, gauge_y + bar_h)
+        pdf.set_line_width(0.1)
+
+        pdf.set_y(gauge_y + bar_h + 1)
+
+        # SVF value + interpretation
+        val_text = format_number(svf, 0, is_nl)
+        if svf >= 60:
+            interp = "Zeer open" if is_nl else "Highly open"
+        elif svf >= 30:
+            interp = "Gemiddeld" if is_nl else "Moderate"
+        else:
+            interp = "Besloten" if is_nl else "Enclosed"
+
+        pdf.set_font("Satoshi", "B", 9)
+        pdf.set_text_color(*SLATE)
+        pdf.cell(20, 5, f"{val_text}%")
+        pdf.set_font("Satoshi", "", 10)
+        pdf.cell(0, 5, f"\u2014 {interp}", new_x="LMARGIN", new_y="NEXT")
+
+        pdf.ln(3)
+
+    # --- Facade orientation table (E2-S4) ---
+    if sun.facade_results:
+        # Page overflow guard: need ~50mm for facade table
+        n_rows = len(sun.facade_results)
+        est_table_h = 10 + n_rows * 6 + 12  # header + rows + interpretation
+        remaining = pdf.h - pdf.get_y() - 20
+        if remaining < est_table_h and pdf.get_y() > 40:
+            pdf.add_page()
+
+        # Section label
+        pdf.set_font("SatoshiMedium", "", 9)
+        pdf.set_text_color(*SECONDARY)
+        label = "GEVELANALYSE" if is_nl else "FACADE ANALYSIS"
+        pdf.cell(0, 5, label, new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
+
+        # Orientation label mapping
+        _ORI_LABELS_NL = {
+            "n": "Noord", "north": "Noord",
+            "e": "Oost", "east": "Oost",
+            "s": "Zuid", "south": "Zuid",
+            "w": "West", "west": "West",
+            "ne": "NO", "northeast": "NO",
+            "nw": "NW", "northwest": "NW",
+            "se": "ZO", "southeast": "ZO",
+            "sw": "ZW", "southwest": "ZW",
+        }
+        _ORI_LABELS_EN = {
+            "n": "North", "north": "North",
+            "e": "East", "east": "East",
+            "s": "South", "south": "South",
+            "w": "West", "west": "West",
+            "ne": "NE", "northeast": "NE",
+            "nw": "NW", "northwest": "NW",
+            "se": "SE", "southeast": "SE",
+            "sw": "SW", "southwest": "SW",
+        }
+
+        ori_map = _ORI_LABELS_NL if is_nl else _ORI_LABELS_EN
+
+        # Column widths
+        col_facade = 35
+        col_winter = 30
+        col_summer = 30
+        row_h = 6
+
+        # Table header (Bold 9pt SLATE)
+        pdf.set_font("Satoshi", "B", 9)
+        pdf.set_text_color(*SLATE)
+        header_y = pdf.get_y()
+        pdf.set_xy(pdf.l_margin, header_y)
+        pdf.cell(col_facade, row_h, "Gevel" if is_nl else "Facade")
+        pdf.cell(col_winter, row_h, "Winter")
+        pdf.cell(col_summer, row_h, "Zomer" if is_nl else "Summer")
+        pdf.set_y(header_y + row_h)
+
+        # Header underline
+        pdf.set_draw_color(*BORDER)
+        pdf.line(
+            pdf.l_margin, pdf.get_y(),
+            pdf.l_margin + col_facade + col_winter + col_summer,
+            pdf.get_y(),
+        )
+        pdf.ln(0.5)
+
+        # Data rows
+        unit = "u" if is_nl else "h"
+        best_facade = ""
+        best_winter = -1.0
+
+        for fr in sun.facade_results:
+            row_y = pdf.get_y()
+            ori_key = fr.orientation.lower().strip()
+            ori_label = ori_map.get(ori_key, fr.orientation.capitalize())
+
+            # Facade name (Medium 9pt SECONDARY)
+            pdf.set_font("SatoshiMedium", "", 9)
+            pdf.set_text_color(*SECONDARY)
+            pdf.set_xy(pdf.l_margin, row_y)
+            pdf.cell(col_facade, row_h, ori_label)
+
+            # Winter hours (Bold 9pt SLATE)
+            pdf.set_font("Satoshi", "B", 9)
+            pdf.set_text_color(*SLATE)
+            w_val = format_number(fr.winter_hours, 1, is_nl)
+            pdf.cell(col_winter, row_h, f"{w_val}{unit}")
+
+            # Summer hours
+            s_val = format_number(fr.summer_hours, 1, is_nl)
+            pdf.cell(col_summer, row_h, f"{s_val}{unit}")
+
+            pdf.set_y(row_y + row_h)
+
+            # Track best winter facade
+            if fr.winter_hours > best_winter:
+                best_winter = fr.winter_hours
+                best_facade = ori_label
+
+        pdf.ln(2)
+
+        # Interpretation line (Regular 10pt SLATE)
+        if best_facade and best_winter > 0:
+            pdf.set_font("Satoshi", "", 10)
+            pdf.set_text_color(*SLATE)
+            if is_nl:
+                interp = (
+                    f"{best_facade}gevel ontvangt het meeste "
+                    f"winterzonlicht ({format_number(best_winter, 1, is_nl)}u/dag)"
+                )
+            else:
+                interp = (
+                    f"{best_facade} facade receives the most "
+                    f"winter sunlight ({format_number(best_winter, 1, is_nl)}h/day)"
+                )
+            pdf.multi_cell(
+                0, 5, interp, align="L",
+                new_x="LMARGIN", new_y="NEXT",
+            )
+
+        pdf.ln(3)
 
 
 def _risk_level_label(level: str, is_nl: bool) -> str:
