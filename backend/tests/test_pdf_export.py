@@ -1376,7 +1376,7 @@ class TestGenerateFullDossier:
         assert "Ground Lease (Erfpacht)" in text
         assert "Owners' Association" in text
         assert "Lead Pipe Risk" in text
-        assert "Soil Contamination Check" in text
+        assert "Soil Contamination \u2014 Manual Verification Required" in text
         assert "Direct sun (clear-sky visibility)" in text
         assert "Shadow Snapshots" in text
 

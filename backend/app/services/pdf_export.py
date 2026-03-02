@@ -978,6 +978,20 @@ def generate_full_dossier(
     is_nl = language == "nl"
     pdf = BuurtCheckPDF(language=language)
 
+    # PDF metadata
+    pdf.set_title(address)
+    pdf.set_author("buurt-check")
+    subject = (
+        f"Vastgoedrisico Dossier - {address}"
+        if is_nl
+        else f"Property Risk Dossier - {address}"
+    )
+    pdf.set_subject(subject)
+    today = date.today().isoformat()
+    report_id = provenance.report_id if provenance and provenance.report_id else ""
+    keywords = f"buurt-check, {today}, {report_id}".rstrip(", ")
+    pdf.set_keywords(keywords)
+
     # Page 1: Cover + Summary
     pdf.section_title = "VOLLEDIG DOSSIER" if is_nl else "PROPERTY INTELLIGENCE DOSSIER"
     pdf.add_page()
@@ -2365,37 +2379,27 @@ def _draw_property_checks_page(
         ),
     )
 
-    # 6) Soil Contamination Check
-    climate_summary = ""
-    if risks and risks.climate_stress:
-        climate_summary = (
-            risks.climate_stress.summary_nl if is_nl else risks.climate_stress.summary
-        ) or ""
-    if climate_summary:
-        soil_text = (
-            f"Gerelateerde klimaatcontext: {climate_summary}. "
-            "Perceelgebonden bodemverontreiniging vereist nog steeds een Bodemloket-uittreksel."
-            if is_nl
-            else f"Related climate context: {climate_summary}. "
-            "Parcel-level contamination still requires a municipal Bodemloket extract."
-        )
-    else:
-        soil_text = (
-            "Er is hier geen perceelgebonden verontreinigingsdataset gekoppeld. "
-            "Vraag een gemeentelijk Bodemloket-uittreksel aan voor de officiële historie."
-            if is_nl
-            else "No parcel-level contamination dataset is configured here. "
-            "Request a municipal Bodemloket extract for official contamination history."
-        )
+    # 6) Soil Contamination — Manual Verification Required
+    soil_text = (
+        "Er is geen geautomatiseerde perceelgebonden bodemverontreinigingsdata "
+        "beschikbaar. Het BRO-bodeminformatieregister is niet betrouwbaar voor "
+        "perceelniveau-extractie. Raadpleeg bodemloket.nl met het adres van het "
+        "pand voor de officiële verontreinigingshistorie."
+        if is_nl
+        else "No automated parcel-level soil contamination data is available. "
+        "The BRO soil information registry is not reliable for parcel-level "
+        "extraction. Visit bodemloket.nl with the property address for official "
+        "contamination history."
+    )
     soil_source = (
-        "Bron: Gemeentelijk Bodemloket (handmatige verificatie)" if is_nl
-        else "Source: Municipal Bodemloket (manual verification)"
+        "Actie vereist: bodemloket.nl (handmatige opzoeking)" if is_nl
+        else "Action required: bodemloket.nl (manual lookup)"
     )
     _draw_checks_subsection(
         pdf,
         title=(
-            "Bodemverontreinigingscontrole" if is_nl
-            else "Soil Contamination Check"
+            "Bodemverontreiniging \u2014 Handmatige verificatie vereist" if is_nl
+            else "Soil Contamination \u2014 Manual Verification Required"
         ),
         body=soil_text,
         source=soil_source,
@@ -2692,18 +2696,201 @@ def _draw_methodology_page(
     pdf.multi_cell(0, 5, methodology, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(3)
 
-    # Data sources table
-    pdf.draw_section_label("Databronnen" if is_nl else "Data Sources")
-    sources = [
-        ("BAG (Kadaster)", "Gebouwgegevens" if is_nl else "Building data"),
-        ("3DBAG (TU Delft)", "3D-geometrie" if is_nl else "3D geometry"),
-        ("RIVM", "Geluid, luchtkwaliteit" if is_nl else "Noise, air quality"),
-        ("Klimaateffectatlas", "Klimaatstress" if is_nl else "Climate stress"),
-        ("CBS", "Buurtstatistieken" if is_nl else "Neighborhood stats"),
+    # --- E5-S2: Score formula disclosure ---
+    pdf.draw_section_label("Scoringformules" if is_nl else "Scoring Formulas")
+    score_formulas: list[tuple[str, str]] = [
+        (
+            "Geluid" if is_nl else "Noise",
+            (
+                "40 dB Lden = 100 (uitstekend), 90 dB Lden = 0 (kritiek), "
+                "lineaire interpolatie"
+                if is_nl
+                else "40 dB Lden = 100 (excellent), 90 dB Lden = 0 (critical), "
+                "linear interpolation"
+            ),
+        ),
+        (
+            "Luchtkwaliteit" if is_nl else "Air Quality",
+            (
+                "Slechtste van PM2.5 en NO2. "
+                "PM2.5: WHO AQG 5 \u00b5g/m\u00b3 = 100. "
+                "NO2: WHO AQG 10 \u00b5g/m\u00b3 = 100"
+                if is_nl
+                else "Worst of PM2.5 and NO2. "
+                "PM2.5: WHO AQG 5 \u00b5g/m\u00b3 = 100. "
+                "NO2: WHO AQG 10 \u00b5g/m\u00b3 = 100"
+            ),
+        ),
+        (
+            "Klimaatstress" if is_nl else "Climate",
+            (
+                "Maximum risico over alle beschikbare lagen. "
+                "Laag risico = 85, gemiddeld = 50, hoog = 15"
+                if is_nl
+                else "Maximum risk across available layers. "
+                "Low risk = 85, medium = 50, high = 15"
+            ),
+        ),
+        (
+            "Zonlicht" if is_nl else "Sunlight",
+            (
+                "Winterzonnewende directe zonuren / 6 \u00d7 100. 6+ uur = 100"
+                if is_nl
+                else "Winter solstice direct sun hours / 6 \u00d7 100. "
+                "6+ hours = 100"
+            ),
+        ),
     ]
-    for name, desc in sources:
-        pdf.draw_indicator_row(name, desc)
+    for label, formula in score_formulas:
+        pdf.set_font("SatoshiMedium", "", 9)
+        pdf.set_text_color(*SECONDARY)
+        pdf.cell(pdf.get_string_width(label) + 2, 5, label)
+        pdf.set_font("Satoshi", "", 8)
+        pdf.set_text_color(*SECONDARY)
+        pdf.multi_cell(
+            0, 4, formula, align="L", new_x="LMARGIN", new_y="NEXT",
+        )
+        pdf.ln(1)
+    pdf.set_text_color(*SLATE)
+    pdf.ln(2)
+
+    # --- E5-S3: Complete data sources table ---
+    pdf.draw_section_label("Databronnen" if is_nl else "Data Sources")
+    sources: list[tuple[str, str, str]] = [
+        (
+            "BAG (Kadaster)",
+            "Gebouwgegevens" if is_nl else "Building data",
+            "WFS verblijfsobject",
+        ),
+        (
+            "3DBAG (TU Delft)",
+            "3D-geometrie" if is_nl else "3D geometry",
+            "OGC API Features (CityJSON)",
+        ),
+        (
+            "RIVM",
+            "Geluid (Lden wegen)" if is_nl else "Noise (Lden roads)",
+            "alo:lden_wegen",
+        ),
+        (
+            "RIVM",
+            "Luchtkwaliteit" if is_nl else "Air quality",
+            "gcn:no2_jgm, gcn:pm25_jgm",
+        ),
+        (
+            "Klimaateffectatlas",
+            "Klimaatstress" if is_nl else "Climate stress",
+            "WMS + WFS",
+        ),
+        (
+            "CBS",
+            "Buurtstatistieken" if is_nl else "Neighborhood stats",
+            "OGC API Features",
+        ),
+        (
+            "CBS",
+            "Criminaliteit" if is_nl else "Crime",
+            "OData v4 (47018NED)",
+        ),
+        (
+            "Leefbaarometer",
+            "Leefbaarheid" if is_nl else "Livability",
+            "WFS 2.0",
+        ),
+        (
+            "SunCalc + 3DBAG",
+            "Zonlichtanalyse" if is_nl else "Sunlight analysis",
+            "Ray-casting",
+        ),
+    ]
+    src_w = pdf.w - pdf.l_margin - pdf.r_margin
+    for source, data_desc, layer in sources:
+        pdf.set_font("SatoshiMedium", "", 9)
+        pdf.set_text_color(*SECONDARY)
+        pdf.cell(src_w * 0.28, 5, source)
+        pdf.set_font("Satoshi", "", 9)
+        pdf.set_text_color(*SLATE)
+        pdf.cell(src_w * 0.35, 5, data_desc)
+        pdf.set_font("Satoshi", "", 8)
+        pdf.set_text_color(*SECONDARY)
+        pdf.cell(
+            src_w * 0.37, 5, layer, align="R", new_x="LMARGIN", new_y="NEXT",
+        )
+    pdf.set_text_color(*SLATE)
     pdf.ln(3)
+
+    # --- E2-S5: Sunlight methodology disclosure ---
+    pdf.draw_section_label(
+        "Methode zonlichtanalyse" if is_nl else "Sunlight Analysis Method"
+    )
+    sunlight_params: list[tuple[str, str]] = [
+        (
+            "Zonnepositie" if is_nl else "Solar position",
+            (
+                "SunCalc (azimut vanaf noord, hoogte vanaf horizon)"
+                if is_nl
+                else "SunCalc (azimuth from north, altitude from horizon)"
+            ),
+        ),
+        (
+            "Tijdsresolutie" if is_nl else "Temporal",
+            (
+                "30 min intervallen, 12 representatieve dagen/jaar "
+                "(21e van elke maand)"
+                if is_nl
+                else "30-min intervals, 12 representative days/year "
+                "(21st each month)"
+            ),
+        ),
+        (
+            "Ruimtelijke resolutie" if is_nl else "Spatial",
+            (
+                "1m dakgrid, max 256 meetpunten"
+                if is_nl
+                else "1m roof grid, up to 256 sample points"
+            ),
+        ),
+        (
+            "Obstructies" if is_nl else "Obstructions",
+            (
+                "Alleen 3DBAG gebouwen; vegetatie en "
+                "infrastructuur uitgesloten"
+                if is_nl
+                else "3DBAG buildings only; vegetation and "
+                "infrastructure excluded"
+            ),
+        ),
+        (
+            "Atmosferisch" if is_nl else "Atmospheric",
+            (
+                "Heldere-hemelanalyse (geen bewolking/weer)"
+                if is_nl
+                else "Clear-sky geometric analysis "
+                "(no cloud/weather adjustment)"
+            ),
+        ),
+        (
+            "Meetvlak" if is_nl else "Target plane",
+            (
+                "Dakoppervlak (niet raam- of balkonvlak)"
+                if is_nl
+                else "Roof surface analysis "
+                "(not window or balcony plane)"
+            ),
+        ),
+    ]
+    for param_label, param_desc in sunlight_params:
+        pdf.set_font("SatoshiMedium", "", 9)
+        pdf.set_text_color(*SECONDARY)
+        pdf.cell(pdf.get_string_width(param_label) + 2, 5, param_label)
+        pdf.set_font("Satoshi", "", 9)
+        pdf.set_text_color(*SLATE)
+        pdf.multi_cell(
+            0, 4, param_desc, align="L", new_x="LMARGIN", new_y="NEXT",
+        )
+        pdf.ln(0.5)
+    pdf.set_text_color(*SLATE)
+    pdf.ln(2)
 
     # Peer baseline disclosure (Task E4-S2)
     pdf.set_font("Satoshi", "", 10)
@@ -2720,6 +2907,10 @@ def _draw_methodology_page(
     pdf.multi_cell(0, 4, baseline_disclosure, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(*SLATE)
     pdf.ln(3)
+
+    # Page break check — new content above may push remaining sections past page
+    if pdf.get_y() > pdf.h - 80:
+        pdf.add_page()
 
     # Limitations
     pdf.set_font("Satoshi", "B", 12)
