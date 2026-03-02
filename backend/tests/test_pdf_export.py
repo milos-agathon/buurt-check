@@ -4593,7 +4593,7 @@ class TestExecutiveSummary:
         result = _generate_executive_summary(
             risks, sunlight_score=80, livability=livability, is_nl=True,
         )
-        assert "4 risicocategorieen" in result
+        assert "4 risicocategorie\u00ebn" in result
         assert "klimaatstress" in result
         assert "45/100" in result
         assert "leefbaarheid" in result
@@ -4734,7 +4734,7 @@ class TestExecutiveSummary:
         reader = PdfReader(io.BytesIO(result))
         cover_text = reader.pages[0].extract_text() or ""
         assert "SAMENVATTING" in cover_text
-        assert "risicocategorieen" in cover_text
+        assert "risicocategorie" in cover_text
 
     def test_cover_page_with_livability(self):
         """Cover page executive summary includes livability when provided."""

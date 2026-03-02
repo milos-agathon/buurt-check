@@ -173,7 +173,7 @@ def _generate_executive_summary(
 
     if is_nl:
         sentence1 = (
-            f"Van de {total} risicocategorieen scoren "
+            f"Van de {total} risicocategorie\u00ebn scoren "
             + ", ".join(parts_nl)
             + "."
         )
@@ -273,7 +273,7 @@ def _generate_executive_summary(
     else:
         if is_nl:
             sentence4 = (
-                "Geen urgente aandachtspunten geidentificeerd, "
+                "Geen urgente aandachtspunten ge\u00efdentificeerd, "
                 "maar verifieer alle scores ter plaatse."
             )
         else:
