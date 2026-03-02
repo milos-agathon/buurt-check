@@ -1043,6 +1043,39 @@ async def _fetch_property_warnings_for_export(
     return None
 
 
+async def _fetch_livability_for_export(
+    rd_x: float, rd_y: float,
+) -> LivabilityResponse | None:
+    """Cache-first Leefbaarometer livability fetch for Full Dossier export."""
+    cache_key = f"livability_full:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return LivabilityResponse(**cached)
+    try:
+        current = await leefbaarometer.get_livability(rd_x, rd_y)
+        if current is None:
+            return None
+        # Fetch trend + comparison in parallel
+        trend_task = leefbaarometer.get_livability_trend(rd_x, rd_y)
+        comparison_task = leefbaarometer.get_livability_comparison(rd_x, rd_y)
+        trend, comparison = await asyncio.gather(
+            trend_task, comparison_task, return_exceptions=True
+        )
+        trend_ok = isinstance(trend, list)
+        comparison_ok = isinstance(comparison, LivabilityComparison)
+        current.trend = trend if trend_ok else []
+        current.comparison = comparison.rows if comparison_ok else []
+        if trend_ok and comparison_ok:
+            await cache_set(
+                cache_key, current.model_dump(),
+                ttl=settings.cache_ttl_livability,
+            )
+        return current
+    except Exception:
+        logger.warning("Failed to fetch livability data for PDF export")
+    return None
+
+
 async def _fetch_location_map(
     rd_x: float, rd_y: float,
 ) -> str | None:
@@ -1133,6 +1166,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     risk_comparisons_data = None
     property_warnings_data: PropertyWarningsResponse | None = None
     location_map_b64: str | None = None
+    livability_data: LivabilityResponse | None = None
 
     if body.template == "full_dossier":
         # Fetch full-dossier-only enrichments in parallel.
@@ -1141,6 +1175,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             tier_b_data,
             property_warnings_data,
             location_map_b64,
+            livability_data,
         ) = await asyncio.gather(
             _fetch_neighborhood_for_export(
                 vbo_id, body.lat, body.lng, body.buurt_code,
@@ -1157,6 +1192,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
                 municipality=body.city,
             ),
             _fetch_location_map(body.rd_x, body.rd_y),
+            _fetch_livability_for_export(body.rd_x, body.rd_y),
         )
 
         # If request buurt_code is missing, retry Tier-B with neighborhood code.
@@ -1220,6 +1256,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             property_warnings_data=property_warnings_data,
             provenance=provenance,
             location_map_b64=location_map_b64,
+            livability=livability_data,
         )
     else:
         pdf_bytes = generate_quick_brief(

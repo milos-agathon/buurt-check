@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fpdf import FPDF
 
+from app.models.livability import LivabilityResponse
 from app.models.neighborhood import AgeProfile, NeighborhoodStats, UrbanizationLevel
 from app.models.property_warnings import PropertyWarningsResponse
 from app.models.report import ProvenanceData
@@ -790,6 +791,7 @@ def generate_full_dossier(
     property_warnings_data: PropertyWarningsResponse | None = None,
     provenance: ProvenanceData | None = None,
     location_map_b64: str | None = None,
+    livability: LivabilityResponse | None = None,
 ) -> bytes:
     """Generate 5+ page Full Dossier with Polar Frost branding."""
     is_nl = language == "nl"
@@ -812,7 +814,7 @@ def generate_full_dossier(
     # Page 3: Neighborhood Intelligence
     pdf.section_title = "BUURT" if is_nl else "NEIGHBORHOOD"
     pdf.add_page()
-    _draw_neighborhood_page(pdf, neighborhood_stats, tier_b, is_nl)
+    _draw_neighborhood_page(pdf, neighborhood_stats, tier_b, is_nl, livability=livability)
 
     # Page 4: Premium Property Checks
     pdf.section_title = "EXTRA CONTROLES" if is_nl else "ADDITIONAL CHECKS"
@@ -1388,8 +1390,10 @@ def _draw_neighborhood_page(
     stats: NeighborhoodStats | None,
     tier_b_data: TierBResponse | None,
     is_nl: bool,
+    *,
+    livability: LivabilityResponse | None = None,
 ) -> None:
-    """Page 3: neighborhood stats + crime."""
+    """Page 3: neighborhood stats + crime + livability."""
     if stats:
         # Buurt name + urbanization
         pdf.set_font("Satoshi", "B", 16)
@@ -1646,6 +1650,203 @@ def _draw_neighborhood_page(
         )
         pdf.cell(0, 6, no_data, new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
+
+    # --- Livability section (Leefbaarometer) ---
+    if livability is not None and livability.available:
+        _draw_livability_section(pdf, livability, is_nl)
+
+
+def _draw_livability_section(
+    pdf: BuurtCheckPDF,
+    livability: LivabilityResponse | None,
+    is_nl: bool,
+) -> None:
+    """Render livability section: overall score, 5-dimension bars, trend, comparison."""
+    if livability is None or not livability.available:
+        return
+
+    pdf.draw_divider("strong")
+
+    # Section header
+    pdf.draw_section_label("Leefbaarheid" if is_nl else "Livability")
+    pdf.ln(1)
+
+    # Overall score with severity
+    score = livability.overall_normalized
+    color = _severity_color(score)
+    sev_label = _severity_label(score, is_nl)
+
+    cy = pdf.get_y()
+    pdf.set_fill_color(*TEAL)
+    pdf.rect(pdf.l_margin, cy, 1.5, 8, "F")
+
+    pdf.set_x(pdf.l_margin + 4)
+    pdf.set_font("Satoshi", "B", 14)
+    pdf.set_text_color(*SLATE)
+    title = "Leefbaarheidsscore" if is_nl else "Livability Score"
+    pdf.cell(100, 8, title)
+
+    pdf.set_font("SatoshiBlack", "", 14)
+    pdf.set_text_color(*color)
+    pdf.cell(0, 8, str(score), align="R", new_x="LMARGIN", new_y="NEXT")
+
+    # Score bar
+    bar_w = pdf.w - pdf.l_margin - pdf.r_margin
+    pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=5.0)
+    pdf.ln(3)
+
+    # Severity label
+    pdf.set_font("Satoshi", "", 9)
+    pdf.set_text_color(*color)
+    pdf.cell(0, 4, sev_label, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SLATE)
+    pdf.ln(3)
+
+    # --- 5-dimension breakdown as horizontal bars ---
+    dim_labels: dict[str, tuple[str, str]] = {
+        "physical": ("Fysiek", "Physical environment"),
+        "safety": ("Veiligheid", "Safety"),
+        "social": ("Sociaal", "Social cohesion"),
+        "amenities": ("Voorzieningen", "Amenities"),
+        "housing": ("Woningen", "Housing quality"),
+    }
+
+    label_w = 50
+    score_w = 15
+    content_w = pdf.w - pdf.l_margin - pdf.r_margin
+    bar_w_dim = content_w - label_w - score_w - 4
+    bar_h = 3.5
+    row_h = 7.0
+
+    for dim in livability.dimensions:
+        nl_label, en_label = dim_labels.get(dim.name, (dim.name, dim.name))
+        label = nl_label if is_nl else en_label
+        dim_score = dim.normalized_score
+        dim_color = _severity_color(dim_score)
+
+        ry = pdf.get_y()
+
+        pdf.set_font("Satoshi", "", 9)
+        pdf.set_text_color(*SLATE)
+        pdf.set_xy(pdf.l_margin, ry)
+        pdf.cell(label_w, row_h, label)
+
+        bar_x = pdf.l_margin + label_w + 2
+        bar_y = ry + (row_h - bar_h) / 2
+        pdf.set_fill_color(*BORDER)
+        pdf.rect(bar_x, bar_y, bar_w_dim, bar_h, "F")
+
+        if dim_score > 0:
+            fill_w = max(bar_w_dim * min(dim_score, 100) / 100, 1.0)
+            pdf.set_fill_color(*dim_color)
+            pdf.rect(bar_x, bar_y, fill_w, bar_h, "F")
+
+        pdf.set_font("Satoshi", "B", 9)
+        pdf.set_xy(pdf.l_margin + content_w - score_w, ry)
+        pdf.cell(score_w, row_h, str(dim_score), align="R")
+
+        pdf.set_y(ry + row_h)
+
+    pdf.ln(2)
+
+    # --- Trend summary ---
+    if livability.trend and len(livability.trend) >= 2:
+        trend_text = _livability_trend_summary(livability.trend, is_nl)
+        if trend_text:
+            pdf.set_font("Satoshi", "", 9)
+            pdf.set_text_color(*SECONDARY)
+            pdf.cell(
+                content_w, 5, trend_text,
+                new_x="LMARGIN", new_y="NEXT",
+            )
+            pdf.set_text_color(*SLATE)
+            pdf.ln(2)
+
+    # --- Comparison table: buurt vs wijk vs gemeente ---
+    if livability.comparison:
+        comp_title = (
+            "Vergelijking" if is_nl else "Comparison"
+        )
+        comp_rows: list[tuple[str, int, tuple[int, int, int], bool]] = []
+
+        # Address row first (buurt-level = this neighborhood)
+        buurt_name = livability.buurt_name or ("Buurt" if is_nl else "Neighborhood")
+        comp_rows.append((
+            buurt_name, livability.overall_normalized, TEAL, False,
+        ))
+
+        for row in livability.comparison:
+            if row.level == "wijk":
+                label = row.name or ("Wijk" if is_nl else "District")
+                comp_rows.append((label, row.overall_normalized, MUTED, False))
+            elif row.level == "gemeente":
+                label = row.name or ("Gemeente" if is_nl else "Municipality")
+                comp_rows.append((label, row.overall_normalized, NATIONAL, False))
+
+        if len(comp_rows) > 1:
+            chart_end_y = pdf.draw_comparison_chart(
+                x=pdf.l_margin, y=pdf.get_y(),
+                width=content_w,
+                rows=comp_rows,
+                chart_title=comp_title,
+                is_nl=is_nl,
+            )
+            pdf.set_y(chart_end_y + 2)
+
+    # Source attribution
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*SECONDARY)
+    source_parts = ["Leefbaarometer"]
+    if livability.year:
+        source_parts.append(livability.year)
+    elif livability.source_date:
+        source_parts.append(livability.source_date)
+    joined = " \u00b7 ".join(source_parts)
+    source_line = f"Bron: {joined}" if is_nl else f"Source: {joined}"
+    pdf.cell(0, 4, source_line, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SLATE)
+
+
+def _livability_trend_summary(
+    trend: list,
+    is_nl: bool,
+) -> str | None:
+    """Generate a one-line trend summary from historical Leefbaarometer data.
+
+    Returns e.g. "Improving since 2014" or "Stabiel" or None if insufficient data.
+    """
+    if len(trend) < 2:
+        return None
+
+    # Compare last two points for current direction
+    latest = trend[-1]
+    earliest = trend[0]
+    diff = latest.overall_normalized - earliest.overall_normalized
+
+    if abs(diff) < 5:
+        return "Stabiel" if is_nl else "Stable"
+
+    # Find inflection point: where did current direction start?
+    if diff > 0:
+        # Currently improving — scan backwards for start of improvement
+        inflection_year = trend[0].year
+        for i in range(len(trend) - 1, 0, -1):
+            if trend[i].overall_normalized <= trend[i - 1].overall_normalized:
+                inflection_year = trend[i].year
+                break
+        if is_nl:
+            return f"Verbeterend sinds {inflection_year}"
+        return f"Improving since {inflection_year}"
+    else:
+        # Currently declining
+        inflection_year = trend[0].year
+        for i in range(len(trend) - 1, 0, -1):
+            if trend[i].overall_normalized >= trend[i - 1].overall_normalized:
+                inflection_year = trend[i].year
+                break
+        if is_nl:
+            return f"Dalend sinds {inflection_year}"
+        return f"Declining since {inflection_year}"
 
 
 def _draw_checks_subsection(

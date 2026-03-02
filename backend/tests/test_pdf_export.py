@@ -9,6 +9,13 @@ import pytest
 from pypdf import PdfReader
 
 from app.models.building import BuildingFacts, BuildingFactsResponse
+from app.models.livability import (
+    LivabilityComparison,
+    LivabilityComparisonRow,
+    LivabilityDimension,
+    LivabilityResponse,
+    LivabilityTrendPoint,
+)
 from app.models.neighborhood import (
     AgeProfile,
     NeighborhoodIndicator,
@@ -52,8 +59,10 @@ from app.services.pdf_export import (
     BuurtCheckPDF,
     _build_risk_cells,
     _draw_indicator,
+    _draw_livability_section,
     _draw_location_map,
     _interpret_age_distribution,
+    _livability_trend_summary,
     _severity_for_score,
     _severity_label,
     format_number,
@@ -2319,10 +2328,12 @@ async def test_export_endpoint_invalid_template(client):
 @patch("app.api.address.bag")
 @patch("app.api.address.risk_cards")
 @patch("app.api.address.property_warnings")
+@patch("app.api.address.leefbaarometer")
 async def test_export_endpoint_full_dossier_template(
-    mock_property_warnings, mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
-    mock_entitlement, client
+    mock_leefbaarometer, mock_property_warnings, mock_risk_cards, mock_bag,
+    mock_cache_set, mock_cache_get, mock_entitlement, client
 ):
+    mock_leefbaarometer.get_livability = AsyncMock(return_value=None)
     mock_property_warnings.get_property_warnings = AsyncMock(
         return_value=_make_property_warnings()
     )
@@ -2549,11 +2560,14 @@ async def test_export_accepts_shadow_image_b64_alias(
 @patch("app.api.address.cbs")
 @patch("app.api.address.tier_b")
 @patch("app.api.address.property_warnings")
+@patch("app.api.address.leefbaarometer")
 async def test_export_full_dossier_fetches_additional_data(
-    mock_property_warnings, mock_tier_b, mock_cbs, mock_risk_cards, mock_bag,
-    mock_cache_set, mock_cache_get, mock_entitlement, client
+    mock_leefbaarometer, mock_property_warnings, mock_tier_b, mock_cbs,
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
+    mock_entitlement, client
 ):
     """Full Dossier template fetches neighborhood stats and tier-b in parallel."""
+    mock_leefbaarometer.get_livability = AsyncMock(return_value=None)
     mock_property_warnings.get_property_warnings = AsyncMock(
         return_value=_make_property_warnings()
     )
@@ -2603,11 +2617,14 @@ async def test_export_full_dossier_fetches_additional_data(
 @patch("app.api.address.cbs")
 @patch("app.api.address.tier_b")
 @patch("app.api.address.property_warnings")
+@patch("app.api.address.leefbaarometer")
 async def test_export_tier_b_uses_neighborhood_buurt_code_fallback(
-    mock_property_warnings, mock_tier_b, mock_cbs, mock_risk_cards, mock_bag,
-    mock_cache_set, mock_cache_get, mock_entitlement, client
+    mock_leefbaarometer, mock_property_warnings, mock_tier_b, mock_cbs,
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
+    mock_entitlement, client
 ):
     """Tier-B uses neighborhood-resolved buurt_code when request has none."""
+    mock_leefbaarometer.get_livability = AsyncMock(return_value=None)
     mock_property_warnings.get_property_warnings = AsyncMock(
         return_value=_make_property_warnings()
     )
@@ -3347,3 +3364,663 @@ async def test_fetch_location_map_exception_returns_none():
         result = await _fetch_location_map(121000, 487000)
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Livability section tests (E3-S1)
+# ---------------------------------------------------------------------------
+
+
+def _make_livability_dimensions() -> list[LivabilityDimension]:
+    """Return 5 livability dimensions with varying scores."""
+    return [
+        LivabilityDimension(
+            name="physical", raw_score=6, normalized_score=63,
+            label_code="livability.dimension.physical",
+        ),
+        LivabilityDimension(
+            name="safety", raw_score=7, normalized_score=75,
+            label_code="livability.dimension.safety",
+        ),
+        LivabilityDimension(
+            name="social", raw_score=5, normalized_score=50,
+            label_code="livability.dimension.social",
+        ),
+        LivabilityDimension(
+            name="amenities", raw_score=8, normalized_score=88,
+            label_code="livability.dimension.amenities",
+        ),
+        LivabilityDimension(
+            name="housing", raw_score=4, normalized_score=38,
+            label_code="livability.dimension.housing",
+        ),
+    ]
+
+
+def _make_livability(
+    *,
+    overall_normalized: int = 62,
+    with_trend: bool = True,
+    with_comparison: bool = True,
+    with_dimensions: bool = True,
+) -> LivabilityResponse:
+    """Build a LivabilityResponse for tests."""
+    trend = []
+    if with_trend:
+        trend = [
+            LivabilityTrendPoint(
+                year="2002", overall_score=4, overall_normalized=38,
+                dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2014", overall_score=5, overall_normalized=50,
+                dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2020", overall_score=6, overall_normalized=63,
+                dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2024", overall_score=6, overall_normalized=62,
+                dimensions=[],
+            ),
+        ]
+    comparison = []
+    if with_comparison:
+        comparison = [
+            LivabilityComparisonRow(
+                level="wijk", name="Centrum-West",
+                overall_score=6, overall_normalized=63,
+                dimensions=[],
+            ),
+            LivabilityComparisonRow(
+                level="gemeente", name="Amsterdam",
+                overall_score=5, overall_normalized=50,
+                dimensions=[],
+            ),
+        ]
+    return LivabilityResponse(
+        available=True,
+        buurt_code="BU03630000",
+        buurt_name="Grachtengordel-West",
+        gemeente="Amsterdam",
+        year="2024",
+        overall_score=6,
+        overall_normalized=overall_normalized,
+        dimensions=_make_livability_dimensions() if with_dimensions else [],
+        trend=trend,
+        comparison=comparison,
+        source="Leefbaarometer (Dutch Livability Index)",
+        source_date="2024",
+    )
+
+
+class TestLivabilityTrendSummary:
+    """Tests for _livability_trend_summary helper."""
+
+    def test_improving_trend_en(self):
+        trend = [
+            LivabilityTrendPoint(
+                year="2008", overall_score=3, overall_normalized=25, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2014", overall_score=5, overall_normalized=50, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2020", overall_score=6, overall_normalized=63, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2024", overall_score=7, overall_normalized=75, dimensions=[],
+            ),
+        ]
+        result = _livability_trend_summary(trend, is_nl=False)
+        assert result is not None
+        assert "Improving" in result
+
+    def test_improving_trend_nl(self):
+        trend = [
+            LivabilityTrendPoint(
+                year="2008", overall_score=3, overall_normalized=25, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2024", overall_score=7, overall_normalized=75, dimensions=[],
+            ),
+        ]
+        result = _livability_trend_summary(trend, is_nl=True)
+        assert result is not None
+        assert "Verbeterend" in result
+
+    def test_declining_trend_en(self):
+        trend = [
+            LivabilityTrendPoint(
+                year="2008", overall_score=7, overall_normalized=75, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2014", overall_score=6, overall_normalized=63, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2020", overall_score=5, overall_normalized=50, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2024", overall_score=4, overall_normalized=38, dimensions=[],
+            ),
+        ]
+        result = _livability_trend_summary(trend, is_nl=False)
+        assert result is not None
+        assert "Declining" in result
+
+    def test_declining_trend_nl(self):
+        trend = [
+            LivabilityTrendPoint(
+                year="2008", overall_score=7, overall_normalized=75, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2024", overall_score=4, overall_normalized=38, dimensions=[],
+            ),
+        ]
+        result = _livability_trend_summary(trend, is_nl=True)
+        assert result is not None
+        assert "Dalend" in result
+
+    def test_stable_trend_en(self):
+        trend = [
+            LivabilityTrendPoint(
+                year="2008", overall_score=6, overall_normalized=63, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2024", overall_score=6, overall_normalized=65, dimensions=[],
+            ),
+        ]
+        result = _livability_trend_summary(trend, is_nl=False)
+        assert result == "Stable"
+
+    def test_stable_trend_nl(self):
+        trend = [
+            LivabilityTrendPoint(
+                year="2008", overall_score=6, overall_normalized=63, dimensions=[],
+            ),
+            LivabilityTrendPoint(
+                year="2024", overall_score=6, overall_normalized=65, dimensions=[],
+            ),
+        ]
+        result = _livability_trend_summary(trend, is_nl=True)
+        assert result == "Stabiel"
+
+    def test_insufficient_data_returns_none(self):
+        trend = [
+            LivabilityTrendPoint(
+                year="2024", overall_score=6, overall_normalized=63, dimensions=[],
+            ),
+        ]
+        result = _livability_trend_summary(trend, is_nl=False)
+        assert result is None
+
+    def test_empty_trend_returns_none(self):
+        result = _livability_trend_summary([], is_nl=False)
+        assert result is None
+
+
+class TestDrawLivabilitySection:
+    """Tests for _draw_livability_section rendering."""
+
+    def test_renders_overall_score_en(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = _make_livability()
+        _draw_livability_section(pdf, livability, is_nl=False)
+        output = bytes(pdf.output())
+        assert len(output) > 100
+
+    def test_renders_overall_score_nl(self):
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        livability = _make_livability()
+        _draw_livability_section(pdf, livability, is_nl=True)
+        output = bytes(pdf.output())
+        assert len(output) > 100
+
+    def test_skips_when_none(self):
+        """Section is not rendered when livability is None."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        y_before = pdf.get_y()
+        _draw_livability_section(pdf, None, is_nl=False)
+        y_after = pdf.get_y()
+        assert y_after == y_before
+
+    def test_skips_when_unavailable(self):
+        """Section is not rendered when livability.available is False."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = LivabilityResponse(available=False)
+        y_before = pdf.get_y()
+        _draw_livability_section(pdf, livability, is_nl=False)
+        y_after = pdf.get_y()
+        assert y_after == y_before
+
+    def test_renders_without_trend(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = _make_livability(with_trend=False)
+        _draw_livability_section(pdf, livability, is_nl=False)
+        output = bytes(pdf.output())
+        assert len(output) > 100
+
+    def test_renders_without_comparison(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = _make_livability(with_comparison=False)
+        _draw_livability_section(pdf, livability, is_nl=False)
+        output = bytes(pdf.output())
+        assert len(output) > 100
+
+    def test_renders_without_dimensions(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = _make_livability(with_dimensions=False)
+        _draw_livability_section(pdf, livability, is_nl=False)
+        output = bytes(pdf.output())
+        assert len(output) > 100
+
+    def test_renders_with_all_data(self):
+        """All subcomponents (dimensions, trend, comparison) render together."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = _make_livability()
+        _draw_livability_section(pdf, livability, is_nl=False)
+        output = bytes(pdf.output())
+        assert len(output) > 100
+
+    def test_all_five_dimensions_rendered(self):
+        """Verify all 5 dimensions appear in the PDF text."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = _make_livability()
+        _draw_livability_section(pdf, livability, is_nl=False)
+        output = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(output))
+        text = "".join(page.extract_text() or "" for page in reader.pages)
+        assert "Physical environment" in text
+        assert "Safety" in text
+        assert "Social cohesion" in text
+        assert "Amenities" in text
+        assert "Housing quality" in text
+
+    def test_all_five_dimensions_rendered_nl(self):
+        """Verify all 5 Dutch dimension labels appear in the PDF text."""
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        livability = _make_livability()
+        _draw_livability_section(pdf, livability, is_nl=True)
+        output = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(output))
+        text = "".join(page.extract_text() or "" for page in reader.pages)
+        assert "Fysiek" in text
+        assert "Veiligheid" in text
+        assert "Sociaal" in text
+        assert "Voorzieningen" in text
+        assert "Woningen" in text
+
+    def test_source_attribution_en(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = _make_livability()
+        _draw_livability_section(pdf, livability, is_nl=False)
+        output = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(output))
+        text = "".join(page.extract_text() or "" for page in reader.pages)
+        assert "Source:" in text
+        assert "Leefbaarometer" in text
+
+    def test_source_attribution_nl(self):
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        livability = _make_livability()
+        _draw_livability_section(pdf, livability, is_nl=True)
+        output = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(output))
+        text = "".join(page.extract_text() or "" for page in reader.pages)
+        assert "Bron:" in text
+        assert "Leefbaarometer" in text
+
+
+class TestFullDossierWithLivability:
+    """Tests for livability integration in full dossier generation."""
+
+    def test_full_dossier_with_livability_en(self):
+        result = generate_full_dossier(
+            address="Kalverstraat 1, 1012 Amsterdam",
+            building_year=1920,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            livability=_make_livability(),
+        )
+        assert isinstance(result, bytes)
+        assert result[:5] == b"%PDF-"
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "".join(p.extract_text() or "" for p in reader.pages)
+        assert "Livability" in all_text
+        assert "Leefbaarometer" in all_text
+
+    def test_full_dossier_with_livability_nl(self):
+        result = generate_full_dossier(
+            address="Kalverstraat 1, 1012 Amsterdam",
+            building_year=1920,
+            building_use="Woonfunctie",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="nl",
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            livability=_make_livability(),
+        )
+        assert isinstance(result, bytes)
+        assert result[:5] == b"%PDF-"
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "".join(p.extract_text() or "" for p in reader.pages)
+        assert "Leefbaarheid" in all_text
+        assert "Leefbaarometer" in all_text
+
+    def test_full_dossier_without_livability_graceful(self):
+        """Full dossier generates fine without livability data."""
+        result = generate_full_dossier(
+            address="Kalverstraat 1, 1012 Amsterdam",
+            building_year=1920,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            livability=None,
+        )
+        assert isinstance(result, bytes)
+        assert result[:5] == b"%PDF-"
+
+    def test_full_dossier_unavailable_livability_skipped(self):
+        """Unavailable livability does not add extra content."""
+        livability = LivabilityResponse(available=False)
+        result = generate_full_dossier(
+            address="Kalverstraat 1, 1012 Amsterdam",
+            building_year=1920,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            livability=livability,
+        )
+        assert isinstance(result, bytes)
+        assert result[:5] == b"%PDF-"
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "".join(p.extract_text() or "" for p in reader.pages)
+        assert "Livability Score" not in all_text
+
+    def test_livability_severity_labels_correct(self):
+        """Score 62 should display 'Moderate' severity."""
+        result = generate_full_dossier(
+            address="Test",
+            building_year=None,
+            building_use=None,
+            risks=None,
+            sunlight_score=None,
+            viewing_questions=None,
+            language="en",
+            livability=_make_livability(overall_normalized=62),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "".join(p.extract_text() or "" for p in reader.pages)
+        assert "Moderate" in all_text
+
+    def test_livability_good_severity(self):
+        """Score 80 should display 'Good' severity."""
+        result = generate_full_dossier(
+            address="Test",
+            building_year=None,
+            building_use=None,
+            risks=None,
+            sunlight_score=None,
+            viewing_questions=None,
+            language="en",
+            livability=_make_livability(overall_normalized=80),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "".join(p.extract_text() or "" for p in reader.pages)
+        assert "Good" in all_text
+
+    def test_comparison_chart_shows_levels(self):
+        """Comparison section includes wijk and gemeente names."""
+        result = generate_full_dossier(
+            address="Test",
+            building_year=None,
+            building_use=None,
+            risks=None,
+            sunlight_score=None,
+            viewing_questions=None,
+            language="en",
+            livability=_make_livability(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "".join(p.extract_text() or "" for p in reader.pages)
+        assert "Centrum-West" in all_text
+        assert "Amsterdam" in all_text
+
+    def test_trend_summary_in_pdf(self):
+        """Trend summary text appears in the PDF."""
+        result = generate_full_dossier(
+            address="Test",
+            building_year=None,
+            building_use=None,
+            risks=None,
+            sunlight_score=None,
+            viewing_questions=None,
+            language="en",
+            livability=_make_livability(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = "".join(p.extract_text() or "" for p in reader.pages)
+        assert "Improving" in all_text or "Declining" in all_text or "Stable" in all_text
+
+
+# ---------------------------------------------------------------------------
+# _fetch_livability_for_export tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fetch_livability_for_export_cache_hit():
+    """Returns cached livability data when cache hit."""
+    from app.api.address import _fetch_livability_for_export
+
+    cached_data = _make_livability().model_dump()
+
+    with patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=cached_data):
+        result = await _fetch_livability_for_export(121000.0, 487000.0)
+
+    assert result is not None
+    assert result.available is True
+    assert result.overall_normalized == 62
+    assert len(result.dimensions) == 5
+
+
+@pytest.mark.asyncio
+async def test_fetch_livability_for_export_cache_miss_fetches():
+    """Fetches from leefbaarometer service on cache miss."""
+    from app.api.address import _fetch_livability_for_export
+
+    livability_data = _make_livability(with_trend=False, with_comparison=False)
+
+    with (
+        patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None),
+        patch("app.api.address.cache_set", new_callable=AsyncMock),
+        patch("app.api.address.leefbaarometer") as mock_leefbaarometer,
+    ):
+        mock_leefbaarometer.get_livability = AsyncMock(return_value=livability_data)
+        mock_leefbaarometer.get_livability_trend = AsyncMock(return_value=[])
+        mock_leefbaarometer.get_livability_comparison = AsyncMock(
+            return_value=LivabilityComparison(rows=[]),
+        )
+        result = await _fetch_livability_for_export(121000.0, 487000.0)
+
+    assert result is not None
+    assert result.available is True
+    mock_leefbaarometer.get_livability.assert_called_once_with(121000.0, 487000.0)
+
+
+@pytest.mark.asyncio
+async def test_fetch_livability_for_export_returns_none_on_no_data():
+    """Returns None when get_livability returns None."""
+    from app.api.address import _fetch_livability_for_export
+
+    with (
+        patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None),
+        patch("app.api.address.cache_set", new_callable=AsyncMock),
+        patch("app.api.address.leefbaarometer") as mock_leefbaarometer,
+    ):
+        mock_leefbaarometer.get_livability = AsyncMock(return_value=None)
+        result = await _fetch_livability_for_export(121000.0, 487000.0)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_livability_for_export_graceful_on_exception():
+    """Returns None when leefbaarometer raises an exception."""
+    from app.api.address import _fetch_livability_for_export
+
+    with (
+        patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None),
+        patch("app.api.address.cache_set", new_callable=AsyncMock),
+        patch("app.api.address.leefbaarometer") as mock_leefbaarometer,
+    ):
+        mock_leefbaarometer.get_livability = AsyncMock(
+            side_effect=Exception("API down"),
+        )
+        result = await _fetch_livability_for_export(121000.0, 487000.0)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_livability_for_export_caches_complete_response():
+    """Caches livability data when both trend and comparison succeed."""
+    from app.api.address import _fetch_livability_for_export
+
+    livability_data = _make_livability(with_trend=False, with_comparison=False)
+    trend_data = [
+        LivabilityTrendPoint(year="2020", overall_score=5, overall_normalized=50, dimensions=[]),
+        LivabilityTrendPoint(year="2024", overall_score=6, overall_normalized=63, dimensions=[]),
+    ]
+    comparison_data = LivabilityComparison(rows=[
+        LivabilityComparisonRow(
+            level="wijk", name="Test", overall_score=5, overall_normalized=50,
+            dimensions=[],
+        ),
+    ])
+
+    with (
+        patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None),
+        patch("app.api.address.cache_set", new_callable=AsyncMock) as mock_set,
+        patch("app.api.address.leefbaarometer") as mock_leefbaarometer,
+    ):
+        mock_leefbaarometer.get_livability = AsyncMock(return_value=livability_data)
+        mock_leefbaarometer.get_livability_trend = AsyncMock(return_value=trend_data)
+        mock_leefbaarometer.get_livability_comparison = AsyncMock(
+            return_value=comparison_data,
+        )
+        result = await _fetch_livability_for_export(121000.0, 487000.0)
+
+    assert result is not None
+    assert len(result.trend) == 2
+    assert len(result.comparison) == 1
+    mock_set.assert_called_once()
+    assert mock_set.call_args.args[0] == "livability_full:121000:487000"
+
+
+@pytest.mark.asyncio
+async def test_fetch_livability_for_export_no_cache_on_partial():
+    """Does not cache when trend or comparison fails."""
+    from app.api.address import _fetch_livability_for_export
+
+    livability_data = _make_livability(with_trend=False, with_comparison=False)
+
+    with (
+        patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None),
+        patch("app.api.address.cache_set", new_callable=AsyncMock) as mock_set,
+        patch("app.api.address.leefbaarometer") as mock_leefbaarometer,
+    ):
+        mock_leefbaarometer.get_livability = AsyncMock(return_value=livability_data)
+        mock_leefbaarometer.get_livability_trend = AsyncMock(
+            side_effect=Exception("trend failed"),
+        )
+        mock_leefbaarometer.get_livability_comparison = AsyncMock(
+            return_value=LivabilityComparison(rows=[]),
+        )
+        result = await _fetch_livability_for_export(121000.0, 487000.0)
+
+    assert result is not None
+    assert result.trend == []
+    mock_set.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Full dossier endpoint with livability integration
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
+@patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
+@patch("app.api.address.cache_set", new_callable=AsyncMock)
+@patch("app.api.address.bag")
+@patch("app.api.address.risk_cards")
+@patch("app.api.address.cbs")
+@patch("app.api.address.tier_b")
+@patch("app.api.address.property_warnings")
+@patch("app.api.address.leefbaarometer")
+async def test_export_full_dossier_fetches_livability(
+    mock_leefbaarometer, mock_property_warnings, mock_tier_b, mock_cbs,
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
+    mock_entitlement, client
+):
+    """Full dossier export calls leefbaarometer in Phase 2 parallel fetch."""
+    livability_data = _make_livability(with_trend=False, with_comparison=False)
+    mock_leefbaarometer.get_livability = AsyncMock(return_value=livability_data)
+    mock_leefbaarometer.get_livability_trend = AsyncMock(return_value=[])
+    mock_leefbaarometer.get_livability_comparison = AsyncMock(
+        return_value=LivabilityComparison(rows=[]),
+    )
+    mock_property_warnings.get_property_warnings = AsyncMock(
+        return_value=_make_property_warnings()
+    )
+    mock_bag.get_building_facts = AsyncMock(return_value=None)
+    mock_risk_cards.get_risk_cards = AsyncMock(return_value=_make_risks())
+    mock_cbs.get_neighborhood_stats = AsyncMock(
+        return_value=_make_neighborhood_resp()
+    )
+    mock_tier_b.get_tier_b_data = AsyncMock(return_value=_make_tier_b())
+
+    resp = await client.post(
+        "/api/address/0363010012345678/export",
+        json={
+            "rd_x": 121000,
+            "rd_y": 487000,
+            "lat": 52.37,
+            "lng": 4.89,
+            "address": "Kalverstraat 1, Amsterdam",
+            "template": "full_dossier",
+            "report_id": "test-report-id",
+            "buurt_code": "BU03630000",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.content[:5] == b"%PDF-"
+    mock_leefbaarometer.get_livability.assert_called_once_with(121000.0, 487000.0)
+    reader = PdfReader(io.BytesIO(resp.content))
+    all_text = "".join(p.extract_text() or "" for p in reader.pages)
+    assert "Livability" in all_text or "Leefbaarheid" in all_text
