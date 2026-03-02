@@ -300,6 +300,13 @@ class BuurtCheckPDF(FPDF):
         self.cell(10, 3, "0")
         self.set_xy(bar_x + bar_w - 10, axis_y)
         self.cell(10, 3, "100", align="R")
+
+        # Severity zone threshold labels at 20, 40, 70
+        for threshold in (20, 40, 70):
+            tx = bar_x + bar_w * threshold / 100
+            self.set_xy(tx - 3, axis_y)
+            self.cell(6, 3, str(threshold), align="C")
+
         cur_y = axis_y + 3.5
 
         # --- Legend (first chart only) ---
@@ -395,7 +402,11 @@ class BuurtCheckPDF(FPDF):
 
             bar_y = cy + 15
             bar_margin = cell_w * 0.1
-            self.draw_score_bar(cx + bar_margin, bar_y, cell_w - 2 * bar_margin, score)
+            self.draw_score_bar(
+                cx + bar_margin, bar_y,
+                cell_w - 2 * bar_margin, score,
+                height=4.0,
+            )
 
             self.set_font("Satoshi", "", 8)
             self.set_text_color(*color)

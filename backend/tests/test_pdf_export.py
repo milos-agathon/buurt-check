@@ -664,6 +664,25 @@ class TestBuurtCheckPDF:
             result = bytes(pdf.output())
             assert result[:5] == b"%PDF-"
 
+    def test_draw_comparison_chart_threshold_labels(self):
+        """E9-S5: Severity zone labels 20, 40, 70 appear on axis."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        rows = [
+            ("This address", 65, TEAL, False),
+            ("Peer", 55, SECONDARY, False),
+        ]
+        pdf.draw_comparison_chart(10, 30, 180, rows)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(
+            p.extract_text() or "" for p in reader.pages
+        )
+        for threshold in ("20", "40", "70"):
+            assert threshold in text, (
+                f"Threshold label {threshold} missing"
+            )
+
     def test_draw_comparison_chart_full_features(self):
         """Chart with title + legend + all row types produces valid PDF."""
         pdf = BuurtCheckPDF()
