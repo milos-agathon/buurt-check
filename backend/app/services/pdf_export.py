@@ -175,6 +175,8 @@ class BuurtCheckPDF(FPDF):
         super().__init__()
         self.language = language
         self.is_nl = language == "nl"
+        self.set_left_margin(20)
+        self.set_right_margin(20)
         self._register_fonts()
         self.set_auto_page_break(auto=True, margin=20)
 
@@ -183,7 +185,6 @@ class BuurtCheckPDF(FPDF):
         for style, filename in [
             ("", "Satoshi-Regular.ttf"),
             ("B", "Satoshi-Bold.ttf"),
-            ("I", "Satoshi-Regular.ttf"),  # italic fallback to regular
         ]:
             path = _FONTS_DIR / filename
             if path.exists():
@@ -302,7 +303,7 @@ class BuurtCheckPDF(FPDF):
 
         # --- Chart title ---
         if chart_title:
-            self.set_font("SatoshiMedium", "", 8)
+            self.set_font("SatoshiMedium", "", 9)
             self.set_text_color(*SLATE)
             self.set_xy(x, cur_y)
             self.cell(width, 5, chart_title)
@@ -371,7 +372,7 @@ class BuurtCheckPDF(FPDF):
 
         # --- Axis labels ("0" and "100") below bars ---
         axis_y = bars_bottom + 0.5
-        self.set_font("Satoshi", "", 6)
+        self.set_font("Satoshi", "", 8)
         self.set_text_color(*SECONDARY)
         self.set_xy(bar_x, axis_y)
         self.cell(10, 3, "0")
@@ -394,7 +395,7 @@ class BuurtCheckPDF(FPDF):
             swatch_h = 2.0
             gap = 2
 
-            self.set_font("Satoshi", "", 6)
+            self.set_font("Satoshi", "", 8)
             self.set_text_color(*SECONDARY)
 
             # Teal swatch — "Dit adres" / "This address"
@@ -465,7 +466,7 @@ class BuurtCheckPDF(FPDF):
             cx = x + col * (cell_w + gap)
             cy = y + row * (cell_h + gap)
 
-            self.set_font("SatoshiMedium", "", 7)
+            self.set_font("SatoshiMedium", "", 9)
             self.set_text_color(*SECONDARY)
             self.set_xy(cx, cy)
             self.cell(cell_w, 4, cat_label.upper(), align="C")
@@ -536,7 +537,7 @@ class BuurtCheckPDF(FPDF):
 
     def draw_section_label(self, text: str) -> None:
         """Draw an uppercase section label."""
-        self.set_font("SatoshiMedium", "", 8)
+        self.set_font("SatoshiMedium", "", 9)
         self.set_text_color(*SECONDARY)
         self.cell(0, 5, text.upper(), new_x="LMARGIN", new_y="NEXT")
         self.set_text_color(*SLATE)
@@ -618,7 +619,7 @@ def _draw_branded_questions(
 
     total_questions = sum(len(c.questions) for c in viewing_questions.categories)
 
-    pdf.set_font("Satoshi", "B", 11)
+    pdf.set_font("Satoshi", "B", 12)
     pdf.set_text_color(*SLATE)
     header = "Vragen voor de bezichtiging" if is_nl else "Questions for your viewing"
     pdf.cell(0, 7, header, new_x="LMARGIN", new_y="NEXT")
@@ -636,7 +637,7 @@ def _draw_branded_questions(
         pdf.rect(pdf.l_margin, cy, 1.5, 5, "F")
 
         pdf.set_x(pdf.l_margin + 4)
-        pdf.set_font("SatoshiMedium", "", 8)
+        pdf.set_font("SatoshiMedium", "", 9)
         pdf.set_text_color(*sev_color)
         name = category.name_nl if is_nl else category.name
         pdf.cell(0, 5, name.upper(), new_x="LMARGIN", new_y="NEXT")
@@ -671,10 +672,11 @@ def _draw_shadow_image(pdf: BuurtCheckPDF, shadow_image_b64: str | None, is_nl: 
         pdf.set_draw_color(*BORDER)
         pdf.set_line_width(0.2)
         img_y = pdf.get_y()
-        pdf.image(io.BytesIO(image_data), x=pdf.l_margin, w=170, h=0)
+        content_w = pdf.w - pdf.l_margin - pdf.r_margin
+        pdf.image(io.BytesIO(image_data), x=pdf.l_margin, w=content_w, h=0)
         img_h = pdf.get_y() - img_y
-        pdf.rect(pdf.l_margin, img_y, 170, img_h, "D")
-        pdf.set_font("Satoshi", "I", 7)
+        pdf.rect(pdf.l_margin, img_y, content_w, img_h, "D")
+        pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
         year = date.today().year
         caption = (
@@ -683,7 +685,7 @@ def _draw_shadow_image(pdf: BuurtCheckPDF, shadow_image_b64: str | None, is_nl: 
             else "Shadow snapshot — winter solstice"
         )
         pdf.cell(0, 4, caption, new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Satoshi", "", 7)
+        pdf.set_font("Satoshi", "", 8)
         timestamp = f"{year}-12-21 12:00 CET (Europe/Amsterdam)"
         meta = (
             "Schaalbalk: 50m · Omvang: 250m straal · "
@@ -805,7 +807,7 @@ def _draw_shadow_triptych(
 
         # Caption below image
         caption = _SHADOW_CAPTIONS.get(hour, {}).get(lang, f"{hour:02d}:00 CET")
-        pdf.set_font("Satoshi", "I", 7)
+        pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
         pdf.set_xy(x, start_y + img_h + 0.5)
         pdf.cell(img_w, 3, caption, align="C")
@@ -815,7 +817,7 @@ def _draw_shadow_triptych(
 
     if rendered_count > 0:
         pdf.set_y(start_y + img_h + 4.5)
-        pdf.set_font("Satoshi", "", 7)
+        pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
         pdf.multi_cell(
             0, 3.5,
@@ -908,7 +910,7 @@ def generate_quick_brief(
     )
 
     if was_clipped:
-        pdf.set_font("Satoshi", "I", 7)
+        pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
         note = (
             "Zie het Volledige Dossier voor de complete checklist."
@@ -1063,13 +1065,13 @@ def _draw_location_map(
         pdf.line(sx, sy - 1, sx, sy + 1)
         pdf.line(sx + scale_mm, sy - 1, sx + scale_mm, sy + 1)
         pdf.set_line_width(0.1)
-        pdf.set_font("Satoshi", "", 6)
+        pdf.set_font("Satoshi", "", 8)
         pdf.set_xy(sx, sy + 1)
         pdf.cell(scale_mm, 3, "100 m", align="C")
 
         # Attribution
         pdf.set_y(img_y + img_h + 1)
-        pdf.set_font("Satoshi", "", 7)
+        pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
         attr_text = (
             "Kaart: PDOK BRT Achtergrondkaart"
@@ -1178,7 +1180,7 @@ def _draw_risk_details_page(
         pdf.rect(pdf.l_margin, cy, 1.5, 8, "F")
 
         pdf.set_x(pdf.l_margin + 4)
-        pdf.set_font("Satoshi", "B", 14)
+        pdf.set_font("Satoshi", "B", 12)
         pdf.set_text_color(*SLATE)
         pdf.cell(100, 8, cat_name)
 
@@ -1219,7 +1221,7 @@ def _draw_risk_details_page(
 
         # Measurement factsheet (E4-S3)
         if measurements:
-            pdf.set_font("SatoshiMedium", "", 8)
+            pdf.set_font("SatoshiMedium", "", 9)
             pdf.set_text_color(*SECONDARY)
             m_label = (
                 "MEETWAARDEN" if is_nl else "MEASUREMENTS"
@@ -1242,7 +1244,7 @@ def _draw_risk_details_page(
 
         # Unit definition (E6-S5)
         if unit_def:
-            pdf.set_font("Satoshi", "", 7)
+            pdf.set_font("Satoshi", "", 8)
             pdf.set_text_color(*SECONDARY)
             pdf.cell(
                 0, 3, unit_def,
@@ -1270,7 +1272,7 @@ def _draw_risk_details_page(
             pdf.set_y(chart_end_y + 2)
 
             # Scale declaration caption (Task E4-S1)
-            pdf.set_font("Satoshi", "", 7)
+            pdf.set_font("Satoshi", "", 8)
             pdf.set_text_color(*SECONDARY)
             scale_caption = (
                 "Referentiebalken zijn op de buurt-check 0\u2013100 scoreschaal "
@@ -1705,7 +1707,7 @@ def _draw_neighborhood_page(
             pdf.rect(pdf.l_margin, cy, 1.5, 8, "F")
 
             pdf.set_x(pdf.l_margin + 4)
-            pdf.set_font("Satoshi", "B", 14)
+            pdf.set_font("Satoshi", "B", 12)
             pdf.set_text_color(*SLATE)
             pdf.cell(100, 8, cat_name)
 
@@ -1800,7 +1802,7 @@ def _draw_neighborhood_page(
             pdf.cell(0, 4, source_line, new_x="LMARGIN", new_y="NEXT")
 
             # Disclaimer
-            pdf.set_font("Satoshi", "I", 8)
+            pdf.set_font("Satoshi", "", 8)
             disclaimer = (
                 "Criminaliteitscijfers zijn per gemeente, niet per straat. "
                 "Alleen geregistreerde misdrijven."
@@ -1856,7 +1858,7 @@ def _draw_livability_section(
     pdf.rect(pdf.l_margin, cy, 1.5, 8, "F")
 
     pdf.set_x(pdf.l_margin + 4)
-    pdf.set_font("Satoshi", "B", 14)
+    pdf.set_font("Satoshi", "B", 12)
     pdf.set_text_color(*SLATE)
     title = "Leefbaarheidsscore" if is_nl else "Livability Score"
     pdf.cell(100, 8, title)
@@ -2029,7 +2031,7 @@ def _draw_checks_subsection(
     pdf: BuurtCheckPDF, title: str, body: str, source: str,
 ) -> None:
     """Render a single subsection: bold title, body text, source, divider."""
-    pdf.set_font("Satoshi", "B", 11)
+    pdf.set_font("Satoshi", "B", 12)
     pdf.cell(0, 6, title, new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Satoshi", "", 10)
     pdf.multi_cell(0, 5, body, align="L", new_x="LMARGIN", new_y="NEXT")
@@ -2454,7 +2456,7 @@ def _draw_property_checks_page(
         else "Source: SunCalc ray-casting over 3DBAG meshes"
     )
     # Shadow image already on cover page; text-only here
-    pdf.set_font("Satoshi", "B", 11)
+    pdf.set_font("Satoshi", "B", 12)
     pdf.cell(
         0, 6, shadow_title,
         new_x="LMARGIN", new_y="NEXT",
@@ -2511,7 +2513,7 @@ def _draw_checklist_page(
     is_nl: bool,
 ) -> None:
     """Page 4: viewing checklist with mini risk strip for standalone tearout."""
-    pdf.set_font("Satoshi", "B", 11)
+    pdf.set_font("Satoshi", "B", 12)
     pdf.set_text_color(*SLATE)
     pdf.cell(0, 6, address, new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1)
