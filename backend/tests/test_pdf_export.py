@@ -39,6 +39,8 @@ from app.models.risk import (
 )
 from app.models.tier_b import CrimeStatsCard, TierBResponse
 from app.services.pdf_export import (
+    MUTED,
+    SECONDARY,
     BuurtCheckPDF,
     _build_risk_cells,
     _severity_for_score,
@@ -2288,3 +2290,68 @@ async def test_export_get_accepts_shadow_image_b64(
     )
     assert resp.status_code == 200
     assert resp.content[:5] == b"%PDF-"
+
+
+# ---------------------------------------------------------------------------
+# E11-S4: MUTED/BORDER contrast — SECONDARY for essential info text
+# ---------------------------------------------------------------------------
+
+class TestContrastCompliance:
+    """WCAG AA contrast: essential text uses SECONDARY (4.52:1), not MUTED (2.75:1)."""
+
+    def test_secondary_has_higher_contrast_than_muted(self):
+        """SECONDARY must have higher luminance contrast than MUTED on white."""
+        # Relative luminance formula (sRGB)
+        def _luminance(rgb: tuple[int, int, int]) -> float:
+            vals = []
+            for c in rgb:
+                s = c / 255.0
+                vals.append(s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4)
+            return 0.2126 * vals[0] + 0.7152 * vals[1] + 0.0722 * vals[2]
+
+        def _contrast(c1, c2):
+            l1, l2 = _luminance(c1), _luminance(c2)
+            lighter, darker = max(l1, l2), min(l1, l2)
+            return (lighter + 0.05) / (darker + 0.05)
+
+        white = (255, 255, 255)
+        muted_cr = _contrast(MUTED, white)
+        secondary_cr = _contrast(SECONDARY, white)
+        # SECONDARY must be >= 4.5:1 (WCAG AA for normal text)
+        assert secondary_cr >= 4.5, f"SECONDARY contrast {secondary_cr:.2f} < 4.5:1"
+        # MUTED must be < 4.5:1 (confirming it fails AA)
+        assert muted_cr < 4.5, f"MUTED contrast {muted_cr:.2f} >= 4.5:1 unexpectedly"
+        # SECONDARY beats MUTED
+        assert secondary_cr > muted_cr
+
+    def test_muted_only_used_for_fills_not_text(self):
+        """After migration, MUTED should not appear as set_text_color in essential info.
+
+        This is a structural guard: MUTED (2.75:1) fails WCAG AA for text.
+        All essential text now uses SECONDARY (4.52:1).
+        """
+        import inspect
+        import re
+
+        from app.services.pdf_export import (
+            _draw_address_block,
+            _draw_checks_subsection,
+            _draw_shadow_image,
+        )
+
+        # Check key functions for set_text_color(*MUTED) — should be absent
+        for fn in [
+            BuurtCheckPDF.header,
+            BuurtCheckPDF.footer,
+            BuurtCheckPDF.draw_comparison_chart,
+            BuurtCheckPDF.draw_risk_grid,
+            BuurtCheckPDF.draw_section_label,
+            _draw_address_block,
+            _draw_checks_subsection,
+            _draw_shadow_image,
+        ]:
+            source = inspect.getsource(fn)
+            matches = re.findall(r"set_text_color\(\*MUTED\)", source)
+            assert not matches, (
+                f"{fn.__qualname__} still uses set_text_color(*MUTED) for text"
+            )
