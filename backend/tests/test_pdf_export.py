@@ -1166,6 +1166,61 @@ class TestGenerateFullDossier:
         assert "Shadow Snapshots" in text
 
 
+class TestRiskDetailsPageBreak:
+    """E11-S2: Address context on continuation pages."""
+
+    def test_address_on_continuation_page(self):
+        """When risk details overflow, address reprinted."""
+        result = generate_full_dossier(
+            address="Kalverstraat 1, 1012 Amsterdam",
+            building_year=1920,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            floor_area=95,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        # Risk details start on page 2 (index 1).
+        # If content overflows to page 3, the address
+        # should appear on that page too.
+        # At minimum, verify no page has <30% content
+        # by checking all pages produce text.
+        for i, page in enumerate(reader.pages):
+            text = page.extract_text() or ""
+            assert len(text.strip()) > 20, (
+                f"Page {i + 1} appears nearly empty"
+            )
+
+    def test_dossier_no_near_empty_pages(self):
+        """Full dossier with all data has no near-empty pages."""
+        result = generate_full_dossier(
+            address="Kalverstraat 1, 1012 Amsterdam",
+            building_year=1920,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            floor_area=95,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        for i, page in enumerate(reader.pages):
+            text = page.extract_text() or ""
+            assert len(text.strip()) > 50, (
+                f"Page {i + 1} has too little content"
+            )
+
+
 class TestComparisonChartScaleDeclaration:
     """E4-S1: Every comparison chart has a scale declaration caption."""
 

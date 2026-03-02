@@ -828,6 +828,21 @@ def _draw_risk_details_page(
     ) in categories:
         color = _severity_color(score)
 
+        # Prevent orphaned category: if <80mm left, break
+        est_h = 80  # mm approx per risk category
+        remaining = pdf.h - pdf.get_y() - 20
+        if remaining < est_h and pdf.get_y() > 40:
+            pdf.add_page()
+            # Re-print address context on continuation
+            pdf.set_font("Satoshi", "B", 10)
+            pdf.set_text_color(*SECONDARY)
+            pdf.cell(
+                0, 5, address,
+                new_x="LMARGIN", new_y="NEXT",
+            )
+            pdf.set_text_color(*SLATE)
+            pdf.ln(2)
+
         # Left teal accent + category name + score
         cy = pdf.get_y()
         pdf.set_fill_color(*TEAL)
