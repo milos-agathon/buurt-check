@@ -112,9 +112,6 @@ def _interpret_age_distribution(age_data: AgeProfile, is_nl: bool) -> str | None
     if elderly is not None:
         deviations.append(("elderly", elderly, NL_AGE_65_PLUS, elderly - NL_AGE_65_PLUS))
 
-    if not deviations:
-        return None
-
     # Pick the band with the largest absolute deviation
     best = max(deviations, key=lambda d: abs(d[3]))
     band_key, local_pct, national_pct, deviation = best

@@ -797,6 +797,21 @@ class TestInterpretAgeDistribution:
         assert "Evenwichtige" in result
         assert "landelijk gemiddelde" in result
 
+    def test_fewer_working_age_en(self):
+        """Low 25-64 percentage produces 'Fewer working-age'."""
+        age = AgeProfile(age_0_24=30.0, age_25_64=35.0, age_65_plus=35.0)
+        result = _interpret_age_distribution(age, is_nl=False)
+        assert result is not None
+        assert "Fewer working-age" in result
+        assert "35%" in result
+
+    def test_fewer_working_age_nl(self):
+        """Low 25-64 percentage produces 'Minder werkenden' in Dutch."""
+        age = AgeProfile(age_0_24=30.0, age_25_64=35.0, age_65_plus=35.0)
+        result = _interpret_age_distribution(age, is_nl=True)
+        assert result is not None
+        assert "Minder werkenden" in result
+
     def test_all_none_returns_none(self):
         """All None age bands returns None (no interpretation possible)."""
         age = AgeProfile(age_0_24=None, age_25_64=None, age_65_plus=None)
@@ -905,6 +920,9 @@ class TestInterpretAgeDistribution:
         assert "Working-age" not in text
         assert "Balanced" not in text
 
+
+class TestBuurtCheckPDFHelpers:
+    """Helpers from BuurtCheckPDF that were previously in TestBuurtCheckPDF."""
 
     def test_draw_section_label_and_divider(self):
         pdf = BuurtCheckPDF()
