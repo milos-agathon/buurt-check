@@ -2713,21 +2713,21 @@ def _draw_methodology_page(
             "Luchtkwaliteit" if is_nl else "Air Quality",
             (
                 "Slechtste van PM2.5 en NO2. "
-                "PM2.5: WHO AQG 5 \u00b5g/m\u00b3 = 100. "
-                "NO2: WHO AQG 10 \u00b5g/m\u00b3 = 100"
+                "PM2.5: 5 \u00b5g/m\u00b3 = 100, 25 \u00b5g/m\u00b3 = 0. "
+                "NO2: 10 \u00b5g/m\u00b3 = 100, 40 \u00b5g/m\u00b3 = 0"
                 if is_nl
                 else "Worst of PM2.5 and NO2. "
-                "PM2.5: WHO AQG 5 \u00b5g/m\u00b3 = 100. "
-                "NO2: WHO AQG 10 \u00b5g/m\u00b3 = 100"
+                "PM2.5: 5 \u00b5g/m\u00b3 = 100, 25 \u00b5g/m\u00b3 = 0. "
+                "NO2: 10 \u00b5g/m\u00b3 = 100, 40 \u00b5g/m\u00b3 = 0"
             ),
         ),
         (
             "Klimaatstress" if is_nl else "Climate",
             (
-                "Maximum risico over alle beschikbare lagen. "
+                "Slechtste van hittestress en wateroverlast. "
                 "Laag risico = 85, gemiddeld = 50, hoog = 15"
                 if is_nl
-                else "Maximum risk across available layers. "
+                else "Worst of heat stress and water stress. "
                 "Low risk = 85, medium = 50, high = 15"
             ),
         ),
@@ -2770,12 +2770,12 @@ def _draw_methodology_page(
         (
             "RIVM",
             "Geluid (Lden wegen)" if is_nl else "Noise (Lden roads)",
-            "alo:lden_wegen",
+            "WMS lden_wegverkeer (dated)",
         ),
         (
             "RIVM",
             "Luchtkwaliteit" if is_nl else "Air quality",
-            "gcn:no2_jgm, gcn:pm25_jgm",
+            "WMS conc_NO2, conc_PM25 (dated)",
         ),
         (
             "Klimaateffectatlas",
@@ -2909,7 +2909,7 @@ def _draw_methodology_page(
     pdf.ln(3)
 
     # Page break check — new content above may push remaining sections past page
-    if pdf.get_y() > pdf.h - 80:
+    if pdf.get_y() > pdf.h - 60:
         pdf.add_page()
 
     # Limitations
