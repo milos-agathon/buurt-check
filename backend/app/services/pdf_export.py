@@ -116,6 +116,180 @@ def _severity_label(score: int | None, is_nl: bool = False) -> str:
     return "Kritiek" if is_nl else "Critical"
 
 
+def _generate_executive_summary(
+    risks: RiskCardsResponse | None,
+    sunlight_score: int | None,
+    livability: LivabilityResponse | None,
+    is_nl: bool,
+) -> str:
+    """Generate a 3-5 sentence bilingual executive summary from risk and livability data.
+
+    Synthesizes:
+    1. Risk severity distribution (how many good/moderate/poor/critical)
+    2. Top concern (worst risk category and why)
+    3. Neighborhood character (from livability if available)
+    4. Key action items (what to verify at viewing)
+    """
+    # --- Collect scores per category ---
+    categories: list[tuple[str, str, int | None]] = []
+    # (en_name, nl_name, score)
+    if risks:
+        categories.append(("noise", "geluid", risks.noise.score))
+        categories.append(("air quality", "luchtkwaliteit", risks.air_quality.score))
+        categories.append(("climate stress", "klimaatstress", risks.climate_stress.score))
+    categories.append(("sunlight", "zonlicht", sunlight_score))
+
+    # --- Count severities ---
+    severity_counts: dict[str, int] = {"good": 0, "moderate": 0, "poor": 0, "critical": 0}
+    scored_categories: list[tuple[str, str, int]] = []
+    for en_name, nl_name, score in categories:
+        if score is not None:
+            sev = _severity_for_score(score)
+            if sev in severity_counts:
+                severity_counts[sev] += 1
+            scored_categories.append((en_name, nl_name, score))
+
+    if not scored_categories:
+        if is_nl:
+            return "Er zijn onvoldoende gegevens beschikbaar om een samenvatting te genereren."
+        return "Insufficient data available to generate a summary."
+
+    # --- Sentence 1: severity distribution overview ---
+    total = len(scored_categories)
+    parts_en: list[str] = []
+    parts_nl: list[str] = []
+    if severity_counts["good"] > 0:
+        parts_en.append(f"{severity_counts['good']} good")
+        parts_nl.append(f"{severity_counts['good']} goed")
+    if severity_counts["moderate"] > 0:
+        parts_en.append(f"{severity_counts['moderate']} moderate")
+        parts_nl.append(f"{severity_counts['moderate']} matig")
+    if severity_counts["poor"] > 0:
+        parts_en.append(f"{severity_counts['poor']} poor")
+        parts_nl.append(f"{severity_counts['poor']} slecht")
+    if severity_counts["critical"] > 0:
+        parts_en.append(f"{severity_counts['critical']} critical")
+        parts_nl.append(f"{severity_counts['critical']} kritiek")
+
+    if is_nl:
+        sentence1 = (
+            f"Van de {total} risicocategorieen scoren "
+            + ", ".join(parts_nl)
+            + "."
+        )
+    else:
+        sentence1 = (
+            f"Of the {total} risk categories, "
+            + ", ".join(parts_en)
+            + "."
+        )
+
+    # --- Sentence 2: top concern (worst scoring category) ---
+    worst = min(scored_categories, key=lambda x: x[2])
+    worst_en, worst_nl, worst_score = worst
+    worst_sev = _severity_label(worst_score, is_nl)
+
+    if is_nl:
+        sentence2 = (
+            f"Het grootste aandachtspunt is {worst_nl} "
+            f"met een score van {worst_score}/100 ({worst_sev.lower()})."
+        )
+    else:
+        sentence2 = (
+            f"The top concern is {worst_en} "
+            f"with a score of {worst_score}/100 ({worst_sev.lower()})."
+        )
+
+    # --- Sentence 3: neighborhood character (from livability) ---
+    sentence3 = ""
+    if livability and livability.available and livability.overall_normalized is not None:
+        liv_sev = _severity_label(livability.overall_normalized, is_nl)
+        # Find best dimension
+        best_dim = None
+        if livability.dimensions:
+            best_dim = max(livability.dimensions, key=lambda d: d.normalized_score)
+
+        dim_names_nl = {
+            "physical": "fysieke omgeving",
+            "safety": "veiligheid",
+            "social": "sociale cohesie",
+            "amenities": "voorzieningen",
+            "housing": "woningkwaliteit",
+        }
+        dim_names_en = {
+            "physical": "physical environment",
+            "safety": "safety",
+            "social": "social cohesion",
+            "amenities": "amenities",
+            "housing": "housing quality",
+        }
+
+        if is_nl:
+            sentence3 = (
+                f"De buurt heeft een {liv_sev.lower()} leefbaarheid"
+            )
+            if best_dim:
+                dim_label = dim_names_nl.get(best_dim.name, best_dim.name)
+                sentence3 += f" met sterke {dim_label}"
+            sentence3 += "."
+        else:
+            sentence3 = (
+                f"The neighborhood has {liv_sev.lower()} livability"
+            )
+            if best_dim:
+                dim_label = dim_names_en.get(best_dim.name, best_dim.name)
+                sentence3 += f" with strong {dim_label}"
+            sentence3 += "."
+
+    # --- Sentence 4: viewing action items based on worst risks ---
+    # Collect categories scoring poor or critical
+    concern_cats: list[tuple[str, str]] = [
+        (en, nl) for en, nl, s in scored_categories if s < 40
+    ]
+    viewing_actions_en = {
+        "noise": "measure ambient noise at different times of day",
+        "air quality": "check proximity to busy roads and industrial zones",
+        "climate stress": "inspect for signs of water damage and ask about flood history",
+        "sunlight": "visit at midday to assess natural light in living spaces",
+    }
+    viewing_actions_nl = {
+        "geluid": "meet het omgevingsgeluid op verschillende momenten van de dag",
+        "luchtkwaliteit": "controleer de nabijheid van drukke wegen en industriegebieden",
+        "klimaatstress": (
+            "inspecteer op tekenen van waterschade"
+            " en vraag naar overstromingshistorie"
+        ),
+        "zonlicht": "bezoek rond het middaguur om het natuurlijk licht te beoordelen",
+    }
+
+    if concern_cats:
+        actions = viewing_actions_nl if is_nl else viewing_actions_en
+        tips = [actions.get(nl if is_nl else en, "") for en, nl in concern_cats]
+        tips = [t for t in tips if t]
+        if is_nl:
+            sentence4 = "Let bij de bezichtiging vooral op: " + "; ".join(tips) + "."
+        else:
+            sentence4 = "At the viewing, pay attention to: " + "; ".join(tips) + "."
+    else:
+        if is_nl:
+            sentence4 = (
+                "Geen urgente aandachtspunten geidentificeerd, "
+                "maar verifieer alle scores ter plaatse."
+            )
+        else:
+            sentence4 = (
+                "No urgent concerns identified, "
+                "but verify all scores on-site during your viewing."
+            )
+
+    # --- Combine sentences ---
+    sentences = [sentence1, sentence2]
+    if sentence3:
+        sentences.append(sentence3)
+    sentences.append(sentence4)
+    return " ".join(sentences)
+
+
 def _interpret_age_distribution(age_data: AgeProfile, is_nl: bool) -> str | None:
     """Return a bilingual one-liner comparing buurt age profile to national averages.
 
@@ -1000,6 +1174,7 @@ def generate_full_dossier(
         risks, sunlight_score, shadow_image_b64, is_nl,
         location_map_b64=location_map_b64,
         shadow_images=shadow_images,
+        livability=livability,
     )
 
     # Page 2: Risk Details
@@ -1142,8 +1317,9 @@ def _draw_cover_page(
     is_nl: bool,
     location_map_b64: str | None = None,
     shadow_images: list[dict] | None = None,
+    livability: LivabilityResponse | None = None,
 ) -> None:
-    """Page 1: cover with address hero, shadow image, risk summary strip."""
+    """Page 1: cover with address hero, shadow image, executive summary, risk grid."""
     pdf.ln(4)
 
     _draw_address_block(pdf, address, building_year, building_use, floor_area, is_nl, font_size=20)
@@ -1152,6 +1328,18 @@ def _draw_cover_page(
         _draw_shadow_triptych(pdf, shadow_images, is_nl)
     else:
         _draw_shadow_image(pdf, shadow_image_b64, is_nl)
+
+    # Executive summary narrative
+    summary_text = _generate_executive_summary(risks, sunlight_score, livability, is_nl)
+    pdf.draw_section_label("Samenvatting" if is_nl else "Executive Summary")
+    pdf.ln(1)
+    pdf.set_font("Satoshi", "", 10)
+    pdf.set_text_color(*SLATE)
+    pdf.multi_cell(
+        pdf.w - pdf.l_margin - pdf.r_margin, 5, summary_text,
+        align="L", new_x="LMARGIN", new_y="NEXT",
+    )
+    pdf.ln(3)
 
     # Risk summary strip (4-column)
     pdf.draw_section_label("Risico-overzicht" if is_nl else "Risk Summary")
