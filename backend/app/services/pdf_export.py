@@ -37,6 +37,11 @@ SECONDARY = (99, 120, 146)  # #637892 — essential info text (4.52:1 — WCAG A
 NATIONAL = (110, 130, 155)  # #6E829B — "Nederland" bar fill (3.94:1, >= 3:1 graphical)
 GRIDLINE = (240, 242, 245)  # Very light gray for chart gridlines (decorative)
 
+# --- CBS 2024 national age distribution averages (%) ---
+NL_AGE_0_24 = 28.0
+NL_AGE_25_64 = 50.0
+NL_AGE_65_PLUS = 22.0
+
 SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "good": (34, 197, 94),  # #22C55E
     "moderate": (234, 179, 8),  # #EAB308
@@ -82,6 +87,80 @@ def _severity_label(score: int | None, is_nl: bool = False) -> str:
     if score >= 20:
         return "Slecht" if is_nl else "Poor"
     return "Kritiek" if is_nl else "Critical"
+
+
+def _interpret_age_distribution(age_data: AgeProfile, is_nl: bool) -> str | None:
+    """Return a bilingual one-liner comparing buurt age profile to national averages.
+
+    Returns None when no age band has data.
+    """
+    young = age_data.age_0_24
+    working = age_data.age_25_64
+    elderly = age_data.age_65_plus
+
+    # Need at least one band to interpret
+    if young is None and working is None and elderly is None:
+        return None
+
+    # Find the band with the largest deviation from national average
+    deviations: list[tuple[str, float, float, float]] = []
+    # (band_key, local_pct, national_pct, deviation)
+    if young is not None:
+        deviations.append(("young", young, NL_AGE_0_24, young - NL_AGE_0_24))
+    if working is not None:
+        deviations.append(("working", working, NL_AGE_25_64, working - NL_AGE_25_64))
+    if elderly is not None:
+        deviations.append(("elderly", elderly, NL_AGE_65_PLUS, elderly - NL_AGE_65_PLUS))
+
+    if not deviations:
+        return None
+
+    # Pick the band with the largest absolute deviation
+    best = max(deviations, key=lambda d: abs(d[3]))
+    band_key, local_pct, national_pct, deviation = best
+
+    # If the deviation is negligible (< 3pp), it's a balanced neighborhood
+    if abs(deviation) < 3:
+        if is_nl:
+            return "Evenwichtige leeftijdsverdeling \u2014 dicht bij het landelijk gemiddelde"
+        return "Balanced age distribution \u2014 close to the national average"
+
+    local_str = f"{local_pct:.0f}%"
+    national_str = f"{national_pct:.0f}%"
+
+    if band_key == "young":
+        if is_nl:
+            return (
+                f"Jonge buurt \u2014 {local_str} onder 25 vs landelijk {national_str}"
+                if deviation > 0
+                else f"Weinig jongeren \u2014 {local_str} onder 25 vs landelijk {national_str}"
+            )
+        return (
+            f"Young neighborhood \u2014 {local_str} under 25 vs {national_str} nationally"
+            if deviation > 0
+            else f"Few young residents \u2014 {local_str} under 25 vs {national_str} nationally"
+        )
+    elif band_key == "working":
+        rng = "25\u201364"
+        if is_nl:
+            vs = f"{local_str} is {rng} vs landelijk {national_str}"
+            label = "Werkende buurt" if deviation > 0 else "Minder werkenden"
+            return f"{label} \u2014 {vs}"
+        vs = f"{local_str} aged {rng} vs {national_str} nationally"
+        label = "Working-age area" if deviation > 0 else "Fewer working-age"
+        return f"{label} \u2014 {vs}"
+    else:  # elderly
+        if is_nl:
+            return (
+                f"Vergrijsde buurt \u2014 {local_str} is 65+ vs landelijk {national_str}"
+                if deviation > 0
+                else f"Weinig ouderen \u2014 {local_str} is 65+ vs landelijk {national_str}"
+            )
+        return (
+            f"Older neighborhood \u2014 {local_str} aged 65+ vs {national_str} nationally"
+            if deviation > 0
+            else f"Few elderly \u2014 {local_str} aged 65+ vs {national_str} nationally"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1369,6 +1448,16 @@ def _draw_neighborhood_page(
                 age_data=stats.age_profile,
             )
             pdf.ln(23)
+            # Age interpretation one-liner
+            interp = _interpret_age_distribution(stats.age_profile, is_nl)
+            if interp:
+                pdf.set_font("Satoshi", "", 8)
+                pdf.set_text_color(*SECONDARY)
+                pdf.cell(
+                    pdf.w - pdf.l_margin - pdf.r_margin, 5, interp,
+                    new_x="LMARGIN", new_y="NEXT",
+                )
+                pdf.set_text_color(*SLATE)
         pdf.ln(2)
 
         # Housing

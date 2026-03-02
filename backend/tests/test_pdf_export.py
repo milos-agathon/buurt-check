@@ -44,12 +44,16 @@ from app.services.pdf_export import (
     BORDER,
     MUTED,
     NATIONAL,
+    NL_AGE_0_24,
+    NL_AGE_25_64,
+    NL_AGE_65_PLUS,
     SECONDARY,
     TEAL,
     BuurtCheckPDF,
     _build_risk_cells,
     _draw_indicator,
     _draw_location_map,
+    _interpret_age_distribution,
     _severity_for_score,
     _severity_label,
     format_number,
@@ -721,6 +725,186 @@ class TestBuurtCheckPDF:
         age = AgeProfile(age_0_24=None, age_25_64=55.0, age_65_plus=None)
         end_y = pdf.draw_age_bars(10, 30, 180, age)
         assert end_y > 30
+
+
+class TestInterpretAgeDistribution:
+    """E6-S3: Age distribution interpretation with national comparison."""
+
+    def test_young_buurt_en(self):
+        """High under-25 percentage produces 'Young neighborhood' in English."""
+        age = AgeProfile(age_0_24=40.0, age_25_64=45.0, age_65_plus=15.0)
+        result = _interpret_age_distribution(age, is_nl=False)
+        assert result is not None
+        assert "Young neighborhood" in result
+        assert "40%" in result
+        assert f"{NL_AGE_0_24:.0f}%" in result
+
+    def test_young_buurt_nl(self):
+        """High under-25 percentage produces 'Jonge buurt' in Dutch."""
+        age = AgeProfile(age_0_24=40.0, age_25_64=45.0, age_65_plus=15.0)
+        result = _interpret_age_distribution(age, is_nl=True)
+        assert result is not None
+        assert "Jonge buurt" in result
+        assert "40%" in result
+        assert "landelijk" in result
+
+    def test_old_buurt_en(self):
+        """High 65+ percentage produces 'Older neighborhood' in English."""
+        age = AgeProfile(age_0_24=15.0, age_25_64=45.0, age_65_plus=40.0)
+        result = _interpret_age_distribution(age, is_nl=False)
+        assert result is not None
+        assert "Older neighborhood" in result
+        assert "40%" in result
+        assert f"{NL_AGE_65_PLUS:.0f}%" in result
+
+    def test_old_buurt_nl(self):
+        """High 65+ percentage produces 'Vergrijsde buurt' in Dutch."""
+        age = AgeProfile(age_0_24=15.0, age_25_64=45.0, age_65_plus=40.0)
+        result = _interpret_age_distribution(age, is_nl=True)
+        assert result is not None
+        assert "Vergrijsde buurt" in result
+        assert "40%" in result
+
+    def test_working_age_buurt_en(self):
+        """High 25-64 percentage produces 'Working-age area' in English."""
+        age = AgeProfile(age_0_24=15.0, age_25_64=70.0, age_65_plus=15.0)
+        result = _interpret_age_distribution(age, is_nl=False)
+        assert result is not None
+        assert "Working-age area" in result
+        assert "70%" in result
+
+    def test_working_age_buurt_nl(self):
+        """High 25-64 percentage produces 'Werkende buurt' in Dutch."""
+        age = AgeProfile(age_0_24=15.0, age_25_64=70.0, age_65_plus=15.0)
+        result = _interpret_age_distribution(age, is_nl=True)
+        assert result is not None
+        assert "Werkende buurt" in result
+        assert "70%" in result
+
+    def test_balanced_buurt_en(self):
+        """Age profile close to national averages produces balanced message."""
+        age = AgeProfile(age_0_24=29.0, age_25_64=50.0, age_65_plus=21.0)
+        result = _interpret_age_distribution(age, is_nl=False)
+        assert result is not None
+        assert "Balanced" in result
+        assert "national average" in result
+
+    def test_balanced_buurt_nl(self):
+        """Age profile close to national averages produces balanced message in Dutch."""
+        age = AgeProfile(age_0_24=29.0, age_25_64=50.0, age_65_plus=21.0)
+        result = _interpret_age_distribution(age, is_nl=True)
+        assert result is not None
+        assert "Evenwichtige" in result
+        assert "landelijk gemiddelde" in result
+
+    def test_all_none_returns_none(self):
+        """All None age bands returns None (no interpretation possible)."""
+        age = AgeProfile(age_0_24=None, age_25_64=None, age_65_plus=None)
+        result = _interpret_age_distribution(age, is_nl=False)
+        assert result is None
+
+    def test_partial_data_still_interprets(self):
+        """Even with only one band available, interpretation is produced."""
+        age = AgeProfile(age_0_24=40.0, age_25_64=None, age_65_plus=None)
+        result = _interpret_age_distribution(age, is_nl=False)
+        assert result is not None
+        assert "Young neighborhood" in result
+
+    def test_few_young_en(self):
+        """Low under-25 percentage produces 'Few young residents'."""
+        age = AgeProfile(age_0_24=15.0, age_25_64=55.0, age_65_plus=30.0)
+        # 65+ deviation = +8, young deviation = -13 → young dominates
+        result = _interpret_age_distribution(age, is_nl=False)
+        assert result is not None
+        assert "Few young residents" in result
+        assert "15%" in result
+
+    def test_few_elderly_en(self):
+        """Low 65+ percentage produces 'Few elderly'."""
+        age = AgeProfile(age_0_24=30.0, age_25_64=60.0, age_65_plus=10.0)
+        # working deviation = +10, elderly deviation = -12 → elderly dominates
+        result = _interpret_age_distribution(age, is_nl=False)
+        assert result is not None
+        assert "Few elderly" in result
+        assert "10%" in result
+
+    def test_few_elderly_nl(self):
+        """Low 65+ percentage produces 'Weinig ouderen' in Dutch."""
+        age = AgeProfile(age_0_24=30.0, age_25_64=60.0, age_65_plus=10.0)
+        result = _interpret_age_distribution(age, is_nl=True)
+        assert result is not None
+        assert "Weinig ouderen" in result
+
+    def test_national_constants_are_reasonable(self):
+        """National age distribution constants sum to 100 and are plausible."""
+        total = NL_AGE_0_24 + NL_AGE_25_64 + NL_AGE_65_PLUS
+        assert total == 100.0
+        assert 25 <= NL_AGE_0_24 <= 32  # CBS 2024 range
+        assert 45 <= NL_AGE_25_64 <= 55
+        assert 18 <= NL_AGE_65_PLUS <= 25
+
+    def test_interpretation_rendered_in_full_dossier_en(self):
+        """Full dossier English PDF includes age interpretation text."""
+        stats = _make_neighborhood_stats()
+        # This fixture has age_0_24=22.0, age_25_64=65.0, age_65_plus=13.0
+        # Working-age deviation: +15 (biggest)
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            neighborhood_stats=stats,
+            risk_comparisons=_make_risk_comparisons(),
+            language="en",
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Working-age area" in text
+        assert "65%" in text
+
+    def test_interpretation_rendered_in_full_dossier_nl(self):
+        """Full dossier Dutch PDF includes age interpretation text."""
+        stats = _make_neighborhood_stats()
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Woonfunctie",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            neighborhood_stats=stats,
+            risk_comparisons=_make_risk_comparisons(),
+            language="nl",
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Werkende buurt" in text
+
+    def test_no_interpretation_when_all_ages_none(self):
+        """Full dossier with empty age profile has no interpretation crash."""
+        stats = _make_neighborhood_stats()
+        stats.age_profile = AgeProfile()  # all None
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            neighborhood_stats=stats,
+            risk_comparisons=_make_risk_comparisons(),
+            language="en",
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        # Should not crash and should not have any age interpretation
+        assert "Young neighborhood" not in text
+        assert "Older neighborhood" not in text
+        assert "Working-age" not in text
+        assert "Balanced" not in text
+
 
     def test_draw_section_label_and_divider(self):
         pdf = BuurtCheckPDF()
