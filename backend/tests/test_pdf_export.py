@@ -46,6 +46,7 @@ from app.services.pdf_export import (
     TEAL,
     BuurtCheckPDF,
     _build_risk_cells,
+    _draw_indicator,
     _severity_for_score,
     _severity_label,
     generate_full_dossier,
@@ -263,6 +264,59 @@ class TestBuildRiskCells:
         assert labels == ["Geluid", "Lucht", "Klimaat", "Zonlicht"]
         for _, _, label in cells:
             assert label == "N.v.t."
+
+
+# --- Unit tests: CBS quartile indicators (E6-S2) ---
+
+
+class TestQuartileIndicators:
+    def test_quartile_appended_when_present(self):
+        """Quartile badge (Q3) is appended to indicator value."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        indicator = NeighborhoodIndicator(value=428000.0, unit="\u20ac", quartile=3)
+        _draw_indicator(pdf, "Avg property value", indicator)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "(Q3)" in text
+        assert "\u20ac428,000" in text
+
+    def test_quartile_omitted_when_none(self):
+        """No quartile badge when quartile is None."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        indicator = NeighborhoodIndicator(value=428000.0, unit="\u20ac")
+        _draw_indicator(pdf, "Avg property value", indicator)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "(Q" not in text
+        assert "\u20ac428,000" in text
+
+    def test_quartile_with_percentage(self):
+        """Quartile works with percentage indicator."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        indicator = NeighborhoodIndicator(value=62.0, unit="%", quartile=4)
+        _draw_indicator(pdf, "Single person", indicator)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "62%" in text
+        assert "(Q4)" in text
+
+    def test_quartile_with_distance(self):
+        """Quartile works with km distance indicator."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        indicator = NeighborhoodIndicator(value=0.8, unit="km", quartile=1)
+        _draw_indicator(pdf, "Train station", indicator)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "0.8 km" in text
+        assert "(Q1)" in text
 
 
 # --- Unit tests: BuurtCheckPDF ---

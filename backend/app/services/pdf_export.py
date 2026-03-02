@@ -1632,6 +1632,8 @@ def _draw_indicator(pdf: BuurtCheckPDF, label: str, indicator) -> None:
         text = f"{val} {unit}".strip()
     else:
         text = "\u2014"
+    if indicator.quartile is not None:
+        text += f" (Q{indicator.quartile})"
     pdf.draw_indicator_row(label, text)
 
 
