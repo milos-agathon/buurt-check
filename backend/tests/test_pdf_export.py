@@ -39,8 +39,11 @@ from app.models.risk import (
 )
 from app.models.tier_b import CrimeStatsCard, TierBResponse
 from app.services.pdf_export import (
+    BORDER,
     MUTED,
+    NATIONAL,
     SECONDARY,
+    TEAL,
     BuurtCheckPDF,
     _build_risk_cells,
     _severity_for_score,
@@ -317,8 +320,8 @@ class TestBuurtCheckPDF:
         pdf = BuurtCheckPDF()
         pdf.add_page()
         rows = [
-            ("This address", 65, (46, 196, 182), False),
-            ("City average", 55, (138, 155, 176), False),
+            ("This address", 65, TEAL, False),
+            ("City average", 55, MUTED, False),
             ("WHO benchmark (mapped to score)", 74, (234, 179, 8), True),
         ]
         end_y = pdf.draw_comparison_chart(10, 30, 180, rows)
@@ -332,8 +335,8 @@ class TestBuurtCheckPDF:
         pdf = BuurtCheckPDF()
         pdf.add_page()
         rows = [
-            ("This address", 65, (46, 196, 182), False),
-            ("Netherlands", 50, (226, 231, 237), False),
+            ("This address", 65, TEAL, False),
+            ("Netherlands", 50, NATIONAL, False),
         ]
         end_y = pdf.draw_comparison_chart(10, 30, 180, rows)
         # 2 rows * 7.0 row_h = 14, plus axis labels ~3.5
@@ -344,7 +347,7 @@ class TestBuurtCheckPDF:
         pdf = BuurtCheckPDF()
         pdf.add_page()
         rows = [
-            ("This address", 80, (46, 196, 182), False),
+            ("This address", 80, TEAL, False),
         ]
         end_no_title = pdf.draw_comparison_chart(10, 30, 180, rows)
         pdf2 = BuurtCheckPDF()
@@ -360,7 +363,7 @@ class TestBuurtCheckPDF:
         pdf = BuurtCheckPDF()
         pdf.add_page()
         rows = [
-            ("This address", 65, (46, 196, 182), False),
+            ("This address", 65, TEAL, False),
         ]
         end_no_legend = pdf.draw_comparison_chart(10, 30, 180, rows)
         pdf2 = BuurtCheckPDF()
@@ -375,7 +378,7 @@ class TestBuurtCheckPDF:
         """Legend text changes between NL and EN."""
         pdf_nl = BuurtCheckPDF()
         pdf_nl.add_page()
-        rows = [("Dit adres", 65, (46, 196, 182), False)]
+        rows = [("Dit adres", 65, TEAL, False)]
         pdf_nl.draw_comparison_chart(
             10, 30, 180, rows, show_legend=True, is_nl=True,
         )
@@ -383,7 +386,7 @@ class TestBuurtCheckPDF:
 
         pdf_en = BuurtCheckPDF()
         pdf_en.add_page()
-        rows_en = [("This address", 65, (46, 196, 182), False)]
+        rows_en = [("This address", 65, TEAL, False)]
         pdf_en.draw_comparison_chart(
             10, 30, 180, rows_en, show_legend=True, is_nl=False,
         )
@@ -400,7 +403,7 @@ class TestBuurtCheckPDF:
             pdf = BuurtCheckPDF()
             pdf.add_page()
             rows = [
-                (f"Row {i}", i * 25, (46, 196, 182), False)
+                (f"Row {i}", i * 25, TEAL, False)
                 for i in range(n_rows)
             ]
             end_y = pdf.draw_comparison_chart(10, 30, 180, rows)
@@ -413,9 +416,9 @@ class TestBuurtCheckPDF:
         pdf = BuurtCheckPDF()
         pdf.add_page()
         rows = [
-            ("Dit adres", 65, (46, 196, 182), False),
-            ("Vergelijkingswaarde", 55, (138, 155, 176), False),
-            ("Nederland", 50, (226, 231, 237), False),
+            ("Dit adres", 65, TEAL, False),
+            ("Vergelijkingswaarde", 55, MUTED, False),
+            ("Nederland", 50, NATIONAL, False),
             ("WHO-doel", 74, (234, 179, 8), True),
         ]
         end_y = pdf.draw_comparison_chart(
@@ -2355,3 +2358,104 @@ class TestContrastCompliance:
             assert not matches, (
                 f"{fn.__qualname__} still uses set_text_color(*MUTED) for text"
             )
+
+
+# ---------------------------------------------------------------------------
+# E9-S3: Differentiated comparison bar colors
+# ---------------------------------------------------------------------------
+
+class TestDifferentiatedBarColors:
+    """All 4 bar types must be distinguishable including in grayscale."""
+
+    def test_four_bar_colors_are_distinct(self):
+        """TEAL, MUTED (peer), NATIONAL (national), AMBER_WARN (guideline) are all unique."""
+        from app.services.pdf_export import AMBER_WARN
+        colors = {TEAL, MUTED, NATIONAL, AMBER_WARN}
+        assert len(colors) == 4, "Not all 4 bar colors are distinct"
+
+    def test_grayscale_distinguishable(self):
+        """NATIONAL bar fill is distinct from all others in grayscale.
+
+        TEAL and MUTED are close in grayscale (~2.8 diff) but are
+        differentiated by hue -- the risk card contract requires 4
+        channels (color + label + pattern + score), so hue-based
+        distinction is valid.  NATIONAL must be well-separated since
+        it was added specifically to replace the invisible BORDER fill.
+        """
+        from app.services.pdf_export import AMBER_WARN
+
+        def _gray(rgb):
+            return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+
+        g_national = _gray(NATIONAL)
+        # NATIONAL must differ from every other bar color by >= 8 gray levels
+        for name, color in [
+            ("TEAL", TEAL), ("MUTED", MUTED), ("AMBER_WARN", AMBER_WARN),
+        ]:
+            diff = abs(g_national - _gray(color))
+            assert diff >= 8, (
+                f"NATIONAL too similar to {name} in grayscale: diff={diff:.1f}"
+            )
+
+    def test_national_replaces_border_for_nl_avg(self):
+        """nl_avg rows use NATIONAL color, not BORDER."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        data = _build_risk_detail_data(
+            risks=_make_risks(), sunlight_score=80,
+            comparisons=_make_risk_comparisons(), is_nl=False,
+        )
+        # noise has nl_avg row
+        noise_rows = data[0][4]  # comp_rows for noise
+        nl_rows = [r for r in noise_rows if "Netherlands" in r[0] or "Nederland" in r[0]]
+        assert nl_rows, "No nl_avg row found in noise comparisons"
+        for label, _val, color, _dashed in nl_rows:
+            assert color == NATIONAL, (
+                f"nl_avg row '{label}' uses {color} instead of NATIONAL"
+            )
+
+    def test_border_never_used_as_data_fill(self):
+        """BORDER must not appear as a bar fill color in comparison rows."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        data = _build_risk_detail_data(
+            risks=_make_risks(), sunlight_score=80,
+            comparisons=_make_risk_comparisons(), is_nl=False,
+        )
+        for _name, _score, _summary, _source, comp_rows in data:
+            for _label, _value, color, _dashed in comp_rows:
+                assert color != BORDER, (
+                    f"BORDER used as data-carrying fill for '{_label}'"
+                )
+
+    def test_national_meets_graphical_contrast(self):
+        """NATIONAL bar fill must have >= 3:1 contrast vs white (WCAG AA graphical)."""
+        def _luminance(rgb: tuple[int, int, int]) -> float:
+            vals = []
+            for c in rgb:
+                s = c / 255.0
+                vals.append(s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4)
+            return 0.2126 * vals[0] + 0.7152 * vals[1] + 0.0722 * vals[2]
+
+        white = (255, 255, 255)
+        l_nat = _luminance(NATIONAL)
+        l_white = _luminance(white)
+        cr = (l_white + 0.05) / (l_nat + 0.05)
+        assert cr >= 3.0, f"NATIONAL contrast {cr:.2f} < 3:1 graphical minimum"
+
+    def test_legend_has_four_swatches(self):
+        """Legend must render 4 swatches: address, peer, national, benchmark."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        rows = [
+            ("Dit adres", 65, TEAL, False),
+            ("Stedelijk", 55, MUTED, False),
+            ("Nationaal", 50, NATIONAL, False),
+            ("Richtlijn", 74, (234, 179, 8), True),
+        ]
+        end_y = pdf.draw_comparison_chart(
+            10, 30, 180, rows, show_legend=True, is_nl=True,
+        )
+        assert end_y > 30
+        result = bytes(pdf.output())
+        assert result[:5] == b"%PDF-"

@@ -34,6 +34,7 @@ BORDER = (226, 231, 237)  # #E2E7ED — borders, dividers, score track (1.3:1, n
 WHITE = (255, 255, 255)
 AMBER_WARN = (234, 179, 8)  # #EAB308 — amber for warnings (1.87:1 — fill/dashed only)
 SECONDARY = (99, 120, 146)  # #637892 — essential info text (4.52:1 — WCAG AA pass)
+NATIONAL = (110, 130, 155)  # #6E829B — "Nederland" bar fill (3.94:1, >= 3:1 graphical)
 GRIDLINE = (240, 242, 245)  # Very light gray for chart gridlines (decorative)
 
 SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
@@ -268,14 +269,23 @@ class BuurtCheckPDF(FPDF):
             self.cell(20, 3, label_text)
             lx += 20 + gap
 
-            # Gray swatch — "Vergelijkingswaarde" / "Comparison"
+            # Gray swatch — "Vergelijkingswaarde" / "Peer" (city_avg)
             self.set_fill_color(*MUTED)
             self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
             lx += swatch_w + 1
-            label_text = "Vergelijkingswaarde" if is_nl else "Comparison"
+            label_text = "Stedelijk" if is_nl else "Peer"
             self.set_xy(lx, legend_y)
-            self.cell(28, 3, label_text)
-            lx += 28 + gap
+            self.cell(14, 3, label_text)
+            lx += 14 + gap
+
+            # Darker gray swatch — "Nationaal" / "National" (nl_avg)
+            self.set_fill_color(*NATIONAL)
+            self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
+            lx += swatch_w + 1
+            label_text = "Nationaal" if is_nl else "National"
+            self.set_xy(lx, legend_y)
+            self.cell(18, 3, label_text)
+            lx += 18 + gap
 
             # Dashed swatch — "Richtlijn" / "Benchmark"
             self.set_draw_color(*AMBER_WARN)
@@ -839,7 +849,7 @@ def _build_risk_detail_data(
             "Vergelijkingswaarde (stedelijkheid)" if is_nl
             else "Peer baseline (urbanization)", MUTED, False,
         ),
-        "nl_avg": ("Nederland" if is_nl else "Netherlands", BORDER, False),
+        "nl_avg": ("Nederland" if is_nl else "Netherlands", NATIONAL, False),
         "who_limit": (
             "WHO-doel (op scoreschaal)" if is_nl
             else "WHO benchmark (mapped to score)", AMBER_WARN, True,
