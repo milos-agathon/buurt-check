@@ -813,7 +813,7 @@ def _draw_risk_details_page(
 
     for (
         cat_name, score, summary, source_text,
-        comp_rows, measurements,
+        comp_rows, measurements, unit_def,
     ) in categories:
         color = _severity_color(score)
 
@@ -885,6 +885,17 @@ def _draw_risk_details_page(
                 pdf.set_font("Satoshi", "", 9)
             pdf.ln(2)
 
+        # Unit definition (E6-S5)
+        if unit_def:
+            pdf.set_font("Satoshi", "", 7)
+            pdf.set_text_color(*SECONDARY)
+            pdf.cell(
+                0, 3, unit_def,
+                new_x="LMARGIN", new_y="NEXT",
+            )
+            pdf.set_text_color(*SLATE)
+            pdf.ln(1)
+
         # Comparison chart
         if comp_rows:
             chart_title = (
@@ -937,6 +948,28 @@ def _risk_level_label(level: str, is_nl: bool) -> str:
     return nl if is_nl else en
 
 
+_UNIT_DEFINITIONS: dict[str, dict[str, str]] = {
+    "noise": {
+        "nl": "Lden = dag-avond-nacht gewogen geluidsniveau (wegverkeer)",
+        "en": "Lden = day-evening-night weighted noise level (road traffic)",
+    },
+    "air_quality": {
+        "nl": (
+            "PM2.5 = fijn stof, "
+            "NO\u2082 = stikstofdioxide (jaargemiddelde)"
+        ),
+        "en": (
+            "PM2.5 = fine particulate matter, "
+            "NO\u2082 = nitrogen dioxide (annual mean)"
+        ),
+    },
+    "climate_stress": {
+        "nl": "Op basis van hitte- en wateroverlastmodellen",
+        "en": "Based on heat stress and water nuisance models",
+    },
+}
+
+
 def _build_risk_detail_data(
     risks: RiskCardsResponse | None,
     sunlight_score: int | None,
@@ -945,15 +978,18 @@ def _build_risk_detail_data(
 ) -> list[tuple[
     str, int | None, str, str, list,
     list[tuple[str, str]] | None,
+    str | None,
 ]]:
     """Build structured data for risk details page.
 
-    Returns list of 6-tuples:
-        (cat_name, score, summary, source_text, comp_rows, measurements)
+    Returns list of 7-tuples:
+        (cat_name, score, summary, source_text, comp_rows,
+         measurements, unit_definition)
     """
     result: list[tuple[
         str, int | None, str, str, list,
         list[tuple[str, str]] | None,
+        str | None,
     ]] = []
 
     _COMPARISON_LABELS = {
@@ -1070,15 +1106,38 @@ def _build_risk_detail_data(
                 source += f" \u00b7 {card.source_date}"
             else:
                 source += f" \u00b7 {date_unknown}"
+
+            # Climate: enrich with layer names + scenario (E6-S4)
+            if attr == "climate_stress":
+                layers = [
+                    lyr for lyr in [
+                        getattr(card, "heat_layer", None),
+                        getattr(card, "water_layer", None),
+                    ] if lyr
+                ]
+                if layers:
+                    layer_txt = ", ".join(layers)
+                    lbl = "Lagen" if is_nl else "Layers"
+                    source += f" \u00b7 {lbl}: {layer_txt}"
+                scenario = (
+                    "Huidig klimaat" if is_nl
+                    else "Current climate conditions"
+                )
+                source += f" \u00b7 {scenario}"
+
             comp = _comp_rows(
                 getattr(comparisons, comp_attr, None)
                 if comparisons else None
             )
             measurements = _build_measurements(attr)
+            lang_key = "nl" if is_nl else "en"
+            unit_def = _UNIT_DEFINITIONS.get(attr, {}).get(
+                lang_key
+            )
             result.append((
                 name_nl if is_nl else name_en,
                 card.score, summary, source, comp,
-                measurements,
+                measurements, unit_def,
             ))
     else:
         # Show placeholder entries when risks unavailable
@@ -1090,7 +1149,7 @@ def _build_risk_detail_data(
             src_label = "Bron" if is_nl else "Source"
             result.append((
                 name_nl if is_nl else name_en, None, "",
-                f"{src_label}: \u2014", [], None,
+                f"{src_label}: \u2014", [], None, None,
             ))
 
     # Sunlight
@@ -1123,6 +1182,7 @@ def _build_risk_detail_data(
         f"{src_label}: SunCalc + 3DBAG",
         sun_comp,
         sun_measurements,
+        None,
     ))
 
     return result
