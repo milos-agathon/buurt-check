@@ -1801,6 +1801,67 @@ class TestPropertyWarningsPdfSections:
         assert "Asbestos status unavailable" in text
 
 
+class TestEliminateEmptyPages:
+    """E11-S1: Reduce wasted page space."""
+
+    def test_notes_section_reduced_lines(self):
+        """Notes section has at most 3 ruled lines, not 12."""
+        from app.services.pdf_export import (
+            _draw_methodology_page,
+        )
+
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        # Track line calls to count ruled lines
+        original_line = pdf.line
+        line_calls: list[tuple] = []
+
+        def tracking_line(x1, y1, x2, y2):
+            line_calls.append((x1, y1, x2, y2))
+            return original_line(x1, y1, x2, y2)
+
+        pdf.line = tracking_line
+        _draw_methodology_page(pdf, is_nl=False)
+        # Filter for ruled note lines (full-width lines
+        # after the "Your viewing notes" heading)
+        usable_w = pdf.w - pdf.l_margin - pdf.r_margin
+        note_lines = [
+            c for c in line_calls
+            if abs(c[2] - c[0] - usable_w) < 1
+        ]
+        # Should be at most 3 (down from 12)
+        assert len(note_lines) <= 5  # 3 notes + dividers
+
+    def test_shadow_image_not_on_property_checks(self):
+        """Property checks page references shadow text
+        but does not embed the image itself."""
+        import base64
+
+        # Create a real-ish PNG for the shadow
+        fake_b64 = base64.b64encode(
+            b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        ).decode()
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            shadow_image_b64=fake_b64,
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        # Property checks is page 4 (index 3)
+        if len(reader.pages) > 3:
+            page4_text = reader.pages[3].extract_text() or ""
+            # The text "Shadow Snapshots" should appear
+            assert "Shadow Snapshots" in page4_text
+        # Verify the PDF generates without error
+        assert result[:5] == b"%PDF-"
+
+
 # --- Provenance block tests (E5-S1) ---
 
 

@@ -1866,15 +1866,23 @@ def _draw_property_checks_page(
         if is_nl
         else "Source: SunCalc ray-casting over 3DBAG meshes"
     )
-    # Section 4 has an image between body and source, so render manually
+    # Shadow image already on cover page; text-only here
     pdf.set_font("Satoshi", "B", 11)
-    pdf.cell(0, 6, shadow_title, new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0, 6, shadow_title,
+        new_x="LMARGIN", new_y="NEXT",
+    )
     pdf.set_font("Satoshi", "", 10)
-    pdf.multi_cell(0, 5, snapshot_text, align="L", new_x="LMARGIN", new_y="NEXT")
-    _draw_shadow_image(pdf, shadow_image_b64, is_nl)
+    pdf.multi_cell(
+        0, 5, snapshot_text,
+        align="L", new_x="LMARGIN", new_y="NEXT",
+    )
     pdf.set_font("Satoshi", "", 8)
     pdf.set_text_color(*SECONDARY)
-    pdf.cell(0, 4, shadow_source, new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0, 4, shadow_source,
+        new_x="LMARGIN", new_y="NEXT",
+    )
     pdf.set_text_color(*SLATE)
 
 
@@ -2130,7 +2138,7 @@ def _draw_methodology_page(
 
     pdf.set_draw_color(*BORDER)
     pdf.set_line_width(0.1)
-    for _ in range(12):
+    for _ in range(3):
         y = pdf.get_y()
         if y > pdf.h - 25:
             break
