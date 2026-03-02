@@ -832,7 +832,7 @@ def _draw_risk_details_page(
         # Score bar
         bar_w = pdf.w - pdf.l_margin - pdf.r_margin
         pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=5.0)
-        pdf.ln(3)
+        pdf.ln(7)
 
         # Severity label
         pdf.set_font("Satoshi", "", 9)
@@ -1064,7 +1064,7 @@ def _draw_neighborhood_page(
             stats.distance_to_supermarket_km,
         )
 
-        # CBS source
+        # CBS source + quartile legend
         pdf.ln(2)
         pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
@@ -1073,6 +1073,12 @@ def _draw_neighborhood_page(
             "Bron: CBS Wijken & Buurten 2024" if is_nl else "Source: CBS Wijken & Buurten 2024",
             new_x="LMARGIN", new_y="NEXT",
         )
+        quartile_legend = (
+            "Q1 = laagste 25% landelijk, Q4 = hoogste 25%"
+            if is_nl
+            else "Q1 = bottom 25% nationally, Q4 = top 25%"
+        )
+        pdf.cell(0, 4, quartile_legend, new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
     else:
         pdf.set_font("Satoshi", "", 10)
@@ -1308,7 +1314,7 @@ def _draw_property_checks_page(
             )
             sub_part = (
                 f" Bodemdalingssnelheid: "
-                f"{fr.subsidence_rate_mm_per_year:.1f} mm/jaar."
+                f"{format_number(fr.subsidence_rate_mm_per_year, 1, is_nl)} mm/jaar."
                 if fr.subsidence_rate_mm_per_year is not None
                 else ""
             )
@@ -1330,7 +1336,7 @@ def _draw_property_checks_page(
             )
             sub_part = (
                 f" Bodemdalingssnelheid: "
-                f"{fr.subsidence_rate_mm_per_year:.1f} mm/jaar."
+                f"{format_number(fr.subsidence_rate_mm_per_year, 1, is_nl)} mm/jaar."
                 if fr.subsidence_rate_mm_per_year is not None
                 else ""
             )
@@ -1573,9 +1579,10 @@ def _draw_property_checks_page(
         or sun.equinox_hours is not None
         or sun.summer_hours is not None
     ):
-        w = f"{sun.winter_hours:.1f}h" if sun.winter_hours is not None else "\u2014"
-        e = f"{sun.equinox_hours:.1f}h" if sun.equinox_hours is not None else "\u2014"
-        s = f"{sun.summer_hours:.1f}h" if sun.summer_hours is not None else "\u2014"
+        _fn = format_number
+        w = f"{_fn(sun.winter_hours, 1, is_nl)}h" if sun.winter_hours is not None else "\u2014"
+        e = f"{_fn(sun.equinox_hours, 1, is_nl)}h" if sun.equinox_hours is not None else "\u2014"
+        s = f"{_fn(sun.summer_hours, 1, is_nl)}h" if sun.summer_hours is not None else "\u2014"
         score_text = str(sunlight_score) if sunlight_score is not None else "\u2014"
         sun_text = (
             f"Geschat direct zonlicht: winter {w}/dag, equinox {e}/dag, zomer {s}/dag. "
