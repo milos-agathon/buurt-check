@@ -811,7 +811,10 @@ def _draw_risk_details_page(
     categories = _build_risk_detail_data(risks, sunlight_score, comparisons, is_nl)
     first_chart_drawn = False
 
-    for cat_name, score, summary, source_text, comp_rows in categories:
+    for (
+        cat_name, score, summary, source_text,
+        comp_rows, measurements,
+    ) in categories:
         color = _severity_color(score)
 
         # Left teal accent + category name + score
@@ -827,24 +830,59 @@ def _draw_risk_details_page(
         pdf.set_font("SatoshiBlack", "", 14)
         pdf.set_text_color(*color)
         score_text = str(score) if score is not None else "\u2014"
-        pdf.cell(0, 8, score_text, align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(
+            0, 8, score_text, align="R",
+            new_x="LMARGIN", new_y="NEXT",
+        )
 
         # Score bar
         bar_w = pdf.w - pdf.l_margin - pdf.r_margin
-        pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=5.0)
+        pdf.draw_score_bar(
+            pdf.l_margin, pdf.get_y(), bar_w, score,
+            height=5.0,
+        )
         pdf.ln(7)
 
         # Severity label
         pdf.set_font("Satoshi", "", 9)
         pdf.set_text_color(*color)
-        pdf.cell(0, 4, _severity_label(score, is_nl), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(
+            0, 4, _severity_label(score, is_nl),
+            new_x="LMARGIN", new_y="NEXT",
+        )
         pdf.set_text_color(*SLATE)
         pdf.ln(1)
 
         # What this means
         if summary:
             pdf.set_font("Satoshi", "", 10)
-            pdf.multi_cell(0, 5, summary, align="L", new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(
+                0, 5, summary, align="L",
+                new_x="LMARGIN", new_y="NEXT",
+            )
+            pdf.ln(2)
+
+        # Measurement factsheet (E4-S3)
+        if measurements:
+            pdf.set_font("SatoshiMedium", "", 8)
+            pdf.set_text_color(*SECONDARY)
+            m_label = (
+                "MEETWAARDEN" if is_nl else "MEASUREMENTS"
+            )
+            pdf.cell(
+                0, 5, m_label,
+                new_x="LMARGIN", new_y="NEXT",
+            )
+            pdf.set_font("Satoshi", "", 9)
+            pdf.set_text_color(*SLATE)
+            for meas_label, meas_value in measurements:
+                pdf.cell(50, 5, meas_label)
+                pdf.set_font("Satoshi", "B", 9)
+                pdf.cell(
+                    0, 5, meas_value,
+                    new_x="LMARGIN", new_y="NEXT",
+                )
+                pdf.set_font("Satoshi", "", 9)
             pdf.ln(2)
 
         # Comparison chart
@@ -887,25 +925,54 @@ def _draw_risk_details_page(
         pdf.ln(4)
 
 
+def _risk_level_label(level: str, is_nl: bool) -> str:
+    """Translate RiskLevel value to human-readable label."""
+    _LABELS = {
+        "low": ("Laag", "Low"),
+        "medium": ("Gemiddeld", "Medium"),
+        "high": ("Hoog", "High"),
+        "unavailable": ("Onbekend", "Unknown"),
+    }
+    nl, en = _LABELS.get(level, ("Onbekend", "Unknown"))
+    return nl if is_nl else en
+
+
 def _build_risk_detail_data(
     risks: RiskCardsResponse | None,
     sunlight_score: int | None,
     comparisons: RiskComparisonsResponse | None,
     is_nl: bool,
-) -> list[tuple[str, int | None, str, str, list]]:
-    """Build structured data for risk details page."""
-    result = []
+) -> list[tuple[
+    str, int | None, str, str, list,
+    list[tuple[str, str]] | None,
+]]:
+    """Build structured data for risk details page.
+
+    Returns list of 6-tuples:
+        (cat_name, score, summary, source_text, comp_rows, measurements)
+    """
+    result: list[tuple[
+        str, int | None, str, str, list,
+        list[tuple[str, str]] | None,
+    ]] = []
 
     _COMPARISON_LABELS = {
-        "address": ("Dit adres" if is_nl else "This address", TEAL, False),
+        "address": (
+            "Dit adres" if is_nl else "This address",
+            TEAL, False,
+        ),
         "city_avg": (
             "Vergelijkingswaarde (stedelijkheid)" if is_nl
             else "Peer baseline (urbanization)", MUTED, False,
         ),
-        "nl_avg": ("Nederland" if is_nl else "Netherlands", NATIONAL, False),
+        "nl_avg": (
+            "Nederland" if is_nl else "Netherlands",
+            NATIONAL, False,
+        ),
         "who_limit": (
             "WHO-doel (op scoreschaal)" if is_nl
-            else "WHO benchmark (mapped to score)", AMBER_WARN, True,
+            else "WHO benchmark (mapped to score)",
+            AMBER_WARN, True,
         ),
         "adaptation_target": (
             "Doelstelling (op scoreschaal)" if is_nl
@@ -913,7 +980,8 @@ def _build_risk_detail_data(
         ),
         "daylight_target": (
             "Daglichtdoel (op scoreschaal)" if is_nl
-            else "Daylight target (mapped to score)", AMBER_WARN, True,
+            else "Daylight target (mapped to score)",
+            AMBER_WARN, True,
         ),
     }
 
@@ -925,20 +993,77 @@ def _build_risk_detail_data(
             label_info = _COMPARISON_LABELS.get(
                 row.label_code, (row.label_code, MUTED, False)
             )
-            is_dashed = row.pattern == ComparisonPattern.dashed or label_info[2]
-            rows.append((label_info[0], row.value, label_info[1], is_dashed))
+            is_dashed = (
+                row.pattern == ComparisonPattern.dashed
+                or label_info[2]
+            )
+            rows.append((
+                label_info[0], row.value,
+                label_info[1], is_dashed,
+            ))
         return rows
 
-    date_unknown = "Brondatum onbekend" if is_nl else "Dataset date unknown"
+    def _build_measurements(
+        attr: str,
+    ) -> list[tuple[str, str]] | None:
+        """Build measurement (label, value) pairs per category."""
+        if not risks:
+            return None
+        card = getattr(risks, attr)
+        meas: list[tuple[str, str]] = []
+        if attr == "noise":
+            if card.lden_db is not None:
+                val = format_number(card.lden_db, 1, is_nl)
+                meas.append(("Lden", f"{val} dB"))
+        elif attr == "air_quality":
+            if card.pm25_ug_m3 is not None:
+                val = format_number(card.pm25_ug_m3, 1, is_nl)
+                meas.append(("PM2.5", f"{val} \u00b5g/m\u00b3"))
+            if card.no2_ug_m3 is not None:
+                val = format_number(card.no2_ug_m3, 1, is_nl)
+                meas.append((
+                    "NO\u2082", f"{val} \u00b5g/m\u00b3",
+                ))
+        elif attr == "climate_stress":
+            if card.heat_level is not None:
+                label = "Hitte" if is_nl else "Heat"
+                meas.append((
+                    label,
+                    _risk_level_label(card.heat_level.value, is_nl),
+                ))
+            if card.water_level is not None:
+                label = (
+                    "Wateroverlast" if is_nl else "Water nuisance"
+                )
+                meas.append((
+                    label,
+                    _risk_level_label(
+                        card.water_level.value, is_nl,
+                    ),
+                ))
+        return meas if meas else None
+
+    date_unknown = (
+        "Brondatum onbekend" if is_nl
+        else "Dataset date unknown"
+    )
 
     if risks:
         for attr, name_en, name_nl, comp_attr in [
             ("noise", "Noise", "Geluid", "noise"),
-            ("air_quality", "Air Quality", "Luchtkwaliteit", "air_quality"),
-            ("climate_stress", "Climate Stress", "Klimaatstress", "climate_stress"),
+            (
+                "air_quality", "Air Quality",
+                "Luchtkwaliteit", "air_quality",
+            ),
+            (
+                "climate_stress", "Climate Stress",
+                "Klimaatstress", "climate_stress",
+            ),
         ]:
             card = getattr(risks, attr)
-            summary = (card.summary_nl if is_nl else card.summary) or ""
+            summary = (
+                (card.summary_nl if is_nl else card.summary) or ""
+            )
             src_label = "Bron" if is_nl else "Source"
             source = f"{src_label}: {card.source}"
             if card.source_date:
@@ -946,25 +1071,50 @@ def _build_risk_detail_data(
             else:
                 source += f" \u00b7 {date_unknown}"
             comp = _comp_rows(
-                getattr(comparisons, comp_attr, None) if comparisons else None
+                getattr(comparisons, comp_attr, None)
+                if comparisons else None
             )
-            result.append((name_nl if is_nl else name_en, card.score, summary, source, comp))
+            measurements = _build_measurements(attr)
+            result.append((
+                name_nl if is_nl else name_en,
+                card.score, summary, source, comp,
+                measurements,
+            ))
     else:
         # Show placeholder entries when risks unavailable
         for name_en, name_nl in [
-            ("Noise", "Geluid"), ("Air Quality", "Luchtkwaliteit"),
+            ("Noise", "Geluid"),
+            ("Air Quality", "Luchtkwaliteit"),
             ("Climate Stress", "Klimaatstress"),
         ]:
             src_label = "Bron" if is_nl else "Source"
             result.append((
-                name_nl if is_nl else name_en, None, "", f"{src_label}: \u2014", []
+                name_nl if is_nl else name_en, None, "",
+                f"{src_label}: \u2014", [], None,
             ))
 
     # Sunlight
     sun_summary = ""
+    sun_measurements: list[tuple[str, str]] | None = None
     if risks and risks.sunlight:
-        sun_summary = (risks.sunlight.summary_nl if is_nl else risks.sunlight.summary) or ""
-    sun_comp = _comp_rows(comparisons.sunlight if comparisons else None)
+        sun_summary = (
+            (risks.sunlight.summary_nl if is_nl
+             else risks.sunlight.summary) or ""
+        )
+        sun_meas: list[tuple[str, str]] = []
+        sun = risks.sunlight
+        if sun.winter_hours is not None:
+            unit = "u/dag" if is_nl else "h/day"
+            val = format_number(sun.winter_hours, 1, is_nl)
+            sun_meas.append(("Winter", f"{val} {unit}"))
+        if sun.svf_percent is not None:
+            val = format_number(sun.svf_percent, 0, is_nl)
+            sun_meas.append(("SVF", f"{val}%"))
+        if sun_meas:
+            sun_measurements = sun_meas
+    sun_comp = _comp_rows(
+        comparisons.sunlight if comparisons else None,
+    )
     src_label = "Bron" if is_nl else "Source"
     result.append((
         "Zonlicht" if is_nl else "Sunlight",
@@ -972,6 +1122,7 @@ def _build_risk_detail_data(
         sun_summary,
         f"{src_label}: SunCalc + 3DBAG",
         sun_comp,
+        sun_measurements,
     ))
 
     return result

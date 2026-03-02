@@ -2675,7 +2675,7 @@ class TestDifferentiatedBarColors:
             risks=_make_risks(), sunlight_score=80,
             comparisons=_make_risk_comparisons(), is_nl=False,
         )
-        for _name, _score, _summary, _source, comp_rows in data:
+        for _name, _score, _summary, _source, comp_rows, _meas in data:
             for _label, _value, color, _dashed in comp_rows:
                 assert color != BORDER, (
                     f"BORDER used as data-carrying fill for '{_label}'"
