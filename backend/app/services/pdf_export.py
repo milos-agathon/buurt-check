@@ -44,6 +44,23 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "critical": (185, 28, 28),  # #B91C1C
 }
 
+
+def format_number(value: float, decimals: int = 0, is_nl: bool = False) -> str:
+    """Format number with locale-appropriate separators.
+
+    NL: decimal comma, period thousands (1.234,5)
+    EN: decimal period, comma thousands (1,234.5)
+    """
+    if decimals > 0:
+        formatted = f"{value:,.{decimals}f}"
+    else:
+        formatted = f"{value:,.0f}"
+    if is_nl:
+        # Swap: comma→placeholder, period→comma, placeholder→period
+        formatted = formatted.replace(",", "_COMMA_").replace(".", ",").replace("_COMMA_", ".")
+    return formatted
+
+
 def _severity_for_score(score: int | None) -> str:
     if score is None:
         return "unavailable"
@@ -1116,11 +1133,11 @@ def _draw_neighborhood_page(
                 per_label = "per 1.000" if is_nl else "per 1,000"
                 addr_label = (
                     f"{'Dit adres' if is_nl else 'This address'}"
-                    f": {crime.total_per_1000:.1f} {per_label}"
+                    f": {format_number(crime.total_per_1000, 1, is_nl)} {per_label}"
                 )
                 nat_label = (
                     f"{'Landelijk' if is_nl else 'National avg'}"
-                    f": {crime.national_per_1000:.1f} {per_label}"
+                    f": {format_number(crime.national_per_1000, 1, is_nl)} {per_label}"
                 )
                 # Normalise rates to bar widths (higher rate = longer bar)
                 max_rate = max(crime.total_per_1000, crime.national_per_1000, 1.0)
@@ -1149,7 +1166,7 @@ def _draw_neighborhood_page(
                 pdf.set_x(pdf.l_margin + 5)
                 inbraak = "Inbraak" if is_nl else "Burglary"
                 pdf.cell(
-                    0, 5, f"{inbraak}: {crime.burglary_per_1000:.1f}",
+                    0, 5, f"{inbraak}: {format_number(crime.burglary_per_1000, 1, is_nl)}",
                     new_x="LMARGIN", new_y="NEXT",
                 )
             if crime.violent_per_1000 is not None:
@@ -1157,7 +1174,7 @@ def _draw_neighborhood_page(
                 pdf.set_x(pdf.l_margin + 5)
                 geweld = "Geweld" if is_nl else "Violent"
                 pdf.cell(
-                    0, 5, f"{geweld}: {crime.violent_per_1000:.1f}",
+                    0, 5, f"{geweld}: {format_number(crime.violent_per_1000, 1, is_nl)}",
                     new_x="LMARGIN", new_y="NEXT",
                 )
             pdf.ln(2)
@@ -1617,17 +1634,19 @@ def _draw_indicator(pdf: BuurtCheckPDF, label: str, indicator) -> None:
         return
     val = indicator.value
     unit = indicator.unit or ""
+    is_nl = pdf.is_nl
     if isinstance(val, float):
         if unit == "%":
             text = f"{val:.0f}%"
         elif unit == "\u20ac":
-            text = f"\u20ac{val:,.0f}"
+            eur_prefix = "\u20ac " if is_nl else "\u20ac"
+            text = f"{eur_prefix}{format_number(val, 0, is_nl)}"
         elif unit == "km":
-            text = f"{val:.1f} km"
+            text = f"{format_number(val, 1, is_nl)} km"
         elif unit == "/km\u00b2":
-            text = f"{val:,.0f}/km\u00b2"
+            text = f"{format_number(val, 0, is_nl)}/km\u00b2"
         else:
-            text = f"{val:,.0f} {unit}".strip()
+            text = f"{format_number(val, 0, is_nl)} {unit}".strip()
     elif val is not None:
         text = f"{val} {unit}".strip()
     else:

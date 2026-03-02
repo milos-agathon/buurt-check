@@ -49,6 +49,7 @@ from app.services.pdf_export import (
     _draw_indicator,
     _severity_for_score,
     _severity_label,
+    format_number,
     generate_full_dossier,
     generate_quick_brief,
 )
@@ -317,6 +318,145 @@ class TestQuartileIndicators:
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
         assert "0.8 km" in text
         assert "(Q1)" in text
+
+
+# --- Unit tests: Number formatting locale (E10-S5) ---
+
+
+class TestFormatNumber:
+    def test_nl_integer(self):
+        """NL: 1234 → '1.234'."""
+        assert format_number(1234, 0, is_nl=True) == "1.234"
+
+    def test_en_integer(self):
+        """EN: 1234 → '1,234'."""
+        assert format_number(1234, 0, is_nl=False) == "1,234"
+
+    def test_nl_decimal(self):
+        """NL: 1234.5 with 1 decimal → '1.234,5'."""
+        assert format_number(1234.5, 1, is_nl=True) == "1.234,5"
+
+    def test_en_decimal(self):
+        """EN: 1234.5 with 1 decimal → '1,234.5'."""
+        assert format_number(1234.5, 1, is_nl=False) == "1,234.5"
+
+    def test_nl_small_number(self):
+        """NL: 0.8 with 1 decimal → '0,8'."""
+        assert format_number(0.8, 1, is_nl=True) == "0,8"
+
+    def test_en_small_number(self):
+        """EN: 0.8 with 1 decimal → '0.8'."""
+        assert format_number(0.8, 1, is_nl=False) == "0.8"
+
+    def test_nl_large_number(self):
+        """NL: 485000 → '485.000'."""
+        assert format_number(485000, 0, is_nl=True) == "485.000"
+
+    def test_en_large_number(self):
+        """EN: 485000 → '485,000'."""
+        assert format_number(485000, 0, is_nl=False) == "485,000"
+
+
+class TestIndicatorLocaleFormatting:
+    def test_eur_formatting_nl(self):
+        """NL EUR indicator has space after € and Dutch separators."""
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        indicator = NeighborhoodIndicator(value=428000.0, unit="\u20ac")
+        _draw_indicator(pdf, "WOZ-waarde", indicator)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "\u20ac 428.000" in text
+
+    def test_eur_formatting_en(self):
+        """EN EUR indicator has no space and English separators."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        indicator = NeighborhoodIndicator(value=428000.0, unit="\u20ac")
+        _draw_indicator(pdf, "Avg property value", indicator)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "\u20ac428,000" in text
+
+    def test_density_formatting_nl(self):
+        """NL density uses period as thousands separator."""
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        indicator = NeighborhoodIndicator(value=15000.0, unit="/km\u00b2")
+        _draw_indicator(pdf, "Bevolkingsdichtheid", indicator)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "15.000/km" in text
+
+    def test_km_formatting_nl(self):
+        """NL km distance uses comma as decimal separator."""
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        indicator = NeighborhoodIndicator(value=0.8, unit="km")
+        _draw_indicator(pdf, "Treinstation", indicator)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "0,8 km" in text
+
+
+class TestCrimeRateLocaleFormatting:
+    def test_crime_rate_en(self):
+        """EN crime rates use period decimal."""
+        tier_b = TierBResponse(
+            address_id="0363010012345678",
+            crime=CrimeStatsCard(
+                total_per_1000=65.3,
+                national_per_1000=52.1,
+                burglary_per_1000=4.2,
+                violent_per_1000=1.8,
+                score=42,
+                severity="moderate",
+                meaning_en="Crime rate is above average.",
+                source_date="2024",
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test", building_year=2000, building_use="Office",
+            risks=_make_risks(), sunlight_score=75,
+            viewing_questions=None, language="en", tier_b=tier_b,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "65.3" in text
+        assert "52.1" in text
+        assert "4.2" in text
+        assert "1.8" in text
+
+    def test_crime_rate_nl(self):
+        """NL crime rates use comma decimal."""
+        tier_b = TierBResponse(
+            address_id="0363010012345678",
+            crime=CrimeStatsCard(
+                total_per_1000=65.3,
+                national_per_1000=52.1,
+                burglary_per_1000=4.2,
+                violent_per_1000=1.8,
+                score=42,
+                severity="moderate",
+                meaning_nl="Criminaliteitscijfer boven gemiddelde.",
+                source_date="2024",
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test", building_year=2000, building_use="Office",
+            risks=_make_risks(), sunlight_score=75,
+            viewing_questions=None, language="nl", tier_b=tier_b,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "65,3" in text
+        assert "52,1" in text
+        assert "4,2" in text
+        assert "1,8" in text
 
 
 # --- Unit tests: BuurtCheckPDF ---
