@@ -713,6 +713,7 @@ def generate_full_dossier(
     risk_comparisons: RiskComparisonsResponse | None = None,
     property_warnings_data: PropertyWarningsResponse | None = None,
     provenance: ProvenanceData | None = None,
+    location_map_b64: str | None = None,
 ) -> bytes:
     """Generate 5+ page Full Dossier with Polar Frost branding."""
     is_nl = language == "nl"
@@ -724,6 +725,7 @@ def generate_full_dossier(
     _draw_cover_page(
         pdf, address, building_year, building_use, floor_area,
         risks, sunlight_score, shadow_image_b64, is_nl,
+        location_map_b64=location_map_b64,
     )
 
     # Page 2: Risk Details
@@ -766,6 +768,93 @@ def generate_full_dossier(
 # ---------------------------------------------------------------------------
 
 
+def _draw_location_map(
+    pdf: BuurtCheckPDF,
+    location_map_b64: str | None,
+    is_nl: bool,
+) -> None:
+    """Embed a static PDOK BRT location map with pin, compass, and scale."""
+    if not location_map_b64:
+        return
+    try:
+        image_data = base64.b64decode(location_map_b64)
+        img_w = 80  # mm width in PDF
+        img_h = img_w  # square map (600x600 source)
+
+        # Section label
+        pdf.draw_section_label("Locatie" if is_nl else "Location")
+        pdf.ln(1)
+
+        # Draw the map image
+        pdf.set_draw_color(*BORDER)
+        pdf.set_line_width(0.2)
+        img_y = pdf.get_y()
+        pdf.image(
+            io.BytesIO(image_data),
+            x=pdf.l_margin, w=img_w, h=img_h,
+        )
+        pdf.rect(pdf.l_margin, img_y, img_w, img_h, "D")
+
+        # Red pin marker at center
+        cx = pdf.l_margin + img_w / 2
+        cy_pin = img_y + img_h / 2
+        pdf.set_fill_color(239, 68, 68)  # red
+        pdf.ellipse(cx - 1.5, cy_pin - 1.5, 3, 3, "F")
+        pdf.set_fill_color(255, 255, 255)
+        pdf.ellipse(cx - 0.7, cy_pin - 0.7, 1.4, 1.4, "F")
+
+        # North arrow (top-right of map)
+        nx = pdf.l_margin + img_w - 5
+        ny = img_y + 3
+        pdf.set_font("Satoshi", "B", 8)
+        pdf.set_text_color(*SLATE)
+        pdf.set_xy(nx, ny)
+        pdf.cell(5, 3, "N", align="C")
+        # Arrow line
+        pdf.set_draw_color(*SLATE)
+        pdf.set_line_width(0.3)
+        pdf.line(nx + 2.5, ny + 3, nx + 2.5, ny + 8)
+        # Arrow head
+        pdf.line(nx + 2.5, ny + 3, nx + 1.5, ny + 5)
+        pdf.line(nx + 2.5, ny + 3, nx + 3.5, ny + 5)
+        pdf.set_line_width(0.1)
+
+        # Scale bar (bottom-left of map)
+        # Map is 1000m wide displayed at img_w mm
+        # So 100m = img_w / 10 mm
+        scale_mm = img_w / 10  # 100m
+        sx = pdf.l_margin + 3
+        sy = img_y + img_h - 5
+        pdf.set_draw_color(*SLATE)
+        pdf.set_line_width(0.4)
+        pdf.line(sx, sy, sx + scale_mm, sy)
+        # End caps
+        pdf.line(sx, sy - 1, sx, sy + 1)
+        pdf.line(sx + scale_mm, sy - 1, sx + scale_mm, sy + 1)
+        pdf.set_line_width(0.1)
+        pdf.set_font("Satoshi", "", 6)
+        pdf.set_xy(sx, sy + 1)
+        pdf.cell(scale_mm, 3, "100 m", align="C")
+
+        # Attribution
+        pdf.set_y(img_y + img_h + 1)
+        pdf.set_font("Satoshi", "", 7)
+        pdf.set_text_color(*SECONDARY)
+        attr_text = (
+            "Kaart: PDOK BRT Achtergrondkaart"
+            if is_nl
+            else "Map: PDOK BRT Background Map"
+        )
+        pdf.cell(
+            0, 3, attr_text,
+            new_x="LMARGIN", new_y="NEXT",
+        )
+        pdf.set_text_color(*SLATE)
+        pdf.ln(2)
+    except Exception:
+        logger.warning("Failed to embed location map in PDF")
+
+
 def _draw_cover_page(
     pdf: BuurtCheckPDF,
     address: str,
@@ -776,6 +865,7 @@ def _draw_cover_page(
     sunlight_score: int | None,
     shadow_image_b64: str | None,
     is_nl: bool,
+    location_map_b64: str | None = None,
 ) -> None:
     """Page 1: cover with address hero, shadow image, risk summary strip."""
     pdf.ln(4)
@@ -793,6 +883,9 @@ def _draw_cover_page(
         cells=cells, cols=4,
     )
     pdf.set_y(grid_end_y + 4)
+
+    # Location map
+    _draw_location_map(pdf, location_map_b64, is_nl)
 
     # Prepared date
     pdf.set_font("Satoshi", "", 9)

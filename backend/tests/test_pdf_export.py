@@ -1,6 +1,8 @@
 """Tests for PDF export service and endpoint."""
 
 import io
+import struct
+import zlib
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -47,6 +49,7 @@ from app.services.pdf_export import (
     BuurtCheckPDF,
     _build_risk_cells,
     _draw_indicator,
+    _draw_location_map,
     _severity_for_score,
     _severity_label,
     format_number,
@@ -2931,3 +2934,214 @@ class TestAddressRowOrdering:
         assert end_y < expected_max, (
             f"Chart height {end_y - 30:.1f} too large without address row"
         )
+
+
+# ---------------------------------------------------------------------------
+# E7-S1: Static location map tests
+# ---------------------------------------------------------------------------
+
+
+def _tiny_png() -> str:
+    """Generate a 2x2 white PNG as base64 for testing."""
+    import base64
+
+    def _chunk(chunk_type: bytes, data: bytes) -> bytes:
+        c = chunk_type + data
+        crc = zlib.crc32(c) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + c + struct.pack(">I", crc)
+
+    sig = b"\x89PNG\r\n\x1a\n"
+    ihdr = _chunk(
+        b"IHDR",
+        struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0),
+    )
+    raw = b"\x00\xff\xff\xff\xff\xff\xff" * 2
+    idat = _chunk(b"IDAT", zlib.compress(raw))
+    iend = _chunk(b"IEND", b"")
+    return base64.b64encode(sig + ihdr + idat + iend).decode()
+
+
+class TestLocationMap:
+    """Tests for _draw_location_map (E7-S1)."""
+
+    def test_draw_location_map_renders_with_image(self):
+        """Map image, pin, compass, scale, and attribution render."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        b64 = _tiny_png()
+        y_before = pdf.get_y()
+        _draw_location_map(pdf, b64, is_nl=False)
+        y_after = pdf.get_y()
+        # Should have advanced the cursor
+        assert y_after > y_before
+        # Verify PDF contains attribution text
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "PDOK BRT" in text
+        assert "100 m" in text
+        assert "N" in text
+
+    def test_draw_location_map_dutch_attribution(self):
+        """Dutch map attribution text is rendered."""
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        b64 = _tiny_png()
+        _draw_location_map(pdf, b64, is_nl=True)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Kaart: PDOK BRT Achtergrondkaart" in text
+
+    def test_draw_location_map_english_attribution(self):
+        """English map attribution text is rendered."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        b64 = _tiny_png()
+        _draw_location_map(pdf, b64, is_nl=False)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Map: PDOK BRT Background Map" in text
+
+    def test_draw_location_map_noop_when_none(self):
+        """No-op when location_map_b64 is None."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        y_before = pdf.get_y()
+        _draw_location_map(pdf, None, is_nl=False)
+        y_after = pdf.get_y()
+        assert y_after == y_before
+
+    def test_draw_location_map_noop_when_empty(self):
+        """No-op when location_map_b64 is empty string."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        y_before = pdf.get_y()
+        _draw_location_map(pdf, "", is_nl=False)
+        y_after = pdf.get_y()
+        assert y_after == y_before
+
+    def test_draw_location_map_graceful_on_bad_data(self):
+        """Bad base64 data does not crash — graceful degradation."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        # Should not raise
+        _draw_location_map(pdf, "not-valid-png-data", is_nl=False)
+        # PDF still generates — no crash
+        result = bytes(pdf.output())
+        assert result[:5] == b"%PDF-"
+
+    def test_full_dossier_accepts_location_map_param(self):
+        """generate_full_dossier accepts location_map_b64."""
+        b64 = _tiny_png()
+        result = generate_full_dossier(
+            address="Damrak 1, 1012 Amsterdam",
+            building_year=1950,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            floor_area=85,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            location_map_b64=b64,
+        )
+        assert isinstance(result, bytes)
+        assert result[:5] == b"%PDF-"
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "PDOK BRT" in text
+
+    def test_full_dossier_without_map_still_works(self):
+        """Full dossier generates without location_map_b64."""
+        result = generate_full_dossier(
+            address="Damrak 1, 1012 Amsterdam",
+            building_year=1950,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+        )
+        assert isinstance(result, bytes)
+        assert result[:5] == b"%PDF-"
+
+
+# ---------------------------------------------------------------------------
+# E7-S1: _fetch_location_map async tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fetch_location_map_success():
+    """Returns base64 PNG when PDOK BRT responds with image."""
+    import base64
+    from unittest.mock import MagicMock
+
+    from app.api.address import _fetch_location_map
+
+    tiny = base64.b64decode(_tiny_png())
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"content-type": "image/png"}
+    mock_resp.content = tiny
+    mock_resp.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_resp)
+
+    with patch(
+        "app.api.address._map_client"
+    ) as mock_lac:
+        mock_lac.get.return_value = mock_client
+        result = await _fetch_location_map(121000, 487000)
+
+    assert result is not None
+    decoded = base64.b64decode(result)
+    assert decoded[:4] == b"\x89PNG"
+
+
+@pytest.mark.asyncio
+async def test_fetch_location_map_non_image_returns_none():
+    """Returns None when response is not an image."""
+    from unittest.mock import MagicMock
+
+    from app.api.address import _fetch_location_map
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"content-type": "application/xml"}
+    mock_resp.content = b"<error/>"
+    mock_resp.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_resp)
+
+    with patch(
+        "app.api.address._map_client"
+    ) as mock_lac:
+        mock_lac.get.return_value = mock_client
+        result = await _fetch_location_map(121000, 487000)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_location_map_exception_returns_none():
+    """Returns None on network error — graceful degradation."""
+    from app.api.address import _fetch_location_map
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(side_effect=Exception("timeout"))
+
+    with patch(
+        "app.api.address._map_client"
+    ) as mock_lac:
+        mock_lac.get.return_value = mock_client
+        result = await _fetch_location_map(121000, 487000)
+
+    assert result is None

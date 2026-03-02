@@ -41,6 +41,7 @@ from app.services import (
     tier_b,
     wms_tile,
 )
+from app.services.http_client import LoopAwareClient
 from app.services.pdf_export import generate_full_dossier, generate_quick_brief
 from app.services.risk_comparisons import build_risk_comparisons
 from app.services.scoring import (
@@ -55,6 +56,9 @@ from app.services.weather import fetch_tmy_data
 logger = logging.getLogger(__name__)
 
 _BUURT_CODE_RE = re.compile(r"^BU[0-9]{4}[A-Z0-9]{4}$")
+
+# Shared httpx client for PDOK BRT location map tiles
+_map_client = LoopAwareClient()
 
 
 def _validate_buurt_code(buurt_code: str | None) -> str | None:
@@ -1039,6 +1043,44 @@ async def _fetch_property_warnings_for_export(
     return None
 
 
+async def _fetch_location_map(
+    rd_x: float, rd_y: float,
+) -> str | None:
+    """Fetch a static map tile from PDOK BRT WMS.
+
+    Returns base64-encoded PNG on success, None on any failure.
+    Graceful degradation: the dossier generates fine without a map.
+    """
+    bbox_half = 500  # meters — 1km x 1km area
+    bbox = (
+        f"{rd_x - bbox_half},{rd_y - bbox_half},"
+        f"{rd_x + bbox_half},{rd_y + bbox_half}"
+    )
+    params = {
+        "SERVICE": "WMS",
+        "VERSION": "1.3.0",
+        "REQUEST": "GetMap",
+        "LAYERS": "standaard",
+        "CRS": "EPSG:28992",
+        "BBOX": bbox,
+        "WIDTH": "600",
+        "HEIGHT": "600",
+        "FORMAT": "image/png",
+    }
+    try:
+        client = _map_client.get()
+        resp = await client.get(
+            settings.brt_wms_base, params=params, timeout=10,
+        )
+        resp.raise_for_status()
+        ct = resp.headers.get("content-type", "")
+        if ct.startswith("image"):
+            return base64.b64encode(resp.content).decode()
+    except Exception:
+        logger.warning("Failed to fetch location map from PDOK BRT")
+    return None
+
+
 async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     """Core export logic shared by POST and GET endpoints."""
     if body.template not in ("quick_brief", "full_dossier"):
@@ -1090,10 +1132,16 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     tier_b_data = None
     risk_comparisons_data = None
     property_warnings_data: PropertyWarningsResponse | None = None
+    location_map_b64: str | None = None
 
     if body.template == "full_dossier":
         # Fetch full-dossier-only enrichments in parallel.
-        neighborhood_stats, tier_b_data, property_warnings_data = await asyncio.gather(
+        (
+            neighborhood_stats,
+            tier_b_data,
+            property_warnings_data,
+            location_map_b64,
+        ) = await asyncio.gather(
             _fetch_neighborhood_for_export(
                 vbo_id, body.lat, body.lng, body.buurt_code,
             ),
@@ -1108,6 +1156,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
                 num_units=num_units,
                 municipality=body.city,
             ),
+            _fetch_location_map(body.rd_x, body.rd_y),
         )
 
         # If request buurt_code is missing, retry Tier-B with neighborhood code.
@@ -1170,6 +1219,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             risk_comparisons=risk_comparisons_data,
             property_warnings_data=property_warnings_data,
             provenance=provenance,
+            location_map_b64=location_map_b64,
         )
     else:
         pdf_bytes = generate_quick_brief(
