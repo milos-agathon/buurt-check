@@ -455,6 +455,8 @@
   "export.shareError": "We couldn't share the PDF — your device may not support this. Try downloading instead.",
   "export.error": "We couldn't generate the PDF. Try again — your dossier data is still available.",
   "export.languageMismatch": "PDF will be generated in {{language}}",
+  "export.sunlightComputing": "Calculating sunlight analysis...",
+  "export.sunlightUnavailableWarning": "Sunlight data unavailable — dossier will show N/A",
   "tierB.title": "Additional property checks",
   "tierB.loading": "Loading additional property data...",
   "tierB.error": "We couldn't load the additional property data. The service may be temporarily slow — try again.",

@@ -29,6 +29,8 @@ interface ExportBottomSheetProps {
   isEntitled?: boolean;
   onBuyFullDossier?: () => void;
   buyPending?: boolean;
+  sunlightReady?: boolean;
+  sunlightFailed?: boolean;
   onGenerateStart?: () => void;
   onGenerateSuccess?: () => void;
   onGenerateError?: () => void;
@@ -55,6 +57,8 @@ export default function ExportBottomSheet({
   isEntitled = false,
   onBuyFullDossier,
   buyPending = false,
+  sunlightReady = true,
+  sunlightFailed = false,
   onGenerateStart,
   onGenerateSuccess,
   onGenerateError,
@@ -259,6 +263,18 @@ export default function ExportBottomSheet({
               <span className="export-sheet__template-meta">{t('export.fullDossierMeta', '5+ pages')}</span>
             </button>
           </div>
+
+          {template === 'full_dossier' && !sunlightReady && (
+            <p className="export-sheet__sunlight-status" data-testid="export-sunlight-computing">
+              {t('export.sunlightComputing', 'Calculating sunlight analysis...')}
+            </p>
+          )}
+
+          {template === 'full_dossier' && sunlightReady && sunlightFailed && (
+            <p className="export-sheet__sunlight-warning" data-testid="export-sunlight-warning">
+              {t('export.sunlightUnavailableWarning', 'Sunlight data unavailable — dossier will show N/A')}
+            </p>
+          )}
         </div>
 
         <div className="export-sheet__section">
@@ -386,7 +402,7 @@ export default function ExportBottomSheet({
             type="button"
             className="export-sheet__btn"
             onClick={handleGenerate}
-            disabled={generating || (requiresPurchase && (buyPending || !onBuyFullDossier))}
+            disabled={generating || (requiresPurchase && (buyPending || !onBuyFullDossier)) || (template === 'full_dossier' && !sunlightReady)}
             aria-busy={(requiresPurchase && buyPending) || undefined}
             data-testid="export-generate-btn"
           >

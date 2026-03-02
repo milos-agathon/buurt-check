@@ -3215,6 +3215,8 @@ function App() {
             houseLetter={address.house_letter ?? undefined}
             addition={address.addition ?? undefined}
             shadowSnapshots={shadowSnapshots}
+            sunlightReady={sunlight !== null || sunlightUnavailable}
+            sunlightFailed={sunlightUnavailable && sunlight === null}
             isEntitled={isEntitled}
             onBuyFullDossier={() => {
               void handleUpgrade();
