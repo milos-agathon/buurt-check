@@ -50,6 +50,32 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "critical": (185, 28, 28),  # #B91C1C
 }
 
+# --- PDF Type Hierarchy (8 primary levels) ---
+#
+# Level         | Font                   | Size | Color     | Usage
+# --------------|------------------------|------|-----------|-------------------------------
+# Display       | SatoshiBlack           | 24pt | severity  | Score numerals in risk grid
+# Display-sm    | SatoshiBlack           | 14pt | severity  | Score badge in detail headers
+# Headline      | SatoshiBlack / Bold    | 16-20pt | SLATE | Address hero, checklist title
+# Section       | Satoshi Bold           | 12pt | SLATE     | Section headings
+# Body          | Satoshi Regular        | 10pt | SLATE     | Summaries, explanations, paragraphs
+# Label         | SatoshiMedium          | 9pt  | SECONDARY | Section labels, indicator labels,
+#               |                        |      |           | severity labels, dimension labels
+#               | Satoshi Bold (sub-var) | 9pt  | SLATE     | Indicator values, dimension scores
+# Caption       | Satoshi Regular        | 8pt  | SECONDARY | Source attributions, disclaimers,
+#               |                        |      |           | chart axis labels, image captions
+#               | Satoshi Bold (sub-var) | 8pt  | SLATE     | Chart emphasis (address row label,
+#               |                        |      |           | score values, map "N" arrow)
+# Footer        | Satoshi Regular        | 7pt  | SECONDARY | Page footer disclaimer + page no.
+#
+# Brand         | SatoshiBlack           | 9pt  | SLATE     | "buurt-check" in header
+#
+# Rules:
+# - No Regular 9pt exists as a distinct level. Everything at 9pt is either
+#   Medium (labels) or Bold (value emphasis), both typically SECONDARY.
+# - Body (10pt Regular) is the minimum size for readable multi-line text.
+# - Caption (8pt) is for metadata that supports but doesn't compete with content.
+
 
 def format_number(value: float, decimals: int = 0, is_nl: bool = False) -> str:
     """Format number with locale-appropriate separators.
@@ -207,7 +233,7 @@ class BuurtCheckPDF(FPDF):
         self.cell(0, 5, "buurt-check", new_x="RIGHT")
 
         if self.section_title:
-            self.set_font("Satoshi", "", 9)
+            self.set_font("SatoshiMedium", "", 9)
             self.set_text_color(*SECONDARY)
             self.set_x(self.w - self.r_margin - 60)
             self.cell(60, 5, self.section_title, align="R")
@@ -512,8 +538,8 @@ class BuurtCheckPDF(FPDF):
         for i, (band_label, pct) in enumerate(bands):
             ry = y + i * row_h
 
-            self.set_font("Satoshi", "", 9)
-            self.set_text_color(*SLATE)
+            self.set_font("SatoshiMedium", "", 9)
+            self.set_text_color(*SECONDARY)
             self.set_xy(x, ry)
             self.cell(label_w, row_h, band_label)
 
@@ -555,11 +581,12 @@ class BuurtCheckPDF(FPDF):
 
     def draw_indicator_row(self, label: str, value: str) -> None:
         """Draw a two-column indicator row (label left, value right)."""
-        self.set_font("Satoshi", "", 9)
-        self.set_text_color(*SLATE)
+        self.set_font("SatoshiMedium", "", 9)
+        self.set_text_color(*SECONDARY)
         w = self.w - self.l_margin - self.r_margin
         self.cell(w * 0.6, 6, label)
         self.set_font("Satoshi", "B", 9)
+        self.set_text_color(*SLATE)
         self.cell(w * 0.4, 6, value, align="R", new_x="LMARGIN", new_y="NEXT")
 
 
@@ -643,7 +670,7 @@ def _draw_branded_questions(
         pdf.cell(0, 5, name.upper(), new_x="LMARGIN", new_y="NEXT")
 
         pdf.set_text_color(*SLATE)
-        pdf.set_font("Satoshi", "", 9)
+        pdf.set_font("Satoshi", "", 10)
 
         for question in category.questions:
             if max_questions is not None and count >= max_questions:
@@ -858,7 +885,7 @@ def _draw_address_block(
     if floor_area:
         facts_parts.append(f"{floor_area} m\u00b2")
     if facts_parts:
-        pdf.set_font("Satoshi", "", 9)
+        pdf.set_font("SatoshiMedium", "", 9)
         pdf.set_text_color(*SECONDARY)
         pdf.cell(0, 5, " \u00b7 ".join(facts_parts), new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
@@ -1126,7 +1153,7 @@ def _draw_cover_page(
     _draw_location_map(pdf, location_map_b64, is_nl)
 
     # Prepared date
-    pdf.set_font("Satoshi", "", 9)
+    pdf.set_font("SatoshiMedium", "", 9)
     pdf.set_text_color(*SECONDARY)
     today = date.today()
     prepared = today.strftime("Opgesteld: %d %B %Y" if is_nl else "Prepared: %d %B %Y")
@@ -1201,7 +1228,7 @@ def _draw_risk_details_page(
         pdf.ln(7)
 
         # Severity label
-        pdf.set_font("Satoshi", "", 9)
+        pdf.set_font("SatoshiMedium", "", 9)
         pdf.set_text_color(*color)
         pdf.cell(
             0, 4, _severity_label(score, is_nl),
@@ -1230,16 +1257,18 @@ def _draw_risk_details_page(
                 0, 5, m_label,
                 new_x="LMARGIN", new_y="NEXT",
             )
-            pdf.set_font("Satoshi", "", 9)
-            pdf.set_text_color(*SLATE)
+            pdf.set_font("SatoshiMedium", "", 9)
+            pdf.set_text_color(*SECONDARY)
             for meas_label, meas_value in measurements:
                 pdf.cell(50, 5, meas_label)
                 pdf.set_font("Satoshi", "B", 9)
+                pdf.set_text_color(*SLATE)
                 pdf.cell(
                     0, 5, meas_value,
                     new_x="LMARGIN", new_y="NEXT",
                 )
-                pdf.set_font("Satoshi", "", 9)
+                pdf.set_font("SatoshiMedium", "", 9)
+                pdf.set_text_color(*SECONDARY)
             pdf.ln(2)
 
         # Unit definition (E6-S5)
@@ -1722,7 +1751,7 @@ def _draw_neighborhood_page(
             pdf.ln(3)
 
             # Severity label
-            pdf.set_font("Satoshi", "", 9)
+            pdf.set_font("SatoshiMedium", "", 9)
             pdf.set_text_color(*color)
             pdf.cell(
                 0, 4, _severity_label(score, is_nl),
@@ -1772,7 +1801,8 @@ def _draw_neighborhood_page(
 
             # Sub-rates: burglary + violent as detail lines
             if crime.burglary_per_1000 is not None:
-                pdf.set_font("Satoshi", "", 9)
+                pdf.set_font("SatoshiMedium", "", 9)
+                pdf.set_text_color(*SECONDARY)
                 pdf.set_x(pdf.l_margin + 5)
                 inbraak = "Inbraak" if is_nl else "Burglary"
                 pdf.cell(
@@ -1780,7 +1810,8 @@ def _draw_neighborhood_page(
                     new_x="LMARGIN", new_y="NEXT",
                 )
             if crime.violent_per_1000 is not None:
-                pdf.set_font("Satoshi", "", 9)
+                pdf.set_font("SatoshiMedium", "", 9)
+                pdf.set_text_color(*SECONDARY)
                 pdf.set_x(pdf.l_margin + 5)
                 geweld = "Geweld" if is_nl else "Violent"
                 pdf.cell(
@@ -1813,12 +1844,12 @@ def _draw_neighborhood_page(
             pdf.multi_cell(0, 4, disclaimer, align="L", new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(*SLATE)
         elif crime.message:
-            pdf.set_font("Satoshi", "", 9)
+            pdf.set_font("Satoshi", "", 10)
             pdf.set_text_color(*SECONDARY)
             pdf.cell(0, 6, crime.message, new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(*SLATE)
     else:
-        pdf.set_font("Satoshi", "", 9)
+        pdf.set_font("Satoshi", "", 10)
         pdf.set_text_color(*SECONDARY)
         no_data = (
             "Criminaliteitsgegevens niet beschikbaar."
@@ -1873,7 +1904,7 @@ def _draw_livability_section(
     pdf.ln(3)
 
     # Severity label
-    pdf.set_font("Satoshi", "", 9)
+    pdf.set_font("SatoshiMedium", "", 9)
     pdf.set_text_color(*color)
     pdf.cell(0, 4, sev_label, new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(*SLATE)
@@ -1903,8 +1934,8 @@ def _draw_livability_section(
 
         ry = pdf.get_y()
 
-        pdf.set_font("Satoshi", "", 9)
-        pdf.set_text_color(*SLATE)
+        pdf.set_font("SatoshiMedium", "", 9)
+        pdf.set_text_color(*SECONDARY)
         pdf.set_xy(pdf.l_margin, ry)
         pdf.cell(label_w, row_h, label)
 
@@ -1919,6 +1950,7 @@ def _draw_livability_section(
             pdf.rect(bar_x, bar_y, fill_w, bar_h, "F")
 
         pdf.set_font("Satoshi", "B", 9)
+        pdf.set_text_color(*SLATE)
         pdf.set_xy(pdf.l_margin + content_w - score_w, ry)
         pdf.cell(score_w, row_h, str(dim_score), align="R")
 
@@ -1930,7 +1962,7 @@ def _draw_livability_section(
     if livability.trend and len(livability.trend) >= 2:
         trend_text = _livability_trend_summary(livability.trend, is_nl)
         if trend_text:
-            pdf.set_font("Satoshi", "", 9)
+            pdf.set_font("Satoshi", "", 10)
             pdf.set_text_color(*SECONDARY)
             pdf.cell(
                 content_w, 5, trend_text,
@@ -2673,7 +2705,7 @@ def _draw_methodology_page(
     pdf.ln(3)
 
     # Peer baseline disclosure (Task E4-S2)
-    pdf.set_font("Satoshi", "", 9)
+    pdf.set_font("Satoshi", "", 10)
     pdf.set_text_color(*SECONDARY)
     baseline_disclosure = (
         "Waar 'vergelijkingswaarde' wordt getoond, zijn waarden gemodelleerd op basis "
