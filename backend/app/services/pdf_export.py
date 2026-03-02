@@ -676,12 +676,162 @@ def _draw_shadow_image(pdf: BuurtCheckPDF, shadow_image_b64: str | None, is_nl: 
         pdf.rect(pdf.l_margin, img_y, 170, img_h, "D")
         pdf.set_font("Satoshi", "I", 7)
         pdf.set_text_color(*SECONDARY)
-        caption = "Winterzonnewende, 12:00" if is_nl else "Winter solstice, 12:00"
+        year = date.today().year
+        caption = (
+            "Schaduwopname — winterzonnewende"
+            if is_nl
+            else "Shadow snapshot — winter solstice"
+        )
         pdf.cell(0, 4, caption, new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Satoshi", "", 7)
+        timestamp = f"{year}-12-21 12:00 CET (Europe/Amsterdam)"
+        meta = (
+            "Schaalbalk: 50m · Omvang: 250m straal · "
+            "Legenda: Directe zon / Schaduw · Bron: 3DBAG / TU Delft + SunCalc"
+            if is_nl
+            else "Scale bar: 50m · Extent: 250m radius · "
+            "Legend: Direct sun / Shadow · Source: 3DBAG / TU Delft + SunCalc"
+        )
+        pdf.multi_cell(0, 3.5, timestamp, align="L", new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(0, 3.5, meta, align="L", new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
-        pdf.ln(2)
+        pdf.ln(1)
     except Exception:
         logger.warning("Failed to embed shadow snapshot in PDF")
+
+
+# Hour-to-caption mapping for shadow triptych
+# December 21 is always CET (UTC+1), never CEST
+_SHADOW_CAPTIONS: dict[int, dict[str, str]] = {
+    9: {"en": "09:00 CET", "nl": "09:00 CET"},
+    12: {"en": "12:00 CET", "nl": "12:00 CET"},
+    17: {"en": "17:00 CET", "nl": "17:00 CET"},
+}
+
+
+def _shadow_timestamps_line(hours: list[int], is_nl: bool) -> str:
+    """Build figure-level timestamp disclosure with timezone."""
+    year = date.today().year
+    ordered = sorted({h for h in hours if 0 <= h <= 23})
+    if not ordered:
+        ordered = [12]
+    hour_labels = " | ".join(f"{h:02d}:00" for h in ordered)
+    if is_nl:
+        return f"Tijdstempels: {year}-12-21 {hour_labels} CET (Europe/Amsterdam)"
+    return f"Timestamps: {year}-12-21 {hour_labels} CET (Europe/Amsterdam)"
+
+
+def _shadow_meta_line(is_nl: bool) -> str:
+    if is_nl:
+        return (
+            "Schaalbalk: 50m · Omvang: 250m straal · "
+            "Legenda: Directe zon / Schaduw · Bron: 3DBAG / TU Delft + SunCalc"
+        )
+    return (
+        "Scale bar: 50m · Extent: 250m radius · "
+        "Legend: Direct sun / Shadow · Source: 3DBAG / TU Delft + SunCalc"
+    )
+
+
+def _draw_shadow_triptych(
+    pdf: BuurtCheckPDF,
+    shadow_images: list[dict],
+    is_nl: bool,
+) -> None:
+    """Draw 3 shadow snapshots side by side with captions including timezone.
+
+    Each dict has keys: hour (int), label (str), image_b64 (str).
+    Falls back to single-image layout if fewer than 3 images.
+    """
+    if not shadow_images:
+        return
+
+    # If fewer than 3 images, fall back to first image as single
+    if len(shadow_images) < 3:
+        first = shadow_images[0]
+        _draw_shadow_image(pdf, first.get("image_b64"), is_nl)
+        return
+
+    # Sort by hour to ensure morning/noon/evening order
+    sorted_imgs = sorted(shadow_images[:3], key=lambda s: s.get("hour", 0))
+
+    page_w = pdf.w - pdf.l_margin - pdf.r_margin  # ~170mm
+    gap = 3.0  # mm between images
+    img_w = (page_w - 2 * gap) / 3  # ~54.7mm each
+    # Aspect ratio 16:9 -> height = width * 9/16
+    img_h = img_w * 9 / 16
+
+    # Section label
+    pdf.draw_section_label(
+        "Schaduwanalyse \u2014 winterzonnewende"
+        if is_nl
+        else "Shadow Analysis \u2014 winter solstice"
+    )
+    pdf.ln(1)
+
+    start_y = pdf.get_y()
+    lang = "nl" if is_nl else "en"
+    rendered_count = 0
+    rendered_hours: list[int] = []
+
+    for i, img_data in enumerate(sorted_imgs):
+        hour = img_data.get("hour", 0)
+        b64 = img_data.get("image_b64", "")
+        if not b64:
+            continue
+
+        try:
+            image_bytes = base64.b64decode(b64)
+        except Exception:
+            logger.warning("Failed to decode shadow image %d", i)
+            continue
+
+        x = pdf.l_margin + i * (img_w + gap)
+
+        # Draw image
+        try:
+            pdf.image(
+                io.BytesIO(image_bytes),
+                x=x, y=start_y, w=img_w, h=img_h,
+            )
+        except Exception:
+            logger.warning("Failed to embed shadow image %d in PDF", i)
+            continue
+
+        # Border
+        pdf.set_draw_color(*BORDER)
+        pdf.set_line_width(0.2)
+        pdf.rect(x, start_y, img_w, img_h, "D")
+
+        # Caption below image
+        caption = _SHADOW_CAPTIONS.get(hour, {}).get(lang, f"{hour:02d}:00 CET")
+        pdf.set_font("Satoshi", "I", 7)
+        pdf.set_text_color(*SECONDARY)
+        pdf.set_xy(x, start_y + img_h + 0.5)
+        pdf.cell(img_w, 3, caption, align="C")
+
+        rendered_count += 1
+        rendered_hours.append(hour)
+
+    if rendered_count > 0:
+        pdf.set_y(start_y + img_h + 4.5)
+        pdf.set_font("Satoshi", "", 7)
+        pdf.set_text_color(*SECONDARY)
+        pdf.multi_cell(
+            0, 3.5,
+            _shadow_timestamps_line(rendered_hours, is_nl),
+            align="L", new_x="LMARGIN", new_y="NEXT",
+        )
+        pdf.multi_cell(
+            0, 3.5,
+            _shadow_meta_line(is_nl),
+            align="L", new_x="LMARGIN", new_y="NEXT",
+        )
+        pdf.set_text_color(*SLATE)
+        pdf.ln(1)
+    else:
+        # All images failed — reset cursor
+        pdf.set_y(start_y)
 
 
 def _draw_address_block(
@@ -792,6 +942,7 @@ def generate_full_dossier(
     provenance: ProvenanceData | None = None,
     location_map_b64: str | None = None,
     livability: LivabilityResponse | None = None,
+    shadow_images: list[dict] | None = None,
 ) -> bytes:
     """Generate 5+ page Full Dossier with Polar Frost branding."""
     is_nl = language == "nl"
@@ -804,6 +955,7 @@ def generate_full_dossier(
         pdf, address, building_year, building_use, floor_area,
         risks, sunlight_score, shadow_image_b64, is_nl,
         location_map_b64=location_map_b64,
+        shadow_images=shadow_images,
     )
 
     # Page 2: Risk Details
@@ -826,6 +978,7 @@ def generate_full_dossier(
         shadow_image_b64=shadow_image_b64,
         property_warnings=property_warnings_data,
         is_nl=is_nl,
+        shadow_images=shadow_images,
     )
 
     # Page 5: Viewing Checklist
@@ -944,12 +1097,17 @@ def _draw_cover_page(
     shadow_image_b64: str | None,
     is_nl: bool,
     location_map_b64: str | None = None,
+    shadow_images: list[dict] | None = None,
 ) -> None:
     """Page 1: cover with address hero, shadow image, risk summary strip."""
     pdf.ln(4)
 
     _draw_address_block(pdf, address, building_year, building_use, floor_area, is_nl, font_size=20)
-    _draw_shadow_image(pdf, shadow_image_b64, is_nl)
+    # Prefer triptych (3 images) over single shadow image
+    if shadow_images and len(shadow_images) >= 3:
+        _draw_shadow_triptych(pdf, shadow_images, is_nl)
+    else:
+        _draw_shadow_image(pdf, shadow_image_b64, is_nl)
 
     # Risk summary strip (4-column)
     pdf.draw_section_label("Risico-overzicht" if is_nl else "Risk Summary")
@@ -1889,6 +2047,7 @@ def _draw_property_checks_page(
     shadow_image_b64: str | None,
     property_warnings: PropertyWarningsResponse | None,
     is_nl: bool,
+    shadow_images: list[dict] | None = None,
 ) -> None:
     """Page 4: premium-only checks required in the paid Full Dossier."""
     pdf.set_font("Satoshi", "B", 12)
@@ -2268,7 +2427,16 @@ def _draw_property_checks_page(
 
     # 8) Shadow Snapshots
     shadow_title = "Schaduwopnamen" if is_nl else "Shadow Snapshots"
-    if shadow_image_b64:
+    has_triptych = shadow_images and len(shadow_images) >= 3
+    if has_triptych:
+        snapshot_text = (
+            "Schaduwopnamen op winterzonnewende (ochtend/middag/avond), "
+            "gegenereerd op basis van omliggende 3D-geometrie."
+            if is_nl
+            else "Winter-solstice shadow snapshots (morning/noon/evening), "
+            "generated from surrounding 3D geometry."
+        )
+    elif shadow_image_b64:
         snapshot_text = (
             "Schaduwopname op winterzonnewende, gegenereerd op basis van omliggende 3D-geometrie."
             if is_nl

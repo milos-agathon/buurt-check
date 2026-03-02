@@ -61,6 +61,7 @@ from app.services.pdf_export import (
     _draw_indicator,
     _draw_livability_section,
     _draw_location_map,
+    _draw_shadow_triptych,
     _interpret_age_distribution,
     _livability_trend_summary,
     _severity_for_score,
@@ -4332,3 +4333,228 @@ class TestExpandedSunlightMeasurements:
         # Extended fields should NOT be there
         assert "Annual average" not in text
         assert "Solar irradiance" not in text
+
+
+# ---------------------------------------------------------------------------
+# E1-S2: Shadow triptych tests
+# ---------------------------------------------------------------------------
+
+
+class TestShadowTriptych:
+    """E1-S2: Triptych renders 3 side-by-side images with timezone captions."""
+
+    def _make_shadow_images(self) -> list[dict]:
+        """Create 3 shadow image dicts with valid tiny PNGs."""
+        b64 = _tiny_png()
+        return [
+            {"hour": 9, "label": "morning", "image_b64": b64},
+            {"hour": 12, "label": "noon", "image_b64": b64},
+            {"hour": 17, "label": "evening", "image_b64": b64},
+        ]
+
+    def test_triptych_renders_three_captions_en(self):
+        """English triptych shows CET timezone in captions."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=False)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "09:00 CET" in text
+        assert "12:00 CET" in text
+        assert "17:00 CET" in text
+        assert "Europe/Amsterdam" in text
+        assert "250m radius" in text
+        assert "Direct sun / Shadow" in text
+        assert "3DBAG / TU Delft" in text
+
+    def test_triptych_renders_three_captions_nl(self):
+        """Dutch triptych shows CET timezone in captions."""
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=True)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "09:00 CET" in text
+        assert "12:00 CET" in text
+        assert "17:00 CET" in text
+        assert "Europe/Amsterdam" in text
+        assert "250m straal" in text
+        assert "Directe zon / Schaduw" in text
+        assert "3DBAG / TU Delft" in text
+
+    def test_triptych_section_label_en(self):
+        """English triptych has section label with 'winter solstice'."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=False)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "winter solstice" in text.lower()
+
+    def test_triptych_section_label_nl(self):
+        """Dutch triptych has section label with 'winterzonnewende'."""
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=True)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "winterzonnewende" in text.lower()
+
+    def test_triptych_advances_cursor(self):
+        """Triptych drawing advances the PDF cursor."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        y_before = pdf.get_y()
+        _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=False)
+        y_after = pdf.get_y()
+        assert y_after > y_before
+
+    def test_triptych_noop_when_empty(self):
+        """No-op when shadow_images is empty list."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        y_before = pdf.get_y()
+        _draw_shadow_triptych(pdf, [], is_nl=False)
+        y_after = pdf.get_y()
+        assert y_after == y_before
+
+    def test_triptych_noop_when_none(self):
+        """No-op when shadow_images is None."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        y_before = pdf.get_y()
+        _draw_shadow_triptych(pdf, None, is_nl=False)  # type: ignore[arg-type]
+        y_after = pdf.get_y()
+        assert y_after == y_before
+
+    def test_triptych_fallback_single_image(self):
+        """With fewer than 3 images, falls back to single-image layout."""
+        b64 = _tiny_png()
+        single = [{"hour": 12, "label": "noon", "image_b64": b64}]
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        y_before = pdf.get_y()
+        _draw_shadow_triptych(pdf, single, is_nl=False)
+        y_after = pdf.get_y()
+        # Should still advance cursor (single image rendered)
+        assert y_after > y_before
+
+    def test_triptych_graceful_on_bad_b64(self):
+        """Bad base64 data in one image doesn't crash the triptych."""
+        b64 = _tiny_png()
+        images = [
+            {"hour": 9, "label": "morning", "image_b64": "NOT_VALID_BASE64!!!"},
+            {"hour": 12, "label": "noon", "image_b64": b64},
+            {"hour": 17, "label": "evening", "image_b64": b64},
+        ]
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        # Should not raise
+        _draw_shadow_triptych(pdf, images, is_nl=False)
+        result = bytes(pdf.output())
+        assert result[:5] == b"%PDF-"
+
+    def test_triptych_sorts_by_hour(self):
+        """Images are sorted by hour regardless of input order."""
+        b64 = _tiny_png()
+        # Provide in reverse order
+        images = [
+            {"hour": 17, "label": "evening", "image_b64": b64},
+            {"hour": 9, "label": "morning", "image_b64": b64},
+            {"hour": 12, "label": "noon", "image_b64": b64},
+        ]
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, images, is_nl=False)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        # All three should be present
+        assert "09:00 CET" in text
+        assert "12:00 CET" in text
+        assert "17:00 CET" in text
+
+    def test_full_dossier_with_triptych(self):
+        """Full dossier renders triptych on cover when shadow_images provided."""
+        images = self._make_shadow_images()
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            shadow_images=images,
+            property_warnings_data=_make_property_warnings(),
+        )
+        assert isinstance(result, bytes)
+        assert result[:5] == b"%PDF-"
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "09:00 CET" in text
+        assert "12:00 CET" in text
+        assert "17:00 CET" in text
+        # Section label
+        assert "winter solstice" in text.lower()
+
+    def test_full_dossier_single_fallback(self):
+        """Full dossier falls back to single shadow_image_b64 when no triptych."""
+        b64 = _tiny_png()
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            shadow_image_b64=b64,
+            property_warnings_data=_make_property_warnings(),
+        )
+        assert isinstance(result, bytes)
+        assert result[:5] == b"%PDF-"
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Shadow snapshot" in text
+        assert "Europe/Amsterdam" in text
+        assert "250m radius" in text
+
+    def test_full_dossier_no_shadow_at_all(self):
+        """Full dossier generates without any shadow images."""
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=_make_property_warnings(),
+        )
+        assert isinstance(result, bytes)
+        assert result[:5] == b"%PDF-"
+
+    def test_property_checks_text_triptych(self):
+        """Property checks page references triptych when shadow_images present."""
+        images = self._make_shadow_images()
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            shadow_images=images,
+            property_warnings_data=_make_property_warnings(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        # Page 4 is property checks (index 3)
+        if len(reader.pages) > 3:
+            text = reader.pages[3].extract_text() or ""
+            assert "morning/noon/evening" in text.lower()

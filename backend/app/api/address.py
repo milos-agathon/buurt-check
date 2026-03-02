@@ -879,6 +879,14 @@ async def address_property_warnings(
     return result
 
 
+class ShadowImageItem(BaseModel):
+    """A single shadow snapshot image with metadata."""
+
+    hour: int = Field(ge=0, le=23)
+    label: str = Field(max_length=50)
+    image_b64: str = Field(max_length=2_000_000)
+
+
 class ExportRequest(BaseModel):
     """POST body for PDF export — avoids URL-length limits from base64 shadow images."""
 
@@ -895,6 +903,10 @@ class ExportRequest(BaseModel):
         default=None,
         max_length=2_000_000,
         validation_alias=AliasChoices("shadow_image_b64", "shadow_image"),
+    )
+    shadow_images: list[ShadowImageItem] | None = Field(
+        default=None,
+        description="Array of shadow snapshots (morning/noon/evening) for triptych layout",
     )
     report_id: str | None = None
     street: str | None = None
@@ -1240,6 +1252,14 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             rd_y=body.rd_y,
         )
 
+        # Convert ShadowImageItem models to dicts for pdf_export
+        shadow_images_dicts = None
+        if body.shadow_images:
+            shadow_images_dicts = [
+                {"hour": s.hour, "label": s.label, "image_b64": s.image_b64}
+                for s in body.shadow_images
+            ]
+
         pdf_bytes = generate_full_dossier(
             address=body.address,
             building_year=building_year,
@@ -1257,6 +1277,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             provenance=provenance,
             location_map_b64=location_map_b64,
             livability=livability_data,
+            shadow_images=shadow_images_dicts,
         )
     else:
         pdf_bytes = generate_quick_brief(

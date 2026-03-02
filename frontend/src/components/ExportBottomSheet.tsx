@@ -128,10 +128,20 @@ export default function ExportBottomSheet({
     onGenerateStart?.();
     try {
       let shadowB64: string | undefined;
+      let shadowImages: Array<{ hour: number; label: string; image_b64: string }> | undefined;
       if (includeShadows && shadowSnapshots && shadowSnapshots.length > 0) {
-        // Use the first (noon) snapshot
+        // Build array of all snapshots for triptych
+        shadowImages = shadowSnapshots.map(s => {
+          const raw = s.dataUrl;
+          return {
+            hour: s.hour,
+            label: s.label,
+            image_b64: raw.startsWith('data:') ? raw.split(',')[1] : raw,
+          };
+        });
+
+        // Also send the noon snapshot as backward-compat single image
         const noonSnapshot = shadowSnapshots.find(s => s.hour === 12) || shadowSnapshots[0];
-        // Strip data URL prefix if present
         const dataUrl = noonSnapshot.dataUrl;
         shadowB64 = dataUrl.startsWith('data:')
           ? dataUrl.split(',')[1]
@@ -157,6 +167,7 @@ export default function ExportBottomSheet({
         addition,
         language: exportLanguage,
         shadowImageB64: shadowB64,
+        shadowImages,
       });
       setProgressStage('downloading');
       setGeneratedBlob(blob);
