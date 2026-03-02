@@ -2,7 +2,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import type { ReactElement } from 'react';
-import RiskTilesGrid from './RiskTilesGrid';
 import SunlightRiskCard from './SunlightRiskCard';
 import { makeSunlightResult, setupTestI18n } from '../test/helpers';
 
@@ -21,13 +20,6 @@ function renderWithI18n(element: ReactElement) {
 }
 
 describe('Sunlight translation key separation', () => {
-  it('uses risk.sunlight.title for the risk tile label', () => {
-    renderWithI18n(<RiskTilesGrid sunlight={makeSunlightResult()} />);
-
-    expect(screen.getByText('Sunlight')).toBeInTheDocument();
-    expect(screen.queryByText('Sunlight Analysis')).not.toBeInTheDocument();
-  });
-
   it('uses sunlight.title_full for the sunlight analysis card title', () => {
     renderWithI18n(<SunlightRiskCard sunlight={makeSunlightResult()} />);
 

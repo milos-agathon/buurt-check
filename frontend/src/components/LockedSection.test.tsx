@@ -37,4 +37,9 @@ describe('LockedSection', () => {
     renderLockedSection();
     expect(screen.getByRole('region')).toHaveAttribute('aria-label');
   });
+
+  it('does not render an upgrade prompt', () => {
+    renderLockedSection();
+    expect(screen.queryByText(/purchase a full dossier to access/i)).not.toBeInTheDocument();
+  });
 });

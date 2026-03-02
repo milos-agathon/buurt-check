@@ -22,7 +22,6 @@ import RiskDetailView from './components/RiskDetailView';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
 import TierBSignalsCard from './components/TierBSignalsCard';
 import AttentionSummary from './components/AttentionSummary';
-import PropertyWarningsCard from './components/PropertyWarningsCard';
 import LivabilityCard from './components/LivabilityCard';
 import LivabilityDetailView from './components/LivabilityDetailView';
 import ViewingChecklist from './components/ViewingChecklist';
@@ -154,24 +153,6 @@ function sunlightSubmissionKey(vboId: string, reportId: string, result: Sunlight
   ].join('|');
 }
 
-function fallbackSunlightQuestions(score: number | undefined) {
-  const enBase = score != null
-    ? `Sunlight score is ${score}/100.`
-    : 'Sunlight data is indicative only.';
-  const nlBase = score != null
-    ? `De zonlichtscore is ${score}/100.`
-    : 'Zonlichtgegevens zijn indicatief.';
-  return [
-    {
-      text_en: `${enBase} Check daylight in living and bedroom spaces around noon.`,
-      text_nl: `${nlBase} Controleer daglicht in woon- en slaapkamers rond het middaguur.`,
-    },
-    {
-      text_en: 'Ask whether nearby buildings or trees block winter sunlight.',
-      text_nl: 'Vraag of nabijgelegen gebouwen of bomen winterzon blokkeren.',
-    },
-  ];
-}
 
 const PLACEHOLDER_BUILDING_HEIGHT_M = 12;
 const PLACEHOLDER_HALF_SIZE_M = 6;
@@ -2331,9 +2312,7 @@ function App() {
         ? riskComparisons.air_quality
         : category === 'climate'
           ? riskComparisons.climate_stress
-          : category === 'sunlight'
-            ? riskComparisons.sunlight
-            : [];
+          : [];
     return rows.map((row) => ({
       label: comparisonLabel(row.label_code),
       value: row.value,
@@ -2349,22 +2328,8 @@ function App() {
 
   // Get risk detail data for active category
   const getDetailProps = (category: string) => {
-    const sunlightScore = sunlight ? normalizeSunlightScore(sunlight.winter) : undefined;
-    const sunlightSeverity: SeverityLevel = sunlightScore != null
-      ? (sunlightScore >= 70 ? 'good' : sunlightScore >= 40 ? 'moderate' : sunlightScore >= 20 ? 'poor' : 'critical')
-      : 'unavailable';
-    const sunlightMeaning = sunlightScore == null
-      ? t('sunlight.meaning.unavailable')
-      : sunlightScore >= 70
-        ? t('sunlight.meaning.good')
-        : sunlightScore >= 40
-          ? t('sunlight.meaning.moderate')
-          : sunlightScore >= 20
-            ? t('sunlight.meaning.poor')
-            : t('sunlight.meaning.critical');
-
     const currentRiskCards = riskCards;
-    if (!currentRiskCards && category !== 'sunlight') return null;
+    if (!currentRiskCards) return null;
     switch (category) {
       case 'noise': return {
         titleKey: 'risk.noise.title',
@@ -2405,15 +2370,6 @@ function App() {
         comparisons: buildComparisons('climate'),
         source: currentRiskCards?.climate_stress.source,
         sourceDate: currentRiskCards?.climate_stress.source_date,
-      };
-      case 'sunlight': return {
-        titleKey: 'sunlight.title',
-        score: sunlightScore,
-        severity: sunlightSeverity,
-        meaning: sunlightMeaning,
-        comparisons: buildComparisons('sunlight'),
-        source: '3DBAG + SunCalc',
-        sourceDate: sunlight?.analysisYear ? String(sunlight.analysisYear) : undefined,
       };
       default: return null;
     }
@@ -2571,10 +2527,6 @@ function App() {
     ? (() => {
       const normalized = activeDetailCategory.toLowerCase();
       if (!viewingQuestions) {
-        if (normalized === 'sunlight') {
-          const score = sunlight ? normalizeSunlightScore(sunlight.winter) : undefined;
-          return fallbackSunlightQuestions(score);
-        }
         return undefined;
       }
       const category = viewingQuestions.categories.find(c => {
@@ -2584,10 +2536,6 @@ function App() {
         return name === normalized;
       });
       if (category) return category.questions;
-      if (normalized === 'sunlight') {
-        const score = sunlight ? normalizeSunlightScore(sunlight.winter) : undefined;
-        return fallbackSunlightQuestions(score);
-      }
       return undefined;
     })()
     : undefined;
@@ -2713,8 +2661,7 @@ function App() {
                 </div>
 
                 <section role="region" aria-label={t('nav.jumpHouse')}>
-                  {((!riskLoading && (riskCards || riskError)) &&
-                    (!propertyWarningsLoading && (propertyWarnings || propertyWarningsError))) && (
+                  {(!riskLoading && (riskCards || riskError)) && (
                     <div
                       className="dossier-section"
                       style={dossierSectionStyle(0)}
@@ -2723,10 +2670,6 @@ function App() {
                     >
                       <AttentionSummary
                         riskCards={riskCards ?? undefined}
-                        warnings={propertyWarnings ?? undefined}
-                        sunlightScore={sunlight ? normalizeSunlightScore(sunlight.winter) : undefined}
-                        livability={livability ?? undefined}
-                        includeAsbestos={false}
                       />
                     </div>
                   )}
@@ -2794,7 +2737,6 @@ function App() {
                             {(riskLoading || riskCards || riskError) && (
                               <RiskTilesGrid
                                 risks={riskCards ?? undefined}
-                                sunlight={sunlight ?? undefined}
                                 onTileTap={handleRiskTileTap}
                               />
                             )}
@@ -2839,28 +2781,6 @@ function App() {
                       </div>
                     )}
 
-                  {progressivePhase !== 'house' && (isEntitled ? (propertyWarningsLoading || propertyWarnings || propertyWarningsError) : true) && (
-                    <div
-                      className="dossier-section"
-                      style={dossierSectionStyle(4)}
-                      data-section-index={4}
-                    >
-                      <h3 id="section-warnings" className="app__section-label">{t('warnings.sectionTitle')}</h3>
-                      {isEntitled ? (
-                        <PropertyWarningsCard
-                          data={propertyWarnings ?? undefined}
-                          loading={propertyWarningsLoading}
-                          error={propertyWarningsError}
-                          onRetry={propertyWarningsError ? handleRetryPropertyWarnings : undefined}
-                          showAsbestos={false}
-                        />
-                      ) : (
-                        <LockedSection
-                          sectionName={t('premium.section.warnings', 'property warnings')}
-                        />
-                      )}
-                    </div>
-                  )}
                 </section>
 
                 {progressivePhase === 'buurt' && (
@@ -2879,7 +2799,7 @@ function App() {
                       {isEntitled ? (
                         <>
                           {(livabilityLoading || livability || livabilityError) && (
-                            <div className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5}>
+                            <div className="dossier-section" style={dossierSectionStyle(4)} data-section-index={4}>
                               <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
                               <LivabilityCard
                                 data={livability ?? undefined}
@@ -2898,7 +2818,7 @@ function App() {
                             />
                           )}
 
-                          <div ref={viewer3DRefCallback} className="dossier-section" style={dossierSectionStyle(6)} data-section-index={6} data-testid="viewer-3d-sentinel">
+                          <div ref={viewer3DRefCallback} className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5} data-testid="viewer-3d-sentinel">
                             {!viewer3DTriggered && !neighborhood3D && (
                               <div className="viewer-3d-status">
                                 <p>{t('viewer3d.loading')}</p>
@@ -2960,13 +2880,13 @@ function App() {
                         </>
                       ) : (
                         <>
-                          <div className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5}>
+                          <div className="dossier-section" style={dossierSectionStyle(4)} data-section-index={4}>
                             <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
                             <LockedSection
                               sectionName={t('premium.section.livability', 'livability analysis')}
                             />
                           </div>
-                          <div className="dossier-section" style={dossierSectionStyle(6)} data-section-index={6}>
+                          <div className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5}>
                             <LockedSection
                               sectionName={t('premium.section.3d', '3D building analysis')}
                             />
@@ -2974,7 +2894,7 @@ function App() {
                         </>
                       )}
                       {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
-                        <div className="dossier-section" style={dossierSectionStyle(7)} data-section-index={7}>
+                        <div className="dossier-section" style={dossierSectionStyle(6)} data-section-index={6}>
                           <h3 id="section-neighborhood" className="app__section-label">{t('dossier.neighborhood')}</h3>
                           <NeighborhoodStatsCard
                             stats={neighborhoodStats ?? undefined}
@@ -2986,7 +2906,7 @@ function App() {
                       )}
 
                       {(isEntitled ? (tierBLoading || tierBData || tierBError) : true) && (
-                        <div className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8}>
+                        <div className="dossier-section" style={dossierSectionStyle(7)} data-section-index={7}>
                           <h3 id="section-tier-b" className="app__section-label">{t('dossier.tierB')}</h3>
                           {isEntitled ? (
                             <TierBSignalsCard
@@ -3020,7 +2940,7 @@ function App() {
                     </div>
                     <p className="app__phase-divider-subtitle">{t('dossier.actionSubtitle')}</p>
                   </div>
-                  <div ref={actionBarSentinelRefCallback} className="dossier-section" style={dossierSectionStyle(9)} data-section-index={9}>
+                  <div ref={actionBarSentinelRefCallback} className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8}>
                     <section role="region" aria-label={t('nav.jumpBriefing')}>
                       <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
                       {isEntitled ? (
@@ -3095,7 +3015,7 @@ function App() {
                 )}
 
                 {address && (
-                  <div className="dossier-section" style={dossierSectionStyle(10)} data-section-index={10}>
+                  <div className="dossier-section" style={dossierSectionStyle(9)} data-section-index={9}>
                     <ActionBar
                       isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
                       onAddToShortlist={handleBookmark}
