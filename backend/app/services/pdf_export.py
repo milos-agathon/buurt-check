@@ -3,6 +3,7 @@
 import base64
 import io
 import logging
+import math
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -2397,12 +2398,191 @@ def _draw_neighborhood_page(
         _draw_livability_section(pdf, livability, is_nl)
 
 
+def _draw_sparkline(
+    pdf: BuurtCheckPDF,
+    trend: list[LivabilityTrendPoint],
+    x: float,
+    y: float,
+    width: float = 60.0,
+    height: float = 12.0,
+) -> float:
+    """Draw a small sparkline chart showing livability trend over time.
+
+    Uses fpdf2 polyline() to connect trend points. TEAL line with a
+    small dot at the most recent data point. Year labels below the chart.
+    Returns the y position after the chart (including year labels).
+    """
+    if len(trend) < 2:
+        return y
+
+    # Gather data
+    years = [int(tp.year) for tp in trend]
+    scores = [tp.overall_normalized for tp in trend]
+    min_year, max_year = min(years), max(years)
+    year_span = max_year - min_year
+    if year_span == 0:
+        return y
+
+    # Vertical range: use 0-100 for consistent scale, but add padding
+    v_pad = 1.0  # mm padding top/bottom within the chart area
+    chart_h = height - 2 * v_pad
+
+    # Build point list: scale x across years, y across 0-100
+    points: list[tuple[float, float]] = []
+    for yr, sc in zip(years, scores):
+        px = x + (yr - min_year) / year_span * width
+        # Invert y: higher score = higher on page = lower y value
+        py = y + v_pad + chart_h * (1.0 - sc / 100.0)
+        points.append((px, py))
+
+    # Draw subtle reference line at score 50 (midpoint)
+    mid_y = y + v_pad + chart_h * 0.5
+    pdf.set_draw_color(*BORDER)
+    pdf.set_line_width(0.15)
+    pdf.set_dash_pattern(dash=1.0, gap=1.0)
+    pdf.line(x, mid_y, x + width, mid_y)
+    pdf.set_dash_pattern()  # reset to solid
+
+    # Draw the sparkline
+    pdf.set_draw_color(*TEAL)
+    pdf.set_line_width(0.5)
+    pdf.polyline(points)
+
+    # Draw dot at the most recent point (last in list)
+    last_x, last_y = points[-1]
+    pdf.set_fill_color(*TEAL)
+    pdf.circle(last_x, last_y, 1.2, "F")
+
+    # Draw year labels below the chart
+    label_y = y + height + 0.5
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*SECONDARY)
+    for i, (yr, _sc) in enumerate(zip(years, scores)):
+        lx = x + (yr - min_year) / year_span * width
+        # Center the year text on the point
+        yr_str = str(yr)
+        tw = pdf.get_string_width(yr_str)
+        pdf.set_xy(lx - tw / 2, label_y)
+        pdf.cell(tw + 1, 4, yr_str, align="C")
+
+    # Reset drawing state
+    pdf.set_draw_color(*BORDER)
+    pdf.set_line_width(0.1)
+    pdf.set_text_color(*SLATE)
+
+    return label_y + 4
+
+
+def _draw_radar_chart(
+    pdf: BuurtCheckPDF,
+    dimensions: list,
+    is_nl: bool,
+    cx: float,
+    cy: float,
+    radius: float = 22.0,
+) -> float:
+    """Draw a pentagon radar chart for the 5 livability dimensions.
+
+    Draws a reference pentagon at score 50 in BORDER color, the data
+    polygon in TEAL, and labels at each vertex. Returns the y position
+    after the chart (including labels).
+
+    Args:
+        pdf: The PDF instance.
+        dimensions: List of LivabilityDimension objects (5 expected).
+        is_nl: Whether to use Dutch labels.
+        cx: Center x coordinate.
+        cy: Center y coordinate.
+        radius: Outer radius in mm (for score 100).
+    """
+    if len(dimensions) < 3:
+        return cy + radius + 10
+
+    n = len(dimensions)
+    dim_labels: dict[str, tuple[str, str]] = {
+        "physical": ("Fysiek", "Physical environment"),
+        "safety": ("Veiligheid", "Safety"),
+        "social": ("Sociaal", "Social cohesion"),
+        "amenities": ("Voorzieningen", "Amenities"),
+        "housing": ("Woningen", "Housing quality"),
+    }
+
+    def _vertex(index: int, score: float) -> tuple[float, float]:
+        """Calculate vertex position for a given dimension index and score."""
+        angle = 2 * math.pi * index / n - math.pi / 2  # start from top
+        r = radius * score / 100.0
+        return (cx + r * math.cos(angle), cy + r * math.sin(angle))
+
+    # --- Reference rings at 25, 50, 75, 100 ---
+    pdf.set_draw_color(*BORDER)
+    pdf.set_line_width(0.15)
+    for ref_score in (25, 50, 75, 100):
+        ref_pts = [_vertex(i, ref_score) for i in range(n)]
+        pdf.polygon(ref_pts, style="D")
+
+    # --- Axis lines from center to each vertex ---
+    pdf.set_draw_color(*GRIDLINE)
+    pdf.set_line_width(0.1)
+    for i in range(n):
+        vx, vy = _vertex(i, 100)
+        pdf.line(cx, cy, vx, vy)
+
+    # --- Data polygon (filled semi-transparent via thin fill) ---
+    data_pts = [_vertex(i, dimensions[i].normalized_score) for i in range(n)]
+
+    # Fill the data polygon with light teal
+    pdf.set_fill_color(*TEAL_LIGHT)
+    pdf.set_draw_color(*TEAL)
+    pdf.set_line_width(0.6)
+    pdf.polygon(data_pts, style="DF")
+
+    # --- Data points as small dots ---
+    pdf.set_fill_color(*TEAL)
+    for px, py in data_pts:
+        pdf.circle(px, py, 0.8, "F")
+
+    # --- Labels at each vertex ---
+    pdf.set_font("SatoshiMedium", "", 8)
+    label_offset = 5.0  # mm beyond the outer radius
+    for i, dim in enumerate(dimensions):
+        nl_lbl, en_lbl = dim_labels.get(dim.name, (dim.name, dim.name))
+        label = nl_lbl if is_nl else en_lbl
+        score_str = str(dim.normalized_score)
+        full_label = f"{label} ({score_str})"
+
+        angle = 2 * math.pi * i / n - math.pi / 2
+        lx = cx + (radius + label_offset) * math.cos(angle)
+        ly = cy + (radius + label_offset) * math.sin(angle)
+
+        tw = pdf.get_string_width(full_label)
+        # Position label: center horizontally, adjust based on quadrant
+        if abs(math.cos(angle)) < 0.1:
+            # Top or bottom: center horizontally
+            pdf.set_xy(lx - tw / 2, ly - 2)
+        elif math.cos(angle) > 0:
+            # Right side: left-align from point
+            pdf.set_xy(lx, ly - 2)
+        else:
+            # Left side: right-align to point
+            pdf.set_xy(lx - tw, ly - 2)
+
+        pdf.set_text_color(*SECONDARY)
+        pdf.cell(tw + 1, 4, full_label)
+
+    # Reset drawing state
+    pdf.set_draw_color(*BORDER)
+    pdf.set_line_width(0.1)
+    pdf.set_text_color(*SLATE)
+
+    return cy + radius + label_offset + 8
+
+
 def _draw_livability_section(
     pdf: BuurtCheckPDF,
     livability: LivabilityResponse | None,
     is_nl: bool,
 ) -> None:
-    """Render livability section: overall score, 5-dimension bars, trend, comparison."""
+    """Render livability section: overall score, radar chart, sparkline, comparison."""
     if livability is None or not livability.available:
         return
 
@@ -2449,55 +2629,27 @@ def _draw_livability_section(
     pdf.set_text_color(*SLATE)
     pdf.ln(3)
 
-    # --- 5-dimension breakdown as horizontal bars ---
-    dim_labels: dict[str, tuple[str, str]] = {
-        "physical": ("Fysiek", "Physical environment"),
-        "safety": ("Veiligheid", "Safety"),
-        "social": ("Sociaal", "Social cohesion"),
-        "amenities": ("Voorzieningen", "Amenities"),
-        "housing": ("Woningen", "Housing quality"),
-    }
-
-    label_w = 50
-    score_w = 15
     content_w = pdf.w - pdf.l_margin - pdf.r_margin
-    bar_w_dim = content_w - label_w - score_w - 4
-    bar_h = 3.5
-    row_h = 7.0
 
-    for dim in livability.dimensions:
-        nl_label, en_label = dim_labels.get(dim.name, (dim.name, dim.name))
-        label = nl_label if is_nl else en_label
-        dim_score = dim.normalized_score
-        dim_color = _severity_color(dim_score)
-
-        ry = pdf.get_y()
-
+    # --- 5-dimension radar chart ---
+    if len(livability.dimensions) >= 3:
+        radar_title = "Dimensies" if is_nl else "Dimensions"
         pdf.set_font("SatoshiMedium", "", 9)
-        pdf.set_text_color(*SECONDARY)
-        pdf.set_xy(pdf.l_margin, ry)
-        pdf.cell(label_w, row_h, label)
-
-        bar_x = pdf.l_margin + label_w + 2
-        bar_y = ry + (row_h - bar_h) / 2
-        pdf.set_fill_color(*BORDER)
-        pdf.rect(bar_x, bar_y, bar_w_dim, bar_h, "F")
-
-        if dim_score > 0:
-            fill_w = max(bar_w_dim * min(dim_score, 100) / 100, 1.0)
-            pdf.set_fill_color(*dim_color)
-            pdf.rect(bar_x, bar_y, fill_w, bar_h, "F")
-
-        pdf.set_font("Satoshi", "B", 9)
         pdf.set_text_color(*SLATE)
-        pdf.set_xy(pdf.l_margin + content_w - score_w, ry)
-        pdf.cell(score_w, row_h, str(dim_score), align="R")
+        pdf.cell(content_w, 5, radar_title, new_x="LMARGIN", new_y="NEXT")
 
-        pdf.set_y(ry + row_h)
+        radar_radius = 20.0
+        radar_cx = pdf.l_margin + content_w / 2
+        radar_cy = pdf.get_y() + radar_radius + 5  # center with top padding
+        radar_end_y = _draw_radar_chart(
+            pdf, livability.dimensions, is_nl,
+            cx=radar_cx, cy=radar_cy, radius=radar_radius,
+        )
+        pdf.set_y(radar_end_y + 2)
 
     pdf.ln(2)
 
-    # --- Trend summary ---
+    # --- Trend sparkline + text summary ---
     if livability.trend and len(livability.trend) >= 2:
         trend_text = _livability_trend_summary(livability.trend, is_nl)
         if trend_text:
@@ -2508,7 +2660,16 @@ def _draw_livability_section(
                 new_x="LMARGIN", new_y="NEXT",
             )
             pdf.set_text_color(*SLATE)
-            pdf.ln(2)
+            pdf.ln(1)
+
+        # Sparkline chart for trend visualization
+        sparkline_end_y = _draw_sparkline(
+            pdf, livability.trend,
+            x=pdf.l_margin, y=pdf.get_y(),
+            width=content_w * 0.6,  # ~60% of content width
+            height=12.0,
+        )
+        pdf.set_y(sparkline_end_y + 2)
 
     # --- Comparison table: buurt vs wijk vs gemeente ---
     if livability.comparison:
