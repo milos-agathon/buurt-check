@@ -72,7 +72,7 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
 #
 # Rules:
 # - No Regular 9pt exists as a distinct level. Everything at 9pt is either
-#   Medium (labels) or Bold (value emphasis), both typically SECONDARY.
+#   Medium/SECONDARY (labels) or Bold/SLATE (value emphasis).
 # - Body (10pt Regular) is the minimum size for readable multi-line text.
 # - Caption (8pt) is for metadata that supports but doesn't compete with content.
 
@@ -554,6 +554,7 @@ class BuurtCheckPDF(FPDF):
                 self.rect(bar_x, bar_y, fill_w, bar_h, "F")
 
             self.set_font("Satoshi", "B", 9)
+            self.set_text_color(*SLATE)
             self.set_xy(x + width - pct_w, ry)
             pct_text = f"{pct:.0f}%" if pct is not None else "\u2014"
             self.cell(pct_w, row_h, pct_text, align="R")
