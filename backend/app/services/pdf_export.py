@@ -70,7 +70,7 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
 #               |                        |      |           | score values, map "N" arrow)
 # Footer        | SatoshiBlack           | 8pt  | SLATE     | Footer brand name
 #               | Satoshi Regular        | 8pt  | SECONDARY | Footer disclaimer
-#               | Satoshi Regular        | 8pt  | TEAL      | Footer page number
+#               | Satoshi Regular        | 8pt  | SECONDARY | Footer page number
 #
 # Brand         | SatoshiBlack           | 9pt  | SLATE     | "buurt-check" in header
 # Brand-cover   | SatoshiBlack           | 16pt | SLATE     | "buurt-check" wordmark on cover
@@ -450,9 +450,9 @@ class BuurtCheckPDF(FPDF):
         )
         self.cell(0, 4, disclaimer, align="C")
 
-        # Page number — teal accent
+        # Page number
         self.set_font("Satoshi", "", 8)
-        self.set_text_color(*TEAL)
+        self.set_text_color(*SECONDARY)
         self.cell(30, 4, f"p. {self.page_no()}", align="R", new_x="LMARGIN")
         self.set_text_color(*SLATE)
 
@@ -793,11 +793,15 @@ class BuurtCheckPDF(FPDF):
         # PREMIUM text in SLATE for WCAG AA contrast on TEAL_LIGHT bg
         self.set_text_color(*SLATE)
         self.set_xy(badge_x, badge_y + 0.2)
-        self.cell(badge_w, badge_h - 0.4, badge_text, align="C")
+        self.cell(
+            badge_w, badge_h - 0.4, badge_text,
+            align="C", new_x="LMARGIN",
+        )
 
         # Restore defaults
         self.set_text_color(*SLATE)
         self.set_draw_color(*BORDER)
+        self.set_fill_color(255, 255, 255)
 
     def draw_divider(self, style: str = "light") -> None:
         """Draw a horizontal divider line."""
@@ -1627,12 +1631,12 @@ def _draw_sunlight_details(
         seasons: list[tuple[str, float | None]] = []
         if sun.winter_hours is not None:
             seasons.append((
-                "Winter" if is_nl else "Winter",
+                "Winter",
                 sun.winter_hours,
             ))
         if sun.equinox_hours is not None:
             seasons.append((
-                "Equinox" if is_nl else "Equinox",
+                "Equinox",
                 sun.equinox_hours,
             ))
         elif sun.winter_hours is not None and sun.summer_hours is not None:
@@ -2451,7 +2455,7 @@ def _draw_sparkline(
     # Draw dot at the most recent point (last in list)
     last_x, last_y = points[-1]
     pdf.set_fill_color(*TEAL)
-    pdf.circle(last_x, last_y, 1.2, "F")
+    pdf.circle(last_x - 1.2, last_y - 1.2, 1.2, "F")
 
     # Draw year labels below the chart
     label_y = y + height + 0.5
@@ -2539,7 +2543,7 @@ def _draw_radar_chart(
     # --- Data points as small dots ---
     pdf.set_fill_color(*TEAL)
     for px, py in data_pts:
-        pdf.circle(px, py, 0.8, "F")
+        pdf.circle(px - 0.8, py - 0.8, 0.8, "F")
 
     # --- Labels at each vertex ---
     pdf.set_font("SatoshiMedium", "", 8)
@@ -3494,7 +3498,7 @@ def _draw_methodology_page(
         pdf.set_font("SatoshiMedium", "", 9)
         pdf.set_text_color(*SECONDARY)
         pdf.cell(src_w * 0.28, 5, source)
-        pdf.set_font("Satoshi", "", 9)
+        pdf.set_font("Satoshi", "", 10)
         pdf.set_text_color(*SLATE)
         pdf.cell(src_w * 0.35, 5, data_desc)
         pdf.set_font("Satoshi", "", 8)
@@ -3569,7 +3573,7 @@ def _draw_methodology_page(
         pdf.set_font("SatoshiMedium", "", 9)
         pdf.set_text_color(*SECONDARY)
         pdf.cell(pdf.get_string_width(param_label) + 2, 5, param_label)
-        pdf.set_font("Satoshi", "", 9)
+        pdf.set_font("Satoshi", "", 10)
         pdf.set_text_color(*SLATE)
         pdf.multi_cell(
             0, 4, param_desc, align="L", new_x="LMARGIN", new_y="NEXT",
