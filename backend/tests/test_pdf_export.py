@@ -2459,3 +2459,87 @@ class TestDifferentiatedBarColors:
         assert end_y > 30
         result = bytes(pdf.output())
         assert result[:5] == b"%PDF-"
+
+
+# ---------------------------------------------------------------------------
+# E9-S4: Address row ordering and visual hierarchy
+# ---------------------------------------------------------------------------
+
+class TestAddressRowOrdering:
+    """'Dit adres' / 'This address' must be first row in comparison charts."""
+
+    def test_address_row_sorted_first_produces_valid_pdf(self):
+        """When address row is not first in input, chart still renders correctly."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        # Deliberately put address last in input
+        rows = [
+            ("Netherlands", 50, NATIONAL, False),
+            ("City average", 55, MUTED, False),
+            ("This address", 65, TEAL, False),
+        ]
+        end_y = pdf.draw_comparison_chart(10, 30, 180, rows)
+        assert end_y > 30
+        result = bytes(pdf.output())
+        assert result[:5] == b"%PDF-"
+
+    def test_address_gap_increases_chart_height(self):
+        """Visual gap between address and reference rows adds to chart height."""
+        # Chart with only reference rows (no address/TEAL)
+        pdf1 = BuurtCheckPDF()
+        pdf1.add_page()
+        rows_no_addr = [
+            ("City average", 55, MUTED, False),
+            ("Netherlands", 50, NATIONAL, False),
+        ]
+        end_no_addr = pdf1.draw_comparison_chart(10, 30, 180, rows_no_addr)
+
+        # Chart with address row (adds gap)
+        pdf2 = BuurtCheckPDF()
+        pdf2.add_page()
+        rows_with_addr = [
+            ("This address", 65, TEAL, False),
+            ("City average", 55, MUTED, False),
+            ("Netherlands", 50, NATIONAL, False),
+        ]
+        end_with_addr = pdf2.draw_comparison_chart(10, 30, 180, rows_with_addr)
+
+        # 3 rows vs 2 rows: 3-row chart is taller by row_h + gap
+        diff = end_with_addr - end_no_addr
+        # row_h(7.0) + address_gap(2.5) = 9.5
+        assert diff > 9.0, f"Gap difference {diff:.1f} too small, expected >= 9.0"
+
+    def test_full_dossier_address_first_in_comparisons(self):
+        """Full dossier comparison data has address row first."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        data = _build_risk_detail_data(
+            risks=_make_risks(), sunlight_score=80,
+            comparisons=_make_risk_comparisons(), is_nl=False,
+        )
+        # Noise has address + city_avg + nl_avg + who_limit
+        noise_rows = data[0][4]
+        assert noise_rows, "No comparison rows for noise"
+        # The first row should be address (TEAL)
+        first_color = noise_rows[0][2]
+        assert first_color == TEAL, (
+            f"First comparison row color is {first_color}, expected TEAL"
+        )
+
+    def test_no_gap_when_no_address_row(self):
+        """Chart without address rows should not have extra gap."""
+        pdf1 = BuurtCheckPDF()
+        pdf1.add_page()
+        rows = [
+            ("City average", 55, MUTED, False),
+            ("Netherlands", 50, NATIONAL, False),
+        ]
+        end_y = pdf1.draw_comparison_chart(10, 30, 180, rows)
+        # 2 rows * 7.0 + axis 3.5 = 17.5
+        expected_min = 30 + 14  # 2 * row_h
+        assert end_y > expected_min
+        # Should NOT include address_gap (2.5)
+        expected_max = 30 + 14 + 5  # rows + axis, no gap
+        assert end_y < expected_max, (
+            f"Chart height {end_y - 30:.1f} too large without address row"
+        )

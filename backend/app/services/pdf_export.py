@@ -178,15 +178,26 @@ class BuurtCheckPDF(FPDF):
         """Draw horizontal comparison bars with axis, gridlines, title, legend.
 
         Each row: (label, score_value, fill_color_rgb, is_dashed).
+        Address rows (TEAL color, non-dashed) are sorted first with a heavier
+        bar and a visual gap separating them from reference rows.
         Returns y position after the chart (including axis labels and legend).
         """
         label_w = 40
         score_w = 15
         bar_w = width - label_w - score_w - 4
-        bar_h = 3.0
+        bar_h_normal = 3.0
+        bar_h_address = 4.5  # heavier bar for address row
         row_h = 7.0
+        address_gap = 2.5  # visual gap between address and reference rows
         bar_x = x + label_w + 2
         cur_y = y
+
+        # Sort: address rows (TEAL, non-dashed) first, others preserve order
+        address_rows = [r for r in rows if r[2] == TEAL and not r[3]]
+        reference_rows = [r for r in rows if r not in address_rows]
+        sorted_rows = address_rows + reference_rows
+        n_address = len(address_rows)
+        has_address_gap = bool(address_rows) and bool(reference_rows)
 
         # --- Chart title ---
         if chart_title:
@@ -196,9 +207,13 @@ class BuurtCheckPDF(FPDF):
             self.cell(width, 5, chart_title)
             cur_y += 5
 
-        # --- Gridlines (behind bars) at 25%, 50%, 75% ---
+        # --- Calculate total chart height for gridlines ---
+        total_h = len(sorted_rows) * row_h
+        if has_address_gap:
+            total_h += address_gap
+
         bars_top = cur_y
-        bars_bottom = cur_y + len(rows) * row_h
+        bars_bottom = cur_y + total_h
         self.set_draw_color(*GRIDLINE)
         self.set_line_width(0.15)
         for pct in (25, 50, 75):
@@ -207,10 +222,22 @@ class BuurtCheckPDF(FPDF):
         self.set_line_width(0.1)
 
         # --- Data rows ---
-        for i, (label, value, color, dashed) in enumerate(rows):
-            ry = cur_y + i * row_h
+        row_y = cur_y
+        for i, (label, value, color, dashed) in enumerate(sorted_rows):
+            is_address = color == TEAL and not dashed
+            bar_h = bar_h_address if is_address else bar_h_normal
 
-            self.set_font("Satoshi", "", 8)
+            # Add visual gap after last address row
+            if has_address_gap and i == n_address:
+                row_y += address_gap
+
+            ry = row_y
+
+            # Bold label for address row
+            if is_address:
+                self.set_font("Satoshi", "B", 8)
+            else:
+                self.set_font("Satoshi", "", 8)
             self.set_text_color(*SLATE)
             self.set_xy(x, ry)
             self.cell(label_w, row_h, label)
@@ -238,6 +265,8 @@ class BuurtCheckPDF(FPDF):
             self.set_font("Satoshi", "B", 8)
             self.set_xy(x + width - score_w, ry)
             self.cell(score_w, row_h, str(value), align="R")
+
+            row_y += row_h
 
         # --- Axis labels ("0" and "100") below bars ---
         axis_y = bars_bottom + 0.5
