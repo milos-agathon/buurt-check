@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fpdf import FPDF
 
-from app.models.livability import LivabilityResponse
+from app.models.livability import LivabilityResponse, LivabilityTrendPoint
 from app.models.neighborhood import AgeProfile, NeighborhoodStats, UrbanizationLevel
 from app.models.property_warnings import PropertyWarningsResponse
 from app.models.report import ProvenanceData
@@ -1808,7 +1808,7 @@ def _draw_livability_section(
 
 
 def _livability_trend_summary(
-    trend: list,
+    trend: list[LivabilityTrendPoint],
     is_nl: bool,
 ) -> str | None:
     """Generate a one-line trend summary from historical Leefbaarometer data.
@@ -1828,7 +1828,8 @@ def _livability_trend_summary(
 
     # Find inflection point: where did current direction start?
     if diff > 0:
-        # Currently improving — scan backwards for start of improvement
+        # Scan backwards for where improvement started; falls back to first
+        # data point if the series is monotonically improving.
         inflection_year = trend[0].year
         for i in range(len(trend) - 1, 0, -1):
             if trend[i].overall_normalized <= trend[i - 1].overall_normalized:
