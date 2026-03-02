@@ -17,7 +17,6 @@ export default function LockedSection({ sectionName }: LockedSectionProps) {
     >
       <p className="locked-section__title">{t('premium.locked.title')}</p>
       <p className="locked-section__subtitle">{t('premium.locked.subtitle', { section: sectionName })}</p>
-      <p className="locked-section__subtitle">{t('premium.locked.upgradePrompt')}</p>
     </section>
   );
 }

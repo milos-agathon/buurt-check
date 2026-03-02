@@ -62,6 +62,7 @@ from app.services.pdf_export import (
     _draw_livability_section,
     _draw_location_map,
     _draw_shadow_triptych,
+    _generate_executive_summary,
     _interpret_age_distribution,
     _livability_trend_summary,
     _severity_for_score,
@@ -1376,7 +1377,7 @@ class TestGenerateFullDossier:
         assert "Ground Lease (Erfpacht)" in text
         assert "Owners' Association" in text
         assert "Lead Pipe Risk" in text
-        assert "Soil Contamination Check" in text
+        assert "Soil Contamination \u2014 Manual Verification Required" in text
         assert "Direct sun (clear-sky visibility)" in text
         assert "Shadow Snapshots" in text
 
@@ -4558,3 +4559,195 @@ class TestShadowTriptych:
         if len(reader.pages) > 3:
             text = reader.pages[3].extract_text() or ""
             assert "morning/noon/evening" in text.lower()
+
+
+# ---------------------------------------------------------------------------
+# Executive Summary Tests
+# ---------------------------------------------------------------------------
+
+
+class TestExecutiveSummary:
+    """Tests for _generate_executive_summary helper."""
+
+    def test_en_all_data(self):
+        """EN summary with risks + sunlight + livability."""
+        risks = _make_risks(noise_score=65, air_score=72, climate_score=45)
+        livability = _make_livability(overall_normalized=62)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=livability, is_nl=False,
+        )
+        # Should mention 4 categories
+        assert "4 risk categories" in result
+        # Should identify climate stress (45) as top concern
+        assert "climate stress" in result
+        assert "45/100" in result
+        # Should mention livability
+        assert "livability" in result
+        # Should not mention urgent concerns (nothing < 40)
+        assert "verify all scores on-site" in result
+
+    def test_nl_all_data(self):
+        """NL summary with risks + sunlight + livability."""
+        risks = _make_risks(noise_score=65, air_score=72, climate_score=45)
+        livability = _make_livability(overall_normalized=62)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=livability, is_nl=True,
+        )
+        assert "4 risicocategorie\u00ebn" in result
+        assert "klimaatstress" in result
+        assert "45/100" in result
+        assert "leefbaarheid" in result
+
+    def test_critical_risk_triggers_viewing_action(self):
+        """Critical risk (score < 20) produces specific viewing advice."""
+        risks = _make_risks(noise_score=65, air_score=72, climate_score=15)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=False,
+        )
+        assert "climate stress" in result
+        assert "15/100" in result
+        assert "signs of water damage" in result
+
+    def test_critical_risk_nl_viewing_action(self):
+        """NL critical risk produces NL viewing advice."""
+        risks = _make_risks(noise_score=65, air_score=72, climate_score=15)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=True,
+        )
+        assert "waterschade" in result
+
+    def test_multiple_poor_risks(self):
+        """Multiple poor/critical risks produce multiple viewing actions."""
+        risks = _make_risks(noise_score=25, air_score=72, climate_score=15)
+        result = _generate_executive_summary(
+            risks, sunlight_score=30, livability=None, is_nl=False,
+        )
+        # Should mention noise and climate and sunlight viewing actions
+        assert "noise" in result.lower()
+        assert "water damage" in result
+        assert "natural light" in result
+
+    def test_no_risks_only_sunlight(self):
+        """Summary works with no risk data, only sunlight score."""
+        result = _generate_executive_summary(
+            risks=None, sunlight_score=80, livability=None, is_nl=False,
+        )
+        assert "1 risk categories" in result
+        assert "sunlight" in result
+
+    def test_no_data_at_all(self):
+        """Summary handles no risks and no sunlight."""
+        result = _generate_executive_summary(
+            risks=None, sunlight_score=None, livability=None, is_nl=False,
+        )
+        assert "Insufficient data" in result
+
+    def test_no_data_nl(self):
+        """NL fallback message when no data."""
+        result = _generate_executive_summary(
+            risks=None, sunlight_score=None, livability=None, is_nl=True,
+        )
+        assert "onvoldoende" in result
+
+    def test_livability_best_dimension(self):
+        """Summary highlights the best livability dimension."""
+        livability = _make_livability(overall_normalized=62)
+        risks = _make_risks()
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=livability, is_nl=False,
+        )
+        # amenities has highest normalized_score (88) in _make_livability
+        assert "amenities" in result
+
+    def test_livability_best_dimension_nl(self):
+        """NL summary highlights best livability dimension in Dutch."""
+        livability = _make_livability(overall_normalized=62)
+        risks = _make_risks()
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=livability, is_nl=True,
+        )
+        assert "voorzieningen" in result
+
+    def test_livability_unavailable_skips_sentence(self):
+        """When livability.available=False, no livability sentence."""
+        livability = LivabilityResponse(available=False)
+        risks = _make_risks()
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=livability, is_nl=False,
+        )
+        assert "livability" not in result
+
+    def test_livability_none_skips_sentence(self):
+        """When livability is None, no livability sentence."""
+        risks = _make_risks()
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=False,
+        )
+        assert "livability" not in result
+
+    def test_all_good_scores(self):
+        """All good scores produce positive summary."""
+        risks = _make_risks(noise_score=85, air_score=90, climate_score=75)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=False,
+        )
+        assert "4 good" in result
+        assert "verify all scores on-site" in result
+
+    def test_severity_counts_correct(self):
+        """Verify correct severity counts in summary."""
+        # 1 good (air=72), 2 moderate (noise=65, climate=45), 1 good (sun=80)
+        risks = _make_risks(noise_score=65, air_score=72, climate_score=45)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=False,
+        )
+        assert "2 good" in result
+        assert "2 moderate" in result
+
+    def test_cover_page_includes_executive_summary_en(self):
+        """Full dossier cover page (EN) includes executive summary text."""
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+        )
+        reader = PdfReader(io.BytesIO(result))
+        cover_text = reader.pages[0].extract_text() or ""
+        assert "EXECUTIVE SUMMARY" in cover_text
+        assert "risk categories" in cover_text
+
+    def test_cover_page_includes_executive_summary_nl(self):
+        """Full dossier cover page (NL) includes executive summary text."""
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="nl",
+        )
+        reader = PdfReader(io.BytesIO(result))
+        cover_text = reader.pages[0].extract_text() or ""
+        assert "SAMENVATTING" in cover_text
+        assert "risicocategorie" in cover_text
+
+    def test_cover_page_with_livability(self):
+        """Cover page executive summary includes livability when provided."""
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            livability=_make_livability(overall_normalized=62),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        cover_text = reader.pages[0].extract_text() or ""
+        assert "livability" in cover_text

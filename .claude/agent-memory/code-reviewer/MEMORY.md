@@ -110,6 +110,41 @@
 - **canEstimateIrradiance checks `nextResult.svf` but irradiance uses diffuse sky SVF:** Could be `svfAnisotropic` for better accuracy, but using isotropic `svf` for diffuse sky fraction is physically reasonable. Not a bug.
 - **No test coverage for the new viewer wiring:** The viewer's anisotropic SVF branch is not tested in isolation. Only `computeAnisotropicSvf` unit tests and `anisotropicSvf.test.ts` exist. No test exercises the `computeAnisotropicSvfFromCubemap` → `isCubemapPixelSky` → `directionToFaceUV` chain with a real Three.js scene.
 
+## PDF Type Hierarchy Patterns (Task 1 review, 2026-03-02)
+
+- **`draw_age_bars` color restore bug pattern:** When changing a label from SLATE to SECONDARY inside a loop, any Bold value cell that immediately follows without an explicit `set_text_color(*SLATE)` inherits the SECONDARY color. fpdf2 does not restore color on font change. Always pair `set_font(...Bold...)` with explicit `set_text_color` when the previous color differs from what the Bold text should use.
+- **Comment says "Bold 9pt both typically SECONDARY"** in hierarchy table, but Bold 9pt value cells (age %, dimension scores) render at SLATE per design intent. The word "typically" is misleading — Bold 9pt sub-variant color depends on semantic role: emphasis values are SLATE, not SECONDARY.
+- **Margin change (10mm → 20mm) is safe:** All widths use dynamic `pdf.w - pdf.l_margin - pdf.r_margin`. Only one hardcoded `img_w = 80` exists (location map), which fits within new 170mm content width. Triptych and shadow images compute `content_w` dynamically.
+- **Italic font removal is clean:** No remaining `"I"` style references. Footer still uses 7pt Regular (correctly kept per the hierarchy). The italic removal eliminated the need to register `Satoshi-Regular.ttf` under the `"I"` alias.
+- **Regular 9pt elimination is complete:** Zero `'"Satoshi", "", 9'` calls remain. Hierarchy enforcement succeeded.
+- **`set_top_margin` not called in `__init__`:** Only left/right margins are set to 20mm. Top margin remains at fpdf2 default (10mm). Bottom margin is 20mm via `set_auto_page_break(margin=20)`. This is intentional — header occupies ~15mm so effective top whitespace is correct.
+- **Stale comment `# ~170mm` at line 787** still says 170mm after the change from 10mm to 20mm margins. The arithmetic is now correct (210 - 20 - 20 = 170mm), so the comment is actually accurate again — but it was accurate before too (190mm would have been wrong). No action needed.
+
+## Executive Summary Generator (Task 5 review, 2026-03-02)
+
+- **File:** `backend/app/services/pdf_export.py`, function `_generate_executive_summary` (lines 119-290)
+- **Placement:** After shadow triptych, before risk grid, in `_draw_cover_page`. Correct per spec.
+- **Bilingual:** Fully bilingual — all four sentences have EN/NL variants. Severity labels delegate to `_severity_label`.
+- **Edge cases:** no-risks-only-sunlight, no-data-at-all (NL+EN), livability.available=False, livability=None — all handled, all tested.
+- **DoD items verified:** cover summary present, top risk named, viewing actions present (sentence 4), bilingual, scores accurate.
+- **BOTH Dutch misspellings are FIXED** as of commit 2396a4d: `risicocategorie\u00ebn` (ë+n) at line 183, `ge\u00efdentificeerd` (ï) at line 283.
+- **Test count:** 17 new tests, all pass. Backend total: 829 passing.
+
+## Phase 3 PDF Dossier Review (2026-03-02)
+
+### Critical Bugs Found
+
+- **`draw_premium_badge` leaves X at right margin.** `draw_premium_badge()` calls `set_xy(badge_x, ...)` then `cell(badge_w, ...)` — cursor advances to `pdf.w - pdf.r_margin`. Any subsequent `cell(0, ...)` has zero effective width. Two broken call sites: line 1025 (`_draw_shadow_triptych`) and line 2787 (`_draw_property_checks_page`). Fix: after `draw_premium_badge()`, call `pdf.set_x(pdf.l_margin)` before the next cell, OR add `new_x="LMARGIN"` to the badge's cell call. Livability at line 2592 correctly uses band+Y-backup pattern — copy that.
+- **TEAL as text color on white page (WCAG fail).** Line 455: `self.set_text_color(*TEAL)` for footer page number. TEAL (#2EC4B6) on white = 2.17:1, fails WCAG AA. The constant's own comment says "fill only, never text." New in Phase 3. Fix: use `SECONDARY` (WCAG AA 4.52:1) for the page number, or omit explicit color.
+
+### Warnings
+
+- **`"Satoshi", "", 9` Regular 9pt survives at lines 3497, 3572.** Explicitly eliminated in Task 1 (E10-S1). Both are data-body cells (middle column of sources table + sunlight parameter value). Fix: replace with `"Satoshi", "", 10` (body) or `"SatoshiMedium", "", 9` (label).
+- **`draw_premium_badge` does not restore fill color to white.** After `set_fill_color(*TEAL_LIGHT)` for the badge rect, no restore. Callers drawing filled rects after badge use stale TEAL_LIGHT fill. Currently benign but fragile.
+- **`fpdf2.circle(x, y, r)` uses upper-left corner, not center.** Lines 1079 (`_draw_sparkline`) and 1168 (`_draw_radar_chart`): `pdf.circle(last_x, last_y, 1.2, "F")` renders dot offset by +r in both axes. Fix: pass `(x - r, y - r, r)`.
+- **8 new content functions have zero direct unit tests.** `_draw_sparkline`, `_draw_radar_chart`, `_draw_sunlight_details`, `draw_premium_badge`, `draw_section_label(band=True)`, PDF metadata, score formulas, soil disclosure — only integration paths via 254 full-dossier tests.
+- **`"Winter" if is_nl else "Winter"` is a no-op bilingual.** Line 1630. Both branches return the same string. Similarly "Equinox" has no Dutch translation (NL: "Dag-/nachtevening" or "Lente/herfst"). Minor cosmetic issue in Dutch PDFs.
+
 ## Links to Topic Files
 
 - See `patterns.md` for more detail on Three.js instrumentation patterns.

@@ -1,14 +1,10 @@
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LivabilityResponse, RiskCardsResponse, PropertyWarningsResponse } from '../types/api';
+import type { RiskCardsResponse } from '../types/api';
 import './AttentionSummary.css';
 
 interface Props {
   riskCards?: RiskCardsResponse;
-  warnings?: PropertyWarningsResponse;
-  sunlightScore?: number;
-  livability?: LivabilityResponse | null;
-  includeAsbestos?: boolean;
 }
 
 interface Flag {
@@ -18,22 +14,16 @@ interface Flag {
 
 function computeFlags(
   riskCards: RiskCardsResponse | undefined,
-  warnings: PropertyWarningsResponse | undefined,
-  sunlightScore: number | undefined,
-  _livability: LivabilityResponse | null | undefined,
-  includeAsbestos: boolean,
 ): { flags: Flag[]; assessed: number } {
   const flags: Flag[] = [];
   let assessed = 0;
 
-  // Risk scores
   const scores: Record<string, number | undefined> = {};
   if (riskCards) {
     scores.noise = riskCards.noise.score;
     scores.air_quality = riskCards.air_quality.score;
     scores.climate = riskCards.climate_stress.score;
   }
-  scores.sunlight = sunlightScore;
 
   for (const [cat, score] of Object.entries(scores)) {
     if (score == null) continue;
@@ -45,61 +35,24 @@ function computeFlags(
     }
   }
 
-  if (warnings) {
-    // Foundation risk
-    if (warnings.foundation_risk.level === 'high') {
-      flags.push({ category: 'foundation', severity: 'high' });
-    } else if (warnings.foundation_risk.level === 'medium') {
-      flags.push({ category: 'foundation', severity: 'medium' });
-    }
-
-    // Erfpacht
-    if (warnings.erfpacht.detected) {
-      flags.push({ category: 'erfpacht', severity: 'info' });
-    }
-
-    // VvE
-    if (warnings.vve.is_apartment) {
-      flags.push({ category: 'vve', severity: 'info' });
-    }
-
-    // Asbestos — only flag for pre-1980 (extensive structural use)
-    const year = warnings.asbestos.construction_year;
-    if (includeAsbestos && warnings.asbestos.flagged && year != null && year < 1980) {
-      flags.push({ category: 'asbestos', severity: 'info' });
-    }
-
-    // Lead pipe — pre-1960 construction
-    if (warnings.lead_pipe?.flagged) {
-      flags.push({ category: 'lead_pipe', severity: 'info' });
-    }
-  }
-
-  // Livability — deliberately NOT flagged per v7 design spec (lines 254-261).
-  // The livability prop is accepted for future use but does not contribute to flags.
-
   return { flags, assessed };
 }
 
 function AttentionSummary({
   riskCards,
-  warnings,
-  sunlightScore,
-  livability,
-  includeAsbestos = true,
 }: Props) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
 
   const { flags, assessed } = useMemo(
-    () => computeFlags(riskCards, warnings, sunlightScore, livability, includeAsbestos),
-    [includeAsbestos, riskCards, warnings, sunlightScore, livability],
+    () => computeFlags(riskCards),
+    [riskCards],
   );
 
   // Don't render if no data at all
-  if (!riskCards && !warnings) return null;
+  if (!riskCards) return null;
 
-  const total = 4;
+  const total = 3;
   const missing = total - assessed;
   const count = flags.length;
   const badgeVariant = count === 0 ? 'green' : count === 1 ? 'amber' : 'red';

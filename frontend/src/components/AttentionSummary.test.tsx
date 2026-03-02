@@ -5,9 +5,8 @@ import AttentionSummary from './AttentionSummary';
 import {
   setupTestI18n,
   makeRiskCardsResponse,
-  makePropertyWarningsResponse,
 } from '../test/helpers';
-import type { LivabilityResponse, RiskCardsResponse, PropertyWarningsResponse } from '../types/api';
+import type { RiskCardsResponse } from '../types/api';
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -21,10 +20,6 @@ function makeGoodRiskCards(): RiskCardsResponse {
     air_quality: { ...makeRiskCardsResponse().air_quality, score: 80, severity: 'good' },
     climate_stress: { ...makeRiskCardsResponse().climate_stress, score: 85, severity: 'good' },
   });
-}
-
-function makeCleanWarnings(): PropertyWarningsResponse {
-  return makePropertyWarningsResponse();
 }
 
 function makePoorNoiseRiskCards(): RiskCardsResponse {
@@ -43,17 +38,6 @@ function makeCriticalRiskCards(): RiskCardsResponse {
   });
 }
 
-function makeFoundationHighWarnings(): PropertyWarningsResponse {
-  return makePropertyWarningsResponse({
-    foundation_risk: {
-      level: 'high',
-      construction_year: 1952,
-      soil_type: 'klei',
-      messages: [],
-    },
-  });
-}
-
 function makePartialRiskCards(): RiskCardsResponse {
   return makeRiskCardsResponse({
     noise: { ...makeRiskCardsResponse().noise, score: 75, severity: 'good' },
@@ -62,28 +46,12 @@ function makePartialRiskCards(): RiskCardsResponse {
   });
 }
 
-function makeApartmentWarnings(): PropertyWarningsResponse {
-  return makePropertyWarningsResponse({
-    vve: { is_apartment: true, num_units: 12, messages: [] },
-  });
-}
-
-function makePre1980Warnings(): PropertyWarningsResponse {
-  return makePropertyWarningsResponse({
-    foundation_risk: { level: 'low', construction_year: 1965, soil_type: 'zand', messages: [] },
-    asbestos: { flagged: true, construction_year: 1965, messages: [] },
-  });
-}
-
 function renderSummary(props: {
   riskCards?: RiskCardsResponse;
-  warnings?: PropertyWarningsResponse;
-  sunlightScore?: number;
-  livability?: LivabilityResponse;
 }) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <AttentionSummary {...props} />
+      <AttentionSummary riskCards={props.riskCards} />
     </I18nextProvider>,
   );
 }
@@ -97,8 +65,6 @@ describe('AttentionSummary', () => {
   it('shows green badge when no flags', () => {
     renderSummary({
       riskCards: makeGoodRiskCards(),
-      warnings: makeCleanWarnings(),
-      sunlightScore: 80,
     });
     expect(screen.getByText(/no flags raised/i)).toBeInTheDocument();
   });
@@ -106,8 +72,6 @@ describe('AttentionSummary', () => {
   it('shows amber badge for single flag', () => {
     renderSummary({
       riskCards: makePoorNoiseRiskCards(),
-      warnings: makeCleanWarnings(),
-      sunlightScore: 80,
     });
     expect(screen.getByText(/1 item needs attention/i)).toBeInTheDocument();
   });
@@ -115,8 +79,6 @@ describe('AttentionSummary', () => {
   it('shows red badge for multiple flags', () => {
     renderSummary({
       riskCards: makeCriticalRiskCards(),
-      warnings: makeFoundationHighWarnings(),
-      sunlightScore: 80,
     });
     const badge = screen.getByText(/items need attention/i);
     expect(badge).toBeInTheDocument();
@@ -125,37 +87,16 @@ describe('AttentionSummary', () => {
   it('shows data completeness suffix', () => {
     renderSummary({
       riskCards: makeGoodRiskCards(),
-      warnings: makeCleanWarnings(),
-      sunlightScore: 80,
     });
-    expect(screen.getByText(/4 of 4/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 of 3/i)).toBeInTheDocument();
   });
 
   it('shows partial data completeness', () => {
     renderSummary({
       riskCards: makePartialRiskCards(),
-      warnings: makeCleanWarnings(),
     });
-    // noise + air scored, climate undefined, no sunlight = 2 of 4
-    expect(screen.getByText(/based on 2 of 4/i)).toBeInTheDocument();
-  });
-
-  it('includes VvE in flag count for apartments', () => {
-    renderSummary({
-      riskCards: makeGoodRiskCards(),
-      warnings: makeApartmentWarnings(),
-      sunlightScore: 80,
-    });
-    expect(screen.getByText(/1 item needs attention/i)).toBeInTheDocument();
-  });
-
-  it('includes asbestos in flag count for pre-1980', () => {
-    renderSummary({
-      riskCards: makeGoodRiskCards(),
-      warnings: makePre1980Warnings(),
-      sunlightScore: 80,
-    });
-    expect(screen.getByText(/1 item needs attention/i)).toBeInTheDocument();
+    // noise + air scored, climate undefined = 2 of 3
+    expect(screen.getByText(/based on 2 of 3/i)).toBeInTheDocument();
   });
 
   it('renders in Dutch', async () => {
@@ -164,8 +105,6 @@ describe('AttentionSummary', () => {
       <I18nextProvider i18n={nlI18n}>
         <AttentionSummary
           riskCards={makeGoodRiskCards()}
-          warnings={makeCleanWarnings()}
-          sunlightScore={80}
         />
       </I18nextProvider>,
     );
@@ -178,8 +117,6 @@ describe('AttentionSummary', () => {
       <I18nextProvider i18n={nlI18n}>
         <AttentionSummary
           riskCards={makePoorNoiseRiskCards()}
-          warnings={makeCleanWarnings()}
-          sunlightScore={80}
         />
       </I18nextProvider>,
     );
@@ -187,51 +124,9 @@ describe('AttentionSummary', () => {
     expect(screen.queryByText(/noise risk/i)).not.toBeInTheDocument();
   });
 
-  it('includes lead pipe flag when flagged', () => {
-    const warnings = makePropertyWarningsResponse({
-      lead_pipe: { flagged: true, construction_year: 1955, messages: ['LEAD_PIPE_PRE_1960'] },
-    });
-    renderSummary({
-      riskCards: makeGoodRiskCards(),
-      warnings,
-      sunlightScore: 80,
-    });
-    expect(screen.getByText(/1 item needs attention/i)).toBeInTheDocument();
-  });
-
-  it('does not include lead pipe flag when not flagged', () => {
-    const warnings = makePropertyWarningsResponse({
-      lead_pipe: { flagged: false, messages: [] },
-    });
-    renderSummary({
-      riskCards: makeGoodRiskCards(),
-      warnings,
-      sunlightScore: 80,
-    });
-    expect(screen.getByText(/no flags raised/i)).toBeInTheDocument();
-  });
-
-  it('does NOT flag livability even when normalized < 40 (v7 spec)', () => {
-    const livability: LivabilityResponse = {
-      available: true, buurt_code: 'BU', buurt_name: 'T', gemeente: 'A',
-      year: '2024', overall_score: 3, overall_normalized: 25,
-      dimensions: [], trend: [], comparison: [], source: 'x', messages: [],
-    };
-    renderSummary({
-      riskCards: makeGoodRiskCards(),
-      warnings: makeCleanWarnings(),
-      sunlightScore: 80,
-      livability,
-    });
-    // Per v7 design spec: livability does NOT contribute to attention flags
-    expect(screen.getByText(/no flags raised/i)).toBeInTheDocument();
-  });
-
   it('renders flag bullet list when flags exist', () => {
     renderSummary({
-      riskCards: makePoorNoiseRiskCards(),
-      warnings: makeFoundationHighWarnings(),
-      sunlightScore: 80,
+      riskCards: makeCriticalRiskCards(),
     });
     const flagList = screen.getByTestId('attention-flags');
     expect(flagList).toBeInTheDocument();
@@ -242,8 +137,6 @@ describe('AttentionSummary', () => {
   it('renders green-state detail when no flags and data assessed', () => {
     renderSummary({
       riskCards: makeGoodRiskCards(),
-      warnings: makeCleanWarnings(),
-      sunlightScore: 80,
     });
     expect(screen.getByTestId('attention-detail')).toBeInTheDocument();
     expect(screen.getByText(/all assessed risk categories/i)).toBeInTheDocument();
@@ -252,8 +145,6 @@ describe('AttentionSummary', () => {
   it('does not render flag list when no flags', () => {
     renderSummary({
       riskCards: makeGoodRiskCards(),
-      warnings: makeCleanWarnings(),
-      sunlightScore: 80,
     });
     expect(screen.queryByTestId('attention-flags')).not.toBeInTheDocument();
   });
@@ -261,7 +152,6 @@ describe('AttentionSummary', () => {
   it('renders missing-category explanation for partial data', () => {
     renderSummary({
       riskCards: makePartialRiskCards(),
-      warnings: makeCleanWarnings(),
     });
     expect(screen.getByTestId('attention-missing')).toBeInTheDocument();
   });
@@ -269,28 +159,7 @@ describe('AttentionSummary', () => {
   it('does not render missing-category when all assessed', () => {
     renderSummary({
       riskCards: makeGoodRiskCards(),
-      warnings: makeCleanWarnings(),
-      sunlightScore: 80,
     });
     expect(screen.queryByTestId('attention-missing')).not.toBeInTheDocument();
-  });
-
-  it('lead pipe flag count is not affected by low livability', () => {
-    const warnings = makePropertyWarningsResponse({
-      lead_pipe: { flagged: true, construction_year: 1955, messages: ['LEAD_PIPE_PRE_1960'] },
-    });
-    const livability: LivabilityResponse = {
-      available: true, buurt_code: 'BU', buurt_name: 'T', gemeente: 'A',
-      year: '2024', overall_score: 2, overall_normalized: 13,
-      dimensions: [], trend: [], comparison: [], source: 'x', messages: [],
-    };
-    renderSummary({
-      riskCards: makeGoodRiskCards(),
-      warnings,
-      sunlightScore: 80,
-      livability,
-    });
-    // Only lead pipe flag — livability does NOT add a flag per v7
-    expect(screen.getByText(/1 item needs attention/i)).toBeInTheDocument();
   });
 });

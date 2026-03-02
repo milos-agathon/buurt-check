@@ -822,7 +822,6 @@ describe('dossier section order (v7 canonical)', () => {
       expect(screen.getByTestId('address-header')).toBeInTheDocument();
       expect(screen.getByText('Building Facts')).toBeInTheDocument();
       expect(document.querySelector('.risk-tiles-grid')).toBeInTheDocument();
-      expect(screen.getByTestId('property-warnings')).toBeInTheDocument();
       expect(screen.getByTestId('livability-card')).toBeInTheDocument();
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
       expect(screen.getByTestId('neighborhood-stats')).toBeInTheDocument();
@@ -838,7 +837,6 @@ describe('dossier section order (v7 canonical)', () => {
       '[data-testid="address-header"], ' +
       '.building-card, ' +
       '.risk-tiles-grid, ' +
-      '[data-testid="property-warnings"], ' +
       '[data-testid="livability-card"], ' +
       '[data-testid="viewer-3d"], ' +
       '[data-testid="neighborhood-stats"], ' +
@@ -852,7 +850,6 @@ describe('dossier section order (v7 canonical)', () => {
       if (tid === 'address-header') return 'address-header';
       if (el.classList.contains('building-card')) return 'building';
       if (el.classList.contains('risk-tiles-grid')) return 'risk';
-      if (tid === 'property-warnings') return 'warnings';
       if (tid === 'livability-card') return 'livability';
       if (tid === 'viewer-3d') return 'viewer-3d';
       if (tid === 'neighborhood-stats') return 'stats';
@@ -864,12 +861,11 @@ describe('dossier section order (v7 canonical)', () => {
 
     // Verify canonical dossier order:
     // AttentionSummary → AddressHeader → BuildingFacts →
-    // RiskTiles → PropertyWarnings → Livability →
-    // 3D Viewer → NeighborhoodStats → TierB →
-    // ViewingChecklist → ActionBar
+    // RiskTiles → Livability → 3D Viewer →
+    // NeighborhoodStats → TierB → ViewingChecklist → ActionBar
     const expected = [
       'attention', 'address-header', 'building', 'risk',
-      'warnings', 'livability', 'viewer-3d',
+      'livability', 'viewer-3d',
       'stats', 'tierb', 'checklist', 'actionbar',
     ];
     const filtered = order.filter(s => expected.includes(s));
@@ -903,7 +899,7 @@ describe('dossier section order (v7 canonical)', () => {
     const uniqueIndexes = [...new Set(indexes)];
 
     expect(indexes).toEqual(uniqueIndexes);
-    expect(uniqueIndexes).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(uniqueIndexes).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     sections.forEach((section) => {
       const attr = section.getAttribute('data-section-index');
       if (attr == null) return;
