@@ -193,6 +193,107 @@ describe('ExportBottomSheet', () => {
     });
   });
 
+  describe('sunlight readiness gating', () => {
+    it('disables Generate button for full_dossier when sunlight not ready', () => {
+      renderSheet({ sunlightReady: false });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      const btn = screen.getByTestId('export-generate-btn');
+      expect(btn).toBeDisabled();
+    });
+
+    it('does NOT disable Generate button for quick_brief when sunlight not ready', () => {
+      renderSheet({ sunlightReady: false });
+      // quick_brief is the default template
+      const btn = screen.getByTestId('export-generate-btn');
+      expect(btn).not.toBeDisabled();
+    });
+
+    it('enables Generate button for full_dossier when sunlight is ready', () => {
+      renderSheet({ sunlightReady: true });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      const btn = screen.getByTestId('export-generate-btn');
+      expect(btn).not.toBeDisabled();
+    });
+
+    it('shows computing status for full_dossier when sunlight not ready', () => {
+      renderSheet({ sunlightReady: false });
+      // Status should not show for quick_brief
+      expect(screen.queryByTestId('export-sunlight-computing')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      expect(screen.getByTestId('export-sunlight-computing')).toBeInTheDocument();
+      expect(screen.getByTestId('export-sunlight-computing')).toHaveTextContent('Calculating sunlight analysis...');
+    });
+
+    it('hides computing status when sunlight is ready', () => {
+      renderSheet({ sunlightReady: true });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      expect(screen.queryByTestId('export-sunlight-computing')).not.toBeInTheDocument();
+    });
+
+    it('shows warning when sunlight failed for full_dossier', () => {
+      renderSheet({ sunlightReady: true, sunlightFailed: true });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      expect(screen.getByTestId('export-sunlight-warning')).toBeInTheDocument();
+      expect(screen.getByTestId('export-sunlight-warning')).toHaveTextContent(
+        'Sunlight data unavailable — dossier will show N/A',
+      );
+    });
+
+    it('does NOT show warning when sunlight succeeded', () => {
+      renderSheet({ sunlightReady: true, sunlightFailed: false });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      expect(screen.queryByTestId('export-sunlight-warning')).not.toBeInTheDocument();
+    });
+
+    it('allows export when sunlight failed (ready=true, failed=true)', () => {
+      renderSheet({ sunlightReady: true, sunlightFailed: true });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      const btn = screen.getByTestId('export-generate-btn');
+      expect(btn).not.toBeDisabled();
+    });
+
+    it('does NOT show sunlight warning for quick_brief template', () => {
+      renderSheet({ sunlightReady: true, sunlightFailed: true });
+      // Stay on quick_brief (default)
+      expect(screen.queryByTestId('export-sunlight-warning')).not.toBeInTheDocument();
+    });
+
+    it('shows NL sunlight computing text in Dutch locale', async () => {
+      const nlI18n = await setupTestI18n('nl');
+      render(
+        <I18nextProvider i18n={nlI18n}>
+          <ExportBottomSheet {...defaultProps} sunlightReady={false} />
+        </I18nextProvider>,
+      );
+      fireEvent.click(screen.getByRole('radio', { name: /Volledig dossier/i }));
+
+      expect(screen.getByTestId('export-sunlight-computing')).toHaveTextContent(
+        'Zonlichtanalyse wordt berekend...',
+      );
+    });
+
+    it('shows NL sunlight warning text in Dutch locale', async () => {
+      const nlI18n = await setupTestI18n('nl');
+      render(
+        <I18nextProvider i18n={nlI18n}>
+          <ExportBottomSheet {...defaultProps} sunlightReady={true} sunlightFailed={true} />
+        </I18nextProvider>,
+      );
+      fireEvent.click(screen.getByRole('radio', { name: /Volledig dossier/i }));
+
+      expect(screen.getByTestId('export-sunlight-warning')).toHaveTextContent(
+        'Zonlichtgegevens niet beschikbaar',
+      );
+    });
+  });
+
   it('uses indeterminate progressbar during API call (no aria-valuenow)', async () => {
     let resolver: (() => void) | undefined;
     vi.mocked(api.exportBriefing).mockImplementation(

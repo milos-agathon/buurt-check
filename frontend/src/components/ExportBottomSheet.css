@@ -108,10 +108,17 @@
   color: var(--color-overlay-text);
 }
 
-.export-sheet__language-warning {
+.export-sheet__language-warning,
+.export-sheet__sunlight-warning {
   margin: var(--space-xs) 0 0;
   font: var(--type-micro);
   color: var(--color-badge-caution-text);
+}
+
+.export-sheet__sunlight-status {
+  margin: var(--space-xs) 0 0;
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
 }
 
 .export-sheet__toggle {

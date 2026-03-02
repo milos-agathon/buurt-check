@@ -345,6 +345,7 @@ describe('submitSunlightAnalysis', () => {
       summer_hours: 10.8,
       analysis_year: 2026,
       svf: 0.55,
+      annual_average: 6.7,
     });
   });
 
@@ -360,6 +361,37 @@ describe('submitSunlightAnalysis', () => {
 
     const [url] = mockFetch.mock.calls[0];
     expect(url).toBe('/api/address/vbo-1/sunlight?report_id=rpt-123');
+  });
+
+  it('maps extended SunlightResult fields (facade, ground, anisotropic SVF, irradiance)', async () => {
+    mockFetch.mockResolvedValue(okResponse({ status: 'ok' }));
+
+    await submitSunlightAnalysis('vbo-1', {
+      winter: 2.5,
+      equinox: 6.0,
+      summer: 10.0,
+      annualAverage: 5.8,
+      analysisYear: 2026,
+      svf: 0.60,
+      svfAnisotropic: 0.55,
+      groundAnnualAverage: 4.2,
+      irradianceKwhM2: 920.5,
+      facadeResults: [
+        { orientation: 'south', heightLabel: '3m', winterHours: 3.0, summerHours: 11.0, annualAverage: 7.0 },
+        { orientation: 'north', heightLabel: '3m', winterHours: 0.5, summerHours: 4.0, annualAverage: 2.0 },
+      ],
+    });
+
+    const [, init] = mockFetch.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.annual_average).toBe(5.8);
+    expect(body.ground_annual_average).toBe(4.2);
+    expect(body.svf_anisotropic).toBe(0.55);
+    expect(body.irradiance_kwh_m2).toBe(920.5);
+    expect(body.facade_results).toEqual([
+      { orientation: 'south', height_label: '3m', winter_hours: 3.0, summer_hours: 11.0, annual_average: 7.0 },
+      { orientation: 'north', height_label: '3m', winter_hours: 0.5, summer_hours: 4.0, annual_average: 2.0 },
+    ]);
   });
 
   it('throws ApiError on non-OK response', async () => {

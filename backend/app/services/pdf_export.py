@@ -3,13 +3,15 @@
 import base64
 import io
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fpdf import FPDF
 
+from app.models.livability import LivabilityResponse, LivabilityTrendPoint
 from app.models.neighborhood import AgeProfile, NeighborhoodStats, UrbanizationLevel
 from app.models.property_warnings import PropertyWarningsResponse
+from app.models.report import ProvenanceData
 from app.models.risk import (
     ComparisonPattern,
     RiskCardsResponse,
@@ -25,12 +27,21 @@ logger = logging.getLogger(__name__)
 _FONTS_DIR = Path(__file__).parent.parent / "assets" / "fonts"
 
 # --- Polar Frost color palette (RGB tuples) ---
-TEAL = (46, 196, 182)  # #2EC4B6 — Arctic Teal accent
-SLATE = (28, 45, 63)  # #1C2D3F — Polar Slate primary text
-MUTED = (138, 155, 176)  # #8A9BB0 — muted text / unavailable
-BORDER = (226, 231, 237)  # #E2E7ED — borders, dividers, score track
+# Contrast ratios are vs white (#FFFFFF) unless noted.
+TEAL = (46, 196, 182)  # #2EC4B6 — Arctic Teal accent (2.17:1 — fill only, never text)
+SLATE = (28, 45, 63)  # #1C2D3F — Polar Slate primary text (12.6:1)
+MUTED = (120, 140, 165)  # #788CA5 — peer/comparison bar fill (3.44:1, >= 3:1 graphical AA)
+BORDER = (226, 231, 237)  # #E2E7ED — borders, dividers, score track (1.3:1, non-data)
 WHITE = (255, 255, 255)
-AMBER_WARN = (234, 179, 8)  # #EAB308 — amber for warnings
+AMBER_WARN = (234, 179, 8)  # #EAB308 — amber for warnings (1.87:1 — fill/dashed only)
+SECONDARY = (99, 120, 146)  # #637892 — essential info text (4.52:1 — WCAG AA pass)
+NATIONAL = (110, 130, 155)  # #6E829B — "Nederland" bar fill (3.94:1, >= 3:1 graphical)
+GRIDLINE = (240, 242, 245)  # Very light gray for chart gridlines (decorative)
+
+# --- CBS 2024 national age distribution averages (%) ---
+NL_AGE_0_24 = 28.0
+NL_AGE_25_64 = 50.0
+NL_AGE_65_PLUS = 22.0
 
 SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "good": (34, 197, 94),  # #22C55E
@@ -38,6 +49,23 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "poor": (239, 68, 68),  # #EF4444
     "critical": (185, 28, 28),  # #B91C1C
 }
+
+
+def format_number(value: float, decimals: int = 0, is_nl: bool = False) -> str:
+    """Format number with locale-appropriate separators.
+
+    NL: decimal comma, period thousands (1.234,5)
+    EN: decimal period, comma thousands (1,234.5)
+    """
+    if decimals > 0:
+        formatted = f"{value:,.{decimals}f}"
+    else:
+        formatted = f"{value:,.0f}"
+    if is_nl:
+        # Swap: comma→placeholder, period→comma, placeholder→period
+        formatted = formatted.replace(",", "_COMMA_").replace(".", ",").replace("_COMMA_", ".")
+    return formatted
+
 
 def _severity_for_score(score: int | None) -> str:
     if score is None:
@@ -60,6 +88,77 @@ def _severity_label(score: int | None, is_nl: bool = False) -> str:
     if score >= 20:
         return "Slecht" if is_nl else "Poor"
     return "Kritiek" if is_nl else "Critical"
+
+
+def _interpret_age_distribution(age_data: AgeProfile, is_nl: bool) -> str | None:
+    """Return a bilingual one-liner comparing buurt age profile to national averages.
+
+    Returns None when no age band has data.
+    """
+    young = age_data.age_0_24
+    working = age_data.age_25_64
+    elderly = age_data.age_65_plus
+
+    # Need at least one band to interpret
+    if young is None and working is None and elderly is None:
+        return None
+
+    # Find the band with the largest deviation from national average
+    deviations: list[tuple[str, float, float, float]] = []
+    # (band_key, local_pct, national_pct, deviation)
+    if young is not None:
+        deviations.append(("young", young, NL_AGE_0_24, young - NL_AGE_0_24))
+    if working is not None:
+        deviations.append(("working", working, NL_AGE_25_64, working - NL_AGE_25_64))
+    if elderly is not None:
+        deviations.append(("elderly", elderly, NL_AGE_65_PLUS, elderly - NL_AGE_65_PLUS))
+
+    # Pick the band with the largest absolute deviation
+    best = max(deviations, key=lambda d: abs(d[3]))
+    band_key, local_pct, national_pct, deviation = best
+
+    # If the deviation is negligible (< 3pp), it's a balanced neighborhood
+    if abs(deviation) < 3:
+        if is_nl:
+            return "Evenwichtige leeftijdsverdeling \u2014 dicht bij het landelijk gemiddelde"
+        return "Balanced age distribution \u2014 close to the national average"
+
+    local_str = f"{local_pct:.0f}%"
+    national_str = f"{national_pct:.0f}%"
+
+    if band_key == "young":
+        if is_nl:
+            return (
+                f"Jonge buurt \u2014 {local_str} onder 25 vs landelijk {national_str}"
+                if deviation > 0
+                else f"Weinig jongeren \u2014 {local_str} onder 25 vs landelijk {national_str}"
+            )
+        return (
+            f"Young neighborhood \u2014 {local_str} under 25 vs {national_str} nationally"
+            if deviation > 0
+            else f"Few young residents \u2014 {local_str} under 25 vs {national_str} nationally"
+        )
+    elif band_key == "working":
+        rng = "25\u201364"
+        if is_nl:
+            vs = f"{local_str} is {rng} vs landelijk {national_str}"
+            label = "Werkende buurt" if deviation > 0 else "Minder werkenden"
+            return f"{label} \u2014 {vs}"
+        vs = f"{local_str} aged {rng} vs {national_str} nationally"
+        label = "Working-age area" if deviation > 0 else "Fewer working-age"
+        return f"{label} \u2014 {vs}"
+    else:  # elderly
+        if is_nl:
+            return (
+                f"Vergrijsde buurt \u2014 {local_str} is 65+ vs landelijk {national_str}"
+                if deviation > 0
+                else f"Weinig ouderen \u2014 {local_str} is 65+ vs landelijk {national_str}"
+            )
+        return (
+            f"Older neighborhood \u2014 {local_str} aged 65+ vs {national_str} nationally"
+            if deviation > 0
+            else f"Few elderly \u2014 {local_str} aged 65+ vs {national_str} nationally"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +207,7 @@ class BuurtCheckPDF(FPDF):
 
         if self.section_title:
             self.set_font("Satoshi", "", 9)
-            self.set_text_color(*MUTED)
+            self.set_text_color(*SECONDARY)
             self.set_x(self.w - self.r_margin - 60)
             self.cell(60, 5, self.section_title, align="R")
 
@@ -128,7 +227,7 @@ class BuurtCheckPDF(FPDF):
 
         self.set_y(-12)
         self.set_font("Satoshi", "", 7)
-        self.set_text_color(*MUTED)
+        self.set_text_color(*SECONDARY)
 
         self.cell(30, 4, "buurt-check")
         disclaimer = (
@@ -143,15 +242,22 @@ class BuurtCheckPDF(FPDF):
     # --- Drawing primitives ---
 
     def draw_score_bar(
-        self, x: float, y: float, width: float, score: int | None, height: float = 1.0
+        self, x: float, y: float, width: float, score: int | None, height: float = 4.0
     ) -> None:
-        """Draw horizontal score bar: gray track + colored fill proportional to score."""
+        """Draw horizontal score bar: gray track + colored fill + severity tick marks."""
         self.set_fill_color(*BORDER)
         self.rect(x, y, width, height, "F")
         if score is not None and score > 0:
-            fill_w = width * min(score, 100) / 100
+            fill_w = max(width * min(score, 100) / 100, 1.0)
             self.set_fill_color(*_severity_color(score))
             self.rect(x, y, fill_w, height, "F")
+        # Severity zone tick marks at scores 20, 40, 70
+        self.set_draw_color(*SECONDARY)
+        self.set_line_width(0.15)
+        for threshold in (20, 40, 70):
+            tick_x = x + width * threshold / 100
+            self.line(tick_x, y, tick_x, y + height)
+        self.set_line_width(0.1)
 
     def draw_checkbox(self, x: float, y: float, size: float = 3.0) -> None:
         """Draw an empty checkbox square."""
@@ -166,26 +272,77 @@ class BuurtCheckPDF(FPDF):
         y: float,
         width: float,
         rows: list[tuple[str, int, tuple[int, int, int], bool]],
-    ) -> None:
-        """Draw horizontal comparison bars.
+        chart_title: str = "",
+        show_legend: bool = False,
+        is_nl: bool = True,
+    ) -> float:
+        """Draw horizontal comparison bars with axis, gridlines, title, legend.
 
         Each row: (label, score_value, fill_color_rgb, is_dashed).
+        Address rows (TEAL color, non-dashed) are sorted first with a heavier
+        bar and a visual gap separating them from reference rows.
+        Returns y position after the chart (including axis labels and legend).
         """
         label_w = 40
         score_w = 15
         bar_w = width - label_w - score_w - 4
-        bar_h = 3.0
+        bar_h_normal = 3.0
+        bar_h_address = 4.5  # heavier bar for address row
         row_h = 7.0
+        address_gap = 2.5  # visual gap between address and reference rows
+        bar_x = x + label_w + 2
+        cur_y = y
 
-        for i, (label, value, color, dashed) in enumerate(rows):
-            ry = y + i * row_h
+        # Sort: address rows (TEAL, non-dashed) first, others preserve order
+        address_rows = [r for r in rows if r[2] == TEAL and not r[3]]
+        reference_rows = [r for r in rows if r not in address_rows]
+        sorted_rows = address_rows + reference_rows
+        n_address = len(address_rows)
+        has_address_gap = bool(address_rows) and bool(reference_rows)
 
-            self.set_font("Satoshi", "", 8)
+        # --- Chart title ---
+        if chart_title:
+            self.set_font("SatoshiMedium", "", 8)
+            self.set_text_color(*SLATE)
+            self.set_xy(x, cur_y)
+            self.cell(width, 5, chart_title)
+            cur_y += 5
+
+        # --- Calculate total chart height for gridlines ---
+        total_h = len(sorted_rows) * row_h
+        if has_address_gap:
+            total_h += address_gap
+
+        bars_top = cur_y
+        bars_bottom = cur_y + total_h
+        self.set_draw_color(*GRIDLINE)
+        self.set_line_width(0.15)
+        for pct in (25, 50, 75):
+            gx = bar_x + bar_w * pct / 100
+            self.line(gx, bars_top, gx, bars_bottom)
+        self.set_line_width(0.1)
+
+        # --- Data rows ---
+        row_y = cur_y
+        for i, (label, value, color, dashed) in enumerate(sorted_rows):
+            is_address = color == TEAL and not dashed
+            bar_h = bar_h_address if is_address else bar_h_normal
+
+            # Add visual gap after last address row
+            if has_address_gap and i == n_address:
+                row_y += address_gap
+
+            ry = row_y
+
+            # Bold label for address row
+            if is_address:
+                self.set_font("Satoshi", "B", 8)
+            else:
+                self.set_font("Satoshi", "", 8)
             self.set_text_color(*SLATE)
             self.set_xy(x, ry)
             self.cell(label_w, row_h, label)
 
-            bar_x = x + label_w + 2
             bar_y = ry + (row_h - bar_h) / 2
             self.set_fill_color(*BORDER)
             self.rect(bar_x, bar_y, bar_w, bar_h, "F")
@@ -210,6 +367,84 @@ class BuurtCheckPDF(FPDF):
             self.set_xy(x + width - score_w, ry)
             self.cell(score_w, row_h, str(value), align="R")
 
+            row_y += row_h
+
+        # --- Axis labels ("0" and "100") below bars ---
+        axis_y = bars_bottom + 0.5
+        self.set_font("Satoshi", "", 6)
+        self.set_text_color(*SECONDARY)
+        self.set_xy(bar_x, axis_y)
+        self.cell(10, 3, "0")
+        self.set_xy(bar_x + bar_w - 10, axis_y)
+        self.cell(10, 3, "100", align="R")
+
+        # Severity zone threshold labels at 20, 40, 70
+        for threshold in (20, 40, 70):
+            tx = bar_x + bar_w * threshold / 100
+            self.set_xy(tx - 3, axis_y)
+            self.cell(6, 3, str(threshold), align="C")
+
+        cur_y = axis_y + 3.5
+
+        # --- Legend (first chart only) ---
+        if show_legend:
+            legend_y = cur_y + 1
+            lx = x
+            swatch_w = 5
+            swatch_h = 2.0
+            gap = 2
+
+            self.set_font("Satoshi", "", 6)
+            self.set_text_color(*SECONDARY)
+
+            # Teal swatch — "Dit adres" / "This address"
+            self.set_fill_color(*TEAL)
+            self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
+            lx += swatch_w + 1
+            label_text = "Dit adres" if is_nl else "This address"
+            self.set_xy(lx, legend_y)
+            self.cell(20, 3, label_text)
+            lx += 20 + gap
+
+            # Gray swatch — "Vergelijkingsgroep" / "Peer group" (city_avg)
+            self.set_fill_color(*MUTED)
+            self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
+            lx += swatch_w + 1
+            label_text = "Vergelijkingsgroep" if is_nl else "Peer group"
+            self.set_xy(lx, legend_y)
+            self.cell(22, 3, label_text)
+            lx += 22 + gap
+
+            # Darker gray swatch — "Nationaal" / "National" (nl_avg)
+            self.set_fill_color(*NATIONAL)
+            self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
+            lx += swatch_w + 1
+            label_text = "Nationaal" if is_nl else "National"
+            self.set_xy(lx, legend_y)
+            self.cell(18, 3, label_text)
+            lx += 18 + gap
+
+            # Dashed swatch — "Richtlijn" / "Benchmark"
+            self.set_draw_color(*AMBER_WARN)
+            self.set_line_width(swatch_h)
+            dash_len = 1.2
+            dash_gap = 0.8
+            dx = lx
+            while dx < lx + swatch_w:
+                end = min(dx + dash_len, lx + swatch_w)
+                self.line(dx, legend_y + 0.5 + swatch_h / 2, end, legend_y + 0.5 + swatch_h / 2)
+                dx = end + dash_gap
+            self.set_line_width(0.1)
+            lx += swatch_w + 1
+            label_text = "Richtlijn" if is_nl else "Benchmark"
+            self.set_xy(lx, legend_y)
+            self.cell(20, 3, label_text)
+
+            cur_y = legend_y + 4
+
+        self.set_text_color(*SLATE)
+        return cur_y
+
     def draw_risk_grid(
         self,
         x: float,
@@ -231,7 +466,7 @@ class BuurtCheckPDF(FPDF):
             cy = y + row * (cell_h + gap)
 
             self.set_font("SatoshiMedium", "", 7)
-            self.set_text_color(*MUTED)
+            self.set_text_color(*SECONDARY)
             self.set_xy(cx, cy)
             self.cell(cell_w, 4, cat_label.upper(), align="C")
 
@@ -244,7 +479,11 @@ class BuurtCheckPDF(FPDF):
 
             bar_y = cy + 15
             bar_margin = cell_w * 0.1
-            self.draw_score_bar(cx + bar_margin, bar_y, cell_w - 2 * bar_margin, score)
+            self.draw_score_bar(
+                cx + bar_margin, bar_y,
+                cell_w - 2 * bar_margin, score,
+                height=4.0,
+            )
 
             self.set_font("Satoshi", "", 8)
             self.set_text_color(*color)
@@ -298,7 +537,7 @@ class BuurtCheckPDF(FPDF):
     def draw_section_label(self, text: str) -> None:
         """Draw an uppercase section label."""
         self.set_font("SatoshiMedium", "", 8)
-        self.set_text_color(*MUTED)
+        self.set_text_color(*SECONDARY)
         self.cell(0, 5, text.upper(), new_x="LMARGIN", new_y="NEXT")
         self.set_text_color(*SLATE)
 
@@ -415,7 +654,7 @@ def _draw_branded_questions(
             pdf.set_xy(qx + 5, qy)
             pdf.multi_cell(
                 pdf.w - pdf.r_margin - qx - 5, 5, text,
-                new_x="LMARGIN", new_y="NEXT",
+                align="L", new_x="LMARGIN", new_y="NEXT",
             )
             count += 1
         pdf.ln(1)
@@ -436,13 +675,163 @@ def _draw_shadow_image(pdf: BuurtCheckPDF, shadow_image_b64: str | None, is_nl: 
         img_h = pdf.get_y() - img_y
         pdf.rect(pdf.l_margin, img_y, 170, img_h, "D")
         pdf.set_font("Satoshi", "I", 7)
-        pdf.set_text_color(*MUTED)
-        caption = "Winterzonnewende, 12:00" if is_nl else "Winter solstice, 12:00"
+        pdf.set_text_color(*SECONDARY)
+        year = date.today().year
+        caption = (
+            "Schaduwopname — winterzonnewende"
+            if is_nl
+            else "Shadow snapshot — winter solstice"
+        )
         pdf.cell(0, 4, caption, new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Satoshi", "", 7)
+        timestamp = f"{year}-12-21 12:00 CET (Europe/Amsterdam)"
+        meta = (
+            "Schaalbalk: 50m · Omvang: 250m straal · "
+            "Legenda: Directe zon / Schaduw · Bron: 3DBAG / TU Delft + SunCalc"
+            if is_nl
+            else "Scale bar: 50m · Extent: 250m radius · "
+            "Legend: Direct sun / Shadow · Source: 3DBAG / TU Delft + SunCalc"
+        )
+        pdf.multi_cell(0, 3.5, timestamp, align="L", new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(0, 3.5, meta, align="L", new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
-        pdf.ln(2)
+        pdf.ln(1)
     except Exception:
         logger.warning("Failed to embed shadow snapshot in PDF")
+
+
+# Hour-to-caption mapping for shadow triptych
+# December 21 is always CET (UTC+1), never CEST
+_SHADOW_CAPTIONS: dict[int, dict[str, str]] = {
+    9: {"en": "09:00 CET", "nl": "09:00 CET"},
+    12: {"en": "12:00 CET", "nl": "12:00 CET"},
+    17: {"en": "17:00 CET", "nl": "17:00 CET"},
+}
+
+
+def _shadow_timestamps_line(hours: list[int], is_nl: bool) -> str:
+    """Build figure-level timestamp disclosure with timezone."""
+    year = date.today().year
+    ordered = sorted({h for h in hours if 0 <= h <= 23})
+    if not ordered:
+        ordered = [12]
+    hour_labels = " | ".join(f"{h:02d}:00" for h in ordered)
+    if is_nl:
+        return f"Tijdstempels: {year}-12-21 {hour_labels} CET (Europe/Amsterdam)"
+    return f"Timestamps: {year}-12-21 {hour_labels} CET (Europe/Amsterdam)"
+
+
+def _shadow_meta_line(is_nl: bool) -> str:
+    if is_nl:
+        return (
+            "Schaalbalk: 50m · Omvang: 250m straal · "
+            "Legenda: Directe zon / Schaduw · Bron: 3DBAG / TU Delft + SunCalc"
+        )
+    return (
+        "Scale bar: 50m · Extent: 250m radius · "
+        "Legend: Direct sun / Shadow · Source: 3DBAG / TU Delft + SunCalc"
+    )
+
+
+def _draw_shadow_triptych(
+    pdf: BuurtCheckPDF,
+    shadow_images: list[dict],
+    is_nl: bool,
+) -> None:
+    """Draw 3 shadow snapshots side by side with captions including timezone.
+
+    Each dict has keys: hour (int), label (str), image_b64 (str).
+    Falls back to single-image layout if fewer than 3 images.
+    """
+    if not shadow_images:
+        return
+
+    # If fewer than 3 images, fall back to first image as single
+    if len(shadow_images) < 3:
+        first = shadow_images[0]
+        _draw_shadow_image(pdf, first.get("image_b64"), is_nl)
+        return
+
+    # Sort by hour to ensure morning/noon/evening order
+    sorted_imgs = sorted(shadow_images[:3], key=lambda s: s.get("hour", 0))
+
+    page_w = pdf.w - pdf.l_margin - pdf.r_margin  # ~170mm
+    gap = 3.0  # mm between images
+    img_w = (page_w - 2 * gap) / 3  # ~54.7mm each
+    # Aspect ratio 16:9 -> height = width * 9/16
+    img_h = img_w * 9 / 16
+
+    # Section label
+    pdf.draw_section_label(
+        "Schaduwanalyse \u2014 winterzonnewende"
+        if is_nl
+        else "Shadow Analysis \u2014 winter solstice"
+    )
+    pdf.ln(1)
+
+    start_y = pdf.get_y()
+    lang = "nl" if is_nl else "en"
+    rendered_count = 0
+    rendered_hours: list[int] = []
+
+    for i, img_data in enumerate(sorted_imgs):
+        hour = img_data.get("hour", 0)
+        b64 = img_data.get("image_b64", "")
+        if not b64:
+            continue
+
+        try:
+            image_bytes = base64.b64decode(b64)
+        except Exception:
+            logger.warning("Failed to decode shadow image %d", i)
+            continue
+
+        x = pdf.l_margin + i * (img_w + gap)
+
+        # Draw image
+        try:
+            pdf.image(
+                io.BytesIO(image_bytes),
+                x=x, y=start_y, w=img_w, h=img_h,
+            )
+        except Exception:
+            logger.warning("Failed to embed shadow image %d in PDF", i)
+            continue
+
+        # Border
+        pdf.set_draw_color(*BORDER)
+        pdf.set_line_width(0.2)
+        pdf.rect(x, start_y, img_w, img_h, "D")
+
+        # Caption below image
+        caption = _SHADOW_CAPTIONS.get(hour, {}).get(lang, f"{hour:02d}:00 CET")
+        pdf.set_font("Satoshi", "I", 7)
+        pdf.set_text_color(*SECONDARY)
+        pdf.set_xy(x, start_y + img_h + 0.5)
+        pdf.cell(img_w, 3, caption, align="C")
+
+        rendered_count += 1
+        rendered_hours.append(hour)
+
+    if rendered_count > 0:
+        pdf.set_y(start_y + img_h + 4.5)
+        pdf.set_font("Satoshi", "", 7)
+        pdf.set_text_color(*SECONDARY)
+        pdf.multi_cell(
+            0, 3.5,
+            _shadow_timestamps_line(rendered_hours, is_nl),
+            align="L", new_x="LMARGIN", new_y="NEXT",
+        )
+        pdf.multi_cell(
+            0, 3.5,
+            _shadow_meta_line(is_nl),
+            align="L", new_x="LMARGIN", new_y="NEXT",
+        )
+        pdf.set_text_color(*SLATE)
+        pdf.ln(1)
+    else:
+        # All images failed — reset cursor
+        pdf.set_y(start_y)
 
 
 def _draw_address_block(
@@ -457,7 +846,7 @@ def _draw_address_block(
     """Draw address + building facts."""
     pdf.set_font("SatoshiBlack", "", font_size)
     pdf.set_text_color(*SLATE)
-    pdf.multi_cell(0, 7, address, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 7, address, align="L", new_x="LMARGIN", new_y="NEXT")
 
     facts_parts: list[str] = []
     if building_year:
@@ -468,7 +857,7 @@ def _draw_address_block(
         facts_parts.append(f"{floor_area} m\u00b2")
     if facts_parts:
         pdf.set_font("Satoshi", "", 9)
-        pdf.set_text_color(*MUTED)
+        pdf.set_text_color(*SECONDARY)
         pdf.cell(0, 5, " \u00b7 ".join(facts_parts), new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
     pdf.ln(3)
@@ -520,7 +909,7 @@ def generate_quick_brief(
 
     if was_clipped:
         pdf.set_font("Satoshi", "I", 7)
-        pdf.set_text_color(*MUTED)
+        pdf.set_text_color(*SECONDARY)
         note = (
             "Zie het Volledige Dossier voor de complete checklist."
             if is_nl
@@ -550,6 +939,10 @@ def generate_full_dossier(
     tier_b: TierBResponse | None = None,
     risk_comparisons: RiskComparisonsResponse | None = None,
     property_warnings_data: PropertyWarningsResponse | None = None,
+    provenance: ProvenanceData | None = None,
+    location_map_b64: str | None = None,
+    livability: LivabilityResponse | None = None,
+    shadow_images: list[dict] | None = None,
 ) -> bytes:
     """Generate 5+ page Full Dossier with Polar Frost branding."""
     is_nl = language == "nl"
@@ -561,6 +954,8 @@ def generate_full_dossier(
     _draw_cover_page(
         pdf, address, building_year, building_use, floor_area,
         risks, sunlight_score, shadow_image_b64, is_nl,
+        location_map_b64=location_map_b64,
+        shadow_images=shadow_images,
     )
 
     # Page 2: Risk Details
@@ -571,7 +966,7 @@ def generate_full_dossier(
     # Page 3: Neighborhood Intelligence
     pdf.section_title = "BUURT" if is_nl else "NEIGHBORHOOD"
     pdf.add_page()
-    _draw_neighborhood_page(pdf, neighborhood_stats, tier_b, is_nl)
+    _draw_neighborhood_page(pdf, neighborhood_stats, tier_b, is_nl, livability=livability)
 
     # Page 4: Premium Property Checks
     pdf.section_title = "EXTRA CONTROLES" if is_nl else "ADDITIONAL CHECKS"
@@ -583,6 +978,7 @@ def generate_full_dossier(
         shadow_image_b64=shadow_image_b64,
         property_warnings=property_warnings_data,
         is_nl=is_nl,
+        shadow_images=shadow_images,
     )
 
     # Page 5: Viewing Checklist
@@ -593,7 +989,7 @@ def generate_full_dossier(
     # Page 6: Methodology + Notes
     pdf.section_title = "METHODOLOGIE" if is_nl else "METHODOLOGY"
     pdf.add_page()
-    _draw_methodology_page(pdf, is_nl)
+    _draw_methodology_page(pdf, is_nl, provenance=provenance)
 
     return bytes(pdf.output())
 
@@ -601,6 +997,93 @@ def generate_full_dossier(
 # ---------------------------------------------------------------------------
 # Full Dossier page drawing functions
 # ---------------------------------------------------------------------------
+
+
+def _draw_location_map(
+    pdf: BuurtCheckPDF,
+    location_map_b64: str | None,
+    is_nl: bool,
+) -> None:
+    """Embed a static PDOK BRT location map with pin, compass, and scale."""
+    if not location_map_b64:
+        return
+    try:
+        image_data = base64.b64decode(location_map_b64)
+        img_w = 80  # mm width in PDF
+        img_h = img_w  # square map (600x600 source)
+
+        # Section label
+        pdf.draw_section_label("Locatie" if is_nl else "Location")
+        pdf.ln(1)
+
+        # Draw the map image
+        pdf.set_draw_color(*BORDER)
+        pdf.set_line_width(0.2)
+        img_y = pdf.get_y()
+        pdf.image(
+            io.BytesIO(image_data),
+            x=pdf.l_margin, w=img_w, h=img_h,
+        )
+        pdf.rect(pdf.l_margin, img_y, img_w, img_h, "D")
+
+        # Red pin marker at center
+        cx = pdf.l_margin + img_w / 2
+        cy_pin = img_y + img_h / 2
+        pdf.set_fill_color(239, 68, 68)  # red
+        pdf.ellipse(cx - 1.5, cy_pin - 1.5, 3, 3, "F")
+        pdf.set_fill_color(255, 255, 255)
+        pdf.ellipse(cx - 0.7, cy_pin - 0.7, 1.4, 1.4, "F")
+
+        # North arrow (top-right of map)
+        nx = pdf.l_margin + img_w - 5
+        ny = img_y + 3
+        pdf.set_font("Satoshi", "B", 8)
+        pdf.set_text_color(*SLATE)
+        pdf.set_xy(nx, ny)
+        pdf.cell(5, 3, "N", align="C")
+        # Arrow line
+        pdf.set_draw_color(*SLATE)
+        pdf.set_line_width(0.3)
+        pdf.line(nx + 2.5, ny + 3, nx + 2.5, ny + 8)
+        # Arrow head
+        pdf.line(nx + 2.5, ny + 3, nx + 1.5, ny + 5)
+        pdf.line(nx + 2.5, ny + 3, nx + 3.5, ny + 5)
+        pdf.set_line_width(0.1)
+
+        # Scale bar (bottom-left of map)
+        # Map is 1000m wide displayed at img_w mm
+        # So 100m = img_w / 10 mm
+        scale_mm = img_w / 10  # 100m
+        sx = pdf.l_margin + 3
+        sy = img_y + img_h - 5
+        pdf.set_draw_color(*SLATE)
+        pdf.set_line_width(0.4)
+        pdf.line(sx, sy, sx + scale_mm, sy)
+        # End caps
+        pdf.line(sx, sy - 1, sx, sy + 1)
+        pdf.line(sx + scale_mm, sy - 1, sx + scale_mm, sy + 1)
+        pdf.set_line_width(0.1)
+        pdf.set_font("Satoshi", "", 6)
+        pdf.set_xy(sx, sy + 1)
+        pdf.cell(scale_mm, 3, "100 m", align="C")
+
+        # Attribution
+        pdf.set_y(img_y + img_h + 1)
+        pdf.set_font("Satoshi", "", 7)
+        pdf.set_text_color(*SECONDARY)
+        attr_text = (
+            "Kaart: PDOK BRT Achtergrondkaart"
+            if is_nl
+            else "Map: PDOK BRT Background Map"
+        )
+        pdf.cell(
+            0, 3, attr_text,
+            new_x="LMARGIN", new_y="NEXT",
+        )
+        pdf.set_text_color(*SLATE)
+        pdf.ln(2)
+    except Exception:
+        logger.warning("Failed to embed location map in PDF")
 
 
 def _draw_cover_page(
@@ -613,12 +1096,18 @@ def _draw_cover_page(
     sunlight_score: int | None,
     shadow_image_b64: str | None,
     is_nl: bool,
+    location_map_b64: str | None = None,
+    shadow_images: list[dict] | None = None,
 ) -> None:
     """Page 1: cover with address hero, shadow image, risk summary strip."""
     pdf.ln(4)
 
     _draw_address_block(pdf, address, building_year, building_use, floor_area, is_nl, font_size=20)
-    _draw_shadow_image(pdf, shadow_image_b64, is_nl)
+    # Prefer triptych (3 images) over single shadow image
+    if shadow_images and len(shadow_images) >= 3:
+        _draw_shadow_triptych(pdf, shadow_images, is_nl)
+    else:
+        _draw_shadow_image(pdf, shadow_image_b64, is_nl)
 
     # Risk summary strip (4-column)
     pdf.draw_section_label("Risico-overzicht" if is_nl else "Risk Summary")
@@ -631,9 +1120,12 @@ def _draw_cover_page(
     )
     pdf.set_y(grid_end_y + 4)
 
+    # Location map
+    _draw_location_map(pdf, location_map_b64, is_nl)
+
     # Prepared date
     pdf.set_font("Satoshi", "", 9)
-    pdf.set_text_color(*MUTED)
+    pdf.set_text_color(*SECONDARY)
     today = date.today()
     prepared = today.strftime("Opgesteld: %d %B %Y" if is_nl else "Prepared: %d %B %Y")
     pdf.cell(0, 5, prepared, new_x="LMARGIN", new_y="NEXT")
@@ -651,15 +1143,34 @@ def _draw_risk_details_page(
     """Page 2: detailed risk breakdown with comparison charts."""
     # Address context for standalone readability (Finding 9)
     pdf.set_font("Satoshi", "B", 10)
-    pdf.set_text_color(*MUTED)
+    pdf.set_text_color(*SECONDARY)
     pdf.cell(0, 5, address, new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(*SLATE)
     pdf.ln(2)
 
     categories = _build_risk_detail_data(risks, sunlight_score, comparisons, is_nl)
+    first_chart_drawn = False
 
-    for cat_name, score, summary, source_text, comp_rows in categories:
+    for (
+        cat_name, score, summary, source_text,
+        comp_rows, measurements, unit_def,
+    ) in categories:
         color = _severity_color(score)
+
+        # Prevent orphaned category: if <80mm left, break
+        est_h = 80  # mm approx per risk category
+        remaining = pdf.h - pdf.get_y() - 20
+        if remaining < est_h and pdf.get_y() > 40:
+            pdf.add_page()
+            # Re-print address context on continuation
+            pdf.set_font("Satoshi", "B", 10)
+            pdf.set_text_color(*SECONDARY)
+            pdf.cell(
+                0, 5, address,
+                new_x="LMARGIN", new_y="NEXT",
+            )
+            pdf.set_text_color(*SLATE)
+            pdf.ln(2)
 
         # Left teal accent + category name + score
         cy = pdf.get_y()
@@ -674,42 +1185,144 @@ def _draw_risk_details_page(
         pdf.set_font("SatoshiBlack", "", 14)
         pdf.set_text_color(*color)
         score_text = str(score) if score is not None else "\u2014"
-        pdf.cell(0, 8, score_text, align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(
+            0, 8, score_text, align="R",
+            new_x="LMARGIN", new_y="NEXT",
+        )
 
         # Score bar
         bar_w = pdf.w - pdf.l_margin - pdf.r_margin
-        pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=1.2)
-        pdf.ln(3)
+        pdf.draw_score_bar(
+            pdf.l_margin, pdf.get_y(), bar_w, score,
+            height=5.0,
+        )
+        pdf.ln(7)
 
         # Severity label
         pdf.set_font("Satoshi", "", 9)
         pdf.set_text_color(*color)
-        pdf.cell(0, 4, _severity_label(score, is_nl), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(
+            0, 4, _severity_label(score, is_nl),
+            new_x="LMARGIN", new_y="NEXT",
+        )
         pdf.set_text_color(*SLATE)
         pdf.ln(1)
 
         # What this means
         if summary:
             pdf.set_font("Satoshi", "", 10)
-            pdf.multi_cell(0, 5, summary, new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(
+                0, 5, summary, align="L",
+                new_x="LMARGIN", new_y="NEXT",
+            )
             pdf.ln(2)
+
+        # Measurement factsheet (E4-S3)
+        if measurements:
+            pdf.set_font("SatoshiMedium", "", 8)
+            pdf.set_text_color(*SECONDARY)
+            m_label = (
+                "MEETWAARDEN" if is_nl else "MEASUREMENTS"
+            )
+            pdf.cell(
+                0, 5, m_label,
+                new_x="LMARGIN", new_y="NEXT",
+            )
+            pdf.set_font("Satoshi", "", 9)
+            pdf.set_text_color(*SLATE)
+            for meas_label, meas_value in measurements:
+                pdf.cell(50, 5, meas_label)
+                pdf.set_font("Satoshi", "B", 9)
+                pdf.cell(
+                    0, 5, meas_value,
+                    new_x="LMARGIN", new_y="NEXT",
+                )
+                pdf.set_font("Satoshi", "", 9)
+            pdf.ln(2)
+
+        # Unit definition (E6-S5)
+        if unit_def:
+            pdf.set_font("Satoshi", "", 7)
+            pdf.set_text_color(*SECONDARY)
+            pdf.cell(
+                0, 3, unit_def,
+                new_x="LMARGIN", new_y="NEXT",
+            )
+            pdf.set_text_color(*SLATE)
+            pdf.ln(1)
 
         # Comparison chart
         if comp_rows:
-            pdf.draw_section_label("Hoe het vergelijkt" if is_nl else "How it compares")
-            pdf.draw_comparison_chart(
+            chart_title = (
+                f"{cat_name} \u2014 vergelijking" if is_nl
+                else f"{cat_name} \u2014 comparison"
+            )
+            show_legend = not first_chart_drawn
+            chart_end_y = pdf.draw_comparison_chart(
                 x=pdf.l_margin, y=pdf.get_y(),
                 width=pdf.w - pdf.l_margin - pdf.r_margin,
                 rows=comp_rows,
+                chart_title=chart_title,
+                show_legend=show_legend,
+                is_nl=is_nl,
             )
-            pdf.ln(len(comp_rows) * 7 + 2)
+            first_chart_drawn = True
+            pdf.set_y(chart_end_y + 2)
+
+            # Scale declaration caption (Task E4-S1)
+            pdf.set_font("Satoshi", "", 7)
+            pdf.set_text_color(*SECONDARY)
+            scale_caption = (
+                "Referentiebalken zijn op de buurt-check 0\u2013100 scoreschaal "
+                "(niet dB / \u00b5g/m\u00b3). Hoger = beter."
+                if is_nl
+                else "Reference bars are on the buurt-check 0\u2013100 score scale "
+                "(not dB / \u00b5g/m\u00b3). Higher = better."
+            )
+            pdf.cell(0, 3, scale_caption, new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(*SLATE)
+            pdf.ln(1)
 
         # Source (with "date unknown" fallback per Finding 9)
         pdf.set_font("Satoshi", "", 8)
-        pdf.set_text_color(*MUTED)
+        pdf.set_text_color(*SECONDARY)
         pdf.cell(0, 4, source_text, new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
         pdf.ln(4)
+
+
+def _risk_level_label(level: str, is_nl: bool) -> str:
+    """Translate RiskLevel value to human-readable label."""
+    _LABELS = {
+        "low": ("Laag", "Low"),
+        "medium": ("Gemiddeld", "Medium"),
+        "high": ("Hoog", "High"),
+        "unavailable": ("Onbekend", "Unknown"),
+    }
+    nl, en = _LABELS.get(level, ("Onbekend", "Unknown"))
+    return nl if is_nl else en
+
+
+_UNIT_DEFINITIONS: dict[str, dict[str, str]] = {
+    "noise": {
+        "nl": "Lden = dag-avond-nacht gewogen geluidsniveau (wegverkeer)",
+        "en": "Lden = day-evening-night weighted noise level (road traffic)",
+    },
+    "air_quality": {
+        "nl": (
+            "PM2.5 = fijn stof, "
+            "NO\u2082 = stikstofdioxide (jaargemiddelde)"
+        ),
+        "en": (
+            "PM2.5 = fine particulate matter, "
+            "NO\u2082 = nitrogen dioxide (annual mean)"
+        ),
+    },
+    "climate_stress": {
+        "nl": "Op basis van hitte- en wateroverlastmodellen",
+        "en": "Based on heat stress and water nuisance models",
+    },
+}
 
 
 def _build_risk_detail_data(
@@ -717,17 +1330,50 @@ def _build_risk_detail_data(
     sunlight_score: int | None,
     comparisons: RiskComparisonsResponse | None,
     is_nl: bool,
-) -> list[tuple[str, int | None, str, str, list]]:
-    """Build structured data for risk details page."""
-    result = []
+) -> list[tuple[
+    str, int | None, str, str, list,
+    list[tuple[str, str]] | None,
+    str | None,
+]]:
+    """Build structured data for risk details page.
+
+    Returns list of 7-tuples:
+        (cat_name, score, summary, source_text, comp_rows,
+         measurements, unit_definition)
+    """
+    result: list[tuple[
+        str, int | None, str, str, list,
+        list[tuple[str, str]] | None,
+        str | None,
+    ]] = []
 
     _COMPARISON_LABELS = {
-        "address": ("Dit adres" if is_nl else "This address", TEAL, False),
-        "city_avg": ("Stadsgemiddelde" if is_nl else "City average", MUTED, False),
-        "nl_avg": ("Nederland" if is_nl else "Netherlands", BORDER, False),
-        "who_limit": ("WHO-richtlijn" if is_nl else "WHO guideline", AMBER_WARN, True),
-        "adaptation_target": ("Doelstelling" if is_nl else "Target", AMBER_WARN, True),
-        "daylight_target": ("Daglichtdoel" if is_nl else "Daylight target", AMBER_WARN, True),
+        "address": (
+            "Dit adres" if is_nl else "This address",
+            TEAL, False,
+        ),
+        "city_avg": (
+            "Vergelijkingswaarde (stedelijkheid)" if is_nl
+            else "Peer baseline (urbanization)", MUTED, False,
+        ),
+        "nl_avg": (
+            "Nederland" if is_nl else "Netherlands",
+            NATIONAL, False,
+        ),
+        "who_limit": (
+            "WHO-doel (op scoreschaal)" if is_nl
+            else "WHO benchmark (mapped to score)",
+            AMBER_WARN, True,
+        ),
+        "adaptation_target": (
+            "Doelstelling (op scoreschaal)" if is_nl
+            else "Target (mapped to score)", AMBER_WARN, True,
+        ),
+        "daylight_target": (
+            "Daglichtdoel (op scoreschaal)" if is_nl
+            else "Daylight target (mapped to score)",
+            AMBER_WARN, True,
+        ),
     }
 
     def _comp_rows(category_rows: list | None) -> list:
@@ -738,46 +1384,168 @@ def _build_risk_detail_data(
             label_info = _COMPARISON_LABELS.get(
                 row.label_code, (row.label_code, MUTED, False)
             )
-            is_dashed = row.pattern == ComparisonPattern.dashed or label_info[2]
-            rows.append((label_info[0], row.value, label_info[1], is_dashed))
+            is_dashed = (
+                row.pattern == ComparisonPattern.dashed
+                or label_info[2]
+            )
+            rows.append((
+                label_info[0], row.value,
+                label_info[1], is_dashed,
+            ))
         return rows
 
-    date_unknown = "Brondatum onbekend" if is_nl else "Dataset date unknown"
+    def _build_measurements(
+        attr: str,
+    ) -> list[tuple[str, str]] | None:
+        """Build measurement (label, value) pairs per category."""
+        if not risks:
+            return None
+        card = getattr(risks, attr)
+        meas: list[tuple[str, str]] = []
+        if attr == "noise":
+            if card.lden_db is not None:
+                val = format_number(card.lden_db, 1, is_nl)
+                meas.append(("Lden", f"{val} dB"))
+        elif attr == "air_quality":
+            if card.pm25_ug_m3 is not None:
+                val = format_number(card.pm25_ug_m3, 1, is_nl)
+                meas.append(("PM2.5", f"{val} \u00b5g/m\u00b3"))
+            if card.no2_ug_m3 is not None:
+                val = format_number(card.no2_ug_m3, 1, is_nl)
+                meas.append((
+                    "NO\u2082", f"{val} \u00b5g/m\u00b3",
+                ))
+        elif attr == "climate_stress":
+            if card.heat_level is not None:
+                label = "Hitte" if is_nl else "Heat"
+                meas.append((
+                    label,
+                    _risk_level_label(card.heat_level.value, is_nl),
+                ))
+            if card.water_level is not None:
+                label = (
+                    "Wateroverlast" if is_nl else "Water nuisance"
+                )
+                meas.append((
+                    label,
+                    _risk_level_label(
+                        card.water_level.value, is_nl,
+                    ),
+                ))
+        return meas if meas else None
+
+    date_unknown = (
+        "Brondatum onbekend" if is_nl
+        else "Dataset date unknown"
+    )
 
     if risks:
         for attr, name_en, name_nl, comp_attr in [
             ("noise", "Noise", "Geluid", "noise"),
-            ("air_quality", "Air Quality", "Luchtkwaliteit", "air_quality"),
-            ("climate_stress", "Climate Stress", "Klimaatstress", "climate_stress"),
+            (
+                "air_quality", "Air Quality",
+                "Luchtkwaliteit", "air_quality",
+            ),
+            (
+                "climate_stress", "Climate Stress",
+                "Klimaatstress", "climate_stress",
+            ),
         ]:
             card = getattr(risks, attr)
-            summary = (card.summary_nl if is_nl else card.summary) or ""
+            summary = (
+                (card.summary_nl if is_nl else card.summary) or ""
+            )
             src_label = "Bron" if is_nl else "Source"
             source = f"{src_label}: {card.source}"
             if card.source_date:
                 source += f" \u00b7 {card.source_date}"
             else:
                 source += f" \u00b7 {date_unknown}"
+
+            # Climate: enrich with layer names + scenario (E6-S4)
+            if attr == "climate_stress":
+                layers = [
+                    lyr for lyr in [
+                        getattr(card, "heat_layer", None),
+                        getattr(card, "water_layer", None),
+                    ] if lyr
+                ]
+                if layers:
+                    layer_txt = ", ".join(layers)
+                    lbl = "Lagen" if is_nl else "Layers"
+                    source += f" \u00b7 {lbl}: {layer_txt}"
+                scenario = (
+                    "Huidig klimaat" if is_nl
+                    else "Current climate conditions"
+                )
+                source += f" \u00b7 {scenario}"
+
             comp = _comp_rows(
-                getattr(comparisons, comp_attr, None) if comparisons else None
+                getattr(comparisons, comp_attr, None)
+                if comparisons else None
             )
-            result.append((name_nl if is_nl else name_en, card.score, summary, source, comp))
+            measurements = _build_measurements(attr)
+            lang_key = "nl" if is_nl else "en"
+            unit_def = _UNIT_DEFINITIONS.get(attr, {}).get(
+                lang_key
+            )
+            result.append((
+                name_nl if is_nl else name_en,
+                card.score, summary, source, comp,
+                measurements, unit_def,
+            ))
     else:
         # Show placeholder entries when risks unavailable
         for name_en, name_nl in [
-            ("Noise", "Geluid"), ("Air Quality", "Luchtkwaliteit"),
+            ("Noise", "Geluid"),
+            ("Air Quality", "Luchtkwaliteit"),
             ("Climate Stress", "Klimaatstress"),
         ]:
             src_label = "Bron" if is_nl else "Source"
             result.append((
-                name_nl if is_nl else name_en, None, "", f"{src_label}: \u2014", []
+                name_nl if is_nl else name_en, None, "",
+                f"{src_label}: \u2014", [], None, None,
             ))
 
     # Sunlight
     sun_summary = ""
+    sun_measurements: list[tuple[str, str]] | None = None
     if risks and risks.sunlight:
-        sun_summary = (risks.sunlight.summary_nl if is_nl else risks.sunlight.summary) or ""
-    sun_comp = _comp_rows(comparisons.sunlight if comparisons else None)
+        sun_summary = (
+            (risks.sunlight.summary_nl if is_nl
+             else risks.sunlight.summary) or ""
+        )
+        sun_meas: list[tuple[str, str]] = []
+        sun = risks.sunlight
+        if sun.winter_hours is not None:
+            unit = "u/dag" if is_nl else "h/day"
+            val = format_number(sun.winter_hours, 1, is_nl)
+            sun_meas.append(("Winter", f"{val} {unit}"))
+        if sun.annual_average is not None:
+            unit = "u/dag" if is_nl else "h/day"
+            label = "Jaargemiddelde" if is_nl else "Annual average"
+            val = format_number(sun.annual_average, 1, is_nl)
+            sun_meas.append((label, f"{val} {unit}"))
+        if sun.svf_percent is not None:
+            val = format_number(sun.svf_percent, 0, is_nl)
+            sun_meas.append(("SVF", f"{val}%"))
+        if (
+            sun.svf_anisotropic is not None
+            and sun.svf_anisotropic != sun.svf_percent
+        ):
+            label = "SVF (anisotropisch)" if is_nl else "SVF (anisotropic)"
+            val = format_number(sun.svf_anisotropic, 0, is_nl)
+            sun_meas.append((label, f"{val}%"))
+        if sun.irradiance_kwh_m2 is not None:
+            label = "Zonnestraling" if is_nl else "Solar irradiance"
+            unit = "kWh/m\u00b2/jaar" if is_nl else "kWh/m\u00b2/year"
+            val = format_number(sun.irradiance_kwh_m2, 0, is_nl)
+            sun_meas.append((label, f"{val} {unit}"))
+        if sun_meas:
+            sun_measurements = sun_meas
+    sun_comp = _comp_rows(
+        comparisons.sunlight if comparisons else None,
+    )
     src_label = "Bron" if is_nl else "Source"
     result.append((
         "Zonlicht" if is_nl else "Sunlight",
@@ -785,6 +1553,8 @@ def _build_risk_detail_data(
         sun_summary,
         f"{src_label}: SunCalc + 3DBAG",
         sun_comp,
+        sun_measurements,
+        None,
     ))
 
     return result
@@ -795,8 +1565,10 @@ def _draw_neighborhood_page(
     stats: NeighborhoodStats | None,
     tier_b_data: TierBResponse | None,
     is_nl: bool,
+    *,
+    livability: LivabilityResponse | None = None,
 ) -> None:
-    """Page 3: neighborhood stats + crime."""
+    """Page 3: neighborhood stats + crime + livability."""
     if stats:
         # Buurt name + urbanization
         pdf.set_font("Satoshi", "B", 16)
@@ -818,7 +1590,7 @@ def _draw_neighborhood_page(
             subtitle_parts.append(urb_labels.get(stats.urbanization, ""))
         if subtitle_parts:
             pdf.set_font("Satoshi", "", 10)
-            pdf.set_text_color(*MUTED)
+            pdf.set_text_color(*SECONDARY)
             pdf.cell(0, 5, " \u00b7 ".join(subtitle_parts), new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(*SLATE)
         pdf.ln(4)
@@ -852,6 +1624,16 @@ def _draw_neighborhood_page(
                 age_data=stats.age_profile,
             )
             pdf.ln(23)
+            # Age interpretation one-liner
+            interp = _interpret_age_distribution(stats.age_profile, is_nl)
+            if interp:
+                pdf.set_font("Satoshi", "", 8)
+                pdf.set_text_color(*SECONDARY)
+                pdf.cell(
+                    pdf.w - pdf.l_margin - pdf.r_margin, 5, interp,
+                    new_x="LMARGIN", new_y="NEXT",
+                )
+                pdf.set_text_color(*SLATE)
         pdf.ln(2)
 
         # Housing
@@ -877,19 +1659,25 @@ def _draw_neighborhood_page(
             stats.distance_to_supermarket_km,
         )
 
-        # CBS source
+        # CBS source + quartile legend
         pdf.ln(2)
         pdf.set_font("Satoshi", "", 8)
-        pdf.set_text_color(*MUTED)
+        pdf.set_text_color(*SECONDARY)
         pdf.cell(
             0, 4,
             "Bron: CBS Wijken & Buurten 2024" if is_nl else "Source: CBS Wijken & Buurten 2024",
             new_x="LMARGIN", new_y="NEXT",
         )
+        quartile_legend = (
+            "Q1 = laagste 25% landelijk, Q4 = hoogste 25%"
+            if is_nl
+            else "Q1 = bottom 25% nationally, Q4 = top 25%"
+        )
+        pdf.cell(0, 4, quartile_legend, new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
     else:
         pdf.set_font("Satoshi", "", 10)
-        pdf.set_text_color(*MUTED)
+        pdf.set_text_color(*SECONDARY)
         pdf.cell(
             0, 8,
             "Buurtgegevens niet beschikbaar." if is_nl else "Neighborhood data unavailable.",
@@ -907,35 +1695,112 @@ def _draw_neighborhood_page(
     if tier_b_data:
         crime = tier_b_data.crime
         if crime.total_per_1000 is not None:
-            pdf.set_font("Satoshi", "B", 11)
+            score = crime.score
+            color = _severity_color(score)
+            cat_name = "Criminaliteit" if is_nl else "Crime Rate"
+
+            # Teal accent bar + category name + score badge
+            cy = pdf.get_y()
+            pdf.set_fill_color(*TEAL)
+            pdf.rect(pdf.l_margin, cy, 1.5, 8, "F")
+
+            pdf.set_x(pdf.l_margin + 4)
+            pdf.set_font("Satoshi", "B", 14)
+            pdf.set_text_color(*SLATE)
+            pdf.cell(100, 8, cat_name)
+
+            pdf.set_font("SatoshiBlack", "", 14)
+            pdf.set_text_color(*color)
+            score_text = str(score) if score is not None else "\u2014"
+            pdf.cell(0, 8, score_text, align="R", new_x="LMARGIN", new_y="NEXT")
+
+            # Score bar
+            bar_w = pdf.w - pdf.l_margin - pdf.r_margin
+            pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=5.0)
+            pdf.ln(3)
+
+            # Severity label
+            pdf.set_font("Satoshi", "", 9)
+            pdf.set_text_color(*color)
             pdf.cell(
-                0, 7, "Criminaliteit" if is_nl else "Crime Rate",
+                0, 4, _severity_label(score, is_nl),
                 new_x="LMARGIN", new_y="NEXT",
             )
-            pdf.set_font("Satoshi", "", 10)
-            per_label = "per 1.000 inwoners" if is_nl else "per 1,000 residents"
-            pdf.cell(
-                0, 6, f"{crime.total_per_1000:.1f} {per_label}",
-                new_x="LMARGIN", new_y="NEXT",
-            )
+            pdf.set_text_color(*SLATE)
+            pdf.ln(1)
+
+            # Meaning sentence
+            meaning = (crime.meaning_nl if is_nl else crime.meaning_en)
+            if meaning:
+                pdf.set_font("Satoshi", "", 10)
+                pdf.multi_cell(0, 5, meaning, align="L", new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(2)
+
+            # Comparison: this address vs national average
+            if crime.national_per_1000 is not None:
+                per_label = "per 1.000" if is_nl else "per 1,000"
+                addr_label = (
+                    f"{'Dit adres' if is_nl else 'This address'}"
+                    f": {format_number(crime.total_per_1000, 1, is_nl)} {per_label}"
+                )
+                nat_label = (
+                    f"{'Landelijk' if is_nl else 'National avg'}"
+                    f": {format_number(crime.national_per_1000, 1, is_nl)} {per_label}"
+                )
+                # Normalise rates to bar widths (higher rate = longer bar)
+                max_rate = max(crime.total_per_1000, crime.national_per_1000, 1.0)
+                addr_pct = int(crime.total_per_1000 / max_rate * 100)
+                nat_pct = int(crime.national_per_1000 / max_rate * 100)
+                comp_rows: list[tuple[str, int, tuple[int, int, int], bool]] = [
+                    (addr_label, addr_pct, color, False),
+                    (nat_label, nat_pct, MUTED, True),
+                ]
+                chart_title = (
+                    f"{cat_name} \u2014 vergelijking" if is_nl
+                    else f"{cat_name} \u2014 comparison"
+                )
+                chart_end_y = pdf.draw_comparison_chart(
+                    x=pdf.l_margin, y=pdf.get_y(),
+                    width=pdf.w - pdf.l_margin - pdf.r_margin,
+                    rows=comp_rows,
+                    chart_title=chart_title,
+                    is_nl=is_nl,
+                )
+                pdf.set_y(chart_end_y + 2)
+
+            # Sub-rates: burglary + violent as detail lines
             if crime.burglary_per_1000 is not None:
                 pdf.set_font("Satoshi", "", 9)
                 pdf.set_x(pdf.l_margin + 5)
                 inbraak = "Inbraak" if is_nl else "Burglary"
                 pdf.cell(
-                    0, 5, f"{inbraak}: {crime.burglary_per_1000:.1f}",
+                    0, 5, f"{inbraak}: {format_number(crime.burglary_per_1000, 1, is_nl)}",
                     new_x="LMARGIN", new_y="NEXT",
                 )
             if crime.violent_per_1000 is not None:
+                pdf.set_font("Satoshi", "", 9)
                 pdf.set_x(pdf.l_margin + 5)
                 geweld = "Geweld" if is_nl else "Violent"
                 pdf.cell(
-                    0, 5, f"{geweld}: {crime.violent_per_1000:.1f}",
+                    0, 5, f"{geweld}: {format_number(crime.violent_per_1000, 1, is_nl)}",
                     new_x="LMARGIN", new_y="NEXT",
                 )
             pdf.ln(2)
+
+            # Source + data year
+            pdf.set_font("Satoshi", "", 8)
+            pdf.set_text_color(*SECONDARY)
+            source_parts = [crime.source]
+            if crime.source_date:
+                source_parts.append(crime.source_date)
+            elif crime.yearly_period:
+                source_parts.append(crime.yearly_period)
+            joined = " \u00b7 ".join(source_parts)
+            source_line = f"Bron: {joined}" if is_nl else f"Source: {joined}"
+            pdf.cell(0, 4, source_line, new_x="LMARGIN", new_y="NEXT")
+
+            # Disclaimer
             pdf.set_font("Satoshi", "I", 8)
-            pdf.set_text_color(*MUTED)
             disclaimer = (
                 "Criminaliteitscijfers zijn per gemeente, niet per straat. "
                 "Alleen geregistreerde misdrijven."
@@ -943,16 +1808,16 @@ def _draw_neighborhood_page(
                 else "Crime data is per municipality, not per street. "
                 "Registered crimes only."
             )
-            pdf.multi_cell(0, 4, disclaimer, new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(0, 4, disclaimer, align="L", new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(*SLATE)
         elif crime.message:
             pdf.set_font("Satoshi", "", 9)
-            pdf.set_text_color(*MUTED)
+            pdf.set_text_color(*SECONDARY)
             pdf.cell(0, 6, crime.message, new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(*SLATE)
     else:
         pdf.set_font("Satoshi", "", 9)
-        pdf.set_text_color(*MUTED)
+        pdf.set_text_color(*SECONDARY)
         no_data = (
             "Criminaliteitsgegevens niet beschikbaar."
             if is_nl
@@ -961,17 +1826,215 @@ def _draw_neighborhood_page(
         pdf.cell(0, 6, no_data, new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
 
+    # --- Livability section (Leefbaarometer) ---
+    if livability is not None and livability.available:
+        _draw_livability_section(pdf, livability, is_nl)
+
+
+def _draw_livability_section(
+    pdf: BuurtCheckPDF,
+    livability: LivabilityResponse | None,
+    is_nl: bool,
+) -> None:
+    """Render livability section: overall score, 5-dimension bars, trend, comparison."""
+    if livability is None or not livability.available:
+        return
+
+    pdf.draw_divider("strong")
+
+    # Section header
+    pdf.draw_section_label("Leefbaarheid" if is_nl else "Livability")
+    pdf.ln(1)
+
+    # Overall score with severity
+    score = livability.overall_normalized
+    color = _severity_color(score)
+    sev_label = _severity_label(score, is_nl)
+
+    cy = pdf.get_y()
+    pdf.set_fill_color(*TEAL)
+    pdf.rect(pdf.l_margin, cy, 1.5, 8, "F")
+
+    pdf.set_x(pdf.l_margin + 4)
+    pdf.set_font("Satoshi", "B", 14)
+    pdf.set_text_color(*SLATE)
+    title = "Leefbaarheidsscore" if is_nl else "Livability Score"
+    pdf.cell(100, 8, title)
+
+    pdf.set_font("SatoshiBlack", "", 14)
+    pdf.set_text_color(*color)
+    pdf.cell(0, 8, str(score), align="R", new_x="LMARGIN", new_y="NEXT")
+
+    # Score bar
+    bar_w = pdf.w - pdf.l_margin - pdf.r_margin
+    pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=5.0)
+    pdf.ln(3)
+
+    # Severity label
+    pdf.set_font("Satoshi", "", 9)
+    pdf.set_text_color(*color)
+    pdf.cell(0, 4, sev_label, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SLATE)
+    pdf.ln(3)
+
+    # --- 5-dimension breakdown as horizontal bars ---
+    dim_labels: dict[str, tuple[str, str]] = {
+        "physical": ("Fysiek", "Physical environment"),
+        "safety": ("Veiligheid", "Safety"),
+        "social": ("Sociaal", "Social cohesion"),
+        "amenities": ("Voorzieningen", "Amenities"),
+        "housing": ("Woningen", "Housing quality"),
+    }
+
+    label_w = 50
+    score_w = 15
+    content_w = pdf.w - pdf.l_margin - pdf.r_margin
+    bar_w_dim = content_w - label_w - score_w - 4
+    bar_h = 3.5
+    row_h = 7.0
+
+    for dim in livability.dimensions:
+        nl_label, en_label = dim_labels.get(dim.name, (dim.name, dim.name))
+        label = nl_label if is_nl else en_label
+        dim_score = dim.normalized_score
+        dim_color = _severity_color(dim_score)
+
+        ry = pdf.get_y()
+
+        pdf.set_font("Satoshi", "", 9)
+        pdf.set_text_color(*SLATE)
+        pdf.set_xy(pdf.l_margin, ry)
+        pdf.cell(label_w, row_h, label)
+
+        bar_x = pdf.l_margin + label_w + 2
+        bar_y = ry + (row_h - bar_h) / 2
+        pdf.set_fill_color(*BORDER)
+        pdf.rect(bar_x, bar_y, bar_w_dim, bar_h, "F")
+
+        if dim_score > 0:
+            fill_w = max(bar_w_dim * min(dim_score, 100) / 100, 1.0)
+            pdf.set_fill_color(*dim_color)
+            pdf.rect(bar_x, bar_y, fill_w, bar_h, "F")
+
+        pdf.set_font("Satoshi", "B", 9)
+        pdf.set_xy(pdf.l_margin + content_w - score_w, ry)
+        pdf.cell(score_w, row_h, str(dim_score), align="R")
+
+        pdf.set_y(ry + row_h)
+
+    pdf.ln(2)
+
+    # --- Trend summary ---
+    if livability.trend and len(livability.trend) >= 2:
+        trend_text = _livability_trend_summary(livability.trend, is_nl)
+        if trend_text:
+            pdf.set_font("Satoshi", "", 9)
+            pdf.set_text_color(*SECONDARY)
+            pdf.cell(
+                content_w, 5, trend_text,
+                new_x="LMARGIN", new_y="NEXT",
+            )
+            pdf.set_text_color(*SLATE)
+            pdf.ln(2)
+
+    # --- Comparison table: buurt vs wijk vs gemeente ---
+    if livability.comparison:
+        comp_title = (
+            "Vergelijking" if is_nl else "Comparison"
+        )
+        comp_rows: list[tuple[str, int, tuple[int, int, int], bool]] = []
+
+        # Address row first (buurt-level = this neighborhood)
+        buurt_name = livability.buurt_name or ("Buurt" if is_nl else "Neighborhood")
+        comp_rows.append((
+            buurt_name, livability.overall_normalized, TEAL, False,
+        ))
+
+        for row in livability.comparison:
+            if row.level == "wijk":
+                label = row.name or ("Wijk" if is_nl else "District")
+                comp_rows.append((label, row.overall_normalized, MUTED, False))
+            elif row.level == "gemeente":
+                label = row.name or ("Gemeente" if is_nl else "Municipality")
+                comp_rows.append((label, row.overall_normalized, NATIONAL, False))
+
+        if len(comp_rows) > 1:
+            chart_end_y = pdf.draw_comparison_chart(
+                x=pdf.l_margin, y=pdf.get_y(),
+                width=content_w,
+                rows=comp_rows,
+                chart_title=comp_title,
+                is_nl=is_nl,
+            )
+            pdf.set_y(chart_end_y + 2)
+
+    # Source attribution
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*SECONDARY)
+    source_parts = ["Leefbaarometer"]
+    if livability.year:
+        source_parts.append(livability.year)
+    elif livability.source_date:
+        source_parts.append(livability.source_date)
+    joined = " \u00b7 ".join(source_parts)
+    source_line = f"Bron: {joined}" if is_nl else f"Source: {joined}"
+    pdf.cell(0, 4, source_line, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SLATE)
+
+
+def _livability_trend_summary(
+    trend: list[LivabilityTrendPoint],
+    is_nl: bool,
+) -> str | None:
+    """Generate a one-line trend summary from historical Leefbaarometer data.
+
+    Returns e.g. "Improving since 2014" or "Stabiel" or None if insufficient data.
+    """
+    if len(trend) < 2:
+        return None
+
+    # Compare last two points for current direction
+    latest = trend[-1]
+    earliest = trend[0]
+    diff = latest.overall_normalized - earliest.overall_normalized
+
+    if abs(diff) < 5:
+        return "Stabiel" if is_nl else "Stable"
+
+    # Find inflection point: where did current direction start?
+    if diff > 0:
+        # Scan backwards for where improvement started; falls back to first
+        # data point if the series is monotonically improving.
+        inflection_year = trend[0].year
+        for i in range(len(trend) - 1, 0, -1):
+            if trend[i].overall_normalized <= trend[i - 1].overall_normalized:
+                inflection_year = trend[i].year
+                break
+        if is_nl:
+            return f"Verbeterend sinds {inflection_year}"
+        return f"Improving since {inflection_year}"
+    else:
+        # Currently declining
+        inflection_year = trend[0].year
+        for i in range(len(trend) - 1, 0, -1):
+            if trend[i].overall_normalized >= trend[i - 1].overall_normalized:
+                inflection_year = trend[i].year
+                break
+        if is_nl:
+            return f"Dalend sinds {inflection_year}"
+        return f"Declining since {inflection_year}"
+
 
 def _draw_checks_subsection(
     pdf: BuurtCheckPDF, title: str, body: str, source: str,
 ) -> None:
-    """Render a single subsection: bold title, body text, muted source, divider."""
+    """Render a single subsection: bold title, body text, source, divider."""
     pdf.set_font("Satoshi", "B", 11)
     pdf.cell(0, 6, title, new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Satoshi", "", 10)
-    pdf.multi_cell(0, 5, body, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 5, body, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Satoshi", "", 8)
-    pdf.set_text_color(*MUTED)
+    pdf.set_text_color(*SECONDARY)
     pdf.cell(0, 4, source, new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(*SLATE)
     pdf.draw_divider("light")
@@ -984,6 +2047,7 @@ def _draw_property_checks_page(
     shadow_image_b64: str | None,
     property_warnings: PropertyWarningsResponse | None,
     is_nl: bool,
+    shadow_images: list[dict] | None = None,
 ) -> None:
     """Page 4: premium-only checks required in the paid Full Dossier."""
     pdf.set_font("Satoshi", "B", 12)
@@ -1026,7 +2090,247 @@ def _draw_property_checks_page(
         source=asbestos_source,
     )
 
-    # 2) Soil Contamination Check
+    # 2) Foundation Risk
+    if property_warnings:
+        fr = property_warnings.foundation_risk
+        if fr.level == "unavailable":
+            foundation_text = (
+                "Funderingsrisico kon niet worden beoordeeld "
+                "(bouwjaar onbekend)."
+                if is_nl
+                else "Foundation risk could not be assessed "
+                "(construction year unknown)."
+            )
+        elif fr.level == "high":
+            soil_part = (
+                f" Grondsoort: {fr.soil_type}."
+                if fr.soil_type else ""
+            )
+            sub_part = (
+                f" Bodemdalingssnelheid: "
+                f"{format_number(fr.subsidence_rate_mm_per_year, 1, is_nl)} mm/jaar."
+                if fr.subsidence_rate_mm_per_year is not None
+                else ""
+            )
+            foundation_text = (
+                "Hoog funderingsrisico vastgesteld."
+                f"{soil_part}{sub_part} "
+                "Laat een funderingsinspectie uitvoeren "
+                "voor aankoop."
+                if is_nl
+                else "High foundation risk identified."
+                f"{soil_part}{sub_part} "
+                "Commission a foundation inspection "
+                "before purchase."
+            )
+        elif fr.level == "medium":
+            soil_part = (
+                f" Grondsoort: {fr.soil_type}."
+                if fr.soil_type else ""
+            )
+            sub_part = (
+                f" Bodemdalingssnelheid: "
+                f"{format_number(fr.subsidence_rate_mm_per_year, 1, is_nl)} mm/jaar."
+                if fr.subsidence_rate_mm_per_year is not None
+                else ""
+            )
+            foundation_text = (
+                f"Matig funderingsrisico.{soil_part}{sub_part}"
+                " Overweeg een funderingsonderzoek."
+                if is_nl
+                else "Moderate foundation risk."
+                f"{soil_part}{sub_part}"
+                " Consider a foundation survey."
+            )
+        else:
+            foundation_text = (
+                "Geen funderingsrisicosignaal gedetecteerd "
+                "op basis van beschikbare gegevens."
+                if is_nl
+                else "No foundation risk signal detected "
+                "from available data."
+            )
+    else:
+        foundation_text = (
+            "Funderingsrisico niet beschikbaar "
+            "in de exportketen."
+            if is_nl
+            else "Foundation risk unavailable "
+            "in export pipeline."
+        )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "Funderingsrisico" if is_nl
+            else "Foundation Risk"
+        ),
+        body=foundation_text,
+        source=(
+            "Bron: BRO bodemdata + Klimaateffectatlas "
+            "bodemdaling"
+            if is_nl
+            else "Source: BRO soil data + "
+            "Klimaateffectatlas subsidence"
+        ),
+    )
+
+    # 3) Erfpacht (Ground Lease)
+    if property_warnings:
+        ep = property_warnings.erfpacht
+        if ep.detected:
+            conf_part = (
+                " (bevestigd)"
+                if ep.confidence == "confirmed"
+                else " (op basis van gemeente)"
+                if ep.confidence == "municipality_based"
+                else ""
+            )
+            mu_part = (
+                f" Gemeente: {ep.municipality}."
+                if ep.municipality else ""
+            )
+            erfpacht_text = (
+                f"Erfpacht gedetecteerd{conf_part}."
+                f"{mu_part} Controleer de "
+                "erfpachtvoorwaarden, canon en einddatum "
+                "bij de notaris."
+                if is_nl
+                else "Ground lease (erfpacht) detected"
+                f"{conf_part}.{mu_part} "
+                "Verify lease terms, canon amount, and "
+                "expiry date with the notary."
+            )
+        else:
+            erfpacht_text = (
+                "Geen erfpachtsignaal gedetecteerd. "
+                "Dit pand lijkt op eigen grond te staan."
+                if is_nl
+                else "No ground lease signal detected. "
+                "This property appears to be on "
+                "freehold land."
+            )
+    else:
+        erfpacht_text = (
+            "Erfpachtstatus niet beschikbaar "
+            "in de exportketen."
+            if is_nl
+            else "Ground lease status unavailable "
+            "in export pipeline."
+        )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "Erfpacht (grondhuur)" if is_nl
+            else "Ground Lease (Erfpacht)"
+        ),
+        body=erfpacht_text,
+        source=(
+            "Bron: Gemeentelijke erfpachtlijst"
+            if is_nl
+            else "Source: Municipal ground lease registry"
+        ),
+    )
+
+    # 4) VvE (Owners' Association)
+    if property_warnings:
+        vve = property_warnings.vve
+        if vve.is_apartment:
+            units_part = (
+                f" ({vve.num_units} eenheden)"
+                if vve.num_units else ""
+            )
+            vve_text = (
+                "Dit is een appartementsrecht"
+                f"{units_part}. Vraag de VvE-jaarstukken "
+                "op: reservefonds, onderhoudsplan en "
+                "notulen van de laatste vergadering."
+                if is_nl
+                else "This is an apartment right"
+                f"{units_part}. Request VvE annual "
+                "documents: reserve fund, maintenance "
+                "plan, and minutes from the last meeting."
+            )
+        else:
+            vve_text = (
+                "Geen VvE van toepassing. Dit pand is "
+                "geen appartementsrecht."
+                if is_nl
+                else "No owners' association applicable. "
+                "This property is not an apartment right."
+            )
+    else:
+        vve_text = (
+            "VvE-status niet beschikbaar "
+            "in de exportketen."
+            if is_nl
+            else "VvE status unavailable "
+            "in export pipeline."
+        )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "VvE (Vereniging van Eigenaren)" if is_nl
+            else "VvE (Owners' Association)"
+        ),
+        body=vve_text,
+        source=(
+            "Bron: BAG verblijfsobjecten" if is_nl
+            else "Source: BAG dwelling unit count"
+        ),
+    )
+
+    # 5) Lead Pipe Risk
+    if property_warnings:
+        lp = property_warnings.lead_pipe
+        if lp.flagged:
+            lp_year = (
+                f"{lp.construction_year}"
+                if lp.construction_year is not None
+                else "\u2014"
+            )
+            lead_text = (
+                "Mogelijk loden leidingen op basis van "
+                f"bouwjaar ({lp_year}). Laat een watertest "
+                "uitvoeren en vraag leidinggegevens op "
+                "bij het waterbedrijf."
+                if is_nl
+                else "Potential lead pipes flagged from "
+                f"construction year ({lp_year}). "
+                "Commission a water test and request "
+                "pipe records from the water utility."
+            )
+        else:
+            lead_text = (
+                "Geen signaal voor loden leidingen "
+                "op basis van beschikbare gebouwdata."
+                if is_nl
+                else "No lead pipe signal detected "
+                "from available building data."
+            )
+    else:
+        lead_text = (
+            "Loden leidingen status niet beschikbaar "
+            "in de exportketen."
+            if is_nl
+            else "Lead pipe status unavailable "
+            "in export pipeline."
+        )
+    _draw_checks_subsection(
+        pdf,
+        title=(
+            "Loden leidingen" if is_nl
+            else "Lead Pipe Risk"
+        ),
+        body=lead_text,
+        source=(
+            "Bron: BAG-bouwjaarheuristiek (pre-1960)"
+            if is_nl
+            else "Source: BAG construction year "
+            "heuristic (pre-1960)"
+        ),
+    )
+
+    # 6) Soil Contamination Check
     climate_summary = ""
     if risks and risks.climate_stress:
         climate_summary = (
@@ -1062,16 +2366,17 @@ def _draw_property_checks_page(
         source=soil_source,
     )
 
-    # 3) Direct sun (clear-sky visibility)
+    # 7) Direct sun (clear-sky visibility)
     sun = risks.sunlight if risks else None
     if sun and (
         sun.winter_hours is not None
         or sun.equinox_hours is not None
         or sun.summer_hours is not None
     ):
-        w = f"{sun.winter_hours:.1f}h" if sun.winter_hours is not None else "\u2014"
-        e = f"{sun.equinox_hours:.1f}h" if sun.equinox_hours is not None else "\u2014"
-        s = f"{sun.summer_hours:.1f}h" if sun.summer_hours is not None else "\u2014"
+        _fn = format_number
+        w = f"{_fn(sun.winter_hours, 1, is_nl)}h" if sun.winter_hours is not None else "\u2014"
+        e = f"{_fn(sun.equinox_hours, 1, is_nl)}h" if sun.equinox_hours is not None else "\u2014"
+        s = f"{_fn(sun.summer_hours, 1, is_nl)}h" if sun.summer_hours is not None else "\u2014"
         score_text = str(sunlight_score) if sunlight_score is not None else "\u2014"
         sun_text = (
             f"Geschat direct zonlicht: winter {w}/dag, equinox {e}/dag, zomer {s}/dag. "
@@ -1080,6 +2385,27 @@ def _draw_property_checks_page(
             else f"Estimated direct sunlight: winter {w}/day, equinox {e}/day, summer {s}/day. "
             f"Score: {score_text}/100."
         )
+        # Append extended sunlight metrics if available
+        extra_lines: list[str] = []
+        if sun.annual_average is not None:
+            label = "Jaargemiddelde" if is_nl else "Annual average"
+            val = _fn(sun.annual_average, 1, is_nl)
+            unit = "u/dag" if is_nl else "h/day"
+            extra_lines.append(f"{label}: {val} {unit}")
+        if (
+            sun.svf_anisotropic is not None
+            and sun.svf_anisotropic != sun.svf_percent
+        ):
+            label = "SVF (anisotropisch)" if is_nl else "SVF (anisotropic)"
+            val = _fn(sun.svf_anisotropic, 0, is_nl)
+            extra_lines.append(f"{label}: {val}%")
+        if sun.irradiance_kwh_m2 is not None:
+            label = "Zonnestraling" if is_nl else "Solar irradiance"
+            unit = "kWh/m\u00b2/jaar" if is_nl else "kWh/m\u00b2/year"
+            val = _fn(sun.irradiance_kwh_m2, 0, is_nl)
+            extra_lines.append(f"{label}: {val} {unit}")
+        if extra_lines:
+            sun_text += " " + " | ".join(extra_lines) + "."
     else:
         sun_text = (
             "Schatting van direct zonlicht niet beschikbaar voor deze export."
@@ -1099,9 +2425,18 @@ def _draw_property_checks_page(
         ),
     )
 
-    # 4) Shadow Snapshots
+    # 8) Shadow Snapshots
     shadow_title = "Schaduwopnamen" if is_nl else "Shadow Snapshots"
-    if shadow_image_b64:
+    has_triptych = shadow_images and len(shadow_images) >= 3
+    if has_triptych:
+        snapshot_text = (
+            "Schaduwopnamen op winterzonnewende (ochtend/middag/avond), "
+            "gegenereerd op basis van omliggende 3D-geometrie."
+            if is_nl
+            else "Winter-solstice shadow snapshots (morning/noon/evening), "
+            "generated from surrounding 3D geometry."
+        )
+    elif shadow_image_b64:
         snapshot_text = (
             "Schaduwopname op winterzonnewende, gegenereerd op basis van omliggende 3D-geometrie."
             if is_nl
@@ -1118,15 +2453,23 @@ def _draw_property_checks_page(
         if is_nl
         else "Source: SunCalc ray-casting over 3DBAG meshes"
     )
-    # Section 4 has an image between body and source, so render manually
+    # Shadow image already on cover page; text-only here
     pdf.set_font("Satoshi", "B", 11)
-    pdf.cell(0, 6, shadow_title, new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0, 6, shadow_title,
+        new_x="LMARGIN", new_y="NEXT",
+    )
     pdf.set_font("Satoshi", "", 10)
-    pdf.multi_cell(0, 5, snapshot_text, new_x="LMARGIN", new_y="NEXT")
-    _draw_shadow_image(pdf, shadow_image_b64, is_nl)
+    pdf.multi_cell(
+        0, 5, snapshot_text,
+        align="L", new_x="LMARGIN", new_y="NEXT",
+    )
     pdf.set_font("Satoshi", "", 8)
-    pdf.set_text_color(*MUTED)
-    pdf.cell(0, 4, shadow_source, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SECONDARY)
+    pdf.cell(
+        0, 4, shadow_source,
+        new_x="LMARGIN", new_y="NEXT",
+    )
     pdf.set_text_color(*SLATE)
 
 
@@ -1137,21 +2480,25 @@ def _draw_indicator(pdf: BuurtCheckPDF, label: str, indicator) -> None:
         return
     val = indicator.value
     unit = indicator.unit or ""
+    is_nl = pdf.is_nl
     if isinstance(val, float):
         if unit == "%":
             text = f"{val:.0f}%"
         elif unit == "\u20ac":
-            text = f"\u20ac{val:,.0f}"
+            eur_prefix = "\u20ac " if is_nl else "\u20ac"
+            text = f"{eur_prefix}{format_number(val, 0, is_nl)}"
         elif unit == "km":
-            text = f"{val:.1f} km"
+            text = f"{format_number(val, 1, is_nl)} km"
         elif unit == "/km\u00b2":
-            text = f"{val:,.0f}/km\u00b2"
+            text = f"{format_number(val, 0, is_nl)}/km\u00b2"
         else:
-            text = f"{val:,.0f} {unit}".strip()
+            text = f"{format_number(val, 0, is_nl)} {unit}".strip()
     elif val is not None:
         text = f"{val} {unit}".strip()
     else:
         text = "\u2014"
+    if indicator.quartile is not None:
+        text += f" (Q{indicator.quartile})"
     pdf.draw_indicator_row(label, text)
 
 
@@ -1189,8 +2536,99 @@ def _draw_checklist_page(
     _draw_branded_questions(pdf, viewing_questions, is_nl, max_questions=None)
 
 
-def _draw_methodology_page(pdf: BuurtCheckPDF, is_nl: bool) -> None:
-    """Page 5: methodology, data sources, limitations, and note lines."""
+def _draw_provenance_block(
+    pdf: BuurtCheckPDF,
+    prov: ProvenanceData,
+    is_nl: bool,
+) -> None:
+    """Render the Report Details provenance panel on the methodology page."""
+    pdf.draw_divider("strong")
+    pdf.ln(2)
+
+    pdf.set_font("Satoshi", "B", 12)
+    pdf.set_text_color(*SLATE)
+    pdf.cell(
+        0, 7,
+        "Rapportgegevens" if is_nl else "Report Details",
+        new_x="LMARGIN", new_y="NEXT",
+    )
+    pdf.ln(1)
+
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*SECONDARY)
+
+    generated_at = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+    # Row 1: Report ID + Generated timestamp
+    parts_row1: list[str] = []
+    if prov.report_id:
+        parts_row1.append(f"Report ID: {prov.report_id}")
+    parts_row1.append(
+        f"{'Gegenereerd' if is_nl else 'Generated'}: {generated_at}"
+    )
+    pdf.cell(0, 4, " | ".join(parts_row1), new_x="LMARGIN", new_y="NEXT")
+
+    # Row 2: VBO + Pand IDs
+    parts_row2: list[str] = []
+    if prov.vbo_id:
+        parts_row2.append(f"VBO: {prov.vbo_id}")
+    if prov.pand_id:
+        parts_row2.append(f"Pand: {prov.pand_id}")
+    if parts_row2:
+        pdf.cell(0, 4, " | ".join(parts_row2), new_x="LMARGIN", new_y="NEXT")
+
+    # Row 3: Buurt + Gemeente
+    parts_row3: list[str] = []
+    if prov.buurt_code:
+        parts_row3.append(f"Buurt: {prov.buurt_code}")
+    gemeente_code = prov.gemeente_code
+    if prov.gemeente_name and gemeente_code:
+        parts_row3.append(f"Gemeente: {prov.gemeente_name} ({gemeente_code})")
+    elif prov.gemeente_name:
+        parts_row3.append(f"Gemeente: {prov.gemeente_name}")
+    if parts_row3:
+        pdf.cell(0, 4, " | ".join(parts_row3), new_x="LMARGIN", new_y="NEXT")
+
+    # Row 4: Coordinates (both WGS84 and RD)
+    parts_row4: list[str] = []
+    if prov.lat is not None and prov.lng is not None:
+        parts_row4.append(f"{prov.lat:.4f}N, {prov.lng:.4f}E (WGS84)")
+    if prov.rd_x is not None and prov.rd_y is not None:
+        parts_row4.append(f"{prov.rd_x:.0f}, {prov.rd_y:.0f} (EPSG:28992)")
+    if parts_row4:
+        coord_label = "Co\u00f6rdinaten" if is_nl else "Coordinates"
+        pdf.cell(
+            0, 4,
+            f"{coord_label}: {' / '.join(parts_row4)}",
+            new_x="LMARGIN", new_y="NEXT",
+        )
+
+    # Row 5: Geocoding method
+    geocoding_label = (
+        "Geocodering: BAG-adreslokatie (gebouwcentro\u00efde)"
+        if is_nl
+        else "Geocoding: BAG address point (building centroid)"
+    )
+    pdf.cell(0, 4, geocoding_label, new_x="LMARGIN", new_y="NEXT")
+
+    # Row 6: Methodology version
+    method_label = "Methodologie" if is_nl else "Methodology"
+    pdf.cell(
+        0, 4,
+        f"{method_label}: {prov.methodology_version}",
+        new_x="LMARGIN", new_y="NEXT",
+    )
+
+    pdf.set_text_color(*SLATE)
+    pdf.ln(4)
+
+
+def _draw_methodology_page(
+    pdf: BuurtCheckPDF,
+    is_nl: bool,
+    provenance: ProvenanceData | None = None,
+) -> None:
+    """Page 6: methodology, data sources, limitations, provenance, and note lines."""
     pdf.set_font("Satoshi", "B", 12)
     pdf.cell(
         0, 7,
@@ -1216,7 +2654,7 @@ def _draw_methodology_page(pdf: BuurtCheckPDF, is_nl: bool) -> None:
         "3D building geometry from 3DBAG. The winter solstice (worst case) "
         "determines the risk classification."
     )
-    pdf.multi_cell(0, 5, methodology, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 5, methodology, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(3)
 
     # Data sources table
@@ -1230,6 +2668,22 @@ def _draw_methodology_page(pdf: BuurtCheckPDF, is_nl: bool) -> None:
     ]
     for name, desc in sources:
         pdf.draw_indicator_row(name, desc)
+    pdf.ln(3)
+
+    # Peer baseline disclosure (Task E4-S2)
+    pdf.set_font("Satoshi", "", 9)
+    pdf.set_text_color(*SECONDARY)
+    baseline_disclosure = (
+        "Waar 'vergelijkingswaarde' wordt getoond, zijn waarden gemodelleerd op basis "
+        "van de stedelijkheidscategorie (CBS) van het adres, niet gemiddeld over de "
+        "volledige verdeling van de gemeente."
+        if is_nl
+        else "Where 'peer baseline' is shown, values are modeled from the address's "
+        "urbanization category (CBS), not averaged from the municipality's full "
+        "distribution."
+    )
+    pdf.multi_cell(0, 4, baseline_disclosure, align="L", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SLATE)
     pdf.ln(3)
 
     # Limitations
@@ -1251,8 +2705,12 @@ def _draw_methodology_page(pdf: BuurtCheckPDF, is_nl: bool) -> None:
         "inspection. Crime data is per municipality, not per street. "
         "Environmental measurements may not reflect micro-local conditions."
     )
-    pdf.multi_cell(0, 5, limitations, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(0, 5, limitations, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
+
+    # Provenance / Report Details block
+    if provenance:
+        _draw_provenance_block(pdf, provenance, is_nl)
 
     pdf.draw_divider("strong")
 
@@ -1267,7 +2725,7 @@ def _draw_methodology_page(pdf: BuurtCheckPDF, is_nl: bool) -> None:
 
     pdf.set_draw_color(*BORDER)
     pdf.set_line_width(0.1)
-    for _ in range(12):
+    for _ in range(3):
         y = pdf.get_y()
         if y > pdf.h - 25:
             break

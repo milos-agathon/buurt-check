@@ -17,7 +17,9 @@ from app.models.livability import LivabilityComparison, LivabilityResponse
 from app.models.neighborhood import NeighborhoodStatsResponse, UrbanizationLevel
 from app.models.neighborhood3d import Neighborhood3DResponse
 from app.models.property_warnings import PropertyWarningsResponse
+from app.models.report import ProvenanceData
 from app.models.risk import (
+    FacadeResult,
     RiskCardsResponse,
     RiskComparisonsResponse,
     RiskLevel,
@@ -39,6 +41,7 @@ from app.services import (
     tier_b,
     wms_tile,
 )
+from app.services.http_client import LoopAwareClient
 from app.services.pdf_export import generate_full_dossier, generate_quick_brief
 from app.services.risk_comparisons import build_risk_comparisons
 from app.services.scoring import (
@@ -53,6 +56,9 @@ from app.services.weather import fetch_tmy_data
 logger = logging.getLogger(__name__)
 
 _BUURT_CODE_RE = re.compile(r"^BU[0-9]{4}[A-Z0-9]{4}$")
+
+# Shared httpx client for PDOK BRT location map tiles
+_map_client = LoopAwareClient()
 
 
 def _validate_buurt_code(buurt_code: str | None) -> str | None:
@@ -108,12 +114,26 @@ def _property_warnings_cache_key(
 router = APIRouter(prefix="/address", tags=["address"])
 
 
+class FacadeSubmission(BaseModel):
+    orientation: str
+    height_label: str = Field(default="")
+    winter_hours: float = Field(..., ge=0, le=24)
+    summer_hours: float = Field(..., ge=0, le=24)
+    annual_average: float = Field(..., ge=0, le=24)
+
+
 class SunlightSubmission(BaseModel):
     winter_hours: float = Field(..., ge=0, le=24)
     summer_hours: float = Field(..., ge=0, le=24)
     equinox_hours: float = Field(..., ge=0, le=24)
     analysis_year: int = Field(..., ge=2000, le=2100)
     svf: float | None = Field(default=None, ge=0, le=1)
+    # Extended fields
+    facade_results: list[FacadeSubmission] = Field(default_factory=list)
+    annual_average: float | None = Field(default=None, ge=0, le=24)
+    ground_annual_average: float | None = Field(default=None, ge=0, le=24)
+    svf_anisotropic: float | None = Field(default=None, ge=0, le=1)
+    irradiance_kwh_m2: float | None = Field(default=None, ge=0)
 
 
 async def _get_cached_sunlight_card(vbo_id: str) -> SunlightRiskCard | None:
@@ -431,6 +451,18 @@ async def submit_sunlight_analysis(
     )
     summary_en, summary_nl = sunlight_summary(sunlight_score, body.winter_hours)
 
+    # Map facade submissions to FacadeResult models
+    facade_results = [
+        FacadeResult(
+            orientation=f.orientation,
+            height_label=f.height_label,
+            winter_hours=round(f.winter_hours, 1),
+            summer_hours=round(f.summer_hours, 1),
+            annual_average=round(f.annual_average, 1),
+        )
+        for f in body.facade_results
+    ]
+
     card = SunlightRiskCard(
         level=severity,
         winter_hours=round(body.winter_hours, 1),
@@ -444,6 +476,23 @@ async def submit_sunlight_analysis(
         severity=severity,
         summary=summary_en,
         summary_nl=summary_nl,
+        facade_results=facade_results,
+        annual_average=(
+            round(body.annual_average, 1)
+            if body.annual_average is not None
+            else None
+        ),
+        ground_annual_average=(
+            round(body.ground_annual_average, 1)
+            if body.ground_annual_average is not None
+            else None
+        ),
+        svf_anisotropic=body.svf_anisotropic,
+        irradiance_kwh_m2=(
+            round(body.irradiance_kwh_m2, 1)
+            if body.irradiance_kwh_m2 is not None
+            else None
+        ),
     )
 
     await cache_set(
@@ -830,6 +879,14 @@ async def address_property_warnings(
     return result
 
 
+class ShadowImageItem(BaseModel):
+    """A single shadow snapshot image with metadata."""
+
+    hour: int = Field(ge=0, le=23)
+    label: str = Field(max_length=50)
+    image_b64: str = Field(max_length=2_000_000)
+
+
 class ExportRequest(BaseModel):
     """POST body for PDF export — avoids URL-length limits from base64 shadow images."""
 
@@ -846,6 +903,10 @@ class ExportRequest(BaseModel):
         default=None,
         max_length=2_000_000,
         validation_alias=AliasChoices("shadow_image_b64", "shadow_image"),
+    )
+    shadow_images: list[ShadowImageItem] | None = Field(
+        default=None,
+        description="Array of shadow snapshots (morning/noon/evening) for triptych layout",
     )
     report_id: str | None = None
     street: str | None = None
@@ -994,6 +1055,77 @@ async def _fetch_property_warnings_for_export(
     return None
 
 
+async def _fetch_livability_for_export(
+    rd_x: float, rd_y: float,
+) -> LivabilityResponse | None:
+    """Cache-first Leefbaarometer livability fetch for Full Dossier export."""
+    cache_key = f"livability_full:{rd_x:.0f}:{rd_y:.0f}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return LivabilityResponse(**cached)
+    try:
+        current = await leefbaarometer.get_livability(rd_x, rd_y)
+        if current is None:
+            return None
+        # Fetch trend + comparison in parallel
+        trend_task = leefbaarometer.get_livability_trend(rd_x, rd_y)
+        comparison_task = leefbaarometer.get_livability_comparison(rd_x, rd_y)
+        trend, comparison = await asyncio.gather(
+            trend_task, comparison_task, return_exceptions=True
+        )
+        trend_ok = isinstance(trend, list)
+        comparison_ok = isinstance(comparison, LivabilityComparison)
+        current.trend = trend if trend_ok else []
+        current.comparison = comparison.rows if comparison_ok else []
+        if trend_ok and comparison_ok:
+            await cache_set(
+                cache_key, current.model_dump(),
+                ttl=settings.cache_ttl_livability,
+            )
+        return current
+    except Exception:
+        logger.warning("Failed to fetch livability data for PDF export")
+    return None
+
+
+async def _fetch_location_map(
+    rd_x: float, rd_y: float,
+) -> str | None:
+    """Fetch a static map tile from PDOK BRT WMS.
+
+    Returns base64-encoded PNG on success, None on any failure.
+    Graceful degradation: the dossier generates fine without a map.
+    """
+    bbox_half = 500  # meters — 1km x 1km area
+    bbox = (
+        f"{rd_x - bbox_half},{rd_y - bbox_half},"
+        f"{rd_x + bbox_half},{rd_y + bbox_half}"
+    )
+    params = {
+        "SERVICE": "WMS",
+        "VERSION": "1.3.0",
+        "REQUEST": "GetMap",
+        "LAYERS": "standaard",
+        "CRS": "EPSG:28992",
+        "BBOX": bbox,
+        "WIDTH": "600",
+        "HEIGHT": "600",
+        "FORMAT": "image/png",
+    }
+    try:
+        client = _map_client.get()
+        resp = await client.get(
+            settings.brt_wms_base, params=params, timeout=10,
+        )
+        resp.raise_for_status()
+        ct = resp.headers.get("content-type", "")
+        if ct.startswith("image"):
+            return base64.b64encode(resp.content).decode()
+    except Exception:
+        logger.warning("Failed to fetch location map from PDOK BRT")
+    return None
+
+
 async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     """Core export logic shared by POST and GET endpoints."""
     if body.template not in ("quick_brief", "full_dossier"):
@@ -1045,10 +1177,18 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     tier_b_data = None
     risk_comparisons_data = None
     property_warnings_data: PropertyWarningsResponse | None = None
+    location_map_b64: str | None = None
+    livability_data: LivabilityResponse | None = None
 
     if body.template == "full_dossier":
         # Fetch full-dossier-only enrichments in parallel.
-        neighborhood_stats, tier_b_data, property_warnings_data = await asyncio.gather(
+        (
+            neighborhood_stats,
+            tier_b_data,
+            property_warnings_data,
+            location_map_b64,
+            livability_data,
+        ) = await asyncio.gather(
             _fetch_neighborhood_for_export(
                 vbo_id, body.lat, body.lng, body.buurt_code,
             ),
@@ -1063,6 +1203,8 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
                 num_units=num_units,
                 municipality=body.city,
             ),
+            _fetch_location_map(body.rd_x, body.rd_y),
+            _fetch_livability_for_export(body.rd_x, body.rd_y),
         )
 
         # If request buurt_code is missing, retry Tier-B with neighborhood code.
@@ -1085,6 +1227,39 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
 
     # --- Generate PDF ---
     if body.template == "full_dossier":
+        # Build provenance metadata for reproducibility
+        pand_id: str | None = None
+        if building_resp and building_resp.building:
+            pand_id = building_resp.building.pand_id
+
+        provenance_buurt = body.buurt_code
+        provenance_gemeente = body.city
+        if neighborhood_stats:
+            provenance_buurt = provenance_buurt or neighborhood_stats.buurt_code
+            provenance_gemeente = (
+                provenance_gemeente or neighborhood_stats.gemeente_name
+            )
+
+        provenance = ProvenanceData(
+            report_id=body.report_id,
+            vbo_id=vbo_id,
+            pand_id=pand_id,
+            buurt_code=provenance_buurt,
+            gemeente_name=provenance_gemeente,
+            lat=body.lat,
+            lng=body.lng,
+            rd_x=body.rd_x,
+            rd_y=body.rd_y,
+        )
+
+        # Convert ShadowImageItem models to dicts for pdf_export
+        shadow_images_dicts = None
+        if body.shadow_images:
+            shadow_images_dicts = [
+                {"hour": s.hour, "label": s.label, "image_b64": s.image_b64}
+                for s in body.shadow_images
+            ]
+
         pdf_bytes = generate_full_dossier(
             address=body.address,
             building_year=building_year,
@@ -1099,6 +1274,10 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             tier_b=tier_b_data,
             risk_comparisons=risk_comparisons_data,
             property_warnings_data=property_warnings_data,
+            provenance=provenance,
+            location_map_b64=location_map_b64,
+            livability=livability_data,
+            shadow_images=shadow_images_dicts,
         )
     else:
         pdf_bytes = generate_quick_brief(

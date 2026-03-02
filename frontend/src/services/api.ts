@@ -339,6 +339,12 @@ export async function getViewingQuestions(
   }
 }
 
+export interface ShadowImagePayload {
+  hour: number;
+  label: string;
+  image_b64: string;
+}
+
 export interface ExportOptions {
   vboId: string;
   rdX: number;
@@ -352,6 +358,7 @@ export interface ExportOptions {
   city?: string;
   language?: string;
   shadowImageB64?: string;
+  shadowImages?: ShadowImagePayload[];
   buurtCode?: string;
   postcode?: string;
   houseNumber?: string;
@@ -370,6 +377,7 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
     language: options.language || 'en',
   };
   if (options.shadowImageB64) body.shadow_image_b64 = options.shadowImageB64;
+  if (options.shadowImages && options.shadowImages.length > 0) body.shadow_images = options.shadowImages;
   if (options.reportId) body.report_id = options.reportId;
   if (options.street) body.street = options.street;
   if (options.city) body.city = options.city;
@@ -570,12 +578,25 @@ export async function fetchWeatherTmy(
   }
 }
 
+export interface FacadeSubmissionPayload {
+  orientation: string;
+  height_label: string;
+  winter_hours: number;
+  summer_hours: number;
+  annual_average: number;
+}
+
 export interface SunlightSubmissionPayload {
   winter_hours: number;
   summer_hours: number;
   equinox_hours: number;
   analysis_year: number;
   svf?: number;
+  facade_results?: FacadeSubmissionPayload[];
+  annual_average?: number;
+  ground_annual_average?: number;
+  svf_anisotropic?: number;
+  irradiance_kwh_m2?: number;
 }
 
 export async function submitSunlightAnalysis(
@@ -591,6 +612,17 @@ export async function submitSunlightAnalysis(
       equinox_hours: data.equinox,
       analysis_year: data.analysisYear ?? new Date().getFullYear(),
       svf: data.svf,
+      facade_results: data.facadeResults?.map(f => ({
+        orientation: f.orientation,
+        height_label: f.heightLabel,
+        winter_hours: f.winterHours,
+        summer_hours: f.summerHours,
+        annual_average: f.annualAverage,
+      })),
+      annual_average: data.annualAverage,
+      ground_annual_average: data.groundAnnualAverage,
+      svf_anisotropic: data.svfAnisotropic,
+      irradiance_kwh_m2: data.irradianceKwhM2,
     };
   const params = new URLSearchParams();
   if (reportId) params.set('report_id', reportId);

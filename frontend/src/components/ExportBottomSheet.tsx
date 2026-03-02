@@ -29,6 +29,8 @@ interface ExportBottomSheetProps {
   isEntitled?: boolean;
   onBuyFullDossier?: () => void;
   buyPending?: boolean;
+  sunlightReady?: boolean;
+  sunlightFailed?: boolean;
   onGenerateStart?: () => void;
   onGenerateSuccess?: () => void;
   onGenerateError?: () => void;
@@ -55,6 +57,8 @@ export default function ExportBottomSheet({
   isEntitled = false,
   onBuyFullDossier,
   buyPending = false,
+  sunlightReady = true,
+  sunlightFailed = false,
   onGenerateStart,
   onGenerateSuccess,
   onGenerateError,
@@ -124,10 +128,20 @@ export default function ExportBottomSheet({
     onGenerateStart?.();
     try {
       let shadowB64: string | undefined;
+      let shadowImages: Array<{ hour: number; label: string; image_b64: string }> | undefined;
       if (includeShadows && shadowSnapshots && shadowSnapshots.length > 0) {
-        // Use the first (noon) snapshot
+        // Build array of all snapshots for triptych
+        shadowImages = shadowSnapshots.map(s => {
+          const raw = s.dataUrl;
+          return {
+            hour: s.hour,
+            label: s.label,
+            image_b64: raw.startsWith('data:') ? raw.split(',')[1] : raw,
+          };
+        });
+
+        // Also send the noon snapshot as backward-compat single image
         const noonSnapshot = shadowSnapshots.find(s => s.hour === 12) || shadowSnapshots[0];
-        // Strip data URL prefix if present
         const dataUrl = noonSnapshot.dataUrl;
         shadowB64 = dataUrl.startsWith('data:')
           ? dataUrl.split(',')[1]
@@ -153,6 +167,7 @@ export default function ExportBottomSheet({
         addition,
         language: exportLanguage,
         shadowImageB64: shadowB64,
+        shadowImages,
       });
       setProgressStage('downloading');
       setGeneratedBlob(blob);
@@ -259,6 +274,18 @@ export default function ExportBottomSheet({
               <span className="export-sheet__template-meta">{t('export.fullDossierMeta', '5+ pages')}</span>
             </button>
           </div>
+
+          {template === 'full_dossier' && !requiresPurchase && !sunlightReady && (
+            <p id="sunlight-computing-msg" role="status" className="export-sheet__sunlight-status" data-testid="export-sunlight-computing">
+              {t('export.sunlightComputing', 'Calculating sunlight analysis...')}
+            </p>
+          )}
+
+          {template === 'full_dossier' && sunlightReady && sunlightFailed && (
+            <p id="sunlight-warning-msg" role="status" className="export-sheet__sunlight-warning" data-testid="export-sunlight-warning">
+              {t('export.sunlightUnavailableWarning', 'Sunlight data unavailable — dossier will show N/A')}
+            </p>
+          )}
         </div>
 
         <div className="export-sheet__section">
@@ -386,8 +413,15 @@ export default function ExportBottomSheet({
             type="button"
             className="export-sheet__btn"
             onClick={handleGenerate}
-            disabled={generating || (requiresPurchase && (buyPending || !onBuyFullDossier))}
+            disabled={generating || (requiresPurchase && (buyPending || !onBuyFullDossier)) || (!requiresPurchase && template === 'full_dossier' && !sunlightReady)}
             aria-busy={(requiresPurchase && buyPending) || undefined}
+            aria-describedby={
+              !requiresPurchase && template === 'full_dossier' && !sunlightReady
+                ? 'sunlight-computing-msg'
+                : template === 'full_dossier' && sunlightReady && sunlightFailed
+                  ? 'sunlight-warning-msg'
+                  : undefined
+            }
             data-testid="export-generate-btn"
           >
             {requiresPurchase

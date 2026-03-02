@@ -30,7 +30,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingBlock, SunlightResult, ShadowSnapshot } from '../types/api';
 import HeatmapLegend from './HeatmapLegend';
 import { sunHoursToColor } from '../utils/heatmapColors';
-import { createDateInTimeZone, getSunDirection, setTimeInTimeZone, sunCalcToNorthAzimuth, SUN_DISTANCE } from '../utils/sunPosition';
+import {
+  createDateInTimeZone,
+  getDatePartsInTimeZone,
+  getSunDirection,
+  setTimeInTimeZone,
+  sunCalcToNorthAzimuth,
+  SUN_DISTANCE,
+} from '../utils/sunPosition';
 import { buildRoofPointGrid } from '../utils/spatialHashGrid';
 import { ROOF_EVALUATION_OFFSET_METERS } from '../utils/sunlightConstants';
 import { generateFacadePoints, generateGroundProxyPoints } from '../utils/roofSampling';
@@ -865,7 +872,8 @@ export default function NeighborhoodViewer3D({
   }, [renderOnce]);
 
   // Capture shadow snapshots — 3 static views at 9:00/12:00/17:00 on Dec 21
-  // Extracted into a callback so it can be triggered from the chunk completion path
+  // Uses a temporary offscreen renderer at 1600x900 for print-quality captures.
+  // Draws north arrow and scale bar as Canvas 2D overlays on each snapshot.
   const captureSnapshots = useCallback(() => {
     const ctx = sceneRef.current;
     const callback = onShadowSnapshotsRef.current;
@@ -873,12 +881,162 @@ export default function NeighborhoodViewer3D({
     if (!allBuildingsReadyRef.current) return;
     snapshotsCaptured.current = true;
 
+    const OFFSCREEN_W = 1600;
+    const OFFSCREEN_H = 900;
+    const HIRES_SHADOW_MAP = 4096;
+    const SNAPSHOT_RADIUS_METERS = 250;
+    const SNAPSHOT_TIME_ZONE = 'Europe/Amsterdam';
+    const SNAPSHOT_BACKGROUND_COLOR = 0xF7FAFC;
+    const SNAPSHOT_GROUND_COLOR = 0xEEF2F6;
+    const SNAPSHOT_NEIGHBOR_COLOR = 0x888888;
+    const SCALE_BAR_METERS = 50;
+
+    // Save camera + sun state
     const savedCameraPos = ctx.camera.position.clone();
     const savedSunPos = ctx.sunLight.position.clone();
     const savedSunIntensity = ctx.sunLight.intensity;
+    const savedAspect = ctx.camera.aspect;
+    const savedSceneBackground = ctx.scene.background;
 
-    ctx.camera.position.set(0, 200, 0.1);
+    // Save original shadow map size to restore later
+    const origShadowW = ctx.sunLight.shadow.mapSize.width;
+    const origShadowH = ctx.sunLight.shadow.mapSize.height;
+
+    // Create offscreen renderer for high-res capture
+    let offscreenRenderer: WebGLRenderer | null = null;
+    try {
+      offscreenRenderer = new WebGLRenderer({
+        antialias: true,
+        preserveDrawingBuffer: true,
+      });
+      offscreenRenderer.setSize(OFFSCREEN_W, OFFSCREEN_H);
+      offscreenRenderer.setPixelRatio(1);
+      offscreenRenderer.shadowMap.enabled = true;
+      offscreenRenderer.shadowMap.type = PCFSoftShadowMap;
+    } catch {
+      // WebGL context creation can fail (e.g. too many contexts).
+      // Fall back to the interactive renderer.
+      offscreenRenderer = null;
+    }
+
+    const renderTarget = offscreenRenderer ?? ctx.renderer;
+    const outputW = offscreenRenderer ? OFFSCREEN_W : (renderTarget.domElement.width || OFFSCREEN_W);
+    const outputH = offscreenRenderer ? OFFSCREEN_H : (renderTarget.domElement.height || OFFSCREEN_H);
+    const outputAspect = outputW / outputH;
+    const fovRad = (ctx.camera.fov * Math.PI) / 180;
+    const computedHeight = (2 * SNAPSHOT_RADIUS_METERS)
+      / (2 * Math.tan(fovRad / 2) * outputAspect);
+    const snapshotCameraHeight = Math.max(180, computedHeight);
+
+    // Keep a clone backup per material so snapshot print styling can be restored safely.
+    const materialBackups = new Map<MeshStandardMaterial, MeshStandardMaterial>();
+    const backupMaterial = (material: Material) => {
+      if (!(material instanceof MeshStandardMaterial)) return;
+      if (!materialBackups.has(material)) {
+        materialBackups.set(material, material.clone());
+      }
+    };
+    const styleMaterial = (
+      material: Material,
+      style: {
+        color: number;
+        emissive?: number;
+        emissiveIntensity?: number;
+        opacity?: number;
+        transparent?: boolean;
+        roughness?: number;
+        metalness?: number;
+      },
+    ) => {
+      if (!(material instanceof MeshStandardMaterial)) return;
+      backupMaterial(material);
+      material.color.setHex(style.color);
+      if (
+        style.emissive != null
+        && typeof (
+          material as MeshStandardMaterial & { emissive?: { setHex: (hex: number) => void } }
+        ).emissive?.setHex === 'function'
+      ) {
+        (material as MeshStandardMaterial & { emissive: { setHex: (hex: number) => void } })
+          .emissive.setHex(style.emissive);
+      }
+      if (style.emissiveIntensity != null) {
+        (material as MeshStandardMaterial & { emissiveIntensity: number })
+          .emissiveIntensity = style.emissiveIntensity;
+      }
+      if (style.opacity != null) {
+        material.opacity = style.opacity;
+      }
+      if (style.transparent != null) {
+        material.transparent = style.transparent;
+      }
+      if (style.roughness != null) {
+        material.roughness = style.roughness;
+      }
+      if (style.metalness != null) {
+        material.metalness = style.metalness;
+      }
+      material.needsUpdate = true;
+    };
+
+    // Snapshot styling is print-first and independent from interactive dark mode.
+    ctx.scene.background = new Color(SNAPSHOT_BACKGROUND_COLOR);
+    const groundMaterials = Array.isArray(ctx.ground.material) ? ctx.ground.material : [ctx.ground.material];
+    for (const material of groundMaterials) {
+      styleMaterial(material, {
+        color: SNAPSHOT_GROUND_COLOR,
+        transparent: false,
+        opacity: 1,
+        roughness: 0.95,
+        metalness: 0.02,
+      });
+    }
+    const targetMesh = targetMeshRef.current;
+    for (const mesh of ctx.buildingMeshes) {
+      const isTargetMesh = mesh === targetMesh || mesh.userData.pandId === targetPandId;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of materials) {
+        if (isTargetMesh) {
+          styleMaterial(material, {
+            color: TARGET_COLOR,
+            emissive: 0x59DCD0,
+            emissiveIntensity: 0.55,
+            transparent: false,
+            opacity: 1,
+            roughness: 0.5,
+            metalness: 0.06,
+          });
+        } else {
+          styleMaterial(material, {
+            color: SNAPSHOT_NEIGHBOR_COLOR,
+            emissive: 0x000000,
+            emissiveIntensity: 0,
+            transparent: true,
+            opacity: 0.96,
+            roughness: 0.86,
+            metalness: 0.05,
+          });
+        }
+      }
+    }
+
+    // Temporarily increase shadow map to 4096 for higher quality
+    if (origShadowW < HIRES_SHADOW_MAP) {
+      ctx.sunLight.shadow.mapSize.width = HIRES_SHADOW_MAP;
+      ctx.sunLight.shadow.mapSize.height = HIRES_SHADOW_MAP;
+      // Dispose existing shadow map so Three.js regenerates at new size
+      if (ctx.sunLight.shadow.map) {
+        ctx.sunLight.shadow.map.dispose();
+        ctx.sunLight.shadow.map = null as unknown as typeof ctx.sunLight.shadow.map;
+      }
+    }
+
+    // Set camera for top-down view
+    ctx.camera.position.set(0, snapshotCameraHeight, 0.1);
     ctx.camera.lookAt(0, 0, 0);
+    if (offscreenRenderer) {
+      ctx.camera.aspect = OFFSCREEN_W / OFFSCREEN_H;
+    }
     ctx.camera.updateProjectionMatrix();
 
     const year = new Date().getFullYear();
@@ -890,40 +1048,215 @@ export default function NeighborhoodViewer3D({
     ];
 
     const snapshots: ShadowSnapshot[] = [];
+    const targetBuilding = buildings.find((building) => building.pand_id === targetPandId);
+    const targetFootprint = targetBuilding?.footprint;
 
-    for (const config of snapshotConfigs) {
-      const date = setTimeInTimeZone(winterSolstice, config.hour * 60);
+    const pad2 = (value: number): string => String(value).padStart(2, '0');
+    const formatTimestamp = (snapshotDate: Date): string => {
+      const parts = getDatePartsInTimeZone(snapshotDate, SNAPSHOT_TIME_ZONE);
+      return `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)} ${pad2(parts.hour)}:${pad2(parts.minute)} CET (${SNAPSHOT_TIME_ZONE})`;
+    };
 
-      const sunDir = getSunDirection(date, center.lat, center.lng);
+    // Overlay canvas for cartographic elements
+    const overlayCanvas = document.createElement('canvas');
+    overlayCanvas.width = outputW;
+    overlayCanvas.height = outputH;
+    const overlayCtx = overlayCanvas.getContext('2d');
+    let captureSucceeded = false;
 
-      if (sunDir) {
-        ctx.sunLight.position.set(
-          sunDir.x * SUN_DISTANCE,
-          sunDir.y * SUN_DISTANCE,
-          sunDir.z * SUN_DISTANCE,
-        );
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
-      } else {
-        ctx.sunLight.intensity = 0;
+    try {
+      for (const config of snapshotConfigs) {
+        const date = setTimeInTimeZone(winterSolstice, config.hour * 60);
+
+        const sunDir = getSunDirection(date, center.lat, center.lng);
+
+        if (sunDir) {
+          ctx.sunLight.position.set(
+            sunDir.x * SUN_DISTANCE,
+            sunDir.y * SUN_DISTANCE,
+            sunDir.z * SUN_DISTANCE,
+          );
+          // Print-optimized: use full intensity for contrast
+          ctx.sunLight.intensity = 1.0;
+        } else {
+          ctx.sunLight.intensity = 0;
+        }
+
+        renderTarget.render(ctx.scene, ctx.camera);
+
+        // Composite: render 3D + cartographic overlays
+        const cw = overlayCanvas.width;
+        const ch = overlayCanvas.height;
+        const aspect = cw / ch;
+        const visibleHeight = 2 * snapshotCameraHeight * Math.tan(fovRad / 2);
+        const visibleWidth = visibleHeight * aspect;
+        const metersPerPixel = visibleWidth / cw;
+
+        if (overlayCtx) {
+          overlayCtx.clearRect(0, 0, cw, ch);
+          // Draw the 3D render onto the overlay canvas
+          overlayCtx.drawImage(renderTarget.domElement, 0, 0, cw, ch);
+
+          // --- Timestamp + extent (top-left) ---
+          const timestamp = formatTimestamp(date);
+          const metadataBoxWidth = Math.min(cw - 32, 560);
+          overlayCtx.save();
+          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.86)';
+          overlayCtx.fillRect(16, 16, metadataBoxWidth, 44);
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.94)';
+          overlayCtx.font = '600 13px sans-serif';
+          overlayCtx.textAlign = 'left';
+          overlayCtx.fillText(timestamp, 24, 34);
+          overlayCtx.font = '12px sans-serif';
+          overlayCtx.fillText(`Extent: ${SNAPSHOT_RADIUS_METERS}m radius`, 24, 51);
+          overlayCtx.restore();
+
+          // --- North arrow (top-right) ---
+          const arrowX = cw - 44;
+          const arrowY = 20;
+          overlayCtx.save();
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.88)';
+          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.88)';
+          overlayCtx.lineWidth = 2;
+          overlayCtx.font = 'bold 16px sans-serif';
+          overlayCtx.textAlign = 'center';
+          overlayCtx.fillText('N', arrowX, arrowY);
+          // Arrow shaft
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(arrowX, arrowY + 4);
+          overlayCtx.lineTo(arrowX, arrowY + 32);
+          overlayCtx.stroke();
+          // Arrow head
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(arrowX, arrowY + 4);
+          overlayCtx.lineTo(arrowX - 6, arrowY + 14);
+          overlayCtx.lineTo(arrowX + 6, arrowY + 14);
+          overlayCtx.closePath();
+          overlayCtx.fill();
+          overlayCtx.restore();
+
+          // --- Target footprint outline + halo ---
+          if (targetFootprint && targetFootprint.length >= 3 && metersPerPixel > 0) {
+            const projected = targetFootprint.map(([x, y]) => ({
+              x: cw / 2 + (x / metersPerPixel),
+              y: ch / 2 + ((-y) / metersPerPixel),
+            }));
+            overlayCtx.save();
+            overlayCtx.beginPath();
+            overlayCtx.moveTo(projected[0].x, projected[0].y);
+            for (let i = 1; i < projected.length; i++) {
+              overlayCtx.lineTo(projected[i].x, projected[i].y);
+            }
+            overlayCtx.closePath();
+            overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+            overlayCtx.lineWidth = 3;
+            overlayCtx.shadowColor = 'rgba(46, 196, 182, 0.55)';
+            overlayCtx.shadowBlur = 12;
+            overlayCtx.stroke();
+            overlayCtx.shadowBlur = 0;
+            overlayCtx.strokeStyle = 'rgba(28, 140, 131, 0.95)';
+            overlayCtx.lineWidth = 1.6;
+            overlayCtx.stroke();
+            overlayCtx.restore();
+          }
+
+          // --- Scale bar (bottom-left) ---
+          const scalePx = SCALE_BAR_METERS / metersPerPixel;
+          const sx = 24;
+          const sy = ch - 38;
+          overlayCtx.save();
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.88)';
+          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.88)';
+          overlayCtx.lineWidth = 3;
+          // Bar
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(sx, sy);
+          overlayCtx.lineTo(sx + scalePx, sy);
+          overlayCtx.stroke();
+          // End caps
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(sx, sy - 6);
+          overlayCtx.lineTo(sx, sy + 6);
+          overlayCtx.moveTo(sx + scalePx, sy - 6);
+          overlayCtx.lineTo(sx + scalePx, sy + 6);
+          overlayCtx.stroke();
+          // Label
+          overlayCtx.font = '12px sans-serif';
+          overlayCtx.textAlign = 'center';
+          overlayCtx.fillText(`${SCALE_BAR_METERS}m`, sx + scalePx / 2, sy + 18);
+          overlayCtx.restore();
+
+          // --- Shadow legend + source attribution (bottom-right) ---
+          const legendW = 300;
+          const legendH = 56;
+          const legendX = cw - legendW - 18;
+          const legendY = ch - legendH - 18;
+          overlayCtx.save();
+          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.86)';
+          overlayCtx.fillRect(legendX, legendY, legendW, legendH);
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.9)';
+          overlayCtx.font = '11px sans-serif';
+          overlayCtx.textAlign = 'left';
+          overlayCtx.fillRect(legendX + 10, legendY + 10, 12, 12);
+          overlayCtx.fillText('Direct sun', legendX + 28, legendY + 20);
+          overlayCtx.fillStyle = 'rgba(82, 96, 116, 0.95)';
+          overlayCtx.fillRect(legendX + 110, legendY + 10, 12, 12);
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.9)';
+          overlayCtx.fillText('Shadow', legendX + 128, legendY + 20);
+          overlayCtx.font = '10px sans-serif';
+          overlayCtx.fillText('Source: 3DBAG / TU Delft + SunCalc', legendX + 10, legendY + 40);
+          overlayCtx.restore();
+
+          const dataUrl = overlayCanvas.toDataURL('image/png');
+          snapshots.push({ label: config.label, hour: config.hour, dataUrl });
+        } else {
+          // No 2D context (unlikely) — fall back to raw 3D capture
+          const dataUrl = renderTarget.domElement.toDataURL('image/png');
+          snapshots.push({ label: config.label, hour: config.hour, dataUrl });
+        }
       }
 
-      ctx.renderer.render(ctx.scene, ctx.camera);
-      const dataUrl = ctx.renderer.domElement.toDataURL('image/png');
+      captureSucceeded = true;
+      callback(snapshots);
+    } finally {
+      // Dispose offscreen renderer
+      if (offscreenRenderer) {
+        offscreenRenderer.dispose();
+      }
 
-      snapshots.push({ label: config.label, hour: config.hour, dataUrl });
+      // Restore shadow map size
+      if (origShadowW < HIRES_SHADOW_MAP) {
+        ctx.sunLight.shadow.mapSize.width = origShadowW;
+        ctx.sunLight.shadow.mapSize.height = origShadowH;
+        // Dispose high-res shadow map so it regenerates at original size
+        if (ctx.sunLight.shadow.map) {
+          ctx.sunLight.shadow.map.dispose();
+          ctx.sunLight.shadow.map = null as unknown as typeof ctx.sunLight.shadow.map;
+        }
+      }
+
+      for (const [material, backup] of materialBackups.entries()) {
+        material.copy(backup);
+        material.needsUpdate = true;
+        backup.dispose();
+      }
+
+      ctx.scene.background = savedSceneBackground;
+
+      // Restore camera and sun state
+      ctx.camera.position.copy(savedCameraPos);
+      ctx.camera.aspect = savedAspect;
+      ctx.camera.lookAt(0, 0, 0);
+      ctx.camera.updateProjectionMatrix();
+      ctx.sunLight.position.copy(savedSunPos);
+      ctx.sunLight.intensity = savedSunIntensity;
+      renderOnce();
+
+      if (!captureSucceeded) {
+        snapshotsCaptured.current = false;
+      }
     }
-
-    // Restore camera and sun state
-    ctx.camera.position.copy(savedCameraPos);
-    ctx.camera.lookAt(0, 0, 0);
-    ctx.camera.updateProjectionMatrix();
-    ctx.sunLight.position.copy(savedSunPos);
-    ctx.sunLight.intensity = savedSunIntensity;
-    renderOnce();
-
-    callback(snapshots);
-  }, [center.lat, center.lng, renderOnce]);
+  }, [buildings, center.lat, center.lng, renderOnce, targetPandId]);
 
   // Add buildings to scene
   useEffect(() => {
