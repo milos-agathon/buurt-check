@@ -765,6 +765,7 @@ class BuurtCheckPDF(FPDF):
             self.set_xy(self.l_margin + 2, band_y + 0.5)
             self.cell(band_w - 4, band_h - 1, text.upper(), new_x="LMARGIN")
             self.set_y(band_y + band_h + 1)
+            self.set_fill_color(255, 255, 255)  # restore fill to white
         else:
             self.set_font("SatoshiMedium", "", 9)
             self.set_text_color(*SECONDARY)
@@ -788,8 +789,8 @@ class BuurtCheckPDF(FPDF):
         self.rect(badge_x, badge_y, badge_w, badge_h, "DF")
         self.set_line_width(0.1)
 
-        # PREMIUM text in teal
-        self.set_text_color(*TEAL)
+        # PREMIUM text in SLATE for WCAG AA contrast on TEAL_LIGHT bg
+        self.set_text_color(*SLATE)
         self.set_xy(badge_x, badge_y + 0.2)
         self.cell(badge_w, badge_h - 0.4, badge_text, align="C")
 
@@ -2407,11 +2408,15 @@ def _draw_livability_section(
 
     pdf.draw_divider("strong")
 
-    # Section header with premium badge
-    pdf.draw_premium_badge()
+    # Section header with band, then premium badge on top
     pdf.draw_section_label(
         "Leefbaarheid" if is_nl else "Livability", band=True,
     )
+    # Badge drawn after band so it's not overwritten; position on prior line
+    saved_y = pdf.get_y()
+    pdf.set_y(saved_y - 7)
+    pdf.draw_premium_badge()
+    pdf.set_y(saved_y)
 
     # Overall score with severity
     score = livability.overall_normalized
