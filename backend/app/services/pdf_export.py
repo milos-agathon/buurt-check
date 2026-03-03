@@ -4,8 +4,10 @@ import base64
 import io
 import logging
 import math
+import tempfile
 from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from fpdf import FPDF
 
@@ -20,6 +22,13 @@ from app.models.risk import (
     ViewingQuestionsResponse,
 )
 from app.models.tier_b import TierBResponse
+from app.services.latex_env import (
+    compile_latex_to_pdf_with_fallback,
+    escape_latex,
+    format_preparation_date,
+    render_brief,
+    render_dossier,
+)
 from app.services.scoring import severity_from_score
 
 logger = logging.getLogger(__name__)
@@ -1129,11 +1138,95 @@ def _draw_address_block(
 
 
 # ---------------------------------------------------------------------------
-# Quick Brief (1 page)
+# LaTeX orchestration helpers
 # ---------------------------------------------------------------------------
 
 
-def generate_quick_brief(
+def _model_to_dict(model: Any) -> dict[str, Any] | None:
+    """Convert Pydantic models to plain dicts for Jinja templates."""
+    if model is None:
+        return None
+    model_dump = getattr(model, "model_dump", None)
+    if callable(model_dump):
+        return model_dump(exclude_none=False)
+    if isinstance(model, dict):
+        return model
+    return None
+
+
+def _decode_b64_asset(
+    b64_data: str | None,
+    *,
+    output_dir: Path,
+    filename_stem: str,
+) -> str | None:
+    """Decode base64 image payload to a temporary PNG path for LaTeX."""
+    if not b64_data:
+        return None
+    try:
+        payload = b64_data.split(",", 1)[-1]
+        raw = base64.b64decode(payload)
+        output_path = output_dir / f"{filename_stem}.png"
+        output_path.write_bytes(raw)
+        return output_path.as_posix()
+    except Exception:
+        logger.warning("Invalid base64 asset for %s; skipping", filename_stem)
+        return None
+
+
+def _primary_shadow_from_triptych(shadow_images: list[dict[str, Any]] | None) -> str | None:
+    """Pick a deterministic primary shadow image from triptych payload."""
+    if not shadow_images:
+        return None
+    ordered = sorted(
+        [s for s in shadow_images if isinstance(s, dict) and s.get("image_b64")],
+        key=lambda item: int(item.get("hour", 12)),
+    )
+    if not ordered:
+        return None
+    return str(ordered[0].get("image_b64") or "")
+
+
+def _sunlight_state(
+    risks: RiskCardsResponse | None,
+    sunlight_score: int | None,
+    *,
+    is_nl: bool = False,
+    has_shadow_inputs: bool = False,
+) -> tuple[str, str | None, str | None]:
+    """Return sunlight rendering state + bilingual pending/unavailable messages."""
+    sun = risks.sunlight if risks else None
+    has_metrics = any(
+        metric is not None
+        for metric in (
+            sunlight_score,
+            getattr(sun, "score", None),
+            getattr(sun, "winter_hours", None),
+            getattr(sun, "equinox_hours", None),
+            getattr(sun, "summer_hours", None),
+        )
+    )
+    if has_metrics:
+        return "available", None, None
+
+    pending = (
+        "Zonlichtanalyse wordt nog verwerkt. Cijfers worden automatisch aangevuld "
+        "zodra de berekening klaar is."
+        if is_nl
+        else "Sunlight analysis is still processing. Numeric values will be "
+        "added automatically when processing finishes."
+    )
+    unavailable = (
+        "Zonlichtanalyse is niet beschikbaar voor deze export."
+        if is_nl
+        else "Sunlight analysis is unavailable for this export."
+    )
+    if has_shadow_inputs or sun is not None:
+        return "pending", pending, None
+    return "error", None, unavailable
+
+
+def _generate_quick_brief_latex(
     address: str,
     building_year: int | None,
     building_use: str | None,
@@ -1143,6 +1236,206 @@ def generate_quick_brief(
     shadow_image_b64: str | None = None,
     language: str = "en",
     floor_area: int | None = None,
+    shadow_equinox_b64: str | None = None,
+    shadow_summer_b64: str | None = None,
+) -> bytes:
+    """Generate quick brief via LaTeX with fpdf2 fallback."""
+    try:
+        def _fallback() -> bytes:
+            return _generate_quick_brief_fpdf(
+                address=address,
+                building_year=building_year,
+                building_use=building_use,
+                risks=risks,
+                sunlight_score=sunlight_score,
+                viewing_questions=viewing_questions,
+                shadow_image_b64=shadow_image_b64,
+                language=language,
+                floor_area=floor_area,
+                shadow_equinox_b64=shadow_equinox_b64,
+                shadow_summer_b64=shadow_summer_b64,
+            )
+
+        with tempfile.TemporaryDirectory(prefix="buurtcheck_latex_assets_") as tmp:
+            assets_dir = Path(tmp)
+            primary_shadow_b64 = shadow_image_b64 or shadow_equinox_b64 or shadow_summer_b64
+            shadow_path = _decode_b64_asset(
+                primary_shadow_b64, output_dir=assets_dir, filename_stem="shadow",
+            )
+            tex = render_brief(
+                address=escape_latex(address),
+                language=language,
+                building_year=building_year,
+                building_use=escape_latex(building_use) if building_use else None,
+                floor_area=floor_area,
+                preparation_date=escape_latex(format_preparation_date(date.today(), language)),
+                risks=_model_to_dict(risks),
+                sunlight_score=sunlight_score,
+                shadow_image=shadow_path,
+                location_map=None,
+                viewing_questions=_model_to_dict(viewing_questions),
+            )
+            return compile_latex_to_pdf_with_fallback(tex, fallback_pdf_factory=_fallback)
+    except Exception:
+        logger.exception("LaTeX quick brief pipeline failed; using fpdf2 fallback")
+        return _generate_quick_brief_fpdf(
+            address=address,
+            building_year=building_year,
+            building_use=building_use,
+            risks=risks,
+            sunlight_score=sunlight_score,
+            viewing_questions=viewing_questions,
+            shadow_image_b64=shadow_image_b64,
+            language=language,
+            floor_area=floor_area,
+            shadow_equinox_b64=shadow_equinox_b64,
+            shadow_summer_b64=shadow_summer_b64,
+        )
+
+
+def _generate_full_dossier_latex(
+    address: str,
+    building_year: int | None,
+    building_use: str | None,
+    risks: RiskCardsResponse | None,
+    sunlight_score: int | None,
+    viewing_questions: ViewingQuestionsResponse | None,
+    shadow_image_b64: str | None = None,
+    language: str = "en",
+    floor_area: int | None = None,
+    neighborhood_stats: NeighborhoodStats | None = None,
+    tier_b: TierBResponse | None = None,
+    risk_comparisons: RiskComparisonsResponse | None = None,
+    property_warnings_data: PropertyWarningsResponse | None = None,
+    provenance: ProvenanceData | None = None,
+    location_map_b64: str | None = None,
+    livability: LivabilityResponse | None = None,
+    shadow_images: list[dict] | None = None,
+    shadow_equinox_b64: str | None = None,
+    shadow_summer_b64: str | None = None,
+    postcode: str | None = None,
+) -> bytes:
+    """Generate full dossier via LaTeX with fpdf2 fallback."""
+    is_nl = language == "nl"
+    has_shadow_inputs = bool(
+        shadow_image_b64 or shadow_equinox_b64 or shadow_summer_b64 or shadow_images
+    )
+    state, pending_msg, unavailable_msg = _sunlight_state(
+        risks, sunlight_score, is_nl=is_nl, has_shadow_inputs=has_shadow_inputs,
+    )
+
+    try:
+        def _fallback() -> bytes:
+            return _generate_full_dossier_fpdf(
+                address=address,
+                building_year=building_year,
+                building_use=building_use,
+                risks=risks,
+                sunlight_score=sunlight_score,
+                viewing_questions=viewing_questions,
+                shadow_image_b64=shadow_image_b64,
+                language=language,
+                floor_area=floor_area,
+                neighborhood_stats=neighborhood_stats,
+                tier_b=tier_b,
+                risk_comparisons=risk_comparisons,
+                property_warnings_data=property_warnings_data,
+                provenance=provenance,
+                location_map_b64=location_map_b64,
+                livability=livability,
+                shadow_images=shadow_images,
+                shadow_equinox_b64=shadow_equinox_b64,
+                shadow_summer_b64=shadow_summer_b64,
+                postcode=postcode,
+            )
+
+        with tempfile.TemporaryDirectory(prefix="buurtcheck_latex_assets_") as tmp:
+            assets_dir = Path(tmp)
+            winter_shadow_b64 = shadow_image_b64 or _primary_shadow_from_triptych(shadow_images)
+            if not winter_shadow_b64:
+                winter_shadow_b64 = shadow_equinox_b64 or shadow_summer_b64
+            shadow_path = _decode_b64_asset(
+                winter_shadow_b64, output_dir=assets_dir, filename_stem="shadow_winter",
+            )
+            map_path = _decode_b64_asset(
+                location_map_b64, output_dir=assets_dir, filename_stem="location_map",
+            )
+
+            tex = render_dossier(
+                address=escape_latex(address),
+                language=language,
+                building_year=building_year,
+                building_use=escape_latex(building_use) if building_use else None,
+                floor_area=floor_area,
+                preparation_date=escape_latex(format_preparation_date(date.today(), language)),
+                risks=_model_to_dict(risks),
+                sunlight_score=sunlight_score,
+                risk_comparisons=_model_to_dict(risk_comparisons),
+                neighborhood=_model_to_dict(neighborhood_stats),
+                livability=_model_to_dict(livability),
+                tier_b=_model_to_dict(tier_b),
+                property_warnings=_model_to_dict(property_warnings_data),
+                viewing_questions=_model_to_dict(viewing_questions),
+                provenance=_model_to_dict(provenance),
+                risk_grid_chart=None,
+                comparison_charts=None,
+                age_chart=None,
+                livability_chart=None,
+                energy_label=None,
+                shadow_image=shadow_path,
+                location_map=map_path,
+                sunlight_state=state,
+                sunlight_pending_message=(
+                    escape_latex(pending_msg) if pending_msg is not None else None
+                ),
+                sunlight_unavailable_message=(
+                    escape_latex(unavailable_msg) if unavailable_msg is not None else None
+                ),
+            )
+            return compile_latex_to_pdf_with_fallback(tex, fallback_pdf_factory=_fallback)
+    except Exception:
+        logger.exception("LaTeX full dossier pipeline failed; using fpdf2 fallback")
+        return _generate_full_dossier_fpdf(
+            address=address,
+            building_year=building_year,
+            building_use=building_use,
+            risks=risks,
+            sunlight_score=sunlight_score,
+            viewing_questions=viewing_questions,
+            shadow_image_b64=shadow_image_b64,
+            language=language,
+            floor_area=floor_area,
+            neighborhood_stats=neighborhood_stats,
+            tier_b=tier_b,
+            risk_comparisons=risk_comparisons,
+            property_warnings_data=property_warnings_data,
+            provenance=provenance,
+            location_map_b64=location_map_b64,
+            livability=livability,
+            shadow_images=shadow_images,
+            shadow_equinox_b64=shadow_equinox_b64,
+            shadow_summer_b64=shadow_summer_b64,
+            postcode=postcode,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Quick Brief (1 page)
+# ---------------------------------------------------------------------------
+
+
+def _generate_quick_brief_fpdf(
+    address: str,
+    building_year: int | None,
+    building_use: str | None,
+    risks: RiskCardsResponse | None,
+    sunlight_score: int | None,
+    viewing_questions: ViewingQuestionsResponse | None,
+    shadow_image_b64: str | None = None,
+    language: str = "en",
+    floor_area: int | None = None,
+    shadow_equinox_b64: str | None = None,
+    shadow_summer_b64: str | None = None,
 ) -> bytes:
     """Generate a 1-page Quick Brief PDF with Polar Frost branding."""
     is_nl = language == "nl"
@@ -1190,7 +1483,7 @@ def generate_quick_brief(
 # ---------------------------------------------------------------------------
 
 
-def generate_full_dossier(
+def _generate_full_dossier_fpdf(
     address: str,
     building_year: int | None,
     building_use: str | None,
@@ -1208,6 +1501,9 @@ def generate_full_dossier(
     location_map_b64: str | None = None,
     livability: LivabilityResponse | None = None,
     shadow_images: list[dict] | None = None,
+    shadow_equinox_b64: str | None = None,
+    shadow_summer_b64: str | None = None,
+    postcode: str | None = None,
 ) -> bytes:
     """Generate 5+ page Full Dossier with Polar Frost branding."""
     is_nl = language == "nl"
@@ -1259,6 +1555,7 @@ def generate_full_dossier(
         property_warnings=property_warnings_data,
         is_nl=is_nl,
         shadow_images=shadow_images,
+        postcode=postcode,
     )
 
     # Page 5: Viewing Checklist
@@ -1272,6 +1569,82 @@ def generate_full_dossier(
     _draw_methodology_page(pdf, is_nl, provenance=provenance)
 
     return bytes(pdf.output())
+
+
+def generate_quick_brief(
+    address: str,
+    building_year: int | None,
+    building_use: str | None,
+    risks: RiskCardsResponse | None,
+    sunlight_score: int | None,
+    viewing_questions: ViewingQuestionsResponse | None,
+    shadow_image_b64: str | None = None,
+    language: str = "en",
+    floor_area: int | None = None,
+    shadow_equinox_b64: str | None = None,
+    shadow_summer_b64: str | None = None,
+) -> bytes:
+    """Generate a quick brief, preferring LaTeX and falling back to fpdf2."""
+    return _generate_quick_brief_latex(
+        address=address,
+        building_year=building_year,
+        building_use=building_use,
+        risks=risks,
+        sunlight_score=sunlight_score,
+        viewing_questions=viewing_questions,
+        shadow_image_b64=shadow_image_b64,
+        language=language,
+        floor_area=floor_area,
+        shadow_equinox_b64=shadow_equinox_b64,
+        shadow_summer_b64=shadow_summer_b64,
+    )
+
+
+def generate_full_dossier(
+    address: str,
+    building_year: int | None,
+    building_use: str | None,
+    risks: RiskCardsResponse | None,
+    sunlight_score: int | None,
+    viewing_questions: ViewingQuestionsResponse | None,
+    shadow_image_b64: str | None = None,
+    language: str = "en",
+    floor_area: int | None = None,
+    neighborhood_stats: NeighborhoodStats | None = None,
+    tier_b: TierBResponse | None = None,
+    risk_comparisons: RiskComparisonsResponse | None = None,
+    property_warnings_data: PropertyWarningsResponse | None = None,
+    provenance: ProvenanceData | None = None,
+    location_map_b64: str | None = None,
+    livability: LivabilityResponse | None = None,
+    shadow_images: list[dict] | None = None,
+    shadow_equinox_b64: str | None = None,
+    shadow_summer_b64: str | None = None,
+    postcode: str | None = None,
+) -> bytes:
+    """Generate a full dossier, preferring LaTeX and falling back to fpdf2."""
+    return _generate_full_dossier_latex(
+        address=address,
+        building_year=building_year,
+        building_use=building_use,
+        risks=risks,
+        sunlight_score=sunlight_score,
+        viewing_questions=viewing_questions,
+        shadow_image_b64=shadow_image_b64,
+        language=language,
+        floor_area=floor_area,
+        neighborhood_stats=neighborhood_stats,
+        tier_b=tier_b,
+        risk_comparisons=risk_comparisons,
+        property_warnings_data=property_warnings_data,
+        provenance=provenance,
+        location_map_b64=location_map_b64,
+        livability=livability,
+        shadow_images=shadow_images,
+        shadow_equinox_b64=shadow_equinox_b64,
+        shadow_summer_b64=shadow_summer_b64,
+        postcode=postcode,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1569,20 +1942,7 @@ def _draw_risk_details_page(
             )
             first_chart_drawn = True
             pdf.set_y(chart_end_y + 2)
-
-            # Scale declaration caption (Task E4-S1)
-            pdf.set_font("Satoshi", "", 8)
-            pdf.set_text_color(*SECONDARY)
-            scale_caption = (
-                "Referentiebalken zijn op de buurt-check 0\u2013100 scoreschaal "
-                "(niet dB / \u00b5g/m\u00b3). Hoger = beter."
-                if is_nl
-                else "Reference bars are on the buurt-check 0\u2013100 score scale "
-                "(not dB / \u00b5g/m\u00b3). Higher = better."
-            )
-            pdf.cell(0, 3, scale_caption, new_x="LMARGIN", new_y="NEXT")
-            pdf.set_text_color(*SLATE)
-            pdf.ln(1)
+            _draw_score_scale_caption(pdf, is_nl)
 
         # Source (with "date unknown" fallback per Finding 9)
         pdf.set_font("Satoshi", "", 8)
@@ -1872,6 +2232,27 @@ def _risk_level_label(level: str, is_nl: bool) -> str:
     return nl if is_nl else en
 
 
+def _draw_score_scale_caption(pdf: BuurtCheckPDF, is_nl: bool) -> None:
+    """Declare that comparison bars use the normalized 0-100 score scale."""
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*SECONDARY)
+    caption = (
+        "Vergelijkingsbalken staan op de buurt-check 0\u2013100 scoreschaal "
+        "(niet op ruwe eenheden). Hoger = beter."
+        if is_nl
+        else "Comparison bars are on the buurt-check 0\u2013100 score scale "
+        "(not raw units). Higher = better."
+    )
+    pdf.cell(0, 3, caption, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*SLATE)
+    pdf.ln(1)
+
+
+_WHO_NOISE_LDEN_DB = 53.0
+_WHO_PM25_UG_M3 = 5.0
+_WHO_NO2_UG_M3 = 10.0
+
+
 _UNIT_DEFINITIONS: dict[str, dict[str, str]] = {
     "noise": {
         "nl": "Lden = dag-avond-nacht gewogen geluidsniveau (wegverkeer)",
@@ -1890,6 +2271,16 @@ _UNIT_DEFINITIONS: dict[str, dict[str, str]] = {
     "climate_stress": {
         "nl": "Op basis van hitte- en wateroverlastmodellen",
         "en": "Based on heat stress and water nuisance models",
+    },
+    "sunlight": {
+        "nl": (
+            "Winter/jaargemiddelde in u/dag; SVF = zichtbaar hemelpercentage; "
+            "zoninstraling in kWh/m\u00b2/jaar"
+        ),
+        "en": (
+            "Winter/annual average in h/day; SVF = visible sky factor (%); "
+            "solar irradiance in kWh/m\u00b2/year"
+        ),
     },
 }
 
@@ -1975,15 +2366,24 @@ def _build_risk_detail_data(
             if card.lden_db is not None:
                 val = format_number(card.lden_db, 1, is_nl)
                 meas.append(("Lden", f"{val} dB"))
+                who_label = "WHO-richtlijn (Lden)" if is_nl else "WHO guideline (Lden)"
+                who_val = format_number(_WHO_NOISE_LDEN_DB, 1, is_nl)
+                meas.append((who_label, f"{who_val} dB"))
         elif attr == "air_quality":
             if card.pm25_ug_m3 is not None:
                 val = format_number(card.pm25_ug_m3, 1, is_nl)
                 meas.append(("PM2.5", f"{val} \u00b5g/m\u00b3"))
+                who_label = "WHO-richtlijn PM2.5" if is_nl else "WHO guideline PM2.5"
+                who_val = format_number(_WHO_PM25_UG_M3, 1, is_nl)
+                meas.append((who_label, f"{who_val} \u00b5g/m\u00b3"))
             if card.no2_ug_m3 is not None:
                 val = format_number(card.no2_ug_m3, 1, is_nl)
                 meas.append((
                     "NO\u2082", f"{val} \u00b5g/m\u00b3",
                 ))
+                who_label = "WHO-richtlijn NO\u2082" if is_nl else "WHO guideline NO\u2082"
+                who_val = format_number(_WHO_NO2_UG_M3, 1, is_nl)
+                meas.append((who_label, f"{who_val} \u00b5g/m\u00b3"))
         elif attr == "climate_stress":
             if card.heat_level is not None:
                 label = "Hitte" if is_nl else "Heat"
@@ -2116,6 +2516,9 @@ def _build_risk_detail_data(
         comparisons.sunlight if comparisons else None,
     )
     src_label = "Bron" if is_nl else "Source"
+    sun_unit_def = None
+    if sun_measurements:
+        sun_unit_def = _UNIT_DEFINITIONS["sunlight"]["nl" if is_nl else "en"]
     result.append((
         "Zonlicht" if is_nl else "Sunlight",
         sunlight_score,
@@ -2123,7 +2526,7 @@ def _build_risk_detail_data(
         f"{src_label}: SunCalc + 3DBAG",
         sun_comp,
         sun_measurements,
-        None,
+        sun_unit_def,
     ))
 
     return result
@@ -2336,6 +2739,7 @@ def _draw_neighborhood_page(
                     is_nl=is_nl,
                 )
                 pdf.set_y(chart_end_y + 2)
+                _draw_score_scale_caption(pdf, is_nl)
 
             # Sub-rates: burglary + violent as detail lines
             if crime.burglary_per_1000 is not None:
@@ -2400,6 +2804,20 @@ def _draw_neighborhood_page(
     # --- Livability section (Leefbaarometer) ---
     if livability is not None and livability.available:
         _draw_livability_section(pdf, livability, is_nl)
+    else:
+        pdf.draw_divider("strong")
+        pdf.draw_section_label(
+            "Leefbaarheid" if is_nl else "Livability", band=True,
+        )
+        pdf.set_font("Satoshi", "", 10)
+        pdf.set_text_color(*SECONDARY)
+        no_liv = (
+            "Leefbaarheidsgegevens niet beschikbaar."
+            if is_nl
+            else "Livability data unavailable."
+        )
+        pdf.cell(0, 6, no_liv, new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(*SLATE)
 
 
 def _draw_sparkline(
@@ -2705,6 +3123,7 @@ def _draw_livability_section(
                 is_nl=is_nl,
             )
             pdf.set_y(chart_end_y + 2)
+            _draw_score_scale_caption(pdf, is_nl)
 
     # Source attribution
     pdf.set_font("Satoshi", "", 8)
@@ -2767,6 +3186,27 @@ def _draw_checks_subsection(
     pdf: BuurtCheckPDF, title: str, body: str, source: str,
 ) -> None:
     """Render a single subsection: bold title, body text, source, divider."""
+    content_w = pdf.w - pdf.l_margin - pdf.r_margin
+
+    def _estimated_lines(font_family: str, style: str, size: int, text: str) -> int:
+        pdf.set_font(font_family, style, size)
+        safe_w = max(content_w, 1.0)
+        lines = 0
+        for logical_line in (text or "").splitlines() or [""]:
+            if not logical_line:
+                lines += 1
+                continue
+            line_w = pdf.get_string_width(logical_line)
+            lines += max(1, math.ceil(line_w / safe_w))
+        return lines
+
+    title_lines = _estimated_lines("Satoshi", "B", 12, title)
+    body_lines = _estimated_lines("Satoshi", "", 10, body)
+    source_lines = _estimated_lines("Satoshi", "", 8, source)
+    required_h = title_lines * 6 + body_lines * 5 + source_lines * 4 + 3
+    if pdf.will_page_break(required_h):
+        pdf.add_page()
+
     pdf.set_font("Satoshi", "B", 12)
     pdf.cell(0, 6, title, new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Satoshi", "", 10)
@@ -2786,6 +3226,7 @@ def _draw_property_checks_page(
     property_warnings: PropertyWarningsResponse | None,
     is_nl: bool,
     shadow_images: list[dict] | None = None,
+    postcode: str | None = None,
 ) -> None:
     """Page 4: premium-only checks required in the paid Full Dossier."""
     pdf.draw_premium_badge()
@@ -3070,21 +3511,40 @@ def _draw_property_checks_page(
     )
 
     # 6) Soil Contamination — Manual Verification Required
-    soil_text = (
-        "Er is geen geautomatiseerde perceelgebonden bodemverontreinigingsdata "
-        "beschikbaar. Het BRO-bodeminformatieregister is niet betrouwbaar voor "
-        "perceelniveau-extractie. Raadpleeg bodemloket.nl met het adres van het "
-        "pand voor de officiële verontreinigingshistorie."
-        if is_nl
-        else "No automated parcel-level soil contamination data is available. "
-        "The BRO soil information registry is not reliable for parcel-level "
-        "extraction. Visit bodemloket.nl with the property address for official "
-        "contamination history."
-    )
-    soil_source = (
-        "Actie vereist: bodemloket.nl (handmatige opzoeking)" if is_nl
-        else "Action required: bodemloket.nl (manual lookup)"
-    )
+    postcode_token = "".join(postcode.split()).upper() if postcode else None
+    if postcode_token:
+        soil_text = (
+            "Er is geen geautomatiseerde perceelgebonden bodemverontreinigingsdata "
+            "beschikbaar. Het BRO-bodeminformatieregister is niet betrouwbaar voor "
+            "perceelniveau-extractie. Raadpleeg bodemloket.nl voor postcode "
+            f"{postcode_token} om de officiële verontreinigingshistorie op te zoeken."
+            if is_nl
+            else "No automated parcel-level soil contamination data is available. "
+            "The BRO soil information registry is not reliable for parcel-level "
+            "extraction. Visit bodemloket.nl for postcode "
+            f"{postcode_token} to retrieve official contamination history."
+        )
+        soil_source = (
+            f"Actie vereist: bodemloket.nl (postcode {postcode_token}, handmatige opzoeking)"
+            if is_nl
+            else f"Action required: bodemloket.nl (postcode {postcode_token}, manual lookup)"
+        )
+    else:
+        soil_text = (
+            "Er is geen geautomatiseerde perceelgebonden bodemverontreinigingsdata "
+            "beschikbaar. Het BRO-bodeminformatieregister is niet betrouwbaar voor "
+            "perceelniveau-extractie. Raadpleeg bodemloket.nl met het adres van het "
+            "pand voor de officiële verontreinigingshistorie."
+            if is_nl
+            else "No automated parcel-level soil contamination data is available. "
+            "The BRO soil information registry is not reliable for parcel-level "
+            "extraction. Visit bodemloket.nl with the property address for official "
+            "contamination history."
+        )
+        soil_source = (
+            "Actie vereist: bodemloket.nl (handmatige opzoeking)" if is_nl
+            else "Action required: bodemloket.nl (manual lookup)"
+        )
     _draw_checks_subsection(
         pdf,
         title=(

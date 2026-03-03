@@ -904,6 +904,16 @@ class ExportRequest(BaseModel):
         max_length=2_000_000,
         validation_alias=AliasChoices("shadow_image_b64", "shadow_image"),
     )
+    shadow_equinox_b64: str | None = Field(
+        default=None,
+        max_length=2_000_000,
+        validation_alias=AliasChoices("shadow_equinox_b64", "shadow_equinox"),
+    )
+    shadow_summer_b64: str | None = Field(
+        default=None,
+        max_length=2_000_000,
+        validation_alias=AliasChoices("shadow_summer_b64", "shadow_summer"),
+    )
     shadow_images: list[ShadowImageItem] | None = Field(
         default=None,
         description="Array of shadow snapshots (morning/noon/evening) for triptych layout",
@@ -1278,6 +1288,9 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             location_map_b64=location_map_b64,
             livability=livability_data,
             shadow_images=shadow_images_dicts,
+            shadow_equinox_b64=body.shadow_equinox_b64,
+            shadow_summer_b64=body.shadow_summer_b64,
+            postcode=body.postcode,
         )
     else:
         pdf_bytes = generate_quick_brief(
@@ -1290,6 +1303,8 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             shadow_image_b64=body.shadow_image_b64,
             language=body.language,
             floor_area=floor_area,
+            shadow_equinox_b64=body.shadow_equinox_b64,
+            shadow_summer_b64=body.shadow_summer_b64,
         )
 
     filename = f"buurt-check-{vbo_id}.pdf"
@@ -1334,6 +1349,10 @@ async def export_briefing_get(
     report_id: str | None = Query(None),
     shadow_image_b64: str | None = Query(None),
     shadow_image: str | None = Query(None),
+    shadow_equinox_b64: str | None = Query(None),
+    shadow_equinox: str | None = Query(None),
+    shadow_summer_b64: str | None = Query(None),
+    shadow_summer: str | None = Query(None),
     street: str | None = Query(None),
     city: str | None = Query(None),
     buurt_code: str | None = Query(None),
@@ -1344,9 +1363,13 @@ async def export_briefing_get(
 ):
     """Backward-compatible GET endpoint for PDF export (deprecated -- prefer POST)."""
     resolved_shadow = shadow_image_b64 or shadow_image
+    resolved_shadow_equinox = shadow_equinox_b64 or shadow_equinox
+    resolved_shadow_summer = shadow_summer_b64 or shadow_summer
     body = ExportRequest(
         rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng, address=address,
         template=template, language=language, shadow_image_b64=resolved_shadow,
+        shadow_equinox_b64=resolved_shadow_equinox,
+        shadow_summer_b64=resolved_shadow_summer,
         report_id=report_id,
         street=street, city=city, buurt_code=buurt_code, postcode=postcode,
         house_number=house_number, house_letter=house_letter, addition=addition,

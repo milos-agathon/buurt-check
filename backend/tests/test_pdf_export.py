@@ -47,6 +47,7 @@ from app.models.risk import (
     ViewingQuestionsResponse,
 )
 from app.models.tier_b import CrimeStatsCard, TierBResponse
+from app.services import pdf_export as pe
 from app.services.pdf_export import (
     BORDER,
     MUTED,
@@ -1485,6 +1486,99 @@ class TestComparisonChartScaleDeclaration:
         assert "WHO-richtlijn\n" not in text
 
 
+class TestRiskFactsheetGuidelines:
+    """E4-S3: Measurement factsheets include raw values plus guideline values."""
+
+    def test_factsheet_includes_who_guidelines_en(self):
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = _make_risks()
+        risks.air_quality.pm25_ug_m3 = 11.2
+
+        data = _build_risk_detail_data(
+            risks=risks,
+            sunlight_score=80,
+            comparisons=_make_risk_comparisons(),
+            is_nl=False,
+        )
+
+        noise_measurements = dict(data[0][5] or [])
+        assert noise_measurements["Lden"] == "58.0 dB"
+        assert noise_measurements["WHO guideline (Lden)"] == "53.0 dB"
+
+        air_measurements = dict(data[1][5] or [])
+        assert air_measurements["PM2.5"] == "11.2 µg/m³"
+        assert air_measurements["NO₂"] == "18.0 µg/m³"
+        assert air_measurements["WHO guideline PM2.5"] == "5.0 µg/m³"
+        assert air_measurements["WHO guideline NO₂"] == "10.0 µg/m³"
+
+    def test_factsheet_includes_who_guidelines_nl(self):
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = _make_risks()
+        risks.air_quality.pm25_ug_m3 = 11.2
+
+        data = _build_risk_detail_data(
+            risks=risks,
+            sunlight_score=80,
+            comparisons=_make_risk_comparisons(),
+            is_nl=True,
+        )
+
+        noise_measurements = dict(data[0][5] or [])
+        assert noise_measurements["Lden"] == "58,0 dB"
+        assert noise_measurements["WHO-richtlijn (Lden)"] == "53,0 dB"
+
+        air_measurements = dict(data[1][5] or [])
+        assert air_measurements["PM2.5"] == "11,2 µg/m³"
+        assert air_measurements["NO₂"] == "18,0 µg/m³"
+        assert air_measurements["WHO-richtlijn PM2.5"] == "5,0 µg/m³"
+        assert air_measurements["WHO-richtlijn NO₂"] == "10,0 µg/m³"
+
+
+class TestComparisonChartScaleCaptionCallsites:
+    """E4-S1: Crime and livability comparison call sites include scale captions."""
+
+    def test_crime_chart_calls_scale_caption_helper(self, monkeypatch: pytest.MonkeyPatch):
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+
+        calls = {"count": 0}
+
+        def _fake_caption(_pdf: BuurtCheckPDF, _is_nl: bool) -> None:
+            calls["count"] += 1
+
+        monkeypatch.setattr(pe, "_draw_score_scale_caption", _fake_caption)
+
+        pe._draw_neighborhood_page(
+            pdf,
+            stats=None,
+            tier_b_data=_make_tier_b(),
+            is_nl=False,
+            livability=None,
+        )
+
+        assert calls["count"] == 1
+
+    def test_livability_chart_calls_scale_caption_helper(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+
+        calls = {"count": 0}
+
+        def _fake_caption(_pdf: BuurtCheckPDF, _is_nl: bool) -> None:
+            calls["count"] += 1
+
+        monkeypatch.setattr(pe, "_draw_score_scale_caption", _fake_caption)
+
+        _draw_livability_section(pdf, _make_livability(), is_nl=False)
+
+        assert calls["count"] == 1
+
+
 def _norm(text: str) -> str:
     """Collapse multi-space gaps from pypdf extraction."""
     import re
@@ -2049,8 +2143,7 @@ class TestEliminateEmptyPages:
         assert len(note_lines) <= 5  # 3 notes + dividers
 
     def test_shadow_image_not_on_property_checks(self):
-        """Property checks page references shadow text
-        but does not embed the image itself."""
+        """Shadow text appears in methodology, not on property checks page."""
         import base64
 
         # Create a real-ish PNG for the shadow
@@ -2069,11 +2162,9 @@ class TestEliminateEmptyPages:
             property_warnings_data=_make_property_warnings(),
         )
         reader = PdfReader(io.BytesIO(result))
-        # Property checks is page 4 (index 3)
-        if len(reader.pages) > 3:
-            page4_text = reader.pages[3].extract_text() or ""
-            # The text "Shadow Snapshots" should appear
-            assert "Shadow Snapshots" in page4_text
+        full_text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        # Shadow text appears somewhere in the PDF
+        assert "Shadow Snapshots" in full_text or "shadow snapshot" in full_text.lower()
         # Verify the PDF generates without error
         assert result[:5] == b"%PDF-"
 
@@ -4256,6 +4347,40 @@ class TestExpandedSunlightMeasurements:
         assert "SVF (anisotropic)" not in labels
         assert "Solar irradiance" not in labels
 
+    def test_sunlight_unit_definition_present_en(self):
+        """Sunlight measurements include an English unit-definition line."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(
+            annual_average=6.3,
+            irradiance_kwh_m2=985.0,
+        )
+        data = _build_risk_detail_data(risks, 80, None, False)
+        sunlight_entry = data[-1]
+        unit_def = sunlight_entry[6]
+
+        assert unit_def is not None
+        assert "h/day" in unit_def
+        assert "SVF" in unit_def
+        assert "kWh/m²/year" in unit_def
+
+    def test_sunlight_unit_definition_present_nl(self):
+        """Sunlight measurements include a Dutch unit-definition line."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(
+            annual_average=6.3,
+            irradiance_kwh_m2=985.0,
+        )
+        data = _build_risk_detail_data(risks, 80, None, True)
+        sunlight_entry = data[-1]
+        unit_def = sunlight_entry[6]
+
+        assert unit_def is not None
+        assert "u/dag" in unit_def
+        assert "SVF" in unit_def
+        assert "kWh/m²/jaar" in unit_def
+
     def test_expanded_sunlight_in_property_checks_en(self):
         """Extended sunlight fields appear in property checks section (EN)."""
         risks = self._make_sunlight_risks(
@@ -4555,10 +4680,17 @@ class TestShadowTriptych:
             property_warnings_data=_make_property_warnings(),
         )
         reader = PdfReader(io.BytesIO(result))
-        # Page 4 is property checks (index 3)
-        if len(reader.pages) > 3:
-            text = reader.pages[3].extract_text() or ""
-            assert "morning/noon/evening" in text.lower()
+        page_texts = [p.extract_text() or "" for p in reader.pages]
+        checks_page = next(
+            (
+                txt
+                for txt in page_texts
+                if "ADDITIONAL CHECKS" in txt or "EXTRA CONTROLES" in txt
+            ),
+            "",
+        )
+        assert checks_page
+        assert "morning/noon/evening" in checks_page.lower()
 
 
 # ---------------------------------------------------------------------------
