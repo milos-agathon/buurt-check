@@ -1,0 +1,269 @@
+"""Unit tests for Epic 1 matplotlib chart renderer."""
+
+from __future__ import annotations
+
+import base64
+import io
+
+from matplotlib import rcParams
+from PIL import Image
+from pypdf import PdfReader
+
+from app.models.neighborhood import AgeProfile
+from app.services import chart_renderer as cr
+from app.services.chart_renderer import (
+    CHART_WIDTH_MM,
+    CompRow,
+    CrimeData,
+    LivabilityData,
+    RiskCell,
+    SchererTheme,
+    ShadowImage,
+    SunlightMeta,
+    render_age_distribution,
+    render_livability_score,
+    render_risk_comparison,
+    render_risk_summary_grid,
+    render_shadow_panels,
+)
+
+
+def _pdf_text(pdf_bytes: bytes) -> str:
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def _pdf_size_mm(pdf_bytes: bytes) -> tuple[float, float]:
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    page = reader.pages[0]
+    width_mm = float(page.mediabox.width) * 25.4 / 72.0
+    height_mm = float(page.mediabox.height) * 25.4 / 72.0
+    return width_mm, height_mm
+
+
+def _tiny_png_b64(rgb: tuple[int, int, int]) -> str:
+    image = Image.new("RGB", (80, 48), rgb)
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def test_scherer_theme_applies_rcparams():
+    theme = SchererTheme()
+    theme.apply()
+
+    assert rcParams["axes.spines.top"] is False
+    assert rcParams["axes.spines.right"] is False
+    assert rcParams["axes.spines.left"] is False
+    assert rcParams["axes.spines.bottom"] is True
+    assert rcParams["axes.grid"] is False
+    assert float(rcParams["axes.linewidth"]) == 0.4
+    assert rcParams["axes.edgecolor"] == "#E2E7ED"
+    assert float(rcParams["xtick.major.size"]) == 0.0
+    assert float(rcParams["ytick.major.size"]) == 0.0
+    assert float(rcParams["xtick.labelsize"]) == 7.5
+    assert float(rcParams["ytick.labelsize"]) == 9.5
+    assert rcParams["font.family"] == ["sans-serif"]
+    assert float(rcParams["font.size"]) == 9.5
+    assert float(rcParams["figure.dpi"]) == 300.0
+    assert float(rcParams["savefig.dpi"]) == 300.0
+    assert rcParams["savefig.bbox"] == "tight"
+    assert float(rcParams["savefig.pad_inches"]) == 0.05
+    assert rcParams["legend.frameon"] is False
+
+
+def test_scherer_theme_font_fallback(monkeypatch):
+    monkeypatch.setattr(cr, "_registered_font_names", lambda: {"DejaVu Sans"})
+    monkeypatch.setattr(cr, "_register_local_fonts", lambda: None)
+
+    theme = SchererTheme(preferred_fonts=("Inter",), fallback_fonts=("DejaVu Sans",))
+    resolved = theme.apply()
+
+    assert resolved[0] == "DejaVu Sans"
+    assert rcParams["font.sans-serif"][0] == "DejaVu Sans"
+
+
+def test_save_figure_does_not_mutate_savefig_bbox():
+    SchererTheme().apply()
+    before = rcParams["savefig.bbox"]
+    _ = render_age_distribution(AgeProfile(age_0_24=20, age_25_64=60, age_65_plus=20))
+    after = rcParams["savefig.bbox"]
+    assert after == before
+
+
+def test_risk_comparison_happy_path():
+    chart = render_risk_comparison(
+        category="Noise",
+        address_score=72,
+        comparisons=[
+            CompRow("City average", 66),
+            CompRow("Netherlands", 61),
+            CompRow("WHO guideline", 74, role="reference"),
+        ],
+    )
+
+    assert chart.startswith(b"%PDF-")
+    width_mm, height_mm = _pdf_size_mm(chart)
+    assert width_mm >= CHART_WIDTH_MM - 12
+    assert height_mm > 20
+    text = _pdf_text(chart)
+    assert "This address" in text
+    assert "City average" in text
+    assert "Netherlands" in text
+    assert "WHO guideline" in text
+
+
+def test_risk_comparison_no_comparisons():
+    chart = render_risk_comparison(category="Air", address_score=64, comparisons=[])
+    assert chart.startswith(b"%PDF-")
+    text = _pdf_text(chart)
+    assert "This address" in text
+    assert "64" in text
+
+
+def test_risk_comparison_label_alignment():
+    chart = render_risk_comparison(
+        category="Climate stress",
+        address_score=48,
+        comparisons=[
+            CompRow("Stadsgemiddelde met extra lange omschrijving", 55),
+            CompRow("Nederlandse benchmark", 59),
+        ],
+    )
+
+    assert chart.startswith(b"%PDF-")
+    text = _pdf_text(chart)
+    assert "Stadsgemiddelde" in text
+    assert "Nederlandse benchmark" in text
+
+
+def test_risk_grid_4_cells():
+    chart = render_risk_summary_grid(
+        [
+            RiskCell("Noise", 82, severity="good"),
+            RiskCell("Air", 54, severity="moderate"),
+            RiskCell("Climate", 31, severity="poor"),
+            RiskCell("Sunlight", 12, severity="critical"),
+        ]
+    )
+
+    assert chart.startswith(b"%PDF-")
+    text = _pdf_text(chart)
+    assert "NOISE" in text
+    assert "AIR" in text
+    assert "CLIMATE" in text
+    assert "SUNLIGHT" in text
+    assert "GOOD" in text
+    assert "MODERATE" in text
+    assert "POOR" in text
+    assert "CRITICAL" in text
+
+
+def test_risk_grid_with_none_score():
+    chart = render_risk_summary_grid(
+        [
+            RiskCell("Noise", 75),
+            RiskCell("Air", 68),
+            RiskCell("Climate", 41),
+            RiskCell("Sunlight", None),
+        ]
+    )
+
+    assert chart.startswith(b"%PDF-")
+    text = _pdf_text(chart)
+    assert "N/A" not in text
+    assert "SUNLIGHT" in text
+
+
+def test_shadow_triptych_three_images():
+    chart = render_shadow_panels(
+        images=[
+            ShadowImage("winter", _tiny_png_b64((34, 45, 63))),
+            ShadowImage("equinox", _tiny_png_b64((55, 65, 75))),
+            ShadowImage("summer", _tiny_png_b64((76, 86, 96))),
+        ],
+        metadata=SunlightMeta(),
+    )
+
+    assert chart.startswith(b"%PDF-")
+    width_mm, height_mm = _pdf_size_mm(chart)
+    assert width_mm >= 160
+    assert height_mm >= 170
+    text = _pdf_text(chart)
+    assert "Winter Solstice - Dec 21" in text
+    assert "Spring Equinox - Mar 20" in text
+    assert "Summer Solstice - Jun 21" in text
+    assert "12:00" in text
+
+
+def test_shadow_single_image_fallback():
+    chart = render_shadow_panels(
+        images=[ShadowImage("winter", _tiny_png_b64((60, 60, 60)))],
+        metadata=SunlightMeta(),
+    )
+
+    assert chart.startswith(b"%PDF-")
+    width_mm, height_mm = _pdf_size_mm(chart)
+    assert width_mm >= 160
+    assert height_mm >= 85
+    text = _pdf_text(chart)
+    assert "Equinox and summer analysis requires additional 3D computation" in text
+
+
+def test_age_distribution_happy_path():
+    chart = render_age_distribution(AgeProfile(age_0_24=22, age_25_64=65, age_65_plus=13))
+    assert chart.startswith(b"%PDF-")
+    width_mm, height_mm = _pdf_size_mm(chart)
+    assert width_mm >= CHART_WIDTH_MM - 12
+    assert 16 <= height_mm <= 40
+    text = _pdf_text(chart)
+    assert "0 24" in text or "0-24" in text or "0\u201324" in text
+    assert "25 64" in text or "25-64" in text or "25\u201364" in text
+    assert "65+" in text
+    assert "22%" in text
+    assert "65%" in text
+    assert "13%" in text
+
+
+def test_age_distribution_partial_data():
+    chart = render_age_distribution(AgeProfile(age_0_24=25, age_25_64=None, age_65_plus=14))
+    assert chart.startswith(b"%PDF-")
+    text = _pdf_text(chart)
+    assert "None" not in text
+    assert "25%" in text
+    assert "14%" in text
+
+
+def test_livability_good_score():
+    chart = render_livability_score(
+        livability=LivabilityData(score=78, label="Livability"),
+        crime=CrimeData(score=42, label="Crime"),
+    )
+
+    assert chart.startswith(b"%PDF-")
+    text = _pdf_text(chart)
+    assert "Livability" in text
+    assert "Crime" in text
+    assert "78" in text
+    assert "42" in text
+
+
+def test_livability_no_crime_data():
+    chart = render_livability_score(
+        livability=LivabilityData(score=78, label="Livability"),
+        crime=CrimeData(score=None, label="Crime"),
+    )
+
+    assert chart.startswith(b"%PDF-")
+    text = _pdf_text(chart)
+    assert "Livability" in text
+    assert "78" in text
+    assert "Crime" not in text
+
+
+def test_livability_empty_state():
+    chart = render_livability_score(
+        livability=LivabilityData(score=None, label="Livability"),
+        crime=CrimeData(score=None, label="Crime"),
+    )
+    assert chart.startswith(b"%PDF-")

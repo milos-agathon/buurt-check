@@ -1,0 +1,48 @@
+<< preamble_content >>
+\begin{document}
+
+\section*{<% if language == "nl" %>Bezichtigingsbriefing<% else %>Viewing Brief<% endif %>}
+\textbf{<< address >>}
+
+<% if building_year or building_use or floor_area %>
+\begin{itemize}
+  <% if building_year %>\item <% if language == "nl" %>Bouwjaar<% else %>Built<% endif %>: << building_year >><% endif %>
+  <% if building_use %>\item <% if language == "nl" %>Gebruik<% else %>Use<% endif %>: << building_use >><% endif %>
+  <% if floor_area %>\item <% if language == "nl" %>Oppervlak<% else %>Floor area<% endif %>: << floor_area >> m\textsuperscript{2}<% endif %>
+\end{itemize}
+<% endif %>
+
+\textcolor{MutedText}{
+<% if preparation_date %>
+  <% if language == "nl" %>Voorbereid op<< " " >><< preparation_date >><% else %>Prepared on<< " " >><< preparation_date >><% endif %>
+<% endif %>
+}
+
+\subsection*{<% if language == "nl" %>Risicosamenvatting<% else %>Risk Summary<% endif %>}
+\begin{longtable}{p{0.45\linewidth}p{0.2\linewidth}p{0.28\linewidth}}
+\toprule
+\textbf{<% if language == "nl" %>Categorie<% else %>Category<% endif %>} &
+\textbf{<% if language == "nl" %>Score<% else %>Score<% endif %>} &
+\textbf{<% if language == "nl" %>Ernst<% else %>Severity<% endif %>} \\
+\midrule
+<% if risks %>
+Noise & << risks.noise.score if risks.noise and risks.noise.score is not none else "-" >> & << risks.noise.severity|sev_label(language) if risks.noise else "-" >> \\
+Air quality & << risks.air_quality.score if risks.air_quality and risks.air_quality.score is not none else "-" >> & << risks.air_quality.severity|sev_label(language) if risks.air_quality else "-" >> \\
+Climate stress & << risks.climate_stress.score if risks.climate_stress and risks.climate_stress.score is not none else "-" >> & << risks.climate_stress.severity|sev_label(language) if risks.climate_stress else "-" >> \\
+<% endif %>
+Sunlight & << sunlight_score if sunlight_score is not none else "-" >> & -- \\
+\bottomrule
+\end{longtable}
+
+<% if viewing_questions and viewing_questions.categories %>
+\subsection*{<% if language == "nl" %>Top vragen voor de bezichtiging<% else %>Top Viewing Questions<% endif %>}
+\begin{itemize}
+<% for category in viewing_questions.categories[:3] %>
+  <% for q in category.questions[:2] %>
+    \item <% if language == "nl" %><< q.text_nl >><% else %><< q.text_en >><% endif %>
+  <% endfor %>
+<% endfor %>
+\end{itemize}
+<% endif %>
+
+\end{document}

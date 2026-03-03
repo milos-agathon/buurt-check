@@ -1,0 +1,47 @@
+% Shared buurt-check LaTeX preamble
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=16mm]{geometry}
+\usepackage{fontspec}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=AccentText, urlcolor=AccentText}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\setlist[itemize]{leftmargin=*, itemsep=2pt, topsep=2pt}
+
+% Brand colors
+\definecolor{PolarSlate}{RGB}{28,45,63}
+\definecolor{AccentTeal}{RGB}{46,196,182}
+\definecolor{AccentText}{RGB}{24,126,118}
+\definecolor{MutedText}{RGB}{99,120,146}
+\definecolor{sev-good}{RGB}{34,197,94}
+\definecolor{sev-mod}{RGB}{234,179,8}
+\definecolor{sev-poor}{RGB}{239,68,68}
+\definecolor{sev-crit}{RGB}{185,28,28}
+
+\IfFileExists{<< fonts_dir >>/Satoshi-Regular.ttf}{
+  \setmainfont{Satoshi}[
+    Path=<< fonts_dir >>/,
+    UprightFont=Satoshi-Regular.ttf,
+    BoldFont=Satoshi-Bold.ttf
+  ]
+}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.2pt}
+\renewcommand{\footrulewidth}{0.2pt}
+\fancyhead[L]{\textbf{buurt-check}}
+\fancyhead[R]{\textcolor{MutedText}{<< language|upper >>}}
+\fancyfoot[L]{\textcolor{MutedText}{buurt-check}}
+<% if language == "nl" %>\fancyfoot[C]{\textcolor{MutedText}{Data is indicatief. Verifieer ter plaatse.}}
+<% else %>\fancyfoot[C]{\textcolor{MutedText}{Data is indicative. Verify on-site.}}
+<% endif %>
+\fancyfoot[R]{\textcolor{MutedText}{\thepage/\pageref{LastPage}}}

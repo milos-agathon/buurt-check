@@ -1,0 +1,88 @@
+<< preamble_content >>
+\begin{document}
+
+\section*{<% if language == "nl" %>Vastgoedrisico Dossier<% else %>Property Risk Dossier<% endif %>}
+\textbf{<< address >>}
+
+<% if building_year or building_use or floor_area %>
+\begin{itemize}
+  <% if building_year %>\item <% if language == "nl" %>Bouwjaar<% else %>Built<% endif %>: << building_year >><% endif %>
+  <% if building_use %>\item <% if language == "nl" %>Gebruik<% else %>Use<% endif %>: << building_use >><% endif %>
+  <% if floor_area %>\item <% if language == "nl" %>Oppervlak<% else %>Floor area<% endif %>: << floor_area >> m\textsuperscript{2}<% endif %>
+\end{itemize}
+<% endif %>
+
+\textcolor{MutedText}{
+<% if preparation_date %>
+  <% if language == "nl" %>Voorbereid op<< " " >><< preparation_date >><% else %>Prepared on<< " " >><< preparation_date >><% endif %>
+<% endif %>
+}
+
+\section*{<% if language == "nl" %>Risicoscores<% else %>Risk Scores<% endif %>}
+\begin{longtable}{p{0.36\linewidth}p{0.16\linewidth}p{0.24\linewidth}p{0.18\linewidth}}
+\toprule
+\textbf{<% if language == "nl" %>Categorie<% else %>Category<% endif %>} &
+\textbf{<% if language == "nl" %>Score<% else %>Score<% endif %>} &
+\textbf{<% if language == "nl" %>Ernst<% else %>Severity<% endif %>} &
+\textbf{Source} \\
+\midrule
+<% if risks %>
+Noise & << risks.noise.score if risks.noise and risks.noise.score is not none else "-" >> & << risks.noise.severity|sev_label(language) if risks.noise else "-" >> & << risks.noise.source if risks.noise and risks.noise.source else "-" >> \\
+Air quality & << risks.air_quality.score if risks.air_quality and risks.air_quality.score is not none else "-" >> & << risks.air_quality.severity|sev_label(language) if risks.air_quality else "-" >> & << risks.air_quality.source if risks.air_quality and risks.air_quality.source else "-" >> \\
+Climate stress & << risks.climate_stress.score if risks.climate_stress and risks.climate_stress.score is not none else "-" >> & << risks.climate_stress.severity|sev_label(language) if risks.climate_stress else "-" >> & << risks.climate_stress.source if risks.climate_stress and risks.climate_stress.source else "-" >> \\
+<% endif %>
+Sunlight & << sunlight_score if sunlight_score is not none else "-" >> & -- & SunCalc + 3DBAG \\
+\bottomrule
+\end{longtable}
+
+\section*{<% if language == "nl" %>Zonlichtstatus<% else %>Sunlight Status<% endif %>}
+<% if sunlight_state == "available" %>
+<% if language == "nl" %>Zonlichtanalyse beschikbaar.<% else %>Sunlight analysis available.<% endif %>
+<% elif sunlight_state == "pending" %>
+<< sunlight_pending_message if sunlight_pending_message else ("Zonlichtanalyse wordt nog berekend." if language == "nl" else "Sunlight analysis is still processing.") >>
+<% else %>
+<< sunlight_unavailable_message if sunlight_unavailable_message else ("Zonlichtanalyse is niet beschikbaar." if language == "nl" else "Sunlight analysis is unavailable.") >>
+<% endif %>
+
+\section*{<% if language == "nl" %>Buurtcontext<% else %>Neighborhood Context<% endif %>}
+<% if neighborhood %>
+\begin{itemize}
+  \item <% if language == "nl" %>Buurtcode<% else %>Neighborhood code<% endif %>: << neighborhood.buurt_code if neighborhood.buurt_code else "-" >>
+  \item <% if language == "nl" %>Gemeente<% else %>Municipality<% endif %>: << neighborhood.gemeente_name if neighborhood.gemeente_name else "-" >>
+<% if neighborhood.population_density and neighborhood.population_density.value is not none %>
+  \item <% if language == "nl" %>Dichtheid<% else %>Density<% endif %>: << neighborhood.population_density.value >>
+<% endif %>
+\end{itemize}
+<% else %>
+<% if language == "nl" %>Buurtgegevens niet beschikbaar.<% else %>Neighborhood data unavailable.<% endif %>
+<% endif %>
+
+\section*{<% if language == "nl" %>Bezichtigingsvragen<% else %>Viewing Questions<% endif %>}
+<% if viewing_questions and viewing_questions.categories %>
+\begin{itemize}
+<% for category in viewing_questions.categories %>
+  <% for q in category.questions[:3] %>
+  \item <% if language == "nl" %><< q.text_nl >><% else %><< q.text_en >><% endif %>
+  <% endfor %>
+<% endfor %>
+\end{itemize}
+<% else %>
+<% if language == "nl" %>Geen vragen beschikbaar.<% else %>No questions available.<% endif %>
+<% endif %>
+
+\section*{<% if language == "nl" %>Provenance<% else %>Provenance<% endif %>}
+<% if provenance %>
+\begin{itemize}
+  <% if provenance.report_id %>\item Report ID: << provenance.report_id >><% endif %>
+  <% if provenance.vbo_id %>\item VBO: << provenance.vbo_id >><% endif %>
+  <% if provenance.pand_id %>\item Pand: << provenance.pand_id >><% endif %>
+  <% if provenance.buurt_code %>\item Buurt: << provenance.buurt_code >><% endif %>
+<% if provenance.methodology_version %>
+  \item Methodology: << provenance.methodology_version >>
+<% endif %>
+\end{itemize}
+<% else %>
+<% if language == "nl" %>Geen provenance metadata aangeleverd.<% else %>No provenance metadata supplied.<% endif %>
+<% endif %>
+
+\end{document}
