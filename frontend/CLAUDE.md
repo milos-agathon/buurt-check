@@ -245,6 +245,12 @@ setTimeout(() => { setViewer3DTriggered(true); trigger3DFetch(); }, 0);
 - **Pure computation functions** for EN 17037 daylight exposure bands and TNO benchmark levels in `standardsBenchmark.ts`. 20 boundary-tested edge cases
 - **SunlightRiskCard UI:** Bilingual display of standards benchmarks with i18n labels
 
+## Session Learnings (2026-03-03)
+
+- **Subagent CSS property analysis has significant false-negative rate**: Explore subagents reading grep snippets can miss properties present later in the same CSS block. Always verify subagent CSS claims by reading full rule blocks directly
+- **Refactored code locations invalidate DoD line references**: Story 2.4 referenced `AddressHeader.tsx:49` for an aria-label, but that code had moved to `ActionBar.tsx`. DoD items referencing file:line locations become stale after refactoring
+- **Frontend seasonal shadow field gap**: `api.ts` sends only `shadow_image_b64` and `shadow_images`, not `shadow_equinox_b64`/`shadow_summer_b64`. Cross-cutting gap between frontend export and backend PDF rendering
+
 ## Test Baseline (updated 2026-03-01)
 
 - **Vitest**: 867 tests (post-Sunlight v2 Phases 4-6)

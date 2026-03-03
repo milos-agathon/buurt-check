@@ -120,6 +120,23 @@ Key patterns from the resilience hardening session, documented in full in `front
 
 
 
+## Session Learnings (2026-03-03) — PDF Dossier Epics 1-4 + Assessment Discipline
+
+Key patterns from 5 sessions assessing and fixing PDF dossier diagnostic Epics 2-4:
+
+- **Assessment without test execution has >50% false-positive rate for delivery verdicts**: Static code review (by Claude or Codex) gave PASS/PARTIAL verdicts that test execution revealed as 19/23 failures. Never assess delivery without running tests.
+- **Uncommitted working tree changes are dangerously unreliable assessment targets**: Code read from working tree may disappear when other sessions or operations clean it. Always verify code state with `git status` and pin assessments to a specific commit.
+- **Prerequisite epics must be verified as committed before assessing dependent epics**: Epic 3 depended on Epic 2 deliverables that were never committed. Assessment was meaningless without verifying prerequisites first.
+- **Document numbering ambiguity causes assessment confusion**: The diagnostic uses overlapping numbering (Part B defect categories E1-E11 vs Part E-H implementation epics EPIC 1-4). Always specify Part or full title when referencing items.
+- **Git stash hides untracked files from all standard workflows**: `git stash -u` captures untracked files invisible to `git diff`, `git log`, `git ls-tree`. Check `git stash list` when files seem missing.
+- **Subagent CSS property analysis has significant false-negative rate**: Explore subagents reading grep snippets can miss properties present later in the same CSS block. Always verify subagent CSS claims by reading full rule blocks directly.
+- **Three-round assessment self-correction**: Quick scan overestimates, subagent deep-dive overcorrects, direct verification reaches accurate conclusion. Skip subagents for CSS property checks.
+- **Silent PDF section omission violates graceful degradation**: When sections guard with `if data is not None`, they silently disappear. Every PDF section must have an explicit "unavailable" fallback.
+- **Page-specific PDF assertions are fragile**: Asserting content on specific page indices couples tests to layout. Search full PDF text instead.
+- **`skipif` guards must test actual capability, not just binary presence**: `shutil.which('lualatex')` passes when lualatex exists but can't compile (missing fonts). Use a robust probe that actually compiles a minimal document.
+- **Feature branches become stale when work merges via different route**: During rebase, all commits had add/add conflicts because identical work was already in main from another branch. `git merge-base --is-ancestor` is the definitive check for stale branches.
+- **Context window exhaustion on large review+fix sessions**: Combine adversarial review + implementation in one session risks hitting limits. Consider splitting into review session + fix session.
+
 ## Session Learnings (2026-03-01) — Sunlight v2 + PDF Diagnostic
 
 Key patterns from 13 sessions implementing Sunlight v2 Phases 3-6, adversarial code reviews, and PDF dossier quality audit:
