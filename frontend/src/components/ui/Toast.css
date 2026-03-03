@@ -18,7 +18,7 @@
   padding: 12px 16px;
   border-radius: var(--radius-button);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   box-shadow: var(--elevation-3);
@@ -46,7 +46,8 @@
   display: inline-flex;
   align-items: center;
   border-radius: var(--radius-sm);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .toast__action:hover {

@@ -148,6 +148,9 @@
   flex-shrink: 0;
   font: var(--type-small);
   color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .risk-detail__comparison-bar-track {

@@ -96,6 +96,11 @@
   color: var(--color-text-secondary);
 }
 
+.app__coverage-strip > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .app__coverage-stale {
   color: var(--color-warning);
   font-weight: 600;

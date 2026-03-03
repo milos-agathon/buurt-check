@@ -937,6 +937,27 @@ describe('tab transition reduced-motion safety', () => {
 });
 
 describe('dossier jump navigation', () => {
+  it('renders neighborhood jump button text in English', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dossier-sheet')).toBeInTheDocument();
+    });
+
+    Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 420 });
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(await screen.findByRole('button', { name: 'Neighborhood' })).toBeInTheDocument();
+
+    Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 0 });
+  });
+
   it('shows a back-to-top button and scrolls to the top', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());

@@ -547,6 +547,8 @@ describe('exportBriefing', () => {
       address: 'Test',
       template: 'full_dossier',
       shadowImageB64: 'AAAA',
+      shadowEquinoxB64: 'BBBB',
+      shadowSummerB64: 'CCCC',
       buurtCode: 'BU0363AD07',
       postcode: '1012NX',
       houseNumber: '1',
@@ -560,6 +562,8 @@ describe('exportBriefing', () => {
     const body = JSON.parse(init.body);
     expect(body.template).toBe('full_dossier');
     expect(body.shadow_image_b64).toBe('AAAA');
+    expect(body.shadow_equinox_b64).toBe('BBBB');
+    expect(body.shadow_summer_b64).toBe('CCCC');
     expect(body.buurt_code).toBe('BU0363AD07');
     expect(body.postcode).toBe('1012NX');
     expect(body.house_number).toBe('1');
