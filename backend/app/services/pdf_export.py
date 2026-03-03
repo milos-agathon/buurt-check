@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from fpdf import FPDF
+from PIL import Image
 
 from app.models.livability import LivabilityResponse, LivabilityTrendPoint
 from app.models.neighborhood import AgeProfile, NeighborhoodStats, UrbanizationLevel
@@ -27,14 +28,22 @@ from app.services.latex_env import (
     escape_latex,
     format_preparation_date,
     render_brief,
+    render_chart_assets_parallel,
     render_dossier,
 )
 from app.services.scoring import severity_from_score
+
+try:
+    from app.services import chart_renderer
+except Exception:  # pragma: no cover - graceful fallback when matplotlib is unavailable
+    chart_renderer = None
 
 logger = logging.getLogger(__name__)
 
 # --- Font paths ---
 _FONTS_DIR = Path(__file__).parent.parent / "assets" / "fonts"
+_LOGOS_DIR = Path(__file__).parent.parent / "assets" / "logos"
+_HEADER_LOGO_PATH = _LOGOS_DIR / "buurt-check-lockup-horizontal.png"
 
 # --- Polar Frost color palette (RGB tuples) ---
 # Contrast ratios are vs white (#FFFFFF) unless noted.
@@ -377,6 +386,51 @@ def _interpret_age_distribution(age_data: AgeProfile, is_nl: bool) -> str | None
         )
 
 
+_SEVERITY_CODE_BY_LABEL: dict[str, str] = {
+    "good": "good",
+    "moderate": "moderate",
+    "poor": "poor",
+    "critical": "critical",
+    "goed": "good",
+    "matig": "moderate",
+    "slecht": "poor",
+    "kritiek": "critical",
+    "n.v.t.": "unavailable",
+    "n/a": "unavailable",
+    "-": "unavailable",
+    "\u2014": "unavailable",
+}
+
+
+def _severity_code_from_label(label: str | None) -> str | None:
+    if label is None:
+        return None
+    key = label.strip().lower()
+    return _SEVERITY_CODE_BY_LABEL.get(key)
+
+
+def _embed_chart_png(
+    pdf: FPDF,
+    image_bytes: bytes,
+    *,
+    x: float,
+    y: float,
+    width: float,
+    height: float | None = None,
+) -> float:
+    """Embed a PNG chart at `x,y` and return the next y-coordinate."""
+    with Image.open(io.BytesIO(image_bytes)) as image:
+        src_w, src_h = image.size
+    if src_w <= 0:
+        raise ValueError("chart image width must be > 0")
+
+    if height is None:
+        height = width * (src_h / src_w)
+    height = max(1.0, height)
+    pdf.image(io.BytesIO(image_bytes), x=x, y=y, w=width, h=height)
+    return y + height
+
+
 # ---------------------------------------------------------------------------
 # BuurtCheckPDF — Polar Frost branded PDF subclass
 # ---------------------------------------------------------------------------
@@ -413,14 +467,27 @@ class BuurtCheckPDF(FPDF):
             self.add_font("SatoshiMedium", "", str(medium_path))
 
     def header(self) -> None:
-        """Teal band + brand name + section title on every page."""
+        """Teal band + logo lockup + section title on every page."""
         self.set_fill_color(*TEAL)
         self.rect(0, 0, self.w, 6, "F")
 
         self.set_y(8)
-        self.set_font("SatoshiBlack", "", 9)
         self.set_text_color(*SLATE)
-        self.cell(0, 5, "buurt-check", new_x="RIGHT")
+        logo_drawn = False
+        if _HEADER_LOGO_PATH.exists():
+            try:
+                with Image.open(_HEADER_LOGO_PATH) as logo:
+                    ratio = logo.width / max(logo.height, 1)
+                logo_h = 5.0
+                logo_w = min(42.0, logo_h * ratio)
+                self.image(str(_HEADER_LOGO_PATH), x=self.l_margin, y=8, w=logo_w, h=logo_h)
+                logo_drawn = True
+            except Exception:
+                logger.warning("Failed to draw header logo from %s", _HEADER_LOGO_PATH)
+
+        if not logo_drawn:
+            self.set_font("SatoshiBlack", "", 9)
+            self.cell(0, 5, "buurt-check", new_x="RIGHT")
 
         if self.section_title:
             self.set_font("SatoshiMedium", "", 9)
@@ -509,6 +576,119 @@ class BuurtCheckPDF(FPDF):
         bar and a visual gap separating them from reference rows.
         Returns y position after the chart (including axis labels and legend).
         """
+        if chart_renderer is not None and rows:
+            try:
+                row_h = 7.0
+                address_gap = 2.5
+                title_h = 5.0 if chart_title else 0.0
+                address_rows = [r for r in rows if r[2] == TEAL and not r[3]]
+                reference_rows = [r for r in rows if r not in address_rows]
+                sorted_rows = address_rows + reference_rows
+                has_address_gap = bool(address_rows) and bool(reference_rows)
+                target_chart_h = len(sorted_rows) * row_h + (
+                    address_gap if has_address_gap else 0.0
+                )
+                target_chart_h += title_h
+
+                address_idx = next(
+                    (
+                        idx
+                        for idx, row in enumerate(rows)
+                        if row[2] == TEAL and not row[3] and row[1] is not None
+                    ),
+                    None,
+                )
+                if address_idx is None:
+                    address_idx = next(
+                        (idx for idx, row in enumerate(rows) if row[1] is not None),
+                        None,
+                    )
+                if address_idx is not None:
+                    _, address_score_raw, _, _ = rows[address_idx]
+                    address_score = int(round(address_score_raw))
+                    comparisons_payload = []
+                    for idx, (label, value, _color, dashed) in enumerate(rows):
+                        if idx == address_idx or value is None:
+                            continue
+                        role = "reference" if dashed else "comparison"
+                        comparisons_payload.append(
+                            chart_renderer.CompRow(
+                                label=label,
+                                value=int(round(value)),
+                                role=role,
+                            )
+                        )
+                    chart_png = chart_renderer.render_risk_comparison(
+                        category=chart_title or ("Vergelijking" if is_nl else "Comparison"),
+                        address_score=address_score,
+                        comparisons=comparisons_payload,
+                        output_format="png",
+                    )
+                    chart_end_y = _embed_chart_png(
+                        self,
+                        chart_png,
+                        x=x,
+                        y=y,
+                        width=width,
+                        height=target_chart_h,
+                    )
+
+                    # Preserve text extraction/accessibility: draw row labels as PDF text
+                    # on top of the rendered chart image.
+                    label_w = min(width * 0.42, 68.0)
+                    row_y = y + title_h
+                    n_address = len(address_rows)
+                    for idx, (label, _value, color, dashed) in enumerate(sorted_rows):
+                        if has_address_gap and idx == n_address:
+                            row_y += address_gap
+                        is_address = color == TEAL and not dashed
+                        self.set_font("Satoshi", "B" if is_address else "", 8)
+                        self.set_text_color(*SLATE)
+                        self.set_xy(x + 1.0, row_y)
+                        self.cell(label_w, row_h, label)
+                        row_y += row_h
+
+                    axis_y = chart_end_y + 0.5
+                    self.set_font("Satoshi", "", 8)
+                    self.set_text_color(*SECONDARY)
+                    for pct, label in (
+                        (0, "0"),
+                        (20, "20"),
+                        (40, "40"),
+                        (70, "70"),
+                        (100, "100"),
+                    ):
+                        tx = x + width * pct / 100
+                        self.set_xy(tx - 3, axis_y)
+                        self.cell(6, 3, label, align="C")
+                    self.set_text_color(*SLATE)
+                    chart_end_y = axis_y + 3.5
+
+                    if show_legend:
+                        self.set_xy(x, chart_end_y + 1.0)
+                        self.set_font("Satoshi", "", 8)
+                        self.set_text_color(*SECONDARY)
+                        legend_text = (
+                            "Legenda: teal = dit adres, grijs = vergelijking, gestreept = richtlijn"
+                            if is_nl
+                            else "Legend: teal = this address, gray = peer, dashed = benchmark"
+                        )
+                        self.multi_cell(
+                            width,
+                            3.5,
+                            legend_text,
+                            align="L",
+                            new_x="LMARGIN",
+                            new_y="NEXT",
+                        )
+                        self.set_text_color(*SLATE)
+                        return self.get_y()
+                    return chart_end_y
+            except Exception:
+                logger.exception(
+                    "chart_renderer comparison chart failed; falling back to native drawing"
+                )
+
         label_w = 40
         score_w = 15
         bar_w = width - label_w - score_w - 4
@@ -680,6 +860,31 @@ class BuurtCheckPDF(FPDF):
         cols: int = 2,
     ) -> float:
         """Draw 2x2 (or Nx2) risk summary grid. Returns y position after grid."""
+        if chart_renderer is not None:
+            try:
+                chart_cells = [
+                    chart_renderer.RiskCell(
+                        category=cat_label,
+                        score=score,
+                        severity=_severity_code_from_label(sev_label),
+                    )
+                    for cat_label, score, sev_label in cells
+                ]
+                chart_png = chart_renderer.render_risk_summary_grid(
+                    cells=chart_cells,
+                    cols=cols,
+                    output_format="png",
+                )
+                return _embed_chart_png(
+                    self,
+                    chart_png,
+                    x=x,
+                    y=y,
+                    width=width,
+                )
+            except Exception:
+                logger.exception("chart_renderer risk grid failed; falling back to native drawing")
+
         gap = 4
         cell_w = (width - gap * (cols - 1)) / cols
         cell_h = 28
@@ -723,6 +928,24 @@ class BuurtCheckPDF(FPDF):
         self, x: float, y: float, width: float, age_data: AgeProfile
     ) -> float:
         """Draw age distribution horizontal bars. Returns y after bars."""
+        if chart_renderer is not None:
+            try:
+                chart_png = chart_renderer.render_age_distribution(
+                    age_data=age_data,
+                    output_format="png",
+                )
+                return _embed_chart_png(
+                    self,
+                    chart_png,
+                    x=x,
+                    y=y,
+                    width=width,
+                )
+            except Exception:
+                logger.exception(
+                    "chart_renderer age distribution failed; falling back to native drawing"
+                )
+
         bands = [
             ("0\u201324", age_data.age_0_24),
             ("25\u201364", age_data.age_25_64),
@@ -1174,6 +1397,31 @@ def _decode_b64_asset(
         return None
 
 
+def _write_chart_asset(
+    chart_data: bytes | None,
+    *,
+    output_dir: Path,
+    filename_stem: str,
+) -> str | None:
+    if not isinstance(chart_data, (bytes, bytearray)):
+        return None
+    output_path = output_dir / f"{filename_stem}.png"
+    output_path.write_bytes(bytes(chart_data))
+    return output_path.as_posix()
+
+
+def _slugify_label(value: str) -> str:
+    slug = "".join(ch.lower() if ch.isalnum() else "_" for ch in value)
+    while "__" in slug:
+        slug = slug.replace("__", "_")
+    return slug.strip("_") or "chart"
+
+
+def _ensure_page_space(pdf: BuurtCheckPDF, required_h: float) -> None:
+    if pdf.will_page_break(required_h):
+        pdf.add_page()
+
+
 def _primary_shadow_from_triptych(shadow_images: list[dict[str, Any]] | None) -> str | None:
     """Pick a deterministic primary shadow image from triptych payload."""
     if not shadow_images:
@@ -1241,6 +1489,7 @@ def _generate_quick_brief_latex(
 ) -> bytes:
     """Generate quick brief via LaTeX with fpdf2 fallback."""
     try:
+
         def _fallback() -> bytes:
             return _generate_quick_brief_fpdf(
                 address=address,
@@ -1262,6 +1511,66 @@ def _generate_quick_brief_latex(
             shadow_path = _decode_b64_asset(
                 primary_shadow_b64, output_dir=assets_dir, filename_stem="shadow",
             )
+            risk_grid_chart_path: str | None = None
+            questions_clipped = False
+
+            if chart_renderer is not None:
+                chart_jobs: dict[str, Any] = {}
+                risk_cells = _build_risk_cells(risks, sunlight_score, language == "nl")
+                chart_jobs["risk_grid_chart"] = lambda cells=risk_cells: (
+                    chart_renderer.render_risk_summary_grid(
+                        cells=[
+                            chart_renderer.RiskCell(
+                                category=cat_label,
+                                score=score,
+                                severity=_severity_code_from_label(sev_label),
+                            )
+                            for cat_label, score, sev_label in cells
+                        ],
+                        cols=2,
+                        output_format="png",
+                    )
+                )
+
+                if primary_shadow_b64:
+                    chart_jobs["shadow_chart"] = lambda b64=primary_shadow_b64: (
+                        chart_renderer.render_shadow_panels(
+                            images=[
+                                chart_renderer.ShadowImage(
+                                    season="winter",
+                                    image_b64=b64,
+                                    time_label="12:00",
+                                )
+                            ],
+                            metadata=chart_renderer.SunlightMeta(),
+                            output_format="png",
+                        )
+                    )
+
+                rendered_assets = render_chart_assets_parallel(chart_jobs)
+                risk_grid_chart_path = _write_chart_asset(
+                    rendered_assets.get("risk_grid_chart"),
+                    output_dir=assets_dir,
+                    filename_stem="risk_grid",
+                )
+                shadow_chart = rendered_assets.get("shadow_chart")
+                if shadow_chart:
+                    shadow_path = _write_chart_asset(
+                        shadow_chart,
+                        output_dir=assets_dir,
+                        filename_stem="shadow_renderer",
+                    ) or shadow_path
+
+            if viewing_questions and getattr(viewing_questions, "categories", None):
+                max_categories = 3
+                max_per_category = 2
+                questions_total = sum(len(cat.questions) for cat in viewing_questions.categories)
+                questions_capacity = max_categories * max_per_category
+                questions_clipped = (
+                    len(viewing_questions.categories) > max_categories
+                    or questions_total > questions_capacity
+                )
+
             tex = render_brief(
                 address=escape_latex(address),
                 language=language,
@@ -1271,9 +1580,11 @@ def _generate_quick_brief_latex(
                 preparation_date=escape_latex(format_preparation_date(date.today(), language)),
                 risks=_model_to_dict(risks),
                 sunlight_score=sunlight_score,
+                risk_grid_chart=risk_grid_chart_path,
                 shadow_image=shadow_path,
                 location_map=None,
                 viewing_questions=_model_to_dict(viewing_questions),
+                questions_clipped=questions_clipped,
             )
             return compile_latex_to_pdf_with_fallback(tex, fallback_pdf_factory=_fallback)
     except Exception:
@@ -1323,8 +1634,15 @@ def _generate_full_dossier_latex(
     state, pending_msg, unavailable_msg = _sunlight_state(
         risks, sunlight_score, is_nl=is_nl, has_shadow_inputs=has_shadow_inputs,
     )
+    executive_summary_text = _generate_executive_summary(
+        risks,
+        sunlight_score,
+        livability,
+        is_nl,
+    )
 
     try:
+
         def _fallback() -> bytes:
             return _generate_full_dossier_fpdf(
                 address=address,
@@ -1360,6 +1678,239 @@ def _generate_full_dossier_latex(
             map_path = _decode_b64_asset(
                 location_map_b64, output_dir=assets_dir, filename_stem="location_map",
             )
+            risk_grid_chart_path: str | None = None
+            comparison_chart_paths: dict[str, str] | None = None
+            age_chart_path: str | None = None
+            livability_chart_path: str | None = None
+            age_interpretation_text: str | None = None
+            livability_trend_summary_text: str | None = None
+            shadow_time_labels: list[str] | None = None
+
+            if livability is not None and livability.trend:
+                livability_trend_summary_text = _livability_trend_summary(
+                    livability.trend,
+                    is_nl,
+                )
+            if shadow_images:
+                ordered_shadow_times = sorted(
+                    [s for s in shadow_images if isinstance(s, dict)],
+                    key=lambda item: int(item.get("hour", 12)),
+                )[:3]
+                labels = [
+                    f"{int(item.get('hour', 12)):02d}:00 CET"
+                    for item in ordered_shadow_times
+                ]
+                shadow_time_labels = labels or None
+
+            if chart_renderer is not None:
+                chart_jobs: dict[str, Any] = {}
+                risk_cells = _build_risk_cells(risks, sunlight_score, is_nl)
+                chart_jobs["risk_grid_chart"] = lambda cells=risk_cells: (
+                    chart_renderer.render_risk_summary_grid(
+                        cells=[
+                            chart_renderer.RiskCell(
+                                category=cat_label,
+                                score=score,
+                                severity=_severity_code_from_label(sev_label),
+                            )
+                            for cat_label, score, sev_label in cells
+                        ],
+                        cols=4,
+                        output_format="png",
+                    )
+                )
+
+                def _render_comparison_bundle() -> dict[str, bytes]:
+                    bundle: dict[str, bytes] = {}
+                    category_rows = _build_risk_detail_data(
+                        risks,
+                        sunlight_score,
+                        risk_comparisons,
+                        is_nl,
+                    )
+                    for (
+                        cat_name,
+                        score,
+                        _summary,
+                        _source_text,
+                        comp_rows,
+                        _measurements,
+                        _unit_def,
+                    ) in category_rows:
+                        if not comp_rows:
+                            continue
+
+                        address_score = score
+                        if address_score is None:
+                            address_value = next(
+                                (
+                                    value
+                                    for _label, value, _color, _dashed in comp_rows
+                                    if value is not None
+                                ),
+                                None,
+                            )
+                            if address_value is None:
+                                continue
+                            address_score = int(round(address_value))
+
+                        comparisons_payload = []
+                        skipped_primary = False
+                        for label, value, color, dashed in comp_rows:
+                            if value is None:
+                                continue
+                            if color == TEAL and not dashed and not skipped_primary:
+                                skipped_primary = True
+                                continue
+                            role = "reference" if dashed else "comparison"
+                            comparisons_payload.append(
+                                chart_renderer.CompRow(
+                                    label=label,
+                                    value=int(round(value)),
+                                    role=role,
+                                )
+                            )
+
+                        bundle[_slugify_label(cat_name)] = chart_renderer.render_risk_comparison(
+                            category=cat_name,
+                            address_score=int(round(address_score)),
+                            comparisons=comparisons_payload,
+                            output_format="png",
+                        )
+                    return bundle
+
+                chart_jobs["comparison_charts"] = _render_comparison_bundle
+
+                if (
+                    neighborhood_stats is not None
+                    and neighborhood_stats.age_profile is not None
+                    and (
+                        neighborhood_stats.age_profile.age_0_24 is not None
+                        or neighborhood_stats.age_profile.age_25_64 is not None
+                        or neighborhood_stats.age_profile.age_65_plus is not None
+                    )
+                ):
+                    chart_jobs["age_chart"] = lambda ap=neighborhood_stats.age_profile: (
+                        chart_renderer.render_age_distribution(
+                            age_data=ap,
+                            output_format="png",
+                        )
+                    )
+                    age_interpretation_text = _interpret_age_distribution(
+                        neighborhood_stats.age_profile,
+                        is_nl,
+                    )
+
+                if livability is not None and livability.available:
+                    crime_score = None
+                    if tier_b and tier_b.crime:
+                        crime_score = tier_b.crime.score
+                    chart_jobs["livability_chart"] = (
+                        lambda ls=livability.overall_normalized, cs=crime_score: (
+                            chart_renderer.render_livability_score(
+                                livability=chart_renderer.LivabilityData(
+                                    score=ls,
+                                    label="Leefbaarheid" if is_nl else "Livability",
+                                ),
+                                crime=chart_renderer.CrimeData(
+                                    score=cs,
+                                    label="Criminaliteit" if is_nl else "Crime",
+                                ),
+                                output_format="png",
+                            )
+                        )
+                    )
+
+                shadow_panels: list[Any] = []
+                if winter_shadow_b64:
+                    shadow_panels.append(
+                        chart_renderer.ShadowImage(
+                            season="winter",
+                            image_b64=winter_shadow_b64,
+                            time_label="12:00",
+                        )
+                    )
+                if shadow_equinox_b64:
+                    shadow_panels.append(
+                        chart_renderer.ShadowImage(
+                            season="equinox",
+                            image_b64=shadow_equinox_b64,
+                            time_label="12:00",
+                        )
+                    )
+                if shadow_summer_b64:
+                    shadow_panels.append(
+                        chart_renderer.ShadowImage(
+                            season="summer",
+                            image_b64=shadow_summer_b64,
+                            time_label="12:00",
+                        )
+                    )
+                if not shadow_panels and shadow_images:
+                    ordered = sorted(
+                        [s for s in shadow_images if s.get("image_b64")],
+                        key=lambda item: int(item.get("hour", 12)),
+                    )[:3]
+                    season_labels = ("winter", "equinox", "summer")
+                    for idx, item in enumerate(ordered):
+                        hour = int(item.get("hour", 12))
+                        shadow_panels.append(
+                            chart_renderer.ShadowImage(
+                                season=season_labels[min(idx, 2)],
+                                image_b64=str(item.get("image_b64")),
+                                time_label=f"{hour:02d}:00",
+                            )
+                        )
+                if shadow_panels:
+                    chart_jobs["shadow_chart"] = lambda panels=shadow_panels: (
+                        chart_renderer.render_shadow_panels(
+                            images=panels,
+                            metadata=chart_renderer.SunlightMeta(),
+                            output_format="png",
+                        )
+                    )
+
+                rendered_assets = render_chart_assets_parallel(chart_jobs)
+                risk_grid_chart_path = _write_chart_asset(
+                    rendered_assets.get("risk_grid_chart"),
+                    output_dir=assets_dir,
+                    filename_stem="risk_grid",
+                )
+
+                comparison_raw = rendered_assets.get("comparison_charts")
+                if isinstance(comparison_raw, dict):
+                    path_map: dict[str, str] = {}
+                    for key, payload in comparison_raw.items():
+                        if not payload:
+                            continue
+                        path = _write_chart_asset(
+                            payload,
+                            output_dir=assets_dir,
+                            filename_stem=f"comparison_{_slugify_label(str(key))}",
+                        )
+                        if path:
+                            path_map[str(key)] = path
+                    comparison_chart_paths = path_map or None
+
+                age_chart_path = _write_chart_asset(
+                    rendered_assets.get("age_chart"),
+                    output_dir=assets_dir,
+                    filename_stem="age_distribution",
+                )
+                livability_chart_path = _write_chart_asset(
+                    rendered_assets.get("livability_chart"),
+                    output_dir=assets_dir,
+                    filename_stem="livability",
+                )
+
+                shadow_chart = rendered_assets.get("shadow_chart")
+                shadow_chart_path = _write_chart_asset(
+                    shadow_chart,
+                    output_dir=assets_dir,
+                    filename_stem="shadow_renderer",
+                )
+                if shadow_chart_path:
+                    shadow_path = shadow_chart_path
 
             tex = render_dossier(
                 address=escape_latex(address),
@@ -1369,6 +1920,7 @@ def _generate_full_dossier_latex(
                 floor_area=floor_area,
                 preparation_date=escape_latex(format_preparation_date(date.today(), language)),
                 risks=_model_to_dict(risks),
+                executive_summary=escape_latex(executive_summary_text),
                 sunlight_score=sunlight_score,
                 risk_comparisons=_model_to_dict(risk_comparisons),
                 neighborhood=_model_to_dict(neighborhood_stats),
@@ -1377,10 +1929,18 @@ def _generate_full_dossier_latex(
                 property_warnings=_model_to_dict(property_warnings_data),
                 viewing_questions=_model_to_dict(viewing_questions),
                 provenance=_model_to_dict(provenance),
-                risk_grid_chart=None,
-                comparison_charts=None,
-                age_chart=None,
-                livability_chart=None,
+                risk_grid_chart=risk_grid_chart_path,
+                comparison_charts=comparison_chart_paths,
+                age_chart=age_chart_path,
+                age_interpretation=(
+                    escape_latex(age_interpretation_text) if age_interpretation_text else None
+                ),
+                livability_chart=livability_chart_path,
+                livability_trend_summary=(
+                    escape_latex(livability_trend_summary_text)
+                    if livability_trend_summary_text
+                    else None
+                ),
                 energy_label=None,
                 shadow_image=shadow_path,
                 location_map=map_path,
@@ -1391,6 +1951,8 @@ def _generate_full_dossier_latex(
                 sunlight_unavailable_message=(
                     escape_latex(unavailable_msg) if unavailable_msg is not None else None
                 ),
+                postcode=escape_latex(postcode) if postcode else None,
+                shadow_time_labels=shadow_time_labels,
             )
             return compile_latex_to_pdf_with_fallback(tex, fallback_pdf_factory=_fallback)
     except Exception:
@@ -1534,19 +2096,19 @@ def _generate_full_dossier_fpdf(
         livability=livability,
     )
 
-    # Page 2: Risk Details
+    # Risk details section
     pdf.section_title = "RISICODETAILS" if is_nl else "RISK DETAILS"
-    pdf.add_page()
+    _ensure_page_space(pdf, 90)
     _draw_risk_details_page(pdf, address, risks, sunlight_score, risk_comparisons, is_nl)
 
-    # Page 3: Neighborhood Intelligence
+    # Neighborhood intelligence section
     pdf.section_title = "BUURT" if is_nl else "NEIGHBORHOOD"
-    pdf.add_page()
+    _ensure_page_space(pdf, 90)
     _draw_neighborhood_page(pdf, neighborhood_stats, tier_b, is_nl, livability=livability)
 
-    # Page 4: Premium Property Checks
+    # Premium property checks section
     pdf.section_title = "EXTRA CONTROLES" if is_nl else "ADDITIONAL CHECKS"
-    pdf.add_page()
+    _ensure_page_space(pdf, 90)
     _draw_property_checks_page(
         pdf=pdf,
         risks=risks,
@@ -1558,14 +2120,14 @@ def _generate_full_dossier_fpdf(
         postcode=postcode,
     )
 
-    # Page 5: Viewing Checklist
+    # Viewing checklist section
     pdf.section_title = "BEZICHTIGINGSCHECKLIST" if is_nl else "VIEWING CHECKLIST"
-    pdf.add_page()
+    _ensure_page_space(pdf, 70)
     _draw_checklist_page(pdf, address, risks, sunlight_score, viewing_questions, is_nl)
 
-    # Page 6: Methodology + Notes
+    # Methodology + notes section
     pdf.section_title = "METHODOLOGIE" if is_nl else "METHODOLOGY"
-    pdf.add_page()
+    _ensure_page_space(pdf, 90)
     _draw_methodology_page(pdf, is_nl, provenance=provenance)
 
     return bytes(pdf.output())
@@ -2542,6 +3104,7 @@ def _draw_neighborhood_page(
 ) -> None:
     """Page 3: neighborhood stats + crime + livability."""
     if stats:
+        _ensure_page_space(pdf, 42)
         # Buurt name + urbanization
         pdf.set_font("Satoshi", "B", 16)
         pdf.set_text_color(*SLATE)
@@ -2568,6 +3131,7 @@ def _draw_neighborhood_page(
         pdf.ln(4)
 
         # People section
+        _ensure_page_space(pdf, 28)
         pdf.draw_section_label("Bewoners" if is_nl else "People")
         _draw_indicator(
             pdf, "Inwonerdichtheid" if is_nl else "Population density",
@@ -2584,6 +3148,7 @@ def _draw_neighborhood_page(
         pdf.ln(2)
 
         # Age distribution
+        _ensure_page_space(pdf, 42)
         pdf.draw_section_label("Leeftijdsverdeling" if is_nl else "Age Distribution")
         if (
             stats.age_profile.age_0_24 is not None
@@ -2609,6 +3174,7 @@ def _draw_neighborhood_page(
         pdf.ln(2)
 
         # Housing
+        _ensure_page_space(pdf, 22)
         pdf.draw_section_label("Woningen" if is_nl else "Housing")
         _draw_indicator(
             pdf, "Koopwoningen" if is_nl else "Owner-occupied",
@@ -2621,6 +3187,7 @@ def _draw_neighborhood_page(
         pdf.ln(2)
 
         # Access
+        _ensure_page_space(pdf, 22)
         pdf.draw_section_label("Bereikbaarheid" if is_nl else "Access")
         _draw_indicator(
             pdf, "Treinstation" if is_nl else "Train station",
@@ -2658,9 +3225,11 @@ def _draw_neighborhood_page(
         pdf.set_text_color(*SLATE)
 
     # Divider before Tier B
+    _ensure_page_space(pdf, 45)
     pdf.draw_divider("strong")
 
     # Safety
+    _ensure_page_space(pdf, 60)
     pdf.draw_section_label("Veiligheid" if is_nl else "Safety")
     pdf.ln(1)
 
@@ -2803,8 +3372,10 @@ def _draw_neighborhood_page(
 
     # --- Livability section (Leefbaarometer) ---
     if livability is not None and livability.available:
+        _ensure_page_space(pdf, 85)
         _draw_livability_section(pdf, livability, is_nl)
     else:
+        _ensure_page_space(pdf, 26)
         pdf.draw_divider("strong")
         pdf.draw_section_label(
             "Leefbaarheid" if is_nl else "Livability", band=True,
@@ -3008,6 +3579,7 @@ def _draw_livability_section(
     if livability is None or not livability.available:
         return
 
+    _ensure_page_space(pdf, 70)
     pdf.draw_divider("strong")
 
     # Section header with band, then premium badge on top
@@ -3053,8 +3625,35 @@ def _draw_livability_section(
 
     content_w = pdf.w - pdf.l_margin - pdf.r_margin
 
+    if chart_renderer is not None:
+        try:
+            livability_chart = chart_renderer.render_livability_score(
+                livability=chart_renderer.LivabilityData(
+                    score=score,
+                    label="Leefbaarheid" if is_nl else "Livability",
+                ),
+                crime=chart_renderer.CrimeData(
+                    score=None,
+                    label="Criminaliteit" if is_nl else "Crime",
+                ),
+                output_format="png",
+            )
+            chart_end_y = _embed_chart_png(
+                pdf,
+                livability_chart,
+                x=pdf.l_margin,
+                y=pdf.get_y(),
+                width=content_w,
+            )
+            pdf.set_y(chart_end_y + 2)
+        except Exception:
+            logger.exception(
+                "chart_renderer livability chart failed; using score-bar-only fallback"
+            )
+
     # --- 5-dimension radar chart ---
     if len(livability.dimensions) >= 3:
+        _ensure_page_space(pdf, 62)
         radar_title = "Dimensies" if is_nl else "Dimensions"
         pdf.set_font("SatoshiMedium", "", 9)
         pdf.set_text_color(*SLATE)
@@ -3073,6 +3672,7 @@ def _draw_livability_section(
 
     # --- Trend sparkline + text summary ---
     if livability.trend and len(livability.trend) >= 2:
+        _ensure_page_space(pdf, 28)
         trend_text = _livability_trend_summary(livability.trend, is_nl)
         if trend_text:
             pdf.set_font("Satoshi", "", 10)
@@ -3095,6 +3695,7 @@ def _draw_livability_section(
 
     # --- Comparison table: buurt vs wijk vs gemeente ---
     if livability.comparison:
+        _ensure_page_space(pdf, 36)
         comp_title = (
             "Vergelijking" if is_nl else "Comparison"
         )
@@ -3229,6 +3830,7 @@ def _draw_property_checks_page(
     postcode: str | None = None,
 ) -> None:
     """Page 4: premium-only checks required in the paid Full Dossier."""
+    _ensure_page_space(pdf, 24)
     pdf.draw_premium_badge()
     pdf.set_font("Satoshi", "B", 12)
     title = "Aanvullende vastgoedcontroles" if is_nl else "Additional Property Checks"
@@ -3643,6 +4245,7 @@ def _draw_property_checks_page(
         else "Source: SunCalc ray-casting over 3DBAG meshes"
     )
     # Shadow image already on cover page; text-only here
+    _ensure_page_space(pdf, 20)
     pdf.set_font("Satoshi", "B", 12)
     pdf.cell(
         0, 6, shadow_title,

@@ -1473,14 +1473,14 @@ class TestComparisonChartScaleDeclaration:
 
     def test_who_label_en_includes_score_qualifier(self):
         """WHO label in EN explicitly says 'mapped to score'."""
-        text = self._extract_full_text("en")
+        text = " ".join(self._extract_full_text("en").split())
         assert "mapped to score" in text
         # Old unqualified label must not appear
         assert "WHO guideline\n" not in text
 
     def test_who_label_nl_includes_score_qualifier(self):
         """WHO label in NL explicitly says 'op scoreschaal'."""
-        text = self._extract_full_text("nl")
+        text = " ".join(self._extract_full_text("nl").split())
         assert "op scoreschaal" in text
         # Old unqualified label must not appear
         assert "WHO-richtlijn\n" not in text

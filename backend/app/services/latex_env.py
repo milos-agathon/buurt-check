@@ -172,6 +172,7 @@ def render_dossier(
     floor_area: int | None = None,
     preparation_date: str = "",
     risks: dict[str, Any] | None = None,
+    executive_summary: str | None = None,
     sunlight_score: int | None = None,
     risk_comparisons: dict[str, Any] | None = None,
     neighborhood: dict[str, Any] | None = None,
@@ -183,13 +184,17 @@ def render_dossier(
     risk_grid_chart: str | None = None,
     comparison_charts: dict[str, str] | None = None,
     age_chart: str | None = None,
+    age_interpretation: str | None = None,
     livability_chart: str | None = None,
+    livability_trend_summary: str | None = None,
     energy_label: str | None = None,
     shadow_image: str | None = None,
     location_map: str | None = None,
+    shadow_time_labels: list[str] | None = None,
     sunlight_state: str = "error",
     sunlight_pending_message: str | None = None,
     sunlight_unavailable_message: str | None = None,
+    postcode: str | None = None,
 ) -> str:
     """Render the full dossier LaTeX document."""
     preamble_content = render_preamble(language=language)
@@ -203,6 +208,7 @@ def render_dossier(
         floor_area=floor_area,
         preparation_date=preparation_date,
         risks=risks,
+        executive_summary=executive_summary,
         sunlight_score=sunlight_score,
         risk_comparisons=risk_comparisons,
         neighborhood=neighborhood,
@@ -214,13 +220,17 @@ def render_dossier(
         risk_grid_chart=risk_grid_chart,
         comparison_charts=comparison_charts,
         age_chart=age_chart,
+        age_interpretation=age_interpretation,
         livability_chart=livability_chart,
+        livability_trend_summary=livability_trend_summary,
         energy_label=energy_label,
         shadow_image=shadow_image,
         location_map=location_map,
+        shadow_time_labels=shadow_time_labels,
         sunlight_state=sunlight_state,
         sunlight_pending_message=sunlight_pending_message,
         sunlight_unavailable_message=sunlight_unavailable_message,
+        postcode=postcode,
     )
 
 
@@ -238,6 +248,7 @@ def render_brief(
     shadow_image: str | None = None,
     location_map: str | None = None,
     viewing_questions: dict[str, Any] | None = None,
+    questions_clipped: bool = False,
 ) -> str:
     """Render the single-page quick viewing brief LaTeX document."""
     preamble_content = render_preamble(language=language)
@@ -256,6 +267,7 @@ def render_brief(
         shadow_image=shadow_image,
         location_map=location_map,
         viewing_questions=viewing_questions,
+        questions_clipped=questions_clipped,
     )
 
 

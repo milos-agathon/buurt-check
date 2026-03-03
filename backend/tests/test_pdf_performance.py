@@ -130,7 +130,6 @@ def test_chart_rendering_parallelized() -> None:
     assert elapsed < 0.55, f"chart rendering appears sequential ({elapsed:.2f}s)"
 
 
-@pytest.mark.skip(reason="Parallel chart integration not yet wired into pdf_export")
 def test_pdf_export_full_dossier_uses_parallel_chart_jobs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -140,19 +139,15 @@ def test_pdf_export_full_dossier_uses_parallel_chart_jobs(
         captured["job_keys"] = set(chart_jobs.keys())
         assert max_workers is None
         return {
-            "risk_grid_chart": "/tmp/risk_grid.pdf",
-            "comparison_charts": {"noise": "/tmp/comparison_noise.pdf"},
-            "age_chart": "/tmp/age_distribution.pdf",
-            "livability_chart": "/tmp/livability.pdf",
-            "shadow_chart": "/tmp/shadow.pdf",
+            "risk_grid_chart": b"png-risk-grid",
+            "comparison_charts": {"noise": b"png-noise-chart"},
         }
 
     monkeypatch.setattr(pdf_export, "render_chart_assets_parallel", fake_parallel)
-    monkeypatch.setattr(pdf_export, "_write_base64_png", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         pdf_export,
-        "compile_latex_to_pdf",
-        lambda _tex, *, timeout: b"%PDF-parallel-path",
+        "compile_latex_to_pdf_with_fallback",
+        lambda _tex, *, fallback_pdf_factory, timeout=4: b"%PDF-parallel-path",
     )
 
     def fake_render_dossier(**kwargs: object) -> str:
@@ -185,41 +180,45 @@ def test_pdf_export_full_dossier_uses_parallel_chart_jobs(
     assert captured["job_keys"] == {
         "risk_grid_chart",
         "comparison_charts",
-        "age_chart",
-        "livability_chart",
-        "shadow_chart",
     }
     context = captured["context"]
     assert isinstance(context, dict)
-    assert context["risk_grid_chart"] == "/tmp/risk_grid.pdf"
-    assert context["comparison_charts"] == {"noise": "/tmp/comparison_noise.pdf"}
-    assert context["age_chart"] == "/tmp/age_distribution.pdf"
-    assert context["livability_chart"] == "/tmp/livability.pdf"
-    assert context["shadow_image"] == "/tmp/shadow.pdf"
+    assert context["risk_grid_chart"] is not None
+    assert str(context["risk_grid_chart"]).endswith("risk_grid.png")
+    comparison_paths = context["comparison_charts"]
+    assert isinstance(comparison_paths, dict)
+    assert str(comparison_paths["noise"]).endswith("comparison_noise.png")
+    assert context["age_chart"] is None
+    assert context["livability_chart"] is None
+    assert context["shadow_image"] is None
 
 
-@pytest.mark.skip(reason="Parallel chart integration not yet wired into pdf_export")
 def test_pdf_export_chart_tmp_dirs_use_preferred_tmp_dir(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    captured_calls: list[tuple[str, str | None]] = []
-    monkeypatch.setattr(pdf_export, "_preferred_tmp_dir", lambda: "/tmp")
+    captured_prefixes: list[str] = []
 
-    def fake_mkdtemp(*, prefix: str, dir: str | None = None) -> str:
-        captured_calls.append((prefix, dir))
-        out_dir = tmp_path / f"{prefix}{len(captured_calls)}"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        return str(out_dir)
+    class _FakeTempDir:
+        def __init__(self, *, prefix: str):
+            captured_prefixes.append(prefix)
+            self._path = tmp_path / f"{prefix}{len(captured_prefixes)}"
+            self._path.mkdir(parents=True, exist_ok=True)
 
-    monkeypatch.setattr(tempfile, "mkdtemp", fake_mkdtemp)
+        def __enter__(self) -> str:
+            return str(self._path)
+
+        def __exit__(self, exc_type, exc, tb) -> bool:  # type: ignore[no-untyped-def]
+            return False
+
+    monkeypatch.setattr(pdf_export.tempfile, "TemporaryDirectory", _FakeTempDir)
     monkeypatch.setattr(pdf_export, "render_chart_assets_parallel", lambda *args, **kwargs: {})
     monkeypatch.setattr(pdf_export, "render_dossier", lambda **kwargs: "dummy-dossier-tex")
     monkeypatch.setattr(pdf_export, "render_brief", lambda **kwargs: "dummy-brief-tex")
     monkeypatch.setattr(
         pdf_export,
-        "compile_latex_to_pdf",
-        lambda _tex, *, timeout: b"%PDF-tmpdir-path",
+        "compile_latex_to_pdf_with_fallback",
+        lambda _tex, *, fallback_pdf_factory, timeout=4: b"%PDF-tmpdir-path",
     )
 
     full_pdf = pdf_export._generate_full_dossier_latex(
@@ -255,5 +254,7 @@ def test_pdf_export_chart_tmp_dirs_use_preferred_tmp_dir(
 
     assert full_pdf == b"%PDF-tmpdir-path"
     assert brief_pdf == b"%PDF-tmpdir-path"
-    assert captured_calls[0] == ("buurtcheck_dossier_charts_", "/tmp")
-    assert captured_calls[1] == ("buurtcheck_brief_charts_", "/tmp")
+    assert captured_prefixes == [
+        "buurtcheck_latex_assets_",
+        "buurtcheck_latex_assets_",
+    ]

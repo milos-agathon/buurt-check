@@ -18,6 +18,9 @@
 <% endif %>
 }
 
+\subsection*{<% if language == "nl" %>SAMENVATTING<% else %>EXECUTIVE SUMMARY<% endif %>}
+<< executive_summary if executive_summary else ("Onvoldoende gegevens voor samenvatting." if language == "nl" else "Insufficient data available for summary.") >>
+
 \section*{<% if language == "nl" %>Risicoscores<% else %>Risk Scores<% endif %>}
 \begin{longtable}{p{0.36\linewidth}p{0.16\linewidth}p{0.24\linewidth}p{0.18\linewidth}}
 \toprule
@@ -34,6 +37,23 @@ Climate stress & << risks.climate_stress.score if risks.climate_stress and risks
 Sunlight & << sunlight_score if sunlight_score is not none else "-" >> & -- & SunCalc + 3DBAG \\
 \bottomrule
 \end{longtable}
+<% if risk_grid_chart %>
+\begin{center}
+\includegraphics[width=\linewidth]{<< risk_grid_chart >>}
+\end{center}
+<% endif %>
+
+<% if comparison_charts %>
+\subsection*{<% if language == "nl" %>Vergelijkingsgrafieken<% else %>Comparison Charts<% endif %>}
+<% for _chart_key, chart_path in comparison_charts.items() %>
+\includegraphics[width=\linewidth]{<< chart_path >>}
+\vspace{4pt}
+<% endfor %>
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Vergelijkingsbalken staan op de buurt-check 0–100 scoreschaal (niet op ruwe eenheden). Hoger = beter.<% else %>Comparison bars are on the buurt-check 0–100 score scale (not raw units). Higher = better.<% endif %>}}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>WHO-richtlijnen en doelwaarden zijn op scoreschaal weergegeven.<% else %>WHO benchmark labels are mapped to score.<% endif %>}}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Vergelijkingswaarde (stedelijkheid) · Nederland · WHO-doel (op scoreschaal)<% else %>Peer baseline (urbanization) · Netherlands · WHO benchmark (mapped to score)<% endif %>}}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Vergelijkingswaarden zijn gemodelleerd op basis van de stedelijkheidscategorie van het adres, niet gemiddeld over de gemeente.<% else %>Peer baseline values are modeled from the address urbanization category, not averaged from the municipality.<% endif %>}}
+<% endif %>
 
 \section*{<% if language == "nl" %>Zonlichtstatus<% else %>Sunlight Status<% endif %>}
 <% if sunlight_state == "available" %>
@@ -44,6 +64,23 @@ Sunlight & << sunlight_score if sunlight_score is not none else "-" >> & -- & Su
 << sunlight_unavailable_message if sunlight_unavailable_message else ("Zonlichtanalyse is niet beschikbaar." if language == "nl" else "Sunlight analysis is unavailable.") >>
 <% endif %>
 
+<% if shadow_image %>
+\subsection*{<% if language == "nl" %>Schaduwopnamen<% else %>Shadow Snapshots<% endif %>}
+\includegraphics[width=\linewidth]{<< shadow_image >>}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Schaduwopname-overzicht.<% else %>Shadow snapshot overview.<% endif %>}}
+<% if shadow_time_labels %>
+{\footnotesize\textcolor{MutedText}{<< shadow_time_labels|join(" · ") >>}}
+<% endif %>
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>winterzonnewende ochtend/middag/avond · Europe/Amsterdam · 250m straal · Directe zon / Schaduw · 3DBAG / TU Delft + SunCalc<% else %>winter solstice morning/noon/evening · Europe/Amsterdam · 250m radius · Direct sun / Shadow · 3DBAG / TU Delft + SunCalc<% endif %>}}
+<% endif %>
+
+<% if location_map %>
+\subsection*{<% if language == "nl" %>Locatiekaart<% else %>Location Map<% endif %>}
+\includegraphics[width=0.72\linewidth]{<< location_map >>}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Kaart: PDOK BRT Achtergrondkaart · schaal 100 m · N<% else %>Map: PDOK BRT Background Map · 100 m scale · N<% endif %>}}
+<% endif %>
+
+\clearpage
 \section*{<% if language == "nl" %>Buurtcontext<% else %>Neighborhood Context<% endif %>}
 <% if neighborhood %>
 \begin{itemize}
@@ -57,6 +94,161 @@ Sunlight & << sunlight_score if sunlight_score is not none else "-" >> & -- & Su
 <% if language == "nl" %>Buurtgegevens niet beschikbaar.<% else %>Neighborhood data unavailable.<% endif %>
 <% endif %>
 
+<% if age_chart %>
+\subsection*{<% if language == "nl" %>Leeftijdsverdeling<% else %>Age Distribution<% endif %>}
+\includegraphics[width=\linewidth]{<< age_chart >>}
+<% if age_interpretation %>{\footnotesize\textcolor{MutedText}{<< age_interpretation >>}}<% endif %>
+<% endif %>
+
+<% if livability_chart %>
+\subsection*{<% if language == "nl" %>Leefbaarheid<% else %>Livability<% endif %>}
+<% if livability and livability.overall_normalized is not none %>
+\textbf{<% if language == "nl" %>Leefbaarheidsscore<% else %>Livability Score<% endif %>}: << livability.overall_normalized >>
+\\
+\textbf{<% if language == "nl" %>Ernst<% else %>Severity<% endif %>}:
+<% if livability.overall_normalized >= 70 %>
+<% if language == "nl" %>Goed<% else %>Good<% endif %>
+<% elif livability.overall_normalized >= 40 %>
+<% if language == "nl" %>Matig<% else %>Moderate<% endif %>
+<% elif livability.overall_normalized >= 20 %>
+<% if language == "nl" %>Slecht<% else %>Poor<% endif %>
+<% else %>
+<% if language == "nl" %>Kritiek<% else %>Critical<% endif %>
+<% endif %>
+<% endif %>
+<% if livability and livability.dimensions %>
+\textbf{<% if language == "nl" %>Dimensies<% else %>Dimensions<% endif %>}
+<% endif %>
+<% if livability_trend_summary %>
+{\footnotesize\textcolor{MutedText}{<< livability_trend_summary >>}}
+<% endif %>
+<% if livability and livability.comparison %>
+\textbf{<% if language == "nl" %>Vergelijking<% else %>Comparison<% endif %>}
+\begin{itemize}
+<% for row in livability.comparison %>
+  \item << row.name if row.name else "-" >>: << row.overall_normalized if row.overall_normalized is not none else "-" >>
+<% endfor %>
+\end{itemize}
+<% endif %>
+\includegraphics[width=\linewidth]{<< livability_chart >>}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: Leefbaarometer<% else %>Source: Leefbaarometer<% endif %>}}
+<% endif %>
+
+<% if tier_b and tier_b.crime and tier_b.crime.total_per_1000 is not none %>
+\subsection*{<% if language == "nl" %>Criminaliteit<% else %>Crime Rate<% endif %>}
+<% if language == "nl" %>
+Dit adres: << ("%.1f"|format(tier_b.crime.total_per_1000)).replace(".", ",") >> per 1.000\\
+<% if tier_b.crime.national_per_1000 is not none %>Landelijk: << ("%.1f"|format(tier_b.crime.national_per_1000)).replace(".", ",") >> per 1.000\\<% endif %>
+<% if tier_b.crime.burglary_per_1000 is not none %>Inbraak: << ("%.1f"|format(tier_b.crime.burglary_per_1000)).replace(".", ",") >>\\<% endif %>
+<% if tier_b.crime.violent_per_1000 is not none %>Geweld: << ("%.1f"|format(tier_b.crime.violent_per_1000)).replace(".", ",") >>\\<% endif %>
+Score: << tier_b.crime.score if tier_b.crime.score is not none else "—" >>/100 (<% if tier_b.crime.severity %><< tier_b.crime.severity|sev_label(language) >><% else %>N.v.t.<% endif %>)\\
+<% if tier_b.crime.meaning_nl %><< tier_b.crime.meaning_nl >><% endif %>\\
+<% if tier_b.crime.source_date or tier_b.crime.yearly_period %>Bron: CBS · << tier_b.crime.source_date if tier_b.crime.source_date else tier_b.crime.yearly_period >><% endif %>
+<% else %>
+This address: << "%.1f"|format(tier_b.crime.total_per_1000) >> per 1,000\\
+<% if tier_b.crime.national_per_1000 is not none %>National avg: << "%.1f"|format(tier_b.crime.national_per_1000) >> per 1,000\\<% endif %>
+<% if tier_b.crime.burglary_per_1000 is not none %>Burglary: << "%.1f"|format(tier_b.crime.burglary_per_1000) >>\\<% endif %>
+<% if tier_b.crime.violent_per_1000 is not none %>Violent: << "%.1f"|format(tier_b.crime.violent_per_1000) >>\\<% endif %>
+Score: << tier_b.crime.score if tier_b.crime.score is not none else "—" >>/100 (<% if tier_b.crime.severity %><< tier_b.crime.severity|sev_label(language) >><% else %>N/A<% endif %>)\\
+<% if tier_b.crime.meaning_en %><< tier_b.crime.meaning_en >><% endif %>\\
+<% if tier_b.crime.source_date or tier_b.crime.yearly_period %>Source: CBS · << tier_b.crime.source_date if tier_b.crime.source_date else tier_b.crime.yearly_period >><% endif %>
+<% endif %>
+<% endif %>
+
+\clearpage
+\section*{<% if language == "nl" %>Aanvullende vastgoedcontroles<% else %>Additional Property Checks<% endif %>}
+\textbf{<% if language == "nl" %>EXTRA CONTROLES<% else %>ADDITIONAL CHECKS<% endif %>}
+\subsection*{<% if language == "nl" %>Asbestbewustzijn<% else %>Asbestos Awareness<% endif %>}
+<% if not property_warnings %>
+<% if language == "nl" %>Asbeststatus niet beschikbaar in de exportketen.<% else %>Asbestos status unavailable in export pipeline.<% endif %>
+<% elif property_warnings.asbestos and property_warnings.asbestos.flagged %>
+<% if language == "nl" %>Mogelijk asbestrisico op basis van bouwjaar. Vraag een asbestinventarisatie aan.<% else %>Potential asbestos risk flagged from construction year. Request an asbestos inventory before renovation.<% endif %>
+<% else %>
+<% if language == "nl" %>Geen leeftijdsgebonden asbestsignaal in beschikbare gebouwdata.<% else %>No age-based asbestos flag in available building data.<% endif %>
+<% endif %>
+<% if language == "nl" %>Bron: BAG-bouwjaarheuristiek<% else %>Source: BAG construction year heuristic<% endif %>
+
+\subsection*{<% if language == "nl" %>Funderingsrisico<% else %>Foundation Risk<% endif %>}
+<% if not property_warnings %>
+<% if language == "nl" %>Funderingsrisico niet beschikbaar in de exportketen.<% else %>Foundation risk unavailable in export pipeline.<% endif %>
+<% elif property_warnings.foundation_risk and property_warnings.foundation_risk.level == "high" %>
+<% if language == "nl" %>Hoog funderingsrisico vastgesteld.<% if property_warnings.foundation_risk.soil_type is defined and property_warnings.foundation_risk.soil_type %> Grondsoort: << property_warnings.foundation_risk.soil_type >>.<% endif %><% if property_warnings.foundation_risk.subsidence_rate_mm_per_year is defined and property_warnings.foundation_risk.subsidence_rate_mm_per_year is not none %> Bodemdalingssnelheid: << ("%.1f"|format(property_warnings.foundation_risk.subsidence_rate_mm_per_year)).replace(".", ",") >> mm/jaar.<% endif %> Laat een funderingsinspectie uitvoeren voor aankoop.<% else %>High foundation risk identified.<% if property_warnings.foundation_risk.soil_type is defined and property_warnings.foundation_risk.soil_type %> Soil type: << property_warnings.foundation_risk.soil_type >>.<% endif %><% if property_warnings.foundation_risk.subsidence_rate_mm_per_year is defined and property_warnings.foundation_risk.subsidence_rate_mm_per_year is not none %> Subsidence rate: << "%.1f"|format(property_warnings.foundation_risk.subsidence_rate_mm_per_year) >> mm/year.<% endif %> Commission a foundation inspection before purchase.<% endif %>
+<% elif property_warnings.foundation_risk and property_warnings.foundation_risk.level == "medium" %>
+<% if language == "nl" %>Matig funderingsrisico.<% if property_warnings.foundation_risk.soil_type is defined and property_warnings.foundation_risk.soil_type %> Grondsoort: << property_warnings.foundation_risk.soil_type >>.<% endif %><% if property_warnings.foundation_risk.subsidence_rate_mm_per_year is defined and property_warnings.foundation_risk.subsidence_rate_mm_per_year is not none %> Bodemdalingssnelheid: << ("%.1f"|format(property_warnings.foundation_risk.subsidence_rate_mm_per_year)).replace(".", ",") >> mm/jaar.<% endif %> Overweeg een funderingsonderzoek.<% else %>Moderate foundation risk.<% if property_warnings.foundation_risk.soil_type is defined and property_warnings.foundation_risk.soil_type %> Soil type: << property_warnings.foundation_risk.soil_type >>.<% endif %><% if property_warnings.foundation_risk.subsidence_rate_mm_per_year is defined and property_warnings.foundation_risk.subsidence_rate_mm_per_year is not none %> Subsidence rate: << "%.1f"|format(property_warnings.foundation_risk.subsidence_rate_mm_per_year) >> mm/year.<% endif %> Consider a foundation survey.<% endif %>
+<% elif property_warnings.foundation_risk and property_warnings.foundation_risk.level == "unavailable" %>
+<% if language == "nl" %>Funderingsrisico kon niet worden beoordeeld (bouwjaar onbekend).<% else %>Foundation risk could not be assessed (construction year unknown).<% endif %>
+<% else %>
+<% if language == "nl" %>Geen funderingsrisicosignaal gedetecteerd op basis van beschikbare gegevens.<% else %>No foundation risk signal detected from available data.<% endif %>
+<% endif %>
+<% if language == "nl" %>Bron: BRO bodemdata + Klimaateffectatlas bodemdaling<% else %>Source: BRO soil data + Klimaateffectatlas subsidence<% endif %>
+
+\subsection*{<% if language == "nl" %>Erfpacht (grondhuur)<% else %>Ground Lease (Erfpacht)<% endif %>}
+<% if not property_warnings %>
+<% if language == "nl" %>Erfpachtstatus niet beschikbaar in de exportketen.<% else %>Ground lease status unavailable in export pipeline.<% endif %>
+<% elif property_warnings.erfpacht and property_warnings.erfpacht.detected %>
+<% if language == "nl" %>Erfpacht gedetecteerd. Controleer de erfpachtvoorwaarden, canon en einddatum bij de notaris.<% else %>Ground lease (erfpacht) detected. Verify lease terms, canon amount, and expiry date with the notary.<% endif %>
+<% else %>
+<% if language == "nl" %>Geen erfpachtsignaal gedetecteerd. Dit pand lijkt op eigen grond te staan.<% else %>No ground lease signal detected. This property appears to be on freehold land.<% endif %>
+<% endif %>
+<% if language == "nl" %>\mbox{Bron: Gemeentelijke erfpachtlijst}<% else %>\mbox{Source: Municipal ground lease registry}<% endif %>
+
+\subsection*{<% if language == "nl" %>VvE (Vereniging van Eigenaren)<% else %>VvE (Owners\textquotesingle{} Association)<% endif %>}
+<% if language != "nl" %>VvE (Owners\textquotesingle{} Association)<% endif %>
+<% if not property_warnings %>
+<% if language == "nl" %>VvE-status niet beschikbaar in de exportketen.<% else %>VvE status unavailable in export pipeline.<% endif %>
+<% elif property_warnings.vve and property_warnings.vve.is_apartment %>
+<% if language == "nl" %>Dit is een appartementsrecht. Vraag de VvE-jaarstukken op.<% else %>This is an apartment right. Request VvE annual documents and reserve fund details.<% endif %>
+<% else %>
+<% if language == "nl" %>Geen VvE van toepassing. Dit pand is geen appartementsrecht.<% else %>No owners' association applicable. This property is not an apartment.<% endif %>
+<% endif %>
+<% if language == "nl" %>Bron: BAG verblijfsobjecten<% else %>Source: BAG dwelling unit count<% endif %>
+
+\subsection*{<% if language == "nl" %>Loden leidingen<% else %>Lead Pipe Risk<% endif %>}
+<% if not property_warnings %>
+<% if language == "nl" %>Loden leidingen status niet beschikbaar in de exportketen.<% else %>Lead pipe status unavailable in export pipeline.<% endif %>
+<% elif property_warnings.lead_pipe and property_warnings.lead_pipe.flagged %>
+<% if language == "nl" %>Mogelijk loden leidingen op basis van bouwjaar. Laat een watertest uitvoeren.<% else %>Potential lead pipes flagged from construction year. Commission a water test and request utility records.<% endif %>
+<% else %>
+<% if language == "nl" %>Geen signaal voor loden leidingen op basis van beschikbare gebouwdata.<% else %>No lead pipe signal detected from available building data.<% endif %>
+<% endif %>
+<% if language == "nl" %>Bron: BAG-bouwjaarheuristiek (pre-1960)<% else %>Source: BAG construction year heuristic (pre-1960)<% endif %>
+
+\subsection*{<% if language == "nl" %>Bodemverontreiniging — Handmatige verificatie vereist<% else %>Soil Contamination — Manual Verification Required<% endif %>}
+<% if language == "nl" %>
+Er is geen geautomatiseerde perceelgebonden bodemverontreinigingsdata beschikbaar. Het BRO-bodeminformatieregister is niet betrouwbaar voor perceelniveau-extractie.
+<% if postcode %>Raadpleeg bodemloket.nl voor postcode << postcode >>.<% else %>Raadpleeg bodemloket.nl met het adres van het pand.<% endif %>
+<% else %>
+No automated parcel-level soil contamination data is available. BRO soil information registry is not reliable for parcel-level extraction.
+<% if postcode %>Visit bodemloket.nl for postcode << postcode >>.<% else %>Visit bodemloket.nl with the property address.<% endif %>
+<% endif %>
+
+\subsection*{<% if language == "nl" %>Direct zonlicht (helderheidsschatting)<% else %>Direct sun (clear-sky visibility)<% endif %>}
+<% if sunlight_score is not none %>
+<% if language == "nl" %>Geschatte zonlichtscore: << sunlight_score >>/100.<% else %>Estimated direct sunlight score: << sunlight_score >>/100.<% endif %>
+<% else %>
+<% if language == "nl" %>Schatting van direct zonlicht niet beschikbaar voor deze export.<% else %>Direct sun estimate unavailable for this export.<% endif %>
+<% endif %>
+<% if risks and risks.sunlight %>
+<% if risks.sunlight.annual_average is defined and risks.sunlight.annual_average is not none %>
+<% if language == "nl" %>Jaargemiddelde: << ("%.1f"|format(risks.sunlight.annual_average)).replace(".", ",") >> u/dag.<% else %>Annual average: << "%.1f"|format(risks.sunlight.annual_average) >> h/day.<% endif %>
+<% endif %>
+<% if risks.sunlight.svf_anisotropic is defined and risks.sunlight.svf_anisotropic is not none and risks.sunlight.svf_percent is defined and risks.sunlight.svf_anisotropic != risks.sunlight.svf_percent %>
+<% if language == "nl" %>SVF (anisotropisch): << ("%.0f"|format(risks.sunlight.svf_anisotropic)).replace(".", ",") >>\%.<% else %>SVF (anisotropic): << "%.0f"|format(risks.sunlight.svf_anisotropic) >>\%.<% endif %>
+<% endif %>
+<% if risks.sunlight.irradiance_kwh_m2 is defined and risks.sunlight.irradiance_kwh_m2 is not none %>
+<% if language == "nl" %>Zonnestraling: << ("%.0f"|format(risks.sunlight.irradiance_kwh_m2)).replace(".", ",") >> kWh/m\textsuperscript{2}/jaar.<% else %>Solar irradiance: << "%.0f"|format(risks.sunlight.irradiance_kwh_m2) >> kWh/m\textsuperscript{2}/year.<% endif %>
+<% endif %>
+<% endif %>
+<% if language == "nl" %>Bron: SunCalc + 3DBAG<% else %>Source: SunCalc + 3DBAG<% endif %>
+
+\subsection*{<% if language == "nl" %>Schaduwopnamen<% else %>Shadow Snapshots<% endif %>}
+<% if shadow_image %>
+<% if language == "nl" %>Schaduwopnamen op winterzonnewende (ochtend/middag/avond), gegenereerd op basis van omliggende 3D-geometrie.<% else %>Winter-solstice shadow snapshots (morning/noon/evening), generated from surrounding 3D geometry.<% endif %>
+<% else %>
+<% if language == "nl" %>Er is geen schaduwopname aangeleverd voor deze export.<% else %>No shadow snapshot was supplied for this export.<% endif %>
+<% endif %>
+
+\clearpage
 \section*{<% if language == "nl" %>Bezichtigingsvragen<% else %>Viewing Questions<% endif %>}
 <% if viewing_questions and viewing_questions.categories %>
 \begin{itemize}
@@ -69,6 +261,10 @@ Sunlight & << sunlight_score if sunlight_score is not none else "-" >> & -- & Su
 <% else %>
 <% if language == "nl" %>Geen vragen beschikbaar.<% else %>No questions available.<% endif %>
 <% endif %>
+
+\clearpage
+\section*{<% if language == "nl" %>Methodologie<% else %>Methodology<% endif %>}
+<% if language == "nl" %>Hoe we risico's scoren: alle indicatoren worden genormaliseerd naar een 0–100 schaal waarbij hoger beter is.<% else %>How we score risks: indicators are normalized to a 0–100 scale where higher is better.<% endif %>
 
 \section*{<% if language == "nl" %>Provenance<% else %>Provenance<% endif %>}
 <% if provenance %>

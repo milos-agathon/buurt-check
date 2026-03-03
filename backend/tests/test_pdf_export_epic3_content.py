@@ -155,7 +155,10 @@ def test_epic3_all_five_warning_categories_render():
     assert "Asbestos Awareness" in text
     assert "Foundation Risk" in text
     assert "Ground Lease (Erfpacht)" in text
-    assert "VvE (Owners' Association)" in text
+    assert (
+        "VvE (Owners' Association)" in text
+        or "VvE (Owners’ Association)" in text
+    )
     assert "Lead Pipe Risk" in text
 
 
