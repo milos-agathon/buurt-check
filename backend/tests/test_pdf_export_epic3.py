@@ -1,5 +1,6 @@
 """Epic 3 PDF export tests for LaTeX orchestration and fallbacks."""
 
+import re
 from unittest.mock import patch
 
 from app.api.address import ExportRequest
@@ -12,6 +13,76 @@ def test_latex_env_exports_expected_symbols():
     assert callable(latex_env.render_dossier)
     assert callable(latex_env.render_brief)
     assert latex_env.TEMPLATES_DIR.name == "templates"
+
+
+# --- Logo rendering tests ---
+
+
+def test_logo_png_exists_and_is_valid():
+    """The horizontal lockup PNG exists at the expected path."""
+    assert latex_env.LOGO_PATH.exists(), (
+        f"Logo PNG not found at {latex_env.LOGO_PATH}"
+    )
+    assert latex_env.LOGO_PATH.suffix == ".png"
+    # Verify it's a valid PNG by checking the magic bytes
+    with open(latex_env.LOGO_PATH, "rb") as f:
+        header = f.read(8)
+    assert header[:4] == b"\x89PNG", "File does not have valid PNG header"
+
+
+def test_logo_png_has_sufficient_resolution():
+    """Logo PNG must be high enough resolution for crisp print at >=28mm."""
+    from PIL import Image
+
+    img = Image.open(latex_env.LOGO_PATH)
+    width, height = img.size
+    # At 28mm width, 300 DPI requires: 28mm / 25.4mm/in * 300 = 331px minimum
+    # We target much higher for quality
+    assert width >= 600, (
+        f"Logo width {width}px is too low for print quality (need >=600px)"
+    )
+    assert height >= 100, (
+        f"Logo height {height}px is too low for print quality (need >=100px)"
+    )
+    # Aspect ratio should be approximately 5:1 (horizontal lockup)
+    ratio = width / height
+    assert 4.0 <= ratio <= 6.0, (
+        f"Logo aspect ratio {ratio:.1f} is outside expected 4:1-6:1 range"
+    )
+
+
+def test_preamble_renders_logo_includegraphics_not_fallback():
+    """Rendered preamble must use \\includegraphics for the logo, not fallback text."""
+    preamble = latex_env.render_preamble(language="en")
+    # The rendered header line should contain \includegraphics with the logo path
+    assert r"\includegraphics" in preamble, (
+        "Preamble does not contain \\includegraphics for the logo"
+    )
+    assert "buurt-check-lockup-horizontal.png" in preamble, (
+        "Preamble does not reference the horizontal lockup PNG"
+    )
+    # The IfFileExists guard should wrap the includegraphics
+    assert r"\IfFileExists" in preamble
+
+
+def test_preamble_logo_width_at_least_22mm():
+    """Logo width in the preamble template must be >=22mm for clear recognition."""
+    preamble = latex_env.render_preamble(language="en")
+    # Extract width=XXmm from the includegraphics options
+    match = re.search(r"width=(\d+)mm", preamble)
+    assert match is not None, "Could not find width=Xmm in logo includegraphics"
+    width_mm = int(match.group(1))
+    assert width_mm >= 22, (
+        f"Logo width {width_mm}mm is below the 22mm minimum for clear recognition"
+    )
+
+
+def test_logo_path_tex_uses_posix_separators():
+    """LOGO_PATH_TEX must use forward slashes for TeX compatibility."""
+    assert "\\" not in latex_env.LOGO_PATH_TEX, (
+        "LOGO_PATH_TEX contains backslashes which break TeX on Windows"
+    )
+    assert "/" in latex_env.LOGO_PATH_TEX
 
 
 def test_compile_latex_fallback_wrapper_uses_fallback_on_runtime_error():
