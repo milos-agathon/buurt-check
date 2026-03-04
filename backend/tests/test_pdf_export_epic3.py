@@ -3,8 +3,16 @@
 import re
 from unittest.mock import patch
 
+import pytest
+
 from app.api.address import ExportRequest
 from app.services import latex_env, pdf_export
+
+_has_pillow = True
+try:
+    from PIL import Image as _Image  # noqa: F401
+except ImportError:
+    _has_pillow = False
 
 
 def test_latex_env_exports_expected_symbols():
@@ -30,14 +38,15 @@ def test_logo_png_exists_and_is_valid():
     assert header[:4] == b"\x89PNG", "File does not have valid PNG header"
 
 
+@pytest.mark.skipif(not _has_pillow, reason="Pillow not installed")
 def test_logo_png_has_sufficient_resolution():
     """Logo PNG must be high enough resolution for crisp print at >=28mm."""
     from PIL import Image
 
     img = Image.open(latex_env.LOGO_PATH)
     width, height = img.size
-    # At 28mm width, 300 DPI requires: 28mm / 25.4mm/in * 300 = 331px minimum
-    # We target much higher for quality
+    # At 28mm width, 300 DPI needs 331px. We require >=600px (~540 DPI) for
+    # retina-quality output.
     assert width >= 600, (
         f"Logo width {width}px is too low for print quality (need >=600px)"
     )
@@ -51,8 +60,8 @@ def test_logo_png_has_sufficient_resolution():
     )
 
 
-def test_preamble_renders_logo_includegraphics_not_fallback():
-    """Rendered preamble must use \\includegraphics for the logo, not fallback text."""
+def test_preamble_template_has_logo_includegraphics_guard():
+    """Preamble template contains \\includegraphics wrapped in \\IfFileExists guard."""
     preamble = latex_env.render_preamble(language="en")
     # The rendered header line should contain \includegraphics with the logo path
     assert r"\includegraphics" in preamble, (
@@ -68,10 +77,10 @@ def test_preamble_renders_logo_includegraphics_not_fallback():
 def test_preamble_logo_width_at_least_22mm():
     """Logo width in the preamble template must be >=22mm for clear recognition."""
     preamble = latex_env.render_preamble(language="en")
-    # Extract width=XXmm from the includegraphics options
-    match = re.search(r"width=(\d+)mm", preamble)
+    # Extract width=XXmm (integer or fractional) from the includegraphics options
+    match = re.search(r"width=(\d+(?:\.\d+)?)mm", preamble)
     assert match is not None, "Could not find width=Xmm in logo includegraphics"
-    width_mm = int(match.group(1))
+    width_mm = float(match.group(1))
     assert width_mm >= 22, (
         f"Logo width {width_mm}mm is below the 22mm minimum for clear recognition"
     )
