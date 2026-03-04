@@ -148,3 +148,13 @@ Key patterns from 13 sessions implementing Sunlight v2 Phases 3-6, adversarial c
 - **Untracked files masquerade as missing**: `git diff` only shows tracked file changes. New files (`??` in git status) won't appear — check `git status` not just `git diff`.
 - **Phase scope bleed causes test failures**: Phase 5 work (~60%) leaked into Phase 4 sessions. Keep implementation sessions strictly scoped to one phase.
 - **PDF root cause is rendering, not data**: Backend computes sunlight, livability, property warnings, crime — but drops them at the fpdf2 rendering boundary. The dossier PDF uses minimal primitives (1mm bars, no axes/legends). This is a rendering gap, not a data gap.
+
+## Session Learnings (2026-03-04) — PDF Dossier Logo Quality
+
+Key patterns from the PDF dossier logo fix session (subagent-driven development):
+
+- **LaTeX \IfFileExists is compile-time, not Jinja2 render-time**: Both branches appear in rendered template strings. Tests searching for \includegraphics always match both PNG and fallback. Name tests as "template structure" checks, not behavioral assertions.
+- **Print asset DPI floor is 300 at target dimensions**: The 250x50px logo at 22mm was borderline (~289 DPI). Regenerated to 1440x288px at 28mm width (~1306 DPI). Formula: DPI = (pixels / mm) x 25.4.
+- **Dirty working tree causes false test failures during task verification**: Uncommitted edits from other tasks to shared files (pdf_export.py, dossier.tex.j2) cause unrelated test failures. Run only the task-specific test file when the working tree has other pending changes.
+- **Pillow is an undeclared production dependency**: Used in chart_renderer.py and pdf_export.py but missing from pyproject.toml. Tests must use skipif guards until it is declared.
+- **3-stage subagent pattern adds measurable review value**: implement -> spec review -> code quality review caught 5 issues per task that the implementer missed (misleading names, missing guards, imprecise assertions).

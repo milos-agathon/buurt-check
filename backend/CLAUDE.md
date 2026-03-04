@@ -111,3 +111,12 @@ ruff check . && ruff format .               # MUST pass before commit
 - **LaTeX Jinja2 delimiters**: Templates use `<< >>` for variables, `<% %>` for blocks, `<# #>` for comments to avoid LaTeX syntax conflicts
 - **Benchmark tests are flaky in CI/hooks**: Timing-sensitive tests fail on busy machines. Exclude from pre-commit hooks via `addopts = "-m 'not visual and not benchmark'"`
 - **pytest markers must be registered**: Custom markers (`visual`, `benchmark`) in `pyproject.toml` `[tool.pytest.ini_options]` to avoid `PytestUnknownMarkWarning`
+
+## Session Learnings (2026-03-04)
+
+- **LaTeX \IfFileExists renders both branches in template string**: Python-level \includegraphics search always matches because Jinja2 renders the full template including both the PNG and \BrandFallback branches. The conditional is evaluated by LuaLaTeX at compile time. Name tests honestly as "template structure" checks, not "renders PNG instead of fallback"
+- **Logo resolution for print: 300 DPI minimum at target dimensions**: The original 250x50px logo at 22mm width yielded ~289 DPI (borderline). Regenerated at 1440x288px for 28mm width (~1306 DPI). Formula: DPI = (pixels / mm) x 25.4
+- **\headheight must accommodate logo height + padding**: Increasing logo from 5.5mm to 7mm required \headheight bump from 16pt to 18pt. Rule of thumb: headheight_pt >= (logo_height_mm x 2.835) + 2pt
+- **Pillow is a de facto dependency but not in pyproject.toml**: Used in chart_renderer.py and pdf_export.py. Tests using Pillow need skipif guards for clean CI environments
+- **Pre-existing test failures from uncommitted changes confuse verification**: Other tasks' uncommitted edits to pdf_export.py/dossier.tex.j2 caused failures unrelated to current work. Run only the task-specific test file for verification, not the full suite
+- **Subagent-driven 3-stage pattern (implement -> spec review -> code quality review) catches ~5 issues per task**: Misleading test names, missing dependency guards, imprecise assertions, inaccurate comments. The two review stages add real value
