@@ -146,6 +146,27 @@ async def _get_cached_sunlight_card(vbo_id: str) -> SunlightRiskCard | None:
         return None
 
 
+async def _await_sunlight_for_export(
+    vbo_id: str,
+    *,
+    timeout_seconds: float,
+    poll_interval_seconds: float = 0.25,
+) -> SunlightRiskCard | None:
+    """Best-effort wait for sunlight card to land in cache before exporting."""
+    if timeout_seconds <= 0:
+        return await _get_cached_sunlight_card(vbo_id)
+
+    start = time.monotonic()
+    while True:
+        card = await _get_cached_sunlight_card(vbo_id)
+        if card is not None:
+            return card
+        elapsed = time.monotonic() - start
+        if elapsed >= timeout_seconds:
+            return None
+        await asyncio.sleep(min(poll_interval_seconds, timeout_seconds - elapsed))
+
+
 @router.get("/suggest", response_model=SuggestResponse)
 @limiter.limit("30/minute")
 async def address_suggest(
@@ -1175,6 +1196,20 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
     sunlight_score: int | None = None
     if risks and risks.sunlight:
         sunlight_score = risks.sunlight.score
+
+    if (
+        body.template == "full_dossier"
+        and (risks is None or risks.sunlight is None)
+        and sunlight_score is None
+    ):
+        waited_sunlight = await _await_sunlight_for_export(
+            vbo_id,
+            timeout_seconds=settings.pdf_export_sunlight_wait_seconds,
+        )
+        if waited_sunlight is not None:
+            if risks is not None:
+                risks.sunlight = waited_sunlight
+            sunlight_score = waited_sunlight.score
 
     viewing_qs: ViewingQuestionsResponse | None = None
     if risks:

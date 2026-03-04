@@ -62,7 +62,7 @@ def test_brief_generation_latency() -> None:
 
 
 def test_latex_fallback_triggers_above_timeout(monkeypatch) -> None:
-    def fake_compile(_tex: str, *, timeout: int = 30) -> bytes:
+    def fake_compile(_tex: str, *, timeout: int = 30, passes: int = 2) -> bytes:
         raise subprocess.TimeoutExpired(cmd=["lualatex"], timeout=timeout)
 
     monkeypatch.setattr(latex_env, "compile_latex_to_pdf", fake_compile)
@@ -147,7 +147,7 @@ def test_pdf_export_full_dossier_uses_parallel_chart_jobs(
     monkeypatch.setattr(
         pdf_export,
         "compile_latex_to_pdf_with_fallback",
-        lambda _tex, *, fallback_pdf_factory, timeout=4: b"%PDF-parallel-path",
+        lambda _tex, *, fallback_pdf_factory, timeout=4, passes=2: b"%PDF-parallel-path",
     )
 
     def fake_render_dossier(**kwargs: object) -> str:
@@ -184,10 +184,10 @@ def test_pdf_export_full_dossier_uses_parallel_chart_jobs(
     context = captured["context"]
     assert isinstance(context, dict)
     assert context["risk_grid_chart"] is not None
-    assert str(context["risk_grid_chart"]).endswith("risk_grid.png")
+    assert str(context["risk_grid_chart"]).endswith(("risk_grid.pdf", "risk_grid.png"))
     comparison_paths = context["comparison_charts"]
     assert isinstance(comparison_paths, dict)
-    assert str(comparison_paths["noise"]).endswith("comparison_noise.png")
+    assert str(comparison_paths["noise"]).endswith(("comparison_noise.pdf", "comparison_noise.png"))
     assert context["age_chart"] is None
     assert context["livability_chart"] is None
     assert context["shadow_image"] is None
@@ -218,7 +218,7 @@ def test_pdf_export_chart_tmp_dirs_use_preferred_tmp_dir(
     monkeypatch.setattr(
         pdf_export,
         "compile_latex_to_pdf_with_fallback",
-        lambda _tex, *, fallback_pdf_factory, timeout=4: b"%PDF-tmpdir-path",
+        lambda _tex, *, fallback_pdf_factory, timeout=4, passes=2: b"%PDF-tmpdir-path",
     )
 
     full_pdf = pdf_export._generate_full_dossier_latex(

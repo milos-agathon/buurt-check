@@ -503,9 +503,9 @@ describe('NeighborhoodViewer3D', () => {
     });
     expect(onSnapshots).toHaveBeenCalledWith(
       expect.arrayContaining([
-        expect.objectContaining({ label: 'morning', hour: 9 }),
-        expect.objectContaining({ label: 'noon', hour: 12 }),
-        expect.objectContaining({ label: 'evening', hour: 17 }),
+        expect.objectContaining({ label: 'winter', hour: 12 }),
+        expect.objectContaining({ label: 'equinox', hour: 12 }),
+        expect.objectContaining({ label: 'summer', hour: 12 }),
       ])
     );
   });

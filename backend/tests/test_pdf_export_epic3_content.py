@@ -135,7 +135,7 @@ def test_epic3_livability_section_renders_when_data_present():
         livability=_make_livability(),
     )
     text = _pdf_text(result)
-    assert "Livability Score" in text
+    assert "Livability score:" in text
     assert "Dimensions" in text
     assert "Comparison" in text
 
@@ -183,10 +183,8 @@ def test_epic3_soil_section_honesty_and_postcode_injection():
 
     soil_block = text[soil_start:sun_start]
     assert "No automated parcel-level soil contamination data is available." in soil_block
-    assert (
-        "BRO soil information registry is not reliable for parcel-level extraction."
-        in soil_block
-    )
+    assert "BRO soil registry is not reliable" in soil_block
+    assert "extraction" in soil_block
     assert "postcode 2235BV" in soil_block
     assert "climate" not in soil_block.lower()
 

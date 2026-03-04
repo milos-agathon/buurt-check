@@ -240,7 +240,7 @@ describe('ExportBottomSheet', () => {
 
       expect(screen.getByTestId('export-sunlight-warning')).toBeInTheDocument();
       expect(screen.getByTestId('export-sunlight-warning')).toHaveTextContent(
-        'Sunlight data unavailable — dossier will show N/A',
+        'Sunlight analysis was not completed before export',
       );
     });
 
@@ -289,7 +289,7 @@ describe('ExportBottomSheet', () => {
       fireEvent.click(screen.getByRole('radio', { name: /Volledig dossier/i }));
 
       expect(screen.getByTestId('export-sunlight-warning')).toHaveTextContent(
-        'Zonlichtgegevens niet beschikbaar',
+        'Zonlichtanalyse was niet voltooid voor export',
       );
     });
   });

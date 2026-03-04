@@ -29,6 +29,7 @@ from app.services.scoring import severity_from_score
 
 # --- Unit conversion ---
 MM_PER_INCH = 25.4
+CHART_DPI = 600
 
 # --- Font scale/weights ---
 FONT_WEIGHT_DISPLAY = 700
@@ -102,10 +103,13 @@ SCHERER_RCPARAMS: MappingProxyType[str, object] = MappingProxyType(
         "font.sans-serif": ["Inter", "Source Sans 3", "Helvetica Neue", "DejaVu Sans"],
         "font.size": TYPE_BODY_PT,
         "figure.facecolor": C_BG,
-        "figure.dpi": 300,
-        "savefig.dpi": 300,
-        "savefig.bbox": "tight",
+        "figure.dpi": CHART_DPI,
+        "savefig.dpi": CHART_DPI,
+        "savefig.bbox": None,
         "savefig.pad_inches": 0.05,
+        "lines.antialiased": True,
+        "patch.antialiased": True,
+        "text.antialiased": True,
         "legend.frameon": False,
         "legend.fontsize": TYPE_CAPTION_PT,
     }
@@ -140,7 +144,7 @@ def _save_figure(fig: plt.Figure, output_format: OutputFormat = "pdf") -> bytes:
     fig.savefig(
         buf,
         format=output_format,
-        dpi=300,
+        dpi=CHART_DPI,
         bbox_inches=fig.bbox_inches,
         pad_inches=0.0,
     )
@@ -268,7 +272,7 @@ class SunlightMeta:
     sun_positions: dict[str, tuple[float, float]] = field(default_factory=dict)
     target_bbox: tuple[float, float, float, float] = (0.36, 0.36, 0.28, 0.28)
     single_panel_note: str = (
-        "Equinox and summer analysis requires additional 3D computation"
+        "Additional seasons require re-export after 3D computation"
     )
 
 
@@ -318,7 +322,7 @@ def render_risk_comparison(
         (float(row.value) for row in reference_rows if row.value is not None),
         default=0.0,
     )
-    max_x = max(100.0, max_bar, max_ref) + 8.0
+    max_x = max(100.0, max_bar, max_ref) + 12.0
     label_space = max(24.0, min(65.0, 1.8 * max(len(row.label) for row in bar_rows)))
 
     chart_h_mm = max(RISK_MIN_HEIGHT_MM, 10.0 + len(bar_rows) * RISK_ROW_HEIGHT_MM)
@@ -347,13 +351,13 @@ def render_risk_comparison(
             ha="left",
         )
         ax.text(
-            min(max_x - 1.0, value + 1.2),
+            min(max_x - 1.2, value + 1.2),
             y,
             _score_display(value),
             fontsize=TYPE_BODY_PT,
             color=C_ACCENT_DARK if is_primary else C_PRIMARY,
             va="center",
-            ha="left",
+            ha="left" if value < (max_x - 8.0) else "right",
         )
 
     label_y = y_positions[0] + 0.45 if len(y_positions) else 0.0
@@ -362,14 +366,16 @@ def render_risk_comparison(
             continue
         x = float(row.value)
         ax.axvline(x=x, color=C_REFERENCE, linewidth=0.8, linestyle=(0, (3, 2)))
+        label_x = x - 0.8 if x > (max_x - 28.0) else x + 0.8
+        label_ha = "right" if x > (max_x - 28.0) else "left"
         ax.text(
-            x + 0.8,
+            label_x,
             label_y - idx * 0.28,
             row.label,
             fontsize=TYPE_CAPTION_PT,
             color=C_PRIMARY,
             va="bottom",
-            ha="left",
+            ha=label_ha,
         )
 
     ax.set_title(
@@ -390,7 +396,7 @@ def render_risk_comparison(
     ax.spines["right"].set_visible(False)
     ax.spines["bottom"].set_color(C_AXIS)
     ax.spines["bottom"].set_linewidth(0.4)
-    fig.subplots_adjust(left=0.04, right=0.98, top=0.86, bottom=0.2)
+    fig.subplots_adjust(left=0.035, right=0.99, top=0.86, bottom=0.2)
 
     return _save_figure(fig, output_format=output_format)
 
@@ -810,7 +816,7 @@ def render_livability_score(
             ha="right",
         )
 
-    ax.set_xlim(0, 100)
+    ax.set_xlim(-12, 108)
     ax.set_ylim(0.05, 1.3)
     ax.set_yticks([])
     ax.set_xticks([0, 25, 50, 75, 100])
@@ -821,7 +827,7 @@ def render_livability_score(
     ax.spines["top"].set_visible(False)
     ax.spines["bottom"].set_color(C_AXIS)
     ax.spines["bottom"].set_linewidth(0.4)
-    fig.subplots_adjust(left=0.08, right=0.98, top=0.9, bottom=0.24)
+    fig.subplots_adjust(left=0.12, right=0.94, top=0.9, bottom=0.24)
     return _save_figure(fig, output_format=output_format)
 
 

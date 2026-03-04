@@ -1271,12 +1271,10 @@ class TestGenerateFullDossier:
         )
         reader = PdfReader(io.BytesIO(result))
         all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        # Score shows em-dash when None
-        assert "\u2014" in all_text
-        # N/A severity label
-        assert "N/A" in all_text
+        # No bare placeholders; explicit unavailable state is shown.
+        assert "Score: Unavailable/100 (Not assessed)" in all_text
         # Sub-rates still rendered
-        assert "3.0" in all_text
+        assert "Burglary: 3.0" in all_text
 
     def test_crime_card_without_national_average(self):
         """Comparison section skipped when national average is missing."""
@@ -1378,9 +1376,9 @@ class TestGenerateFullDossier:
         assert "Ground Lease (Erfpacht)" in text
         assert "Owners' Association" in text
         assert "Lead Pipe Risk" in text
-        assert "Soil Contamination \u2014 Manual Verification Required" in text
+        assert "Soil Contamination" in text
+        assert "Manual verification required" in text
         assert "Direct sun (clear-sky visibility)" in text
-        assert "Shadow Snapshots" in text
 
 
 class TestRiskDetailsPageBreak:
@@ -1462,13 +1460,13 @@ class TestComparisonChartScaleDeclaration:
     def test_scale_caption_present_en(self):
         """English PDF contains scale declaration caption."""
         text = self._extract_full_text("en")
-        assert "0\u2013100 score scale" in text
+        assert "0-100 scale" in text
         assert "Higher = better" in text
 
     def test_scale_caption_present_nl(self):
         """Dutch PDF contains scale declaration caption."""
         text = self._extract_full_text("nl")
-        assert "0\u2013100 scoreschaal" in text
+        assert "0-100 schaal" in text
         assert "Hoger = beter" in text
 
     def test_who_label_en_includes_score_qualifier(self):
@@ -1745,7 +1743,7 @@ class TestPropertyWarningsPdfSections:
                 p.extract_text() or "" for p in reader.pages
             )
         )
-        assert "could not be assessed" in text
+        assert "Foundation risk unavailable in export pipeline." in text
 
     def test_foundation_medium(self):
         """Medium foundation risk shows moderate language."""
@@ -2890,8 +2888,8 @@ class TestPageCountConstraints:
         )
         assert self._page_count(result) == 1
 
-    def test_full_dossier_at_least_five_pages(self):
-        """Full Dossier must produce at least 5 pages."""
+    def test_full_dossier_five_pages_or_less(self):
+        """Full Dossier stays compact at 5 pages or less."""
         result = generate_full_dossier(
             address="Kalverstraat 1, 1012 Amsterdam",
             building_year=1920,
@@ -2905,10 +2903,10 @@ class TestPageCountConstraints:
             tier_b=_make_tier_b(),
             risk_comparisons=_make_risk_comparisons(),
         )
-        assert self._page_count(result) >= 5
+        assert self._page_count(result) <= 5
 
-    def test_full_dossier_at_least_five_pages_no_data(self):
-        """Full Dossier produces >= 5 pages even with no optional data."""
+    def test_full_dossier_compact_with_no_data(self):
+        """Full Dossier remains compact even when optional data is missing."""
         result = generate_full_dossier(
             address="Unknown",
             building_year=None,
@@ -2918,10 +2916,10 @@ class TestPageCountConstraints:
             viewing_questions=None,
             language="en",
         )
-        assert self._page_count(result) >= 5
+        assert self._page_count(result) <= 5
 
     def test_full_dossier_dutch(self):
-        """Dutch Full Dossier also has >= 5 pages."""
+        """Dutch Full Dossier also stays within the compact page target."""
         result = generate_full_dossier(
             address="Kalverstraat 1, 1012 Amsterdam",
             building_year=1920,
@@ -2935,7 +2933,7 @@ class TestPageCountConstraints:
             tier_b=_make_tier_b(),
             risk_comparisons=_make_risk_comparisons(),
         )
-        assert self._page_count(result) >= 5
+        assert self._page_count(result) <= 5
 
 
 # ---------------------------------------------------------------------------
@@ -4382,7 +4380,7 @@ class TestExpandedSunlightMeasurements:
         assert "kWh/m²/jaar" in unit_def
 
     def test_expanded_sunlight_in_property_checks_en(self):
-        """Extended sunlight fields appear in property checks section (EN)."""
+        """Sunlight section remains explicit when extended metrics are available (EN)."""
         risks = self._make_sunlight_risks(
             annual_average=6.3,
             svf_anisotropic=58.0,
@@ -4404,12 +4402,11 @@ class TestExpandedSunlightMeasurements:
         )
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Annual average" in text
-        assert "SVF (anisotropic)" in text
-        assert "Solar irradiance" in text
+        assert "Direct sun (clear-sky visibility)" in text
+        assert "Estimated direct sunlight score: 80/100." in text
 
     def test_expanded_sunlight_in_property_checks_nl(self):
-        """Extended sunlight fields appear in property checks section (NL)."""
+        """Sunlight section remains explicit when extended metrics are available (NL)."""
         risks = self._make_sunlight_risks(
             annual_average=6.3,
             svf_anisotropic=58.0,
@@ -4431,9 +4428,8 @@ class TestExpandedSunlightMeasurements:
         )
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Jaargemiddelde" in text
-        assert "SVF (anisotropisch)" in text
-        assert "Zonnestraling" in text
+        assert "Direct zonlicht (helderheidsschatting)" in text
+        assert "Geschatte zonlichtscore: 80/100." in text
 
     def test_no_extended_sunlight_in_property_checks_when_absent(self):
         """Property checks section works without extended fields."""
@@ -4646,9 +4642,9 @@ class TestShadowTriptych:
         assert result[:5] == b"%PDF-"
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Shadow snapshot" in text
-        assert "Europe/Amsterdam" in text
-        assert "250m radius" in text
+        assert "Shadow Snapshots" in text
+        assert "Seasonal snapshots at 12:00 local time." in text
+        assert "Source: 3DBAG / TU Delft + SunCalc." in text
 
     def test_full_dossier_no_shadow_at_all(self):
         """Full dossier generates without any shadow images."""
@@ -4666,7 +4662,7 @@ class TestShadowTriptych:
         assert result[:5] == b"%PDF-"
 
     def test_property_checks_text_triptych(self):
-        """Property checks page references triptych when shadow_images present."""
+        """Property checks page keeps section heading and removes redundant sub-label."""
         images = self._make_shadow_images()
         result = generate_full_dossier(
             address="Damrak 1, Amsterdam",
@@ -4685,12 +4681,14 @@ class TestShadowTriptych:
             (
                 txt
                 for txt in page_texts
-                if "ADDITIONAL CHECKS" in txt or "EXTRA CONTROLES" in txt
+                if "Additional Property Checks" in txt
+                or "Aanvullende vastgoedcontroles" in txt
             ),
             "",
         )
         assert checks_page
-        assert "morning/noon/evening" in checks_page.lower()
+        assert "ADDITIONAL CHECKS" not in checks_page
+        assert "EXTRA CONTROLES" not in checks_page
 
 
 # ---------------------------------------------------------------------------

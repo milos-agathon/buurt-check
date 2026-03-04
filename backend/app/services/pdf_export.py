@@ -1377,6 +1377,16 @@ def _model_to_dict(model: Any) -> dict[str, Any] | None:
     return None
 
 
+def _escape_latex_structure(value: Any) -> Any:
+    if isinstance(value, str):
+        return escape_latex(value)
+    if isinstance(value, list):
+        return [_escape_latex_structure(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _escape_latex_structure(item) for key, item in value.items()}
+    return value
+
+
 def _decode_b64_asset(
     b64_data: str | None,
     *,
@@ -1405,7 +1415,14 @@ def _write_chart_asset(
 ) -> str | None:
     if not isinstance(chart_data, (bytes, bytearray)):
         return None
-    output_path = output_dir / f"{filename_stem}.png"
+
+    ext = "png"
+    if bytes(chart_data).startswith(b"%PDF-"):
+        ext = "pdf"
+    elif bytes(chart_data).startswith(b"\x89PNG"):
+        ext = "png"
+
+    output_path = output_dir / f"{filename_stem}.{ext}"
     output_path.write_bytes(bytes(chart_data))
     return output_path.as_posix()
 
@@ -1426,12 +1443,25 @@ def _primary_shadow_from_triptych(shadow_images: list[dict[str, Any]] | None) ->
     """Pick a deterministic primary shadow image from triptych payload."""
     if not shadow_images:
         return None
-    ordered = sorted(
-        [s for s in shadow_images if isinstance(s, dict) and s.get("image_b64")],
-        key=lambda item: int(item.get("hour", 12)),
-    )
+    ordered = [
+        s for s in shadow_images if isinstance(s, dict) and s.get("image_b64")
+    ]
     if not ordered:
         return None
+    winter = next(
+        (
+            item
+            for item in ordered
+            if str(item.get("label", "")).strip().lower().startswith("winter")
+        ),
+        None,
+    )
+    if winter is not None:
+        return str(winter.get("image_b64") or "")
+
+    noon = next((item for item in ordered if int(item.get("hour", -1)) == 12), None)
+    if noon is not None:
+        return str(noon.get("image_b64") or "")
     return str(ordered[0].get("image_b64") or "")
 
 
@@ -1458,20 +1488,231 @@ def _sunlight_state(
         return "available", None, None
 
     pending = (
-        "Zonlichtanalyse wordt nog verwerkt. Cijfers worden automatisch aangevuld "
-        "zodra de berekening klaar is."
+        "Zonlichtanalyse was niet voltooid voor export. Exporteer opnieuw nadat je het "
+        "3D-model hebt bekeken om zonlichtdata op te nemen."
         if is_nl
-        else "Sunlight analysis is still processing. Numeric values will be "
-        "added automatically when processing finishes."
+        else "Sunlight analysis was not completed before export. Re-export after viewing "
+        "the 3D model to include sunlight data."
     )
     unavailable = (
-        "Zonlichtanalyse is niet beschikbaar voor deze export."
+        "Zonlichtanalyse is niet beschikbaar voor deze export omdat vereiste 3D-invoer "
+        "ontbrak. Exporteer opnieuw na het openen van het 3D-model."
         if is_nl
-        else "Sunlight analysis is unavailable for this export."
+        else "Sunlight analysis is unavailable for this export because required 3D inputs "
+        "were missing. Re-export after opening the 3D model."
     )
     if has_shadow_inputs or sun is not None:
         return "pending", pending, None
     return "error", None, unavailable
+
+
+def _methodology_payload(*, is_nl: bool) -> dict[str, Any]:
+    if is_nl:
+        intro = (
+            "Alle risicoscores zijn genormaliseerd naar een schaal van 0-100, waarbij hoger "
+            "beter is. Scores volgen WHO-richtlijnen voor geluid en luchtkwaliteit, "
+            "Klimaateffectatlas-modellen voor hitte en water, en geometrische 3D-zonanalyse "
+            "voor direct zonlicht."
+        )
+        formulas = [
+            {
+                "category": "Geluid",
+                "formula": "40 dB Lden = 100, 90 dB Lden = 0, lineaire interpolatie.",
+            },
+            {
+                "category": "Luchtkwaliteit",
+                "formula": (
+                    "Slechtste van PM2.5 en NO2. PM2.5: 5 ug/m3 = 100, 25 ug/m3 = 0. "
+                    "NO2: 10 ug/m3 = 100, 40 ug/m3 = 0."
+                ),
+            },
+            {
+                "category": "Klimaatstress",
+                "formula": (
+                    "Slechtste van hittestress en wateroverlast. Laag risico = 85, "
+                    "gemiddeld = 50, hoog = 15."
+                ),
+            },
+            {
+                "category": "Zonlicht",
+                "formula": "Winterzonnewende directe zonuren / 6 x 100. 6+ uur = 100.",
+            },
+        ]
+        sunlight_method = [
+            {
+                "label": "Zonnepositie",
+                "description": "SunCalc (azimut vanaf noord, hoogte vanaf horizon).",
+            },
+            {
+                "label": "Tijdsresolutie",
+                "description": (
+                    "30-minutenintervallen, 12 representatieve dagen per jaar "
+                    "(de 21e van elke maand)."
+                ),
+            },
+            {
+                "label": "Ruimtelijke resolutie",
+                "description": "1 m dakgrid, maximaal 256 meetpunten.",
+            },
+            {
+                "label": "Obstructies",
+                "description": (
+                    "Alleen 3DBAG-gebouwen; vegetatie en tijdelijke objecten "
+                    "zijn uitgesloten."
+                ),
+            },
+            {
+                "label": "Atmosferisch",
+                "description": "Heldere-hemelanalyse (geen bewolking/weer).",
+            },
+            {
+                "label": "Meetvlak",
+                "description": "Dakvlak (niet raam- of balkonvlak).",
+            },
+        ]
+        limitations = (
+            "Alle gegevens zijn indicatief en vervangen geen professionele bouwinspectie. "
+            "Criminaliteitscijfers zijn per gemeente, niet per straat. Milieumetingen "
+            "geven mogelijk geen micro-lokale omstandigheden weer."
+        )
+        peer_disclosure = (
+            "Waar 'vergelijkingswaarde' wordt getoond, zijn waarden gemodelleerd op basis "
+            "van de stedelijkheidscategorie van het adres, niet gemiddeld over de volledige "
+            "gemeente."
+        )
+    else:
+        intro = (
+            "All risk scores are normalized to a 0-100 scale where higher is better. "
+            "Scores follow WHO guidance for noise and air quality, Klimaateffectatlas "
+            "models for heat and water stress, and geometric 3D sun analysis for direct light."
+        )
+        formulas = [
+            {
+                "category": "Noise",
+                "formula": "40 dB Lden = 100, 90 dB Lden = 0, linear interpolation.",
+            },
+            {
+                "category": "Air quality",
+                "formula": (
+                    "Worst of PM2.5 and NO2. PM2.5: 5 ug/m3 = 100, 25 ug/m3 = 0. "
+                    "NO2: 10 ug/m3 = 100, 40 ug/m3 = 0."
+                ),
+            },
+            {
+                "category": "Climate stress",
+                "formula": (
+                    "Worst of heat stress and water stress. Low risk = 85, medium = 50, "
+                    "high = 15."
+                ),
+            },
+            {
+                "category": "Sunlight",
+                "formula": "Winter solstice direct sun hours / 6 x 100. 6+ hours = 100.",
+            },
+        ]
+        sunlight_method = [
+            {
+                "label": "Solar position",
+                "description": "SunCalc (azimuth from north, altitude from horizon).",
+            },
+            {
+                "label": "Temporal",
+                "description": (
+                    "30-minute intervals, 12 representative days per year "
+                    "(the 21st of each month)."
+                ),
+            },
+            {
+                "label": "Spatial",
+                "description": "1 m roof grid, up to 256 sample points.",
+            },
+            {
+                "label": "Obstructions",
+                "description": (
+                    "3DBAG buildings only; vegetation and temporary objects are excluded."
+                ),
+            },
+            {
+                "label": "Atmospheric",
+                "description": "Clear-sky analysis (no cloud/weather correction).",
+            },
+            {
+                "label": "Target plane",
+                "description": "Roof surface (not window or balcony plane).",
+            },
+        ]
+        limitations = (
+            "All data is indicative and should not replace professional building inspection. "
+            "Crime data is municipality-level, not street-level. Environmental measurements "
+            "may not reflect micro-local conditions."
+        )
+        peer_disclosure = (
+            "Where 'peer baseline' is shown, values are modeled from the address urbanization "
+            "category, not averaged from the municipality's full distribution."
+        )
+
+    return {
+        "intro": intro,
+        "formula_heading": "Scoringformules" if is_nl else "Scoring formulas",
+        "formulas": formulas,
+        "sources_heading": "Databronnen" if is_nl else "Data sources",
+        "sources": [
+            {
+                "source": "BAG (Kadaster)",
+                "data_type": "Gebouwgegevens" if is_nl else "Building data",
+                "protocol": "WFS verblijfsobject",
+            },
+            {
+                "source": "3DBAG (TU Delft)",
+                "data_type": "3D-geometrie" if is_nl else "3D geometry",
+                "protocol": "OGC API Features (CityJSON)",
+            },
+            {
+                "source": "RIVM",
+                "data_type": "Geluid (Lden wegen)" if is_nl else "Noise (Lden roads)",
+                "protocol": "WMS lden_wegverkeer",
+            },
+            {
+                "source": "RIVM",
+                "data_type": "Luchtkwaliteit" if is_nl else "Air quality",
+                "protocol": "WMS conc_NO2, conc_PM25",
+            },
+            {
+                "source": "Klimaateffectatlas",
+                "data_type": "Klimaatstress" if is_nl else "Climate stress",
+                "protocol": "WMS + WFS",
+            },
+            {
+                "source": "CBS",
+                "data_type": "Buurtstatistieken" if is_nl else "Neighborhood stats",
+                "protocol": "OGC API Features",
+            },
+            {
+                "source": "CBS",
+                "data_type": "Criminaliteit" if is_nl else "Crime",
+                "protocol": "OData v4 (47018NED)",
+            },
+            {
+                "source": "Leefbaarometer",
+                "data_type": "Leefbaarheid" if is_nl else "Livability",
+                "protocol": "WFS 2.0",
+            },
+            {
+                "source": "SunCalc + 3DBAG",
+                "data_type": "Zonlichtanalyse" if is_nl else "Sunlight analysis",
+                "protocol": "Ray-casting",
+            },
+        ],
+        "sunlight_heading": (
+            "Methode zonlichtanalyse" if is_nl else "Sunlight analysis method"
+        ),
+        "sunlight_method": sunlight_method,
+        "peer_disclosure": peer_disclosure,
+        "limitations_heading": (
+            "Belangrijke beperkingen" if is_nl else "Important limitations"
+        ),
+        "limitations": limitations,
+    }
 
 
 def _generate_quick_brief_latex(
@@ -1528,7 +1769,7 @@ def _generate_quick_brief_latex(
                             for cat_label, score, sev_label in cells
                         ],
                         cols=2,
-                        output_format="png",
+                        output_format="pdf",
                     )
                 )
 
@@ -1586,7 +1827,12 @@ def _generate_quick_brief_latex(
                 viewing_questions=_model_to_dict(viewing_questions),
                 questions_clipped=questions_clipped,
             )
-            return compile_latex_to_pdf_with_fallback(tex, fallback_pdf_factory=_fallback)
+            return compile_latex_to_pdf_with_fallback(
+                tex,
+                fallback_pdf_factory=_fallback,
+                timeout=8,
+                passes=1,
+            )
     except Exception:
         logger.exception("LaTeX quick brief pipeline failed; using fpdf2 fallback")
         return _generate_quick_brief_fpdf(
@@ -1640,6 +1886,7 @@ def _generate_full_dossier_latex(
         livability,
         is_nl,
     )
+    methodology_payload = _methodology_payload(is_nl=is_nl)
 
     try:
 
@@ -1692,14 +1939,15 @@ def _generate_full_dossier_latex(
                     is_nl,
                 )
             if shadow_images:
-                ordered_shadow_times = sorted(
-                    [s for s in shadow_images if isinstance(s, dict)],
-                    key=lambda item: int(item.get("hour", 12)),
-                )[:3]
-                labels = [
-                    f"{int(item.get('hour', 12)):02d}:00 CET"
-                    for item in ordered_shadow_times
-                ]
+                ordered_shadow_times = [s for s in shadow_images if isinstance(s, dict)][:3]
+                labels: list[str] = []
+                for item in ordered_shadow_times:
+                    hour = int(item.get("hour", 12))
+                    season_hint = str(item.get("label", "")).strip()
+                    if season_hint:
+                        labels.append(f"{season_hint.title()} {hour:02d}:00 CET")
+                    else:
+                        labels.append(f"{hour:02d}:00 CET")
                 shadow_time_labels = labels or None
 
             if chart_renderer is not None:
@@ -1716,7 +1964,7 @@ def _generate_full_dossier_latex(
                             for cat_label, score, sev_label in cells
                         ],
                         cols=4,
-                        output_format="png",
+                        output_format="pdf",
                     )
                 )
 
@@ -1775,7 +2023,7 @@ def _generate_full_dossier_latex(
                             category=cat_name,
                             address_score=int(round(address_score)),
                             comparisons=comparisons_payload,
-                            output_format="png",
+                            output_format="pdf",
                         )
                     return bundle
 
@@ -1793,7 +2041,7 @@ def _generate_full_dossier_latex(
                     chart_jobs["age_chart"] = lambda ap=neighborhood_stats.age_profile: (
                         chart_renderer.render_age_distribution(
                             age_data=ap,
-                            output_format="png",
+                            output_format="pdf",
                         )
                     )
                     age_interpretation_text = _interpret_age_distribution(
@@ -1816,7 +2064,7 @@ def _generate_full_dossier_latex(
                                     score=cs,
                                     label="Criminaliteit" if is_nl else "Crime",
                                 ),
-                                output_format="png",
+                                output_format="pdf",
                             )
                         )
                     )
@@ -1847,16 +2095,21 @@ def _generate_full_dossier_latex(
                         )
                     )
                 if not shadow_panels and shadow_images:
-                    ordered = sorted(
-                        [s for s in shadow_images if s.get("image_b64")],
-                        key=lambda item: int(item.get("hour", 12)),
-                    )[:3]
+                    ordered = [s for s in shadow_images if s.get("image_b64")][:3]
                     season_labels = ("winter", "equinox", "summer")
                     for idx, item in enumerate(ordered):
                         hour = int(item.get("hour", 12))
+                        season_hint = str(item.get("label", "")).strip().lower()
+                        season = season_labels[min(idx, 2)]
+                        if season_hint.startswith("winter"):
+                            season = "winter"
+                        elif season_hint.startswith("spring") or "equinox" in season_hint:
+                            season = "equinox"
+                        elif season_hint.startswith("summer"):
+                            season = "summer"
                         shadow_panels.append(
                             chart_renderer.ShadowImage(
-                                season=season_labels[min(idx, 2)],
+                                season=season,
                                 image_b64=str(item.get("image_b64")),
                                 time_label=f"{hour:02d}:00",
                             )
@@ -1953,8 +2206,14 @@ def _generate_full_dossier_latex(
                 ),
                 postcode=escape_latex(postcode) if postcode else None,
                 shadow_time_labels=shadow_time_labels,
+                methodology=_escape_latex_structure(methodology_payload),
             )
-            return compile_latex_to_pdf_with_fallback(tex, fallback_pdf_factory=_fallback)
+            return compile_latex_to_pdf_with_fallback(
+                tex,
+                fallback_pdf_factory=_fallback,
+                timeout=8,
+                passes=2,
+            )
     except Exception:
         logger.exception("LaTeX full dossier pipeline failed; using fpdf2 fallback")
         return _generate_full_dossier_fpdf(

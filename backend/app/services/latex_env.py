@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
@@ -82,18 +83,29 @@ _SEVERITY_LABEL_NL: dict[str, str] = {
 }
 
 
-def _sev_color(severity: str | None) -> str:
-    if not severity:
-        return "muted"
-    return _SEVERITY_COLOR_MAP.get(str(severity), "muted")
+def _severity_value(severity: object | None) -> str | None:
+    if severity is None:
+        return None
+    raw = getattr(severity, "value", severity)
+    if raw is None:
+        return None
+    return str(raw).strip().lower()
 
 
-def _sev_label(severity: str | None, language: str = "en") -> str:
-    if not severity:
+def _sev_color(severity: object | None) -> str:
+    value = _severity_value(severity)
+    if value is None:
+        return "MutedText"
+    return _SEVERITY_COLOR_MAP.get(value, "MutedText")
+
+
+def _sev_label(severity: object | None, language: str = "en") -> str:
+    value = _severity_value(severity)
+    if value is None:
         return ""
     if language == "nl":
-        return _SEVERITY_LABEL_NL.get(str(severity), str(severity).capitalize())
-    return str(severity).capitalize()
+        return _SEVERITY_LABEL_NL.get(value, value.capitalize())
+    return value.capitalize()
 
 
 def _create_latex_env() -> jinja2.Environment:
@@ -195,6 +207,7 @@ def render_dossier(
     sunlight_pending_message: str | None = None,
     sunlight_unavailable_message: str | None = None,
     postcode: str | None = None,
+    methodology: dict[str, Any] | None = None,
 ) -> str:
     """Render the full dossier LaTeX document."""
     preamble_content = render_preamble(language=language)
@@ -231,6 +244,7 @@ def render_dossier(
         sunlight_pending_message=sunlight_pending_message,
         sunlight_unavailable_message=sunlight_unavailable_message,
         postcode=postcode,
+        methodology=methodology,
     )
 
 
@@ -271,10 +285,17 @@ def render_brief(
     )
 
 
-def compile_latex_to_pdf(tex_source: str, *, timeout: int = 30) -> bytes:
+def compile_latex_to_pdf(
+    tex_source: str,
+    *,
+    timeout: int = 30,
+    passes: int = 2,
+) -> bytes:
     """Compile LaTeX source to PDF using LuaLaTeX."""
     if not shutil.which("lualatex"):
         raise RuntimeError("lualatex is not installed or not on PATH")
+    if passes < 1:
+        raise ValueError("passes must be >= 1")
 
     tmp_dir = tempfile.mkdtemp(prefix="buurtcheck_dossier_", dir=_preferred_tmp_dir())
     try:
@@ -282,20 +303,29 @@ def compile_latex_to_pdf(tex_source: str, *, timeout: int = 30) -> bytes:
         with open(tex_path, "w", encoding="utf-8") as f:
             f.write(tex_source)
 
-        result = subprocess.run(
-            [
-                "lualatex",
-                "--interaction=nonstopmode",
-                f"--output-directory={tmp_dir}",
-                tex_path,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=tmp_dir,
-        )
+        started = time.monotonic()
+        result: subprocess.CompletedProcess[str] | None = None
+        for pass_idx in range(1, passes + 1):
+            elapsed = time.monotonic() - started
+            remaining = max(1, timeout - int(elapsed))
+            result = subprocess.run(
+                [
+                    "lualatex",
+                    "--interaction=nonstopmode",
+                    f"--output-directory={tmp_dir}",
+                    tex_path,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=remaining,
+                cwd=tmp_dir,
+            )
+            if pass_idx == passes and result.returncode != 0:
+                break
 
         pdf_path = os.path.join(tmp_dir, "dossier.pdf")
+        if result is None:
+            raise RuntimeError("lualatex did not run")
         if result.returncode != 0:
             log_tail = result.stdout[-3000:] if result.stdout else "(no output)"
             logger.error("lualatex failed (exit %d):\n%s", result.returncode, log_tail)
@@ -317,10 +347,11 @@ def compile_latex_to_pdf_with_fallback(
     *,
     fallback_pdf_factory: Callable[[], bytes],
     timeout: int = 4,
+    passes: int = 2,
 ) -> bytes:
     """Compile with LaTeX and fallback to an alternate PDF renderer on failure."""
     try:
-        return compile_latex_to_pdf(tex_source, timeout=timeout)
+        return compile_latex_to_pdf(tex_source, timeout=timeout, passes=passes)
     except (RuntimeError, subprocess.TimeoutExpired):
         logger.exception("LaTeX compile failed; using fallback PDF renderer")
         return fallback_pdf_factory()

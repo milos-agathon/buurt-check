@@ -65,9 +65,9 @@ def test_scherer_theme_applies_rcparams():
     assert float(rcParams["ytick.labelsize"]) == 9.5
     assert rcParams["font.family"] == ["sans-serif"]
     assert float(rcParams["font.size"]) == 9.5
-    assert float(rcParams["figure.dpi"]) == 300.0
-    assert float(rcParams["savefig.dpi"]) == 300.0
-    assert rcParams["savefig.bbox"] == "tight"
+    assert float(rcParams["figure.dpi"]) == 600.0
+    assert float(rcParams["savefig.dpi"]) == 600.0
+    assert rcParams["savefig.bbox"] is None
     assert float(rcParams["savefig.pad_inches"]) == 0.05
     assert rcParams["legend.frameon"] is False
 
@@ -207,7 +207,7 @@ def test_shadow_single_image_fallback():
     assert width_mm >= 160
     assert height_mm >= 85
     text = _pdf_text(chart)
-    assert "Equinox and summer analysis requires additional 3D computation" in text
+    assert "Additional seasons require re-export after 3D computation" in text
 
 
 def test_age_distribution_happy_path():

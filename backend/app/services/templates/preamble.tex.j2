@@ -42,12 +42,13 @@
     ]
   }{}
 }
+\newcommand{\BrandFallback}{\sffamily\bfseries}
 
 \pagestyle{fancy}
 \fancyhf{}
 \renewcommand{\headrulewidth}{0.2pt}
 \renewcommand{\footrulewidth}{0.2pt}
-\fancyhead[L]{\IfFileExists{<< logo_path >>}{\includegraphics[height=4.2mm]{<< logo_path >>}}{\textbf{buurt-check}}}
+\fancyhead[L]{\IfFileExists{<< logo_path >>}{\includegraphics[width=22mm,height=5.5mm,keepaspectratio]{<< logo_path >>}}{\BrandFallback buurt-check}}
 \fancyhead[R]{\textcolor{MutedText}{<< language|upper >>}}
 \fancyfoot[L]{\textcolor{MutedText}{buurt-check}}
 <% if language == "nl" %>\fancyfoot[C]{\textcolor{MutedText}{Data is indicatief. Verifieer ter plaatse.}}

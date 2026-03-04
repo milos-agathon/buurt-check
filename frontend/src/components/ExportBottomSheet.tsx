@@ -128,6 +128,8 @@ export default function ExportBottomSheet({
     onGenerateStart?.();
     try {
       let shadowB64: string | undefined;
+      let shadowEquinoxB64: string | undefined;
+      let shadowSummerB64: string | undefined;
       let shadowImages: Array<{ hour: number; label: string; image_b64: string }> | undefined;
       if (includeShadows && shadowSnapshots && shadowSnapshots.length > 0) {
         // Build array of all snapshots for triptych
@@ -146,6 +148,18 @@ export default function ExportBottomSheet({
         shadowB64 = dataUrl.startsWith('data:')
           ? dataUrl.split(',')[1]
           : dataUrl;
+
+        const equinoxSnapshot = shadowSnapshots.find(s => s.label.toLowerCase().includes('equinox'));
+        if (equinoxSnapshot) {
+          const raw = equinoxSnapshot.dataUrl;
+          shadowEquinoxB64 = raw.startsWith('data:') ? raw.split(',')[1] : raw;
+        }
+
+        const summerSnapshot = shadowSnapshots.find(s => s.label.toLowerCase().includes('summer'));
+        if (summerSnapshot) {
+          const raw = summerSnapshot.dataUrl;
+          shadowSummerB64 = raw.startsWith('data:') ? raw.split(',')[1] : raw;
+        }
       }
 
       setProgressStage('rendering');
@@ -167,6 +181,8 @@ export default function ExportBottomSheet({
         addition,
         language: exportLanguage,
         shadowImageB64: shadowB64,
+        shadowEquinoxB64,
+        shadowSummerB64,
         shadowImages,
       });
       setProgressStage('downloading');

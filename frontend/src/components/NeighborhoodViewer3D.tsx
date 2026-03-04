@@ -34,7 +34,6 @@ import {
   createDateInTimeZone,
   getDatePartsInTimeZone,
   getSunDirection,
-  setTimeInTimeZone,
   sunCalcToNorthAzimuth,
   SUN_DISTANCE,
 } from '../utils/sunPosition';
@@ -871,8 +870,8 @@ export default function NeighborhoodViewer3D({
     };
   }, [renderOnce]);
 
-  // Capture shadow snapshots — 3 static views at 9:00/12:00/17:00 on Dec 21
-  // Uses a temporary offscreen renderer at 1600x900 for print-quality captures.
+  // Capture shadow snapshots — 3 seasonal views at 12:00 local time.
+  // Uses a temporary offscreen renderer at 3000x2000 for print-quality captures.
   // Draws north arrow and scale bar as Canvas 2D overlays on each snapshot.
   const captureSnapshots = useCallback(() => {
     const ctx = sceneRef.current;
@@ -881,8 +880,8 @@ export default function NeighborhoodViewer3D({
     if (!allBuildingsReadyRef.current) return;
     snapshotsCaptured.current = true;
 
-    const OFFSCREEN_W = 1600;
-    const OFFSCREEN_H = 900;
+    const OFFSCREEN_W = 3000;
+    const OFFSCREEN_H = 2000;
     const HIRES_SHADOW_MAP = 4096;
     const SNAPSHOT_RADIUS_METERS = 250;
     const SNAPSHOT_TIME_ZONE = 'Europe/Amsterdam';
@@ -1040,11 +1039,10 @@ export default function NeighborhoodViewer3D({
     ctx.camera.updateProjectionMatrix();
 
     const year = new Date().getFullYear();
-    const winterSolstice = createDateInTimeZone(year, 11, 21, 12, 0);
     const snapshotConfigs = [
-      { hour: 9, label: 'morning' },
-      { hour: 12, label: 'noon' },
-      { hour: 17, label: 'evening' },
+      { hour: 12, label: 'winter', month: 11, day: 21, title: 'Winter solstice' },
+      { hour: 12, label: 'equinox', month: 2, day: 20, title: 'Spring equinox' },
+      { hour: 12, label: 'summer', month: 5, day: 21, title: 'Summer solstice' },
     ];
 
     const snapshots: ShadowSnapshot[] = [];
@@ -1066,9 +1064,15 @@ export default function NeighborhoodViewer3D({
 
     try {
       for (const config of snapshotConfigs) {
-        const date = setTimeInTimeZone(winterSolstice, config.hour * 60);
+        const date = createDateInTimeZone(year, config.month, config.day, config.hour, 0);
 
         const sunDir = getSunDirection(date, center.lat, center.lng);
+        const sunAzimuthDeg = sunDir
+          ? ((Math.atan2(sunDir.x, -sunDir.z) * 180 / Math.PI) + 360) % 360
+          : null;
+        const sunAltitudeDeg = sunDir
+          ? Math.max(0, Math.asin(sunDir.y) * 180 / Math.PI)
+          : null;
 
         if (sunDir) {
           ctx.sunLight.position.set(
@@ -1099,38 +1103,49 @@ export default function NeighborhoodViewer3D({
 
           // --- Timestamp + extent (top-left) ---
           const timestamp = formatTimestamp(date);
-          const metadataBoxWidth = Math.min(cw - 32, 560);
+          const metadataBoxWidth = Math.min(cw - 80, 1320);
+          const metadataBoxHeight = 180;
           overlayCtx.save();
-          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.86)';
-          overlayCtx.fillRect(16, 16, metadataBoxWidth, 44);
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.94)';
-          overlayCtx.font = '600 13px sans-serif';
+          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
+          overlayCtx.fillRect(32, 32, metadataBoxWidth, metadataBoxHeight);
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
+          overlayCtx.font = '700 46px sans-serif';
           overlayCtx.textAlign = 'left';
-          overlayCtx.fillText(timestamp, 24, 34);
-          overlayCtx.font = '12px sans-serif';
-          overlayCtx.fillText(`Extent: ${SNAPSHOT_RADIUS_METERS}m radius`, 24, 51);
+          overlayCtx.fillText(config.title, 56, 84);
+          overlayCtx.font = '600 36px sans-serif';
+          overlayCtx.fillText(`${config.hour.toString().padStart(2, '0')}:00 (${SNAPSHOT_TIME_ZONE})`, 56, 128);
+          overlayCtx.font = '32px sans-serif';
+          overlayCtx.fillText(`Date: ${timestamp}`, 56, 166);
           overlayCtx.restore();
 
-          // --- North arrow (top-right) ---
-          const arrowX = cw - 44;
-          const arrowY = 20;
+          // --- Compass rose (top-right, >= 12mm equivalent at 300 DPI) ---
+          const compassDiameterPx = 170;
+          const compassRadius = compassDiameterPx / 2;
+          const compassCx = cw - 140;
+          const compassCy = 150;
           overlayCtx.save();
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.88)';
-          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.88)';
-          overlayCtx.lineWidth = 2;
-          overlayCtx.font = 'bold 16px sans-serif';
-          overlayCtx.textAlign = 'center';
-          overlayCtx.fillText('N', arrowX, arrowY);
-          // Arrow shaft
+          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
           overlayCtx.beginPath();
-          overlayCtx.moveTo(arrowX, arrowY + 4);
-          overlayCtx.lineTo(arrowX, arrowY + 32);
+          overlayCtx.arc(compassCx, compassCy, compassRadius, 0, Math.PI * 2);
+          overlayCtx.fill();
+          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.96)';
+          overlayCtx.lineWidth = 4;
           overlayCtx.stroke();
-          // Arrow head
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
+          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.96)';
+          overlayCtx.lineWidth = 5;
+          overlayCtx.font = '700 42px sans-serif';
+          overlayCtx.textAlign = 'center';
+          overlayCtx.fillText('N', compassCx, compassCy - compassRadius + 44);
+          // Arrow shaft and head
           overlayCtx.beginPath();
-          overlayCtx.moveTo(arrowX, arrowY + 4);
-          overlayCtx.lineTo(arrowX - 6, arrowY + 14);
-          overlayCtx.lineTo(arrowX + 6, arrowY + 14);
+          overlayCtx.moveTo(compassCx, compassCy + compassRadius - 28);
+          overlayCtx.lineTo(compassCx, compassCy - compassRadius + 58);
+          overlayCtx.stroke();
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(compassCx, compassCy - compassRadius + 48);
+          overlayCtx.lineTo(compassCx - 16, compassCy - compassRadius + 76);
+          overlayCtx.lineTo(compassCx + 16, compassCy - compassRadius + 76);
           overlayCtx.closePath();
           overlayCtx.fill();
           overlayCtx.restore();
@@ -1162,12 +1177,12 @@ export default function NeighborhoodViewer3D({
 
           // --- Scale bar (bottom-left) ---
           const scalePx = SCALE_BAR_METERS / metersPerPixel;
-          const sx = 24;
-          const sy = ch - 38;
+          const sx = 56;
+          const sy = ch - 120;
           overlayCtx.save();
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.88)';
-          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.88)';
-          overlayCtx.lineWidth = 3;
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
+          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.96)';
+          overlayCtx.lineWidth = 8;
           // Bar
           overlayCtx.beginPath();
           overlayCtx.moveTo(sx, sy);
@@ -1175,36 +1190,47 @@ export default function NeighborhoodViewer3D({
           overlayCtx.stroke();
           // End caps
           overlayCtx.beginPath();
-          overlayCtx.moveTo(sx, sy - 6);
-          overlayCtx.lineTo(sx, sy + 6);
-          overlayCtx.moveTo(sx + scalePx, sy - 6);
-          overlayCtx.lineTo(sx + scalePx, sy + 6);
+          overlayCtx.moveTo(sx, sy - 16);
+          overlayCtx.lineTo(sx, sy + 16);
+          overlayCtx.moveTo(sx + scalePx, sy - 16);
+          overlayCtx.lineTo(sx + scalePx, sy + 16);
           overlayCtx.stroke();
           // Label
-          overlayCtx.font = '12px sans-serif';
+          overlayCtx.font = '600 34px sans-serif';
           overlayCtx.textAlign = 'center';
-          overlayCtx.fillText(`${SCALE_BAR_METERS}m`, sx + scalePx / 2, sy + 18);
+          overlayCtx.fillText(`${SCALE_BAR_METERS}m`, sx + scalePx / 2, sy + 54);
           overlayCtx.restore();
 
           // --- Shadow legend + source attribution (bottom-right) ---
-          const legendW = 300;
-          const legendH = 56;
-          const legendX = cw - legendW - 18;
-          const legendY = ch - legendH - 18;
+          const legendW = 1080;
+          const legendH = 220;
+          const legendX = cw - legendW - 40;
+          const legendY = ch - legendH - 40;
           overlayCtx.save();
-          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.86)';
+          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
           overlayCtx.fillRect(legendX, legendY, legendW, legendH);
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.9)';
-          overlayCtx.font = '11px sans-serif';
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
+          overlayCtx.font = '700 36px sans-serif';
           overlayCtx.textAlign = 'left';
-          overlayCtx.fillRect(legendX + 10, legendY + 10, 12, 12);
-          overlayCtx.fillText('Direct sun', legendX + 28, legendY + 20);
-          overlayCtx.fillStyle = 'rgba(82, 96, 116, 0.95)';
-          overlayCtx.fillRect(legendX + 110, legendY + 10, 12, 12);
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.9)';
-          overlayCtx.fillText('Shadow', legendX + 128, legendY + 20);
-          overlayCtx.font = '10px sans-serif';
-          overlayCtx.fillText('Source: 3DBAG / TU Delft + SunCalc', legendX + 10, legendY + 40);
+          overlayCtx.fillRect(legendX + 24, legendY + 28, 40, 40);
+          overlayCtx.fillText('Direct sun', legendX + 82, legendY + 60);
+          overlayCtx.fillStyle = 'rgba(92, 106, 126, 0.98)';
+          overlayCtx.fillRect(legendX + 360, legendY + 28, 40, 40);
+          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
+          overlayCtx.fillText('Shadow', legendX + 418, legendY + 60);
+          overlayCtx.font = '600 34px sans-serif';
+          if (sunAzimuthDeg != null && sunAltitudeDeg != null) {
+            overlayCtx.fillText(
+              `Sun position: az ${Math.round(sunAzimuthDeg)} deg / alt ${Math.round(sunAltitudeDeg)} deg`,
+              legendX + 24,
+              legendY + 118,
+            );
+          } else {
+            overlayCtx.fillText('Sun position unavailable', legendX + 24, legendY + 118);
+          }
+          overlayCtx.fillText(`${config.title} · ${config.hour.toString().padStart(2, '0')}:00 local`, legendX + 24, legendY + 164);
+          overlayCtx.font = '500 30px sans-serif';
+          overlayCtx.fillText('Source: 3DBAG / TU Delft + SunCalc', legendX + 24, legendY + 204);
           overlayCtx.restore();
 
           const dataUrl = overlayCanvas.toDataURL('image/png');

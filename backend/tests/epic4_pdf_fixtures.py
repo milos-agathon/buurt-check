@@ -327,7 +327,7 @@ def dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
 
 def render_dossier_pdf(kind: str, language: str, *, timeout: int = 30) -> bytes:
     tex_source = render_dossier(**dossier_kwargs(kind, language))
-    return compile_latex_to_pdf(tex_source, timeout=timeout)
+    return compile_latex_to_pdf(tex_source, timeout=timeout, passes=2)
 
 
 def render_brief_pdf(language: str = "en", *, timeout: int = 30) -> bytes:
@@ -346,4 +346,4 @@ def render_brief_pdf(language: str = "en", *, timeout: int = 30) -> bytes:
         location_map=None,
         viewing_questions=kwargs["viewing_questions"],
     )
-    return compile_latex_to_pdf(tex_source, timeout=timeout)
+    return compile_latex_to_pdf(tex_source, timeout=timeout, passes=1)
