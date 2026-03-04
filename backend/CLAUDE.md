@@ -98,3 +98,16 @@ ruff check . && ruff format .               # MUST pass before commit
 - **limiter.reset() in test fixtures**: prevents cross-test rate limit pollution for rate-limited endpoints
 - **patch.object(settings, field, value) is sufficient** for pydantic-settings singleton patching -- no ExitStack needed
 - **Test baseline**: 629 tests (post-Sunlight v2 weather service, 2026-03-01)
+
+## Session Learnings (2026-03-03)
+
+- **Silent PDF section omission violates graceful degradation**: PDF sections guarded with `if data is not None and data.available` silently disappear. Every section must have an explicit "unavailable" fallback (bilingual message)
+- **WCAG contrast for chart accent dark**: `C_ACCENT_DARK` was `#1C8C83` (4.09:1 on white, fails AA). Changed to `#187E76` (4.90:1, passes). Always verify chart text colors against actual backgrounds
+- **`skipif` must test actual capability**: `shutil.which('lualatex')` passes when binary exists but can't compile (missing fonts). Use robust probe that compiles a minimal document
+- **`hasattr()` guard before attribute-based `skipif`**: `@pytest.mark.skipif(mod.attr is None, ...)` causes collection-time `AttributeError`. Use `not hasattr(mod, 'attr') or mod.attr is None`
+- **Monkeypatch target must match import site**: Patching `pdf_export.render_chart_assets_parallel` when function lives in `latex_env.py` silently does nothing
+- **Page-specific PDF assertions are fragile**: Asserting content on specific page indices couples tests to layout. Search full PDF text: `"
+".join(p.extract_text() for p in reader.pages)`
+- **LaTeX Jinja2 delimiters**: Templates use `<< >>` for variables, `<% %>` for blocks, `<# #>` for comments to avoid LaTeX syntax conflicts
+- **Benchmark tests are flaky in CI/hooks**: Timing-sensitive tests fail on busy machines. Exclude from pre-commit hooks via `addopts = "-m 'not visual and not benchmark'"`
+- **pytest markers must be registered**: Custom markers (`visual`, `benchmark`) in `pyproject.toml` `[tool.pytest.ini_options]` to avoid `PytestUnknownMarkWarning`
