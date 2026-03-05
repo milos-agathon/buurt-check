@@ -308,7 +308,7 @@ def dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
         "comparison_charts": None,
         "age_chart": None,
         "livability_chart": None,
-        "shadow_image": None,
+        "shadow_images": None,
         "location_map": None,
     }
 

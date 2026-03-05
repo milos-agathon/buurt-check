@@ -199,7 +199,12 @@ beforeEach(() => {
     source: 'Leefbaarometer 3.0',
     messages: [],
   });
-  mockSubmitSunlightAnalysis.mockResolvedValue();
+  mockSubmitSunlightAnalysis.mockResolvedValue({
+    status: 'ok',
+    score: 50,
+    severity: 'moderate',
+    cached: true,
+  });
 });
 
 function renderApp() {

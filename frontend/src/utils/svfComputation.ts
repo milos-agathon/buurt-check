@@ -282,8 +282,8 @@ function renderAndReadCubemapFaces(
   const facePixels = new Map<number, Uint8Array>();
   for (const faceIndex of UPPER_HEMISPHERE_FACES) {
     const pixels = new Uint8Array(CUBE_SIZE * CUBE_SIZE * 4);
-    renderer.setRenderTarget(res.cubeTarget, faceIndex);
-    renderer.readRenderTargetPixels(res.cubeTarget, 0, 0, CUBE_SIZE, CUBE_SIZE, pixels);
+    renderer.setRenderTarget(null);
+    renderer.readRenderTargetPixels(res.cubeTarget, 0, 0, CUBE_SIZE, CUBE_SIZE, pixels, faceIndex);
     facePixels.set(faceIndex, pixels);
   }
   return facePixels;

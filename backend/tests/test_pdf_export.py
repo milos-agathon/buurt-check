@@ -594,7 +594,7 @@ class TestBuurtCheckPDF:
         rows = [
             ("This address", 65, TEAL, False),
             ("City average", 55, MUTED, False),
-            ("WHO benchmark (mapped to score)", 74, (234, 179, 8), True),
+            ("WHO target", 74, (234, 179, 8), True),
         ]
         end_y = pdf.draw_comparison_chart(10, 30, 180, rows)
         result = bytes(pdf.output())
@@ -1469,19 +1469,19 @@ class TestComparisonChartScaleDeclaration:
         assert "0-100 schaal" in text
         assert "Hoger = beter" in text
 
-    def test_who_label_en_includes_score_qualifier(self):
-        """WHO label in EN explicitly says 'mapped to score'."""
+    def test_who_label_en_short(self):
+        """WHO label in EN uses short 'WHO target' form."""
         text = " ".join(self._extract_full_text("en").split())
-        assert "mapped to score" in text
-        # Old unqualified label must not appear
-        assert "WHO guideline\n" not in text
+        assert "WHO target" in text
+        # Old verbose label must not appear
+        assert "mapped to score" not in text
 
-    def test_who_label_nl_includes_score_qualifier(self):
-        """WHO label in NL explicitly says 'op scoreschaal'."""
+    def test_who_label_nl_short(self):
+        """WHO label in NL uses short 'WHO-doel' form."""
         text = " ".join(self._extract_full_text("nl").split())
-        assert "op scoreschaal" in text
-        # Old unqualified label must not appear
-        assert "WHO-richtlijn\n" not in text
+        assert "WHO-doel" in text
+        # Old verbose label must not appear
+        assert "op scoreschaal" not in text
 
 
 class TestRiskFactsheetGuidelines:
@@ -4463,68 +4463,70 @@ class TestExpandedSunlightMeasurements:
 
 
 class TestShadowTriptych:
-    """E1-S2: Triptych renders 3 side-by-side images with timezone captions."""
+    """E1-S2: Triptych renders 3 full-width stacked images with season captions."""
 
     def _make_shadow_images(self) -> list[dict]:
-        """Create 3 shadow image dicts with valid tiny PNGs."""
+        """Create 3 shadow image dicts with seasonal labels and valid tiny PNGs."""
         b64 = _tiny_png()
         return [
-            {"hour": 9, "label": "morning", "image_b64": b64},
-            {"hour": 12, "label": "noon", "image_b64": b64},
-            {"hour": 17, "label": "evening", "image_b64": b64},
+            {"hour": 12, "label": "winter", "image_b64": b64},
+            {"hour": 12, "label": "equinox", "image_b64": b64},
+            {"hour": 12, "label": "summer", "image_b64": b64},
         ]
 
     def test_triptych_renders_three_captions_en(self):
-        """English triptych shows CET timezone in captions."""
+        """English triptych shows season names with CET timezone in captions."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=False)
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "09:00 CET" in text
+        assert "Winter solstice" in text
+        assert "Spring equinox" in text
+        assert "Summer solstice" in text
         assert "12:00 CET" in text
-        assert "17:00 CET" in text
         assert "Europe/Amsterdam" in text
         assert "250m radius" in text
         assert "Direct sun / Shadow" in text
         assert "3DBAG / TU Delft" in text
 
     def test_triptych_renders_three_captions_nl(self):
-        """Dutch triptych shows CET timezone in captions."""
+        """Dutch triptych shows season names with CET timezone in captions."""
         pdf = BuurtCheckPDF(language="nl")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=True)
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "09:00 CET" in text
+        assert "Winterzonnewende" in text
+        assert "Lentepunt" in text
+        assert "Zomerzonnewende" in text
         assert "12:00 CET" in text
-        assert "17:00 CET" in text
         assert "Europe/Amsterdam" in text
         assert "250m straal" in text
         assert "Directe zon / Schaduw" in text
         assert "3DBAG / TU Delft" in text
 
     def test_triptych_section_label_en(self):
-        """English triptych has section label with 'winter solstice'."""
+        """English triptych has generic 'Shadow Analysis' section label."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=False)
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "winter solstice" in text.lower()
+        assert "shadow analysis" in text.lower()
 
     def test_triptych_section_label_nl(self):
-        """Dutch triptych has section label with 'winterzonnewende'."""
+        """Dutch triptych has generic 'Schaduwanalyse' section label."""
         pdf = BuurtCheckPDF(language="nl")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=True)
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "winterzonnewende" in text.lower()
+        assert "schaduwanalyse" in text.lower()
 
     def test_triptych_advances_cursor(self):
         """Triptych drawing advances the PDF cursor."""
@@ -4569,9 +4571,9 @@ class TestShadowTriptych:
         """Bad base64 data in one image doesn't crash the triptych."""
         b64 = _tiny_png()
         images = [
-            {"hour": 9, "label": "morning", "image_b64": "NOT_VALID_BASE64!!!"},
-            {"hour": 12, "label": "noon", "image_b64": b64},
-            {"hour": 17, "label": "evening", "image_b64": b64},
+            {"hour": 12, "label": "winter", "image_b64": "NOT_VALID_BASE64!!!"},
+            {"hour": 12, "label": "equinox", "image_b64": b64},
+            {"hour": 12, "label": "summer", "image_b64": b64},
         ]
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
@@ -4580,14 +4582,14 @@ class TestShadowTriptych:
         result = bytes(pdf.output())
         assert result[:5] == b"%PDF-"
 
-    def test_triptych_sorts_by_hour(self):
-        """Images are sorted by hour regardless of input order."""
+    def test_triptych_sorts_by_season(self):
+        """Images are sorted by season (winter→equinox→summer) regardless of input order."""
         b64 = _tiny_png()
         # Provide in reverse order
         images = [
-            {"hour": 17, "label": "evening", "image_b64": b64},
-            {"hour": 9, "label": "morning", "image_b64": b64},
-            {"hour": 12, "label": "noon", "image_b64": b64},
+            {"hour": 12, "label": "summer", "image_b64": b64},
+            {"hour": 12, "label": "winter", "image_b64": b64},
+            {"hour": 12, "label": "equinox", "image_b64": b64},
         ]
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
@@ -4595,10 +4597,10 @@ class TestShadowTriptych:
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        # All three should be present
-        assert "09:00 CET" in text
-        assert "12:00 CET" in text
-        assert "17:00 CET" in text
+        # All three season captions should be present
+        assert "Winter solstice" in text
+        assert "Spring equinox" in text
+        assert "Summer solstice" in text
 
     def test_full_dossier_with_triptych(self):
         """Full dossier renders triptych on cover when shadow_images provided."""
@@ -4618,11 +4620,11 @@ class TestShadowTriptych:
         assert result[:5] == b"%PDF-"
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "09:00 CET" in text
-        assert "12:00 CET" in text
-        assert "17:00 CET" in text
+        assert "Winter solstice" in text
+        assert "Spring equinox" in text
+        assert "Summer solstice" in text
         # Section label
-        assert "winter solstice" in text.lower()
+        assert "shadow analysis" in text.lower()
 
     def test_full_dossier_single_fallback(self):
         """Full dossier falls back to single shadow_image_b64 when no triptych."""

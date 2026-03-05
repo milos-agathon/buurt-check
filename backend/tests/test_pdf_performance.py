@@ -190,7 +190,7 @@ def test_pdf_export_full_dossier_uses_parallel_chart_jobs(
     assert str(comparison_paths["noise"]).endswith(("comparison_noise.pdf", "comparison_noise.png"))
     assert context["age_chart"] is None
     assert context["livability_chart"] is None
-    assert context["shadow_image"] is None
+    assert context["shadow_images"] is None
 
 
 def test_pdf_export_chart_tmp_dirs_use_preferred_tmp_dir(

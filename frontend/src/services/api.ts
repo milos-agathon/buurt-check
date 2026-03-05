@@ -19,6 +19,14 @@ import type {
 import type { HourlyWeatherRecord } from '../utils/irradianceComputation';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const EXPORT_TIMEOUT_QUICK_MS = Math.max(
+  30_000,
+  Number(import.meta.env.VITE_EXPORT_TIMEOUT_QUICK_MS) || 90_000,
+);
+const EXPORT_TIMEOUT_FULL_MS = Math.max(
+  30_000,
+  Number(import.meta.env.VITE_EXPORT_TIMEOUT_FULL_MS) || 180_000,
+);
 
 interface TimeoutSignal {
   signal: AbortSignal;
@@ -369,13 +377,14 @@ export interface ExportOptions {
 }
 
 export async function exportBriefing(options: ExportOptions): Promise<Blob> {
+  const template = options.template || 'quick_brief';
   const body: Record<string, unknown> = {
     rd_x: options.rdX,
     rd_y: options.rdY,
     lat: options.lat,
     lng: options.lng,
     address: options.address,
-    template: options.template || 'quick_brief',
+    template,
     language: options.language || 'en',
   };
   if (options.shadowImageB64) body.shadow_image_b64 = options.shadowImageB64;
@@ -391,8 +400,9 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
   if (options.houseLetter) body.house_letter = options.houseLetter;
   if (options.addition) body.addition = options.addition;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeout = withTimeoutSignal(
+    template === 'full_dossier' ? EXPORT_TIMEOUT_FULL_MS : EXPORT_TIMEOUT_QUICK_MS,
+  );
   try {
     const resp = await fetch(
       `${API_BASE}/address/${options.vboId}/export`,
@@ -400,18 +410,31 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        signal: controller.signal,
+        signal: timeout.signal,
       },
     );
     if (!resp.ok) throwHttpError(resp.status);
     return resp.blob();
   } finally {
-    clearTimeout(timeoutId);
+    timeout.cleanup();
   }
 }
 
 export function downloadPdfBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
+  // iOS WebKit frequently ignores `download` for blob URLs. Opening the PDF
+  // in a new tab gives the user a visible save/share path instead of no-op.
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.assign(url);
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -603,11 +626,18 @@ export interface SunlightSubmissionPayload {
   irradiance_kwh_m2?: number;
 }
 
+export interface SunlightSubmissionResponse {
+  status: string;
+  score: number | null;
+  severity: string | null;
+  cached: boolean;
+}
+
 export async function submitSunlightAnalysis(
   vboId: string,
   data: SunlightSubmissionPayload | SunlightResult,
   reportId?: string,
-): Promise<void> {
+): Promise<SunlightSubmissionResponse> {
   const payload: SunlightSubmissionPayload = 'winter_hours' in data
     ? data
     : {
@@ -635,6 +665,16 @@ export async function submitSunlightAnalysis(
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const startedAt = performance.now();
+  if (import.meta.env.DEV) {
+    console.info('[sunlight] POST submit start', {
+      vboId,
+      hasReportId: Boolean(reportId),
+      winterHours: payload.winter_hours,
+      equinoxHours: payload.equinox_hours,
+      summerHours: payload.summer_hours,
+    });
+  }
   try {
     const resp = await fetch(endpoint, {
       method: 'POST',
@@ -643,6 +683,34 @@ export async function submitSunlightAnalysis(
       signal: controller.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
+    const result = await resp.json() as Partial<SunlightSubmissionResponse>;
+    const submissionResult: SunlightSubmissionResponse = {
+      status: typeof result.status === 'string' ? result.status : 'ok',
+      score: typeof result.score === 'number' ? result.score : null,
+      severity: typeof result.severity === 'string' ? result.severity : null,
+      cached: result.cached !== false,
+    };
+    if (!submissionResult.cached) {
+      console.warn('[sunlight] POST succeeded but backend cache write FAILED', { vboId });
+    }
+    if (import.meta.env.DEV) {
+      console.info('[sunlight] POST submit success', {
+        vboId,
+        status: resp.status,
+        cached: submissionResult.cached,
+        elapsedMs: Math.round(performance.now() - startedAt),
+      });
+    }
+    return submissionResult;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[sunlight] POST submit failed', {
+        vboId,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        error,
+      });
+    }
+    throw error;
   } finally {
     clearTimeout(timeoutId);
   }

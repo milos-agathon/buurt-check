@@ -3,7 +3,7 @@ import time
 import pytest
 
 import app.cache.redis as cache_module
-from app.cache.redis import cache_get, cache_set
+from app.cache.redis import cache_get, cache_set, cache_set_verified
 
 
 @pytest.fixture(autouse=True)
@@ -65,3 +65,17 @@ async def test_cache_set_skipped_when_circuit_open():
     elapsed = time.monotonic() - start
 
     assert elapsed < 0.01  # Should be near-instant
+
+
+@pytest.mark.asyncio
+async def test_cache_set_verified_returns_false_on_failure():
+    """cache_set_verified returns False (not exception) when Redis is unavailable."""
+    result = await cache_set_verified("test:key", {"foo": "bar"}, ttl=60)
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_cache_set_verified_returns_false_when_circuit_open():
+    cache_module._circuit_open_until = time.monotonic() + 30.0
+    result = await cache_set_verified("should:skip", {"data": "value"}, ttl=60)
+    assert result is False

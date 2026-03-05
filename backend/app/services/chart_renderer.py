@@ -328,7 +328,7 @@ def render_risk_comparison(
     chart_h_mm = max(RISK_MIN_HEIGHT_MM, 10.0 + len(bar_rows) * RISK_ROW_HEIGHT_MM)
     fig, ax = plt.subplots(
         figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(chart_h_mm)),
-        dpi=300,
+        dpi=CHART_DPI,
     )
     fig.patch.set_facecolor(C_BG)
 
@@ -425,7 +425,7 @@ def render_risk_summary_grid(
 
     fig, ax = plt.subplots(
         figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(grid_h_mm)),
-        dpi=300,
+        dpi=CHART_DPI,
     )
     fig.patch.set_facecolor(C_BG)
     ax.set_xlim(0.0, CHART_WIDTH_MM)
@@ -588,7 +588,7 @@ def render_shadow_panels(
     if not decoded:
         fig, ax = plt.subplots(
             figsize=(_mm_to_inch(SHADOW_WIDTH_MM), _mm_to_inch(SHADOW_SINGLE_HEIGHT_MM)),
-            dpi=300,
+            dpi=CHART_DPI,
         )
         fig.patch.set_facecolor(C_DARK_BG)
         ax.set_facecolor(C_DARK_BG)
@@ -626,7 +626,7 @@ def render_shadow_panels(
     if len(ordered_panels) == 1:
         fig, ax = plt.subplots(
             figsize=(_mm_to_inch(SHADOW_WIDTH_MM), _mm_to_inch(SHADOW_SINGLE_HEIGHT_MM)),
-            dpi=300,
+            dpi=CHART_DPI,
         )
         fig.patch.set_facecolor(C_DARK_BG)
         season, panel, image_array = ordered_panels[0]
@@ -655,7 +655,7 @@ def render_shadow_panels(
         panel_count,
         1,
         figsize=(_mm_to_inch(SHADOW_WIDTH_MM), _mm_to_inch(fig_h_mm)),
-        dpi=300,
+        dpi=CHART_DPI,
     )
     fig.patch.set_facecolor(C_DARK_BG)
     if panel_count == 1:
@@ -689,7 +689,7 @@ def render_age_distribution(
 
     fig, ax = plt.subplots(
         figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(AGE_CHART_HEIGHT_MM)),
-        dpi=300,
+        dpi=CHART_DPI,
     )
     fig.patch.set_facecolor(C_BG)
 
@@ -740,7 +740,7 @@ def render_livability_score(
 
     fig, ax = plt.subplots(
         figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(LIVABILITY_HEIGHT_MM)),
-        dpi=300,
+        dpi=CHART_DPI,
     )
     fig.patch.set_facecolor(C_BG)
 
