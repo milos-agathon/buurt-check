@@ -112,6 +112,14 @@ ruff check . && ruff format .               # MUST pass before commit
 - **Benchmark tests are flaky in CI/hooks**: Timing-sensitive tests fail on busy machines. Exclude from pre-commit hooks via `addopts = "-m 'not visual and not benchmark'"`
 - **pytest markers must be registered**: Custom markers (`visual`, `benchmark`) in `pyproject.toml` `[tool.pytest.ini_options]` to avoid `PytestUnknownMarkWarning`
 
+## Session Learnings (2026-03-05) — P0 Sunlight Pipeline Fix
+
+- **`cache_set_verified` for confirmed cache writes**: New function in `cache/redis.py` returns boolean confirming whether cache write succeeded. Sunlight submission endpoint includes `"cached": true/false` in response so frontend can detect cache write failures.
+- **`build_risk_comparisons()` ordering relative to sunlight wait**: Comparison charts must be built AFTER `_await_sunlight_for_export()` resolves, not before. If built before and a late cache hit arrives, `sunlight_score` becomes non-None but comparison data has stale address rows — the stripping guard (`if sunlight_score is None`) becomes wrong.
+- **`_resolve_sunlight_score` backward-compatible fallback**: New helper tries `card.score` first, then falls back to `normalize_sunlight_score(card.winter_hours)`. Handles cached cards written before the score field was added.
+- **Backend wait infrastructure was correct**: `_await_sunlight_for_export()` polling every 250ms for 20s worked perfectly. All P0 failures were upstream (frontend submission failures). Resist urge to "fix" correct components when bug is elsewhere.
+- **Sunlight consistency tests as data-model unit tests**: `test_sunlight_consistency.py` tests address-row stripping logic using `RiskComparisonsResponse` model instances directly, without HTTP or database setup.
+
 ## Session Learnings (2026-03-04)
 
 - **LaTeX \IfFileExists renders both branches in template string**: Python-level \includegraphics search always matches because Jinja2 renders the full template including both the PNG and \BrandFallback branches. The conditional is evaluated by LuaLaTeX at compile time. Name tests honestly as "template structure" checks, not "renders PNG instead of fallback"

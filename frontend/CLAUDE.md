@@ -7,7 +7,7 @@ Mobile-first SPA with "Polar Frost" design system. Framer Motion gestures, Three
 ```bash
 npm run dev          # Dev server (proxies /api to localhost:8000)
 npm run build        # MUST pass before commit (strict TS: noUnusedLocals)
-npm run test         # Vitest (867+ baseline)
+npm run test         # Vitest (911+ baseline)
 npx vitest --watch   # Watch mode
 ```
 
@@ -85,6 +85,8 @@ npx vitest --watch   # Watch mode
 - `console.log` in production code
 - CSS `font` shorthand before `font-weight`/`font-style` → shorthand resets them
 - Custom severity vocab (`low/medium/high`) → use canonical `good/moderate/poor/critical` via SeverityBadge
+- `.catch(() => undefined)` on fire-and-forget async → swallows critical failures silently. Use IIFE with `console.error` at minimum
+- `if (import.meta.env.DEV)` on critical error logging → hides production failures. Always log critical errors unconditionally
 
 ## 3D Viewer — On-demand Rendering (added 2026-02-17)
 
@@ -201,6 +203,19 @@ setTimeout(() => { setViewer3DTriggered(true); trigger3DFetch(); }, 0);
 - Hide "Generate PDF" button when `progressStage === 'ready'` (show Share/Download instead)
 - Show spinner + "Exporting..." in ActionBar export button when `isExporting` is true
 
+
+## Session Learnings (2026-03-05) — P0 Sunlight Pipeline Fix
+
+- **SVF `readRenderTargetPixels` face index**: Three.js r182 requires explicit `activeCubeFaceIndex` as last argument when reading from `WebGLCubeRenderTarget`. Without it, `bindFramebuffer()` crashes in `finally` block with array instead of single framebuffer. Affects both Worker and main-thread fallback.
+- **`onBeforeGenerate` hook pattern**: `ExportBottomSheet` accepts async `onBeforeGenerate` callback. `App.tsx` implements it to submit sunlight data and await backend cache confirmation before allowing export. If hook fails, export is aborted with user-visible error.
+- **Export button gating on `sunlightReady`**: `disabled` prop includes `!sunlightReady` check for `full_dossier` templates. Prevents export before sunlight completes (or times out).
+- **180s sunlight timeout safety net**: `useEffect` timer starts when surrounding buildings load. If sunlight hasn't completed by 180s, sets `sunlightUnavailable = true` to release export button gate.
+- **Three-source sunlight submission with dedup**: `sunlightSubmissionPromiseRef` tracks in-flight promise. Three triggers (`analysis`, `entitlement-sync`, `export`) join single promise to prevent duplicate requests.
+- **Per-template export timeouts**: `EXPORT_TIMEOUT_FULL_MS` (180s) for `full_dossier`, `EXPORT_TIMEOUT_QUICK_MS` (90s) for `quick_brief`. Configurable via env vars.
+- **iOS PDF download workaround**: `downloadPdfBlob()` detects iOS (WebKit ignores `download` attribute on blob URLs) and falls back to `window.open()`.
+- **Canvas overlay UI scaling**: Shadow snapshot overlays (compass, scale bar, legend) use `uiScale` factor relative to offscreen canvas width for resolution-independent sizing.
+- **`loadingRef.current` guard on sunlight start**: Prevents sunlight computation during Phase 1 (target-only, surrounding still loading) which would produce incorrect results.
+- **Test patterns**: `onBeforeGenerate` blocking test uses externally-controlled promise + verify export API not called while pending. iOS download test mocks `navigator.userAgent` to iPhone UA string.
 
 ## Sunlight Workers & Web Worker Patterns (added 2026-02-28)
 

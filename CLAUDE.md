@@ -158,3 +158,19 @@ Key patterns from the PDF dossier logo fix session (subagent-driven development)
 - **Dirty working tree causes false test failures during task verification**: Uncommitted edits from other tasks to shared files (pdf_export.py, dossier.tex.j2) cause unrelated test failures. Run only the task-specific test file when the working tree has other pending changes.
 - **Pillow is an undeclared production dependency**: Used in chart_renderer.py and pdf_export.py but missing from pyproject.toml. Tests must use skipif guards until it is declared.
 - **3-stage subagent pattern adds measurable review value**: implement -> spec review -> code quality review caught 5 issues per task that the implementer missed (misleading names, missing guards, imprecise assertions).
+
+## Session Learnings (2026-03-05) — P0 Sunlight Pipeline Fix
+
+Key patterns from the P0 sunlight pipeline fix session (SVF WebGL crash + export button gating):
+
+- **Three.js r182 `readRenderTargetPixels()` requires explicit `activeCubeFaceIndex` for `WebGLCubeRenderTarget`**: Omitting the face index parameter crashes in the `finally` block (`bindFramebuffer()` receives array of framebuffers instead of single one). This crashed both SVF Worker AND main-thread fallback, silently failing for every address.
+- **Silent errors compound multiplicatively**: 5 independent silent failure modes (WebGL crash swallowed by Worker, Worker failure swallowed by `.catch(() => undefined)`, entitlement guard silent return, race condition with no timeout, DEV-only logging) individually survivable but combined produced zero output while appearing functional.
+- **`.catch(() => undefined)` on fire-and-forget async is a critical anti-pattern**: Sunlight submission swallowed all errors silently — the pipeline appeared to work with no console errors while the backend cache was permanently empty.
+- **DEV-only logging gates hide production errors**: `if (import.meta.env.DEV)` on critical failure logs (Worker crashes, analysis failures) made production debugging impossible. Critical errors must always log.
+- **`onBeforeGenerate` hook pattern decouples pre-export logic from export component**: Rather than putting sunlight submission inside `ExportBottomSheet`, the hook lets `App.tsx` own the lifecycle while the sheet just awaits a promise. Keeps export component testable in isolation.
+- **Safety timeout + unavailable state = UX escape hatch**: Without 180s timeout, a crashed sunlight computation leaves the export button disabled forever. Pattern: after reasonable duration, set "unavailable" flag so export enables and PDF renders "Data gap" gracefully.
+- **`build_risk_comparisons()` must run AFTER sunlight wait**: Building comparisons before the wait causes timing-dependent data inconsistency — late cache hit updates score but comparison data retains stale rows.
+- **A 2-line root cause can require a 27-file, 2686-line fix**: The SVF crash was 2 lines, but properly fixing the pipeline required robust submission with dedup/retry, export gating, pre-export hooks, safety timeouts, logging, backend cache verification, comparison ordering, iOS workarounds, and comprehensive tests.
+- **Resist fixing the correct component**: Backend wait infrastructure (`_await_sunlight_for_export()` polling every 250ms for 20s) was correct from the start. All failures were upstream. Investigate where data disappears, not where it is expected.
+- **Per-template export timeouts**: `full_dossier` needs 180s (sunlight computation + rendering), `quick_brief` needs 90s. Previous hardcoded 30s was insufficient.
+- **iOS PDF download workaround**: WebKit ignores `download` attribute on blob URLs. Detect iOS UA and fall back to `window.open()` with `noopener,noreferrer`.
