@@ -65,3 +65,23 @@ async def cache_set(key: str, value: dict | list | str, ttl: int | None = None) 
     except Exception:
         logger.debug("Cache set failed for key=%s", key, exc_info=True)
         _trip_circuit()
+
+
+async def cache_set_verified(
+    key: str, value: dict | list | str, ttl: int | None = None,
+) -> bool:
+    """Set a cached value and return whether the write succeeded."""
+    if _circuit_is_open():
+        return False
+    try:
+        r = _get_redis()
+        serialized = json.dumps(value)
+        if ttl:
+            await r.setex(key, ttl, serialized)
+        else:
+            await r.set(key, serialized)
+        return True
+    except Exception:
+        logger.warning("Cache set FAILED for key=%s", key, exc_info=True)
+        _trip_circuit()
+        return False

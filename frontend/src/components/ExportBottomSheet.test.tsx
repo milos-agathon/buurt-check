@@ -112,6 +112,43 @@ describe('ExportBottomSheet', () => {
     });
   });
 
+  it('awaits onBeforeGenerate before calling export API', async () => {
+    let releasePreflight: (() => void) | undefined;
+    const onBeforeGenerate = vi.fn().mockImplementation(
+      () => new Promise<void>((resolve) => { releasePreflight = resolve; }),
+    );
+    vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    renderSheet({ onBeforeGenerate });
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    expect(onBeforeGenerate).toHaveBeenCalledWith('full_dossier');
+    expect(api.exportBriefing).not.toHaveBeenCalled();
+
+    await act(async () => {
+      releasePreflight?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalled();
+    });
+  });
+
+  it('shows error and aborts export when onBeforeGenerate fails', async () => {
+    const onBeforeGenerate = vi.fn().mockRejectedValue(new Error('sunlight sync failed'));
+    renderSheet({ onBeforeGenerate });
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByText("We couldn't generate the PDF. Try again — your dossier data is still available.")).toBeInTheDocument();
+    });
+    expect(api.exportBriefing).not.toHaveBeenCalled();
+  });
+
   it('shows language mismatch warning when export language differs from UI language', () => {
     renderSheet();
     // UI language is 'en', default export language matches
@@ -193,7 +230,7 @@ describe('ExportBottomSheet', () => {
     });
   });
 
-  describe('sunlight readiness gating', () => {
+  describe('sunlight readiness messaging', () => {
     it('disables Generate button for full_dossier when sunlight not ready', () => {
       renderSheet({ sunlightReady: false });
       fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
@@ -257,6 +294,17 @@ describe('ExportBottomSheet', () => {
 
       const btn = screen.getByTestId('export-generate-btn');
       expect(btn).not.toBeDisabled();
+    });
+
+    it('does NOT start full_dossier export when sunlight is still computing', () => {
+      vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+      renderSheet({ sunlightReady: false });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      const btn = screen.getByTestId('export-generate-btn');
+      expect(btn).toBeDisabled();
+      fireEvent.click(btn);
+      expect(api.exportBriefing).not.toHaveBeenCalled();
     });
 
     it('does NOT show sunlight warning for quick_brief template', () => {

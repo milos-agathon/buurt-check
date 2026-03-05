@@ -41,3 +41,9 @@ CLAUDE.local.md
 
 # Tasks
 tasks/
+
+# Chrome debug profiles
+.chrome-debug-profile/
+
+# Agent memory (subagent-generated)
+backend/.claude/

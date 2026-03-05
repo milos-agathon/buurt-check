@@ -31,6 +31,7 @@ interface ExportBottomSheetProps {
   buyPending?: boolean;
   sunlightReady?: boolean;
   sunlightFailed?: boolean;
+  onBeforeGenerate?: (template: 'quick_brief' | 'full_dossier') => Promise<void> | void;
   onGenerateStart?: () => void;
   onGenerateSuccess?: () => void;
   onGenerateError?: () => void;
@@ -59,6 +60,7 @@ export default function ExportBottomSheet({
   buyPending = false,
   sunlightReady = true,
   sunlightFailed = false,
+  onBeforeGenerate,
   onGenerateStart,
   onGenerateSuccess,
   onGenerateError,
@@ -127,6 +129,8 @@ export default function ExportBottomSheet({
     setGeneratedBlob(null);
     onGenerateStart?.();
     try {
+      await onBeforeGenerate?.(template);
+
       let shadowB64: string | undefined;
       let shadowEquinoxB64: string | undefined;
       let shadowSummerB64: string | undefined;

@@ -324,7 +324,7 @@ describe('getRiskCards', () => {
 
 describe('submitSunlightAnalysis', () => {
   it('posts mapped payload to sunlight endpoint', async () => {
-    mockFetch.mockResolvedValue(okResponse({ status: 'ok' }));
+    mockFetch.mockResolvedValue(okResponse({ status: 'ok', cached: true }));
 
     await submitSunlightAnalysis('vbo-1', {
       winter: 3.1,
@@ -350,7 +350,7 @@ describe('submitSunlightAnalysis', () => {
   });
 
   it('includes report_id query parameter when provided', async () => {
-    mockFetch.mockResolvedValue(okResponse({ status: 'ok' }));
+    mockFetch.mockResolvedValue(okResponse({ status: 'ok', cached: true }));
 
     await submitSunlightAnalysis('vbo-1', {
       winter_hours: 2.4,
@@ -364,7 +364,7 @@ describe('submitSunlightAnalysis', () => {
   });
 
   it('maps extended SunlightResult fields (facade, ground, anisotropic SVF, irradiance)', async () => {
-    mockFetch.mockResolvedValue(okResponse({ status: 'ok' }));
+    mockFetch.mockResolvedValue(okResponse({ status: 'ok', cached: true }));
 
     await submitSunlightAnalysis('vbo-1', {
       winter: 2.5,
@@ -392,6 +392,29 @@ describe('submitSunlightAnalysis', () => {
       { orientation: 'south', height_label: '3m', winter_hours: 3.0, summer_hours: 11.0, annual_average: 7.0 },
       { orientation: 'north', height_label: '3m', winter_hours: 0.5, summer_hours: 4.0, annual_average: 2.0 },
     ]);
+  });
+
+  it('returns backend acknowledgement details for export gating', async () => {
+    mockFetch.mockResolvedValue(okResponse({
+      status: 'ok',
+      score: 47,
+      severity: 'moderate',
+      cached: false,
+    }));
+
+    await expect(
+      submitSunlightAnalysis('vbo-1', {
+        winter_hours: 2.4,
+        equinox_hours: 6.4,
+        summer_hours: 9.6,
+        analysis_year: 2026,
+      }),
+    ).resolves.toEqual({
+      status: 'ok',
+      score: 47,
+      severity: 'moderate',
+      cached: false,
+    });
   });
 
   it('throws ApiError on non-OK response', async () => {
@@ -593,6 +616,62 @@ describe('exportBriefing', () => {
     const body = JSON.parse(init.body);
     expect(body.report_id).toBe('report-123');
   });
+
+  it('uses a longer timeout for quick_brief exports (90s default)', async () => {
+    vi.useFakeTimers();
+    let capturedSignal: AbortSignal | null | undefined;
+    mockFetch.mockImplementation((_url: string, opts?: RequestInit) => {
+      capturedSignal = opts?.signal;
+      return new Promise<Response>(() => {});
+    });
+
+    const promise = exportBriefing({
+      vboId: 'vbo-1',
+      rdX: 1,
+      rdY: 2,
+      lat: 3,
+      lng: 4,
+      address: 'Test',
+      template: 'quick_brief',
+    });
+
+    expect(capturedSignal?.aborted).toBe(false);
+    vi.advanceTimersByTime(89_999);
+    expect(capturedSignal?.aborted).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(capturedSignal?.aborted).toBe(true);
+
+    vi.useRealTimers();
+    promise.catch(() => {});
+  });
+
+  it('uses a longer timeout for full_dossier exports (180s default)', async () => {
+    vi.useFakeTimers();
+    let capturedSignal: AbortSignal | null | undefined;
+    mockFetch.mockImplementation((_url: string, opts?: RequestInit) => {
+      capturedSignal = opts?.signal;
+      return new Promise<Response>(() => {});
+    });
+
+    const promise = exportBriefing({
+      vboId: 'vbo-1',
+      rdX: 1,
+      rdY: 2,
+      lat: 3,
+      lng: 4,
+      address: 'Test',
+      template: 'full_dossier',
+    });
+
+    expect(capturedSignal?.aborted).toBe(false);
+    vi.advanceTimersByTime(179_999);
+    expect(capturedSignal?.aborted).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(capturedSignal?.aborted).toBe(true);
+
+    vi.useRealTimers();
+    promise.catch(() => {});
+  });
 });
 
 // ─── reports + billing (monetization) ───────────────────────────────────────
@@ -665,6 +744,12 @@ describe('createCheckoutSession', () => {
 // ─── downloadPdfBlob ──────────────────────────────────────────────────────────
 
 describe('downloadPdfBlob', () => {
+  function mockNavigatorForIOS() {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/121.0.0.0 Mobile/15E148 Safari/604.1',
+    );
+  }
+
   it('creates and clicks a download link', () => {
     vi.useFakeTimers();
     const appendChildSpy = vi.spyOn(document.body, 'appendChild');
@@ -688,6 +773,28 @@ describe('downloadPdfBlob', () => {
 
     appendChildSpy.mockRestore();
     removeChildSpy.mockRestore();
+    createElementSpy.mockRestore();
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('opens blob in a new tab on iOS instead of anchor download', () => {
+    vi.useFakeTimers();
+    mockNavigatorForIOS();
+    const createElementSpy = vi.spyOn(document, 'createElement');
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test');
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(window);
+
+    downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
+
+    expect(openSpy).toHaveBeenCalledWith('blob:test', '_blank', 'noopener,noreferrer');
+    expect(createElementSpy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(60_000);
+    expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
+
+    openSpy.mockRestore();
     createElementSpy.mockRestore();
     createObjectURLSpy.mockRestore();
     revokeObjectURLSpy.mockRestore();

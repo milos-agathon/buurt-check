@@ -404,6 +404,8 @@ export default function NeighborhoodViewer3D({
   onSunlightErrorRef.current = onSunlightError;
   const onShadowSnapshotsRef = useRef(onShadowSnapshots);
   onShadowSnapshotsRef.current = onShadowSnapshots;
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
   const allBuildingsReadyRef = useRef(false);
   const neighborBuildFrameRef = useRef<number | null>(null);
   const dampingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1100,52 +1102,61 @@ export default function NeighborhoodViewer3D({
           overlayCtx.clearRect(0, 0, cw, ch);
           // Draw the 3D render onto the overlay canvas
           overlayCtx.drawImage(renderTarget.domElement, 0, 0, cw, ch);
+          const uiScale = Math.max(0.45, Math.min(1.2, cw / OFFSCREEN_W));
+          const px = (value: number) => Math.max(1, Math.round(value * uiScale));
+          const uiMargin = px(40);
+          const uiTextColor = 'rgba(28, 45, 63, 0.96)';
 
           // --- Timestamp + extent (top-left) ---
           const timestamp = formatTimestamp(date);
-          const metadataBoxWidth = Math.min(cw - 80, 1320);
-          const metadataBoxHeight = 180;
+          const metadataBoxWidth = Math.min(cw - (2 * uiMargin), px(1500));
+          const metadataBoxHeight = px(224);
+          const metadataPad = px(26);
           overlayCtx.save();
           overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
-          overlayCtx.fillRect(32, 32, metadataBoxWidth, metadataBoxHeight);
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
-          overlayCtx.font = '700 46px sans-serif';
+          overlayCtx.fillRect(uiMargin, uiMargin, metadataBoxWidth, metadataBoxHeight);
+          overlayCtx.fillStyle = uiTextColor;
+          overlayCtx.font = `700 ${px(54)}px sans-serif`;
           overlayCtx.textAlign = 'left';
-          overlayCtx.fillText(config.title, 56, 84);
-          overlayCtx.font = '600 36px sans-serif';
-          overlayCtx.fillText(`${config.hour.toString().padStart(2, '0')}:00 (${SNAPSHOT_TIME_ZONE})`, 56, 128);
-          overlayCtx.font = '32px sans-serif';
-          overlayCtx.fillText(`Date: ${timestamp}`, 56, 166);
+          overlayCtx.fillText(config.title, uiMargin + metadataPad, uiMargin + px(64));
+          overlayCtx.font = `600 ${px(42)}px sans-serif`;
+          overlayCtx.fillText(
+            `${config.hour.toString().padStart(2, '0')}:00 (${SNAPSHOT_TIME_ZONE})`,
+            uiMargin + metadataPad,
+            uiMargin + px(120),
+          );
+          overlayCtx.font = `${px(36)}px sans-serif`;
+          overlayCtx.fillText(`Date: ${timestamp}`, uiMargin + metadataPad, uiMargin + px(174));
           overlayCtx.restore();
 
           // --- Compass rose (top-right, >= 12mm equivalent at 300 DPI) ---
-          const compassDiameterPx = 170;
+          const compassDiameterPx = px(190);
           const compassRadius = compassDiameterPx / 2;
-          const compassCx = cw - 140;
-          const compassCy = 150;
+          const compassCx = cw - uiMargin - compassRadius;
+          const compassCy = uiMargin + compassRadius + px(24);
           overlayCtx.save();
           overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
           overlayCtx.beginPath();
           overlayCtx.arc(compassCx, compassCy, compassRadius, 0, Math.PI * 2);
           overlayCtx.fill();
-          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.96)';
-          overlayCtx.lineWidth = 4;
+          overlayCtx.strokeStyle = uiTextColor;
+          overlayCtx.lineWidth = px(4);
           overlayCtx.stroke();
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
-          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.96)';
-          overlayCtx.lineWidth = 5;
-          overlayCtx.font = '700 42px sans-serif';
+          overlayCtx.fillStyle = uiTextColor;
+          overlayCtx.strokeStyle = uiTextColor;
+          overlayCtx.lineWidth = px(5);
+          overlayCtx.font = `700 ${px(46)}px sans-serif`;
           overlayCtx.textAlign = 'center';
-          overlayCtx.fillText('N', compassCx, compassCy - compassRadius + 44);
+          overlayCtx.fillText('N', compassCx, compassCy - compassRadius + px(48));
           // Arrow shaft and head
           overlayCtx.beginPath();
-          overlayCtx.moveTo(compassCx, compassCy + compassRadius - 28);
-          overlayCtx.lineTo(compassCx, compassCy - compassRadius + 58);
+          overlayCtx.moveTo(compassCx, compassCy + compassRadius - px(30));
+          overlayCtx.lineTo(compassCx, compassCy - compassRadius + px(62));
           overlayCtx.stroke();
           overlayCtx.beginPath();
-          overlayCtx.moveTo(compassCx, compassCy - compassRadius + 48);
-          overlayCtx.lineTo(compassCx - 16, compassCy - compassRadius + 76);
-          overlayCtx.lineTo(compassCx + 16, compassCy - compassRadius + 76);
+          overlayCtx.moveTo(compassCx, compassCy - compassRadius + px(52));
+          overlayCtx.lineTo(compassCx - px(18), compassCy - compassRadius + px(80));
+          overlayCtx.lineTo(compassCx + px(18), compassCy - compassRadius + px(80));
           overlayCtx.closePath();
           overlayCtx.fill();
           overlayCtx.restore();
@@ -1176,61 +1187,84 @@ export default function NeighborhoodViewer3D({
           }
 
           // --- Scale bar (bottom-left) ---
-          const scalePx = SCALE_BAR_METERS / metersPerPixel;
-          const sx = 56;
-          const sy = ch - 120;
+          const scalePx = Math.max(px(150), Math.min(SCALE_BAR_METERS / metersPerPixel, cw * 0.3));
+          const scalePanelPadX = px(26);
+          const scalePanelPadY = px(28);
+          const scalePanelW = scalePx + (2 * scalePanelPadX);
+          const scalePanelH = px(210);
+          const scalePanelX = uiMargin;
+          const scalePanelY = ch - uiMargin - scalePanelH;
+          const sx = scalePanelX + scalePanelPadX;
+          const sy = scalePanelY + scalePanelPadY + px(40);
           overlayCtx.save();
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
-          overlayCtx.strokeStyle = 'rgba(28, 45, 63, 0.96)';
-          overlayCtx.lineWidth = 8;
+          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
+          overlayCtx.fillRect(scalePanelX, scalePanelY, scalePanelW, scalePanelH);
+          overlayCtx.fillStyle = uiTextColor;
+          overlayCtx.strokeStyle = uiTextColor;
+          overlayCtx.lineWidth = px(16);
           // Bar
           overlayCtx.beginPath();
           overlayCtx.moveTo(sx, sy);
           overlayCtx.lineTo(sx + scalePx, sy);
           overlayCtx.stroke();
           // End caps
+          const capHalf = px(36);
           overlayCtx.beginPath();
-          overlayCtx.moveTo(sx, sy - 16);
-          overlayCtx.lineTo(sx, sy + 16);
-          overlayCtx.moveTo(sx + scalePx, sy - 16);
-          overlayCtx.lineTo(sx + scalePx, sy + 16);
+          overlayCtx.moveTo(sx, sy - capHalf);
+          overlayCtx.lineTo(sx, sy + capHalf);
+          overlayCtx.moveTo(sx + scalePx, sy - capHalf);
+          overlayCtx.lineTo(sx + scalePx, sy + capHalf);
           overlayCtx.stroke();
           // Label
-          overlayCtx.font = '600 34px sans-serif';
+          overlayCtx.font = `700 ${px(90)}px sans-serif`;
           overlayCtx.textAlign = 'center';
-          overlayCtx.fillText(`${SCALE_BAR_METERS}m`, sx + scalePx / 2, sy + 54);
+          overlayCtx.fillText(`${SCALE_BAR_METERS}m`, sx + scalePx / 2, sy + px(110));
           overlayCtx.restore();
 
           // --- Shadow legend + source attribution (bottom-right) ---
-          const legendW = 1080;
-          const legendH = 220;
-          const legendX = cw - legendW - 40;
-          const legendY = ch - legendH - 40;
+          const legendW = Math.max(px(1000), Math.min(px(1600), cw - (2 * uiMargin)));
+          const legendH = Math.max(px(440), Math.min(px(520), ch - (2 * uiMargin)));
+          const legendX = cw - legendW - uiMargin;
+          const legendY = ch - legendH - uiMargin;
+          const legendPad = px(32);
+          const legendSwatchSize = px(80);
+          const legendLabelX = legendX + legendPad + legendSwatchSize + px(24);
           overlayCtx.save();
           overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
           overlayCtx.fillRect(legendX, legendY, legendW, legendH);
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
-          overlayCtx.font = '700 36px sans-serif';
+          overlayCtx.fillStyle = uiTextColor;
+          overlayCtx.font = `700 ${px(72)}px sans-serif`;
           overlayCtx.textAlign = 'left';
-          overlayCtx.fillRect(legendX + 24, legendY + 28, 40, 40);
-          overlayCtx.fillText('Direct sun', legendX + 82, legendY + 60);
+          const shadowRowY = legendY + legendPad;
           overlayCtx.fillStyle = 'rgba(92, 106, 126, 0.98)';
-          overlayCtx.fillRect(legendX + 360, legendY + 28, 40, 40);
-          overlayCtx.fillStyle = 'rgba(28, 45, 63, 0.96)';
-          overlayCtx.fillText('Shadow', legendX + 418, legendY + 60);
-          overlayCtx.font = '600 34px sans-serif';
+          overlayCtx.fillRect(legendX + legendPad, shadowRowY, legendSwatchSize, legendSwatchSize);
+          overlayCtx.fillStyle = uiTextColor;
+          overlayCtx.fillText('Shadow', legendLabelX, shadowRowY + px(66));
+          const targetRowY = shadowRowY + legendSwatchSize + px(24);
+          overlayCtx.fillStyle = '#2EC4B6';
+          overlayCtx.fillRect(legendX + legendPad, targetRowY, legendSwatchSize, legendSwatchSize);
+          overlayCtx.fillStyle = uiTextColor;
+          overlayCtx.fillText('Target building', legendLabelX, targetRowY + px(66));
+          overlayCtx.font = `600 ${px(56)}px sans-serif`;
+          const meaningY = targetRowY + legendSwatchSize + px(52);
+          overlayCtx.fillText('Dark areas indicate shadow at this time', legendX + legendPad, meaningY);
+          const sunPosY = meaningY + px(52);
           if (sunAzimuthDeg != null && sunAltitudeDeg != null) {
             overlayCtx.fillText(
-              `Sun position: az ${Math.round(sunAzimuthDeg)} deg / alt ${Math.round(sunAltitudeDeg)} deg`,
-              legendX + 24,
-              legendY + 118,
+              `Sun position: az ${Math.round(sunAzimuthDeg)}° / alt ${Math.round(sunAltitudeDeg)}°`,
+              legendX + legendPad,
+              sunPosY,
             );
           } else {
-            overlayCtx.fillText('Sun position unavailable', legendX + 24, legendY + 118);
+            overlayCtx.fillText('Sun position unavailable', legendX + legendPad, sunPosY);
           }
-          overlayCtx.fillText(`${config.title} · ${config.hour.toString().padStart(2, '0')}:00 local`, legendX + 24, legendY + 164);
-          overlayCtx.font = '500 30px sans-serif';
-          overlayCtx.fillText('Source: 3DBAG / TU Delft + SunCalc', legendX + 24, legendY + 204);
+          overlayCtx.fillText(
+            `${config.title} · ${config.hour.toString().padStart(2, '0')}:00 local`,
+            legendX + legendPad,
+            sunPosY + px(52),
+          );
+          overlayCtx.font = `500 ${px(48)}px sans-serif`;
+          overlayCtx.fillText('Source: 3DBAG / TU Delft + SunCalc', legendX + legendPad, legendY + legendH - px(28));
           overlayCtx.restore();
 
           const dataUrl = overlayCanvas.toDataURL('image/png');
@@ -1628,17 +1662,46 @@ export default function NeighborhoodViewer3D({
   const computeSunlight = useCallback(async () => {
     const ctx = sceneRef.current;
     const callback = onSunlightAnalysisRef.current;
-    if (!ctx || !callback || buildings.length === 0 || !targetPandId) return;
-    if (!allBuildingsReadyRef.current) return;
+    if (!ctx || !callback || buildings.length === 0 || !targetPandId) {
+      console.warn('[sunlight] computeSunlight guard failed', {
+        hasCtx: Boolean(ctx),
+        hasCallback: Boolean(callback),
+        buildingCount: buildings.length,
+        hasTargetPandId: Boolean(targetPandId),
+      });
+      return;
+    }
+    if (!allBuildingsReadyRef.current) {
+      console.warn('[sunlight] skipped — buildings not ready');
+      return;
+    }
+    // Don't compute during Phase 1 (target-only, surrounding still loading)
+    if (loadingRef.current) {
+      console.warn('[sunlight] skipped — surrounding still loading');
+      return;
+    }
 
     const target = buildings.find((building) => building.pand_id === targetPandId);
-    if (!target || target.footprint.length < 3) return;
+    if (!target || target.footprint.length < 3) {
+      console.warn('[sunlight] skipped — target not found or footprint too small', {
+        hasTarget: Boolean(target),
+        footprintLength: target?.footprint.length ?? 0,
+      });
+      return;
+    }
 
     // Allow re-entry: abort previous computation, then mark as computing
     sunlightAbortRef.current?.abort();
     sunlightComputed.current = true;
     const abortController = new AbortController();
     sunlightAbortRef.current = abortController;
+    const startedAt = performance.now();
+    if (import.meta.env.DEV) {
+      console.info('[3D] Sunlight analysis started', {
+        targetPandId,
+        buildingCount: buildings.length,
+      });
+    }
 
     try {
       const minGround = Math.min(...buildings.map((building) => building.ground_height));
@@ -1703,9 +1766,7 @@ export default function NeighborhoodViewer3D({
             abortSignal: abortController.signal,
           });
         } catch (workerError) {
-          if (import.meta.env.DEV) {
-            console.warn('[3D] Sunlight Worker failed, falling back to main thread', workerError);
-          }
+          console.warn('[sunlight] Worker failed, falling back to main thread', workerError);
         }
       }
 
@@ -1723,6 +1784,11 @@ export default function NeighborhoodViewer3D({
 
       if (!result || abortController.signal.aborted) {
         if (!result && !abortController.signal.aborted) {
+          if (import.meta.env.DEV) {
+            console.warn('[3D] Sunlight analysis returned no result', {
+              elapsedMs: Math.round(performance.now() - startedAt),
+            });
+          }
           onSunlightErrorRef.current?.();
         }
         sunlightComputed.current = false;
@@ -1843,6 +1909,20 @@ export default function NeighborhoodViewer3D({
       const range = applyTargetHeatmap(nextResult);
       setHeatmapRange(range);
       callback(nextResult);
+      console.info('[sunlight] computation completed', {
+        winterHours: nextResult.winter?.toFixed(1),
+        buildingCount: buildings.length,
+        elapsedMs: Math.round(performance.now() - startedAt),
+      });
+      if (import.meta.env.DEV) {
+        console.info('[3D] Sunlight analysis completed', {
+          method: nextResult.analysisMethod,
+          winter: nextResult.winter,
+          equinox: nextResult.equinox,
+          summer: nextResult.summer,
+          svf: nextResult.svf ?? null,
+        });
+      }
       renderOnce();
 
       const canEstimateIrradiance = (
@@ -1906,8 +1986,15 @@ export default function NeighborhoodViewer3D({
       }
     } catch (error) {
       const isAbort = error instanceof DOMException && error.name === 'AbortError';
-      if (!isAbort && import.meta.env.DEV) {
-        console.warn('[3D] Sunlight analysis failed', error);
+      if (isAbort) {
+        console.info('[sunlight] analysis aborted', {
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
+      } else {
+        console.error('[sunlight] analysis failed', {
+          elapsedMs: Math.round(performance.now() - startedAt),
+          error,
+        });
       }
       if (!isAbort) {
         onSunlightErrorRef.current?.();
@@ -1940,12 +2027,12 @@ export default function NeighborhoodViewer3D({
     }
   }, [onShadowSnapshots, captureSnapshots]);
 
-  // Fallback: run sunlight analysis when callback arrives after buildings are ready.
+  // Fallback: run sunlight analysis when callback arrives or loading finishes.
   useEffect(() => {
-    if (onSunlightAnalysis && allBuildingsReadyRef.current && !sunlightComputed.current) {
+    if (onSunlightAnalysis && allBuildingsReadyRef.current && !sunlightComputed.current && !loadingRef.current) {
       void computeSunlight();
     }
-  }, [onSunlightAnalysis, computeSunlight]);
+  }, [onSunlightAnalysis, computeSunlight, loading]);
 
   useEffect(() => {
     if (sunlightRetryToken <= 0) return;

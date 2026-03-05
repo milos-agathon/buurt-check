@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     cache_ttl_foundation: int = 2592000  # 30 days (soil doesn't change)
     cache_ttl_livability: int = 2592000  # 30 days
     cache_ttl_weather_tmy: int = 31536000  # 365 days (TMY is static climatology)
-    pdf_export_sunlight_wait_seconds: float = 5.0
+    pdf_export_sunlight_wait_seconds: float = 20.0
 
     # Load env vars whether uvicorn is started from repo root or backend/.
     model_config = {

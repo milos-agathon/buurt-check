@@ -146,6 +146,7 @@ def _generate_executive_summary(
     sunlight_score: int | None,
     livability: LivabilityResponse | None,
     is_nl: bool,
+    crime_score: int | None = None,
 ) -> str:
     """Generate a 3-5 sentence bilingual executive summary from risk and livability data.
 
@@ -163,6 +164,8 @@ def _generate_executive_summary(
         categories.append(("air quality", "luchtkwaliteit", risks.air_quality.score))
         categories.append(("climate stress", "klimaatstress", risks.climate_stress.score))
     categories.append(("sunlight", "zonlicht", sunlight_score))
+    if crime_score is not None:
+        categories.append(("crime", "criminaliteit", crime_score))
 
     # --- Count severities ---
     severity_counts: dict[str, int] = {"good": 0, "moderate": 0, "poor": 0, "critical": 0}
@@ -1063,9 +1066,12 @@ class BuurtCheckPDF(FPDF):
 
 
 def _build_risk_cells(
-    risks: RiskCardsResponse | None, sunlight_score: int | None, is_nl: bool
+    risks: RiskCardsResponse | None,
+    sunlight_score: int | None,
+    is_nl: bool,
+    crime_score: int | None = None,
 ) -> list[tuple[str, int | None, str]]:
-    """Build cell data for risk grid. Always returns exactly 4 cells."""
+    """Build cell data for risk grid. Returns 4 cells (or 5 when crime available)."""
     cells: list[tuple[str, int | None, str]] = []
 
     categories = [
@@ -1083,7 +1089,7 @@ def _build_risk_cells(
                 _severity_label(card.score, is_nl),
             ))
         else:
-            # Always produce 4 cells even when risks unavailable (Finding 6)
+            # Always produce cells even when risks unavailable (Finding 6)
             cells.append((
                 cat_name_nl if is_nl else cat_name_en,
                 None,
@@ -1095,6 +1101,14 @@ def _build_risk_cells(
         sunlight_score,
         _severity_label(sunlight_score, is_nl),
     ))
+
+    if crime_score is not None:
+        cells.append((
+            "Criminaliteit" if is_nl else "Crime",
+            crime_score,
+            _severity_label(crime_score, is_nl),
+        ))
+
     return cells
 
 
@@ -1196,25 +1210,41 @@ def _draw_shadow_image(pdf: BuurtCheckPDF, shadow_image_b64: str | None, is_nl: 
         logger.warning("Failed to embed shadow snapshot in PDF")
 
 
-# Hour-to-caption mapping for shadow triptych
-# December 21 is always CET (UTC+1), never CEST
-_SHADOW_CAPTIONS: dict[int, dict[str, str]] = {
-    9: {"en": "09:00 CET", "nl": "09:00 CET"},
-    12: {"en": "12:00 CET", "nl": "12:00 CET"},
-    17: {"en": "17:00 CET", "nl": "17:00 CET"},
+# Season-label-to-caption mapping for shadow triptych
+# All snapshots are at solar noon (12:00 CET) on different seasonal dates
+_SHADOW_SEASON_LABELS: dict[str, dict[str, str]] = {
+    "winter": {"en": "Winter solstice \u00b7 12:00 CET", "nl": "Winterzonnewende \u00b7 12:00 CET"},
+    "equinox": {"en": "Spring equinox \u00b7 12:00 CET", "nl": "Lentepunt \u00b7 12:00 CET"},
+    "summer": {"en": "Summer solstice \u00b7 12:00 CET", "nl": "Zomerzonnewende \u00b7 12:00 CET"},
 }
+_SHADOW_SEASON_ORDER = ["winter", "equinox", "summer"]
 
 
-def _shadow_timestamps_line(hours: list[int], is_nl: bool) -> str:
-    """Build figure-level timestamp disclosure with timezone."""
+def _shadow_timestamps_line(labels: list[str], is_nl: bool) -> str:
+    """Build figure-level timestamp disclosure with timezone.
+
+    Accepts season labels (winter/equinox/summer) and produces a multi-date
+    timestamp line. Falls back to Dec 21 if no recognised labels provided.
+    """
     year = date.today().year
-    ordered = sorted({h for h in hours if 0 <= h <= 23})
-    if not ordered:
-        ordered = [12]
-    hour_labels = " | ".join(f"{h:02d}:00" for h in ordered)
+    _label_dates = {
+        "winter": "Dec 21",
+        "equinox": "Mar 20",
+        "summer": "Jun 21",
+    }
+    # Preserve season order, deduplicate
+    seen: set[str] = set()
+    ordered_dates: list[str] = []
+    for lbl in _SHADOW_SEASON_ORDER:
+        if lbl in labels and lbl not in seen:
+            seen.add(lbl)
+            ordered_dates.append(_label_dates[lbl])
+    if not ordered_dates:
+        ordered_dates = ["Dec 21"]
+    date_str = ", ".join(ordered_dates)
     if is_nl:
-        return f"Tijdstempels: {year}-12-21 {hour_labels} CET (Europe/Amsterdam)"
-    return f"Timestamps: {year}-12-21 {hour_labels} CET (Europe/Amsterdam)"
+        return f"Tijdstempels: {date_str} {year} \u2014 12:00 CET (Europe/Amsterdam)"
+    return f"Timestamps: {date_str} {year} \u2014 12:00 CET (Europe/Amsterdam)"
 
 
 def _shadow_meta_line(is_nl: bool) -> str:
@@ -1234,7 +1264,7 @@ def _draw_shadow_triptych(
     shadow_images: list[dict],
     is_nl: bool,
 ) -> None:
-    """Draw 3 shadow snapshots side by side with captions including timezone.
+    """Draw 3 shadow panels full-width, stacked vertically with season captions.
 
     Each dict has keys: hour (int), label (str), image_b64 (str).
     Falls back to single-image layout if fewer than 3 images.
@@ -1248,31 +1278,35 @@ def _draw_shadow_triptych(
         _draw_shadow_image(pdf, first.get("image_b64"), is_nl)
         return
 
-    # Sort by hour to ensure morning/noon/evening order
-    sorted_imgs = sorted(shadow_images[:3], key=lambda s: s.get("hour", 0))
+    # Sort by season order (winter → equinox → summer) using label field.
+    # Fall back to hour-based sorting for legacy data without season labels.
+    season_rank = {s: i for i, s in enumerate(_SHADOW_SEASON_ORDER)}
+    sorted_imgs = sorted(
+        shadow_images[:3],
+        key=lambda s: season_rank.get(s.get("label", ""), s.get("hour", 0)),
+    )
 
     page_w = pdf.w - pdf.l_margin - pdf.r_margin  # ~170mm
-    gap = 3.0  # mm between images
-    img_w = (page_w - 2 * gap) / 3  # ~54.7mm each
-    # Aspect ratio 16:9 -> height = width * 9/16
-    img_h = img_w * 9 / 16
+    img_w = page_w  # full content width
+    # Aspect ratio 3:2 (images are 3000×2000) -> height = width * 2/3
+    img_h = img_w * 2 / 3
+    # Space needed per panel: image + caption + gap
+    panel_h = img_h + 5.0
 
     # Section label with premium badge
     pdf.draw_premium_badge()
     pdf.draw_section_label(
-        "Schaduwanalyse \u2014 winterzonnewende"
-        if is_nl
-        else "Shadow Analysis \u2014 winter solstice"
+        "Schaduwanalyse" if is_nl else "Shadow Analysis"
     )
     pdf.ln(1)
 
-    start_y = pdf.get_y()
     lang = "nl" if is_nl else "en"
     rendered_count = 0
-    rendered_hours: list[int] = []
+    rendered_labels: list[str] = []
 
     for i, img_data in enumerate(sorted_imgs):
         hour = img_data.get("hour", 0)
+        label = img_data.get("label", "")
         b64 = img_data.get("image_b64", "")
         if not b64:
             continue
@@ -1283,13 +1317,19 @@ def _draw_shadow_triptych(
             logger.warning("Failed to decode shadow image %d", i)
             continue
 
-        x = pdf.l_margin + i * (img_w + gap)
+        # Page-break guard: if not enough space for panel, add new page
+        available_h = pdf.h - pdf.b_margin - pdf.get_y()
+        if available_h < panel_h:
+            pdf.add_page()
 
-        # Draw image
+        panel_y = pdf.get_y()
+        x = pdf.l_margin
+
+        # Draw image at full content width
         try:
             pdf.image(
                 io.BytesIO(image_bytes),
-                x=x, y=start_y, w=img_w, h=img_h,
+                x=x, y=panel_y, w=img_w, h=img_h,
             )
         except Exception:
             logger.warning("Failed to embed shadow image %d in PDF", i)
@@ -1298,25 +1338,35 @@ def _draw_shadow_triptych(
         # Border
         pdf.set_draw_color(*BORDER)
         pdf.set_line_width(0.2)
-        pdf.rect(x, start_y, img_w, img_h, "D")
+        pdf.rect(x, panel_y, img_w, img_h, "D")
 
-        # Caption below image
-        caption = _SHADOW_CAPTIONS.get(hour, {}).get(lang, f"{hour:02d}:00 CET")
+        # Caption below image — use season label if available
+        season_captions = _SHADOW_SEASON_LABELS.get(label, {})
+        caption = season_captions.get(
+            lang, f"{label or 'Unknown'} \u00b7 {hour:02d}:00 CET"
+        )
         pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
-        pdf.set_xy(x, start_y + img_h + 0.5)
+        pdf.set_xy(x, panel_y + img_h + 0.5)
         pdf.cell(img_w, 3, caption, align="C")
 
+        # Advance cursor past this panel
+        pdf.set_y(panel_y + img_h + 5.0)
+
         rendered_count += 1
-        rendered_hours.append(hour)
+        rendered_labels.append(label)
 
     if rendered_count > 0:
-        pdf.set_y(start_y + img_h + 4.5)
+        # Page-break guard for timestamps/meta lines
+        available_h = pdf.h - pdf.b_margin - pdf.get_y()
+        if available_h < 12:
+            pdf.add_page()
+
         pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
         pdf.multi_cell(
             0, 3.5,
-            _shadow_timestamps_line(rendered_hours, is_nl),
+            _shadow_timestamps_line(rendered_labels, is_nl),
             align="L", new_x="LMARGIN", new_y="NEXT",
         )
         pdf.multi_cell(
@@ -1326,9 +1376,6 @@ def _draw_shadow_triptych(
         )
         pdf.set_text_color(*SLATE)
         pdf.ln(1)
-    else:
-        # All images failed — reset cursor
-        pdf.set_y(start_y)
 
 
 def _draw_address_block(
@@ -1773,34 +1820,12 @@ def _generate_quick_brief_latex(
                     )
                 )
 
-                if primary_shadow_b64:
-                    chart_jobs["shadow_chart"] = lambda b64=primary_shadow_b64: (
-                        chart_renderer.render_shadow_panels(
-                            images=[
-                                chart_renderer.ShadowImage(
-                                    season="winter",
-                                    image_b64=b64,
-                                    time_label="12:00",
-                                )
-                            ],
-                            metadata=chart_renderer.SunlightMeta(),
-                            output_format="png",
-                        )
-                    )
-
                 rendered_assets = render_chart_assets_parallel(chart_jobs)
                 risk_grid_chart_path = _write_chart_asset(
                     rendered_assets.get("risk_grid_chart"),
                     output_dir=assets_dir,
                     filename_stem="risk_grid",
                 )
-                shadow_chart = rendered_assets.get("shadow_chart")
-                if shadow_chart:
-                    shadow_path = _write_chart_asset(
-                        shadow_chart,
-                        output_dir=assets_dir,
-                        filename_stem="shadow_renderer",
-                    ) or shadow_path
 
             if viewing_questions and getattr(viewing_questions, "categories", None):
                 max_categories = 3
@@ -1916,12 +1941,28 @@ def _generate_full_dossier_latex(
 
         with tempfile.TemporaryDirectory(prefix="buurtcheck_latex_assets_") as tmp:
             assets_dir = Path(tmp)
-            winter_shadow_b64 = shadow_image_b64 or _primary_shadow_from_triptych(shadow_images)
-            if not winter_shadow_b64:
-                winter_shadow_b64 = shadow_equinox_b64 or shadow_summer_b64
-            shadow_path = _decode_b64_asset(
-                winter_shadow_b64, output_dir=assets_dir, filename_stem="shadow_winter",
-            )
+            shadow_image_paths: list[str] = []
+            for stem, b64 in [
+                ("shadow_winter", shadow_image_b64 or _primary_shadow_from_triptych(shadow_images)),
+                ("shadow_equinox", shadow_equinox_b64),
+                ("shadow_summer", shadow_summer_b64),
+            ]:
+                decoded = _decode_b64_asset(b64, output_dir=assets_dir, filename_stem=stem)
+                if decoded:
+                    shadow_image_paths.append(decoded)
+            if not shadow_image_paths and shadow_images:
+                for idx, item in enumerate(
+                    s for s in shadow_images if isinstance(s, dict) and s.get("image_b64")
+                ):
+                    if idx >= 3:
+                        break
+                    decoded = _decode_b64_asset(
+                        str(item["image_b64"]),
+                        output_dir=assets_dir,
+                        filename_stem=f"shadow_{idx}",
+                    )
+                    if decoded:
+                        shadow_image_paths.append(decoded)
             map_path = _decode_b64_asset(
                 location_map_b64, output_dir=assets_dir, filename_stem="location_map",
             )
@@ -2069,60 +2110,6 @@ def _generate_full_dossier_latex(
                         )
                     )
 
-                shadow_panels: list[Any] = []
-                if winter_shadow_b64:
-                    shadow_panels.append(
-                        chart_renderer.ShadowImage(
-                            season="winter",
-                            image_b64=winter_shadow_b64,
-                            time_label="12:00",
-                        )
-                    )
-                if shadow_equinox_b64:
-                    shadow_panels.append(
-                        chart_renderer.ShadowImage(
-                            season="equinox",
-                            image_b64=shadow_equinox_b64,
-                            time_label="12:00",
-                        )
-                    )
-                if shadow_summer_b64:
-                    shadow_panels.append(
-                        chart_renderer.ShadowImage(
-                            season="summer",
-                            image_b64=shadow_summer_b64,
-                            time_label="12:00",
-                        )
-                    )
-                if not shadow_panels and shadow_images:
-                    ordered = [s for s in shadow_images if s.get("image_b64")][:3]
-                    season_labels = ("winter", "equinox", "summer")
-                    for idx, item in enumerate(ordered):
-                        hour = int(item.get("hour", 12))
-                        season_hint = str(item.get("label", "")).strip().lower()
-                        season = season_labels[min(idx, 2)]
-                        if season_hint.startswith("winter"):
-                            season = "winter"
-                        elif season_hint.startswith("spring") or "equinox" in season_hint:
-                            season = "equinox"
-                        elif season_hint.startswith("summer"):
-                            season = "summer"
-                        shadow_panels.append(
-                            chart_renderer.ShadowImage(
-                                season=season,
-                                image_b64=str(item.get("image_b64")),
-                                time_label=f"{hour:02d}:00",
-                            )
-                        )
-                if shadow_panels:
-                    chart_jobs["shadow_chart"] = lambda panels=shadow_panels: (
-                        chart_renderer.render_shadow_panels(
-                            images=panels,
-                            metadata=chart_renderer.SunlightMeta(),
-                            output_format="png",
-                        )
-                    )
-
                 rendered_assets = render_chart_assets_parallel(chart_jobs)
                 risk_grid_chart_path = _write_chart_asset(
                     rendered_assets.get("risk_grid_chart"),
@@ -2156,15 +2143,6 @@ def _generate_full_dossier_latex(
                     filename_stem="livability",
                 )
 
-                shadow_chart = rendered_assets.get("shadow_chart")
-                shadow_chart_path = _write_chart_asset(
-                    shadow_chart,
-                    output_dir=assets_dir,
-                    filename_stem="shadow_renderer",
-                )
-                if shadow_chart_path:
-                    shadow_path = shadow_chart_path
-
             tex = render_dossier(
                 address=escape_latex(address),
                 language=language,
@@ -2195,7 +2173,7 @@ def _generate_full_dossier_latex(
                     else None
                 ),
                 energy_label=None,
-                shadow_image=shadow_path,
+                shadow_images=shadow_image_paths or None,
                 location_map=map_path,
                 sunlight_state=state,
                 sunlight_pending_message=(
@@ -2573,6 +2551,7 @@ def _draw_cover_page(
     location_map_b64: str | None = None,
     shadow_images: list[dict] | None = None,
     livability: LivabilityResponse | None = None,
+    crime_score: int | None = None,
 ) -> None:
     """Page 1: cover with address hero, shadow image, executive summary, risk grid."""
     # Cover wordmark — larger brand presence
@@ -3142,17 +3121,17 @@ def _build_risk_detail_data(
             NATIONAL, False,
         ),
         "who_limit": (
-            "WHO-doel (op scoreschaal)" if is_nl
-            else "WHO benchmark (mapped to score)",
+            "WHO-doel" if is_nl
+            else "WHO target",
             AMBER_WARN, True,
         ),
         "adaptation_target": (
-            "Doelstelling (op scoreschaal)" if is_nl
-            else "Target (mapped to score)", AMBER_WARN, True,
+            "Doelstelling" if is_nl
+            else "Target", AMBER_WARN, True,
         ),
         "daylight_target": (
-            "Daglichtdoel (op scoreschaal)" if is_nl
-            else "Daylight target (mapped to score)",
+            "Daglichtdoel" if is_nl
+            else "Daylight target",
             AMBER_WARN, True,
         ),
     }
@@ -4480,10 +4459,10 @@ def _draw_property_checks_page(
     has_triptych = shadow_images and len(shadow_images) >= 3
     if has_triptych:
         snapshot_text = (
-            "Schaduwopnamen op winterzonnewende (ochtend/middag/avond), "
+            "Seizoensgebonden schaduwopnamen (winter / lente / zomer), "
             "gegenereerd op basis van omliggende 3D-geometrie."
             if is_nl
-            else "Winter-solstice shadow snapshots (morning/noon/evening), "
+            else "Seasonal shadow snapshots (winter / equinox / summer), "
             "generated from surrounding 3D geometry."
         )
     elif shadow_image_b64:

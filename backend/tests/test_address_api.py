@@ -687,8 +687,9 @@ async def test_risk_cards_endpoint(mock_risk_cards, mock_cache_set, mock_cache_g
 
 
 @pytest.mark.asyncio
-@patch("app.api.address.cache_set", new_callable=AsyncMock)
-async def test_submit_sunlight_analysis_caches_result(mock_cache_set, client):
+@patch("app.api.address.cache_set_verified", new_callable=AsyncMock)
+async def test_submit_sunlight_analysis_caches_result(mock_cache_set_v, client):
+    mock_cache_set_v.return_value = True
     resp = await client.post(
         "/api/address/0363010000696734/sunlight",
         json={
@@ -704,9 +705,10 @@ async def test_submit_sunlight_analysis_caches_result(mock_cache_set, client):
     assert data["status"] == "ok"
     assert data["score"] == 50
     assert data["severity"] == "moderate"
+    assert data["cached"] is True
 
-    mock_cache_set.assert_called_once()
-    cache_key, cached_value = mock_cache_set.call_args.args[:2]
+    mock_cache_set_v.assert_called_once()
+    cache_key, cached_value = mock_cache_set_v.call_args.args[:2]
     assert cache_key == "sunlight:0363010000696734"
     assert cached_value["score"] == 50
     assert cached_value["level"] == "moderate"
@@ -714,9 +716,10 @@ async def test_submit_sunlight_analysis_caches_result(mock_cache_set, client):
 
 
 @pytest.mark.asyncio
-@patch("app.api.address.cache_set", new_callable=AsyncMock)
-async def test_submit_sunlight_extended_fields_persisted(mock_cache_set, client):
+@patch("app.api.address.cache_set_verified", new_callable=AsyncMock)
+async def test_submit_sunlight_extended_fields_persisted(mock_cache_set_v, client):
     """Extended sunlight fields (facade, ground, anisotropic SVF, irradiance) are cached."""
+    mock_cache_set_v.return_value = True
     resp = await client.post(
         "/api/address/0363010000696734/sunlight",
         json={
@@ -750,8 +753,8 @@ async def test_submit_sunlight_extended_fields_persisted(mock_cache_set, client)
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
 
-    mock_cache_set.assert_called_once()
-    cached_value = mock_cache_set.call_args.args[1]
+    mock_cache_set_v.assert_called_once()
+    cached_value = mock_cache_set_v.call_args.args[1]
     assert cached_value["annual_average"] == 5.8
     assert cached_value["ground_annual_average"] == 4.2
     assert cached_value["svf_anisotropic"] == 0.55
@@ -763,9 +766,10 @@ async def test_submit_sunlight_extended_fields_persisted(mock_cache_set, client)
 
 
 @pytest.mark.asyncio
-@patch("app.api.address.cache_set", new_callable=AsyncMock)
-async def test_submit_sunlight_without_extended_fields_still_works(mock_cache_set, client):
+@patch("app.api.address.cache_set_verified", new_callable=AsyncMock)
+async def test_submit_sunlight_without_extended_fields_still_works(mock_cache_set_v, client):
     """Backward compat: old payload without extended fields still succeeds."""
+    mock_cache_set_v.return_value = True
     resp = await client.post(
         "/api/address/0363010000696734/sunlight",
         json={
@@ -777,7 +781,7 @@ async def test_submit_sunlight_without_extended_fields_still_works(mock_cache_se
     )
     assert resp.status_code == 200
 
-    cached_value = mock_cache_set.call_args.args[1]
+    cached_value = mock_cache_set_v.call_args.args[1]
     assert cached_value["facade_results"] == []
     assert cached_value["annual_average"] is None
     assert cached_value["ground_annual_average"] is None

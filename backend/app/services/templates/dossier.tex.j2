@@ -87,9 +87,12 @@ SunCalc + 3DBAG \\
 }}
 <% endif %>
 
-<% if shadow_image %>
+<% if shadow_images %>
 \subsection*{<% if language == "nl" %>Schaduwopnamen<% else %>Shadow Snapshots<% endif %>}
-\includegraphics[width=\linewidth]{<< shadow_image >>}
+<% for img in shadow_images %>
+\noindent\includegraphics[width=\linewidth]{<< img >>}
+<% if not loop.last %>\vspace{4pt}<% endif %>
+<% endfor %>
 \\{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Seizoensopnamen op 12:00 lokale tijd. Bron: 3DBAG / TU Delft + SunCalc.<% else %>Seasonal snapshots at 12:00 local time. Source: 3DBAG / TU Delft + SunCalc.<% endif %>}}
 <% if shadow_time_labels %>
 \\{\footnotesize\textcolor{MutedText}{<< shadow_time_labels|join(" · ") >>}}

@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from pydantic import AliasChoices, BaseModel, Field
 
 from app.api.dependencies import require_entitlement
-from app.cache.redis import cache_get, cache_set
+from app.cache.redis import cache_get, cache_set, cache_set_verified
 from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
 from app.models.building import BuildingFactsResponse
@@ -146,6 +146,15 @@ async def _get_cached_sunlight_card(vbo_id: str) -> SunlightRiskCard | None:
         return None
 
 
+def _resolve_sunlight_score(card: SunlightRiskCard | None) -> int | None:
+    """Resolve sunlight score with backward-compatible winter-hours fallback."""
+    if card is None:
+        return None
+    if card.score is not None:
+        return card.score
+    return normalize_sunlight_score(card.winter_hours)
+
+
 async def _await_sunlight_for_export(
     vbo_id: str,
     *,
@@ -154,15 +163,37 @@ async def _await_sunlight_for_export(
 ) -> SunlightRiskCard | None:
     """Best-effort wait for sunlight card to land in cache before exporting."""
     if timeout_seconds <= 0:
-        return await _get_cached_sunlight_card(vbo_id)
+        cached = await _get_cached_sunlight_card(vbo_id)
+        logger.info(
+            "sunlight_export_wait skipped vbo=%s timeout_s=%.2f cache_hit=%s",
+            vbo_id,
+            timeout_seconds,
+            cached is not None,
+        )
+        return cached
 
     start = time.monotonic()
+    attempts = 0
     while True:
+        attempts += 1
         card = await _get_cached_sunlight_card(vbo_id)
         if card is not None:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            logger.info(
+                "sunlight_export_wait hit vbo=%s attempts=%d waited_ms=%.0f",
+                vbo_id,
+                attempts,
+                elapsed_ms,
+            )
             return card
         elapsed = time.monotonic() - start
         if elapsed >= timeout_seconds:
+            logger.error(
+                "sunlight_export_wait timeout vbo=%s attempts=%d timeout_s=%.2f",
+                vbo_id,
+                attempts,
+                timeout_seconds,
+            )
             return None
         await asyncio.sleep(min(poll_interval_seconds, timeout_seconds - elapsed))
 
@@ -464,6 +495,7 @@ async def submit_sunlight_analysis(
     _: None = Depends(require_entitlement),
 ):
     """Accept client-computed sunlight analysis for caching and downstream use."""
+    started_at = time.monotonic()
     sunlight_score = normalize_sunlight_score(body.winter_hours)
     severity = (
         severity_from_score(sunlight_score)
@@ -516,10 +548,25 @@ async def submit_sunlight_analysis(
         ),
     )
 
-    await cache_set(
+    cache_ok = await cache_set_verified(
         f"sunlight:{vbo_id}",
         card.model_dump(mode="json"),
         ttl=settings.cache_ttl_risk_cards,
+    )
+    if not cache_ok:
+        logger.warning("sunlight_submit cache write FAILED vbo=%s", vbo_id)
+    logger.info(
+        (
+            "sunlight_submit cached vbo=%s score=%s severity=%s "
+            "winter=%.1f equinox=%.1f summer=%.1f elapsed_ms=%.0f"
+        ),
+        vbo_id,
+        sunlight_score,
+        severity.value,
+        body.winter_hours,
+        body.equinox_hours,
+        body.summer_hours,
+        (time.monotonic() - started_at) * 1000,
     )
 
     response.headers["Cache-Control"] = _CACHE_NO_STORE
@@ -527,6 +574,7 @@ async def submit_sunlight_analysis(
         "status": "ok",
         "score": sunlight_score,
         "severity": severity.value,
+        "cached": cache_ok,
     }
 
 
@@ -1195,13 +1243,33 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
 
     sunlight_score: int | None = None
     if risks and risks.sunlight:
-        sunlight_score = risks.sunlight.score
+        sunlight_score = _resolve_sunlight_score(risks.sunlight)
+
+    logger.info(
+        "export sunlight state vbo=%s has_risks_sunlight=%s sunlight_score=%s",
+        vbo_id,
+        risks.sunlight is not None if risks else False,
+        sunlight_score,
+    )
 
     if (
         body.template == "full_dossier"
-        and (risks is None or risks.sunlight is None)
         and sunlight_score is None
     ):
+        logger.info(
+            (
+                "export awaiting sunlight cache vbo=%s timeout_s=%.2f "
+                "has_shadow_inputs=%s"
+            ),
+            vbo_id,
+            settings.pdf_export_sunlight_wait_seconds,
+            bool(
+                body.shadow_image_b64
+                or body.shadow_equinox_b64
+                or body.shadow_summer_b64
+                or body.shadow_images
+            ),
+        )
         waited_sunlight = await _await_sunlight_for_export(
             vbo_id,
             timeout_seconds=settings.pdf_export_sunlight_wait_seconds,
@@ -1209,7 +1277,12 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
         if waited_sunlight is not None:
             if risks is not None:
                 risks.sunlight = waited_sunlight
-            sunlight_score = waited_sunlight.score
+            sunlight_score = _resolve_sunlight_score(waited_sunlight)
+            logger.info(
+                "export sunlight cache linked vbo=%s score=%s",
+                vbo_id,
+                sunlight_score,
+            )
 
     viewing_qs: ViewingQuestionsResponse | None = None
     if risks:
@@ -1266,6 +1339,8 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
         if neighborhood_stats:
             urbanization = neighborhood_stats.urbanization
         if risks:
+            # Build comparisons after optional sunlight wait so chart rows
+            # always match the final risk payload passed to PDF rendering.
             risk_comparisons_data = build_risk_comparisons(
                 vbo_id=vbo_id, cards=risks, urbanization=urbanization,
             )

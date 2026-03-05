@@ -543,6 +543,7 @@ function App() {
   const handledCheckoutParamsRef = useRef<string | null>(null);
   const tracked3DOpenKeyRef = useRef<string | null>(null);
   const latestSunlightSubmissionKeyRef = useRef<string | null>(null);
+  const sunlightSubmissionPromiseRef = useRef<Promise<void> | null>(null);
 
   // Deferred 3D fetch: store parameters when address resolves, trigger when viewport-near
   type Deferred3DParams = {
@@ -1008,21 +1009,165 @@ function App() {
     scrollDossierToTop();
   }, [scrollDossierToTop]);
 
+  const submitSunlightForExport = useCallback((
+    result: SunlightResult,
+    source: 'analysis' | 'entitlement-sync' | 'export',
+  ) => {
+    const timestamp = new Date().toISOString();
+    const vboId = address?.adresseerbaar_object_id;
+    if (!vboId || !isEntitled || !reportId) {
+      console.warn('[sunlight] submission skipped — missing prerequisites', {
+        timestamp,
+        source,
+        hasVboId: Boolean(vboId),
+        isEntitled,
+        hasReportId: Boolean(reportId),
+      });
+      if (source === 'export') {
+        return Promise.reject(new Error('[sunlight] export submission blocked by missing prerequisites'));
+      }
+      return Promise.resolve();
+    }
+
+    const submissionKey = sunlightSubmissionKey(vboId, reportId, result);
+    if (latestSunlightSubmissionKeyRef.current === submissionKey) {
+      if (sunlightSubmissionPromiseRef.current) {
+        return sunlightSubmissionPromiseRef.current;
+      }
+      if (source !== 'export') {
+        return Promise.resolve();
+      }
+    }
+    latestSunlightSubmissionKeyRef.current = submissionKey;
+
+    const startedAt = performance.now();
+    if (import.meta.env.DEV) {
+      console.info('[sunlight] submitting to backend cache', {
+        timestamp,
+        source,
+        vboId,
+        reportId,
+      });
+    }
+
+    let submissionPromise: Promise<void> | null = null;
+    submissionPromise = submitSunlightAnalysis(vboId, result, reportId)
+      .then((submissionResult) => {
+        if (submissionResult.status !== 'ok') {
+          throw new Error(`[sunlight] unexpected submission status: ${submissionResult.status}`);
+        }
+        if (source === 'export' && !submissionResult.cached) {
+          throw new Error('[sunlight] backend cache write not confirmed before export');
+        }
+        if (!submissionResult.cached) {
+          console.warn('[sunlight] submission acknowledged without cache persistence', {
+            timestamp,
+            source,
+            vboId,
+          });
+        }
+        if (import.meta.env.DEV) {
+          console.info('[sunlight] backend cache write succeeded', {
+            timestamp,
+            source,
+            vboId,
+            elapsedMs: Math.round(performance.now() - startedAt),
+            cached: submissionResult.cached,
+            score: submissionResult.score,
+          });
+        }
+      })
+      .catch((error) => {
+        if (latestSunlightSubmissionKeyRef.current === submissionKey) {
+          latestSunlightSubmissionKeyRef.current = null;
+        }
+        console.error('[sunlight] backend cache write failed', {
+          timestamp,
+          source,
+          vboId,
+          error,
+        });
+        throw error;
+      })
+      .finally(() => {
+        if (sunlightSubmissionPromiseRef.current === submissionPromise) {
+          sunlightSubmissionPromiseRef.current = null;
+        }
+      });
+
+    sunlightSubmissionPromiseRef.current = submissionPromise;
+    return submissionPromise;
+  }, [address?.adresseerbaar_object_id, isEntitled, reportId]);
+
   const handleSunlightAnalysis = useCallback((result: SunlightResult) => {
+    const completedAt = new Date().toISOString();
     setSunlight(result);
     setSunlightUnavailable(false);
-    const vboId = address?.adresseerbaar_object_id;
-    if (!vboId || !isEntitled || !reportId) return;
-    const submissionKey = sunlightSubmissionKey(vboId, reportId, result);
-    if (latestSunlightSubmissionKeyRef.current === submissionKey) return;
-    latestSunlightSubmissionKeyRef.current = submissionKey;
-    void submitSunlightAnalysis(vboId, result, reportId).catch(() => {
-      if (latestSunlightSubmissionKeyRef.current === submissionKey) {
-        latestSunlightSubmissionKeyRef.current = null;
-      }
-      // Client-side card still works even when backend caching fails.
+    console.info('[sunlight] analysis completed', {
+      timestamp: completedAt,
+      winter: result.winter?.toFixed(1),
+      equinox: result.equinox?.toFixed(1),
+      summer: result.summer?.toFixed(1),
     });
-  }, [address?.adresseerbaar_object_id, isEntitled, reportId]);
+    void submitSunlightForExport(result, 'analysis').catch((error) => {
+      console.error('[sunlight] analysis submission failed', {
+        timestamp: new Date().toISOString(),
+        error,
+      });
+    });
+  }, [submitSunlightForExport]);
+
+  useEffect(() => {
+    if (!sunlight) return;
+    void submitSunlightForExport(sunlight, 'entitlement-sync').catch((error) => {
+      console.warn('[sunlight] entitlement-sync submission failed', {
+        timestamp: new Date().toISOString(),
+        error,
+      });
+    });
+  }, [sunlight, submitSunlightForExport]);
+
+  // Safety net: if sunlight hasn't completed 180s after surrounding buildings load,
+  // mark it as unavailable so the export button isn't stuck disabled forever.
+  const SUNLIGHT_TIMEOUT_MS = 180_000;
+  useEffect(() => {
+    if (surroundingLoading || sunlight || sunlightUnavailable) return;
+    const timer = setTimeout(() => {
+      if (!sunlight && !sunlightUnavailable) {
+        console.warn('[sunlight] timeout — marking as unavailable after', SUNLIGHT_TIMEOUT_MS, 'ms');
+        setSunlightUnavailable(true);
+      }
+    }, SUNLIGHT_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [surroundingLoading, sunlight, sunlightUnavailable]);
+
+  const handleBeforeExportGenerate = useCallback(async (
+    template: 'quick_brief' | 'full_dossier',
+  ) => {
+    const exportRequestedAt = new Date().toISOString();
+    console.info('[sunlight] pre-export submission', {
+      timestamp: exportRequestedAt,
+      template,
+      hasSunlight: Boolean(sunlight),
+    });
+    if (template !== 'full_dossier' || !sunlight) return;
+    try {
+      await submitSunlightForExport(sunlight, 'export');
+      if (import.meta.env.DEV) {
+        console.info('[sunlight] pre-export submission confirmed', {
+          timestamp: new Date().toISOString(),
+          requestedAt: exportRequestedAt,
+        });
+      }
+    } catch (error) {
+      console.error('[sunlight] pre-export submission failed', {
+        timestamp: new Date().toISOString(),
+        requestedAt: exportRequestedAt,
+        error,
+      });
+      throw error;
+    }
+  }, [sunlight, submitSunlightForExport]);
 
   const isActiveDossierRequest = useCallback((requestId: number) => {
     return neighborhood3DRequestId.current === requestId && activeScreenRef.current === 'dossier';
@@ -2859,8 +3004,8 @@ function App() {
                                   targetPandId={neighborhood3D.target_pand_id ?? undefined}
                                   center={neighborhood3D.center}
                                   sunDateTime={sunDateTime}
-                                  onSunlightAnalysis={surroundingLoading ? undefined : handleSunlightAnalysis}
-                                  onSunlightError={surroundingLoading ? undefined : () => setSunlightUnavailable(true)}
+                                  onSunlightAnalysis={handleSunlightAnalysis}
+                                  onSunlightError={() => setSunlightUnavailable(true)}
                                   onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
                                   loading={surroundingLoading}
                                   error={neighborhood3DError}
@@ -3137,6 +3282,7 @@ function App() {
             shadowSnapshots={shadowSnapshots}
             sunlightReady={sunlight !== null || sunlightUnavailable}
             sunlightFailed={sunlightUnavailable && sunlight === null}
+            onBeforeGenerate={handleBeforeExportGenerate}
             isEntitled={isEntitled}
             onBuyFullDossier={() => {
               void handleUpgrade();
