@@ -74,6 +74,11 @@ def test_preamble_template_has_logo_includegraphics_guard():
     assert r"\IfFileExists" in preamble
 
 
+def test_preamble_includes_needspace_for_notes_guard():
+    preamble = latex_env.render_preamble(language="en")
+    assert r"\usepackage{needspace}" in preamble
+
+
 def test_preamble_logo_width_at_least_22mm():
     """Logo width in the preamble template must be >=22mm for clear recognition."""
     preamble = latex_env.render_preamble(language="en")
@@ -171,3 +176,159 @@ def test_generate_full_dossier_routes_through_latex_orchestrator():
         )
     assert result == b"%PDF-latex-dossier"
     mock_orchestrator.assert_called_once()
+
+
+def test_render_dossier_notes_block_is_capped_and_not_stretched():
+    tex = latex_env.render_dossier(
+        address="Damrak 1, Amsterdam",
+        language="en",
+        methodology={
+            "intro": "x",
+            "formula_heading": "x",
+            "formulas": [],
+            "sources_heading": "x",
+            "sources": [],
+            "sunlight_heading": "x",
+            "sunlight_method": [],
+            "peer_disclosure": "x",
+            "limitations_heading": "x",
+            "limitations": "x",
+        },
+    )
+
+    assert r"\Needspace{42mm}" in tex
+    assert r"\vfill" not in tex
+    assert tex.count(r"\noindent\rule{\linewidth}{0.1pt}") == 4
+
+
+def test_render_dossier_includes_climate_disclosure_text():
+    tex = latex_env.render_dossier(
+        address="Damrak 1, Amsterdam",
+        language="en",
+        climate_disclosure=(
+            "Climate context: Klimaateffectatlas · Source year: 2024 · "
+            "Layers: wpn:s0149_hittestress_warme_nachten_huidig · "
+            "Current climate conditions"
+        ),
+    )
+
+    assert "Climate context: Klimaateffectatlas" in tex
+    assert "Source year: 2024" in tex
+    assert "Current climate conditions" in tex
+
+
+def test_render_dossier_wraps_climate_disclosure_in_parbox():
+    tex = latex_env.render_dossier(
+        address="Damrak 1, Amsterdam",
+        language="en",
+        climate_disclosure="Climate context: Klimaateffectatlas",
+    )
+
+    assert r"\parbox{\linewidth}{\raggedright" in tex
+
+
+def test_render_dossier_renders_measurements_and_quartiles():
+    tex = latex_env.render_dossier(
+        address="Damrak 1, Amsterdam",
+        language="en",
+        neighborhood={
+            "buurt_code": "BU00000001",
+            "gemeente_name": "Amsterdam",
+        },
+        neighborhood_sections=[
+            {
+                "title": "People",
+                "rows": [
+                    {
+                        "label": "Population density",
+                        "value": "15,000/km² (Q4)",
+                    },
+                ],
+            },
+        ],
+        neighborhood_urbanization_label="Very urban",
+        comparison_chart_blocks=[
+            {
+                "path": "/tmp/comparison_noise.pdf",
+                "measurement_line": (
+                    "Lden: 58.0 dB · WHO guideline (Lden): 53.0 dB"
+                ),
+                "unit_definition": (
+                    "Lden = day-evening-night weighted noise level (road traffic)"
+                ),
+            },
+        ],
+    )
+
+    assert r"\Needspace{58mm}" in tex
+    assert "Measurements" in tex
+    assert "Lden: 58.0 dB" in tex
+    assert "WHO guideline (Lden): 53.0 dB" in tex
+    assert "Population density" in tex
+    assert "(Q4)" in tex
+    assert "Very urban" in tex
+
+
+def test_render_dossier_places_location_map_before_shadow_analysis():
+    tex = latex_env.render_dossier(
+        address="Damrak 1, Amsterdam",
+        language="en",
+        location_map="/tmp/location_map.jpg",
+        shadow_images=["/tmp/shadow_winter.png"],
+    )
+
+    assert tex.index("Location Map") < tex.index("Shadow Analysis")
+
+
+def test_render_dossier_shows_location_placeholder_when_map_missing():
+    tex = latex_env.render_dossier(
+        address="Damrak 1, Amsterdam",
+        language="en",
+    )
+
+    assert "Location map unavailable" in tex
+    assert "PDOK aerial imagery did not load during export." in tex
+
+
+def test_render_dossier_includes_crime_row_in_risk_scores():
+    tex = latex_env.render_dossier(
+        address="Damrak 1, Amsterdam",
+        language="en",
+        tier_b={
+            "crime": {
+                "total_per_1000": 47.6,
+                "national_per_1000": None,
+                "burglary_per_1000": None,
+                "violent_per_1000": None,
+                "score": 65,
+                "severity": "moderate",
+                "meaning_en": "Crime rate is somewhat above the national average.",
+                "source": "CBS",
+                "source_date": "2025JJ00",
+                "yearly_period": None,
+            },
+        },
+    )
+
+    assert "Crime &" in tex
+    assert "65/100" in tex
+    assert "CBS" in tex
+
+
+def test_render_brief_shows_location_placeholder_when_map_missing():
+    tex = latex_env.render_brief(
+        address="Damrak 1, Amsterdam",
+        language="en",
+    )
+
+    assert "Location map unavailable" in tex
+    assert "PDOK aerial imagery did not load during export." in tex
+
+
+def test_render_dossier_removes_forced_page_break_before_property_checks():
+    tex = latex_env.render_dossier(
+        address="Damrak 1, Amsterdam",
+        language="en",
+    )
+
+    assert r"\clearpage" not in tex

@@ -453,7 +453,7 @@
   "export.share": "PDF delen",
   "export.download": "PDF downloaden",
   "export.shareError": "We konden de PDF niet delen — je apparaat ondersteunt dit mogelijk niet. Download de PDF als alternatief.",
-  "export.error": "We konden de PDF niet aanmaken. Probeer het opnieuw — je dossiergegevens zijn nog steeds beschikbaar.",
+  "export.error": "We konden de PDF niet aanmaken. Probeer het opnieuw. Je dossiergegevens zijn nog steeds beschikbaar.",
   "export.languageMismatch": "PDF wordt gegenereerd in het {{language}}",
   "export.sunlightComputing": "Zonlichtanalyse wordt berekend...",
   "export.sunlightUnavailableWarning": "Zonlichtanalyse was niet voltooid voor export — exporteer opnieuw na het bekijken van het 3D-model.",

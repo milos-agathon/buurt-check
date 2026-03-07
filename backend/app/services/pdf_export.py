@@ -17,6 +17,7 @@ from app.models.neighborhood import AgeProfile, NeighborhoodStats, UrbanizationL
 from app.models.property_warnings import PropertyWarningsResponse
 from app.models.report import ProvenanceData
 from app.models.risk import (
+    ClimateStressRiskCard,
     ComparisonPattern,
     RiskCardsResponse,
     RiskComparisonsResponse,
@@ -31,7 +32,7 @@ from app.services.latex_env import (
     render_chart_assets_parallel,
     render_dossier,
 )
-from app.services.scoring import severity_from_score
+from app.services.scoring import normalize_sunlight_score, severity_from_score
 
 try:
     from app.services import chart_renderer
@@ -72,7 +73,14 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
 
 _NOTES_RULE_COUNT = 4
 _NOTES_RULE_SPACING_MM = 8.0
+# Covers: draw_divider (~5mm) + title cell (7mm) + ln(2) + 4 × 8mm rules = 46mm, +1mm margin
 _NOTES_SECTION_REQUIRED_MM = 47.0
+_SECTION_CONTINUATION_REQUIRED_MM = 24.0
+_LOCATION_MAP_WIDTH_MM = 80.0
+_LOCATION_MAP_HEIGHT_MM = 80.0
+_LOCATION_MAP_PLACEHOLDER_HEIGHT_MM = 34.0
+_LOCATION_MAP_SECTION_REQUIRED_MM = 92.0
+_LOCATION_MAP_PLACEHOLDER_REQUIRED_MM = 48.0
 
 # --- PDF Type Hierarchy (8 primary levels) ---
 #
@@ -143,6 +151,44 @@ def _severity_label(score: int | None, is_nl: bool = False) -> str:
     if score >= 20:
         return "Slecht" if is_nl else "Poor"
     return "Kritiek" if is_nl else "Critical"
+
+
+def _climate_disclosure_line(
+    card: ClimateStressRiskCard | None,
+    is_nl: bool,
+) -> str | None:
+    if card is None:
+        return None
+
+    layers: list[str] = []
+    for layer_name in (card.heat_layer, card.water_layer):
+        if layer_name and layer_name not in layers:
+            layers.append(layer_name)
+
+    context_parts: list[str] = []
+    if card.source_date:
+        year_label = "Bronjaar" if is_nl else "Source year"
+        context_parts.append(f"{year_label}: {card.source_date}")
+    if layers:
+        layer_label = "Lagen" if is_nl else "Layers"
+        context_parts.append(f"{layer_label}: {', '.join(layers)}")
+    if not card.source_date and not layers:
+        return None
+    context_parts.append("Huidig klimaat" if is_nl else "Current climate conditions")
+
+    heading = "Klimaatcontext" if is_nl else "Climate context"
+    source_name = card.source or "Klimaateffectatlas"
+    separator = " \u00b7 "
+    return f"{heading}: {source_name}{separator}{separator.join(context_parts)}"
+
+
+def _format_wrapped_latex_metadata(text: str) -> str:
+    """Escape metadata text and insert soft wrap opportunities for LaTeX."""
+    escaped = escape_latex(text)
+    escaped = escaped.replace(" \u00b7 ", r" \u00b7\allowbreak ")
+    escaped = escaped.replace(": ", r":\allowbreak ")
+    escaped = escaped.replace(", ", r",\allowbreak ")
+    return escaped.replace(r"\_", r"\_\allowbreak{}")
 
 
 def _generate_executive_summary(
@@ -416,6 +462,19 @@ def _severity_code_from_label(label: str | None) -> str | None:
     return _SEVERITY_CODE_BY_LABEL.get(key)
 
 
+def _scaled_chart_height(
+    width: float,
+    *,
+    source_width_mm: float,
+    source_height_mm: float,
+) -> float:
+    if source_width_mm <= 0:
+        raise ValueError("chart source width must be > 0")
+    if source_height_mm <= 0:
+        raise ValueError("chart source height must be > 0")
+    return max(1.0, source_height_mm * (width / source_width_mm))
+
+
 def _embed_chart_png(
     pdf: FPDF,
     image_bytes: bytes,
@@ -424,16 +483,20 @@ def _embed_chart_png(
     y: float,
     width: float,
     height: float | None = None,
+    source_width_mm: float | None = None,
+    source_height_mm: float | None = None,
 ) -> float:
     """Embed a PNG chart at `x,y` and return the next y-coordinate."""
-    with Image.open(io.BytesIO(image_bytes)) as image:
-        src_w, src_h = image.size
-    if src_w <= 0:
-        raise ValueError("chart image width must be > 0")
-
     if height is None:
-        height = width * (src_h / src_w)
-    height = max(1.0, height)
+        if source_width_mm is None or source_height_mm is None:
+            raise ValueError("chart height or source dimensions must be provided")
+        height = _scaled_chart_height(
+            width,
+            source_width_mm=source_width_mm,
+            source_height_mm=source_height_mm,
+        )
+    else:
+        height = max(1.0, height)
     pdf.image(io.BytesIO(image_bytes), x=x, y=y, w=width, h=height)
     return y + height
 
@@ -452,8 +515,8 @@ class BuurtCheckPDF(FPDF):
         super().__init__()
         self.language = language
         self.is_nl = language == "nl"
-        self.set_left_margin(20)
-        self.set_right_margin(20)
+        self.set_left_margin(25)
+        self.set_right_margin(25)
         self._register_fonts()
         self.set_auto_page_break(auto=True, margin=20)
 
@@ -625,6 +688,7 @@ class BuurtCheckPDF(FPDF):
                         address_score=address_score,
                         comparisons=comparisons_payload,
                         output_format="png",
+                        show_row_labels=False,
                     )
                     chart_end_y = _embed_chart_png(
                         self,
@@ -635,8 +699,8 @@ class BuurtCheckPDF(FPDF):
                         height=target_chart_h,
                     )
 
-                    # Preserve text extraction/accessibility: draw row labels as PDF text
-                    # on top of the rendered chart image.
+                    # The PNG omits row labels in this path so the final PDF keeps a
+                    # single, extractable text layer without visual overlap.
                     label_w = min(width * 0.42, 68.0)
                     row_y = y + title_h
                     n_address = len(address_rows)
@@ -650,21 +714,10 @@ class BuurtCheckPDF(FPDF):
                         self.cell(label_w, row_h, label)
                         row_y += row_h
 
-                    axis_y = chart_end_y + 0.5
-                    self.set_font("Satoshi", "", 8)
-                    self.set_text_color(*SECONDARY)
-                    for pct, label in (
-                        (0, "0"),
-                        (20, "20"),
-                        (40, "40"),
-                        (70, "70"),
-                        (100, "100"),
-                    ):
-                        tx = x + width * pct / 100
-                        self.set_xy(tx - 3, axis_y)
-                        self.cell(6, 3, label, align="C")
+                    # Axis labels are rendered inside the matplotlib chart
+                    # image (xticks at 0/20/40/70/100) so skip duplicate
+                    # fpdf2 labels which misaligned due to label_space offset.
                     self.set_text_color(*SLATE)
-                    chart_end_y = axis_y + 3.5
 
                     if show_legend:
                         self.set_xy(x, chart_end_y + 1.0)
@@ -883,6 +936,11 @@ class BuurtCheckPDF(FPDF):
                     x=x,
                     y=y,
                     width=width,
+                    source_width_mm=chart_renderer.CHART_WIDTH_MM,
+                    source_height_mm=chart_renderer.risk_summary_grid_height_mm(
+                        len(chart_cells),
+                        cols=cols,
+                    ),
                 )
             except Exception:
                 logger.exception("chart_renderer risk grid failed; falling back to native drawing")
@@ -942,6 +1000,8 @@ class BuurtCheckPDF(FPDF):
                     x=x,
                     y=y,
                     width=width,
+                    source_width_mm=chart_renderer.CHART_WIDTH_MM,
+                    source_height_mm=chart_renderer.AGE_CHART_HEIGHT_MM,
                 )
             except Exception:
                 logger.exception(
@@ -1285,7 +1345,7 @@ def _draw_shadow_triptych(
         key=lambda s: season_rank.get(s.get("label", ""), s.get("hour", 0)),
     )
 
-    page_w = pdf.w - pdf.l_margin - pdf.r_margin  # ~170mm
+    page_w = pdf.w - pdf.l_margin - pdf.r_margin  # ~160mm
     img_w = page_w  # full content width
     # Aspect ratio 3:2 (images are 3000×2000) -> height = width * 2/3
     img_h = img_w * 2 / 3
@@ -1433,19 +1493,29 @@ def _escape_latex_structure(value: Any) -> Any:
     return value
 
 
+def _image_file_extension(raw: bytes) -> str:
+    if raw.startswith(b"\x89PNG"):
+        return "png"
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if raw.startswith((b"GIF87a", b"GIF89a")):
+        return "gif"
+    return "png"
+
+
 def _decode_b64_asset(
     b64_data: str | None,
     *,
     output_dir: Path,
     filename_stem: str,
 ) -> str | None:
-    """Decode base64 image payload to a temporary PNG path for LaTeX."""
+    """Decode a base64 image payload to a temporary file for LaTeX."""
     if not b64_data:
         return None
     try:
         payload = b64_data.split(",", 1)[-1]
         raw = base64.b64decode(payload)
-        output_path = output_dir / f"{filename_stem}.png"
+        output_path = output_dir / f"{filename_stem}.{_image_file_extension(raw)}"
         output_path.write_bytes(raw)
         return output_path.as_posix()
     except Exception:
@@ -1486,6 +1556,7 @@ def _ensure_page_space(pdf: BuurtCheckPDF, required_h: float) -> None:
 
 
 def _draw_notes_section(pdf: BuurtCheckPDF, is_nl: bool) -> None:
+    pdf.set_text_color(*SLATE)
     pdf.set_font("Satoshi", "B", 12)
     pdf.cell(
         0, 7,
@@ -1915,6 +1986,17 @@ def _generate_full_dossier_latex(
 ) -> bytes:
     """Generate full dossier via LaTeX with fpdf2 fallback."""
     is_nl = language == "nl"
+
+    # Fallback: recover sunlight score from risks card when the explicit
+    # parameter is None (e.g. SVF computation finished after the API
+    # route resolved the score but before risks object was serialised).
+    if sunlight_score is None and risks and risks.sunlight:
+        _fallback_score = risks.sunlight.score
+        if _fallback_score is None and risks.sunlight.winter_hours is not None:
+            _fallback_score = normalize_sunlight_score(risks.sunlight.winter_hours)
+        if _fallback_score is not None:
+            sunlight_score = _fallback_score
+
     has_shadow_inputs = bool(
         shadow_image_b64 or shadow_equinox_b64 or shadow_summer_b64 or shadow_images
     )
@@ -1991,6 +2073,17 @@ def _generate_full_dossier_latex(
             age_interpretation_text: str | None = None
             livability_trend_summary_text: str | None = None
             shadow_time_labels: list[str] | None = None
+            comparison_chart_blocks: list[dict[str, str]] = []
+            category_rows = _build_risk_detail_data(
+                risks,
+                sunlight_score,
+                risk_comparisons,
+                is_nl,
+            )
+            neighborhood_sections = _build_neighborhood_sections(
+                neighborhood_stats,
+                is_nl,
+            )
 
             if livability is not None and livability.trend:
                 livability_trend_summary_text = _livability_trend_summary(
@@ -2032,19 +2125,13 @@ def _generate_full_dossier_latex(
                             )
                             for cat_label, score, sev_label in cells
                         ],
-                        cols=4,
+                        cols=5 if len(cells) == 5 else 4,
                         output_format="pdf",
                     )
                 )
 
                 def _render_comparison_bundle() -> dict[str, bytes]:
                     bundle: dict[str, bytes] = {}
-                    category_rows = _build_risk_detail_data(
-                        risks,
-                        sunlight_score,
-                        risk_comparisons,
-                        is_nl,
-                    )
                     for (
                         cat_name,
                         score,
@@ -2164,6 +2251,10 @@ def _generate_full_dossier_latex(
                         if path:
                             path_map[str(key)] = path
                     comparison_chart_paths = path_map or None
+                    comparison_chart_blocks = _build_latex_comparison_chart_blocks(
+                        category_rows,
+                        comparison_chart_paths,
+                    )
 
                 age_chart_path = _write_chart_asset(
                     rendered_assets.get("age_chart"),
@@ -2176,6 +2267,11 @@ def _generate_full_dossier_latex(
                     filename_stem="livability",
                 )
 
+            climate_disclosure_text = (
+                _climate_disclosure_line(risks.climate_stress, is_nl)
+                if risks and risks.climate_stress
+                else None
+            )
             tex = render_dossier(
                 address=escape_latex(address),
                 language=language,
@@ -2195,6 +2291,7 @@ def _generate_full_dossier_latex(
                 provenance=_model_to_dict(provenance),
                 risk_grid_chart=risk_grid_chart_path,
                 comparison_charts=comparison_chart_paths,
+                comparison_chart_blocks=comparison_chart_blocks,
                 age_chart=age_chart_path,
                 age_interpretation=(
                     escape_latex(age_interpretation_text) if age_interpretation_text else None
@@ -2217,6 +2314,19 @@ def _generate_full_dossier_latex(
                 ),
                 postcode=escape_latex(postcode) if postcode else None,
                 shadow_time_labels=shadow_time_labels,
+                neighborhood_sections=_escape_latex_structure(neighborhood_sections),
+                neighborhood_urbanization_label=(
+                    escape_latex(_urbanization_label(neighborhood_stats.urbanization, is_nl))
+                    if neighborhood_stats is not None
+                    and neighborhood_stats.urbanization != UrbanizationLevel.unknown
+                    and _urbanization_label(neighborhood_stats.urbanization, is_nl) is not None
+                    else None
+                ),
+                climate_disclosure=(
+                    _format_wrapped_latex_metadata(climate_disclosure_text)
+                    if climate_disclosure_text is not None
+                    else None
+                ),
                 methodology=_escape_latex_structure(methodology_payload),
             )
             return compile_latex_to_pdf_with_fallback(
@@ -2375,12 +2485,12 @@ def _generate_full_dossier_fpdf(
 
     # Neighborhood intelligence section
     pdf.section_title = "BUURT" if is_nl else "NEIGHBORHOOD"
-    _ensure_page_space(pdf, 90)
+    _ensure_page_space(pdf, _SECTION_CONTINUATION_REQUIRED_MM)
     _draw_neighborhood_page(pdf, neighborhood_stats, tier_b, is_nl, livability=livability)
 
     # Premium property checks section
     pdf.section_title = "EXTRA CONTROLES" if is_nl else "ADDITIONAL CHECKS"
-    _ensure_page_space(pdf, 90)
+    _ensure_page_space(pdf, _SECTION_CONTINUATION_REQUIRED_MM)
     _draw_property_checks_page(
         pdf=pdf,
         risks=risks,
@@ -2402,7 +2512,7 @@ def _generate_full_dossier_fpdf(
 
     # Methodology + notes section
     pdf.section_title = "METHODOLOGIE" if is_nl else "METHODOLOGY"
-    _ensure_page_space(pdf, 90)
+    _ensure_page_space(pdf, _SECTION_CONTINUATION_REQUIRED_MM)
     _draw_methodology_page(pdf, is_nl, provenance=provenance)
 
     return bytes(pdf.output())
@@ -2494,17 +2604,26 @@ def _draw_location_map(
     location_map_b64: str | None,
     is_nl: bool,
 ) -> None:
-    """Embed a static PDOK Luchtfoto location map with pin, compass, and scale."""
+    """Embed a PDOK Luchtfoto map or a visible unavailable placeholder."""
+    has_image = bool(location_map_b64)
+    _ensure_page_space(
+        pdf,
+        _LOCATION_MAP_SECTION_REQUIRED_MM
+        if has_image
+        else _LOCATION_MAP_PLACEHOLDER_REQUIRED_MM,
+    )
+
+    pdf.draw_section_label("Locatie" if is_nl else "Location")
+    pdf.ln(1)
+
     if not location_map_b64:
+        _draw_location_map_placeholder(pdf, is_nl)
         return
+
     try:
         image_data = base64.b64decode(location_map_b64)
-        img_w = 80  # mm width in PDF
-        img_h = img_w  # square map (600x600 source)
-
-        # Section label
-        pdf.draw_section_label("Locatie" if is_nl else "Location")
-        pdf.ln(1)
+        img_w = _LOCATION_MAP_WIDTH_MM
+        img_h = _LOCATION_MAP_HEIGHT_MM
 
         # Draw the map image
         pdf.set_draw_color(*BORDER)
@@ -2573,7 +2692,72 @@ def _draw_location_map(
         pdf.set_text_color(*SLATE)
         pdf.ln(2)
     except Exception:
-        logger.warning("Failed to embed location map in PDF")
+        logger.warning("Failed to embed location map in PDF; using placeholder")
+        _draw_location_map_placeholder(pdf, is_nl)
+
+
+def _draw_location_map_placeholder(pdf: BuurtCheckPDF, is_nl: bool) -> None:
+    """Render a fallback block when the PDOK map is unavailable."""
+    box_x = pdf.l_margin
+    box_y = pdf.get_y()
+    box_w = _LOCATION_MAP_WIDTH_MM
+    box_h = _LOCATION_MAP_PLACEHOLDER_HEIGHT_MM
+
+    pdf.set_draw_color(*BORDER)
+    pdf.set_fill_color(*TEAL_LIGHT)
+    pdf.set_line_width(0.2)
+    pdf.rect(box_x, box_y, box_w, box_h, "DF")
+
+    pdf.set_xy(box_x + 6, box_y + 6)
+    pdf.set_font("Satoshi", "B", 10)
+    pdf.set_text_color(*SLATE)
+    pdf.multi_cell(
+        box_w - 12,
+        4.5,
+        (
+            "Location map unavailable"
+            if not is_nl
+            else "Locatiekaart niet beschikbaar"
+        ),
+        align="L",
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
+
+    pdf.set_x(box_x + 6)
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*SECONDARY)
+    pdf.multi_cell(
+        box_w - 12,
+        3.5,
+        (
+            "PDOK aerial imagery did not load during export. "
+            "The dossier continues without the 1 km map context."
+            if not is_nl
+            else "PDOK-luchtfoto kon niet laden tijdens export. "
+            "Het dossier gaat verder zonder de kaartcontext van 1 km."
+        ),
+        align="L",
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
+
+    pdf.set_y(box_y + box_h + 1)
+    pdf.set_font("Satoshi", "", 8)
+    pdf.set_text_color(*SECONDARY)
+    pdf.cell(
+        0,
+        3,
+        (
+            "Map source: PDOK Luchtfoto (CC BY 4.0) · unavailable for this export"
+            if not is_nl
+            else "Kaartbron: PDOK Luchtfoto (CC BY 4.0) · niet beschikbaar voor deze export"
+        ),
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
+    pdf.set_text_color(*SLATE)
+    pdf.ln(2)
 
 
 def _draw_cover_page(
@@ -2591,7 +2775,7 @@ def _draw_cover_page(
     livability: LivabilityResponse | None = None,
     crime_score: int | None = None,
 ) -> None:
-    """Page 1: cover with address hero, shadow image, executive summary, risk grid."""
+    """Page 1: cover with address hero, executive summary, risk grid, shadow analysis."""
     # Cover wordmark — larger brand presence
     pdf.set_font("SatoshiBlack", "", 16)
     pdf.set_text_color(*SLATE)
@@ -2599,13 +2783,8 @@ def _draw_cover_page(
     pdf.ln(2)
 
     _draw_address_block(pdf, address, building_year, building_use, floor_area, is_nl, font_size=20)
-    # Prefer triptych (3 images) over single shadow image
-    if shadow_images and len(shadow_images) >= 3:
-        _draw_shadow_triptych(pdf, shadow_images, is_nl)
-    else:
-        _draw_shadow_image(pdf, shadow_image_b64, is_nl)
 
-    # Executive summary narrative
+    # Executive summary narrative — appears before shadow analysis
     summary_text = _generate_executive_summary(
         risks, sunlight_score, livability, is_nl, crime_score=crime_score,
     )
@@ -2632,6 +2811,12 @@ def _draw_cover_page(
         cells=cells, cols=grid_cols,
     )
     pdf.set_y(grid_end_y + 4)
+
+    # Shadow analysis — after exec summary + risk grid
+    if shadow_images and len(shadow_images) >= 3:
+        _draw_shadow_triptych(pdf, shadow_images, is_nl)
+    else:
+        _draw_shadow_image(pdf, shadow_image_b64, is_nl)
 
     # Location map
     _draw_location_map(pdf, location_map_b64, is_nl)
@@ -2788,7 +2973,7 @@ def _draw_risk_details_page(
         # Source (with "date unknown" fallback per Finding 9)
         pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
-        pdf.cell(0, 4, source_text, new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(0, 4, source_text, align="L", new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
         pdf.ln(4)
 
@@ -3386,6 +3571,11 @@ def _draw_neighborhood_page(
     livability: LivabilityResponse | None = None,
 ) -> None:
     """Page 3: neighborhood stats + crime + livability."""
+    if pdf.get_y() > 40:
+        pdf.draw_divider("strong")
+        pdf.draw_section_label("Buurt" if is_nl else "Neighborhood", band=True)
+        pdf.ln(1)
+
     if stats:
         _ensure_page_space(pdf, 42)
         # Buurt name + urbanization
@@ -3698,6 +3888,8 @@ def _draw_neighborhood_page(
                     x=pdf.l_margin,
                     y=pdf.get_y(),
                     width=content_w,
+                    source_width_mm=chart_renderer.CHART_WIDTH_MM,
+                    source_height_mm=chart_renderer.LIVABILITY_HEIGHT_MM,
                 )
                 pdf.set_y(chart_end_y + 2)
             except Exception:
@@ -3960,6 +4152,8 @@ def _draw_livability_section(
                 x=pdf.l_margin,
                 y=pdf.get_y(),
                 width=content_w,
+                source_width_mm=chart_renderer.CHART_WIDTH_MM,
+                source_height_mm=chart_renderer.LIVABILITY_HEIGHT_MM,
             )
             pdf.set_y(chart_end_y + 2)
         except Exception:
@@ -4583,12 +4777,15 @@ def _draw_property_checks_page(
 
 def _draw_indicator(pdf: BuurtCheckPDF, label: str, indicator) -> None:
     """Draw a single neighborhood indicator row."""
-    if not indicator.available:
-        pdf.draw_indicator_row(label, "\u2014")
-        return
+    pdf.draw_indicator_row(label, _format_indicator_text(indicator, pdf.is_nl))
+
+
+def _format_indicator_text(indicator, is_nl: bool) -> str:
+    if indicator is None or not indicator.available:
+        return "\u2014"
+
     val = indicator.value
     unit = indicator.unit or ""
-    is_nl = pdf.is_nl
     if isinstance(val, float):
         if unit == "%":
             text = f"{val:.0f}%"
@@ -4605,9 +4802,105 @@ def _draw_indicator(pdf: BuurtCheckPDF, label: str, indicator) -> None:
         text = f"{val} {unit}".strip()
     else:
         text = "\u2014"
+
     if indicator.quartile is not None:
         text += f" (Q{indicator.quartile})"
-    pdf.draw_indicator_row(label, text)
+    return text
+
+
+def _urbanization_label(level: UrbanizationLevel, is_nl: bool) -> str | None:
+    labels = {
+        UrbanizationLevel.very_urban: "Zeer stedelijk" if is_nl else "Very urban",
+        UrbanizationLevel.urban: "Stedelijk" if is_nl else "Urban",
+        UrbanizationLevel.moderate: "Matig stedelijk" if is_nl else "Moderately urban",
+        UrbanizationLevel.rural: "Landelijk" if is_nl else "Rural",
+        UrbanizationLevel.very_rural: "Zeer landelijk" if is_nl else "Very rural",
+    }
+    return labels.get(level)
+
+
+def _build_neighborhood_sections(
+    stats: NeighborhoodStats | None,
+    is_nl: bool,
+) -> list[dict[str, Any]] | None:
+    if stats is None:
+        return None
+
+    def _row(label_nl: str, label_en: str, indicator) -> dict[str, str]:
+        return {
+            "label": label_nl if is_nl else label_en,
+            "value": _format_indicator_text(indicator, is_nl),
+        }
+
+    return [
+        {
+            "title": "Bewoners" if is_nl else "People",
+            "rows": [
+                _row("Inwonerdichtheid", "Population density", stats.population_density),
+                _row("Gem. huishoudgrootte", "Avg household size", stats.avg_household_size),
+                _row("Alleenstaanden", "Single-person households", stats.single_person_pct),
+            ],
+        },
+        {
+            "title": "Woningen" if is_nl else "Housing",
+            "rows": [
+                _row("Koopwoningen", "Owner-occupied", stats.owner_occupied_pct),
+                _row("Gem. WOZ-waarde", "Avg property value", stats.avg_property_value),
+            ],
+        },
+        {
+            "title": "Bereikbaarheid" if is_nl else "Access",
+            "rows": [
+                _row("Treinstation", "Train station", stats.distance_to_train_km),
+                _row("Supermarkt", "Supermarket", stats.distance_to_supermarket_km),
+            ],
+        },
+    ]
+
+
+def _build_latex_comparison_chart_blocks(
+    category_rows: list[tuple[
+        str,
+        int | None,
+        str,
+        str,
+        list,
+        list[tuple[str, str]] | None,
+        str | None,
+    ]],
+    chart_paths: dict[str, str] | None,
+) -> list[dict[str, str]]:
+    if not chart_paths:
+        return []
+
+    blocks: list[dict[str, str]] = []
+    for (
+        cat_name,
+        _score,
+        _summary,
+        _source_text,
+        _comp_rows,
+        measurements,
+        unit_def,
+    ) in category_rows:
+        path = chart_paths.get(_slugify_label(cat_name))
+        if path is None:
+            continue
+
+        measurement_line = None
+        if measurements:
+            measurement_line = " \u00b7 ".join(
+                f"{escape_latex(label)}: {escape_latex(value)}"
+                for label, value in measurements
+            )
+
+        blocks.append({
+            "path": path,
+            "measurement_line": measurement_line or "",
+            "unit_definition": escape_latex(unit_def) if unit_def else "",
+        })
+
+    return blocks
 
 
 def _draw_checklist_page(

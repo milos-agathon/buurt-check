@@ -34,6 +34,7 @@ describe('ExportBottomSheet', () => {
 
   beforeEach(async () => {
     vi.mocked(api.exportBriefing).mockReset();
+    vi.mocked(api.downloadPdfBlob).mockReset();
     mockTrackEvent.mockReset();
     mockClose.mockReset();
     i18nInstance = await setupTestI18n('en');
@@ -144,7 +145,7 @@ describe('ExportBottomSheet', () => {
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
     await waitFor(() => {
-      expect(screen.getByText("We couldn't generate the PDF. Try again — your dossier data is still available.")).toBeInTheDocument();
+      expect(screen.getByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).toBeInTheDocument();
     });
     expect(api.exportBriefing).not.toHaveBeenCalled();
   });
@@ -194,7 +195,7 @@ describe('ExportBottomSheet', () => {
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
     await waitFor(() => {
-      expect(screen.getByText("We couldn't generate the PDF. Try again — your dossier data is still available.")).toBeInTheDocument();
+      expect(screen.getByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).toBeInTheDocument();
     });
     expect(mockClose).not.toHaveBeenCalled();
   });
@@ -228,6 +229,25 @@ describe('ExportBottomSheet', () => {
       resolver?.();
       await Promise.resolve();
     });
+  });
+
+  it('downloads the generated PDF from the ready actions', async () => {
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    vi.mocked(api.exportBriefing).mockResolvedValue(blob);
+    renderSheet();
+
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Download PDF/i }));
+
+    expect(api.downloadPdfBlob).toHaveBeenCalledWith(
+      blob,
+      'buurt-check-quick-brief-0363010012345678.pdf',
+    );
   });
 
   describe('sunlight readiness messaging', () => {

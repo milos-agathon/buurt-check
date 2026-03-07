@@ -577,6 +577,14 @@ describe('exportBriefing', () => {
       houseNumber: '1',
       houseLetter: 'A',
       addition: '2',
+      sunlightPayload: {
+        winter_hours: 3.1,
+        summer_hours: 6.2,
+        equinox_hours: 4.5,
+        analysis_year: 2026,
+        svf: 0.63,
+        irradiance_kwh_m2: 948.4,
+      },
     });
 
     const [url, init] = mockFetch.mock.calls[0];
@@ -592,6 +600,14 @@ describe('exportBriefing', () => {
     expect(body.house_number).toBe('1');
     expect(body.house_letter).toBe('A');
     expect(body.addition).toBe('2');
+    expect(body.sunlight_submission).toEqual({
+      winter_hours: 3.1,
+      summer_hours: 6.2,
+      equinox_hours: 4.5,
+      analysis_year: 2026,
+      svf: 0.63,
+      irradiance_kwh_m2: 948.4,
+    });
     expect(body.rd_x).toBe(1);
     expect(body.lat).toBe(3);
     expect(blob).toBe(expectedBlob);
@@ -754,23 +770,44 @@ describe('downloadPdfBlob', () => {
     vi.useFakeTimers();
     const appendChildSpy = vi.spyOn(document.body, 'appendChild');
     const removeChildSpy = vi.spyOn(document.body, 'removeChild');
-    const createElementSpy = vi.spyOn(document, 'createElement');
     const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test');
     const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
-    const click = vi.fn();
-    createElementSpy.mockReturnValue({ click } as unknown as HTMLAnchorElement);
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(window);
+    const originalCreateElement = document.createElement.bind(document);
+    const anchor = originalCreateElement('a');
+    const clickSpy = vi.spyOn(anchor, 'click').mockImplementation(() => {});
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName.toLowerCase() === 'a') {
+        return anchor;
+      }
+      return originalCreateElement(tagName);
+    });
     appendChildSpy.mockImplementation(() => ({}) as Node);
     removeChildSpy.mockImplementation(() => ({}) as Node);
+    const originalDownload = Object.getOwnPropertyDescriptor(HTMLAnchorElement.prototype, 'download');
+    Object.defineProperty(HTMLAnchorElement.prototype, 'download', {
+      configurable: true,
+      writable: true,
+      value: '',
+    });
 
     downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
 
-    expect(click).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(openSpy).not.toHaveBeenCalled();
     expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
     // Revocation is delayed for Safari iOS compatibility
     expect(revokeObjectURLSpy).not.toHaveBeenCalled();
     vi.advanceTimersByTime(60_000);
     expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
 
+    if (originalDownload) {
+      Object.defineProperty(HTMLAnchorElement.prototype, 'download', originalDownload);
+    } else {
+      Reflect.deleteProperty(HTMLAnchorElement.prototype, 'download');
+    }
+    openSpy.mockRestore();
+    clickSpy.mockRestore();
     appendChildSpy.mockRestore();
     removeChildSpy.mockRestore();
     createElementSpy.mockRestore();
@@ -782,7 +819,7 @@ describe('downloadPdfBlob', () => {
   it('opens blob in a new tab on iOS instead of anchor download', () => {
     vi.useFakeTimers();
     mockNavigatorForIOS();
-    const createElementSpy = vi.spyOn(document, 'createElement');
+    const appendChildSpy = vi.spyOn(document.body, 'appendChild');
     const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test');
     const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(window);
@@ -790,12 +827,12 @@ describe('downloadPdfBlob', () => {
     downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
 
     expect(openSpy).toHaveBeenCalledWith('blob:test', '_blank', 'noopener,noreferrer');
-    expect(createElementSpy).not.toHaveBeenCalled();
+    expect(appendChildSpy).not.toHaveBeenCalled();
     vi.advanceTimersByTime(60_000);
     expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
 
     openSpy.mockRestore();
-    createElementSpy.mockRestore();
+    appendChildSpy.mockRestore();
     createObjectURLSpy.mockRestore();
     revokeObjectURLSpy.mockRestore();
     vi.useRealTimers();

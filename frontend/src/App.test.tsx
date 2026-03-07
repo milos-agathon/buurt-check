@@ -42,6 +42,9 @@ vi.mock('./services/api', async () => {
     getPropertyWarnings: vi.fn(),
     getLivability: vi.fn(),
     submitSunlightAnalysis: vi.fn(),
+    exportBriefing: vi.fn(),
+    downloadPdfBlob: vi.fn(),
+    toSunlightSubmissionPayload: actual.toSunlightSubmissionPayload,
     mapApiError: actual.mapApiError,
     ApiError: actual.ApiError,
   };
@@ -103,6 +106,7 @@ import {
   getPropertyWarnings,
   getLivability,
   submitSunlightAnalysis,
+  exportBriefing,
 } from './services/api';
 const mockLookup = vi.mocked(lookupAddress);
 const mockCreateShortReport = vi.mocked(createShortReport);
@@ -120,6 +124,7 @@ const mockTierBData = vi.mocked(getTierBData);
 const mockPropertyWarnings = vi.mocked(getPropertyWarnings);
 const mockLivability = vi.mocked(getLivability);
 const mockSubmitSunlightAnalysis = vi.mocked(submitSunlightAnalysis);
+const mockExportBriefing = vi.mocked(exportBriefing);
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
@@ -149,6 +154,7 @@ beforeEach(() => {
   mockPropertyWarnings.mockReset();
   mockLivability.mockReset();
   mockSubmitSunlightAnalysis.mockReset();
+  mockExportBriefing.mockReset();
   neighborhoodViewer3DPropsRef.current = null;
   mockCreateShortReport.mockResolvedValue({
     report_id: 'report-123',
@@ -205,6 +211,7 @@ beforeEach(() => {
     severity: 'moderate',
     cached: true,
   });
+  mockExportBriefing.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
 });
 
 function renderApp() {
@@ -508,7 +515,34 @@ describe('3D viewer integration', () => {
     });
   });
 
-  it('submits sunlight analysis only once when irradiance enrichment triggers a second callback', async () => {
+  it('deduplicates identical sunlight callbacks and entitlement sync submissions', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+
+    renderApp();
+    await selectAddress();
+    await triggerViewer3DIntersection();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+      expect(neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis).toBeTypeOf('function');
+    });
+
+    const result = makeSunlightResult({ svf: 0.63 });
+
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(result);
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(result);
+    });
+
+    await waitFor(() => {
+      expect(mockSubmitSunlightAnalysis).toHaveBeenCalledTimes(1);
+    });
+    expect(mockSubmitSunlightAnalysis).toHaveBeenCalledWith('vbo-123', result, 'report-123');
+  });
+
+  it('resubmits sunlight analysis when irradiance enrichment changes the export payload', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
@@ -536,9 +570,74 @@ describe('3D viewer integration', () => {
     });
 
     await waitFor(() => {
-      expect(mockSubmitSunlightAnalysis).toHaveBeenCalledTimes(1);
+      expect(mockSubmitSunlightAnalysis).toHaveBeenCalledTimes(2);
     });
-    expect(mockSubmitSunlightAnalysis).toHaveBeenCalledWith('vbo-123', baseResult, 'report-123');
+    expect(mockSubmitSunlightAnalysis).toHaveBeenNthCalledWith(1, 'vbo-123', baseResult, 'report-123');
+    expect(mockSubmitSunlightAnalysis).toHaveBeenNthCalledWith(2, 'vbo-123', enrichedResult, 'report-123');
+  });
+
+  it('continues full dossier export when sunlight cache confirmation is unavailable', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockSubmitSunlightAnalysis.mockResolvedValue({
+      status: 'ok',
+      score: 50,
+      severity: 'moderate',
+      cached: false,
+    });
+
+    renderApp();
+    await selectAddress();
+    await triggerViewer3DIntersection();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+      expect(neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis).toBeTypeOf('function');
+    });
+
+    const sunlight = makeSunlightResult({ svf: 0.63, irradianceKwhM2: 948.4 });
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(sunlight);
+    });
+
+    await waitFor(() => {
+      expect(mockSubmitSunlightAnalysis).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'full_dossier',
+          reportId: 'report-123',
+          sunlightPayload: expect.objectContaining({
+            winter_hours: sunlight.winter,
+            equinox_hours: sunlight.equinox,
+            summer_hours: sunlight.summer,
+            irradiance_kwh_m2: 948.4,
+          }),
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+    expect(screen.queryByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).not.toBeInTheDocument();
   });
 
   it('does not crash when getNeighborhood3D fails', async () => {

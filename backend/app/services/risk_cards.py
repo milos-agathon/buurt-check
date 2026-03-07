@@ -62,6 +62,23 @@ _CLIMATE_WATER_LAYERS: list[tuple[str, str]] = [
     ("rotterdam_klimaatatlas:1842_rotterdam_begaanbaarheid_wegen", "vector"),
 ]
 
+# GeoServer metadata for curated Klimaateffectatlas layers is inconsistent:
+# some layers expose a machine-readable created/modified timestamp, others do
+# not. Use the atlas publication year as a stable provenance fallback whenever
+# the layer identifier itself is undated.
+_CLIMATE_PUBLICATION_YEAR_FALLBACKS: dict[str, str] = {
+    "wpn:s0149_hittestress_warme_nachten_huidig": "2024",
+    "zh:1821_pzh_ouderenenhitte": "2024",
+    "twn_klimaatatlas:1830_twn_hitte_percentage_ouderen": "2024",
+    "maastricht_klimaatatlas:1811_maastricht_hitte_urgentiekaart": "2024",
+    "haarlemmermeer_klimaatatlas:1815_haarlemmermeer_risico_hitte": "2024",
+    "mra_klimaatatlas:1826_mra_overstromingskans_20cm": "2024",
+    "wpn:s0149_wateroverlast_wpn": "2024",
+    "etten:gr1_t100": "2024",
+    "mra_klimaatatlas:1826_mra_begaanbaarheid_wegen_70mm": "2024",
+    "rotterdam_klimaatatlas:1842_rotterdam_begaanbaarheid_wegen": "2024",
+}
+
 
 def _get_client() -> httpx.AsyncClient:
     global _client, _client_loop_id
@@ -90,6 +107,14 @@ def _extract_layer_date(layer_name: str | None) -> str | None:
         return m_year.group(1)
 
     return None
+
+
+def _resolve_climate_layer_date(layer_name: str | None) -> str | None:
+    if not layer_name:
+        return None
+    return _extract_layer_date(layer_name) or _CLIMATE_PUBLICATION_YEAR_FALLBACKS.get(
+        layer_name
+    )
 
 
 def _risk_from_threshold(value: float, low_max: float, medium_max: float) -> RiskLevel:
@@ -690,10 +715,9 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
         elif heat_level == RiskLevel.unavailable or water_level == RiskLevel.unavailable:
             message = "CLIMATE_PARTIAL"
 
-        source_date = (
-            _extract_layer_date(heat_layer_used)
-            or _extract_layer_date(water_layer_used)
-        )
+        source_date = _resolve_climate_layer_date(
+            heat_layer_used
+        ) or _resolve_climate_layer_date(water_layer_used)
 
         return ClimateStressRiskCard(
             level=overall,
