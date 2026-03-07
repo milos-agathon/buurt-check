@@ -70,6 +70,10 @@ SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "critical": (185, 28, 28),  # #B91C1C
 }
 
+_NOTES_RULE_COUNT = 4
+_NOTES_RULE_SPACING_MM = 8.0
+_NOTES_SECTION_REQUIRED_MM = 47.0
+
 # --- PDF Type Hierarchy (8 primary levels) ---
 #
 # Level         | Font                   | Size | Color     | Usage
@@ -1479,6 +1483,23 @@ def _slugify_label(value: str) -> str:
 def _ensure_page_space(pdf: BuurtCheckPDF, required_h: float) -> None:
     if pdf.will_page_break(required_h):
         pdf.add_page()
+
+
+def _draw_notes_section(pdf: BuurtCheckPDF, is_nl: bool) -> None:
+    pdf.set_font("Satoshi", "B", 12)
+    pdf.cell(
+        0, 7,
+        "Uw notities" if is_nl else "Your viewing notes",
+        new_x="LMARGIN", new_y="NEXT",
+    )
+    pdf.ln(2)
+
+    pdf.set_draw_color(*BORDER)
+    pdf.set_line_width(0.1)
+    for _ in range(_NOTES_RULE_COUNT):
+        y = pdf.get_y()
+        pdf.line(pdf.l_margin, y, pdf.w - pdf.r_margin, y)
+        pdf.ln(_NOTES_RULE_SPACING_MM)
 
 
 def _primary_shadow_from_triptych(shadow_images: list[dict[str, Any]] | None) -> str | None:
@@ -4988,22 +5009,6 @@ def _draw_methodology_page(
     if provenance:
         _draw_provenance_block(pdf, provenance, is_nl)
 
+    _ensure_page_space(pdf, _NOTES_SECTION_REQUIRED_MM)
     pdf.draw_divider("strong")
-
-    # Notes section
-    pdf.set_font("Satoshi", "B", 12)
-    pdf.cell(
-        0, 7,
-        "Uw notities" if is_nl else "Your viewing notes",
-        new_x="LMARGIN", new_y="NEXT",
-    )
-    pdf.ln(2)
-
-    # Fill remaining page space with ruled lines for handwritten notes
-    pdf.set_draw_color(*BORDER)
-    pdf.set_line_width(0.1)
-    bottom_margin = pdf.h - 15  # leave 15mm bottom margin
-    while pdf.get_y() < bottom_margin:
-        y = pdf.get_y()
-        pdf.line(pdf.l_margin, y, pdf.w - pdf.r_margin, y)
-        pdf.ln(8)
+    _draw_notes_section(pdf, is_nl)

@@ -2112,8 +2112,22 @@ class TestPropertyWarningsPdfSections:
 class TestEliminateEmptyPages:
     """E11-S1: Reduce wasted page space."""
 
-    def test_notes_section_fills_remaining_page(self):
-        """Notes section dynamically fills remaining page space with ruled lines."""
+    def test_notes_section_page_guard_adds_a_page_when_space_is_tight(self):
+        from app.services.pdf_export import (
+            _NOTES_SECTION_REQUIRED_MM,
+            _ensure_page_space,
+        )
+
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        pdf.set_y(pdf.h - 20)
+
+        _ensure_page_space(pdf, _NOTES_SECTION_REQUIRED_MM)
+
+        assert pdf.page_no() == 2
+
+    def test_notes_section_is_capped_to_four_lines(self):
+        """Notes section uses a fixed four-line block instead of filling the page."""
         from app.services.pdf_export import (
             _draw_methodology_page,
         )
@@ -2136,8 +2150,13 @@ class TestEliminateEmptyPages:
             c for c in line_calls
             if abs(c[2] - c[0] - usable_w) < 1
         ]
-        # Dynamic fill: should have multiple lines, not just 3
-        assert len(note_lines) >= 3, "Notes section should have at least 3 lines"
+        note_rule_lines = note_lines[-4:]
+        assert len(note_rule_lines) == 4
+        spacings = [
+            round(note_rule_lines[idx + 1][1] - note_rule_lines[idx][1], 1)
+            for idx in range(3)
+        ]
+        assert spacings == [8.0, 8.0, 8.0]
 
     def test_shadow_image_not_on_property_checks(self):
         """Shadow text appears in methodology, not on property checks page."""
