@@ -351,6 +351,21 @@ async def test_climate_source_date_none_when_no_layer_date(mock_layers, mock_sam
     assert card.sampled_at == "2026-02-05"
 
 
+@pytest.mark.asyncio
+@patch("app.services.risk_cards._sample_climate_layer", new_callable=AsyncMock)
+@patch("app.services.risk_cards._get_climate_layer_names", new_callable=AsyncMock)
+async def test_climate_source_date_uses_publication_year_fallback(mock_layers, mock_sample):
+    """Curated Klimaateffectatlas layers resolve to the atlas publication year."""
+    mock_layers.return_value = {"wpn:s0149_hittestress_warme_nachten_huidig"}
+    mock_sample.return_value = {"GRAY_INDEX": 0.6}
+
+    card = await _build_climate_card(121000.0, 487000.0, "2026-02-05")
+
+    assert card.heat_layer == "wpn:s0149_hittestress_warme_nachten_huidig"
+    assert card.source_date == "2024"
+    assert card.sampled_at == "2026-02-05"
+
+
 def test_extract_layer_date_returns_none_for_undated_names():
     assert _extract_layer_date("test:no_date_layer") is None
     assert _extract_layer_date("wpn:s0149_hittestress_warme_nachten_huidig") is None

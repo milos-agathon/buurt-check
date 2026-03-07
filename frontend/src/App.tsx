@@ -46,6 +46,7 @@ import {
   getPropertyWarnings,
   getLivability,
   submitSunlightAnalysis,
+  toSunlightSubmissionPayload,
   mapApiError,
 } from './services/api';
 import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
@@ -141,16 +142,7 @@ function normalizeSunlightScore(winterHours: number): number {
 }
 
 function sunlightSubmissionKey(vboId: string, reportId: string, result: SunlightResult): string {
-  const analysisYear = result.analysisYear ?? new Date().getFullYear();
-  return [
-    vboId,
-    reportId,
-    result.winter,
-    result.equinox,
-    result.summer,
-    analysisYear,
-    result.svf ?? 'na',
-  ].join('|');
+  return [vboId, reportId, JSON.stringify(toSunlightSubmissionPayload(result))].join('|');
 }
 
 
@@ -1056,9 +1048,6 @@ function App() {
         if (submissionResult.status !== 'ok') {
           throw new Error(`[sunlight] unexpected submission status: ${submissionResult.status}`);
         }
-        if (source === 'export' && !submissionResult.cached) {
-          throw new Error('[sunlight] backend cache write not confirmed before export');
-        }
         if (!submissionResult.cached) {
           console.warn('[sunlight] submission acknowledged without cache persistence', {
             timestamp,
@@ -1160,12 +1149,11 @@ function App() {
         });
       }
     } catch (error) {
-      console.error('[sunlight] pre-export submission failed', {
+      console.warn('[sunlight] pre-export submission failed; continuing with request payload fallback', {
         timestamp: new Date().toISOString(),
         requestedAt: exportRequestedAt,
         error,
       });
-      throw error;
     }
   }, [sunlight, submitSunlightForExport]);
 
@@ -3279,6 +3267,7 @@ function App() {
             houseNumber={address.house_number ?? undefined}
             houseLetter={address.house_letter ?? undefined}
             addition={address.addition ?? undefined}
+            sunlightPayload={sunlight ? toSunlightSubmissionPayload(sunlight) : undefined}
             shadowSnapshots={shadowSnapshots}
             sunlightReady={sunlight !== null || sunlightUnavailable}
             sunlightFailed={sunlightUnavailable && sunlight === null}

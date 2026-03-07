@@ -6,6 +6,7 @@ import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import { downloadPdfBlob, exportBriefing } from '../services/api';
 import { trackEvent } from '../services/analytics';
 import type { ShadowSnapshot } from '../types/api';
+import type { SunlightSubmissionPayload } from '../services/api';
 import './ExportBottomSheet.css';
 
 interface ExportBottomSheetProps {
@@ -25,6 +26,7 @@ interface ExportBottomSheetProps {
   houseNumber?: string;
   houseLetter?: string;
   addition?: string;
+  sunlightPayload?: SunlightSubmissionPayload;
   shadowSnapshots?: ShadowSnapshot[] | null;
   isEntitled?: boolean;
   onBuyFullDossier?: () => void;
@@ -54,6 +56,7 @@ export default function ExportBottomSheet({
   houseNumber,
   houseLetter,
   addition,
+  sunlightPayload,
   shadowSnapshots,
   isEntitled = false,
   onBuyFullDossier,
@@ -183,6 +186,7 @@ export default function ExportBottomSheet({
         houseNumber,
         houseLetter,
         addition,
+        sunlightPayload,
         language: exportLanguage,
         shadowImageB64: shadowB64,
         shadowEquinoxB64,

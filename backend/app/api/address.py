@@ -94,6 +94,36 @@ _RISK_FAILURE_MESSAGES: frozenset[str] = frozenset({
     "CLIMATE_TIMEOUT",
 })
 
+
+def _location_map_cache_key(rd_x: float, rd_y: float) -> str:
+    return f"location_map:v1:{rd_x:.0f}:{rd_y:.0f}"
+
+
+def _location_map_params(
+    rd_x: float,
+    rd_y: float,
+    *,
+    image_format: str,
+) -> dict[str, str]:
+    bbox_half = 500  # meters — 1km x 1km area
+    bbox = (
+        f"{rd_x - bbox_half},{rd_y - bbox_half},"
+        f"{rd_x + bbox_half},{rd_y + bbox_half}"
+    )
+    return {
+        "SERVICE": "WMS",
+        "VERSION": "1.3.0",
+        "REQUEST": "GetMap",
+        "LAYERS": "Actueel_orthoHR",
+        "STYLES": "",
+        "CRS": "EPSG:28992",
+        "BBOX": bbox,
+        "WIDTH": "600",
+        "HEIGHT": "600",
+        "FORMAT": image_format,
+        "TRANSPARENT": "false",
+    }
+
 def _property_warnings_cache_key(
     vbo_id: str,
     rd_x: float,
@@ -134,6 +164,60 @@ class SunlightSubmission(BaseModel):
     ground_annual_average: float | None = Field(default=None, ge=0, le=24)
     svf_anisotropic: float | None = Field(default=None, ge=0, le=1)
     irradiance_kwh_m2: float | None = Field(default=None, ge=0)
+
+
+def _sunlight_card_from_submission(body: SunlightSubmission) -> SunlightRiskCard:
+    """Build the canonical sunlight card from a client submission payload."""
+    sunlight_score = normalize_sunlight_score(body.winter_hours)
+    severity = (
+        severity_from_score(sunlight_score)
+        if sunlight_score is not None
+        else SeverityLevel.unavailable
+    )
+    summary_en, summary_nl = sunlight_summary(sunlight_score, body.winter_hours)
+
+    facade_results = [
+        FacadeResult(
+            orientation=f.orientation,
+            height_label=f.height_label,
+            winter_hours=round(f.winter_hours, 1),
+            summer_hours=round(f.summer_hours, 1),
+            annual_average=round(f.annual_average, 1),
+        )
+        for f in body.facade_results
+    ]
+
+    return SunlightRiskCard(
+        level=severity,
+        winter_hours=round(body.winter_hours, 1),
+        summer_hours=round(body.summer_hours, 1),
+        equinox_hours=round(body.equinox_hours, 1),
+        svf_percent=round(body.svf * 100, 1) if body.svf is not None else None,
+        source="3DBAG + SunCalc",
+        source_date=str(body.analysis_year),
+        score=sunlight_score,
+        svf_score=normalize_svf_score(body.svf),
+        severity=severity,
+        summary=summary_en,
+        summary_nl=summary_nl,
+        facade_results=facade_results,
+        annual_average=(
+            round(body.annual_average, 1)
+            if body.annual_average is not None
+            else None
+        ),
+        ground_annual_average=(
+            round(body.ground_annual_average, 1)
+            if body.ground_annual_average is not None
+            else None
+        ),
+        svf_anisotropic=body.svf_anisotropic,
+        irradiance_kwh_m2=(
+            round(body.irradiance_kwh_m2, 1)
+            if body.irradiance_kwh_m2 is not None
+            else None
+        ),
+    )
 
 
 async def _get_cached_sunlight_card(vbo_id: str) -> SunlightRiskCard | None:
@@ -496,57 +580,9 @@ async def submit_sunlight_analysis(
 ):
     """Accept client-computed sunlight analysis for caching and downstream use."""
     started_at = time.monotonic()
-    sunlight_score = normalize_sunlight_score(body.winter_hours)
-    severity = (
-        severity_from_score(sunlight_score)
-        if sunlight_score is not None
-        else SeverityLevel.unavailable
-    )
-    summary_en, summary_nl = sunlight_summary(sunlight_score, body.winter_hours)
-
-    # Map facade submissions to FacadeResult models
-    facade_results = [
-        FacadeResult(
-            orientation=f.orientation,
-            height_label=f.height_label,
-            winter_hours=round(f.winter_hours, 1),
-            summer_hours=round(f.summer_hours, 1),
-            annual_average=round(f.annual_average, 1),
-        )
-        for f in body.facade_results
-    ]
-
-    card = SunlightRiskCard(
-        level=severity,
-        winter_hours=round(body.winter_hours, 1),
-        summer_hours=round(body.summer_hours, 1),
-        equinox_hours=round(body.equinox_hours, 1),
-        svf_percent=round(body.svf * 100, 1) if body.svf is not None else None,
-        source="3DBAG + SunCalc",
-        source_date=str(body.analysis_year),
-        score=sunlight_score,
-        svf_score=normalize_svf_score(body.svf),
-        severity=severity,
-        summary=summary_en,
-        summary_nl=summary_nl,
-        facade_results=facade_results,
-        annual_average=(
-            round(body.annual_average, 1)
-            if body.annual_average is not None
-            else None
-        ),
-        ground_annual_average=(
-            round(body.ground_annual_average, 1)
-            if body.ground_annual_average is not None
-            else None
-        ),
-        svf_anisotropic=body.svf_anisotropic,
-        irradiance_kwh_m2=(
-            round(body.irradiance_kwh_m2, 1)
-            if body.irradiance_kwh_m2 is not None
-            else None
-        ),
-    )
+    card = _sunlight_card_from_submission(body)
+    sunlight_score = card.score
+    severity = card.severity or SeverityLevel.unavailable
 
     cache_ok = await cache_set_verified(
         f"sunlight:{vbo_id}",
@@ -987,6 +1023,10 @@ class ExportRequest(BaseModel):
         default=None,
         description="Array of shadow snapshots (morning/noon/evening) for triptych layout",
     )
+    sunlight_submission: SunlightSubmission | None = Field(
+        default=None,
+        validation_alias=AliasChoices("sunlight_submission", "sunlight"),
+    )
     report_id: str | None = None
     street: str | None = None
     city: str | None = None
@@ -1178,33 +1218,53 @@ async def _fetch_location_map(
     Note: the BRT Achtergrondkaart WMS endpoint was retired; the Luchtfoto
     (aerial photo) WMS is used instead (CC BY 4.0).
     """
-    bbox_half = 500  # meters — 1km x 1km area
-    bbox = (
-        f"{rd_x - bbox_half},{rd_y - bbox_half},"
-        f"{rd_x + bbox_half},{rd_y + bbox_half}"
+    cache_key = _location_map_cache_key(rd_x, rd_y)
+    cached = await cache_get(cache_key)
+    if isinstance(cached, str) and cached:
+        return cached
+
+    attempts = (
+        ("image/jpeg", 10.0),
+        ("image/png", 15.0),
     )
-    params = {
-        "SERVICE": "WMS",
-        "VERSION": "1.3.0",
-        "REQUEST": "GetMap",
-        "LAYERS": "Actueel_orthoHR",
-        "CRS": "EPSG:28992",
-        "BBOX": bbox,
-        "WIDTH": "600",
-        "HEIGHT": "600",
-        "FORMAT": "image/jpeg",
-    }
-    try:
-        client = _map_client.get()
-        resp = await client.get(
-            settings.luchtfoto_wms_base, params=params, timeout=10,
-        )
-        resp.raise_for_status()
-        ct = resp.headers.get("content-type", "")
-        if ct.startswith("image"):
-            return base64.b64encode(resp.content).decode()
-    except Exception:
-        logger.warning("Failed to fetch location map from PDOK Luchtfoto")
+    client = _map_client.get()
+    for idx, (image_format, timeout_s) in enumerate(attempts, start=1):
+        try:
+            resp = await client.get(
+                settings.luchtfoto_wms_base,
+                params=_location_map_params(rd_x, rd_y, image_format=image_format),
+                timeout=timeout_s,
+                follow_redirects=True,
+            )
+            resp.raise_for_status()
+            ct = (resp.headers.get("content-type") or "").lower()
+            if ct.startswith("image") and resp.content:
+                encoded = base64.b64encode(resp.content).decode()
+                await cache_set(
+                    cache_key,
+                    encoded,
+                    ttl=settings.cache_ttl_wms_tile,
+                )
+                return encoded
+            logger.warning(
+                (
+                    "Location map response was not an image "
+                    "(attempt %s/%s, status=%s, content-type=%s)"
+                ),
+                idx,
+                len(attempts),
+                resp.status_code,
+                ct,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch location map from PDOK Luchtfoto (attempt %s/%s): %s",
+                idx,
+                len(attempts),
+                exc,
+            )
+        if idx < len(attempts):
+            await asyncio.sleep(0.25)
     return None
 
 
@@ -1244,8 +1304,23 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
         if building_resp.building.intended_use_en:
             building_use = ", ".join(building_resp.building.intended_use_en)
 
+    request_sunlight = (
+        _sunlight_card_from_submission(body.sunlight_submission)
+        if body.sunlight_submission is not None
+        else None
+    )
+    if request_sunlight is not None and risks is not None:
+        risks.sunlight = request_sunlight
+
     sunlight_score: int | None = None
-    if risks and risks.sunlight:
+    if request_sunlight is not None:
+        sunlight_score = _resolve_sunlight_score(request_sunlight)
+        logger.info(
+            "export sunlight request payload used vbo=%s score=%s",
+            vbo_id,
+            sunlight_score,
+        )
+    elif risks and risks.sunlight:
         sunlight_score = _resolve_sunlight_score(risks.sunlight)
 
     logger.info(

@@ -1,8 +1,10 @@
 """Tests for PDF export service and endpoint."""
 
+import base64
 import io
 import struct
 import zlib
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -64,6 +66,7 @@ from app.services.pdf_export import (
     _draw_location_map,
     _draw_shadow_triptych,
     _generate_executive_summary,
+    _generate_full_dossier_fpdf,
     _interpret_age_distribution,
     _livability_trend_summary,
     _severity_for_score,
@@ -2112,8 +2115,22 @@ class TestPropertyWarningsPdfSections:
 class TestEliminateEmptyPages:
     """E11-S1: Reduce wasted page space."""
 
-    def test_notes_section_fills_remaining_page(self):
-        """Notes section dynamically fills remaining page space with ruled lines."""
+    def test_notes_section_page_guard_adds_a_page_when_space_is_tight(self):
+        from app.services.pdf_export import (
+            _NOTES_SECTION_REQUIRED_MM,
+            _ensure_page_space,
+        )
+
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        pdf.set_y(pdf.h - 20)
+
+        _ensure_page_space(pdf, _NOTES_SECTION_REQUIRED_MM)
+
+        assert pdf.page_no() == 2
+
+    def test_notes_section_is_capped_to_four_lines(self):
+        """Notes section uses a fixed four-line block instead of filling the page."""
         from app.services.pdf_export import (
             _draw_methodology_page,
         )
@@ -2136,8 +2153,52 @@ class TestEliminateEmptyPages:
             c for c in line_calls
             if abs(c[2] - c[0] - usable_w) < 1
         ]
-        # Dynamic fill: should have multiple lines, not just 3
-        assert len(note_lines) >= 3, "Notes section should have at least 3 lines"
+        note_rule_lines = note_lines[-4:]
+        assert len(note_rule_lines) == 4
+        spacings = [
+            round(note_rule_lines[idx + 1][1] - note_rule_lines[idx][1], 1)
+            for idx in range(3)
+        ]
+        assert spacings == [8.0, 8.0, 8.0]
+
+    def test_final_page_keeps_report_details_and_notes_together(self):
+        """Methodology should not spill into a notes-only final page."""
+        from app.models.report import ProvenanceData
+
+        prov = ProvenanceData(
+            report_id="rpt_test123xyz",
+            vbo_id="0441010000123456",
+            pand_id="0441100000654321",
+            buurt_code="BU04410203",
+            gemeente_name="Katwijk",
+            lat=52.1831,
+            lng=4.4328,
+            rd_x=92145.0,
+            rd_y=467832.0,
+        )
+
+        result = pe._generate_full_dossier_fpdf(
+            address="Kerkstraat 10, Katwijk",
+            building_year=1970,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            floor_area=95,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            provenance=prov,
+            livability=_make_livability(),
+        )
+
+        reader = PdfReader(io.BytesIO(result))
+        last_page_text = _norm(reader.pages[-1].extract_text() or "")
+
+        assert "Report Details" in last_page_text
+        assert "Your viewing notes" in last_page_text
 
     def test_shadow_image_not_on_property_checks(self):
         """Shadow text appears in methodology, not on property checks page."""
@@ -3313,33 +3374,53 @@ class TestLocationMap:
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
         assert "Aerial: PDOK Luchtfoto" in text
 
-    def test_draw_location_map_noop_when_none(self):
-        """No-op when location_map_b64 is None."""
+    def test_draw_location_map_renders_placeholder_when_none(self):
+        """Missing map data renders a visible unavailable placeholder."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         y_before = pdf.get_y()
         _draw_location_map(pdf, None, is_nl=False)
         y_after = pdf.get_y()
-        assert y_after == y_before
+        assert y_after > y_before
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Location map unavailable" in text
+        assert "PDOK Luchtfoto" in text
 
-    def test_draw_location_map_noop_when_empty(self):
-        """No-op when location_map_b64 is empty string."""
+    def test_draw_location_map_renders_placeholder_when_empty(self):
+        """Empty map payload renders the same unavailable placeholder."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
-        y_before = pdf.get_y()
         _draw_location_map(pdf, "", is_nl=False)
-        y_after = pdf.get_y()
-        assert y_after == y_before
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Location map unavailable" in text
 
     def test_draw_location_map_graceful_on_bad_data(self):
-        """Bad base64 data does not crash — graceful degradation."""
+        """Bad base64 data falls back to placeholder instead of crashing."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
-        # Should not raise
         _draw_location_map(pdf, "not-valid-png-data", is_nl=False)
-        # PDF still generates — no crash
         result = bytes(pdf.output())
         assert result[:5] == b"%PDF-"
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Location map unavailable" in text
+
+    def test_draw_location_map_moves_to_next_page_when_current_page_is_full(self):
+        """Crowded pages push the location block onto a fresh page."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        pdf.set_y(pdf.h - pdf.b_margin - 20)
+        _draw_location_map(pdf, _tiny_png(), is_nl=False)
+
+        assert pdf.page_no() == 2
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Aerial: PDOK Luchtfoto" in text
 
     def test_full_dossier_accepts_location_map_param(self):
         """generate_full_dossier accepts location_map_b64."""
@@ -3364,6 +3445,50 @@ class TestLocationMap:
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
         assert "PDOK Luchtfoto" in text
+
+    def test_full_dossier_fpdf_keeps_location_map_when_shadow_cover_is_crowded(self):
+        """fpdf2 still renders the map when the cover already contains shadow panels."""
+        shadow_images = TestShadowTriptych()._make_shadow_images()
+        result = _generate_full_dossier_fpdf(
+            address="Damrak 1, 1012 Amsterdam",
+            building_year=1950,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            location_map_b64=_tiny_png(),
+            shadow_images=shadow_images,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Aerial: PDOK Luchtfoto" in text
+
+    def test_full_dossier_fpdf_shows_location_placeholder_when_map_missing(self):
+        """fpdf2 keeps a visible location section even when PDOK fails."""
+        shadow_images = TestShadowTriptych()._make_shadow_images()
+        result = _generate_full_dossier_fpdf(
+            address="Damrak 1, 1012 Amsterdam",
+            building_year=1950,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            location_map_b64=None,
+            shadow_images=shadow_images,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Location map unavailable" in text
 
     def test_full_dossier_without_map_still_works(self):
         """Full dossier generates without location_map_b64."""
@@ -3415,6 +3540,52 @@ async def test_fetch_location_map_success():
 
 
 @pytest.mark.asyncio
+async def test_fetch_location_map_uses_cache_when_available():
+    """Returns cached map bytes without calling PDOK again."""
+    from app.api.address import _fetch_location_map
+
+    with (
+        patch("app.api.address.cache_get", new_callable=AsyncMock, return_value="cached-map"),
+        patch("app.api.address._map_client") as mock_lac,
+    ):
+        result = await _fetch_location_map(121000, 487000)
+
+    assert result == "cached-map"
+    mock_lac.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_location_map_retries_and_caches_success():
+    """Retries transient failures and caches the successful map response."""
+    import base64
+    from unittest.mock import MagicMock
+
+    from app.api.address import _fetch_location_map
+
+    tiny = base64.b64decode(_tiny_png())
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"content-type": "image/png"}
+    mock_resp.content = tiny
+    mock_resp.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(side_effect=[Exception("timeout"), mock_resp])
+
+    with (
+        patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None),
+        patch("app.api.address.cache_set", new_callable=AsyncMock) as mock_cache_set,
+        patch("app.api.address._map_client") as mock_lac,
+    ):
+        mock_lac.get.return_value = mock_client
+        result = await _fetch_location_map(121000, 487000)
+
+    assert result is not None
+    assert mock_client.get.await_count == 2
+    mock_cache_set.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_fetch_location_map_non_image_returns_none():
     """Returns None when response is not an image."""
     from unittest.mock import MagicMock
@@ -3454,6 +3625,52 @@ async def test_fetch_location_map_exception_returns_none():
         result = await _fetch_location_map(121000, 487000)
 
     assert result is None
+
+
+def test_decode_b64_asset_preserves_jpeg_extension(tmp_path):
+    from app.services.pdf_export import _decode_b64_asset
+
+    raw = b"\xff\xd8\xff\xdbJPEG"
+    payload = base64.b64encode(raw).decode("ascii")
+
+    output = _decode_b64_asset(
+        payload,
+        output_dir=tmp_path,
+        filename_stem="location_map",
+    )
+
+    assert output is not None
+    assert output.endswith(".jpg")
+    assert Path(output).read_bytes() == raw
+
+
+def test_fpdf_climate_source_wraps_without_truncation():
+    """Fallback renderer wraps long climate source text instead of clipping it."""
+    from app.services.pdf_export import _draw_risk_details_page
+
+    risks = _make_risks()
+    risks.climate_stress.source = "Klimaateffectatlas (Dutch Climate Atlas)"
+    risks.climate_stress.source_date = "2024"
+    risks.climate_stress.heat_layer = "wpn:s0149_hittestress_warme_nachten_huidig"
+    risks.climate_stress.water_layer = "etten:gr1_t100"
+
+    pdf = BuurtCheckPDF(language="en")
+    pdf.add_page()
+    _draw_risk_details_page(
+        pdf,
+        "Kalverstraat 1, Amsterdam",
+        risks,
+        80,
+        _make_risk_comparisons(),
+        False,
+    )
+
+    reader = PdfReader(io.BytesIO(bytes(pdf.output())))
+    text = _norm("\n".join(page.extract_text() or "" for page in reader.pages))
+
+    assert "Source: Klimaateffectatlas (Dutch Climate Atlas) · 2024" in text
+    assert "etten:gr1_t100" in text
+    assert "Current climate conditions" in text
 
 
 # ---------------------------------------------------------------------------
@@ -4310,6 +4527,37 @@ class TestExpandedSunlightMeasurements:
         irr_val = [m[1] for m in measurements if m[0] == "Zonnestraling"][0]
         assert "jaar" in irr_val
 
+    def test_climate_disclosure_line_includes_date_layers_and_scenario(self):
+        """Climate disclosure line surfaces source year, layers, and scenario text."""
+        from app.services.pdf_export import _climate_disclosure_line
+
+        card = ClimateStressRiskCard(
+            level=RiskLevel.medium,
+            source="Klimaateffectatlas",
+            source_date="2024",
+            sampled_at="2026-01-01",
+            heat_layer="wpn:s0149_hittestress_warme_nachten_huidig",
+            water_layer="mra_klimaatatlas:1826_mra_overstromingskans_20cm",
+        )
+
+        line = _climate_disclosure_line(card, is_nl=False)
+
+        assert line is not None
+        assert "Climate context" in line
+        assert "2024" in line
+        assert "Layers:" in line
+        assert "Current climate conditions" in line
+
+    def test_wrapped_latex_metadata_adds_soft_breaks(self):
+        wrapped = pe._format_wrapped_latex_metadata(
+            "Layers: wpn:s0149_hittestress_warme_nachten_huidig, "
+            "mra_klimaatatlas:1826_mra_overstromingskans_20cm"
+        )
+
+        assert r":\allowbreak " in wrapped
+        assert r",\allowbreak " in wrapped
+        assert r"\_\allowbreak{}" in wrapped
+
     def test_all_extended_fields_together(self):
         """All extended fields render when all are present."""
         from app.services.pdf_export import _build_risk_detail_data
@@ -4380,6 +4628,8 @@ class TestExpandedSunlightMeasurements:
 
     def test_expanded_sunlight_in_property_checks_en(self):
         """Sunlight section remains explicit when extended metrics are available (EN)."""
+        import re
+
         risks = self._make_sunlight_risks(
             annual_average=6.3,
             svf_anisotropic=58.0,
@@ -4400,12 +4650,23 @@ class TestExpandedSunlightMeasurements:
             property_warnings_data=_make_property_warnings(),
         )
         reader = PdfReader(io.BytesIO(result))
-        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
         assert "Direct sun (clear-sky visibility)" in text
-        assert "Estimated direct sunlight score: 80/100." in text
+        assert re.search(
+            (
+                r"Estimated direct sunlight: winter 5\.0h/day, equinox "
+                r"7\s*\.\s*5h/day, summer 10\.0h/day\. Score: 80/100\."
+            ),
+            text,
+        )
+        assert "Annual average: 6.3 h/day" in text
+        assert "SVF (anisotropic): 58%" in text
+        assert "Solar irradiance: 985 kWh/m²/year." in text
 
     def test_expanded_sunlight_in_property_checks_nl(self):
         """Sunlight section remains explicit when extended metrics are available (NL)."""
+        import re
+
         risks = self._make_sunlight_risks(
             annual_average=6.3,
             svf_anisotropic=58.0,
@@ -4426,9 +4687,18 @@ class TestExpandedSunlightMeasurements:
             property_warnings_data=_make_property_warnings(),
         )
         reader = PdfReader(io.BytesIO(result))
-        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
         assert "Direct zonlicht (helderheidsschatting)" in text
-        assert "Geschatte zonlichtscore: 80/100." in text
+        assert re.search(
+            (
+                r"Geschat direct zonlicht: winter 5,0h/dag, equinox "
+                r"7\s*,\s*5h/dag, zomer 10,0h/dag\. Score: 80/100\."
+            ),
+            text,
+        )
+        assert "Jaargemiddelde: 6,3 u/dag" in text
+        assert "SVF (anisotropisch): 58%" in text
+        assert "Zonnestraling: 985 kWh/m²/jaar." in text
 
     def test_no_extended_sunlight_in_property_checks_when_absent(self):
         """Property checks section works without extended fields."""
@@ -4904,6 +5174,111 @@ class TestExecutiveSummary:
         cover_text = reader.pages[0].extract_text() or ""
         assert "EXECUTIVE SUMMARY" in cover_text
         assert "risk categories" in cover_text
+
+    def test_fpdf_cover_page_includes_crime_in_executive_summary(self):
+        """fpdf2 cover summary counts crime when Tier-B provides a score."""
+        result = _generate_full_dossier_fpdf(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            tier_b=_make_tier_b(),
+        )
+        reader = PdfReader(io.BytesIO(result))
+        cover_text = reader.pages[0].extract_text() or ""
+        assert "5 risk categories" in cover_text
+        assert "crime" in cover_text.lower()
+
+    def test_full_dossier_latex_uses_crime_in_summary_and_risk_grid(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        captured: dict[str, object] = {}
+
+        def fake_grid_chart(*, cells, cols=4, output_format="pdf"):
+            captured["grid_cells"] = cells
+            captured["grid_cols"] = cols
+            captured["grid_format"] = output_format
+            return b"%PDF-1.4\n% fake-risk-grid"
+
+        def fake_parallel(chart_jobs, *, max_workers=None):  # type: ignore[no-untyped-def]
+            rendered: dict[str, object] = {}
+            rendered["risk_grid_chart"] = chart_jobs["risk_grid_chart"]()
+            rendered["comparison_charts"] = {}
+            return rendered
+
+        def fake_compile(tex, *, fallback_pdf_factory, timeout=8, passes=2):  # type: ignore[no-untyped-def]
+            captured["tex"] = tex
+            return b"%PDF-latex-path"
+
+        monkeypatch.setattr(pe.chart_renderer, "render_risk_summary_grid", fake_grid_chart)
+        monkeypatch.setattr(pe, "render_chart_assets_parallel", fake_parallel)
+        monkeypatch.setattr(pe, "compile_latex_to_pdf_with_fallback", fake_compile)
+
+        result = pe._generate_full_dossier_latex(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            livability=_make_livability(),
+            location_map_b64=None,
+        )
+
+        assert result == b"%PDF-latex-path"
+        assert captured["grid_cols"] == 5
+        grid_cells = captured["grid_cells"]
+        assert isinstance(grid_cells, list)
+        assert grid_cells[-1].category == "Crime"
+        assert captured["grid_format"] == "pdf"
+        tex = captured["tex"]
+        assert isinstance(tex, str)
+        assert "5 risk categories" in tex
+        assert "crime" in tex.lower()
+        assert "Crime &" in tex
+
+    def test_full_dossier_latex_shows_location_placeholder_when_map_missing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        captured: dict[str, str] = {}
+
+        monkeypatch.setattr(pe, "render_chart_assets_parallel", lambda *args, **kwargs: {})
+
+        def fake_compile(tex, *, fallback_pdf_factory, timeout=8, passes=2):  # type: ignore[no-untyped-def]
+            captured["tex"] = tex
+            return b"%PDF-latex-path"
+
+        monkeypatch.setattr(pe, "compile_latex_to_pdf_with_fallback", fake_compile)
+
+        result = pe._generate_full_dossier_latex(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            livability=_make_livability(),
+            location_map_b64=None,
+        )
+
+        assert result == b"%PDF-latex-path"
+        assert "Location map unavailable" in captured["tex"]
+        assert "PDOK aerial imagery did not load during export." in captured["tex"]
 
     def test_cover_page_includes_executive_summary_nl(self):
         """Full dossier cover page (NL) includes executive summary text."""

@@ -32,17 +32,17 @@
 Noise &
 <% if risks and risks.noise and risks.noise.score is not none %><< risks.noise.score >>/100<% else %><% if language == "nl" %>Niet beschikbaar<% else %>Unavailable<% endif %><% endif %> &
 <% if risks and risks.noise and risks.noise.severity %>\textcolor{<< risks.noise.severity|sev_color >>}{<< risks.noise.severity|sev_label(language) >>}<% else %>\textcolor{MutedText}{<% if language == "nl" %>Niet beoordeeld<% else %>Not assessed<% endif %>}<% endif %> &
-<% if risks and risks.noise and risks.noise.source %><< risks.noise.source >><% else %><% if language == "nl" %>Geen bron<% else %>No source<% endif %><% endif %> \\
+<% if risks and risks.noise and risks.noise.source %><< risks.noise.source >><% if risks.noise.source_date %> · << risks.noise.source_date >><% endif %><% else %><% if language == "nl" %>Geen bron<% else %>No source<% endif %><% endif %> \\
 
 Air quality &
 <% if risks and risks.air_quality and risks.air_quality.score is not none %><< risks.air_quality.score >>/100<% else %><% if language == "nl" %>Niet beschikbaar<% else %>Unavailable<% endif %><% endif %> &
 <% if risks and risks.air_quality and risks.air_quality.severity %>\textcolor{<< risks.air_quality.severity|sev_color >>}{<< risks.air_quality.severity|sev_label(language) >>}<% else %>\textcolor{MutedText}{<% if language == "nl" %>Niet beoordeeld<% else %>Not assessed<% endif %>}<% endif %> &
-<% if risks and risks.air_quality and risks.air_quality.source %><< risks.air_quality.source >><% else %><% if language == "nl" %>Geen bron<% else %>No source<% endif %><% endif %> \\
+<% if risks and risks.air_quality and risks.air_quality.source %><< risks.air_quality.source >><% if risks.air_quality.source_date %> · << risks.air_quality.source_date >><% endif %><% else %><% if language == "nl" %>Geen bron<% else %>No source<% endif %><% endif %> \\
 
 Climate stress &
 <% if risks and risks.climate_stress and risks.climate_stress.score is not none %><< risks.climate_stress.score >>/100<% else %><% if language == "nl" %>Niet beschikbaar<% else %>Unavailable<% endif %><% endif %> &
 <% if risks and risks.climate_stress and risks.climate_stress.severity %>\textcolor{<< risks.climate_stress.severity|sev_color >>}{<< risks.climate_stress.severity|sev_label(language) >>}<% else %>\textcolor{MutedText}{<% if language == "nl" %>Niet beoordeeld<% else %>Not assessed<% endif %>}<% endif %> &
-<% if risks and risks.climate_stress and risks.climate_stress.source %><< risks.climate_stress.source >><% else %><% if language == "nl" %>Geen bron<% else %>No source<% endif %><% endif %> \\
+<% if risks and risks.climate_stress and risks.climate_stress.source %><< risks.climate_stress.source >><% if risks.climate_stress.source_date %> · << risks.climate_stress.source_date >><% endif %><% else %><% if language == "nl" %>Geen bron<% else %>No source<% endif %><% endif %> \\
 
 Sunlight &
 <% if sunlight_state == "available" and sunlight_score is not none %><< sunlight_score >>/100<% else %><% if language == "nl" %>Datakloof (zie Zonlichtstatus)<% else %>Data gap (see Sunlight Status)<% endif %><% endif %> &
@@ -50,8 +50,19 @@ Sunlight &
 <% if sunlight_score >= 70 %>\textcolor{sev-good}{<% if language == "nl" %>Goed<% else %>Good<% endif %>}<% elif sunlight_score >= 40 %>\textcolor{sev-mod}{<% if language == "nl" %>Matig<% else %>Moderate<% endif %>}<% elif sunlight_score >= 20 %>\textcolor{sev-poor}{<% if language == "nl" %>Slecht<% else %>Poor<% endif %>}<% else %>\textcolor{sev-crit}{<% if language == "nl" %>Kritiek<% else %>Critical<% endif %>}<% endif %><% else %>\textcolor{MutedText}{<% if language == "nl" %>Niet voltooid<% else %>Not completed<% endif %>}<% endif %> &
 SunCalc + 3DBAG \\
 
+<% if tier_b and tier_b.crime and tier_b.crime.score is not none %>
+<% if language == "nl" %>Criminaliteit<% else %>Crime<% endif %> &
+<< tier_b.crime.score >>/100 &
+<% if tier_b.crime.severity %>\textcolor{<< tier_b.crime.severity|sev_color >>}{<< tier_b.crime.severity|sev_label(language) >>}<% else %>\textcolor{MutedText}{<% if language == "nl" %>Niet beoordeeld<% else %>Not assessed<% endif %>}<% endif %> &
+<% if tier_b.crime.source %><< tier_b.crime.source >><% if tier_b.crime.source_date %> · << tier_b.crime.source_date >><% elif tier_b.crime.yearly_period %> · << tier_b.crime.yearly_period >><% endif %><% else %><% if language == "nl" %>Geen bron<% else %>No source<% endif %><% endif %> \\
+<% endif %>
+
 \bottomrule
 \end{longtable}
+
+<% if climate_disclosure %>
+{\footnotesize\textcolor{MutedText}{\parbox{\linewidth}{\raggedright << climate_disclosure >>}}}\par
+<% endif %>
 
 <% if risk_grid_chart %>
 \begin{center}
@@ -59,13 +70,20 @@ SunCalc + 3DBAG \\
 \end{center}
 <% endif %>
 
-<% if comparison_charts %>
+<% if comparison_chart_blocks %>
 \subsection*{<% if language == "nl" %>Vergelijkingsgrafieken<% else %>Comparison Charts<% endif %>}
-<% for _chart_key, chart_path in comparison_charts.items() %>
-\includegraphics[width=0.92\linewidth]{<< chart_path >>}
-\vspace{3pt}
+<% for block in comparison_chart_blocks %>
+\Needspace{58mm}
+\noindent\includegraphics[width=0.92\linewidth]{<< block.path >>}\par
+<% if block.measurement_line %>
+{\footnotesize\textbf{<% if language == "nl" %>Metingen<% else %>Measurements<% endif %>}: << block.measurement_line >>}\par
+<% endif %>
+<% if block.unit_definition %>
+{\footnotesize\textcolor{MutedText}{<< block.unit_definition >>}}\par
+<% endif %>
+\vspace{4pt}
 <% endfor %>
-{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Vergelijkingsbalken gebruiken de buurt-check 0-100 schaal (niet ruwe eenheden). Hoger = beter.<% else %>Comparison bars use the buurt-check 0-100 scale (not raw units). Higher = better.<% endif %>}}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Vergelijkingsbalken gebruiken de buurt-check 0-100 schaal (niet ruwe eenheden). Hoger = beter.<% else %>Comparison bars use the buurt-check 0-100 scale (not raw units). Higher = better.<% endif %>}}\par
 {\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Referentielijnen tonen WHO/target waarden omgerekend naar dezelfde schaal.<% else %>Reference lines show WHO/target values mapped to the same scale.<% endif %>}}
 <% endif %>
 
@@ -87,6 +105,21 @@ SunCalc + 3DBAG \\
 }}
 <% endif %>
 
+<% if location_map %>
+\subsection*{<% if language == "nl" %>Locatiekaart<% else %>Location Map<% endif %>}
+\begin{center}
+\includegraphics[width=0.78\linewidth]{<< location_map >>}
+\end{center}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Luchtfoto: PDOK Luchtfoto (CC BY 4.0) · context 1 km · noord boven<% else %>Aerial: PDOK Luchtfoto (CC BY 4.0) · 1 km context · north up<% endif %>}}
+<% else %>
+\subsection*{<% if language == "nl" %>Locatiekaart<% else %>Location Map<% endif %>}
+\noindent\fcolorbox{MutedText}{white}{\parbox{\dimexpr0.78\linewidth-2\fboxsep-2\fboxrule\relax}{
+\textbf{<% if language == "nl" %>Locatiekaart niet beschikbaar<% else %>Location map unavailable<% endif %>}\\
+<% if language == "nl" %>PDOK-luchtfoto kon niet laden tijdens export. Het dossier gaat verder zonder de kaartcontext van 1 km.<% else %>PDOK aerial imagery did not load during export. The dossier continues without the 1 km map context.<% endif %>
+}}\par
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Luchtfoto: PDOK Luchtfoto (CC BY 4.0) · niet beschikbaar voor deze export<% else %>Aerial: PDOK Luchtfoto (CC BY 4.0) · unavailable for this export<% endif %>}}
+<% endif %>
+
 <% if shadow_images %>
 \subsection*{<% if language == "nl" %>Schaduwanalyse<% else %>Shadow Analysis<% endif %>}
 <% for img in shadow_images %>
@@ -99,21 +132,27 @@ SunCalc + 3DBAG \\
 <% endif %>
 <% endif %>
 
-<% if location_map %>
-\subsection*{<% if language == "nl" %>Locatiekaart<% else %>Location Map<% endif %>}
-\includegraphics[width=0.72\linewidth]{<< location_map >>}
-\\{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Luchtfoto: PDOK Luchtfoto (CC BY 4.0) · schaal 100 m · N<% else %>Aerial: PDOK Luchtfoto (CC BY 4.0) · 100 m scale · N<% endif %>}}
-<% endif %>
-
 \section*{<% if language == "nl" %>Buurtcontext<% else %>Neighborhood Context<% endif %>}
 <% if neighborhood %>
 \begin{itemize}
   \item <% if language == "nl" %>Buurtcode<% else %>Neighborhood code<% endif %>: << neighborhood.buurt_code if neighborhood.buurt_code else ("Onbekend" if language == "nl" else "Unknown") >>
   \item <% if language == "nl" %>Gemeente<% else %>Municipality<% endif %>: << neighborhood.gemeente_name if neighborhood.gemeente_name else ("Onbekend" if language == "nl" else "Unknown") >>
-<% if neighborhood.population_density and neighborhood.population_density.value is not none %>
-  \item <% if language == "nl" %>Dichtheid<% else %>Density<% endif %>: << neighborhood.population_density.value >>
+<% if neighborhood_urbanization_label %>
+  \item <% if language == "nl" %>Stedelijkheid<% else %>Urbanization<% endif %>: << neighborhood_urbanization_label >>
 <% endif %>
 \end{itemize}
+<% if neighborhood_sections %>
+<% for section in neighborhood_sections %>
+\textbf{<< section.title >>}\\[-2pt]
+\begin{tabular}{p{0.56\linewidth}p{0.35\linewidth}}
+<% for row in section.rows %>
+<< row.label >> & << row.value >> \\
+<% endfor %>
+\end{tabular}
+\vspace{5pt}
+<% endfor %>
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: CBS Wijken \& Buurten 2024 · Q1 = laagste 25\% landelijk, Q4 = hoogste 25\%<% else %>Source: CBS Wijken \& Buurten 2024 · Q1 = bottom 25\% nationally, Q4 = top 25\%<% endif %>}}
+<% endif %>
 <% else %>
 <% if language == "nl" %>Buurtgegevens niet beschikbaar.<% else %>Neighborhood data unavailable.<% endif %>
 <% endif %>
@@ -172,7 +211,6 @@ Score: << tier_b.crime.score if tier_b.crime.score is not none else "Unavailable
 <% endif %>
 <% endif %>
 
-\clearpage
 \section*{<% if language == "nl" %>Aanvullende vastgoedcontroles<% else %>Additional Property Checks<% endif %>}
 
 % 1) Asbestos
@@ -323,9 +361,24 @@ Score: << tier_b.crime.score if tier_b.crime.score is not none else "Unavailable
 
 % 7) Direct sunlight estimate
 <% if sunlight_score is not none %>
+<% set winter_hours = risks.sunlight.winter_hours|default(none) if risks and risks.sunlight else none %>
+<% set equinox_hours = risks.sunlight.equinox_hours|default(none) if risks and risks.sunlight else none %>
+<% set summer_hours = risks.sunlight.summer_hours|default(none) if risks and risks.sunlight else none %>
+<% set annual_average = risks.sunlight.annual_average|default(none) if risks and risks.sunlight else none %>
+<% set svf_anisotropic = risks.sunlight.svf_anisotropic|default(none) if risks and risks.sunlight else none %>
+<% set svf_percent = risks.sunlight.svf_percent|default(none) if risks and risks.sunlight else none %>
+<% set irradiance_kwh_m2 = risks.sunlight.irradiance_kwh_m2|default(none) if risks and risks.sunlight else none %>
 \noindent\fcolorbox{<% if sunlight_score >= 70 %>sev-good<% elif sunlight_score >= 40 %>sev-mod<% elif sunlight_score >= 20 %>sev-poor<% else %>sev-crit<% endif %>}{white}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{
 \textbf{\textcolor{<% if sunlight_score >= 70 %>sev-good<% elif sunlight_score >= 40 %>sev-mod<% elif sunlight_score >= 20 %>sev-poor<% else %>sev-crit<% endif %>}{<% if sunlight_score >= 70 %>✓<% elif sunlight_score >= 40 %>-<% else %>▲<% endif %> <% if language == "nl" %>Direct zonlicht (helderheidsschatting)<% else %>Direct sun (clear-sky visibility)<% endif %>}}\\
-<% if language == "nl" %>Geschatte zonlichtscore: << sunlight_score >>/100.<% else %>Estimated direct sunlight score: << sunlight_score >>/100.<% endif %>\\
+<% if winter_hours is not none or equinox_hours is not none or summer_hours is not none %>
+<% if language == "nl" %>Geschat direct zonlicht: winter << ("%.1f"|format(winter_hours)).replace(".", ",") if winter_hours is not none else "—" >>h/dag, equinox << ("%.1f"|format(equinox_hours)).replace(".", ",") if equinox_hours is not none else "—" >>h/dag, zomer << ("%.1f"|format(summer_hours)).replace(".", ",") if summer_hours is not none else "—" >>h/dag. Score: << sunlight_score >>/100.<% else %>Estimated direct sunlight: winter << "%.1f"|format(winter_hours) if winter_hours is not none else "—" >>h/day, equinox << "%.1f"|format(equinox_hours) if equinox_hours is not none else "—" >>h/day, summer << "%.1f"|format(summer_hours) if summer_hours is not none else "—" >>h/day. Score: << sunlight_score >>/100.<% endif %><%
+if annual_average is not none
+or (svf_anisotropic is not none and svf_anisotropic != svf_percent)
+or irradiance_kwh_m2 is not none
+%> <% if annual_average is not none %><% if language == "nl" %>Jaargemiddelde: << ("%.1f"|format(annual_average)).replace(".", ",") >> u/dag<% else %>Annual average: << "%.1f"|format(annual_average) >> h/day<% endif %><% endif %><% if svf_anisotropic is not none and svf_anisotropic != svf_percent %><% if annual_average is not none %> | <% endif %><% if language == "nl" %>SVF (anisotropisch): << "%.0f"|format(svf_anisotropic) >>\%<% else %>SVF (anisotropic): << "%.0f"|format(svf_anisotropic) >>\%<% endif %><% endif %><% if irradiance_kwh_m2 is not none %><% if annual_average is not none or (svf_anisotropic is not none and svf_anisotropic != svf_percent) %> | <% endif %><% if language == "nl" %>Zonnestraling: << "%.0f"|format(irradiance_kwh_m2) >> kWh/m²/jaar<% else %>Solar irradiance: << "%.0f"|format(irradiance_kwh_m2) >> kWh/m²/year<% endif %>.<% endif %><% endif %>
+<% else %>
+<% if language == "nl" %>Geschatte zonlichtscore: << sunlight_score >>/100.<% else %>Estimated direct sunlight score: << sunlight_score >>/100.<% endif %>
+<% endif %>\\
 {\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: SunCalc + 3DBAG<% else %>Source: SunCalc + 3DBAG<% endif %>}}
 }}
 <% else %>
@@ -402,13 +455,8 @@ Score: << tier_b.crime.score if tier_b.crime.score is not none else "Unavailable
 <% if language == "nl" %>Geen provenance metadata aangeleverd.<% else %>No provenance metadata supplied.<% endif %>
 <% endif %>
 
-\vfill
-
+\Needspace{42mm}
 \subsection*{<% if language == "nl" %>Uw notities<% else %>Your viewing notes<% endif %>}
-\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
-\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
-\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
-\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
 \noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
 \noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
 \noindent\rule{\linewidth}{0.1pt}\vspace{8pt}

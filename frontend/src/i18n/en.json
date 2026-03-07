@@ -453,7 +453,7 @@
   "export.share": "Share PDF",
   "export.download": "Download PDF",
   "export.shareError": "We couldn't share the PDF — your device may not support this. Try downloading instead.",
-  "export.error": "We couldn't generate the PDF. Try again — your dossier data is still available.",
+  "export.error": "We couldn't generate the PDF. Try again. Your dossier data is still available.",
   "export.languageMismatch": "PDF will be generated in {{language}}",
   "export.sunlightComputing": "Calculating sunlight analysis...",
   "export.sunlightUnavailableWarning": "Sunlight analysis was not completed before export — re-export after viewing the 3D model.",

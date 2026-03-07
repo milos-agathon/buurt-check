@@ -29,7 +29,7 @@ from app.services.scoring import severity_from_score
 
 # --- Unit conversion ---
 MM_PER_INCH = 25.4
-CHART_DPI = 600
+CHART_DPI = 192
 
 # --- Font scale/weights ---
 FONT_WEIGHT_DISPLAY = 700
@@ -136,6 +136,15 @@ DEFAULT_SUN_POSITIONS: MappingProxyType[str, tuple[float, float]] = MappingProxy
 
 def _mm_to_inch(mm: float) -> float:
     return mm / MM_PER_INCH
+
+
+def risk_summary_grid_height_mm(cell_count: int, cols: int = 4) -> float:
+    """Return the intrinsic figure height for the summary grid."""
+    if cols <= 0:
+        raise ValueError("cols must be >= 1")
+    safe_cell_count = max(1, cell_count)
+    row_count = math.ceil(safe_cell_count / cols)
+    return row_count * GRID_CELL_HEIGHT_MM + (row_count - 1) * GRID_GAP_MM
 
 
 def _save_figure(fig: plt.Figure, output_format: OutputFormat = "pdf") -> bytes:
@@ -297,6 +306,7 @@ def render_risk_comparison(
     address_score: int,
     comparisons: list[CompRow],
     output_format: OutputFormat = "pdf",
+    show_row_labels: bool = True,
 ) -> bytes:
     """Render Scherer-style risk comparison chart as vector PDF bytes."""
     SchererTheme().apply()
@@ -323,9 +333,12 @@ def render_risk_comparison(
         default=0.0,
     )
     max_x = max(100.0, max_bar, max_ref) + 12.0
-    label_space = max(24.0, min(65.0, 1.8 * max(len(row.label) for row in bar_rows)))
+    # Keep a generous left gutter for longer peer-baseline labels and reserve
+    # a fixed right column for score values so labels do not collide with them.
+    label_space = max(30.0, min(76.0, 2.2 * max(len(row.label) for row in bar_rows)))
+    value_x = max_x - 1.0
 
-    chart_h_mm = max(RISK_MIN_HEIGHT_MM, 10.0 + len(bar_rows) * RISK_ROW_HEIGHT_MM)
+    chart_h_mm = max(RISK_MIN_HEIGHT_MM, 12.0 + len(bar_rows) * (RISK_ROW_HEIGHT_MM + 1.5))
     fig, ax = plt.subplots(
         figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(chart_h_mm)),
         dpi=CHART_DPI,
@@ -340,24 +353,25 @@ def render_risk_comparison(
         bar_height = 0.6 if is_primary else 0.4
         bar_color = C_ACCENT if is_primary else alt_colors[(idx - 1) % len(alt_colors)]
         ax.barh(y=y, width=value, height=bar_height, color=bar_color, edgecolor="none")
+        if show_row_labels:
+            ax.text(
+                -label_space + 1.0,
+                y,
+                row.label,
+                fontsize=TYPE_BODY_PT,
+                fontweight=FONT_WEIGHT_HEADING if is_primary else FONT_WEIGHT_BODY,
+                color=C_PRIMARY,
+                va="center",
+                ha="left",
+            )
         ax.text(
-            -label_space + 1.0,
-            y,
-            row.label,
-            fontsize=TYPE_BODY_PT,
-            fontweight=FONT_WEIGHT_HEADING if is_primary else FONT_WEIGHT_BODY,
-            color=C_PRIMARY,
-            va="center",
-            ha="left",
-        )
-        ax.text(
-            min(max_x - 1.2, value + 1.2),
+            value_x,
             y,
             _score_display(value),
             fontsize=TYPE_BODY_PT,
             color=C_ACCENT_DARK if is_primary else C_PRIMARY,
             va="center",
-            ha="left" if value < (max_x - 8.0) else "right",
+            ha="right",
         )
 
     label_y = y_positions[0] + 0.45 if len(y_positions) else 0.0
@@ -389,14 +403,19 @@ def render_risk_comparison(
     ax.set_xlim(-label_space, max_x)
     ax.set_ylim(-0.7, max(0.8, len(bar_rows) - 0.2))
     ax.set_yticks([])
-    ax.set_xticks([])
-    ax.tick_params(axis="both", length=0)
+    # Render threshold ticks inside the chart so they align with the
+    # coordinate system regardless of how the image is embedded.
+    ax.set_xticks([0, 20, 40, 70, 100])
+    ax.set_xticklabels(["0", "20", "40", "70", "100"])
+    ax.tick_params(axis="x", length=0, pad=3, labelsize=TYPE_CAPTION_PT,
+                   labelcolor=C_MUTE_1)
+    ax.tick_params(axis="y", length=0)
     ax.spines["left"].set_visible(False)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.spines["bottom"].set_color(C_AXIS)
     ax.spines["bottom"].set_linewidth(0.4)
-    fig.subplots_adjust(left=0.035, right=0.99, top=0.86, bottom=0.2)
+    fig.subplots_adjust(left=0.04, right=0.985, top=0.84, bottom=0.22)
 
     return _save_figure(fig, output_format=output_format)
 
@@ -419,8 +438,7 @@ def render_risk_summary_grid(
             RiskCell(category="Sunlight", score=None),
         ]
 
-    row_count = max(1, math.ceil(len(cells) / cols))
-    grid_h_mm = row_count * GRID_CELL_HEIGHT_MM + (row_count - 1) * GRID_GAP_MM
+    grid_h_mm = risk_summary_grid_height_mm(len(cells), cols=cols)
     cell_w_mm = (CHART_WIDTH_MM - (cols - 1) * GRID_GAP_MM) / cols
 
     fig, ax = plt.subplots(
@@ -832,7 +850,9 @@ def render_livability_score(
 
 
 __all__ = [
+    "CHART_DPI",
     "AgeProfile",
+    "AGE_CHART_HEIGHT_MM",
     "CHART_WIDTH_MM",
     "CompRow",
     "CrimeData",
@@ -840,6 +860,7 @@ __all__ = [
     "FONT_WEIGHT_CAPTION",
     "FONT_WEIGHT_DISPLAY",
     "FONT_WEIGHT_HEADING",
+    "LIVABILITY_HEIGHT_MM",
     "LivabilityData",
     "OutputFormat",
     "RiskCell",
@@ -852,4 +873,5 @@ __all__ = [
     "render_risk_comparison",
     "render_risk_summary_grid",
     "render_shadow_panels",
+    "risk_summary_grid_height_mm",
 ]

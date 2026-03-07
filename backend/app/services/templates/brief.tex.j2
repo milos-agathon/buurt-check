@@ -46,6 +46,12 @@ Sunlight & << sunlight_score if sunlight_score is not none else "-" >> & -- \\
 <% if location_map %>
 \subsection*{<% if language == "nl" %>Locatiekaart<% else %>Location Map<% endif %>}
 \includegraphics[width=0.7\linewidth]{<< location_map >>}
+<% else %>
+\subsection*{<% if language == "nl" %>Locatiekaart<% else %>Location Map<% endif %>}
+\noindent\fcolorbox{MutedText}{white}{\parbox{\dimexpr0.7\linewidth-2\fboxsep-2\fboxrule\relax}{
+\textbf{<% if language == "nl" %>Locatiekaart niet beschikbaar<% else %>Location map unavailable<% endif %>}\\
+<% if language == "nl" %>PDOK-luchtfoto kon niet laden tijdens export.<% else %>PDOK aerial imagery did not load during export.<% endif %>
+}}\par
 <% endif %>
 
 <% if viewing_questions and viewing_questions.categories %>

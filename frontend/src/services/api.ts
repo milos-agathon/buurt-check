@@ -374,6 +374,7 @@ export interface ExportOptions {
   houseNumber?: string;
   houseLetter?: string;
   addition?: string;
+  sunlightPayload?: SunlightSubmissionPayload;
 }
 
 export async function exportBriefing(options: ExportOptions): Promise<Blob> {
@@ -399,6 +400,7 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
   if (options.houseNumber) body.house_number = options.houseNumber;
   if (options.houseLetter) body.house_letter = options.houseLetter;
   if (options.addition) body.addition = options.addition;
+  if (options.sunlightPayload) body.sunlight_submission = options.sunlightPayload;
 
   const timeout = withTimeoutSignal(
     template === 'full_dossier' ? EXPORT_TIMEOUT_FULL_MS : EXPORT_TIMEOUT_QUICK_MS,
@@ -422,25 +424,42 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
 
 export function downloadPdfBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
+  const openPdfFallback = () => {
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.assign(url);
+    }
+  };
   // iOS WebKit frequently ignores `download` for blob URLs. Opening the PDF
   // in a new tab gives the user a visible save/share path instead of no-op.
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (isIOS) {
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!opened) {
-      window.location.assign(url);
-    }
+    openPdfFallback();
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
     return;
   }
 
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const supportsDownloadAttr = typeof HTMLAnchorElement !== 'undefined'
+    && 'download' in HTMLAnchorElement.prototype;
+  if (!supportsDownloadAttr) {
+    openPdfFallback();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener noreferrer';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    openPdfFallback();
+  }
   // Delay revocation — Safari iOS starts downloads asynchronously after click
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
@@ -633,31 +652,39 @@ export interface SunlightSubmissionResponse {
   cached: boolean;
 }
 
+export function toSunlightSubmissionPayload(
+  data: SunlightSubmissionPayload | SunlightResult,
+): SunlightSubmissionPayload {
+  if ('winter_hours' in data) {
+    return data;
+  }
+
+  return {
+    winter_hours: data.winter,
+    summer_hours: data.summer,
+    equinox_hours: data.equinox,
+    analysis_year: data.analysisYear ?? new Date().getFullYear(),
+    svf: data.svf,
+    facade_results: data.facadeResults?.map((f) => ({
+      orientation: f.orientation,
+      height_label: f.heightLabel,
+      winter_hours: f.winterHours,
+      summer_hours: f.summerHours,
+      annual_average: f.annualAverage,
+    })),
+    annual_average: data.annualAverage,
+    ground_annual_average: data.groundAnnualAverage,
+    svf_anisotropic: data.svfAnisotropic,
+    irradiance_kwh_m2: data.irradianceKwhM2,
+  };
+}
+
 export async function submitSunlightAnalysis(
   vboId: string,
   data: SunlightSubmissionPayload | SunlightResult,
   reportId?: string,
 ): Promise<SunlightSubmissionResponse> {
-  const payload: SunlightSubmissionPayload = 'winter_hours' in data
-    ? data
-    : {
-      winter_hours: data.winter,
-      summer_hours: data.summer,
-      equinox_hours: data.equinox,
-      analysis_year: data.analysisYear ?? new Date().getFullYear(),
-      svf: data.svf,
-      facade_results: data.facadeResults?.map(f => ({
-        orientation: f.orientation,
-        height_label: f.heightLabel,
-        winter_hours: f.winterHours,
-        summer_hours: f.summerHours,
-        annual_average: f.annualAverage,
-      })),
-      annual_average: data.annualAverage,
-      ground_annual_average: data.groundAnnualAverage,
-      svf_anisotropic: data.svfAnisotropic,
-      irradiance_kwh_m2: data.irradianceKwhM2,
-    };
+  const payload = toSunlightSubmissionPayload(data);
   const params = new URLSearchParams();
   if (reportId) params.set('report_id', reportId);
   const query = params.toString();

@@ -6,12 +6,14 @@ import base64
 import io
 
 from matplotlib import rcParams
+from matplotlib.axes import Axes
 from PIL import Image
 from pypdf import PdfReader
 
 from app.models.neighborhood import AgeProfile
 from app.services import chart_renderer as cr
 from app.services.chart_renderer import (
+    CHART_DPI,
     CHART_WIDTH_MM,
     CompRow,
     CrimeData,
@@ -65,8 +67,9 @@ def test_scherer_theme_applies_rcparams():
     assert float(rcParams["ytick.labelsize"]) == 9.5
     assert rcParams["font.family"] == ["sans-serif"]
     assert float(rcParams["font.size"]) == 9.5
-    assert float(rcParams["figure.dpi"]) == 600.0
-    assert float(rcParams["savefig.dpi"]) == 600.0
+    assert CHART_DPI == 192
+    assert float(rcParams["figure.dpi"]) == float(CHART_DPI)
+    assert float(rcParams["savefig.dpi"]) == float(CHART_DPI)
     assert rcParams["savefig.bbox"] is None
     assert float(rcParams["savefig.pad_inches"]) == 0.05
     assert rcParams["legend.frameon"] is False
@@ -137,6 +140,55 @@ def test_risk_comparison_label_alignment():
     assert "Nederlandse benchmark" in text
 
 
+def test_risk_comparison_can_omit_row_labels():
+    chart = render_risk_comparison(
+        category="Noise",
+        address_score=72,
+        comparisons=[
+            CompRow("City average", 66),
+            CompRow("Netherlands", 61),
+            CompRow("WHO guideline", 74, role="reference"),
+        ],
+        show_row_labels=False,
+    )
+
+    assert chart.startswith(b"%PDF-")
+    text = _pdf_text(chart)
+    assert "This address" not in text
+    assert "City average" not in text
+    assert "Netherlands" not in text
+    assert "WHO guideline" in text
+    assert "72" in text
+
+
+def test_risk_comparison_value_labels_use_shared_right_column(monkeypatch):
+    captured: list[tuple[float, str, str | None]] = []
+    original_text = Axes.text
+
+    def _patched_text(self, x, y, s, *args, **kwargs):  # type: ignore[no-untyped-def]
+        captured.append((float(x), str(s), kwargs.get("ha")))
+        return original_text(self, x, y, s, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "text", _patched_text)
+
+    render_risk_comparison(
+        category="Noise",
+        address_score=72,
+        comparisons=[
+            CompRow("Peer baseline (urbanization)", 66),
+            CompRow("Netherlands", 61),
+            CompRow("WHO guideline", 74, role="reference"),
+        ],
+    )
+
+    value_positions = {
+        round(x, 2)
+        for x, text, ha in captured
+        if text in {"72", "66", "61"} and ha == "right"
+    }
+    assert len(value_positions) == 1
+
+
 def test_risk_grid_4_cells():
     chart = render_risk_summary_grid(
         [
@@ -157,6 +209,24 @@ def test_risk_grid_4_cells():
     assert "MODERATE" in text
     assert "POOR" in text
     assert "CRITICAL" in text
+
+
+def test_risk_grid_5_cells():
+    chart = render_risk_summary_grid(
+        [
+            RiskCell("Noise", 82, severity="good"),
+            RiskCell("Air", 54, severity="moderate"),
+            RiskCell("Climate", 31, severity="poor"),
+            RiskCell("Sunlight", 12, severity="critical"),
+            RiskCell("Crime", 74, severity="good"),
+        ],
+        cols=5,
+    )
+
+    assert chart.startswith(b"%PDF-")
+    text = _pdf_text(chart)
+    assert "CRIME" in text
+    assert text.count("GOOD") >= 2
 
 
 def test_risk_grid_with_none_score():

@@ -790,6 +790,370 @@ async def test_submit_sunlight_without_extended_fields_still_works(mock_cache_se
 
 
 @pytest.mark.asyncio
+async def test_full_dossier_export_builds_comparisons_after_waited_sunlight():
+    """Export must wait for cached sunlight before building comparison rows."""
+    from app.api.address import ExportRequest, _do_export_briefing
+
+    initial_risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+        sunlight=None,
+    )
+    waited_sunlight = SunlightRiskCard(
+        level=SeverityLevel.good,
+        winter_hours=4.3,
+        summer_hours=11.2,
+        equinox_hours=7.1,
+        svf_percent=63.0,
+        source="3DBAG + SunCalc",
+        source_date="2026",
+        score=72,
+        svf_score=63,
+        severity=SeverityLevel.good,
+        summary="Good sunlight",
+        summary_nl="Goed zonlicht",
+    )
+    comparison_sentinel = {"sentinel": True}
+    body = ExportRequest(
+        rd_x=121286,
+        rd_y=487296,
+        lat=52.372,
+        lng=4.892,
+        address="Kalverstraat 1, Amsterdam",
+        template="full_dossier",
+        language="en",
+        report_id="report-123",
+    )
+
+    with (
+        patch(
+            "app.services.reports.check_entitlement",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_risks_for_export",
+            new_callable=AsyncMock,
+            return_value=initial_risks,
+        ),
+        patch(
+            "app.api.address._await_sunlight_for_export",
+            new_callable=AsyncMock,
+            return_value=waited_sunlight,
+        ),
+        patch("app.api.address.build_viewing_questions", return_value=None),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_location_map",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address.build_risk_comparisons",
+            return_value=comparison_sentinel,
+        ) as mock_build_risk_comparisons,
+        patch(
+            "app.api.address.generate_full_dossier",
+            return_value=b"%PDF-1.4\n",
+        ) as mock_generate_full_dossier,
+    ):
+        resp = await _do_export_briefing("0363010000696734", body)
+
+    assert resp.status_code == 200
+    assert initial_risks.sunlight == waited_sunlight
+    assert mock_build_risk_comparisons.call_count == 1
+    assert mock_build_risk_comparisons.call_args.kwargs["cards"].sunlight.score == 72
+    assert mock_generate_full_dossier.call_args.kwargs["sunlight_score"] == 72
+    assert mock_generate_full_dossier.call_args.kwargs["risks"].sunlight.score == 72
+    assert mock_generate_full_dossier.call_args.kwargs["risk_comparisons"] == comparison_sentinel
+
+
+@pytest.mark.asyncio
+async def test_full_dossier_export_prefers_request_sunlight_payload_over_cache():
+    """Export should use the submitted sunlight payload even when cache is stale or unavailable."""
+    from app.api.address import ExportRequest, _do_export_briefing
+
+    stale_sunlight = SunlightRiskCard(
+        level=SeverityLevel.moderate,
+        winter_hours=2.5,
+        summer_hours=9.0,
+        equinox_hours=5.1,
+        svf_percent=41.0,
+        source="3DBAG + SunCalc",
+        source_date="2025",
+        score=42,
+        svf_score=41,
+        severity=SeverityLevel.moderate,
+        summary="Older cached sunlight",
+        summary_nl="Oud cached zonlicht",
+    )
+    initial_risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+        sunlight=stale_sunlight,
+    )
+    comparison_sentinel = {"sentinel": "request-sunlight"}
+    body = ExportRequest(
+        rd_x=121286,
+        rd_y=487296,
+        lat=52.372,
+        lng=4.892,
+        address="Kalverstraat 1, Amsterdam",
+        template="full_dossier",
+        language="en",
+        report_id="report-123",
+        sunlight_submission={
+            "winter_hours": 3.1,
+            "summer_hours": 6.2,
+            "equinox_hours": 4.5,
+            "analysis_year": 2026,
+            "svf": 0.63,
+            "annual_average": 4.8,
+            "irradiance_kwh_m2": 948.4,
+        },
+    )
+
+    with (
+        patch(
+            "app.services.reports.check_entitlement",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_risks_for_export",
+            new_callable=AsyncMock,
+            return_value=initial_risks,
+        ),
+        patch(
+            "app.api.address._await_sunlight_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as mock_wait_for_sunlight,
+        patch("app.api.address.build_viewing_questions", return_value=None),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_location_map",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address.build_risk_comparisons",
+            return_value=comparison_sentinel,
+        ) as mock_build_risk_comparisons,
+        patch(
+            "app.api.address.generate_full_dossier",
+            return_value=b"%PDF-1.4\n",
+        ) as mock_generate_full_dossier,
+    ):
+        resp = await _do_export_briefing("0363010000696734", body)
+
+    assert resp.status_code == 200
+    assert mock_wait_for_sunlight.call_count == 0
+    assert initial_risks.sunlight is not None
+    assert initial_risks.sunlight.score == 52
+    assert initial_risks.sunlight.source_date == "2026"
+    assert initial_risks.sunlight.irradiance_kwh_m2 == 948.4
+    assert mock_build_risk_comparisons.call_args.kwargs["cards"].sunlight.score == 52
+    assert mock_generate_full_dossier.call_args.kwargs["sunlight_score"] == 52
+    assert mock_generate_full_dossier.call_args.kwargs["risks"].sunlight.irradiance_kwh_m2 == 948.4
+    assert mock_generate_full_dossier.call_args.kwargs["risk_comparisons"] == comparison_sentinel
+
+
+@pytest.mark.asyncio
+async def test_full_dossier_export_passes_location_map_to_generator():
+    """Export forwards fetched location map bytes into the full dossier renderer."""
+    from app.api.address import ExportRequest, _do_export_briefing
+
+    initial_risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+        sunlight=None,
+    )
+    body = ExportRequest(
+        rd_x=121286,
+        rd_y=487296,
+        lat=52.372,
+        lng=4.892,
+        address="Kalverstraat 1, Amsterdam",
+        template="full_dossier",
+        language="en",
+        report_id="report-123",
+    )
+
+    with (
+        patch(
+            "app.services.reports.check_entitlement",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_risks_for_export",
+            new_callable=AsyncMock,
+            return_value=initial_risks,
+        ),
+        patch(
+            "app.api.address._await_sunlight_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_viewing_questions", return_value=None),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_location_map",
+            new_callable=AsyncMock,
+            return_value="map-bytes",
+        ),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address.build_risk_comparisons",
+            return_value=None,
+        ),
+        patch(
+            "app.api.address.generate_full_dossier",
+            return_value=b"%PDF-1.4\n",
+        ) as mock_generate_full_dossier,
+    ):
+        resp = await _do_export_briefing("0363010000696734", body)
+
+    assert resp.status_code == 200
+    assert mock_generate_full_dossier.call_args.kwargs["location_map_b64"] == "map-bytes"
+
+
+@pytest.mark.asyncio
 @patch("app.api.address.cache_get", new_callable=AsyncMock)
 @patch("app.api.address.risk_cards")
 async def test_risk_cards_merges_cached_sunlight_when_base_cache_has_no_sunlight(

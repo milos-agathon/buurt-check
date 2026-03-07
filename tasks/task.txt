@@ -28,3 +28,11 @@ you are acting as senior software engineer with 30 years of experience in develo
 
 # RE-IMPLEMENTATION
 /superpowers:execute-plan you are acting as senior software engineer with 30 years of experience in developing and selling muli-million dollar mobile app. you are working on buurt-check codespace, a new multi-million dollar project. You must first read @CLAUDE.md and internalize codebase rules. then you  must read d:\buurt-check\docs\plans\2026-02-13-premium-features-design.md to grasp what we are building. Then you must read d:\buurt-check\tasks\todo.md to understand the current implementation plan. finally you must implement the feedback below and re-implement the missing components. Be honest, methodical and accurate. Feedback: 
+
+
+# Reset frontend
+
+.\scripts\dev-reset.ps1     # kills anything listening on ports 8000 and 5173.         
+.\scripts\dev-start.ps1                                                                                                                                                                                                             
+.\scripts\dev-start.ps1 -SkipChecks                                                                                                                                                                                                      
+.\scripts\dev-start.ps1 -SkipChecks -NoChrome   
