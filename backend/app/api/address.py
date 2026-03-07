@@ -1170,10 +1170,13 @@ async def _fetch_livability_for_export(
 async def _fetch_location_map(
     rd_x: float, rd_y: float,
 ) -> str | None:
-    """Fetch a static map tile from PDOK BRT WMS.
+    """Fetch a static aerial photo tile from PDOK Luchtfoto WMS.
 
-    Returns base64-encoded PNG on success, None on any failure.
+    Returns base64-encoded JPEG on success, None on any failure.
     Graceful degradation: the dossier generates fine without a map.
+
+    Note: the BRT Achtergrondkaart WMS endpoint was retired; the Luchtfoto
+    (aerial photo) WMS is used instead (CC BY 4.0).
     """
     bbox_half = 500  # meters — 1km x 1km area
     bbox = (
@@ -1184,24 +1187,24 @@ async def _fetch_location_map(
         "SERVICE": "WMS",
         "VERSION": "1.3.0",
         "REQUEST": "GetMap",
-        "LAYERS": "standaard",
+        "LAYERS": "Actueel_orthoHR",
         "CRS": "EPSG:28992",
         "BBOX": bbox,
         "WIDTH": "600",
         "HEIGHT": "600",
-        "FORMAT": "image/png",
+        "FORMAT": "image/jpeg",
     }
     try:
         client = _map_client.get()
         resp = await client.get(
-            settings.brt_wms_base, params=params, timeout=10,
+            settings.luchtfoto_wms_base, params=params, timeout=10,
         )
         resp.raise_for_status()
         ct = resp.headers.get("content-type", "")
         if ct.startswith("image"):
             return base64.b64encode(resp.content).decode()
     except Exception:
-        logger.warning("Failed to fetch location map from PDOK BRT")
+        logger.warning("Failed to fetch location map from PDOK Luchtfoto")
     return None
 
 

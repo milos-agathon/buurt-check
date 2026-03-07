@@ -88,7 +88,7 @@ SunCalc + 3DBAG \\
 <% endif %>
 
 <% if shadow_images %>
-\subsection*{<% if language == "nl" %>Schaduwopnamen<% else %>Shadow Snapshots<% endif %>}
+\subsection*{<% if language == "nl" %>Schaduwanalyse<% else %>Shadow Analysis<% endif %>}
 <% for img in shadow_images %>
 \noindent\includegraphics[width=\linewidth]{<< img >>}
 <% if not loop.last %>\vspace{4pt}<% endif %>
@@ -102,7 +102,7 @@ SunCalc + 3DBAG \\
 <% if location_map %>
 \subsection*{<% if language == "nl" %>Locatiekaart<% else %>Location Map<% endif %>}
 \includegraphics[width=0.72\linewidth]{<< location_map >>}
-\\{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Kaart: PDOK BRT Achtergrondkaart · schaal 100 m · N<% else %>Map: PDOK BRT Background Map · 100 m scale · N<% endif %>}}
+\\{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Luchtfoto: PDOK Luchtfoto (CC BY 4.0) · schaal 100 m · N<% else %>Aerial: PDOK Luchtfoto (CC BY 4.0) · 100 m scale · N<% endif %>}}
 <% endif %>
 
 \section*{<% if language == "nl" %>Buurtcontext<% else %>Neighborhood Context<% endif %>}
@@ -401,5 +401,17 @@ Score: << tier_b.crime.score if tier_b.crime.score is not none else "Unavailable
 <% else %>
 <% if language == "nl" %>Geen provenance metadata aangeleverd.<% else %>No provenance metadata supplied.<% endif %>
 <% endif %>
+
+\vfill
+
+\subsection*{<% if language == "nl" %>Uw notities<% else %>Your viewing notes<% endif %>}
+\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
+\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
+\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
+\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
+\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
+\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
+\noindent\rule{\linewidth}{0.1pt}\vspace{8pt}
+\noindent\rule{\linewidth}{0.1pt}
 
 \end{document}

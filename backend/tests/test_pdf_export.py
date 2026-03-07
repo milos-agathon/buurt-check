@@ -2112,8 +2112,8 @@ class TestPropertyWarningsPdfSections:
 class TestEliminateEmptyPages:
     """E11-S1: Reduce wasted page space."""
 
-    def test_notes_section_reduced_lines(self):
-        """Notes section has at most 3 ruled lines, not 12."""
+    def test_notes_section_fills_remaining_page(self):
+        """Notes section dynamically fills remaining page space with ruled lines."""
         from app.services.pdf_export import (
             _draw_methodology_page,
         )
@@ -2130,15 +2130,14 @@ class TestEliminateEmptyPages:
 
         pdf.line = tracking_line
         _draw_methodology_page(pdf, is_nl=False)
-        # Filter for ruled note lines (full-width lines
-        # after the "Your viewing notes" heading)
+        # Filter for ruled note lines (full-width lines)
         usable_w = pdf.w - pdf.l_margin - pdf.r_margin
         note_lines = [
             c for c in line_calls
             if abs(c[2] - c[0] - usable_w) < 1
         ]
-        # Should be at most 3 (down from 12)
-        assert len(note_lines) <= 5  # 3 notes + dividers
+        # Dynamic fill: should have multiple lines, not just 3
+        assert len(note_lines) >= 3, "Notes section should have at least 3 lines"
 
     def test_shadow_image_not_on_property_checks(self):
         """Shadow text appears in methodology, not on property checks page."""
@@ -3288,7 +3287,7 @@ class TestLocationMap:
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "PDOK BRT" in text
+        assert "PDOK Luchtfoto" in text
         assert "100 m" in text
         assert "N" in text
 
@@ -3301,7 +3300,7 @@ class TestLocationMap:
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Kaart: PDOK BRT Achtergrondkaart" in text
+        assert "Luchtfoto: PDOK Luchtfoto" in text
 
     def test_draw_location_map_english_attribution(self):
         """English map attribution text is rendered."""
@@ -3312,7 +3311,7 @@ class TestLocationMap:
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Map: PDOK BRT Background Map" in text
+        assert "Aerial: PDOK Luchtfoto" in text
 
     def test_draw_location_map_noop_when_none(self):
         """No-op when location_map_b64 is None."""
@@ -3364,7 +3363,7 @@ class TestLocationMap:
         assert result[:5] == b"%PDF-"
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "PDOK BRT" in text
+        assert "PDOK Luchtfoto" in text
 
     def test_full_dossier_without_map_still_works(self):
         """Full dossier generates without location_map_b64."""
@@ -3388,7 +3387,7 @@ class TestLocationMap:
 
 @pytest.mark.asyncio
 async def test_fetch_location_map_success():
-    """Returns base64 PNG when PDOK BRT responds with image."""
+    """Returns base64 image when PDOK Luchtfoto responds with image."""
     import base64
     from unittest.mock import MagicMock
 
@@ -4644,7 +4643,7 @@ class TestShadowTriptych:
         assert result[:5] == b"%PDF-"
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Shadow Snapshots" in text
+        assert "Shadow Analysis" in text
         assert "Seasonal snapshots at 12:00 local time." in text
         assert "Source: 3DBAG / TU Delft + SunCalc." in text
 
@@ -4835,6 +4834,60 @@ class TestExecutiveSummary:
         )
         assert "2 good" in result
         assert "2 moderate" in result
+
+    def test_crime_score_included_in_summary(self):
+        """Crime score appears in category count when provided."""
+        risks = _make_risks(noise_score=85, air_score=90, climate_score=75)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=False,
+            crime_score=10,
+        )
+        assert "5 risk categories" in result
+        assert "crime" in result
+
+    def test_crime_score_included_in_summary_nl(self):
+        """NL: crime score appears in category count when provided."""
+        risks = _make_risks(noise_score=85, air_score=90, climate_score=75)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=True,
+            crime_score=10,
+        )
+        assert "5 risicocategorie" in result
+        assert "criminaliteit" in result
+
+    def test_crime_becomes_top_concern(self):
+        """When crime is worst score, it surfaces as top concern."""
+        risks = _make_risks(noise_score=85, air_score=90, climate_score=75)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=False,
+            crime_score=5,
+        )
+        assert "crime" in result
+        assert "5/100" in result
+
+    def test_crime_absent_when_none(self):
+        """Summary stays at 4 categories when crime_score is None."""
+        risks = _make_risks(noise_score=85, air_score=90, climate_score=75)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=False,
+            crime_score=None,
+        )
+        assert "4 risk categories" in result
+
+    def test_risk_cells_include_crime(self):
+        """_build_risk_cells returns 5 cells when crime_score provided."""
+        risks = _make_risks()
+        cells = _build_risk_cells(risks, sunlight_score=80, is_nl=False, crime_score=10)
+        assert len(cells) == 5
+        crime_cell = cells[4]
+        assert crime_cell[0] == "Crime"
+        assert crime_cell[1] == 10
+
+    def test_risk_cells_no_crime_when_none(self):
+        """_build_risk_cells returns 4 cells when crime_score is None."""
+        risks = _make_risks()
+        cells = _build_risk_cells(risks, sunlight_score=80, is_nl=False, crime_score=None)
+        assert len(cells) == 4
 
     def test_cover_page_includes_executive_summary_en(self):
         """Full dossier cover page (EN) includes executive summary text."""

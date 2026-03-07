@@ -474,35 +474,35 @@ class BuurtCheckPDF(FPDF):
         self.set_fill_color(*TEAL)
         self.rect(0, 0, self.w, 6, "F")
 
-        self.set_y(8)
+        self.set_y(7)
         self.set_text_color(*SLATE)
         logo_drawn = False
         if _HEADER_LOGO_PATH.exists():
             try:
                 with Image.open(_HEADER_LOGO_PATH) as logo:
                     ratio = logo.width / max(logo.height, 1)
-                logo_h = 5.0
-                logo_w = min(42.0, logo_h * ratio)
-                self.image(str(_HEADER_LOGO_PATH), x=self.l_margin, y=8, w=logo_w, h=logo_h)
+                logo_h = 8.0
+                logo_w = min(50.0, logo_h * ratio)
+                self.image(str(_HEADER_LOGO_PATH), x=self.l_margin, y=7, w=logo_w, h=logo_h)
                 logo_drawn = True
             except Exception:
                 logger.warning("Failed to draw header logo from %s", _HEADER_LOGO_PATH)
 
         if not logo_drawn:
             self.set_font("SatoshiBlack", "", 9)
-            self.cell(0, 5, "buurt-check", new_x="RIGHT")
+            self.cell(0, 8, "buurt-check", new_x="RIGHT")
 
         if self.section_title:
             self.set_font("SatoshiMedium", "", 9)
             self.set_text_color(*SECONDARY)
             self.set_x(self.w - self.r_margin - 60)
-            self.cell(60, 5, self.section_title, align="R")
+            self.cell(60, 8, self.section_title, align="R")
 
         self.set_draw_color(*BORDER)
         self.set_line_width(0.1)
-        self.line(self.l_margin, 15, self.w - self.r_margin, 15)
+        self.line(self.l_margin, 16, self.w - self.r_margin, 16)
 
-        self.set_y(18)
+        self.set_y(19)
         self.set_text_color(*SLATE)
 
     def footer(self) -> None:
@@ -601,11 +601,6 @@ class BuurtCheckPDF(FPDF):
                     ),
                     None,
                 )
-                if address_idx is None:
-                    address_idx = next(
-                        (idx for idx, row in enumerate(rows) if row[1] is not None),
-                        None,
-                    )
                 if address_idx is not None:
                     _, address_score_raw, _, _ = rows[address_idx]
                     address_score = int(round(address_score_raw))
@@ -756,7 +751,7 @@ class BuurtCheckPDF(FPDF):
             self.set_fill_color(*BORDER)
             self.rect(bar_x, bar_y, bar_w, bar_h, "F")
 
-            fill_w = bar_w * min(value, 100) / 100
+            fill_w = bar_w * min(value or 0, 100) / 100
             if dashed:
                 self.set_draw_color(*color)
                 self.set_line_width(bar_h)
@@ -774,7 +769,7 @@ class BuurtCheckPDF(FPDF):
 
             self.set_font("Satoshi", "B", 8)
             self.set_xy(x + width - score_w, ry)
-            self.cell(score_w, row_h, str(value), align="R")
+            self.cell(score_w, row_h, str(value) if value is not None else "\u2014", align="R")
 
             row_y += row_h
 
@@ -1905,11 +1900,13 @@ def _generate_full_dossier_latex(
     state, pending_msg, unavailable_msg = _sunlight_state(
         risks, sunlight_score, is_nl=is_nl, has_shadow_inputs=has_shadow_inputs,
     )
+    crime_score = tier_b.crime.score if tier_b and tier_b.crime else None
     executive_summary_text = _generate_executive_summary(
         risks,
         sunlight_score,
         livability,
         is_nl,
+        crime_score=crime_score,
     )
     methodology_payload = _methodology_payload(is_nl=is_nl)
 
@@ -1986,14 +1983,24 @@ def _generate_full_dossier_latex(
                     hour = int(item.get("hour", 12))
                     season_hint = str(item.get("label", "")).strip()
                     if season_hint:
-                        labels.append(f"{season_hint.title()} {hour:02d}:00 CET")
+                        _season_full = {
+                            "winter": "Winter solstice",
+                            "equinox": "Spring equinox",
+                            "summer": "Summer solstice",
+                        }
+                        full_name = _season_full.get(
+                            season_hint.lower(), season_hint.title()
+                        )
+                        labels.append(f"{full_name} \u00b7 {hour:02d}:00 CET")
                     else:
                         labels.append(f"{hour:02d}:00 CET")
                 shadow_time_labels = labels or None
 
             if chart_renderer is not None:
                 chart_jobs: dict[str, Any] = {}
-                risk_cells = _build_risk_cells(risks, sunlight_score, is_nl)
+                risk_cells = _build_risk_cells(
+                    risks, sunlight_score, is_nl, crime_score=crime_score,
+                )
                 chart_jobs["risk_grid_chart"] = lambda cells=risk_cells: (
                     chart_renderer.render_risk_summary_grid(
                         cells=[
@@ -2090,12 +2097,17 @@ def _generate_full_dossier_latex(
                         is_nl,
                     )
 
-                if livability is not None and livability.available:
-                    crime_score = None
-                    if tier_b and tier_b.crime:
-                        crime_score = tier_b.crime.score
+                crime_score = None
+                if tier_b and tier_b.crime:
+                    crime_score = tier_b.crime.score
+                liv_score = (
+                    livability.overall_normalized
+                    if livability is not None and livability.available
+                    else None
+                )
+                if liv_score is not None or crime_score is not None:
                     chart_jobs["livability_chart"] = (
-                        lambda ls=livability.overall_normalized, cs=crime_score: (
+                        lambda ls=liv_score, cs=crime_score: (
                             chart_renderer.render_livability_score(
                                 livability=chart_renderer.LivabilityData(
                                     score=ls,
@@ -2325,12 +2337,14 @@ def _generate_full_dossier_fpdf(
     # Page 1: Cover + Summary
     pdf.section_title = "VOLLEDIG DOSSIER" if is_nl else "PROPERTY INTELLIGENCE DOSSIER"
     pdf.add_page()
+    crime_score = tier_b.crime.score if tier_b and tier_b.crime else None
     _draw_cover_page(
         pdf, address, building_year, building_use, floor_area,
         risks, sunlight_score, shadow_image_b64, is_nl,
         location_map_b64=location_map_b64,
         shadow_images=shadow_images,
         livability=livability,
+        crime_score=crime_score,
     )
 
     # Risk details section
@@ -2360,7 +2374,10 @@ def _generate_full_dossier_fpdf(
     # Viewing checklist section
     pdf.section_title = "BEZICHTIGINGSCHECKLIST" if is_nl else "VIEWING CHECKLIST"
     _ensure_page_space(pdf, 70)
-    _draw_checklist_page(pdf, address, risks, sunlight_score, viewing_questions, is_nl)
+    _draw_checklist_page(
+        pdf, address, risks, sunlight_score, viewing_questions, is_nl,
+        crime_score=crime_score,
+    )
 
     # Methodology + notes section
     pdf.section_title = "METHODOLOGIE" if is_nl else "METHODOLOGY"
@@ -2456,7 +2473,7 @@ def _draw_location_map(
     location_map_b64: str | None,
     is_nl: bool,
 ) -> None:
-    """Embed a static PDOK BRT location map with pin, compass, and scale."""
+    """Embed a static PDOK Luchtfoto location map with pin, compass, and scale."""
     if not location_map_b64:
         return
     try:
@@ -2524,9 +2541,9 @@ def _draw_location_map(
         pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
         attr_text = (
-            "Kaart: PDOK BRT Achtergrondkaart"
+            "Luchtfoto: PDOK Luchtfoto (CC BY 4.0)"
             if is_nl
-            else "Map: PDOK BRT Background Map"
+            else "Aerial: PDOK Luchtfoto (CC BY 4.0)"
         )
         pdf.cell(
             0, 3, attr_text,
@@ -2568,7 +2585,9 @@ def _draw_cover_page(
         _draw_shadow_image(pdf, shadow_image_b64, is_nl)
 
     # Executive summary narrative
-    summary_text = _generate_executive_summary(risks, sunlight_score, livability, is_nl)
+    summary_text = _generate_executive_summary(
+        risks, sunlight_score, livability, is_nl, crime_score=crime_score,
+    )
     pdf.draw_section_label(
         "Samenvatting" if is_nl else "Executive Summary", band=True,
     )
@@ -2580,15 +2599,16 @@ def _draw_cover_page(
     )
     pdf.ln(3)
 
-    # Risk summary strip (4-column)
+    # Risk summary strip
     pdf.draw_section_label(
         "Risico-overzicht" if is_nl else "Risk Summary", band=True,
     )
-    cells = _build_risk_cells(risks, sunlight_score, is_nl)
+    cells = _build_risk_cells(risks, sunlight_score, is_nl, crime_score=crime_score)
+    grid_cols = 5 if len(cells) == 5 else 4
     grid_end_y = pdf.draw_risk_grid(
         x=pdf.l_margin, y=pdf.get_y(),
         width=pdf.w - pdf.l_margin - pdf.r_margin,
-        cells=cells, cols=4,
+        cells=cells, cols=grid_cols,
     )
     pdf.set_y(grid_end_y + 4)
 
@@ -3141,6 +3161,9 @@ def _build_risk_detail_data(
             return []
         rows = []
         for row in category_rows:
+            # Skip address rows with no value to prevent label overlap
+            if row.label_code == "address" and row.value is None:
+                continue
             label_info = _COMPARISON_LABELS.get(
                 row.label_code, (row.label_code, MUTED, False)
             )
@@ -3228,7 +3251,8 @@ def _build_risk_detail_data(
             source = f"{src_label}: {card.source}"
             if card.source_date:
                 source += f" \u00b7 {card.source_date}"
-            else:
+            elif attr != "climate_stress":
+                # Climate gets scenario text instead of generic "date unknown"
                 source += f" \u00b7 {date_unknown}"
 
             # Climate: enrich with layer names + scenario (E6-S4)
@@ -3626,6 +3650,39 @@ def _draw_neighborhood_page(
             else "Livability data unavailable."
         )
         pdf.cell(0, 6, no_liv, new_x="LMARGIN", new_y="NEXT")
+
+        # Crime-only lollipop chart when livability is unavailable
+        _crime_score = (
+            tier_b_data.crime.score
+            if tier_b_data and tier_b_data.crime
+            else None
+        )
+        if _crime_score is not None and chart_renderer is not None:
+            try:
+                crime_chart = chart_renderer.render_livability_score(
+                    livability=chart_renderer.LivabilityData(
+                        score=None,
+                        label="Leefbaarheid" if is_nl else "Livability",
+                    ),
+                    crime=chart_renderer.CrimeData(
+                        score=_crime_score,
+                        label="Criminaliteit" if is_nl else "Crime",
+                    ),
+                    output_format="png",
+                )
+                content_w = pdf.w - pdf.l_margin - pdf.r_margin
+                chart_end_y = _embed_chart_png(
+                    pdf,
+                    crime_chart,
+                    x=pdf.l_margin,
+                    y=pdf.get_y(),
+                    width=content_w,
+                )
+                pdf.set_y(chart_end_y + 2)
+            except Exception:
+                logger.exception(
+                    "chart_renderer crime-only lollipop chart failed"
+                )
         pdf.set_text_color(*SLATE)
 
 
@@ -4539,6 +4596,7 @@ def _draw_checklist_page(
     sunlight_score: int | None,
     viewing_questions: ViewingQuestionsResponse | None,
     is_nl: bool,
+    crime_score: int | None = None,
 ) -> None:
     """Page 4: viewing checklist with mini risk strip for standalone tearout."""
     pdf.set_font("Satoshi", "B", 12)
@@ -4546,11 +4604,12 @@ def _draw_checklist_page(
     pdf.cell(0, 6, address, new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1)
 
-    cells = _build_risk_cells(risks, sunlight_score, is_nl)
+    cells = _build_risk_cells(risks, sunlight_score, is_nl, crime_score=crime_score)
+    grid_cols = 5 if len(cells) == 5 else 4
     grid_end_y = pdf.draw_risk_grid(
         x=pdf.l_margin, y=pdf.get_y(),
         width=pdf.w - pdf.l_margin - pdf.r_margin,
-        cells=cells, cols=4,
+        cells=cells, cols=grid_cols,
     )
     pdf.set_y(grid_end_y + 2)
 
@@ -4940,11 +4999,11 @@ def _draw_methodology_page(
     )
     pdf.ln(2)
 
+    # Fill remaining page space with ruled lines for handwritten notes
     pdf.set_draw_color(*BORDER)
     pdf.set_line_width(0.1)
-    for _ in range(3):
+    bottom_margin = pdf.h - 15  # leave 15mm bottom margin
+    while pdf.get_y() < bottom_margin:
         y = pdf.get_y()
-        if y > pdf.h - 25:
-            break
         pdf.line(pdf.l_margin, y, pdf.w - pdf.r_margin, y)
         pdf.ln(8)

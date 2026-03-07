@@ -55,7 +55,7 @@ def test_build_viewing_questions_uses_address_context_and_scores():
     )
 
     names = {category.name for category in result.categories}
-    assert names == {"Noise", "Climate Stress", "Sunlight"}
+    assert names == {"Noise", "Air Quality", "Climate Stress", "Sunlight"}
 
     noise_questions = next(c for c in result.categories if c.name == "Noise").questions
     assert "Kalverstraat" in noise_questions[0].text_en
@@ -63,6 +63,13 @@ def test_build_viewing_questions_uses_address_context_and_scores():
     assert "35/100" in noise_questions[0].text_en
     assert "Kalverstraat" in noise_questions[0].text_nl
     assert "35/100" in noise_questions[0].text_nl
+
+    # Air quality scores well (75) — gets a single confirmation question
+    air_cat = next(c for c in result.categories if c.name == "Air Quality")
+    assert air_cat.severity == "good"
+    assert len(air_cat.questions) == 1
+    assert "scores well" in air_cat.questions[0].text_en
+    assert "scoort goed" in air_cat.questions[0].text_nl
 
 
 def test_build_viewing_questions_includes_raw_signals_when_available():

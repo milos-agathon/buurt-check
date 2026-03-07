@@ -257,15 +257,120 @@ def _sunlight_questions(
     ]
 
 
+# --- Confirmation questions for good-scoring categories (score >= 70) ---
+
+
+def _noise_good_questions(
+    score: int | None,
+    street: str | None,
+    city: str | None,
+) -> list[ViewingQuestion]:
+    location_en = _location_en(street, city)
+    location_nl = _location_nl(street, city)
+    score_en = _score_en(score)
+    score_nl = _score_nl(score)
+    return [
+        ViewingQuestion(
+            text_en=(
+                f"Noise levels {location_en} score well{score_en}."
+                " Confirm quiet conditions by visiting at different times of day."
+            ),
+            text_nl=(
+                f"Geluidsniveaus {location_nl} scoren goed{score_nl}."
+                " Bevestig de rustige omstandigheden door op verschillende tijdstippen te bezoeken."
+            ),
+        ),
+    ]
+
+
+def _air_good_questions(
+    score: int | None,
+    street: str | None,
+    city: str | None,
+) -> list[ViewingQuestion]:
+    location_en = _location_en(street, city)
+    location_nl = _location_nl(street, city)
+    score_en = _score_en(score)
+    score_nl = _score_nl(score)
+    return [
+        ViewingQuestion(
+            text_en=(
+                f"Air quality {location_en} scores well{score_en}."
+                " Check that ventilation systems are present and well-maintained."
+            ),
+            text_nl=(
+                f"Luchtkwaliteit {location_nl} scoort goed{score_nl}."
+                " Controleer of ventilatiesystemen aanwezig en goed onderhouden zijn."
+            ),
+        ),
+    ]
+
+
+def _climate_good_questions(
+    score: int | None,
+    street: str | None,
+    city: str | None,
+) -> list[ViewingQuestion]:
+    location_en = _location_en(street, city)
+    location_nl = _location_nl(street, city)
+    score_en = _score_en(score)
+    score_nl = _score_nl(score)
+    return [
+        ViewingQuestion(
+            text_en=(
+                f"Climate resilience {location_en} scores well{score_en}."
+                " Verify gutters and drainage are well-maintained."
+            ),
+            text_nl=(
+                f"Klimaatbestendigheid {location_nl} scoort goed{score_nl}."
+                " Controleer of goten en afwatering goed onderhouden zijn."
+            ),
+        ),
+    ]
+
+
+def _sunlight_good_questions(
+    score: int | None,
+    street: str | None,
+    city: str | None,
+) -> list[ViewingQuestion]:
+    location_en = _location_en(street, city)
+    location_nl = _location_nl(street, city)
+    score_en = _score_en(score)
+    score_nl = _score_nl(score)
+    return [
+        ViewingQuestion(
+            text_en=(
+                f"Sunlight exposure {location_en} scores well{score_en}."
+                " Confirm natural light in key rooms during your viewing."
+            ),
+            text_nl=(
+                f"Zonlichtblootstelling {location_nl} scoort goed{score_nl}."
+                " Bevestig het natuurlijke licht in de belangrijkste kamers"
+                " tijdens uw bezichtiging."
+            ),
+        ),
+    ]
+
+
+def _is_good(score: int | None) -> bool:
+    return score is not None and score >= 70
+
+
 def build_viewing_questions(
     vbo_id: str,
     risk_cards: RiskCardsResponse,
     street: str | None = None,
     city: str | None = None,
 ) -> ViewingQuestionsResponse:
-    """Build viewing questions from risk scores and known address context."""
+    """Build viewing questions from risk scores and known address context.
+
+    Flagged categories (score < 70) get detailed investigative questions.
+    Good categories (score >= 70) get a single confirmation question.
+    """
     categories: list[QuestionCategory] = []
 
+    # Noise
     if _should_include(risk_cards.noise.score):
         categories.append(
             QuestionCategory(
@@ -280,7 +385,19 @@ def build_viewing_questions(
                 ),
             )
         )
+    elif _is_good(risk_cards.noise.score):
+        categories.append(
+            QuestionCategory(
+                name="Noise",
+                name_nl="Geluid",
+                severity=risk_cards.noise.severity or "good",
+                questions=_noise_good_questions(
+                    risk_cards.noise.score, street, city,
+                ),
+            )
+        )
 
+    # Air Quality
     if _should_include(risk_cards.air_quality.score):
         categories.append(
             QuestionCategory(
@@ -296,7 +413,19 @@ def build_viewing_questions(
                 ),
             )
         )
+    elif _is_good(risk_cards.air_quality.score):
+        categories.append(
+            QuestionCategory(
+                name="Air Quality",
+                name_nl="Luchtkwaliteit",
+                severity=risk_cards.air_quality.severity or "good",
+                questions=_air_good_questions(
+                    risk_cards.air_quality.score, street, city,
+                ),
+            )
+        )
 
+    # Climate Stress
     if _should_include(risk_cards.climate_stress.score):
         categories.append(
             QuestionCategory(
@@ -312,7 +441,19 @@ def build_viewing_questions(
                 ),
             )
         )
+    elif _is_good(risk_cards.climate_stress.score):
+        categories.append(
+            QuestionCategory(
+                name="Climate Stress",
+                name_nl="Klimaatstress",
+                severity=risk_cards.climate_stress.severity or "good",
+                questions=_climate_good_questions(
+                    risk_cards.climate_stress.score, street, city,
+                ),
+            )
+        )
 
+    # Sunlight
     if risk_cards.sunlight is not None and _should_include(risk_cards.sunlight.score):
         categories.append(
             QuestionCategory(
@@ -324,6 +465,17 @@ def build_viewing_questions(
                     risk_cards.sunlight.winter_hours,
                     street,
                     city,
+                ),
+            )
+        )
+    elif risk_cards.sunlight is not None and _is_good(risk_cards.sunlight.score):
+        categories.append(
+            QuestionCategory(
+                name="Sunlight",
+                name_nl="Zonlicht",
+                severity=risk_cards.sunlight.severity or "good",
+                questions=_sunlight_good_questions(
+                    risk_cards.sunlight.score, street, city,
                 ),
             )
         )
