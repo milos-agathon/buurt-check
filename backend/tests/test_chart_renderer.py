@@ -140,6 +140,31 @@ def test_risk_comparison_label_alignment():
     assert "Nederlandse benchmark" in text
 
 
+def test_risk_comparison_wraps_long_peer_labels(monkeypatch):
+    captured: list[str] = []
+    original_text = Axes.text
+
+    def _patched_text(self, x, y, s, *args, **kwargs):  # type: ignore[no-untyped-def]
+        captured.append(str(s))
+        return original_text(self, x, y, s, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "text", _patched_text)
+
+    render_risk_comparison(
+        category="Climate stress",
+        address_score=48,
+        comparisons=[
+            CompRow("Peer baseline for comparable urbanized neighborhoods", 55),
+            CompRow("Netherlands", 59),
+        ],
+    )
+
+    assert any(
+        "Peer baseline for" in text and "\n" in text
+        for text in captured
+    )
+
+
 def test_risk_comparison_can_omit_row_labels():
     chart = render_risk_comparison(
         category="Noise",
