@@ -3287,6 +3287,24 @@ class TestAddressRowOrdering:
             f"First comparison row color is {first_color}, expected TEAL"
         )
 
+    def test_duplicate_risk_comparison_labels_are_deduplicated(self):
+        """Duplicate comparison rows keep the first rendered label only once."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        comparisons = _make_risk_comparisons()
+        comparisons.noise.insert(2, RiskComparisonRow(label_code="city_avg", value=57))
+        comparisons.noise.append(RiskComparisonRow(label_code="nl_avg", value=61))
+
+        data = _build_risk_detail_data(
+            risks=_make_risks(), sunlight_score=80,
+            comparisons=comparisons, is_nl=False,
+        )
+
+        noise_rows = data[0][4]
+        labels = [label for label, _value, _color, _dashed in noise_rows]
+        assert labels.count("Peer baseline (urbanization)") == 1
+        assert labels.count("Netherlands") == 1
+
     def test_no_gap_when_no_address_row(self):
         """Chart without address rows should not have extra gap."""
         pdf1 = BuurtCheckPDF()
@@ -3503,6 +3521,30 @@ class TestLocationMap:
         )
         assert isinstance(result, bytes)
         assert result[:5] == b"%PDF-"
+
+
+class TestNeighborhoodSectionPagination:
+    def test_neighborhood_header_moves_with_content_when_space_is_low(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        pdf.set_y(pdf.h - pdf.b_margin - 20)
+
+        pe._draw_neighborhood_page(
+            pdf,
+            _make_neighborhood_stats(),
+            _make_tier_b(),
+            False,
+            livability=None,
+        )
+
+        assert pdf.page_no() == 2
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        first_page_text = reader.pages[0].extract_text() or ""
+        second_page_text = reader.pages[1].extract_text() or ""
+        assert "Neighborhood" not in first_page_text
+        assert "Neighborhood" in second_page_text
+        assert "Burgwallen-Oude Zijde" in second_page_text
 
 
 # ---------------------------------------------------------------------------
@@ -3989,6 +4031,41 @@ class TestDrawLivabilitySection:
         text = "".join(page.extract_text() or "" for page in reader.pages)
         assert "Bron:" in text
         assert "Leefbaarometer" in text
+
+    def test_deduplicates_duplicate_comparison_names(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = _make_livability()
+        livability.buurt_name = "Target district"
+        livability.comparison = [
+            LivabilityComparisonRow(
+                level="wijk",
+                name="Deurne",
+                overall_score=6,
+                overall_normalized=63,
+                dimensions=[],
+            ),
+            LivabilityComparisonRow(
+                level="gemeente",
+                name="Deurne",
+                overall_score=5,
+                overall_normalized=50,
+                dimensions=[],
+            ),
+            LivabilityComparisonRow(
+                level="gemeente",
+                name="Helmond",
+                overall_score=6,
+                overall_normalized=60,
+                dimensions=[],
+            ),
+        ]
+        _draw_livability_section(pdf, livability, is_nl=False)
+        output = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(output))
+        text = "".join(page.extract_text() or "" for page in reader.pages)
+        assert text.count("Deurne") == 1
+        assert text.count("Helmond") == 1
 
 
 class TestFullDossierWithLivability:
@@ -4554,9 +4631,10 @@ class TestExpandedSunlightMeasurements:
             "mra_klimaatatlas:1826_mra_overstromingskans_20cm"
         )
 
-        assert r":\allowbreak " in wrapped
+        assert r":\allowbreak{}" in wrapped
         assert r",\allowbreak " in wrapped
         assert r"\_\allowbreak{}" in wrapped
+        assert r"wpn:\allowbreak{}s0149" in wrapped
 
     def test_all_extended_fields_together(self):
         """All extended fields render when all are present."""
@@ -5279,6 +5357,129 @@ class TestExecutiveSummary:
         assert result == b"%PDF-latex-path"
         assert "Location map unavailable" in captured["tex"]
         assert "PDOK aerial imagery did not load during export." in captured["tex"]
+
+    def test_full_dossier_latex_skips_sunlight_comparison_when_score_missing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        risks = _make_risks(sunlight_score=None)
+        risks.sunlight.score = None
+        risks.sunlight.winter_hours = None
+
+        rendered_categories: list[str] = []
+
+        def fake_render_risk_comparison(  # type: ignore[no-untyped-def]
+            *,
+            category,
+            address_score,
+            comparisons,
+            output_format="pdf",
+            show_row_labels=True,
+            show_axis_labels=True,
+        ):
+            rendered_categories.append(category)
+            return b"%PDF-1.4\n% fake-comparison"
+
+        def fake_parallel(chart_jobs, *, max_workers=None):  # type: ignore[no-untyped-def]
+            return {
+                "comparison_charts": chart_jobs["comparison_charts"](),
+            }
+
+        monkeypatch.setattr(
+            pe.chart_renderer,
+            "render_risk_comparison",
+            fake_render_risk_comparison,
+        )
+        monkeypatch.setattr(pe, "render_chart_assets_parallel", fake_parallel)
+        monkeypatch.setattr(
+            pe,
+            "compile_latex_to_pdf_with_fallback",
+            lambda tex, *, fallback_pdf_factory, timeout=8, passes=2: b"%PDF-latex-path",
+        )
+
+        result = pe._generate_full_dossier_latex(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=risks,
+            sunlight_score=None,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            livability=_make_livability(),
+            location_map_b64=None,
+        )
+
+        assert result == b"%PDF-latex-path"
+        assert "Sunlight" not in rendered_categories
+        assert "Noise" in rendered_categories
+
+    def test_full_dossier_latex_deduplicates_livability_comparison_names(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        captured: dict[str, str] = {}
+        livability = _make_livability(with_trend=False)
+        livability.comparison = [
+            LivabilityComparisonRow(
+                level="wijk",
+                name="Deurne",
+                overall_score=6,
+                overall_normalized=63,
+                dimensions=[],
+            ),
+            LivabilityComparisonRow(
+                level="gemeente",
+                name="Deurne",
+                overall_score=5,
+                overall_normalized=50,
+                dimensions=[],
+            ),
+            LivabilityComparisonRow(
+                level="gemeente",
+                name="Helmond",
+                overall_score=6,
+                overall_normalized=60,
+                dimensions=[],
+            ),
+        ]
+
+        monkeypatch.setattr(
+            pe,
+            "render_chart_assets_parallel",
+            lambda *args, **kwargs: {
+                "livability_chart": b"%PDF-1.4\n% fake-livability",
+            },
+        )
+
+        def fake_compile(tex, *, fallback_pdf_factory, timeout=8, passes=2):  # type: ignore[no-untyped-def]
+            captured["tex"] = tex
+            return b"%PDF-latex-path"
+
+        monkeypatch.setattr(pe, "compile_latex_to_pdf_with_fallback", fake_compile)
+
+        result = pe._generate_full_dossier_latex(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            livability=livability,
+            location_map_b64=None,
+        )
+
+        assert result == b"%PDF-latex-path"
+        assert captured["tex"].count("Deurne") == 1
+        assert "Helmond" in captured["tex"]
 
     def test_cover_page_includes_executive_summary_nl(self):
         """Full dossier cover page (NL) includes executive summary text."""

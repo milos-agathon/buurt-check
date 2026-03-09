@@ -4,6 +4,7 @@ import base64
 import io
 import logging
 import math
+import re
 import tempfile
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -186,8 +187,9 @@ def _format_wrapped_latex_metadata(text: str) -> str:
     """Escape metadata text and insert soft wrap opportunities for LaTeX."""
     escaped = escape_latex(text)
     escaped = escaped.replace(" \u00b7 ", r" \u00b7\allowbreak ")
-    escaped = escaped.replace(": ", r":\allowbreak ")
+    escaped = re.sub(r":(?!\\allowbreak)", r":\\allowbreak{}", escaped)
     escaped = escaped.replace(", ", r",\allowbreak ")
+    escaped = escaped.replace("/", r"/\allowbreak{}")
     return escaped.replace(r"\_", r"\_\allowbreak{}")
 
 
@@ -689,6 +691,7 @@ class BuurtCheckPDF(FPDF):
                         comparisons=comparisons_payload,
                         output_format="png",
                         show_row_labels=False,
+                        show_axis_labels=False,
                     )
                     chart_end_y = _embed_chart_png(
                         self,
@@ -714,13 +717,24 @@ class BuurtCheckPDF(FPDF):
                         self.cell(label_w, row_h, label)
                         row_y += row_h
 
-                    # Axis labels are rendered inside the matplotlib chart
-                    # image (xticks at 0/20/40/70/100) so skip duplicate
-                    # fpdf2 labels which misaligned due to label_space offset.
+                    # Keep axis labels extractable in the fpdf2 output while
+                    # the PNG focuses on the bars/benchmarks only.
+                    axis_y = chart_end_y + 0.5
+                    self.set_font("Satoshi", "", 8)
+                    self.set_text_color(*SECONDARY)
+                    self.set_xy(x, axis_y)
+                    self.cell(10, 3, "0")
+                    self.set_xy(x + width - 10, axis_y)
+                    self.cell(10, 3, "100", align="R")
+                    for threshold in (20, 40, 70):
+                        tx = x + width * threshold / 100
+                        self.set_xy(tx - 3, axis_y)
+                        self.cell(6, 3, str(threshold), align="C")
                     self.set_text_color(*SLATE)
+                    cur_y = axis_y + 3.5
 
                     if show_legend:
-                        self.set_xy(x, chart_end_y + 1.0)
+                        self.set_xy(x, cur_y + 1.0)
                         self.set_font("Satoshi", "", 8)
                         self.set_text_color(*SECONDARY)
                         legend_text = (
@@ -738,7 +752,7 @@ class BuurtCheckPDF(FPDF):
                         )
                         self.set_text_color(*SLATE)
                         return self.get_y()
-                    return chart_end_y
+                    return cur_y
             except Exception:
                 logger.exception(
                     "chart_renderer comparison chart failed; falling back to native drawing"
@@ -1555,6 +1569,21 @@ def _ensure_page_space(pdf: BuurtCheckPDF, required_h: float) -> None:
         pdf.add_page()
 
 
+def _dedupe_comparison_rows(
+    rows: list[tuple[str, int | float | None, tuple[int, int, int], bool]],
+) -> list[tuple[str, int | float | None, tuple[int, int, int], bool]]:
+    """Keep the first comparison row for each rendered label."""
+    deduped: list[tuple[str, int | float | None, tuple[int, int, int], bool]] = []
+    seen_labels: set[str] = set()
+    for label, value, color, dashed in rows:
+        normalized = " ".join(label.split())
+        if normalized in seen_labels:
+            continue
+        seen_labels.add(normalized)
+        deduped.append((label, value, color, dashed))
+    return deduped
+
+
 def _draw_notes_section(pdf: BuurtCheckPDF, is_nl: bool) -> None:
     pdf.set_text_color(*SLATE)
     pdf.set_font("Satoshi", "B", 12)
@@ -2146,6 +2175,14 @@ def _generate_full_dossier_latex(
 
                         address_score = score
                         if address_score is None:
+                            # Only fall back to first comparison value for
+                            # categories where the address genuinely has data
+                            # (e.g. noise/air/climate).  For sunlight the
+                            # score depends on 3D analysis and substituting a
+                            # peer value is misleading, so skip the chart.
+                            _slug = _slugify_label(cat_name)
+                            if _slug in ("sunlight", "zonlicht"):
+                                continue
                             address_value = next(
                                 (
                                     value
@@ -2272,6 +2309,23 @@ def _generate_full_dossier_latex(
                 if risks and risks.climate_stress
                 else None
             )
+
+            # Deduplicate livability comparison rows: when a small
+            # municipality has the same name for wijk and gemeente
+            # (e.g. "Deurne"), the template would render the same
+            # line twice.  Keep the first occurrence of each name.
+            livability_dict = _model_to_dict(livability)
+            if livability_dict and livability_dict.get("comparison"):
+                seen_comp_names: set[str] = set()
+                deduped: list[dict] = []
+                for comp_row in livability_dict["comparison"]:
+                    name = (comp_row.get("name") or "").strip()
+                    if name in seen_comp_names:
+                        continue
+                    seen_comp_names.add(name)
+                    deduped.append(comp_row)
+                livability_dict["comparison"] = deduped
+
             tex = render_dossier(
                 address=escape_latex(address),
                 language=language,
@@ -2284,7 +2338,7 @@ def _generate_full_dossier_latex(
                 sunlight_score=sunlight_score,
                 risk_comparisons=_model_to_dict(risk_comparisons),
                 neighborhood=_model_to_dict(neighborhood_stats),
-                livability=_model_to_dict(livability),
+                livability=livability_dict,
                 tier_b=_model_to_dict(tier_b),
                 property_warnings=_model_to_dict(property_warnings_data),
                 viewing_questions=_model_to_dict(viewing_questions),
@@ -3381,7 +3435,7 @@ def _build_risk_detail_data(
                 label_info[0], row.value,
                 label_info[1], is_dashed,
             ))
-        return rows
+        return _dedupe_comparison_rows(rows)
 
     def _build_measurements(
         attr: str,
@@ -3572,6 +3626,7 @@ def _draw_neighborhood_page(
 ) -> None:
     """Page 3: neighborhood stats + crime + livability."""
     if pdf.get_y() > 40:
+        _ensure_page_space(pdf, 54 if stats else 32)
         pdf.draw_divider("strong")
         pdf.draw_section_label("Buurt" if is_nl else "Neighborhood", band=True)
         pdf.ln(1)
@@ -4217,13 +4272,19 @@ def _draw_livability_section(
             buurt_name, livability.overall_normalized, TEAL, False,
         ))
 
+        seen_comp_names: set[str] = {buurt_name}
         for row in livability.comparison:
             if row.level == "wijk":
                 label = row.name or ("Wijk" if is_nl else "District")
-                comp_rows.append((label, row.overall_normalized, MUTED, False))
             elif row.level == "gemeente":
                 label = row.name or ("Gemeente" if is_nl else "Municipality")
-                comp_rows.append((label, row.overall_normalized, NATIONAL, False))
+            else:
+                continue
+            if label in seen_comp_names:
+                continue
+            seen_comp_names.add(label)
+            color = MUTED if row.level == "wijk" else NATIONAL
+            comp_rows.append((label, row.overall_normalized, color, False))
 
         if len(comp_rows) > 1:
             chart_end_y = pdf.draw_comparison_chart(

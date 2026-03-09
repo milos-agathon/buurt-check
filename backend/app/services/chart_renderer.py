@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import io
 import math
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -147,15 +148,20 @@ def risk_summary_grid_height_mm(cell_count: int, cols: int = 4) -> float:
     return row_count * GRID_CELL_HEIGHT_MM + (row_count - 1) * GRID_GAP_MM
 
 
-def _save_figure(fig: plt.Figure, output_format: OutputFormat = "pdf") -> bytes:
+def _save_figure(
+    fig: plt.Figure,
+    output_format: OutputFormat = "pdf",
+    *,
+    tight: bool = False,
+) -> bytes:
     """Serialize a matplotlib figure to bytes without mutating global rcParams."""
     buf = io.BytesIO()
     fig.savefig(
         buf,
         format=output_format,
         dpi=CHART_DPI,
-        bbox_inches=fig.bbox_inches,
-        pad_inches=0.0,
+        bbox_inches="tight" if tight else fig.bbox_inches,
+        pad_inches=0.02 if tight else 0.0,
     )
     plt.close(fig)
     return buf.getvalue()
@@ -212,6 +218,24 @@ def _score_display(score: int | float | None) -> str:
     if score is None:
         return "\u2014"
     return str(int(round(score)))
+
+
+def _wrap_chart_label(label: str, max_chars: int) -> str:
+    """Wrap long chart labels so vector PDF text does not collide across rows."""
+    normalized = " ".join(label.split())
+    if len(normalized) <= max_chars:
+        return normalized
+    wrapped = textwrap.wrap(
+        normalized,
+        width=max_chars,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    return "\n".join(wrapped) if wrapped else normalized
+
+
+def _label_line_count(label: str) -> int:
+    return label.count("\n") + 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -307,6 +331,7 @@ def render_risk_comparison(
     comparisons: list[CompRow],
     output_format: OutputFormat = "pdf",
     show_row_labels: bool = True,
+    show_axis_labels: bool = True,
 ) -> bytes:
     """Render Scherer-style risk comparison chart as vector PDF bytes."""
     SchererTheme().apply()
@@ -333,36 +358,78 @@ def render_risk_comparison(
         default=0.0,
     )
     max_x = max(100.0, max_bar, max_ref) + 12.0
+    wrapped_bar_labels = [
+        _wrap_chart_label(row.label, 24 if idx > 0 else 22)
+        for idx, row in enumerate(bar_rows)
+    ]
+    wrapped_ref_labels = [
+        _wrap_chart_label(row.label, 18)
+        for row in reference_rows
+    ]
+    longest_label_chars = max(
+        (
+            len(line)
+            for label in [*wrapped_bar_labels, *wrapped_ref_labels]
+            for line in label.splitlines()
+        ),
+        default=0,
+    )
     # Keep a generous left gutter for longer peer-baseline labels and reserve
     # a fixed right column for score values so labels do not collide with them.
-    label_space = max(30.0, min(76.0, 2.2 * max(len(row.label) for row in bar_rows)))
+    label_space = (
+        max(30.0, min(76.0, 2.5 * longest_label_chars))
+        if show_row_labels
+        else 0.0
+    )
     value_x = max_x - 1.0
 
-    chart_h_mm = max(RISK_MIN_HEIGHT_MM, 12.0 + len(bar_rows) * (RISK_ROW_HEIGHT_MM + 1.5))
+    row_units = [
+        1.0 + max(0, _label_line_count(label) - 1) * 0.55
+        for label in wrapped_bar_labels
+    ]
+    total_row_units = sum(row_units) or 1.0
+    reference_units = sum(
+        0.34 + max(0, _label_line_count(label) - 1) * 0.28
+        for label in wrapped_ref_labels
+    )
+
+    chart_h_mm = max(
+        RISK_MIN_HEIGHT_MM,
+        12.0 + total_row_units * (RISK_ROW_HEIGHT_MM + 1.5),
+    )
     fig, ax = plt.subplots(
         figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(chart_h_mm)),
         dpi=CHART_DPI,
     )
     fig.patch.set_facecolor(C_BG)
 
-    y_positions = np.arange(len(bar_rows))[::-1]
     alt_colors = [C_MUTE_1, C_MUTE_2]
-    for idx, (row, y) in enumerate(zip(bar_rows, y_positions, strict=True)):
+    row_centers: list[float] = []
+    cursor = total_row_units
+    for row_unit in row_units:
+        center = cursor - row_unit / 2
+        row_centers.append(center)
+        cursor -= row_unit
+
+    for idx, (row, wrapped_label, y, row_unit) in enumerate(
+        zip(bar_rows, wrapped_bar_labels, row_centers, row_units, strict=True)
+    ):
         value = float(row.value) if row.value is not None else 0.0
         is_primary = idx == 0
-        bar_height = 0.6 if is_primary else 0.4
+        bar_height = min(0.6 if is_primary else 0.4, max(0.35, row_unit - 0.2))
         bar_color = C_ACCENT if is_primary else alt_colors[(idx - 1) % len(alt_colors)]
         ax.barh(y=y, width=value, height=bar_height, color=bar_color, edgecolor="none")
         if show_row_labels:
             ax.text(
                 -label_space + 1.0,
                 y,
-                row.label,
+                wrapped_label,
                 fontsize=TYPE_BODY_PT,
                 fontweight=FONT_WEIGHT_HEADING if is_primary else FONT_WEIGHT_BODY,
                 color=C_PRIMARY,
                 va="center",
                 ha="left",
+                linespacing=1.15,
             )
         ax.text(
             value_x,
@@ -374,8 +441,9 @@ def render_risk_comparison(
             ha="right",
         )
 
-    label_y = y_positions[0] + 0.45 if len(y_positions) else 0.0
-    for idx, row in enumerate(reference_rows):
+    label_y = total_row_units + 0.2
+    ref_cursor = label_y
+    for row, wrapped_label in zip(reference_rows, wrapped_ref_labels, strict=True):
         if row.value is None:
             continue
         x = float(row.value)
@@ -384,13 +452,15 @@ def render_risk_comparison(
         label_ha = "right" if x > (max_x - 28.0) else "left"
         ax.text(
             label_x,
-            label_y - idx * 0.28,
-            row.label,
+            ref_cursor,
+            wrapped_label,
             fontsize=TYPE_CAPTION_PT,
             color=C_PRIMARY,
             va="bottom",
             ha=label_ha,
+            linespacing=1.1,
         )
+        ref_cursor -= 0.34 + max(0, _label_line_count(wrapped_label) - 1) * 0.28
 
     ax.set_title(
         category,
@@ -401,14 +471,23 @@ def render_risk_comparison(
         pad=6,
     )
     ax.set_xlim(-label_space, max_x)
-    ax.set_ylim(-0.7, max(0.8, len(bar_rows) - 0.2))
+    ax.set_ylim(-0.7, total_row_units + max(0.8, reference_units + 0.45))
     ax.set_yticks([])
     # Render threshold ticks inside the chart so they align with the
     # coordinate system regardless of how the image is embedded.
     ax.set_xticks([0, 20, 40, 70, 100])
-    ax.set_xticklabels(["0", "20", "40", "70", "100"])
-    ax.tick_params(axis="x", length=0, pad=3, labelsize=TYPE_CAPTION_PT,
-                   labelcolor=C_MUTE_1)
+    if show_axis_labels:
+        ax.set_xticklabels(["0", "20", "40", "70", "100"])
+    else:
+        ax.set_xticklabels([])
+    ax.tick_params(
+        axis="x",
+        length=0,
+        pad=3,
+        labelsize=TYPE_CAPTION_PT,
+        labelcolor=C_MUTE_1,
+        labelbottom=show_axis_labels,
+    )
     ax.tick_params(axis="y", length=0)
     ax.spines["left"].set_visible(False)
     ax.spines["top"].set_visible(False)
@@ -417,7 +496,7 @@ def render_risk_comparison(
     ax.spines["bottom"].set_linewidth(0.4)
     fig.subplots_adjust(left=0.04, right=0.985, top=0.84, bottom=0.22)
 
-    return _save_figure(fig, output_format=output_format)
+    return _save_figure(fig, output_format=output_format, tight=True)
 
 
 def render_risk_summary_grid(

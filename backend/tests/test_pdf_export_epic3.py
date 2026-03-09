@@ -224,7 +224,7 @@ def test_render_dossier_wraps_climate_disclosure_in_parbox():
         climate_disclosure="Climate context: Klimaateffectatlas",
     )
 
-    assert r"\parbox{\linewidth}{\raggedright" in tex
+    assert r"\parbox{\linewidth}{\raggedright\sloppy" in tex
 
 
 def test_render_dossier_renders_measurements_and_quartiles():
