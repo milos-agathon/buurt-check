@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import re
 
 import httpx
@@ -6,6 +8,8 @@ from app.config import settings
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.services.http_client import LoopAwareClient
 
+logger = logging.getLogger(__name__)
+
 _client = LoopAwareClient(
     base_url=settings.locatieserver_base,
     timeout=httpx.Timeout(10.0),
@@ -13,6 +17,8 @@ _client = LoopAwareClient(
 
 
 _WKT_POINT = re.compile(r"POINT\(([0-9.]+)\s+([0-9.]+)\)")
+
+_RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 
 
 def _parse_wkt_point(wkt: str | None) -> tuple[float, float] | None:
@@ -24,13 +30,48 @@ def _parse_wkt_point(wkt: str | None) -> tuple[float, float] | None:
     return float(m.group(1)), float(m.group(2))
 
 
-async def suggest(query: str, limit: int = 7) -> list[AddressSuggestion]:
+def _is_retryable_locatieserver_error(exc: Exception) -> bool:
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
+        return exc.response.status_code in _RETRYABLE_STATUS_CODES
+    return False
+
+
+async def _get_with_retry(
+    path: str,
+    *,
+    params: dict[str, str | int],
+    attempts: int = 2,
+) -> httpx.Response:
     client = _client.get()
-    resp = await client.get(
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = await client.get(path, params=params)
+            resp.raise_for_status()
+            return resp
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= attempts or not _is_retryable_locatieserver_error(exc):
+                raise
+            logger.warning(
+                "locatieserver request retrying path=%s attempt=%d/%d reason=%s",
+                path,
+                attempt,
+                attempts,
+                exc,
+            )
+            await asyncio.sleep(0.15 * attempt)
+    assert last_exc is not None
+    raise last_exc
+
+
+async def suggest(query: str, limit: int = 7) -> list[AddressSuggestion]:
+    resp = await _get_with_retry(
         "/suggest",
         params={"q": query, "fq": "type:adres", "rows": limit},
     )
-    resp.raise_for_status()
     data = resp.json()
 
     docs = data.get("response", {}).get("docs", [])
@@ -50,12 +91,10 @@ async def suggest(query: str, limit: int = 7) -> list[AddressSuggestion]:
 
 
 async def lookup(locatieserver_id: str) -> ResolvedAddress | None:
-    client = _client.get()
-    resp = await client.get(
+    resp = await _get_with_retry(
         "/lookup",
         params={"id": locatieserver_id, "fl": "*"},
     )
-    resp.raise_for_status()
     data = resp.json()
 
     docs = data.get("response", {}).get("docs", [])

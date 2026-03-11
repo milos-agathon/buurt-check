@@ -1,12 +1,16 @@
-"""Render service interface -- contract for future server-side 3D rendering.
+"""Render service interface — contract for server-side 3D rendering.
 
-Currently unimplemented. Client-side Three.js canvas capture serves export.
-When implemented, PDF export will prefer server render with client fallback.
+Production implementation: ``Forge3DRenderService`` in
+``forge3d_renderer.py`` (in-process Rust/wgpu via forge3d Python bindings).
 
-Phase 5 deferred (2026-02-12). Client-side Three.js canvas capture serves
-PDF export adequately. Server rendering deferred until export metrics
-(Phase 6) justify infrastructure cost. Revisit path: headless Chromium
-first (lower cost), forge3/Rust second (higher quality).
+Feature-gated by ``BUURT_FORGE3D_ENABLED=true``.  Requires a GPU-capable
+host when enabled.  Falls back to client-side Three.js canvas captures
+when forge3d is unavailable or rendering fails.
+
+Fallback chain:
+    1. forge3d server render (if enabled + no client images)
+    2. Client-provided shadow_images (existing flow)
+    3. No shadow images → section omitted with "unavailable" fallback
 """
 
 from typing import Protocol

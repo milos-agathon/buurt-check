@@ -9,15 +9,15 @@ interface Props {
 }
 
 const LABEL_KEYS: Record<string, string> = {
-  morning: 'snapshots.morning',
-  noon: 'snapshots.noon',
-  evening: 'snapshots.evening',
+  top: 'snapshots.top',
+  front: 'snapshots.front',
+  rear: 'snapshots.rear',
 };
 
 const HOURS: Record<string, number> = {
-  morning: 9,
-  noon: 12,
-  evening: 17,
+  top: 12,
+  front: 12,
+  rear: 12,
 };
 
 function ShadowSnapshots({ snapshots, loading }: Props) {

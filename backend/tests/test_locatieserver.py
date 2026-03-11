@@ -1,5 +1,9 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
 import pytest
 
+from app.services import locatieserver
 from app.services.locatieserver import _parse_wkt_point, lookup, suggest
 
 
@@ -55,9 +59,7 @@ async def test_suggest_returns_suggestions(httpx_mock):
         }
     )
 
-    # Reset the client so httpx_mock is used
-    import app.services.locatieserver as ls
-    ls._client._client = None
+    locatieserver._client._client = None
 
     results = await suggest("kalverstraat 1 amsterdam", limit=5)
     assert len(results) == 2
@@ -65,7 +67,7 @@ async def test_suggest_returns_suggestions(httpx_mock):
     assert results[0].display_name == "Kalverstraat 1, 1012NX Amsterdam"
     assert results[0].score == 7.5
 
-    ls._client._client = None
+    locatieserver._client._client = None
 
 
 @pytest.mark.asyncio
@@ -77,13 +79,12 @@ async def test_suggest_empty_results(httpx_mock):
         }
     )
 
-    import app.services.locatieserver as ls
-    ls._client._client = None
+    locatieserver._client._client = None
 
     results = await suggest("xyznonexistent")
     assert results == []
 
-    ls._client._client = None
+    locatieserver._client._client = None
 
 
 @pytest.mark.asyncio
@@ -114,8 +115,7 @@ async def test_lookup_returns_address(httpx_mock):
         }
     )
 
-    import app.services.locatieserver as ls
-    ls._client._client = None
+    locatieserver._client._client = None
 
     result = await lookup("adr-abc123")
     assert result is not None
@@ -127,22 +127,19 @@ async def test_lookup_returns_address(httpx_mock):
     assert result.rd_y == 487296.0
     assert result.adresseerbaar_object_id == "0363010000696734"
 
-    ls._client._client = None
+    locatieserver._client._client = None
 
 
 @pytest.mark.asyncio
 async def test_lookup_not_found(httpx_mock):
-    httpx_mock.add_response(
-        json={"response": {"numFound": 0, "docs": []}}
-    )
+    httpx_mock.add_response(json={"response": {"numFound": 0, "docs": []}})
 
-    import app.services.locatieserver as ls
-    ls._client._client = None
+    locatieserver._client._client = None
 
     result = await lookup("adr-nonexistent")
     assert result is None
 
-    ls._client._client = None
+    locatieserver._client._client = None
 
 
 @pytest.mark.asyncio
@@ -168,11 +165,70 @@ async def test_lookup_maps_huisnummertoevoeging(httpx_mock):
         }
     )
 
-    import app.services.locatieserver as ls
-    ls._client._client = None
+    locatieserver._client._client = None
 
     result = await lookup("adr-toev")
     assert result is not None
     assert result.addition == "3"
 
-    ls._client._client = None
+    locatieserver._client._client = None
+
+
+@pytest.mark.asyncio
+async def test_suggest_retries_once_on_retryable_http_status():
+    request = httpx.Request("GET", "https://example.test/suggest")
+    retryable_response = httpx.Response(502, request=request)
+
+    first = MagicMock()
+    first.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "bad gateway",
+        request=request,
+        response=retryable_response,
+    )
+
+    second = MagicMock()
+    second.raise_for_status.return_value = None
+    second.json.return_value = {
+        "response": {
+            "docs": [
+                {
+                    "id": "adr-1",
+                    "weergavenaam": "Keizersgracht 1, Amsterdam",
+                    "type": "adres",
+                    "score": 1.0,
+                }
+            ]
+        }
+    }
+
+    mock_client = MagicMock()
+    mock_client.get = AsyncMock(side_effect=[first, second])
+
+    with patch.object(locatieserver._client, "get", return_value=mock_client):
+        result = await locatieserver.suggest("keizersgracht", 3)
+
+    assert len(result) == 1
+    assert result[0].display_name == "Keizersgracht 1, Amsterdam"
+    assert mock_client.get.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_suggest_does_not_retry_non_retryable_http_status():
+    request = httpx.Request("GET", "https://example.test/suggest")
+    response = httpx.Response(400, request=request)
+
+    failing = MagicMock()
+    failing.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "bad request",
+        request=request,
+        response=response,
+    )
+
+    mock_client = MagicMock()
+    mock_client.get = AsyncMock(return_value=failing)
+
+    with patch.object(locatieserver._client, "get", return_value=mock_client):
+        with pytest.raises(httpx.HTTPStatusError):
+            await locatieserver.suggest("x", 3)
+
+    assert mock_client.get.await_count == 1

@@ -70,6 +70,8 @@ def test_build_viewing_questions_uses_address_context_and_scores():
     assert len(air_cat.questions) == 1
     assert "scores well" in air_cat.questions[0].text_en
     assert "scoort goed" in air_cat.questions[0].text_nl
+    assert "(score " not in noise_questions[0].text_en
+    assert "(score " not in noise_questions[0].text_nl
 
 
 def test_build_viewing_questions_includes_raw_signals_when_available():

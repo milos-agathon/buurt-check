@@ -108,6 +108,31 @@ def _sev_label(severity: object | None, language: str = "en") -> str:
     return value.capitalize()
 
 
+_DIMENSION_LABEL_NL: dict[str, str] = {
+    "physical": "Fysiek",
+    "safety": "Veiligheid",
+    "social": "Sociaal",
+    "amenities": "Voorzieningen",
+    "housing": "Woningen",
+}
+
+_DIMENSION_LABEL_EN: dict[str, str] = {
+    "physical": "Physical environment",
+    "safety": "Safety",
+    "social": "Social cohesion",
+    "amenities": "Amenities",
+    "housing": "Housing quality",
+}
+
+
+def _dim_label(name: object, language: str = "en") -> str:
+    """Return a human-readable dimension label for livability dimensions."""
+    key = str(name).strip().lower() if name else ""
+    if language == "nl":
+        return _DIMENSION_LABEL_NL.get(key, key.capitalize())
+    return _DIMENSION_LABEL_EN.get(key, key.capitalize())
+
+
 def _create_latex_env() -> jinja2.Environment:
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(TEMPLATES_DIR)),
@@ -124,6 +149,7 @@ def _create_latex_env() -> jinja2.Environment:
     )
     env.filters["sev_color"] = _sev_color
     env.filters["sev_label"] = _sev_label
+    env.filters["dim_label"] = _dim_label
     return env
 
 
@@ -325,6 +351,8 @@ def compile_latex_to_pdf(
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=remaining,
                 cwd=tmp_dir,
             )

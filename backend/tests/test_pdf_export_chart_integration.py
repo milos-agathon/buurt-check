@@ -68,10 +68,12 @@ def test_draw_comparison_chart_uses_chart_renderer(monkeypatch):
         comparisons,
         output_format="pdf",
         show_row_labels=True,
+        show_axis_labels=True,
     ):
         called["value"] = True
         assert output_format == "png"
         assert show_row_labels is False
+        assert show_axis_labels is False
         assert address_score == 65
         assert category == "Noise - comparison"
         assert len(comparisons) == 1
@@ -175,10 +177,11 @@ def test_draw_risk_grid_passes_five_cell_layout(monkeypatch):
 def test_draw_age_bars_uses_chart_renderer(monkeypatch):
     called = {"value": False}
 
-    def _fake_render(*, age_data, output_format="pdf"):
+    def _fake_render(*, age_data, output_format="pdf", is_nl=False):
         called["value"] = True
         assert output_format == "png"
         assert isinstance(age_data, AgeProfile)
+        assert is_nl is False
         return _tiny_png_bytes()
 
     monkeypatch.setattr(pe.chart_renderer, "render_age_distribution", _fake_render)

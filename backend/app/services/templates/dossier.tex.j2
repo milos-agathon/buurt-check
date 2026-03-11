@@ -110,12 +110,12 @@ SunCalc + 3DBAG \\
 \begin{center}
 \includegraphics[width=0.78\linewidth]{<< location_map >>}
 \end{center}
-{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Luchtfoto: PDOK Luchtfoto (CC BY 4.0) · context 1 km · noord boven<% else %>Aerial: PDOK Luchtfoto (CC BY 4.0) · 1 km context · north up<% endif %>}}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Luchtfoto: PDOK Luchtfoto (CC BY 4.0) · context 150 m · noord boven<% else %>Aerial: PDOK Luchtfoto (CC BY 4.0) · 150 m context · north up<% endif %>}}
 <% else %>
 \subsection*{<% if language == "nl" %>Locatiekaart<% else %>Location Map<% endif %>}
 \noindent\fcolorbox{MutedText}{white}{\parbox{\dimexpr0.78\linewidth-2\fboxsep-2\fboxrule\relax}{
 \textbf{<% if language == "nl" %>Locatiekaart niet beschikbaar<% else %>Location map unavailable<% endif %>}\\
-<% if language == "nl" %>PDOK-luchtfoto kon niet laden tijdens export. Het dossier gaat verder zonder de kaartcontext van 1 km.<% else %>PDOK aerial imagery did not load during export. The dossier continues without the 1 km map context.<% endif %>
+<% if language == "nl" %>PDOK-luchtfoto kon niet laden tijdens export. Het dossier gaat verder zonder de kaartcontext van 150 m.<% else %>PDOK aerial imagery did not load during export. The dossier continues without the 150 m map context.<% endif %>
 }}\par
 {\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Luchtfoto: PDOK Luchtfoto (CC BY 4.0) · niet beschikbaar voor deze export<% else %>Aerial: PDOK Luchtfoto (CC BY 4.0) · unavailable for this export<% endif %>}}
 <% endif %>
@@ -144,7 +144,7 @@ SunCalc + 3DBAG \\
 <% if neighborhood_sections %>
 <% for section in neighborhood_sections %>
 \textbf{<< section.title >>}\\[-2pt]
-\begin{tabular}{p{0.56\linewidth}p{0.35\linewidth}}
+\begin{tabular}{@{}p{0.52\linewidth}p{0.43\linewidth}@{}}
 <% for row in section.rows %>
 << row.label >> & << row.value >> \\
 <% endfor %>
@@ -172,7 +172,12 @@ SunCalc + 3DBAG \\
 <% endif %>
 <% if livability and livability.dimensions %>
 \textbf{<% if language == "nl" %>Dimensies<% else %>Dimensions<% endif %>}\\
-{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Score per leefbaarheidsdimensie volgens Leefbaarometer-methodiek.<% else %>Dimension-level scores based on Leefbaarometer methodology.<% endif %>}}\\
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Score per leefbaarheidsdimensie volgens Leefbaarometer-methodiek.<% else %>Dimension-level scores based on Leefbaarometer methodology.<% endif %>}}\\[2pt]
+\begin{tabular}{@{}p{0.55\linewidth}p{0.40\linewidth}@{}}
+<% for dim in livability.dimensions %>
+<< dim.name|dim_label(language) >> & <% if dim.normalized_score is defined and dim.normalized_score is not none %><< dim.normalized_score >>/100<% else %><% if language == "nl" %>Niet beschikbaar<% else %>Unavailable<% endif %><% endif %> \\
+<% endfor %>
+\end{tabular}\\
 <% endif %>
 <% if livability_trend_summary %>
 \textbf{<% if language == "nl" %>Trend<% else %>Trend<% endif %>}\\

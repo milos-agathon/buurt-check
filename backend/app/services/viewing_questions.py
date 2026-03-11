@@ -33,11 +33,11 @@ def _location_nl(street: str | None, city: str | None) -> str:
 
 
 def _score_en(score: int | None) -> str:
-    return f" (score {score}/100)" if score is not None else ""
+    return f" ({score}/100)" if score is not None else ""
 
 
 def _score_nl(score: int | None) -> str:
-    return f" (score {score}/100)" if score is not None else ""
+    return f" ({score}/100)" if score is not None else ""
 
 
 def _fmt_float(value: float | None, digits: int = 1) -> str | None:

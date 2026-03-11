@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import Response
 from pydantic import AliasChoices, BaseModel, Field
 
-from app.api.dependencies import require_entitlement
+from app.api.dependencies import get_render_service, require_entitlement
 from app.cache.redis import cache_get, cache_set, cache_set_verified
 from app.config import settings
 from app.models.address import ResolvedAddress, SuggestResponse
@@ -96,7 +96,7 @@ _RISK_FAILURE_MESSAGES: frozenset[str] = frozenset({
 
 
 def _location_map_cache_key(rd_x: float, rd_y: float) -> str:
-    return f"location_map:v1:{rd_x:.0f}:{rd_y:.0f}"
+    return f"location_map:v3:{rd_x:.0f}:{rd_y:.0f}"
 
 
 def _location_map_params(
@@ -105,7 +105,7 @@ def _location_map_params(
     *,
     image_format: str,
 ) -> dict[str, str]:
-    bbox_half = 500  # meters — 1km x 1km area
+    bbox_half = 75  # meters — 150m x 150m area (zoomed in to clearly show house)
     bbox = (
         f"{rd_x - bbox_half},{rd_y - bbox_half},"
         f"{rd_x + bbox_half},{rd_y + bbox_half}"
@@ -118,8 +118,8 @@ def _location_map_params(
         "STYLES": "",
         "CRS": "EPSG:28992",
         "BBOX": bbox,
-        "WIDTH": "600",
-        "HEIGHT": "600",
+        "WIDTH": "800",
+        "HEIGHT": "800",
         "FORMAT": image_format,
         "TRANSPARENT": "false",
     }
@@ -990,6 +990,9 @@ class ShadowImageItem(BaseModel):
     hour: int = Field(ge=0, le=23)
     label: str = Field(max_length=50)
     image_b64: str = Field(max_length=2_000_000)
+    viewpoint: str | None = Field(default=None, max_length=50)
+    sun_azimuth: float | None = None
+    sun_altitude: float | None = None
 
 
 class ExportRequest(BaseModel):
@@ -1021,7 +1024,7 @@ class ExportRequest(BaseModel):
     )
     shadow_images: list[ShadowImageItem] | None = Field(
         default=None,
-        description="Array of shadow snapshots (morning/noon/evening) for triptych layout",
+        description="Array of shadow snapshots for triptych layout (top/front/rear)",
     )
     sunlight_submission: SunlightSubmission | None = Field(
         default=None,
@@ -1450,13 +1453,129 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             rd_y=body.rd_y,
         )
 
+        # --- forge3d server-side rendering (always preferred when available) ---
+        # Server-rendered snapshots are higher quality than client captures
+        # and produce 6 panels (3 views × 2 times of day).
+        render_service = get_render_service()
+        if (
+            render_service is not None
+            and building_resp
+            and building_resp.building
+        ):
+            t0 = time.monotonic()
+            try:
+                from app.services.forge3d_geometry import (
+                    building_blocks_to_forge3d_scene,
+                )
+
+                # Fetch 3D neighbourhood context for the scene
+                n3d = await three_d_bag.get_neighborhood_3d(
+                    body.rd_x, body.rd_y,
+                )
+                target_block = None
+                neighbors = []
+                if n3d:
+                    for b in n3d.buildings:
+                        if b.pand_id == building_resp.building.pand_id:
+                            target_block = b
+                        else:
+                            neighbors.append(b)
+
+                if target_block is not None:
+                    scene_data = building_blocks_to_forge3d_scene(
+                        target_block, neighbors,
+                    )
+                    server_images = (
+                        await render_service.render_shadow_snapshots(
+                            pand_id=vbo_id,
+                            dates=["2026-06-21"],
+                            times=["07:00", "15:00"],
+                            camera_preset="triptych_6",
+                            scene_data=scene_data,
+                            lat=body.lat,
+                            lng=body.lng,
+                        )
+                    )
+                    if server_images and len(server_images) == 6:
+                        body.shadow_images = [
+                            ShadowImageItem(
+                                hour=item["hour"],
+                                label=f"{item['viewpoint']}_{item['time_label']}",
+                                image_b64=base64.b64encode(
+                                    item["jpeg_bytes"],
+                                ).decode("ascii"),
+                                viewpoint=item["viewpoint"],
+                                sun_azimuth=item.get("sun_azimuth"),
+                                sun_altitude=item.get("sun_altitude"),
+                            )
+                            for item in server_images
+                        ]
+                        elapsed = time.monotonic() - t0
+                        logger.info(
+                            "export %s: forge3d rendered 6 snapshots "
+                            "(3 views × 2 times) in %.2fs",
+                            vbo_id,
+                            elapsed,
+                        )
+                    elif server_images and len(server_images) == 3:
+                        # Legacy 3-image fallback
+                        body.shadow_images = [
+                            ShadowImageItem(
+                                hour=item["hour"],
+                                label=item["viewpoint"],
+                                image_b64=base64.b64encode(
+                                    item["jpeg_bytes"],
+                                ).decode("ascii"),
+                                viewpoint=item["viewpoint"],
+                                sun_azimuth=item.get("sun_azimuth"),
+                                sun_altitude=item.get("sun_altitude"),
+                            )
+                            for item in server_images
+                        ]
+                        elapsed = time.monotonic() - t0
+                        logger.info(
+                            "export %s: forge3d rendered 3 viewpoints in %.2fs",
+                            vbo_id,
+                            elapsed,
+                        )
+                    else:
+                        logger.warning(
+                            "export %s: forge3d returned incomplete images, "
+                            "falling back to client",
+                            vbo_id,
+                        )
+                else:
+                    logger.debug(
+                        "export %s: target building not found in 3D context, "
+                        "skipping forge3d",
+                        vbo_id,
+                    )
+            except Exception:
+                logger.warning(
+                    "export %s: forge3d rendering failed, "
+                    "falling back to client images",
+                    vbo_id,
+                    exc_info=True,
+                )
+
         # Convert ShadowImageItem models to dicts for pdf_export
         shadow_images_dicts = None
         if body.shadow_images:
             shadow_images_dicts = [
-                {"hour": s.hour, "label": s.label, "image_b64": s.image_b64}
+                {
+                    "hour": s.hour,
+                    "label": s.label,
+                    "image_b64": s.image_b64,
+                    "viewpoint": s.viewpoint,
+                    "sun_azimuth": s.sun_azimuth,
+                    "sun_altitude": s.sun_altitude,
+                }
                 for s in body.shadow_images
             ]
+
+        footprint_geojson = None
+        if building_resp and building_resp.building:
+            footprint_geojson = building_resp.building.footprint_geojson
 
         pdf_bytes = generate_full_dossier(
             address=body.address,
@@ -1479,6 +1598,9 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             shadow_equinox_b64=body.shadow_equinox_b64,
             shadow_summer_b64=body.shadow_summer_b64,
             postcode=body.postcode,
+            footprint_geojson=footprint_geojson,
+            map_lat=body.lat,
+            map_lng=body.lng,
         )
     else:
         pdf_bytes = generate_quick_brief(

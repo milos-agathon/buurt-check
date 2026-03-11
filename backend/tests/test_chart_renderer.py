@@ -214,6 +214,28 @@ def test_risk_comparison_value_labels_use_shared_right_column(monkeypatch):
     assert len(value_positions) == 1
 
 
+def test_risk_comparison_primary_bar_uses_severity_color(monkeypatch):
+    captured_colors: list[str] = []
+    original_barh = Axes.barh
+
+    def _patched_barh(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        captured_colors.append(str(kwargs.get("color")))
+        return original_barh(self, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "barh", _patched_barh)
+
+    render_risk_comparison(
+        category="Climate stress",
+        address_score=12,
+        comparisons=[
+            CompRow("Peer baseline (urbanization)", 44),
+            CompRow("Netherlands", 52),
+        ],
+    )
+
+    assert captured_colors[0] == cr.C_SEV_CRIT
+
+
 def test_risk_grid_4_cells():
     chart = render_risk_summary_grid(
         [
@@ -234,6 +256,7 @@ def test_risk_grid_4_cells():
     assert "MODERATE" in text
     assert "POOR" in text
     assert "CRITICAL" in text
+    assert "70+" not in text
 
 
 def test_risk_grid_5_cells():
@@ -273,9 +296,9 @@ def test_risk_grid_with_none_score():
 def test_shadow_triptych_three_images():
     chart = render_shadow_panels(
         images=[
-            ShadowImage("winter", _tiny_png_b64((34, 45, 63))),
-            ShadowImage("equinox", _tiny_png_b64((55, 65, 75))),
-            ShadowImage("summer", _tiny_png_b64((76, 86, 96))),
+            ShadowImage("top", _tiny_png_b64((34, 45, 63))),
+            ShadowImage("front", _tiny_png_b64((55, 65, 75))),
+            ShadowImage("rear", _tiny_png_b64((76, 86, 96))),
         ],
         metadata=SunlightMeta(),
     )
@@ -283,11 +306,13 @@ def test_shadow_triptych_three_images():
     assert chart.startswith(b"%PDF-")
     width_mm, height_mm = _pdf_size_mm(chart)
     assert width_mm >= 160
-    assert height_mm >= 170
+    assert height_mm >= 65
     text = _pdf_text(chart)
-    assert "Winter Solstice - Dec 21" in text
-    assert "Spring Equinox - Mar 20" in text
-    assert "Summer Solstice - Jun 21" in text
+    assert "Top view" in text
+    assert "Front facade" in text
+    assert "Rear facade" in text
+    assert "Summer solstice" in text
+    assert "Legend: teal outline = target building" in text
     assert "12:00" in text
 
 
@@ -302,7 +327,7 @@ def test_shadow_single_image_fallback():
     assert width_mm >= 160
     assert height_mm >= 85
     text = _pdf_text(chart)
-    assert "Additional seasons require re-export after 3D computation" in text
+    assert "Additional viewpoints require re-export after 3D computation" in text
 
 
 def test_age_distribution_happy_path():

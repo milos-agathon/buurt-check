@@ -29,6 +29,7 @@ class PricingResponse(BaseModel):
     price_cents: int = Field(..., ge=1)
     price_eur: str
     currency: str = "EUR"
+    server_render_available: bool = False
 
 
 @public_router.get("/pricing", response_model=PricingResponse)
@@ -39,6 +40,7 @@ async def get_pricing():
         price_cents=price_cents,
         price_eur=f"{price_cents / 100:.2f}",
         currency="EUR",
+        server_render_available=settings.forge3d_enabled,
     )
 
 

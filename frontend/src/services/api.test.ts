@@ -572,6 +572,14 @@ describe('exportBriefing', () => {
       shadowImageB64: 'AAAA',
       shadowEquinoxB64: 'BBBB',
       shadowSummerB64: 'CCCC',
+      shadowImages: [
+        {
+          hour: 12,
+          label: 'top',
+          image_b64: 'DDDD',
+          viewpoint: 'top',
+        },
+      ],
       buurtCode: 'BU0363AD07',
       postcode: '1012NX',
       houseNumber: '1',
@@ -595,6 +603,14 @@ describe('exportBriefing', () => {
     expect(body.shadow_image_b64).toBe('AAAA');
     expect(body.shadow_equinox_b64).toBe('BBBB');
     expect(body.shadow_summer_b64).toBe('CCCC');
+    expect(body.shadow_images).toEqual([
+      {
+        hour: 12,
+        label: 'top',
+        image_b64: 'DDDD',
+        viewpoint: 'top',
+      },
+    ]);
     expect(body.buurt_code).toBe('BU0363AD07');
     expect(body.postcode).toBe('1012NX');
     expect(body.house_number).toBe('1');
@@ -611,6 +627,35 @@ describe('exportBriefing', () => {
     expect(body.rd_x).toBe(1);
     expect(body.lat).toBe(3);
     expect(blob).toBe(expectedBlob);
+  });
+
+  it('omits shadow triptych payload for quick_brief exports', async () => {
+    const expectedBlob = new Blob(['pdf']);
+    mockFetch.mockResolvedValue({ ok: true, blob: () => Promise.resolve(expectedBlob) } as Response);
+
+    await exportBriefing({
+      vboId: 'vbo-1',
+      rdX: 1,
+      rdY: 2,
+      lat: 3,
+      lng: 4,
+      address: 'Test',
+      template: 'quick_brief',
+      shadowImageB64: 'AAAA',
+      shadowImages: [
+        {
+          hour: 12,
+          label: 'top',
+          image_b64: 'DDDD',
+          viewpoint: 'top',
+        },
+      ],
+    });
+
+    const [, init] = mockFetch.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.shadow_image_b64).toBe('AAAA');
+    expect(body.shadow_images).toBeUndefined();
   });
 
   it('includes report_id when provided for full_dossier entitlement checks', async () => {
