@@ -1,8 +1,19 @@
 """FastAPI dependencies for endpoint-level access control."""
 
+from __future__ import annotations
+
+import logging
+
 from fastapi import HTTPException, Query
 
+from app.config import settings
+from app.services.forge3d_renderer import Forge3DRenderService
 from app.services.reports import check_entitlement
+
+logger = logging.getLogger(__name__)
+
+# Singleton render service — created once, reused across requests.
+_render_service: Forge3DRenderService | None = None
 
 
 async def require_entitlement(report_id: str | None = Query(None)):
@@ -19,3 +30,20 @@ async def require_entitlement(report_id: str | None = Query(None)):
     entitled = await check_entitlement(report_id)
     if not entitled:
         raise HTTPException(status_code=402, detail="Payment required")
+
+
+def get_render_service() -> Forge3DRenderService | None:
+    """Return forge3d render service if enabled, else None.
+
+    Inject via ``Depends(get_render_service)`` on export endpoints.
+    """
+    global _render_service  # noqa: PLW0603
+    if not settings.forge3d_enabled:
+        return None
+    if _render_service is None:
+        _render_service = Forge3DRenderService(settings)
+        if _render_service.available:
+            logger.info("forge3d render service initialised")
+        else:
+            logger.warning("forge3d enabled but not available (missing GPU or package)")
+    return _render_service

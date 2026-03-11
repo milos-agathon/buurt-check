@@ -58,6 +58,7 @@ async def test_get_pricing_returns_backend_authoritative_price(db_path):
         "price_cents": 1999,
         "price_eur": "19.99",
         "currency": "EUR",
+        "server_render_available": False,
     }
 
 

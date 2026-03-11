@@ -351,6 +351,9 @@ export interface ShadowImagePayload {
   hour: number;
   label: string;
   image_b64: string;
+  viewpoint?: string;
+  sun_azimuth?: number;
+  sun_altitude?: number;
 }
 
 export interface ExportOptions {
@@ -391,7 +394,9 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
   if (options.shadowImageB64) body.shadow_image_b64 = options.shadowImageB64;
   if (options.shadowEquinoxB64) body.shadow_equinox_b64 = options.shadowEquinoxB64;
   if (options.shadowSummerB64) body.shadow_summer_b64 = options.shadowSummerB64;
-  if (options.shadowImages && options.shadowImages.length > 0) body.shadow_images = options.shadowImages;
+  if (template === 'full_dossier' && options.shadowImages && options.shadowImages.length > 0) {
+    body.shadow_images = options.shadowImages;
+  }
   if (options.reportId) body.report_id = options.reportId;
   if (options.street) body.street = options.street;
   if (options.city) body.city = options.city;

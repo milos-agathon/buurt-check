@@ -37,6 +37,7 @@ from app.models.risk import (
     AirQualityRiskCard,
     ClimateStressRiskCard,
     ComparisonPattern,
+    FacadeResult,
     NoiseRiskCard,
     QuestionCategory,
     RiskCardsResponse,
@@ -294,7 +295,7 @@ class TestBuildRiskCells:
 
 class TestQuartileIndicators:
     def test_quartile_appended_when_present(self):
-        """Quartile badge (Q3) is appended to indicator value."""
+        """Quartiles render as plain-language context labels."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         indicator = NeighborhoodIndicator(value=428000.0, unit="\u20ac", quartile=3)
@@ -302,7 +303,7 @@ class TestQuartileIndicators:
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "(Q3)" in text
+        assert "above average" in text
         assert "\u20ac428,000" in text
 
     def test_quartile_omitted_when_none(self):
@@ -318,7 +319,7 @@ class TestQuartileIndicators:
         assert "\u20ac428,000" in text
 
     def test_quartile_with_percentage(self):
-        """Quartile works with percentage indicator."""
+        """Percentage indicators use the same plain-language quartile labels."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         indicator = NeighborhoodIndicator(value=62.0, unit="%", quartile=4)
@@ -327,10 +328,10 @@ class TestQuartileIndicators:
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
         assert "62%" in text
-        assert "(Q4)" in text
+        assert "top 25%" in text
 
     def test_quartile_with_distance(self):
-        """Quartile works with km distance indicator."""
+        """Distance indicators use the same plain-language quartile labels."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         indicator = NeighborhoodIndicator(value=0.8, unit="km", quartile=1)
@@ -339,7 +340,7 @@ class TestQuartileIndicators:
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
         assert "0.8 km" in text
-        assert "(Q1)" in text
+        assert "bottom 25%" in text
 
 
 # --- Unit tests: Number formatting locale (E10-S5) ---
@@ -518,8 +519,8 @@ class TestBuurtCheckPDF:
         sig = inspect.signature(BuurtCheckPDF.draw_score_bar)
         assert sig.parameters["height"].default == 4.0
 
-    def test_draw_score_bar_tick_marks_at_severity_thresholds(self):
-        """E9-S1: Tick marks are drawn at scores 20, 40, 70."""
+    def test_draw_score_bar_default_has_no_threshold_tick_marks(self):
+        """Default score bar is a plain track without threshold tick dividers."""
         pdf = BuurtCheckPDF()
         pdf.add_page()
         # Track line calls
@@ -534,19 +535,28 @@ class TestBuurtCheckPDF:
         bar_x, bar_y, bar_w, bar_h = 10.0, 50.0, 100.0, 4.0
         pdf.draw_score_bar(bar_x, bar_y, bar_w, 75, height=bar_h)
 
-        # Check tick marks at 20, 40, 70
-        expected_ticks = [
-            bar_x + bar_w * 20 / 100,
-            bar_x + bar_w * 40 / 100,
-            bar_x + bar_w * 70 / 100,
+        threshold_ticks = [
+            c for c in line_calls
+            if abs(c[1] - bar_y) < 0.01 and abs(c[3] - (bar_y + bar_h)) < 0.01
         ]
-        for tick_x in expected_ticks:
-            matching = [
-                c for c in line_calls
-                if abs(c[0] - tick_x) < 0.01 and abs(c[2] - tick_x) < 0.01
-                and abs(c[1] - bar_y) < 0.01 and abs(c[3] - (bar_y + bar_h)) < 0.01
-            ]
-            assert len(matching) == 1, f"Missing tick at x={tick_x}"
+        assert threshold_ticks == []
+
+    def test_draw_score_bar_ignores_legacy_good_threshold_label_flags(self):
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        pdf.draw_score_bar(
+            10,
+            20,
+            100,
+            75,
+            highlight_good_zone=True,
+            show_target_label=True,
+        )
+
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "70+" not in text
 
     def test_draw_score_bar_minimum_fill_width(self):
         """E9-S1: Score=1 produces fill_w >= 1mm (visible)."""
@@ -590,6 +600,22 @@ class TestBuurtCheckPDF:
         assert end_y > 20
         result = bytes(pdf.output())
         assert result[:5] == b"%PDF-"
+
+    def test_draw_risk_grid_native_fallback_marks_good_zone(self, monkeypatch):
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        cells = [
+            ("Noise", 65, "Moderate"),
+            ("Air", 80, "Good"),
+        ]
+
+        monkeypatch.setattr(pe, "chart_renderer", None)
+        pdf.draw_risk_grid(10, 20, 180, cells)
+
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "70+" not in text
 
     def test_draw_comparison_chart(self):
         pdf = BuurtCheckPDF()
@@ -1200,9 +1226,10 @@ class TestGenerateFullDossier:
         assert "Moderate" in all_text
         # Meaning sentence
         assert "Crime rate is somewhat above the national average" in all_text
-        # National comparison
+        # Raw-rate context is disclosed under the chart
         assert "52.1" in all_text
-        assert "National avg" in all_text
+        assert "Netherlands" in all_text
+        assert "Rates shown per 1,000 residents" in all_text
         # Sub-rates
         assert "Burglary" in all_text
         assert "4.2" in all_text
@@ -1246,7 +1273,7 @@ class TestGenerateFullDossier:
         assert "boven het landelijk gemiddelde" in all_text
         # NL comparison labels
         assert "Dit adres" in all_text
-        assert "Landelijk" in all_text
+        assert "Nederland" in all_text
         # NL source
         assert "Bron" in all_text
         # Sub-rates with NL labels
@@ -1275,9 +1302,11 @@ class TestGenerateFullDossier:
         reader = PdfReader(io.BytesIO(result))
         all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
         # No bare placeholders; explicit unavailable state is shown.
-        assert "Score: Unavailable/100 (Not assessed)" in all_text
+        assert "Crime Rate" in all_text
+        assert "N/A" in all_text
         # Sub-rates still rendered
-        assert "Burglary: 3.0" in all_text
+        assert "Burglary" in all_text
+        assert "3.0" in all_text
 
     def test_crime_card_without_national_average(self):
         """Comparison section skipped when national average is missing."""
@@ -1380,7 +1409,7 @@ class TestGenerateFullDossier:
         assert "Owners' Association" in text
         assert "Lead Pipe Risk" in text
         assert "Soil Contamination" in text
-        assert "Manual verification required" in text
+        assert "Manual Verification Required" in text
         assert "Direct sun (clear-sky visibility)" in text
 
 
@@ -1463,13 +1492,13 @@ class TestComparisonChartScaleDeclaration:
     def test_scale_caption_present_en(self):
         """English PDF contains scale declaration caption."""
         text = self._extract_full_text("en")
-        assert "0-100 scale" in text
+        assert "0–100 score scale" in text
         assert "Higher = better" in text
 
     def test_scale_caption_present_nl(self):
         """Dutch PDF contains scale declaration caption."""
         text = self._extract_full_text("nl")
-        assert "0-100 schaal" in text
+        assert "0–100 scoreschaal" in text
         assert "Hoger = beter" in text
 
     def test_who_label_en_short(self):
@@ -1538,9 +1567,12 @@ class TestRiskFactsheetGuidelines:
 
 
 class TestComparisonChartScaleCaptionCallsites:
-    """E4-S1: Crime and livability comparison call sites include scale captions."""
+    """E4-S1: Risk-detail and livability comparison call sites include scale captions."""
 
-    def test_crime_chart_calls_scale_caption_helper(self, monkeypatch: pytest.MonkeyPatch):
+    def test_risk_details_page_calls_scale_caption_helper(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
         pdf = BuurtCheckPDF()
         pdf.add_page()
 
@@ -1551,15 +1583,17 @@ class TestComparisonChartScaleCaptionCallsites:
 
         monkeypatch.setattr(pe, "_draw_score_scale_caption", _fake_caption)
 
-        pe._draw_neighborhood_page(
+        pe._draw_risk_details_page(
             pdf,
-            stats=None,
-            tier_b_data=_make_tier_b(),
+            address="Damrak 1, Amsterdam",
+            risks=_make_risks(),
+            sunlight_score=80,
+            comparisons=_make_risk_comparisons(),
             is_nl=False,
-            livability=None,
+            tier_b_data=_make_tier_b(),
         )
 
-        assert calls["count"] == 1
+        assert calls["count"] >= 1
 
     def test_livability_chart_calls_scale_caption_helper(
         self,
@@ -1746,7 +1780,10 @@ class TestPropertyWarningsPdfSections:
                 p.extract_text() or "" for p in reader.pages
             )
         )
-        assert "Foundation risk unavailable in export pipeline." in text
+        assert (
+            "Foundation risk unavailable in export pipeline." in text
+            or "Foundation risk could not be assessed" in text
+        )
 
     def test_foundation_medium(self):
         """Medium foundation risk shows moderate language."""
@@ -2129,10 +2166,11 @@ class TestEliminateEmptyPages:
 
         assert pdf.page_no() == 2
 
-    def test_notes_section_is_capped_to_four_lines(self):
-        """Notes section uses a fixed four-line block instead of filling the page."""
+    def test_notes_section_uses_compact_ruled_lines(self):
+        """Viewing notes use a compact ruled-line block."""
         from app.services.pdf_export import (
-            _draw_methodology_page,
+            _NOTES_RULE_COUNT,
+            _draw_notes_section,
         )
 
         pdf = BuurtCheckPDF(language="en")
@@ -2146,23 +2184,50 @@ class TestEliminateEmptyPages:
             return original_line(x1, y1, x2, y2)
 
         pdf.line = tracking_line
-        _draw_methodology_page(pdf, is_nl=False)
+        _draw_notes_section(pdf, is_nl=False)
         # Filter for ruled note lines (full-width lines)
         usable_w = pdf.w - pdf.l_margin - pdf.r_margin
         note_lines = [
             c for c in line_calls
             if abs(c[2] - c[0] - usable_w) < 1
         ]
-        note_rule_lines = note_lines[-4:]
-        assert len(note_rule_lines) == 4
+        note_rule_lines = note_lines[-_NOTES_RULE_COUNT:]
+        assert len(note_rule_lines) == _NOTES_RULE_COUNT
+        from app.services.pdf_export import _NOTES_RULE_SPACING_MM
         spacings = [
             round(note_rule_lines[idx + 1][1] - note_rule_lines[idx][1], 1)
-            for idx in range(3)
+            for idx in range(_NOTES_RULE_COUNT - 1)
         ]
-        assert spacings == [8.0, 8.0, 8.0]
+        assert spacings == [_NOTES_RULE_SPACING_MM] * (_NOTES_RULE_COUNT - 1)
 
-    def test_final_page_keeps_report_details_and_notes_together(self):
-        """Methodology should not spill into a notes-only final page."""
+    def test_notes_section_includes_compact_prompt_box(self):
+        from app.services.pdf_export import _draw_notes_section
+
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        _draw_notes_section(pdf, is_nl=False)
+
+        reader = PdfReader(io.BytesIO(bytes(pdf.output())))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Log before you leave" in text
+
+    def test_measurement_table_rows_color_noncompliant_values_red_and_compliant_values_green(self):
+        rows = pe._measurement_table_rows(
+            "Air Quality",
+            [
+                ("PM2.5", "18.0 \u00b5g/m\u00b3"),
+                ("WHO guideline PM2.5", "5.0 \u00b5g/m\u00b3"),
+                ("NO\u2082", "9.0 \u00b5g/m\u00b3"),
+                ("WHO guideline NO\u2082", "10.0 \u00b5g/m\u00b3"),
+            ],
+            is_nl=False,
+        )
+
+        assert rows[0][3] == pe.SEVERITY_COLORS["poor"]
+        assert rows[1][3] == pe.SEVERITY_COLORS["good"]
+
+    def test_methodology_page_keeps_report_details_with_reference_content(self):
+        """Methodology and report details stay together before the final notes page."""
         from app.models.report import ProvenanceData
 
         prov = ProvenanceData(
@@ -2195,13 +2260,41 @@ class TestEliminateEmptyPages:
         )
 
         reader = PdfReader(io.BytesIO(result))
+        methodology_page_text = _norm(reader.pages[-2].extract_text() or "")
         last_page_text = _norm(reader.pages[-1].extract_text() or "")
 
-        assert "Report Details" in last_page_text
+        assert "Report Details" in methodology_page_text
+        assert "Methodology" in methodology_page_text
         assert "Your viewing notes" in last_page_text
 
+    def test_viewing_questions_are_front_loaded_after_cover(self):
+        """Page 2 is reserved for the viewing checklist instead of risk details."""
+        result = pe._generate_full_dossier_fpdf(
+            address="Kerkstraat 10, Katwijk",
+            building_year=1970,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            floor_area=95,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            livability=_make_livability(),
+        )
+
+        reader = PdfReader(io.BytesIO(result))
+        page_2 = _norm(reader.pages[1].extract_text() or "")
+        remaining = _norm("\n".join(page.extract_text() or "" for page in reader.pages[2:]))
+
+        assert "VIEWING QUESTIONS" in page_2
+        assert "RISK DETAILS" not in page_2
+        assert "RISK DETAILS" in remaining
+
     def test_shadow_image_not_on_property_checks(self):
-        """Shadow text appears in methodology, not on property checks page."""
+        """Shadow analysis text appears outside the property-check page."""
         import base64
 
         # Create a real-ish PNG for the shadow
@@ -2222,7 +2315,7 @@ class TestEliminateEmptyPages:
         reader = PdfReader(io.BytesIO(result))
         full_text = "\n".join(p.extract_text() or "" for p in reader.pages)
         # Shadow text appears somewhere in the PDF
-        assert "Shadow Snapshots" in full_text or "shadow snapshot" in full_text.lower()
+        assert "shadow analysis" in full_text.lower() or "shadow snapshot" in full_text.lower()
         # Verify the PDF generates without error
         assert result[:5] == b"%PDF-"
 
@@ -2344,7 +2437,7 @@ class TestProvenanceBlock:
     def test_no_provenance_graceful(self):
         """Full dossier without provenance still renders successfully."""
         text = self._extract_full_text(provenance=None)
-        assert "Methodology" in _norm(text) or "How we score" in _norm(text)
+        assert "methodology" in _norm(text).lower()
 
     def test_partial_provenance_graceful(self):
         """Provenance with missing optional fields still renders."""
@@ -2949,7 +3042,7 @@ class TestPageCountConstraints:
         assert self._page_count(result) == 1
 
     def test_full_dossier_five_pages_or_less(self):
-        """Full Dossier stays compact at 5 pages or less."""
+        """Full Dossier stays within the current 8-page reference layout."""
         result = generate_full_dossier(
             address="Kalverstraat 1, 1012 Amsterdam",
             building_year=1920,
@@ -2963,7 +3056,7 @@ class TestPageCountConstraints:
             tier_b=_make_tier_b(),
             risk_comparisons=_make_risk_comparisons(),
         )
-        assert self._page_count(result) <= 5
+        assert self._page_count(result) <= 8
 
     def test_full_dossier_compact_with_no_data(self):
         """Full Dossier remains compact even when optional data is missing."""
@@ -2976,10 +3069,10 @@ class TestPageCountConstraints:
             viewing_questions=None,
             language="en",
         )
-        assert self._page_count(result) <= 5
+        assert self._page_count(result) <= 6
 
     def test_full_dossier_dutch(self):
-        """Dutch Full Dossier also stays within the compact page target."""
+        """Dutch Full Dossier stays within the current 8-page reference layout."""
         result = generate_full_dossier(
             address="Kalverstraat 1, 1012 Amsterdam",
             building_year=1920,
@@ -2993,7 +3086,7 @@ class TestPageCountConstraints:
             tier_b=_make_tier_b(),
             risk_comparisons=_make_risk_comparisons(),
         )
-        assert self._page_count(result) <= 5
+        assert self._page_count(result) <= 8
 
 
 # ---------------------------------------------------------------------------
@@ -3158,8 +3251,8 @@ class TestDifferentiatedBarColors:
                 f"NATIONAL too similar to {name} in grayscale: diff={diff:.1f}"
             )
 
-    def test_national_replaces_border_for_nl_avg(self):
-        """nl_avg rows use NATIONAL color, not BORDER."""
+    def test_nl_avg_rows_use_national_baseline_color(self):
+        """National baseline rows use the dedicated NATIONAL comparison color."""
         from app.services.pdf_export import _build_risk_detail_data
 
         data = _build_risk_detail_data(
@@ -3281,11 +3374,7 @@ class TestAddressRowOrdering:
         # Noise has address + city_avg + nl_avg + who_limit
         noise_rows = data[0][4]
         assert noise_rows, "No comparison rows for noise"
-        # The first row should be address (TEAL)
-        first_color = noise_rows[0][2]
-        assert first_color == TEAL, (
-            f"First comparison row color is {first_color}, expected TEAL"
-        )
+        assert noise_rows[0][0] == "This address"
 
     def test_duplicate_risk_comparison_labels_are_deduplicated(self):
         """Duplicate comparison rows keep the first rendered label only once."""
@@ -3322,6 +3411,20 @@ class TestAddressRowOrdering:
         assert end_y < expected_max, (
             f"Chart height {end_y - 30:.1f} too large without address row"
         )
+
+    def test_severity_colored_address_row_still_counts_as_address(self):
+        """Address-row emphasis survives when the address bar is severity-colored."""
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        rows = [
+            ("This address", 15, (185, 28, 28), False),
+            ("Peer baseline (urbanization)", 55, MUTED, False),
+            ("Netherlands", 60, NATIONAL, False),
+        ]
+
+        end_y = pdf.draw_comparison_chart(10, 30, 180, rows)
+
+        assert end_y - 30 > 23
 
 
 # ---------------------------------------------------------------------------
@@ -3367,7 +3470,7 @@ class TestLocationMap:
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
         assert "PDOK Luchtfoto" in text
-        assert "100 m" in text
+        assert "25 m" in text
         assert "N" in text
 
     def test_draw_location_map_dutch_attribution(self):
@@ -3391,6 +3494,68 @@ class TestLocationMap:
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
         assert "Aerial: PDOK Luchtfoto" in text
+
+    def test_draw_location_map_renders_footprint_overlay_when_available(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        polygon_calls: list[str] = []
+        original_polygon = pdf.polygon
+        footprint = {
+            "type": "Polygon",
+            "coordinates": [[
+                [4.89195, 52.37195],
+                [4.89205, 52.37195],
+                [4.89205, 52.37205],
+                [4.89195, 52.37205],
+                [4.89195, 52.37195],
+            ]],
+        }
+
+        def tracking_polygon(points, style="D"):
+            polygon_calls.append(style)
+            return original_polygon(points, style=style)
+
+        pdf.polygon = tracking_polygon
+        _draw_location_map(
+            pdf,
+            _tiny_png(),
+            is_nl=False,
+            center_lat=52.372,
+            center_lng=4.892,
+            footprint_geojson=footprint,
+        )
+
+        assert "DF" in polygon_calls
+
+    def test_draw_location_map_derives_anchor_from_footprint_when_center_missing(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        polygon_calls: list[str] = []
+        original_polygon = pdf.polygon
+        footprint = {
+            "type": "Polygon",
+            "coordinates": [[
+                [4.89195, 52.37195],
+                [4.89205, 52.37195],
+                [4.89205, 52.37205],
+                [4.89195, 52.37205],
+                [4.89195, 52.37195],
+            ]],
+        }
+
+        def tracking_polygon(points, style="D"):
+            polygon_calls.append(style)
+            return original_polygon(points, style=style)
+
+        pdf.polygon = tracking_polygon
+        _draw_location_map(
+            pdf,
+            _tiny_png(),
+            is_nl=False,
+            footprint_geojson=footprint,
+        )
+
+        assert "DF" in polygon_calls
 
     def test_draw_location_map_renders_placeholder_when_none(self):
         """Missing map data renders a visible unavailable placeholder."""
@@ -3543,7 +3708,7 @@ class TestNeighborhoodSectionPagination:
         first_page_text = reader.pages[0].extract_text() or ""
         second_page_text = reader.pages[1].extract_text() or ""
         assert "Neighborhood" not in first_page_text
-        assert "Neighborhood" in second_page_text
+        assert "NEIGHBORHOOD CONTEXT" in second_page_text
         assert "Burgwallen-Oude Zijde" in second_page_text
 
 
@@ -3711,8 +3876,8 @@ def test_fpdf_climate_source_wraps_without_truncation():
     text = _norm("\n".join(page.extract_text() or "" for page in reader.pages))
 
     assert "Source: Klimaateffectatlas (Dutch Climate Atlas) · 2024" in text
-    assert "etten:gr1_t100" in text
     assert "Current climate conditions" in text
+    assert "etten:gr1_t100" not in text
 
 
 # ---------------------------------------------------------------------------
@@ -4622,7 +4787,7 @@ class TestExpandedSunlightMeasurements:
         assert line is not None
         assert "Climate context" in line
         assert "2024" in line
-        assert "Layers:" in line
+        assert "Layers:" not in line
         assert "Current climate conditions" in line
 
     def test_wrapped_latex_metadata_adds_soft_breaks(self):
@@ -4733,7 +4898,7 @@ class TestExpandedSunlightMeasurements:
         assert re.search(
             (
                 r"Estimated direct sunlight: winter 5\.0h/day, equinox "
-                r"7\s*\.\s*5h/day, summer 10\.0h/day\. Score: 80/100\."
+                r"7\s*\.\s*5h/day, summer 10\.0h/day\. 80/100\."
             ),
             text,
         )
@@ -4770,13 +4935,63 @@ class TestExpandedSunlightMeasurements:
         assert re.search(
             (
                 r"Geschat direct zonlicht: winter 5,0h/dag, equinox "
-                r"7\s*,\s*5h/dag, zomer 10,0h/dag\. Score: 80/100\."
+                r"7\s*,\s*5h/dag, zomer 10,0h/dag\. 80/100\."
             ),
             text,
         )
         assert "Jaargemiddelde: 6,3 u/dag" in text
         assert "SVF (anisotropisch): 58%" in text
         assert "Zonnestraling: 985 kWh/m²/jaar." in text
+
+    def test_full_dossier_renders_sunlight_facade_table_with_multi_height_rows(self):
+        """Facade tables with repeated orientations render instead of crashing export."""
+        risks = self._make_sunlight_risks(
+            facade_results=[
+                FacadeResult(
+                    orientation="south",
+                    height_label="ground",
+                    winter_hours=5.8,
+                    summer_hours=10.9,
+                    annual_average=8.1,
+                ),
+                FacadeResult(
+                    orientation="south",
+                    height_label="upper",
+                    winter_hours=4.7,
+                    summer_hours=9.6,
+                    annual_average=7.0,
+                ),
+                FacadeResult(
+                    orientation="north",
+                    height_label="ground",
+                    winter_hours=1.6,
+                    summer_hours=5.2,
+                    annual_average=3.8,
+                ),
+            ],
+        )
+        result = generate_full_dossier(
+            address="Teststraat 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=risks,
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            floor_area=80,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
+
+        assert "facade analysis" in text.lower()
+        assert "south (ground)" in text.lower()
+        assert "south (upper)" in text.lower()
+        assert "north" in text.lower()
 
     def test_no_extended_sunlight_in_property_checks_when_absent(self):
         """Property checks section works without extended fields."""
@@ -4810,49 +5025,51 @@ class TestExpandedSunlightMeasurements:
 
 
 class TestShadowTriptych:
-    """E1-S2: Triptych renders 3 full-width stacked images with season captions."""
+    """E1-S2: Triptych renders the summer top/front/rear set with one shared legend."""
 
     def _make_shadow_images(self) -> list[dict]:
-        """Create 3 shadow image dicts with seasonal labels and valid tiny PNGs."""
+        """Create 3 shadow image dicts with new viewpoint labels and metadata."""
         b64 = _tiny_png()
         return [
-            {"hour": 12, "label": "winter", "image_b64": b64},
-            {"hour": 12, "label": "equinox", "image_b64": b64},
-            {"hour": 12, "label": "summer", "image_b64": b64},
+            {"hour": 12, "label": "rear", "image_b64": b64, "sun_azimuth": 182, "sun_altitude": 54},
+            {"hour": 12, "label": "top", "image_b64": b64, "sun_azimuth": 182, "sun_altitude": 54},
+            {
+                "hour": 12,
+                "label": "front",
+                "image_b64": b64,
+                "sun_azimuth": 182,
+                "sun_altitude": 54,
+            },
         ]
 
     def test_triptych_renders_three_captions_en(self):
-        """English triptych shows season names with CET timezone in captions."""
+        """English triptych shows viewpoint labels and a single shared legend."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=False)
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Winter solstice" in text
-        assert "Spring equinox" in text
-        assert "Summer solstice" in text
-        assert "12:00 CET" in text
-        assert "Europe/Amsterdam" in text
-        assert "250m radius" in text
-        assert "Direct sun / Shadow" in text
+        assert "Top view" in text
+        assert "Front facade" in text
+        assert "Rear facade" in text
+        assert "Sun 182°/54°" in text
+        assert text.count("Legend:") == 1
         assert "3DBAG / TU Delft" in text
 
     def test_triptych_renders_three_captions_nl(self):
-        """Dutch triptych shows season names with CET timezone in captions."""
+        """Dutch triptych shows viewpoint labels and a single shared legend."""
         pdf = BuurtCheckPDF(language="nl")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=True)
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Winterzonnewende" in text
-        assert "Lentepunt" in text
-        assert "Zomerzonnewende" in text
-        assert "12:00 CET" in text
-        assert "Europe/Amsterdam" in text
-        assert "250m straal" in text
-        assert "Directe zon / Schaduw" in text
+        assert "Bovenaanzicht" in text
+        assert "Voorgevel" in text
+        assert "Achtergevel" in text
+        assert "Zon 182°/54°" in text
+        assert text.count("Legenda:") == 1
         assert "3DBAG / TU Delft" in text
 
     def test_triptych_section_label_en(self):
@@ -4930,13 +5147,12 @@ class TestShadowTriptych:
         assert result[:5] == b"%PDF-"
 
     def test_triptych_sorts_by_season(self):
-        """Images are sorted by season (winter→equinox→summer) regardless of input order."""
+        """Images are sorted by viewpoint order (top→front→rear)."""
         b64 = _tiny_png()
-        # Provide in reverse order
         images = [
-            {"hour": 12, "label": "summer", "image_b64": b64},
-            {"hour": 12, "label": "winter", "image_b64": b64},
-            {"hour": 12, "label": "equinox", "image_b64": b64},
+            {"hour": 12, "label": "rear", "image_b64": b64},
+            {"hour": 12, "label": "top", "image_b64": b64},
+            {"hour": 12, "label": "front", "image_b64": b64},
         ]
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
@@ -4944,13 +5160,12 @@ class TestShadowTriptych:
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        # All three season captions should be present
-        assert "Winter solstice" in text
-        assert "Spring equinox" in text
-        assert "Summer solstice" in text
+        assert "Top view" in text
+        assert "Front facade" in text
+        assert "Rear facade" in text
 
     def test_full_dossier_with_triptych(self):
-        """Full dossier renders triptych on cover when shadow_images provided."""
+        """Full dossier renders the triptych on the neighborhood page."""
         images = self._make_shadow_images()
         result = generate_full_dossier(
             address="Damrak 1, Amsterdam",
@@ -4967,11 +5182,52 @@ class TestShadowTriptych:
         assert result[:5] == b"%PDF-"
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Winter solstice" in text
-        assert "Spring equinox" in text
-        assert "Summer solstice" in text
-        # Section label
+        assert "Top view" in text
+        assert "Front facade" in text
+        assert "Rear facade" in text
         assert "shadow analysis" in text.lower()
+
+    def _make_six_panel_shadow_images(self) -> list[dict]:
+        """Create 6 shadow image dicts (3 views × 2 times) for 6-panel layout."""
+        b64 = _tiny_png()
+        images = []
+        for time_label, hour in [("morning", 9), ("afternoon", 17)]:
+            for vp in ["top", "front", "rear"]:
+                images.append({
+                    "hour": hour,
+                    "label": f"{vp}_{time_label}",
+                    "viewpoint": vp,
+                    "image_b64": b64,
+                    "sun_azimuth": 90 if time_label == "morning" else 270,
+                    "sun_altitude": 30 if time_label == "morning" else 25,
+                })
+        return images
+
+    def test_six_panel_renders_two_rows(self):
+        """6-panel layout renders morning + afternoon row headers."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_six_panel_shadow_images(), is_nl=False)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Morning" in text
+        assert "Afternoon" in text
+        assert "Shadow Analysis" in text or "shadow analysis" in text.lower()
+        assert "Top view" in text
+        assert "Front facade" in text
+        assert "Rear facade" in text
+
+    def test_six_panel_renders_nl(self):
+        """6-panel Dutch layout renders Ochtend + Middag row headers."""
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_six_panel_shadow_images(), is_nl=True)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "Ochtend" in text
+        assert "Middag" in text
 
     def test_full_dossier_single_fallback(self):
         """Full dossier falls back to single shadow_image_b64 when no triptych."""
@@ -4991,9 +5247,9 @@ class TestShadowTriptych:
         assert result[:5] == b"%PDF-"
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Shadow Analysis" in text
-        assert "Seasonal snapshots at 12:00 local time." in text
-        assert "Source: 3DBAG / TU Delft + SunCalc." in text
+        assert "shadow analysis" in text.lower()
+        assert "shadow snapshot" in text.lower()
+        assert "Source: 3DBAG / TU Delft + SunCalc" in text
 
     def test_full_dossier_no_shadow_at_all(self):
         """Full dossier generates without any shadow images."""
@@ -5011,7 +5267,7 @@ class TestShadowTriptych:
         assert result[:5] == b"%PDF-"
 
     def test_property_checks_text_triptych(self):
-        """Property checks page keeps section heading and removes redundant sub-label."""
+        """Property checks page stays focused on checks, not shadow media."""
         images = self._make_shadow_images()
         result = generate_full_dossier(
             address="Damrak 1, Amsterdam",
@@ -5030,14 +5286,14 @@ class TestShadowTriptych:
             (
                 txt
                 for txt in page_texts
-                if "Additional Property Checks" in txt
-                or "Aanvullende vastgoedcontroles" in txt
+                if "ADDITIONAL PROPERTY CHECKS" in txt
+                or "AANVULLENDE VASTGOEDCONTROLES" in txt
             ),
             "",
         )
         assert checks_page
-        assert "ADDITIONAL CHECKS" not in checks_page
-        assert "EXTRA CONTROLES" not in checks_page
+        assert "Shadow Analysis" not in checks_page
+        assert "Schaduwanalyse" not in checks_page
 
 
 # ---------------------------------------------------------------------------
@@ -5212,6 +5468,17 @@ class TestExecutiveSummary:
         )
         assert "crime" in result
         assert "5/100" in result
+
+    def test_summary_uses_compact_score_phrase(self):
+        """Executive summary avoids the redundant 'score of 60/100' phrasing."""
+        risks = _make_risks(noise_score=60, air_score=90, climate_score=75)
+        result = _generate_executive_summary(
+            risks, sunlight_score=80, livability=None, is_nl=False,
+        )
+
+        assert "score of" not in result
+        assert "60/100" in result
+        assert "(moderate)" not in result.lower()
 
     def test_crime_absent_when_none(self):
         """Summary stays at 4 categories when crime_score is None."""

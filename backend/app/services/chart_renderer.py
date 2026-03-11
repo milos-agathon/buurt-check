@@ -76,6 +76,11 @@ C_BG = "#FFFFFF"
 C_AXIS = "#E2E7ED"
 C_DARK_BG = "#1C2D3F"
 C_WHITE = "#FFFFFF"
+C_TILE_BG = "#F8F9FA"
+
+NL_AGE_0_24 = 28.0
+NL_AGE_25_64 = 50.0
+NL_AGE_65_PLUS = 22.0
 
 SEVERITY_COLORS: MappingProxyType[str, str] = MappingProxyType(
     {
@@ -101,7 +106,7 @@ SCHERER_RCPARAMS: MappingProxyType[str, object] = MappingProxyType(
         "xtick.labelsize": TYPE_CAPTION_PT,
         "ytick.labelsize": TYPE_BODY_PT,
         "font.family": "sans-serif",
-        "font.sans-serif": ["Inter", "Source Sans 3", "Helvetica Neue", "DejaVu Sans"],
+        "font.sans-serif": ["Satoshi", "Inter", "Source Sans 3", "Helvetica Neue", "DejaVu Sans"],
         "font.size": TYPE_BODY_PT,
         "figure.facecolor": C_BG,
         "figure.dpi": CHART_DPI,
@@ -118,9 +123,15 @@ SCHERER_RCPARAMS: MappingProxyType[str, object] = MappingProxyType(
 
 _ASSETS_FONTS_DIR = Path(__file__).parent.parent / "assets" / "fonts"
 
+VIEW_ORDER: tuple[str, ...] = ("top", "front", "rear")
 SEASON_ORDER: tuple[str, ...] = ("winter", "equinox", "summer")
-SEASON_LABELS: MappingProxyType[str, str] = MappingProxyType(
+SHADOW_ORDER: tuple[str, ...] = (*VIEW_ORDER, *SEASON_ORDER)
+SHADOW_LABELS: MappingProxyType[str, str] = MappingProxyType(
     {
+        "top": "Top view",
+        "front": "Front facade",
+        "rear": "Rear facade",
+        "back": "Rear facade",
         "winter": "Winter Solstice - Dec 21",
         "equinox": "Spring Equinox - Mar 20",
         "summer": "Summer Solstice - Jun 21",
@@ -187,8 +198,12 @@ def _register_local_fonts() -> None:
             continue
 
 
-def _normalize_season_label(value: str) -> str:
+def _normalize_shadow_label(value: str) -> str:
     lower = value.strip().lower()
+    if lower in {"top", "front"}:
+        return lower
+    if lower in {"rear", "back"}:
+        return "rear"
     if lower.startswith("winter"):
         return "winter"
     if lower.startswith("spring") or "equinox" in lower:
@@ -242,7 +257,7 @@ def _label_line_count(label: str) -> int:
 class SchererTheme:
     """Reusable Scherer-style theme that configures matplotlib globally."""
 
-    preferred_fonts: tuple[str, ...] = ("Inter", "Source Sans 3")
+    preferred_fonts: tuple[str, ...] = ("Satoshi", "Inter", "Source Sans 3")
     fallback_fonts: tuple[str, ...] = ("Helvetica Neue", "DejaVu Sans")
 
     def apply(self) -> tuple[str, ...]:
@@ -288,7 +303,7 @@ class RiskCell:
 
 @dataclass(frozen=True, slots=True)
 class ShadowImage:
-    """Input image payload for seasonal shadow panel rendering."""
+    """Input image payload for shadow panel rendering."""
 
     season: str
     image_b64: str
@@ -300,12 +315,12 @@ class ShadowImage:
 
 @dataclass(frozen=True, slots=True)
 class SunlightMeta:
-    """Render metadata used across seasonal shadow panels."""
+    """Render metadata used across shadow panels."""
 
     sun_positions: dict[str, tuple[float, float]] = field(default_factory=dict)
     target_bbox: tuple[float, float, float, float] = (0.36, 0.36, 0.28, 0.28)
     single_panel_note: str = (
-        "Additional seasons require re-export after 3D computation"
+        "Additional viewpoints require re-export after 3D computation"
     )
 
 
@@ -393,10 +408,15 @@ def render_risk_comparison(
         for label in wrapped_ref_labels
     )
 
+    # Scale chart height to row count; cap minimum so single-row charts
+    # (e.g. crime with no peer bars) don't stretch the bar vertically.
     chart_h_mm = max(
         RISK_MIN_HEIGHT_MM,
         12.0 + total_row_units * (RISK_ROW_HEIGHT_MM + 1.5),
     )
+    # For very few rows, keep the chart compact to prevent bar stretching
+    if len(bar_rows) <= 1 and not reference_rows:
+        chart_h_mm = min(chart_h_mm, 22.0)
     fig, ax = plt.subplots(
         figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(chart_h_mm)),
         dpi=CHART_DPI,
@@ -416,8 +436,12 @@ def render_risk_comparison(
     ):
         value = float(row.value) if row.value is not None else 0.0
         is_primary = idx == 0
-        bar_height = min(0.6 if is_primary else 0.4, max(0.35, row_unit - 0.2))
-        bar_color = C_ACCENT if is_primary else alt_colors[(idx - 1) % len(alt_colors)]
+        bar_height = min(0.68 if is_primary else 0.4, max(0.35, row_unit - 0.2))
+        bar_color = (
+            _severity_color(_score_severity(address_score))
+            if is_primary
+            else alt_colors[(idx - 1) % len(alt_colors)]
+        )
         ax.barh(y=y, width=value, height=bar_height, color=bar_color, edgecolor="none")
         if show_row_labels:
             ax.text(
@@ -436,7 +460,7 @@ def render_risk_comparison(
             y,
             _score_display(value),
             fontsize=TYPE_BODY_PT,
-            color=C_ACCENT_DARK if is_primary else C_PRIMARY,
+            color=C_PRIMARY,
             va="center",
             ha="right",
         )
@@ -540,34 +564,69 @@ def render_risk_summary_grid(
         if cell.score is None:
             color = C_MUTE_1
 
+        ax.add_patch(
+            Rectangle(
+                (x, y + 1.0),
+                cell_w_mm,
+                GRID_CELL_HEIGHT_MM - 2.0,
+                facecolor=C_TILE_BG,
+                edgecolor=C_AXIS,
+                linewidth=0.8,
+            )
+        )
+
         ax.text(
-            x,
-            y + 5.5,
+            x + cell_w_mm / 2,
+            y + 6.0,
             cell.category.upper(),
             fontsize=TYPE_GRID_LABEL_PT,
             color=C_MUTE_1,
             va="top",
-            ha="left",
+            ha="center",
         )
         ax.text(
-            x,
+            x + cell_w_mm / 2,
             y + 20.0,
             _score_display(cell.score),
             fontsize=TYPE_SCORE_PT,
             fontweight=FONT_WEIGHT_DISPLAY,
             color=color,
             va="center",
-            ha="left",
+            ha="center",
         )
+        track_x = x + 4.0
+        track_w = cell_w_mm - 8.0
+        track_y = y + 24.5
+        ax.add_patch(
+            Rectangle(
+                (track_x, track_y),
+                track_w,
+                2.8,
+                facecolor=C_AXIS,
+                edgecolor="none",
+            )
+        )
+        # Single-color bar: no green zone, no tick, no "70+" label
+        if cell.score is not None:
+            fill_w = max(1.2, track_w * max(0.0, min(float(cell.score), 100.0)) / 100.0)
+            ax.add_patch(
+                Rectangle(
+                    (track_x, track_y),
+                    fill_w,
+                    2.8,
+                    facecolor=color,
+                    edgecolor="none",
+                )
+            )
         ax.text(
-            x,
+            x + cell_w_mm / 2,
             y + 31.0,
             _severity_label(severity),
             fontsize=TYPE_BODY_PT,
             fontweight=FONT_WEIGHT_HEADING,
             color=color,
             va="center",
-            ha="left",
+            ha="center",
         )
 
     fig.subplots_adjust(left=0.03, right=0.98, top=0.95, bottom=0.1)
@@ -585,32 +644,24 @@ def _decode_shadow_image(image_b64: str) -> np.ndarray | None:
 
 def _panel_annotation(
     ax: plt.Axes,
-    season: str,
+    shadow_key: str,
     panel: ShadowImage,
     metadata: SunlightMeta,
 ) -> None:
-    season_key = _normalize_season_label(season)
-    season_label = SEASON_LABELS.get(season_key, season.title())
+    panel_key = _normalize_shadow_label(shadow_key)
+    panel_label = SHADOW_LABELS.get(panel_key, shadow_key.title())
+    if panel_key in VIEW_ORDER:
+        panel_label = f"{panel_label} · Summer solstice · {panel.time_label}"
     ax.text(
         0.02,
         0.95,
-        season_label,
+        panel_label,
         transform=ax.transAxes,
         color=C_WHITE,
         fontsize=TYPE_BODY_PT,
         fontweight=600,
         va="top",
         ha="left",
-    )
-    ax.text(
-        0.5,
-        0.05,
-        panel.time_label,
-        transform=ax.transAxes,
-        color=C_WHITE,
-        fontsize=TYPE_CAPTION_PT,
-        va="bottom",
-        ha="center",
     )
     ax.annotate(
         "N",
@@ -625,8 +676,9 @@ def _panel_annotation(
         arrowprops={"arrowstyle": "-|>", "color": C_WHITE, "linewidth": 0.9},
     )
 
-    default_sun = DEFAULT_SUN_POSITIONS.get(season_key, (180.0, 35.0))
-    azimuth, altitude = metadata.sun_positions.get(season_key, default_sun)
+    default_sun_key = "summer" if panel_key in VIEW_ORDER else panel_key
+    default_sun = DEFAULT_SUN_POSITIONS.get(default_sun_key, (180.0, 35.0))
+    azimuth, altitude = metadata.sun_positions.get(default_sun_key, default_sun)
     if panel.sun_azimuth is not None:
         azimuth = panel.sun_azimuth
     if panel.sun_altitude is not None:
@@ -669,12 +721,19 @@ def _panel_annotation(
     )
 
 
+def _shadow_legend_text() -> str:
+    return (
+        "Legend: teal outline = target building · shadow = no direct sun · "
+        "Summer solstice · 12:00 local · Source: 3DBAG / TU Delft + SunCalc"
+    )
+
+
 def render_shadow_panels(
     images: list[ShadowImage],
     metadata: SunlightMeta,
     output_format: OutputFormat = "pdf",
 ) -> bytes:
-    """Render seasonal shadow analysis panels as vector PDF bytes."""
+    """Render shadow analysis panels as vector PDF bytes."""
     SchererTheme().apply()
     decoded: list[tuple[str, ShadowImage, np.ndarray]] = []
     for panel in images:
@@ -702,23 +761,21 @@ def render_shadow_panels(
         ax.set_axis_off()
         return _save_figure(fig, output_format=output_format)
 
-    season_map: dict[str, tuple[ShadowImage, np.ndarray]] = {}
-    other_panels: list[tuple[ShadowImage, np.ndarray]] = []
-    for season_name, panel, image_array in decoded:
-        key = _normalize_season_label(season_name)
-        if key in SEASON_ORDER and key not in season_map:
-            season_map[key] = (panel, image_array)
-        else:
-            other_panels.append((panel, image_array))
+    shadow_map: dict[str, tuple[ShadowImage, np.ndarray]] = {}
+    for shadow_name, panel, image_array in decoded:
+        key = _normalize_shadow_label(shadow_name)
+        if key in SHADOW_ORDER and key not in shadow_map:
+            shadow_map[key] = (panel, image_array)
 
     ordered_panels: list[tuple[str, ShadowImage, np.ndarray]] = []
-    if all(season in season_map for season in SEASON_ORDER):
-        for season in SEASON_ORDER:
-            panel, image_array = season_map[season]
-            ordered_panels.append((season, panel, image_array))
+    preferred_order = VIEW_ORDER if all(view in shadow_map for view in VIEW_ORDER) else SEASON_ORDER
+    if all(item in shadow_map for item in preferred_order):
+        for item in preferred_order:
+            panel, image_array = shadow_map[item]
+            ordered_panels.append((item, panel, image_array))
     else:
-        for season, panel, image_array in decoded:
-            ordered_panels.append((_normalize_season_label(season), panel, image_array))
+        for shadow_name, panel, image_array in decoded:
+            ordered_panels.append((_normalize_shadow_label(shadow_name), panel, image_array))
 
     if len(ordered_panels) == 1:
         fig, ax = plt.subplots(
@@ -726,10 +783,10 @@ def render_shadow_panels(
             dpi=CHART_DPI,
         )
         fig.patch.set_facecolor(C_DARK_BG)
-        season, panel, image_array = ordered_panels[0]
+        shadow_key, panel, image_array = ordered_panels[0]
         ax.set_facecolor(C_DARK_BG)
         ax.imshow(image_array, interpolation="antialiased")
-        _panel_annotation(ax, season, panel, metadata)
+        _panel_annotation(ax, shadow_key, panel, metadata)
         ax.set_xticks([])
         ax.set_yticks([])
         for spine in ax.spines.values():
@@ -747,10 +804,10 @@ def render_shadow_panels(
         return _save_figure(fig, output_format=output_format)
 
     panel_count = min(3, len(ordered_panels))
-    fig_h_mm = panel_count * SHADOW_PANEL_HEIGHT_MM + (panel_count - 1) * SHADOW_PANEL_GAP_MM
+    fig_h_mm = SHADOW_PANEL_HEIGHT_MM + 16.0
     fig, axes = plt.subplots(
-        panel_count,
         1,
+        panel_count,
         figsize=(_mm_to_inch(SHADOW_WIDTH_MM), _mm_to_inch(fig_h_mm)),
         dpi=CHART_DPI,
     )
@@ -758,28 +815,45 @@ def render_shadow_panels(
     if panel_count == 1:
         axes = [axes]
 
-    for axis, (season, panel, image_array) in zip(axes, ordered_panels[:panel_count], strict=True):
+    for axis, (shadow_key, panel, image_array) in zip(
+        axes,
+        ordered_panels[:panel_count],
+        strict=True,
+    ):
         axis.set_facecolor(C_DARK_BG)
         axis.imshow(image_array, interpolation="antialiased")
-        _panel_annotation(axis, season, panel, metadata)
+        _panel_annotation(axis, shadow_key, panel, metadata)
         axis.set_xticks([])
         axis.set_yticks([])
         for spine in axis.spines.values():
             spine.set_visible(False)
 
-    fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, hspace=0.08)
+    fig.text(
+        0.02,
+        0.04,
+        _shadow_legend_text(),
+        color=C_WHITE,
+        fontsize=TYPE_CAPTION_PT,
+        ha="left",
+        va="bottom",
+        bbox={"facecolor": C_PRIMARY, "alpha": 0.9, "edgecolor": C_WHITE, "pad": 2.4},
+    )
+    fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.20, wspace=0.04)
     return _save_figure(fig, output_format=output_format)
 
 
 def render_age_distribution(
     age_data: AgeProfile,
     output_format: OutputFormat = "pdf",
+    *,
+    is_nl: bool = False,
 ) -> bytes:
-    """Render neighborhood age profile as a horizontal bar chart."""
+    """Render neighborhood age profile with national comparison bars."""
     SchererTheme().apply()
 
     labels = ["0\u201324", "25\u201364", "65+"]
     raw_values = [age_data.age_0_24, age_data.age_25_64, age_data.age_65_plus]
+    national_values = [NL_AGE_0_24, NL_AGE_25_64, NL_AGE_65_PLUS]
     bar_values = [float(v) if v is not None else 0.0 for v in raw_values]
     max_x = max(100.0, max(bar_values, default=0.0) + 10.0)
     label_space = 16.0
@@ -791,7 +865,8 @@ def render_age_distribution(
     fig.patch.set_facecolor(C_BG)
 
     y_positions = np.arange(len(labels))[::-1]
-    ax.barh(y_positions, bar_values, height=0.55, color=C_ACCENT, edgecolor="none")
+    ax.barh(y_positions + 0.16, national_values, height=0.24, color=C_MUTE_2, edgecolor="none")
+    ax.barh(y_positions - 0.16, bar_values, height=0.24, color=C_ACCENT, edgecolor="none")
 
     for label, raw_value, value, y in zip(labels, raw_values, bar_values, y_positions, strict=True):
         ax.text(
@@ -806,7 +881,7 @@ def render_age_distribution(
         endpoint = "\u2014" if raw_value is None else f"{int(round(raw_value))}%"
         ax.text(
             min(max_x - 1.0, value + 1.2),
-            y,
+            y - 0.16,
             endpoint,
             fontsize=TYPE_BODY_PT,
             color=C_PRIMARY,
@@ -814,8 +889,27 @@ def render_age_distribution(
             ha="left",
         )
 
+    legend_local = "Deze buurt" if is_nl else "This neighborhood"
+    legend_national = "Nederland" if is_nl else "Netherlands"
+    ax.text(
+        -label_space + 0.6,
+        len(labels) - 0.15,
+        legend_local,
+        fontsize=TYPE_CAPTION_PT,
+        color=C_ACCENT_DARK,
+        ha="left",
+    )
+    ax.text(
+        28.0,
+        len(labels) - 0.15,
+        legend_national,
+        fontsize=TYPE_CAPTION_PT,
+        color=C_REFERENCE,
+        ha="left",
+    )
+
     ax.set_xlim(-label_space, max_x)
-    ax.set_ylim(-0.8, len(labels) - 0.2)
+    ax.set_ylim(-0.8, len(labels) - 0.05)
     ax.set_yticks([])
     ax.set_xticks([])
     ax.tick_params(axis="both", length=0)
@@ -853,14 +947,13 @@ def render_livability_score(
     if livability.score is not None:
         livability_score = float(livability.score)
         livability_color = _severity_color(_score_severity(int(livability.score)))
-        ax.hlines(y_livability, xmin=0, xmax=livability_score, color=C_REFERENCE, linewidth=0.9)
-        ax.scatter(
-            [livability_score],
-            [y_livability],
-            s=8.0**2,
-            c=livability_color,
-            edgecolors=C_PRIMARY,
-            linewidths=0.4,
+        # Solid bar instead of lollipop dot
+        ax.barh(
+            y_livability,
+            livability_score,
+            height=0.28,
+            color=livability_color,
+            edgecolor="none",
             zorder=3,
         )
         ax.text(
@@ -884,14 +977,12 @@ def render_livability_score(
 
     if crime.score is not None:
         crime_score = float(crime.score)
-        ax.hlines(y_crime, xmin=0, xmax=crime_score, color=C_MUTE_2, linewidth=0.8)
-        ax.scatter(
-            [crime_score],
-            [y_crime],
-            s=6.0**2,
-            c=C_MUTE_1,
-            edgecolors=C_PRIMARY,
-            linewidths=0.3,
+        ax.barh(
+            y_crime,
+            crime_score,
+            height=0.22,
+            color=C_MUTE_1,
+            edgecolor="none",
             zorder=3,
         )
         ax.text(

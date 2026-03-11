@@ -5,6 +5,7 @@ import ContextualTooltip from './ui/ContextualTooltip';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import { downloadPdfBlob, exportBriefing } from '../services/api';
 import { trackEvent } from '../services/analytics';
+import { isServerRenderAvailable } from '../config/pricing';
 import type { ShadowSnapshot } from '../types/api';
 import type { SunlightSubmissionPayload } from '../services/api';
 import './ExportBottomSheet.css';
@@ -135,38 +136,43 @@ export default function ExportBottomSheet({
       await onBeforeGenerate?.(template);
 
       let shadowB64: string | undefined;
-      let shadowEquinoxB64: string | undefined;
-      let shadowSummerB64: string | undefined;
-      let shadowImages: Array<{ hour: number; label: string; image_b64: string }> | undefined;
-      if (includeShadows && shadowSnapshots && shadowSnapshots.length > 0) {
-        // Build array of all snapshots for triptych
+      let shadowImages:
+        | Array<{
+          hour: number;
+          label: string;
+          image_b64: string;
+          viewpoint?: string;
+          sun_azimuth?: number;
+          sun_altitude?: number;
+        }>
+        | undefined;
+      // When server-side rendering is available, skip sending client
+      // snapshots — the backend will render via forge3d directly.
+      const useClientSnapshots = includeShadows
+        && shadowSnapshots
+        && shadowSnapshots.length > 0
+        && !isServerRenderAvailable();
+
+      if (useClientSnapshots && shadowSnapshots && shadowSnapshots.length > 0) {
         shadowImages = shadowSnapshots.map(s => {
           const raw = s.dataUrl;
           return {
             hour: s.hour,
             label: s.label,
             image_b64: raw.startsWith('data:') ? raw.split(',')[1] : raw,
+            viewpoint: s.viewpoint ?? s.label,
+            sun_azimuth: s.sunAzimuth,
+            sun_altitude: s.sunAltitude,
           };
         });
 
-        // Also send the noon snapshot as backward-compat single image
-        const noonSnapshot = shadowSnapshots.find(s => s.hour === 12) || shadowSnapshots[0];
-        const dataUrl = noonSnapshot.dataUrl;
+        const primarySnapshot = shadowSnapshots.find(s => (s.viewpoint ?? s.label) === 'top')
+          || shadowSnapshots.find(s => s.hour === 12)
+          || shadowSnapshots[0];
+        const dataUrl = primarySnapshot.dataUrl;
         shadowB64 = dataUrl.startsWith('data:')
           ? dataUrl.split(',')[1]
           : dataUrl;
-
-        const equinoxSnapshot = shadowSnapshots.find(s => s.label.toLowerCase().includes('equinox'));
-        if (equinoxSnapshot) {
-          const raw = equinoxSnapshot.dataUrl;
-          shadowEquinoxB64 = raw.startsWith('data:') ? raw.split(',')[1] : raw;
-        }
-
-        const summerSnapshot = shadowSnapshots.find(s => s.label.toLowerCase().includes('summer'));
-        if (summerSnapshot) {
-          const raw = summerSnapshot.dataUrl;
-          shadowSummerB64 = raw.startsWith('data:') ? raw.split(',')[1] : raw;
-        }
       }
 
       setProgressStage('rendering');
@@ -189,8 +195,6 @@ export default function ExportBottomSheet({
         sunlightPayload,
         language: exportLanguage,
         shadowImageB64: shadowB64,
-        shadowEquinoxB64,
-        shadowSummerB64,
         shadowImages,
       });
       setProgressStage('downloading');

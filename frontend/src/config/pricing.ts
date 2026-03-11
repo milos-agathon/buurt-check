@@ -3,6 +3,7 @@ import type { PricingResponse } from '../types/api';
 const FALLBACK_PRICE = import.meta.env.VITE_DOSSIER_PRICE_EUR || '14.99';
 
 let cachedPrice = FALLBACK_PRICE;
+let cachedServerRenderAvailable = false;
 let inFlight: Promise<string> | null = null;
 
 function isValidPrice(value: unknown): value is string {
@@ -21,6 +22,9 @@ export async function fetchPrice(): Promise<string> {
       if (isValidPrice(price)) {
         cachedPrice = price;
       }
+      if (typeof data.server_render_available === 'boolean') {
+        cachedServerRenderAvailable = data.server_render_available;
+      }
     } catch {
       // Keep fallback/cached price.
     } finally {
@@ -38,4 +42,9 @@ export function getDossierPrice(): string {
 
 export function getDossierPriceDisplay(): string {
   return `€${cachedPrice}`;
+}
+
+/** True when backend has forge3d server-side rendering enabled. */
+export function isServerRenderAvailable(): boolean {
+  return cachedServerRenderAvailable;
 }

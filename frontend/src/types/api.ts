@@ -31,6 +31,7 @@ export interface PricingResponse {
   price_cents: number;
   price_eur: string;
   currency: string;
+  server_render_available?: boolean;
 }
 
 export interface ResolvedAddress {
@@ -146,6 +147,9 @@ export interface ShadowSnapshot {
   label: string;
   hour: number;
   dataUrl: string;
+  viewpoint?: 'top' | 'front' | 'rear';
+  sunAzimuth?: number;
+  sunAltitude?: number;
 }
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'unavailable';

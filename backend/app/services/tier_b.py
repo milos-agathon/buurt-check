@@ -110,6 +110,35 @@ def _buurt_to_gemeente(buurt_code: str) -> str:
     return f"GM{digits}"
 
 
+async def _fetch_national_crime_total(period: str) -> float | None:
+    """Fetch the Netherlands-wide total crime count for a given yearly period.
+
+    Uses the CBS OData 47018NED table with ``NL01`` as the region code.
+    Returns the total registered crime count or *None* on failure.
+    """
+    safe_period = _odata_escape(period)
+    try:
+        rows = await _fetch_typed_rows(
+            settings.cbs_crime_yearly_base,
+            filter_expr=(
+                f"startswith(WijkenEnBuurten,'NL01') and "
+                f"SoortMisdrijf eq '{_CRIME_TOTAL_KEY}' and "
+                f"Perioden eq '{safe_period}'"
+            ),
+            top=5,
+        )
+        if rows:
+            return _to_float(rows[0].get("GeregistreerdeMisdrijven_1"))
+    except Exception:
+        logger.debug("National crime total fetch failed for period=%s", period)
+    return None
+
+
+# CBS StatLine: NL population ~17.9 million (2025).  For a comparison
+# bar this approximation is sufficient — no HTTP call needed.
+_NL_POPULATION_ESTIMATE = 17_900_000.0
+
+
 def _odata_escape(value: str) -> str:
     """Escape single quotes for OData string literals (defense in depth)."""
     return value.replace("'", "''")
@@ -180,7 +209,8 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
             except BaseException:
                 pass
 
-    # Phase 2: Crime rows (depends on period results)
+    # Phase 2: Crime rows + national baseline (depends on period results)
+    nl_crime_task = asyncio.create_task(_fetch_national_crime_total(latest_year))
     try:
         # Try buurt-level first
         yearly_rows, monthly_rows = await _fetch_crime_rows(
@@ -198,7 +228,22 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
                 used_gemeente_fallback = True
     except Exception:
         logger.exception("Crime lookup failed for buurt=%s", cleaned_buurt)
+        nl_crime_task.cancel()
         return CrimeStatsCard(message="CRIME_LOOKUP_FAILED")
+
+    # Collect national crime total (non-fatal)
+    nl_total_count: float | None = None
+    try:
+        nl_total_count = await nl_crime_task
+    except Exception:
+        logger.debug("National crime baseline failed")
+    finally:
+        if not nl_crime_task.done():
+            nl_crime_task.cancel()
+            try:
+                await nl_crime_task
+            except BaseException:
+                pass
 
     code_to_count: dict[str, float | None] = {}
     for row in yearly_rows:
@@ -234,8 +279,12 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     severity = severity_from_score(score).value if score is not None else None
     meaning_en, meaning_nl = crime_summary(score, total_rate)
 
+    # National crime rate for comparison bar (no HTTP call — uses estimate)
+    national_rate = _per_1000(nl_total_count, _NL_POPULATION_ESTIMATE)
+
     return CrimeStatsCard(
         total_per_1000=total_rate,
+        national_per_1000=national_rate,
         burglary_per_1000=_per_1000(burglary_count, population),
         violent_per_1000=_per_1000(violent_count, population),
         yearly_period=latest_year,

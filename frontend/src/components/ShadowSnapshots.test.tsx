@@ -38,17 +38,17 @@ describe('ShadowSnapshots', () => {
 
   it('renders 3 snapshot images with labels', () => {
     renderSnapshots(makeShadowSnapshots());
-    expect(screen.getByText('Morning (9:00)')).toBeInTheDocument();
-    expect(screen.getByText('Noon (12:00)')).toBeInTheDocument();
-    expect(screen.getByText('Evening (17:00)')).toBeInTheDocument();
+    expect(screen.getByText('Top view (12:00)')).toBeInTheDocument();
+    expect(screen.getByText('Front facade (12:00)')).toBeInTheDocument();
+    expect(screen.getByText('Rear facade (12:00)')).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
   });
 
   it('sets correct alt text on images', () => {
     renderSnapshots(makeShadowSnapshots());
-    expect(screen.getByAltText('Morning (9:00)')).toBeInTheDocument();
-    expect(screen.getByAltText('Noon (12:00)')).toBeInTheDocument();
-    expect(screen.getByAltText('Evening (17:00)')).toBeInTheDocument();
+    expect(screen.getByAltText('Top view (12:00)')).toBeInTheDocument();
+    expect(screen.getByAltText('Front facade (12:00)')).toBeInTheDocument();
+    expect(screen.getByAltText('Rear facade (12:00)')).toBeInTheDocument();
   });
 
   it('shows source attribution', () => {
@@ -56,16 +56,16 @@ describe('ShadowSnapshots', () => {
     expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
   });
 
-  it('shows subtitle about winter solstice', () => {
+  it('shows subtitle about summer solstice', () => {
     renderSnapshots(makeShadowSnapshots());
-    expect(screen.getByText(/Winter solstice/)).toBeInTheDocument();
+    expect(screen.getByText(/Summer solstice/)).toBeInTheDocument();
   });
 
   it('renders in Dutch', () => {
     renderSnapshots(makeShadowSnapshots(), false, 'nl');
     expect(screen.getByText('Schaduwbeelden')).toBeInTheDocument();
-    expect(screen.getByText(/Winterzonnewende/)).toBeInTheDocument();
-    expect(screen.getByText('Ochtend (9:00)')).toBeInTheDocument();
+    expect(screen.getByText(/Zomerzonnewende/)).toBeInTheDocument();
+    expect(screen.getByText('Bovenaanzicht (12:00)')).toBeInTheDocument();
   });
 
   it('thumbnail buttons have accessible label', () => {
@@ -82,8 +82,7 @@ describe('ShadowSnapshots', () => {
 
       const dialog = screen.getByRole('dialog');
       expect(dialog).toBeInTheDocument();
-      // Lightbox should show the Morning label
-      const lightboxLabels = screen.getAllByText('Morning (9:00)');
+      const lightboxLabels = screen.getAllByText('Top view (12:00)');
       // One in the grid, one in the lightbox
       expect(lightboxLabels.length).toBeGreaterThanOrEqual(2);
     });
@@ -92,13 +91,12 @@ describe('ShadowSnapshots', () => {
       renderSnapshots(makeShadowSnapshots());
       const buttons = screen.getAllByRole('button', { name: 'View full size' });
 
-      // Click the noon thumbnail (index 1)
+      // Click the front facade thumbnail (index 1)
       fireEvent.click(buttons[1]);
       const dialog = screen.getByRole('dialog');
       expect(dialog).toBeInTheDocument();
 
-      // The lightbox label should contain Noon
-      const lightboxLabels = screen.getAllByText('Noon (12:00)');
+      const lightboxLabels = screen.getAllByText('Front facade (12:00)');
       expect(lightboxLabels.length).toBeGreaterThanOrEqual(2);
     });
 
@@ -158,17 +156,17 @@ describe('ShadowSnapshots', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
 
-    it('lightbox shows correct label for evening snapshot', () => {
+    it('lightbox shows correct label for rear snapshot', () => {
       renderSnapshots(makeShadowSnapshots());
       const buttons = screen.getAllByRole('button', { name: 'View full size' });
 
-      // Click the evening thumbnail (index 2)
+      // Click the rear thumbnail (index 2)
       fireEvent.click(buttons[2]);
 
       const dialog = screen.getByRole('dialog');
       expect(dialog).toBeInTheDocument();
 
-      const lightboxLabels = screen.getAllByText('Evening (17:00)');
+      const lightboxLabels = screen.getAllByText('Rear facade (12:00)');
       expect(lightboxLabels.length).toBeGreaterThanOrEqual(2);
     });
 
@@ -180,8 +178,7 @@ describe('ShadowSnapshots', () => {
       const dialog = screen.getByRole('dialog');
       expect(dialog).toBeInTheDocument();
 
-      // Should show Dutch label
-      const lightboxLabels = screen.getAllByText('Ochtend (9:00)');
+      const lightboxLabels = screen.getAllByText('Bovenaanzicht (12:00)');
       expect(lightboxLabels.length).toBeGreaterThanOrEqual(2);
 
       // Close button should be in Dutch

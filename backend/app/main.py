@@ -70,3 +70,16 @@ async def request_logging_middleware(request: Request, call_next):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/health/forge3d")
+async def health_forge3d():
+    """Report forge3d renderer availability (always returns 200)."""
+    from app.config import settings
+    from app.services.forge3d_renderer import get_forge3d_status
+
+    status = get_forge3d_status()
+    return {
+        "enabled": settings.forge3d_enabled,
+        **status,
+    }

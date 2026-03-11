@@ -6,7 +6,7 @@ import pytest
 
 import app.cache.redis as cache_module
 from app.models.address import AddressSuggestion, ResolvedAddress
-from app.models.building import BuildingFacts
+from app.models.building import BuildingFacts, BuildingFactsResponse
 from app.models.livability import (
     LivabilityComparison,
     LivabilityComparisonRow,
@@ -1151,6 +1151,125 @@ async def test_full_dossier_export_passes_location_map_to_generator():
 
     assert resp.status_code == 200
     assert mock_generate_full_dossier.call_args.kwargs["location_map_b64"] == "map-bytes"
+
+
+@pytest.mark.asyncio
+async def test_full_dossier_export_passes_footprint_geojson_to_generator():
+    """Export forwards the BAG footprint geometry into the full dossier renderer."""
+    from app.api.address import ExportRequest, _do_export_briefing
+
+    initial_risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+        sunlight=None,
+    )
+    body = ExportRequest(
+        rd_x=121286,
+        rd_y=487296,
+        lat=52.372,
+        lng=4.892,
+        address="Kalverstraat 1, Amsterdam",
+        template="full_dossier",
+        language="en",
+        report_id="report-123",
+    )
+    footprint = {
+        "type": "Polygon",
+        "coordinates": [[
+            [4.89195, 52.37195],
+            [4.89205, 52.37195],
+            [4.89205, 52.37205],
+            [4.89195, 52.37205],
+            [4.89195, 52.37195],
+        ]],
+    }
+    building_resp = BuildingFactsResponse(
+        address_id="0363010000696734",
+        building=BuildingFacts(
+            pand_id="0363100012345678",
+            construction_year=1970,
+            footprint_geojson=footprint,
+        ),
+    )
+
+    with (
+        patch(
+            "app.services.reports.check_entitlement",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=building_resp,
+        ),
+        patch(
+            "app.api.address._fetch_risks_for_export",
+            new_callable=AsyncMock,
+            return_value=initial_risks,
+        ),
+        patch(
+            "app.api.address._await_sunlight_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_viewing_questions", return_value=None),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_location_map",
+            new_callable=AsyncMock,
+            return_value="map-bytes",
+        ),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_risk_comparisons", return_value=None),
+        patch(
+            "app.api.address.generate_full_dossier",
+            return_value=b"%PDF-1.4\n",
+        ) as mock_generate_full_dossier,
+    ):
+        resp = await _do_export_briefing("0363010000696734", body)
+
+    assert resp.status_code == 200
+    assert mock_generate_full_dossier.call_args.kwargs["footprint_geojson"] == footprint
 
 
 @pytest.mark.asyncio

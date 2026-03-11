@@ -90,7 +90,6 @@ def test_preamble_logo_width_at_least_22mm():
         f"Logo width {width_mm}mm is below the 22mm minimum for clear recognition"
     )
 
-
 def test_logo_path_tex_uses_posix_separators():
     """LOGO_PATH_TEX must use forward slashes for TeX compatibility."""
     assert "\\" not in latex_env.LOGO_PATH_TEX, (
@@ -160,11 +159,11 @@ def test_generate_quick_brief_routes_through_latex_orchestrator():
     mock_orchestrator.assert_called_once()
 
 
-def test_generate_full_dossier_routes_through_latex_orchestrator():
-    """Public full-dossier generator delegates to the LaTeX orchestrator."""
+def test_generate_full_dossier_routes_through_fpdf_renderer():
+    """Public full-dossier generator delegates to the canonical fpdf2 renderer."""
     with patch(
-        "app.services.pdf_export._generate_full_dossier_latex",
-        return_value=b"%PDF-latex-dossier",
+        "app.services.pdf_export._generate_full_dossier_fpdf",
+        return_value=b"%PDF-fpdf-dossier",
     ) as mock_orchestrator:
         result = pdf_export.generate_full_dossier(
             address="Damrak 1, Amsterdam",
@@ -174,7 +173,7 @@ def test_generate_full_dossier_routes_through_latex_orchestrator():
             sunlight_score=None,
             viewing_questions=None,
         )
-    assert result == b"%PDF-latex-dossier"
+    assert result == b"%PDF-fpdf-dossier"
     mock_orchestrator.assert_called_once()
 
 

@@ -4,9 +4,13 @@ import AddressSearch from './AddressSearch';
 import { setupTestI18n, makeSuggestion } from '../test/helpers';
 import type { SuggestResponse } from '../types/api';
 
-vi.mock('../services/api', () => ({
-  suggestAddresses: vi.fn(),
-}));
+vi.mock('../services/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/api')>();
+  return {
+    ...actual,
+    suggestAddresses: vi.fn(),
+  };
+});
 
 vi.mock('../services/firstVisit', () => ({
   isFirstVisit: vi.fn(() => true),
@@ -102,6 +106,16 @@ function suggestionsResponse(count: number): SuggestResponse {
       makeSuggestion({ id: `s${i}`, display_name: `Street ${i}, Amsterdam` }),
     ),
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 /** Types into input, advances the debounce timer, and waits for state updates. */
@@ -341,11 +355,11 @@ describe('keyboard navigation', () => {
 
 describe('error handling', () => {
   it('shows error message when API fails', async () => {
-    mockSuggest.mockRejectedValue(new Error('Network error'));
+    mockSuggest.mockRejectedValue(new TypeError('Network error'));
     renderSearch();
     await typeAndFlush(screen.getByRole('combobox'), 'am');
 
-    expect(screen.getByText("We couldn't search addresses right now. Check your connection and try again.")).toBeInTheDocument();
+    expect(screen.getByText("We couldn't connect to our servers. Check your internet connection and try again.")).toBeInTheDocument();
   });
 
   it('ignores AbortError (no error message shown)', async () => {
@@ -355,6 +369,36 @@ describe('error handling', () => {
     await typeAndFlush(screen.getByRole('combobox'), 'am');
 
     expect(screen.queryByText('Could not search addresses')).not.toBeInTheDocument();
+  });
+
+  it('ignores a late response from an aborted request after the query is cleared', async () => {
+    const pending = deferred<SuggestResponse>();
+    mockSuggest.mockImplementation((_query, _limit, signal) => {
+      signal?.addEventListener('abort', () => {
+        pending.reject(new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+      return pending.promise;
+    });
+
+    renderSearch();
+    const input = screen.getByRole('combobox');
+
+    await typeInto(input, 'am');
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+
+    await typeInto(input, 'a');
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(screen.queryByText('Street 0, Amsterdam')).not.toBeInTheDocument();
+    expect(screen.queryByText("We couldn't connect to our servers. Check your internet connection and try again.")).not.toBeInTheDocument();
+    expect(screen.queryByText('Searching...')).not.toBeInTheDocument();
   });
 });
 

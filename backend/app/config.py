@@ -63,6 +63,15 @@ class Settings(BaseSettings):
     enable_lod22_context_enrichment: bool = False
     three_d_conservative_mode: bool = False
 
+    # forge3d server-side rendering (in-process, requires GPU)
+    forge3d_enabled: bool = False
+    forge3d_shadow_technique: str = "pcss"  # pcss | vsm | evsm | pcf
+    forge3d_shadow_map_size: int = 4096
+    forge3d_snapshot_width: int = 1800
+    forge3d_snapshot_height: int = 1200
+    forge3d_jpeg_quality: float = 0.82
+    forge3d_render_timeout_seconds: float = 15.0
+
     # Stripe
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
@@ -89,6 +98,7 @@ class Settings(BaseSettings):
     cache_ttl_foundation: int = 2592000  # 30 days (soil doesn't change)
     cache_ttl_livability: int = 2592000  # 30 days
     cache_ttl_weather_tmy: int = 31536000  # 365 days (TMY is static climatology)
+    cache_ttl_shadow_render: int = 86400  # 24 hours (forge3d rendered images)
     pdf_export_sunlight_wait_seconds: float = 20.0
 
     # Load env vars whether uvicorn is started from repo root or backend/.

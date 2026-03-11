@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { suggestAddresses } from '../services/api';
+import { mapApiError, suggestAddresses } from '../services/api';
 import { trackEvent } from '../services/analytics';
 import { getRecent, addRecent, type RecentSearch } from '../services/recentSearches';
 import { isFirstVisit } from '../services/firstVisit';
@@ -20,7 +20,7 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(getRecent());
   const [isFirst] = useState(() => isFirstVisit());
@@ -28,40 +28,53 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const requestSeqRef = useRef(0);
+
+  const cancelActiveSearch = useCallback(() => {
+    requestSeqRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setSearching(false);
+  }, []);
 
   const fetchSuggestions = useCallback(async (q: string) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const requestId = requestSeqRef.current + 1;
+    requestSeqRef.current = requestId;
 
     setSearching(true);
+    setErrorMessage(null);
     try {
       const data = await suggestAddresses(q, 7, controller.signal);
+      if (requestSeqRef.current !== requestId) return;
       setSuggestions(data.suggestions);
       setIsOpen(data.suggestions.length > 0);
       setActiveIndex(-1);
-      setError(false);
-      setSearching(false);
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        setError(true);
+      const isAbort = err instanceof DOMException && err.name === 'AbortError';
+      if (!isAbort && requestSeqRef.current === requestId) {
+        setErrorMessage(mapApiError(err, t));
         setSuggestions([]);
         setIsOpen(false);
+      }
+    } finally {
+      if (requestSeqRef.current === requestId) {
         setSearching(false);
       }
-      // On AbortError, a new fetch is starting — leave searching=true
     }
-  }, []);
+  }, [t]);
 
   const handleInputChange = (value: string) => {
     setQuery(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    cancelActiveSearch();
+    setErrorMessage(null);
 
     if (value.length < 2) {
       setSuggestions([]);
       setIsOpen(false);
-      setError(false);
-      setSearching(false);
       return;
     }
 
@@ -135,10 +148,10 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      abortRef.current?.abort();
+      cancelActiveSearch();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, []);
+  }, [cancelActiveSearch]);
 
   // Refresh recent searches when component re-renders (e.g. after settings clear)
   const refreshRecent = useCallback(() => {
@@ -193,8 +206,8 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
           autoComplete="off"
         />
       </div>
-      {error && <p className="address-search__error">{t('search.error')}</p>}
-      {searching && !isOpen && !error && (
+      {errorMessage && <p className="address-search__error">{errorMessage}</p>}
+      {searching && !isOpen && !errorMessage && (
         <div className="address-search__dropdown" id="address-suggestions">
           <div className="address-search__searching">
             <span className="address-search__searching-dot" />
@@ -219,7 +232,7 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
           ))}
         </ul>
       )}
-      {!searching && suggestions.length === 0 && query.length >= 2 && !error && (
+      {!searching && suggestions.length === 0 && query.length >= 2 && !errorMessage && (
         <div className="address-search__dropdown" id="address-suggestions">
           <div className="address-search__no-results">{t('search.noResults')}</div>
           <div className="address-search__no-results-hint">{t('search.noResultsHint')}</div>

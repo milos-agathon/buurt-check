@@ -32,7 +32,6 @@ import HeatmapLegend from './HeatmapLegend';
 import { sunHoursToColor } from '../utils/heatmapColors';
 import {
   createDateInTimeZone,
-  getDatePartsInTimeZone,
   getSunDirection,
   sunCalcToNorthAzimuth,
   SUN_DISTANCE,
@@ -872,9 +871,8 @@ export default function NeighborhoodViewer3D({
     };
   }, [renderOnce]);
 
-  // Capture shadow snapshots — 3 seasonal views at 12:00 local time.
-  // Uses a temporary offscreen renderer at 3000x2000 for print-quality captures.
-  // Draws north arrow and scale bar as Canvas 2D overlays on each snapshot.
+  // Capture shadow snapshots for export: three summer-solstice viewpoints
+  // around the target building (top / front / rear) at 12:00 local time.
   const captureSnapshots = useCallback(() => {
     const ctx = sceneRef.current;
     const callback = onShadowSnapshotsRef.current;
@@ -882,15 +880,18 @@ export default function NeighborhoodViewer3D({
     if (!allBuildingsReadyRef.current) return;
     snapshotsCaptured.current = true;
 
-    const OFFSCREEN_W = 3000;
-    const OFFSCREEN_H = 2000;
+    // Keep export captures sharp enough for PDF while avoiding multi-megabyte
+    // request payloads that can fail in production proxies.
+    const OFFSCREEN_W = 1800;
+    const OFFSCREEN_H = 1200;
     const HIRES_SHADOW_MAP = 4096;
-    const SNAPSHOT_RADIUS_METERS = 250;
-    const SNAPSHOT_TIME_ZONE = 'Europe/Amsterdam';
+    const SNAPSHOT_RADIUS_METERS = 20;
     const SNAPSHOT_BACKGROUND_COLOR = 0xF7FAFC;
     const SNAPSHOT_GROUND_COLOR = 0xEEF2F6;
     const SNAPSHOT_NEIGHBOR_COLOR = 0x888888;
-    const SCALE_BAR_METERS = 50;
+    const SCALE_BAR_METERS = 15;
+    const SNAPSHOT_MIME_TYPE = 'image/jpeg';
+    const SNAPSHOT_JPEG_QUALITY = 0.82;
 
     // Save camera + sun state
     const savedCameraPos = ctx.camera.position.clone();
@@ -927,7 +928,7 @@ export default function NeighborhoodViewer3D({
     const fovRad = (ctx.camera.fov * Math.PI) / 180;
     const computedHeight = (2 * SNAPSHOT_RADIUS_METERS)
       / (2 * Math.tan(fovRad / 2) * outputAspect);
-    const snapshotCameraHeight = Math.max(180, computedHeight);
+    const snapshotCameraHeight = Math.max(20, computedHeight);
 
     // Keep a clone backup per material so snapshot print styling can be restored safely.
     const materialBackups = new Map<MeshStandardMaterial, MeshStandardMaterial>();
@@ -1032,30 +1033,49 @@ export default function NeighborhoodViewer3D({
       }
     }
 
-    // Set camera for top-down view
-    ctx.camera.position.set(0, snapshotCameraHeight, 0.1);
-    ctx.camera.lookAt(0, 0, 0);
     if (offscreenRenderer) {
       ctx.camera.aspect = OFFSCREEN_W / OFFSCREEN_H;
     }
     ctx.camera.updateProjectionMatrix();
 
-    const year = new Date().getFullYear();
-    const snapshotConfigs = [
-      { hour: 12, label: 'winter', month: 11, day: 21, title: 'Winter solstice' },
-      { hour: 12, label: 'equinox', month: 2, day: 20, title: 'Spring equinox' },
-      { hour: 12, label: 'summer', month: 5, day: 21, title: 'Summer solstice' },
-    ];
-
     const snapshots: ShadowSnapshot[] = [];
     const targetBuilding = buildings.find((building) => building.pand_id === targetPandId);
     const targetFootprint = targetBuilding?.footprint;
-
-    const pad2 = (value: number): string => String(value).padStart(2, '0');
-    const formatTimestamp = (snapshotDate: Date): string => {
-      const parts = getDatePartsInTimeZone(snapshotDate, SNAPSHOT_TIME_ZONE);
-      return `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)} ${pad2(parts.hour)}:${pad2(parts.minute)} CET (${SNAPSHOT_TIME_ZONE})`;
-    };
+    const focusFootprint = targetFootprint && targetFootprint.length >= 3
+      ? targetFootprint
+      : buildings[0]?.footprint ?? [[0, 0]];
+    const centroid = focusFootprint.reduce(
+      (acc, [x, y]) => ({ x: acc.x + x, y: acc.y + y }),
+      { x: 0, y: 0 },
+    );
+    const cx = centroid.x / focusFootprint.length;
+    const cy = centroid.y / focusFootprint.length;
+    const targetHeight = targetBuilding?.building_height ?? 12;
+    const snapshotTargetY = Math.max(targetHeight * 0.45, 6);
+    const orientationDegRaw = targetBuilding?.orientation_deg;
+    const orientationDeg = typeof orientationDegRaw === 'number' && Number.isFinite(orientationDegRaw)
+      ? ((orientationDegRaw % 180) + 180) % 180
+      : 0;
+    // orientation_deg is the azimuth of the longest footprint edge.
+    // For Dutch row houses the longest edge runs front-to-back (depth axis),
+    // so the front facade is viewed by placing the camera ALONG that axis,
+    // not perpendicular to it.  Previous +90 offset showed left/right sides.
+    const frontBearingDeg = orientationDeg;
+    const year = new Date().getFullYear();
+    // 6-panel layout: 3 viewpoints × 2 times of day (morning 09:00 + afternoon 15:00 CEST)
+    // This matches the forge3d server-side rendering layout.
+    // Morning and afternoon produce visibly different shadow directions,
+    // giving the buyer a complete picture of sunlight exposure.
+    const snapshotConfigs = [
+      // Morning row (09:00 CEST — sun from east)
+      { hour: 9, label: 'top_morning', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: 45 },
+      { hour: 9, label: 'front_morning', viewpoint: 'front' as const, month: 5, day: 21, bearingDeg: frontBearingDeg },
+      { hour: 9, label: 'rear_morning', viewpoint: 'rear' as const, month: 5, day: 21, bearingDeg: (frontBearingDeg + 180) % 360 },
+      // Afternoon row (15:00 CEST — sun from west)
+      { hour: 15, label: 'top_afternoon', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: 45 },
+      { hour: 15, label: 'front_afternoon', viewpoint: 'front' as const, month: 5, day: 21, bearingDeg: frontBearingDeg },
+      { hour: 15, label: 'rear_afternoon', viewpoint: 'rear' as const, month: 5, day: 21, bearingDeg: (frontBearingDeg + 180) % 360 },
+    ];
 
     // Overlay canvas for cartographic elements
     const overlayCanvas = document.createElement('canvas');
@@ -1067,6 +1087,20 @@ export default function NeighborhoodViewer3D({
     try {
       for (const config of snapshotConfigs) {
         const date = createDateInTimeZone(year, config.month, config.day, config.hour, 0);
+        const bearingRad = (config.bearingDeg * Math.PI) / 180;
+        // Front/rear views use shorter planar distance for a closer, more
+        // informative perspective.  Top view keeps a wider distance for context.
+        const isTopView = config.viewpoint === 'top';
+        // Front/rear: camera at ~10m planar distance for tight framing
+        const planarDistance = isTopView ? snapshotCameraHeight : Math.max(10, snapshotCameraHeight * 0.5);
+        const cameraElevation = isTopView ? snapshotCameraHeight : Math.max(8, snapshotCameraHeight * 0.4);
+        ctx.camera.position.set(
+          cx + Math.sin(bearingRad) * planarDistance,
+          snapshotTargetY + cameraElevation,
+          cy - Math.cos(bearingRad) * planarDistance,
+        );
+        ctx.camera.lookAt(cx, snapshotTargetY, cy);
+        ctx.camera.updateProjectionMatrix();
 
         const sunDir = getSunDirection(date, center.lat, center.lng);
         const sunAzimuthDeg = sunDir
@@ -1094,7 +1128,7 @@ export default function NeighborhoodViewer3D({
         const cw = overlayCanvas.width;
         const ch = overlayCanvas.height;
         const aspect = cw / ch;
-        const visibleHeight = 2 * snapshotCameraHeight * Math.tan(fovRad / 2);
+        const visibleHeight = 2 * cameraElevation * Math.tan(fovRad / 2);
         const visibleWidth = visibleHeight * aspect;
         const metersPerPixel = visibleWidth / cw;
 
@@ -1107,34 +1141,16 @@ export default function NeighborhoodViewer3D({
           const uiMargin = px(40);
           const uiTextColor = 'rgba(28, 45, 63, 0.96)';
 
-          // --- Timestamp + extent (top-left) ---
-          const timestamp = formatTimestamp(date);
-          const metadataBoxWidth = Math.min(cw - (2 * uiMargin), px(1500));
-          const metadataBoxHeight = px(224);
-          const metadataPad = px(26);
-          overlayCtx.save();
-          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
-          overlayCtx.fillRect(uiMargin, uiMargin, metadataBoxWidth, metadataBoxHeight);
-          overlayCtx.fillStyle = uiTextColor;
-          overlayCtx.font = `700 ${px(54)}px sans-serif`;
-          overlayCtx.textAlign = 'left';
-          overlayCtx.fillText(config.title, uiMargin + metadataPad, uiMargin + px(64));
-          overlayCtx.font = `600 ${px(42)}px sans-serif`;
-          overlayCtx.fillText(
-            `${config.hour.toString().padStart(2, '0')}:00 (${SNAPSHOT_TIME_ZONE})`,
-            uiMargin + metadataPad,
-            uiMargin + px(120),
-          );
-          overlayCtx.font = `${px(36)}px sans-serif`;
-          overlayCtx.fillText(`Date: ${timestamp}`, uiMargin + metadataPad, uiMargin + px(174));
-          overlayCtx.restore();
-
-          // --- Compass rose (top-right, >= 12mm equivalent at 300 DPI) ---
+          // --- Compass rose (top-right, rotated so N points toward geographic north) ---
+          // Camera looks from bearing toward center; in screen space, north
+          // is rotated by the negative of the camera bearing.
+          const northRotationRad = -(config.bearingDeg * Math.PI) / 180;
           const compassDiameterPx = px(190);
           const compassRadius = compassDiameterPx / 2;
           const compassCx = cw - uiMargin - compassRadius;
           const compassCy = uiMargin + compassRadius + px(24);
           overlayCtx.save();
+          // Background circle (unrotated)
           overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
           overlayCtx.beginPath();
           overlayCtx.arc(compassCx, compassCy, compassRadius, 0, Math.PI * 2);
@@ -1142,49 +1158,31 @@ export default function NeighborhoodViewer3D({
           overlayCtx.strokeStyle = uiTextColor;
           overlayCtx.lineWidth = px(4);
           overlayCtx.stroke();
+          // Rotate the inner arrow + N label around the compass center
+          overlayCtx.translate(compassCx, compassCy);
+          overlayCtx.rotate(northRotationRad);
           overlayCtx.fillStyle = uiTextColor;
           overlayCtx.strokeStyle = uiTextColor;
           overlayCtx.lineWidth = px(5);
           overlayCtx.font = `700 ${px(46)}px sans-serif`;
           overlayCtx.textAlign = 'center';
-          overlayCtx.fillText('N', compassCx, compassCy - compassRadius + px(48));
-          // Arrow shaft and head
+          overlayCtx.fillText('N', 0, -compassRadius + px(48));
+          // Arrow shaft
           overlayCtx.beginPath();
-          overlayCtx.moveTo(compassCx, compassCy + compassRadius - px(30));
-          overlayCtx.lineTo(compassCx, compassCy - compassRadius + px(62));
+          overlayCtx.moveTo(0, compassRadius - px(30));
+          overlayCtx.lineTo(0, -compassRadius + px(62));
           overlayCtx.stroke();
+          // Arrow head
           overlayCtx.beginPath();
-          overlayCtx.moveTo(compassCx, compassCy - compassRadius + px(52));
-          overlayCtx.lineTo(compassCx - px(18), compassCy - compassRadius + px(80));
-          overlayCtx.lineTo(compassCx + px(18), compassCy - compassRadius + px(80));
+          overlayCtx.moveTo(0, -compassRadius + px(52));
+          overlayCtx.lineTo(-px(18), -compassRadius + px(80));
+          overlayCtx.lineTo(px(18), -compassRadius + px(80));
           overlayCtx.closePath();
           overlayCtx.fill();
           overlayCtx.restore();
 
-          // --- Target footprint outline + halo ---
-          if (targetFootprint && targetFootprint.length >= 3 && metersPerPixel > 0) {
-            const projected = targetFootprint.map(([x, y]) => ({
-              x: cw / 2 + (x / metersPerPixel),
-              y: ch / 2 + ((-y) / metersPerPixel),
-            }));
-            overlayCtx.save();
-            overlayCtx.beginPath();
-            overlayCtx.moveTo(projected[0].x, projected[0].y);
-            for (let i = 1; i < projected.length; i++) {
-              overlayCtx.lineTo(projected[i].x, projected[i].y);
-            }
-            overlayCtx.closePath();
-            overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-            overlayCtx.lineWidth = 3;
-            overlayCtx.shadowColor = 'rgba(46, 196, 182, 0.55)';
-            overlayCtx.shadowBlur = 12;
-            overlayCtx.stroke();
-            overlayCtx.shadowBlur = 0;
-            overlayCtx.strokeStyle = 'rgba(28, 140, 131, 0.95)';
-            overlayCtx.lineWidth = 1.6;
-            overlayCtx.stroke();
-            overlayCtx.restore();
-          }
+          // Target building is already teal-colored in the 3D scene via
+          // TARGET_COLOR material — no extra 2D outline overlay needed.
 
           // --- Scale bar (bottom-left) ---
           const scalePx = Math.max(px(150), Math.min(SCALE_BAR_METERS / metersPerPixel, cw * 0.3));
@@ -1221,58 +1219,29 @@ export default function NeighborhoodViewer3D({
           overlayCtx.fillText(`${SCALE_BAR_METERS}m`, sx + scalePx / 2, sy + px(110));
           overlayCtx.restore();
 
-          // --- Shadow legend + source attribution (bottom-right) ---
-          const legendW = Math.max(px(1000), Math.min(px(1600), cw - (2 * uiMargin)));
-          const legendH = Math.max(px(440), Math.min(px(520), ch - (2 * uiMargin)));
-          const legendX = cw - legendW - uiMargin;
-          const legendY = ch - legendH - uiMargin;
-          const legendPad = px(32);
-          const legendSwatchSize = px(80);
-          const legendLabelX = legendX + legendPad + legendSwatchSize + px(24);
-          overlayCtx.save();
-          overlayCtx.fillStyle = 'rgba(255, 255, 255, 0.90)';
-          overlayCtx.fillRect(legendX, legendY, legendW, legendH);
-          overlayCtx.fillStyle = uiTextColor;
-          overlayCtx.font = `700 ${px(72)}px sans-serif`;
-          overlayCtx.textAlign = 'left';
-          const shadowRowY = legendY + legendPad;
-          overlayCtx.fillStyle = 'rgba(92, 106, 126, 0.98)';
-          overlayCtx.fillRect(legendX + legendPad, shadowRowY, legendSwatchSize, legendSwatchSize);
-          overlayCtx.fillStyle = uiTextColor;
-          overlayCtx.fillText('Shadow', legendLabelX, shadowRowY + px(66));
-          const targetRowY = shadowRowY + legendSwatchSize + px(24);
-          overlayCtx.fillStyle = '#2EC4B6';
-          overlayCtx.fillRect(legendX + legendPad, targetRowY, legendSwatchSize, legendSwatchSize);
-          overlayCtx.fillStyle = uiTextColor;
-          overlayCtx.fillText('Target building', legendLabelX, targetRowY + px(66));
-          overlayCtx.font = `600 ${px(56)}px sans-serif`;
-          const meaningY = targetRowY + legendSwatchSize + px(52);
-          overlayCtx.fillText('Dark areas indicate shadow at this time', legendX + legendPad, meaningY);
-          const sunPosY = meaningY + px(52);
-          if (sunAzimuthDeg != null && sunAltitudeDeg != null) {
-            overlayCtx.fillText(
-              `Sun position: az ${Math.round(sunAzimuthDeg)}° / alt ${Math.round(sunAltitudeDeg)}°`,
-              legendX + legendPad,
-              sunPosY,
-            );
-          } else {
-            overlayCtx.fillText('Sun position unavailable', legendX + legendPad, sunPosY);
-          }
-          overlayCtx.fillText(
-            `${config.title} · ${config.hour.toString().padStart(2, '0')}:00 local`,
-            legendX + legendPad,
-            sunPosY + px(52),
-          );
-          overlayCtx.font = `500 ${px(48)}px sans-serif`;
-          overlayCtx.fillText('Source: 3DBAG / TU Delft + SunCalc', legendX + legendPad, legendY + legendH - px(28));
-          overlayCtx.restore();
-
-          const dataUrl = overlayCanvas.toDataURL('image/png');
-          snapshots.push({ label: config.label, hour: config.hour, dataUrl });
+          const dataUrl = overlayCanvas.toDataURL(SNAPSHOT_MIME_TYPE, SNAPSHOT_JPEG_QUALITY);
+          snapshots.push({
+            label: config.label,
+            hour: config.hour,
+            dataUrl,
+            viewpoint: config.viewpoint,
+            sunAzimuth: sunAzimuthDeg ?? undefined,
+            sunAltitude: sunAltitudeDeg ?? undefined,
+          });
         } else {
           // No 2D context (unlikely) — fall back to raw 3D capture
-          const dataUrl = renderTarget.domElement.toDataURL('image/png');
-          snapshots.push({ label: config.label, hour: config.hour, dataUrl });
+          const dataUrl = renderTarget.domElement.toDataURL(
+            SNAPSHOT_MIME_TYPE,
+            SNAPSHOT_JPEG_QUALITY,
+          );
+          snapshots.push({
+            label: config.label,
+            hour: config.hour,
+            dataUrl,
+            viewpoint: config.viewpoint,
+            sunAzimuth: sunAzimuthDeg ?? undefined,
+            sunAltitude: sunAltitudeDeg ?? undefined,
+          });
         }
       }
 
