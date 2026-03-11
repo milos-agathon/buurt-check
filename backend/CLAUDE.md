@@ -128,3 +128,18 @@ ruff check . && ruff format .               # MUST pass before commit
 - **Pillow is a de facto dependency but not in pyproject.toml**: Used in chart_renderer.py and pdf_export.py. Tests using Pillow need skipif guards for clean CI environments
 - **Pre-existing test failures from uncommitted changes confuse verification**: Other tasks' uncommitted edits to pdf_export.py/dossier.tex.j2 caused failures unrelated to current work. Run only the task-specific test file for verification, not the full suite
 - **Subagent-driven 3-stage pattern (implement -> spec review -> code quality review) catches ~5 issues per task**: Misleading test names, missing dependency guards, imprecise assertions, inaccurate comments. The two review stages add real value
+
+## Session Learnings (2026-03-06) — P2 Dossier Audit Fixes
+
+- **PDOK BRT to Luchtfoto migration**: `_fetch_location_map()` now uses `settings.luchtfoto_wms_base` with layer `Actueel_orthoHR` (JPEG). BRT `standaard` layer endpoint retired. Attribution: "PDOK Luchtfoto (CC BY 4.0)"
+- **Crime score threading pattern**: `crime_score = tier_b.crime.score if tier_b and tier_b.crime else None` — extract once at top of generator, pass to all downstream functions (`_generate_executive_summary`, `_build_risk_cells`, `_draw_cover_page`, `_draw_checklist_page`, livability chart). Prevents silent omission
+- **Viewing questions bifurcation**: `_should_include(score)` for flagged categories (score < 70), `_is_good(score)` for confirmation questions (score >= 70). Both generate `QuestionCategory` entries with appropriate severity
+- **Risk grid dynamic columns**: `grid_cols = 5 if len(cells) == 5 else 4` — accommodates variable crime data presence in risk summary strip
+- **None-safe bar chart rendering**: `min(value or 0, 100)` for `fill_w` + `str(value) if value is not None else "—"` for score display. Missing guards cause TypeError on None values
+- **Crime-only lollipop chart as graceful degradation**: When livability data unavailable but crime data exists, render crime-only chart (livability=None, crime=score) instead of nothing
+
+## Session Learnings (2026-03-07) — P2 Dossier Implementation (PR #20)
+
+- **`_draw_notes_section()` helper with page guard**: Extracted from inline while loop. Constants: `_NOTES_RULE_COUNT = 4`, `_NOTES_RULE_SPACING_MM = 8.0`, `_NOTES_SECTION_REQUIRED_MM = 47.0`. Uses `_ensure_page_space()` to avoid orphaned section headers
+- **Text color reset before section headings**: `pdf.set_text_color(*SLATE)` before each section title. fpdf2 inherits text color state — if a prior section set red for risk, the next heading would be red without explicit reset
+- **`_ensure_page_space(pdf, required_mm)` pattern**: Check `pdf.h - pdf.b_margin - pdf.get_y() < required_mm` before rendering; `pdf.add_page()` if insufficient. Document the budget arithmetic in a comment on the required_mm constant

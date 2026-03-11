@@ -174,3 +174,42 @@ Key patterns from the P0 sunlight pipeline fix session (SVF WebGL crash + export
 - **Resist fixing the correct component**: Backend wait infrastructure (`_await_sunlight_for_export()` polling every 250ms for 20s) was correct from the start. All failures were upstream. Investigate where data disappears, not where it is expected.
 - **Per-template export timeouts**: `full_dossier` needs 180s (sunlight computation + rendering), `quick_brief` needs 90s. Previous hardcoded 30s was insufficient.
 - **iOS PDF download workaround**: WebKit ignores `download` attribute on blob URLs. Detect iOS UA and fall back to `window.open()` with `noopener,noreferrer`.
+
+## Session Learnings (2026-03-06) — P2 Dossier Audit Fixes
+
+Key patterns from the P2 dossier audit fix session (PDF rendering, viewing questions, API endpoint retirement):
+
+- **PDOK BRT Achtergrondkaart WMS retired**: Static map tile endpoint switched from BRT (`standaard` layer, PNG) to Luchtfoto (`Actueel_orthoHR` layer, JPEG, CC BY 4.0). Config key: `luchtfoto_wms_base`.
+- **Viewing questions for ALL risk categories, not just flagged**: Good-scoring categories (score >= 70) now get single confirmation questions. Previously these categories were silently omitted from the viewing checklist.
+- **Crime score must be threaded through all PDF generation paths**: `crime_score` from `tier_b.crime` must be explicitly passed to executive summary, risk grid cells, cover page, checklist page, and livability chart. Forgetting one path = silent data omission in the PDF.
+- **None-safe PDF chart rendering**: Bar chart `fill_w` needs `min(value or 0, 100)` guard. Score display needs `str(value) if value is not None else "—"`. Missing guards cause TypeError on None values.
+- **Climate source attribution uses scenario text, not "date unknown"**: Climate risk data uses RCP/SSP scenarios, not dated observations. "Date unknown" is misleading for scenario projections.
+- **Crime-only lollipop chart when livability unavailable**: Graceful degradation renders crime-only chart when Leefbaarometer data is missing but CBS crime data exists.
+
+## Session Learnings (2026-03-07) — P2 Dossier Implementation (PR #20)
+
+Key patterns from subagent-driven P2 dossier implementation session:
+
+- **Background task output files unreliable on Windows**: Output files may be 0 bytes even after successful completion. Subagents reading background task output via `cat` enter infinite retry loops. Prefer foreground test execution or use `TaskGet` tool.
+- **Subagent retry loops are the dominant subagent failure mode**: When verification is unreachable (unreadable test output, broken paths), subagents retry the same approach indefinitely instead of failing fast. Subagent prompts must include explicit failure/escalation instructions with a retry cap (e.g., "if you cannot read test output after 2 attempts, commit and report the issue").
+- **Windows bash strips backslashes from unquoted paths**: `cat C:\Users\...` becomes `cat C:Users...`. Always quote Windows paths in bash or use Unix-style `/c/Users/...` paths.
+- **Dirty working trees require selective staging via patch files**: When 13+ files have unrelated changes, use Python to parse `git diff` into hunks, write patches to `tempfile.mktemp()`, and `git apply --cached`. Verify with `git diff --cached --stat`.
+- **`_ensure_page_space()` pattern for PDF section guards**: Check remaining page height before rendering a section; add page if insufficient. Budget = sum of all sub-elements + margin. Document the arithmetic in a comment.
+- **Text color reset before each PDF section heading**: fpdf2 inherits text color state across calls. Always `set_text_color(*SLATE)` before section headings to prevent color leakage from prior rendering.
+- **Verify audit state before dispatching subagents**: Multi-session audit documents may show all items as PASS. Check whether work actually remains before launching the subagent-driven development workflow.
+
+## Session Learnings (2026-03-09) — PDF Dossier Design Audits
+
+Key findings from two expert design/data-visualization audits of the generated full dossier PDF:
+
+- **Orphaned heading anti-pattern**: "Comparison Charts" heading renders alone at page bottom with charts on the next page. Use LaTeX `\Needspace{}` to keep headings with their content.
+- **Raw API identifiers leak into user-facing PDF**: Climate risk source field shows WFS layer names (`wpn:s0149_hittestress_warme_nachten_huidig`). Strip to human-readable source names before rendering.
+- **Comparison bars lack severity color encoding**: All "This address" bars are uniform teal regardless of score (15 vs 92). Color-code bars by severity for instant visual scanning.
+- **Score format inconsistent across PDF**: "60/100" in table, "60" in tiles, "score 60/100" in viewing questions. Standardize to one format.
+- **Viewing questions buried at page 7 of 8**: Most actionable content (brought to viewings) appears after methodology. Front-load actionable content for print use case.
+- **Location map has no property marker**: Aerial photo shows neighborhood but no pin/circle/highlight for the target property.
+- **Empty "Dimensions" heading when Leefbaarometer data missing**: Renders heading with no content below. Must either populate or omit — empty headings violate graceful degradation.
+- **Cover page has duplicate risk representations**: Risk table and colored tile grid display identical scores. Pick one, use freed space for better information density.
+- **Shadow legend repeated 3x identically**: Each seasonal panel repeats the same legend. Show once, reclaim space for larger renders.
+- **Property check card borders too thin for print**: 1pt `\fcolorbox` left borders nearly disappear at print resolution. Use 3-4pt borders or background tint.
+- **"Sunlight Status: Available" is system noise**: Replace with actual insight ("7.4h winter, up to 14.9h summer"). Only show status for pending/missing states.
