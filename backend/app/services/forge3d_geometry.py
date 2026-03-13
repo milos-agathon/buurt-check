@@ -30,17 +30,17 @@ TARGET_MATERIAL = {
     "emissive": 0.55,
 }
 
-# Neutral gray (neighbouring buildings) — #888888 = (0.53, 0.53, 0.53)
+# Blue-gray (neighbouring buildings) — darker for clear contrast vs ground
 NEIGHBOR_MATERIAL = {
-    "albedo": (0.53, 0.53, 0.53),
+    "albedo": (0.40, 0.46, 0.52),
     "roughness": 0.86,
     "metallic": 0.05,
     "emissive": 0.0,
 }
 
-# Ground plane — #EEF2F6 = (0.93, 0.95, 0.96)
+# Ground plane — light gray-blue for maximum shadow visibility
 GROUND_MATERIAL = {
-    "albedo": (0.93, 0.95, 0.96),
+    "albedo": (0.88, 0.91, 0.94),
     "roughness": 0.95,
     "metallic": 0.02,
     "emissive": 0.0,

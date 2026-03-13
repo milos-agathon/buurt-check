@@ -149,7 +149,7 @@ _SUN_DISTANCE = 300.0
 
 # Fallback ground material if scene_data doesn't provide one
 GROUND_MATERIAL_FALLBACK = {
-    "albedo": (0.93, 0.95, 0.96),
+    "albedo": (0.88, 0.91, 0.94),
     "roughness": 0.95,
     "metallic": 0.02,
     "emissive": 0.0,
@@ -459,52 +459,85 @@ class Forge3DRenderService:
         ground_mat = ground_cfg.get("material", GROUND_MATERIAL_FALLBACK)
         ground_height = scene_data.get("ground_height", 0.0)
 
-        # Detect building aspect ratio to choose correct facade bearing.
-        # orientation_deg = azimuth of longest footprint edge.
-        # For narrow-deep houses (longest = depth), camera at orientation_deg
-        # sees the facade.  For wide-shallow buildings (longest = facade),
-        # camera at orientation_deg + 90 sees the facade.
-        front_bearing_base = orientation_deg
+        # Determine front facade bearing using OBB face proximity.
+        #
+        # The scene origin IS the address point (BAG verblijfsobject,
+        # typically at or near the front door).  We find which of the
+        # building's 4 OBB faces is closest to the address point — that
+        # face is the front facade.
+        #
+        # This works even when the address point is INSIDE the footprint
+        # (common for BAG), because we measure perpendicular distance to
+        # each face plane.
+        #
+        # Camera bearing convention: bearing b places the camera at
+        #   (sin(b)*d, h, -cos(b)*d)  looking toward the building.
+        # bearing 0° = camera south, facing north.
+        #
+        # Geographic bearing to (east, north) unit vector:
+        #   east  = sin(bearing),  north = cos(bearing)
+        #
+        # To see a face in direction (dx, dy), camera bearing is:
+        #   b = atan2(dx, -dy)   [from sin(b)=dx, -cos(b)=dy]
+        #
+        # Face bearings (derived):
+        #   +along → (180 - orient)°   -along → (360 - orient)°
+        #   +perp  → ( 90 - orient)°   -perp  → (270 - orient)°
+        fp_centroid = scene_data.get("footprint_centroid")
+        if fp_centroid is not None:
+            f_cx, f_cy = fp_centroid  # RD metre offsets from address pt
+        else:
+            f_cx, f_cy = 0.0, 0.0
+
         try:
             positions = target_data.get("positions")
             if positions is not None and len(positions) >= 6:
                 import numpy as np
+
                 pts = np.array(positions).reshape(-1, 3)
                 orient_rad = math.radians(orientation_deg)
-                along_x = math.sin(orient_rad)
-                along_z = -math.cos(orient_rad)
-                perp_x = math.cos(orient_rad)
-                perp_z = math.sin(orient_rad)
-                proj_along = pts[:, 0] * along_x + pts[:, 2] * along_z
-                proj_perp = pts[:, 0] * perp_x + pts[:, 2] * perp_z
-                span_along = float(proj_along.max() - proj_along.min())
-                span_perp = float(proj_perp.max() - proj_perp.min())
-                if span_perp > span_along * 1.15:
-                    front_bearing_base = (orientation_deg + 90.0) % 360
-        except Exception:
-            pass  # fall back to orientation_deg
+                # OBB axes: standard geographic bearing → (east, north)
+                along_x = math.sin(orient_rad)       # east component
+                along_z = math.cos(orient_rad)        # north component
+                perp_x = math.cos(orient_rad)         # 90° CW east
+                perp_z = -math.sin(orient_rad)        # 90° CW north
 
-        # Disambiguate the 180° ambiguity using the address point.
-        # Scene is centred on the address point (origin = street side).
-        # The building footprint centroid sits at an offset from the address
-        # point.  The "front" camera should be placed on the address-point
-        # side of the building so it captures the street-facing facade.
-        #
-        # Direction from building centroid → address point (origin) in RD
-        # offsets gives us the azimuth of the "front" side.  If the current
-        # front_bearing_base points away from the address point, flip by 180°.
-        fp_centroid = scene_data.get("footprint_centroid")
-        if fp_centroid is not None:
-            cx, cy = fp_centroid  # RD metre offsets: +X=East, +Y=North
-            dist_sq = cx * cx + cy * cy
-            if dist_sq > 0.25:  # >0.5 m offset — meaningful direction
-                # Direction from centroid toward origin (address point)
-                addr_az = (90 - math.degrees(math.atan2(-cy, -cx))) % 360
-                # Check which candidate is closer to addr_az
-                diff_cur = abs(((front_bearing_base - addr_az + 180) % 360) - 180)
-                diff_flipped = abs((((front_bearing_base + 180) - addr_az + 180) % 360) - 180)
-                if diff_flipped < diff_cur:
-                    front_bearing_base = (front_bearing_base + 180.0) % 360
+                # OBB extents (relative to centroid)
+                # Note: pts[:,2] is the z-coordinate which maps to the
+                # footprint y-coord (north in RD offsets)
+                dx = pts[:, 0] - f_cx
+                dz = pts[:, 2] - f_cy
+                proj_along = dx * along_x + dz * along_z
+                proj_perp = dx * perp_x + dz * perp_z
+
+                min_along = float(proj_along.min())
+                max_along = float(proj_along.max())
+                min_perp = float(proj_perp.min())
+                max_perp = float(proj_perp.max())
+
+                # Project address point (origin) into OBB-local coords
+                addr_along = (-f_cx) * along_x + (-f_cy) * along_z
+                addr_perp = (-f_cx) * perp_x + (-f_cy) * perp_z
+
+                # Camera bearings for each face direction
+                b_plus_along = (180.0 - orientation_deg + 360) % 360
+                b_minus_along = (360.0 - orientation_deg) % 360
+                b_plus_perp = (90.0 - orientation_deg + 360) % 360
+                b_minus_perp = (270.0 - orientation_deg + 360) % 360
+
+                # Signed distance to each face (smallest = closest face)
+                face_candidates = [
+                    (b_plus_along, max_along - addr_along),
+                    (b_minus_along, addr_along - min_along),
+                    (b_plus_perp, max_perp - addr_perp),
+                    (b_minus_perp, addr_perp - min_perp),
+                ]
+                face_candidates.sort(key=lambda fc: fc[1])
+                front_bearing_base = face_candidates[0][0]
+            else:
+                front_bearing_base = orientation_deg
+        except Exception:
+            front_bearing_base = orientation_deg
 
         # Render each viewpoint
         results: dict[str, bytes] = {}
@@ -513,7 +546,9 @@ class Forge3DRenderService:
             bearing_offset = vp_cfg["bearing_offset"]
 
             if vp_name == "top":
-                bearing = 45.0
+                # Oblique aerial: 30° clockwise from front for a view
+                # that shows the front facade + one side from above.
+                bearing = (front_bearing_base + 30.0) % 360
             else:
                 bearing = (front_bearing_base + bearing_offset) % 360
 
@@ -527,24 +562,24 @@ class Forge3DRenderService:
                     "camera_eye": camera["eye"],
                     "camera_target": camera["target"],
                     "camera_fov": camera["fov"],
-                    "background_color": (0.94, 0.96, 0.97),  # #F0F5F7 slightly darker for contrast
+                    "background_color": (0.96, 0.97, 0.98),  # #F5F8FA light for print clarity
                     "shadow_technique": settings.forge3d_shadow_technique,
                     "shadow_map_size": settings.forge3d_shadow_map_size,
                     # Ground plane — shadows must land on a surface
                     "ground_plane": True,
                     "ground_y": ground_height,
                     "ground_size": ground_size,
-                    "ground_color": ground_mat.get("albedo", (0.93, 0.95, 0.96)),
+                    "ground_color": ground_mat.get("albedo", (0.88, 0.91, 0.94)),
                     # Ambient light — low so shadows are visually distinct
-                    "ambient_intensity": 0.25,
+                    "ambient_intensity": 0.12,
                 }
 
                 # Set sun light if above horizon
                 if sun_dir:
                     render_params["sun_direction"] = sun_dir
-                    render_params["sun_intensity"] = 1.2
+                    render_params["sun_intensity"] = 1.4
                     render_params["shadow_enabled"] = True
-                    render_params["shadow_opacity"] = 0.55
+                    render_params["shadow_opacity"] = 0.72
 
                 # Render to numpy array
                 image_array = render_highres(
