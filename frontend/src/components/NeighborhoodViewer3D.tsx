@@ -51,13 +51,13 @@ import './NeighborhoodViewer3D.css';
 /**
  * Theme-aware neighbor building appearance.
  * Contrast ratios (alpha-blended on ground, WCAG 1.4.11 graphical 3:1 min):
- *   Light: 0x556E85 @ 0.90 on #DDE3EA → blended #62798F → 3.49:1
- *   Dark:  0x8A9BB0 @ 0.65 on #1A2838 → blended #627286 → 3.04:1
+ *   Light: 0x556E85 @ 0.90 on #CDD5DF → blended #566F84 → 3.86:1
+ *   Dark:  0x8A9BB0 @ 0.80 on #263848 → blended #738A9E → 3.52:1
  */
 const NEIGHBOR_COLOR_LIGHT = 0x556E85;
 const NEIGHBOR_COLOR_DARK = 0x8A9BB0;
 const NEIGHBOR_OPACITY_LIGHT = 0.90;
-const NEIGHBOR_OPACITY_DARK = 0.65;
+const NEIGHBOR_OPACITY_DARK = 0.80;
 
 // Convert lat/lng to Web Mercator tile coordinates and fractional position within tile
 function latLngToTile(lat: number, lng: number, zoom: number) {
@@ -118,8 +118,8 @@ const ISOMETRIC_POLAR_RANGE = Math.PI / 30;
 const CAMERA_FIT_PADDING = 1.12;
 const CAMERA_MIN_DISTANCE_FACTOR = 0.90;
 const CAMERA_MAX_DISTANCE_FACTOR = 1.35;
-const GROUND_COLOR_LIGHT = 0xDDE3EA;
-const GROUND_COLOR_DARK = 0x1A2838;
+const GROUND_COLOR_LIGHT = 0xCDD5DF;
+const GROUND_COLOR_DARK = 0x263848;
 const HEATMAP_ROOF_NORMAL_MIN_Y = 0.25;
 
 type IdleWindow = Window & {
@@ -384,6 +384,7 @@ export default function NeighborhoodViewer3D({
     renderer: WebGLRenderer;
     controls: OrbitControls;
     sunLight: DirectionalLight;
+    ambientLight: HemisphereLight;
     buildingMeshes: Mesh[];
     ground: Mesh;
     animId: number;
@@ -715,11 +716,11 @@ export default function NeighborhoodViewer3D({
     const ambient = new HemisphereLight(
       isDarkMode ? 0x5B6672 : 0xE7EDF3,
       isDarkMode ? 0x2C3642 : 0xBEC8D2,
-      isDarkMode ? 0.30 : 0.34,
+      isDarkMode ? 0.20 : 0.26,
     );
     scene.add(ambient);
 
-    const sunLight = new DirectionalLight(0xffffff, isDarkMode ? 0.85 : 0.9);
+    const sunLight = new DirectionalLight(0xffffff, isDarkMode ? 0.95 : 1.0);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = SHADOW_MAP_SIZE;
     sunLight.shadow.mapSize.height = SHADOW_MAP_SIZE;
@@ -760,7 +761,7 @@ export default function NeighborhoodViewer3D({
     let onControlEnd: (() => void) | null = null;
 
     sceneRef.current = {
-      scene, camera, renderer, controls, sunLight,
+      scene, camera, renderer, controls, sunLight, ambientLight: ambient,
       buildingMeshes: [], ground, animId: 0, renderQueued: false,
     };
 
@@ -886,9 +887,9 @@ export default function NeighborhoodViewer3D({
     const OFFSCREEN_H = 1200;
     const HIRES_SHADOW_MAP = 4096;
     const SNAPSHOT_RADIUS_METERS = 30;
-    const SNAPSHOT_BACKGROUND_COLOR = 0xF7FAFC;
-    const SNAPSHOT_GROUND_COLOR = 0xEEF2F6;
-    const SNAPSHOT_NEIGHBOR_COLOR = 0x888888;
+    const SNAPSHOT_BACKGROUND_COLOR = 0xF5F8FB;
+    const SNAPSHOT_GROUND_COLOR = 0xE2E8F0;
+    const SNAPSHOT_NEIGHBOR_COLOR = 0x6E7D8C;
     const SCALE_BAR_METERS = 15;
     const SNAPSHOT_MIME_TYPE = 'image/jpeg';
     const SNAPSHOT_JPEG_QUALITY = 0.82;
@@ -982,6 +983,15 @@ export default function NeighborhoodViewer3D({
     };
 
     // Snapshot styling is print-first and independent from interactive dark mode.
+    // Override ambient light to ensure consistent print-quality shadow contrast
+    // regardless of the current theme (dark mode ambient would wash out shadows).
+    const savedAmbientSky = ctx.ambientLight.color.getHex();
+    const savedAmbientGround = ctx.ambientLight.groundColor.getHex();
+    const savedAmbientIntensity = ctx.ambientLight.intensity;
+    ctx.ambientLight.color.setHex(0xE7EDF3);
+    ctx.ambientLight.groundColor.setHex(0xBEC8D2);
+    ctx.ambientLight.intensity = 0.15;
+
     ctx.scene.background = new Color(SNAPSHOT_BACKGROUND_COLOR);
     const groundMaterials = Array.isArray(ctx.ground.material) ? ctx.ground.material : [ctx.ground.material];
     for (const material of groundMaterials) {
@@ -1056,25 +1066,36 @@ export default function NeighborhoodViewer3D({
     const orientationDeg = typeof orientationDegRaw === 'number' && Number.isFinite(orientationDegRaw)
       ? ((orientationDegRaw % 180) + 180) % 180
       : 0;
-    // orientation_deg = azimuth of the longest footprint edge (0=N, clockwise),
-    // normalised to [0, 180) — always in the "northern" half-plane.
-    // For narrow-deep houses (most Dutch row houses) the longest edge is the
-    // party wall (depth axis).  The camera at orientationDeg views FROM the
-    // north-ish side, which for a typical south-facing Dutch house is the
-    // garden/rear side.  We therefore start with the OPPOSITE bearing so that
-    // the "front" camera faces the street (south-ish) side by default.
-    // For wide-shallow buildings the longest edge IS the facade → camera at
-    // orientationDeg+90+180 (=+270) sees the facade from the street side.
-    // Detect via bounding-box aspect ratio projected onto the longest-edge
-    // axis.
-    let frontBearingDeg = (orientationDeg + 180) % 360;
+    // Determine the front facade bearing using OBB face proximity.
+    //
+    // The scene origin (0, 0) IS the address point (BAG verblijfsobject,
+    // typically at or near the front door).  We find which of the 4 OBB
+    // faces is closest to the address point — that face is the front.
+    //
+    // This works even when the address point is INSIDE the footprint
+    // (common for BAG), because we measure perpendicular distance to each
+    // face plane.  The closest face is the one the front door is nearest.
+    //
+    // Camera bearing convention: bearing b places the camera at
+    //   (sin(b)*d, h, -cos(b)*d)  looking toward the building.
+    // bearing 0° = camera south, facing north.
+    //
+    // Geographic bearing to (east, north) unit vector:
+    //   east  = sin(bearing)
+    //   north = cos(bearing)
+    //
+    // To see a face in direction (dx, dy), the camera bearing is:
+    //   b = atan2(dx, -dy)   [derived from sin(b)=dx, -cos(b)=dy]
+    let frontBearingDeg: number;
     if (focusFootprint.length >= 3) {
       const orientRad = (orientationDeg * Math.PI) / 180;
-      // Unit vectors: along longest edge and perpendicular
-      const alongX = Math.sin(orientRad);
-      const alongY = -Math.cos(orientRad);
-      const perpX = Math.cos(orientRad);
-      const perpY = Math.sin(orientRad);
+      // OBB axes in (east, north) — standard geographic bearing conversion
+      const alongX = Math.sin(orientRad);    // east component of along-axis
+      const alongY = Math.cos(orientRad);    // north component of along-axis
+      const perpX = Math.cos(orientRad);     // east component of perp-axis (90° CW)
+      const perpY = -Math.sin(orientRad);    // north component of perp-axis
+
+      // Compute OBB extents (relative to centroid)
       let minAlong = Infinity, maxAlong = -Infinity;
       let minPerp = Infinity, maxPerp = -Infinity;
       for (const [fx, fy] of focusFootprint) {
@@ -1087,27 +1108,51 @@ export default function NeighborhoodViewer3D({
         if (p < minPerp) minPerp = p;
         if (p > maxPerp) maxPerp = p;
       }
-      const spanAlong = maxAlong - minAlong;  // extent along longest edge
-      const spanPerp = maxPerp - minPerp;      // extent perpendicular
-      // If the building is wider than deep (spanPerp > spanAlong), the longest
-      // edge IS the facade → add 90°+180° so the camera faces the facade
-      // from the street side (same 180° flip as the narrow-deep case).
-      if (spanPerp > spanAlong * 1.15) {
-        frontBearingDeg = (orientationDeg + 270) % 360;
-      }
+
+      // Project address point (origin) into OBB-local coordinates
+      const addrAlong = (-cx) * alongX + (-cy) * alongY;
+      const addrPerp = (-cx) * perpX + (-cy) * perpY;
+
+      // Camera bearing for each face direction:
+      //   +along face at (alongX, alongY) → b = atan2(alongX, -alongY) = 180° - orient
+      //   -along face at (-alongX,-alongY) → b = atan2(-alongX, alongY) = 360° - orient
+      //   +perp  face at (perpX, perpY)    → b = atan2(perpX, -perpY)   =  90° - orient
+      //   -perp  face at (-perpX,-perpY)   → b = atan2(-perpX, perpY)   = 270° - orient
+      const bearingPlusAlong  = (180 - orientationDeg + 360) % 360;
+      const bearingMinusAlong = (360 - orientationDeg) % 360;
+      const bearingPlusPerp   = (90 - orientationDeg + 360) % 360;
+      const bearingMinusPerp  = (270 - orientationDeg + 360) % 360;
+
+      // Signed distance from address point to each face plane.
+      // Positive = point is on interior side; smallest = closest face.
+      const faceCandidates: { bearing: number; dist: number }[] = [
+        { bearing: bearingPlusAlong,  dist: maxAlong - addrAlong },
+        { bearing: bearingMinusAlong, dist: addrAlong - minAlong },
+        { bearing: bearingPlusPerp,   dist: maxPerp - addrPerp },
+        { bearing: bearingMinusPerp,  dist: addrPerp - minPerp },
+      ];
+
+      faceCandidates.sort((a, b) => a.dist - b.dist);
+      frontBearingDeg = faceCandidates[0].bearing;
+    } else {
+      // Degenerate footprint — fall back to along-axis view
+      frontBearingDeg = orientationDeg;
     }
     const year = new Date().getFullYear();
     // 6-panel layout: 3 viewpoints × 2 times of day (morning 09:00 + afternoon 15:00 CEST)
     // This matches the forge3d server-side rendering layout.
     // Morning and afternoon produce visibly different shadow directions,
     // giving the buyer a complete picture of sunlight exposure.
+    // Top view: offset 30° clockwise from front bearing for an oblique
+    // aerial perspective that shows the front facade + one side.
+    const topBearingDeg = (frontBearingDeg + 30) % 360;
     const snapshotConfigs = [
       // Morning row (09:00 CEST — sun from east)
-      { hour: 9, label: 'top_morning', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: 45 },
+      { hour: 9, label: 'top_morning', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: topBearingDeg },
       { hour: 9, label: 'front_morning', viewpoint: 'front' as const, month: 5, day: 21, bearingDeg: frontBearingDeg },
       { hour: 9, label: 'rear_morning', viewpoint: 'rear' as const, month: 5, day: 21, bearingDeg: (frontBearingDeg + 180) % 360 },
       // Afternoon row (15:00 CEST — sun from west)
-      { hour: 15, label: 'top_afternoon', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: 45 },
+      { hour: 15, label: 'top_afternoon', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: topBearingDeg },
       { hour: 15, label: 'front_afternoon', viewpoint: 'front' as const, month: 5, day: 21, bearingDeg: frontBearingDeg },
       { hour: 15, label: 'rear_afternoon', viewpoint: 'rear' as const, month: 5, day: 21, bearingDeg: (frontBearingDeg + 180) % 360 },
     ];
@@ -1307,6 +1352,11 @@ export default function NeighborhoodViewer3D({
       }
 
       ctx.scene.background = savedSceneBackground;
+
+      // Restore ambient light
+      ctx.ambientLight.color.setHex(savedAmbientSky);
+      ctx.ambientLight.groundColor.setHex(savedAmbientGround);
+      ctx.ambientLight.intensity = savedAmbientIntensity;
 
       // Restore camera and sun state
       ctx.camera.position.copy(savedCameraPos);

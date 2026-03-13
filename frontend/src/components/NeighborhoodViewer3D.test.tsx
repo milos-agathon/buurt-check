@@ -44,7 +44,11 @@ vi.mock('three', () => {
     this.domElement = mockCanvas;
     this.shadowMap = { enabled: false, type: null };
   }
-  function HemisphereLight(this: any) { }
+  function HemisphereLight(this: any, skyColor?: number, groundColor?: number, intensity?: number) {
+    this.color = { getHex: vi.fn(() => skyColor ?? 0), setHex: vi.fn() };
+    this.groundColor = { getHex: vi.fn(() => groundColor ?? 0), setHex: vi.fn() };
+    this.intensity = intensity ?? 0;
+  }
   function DirectionalLight(this: any) {
     this.castShadow = false;
     this.intensity = 0;
@@ -733,7 +737,7 @@ describe('NeighborhoodViewer3D', () => {
       );
       expect(neighborCall).toBeDefined();
       expect(neighborCall!.args.color).toBe(0x8A9BB0);
-      expect(neighborCall!.args.opacity).toBe(0.65);
+      expect(neighborCall!.args.opacity).toBe(0.80);
 
       const targetCall = materialCalls.find(
         ({ args }) => args?.emissive !== undefined && !args?.transparent
