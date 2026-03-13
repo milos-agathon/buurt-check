@@ -885,7 +885,7 @@ export default function NeighborhoodViewer3D({
     const OFFSCREEN_W = 1800;
     const OFFSCREEN_H = 1200;
     const HIRES_SHADOW_MAP = 4096;
-    const SNAPSHOT_RADIUS_METERS = 20;
+    const SNAPSHOT_RADIUS_METERS = 30;
     const SNAPSHOT_BACKGROUND_COLOR = 0xF7FAFC;
     const SNAPSHOT_GROUND_COLOR = 0xEEF2F6;
     const SNAPSHOT_NEIGHBOR_COLOR = 0x888888;
@@ -928,7 +928,7 @@ export default function NeighborhoodViewer3D({
     const fovRad = (ctx.camera.fov * Math.PI) / 180;
     const computedHeight = (2 * SNAPSHOT_RADIUS_METERS)
       / (2 * Math.tan(fovRad / 2) * outputAspect);
-    const snapshotCameraHeight = Math.max(20, computedHeight);
+    const snapshotCameraHeight = Math.max(28, computedHeight);
 
     // Keep a clone backup per material so snapshot print styling can be restored safely.
     const materialBackups = new Map<MeshStandardMaterial, MeshStandardMaterial>();
@@ -1056,11 +1056,46 @@ export default function NeighborhoodViewer3D({
     const orientationDeg = typeof orientationDegRaw === 'number' && Number.isFinite(orientationDegRaw)
       ? ((orientationDegRaw % 180) + 180) % 180
       : 0;
-    // orientation_deg is the azimuth of the longest footprint edge.
-    // For Dutch row houses the longest edge runs front-to-back (depth axis),
-    // so the front facade is viewed by placing the camera ALONG that axis,
-    // not perpendicular to it.  Previous +90 offset showed left/right sides.
-    const frontBearingDeg = orientationDeg;
+    // orientation_deg = azimuth of the longest footprint edge (0=N, clockwise),
+    // normalised to [0, 180) — always in the "northern" half-plane.
+    // For narrow-deep houses (most Dutch row houses) the longest edge is the
+    // party wall (depth axis).  The camera at orientationDeg views FROM the
+    // north-ish side, which for a typical south-facing Dutch house is the
+    // garden/rear side.  We therefore start with the OPPOSITE bearing so that
+    // the "front" camera faces the street (south-ish) side by default.
+    // For wide-shallow buildings the longest edge IS the facade → camera at
+    // orientationDeg+90+180 (=+270) sees the facade from the street side.
+    // Detect via bounding-box aspect ratio projected onto the longest-edge
+    // axis.
+    let frontBearingDeg = (orientationDeg + 180) % 360;
+    if (focusFootprint.length >= 3) {
+      const orientRad = (orientationDeg * Math.PI) / 180;
+      // Unit vectors: along longest edge and perpendicular
+      const alongX = Math.sin(orientRad);
+      const alongY = -Math.cos(orientRad);
+      const perpX = Math.cos(orientRad);
+      const perpY = Math.sin(orientRad);
+      let minAlong = Infinity, maxAlong = -Infinity;
+      let minPerp = Infinity, maxPerp = -Infinity;
+      for (const [fx, fy] of focusFootprint) {
+        const dx = fx - cx;
+        const dy = fy - cy;
+        const a = dx * alongX + dy * alongY;
+        const p = dx * perpX + dy * perpY;
+        if (a < minAlong) minAlong = a;
+        if (a > maxAlong) maxAlong = a;
+        if (p < minPerp) minPerp = p;
+        if (p > maxPerp) maxPerp = p;
+      }
+      const spanAlong = maxAlong - minAlong;  // extent along longest edge
+      const spanPerp = maxPerp - minPerp;      // extent perpendicular
+      // If the building is wider than deep (spanPerp > spanAlong), the longest
+      // edge IS the facade → add 90°+180° so the camera faces the facade
+      // from the street side (same 180° flip as the narrow-deep case).
+      if (spanPerp > spanAlong * 1.15) {
+        frontBearingDeg = (orientationDeg + 270) % 360;
+      }
+    }
     const year = new Date().getFullYear();
     // 6-panel layout: 3 viewpoints × 2 times of day (morning 09:00 + afternoon 15:00 CEST)
     // This matches the forge3d server-side rendering layout.
@@ -1091,9 +1126,10 @@ export default function NeighborhoodViewer3D({
         // Front/rear views use shorter planar distance for a closer, more
         // informative perspective.  Top view keeps a wider distance for context.
         const isTopView = config.viewpoint === 'top';
-        // Front/rear: camera at ~10m planar distance for tight framing
-        const planarDistance = isTopView ? snapshotCameraHeight : Math.max(10, snapshotCameraHeight * 0.5);
-        const cameraElevation = isTopView ? snapshotCameraHeight : Math.max(8, snapshotCameraHeight * 0.4);
+        // Front/rear: close enough to clearly see the building, but far
+        // enough that it's never clipped at the edges.
+        const planarDistance = isTopView ? snapshotCameraHeight : Math.max(14, snapshotCameraHeight * 0.55);
+        const cameraElevation = isTopView ? snapshotCameraHeight : Math.max(10, snapshotCameraHeight * 0.45);
         ctx.camera.position.set(
           cx + Math.sin(bearingRad) * planarDistance,
           snapshotTargetY + cameraElevation,

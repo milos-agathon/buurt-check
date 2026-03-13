@@ -972,29 +972,48 @@ class BuurtCheckPDF(FPDF):
                         show_row_labels=False,
                         show_axis_labels=False,
                     )
+                    # Derive embed height from the PNG's actual aspect ratio
+                    # so the chart is never stretched.  matplotlib calculates
+                    # its own height (with minimums for short charts) which
+                    # can differ from the target_chart_h we estimated above.
+                    try:
+                        from PIL import Image as _PILImage
+                        with io.BytesIO(chart_png) as _buf:
+                            _img = _PILImage.open(_buf)
+                            _pw, _ph = _img.size
+                        embed_h = width * _ph / _pw if _pw > 0 else target_chart_h
+                    except Exception:
+                        embed_h = target_chart_h
                     chart_end_y = _embed_chart_png(
                         self,
                         chart_png,
                         x=x,
                         y=y,
                         width=width,
-                        height=target_chart_h,
+                        height=embed_h,
                     )
 
                     # The PNG omits row labels in this path so the final PDF keeps a
                     # single, extractable text layer without visual overlap.
+                    # Scale overlay positions to match the actual embed height
+                    # (which may differ from target_chart_h when matplotlib
+                    # applies its own minimum-height rules).
+                    h_scale = embed_h / target_chart_h if target_chart_h > 0 else 1.0
+                    scaled_row_h = row_h * h_scale
+                    scaled_title_h = title_h * h_scale
+                    scaled_gap = address_gap * h_scale
                     label_w = min(width * 0.42, 68.0)
-                    row_y = y + title_h
+                    row_y = y + scaled_title_h
                     n_address = len(address_rows)
                     for idx, (label, _value, color, dashed) in enumerate(sorted_rows):
                         if has_address_gap and idx == n_address:
-                            row_y += address_gap
+                            row_y += scaled_gap
                         is_address = _is_address_comparison_label(label) and not dashed
                         self.set_font("Satoshi", "B" if is_address else "", 8)
                         self.set_text_color(*SLATE)
                         self.set_xy(x + 1.0, row_y)
-                        self.cell(label_w, row_h, label)
-                        row_y += row_h
+                        self.cell(label_w, scaled_row_h, label)
+                        row_y += scaled_row_h
 
                     # Keep axis labels extractable in the fpdf2 output while
                     # the PNG focuses on the bars/benchmarks only.

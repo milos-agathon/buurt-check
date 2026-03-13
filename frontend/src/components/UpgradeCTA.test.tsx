@@ -36,7 +36,7 @@ beforeEach(async () => {
 function renderUpgradeCTA(onUpgrade = vi.fn()) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <UpgradeCTA onUpgrade={onUpgrade} price="14.99" />
+      <UpgradeCTA onUpgrade={onUpgrade} price="3.99" />
     </I18nextProvider>,
   );
 }

@@ -8,16 +8,16 @@ describe('pricing config', () => {
   });
 
   it('uses env fallback before API response', async () => {
-    vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '14.99');
+    vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '3.99');
 
     const { getDossierPrice, getDossierPriceDisplay } = await import('./pricing');
 
-    expect(getDossierPrice()).toBe('14.99');
-    expect(getDossierPriceDisplay()).toBe('€14.99');
+    expect(getDossierPrice()).toBe('3.99');
+    expect(getDossierPriceDisplay()).toBe('€3.99');
   });
 
   it('updates cached price from /api/pricing', async () => {
-    vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '14.99');
+    vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '3.99');
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ price_eur: '19.99' }),
@@ -34,7 +34,7 @@ describe('pricing config', () => {
   });
 
   it('keeps fallback when API returns invalid price', async () => {
-    vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '14.99');
+    vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '3.99');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ price_eur: 'free' }),
@@ -42,7 +42,7 @@ describe('pricing config', () => {
 
     const { fetchPrice } = await import('./pricing');
 
-    await expect(fetchPrice()).resolves.toBe('14.99');
+    await expect(fetchPrice()).resolves.toBe('3.99');
   });
 });
 

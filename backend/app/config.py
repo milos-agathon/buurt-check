@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     # Stripe
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
-    stripe_price_cents: int = 1499  # EUR 14.99
+    stripe_price_cents: int = 399  # EUR 3.99
     base_url: str = "http://localhost:5173"
 
     # Rate limiting

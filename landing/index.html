@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buurt Check — Weet wat je koopt</title>
+  <meta name="description" content="Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico, zonlicht en meer. Ontvang een volledig dossier voordat je een woning bezichtigt.">
+  <meta property="og:title" content="Buurt Check — Weet wat je koopt">
+  <meta property="og:description" content="Onafhankelijke woninganalyse op basis van open overheidsdata. Risicoscores, 3D-analyse, bezichtigingsvragen en PDF-export.">
+  <meta property="og:url" content="https://buurtcheck.nl">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="nl_NL">
+  <meta property="og:locale:alternate" content="en_GB">
+  <link rel="canonical" href="https://buurtcheck.nl">
+
+  <style>
+    /* ── Font ── */
+    @font-face {
+      font-family: 'Satoshi';
+      src: url('fonts/Satoshi-Variable.woff2') format('woff2'),
+           url('fonts/Satoshi-Variable.woff') format('woff');
+      font-weight: 300 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #1C2D3F;
+      background: #FAFBFC;
+      line-height: 1.6;
+    }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Nav ── */
+    .nav {
+      background: #1C2D3F;
+      padding: 16px 0;
+    }
+
+    .nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav__brand {
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+
+    .nav__brand span {
+      color: #2EC4B6;
+    }
+
+    .nav__lang {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.12);
+      padding: 6px 14px;
+      border-radius: 24px;
+      border: none;
+    }
+
+    .nav__lang:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 72px 0 56px;
+      text-align: center;
+    }
+
+    .hero__badge {
+      display: inline-block;
+      background: #E6F9F7;
+      color: #1C8C83;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 24px;
+      margin-bottom: 24px;
+      letter-spacing: 0.01em;
+    }
+
+    .hero__title {
+      font-size: clamp(32px, 6vw, 48px);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+    }
+
+    .hero__title em {
+      font-style: normal;
+      color: #1C8C83;
+    }
+
+    .hero__subtitle {
+      font-size: 18px;
+      color: #637892;
+      max-width: 520px;
+      margin: 0 auto 36px;
+      line-height: 1.6;
+    }
+
+    .hero__cta {
+      display: inline-block;
+      background: #2EC4B6;
+      color: #fff;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 14px 32px;
+      border-radius: 12px;
+      border: none;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .hero__cta:hover {
+      background: #25A89C;
+    }
+
+    .hero__note {
+      margin-top: 14px;
+      font-size: 14px;
+      color: #8A9BB0;
+    }
+
+    /* ── Sections ── */
+    section {
+      padding: 56px 0;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1C8C83;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+
+    .section-desc {
+      font-size: 17px;
+      color: #637892;
+      margin-bottom: 36px;
+      line-height: 1.65;
+    }
+
+    /* ── Feature cards ── */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 520px) {
+      .features { grid-template-columns: 1fr; }
+    }
+
+    .feature-card {
+      background: #fff;
+      border: 1px solid #E2E7ED;
+      border-radius: 16px;
+      padding: 28px 24px;
+    }
+
+    .feature-card__icon {
+      width: 40px;
+      height: 40px;
+      background: #E6F9F7;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 20px;
+    }
+
+    .feature-card__title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .feature-card__desc {
+      font-size: 14px;
+      color: #637892;
+      line-height: 1.55;
+    }
+
+    /* ── How it works ── */
+    .steps {
+      counter-reset: step;
+    }
+
+    .step {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      padding: 20px 0;
+    }
+
+    .step + .step {
+      border-top: 1px solid #E2E7ED;
+    }
+
+    .step__number {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      background: #1C2D3F;
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .step__title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .step__desc {
+      font-size: 15px;
+      color: #637892;
+      line-height: 1.55;
+    }
+
+    /* ── Data sources ── */
+    .sources {
+      background: #fff;
+      border: 1px solid #E2E7ED;
+      border-radius: 16px;
+      padding: 32px 28px;
+    }
+
+    .sources__title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .sources__grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .source-pill {
+      background: #F5F7F9;
+      color: #445B74;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 24px;
+    }
+
+    /* ── Pricing ── */
+    .pricing-card {
+      background: #fff;
+      border: 2px solid #2EC4B6;
+      border-radius: 16px;
+      padding: 40px 32px;
+      text-align: center;
+      max-width: 420px;
+      margin: 0 auto;
+    }
+
+    .pricing-card__price {
+      font-size: 48px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      margin-bottom: 4px;
+    }
+
+    .pricing-card__price span {
+      font-size: 20px;
+      font-weight: 600;
+      color: #637892;
+    }
+
+    .pricing-card__label {
+      color: #637892;
+      font-size: 15px;
+      margin-bottom: 24px;
+    }
+
+    .pricing-card__list {
+      text-align: left;
+      list-style: none;
+      margin-bottom: 28px;
+    }
+
+    .pricing-card__list li {
+      padding: 8px 0;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pricing-card__list li::before {
+      content: '';
+      display: block;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      background: #E6F9F7;
+      border-radius: 50%;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 10l3 3 5-5' stroke='%231C8C83' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+
+    .pricing-card__cta {
+      display: block;
+      width: 100%;
+      background: #2EC4B6;
+      color: #fff;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      text-decoration: none;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s;
+    }
+
+    .pricing-card__cta:hover {
+      background: #25A89C;
+    }
+
+    .pricing-card__note {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #8A9BB0;
+    }
+
+    /* ── FAQ ── */
+    .faq-item {
+      padding: 20px 0;
+    }
+
+    .faq-item + .faq-item {
+      border-top: 1px solid #E2E7ED;
+    }
+
+    .faq-item__q {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .faq-item__a {
+      font-size: 15px;
+      color: #637892;
+      line-height: 1.6;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      background: #1C2D3F;
+      color: rgba(255, 255, 255, 0.6);
+      padding: 40px 0;
+      font-size: 14px;
+      margin-top: 40px;
+    }
+
+    .footer .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .footer__brand {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .footer__brand span {
+      color: #2EC4B6;
+    }
+
+    .footer a {
+      color: rgba(255, 255, 255, 0.6);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      color: #fff;
+    }
+
+    .footer__links {
+      display: flex;
+      gap: 24px;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      border: none;
+      border-top: 1px solid #E2E7ED;
+      margin: 0;
+    }
+
+    /* ── Bilingual toggle ── */
+    [lang="en"] .nl-only { display: none; }
+    [lang="en"] .en-only { display: unset; }
+    [lang="nl"] .en-only { display: none; }
+    [lang="nl"] .nl-only { display: unset; }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="container">
+      <a href="/" class="nav__brand">buurt<span>check</span></a>
+      <button class="nav__lang" onclick="toggleLang()" aria-label="Switch language">
+        <span class="nl-only">EN</span>
+        <span class="en-only">NL</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <header class="hero">
+    <div class="container">
+      <div class="hero__badge">
+        <span class="nl-only">100% onafhankelijk &middot; open overheidsdata</span>
+        <span class="en-only">100% independent &middot; open government data</span>
+      </div>
+      <h1 class="hero__title">
+        <span class="nl-only">Weet wat je koopt,<br><em>voordat</em> je bezichtigt</span>
+        <span class="en-only">Know what you're buying<br><em>before</em> you visit</span>
+      </h1>
+      <p class="hero__subtitle">
+        <span class="nl-only">Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico, zonlicht en leefbaarheid. Ontvang een compleet dossier met risicoscores, 3D-analyse en bezichtigingsvragen.</span>
+        <span class="en-only">Buurt Check analyzes any Dutch address for noise, air quality, climate risk, sunlight and livability. Get a complete dossier with risk scores, 3D analysis and viewing questions.</span>
+      </p>
+      <a href="#pricing" class="hero__cta">
+        <span class="nl-only">Probeer het gratis</span>
+        <span class="en-only">Try it free</span>
+      </a>
+      <p class="hero__note">
+        <span class="nl-only">Eerste dossier gratis. Geen account nodig.</span>
+        <span class="en-only">First dossier free. No account needed.</span>
+      </p>
+    </div>
+  </header>
+
+  <hr class="divider">
+
+  <!-- What you get -->
+  <section>
+    <div class="container">
+      <p class="section-label">
+        <span class="nl-only">Wat zit erin</span>
+        <span class="en-only">What you get</span>
+      </p>
+      <h2 class="section-title">
+        <span class="nl-only">Alles wat makelaars je niet vertellen</span>
+        <span class="en-only">Everything estate agents don't tell you</span>
+      </h2>
+      <p class="section-desc">
+        <span class="nl-only">Elk dossier combineert data van 10+ overheidsbronnen tot een helder, actiegericht rapport.</span>
+        <span class="en-only">Each dossier combines data from 10+ government sources into a clear, action-oriented report.</span>
+      </p>
+
+      <div class="features">
+        <div class="feature-card">
+          <div class="feature-card__icon">&#127911;</div>
+          <h3 class="feature-card__title">
+            <span class="nl-only">Geluidshinder</span>
+            <span class="en-only">Noise pollution</span>
+          </h3>
+          <p class="feature-card__desc">
+            <span class="nl-only">Weg-, rail- en vliegverkeer gecombineerd in een 0-100 score met WHO-vergelijking.</span>
+            <span class="en-only">Road, rail and air traffic combined into a 0-100 score with WHO comparison.</span>
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#127811;</div>
+          <h3 class="feature-card__title">
+            <span class="nl-only">Luchtkwaliteit</span>
+            <span class="en-only">Air quality</span>
+          </h3>
+          <p class="feature-card__desc">
+            <span class="nl-only">NO2, PM2.5 en PM10 getoetst aan EU- en WHO-normen. Inclusief trendanalyse.</span>
+            <span class="en-only">NO2, PM2.5 and PM10 tested against EU and WHO limits. Including trend analysis.</span>
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#127782;&#65039;</div>
+          <h3 class="feature-card__title">
+            <span class="nl-only">Klimaatrisico</span>
+            <span class="en-only">Climate risk</span>
+          </h3>
+          <p class="feature-card__desc">
+            <span class="nl-only">Overstromingsrisico, hittestress, bodemdaling en wateroverlast per adres.</span>
+            <span class="en-only">Flood risk, heat stress, subsidence and waterlogging per address.</span>
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#9728;&#65039;</div>
+          <h3 class="feature-card__title">
+            <span class="nl-only">Zonlichtanalyse</span>
+            <span class="en-only">Sunlight analysis</span>
+          </h3>
+          <p class="feature-card__desc">
+            <span class="nl-only">3D schaduwsimulatie op basis van echte gebouwhoogtes. Zomer en winter vergeleken.</span>
+            <span class="en-only">3D shadow simulation based on real building heights. Summer and winter compared.</span>
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#127959;&#65039;</div>
+          <h3 class="feature-card__title">
+            <span class="nl-only">3D buurtmodel</span>
+            <span class="en-only">3D neighborhood</span>
+          </h3>
+          <p class="feature-card__desc">
+            <span class="nl-only">Interactief 3D-model met luchtfoto-daken, gevels en schaduwen. Roteer, zoom, verken.</span>
+            <span class="en-only">Interactive 3D model with aerial roofs, facades and shadows. Rotate, zoom, explore.</span>
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">&#128203;</div>
+          <h3 class="feature-card__title">
+            <span class="nl-only">Bezichtigingschecklist</span>
+            <span class="en-only">Viewing checklist</span>
+          </h3>
+          <p class="feature-card__desc">
+            <span class="nl-only">Gepersonaliseerde vragen op basis van de gevonden risico's. Neem ze mee naar de bezichtiging.</span>
+            <span class="en-only">Personalized questions based on detected risks. Take them to your viewing.</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- How it works -->
+  <section>
+    <div class="container">
+      <p class="section-label">
+        <span class="nl-only">Hoe het werkt</span>
+        <span class="en-only">How it works</span>
+      </p>
+      <h2 class="section-title">
+        <span class="nl-only">Van adres naar dossier in seconden</span>
+        <span class="en-only">From address to dossier in seconds</span>
+      </h2>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step__number">1</div>
+          <div>
+            <p class="step__title">
+              <span class="nl-only">Voer een adres in</span>
+              <span class="en-only">Enter an address</span>
+            </p>
+            <p class="step__desc">
+              <span class="nl-only">Typ een Nederlands adres. Autocomplete helpt je het juiste adres te vinden.</span>
+              <span class="en-only">Type any Dutch address. Autocomplete helps you find the right one.</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step__number">2</div>
+          <div>
+            <p class="step__title">
+              <span class="nl-only">Wij analyseren 10+ bronnen</span>
+              <span class="en-only">We analyze 10+ sources</span>
+            </p>
+            <p class="step__desc">
+              <span class="nl-only">Buurt Check bevraagt het BAG, RIVM, CBS, Klimaatatlas, 3DBAG en meer. Binnen seconden.</span>
+              <span class="en-only">Buurt Check queries BAG, RIVM, CBS, Climate Atlas, 3DBAG and more. Within seconds.</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step__number">3</div>
+          <div>
+            <p class="step__title">
+              <span class="nl-only">Ontvang je dossier</span>
+              <span class="en-only">Get your dossier</span>
+            </p>
+            <p class="step__desc">
+              <span class="nl-only">Risicoscores, 3D-model, vergelijkingen met de stad en landelijk gemiddelde, en een PDF voor bij de bezichtiging.</span>
+              <span class="en-only">Risk scores, 3D model, city and national comparisons, and a PDF to take to your viewing.</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- Data sources -->
+  <section>
+    <div class="container">
+      <p class="section-label">
+        <span class="nl-only">Databronnen</span>
+        <span class="en-only">Data sources</span>
+      </p>
+      <h2 class="section-title">
+        <span class="nl-only">Gebouwd op open overheidsdata</span>
+        <span class="en-only">Built on open government data</span>
+      </h2>
+      <p class="section-desc">
+        <span class="nl-only">Geen meningen, geen schattingen. Alleen officieel gepubliceerde, verifieerbare data van Nederlandse overheidsinstellingen.</span>
+        <span class="en-only">No opinions, no estimates. Only officially published, verifiable data from Dutch government institutions.</span>
+      </p>
+
+      <div class="sources">
+        <p class="sources__title">
+          <span class="nl-only">Bronnen die we combineren</span>
+          <span class="en-only">Sources we combine</span>
+        </p>
+        <div class="sources__grid">
+          <span class="source-pill">BAG (Kadaster)</span>
+          <span class="source-pill">RIVM</span>
+          <span class="source-pill">CBS</span>
+          <span class="source-pill">3DBAG (TU Delft)</span>
+          <span class="source-pill">Klimaatatlas</span>
+          <span class="source-pill">Leefbaarometer</span>
+          <span class="source-pill">EP-Online (RVO)</span>
+          <span class="source-pill">PDOK</span>
+          <span class="source-pill">PVGIS (EU JRC)</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- Pricing -->
+  <section id="pricing">
+    <div class="container">
+      <p class="section-label">
+        <span class="nl-only">Prijzen</span>
+        <span class="en-only">Pricing</span>
+      </p>
+      <h2 class="section-title" style="text-align: center;">
+        <span class="nl-only">Eenvoudig en eerlijk</span>
+        <span class="en-only">Simple and fair</span>
+      </h2>
+      <p class="section-desc" style="text-align: center;">
+        <span class="nl-only">Geen abonnement. Geen account. Betaal per dossier.</span>
+        <span class="en-only">No subscription. No account. Pay per dossier.</span>
+      </p>
+
+      <div class="pricing-card">
+        <p class="pricing-card__price">&euro;3,99 <span>
+          <span class="nl-only">per adres</span>
+          <span class="en-only">per address</span>
+        </span></p>
+        <p class="pricing-card__label">
+          <span class="nl-only">Eenmalige betaling &middot; direct toegang</span>
+          <span class="en-only">One-time payment &middot; instant access</span>
+        </p>
+        <ul class="pricing-card__list">
+          <li>
+            <span class="nl-only">Risicoscores geluid, lucht, klimaat, zonlicht</span>
+            <span class="en-only">Risk scores for noise, air, climate, sunlight</span>
+          </li>
+          <li>
+            <span class="nl-only">Interactief 3D buurtmodel met schaduwsimulatie</span>
+            <span class="en-only">Interactive 3D neighborhood model with shadows</span>
+          </li>
+          <li>
+            <span class="nl-only">Gedetailleerde woningwaarschuwingen</span>
+            <span class="en-only">Detailed property warnings</span>
+          </li>
+          <li>
+            <span class="nl-only">Gepersonaliseerde bezichtigingsvragen</span>
+            <span class="en-only">Personalized viewing questions</span>
+          </li>
+          <li>
+            <span class="nl-only">PDF-export voor bij de bezichtiging</span>
+            <span class="en-only">PDF export to take to your viewing</span>
+          </li>
+          <li>
+            <span class="nl-only">Vergelijking met stad en landelijk gemiddelde</span>
+            <span class="en-only">Comparison with city and national average</span>
+          </li>
+        </ul>
+        <a href="#" class="pricing-card__cta">
+          <span class="nl-only">Probeer het gratis</span>
+          <span class="en-only">Try it free</span>
+        </a>
+        <p class="pricing-card__note">
+          <span class="nl-only">Eerste dossier gratis. Betaling via Stripe.</span>
+          <span class="en-only">First dossier free. Payment via Stripe.</span>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- FAQ -->
+  <section>
+    <div class="container">
+      <p class="section-label">FAQ</p>
+      <h2 class="section-title">
+        <span class="nl-only">Veelgestelde vragen</span>
+        <span class="en-only">Frequently asked questions</span>
+      </h2>
+
+      <div>
+        <div class="faq-item">
+          <p class="faq-item__q">
+            <span class="nl-only">Voor wie is Buurt Check bedoeld?</span>
+            <span class="en-only">Who is Buurt Check for?</span>
+          </p>
+          <p class="faq-item__a">
+            <span class="nl-only">Voor iedereen die een woning wil kopen in Nederland, met name starters en expats die de lokale markt nog niet kennen. Buurt Check geeft je de context die je normaal pas na jaren in een buurt leert.</span>
+            <span class="en-only">Anyone buying a home in the Netherlands, especially first-time buyers and expats unfamiliar with the local market. Buurt Check gives you the context you'd normally only learn after years in a neighborhood.</span>
+          </p>
+        </div>
+
+        <div class="faq-item">
+          <p class="faq-item__q">
+            <span class="nl-only">Waar komen de data vandaan?</span>
+            <span class="en-only">Where does the data come from?</span>
+          </p>
+          <p class="faq-item__a">
+            <span class="nl-only">Uitsluitend van officiële Nederlandse overheidsinstellingen: het Kadaster (BAG), RIVM, CBS, Klimaatatlas, TU Delft (3DBAG), en meer. Wij voegen geen meningen of schattingen toe.</span>
+            <span class="en-only">Exclusively from official Dutch government institutions: Kadaster (BAG), RIVM, CBS, Climate Atlas, TU Delft (3DBAG), and more. We don't add opinions or estimates.</span>
+          </p>
+        </div>
+
+        <div class="faq-item">
+          <p class="faq-item__q">
+            <span class="nl-only">Heb ik een account nodig?</span>
+            <span class="en-only">Do I need an account?</span>
+          </p>
+          <p class="faq-item__a">
+            <span class="nl-only">Nee. Je voert een adres in, krijgt je dossier, en betaalt alleen als je het volledige rapport wilt. Geen registratie, geen wachtwoord.</span>
+            <span class="en-only">No. Enter an address, get your dossier, and only pay if you want the full report. No registration, no password.</span>
+          </p>
+        </div>
+
+        <div class="faq-item">
+          <p class="faq-item__q">
+            <span class="nl-only">Wat krijg ik gratis?</span>
+            <span class="en-only">What do I get for free?</span>
+          </p>
+          <p class="faq-item__a">
+            <span class="nl-only">Je eerste volledige dossier is helemaal gratis. Daarna zie je bij elk adres de risicoscores, gebouwgegevens en een samenvattend overzicht. Het volledige dossier met detailanalyses, 3D-model, bezichtigingsvragen en PDF kost &euro;3,99.</span>
+            <span class="en-only">Your first full dossier is completely free. After that, you see risk scores, building facts and a summary overview for every address. The full dossier with detailed analysis, 3D model, viewing questions and PDF costs &euro;3.99.</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div>
+        <p class="footer__brand">buurt<span>check</span>.nl</p>
+        <p style="margin-top: 4px;">
+          <span class="nl-only">&copy; 2026 Buurt Check</span>
+          <span class="en-only">&copy; 2026 Buurt Check</span>
+        </p>
+      </div>
+      <div class="footer__links">
+        <a href="mailto:milos-makes-maps@protonmail.com">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function toggleLang() {
+      const html = document.documentElement;
+      html.lang = html.lang === 'nl' ? 'en' : 'nl';
+    }
+  </script>
+
+</body>
+</html>

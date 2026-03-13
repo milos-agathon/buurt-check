@@ -144,7 +144,7 @@ _TIME_PRESETS = [
     {"label": "afternoon", "time": "15:00", "hour": 17},  # 15:00 UTC = 17:00 CEST
 ]
 
-_SNAPSHOT_RADIUS_METERS = 20.0   # tight radius — house clearly visible
+_SNAPSHOT_RADIUS_METERS = 30.0   # house clearly visible with context
 _SUN_DISTANCE = 300.0
 
 # Fallback ground material if scene_data doesn't provide one
@@ -167,10 +167,10 @@ def _camera_position(
     The building should be clearly identifiable from all three angles.
     """
     bearing_rad = math.radians(bearing_deg)
-    # Camera height: 0.9× building height for close overhead angle
-    camera_height = max(building_height * 0.9, 8.0)
-    # Planar distance: ~10m for tight framing of the house
-    planar_distance = max(building_height * 0.7, 10.0)
+    # Camera height: 1× building height for moderate overhead angle
+    camera_height = max(building_height * 1.0, 10.0)
+    # Planar distance: enough to frame the building without clipping
+    planar_distance = max(building_height * 0.85, 14.0)
 
     return {
         "eye": (
@@ -459,6 +459,53 @@ class Forge3DRenderService:
         ground_mat = ground_cfg.get("material", GROUND_MATERIAL_FALLBACK)
         ground_height = scene_data.get("ground_height", 0.0)
 
+        # Detect building aspect ratio to choose correct facade bearing.
+        # orientation_deg = azimuth of longest footprint edge.
+        # For narrow-deep houses (longest = depth), camera at orientation_deg
+        # sees the facade.  For wide-shallow buildings (longest = facade),
+        # camera at orientation_deg + 90 sees the facade.
+        front_bearing_base = orientation_deg
+        try:
+            positions = target_data.get("positions")
+            if positions is not None and len(positions) >= 6:
+                import numpy as np
+                pts = np.array(positions).reshape(-1, 3)
+                orient_rad = math.radians(orientation_deg)
+                along_x = math.sin(orient_rad)
+                along_z = -math.cos(orient_rad)
+                perp_x = math.cos(orient_rad)
+                perp_z = math.sin(orient_rad)
+                proj_along = pts[:, 0] * along_x + pts[:, 2] * along_z
+                proj_perp = pts[:, 0] * perp_x + pts[:, 2] * perp_z
+                span_along = float(proj_along.max() - proj_along.min())
+                span_perp = float(proj_perp.max() - proj_perp.min())
+                if span_perp > span_along * 1.15:
+                    front_bearing_base = (orientation_deg + 90.0) % 360
+        except Exception:
+            pass  # fall back to orientation_deg
+
+        # Disambiguate the 180° ambiguity using the address point.
+        # Scene is centred on the address point (origin = street side).
+        # The building footprint centroid sits at an offset from the address
+        # point.  The "front" camera should be placed on the address-point
+        # side of the building so it captures the street-facing facade.
+        #
+        # Direction from building centroid → address point (origin) in RD
+        # offsets gives us the azimuth of the "front" side.  If the current
+        # front_bearing_base points away from the address point, flip by 180°.
+        fp_centroid = scene_data.get("footprint_centroid")
+        if fp_centroid is not None:
+            cx, cy = fp_centroid  # RD metre offsets: +X=East, +Y=North
+            dist_sq = cx * cx + cy * cy
+            if dist_sq > 0.25:  # >0.5 m offset — meaningful direction
+                # Direction from centroid toward origin (address point)
+                addr_az = (90 - math.degrees(math.atan2(-cy, -cx))) % 360
+                # Check which candidate is closer to addr_az
+                diff_cur = abs(((front_bearing_base - addr_az + 180) % 360) - 180)
+                diff_flipped = abs((((front_bearing_base + 180) - addr_az + 180) % 360) - 180)
+                if diff_flipped < diff_cur:
+                    front_bearing_base = (front_bearing_base + 180.0) % 360
+
         # Render each viewpoint
         results: dict[str, bytes] = {}
         for vp_cfg in viewpoint_configs:
@@ -468,7 +515,7 @@ class Forge3DRenderService:
             if vp_name == "top":
                 bearing = 45.0
             else:
-                bearing = (orientation_deg + bearing_offset) % 360
+                bearing = (front_bearing_base + bearing_offset) % 360
 
             camera = _camera_position(bearing, center_height, building_height)
 
