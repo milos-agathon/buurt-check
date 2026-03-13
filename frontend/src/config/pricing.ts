@@ -1,6 +1,6 @@
 import type { PricingResponse } from '../types/api';
 
-const FALLBACK_PRICE = import.meta.env.VITE_DOSSIER_PRICE_EUR || '14.99';
+const FALLBACK_PRICE = import.meta.env.VITE_DOSSIER_PRICE_EUR || '3.99';
 
 let cachedPrice = FALLBACK_PRICE;
 let cachedServerRenderAvailable = false;

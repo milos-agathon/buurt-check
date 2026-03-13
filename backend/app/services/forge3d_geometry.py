@@ -244,6 +244,15 @@ def building_blocks_to_forge3d_scene(
 
     center_height = target.ground_height + target.building_height * 0.45
 
+    # Compute footprint centroid offset from scene centre (= address point).
+    # This lets the renderer disambiguate the 180° front/rear ambiguity by
+    # knowing which side of the building faces the address point (street side).
+    footprint_centroid: tuple[float, float] | None = None
+    if target.footprint and len(target.footprint) >= 3:
+        cx = sum(pt[0] for pt in target.footprint) / len(target.footprint)
+        cy = sum(pt[1] for pt in target.footprint) / len(target.footprint)
+        footprint_centroid = (cx, cy)
+
     return {
         "target_mesh": {
             "positions": t_pos,
@@ -261,4 +270,5 @@ def building_blocks_to_forge3d_scene(
         "orientation_deg": target.orientation_deg,
         "building_height": target.building_height,
         "ground_height": target.ground_height,
+        "footprint_centroid": footprint_centroid,
     }

@@ -51,8 +51,8 @@ vi.mock('./services/api', async () => {
 });
 
 vi.mock('./config/pricing', () => ({
-  fetchPrice: vi.fn().mockResolvedValue('14.99'),
-  getDossierPrice: vi.fn(() => '14.99'),
+  fetchPrice: vi.fn().mockResolvedValue('3.99'),
+  getDossierPrice: vi.fn(() => '3.99'),
 }));
 
 vi.mock('./components/NeighborhoodViewer3D', () => ({
