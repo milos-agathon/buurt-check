@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="nl">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Buurt Check — Weet wat je koopt</title>
-  <meta name="description" content="Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico, zonlicht en meer. Ontvang een volledig dossier voordat je een woning bezichtigt.">
+  <meta name="description"
+    content="Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico, zonlicht en meer. Ontvang een volledig dossier voordat je een woning bezichtigt.">
   <meta property="og:title" content="Buurt Check — Weet wat je koopt">
-  <meta property="og:description" content="Onafhankelijke woninganalyse op basis van open overheidsdata. Risicoscores, 3D-analyse, bezichtigingsvragen en PDF-export.">
+  <meta property="og:description"
+    content="Onafhankelijke woninganalyse op basis van open overheidsdata. Risicoscores, 3D-analyse, bezichtigingsvragen en PDF-export.">
   <meta property="og:url" content="https://buurt-check.nl">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="nl_NL">
@@ -18,14 +21,20 @@
     @font-face {
       font-family: 'Satoshi';
       src: url('fonts/Satoshi-Variable.woff2') format('woff2'),
-           url('fonts/Satoshi-Variable.woff') format('woff');
+        url('fonts/Satoshi-Variable.woff') format('woff');
       font-weight: 300 900;
       font-style: normal;
       font-display: swap;
     }
 
     /* ── Reset & Base ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     html {
       font-size: 16px;
@@ -189,7 +198,9 @@
     }
 
     @media (max-width: 520px) {
-      .features { grid-template-columns: 1fr; }
+      .features {
+        grid-template-columns: 1fr;
+      }
     }
 
     .feature-card {
@@ -235,7 +246,7 @@
       padding: 20px 0;
     }
 
-    .step + .step {
+    .step+.step {
       border-top: 1px solid #E2E7ED;
     }
 
@@ -381,7 +392,7 @@
       padding: 20px 0;
     }
 
-    .faq-item + .faq-item {
+    .faq-item+.faq-item {
       border-top: 1px solid #E2E7ED;
     }
 
@@ -445,12 +456,24 @@
     }
 
     /* ── Bilingual toggle ── */
-    [lang="en"] .nl-only { display: none; }
-    [lang="en"] .en-only { display: unset; }
-    [lang="nl"] .en-only { display: none; }
-    [lang="nl"] .nl-only { display: unset; }
+    [lang="en"] .nl-only {
+      display: none;
+    }
+
+    [lang="en"] .en-only {
+      display: unset;
+    }
+
+    [lang="nl"] .en-only {
+      display: none;
+    }
+
+    [lang="nl"] .nl-only {
+      display: unset;
+    }
   </style>
 </head>
+
 <body>
 
   <!-- Nav -->
@@ -476,8 +499,11 @@
         <span class="en-only">Know what you're buying<br><em>before</em> you visit</span>
       </h1>
       <p class="hero__subtitle">
-        <span class="nl-only">Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico, zonlicht en leefbaarheid. Ontvang een compleet dossier met risicoscores, 3D-analyse en bezichtigingsvragen.</span>
-        <span class="en-only">Buurt Check analyzes any Dutch address for noise, air quality, climate risk, sunlight and livability. Get a complete dossier with risk scores, 3D analysis and viewing questions.</span>
+        <span class="nl-only">Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico,
+          zonlicht en leefbaarheid. Ontvang een compleet dossier met risicoscores, 3D-analyse en
+          bezichtigingsvragen.</span>
+        <span class="en-only">Buurt Check analyzes any Dutch address for noise, air quality, climate risk, sunlight and
+          livability. Get a complete dossier with risk scores, 3D analysis and viewing questions.</span>
       </p>
       <a href="#pricing" class="hero__cta">
         <span class="nl-only">Probeer het gratis</span>
@@ -504,8 +530,10 @@
         <span class="en-only">Everything estate agents don't tell you</span>
       </h2>
       <p class="section-desc">
-        <span class="nl-only">Elk dossier combineert data van 10+ overheidsbronnen tot een helder, actiegericht rapport.</span>
-        <span class="en-only">Each dossier combines data from 10+ government sources into a clear, action-oriented report.</span>
+        <span class="nl-only">Elk dossier combineert data van 10+ overheidsbronnen tot een helder, actiegericht
+          rapport.</span>
+        <span class="en-only">Each dossier combines data from 10+ government sources into a clear, action-oriented
+          report.</span>
       </p>
 
       <div class="features">
@@ -516,7 +544,8 @@
             <span class="en-only">Noise pollution</span>
           </h3>
           <p class="feature-card__desc">
-            <span class="nl-only">Weg-, rail- en vliegverkeer gecombineerd in een 0-100 score met WHO-vergelijking.</span>
+            <span class="nl-only">Weg-, rail- en vliegverkeer gecombineerd in een 0-100 score met
+              WHO-vergelijking.</span>
             <span class="en-only">Road, rail and air traffic combined into a 0-100 score with WHO comparison.</span>
           </p>
         </div>
@@ -552,8 +581,10 @@
             <span class="en-only">Sunlight analysis</span>
           </h3>
           <p class="feature-card__desc">
-            <span class="nl-only">3D schaduwsimulatie op basis van echte gebouwhoogtes. Zomer en winter vergeleken.</span>
-            <span class="en-only">3D shadow simulation based on real building heights. Summer and winter compared.</span>
+            <span class="nl-only">3D schaduwsimulatie op basis van echte gebouwhoogtes. Zomer en winter
+              vergeleken.</span>
+            <span class="en-only">3D shadow simulation based on real building heights. Summer and winter
+              compared.</span>
           </p>
         </div>
 
@@ -564,8 +595,10 @@
             <span class="en-only">3D neighborhood</span>
           </h3>
           <p class="feature-card__desc">
-            <span class="nl-only">Interactief 3D-model met luchtfoto-daken, gevels en schaduwen. Roteer, zoom, verken.</span>
-            <span class="en-only">Interactive 3D model with aerial roofs, facades and shadows. Rotate, zoom, explore.</span>
+            <span class="nl-only">Interactief 3D-model met luchtfoto-daken, gevels en schaduwen. Roteer, zoom,
+              verken.</span>
+            <span class="en-only">Interactive 3D model with aerial roofs, facades and shadows. Rotate, zoom,
+              explore.</span>
           </p>
         </div>
 
@@ -576,7 +609,8 @@
             <span class="en-only">Viewing checklist</span>
           </h3>
           <p class="feature-card__desc">
-            <span class="nl-only">Gepersonaliseerde vragen op basis van de gevonden risico's. Neem ze mee naar de bezichtiging.</span>
+            <span class="nl-only">Gepersonaliseerde vragen op basis van de gevonden risico's. Neem ze mee naar de
+              bezichtiging.</span>
             <span class="en-only">Personalized questions based on detected risks. Take them to your viewing.</span>
           </p>
         </div>
@@ -621,8 +655,10 @@
               <span class="en-only">We analyze 10+ sources</span>
             </p>
             <p class="step__desc">
-              <span class="nl-only">Buurt Check bevraagt het BAG, RIVM, CBS, Klimaatatlas, 3DBAG en meer. Binnen seconden.</span>
-              <span class="en-only">Buurt Check queries BAG, RIVM, CBS, Climate Atlas, 3DBAG and more. Within seconds.</span>
+              <span class="nl-only">Buurt Check bevraagt het BAG, RIVM, CBS, Klimaatatlas, 3DBAG en meer. Binnen
+                seconden.</span>
+              <span class="en-only">Buurt Check queries BAG, RIVM, CBS, Climate Atlas, 3DBAG and more. Within
+                seconds.</span>
             </p>
           </div>
         </div>
@@ -635,8 +671,10 @@
               <span class="en-only">Get your dossier</span>
             </p>
             <p class="step__desc">
-              <span class="nl-only">Risicoscores, 3D-model, vergelijkingen met de stad en landelijk gemiddelde, en een PDF voor bij de bezichtiging.</span>
-              <span class="en-only">Risk scores, 3D model, city and national comparisons, and a PDF to take to your viewing.</span>
+              <span class="nl-only">Risicoscores, 3D-model, vergelijkingen met de stad en landelijk gemiddelde, en een
+                PDF voor bij de bezichtiging.</span>
+              <span class="en-only">Risk scores, 3D model, city and national comparisons, and a PDF to take to your
+                viewing.</span>
             </p>
           </div>
         </div>
@@ -658,8 +696,10 @@
         <span class="en-only">Built on open government data</span>
       </h2>
       <p class="section-desc">
-        <span class="nl-only">Geen meningen, geen schattingen. Alleen officieel gepubliceerde, verifieerbare data van Nederlandse overheidsinstellingen.</span>
-        <span class="en-only">No opinions, no estimates. Only officially published, verifiable data from Dutch government institutions.</span>
+        <span class="nl-only">Geen meningen, geen schattingen. Alleen officieel gepubliceerde, verifieerbare data van
+          Nederlandse overheidsinstellingen.</span>
+        <span class="en-only">No opinions, no estimates. Only officially published, verifiable data from Dutch
+          government institutions.</span>
       </p>
 
       <div class="sources">
@@ -702,9 +742,9 @@
 
       <div class="pricing-card">
         <p class="pricing-card__price">&euro;3,99 <span>
-          <span class="nl-only">per adres</span>
-          <span class="en-only">per address</span>
-        </span></p>
+            <span class="nl-only">per adres</span>
+            <span class="en-only">per address</span>
+          </span></p>
         <p class="pricing-card__label">
           <span class="nl-only">Eenmalige betaling &middot; direct toegang</span>
           <span class="en-only">One-time payment &middot; instant access</span>
@@ -765,8 +805,12 @@
             <span class="en-only">Who is Buurt Check for?</span>
           </p>
           <p class="faq-item__a">
-            <span class="nl-only">Voor iedereen die een woning wil kopen in Nederland, met name starters en expats die de lokale markt nog niet kennen. Buurt Check geeft je de context die je normaal pas na jaren in een buurt leert.</span>
-            <span class="en-only">Anyone buying a home in the Netherlands, especially first-time buyers and expats unfamiliar with the local market. Buurt Check gives you the context you'd normally only learn after years in a neighborhood.</span>
+            <span class="nl-only">Voor iedereen die een woning wil kopen in Nederland, met name starters en expats die
+              de lokale markt nog niet kennen. Buurt Check geeft je de context die je normaal pas na jaren in een buurt
+              leert.</span>
+            <span class="en-only">Anyone buying a home in the Netherlands, especially first-time buyers and expats
+              unfamiliar with the local market. Buurt Check gives you the context you'd normally only learn after years
+              in a neighborhood.</span>
           </p>
         </div>
 
@@ -776,8 +820,10 @@
             <span class="en-only">Where does the data come from?</span>
           </p>
           <p class="faq-item__a">
-            <span class="nl-only">Uitsluitend van officiële Nederlandse overheidsinstellingen: het Kadaster (BAG), RIVM, CBS, Klimaatatlas, TU Delft (3DBAG), en meer. Wij voegen geen meningen of schattingen toe.</span>
-            <span class="en-only">Exclusively from official Dutch government institutions: Kadaster (BAG), RIVM, CBS, Climate Atlas, TU Delft (3DBAG), and more. We don't add opinions or estimates.</span>
+            <span class="nl-only">Uitsluitend van officiële Nederlandse overheidsinstellingen: het Kadaster (BAG), RIVM,
+              CBS, Klimaatatlas, TU Delft (3DBAG), en meer. Wij voegen geen meningen of schattingen toe.</span>
+            <span class="en-only">Exclusively from official Dutch government institutions: Kadaster (BAG), RIVM, CBS,
+              Climate Atlas, TU Delft (3DBAG), and more. We don't add opinions or estimates.</span>
           </p>
         </div>
 
@@ -787,8 +833,10 @@
             <span class="en-only">Do I need an account?</span>
           </p>
           <p class="faq-item__a">
-            <span class="nl-only">Nee. Je voert een adres in, krijgt je dossier, en betaalt alleen als je het volledige rapport wilt. Geen registratie, geen wachtwoord.</span>
-            <span class="en-only">No. Enter an address, get your dossier, and only pay if you want the full report. No registration, no password.</span>
+            <span class="nl-only">Nee. Je voert een adres in, krijgt je dossier, en betaalt alleen als je het volledige
+              rapport wilt. Geen registratie, geen wachtwoord.</span>
+            <span class="en-only">No. Enter an address, get your dossier, and only pay if you want the full report. No
+              registration, no password.</span>
           </p>
         </div>
 
@@ -798,8 +846,12 @@
             <span class="en-only">What do I get for free?</span>
           </p>
           <p class="faq-item__a">
-            <span class="nl-only">Je eerste volledige dossier is helemaal gratis. Daarna zie je bij elk adres de risicoscores, gebouwgegevens en een samenvattend overzicht. Het volledige dossier met detailanalyses, 3D-model, bezichtigingsvragen en PDF kost &euro;3,99.</span>
-            <span class="en-only">Your first full dossier is completely free. After that, you see risk scores, building facts and a summary overview for every address. The full dossier with detailed analysis, 3D model, viewing questions and PDF costs &euro;3.99.</span>
+            <span class="nl-only">Je eerste volledige dossier is helemaal gratis. Daarna zie je bij elk adres de
+              risicoscores, gebouwgegevens en een samenvattend overzicht. Het volledige dossier met detailanalyses,
+              3D-model, bezichtigingsvragen en PDF kost &euro;3,99.</span>
+            <span class="en-only">Your first full dossier is completely free. After that, you see risk scores, building
+              facts and a summary overview for every address. The full dossier with detailed analysis, 3D model, viewing
+              questions and PDF costs &euro;3.99.</span>
           </p>
         </div>
       </div>
@@ -830,4 +882,5 @@
   </script>
 
 </body>
+
 </html>
