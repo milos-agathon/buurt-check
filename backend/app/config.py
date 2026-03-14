@@ -28,6 +28,8 @@ class Settings(BaseSettings):
 
     # Database
     database_path: str = "buurt_check.db"
+    turso_database_url: str = ""
+    turso_auth_token: str = ""
 
     # Redis
     redis_url: str = "redis://localhost:6379"

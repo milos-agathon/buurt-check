@@ -20,8 +20,10 @@ from app.models.report import ProvenanceData
 from app.models.risk import (
     ClimateStressRiskCard,
     ComparisonPattern,
+    QuestionCategory,
     RiskCardsResponse,
     RiskComparisonsResponse,
+    ViewingQuestion,
     ViewingQuestionsResponse,
 )
 from app.models.tier_b import TierBResponse
@@ -33,7 +35,11 @@ from app.services.latex_env import (
     render_chart_assets_parallel,
     render_dossier,
 )
-from app.services.scoring import normalize_sunlight_score, severity_from_score
+from app.services.scoring import (
+    normalize_crime_score,
+    normalize_sunlight_score,
+    severity_from_score,
+)
 
 try:
     from app.services import chart_renderer
@@ -66,6 +72,14 @@ CALL_OUT_CRITICAL_BG = (254, 242, 242)  # #FEF2F2
 CALL_OUT_POOR_BG = (255, 247, 237)  # #FFF7ED
 PEER_BAR = (209, 213, 219)  # #D1D5DB — recessive comparison gray
 GOOD_THRESHOLD = 70
+_TNO_WINTER_POSSIBLE_HOURS = 7.5
+_TNO_WINTER_MILD_HOURS = round(_TNO_WINTER_POSSIBLE_HOURS * 0.5, 1)
+_TNO_WINTER_STRICT_HOURS = round(_TNO_WINTER_POSSIBLE_HOURS * 0.8, 1)
+_EN17037_MIN_HOURS = 1.5
+_EN17037_MEDIUM_HOURS = 3.0
+_EN17037_HIGH_HOURS = 4.0
+_SVF_MODERATE_THRESHOLD = 30.0
+_SVF_OPEN_THRESHOLD = 60.0
 
 # --- CBS 2024 national age distribution averages (%) ---
 NL_AGE_0_24 = 28.0
@@ -149,6 +163,7 @@ def _score_text(score: int | None, *, is_nl: bool) -> str:
     if score is None:
         return "N.v.t." if is_nl else "N/A"
     return f"{_score_value(score)}/100"
+
 
 def _is_address_comparison_label(label: str) -> bool:
     normalized = " ".join(label.lower().split())
@@ -241,7 +256,9 @@ def _climate_disclosure_line(
         context_parts.append(f"{year_label}: {card.source_date}")
     if not card.source_date:
         return None
-    context_parts.append("Huidig klimaat" if is_nl else "Current climate conditions")
+    context_parts.append(
+        "Gemodelleerd klimaatscenario" if is_nl else "Modeled climate scenario"
+    )
 
     heading = "Klimaatcontext" if is_nl else "Climate context"
     source_name = card.source or "Klimaateffectatlas"
@@ -257,6 +274,30 @@ def _format_wrapped_latex_metadata(text: str) -> str:
     escaped = escaped.replace(", ", r",\allowbreak ")
     escaped = escaped.replace("/", r"/\allowbreak{}")
     return escaped.replace(r"\_", r"\_\allowbreak{}")
+
+
+def _percent_like_value(value: float | None) -> float | None:
+    """Normalize ratio-like inputs to 0-100 percentages for PDF display."""
+    if value is None:
+        return None
+    if 0.0 <= value <= 1.0:
+        return value * 100.0
+    return value
+
+
+def _sunlight_svf_values(
+    sun: Any,
+) -> tuple[float | None, float | None]:
+    """Return (svf_percent, weighted_svf_percent) for a sunlight card."""
+    svf_percent = _percent_like_value(getattr(sun, "svf_percent", None))
+    weighted_svf_percent = _percent_like_value(getattr(sun, "svf_anisotropic", None))
+    return svf_percent, weighted_svf_percent
+
+
+def _is_same_percent(a: float | None, b: float | None) -> bool:
+    if a is None or b is None:
+        return False
+    return abs(a - b) < 0.5
 
 
 def _generate_executive_summary(
@@ -731,7 +772,7 @@ class BuurtCheckPDF(FPDF):
 
         if not logo_drawn:
             self.set_font("SatoshiBlack", "", 9)
-            self.cell(0, 8, "buurt-check", new_x="RIGHT")
+            self.cell(0, 8, "Buurt Check", new_x="RIGHT")
 
         if self.section_title:
             self.set_font("SatoshiMedium", "", 9)
@@ -761,7 +802,7 @@ class BuurtCheckPDF(FPDF):
         self.set_font("SatoshiBlack", "", 8)
         self.set_text_color(*TEAL)
         brand_w = 30
-        self.cell(brand_w, 4, "buurt-check")
+        self.cell(brand_w, 4, "Buurt Check")
 
         # Disclaimer — Regular 8pt secondary
         self.set_font("Satoshi", "", 8)
@@ -821,7 +862,7 @@ class BuurtCheckPDF(FPDF):
     def draw_h3(self, text: str) -> None:
         self.set_font("SatoshiMedium", "", 8)
         self.set_text_color(*SECONDARY)
-        self.cell(0, 4, text, new_x="LMARGIN", new_y="NEXT")
+        self.multi_cell(0, 4, text, align="L", new_x="LMARGIN", new_y="NEXT")
         self.set_text_color(*SLATE)
 
     def draw_tinted_box(
@@ -1036,11 +1077,11 @@ class BuurtCheckPDF(FPDF):
                         self.set_font("Satoshi", "", 8)
                         self.set_text_color(*SECONDARY)
                         legend_text = (
-                            "Legenda: gekleurde balk = dit adres, "
+                            "Legenda: ernstkleurige balk = dit adres, "
                             "grijs = vergelijking, gestreept = richtlijn"
                             if is_nl
                             else (
-                                "Legend: colored bar = this address, "
+                                "Legend: severity-colored bar = this address, "
                                 "gray = peer, dashed = benchmark"
                             )
                         )
@@ -1694,15 +1735,32 @@ def _shadow_time_from_label(raw_label: str) -> str:
     return ""
 
 
+def _shadow_time_key(item: dict[str, Any]) -> str:
+    raw_label = str(item.get("label") or "")
+    from_label = _shadow_time_from_label(raw_label)
+    if from_label:
+        return from_label
+    hour = item.get("hour")
+    if isinstance(hour, (int, float)):
+        if hour < 12:
+            return "morning"
+        if hour >= 15:
+            return "afternoon"
+        return "noon"
+    return ""
+
+
 def _shadow_legend_line(is_nl: bool) -> str:
     if is_nl:
         return (
             "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
-            "\u00b7 21 juni (langste dag) \u00b7 Bron: 3DBAG / TU Delft + SunCalc"
+            "\u00b7 21 juni (langste dag, zomervergelijking) \u00b7 Bron: 3DBAG / "
+            "TU Delft + SunCalc"
         )
     return (
         "Legend: teal outline = target building \u00b7 shadow = no direct sun "
-        "\u00b7 June 21 (longest day) \u00b7 Source: 3DBAG / TU Delft + SunCalc"
+        "\u00b7 June 21 (longest day, summer reference) \u00b7 Source: 3DBAG / "
+        "TU Delft + SunCalc"
     )
 
 
@@ -1785,11 +1843,23 @@ def _draw_shadow_triptych(
     is_six_panel = len(shadow_images) >= 6
 
     if is_six_panel:
-        # Split into morning (first 3) and afternoon (last 3) by order from renderer
-        # Renderer produces: [top-morning, front-morning, rear-morning,
-        #                     top-afternoon, front-afternoon, rear-afternoon]
-        morning_imgs = shadow_images[:3]
-        afternoon_imgs = shadow_images[3:6]
+        view_rank = {s: i for i, s in enumerate(_SHADOW_VIEW_ORDER)}
+        time_rank = {"morning": 0, "afternoon": 1, "noon": 2}
+
+        sorted_imgs = sorted(
+            shadow_images[:6],
+            key=lambda s: (
+                time_rank.get(_shadow_time_key(s), 99),
+                view_rank.get(_shadow_view_key(s), 99),
+                s.get("hour", 0),
+            ),
+        )
+        morning_imgs = [s for s in sorted_imgs if _shadow_time_key(s) == "morning"][:3]
+        afternoon_imgs = [s for s in sorted_imgs if _shadow_time_key(s) == "afternoon"][:3]
+        if len(morning_imgs) < 3 or len(afternoon_imgs) < 3:
+            # Fall back to renderer order when metadata is incomplete.
+            morning_imgs = shadow_images[:3]
+            afternoon_imgs = shadow_images[3:6]
 
         # 3 columns × 2 rows
         col_w = (page_w - gap * 2) / 3
@@ -3071,6 +3141,7 @@ def _generate_full_dossier_fpdf(
     _draw_checklist_page(
         pdf, address, risks, sunlight_score, viewing_questions, is_nl,
         crime_score=crime_score,
+        tier_b_data=tier_b,
     )
 
     # Risk details section
@@ -3295,14 +3366,20 @@ def _draw_location_map(
             except Exception:
                 logger.warning("Failed to draw footprint overlay on location map")
 
-        # Teal pin marker at center (only shown when no footprint overlay)
-        if not (footprint_geojson and overlay_lat is not None and overlay_lng is not None):
-            cx = pdf.l_margin + img_w / 2
-            cy_pin = img_y + img_h / 2
-            pdf.set_fill_color(*TEAL)
-            pdf.ellipse(cx - 1.5, cy_pin - 1.5, 3, 3, "F")
-            pdf.set_fill_color(255, 255, 255)
-            pdf.ellipse(cx - 0.7, cy_pin - 0.7, 1.4, 1.4, "F")
+        # Clear target marker at map center, even when a footprint polygon is present.
+        cx = pdf.l_margin + img_w / 2
+        cy_pin = img_y + img_h / 2
+        pdf.set_fill_color(*WHITE)
+        pdf.set_draw_color(*WHITE)
+        pdf.ellipse(cx - 3.2, cy_pin - 3.2, 6.4, 6.4, "DF")
+        pdf.set_fill_color(*TEAL_LIGHT)
+        pdf.set_draw_color(*TEAL)
+        pdf.set_line_width(0.7)
+        pdf.ellipse(cx - 2.4, cy_pin - 2.4, 4.8, 4.8, "DF")
+        pdf.set_fill_color(*TEAL)
+        pdf.ellipse(cx - 0.9, cy_pin - 0.9, 1.8, 1.8, "F")
+        pdf.set_line_width(0.1)
+        pdf.set_draw_color(*BORDER)
 
         # North arrow (top-right of map)
         nx = pdf.l_margin + img_w - 5
@@ -3439,7 +3516,7 @@ def _draw_cover_page(
     """Page 1: concise cover with summary, key concerns, and score tiles."""
     pdf.set_font("SatoshiBlack", "", 16)
     pdf.set_text_color(*SLATE)
-    pdf.cell(0, 8, "buurt-check", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, "Buurt Check", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(2)
 
     _draw_address_block(pdf, address, building_year, building_use, floor_area, is_nl, font_size=20)
@@ -3565,29 +3642,26 @@ def _draw_rate_comparison_chart(
     score: int | None,
 ) -> None:
     rows: list[tuple[str, int, tuple[int, int, int], bool]] = []
-    # Use the 0-100 risk score directly so the bar aligns with the
-    # score-bar scale rather than being rate-relative (which makes a
-    # single-row chart always fill to 100%).
+    address_score = score if score is not None else normalize_crime_score(address_rate)
     rows.append(
         (
             "Dit adres" if is_nl else "This address",
-            score if score is not None else 0,
-            _severity_color(score),
+            address_score if address_score is not None else 0,
+            _severity_color(address_score),
             False,
         )
     )
-    if national_rate is not None and address_rate > 0:
-        # Scale national bar proportionally to address bar using rate ratio
-        national_score = int(round(score * national_rate / address_rate)) if score else 0
-        national_score = max(0, min(100, national_score))
-        rows.append(
-            (
-                "Nederland" if is_nl else "Netherlands",
-                national_score,
-                PEER_BAR,
-                False,
+    if national_rate is not None:
+        national_score = normalize_crime_score(national_rate)
+        if national_score is not None:
+            rows.append(
+                (
+                    "Nederland" if is_nl else "Netherlands",
+                    national_score,
+                    NATIONAL,
+                    False,
+                )
             )
-        )
     chart_end_y = pdf.draw_comparison_chart(
         x=pdf.l_margin,
         y=pdf.get_y(),
@@ -3617,6 +3691,91 @@ def _draw_rate_comparison_chart(
     pdf.multi_cell(0, 3.5, scale_note, align="L", new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(*SLATE)
     pdf.ln(1)
+
+
+def _crime_checklist_category(
+    tier_b_data: TierBResponse | None,
+) -> QuestionCategory | None:
+    crime = tier_b_data.crime if tier_b_data and tier_b_data.crime else None
+    if not crime or crime.score is None:
+        return None
+
+    score_text = f"{crime.score}/100"
+    rate_text = (
+        f" Latest rate: {crime.total_per_1000:.1f} per 1,000 residents."
+        if crime.total_per_1000 is not None
+        else ""
+    )
+    rate_text_nl = (
+        f" Laatste cijfer: {crime.total_per_1000:.1f} per 1.000 inwoners."
+        if crime.total_per_1000 is not None
+        else ""
+    )
+    if crime.score >= GOOD_THRESHOLD:
+        questions = [
+            ViewingQuestion(
+                text_en=(
+                    f"Crime context scores well ({score_text}). Confirm street lighting, entry"
+                    " controls, and whether the area still feels safe after dark."
+                ),
+                text_nl=(
+                    f"Criminaliteitscontext scoort goed ({score_text}). Controleer"
+                    " straatverlichting, toegangsbeveiliging en of de omgeving ook"
+                    " na donker veilig aanvoelt."
+                ),
+            )
+        ]
+    else:
+        questions = [
+            ViewingQuestion(
+                text_en=(
+                    f"Walk the street after dark and check lighting, sightlines, and access"
+                    f" control around the entrance ({score_text}).{rate_text}"
+                ),
+                text_nl=(
+                    f"Loop na donker door de straat en controleer verlichting,"
+                    f" zichtlijnen en toegangscontrole rond de entree ({score_text})."
+                    f"{rate_text_nl}"
+                ),
+            ),
+            ViewingQuestion(
+                text_en=(
+                    "Ask the seller or agent about recent break-ins, nuisance, and whether"
+                    " residents use extra security measures."
+                ),
+                text_nl=(
+                    "Vraag verkoper of makelaar naar recente inbraken, overlast en of"
+                    " bewoners extra beveiligingsmaatregelen gebruiken."
+                ),
+            ),
+        ]
+
+    return QuestionCategory(
+        name="Crime",
+        name_nl="Criminaliteit",
+        severity=crime.severity or _severity_for_score(crime.score),
+        questions=questions,
+    )
+
+
+def _with_crime_viewing_questions(
+    viewing_questions: ViewingQuestionsResponse | None,
+    tier_b_data: TierBResponse | None,
+) -> ViewingQuestionsResponse | None:
+    crime_category = _crime_checklist_category(tier_b_data)
+    if crime_category is None:
+        return viewing_questions
+
+    if viewing_questions is None:
+        address_id = tier_b_data.address_id if tier_b_data is not None else ""
+        return ViewingQuestionsResponse(address_id=address_id, categories=[crime_category])
+
+    if any(category.name.lower() == "crime" for category in viewing_questions.categories):
+        return viewing_questions
+
+    return viewing_questions.model_copy(
+        update={"categories": [*viewing_questions.categories, crime_category]}
+    )
 
 
 def _draw_risk_details_page(
@@ -3879,7 +4038,8 @@ def _draw_sunlight_details(
         pdf.ln(2)
 
     # --- SVF gauge (E2-S3) ---
-    svf = sun.svf_anisotropic if sun.svf_anisotropic is not None else sun.svf_percent
+    svf_percent, weighted_svf_percent = _sunlight_svf_values(sun)
+    svf = svf_percent if svf_percent is not None else weighted_svf_percent
     if svf is not None:
         # Page overflow guard: need ~25mm for SVF gauge
         remaining = pdf.h - pdf.get_y() - 20
@@ -3916,9 +4076,9 @@ def _draw_sunlight_details(
 
         # SVF value + interpretation
         val_text = format_number(svf, 0, is_nl)
-        if svf >= 60:
+        if svf >= _SVF_OPEN_THRESHOLD:
             interp = "Zeer open" if is_nl else "Highly open"
-        elif svf >= 30:
+        elif svf >= _SVF_MODERATE_THRESHOLD:
             interp = "Gemiddeld" if is_nl else "Moderate"
         else:
             interp = "Besloten" if is_nl else "Enclosed"
@@ -3928,6 +4088,21 @@ def _draw_sunlight_details(
         pdf.cell(20, 5, f"{val_text}%")
         pdf.set_font("Satoshi", "", 10)
         pdf.cell(0, 5, f"\u2014 {interp}", new_x="LMARGIN", new_y="NEXT")
+
+        if (
+            weighted_svf_percent is not None
+            and svf_percent is not None
+            and not _is_same_percent(weighted_svf_percent, svf_percent)
+        ):
+            pdf.set_font("Satoshi", "", 8)
+            pdf.set_text_color(*SECONDARY)
+            note = (
+                f"Gewogen hemelzicht: {format_number(weighted_svf_percent, 0, is_nl)}%"
+                if is_nl
+                else f"Weighted sky openness: {format_number(weighted_svf_percent, 0, is_nl)}%"
+            )
+            pdf.cell(0, 4, note, new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(*SLATE)
 
         pdf.ln(3)
 
@@ -4112,17 +4287,17 @@ _UNIT_DEFINITIONS: dict[str, dict[str, str]] = {
         ),
     },
     "climate_stress": {
-        "nl": "Op basis van hitte- en wateroverlastmodellen",
-        "en": "Based on heat stress and water nuisance models",
+        "nl": "Op basis van gemodelleerde hitte- en wateroverlastscenario's",
+        "en": "Based on modeled heat-stress and water-nuisance scenarios",
     },
     "sunlight": {
         "nl": (
-            "Winter/jaargemiddelde in u/dag; SVF = zichtbaar hemelpercentage; "
-            "zoninstraling in kWh/m\u00b2/jaar"
+            "Score op basis van directe winterzon. Winter/equinox/jaargemiddelde in"
+            " u/dag; SVF = zichtbaar hemelpercentage; zoninstraling in kWh/m\u00b2/jaar"
         ),
         "en": (
-            "Winter/annual average in h/day; SVF = visible sky factor (%); "
-            "solar irradiance in kWh/m\u00b2/year"
+            "Score is based on direct winter sun. Winter/equinox/annual average in"
+            " h/day; SVF = visible sky factor (%); solar irradiance in kWh/m\u00b2/year"
         ),
     },
 }
@@ -4284,8 +4459,8 @@ def _build_risk_detail_data(
             # Climate: keep source human-readable; internal layer names stay hidden.
             if attr == "climate_stress":
                 scenario = (
-                    "Huidig klimaat" if is_nl
-                    else "Current climate conditions"
+                    "Gemodelleerd klimaatscenario" if is_nl
+                    else "Modeled climate scenario"
                 )
                 source += f" \u00b7 {scenario}"
 
@@ -4331,20 +4506,26 @@ def _build_risk_detail_data(
             unit = "u/dag" if is_nl else "h/day"
             val = format_number(sun.winter_hours, 1, is_nl)
             sun_meas.append(("Winter", f"{val} {unit}"))
+        if sun.equinox_hours is not None:
+            unit = "u/dag" if is_nl else "h/day"
+            label = "Equinox"
+            val = format_number(sun.equinox_hours, 1, is_nl)
+            sun_meas.append((label, f"{val} {unit}"))
         if sun.annual_average is not None:
             unit = "u/dag" if is_nl else "h/day"
             label = "Jaargemiddelde" if is_nl else "Annual average"
             val = format_number(sun.annual_average, 1, is_nl)
             sun_meas.append((label, f"{val} {unit}"))
-        if sun.svf_percent is not None:
-            val = format_number(sun.svf_percent, 0, is_nl)
+        svf_percent, weighted_svf_percent = _sunlight_svf_values(sun)
+        if svf_percent is not None:
+            val = format_number(svf_percent, 0, is_nl)
             sun_meas.append(("SVF", f"{val}%"))
-        if (
-            sun.svf_anisotropic is not None
-            and sun.svf_anisotropic != sun.svf_percent
+        if weighted_svf_percent is not None and not _is_same_percent(
+            weighted_svf_percent,
+            svf_percent,
         ):
             label = "SVF (anisotropisch)" if is_nl else "SVF (anisotropic)"
-            val = format_number(sun.svf_anisotropic, 0, is_nl)
+            val = format_number(weighted_svf_percent, 0, is_nl)
             sun_meas.append((label, f"{val}%"))
         if sun.irradiance_kwh_m2 is not None:
             label = "Zonnestraling" if is_nl else "Solar irradiance"
@@ -4403,6 +4584,72 @@ def _measurement_table_rows(
             return SLATE
         return SEVERITY_COLORS["good"] if value <= reference else SEVERITY_COLORS["poor"]
 
+    def _level_color(value_text: str) -> tuple[int, int, int]:
+        normalized = value_text.strip().lower()
+        if normalized in {"low", "laag"}:
+            return SEVERITY_COLORS["good"]
+        if normalized in {"medium", "gemiddeld", "matig"}:
+            return SEVERITY_COLORS["moderate"]
+        if normalized in {"high", "hoog"}:
+            return SEVERITY_COLORS["poor"]
+        return SLATE
+
+    def _climate_reference(metric: str) -> str:
+        if metric in {"Heat", "Hitte"}:
+            return (
+                "Doel: laag · schaal: laag / gemiddeld / hoog"
+                if is_nl
+                else "Target: low · scale: low / medium / high"
+            )
+        return (
+            "Doel: laag · schaal: laag / gemiddeld / hoog"
+            if is_nl
+            else "Target: low · scale: low / medium / high"
+        )
+
+    def _sunlight_reference(metric: str) -> str:
+        if metric == "Winter":
+            mild = format_number(_TNO_WINTER_MILD_HOURS, 1, is_nl)
+            strict = format_number(_TNO_WINTER_STRICT_HOURS, 1, is_nl)
+            unit = "u/dag" if is_nl else "h/day"
+            return (
+                f"TNO licht \u2248 {mild} {unit}; streng \u2248 {strict} {unit}"
+                if is_nl
+                else f"TNO mild \u2248 {mild} {unit}; strict \u2248 {strict} {unit}"
+            )
+        if metric == "Equinox":
+            min_h = format_number(_EN17037_MIN_HOURS, 1, is_nl)
+            med_h = format_number(_EN17037_MEDIUM_HOURS, 1, is_nl)
+            high_h = format_number(_EN17037_HIGH_HOURS, 1, is_nl)
+            unit = "u" if is_nl else "h"
+            return (
+                f"EN 17037: minimum {min_h}{unit}, midden {med_h}{unit}, hoog {high_h}{unit}"
+                if is_nl
+                else f"EN 17037: minimum {min_h}{unit}, medium {med_h}{unit}, high {high_h}{unit}"
+            )
+        if metric in {"Annual average", "Jaargemiddelde"}:
+            return (
+                "Schaalcontext: hoger = helderder over het jaar"
+                if is_nl
+                else "Scale context: higher = brighter over the year"
+            )
+        if metric.startswith("SVF"):
+            moderate = format_number(_SVF_MODERATE_THRESHOLD, 0, is_nl)
+            open_svf = format_number(_SVF_OPEN_THRESHOLD, 0, is_nl)
+            upper_moderate = format_number(_SVF_OPEN_THRESHOLD - 1, 0, is_nl)
+            return (
+                f"Open \u2265 {open_svf}% ; gemiddeld {moderate}\u2013{upper_moderate}%"
+                if is_nl
+                else f"Open \u2265 {open_svf}% ; moderate {moderate}\u2013{upper_moderate}%"
+            )
+        if metric in {"Solar irradiance", "Zonnestraling"}:
+            return (
+                "Schaalcontext: hoger = meer blootstelling op het dak"
+                if is_nl
+                else "Scale context: higher = more roof exposure"
+            )
+        return "\u2014"
+
     if category_name in {"Noise", "Geluid"} and "Lden" in metric_map:
         ref_label = "WHO-richtlijn (Lden)" if is_nl else "WHO guideline (Lden)"
         reference = metric_map.get(ref_label, "\u2014")
@@ -4434,6 +4681,16 @@ def _measurement_table_rows(
             )
         return rows
 
+    if category_name in {"Climate Stress", "Klimaatstress"}:
+        for metric, value in measurements:
+            rows.append((metric, value, _climate_reference(metric), _level_color(value)))
+        return rows
+
+    if category_name in {"Sunlight", "Zonlicht"}:
+        for metric, value in measurements:
+            rows.append((metric, value, _sunlight_reference(metric), SLATE))
+        return rows
+
     for metric, value in measurements:
         rows.append((metric, value, "\u2014", SLATE))
     return rows
@@ -4456,35 +4713,87 @@ def _draw_measurement_table(
     metric_w = table_w * 0.42
     value_w = table_w * 0.26
     guideline_w = table_w - metric_w - value_w
-    row_h = 5.5
+    header_h = 5.5
+    line_h = 3.4
 
-    pdf.set_fill_color(*TILE_BG)
-    pdf.set_draw_color(*BORDER)
-    pdf.set_line_width(0.2)
-    header_y = pdf.get_y()
-    pdf.rect(table_x, header_y, table_w, row_h, "DF")
-    pdf.set_font("SatoshiMedium", "", 8)
-    pdf.set_text_color(*SECONDARY)
-    pdf.set_xy(table_x + 1.5, header_y + 0.6)
-    pdf.cell(metric_w - 1.5, row_h - 1, "Metric" if not is_nl else "Metriek")
-    pdf.cell(value_w, row_h - 1, "Your value" if not is_nl else "Uw waarde")
-    pdf.cell(guideline_w - 1.5, row_h - 1, "Guideline" if not is_nl else "Richtlijn")
-    pdf.set_y(header_y + row_h)
+    def _draw_header() -> None:
+        header_y = pdf.get_y()
+        pdf.set_fill_color(*TILE_BG)
+        pdf.set_draw_color(*BORDER)
+        pdf.set_line_width(0.2)
+        pdf.rect(table_x, header_y, table_w, header_h, "DF")
+        pdf.set_font("SatoshiMedium", "", 8)
+        pdf.set_text_color(*SECONDARY)
+        pdf.set_xy(table_x + 1.5, header_y + 0.6)
+        pdf.cell(metric_w - 1.5, header_h - 1, "Metric" if not is_nl else "Metriek")
+        pdf.cell(value_w, header_h - 1, "Your value" if not is_nl else "Uw waarde")
+        pdf.cell(
+            guideline_w - 1.5,
+            header_h - 1,
+            "Guideline / scale" if not is_nl else "Richtlijn / schaal",
+        )
+        pdf.set_y(header_y + header_h)
+
+    def _cell_lines(width: float, text: str, *, bold: bool = False) -> list[str]:
+        pdf.set_font("Satoshi", "B" if bold else "", 8)
+        return pdf.multi_cell(
+            width - 1.5,
+            line_h,
+            text,
+            dry_run=True,
+            output="LINES",
+        )
+
+    _draw_header()
 
     for metric, value, reference, value_color in rows:
+        metric_lines = _cell_lines(metric_w, metric)
+        value_lines = _cell_lines(value_w, value, bold=True)
+        reference_lines = _cell_lines(guideline_w, reference)
+        row_h = max(
+            5.5,
+            max(len(metric_lines), len(value_lines), len(reference_lines)) * line_h + 1.4,
+        )
+        if pdf.will_page_break(row_h + 1.0):
+            pdf.add_page()
+            pdf.draw_h3("Measurements" if not is_nl else "Meetwaarden")
+            _draw_header()
+
         row_y = pdf.get_y()
         pdf.set_fill_color(*WHITE)
         pdf.rect(table_x, row_y, table_w, row_h, "DF")
         pdf.set_font("SatoshiMedium", "", 8)
         pdf.set_text_color(*SECONDARY)
         pdf.set_xy(table_x + 1.5, row_y + 0.6)
-        pdf.cell(metric_w - 1.5, row_h - 1, metric)
+        pdf.multi_cell(
+            metric_w - 1.5,
+            line_h,
+            "\n".join(metric_lines),
+            align="L",
+            new_x="RIGHT",
+            new_y="TOP",
+        )
         pdf.set_font("Satoshi", "B", 8)
         pdf.set_text_color(*value_color)
-        pdf.cell(value_w, row_h - 1, value)
+        pdf.multi_cell(
+            value_w - 1.5,
+            line_h,
+            "\n".join(value_lines),
+            align="L",
+            new_x="RIGHT",
+            new_y="TOP",
+        )
         pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
-        pdf.cell(guideline_w - 1.5, row_h - 1, reference, new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(
+            guideline_w - 1.5,
+            line_h,
+            "\n".join(reference_lines),
+            align="L",
+            new_x="LMARGIN",
+            new_y="TOP",
+        )
+        pdf.set_y(row_y + row_h)
 
     pdf.set_text_color(*SLATE)
     pdf.set_draw_color(*BORDER)
@@ -4649,7 +4958,10 @@ def _draw_neighborhood_page(
         pdf.set_text_color(*SLATE)
 
     if livability is not None and livability.available:
-        _ensure_page_space(pdf, 90)
+        _ensure_page_space(
+            pdf,
+            max(36.0, min(72.0, _estimate_livability_section_height(livability))),
+        )
         _draw_livability_section(pdf, livability, is_nl)
     else:
         _ensure_page_space(pdf, 24)
@@ -4837,6 +5149,39 @@ def _draw_radar_chart(
     return cy + radius + label_offset + 8
 
 
+def _has_meaningful_livability_comparison(
+    livability: LivabilityResponse,
+) -> bool:
+    values = {livability.overall_normalized}
+    for row in livability.comparison:
+        if row.overall_normalized is not None:
+            values.add(row.overall_normalized)
+    return len(values) > 1
+
+
+def _livability_comparison_note(is_nl: bool) -> str:
+    return (
+        "Beschikbare buurt- en gemeentevergelijkingen geven dezelfde genormaliseerde"
+        " score terug; daarom is de vergelijking hier samengevat in tekst."
+        if is_nl
+        else "Available neighborhood and municipality comparisons return the same"
+        " normalized score, so the comparison is summarized in text instead of a chart."
+    )
+
+
+def _estimate_livability_section_height(livability: LivabilityResponse) -> float:
+    required = 34.0
+    if chart_renderer is not None:
+        required += 24.0
+    if len(livability.dimensions) >= 3:
+        required += 58.0
+    if livability.trend and len(livability.trend) >= 2:
+        required += 24.0
+    if livability.comparison:
+        required += 26.0 if _has_meaningful_livability_comparison(livability) else 14.0
+    return required
+
+
 def _draw_livability_section(
     pdf: BuurtCheckPDF,
     livability: LivabilityResponse | None,
@@ -4866,7 +5211,7 @@ def _draw_livability_section(
 
     pdf.set_font("SatoshiBlack", "", 14)
     pdf.set_text_color(*color)
-    pdf.cell(0, 8, str(score), align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, _score_text(score, is_nl=is_nl), align="R", new_x="LMARGIN", new_y="NEXT")
 
     # Severity label — render BEFORE score bar to avoid overlap
     pdf.set_font("SatoshiMedium", "", 9)
@@ -4955,41 +5300,54 @@ def _draw_livability_section(
     # --- Comparison table: buurt vs wijk vs gemeente ---
     if livability.comparison:
         _ensure_page_space(pdf, 36)
-        comp_title = (
-            "Vergelijking" if is_nl else "Comparison"
-        )
-        comp_rows: list[tuple[str, int, tuple[int, int, int], bool]] = []
-
-        # Address row first (buurt-level = this neighborhood)
-        buurt_name = livability.buurt_name or ("Buurt" if is_nl else "Neighborhood")
-        comp_rows.append((
-            buurt_name, livability.overall_normalized, TEAL, False,
-        ))
-
-        seen_comp_names: set[str] = {buurt_name}
-        for row in livability.comparison:
-            if row.level == "wijk":
-                label = row.name or ("Wijk" if is_nl else "District")
-            elif row.level == "gemeente":
-                label = row.name or ("Gemeente" if is_nl else "Municipality")
-            else:
-                continue
-            if label in seen_comp_names:
-                continue
-            seen_comp_names.add(label)
-            color = MUTED if row.level == "wijk" else NATIONAL
-            comp_rows.append((label, row.overall_normalized, color, False))
-
-        if len(comp_rows) > 1:
-            chart_end_y = pdf.draw_comparison_chart(
-                x=pdf.l_margin, y=pdf.get_y(),
-                width=content_w,
-                rows=comp_rows,
-                chart_title=comp_title,
-                is_nl=is_nl,
+        if _has_meaningful_livability_comparison(livability):
+            comp_title = (
+                "Vergelijking" if is_nl else "Comparison"
             )
-            pdf.set_y(chart_end_y + 2)
-            _draw_score_scale_caption(pdf, is_nl)
+            comp_rows: list[tuple[str, int, tuple[int, int, int], bool]] = []
+
+            # Address row first (buurt-level = this neighborhood)
+            buurt_name = livability.buurt_name or ("Buurt" if is_nl else "Neighborhood")
+            comp_rows.append((
+                buurt_name, livability.overall_normalized, TEAL, False,
+            ))
+
+            seen_comp_names: set[str] = {buurt_name}
+            for row in livability.comparison:
+                if row.level == "wijk":
+                    label = row.name or ("Wijk" if is_nl else "District")
+                elif row.level == "gemeente":
+                    label = row.name or ("Gemeente" if is_nl else "Municipality")
+                else:
+                    continue
+                if label in seen_comp_names:
+                    continue
+                seen_comp_names.add(label)
+                color = MUTED if row.level == "wijk" else NATIONAL
+                comp_rows.append((label, row.overall_normalized, color, False))
+
+            if len(comp_rows) > 1:
+                chart_end_y = pdf.draw_comparison_chart(
+                    x=pdf.l_margin, y=pdf.get_y(),
+                    width=content_w,
+                    rows=comp_rows,
+                    chart_title=comp_title,
+                    is_nl=is_nl,
+                )
+                pdf.set_y(chart_end_y + 2)
+                _draw_score_scale_caption(pdf, is_nl)
+        else:
+            pdf.set_font("Satoshi", "", 8)
+            pdf.set_text_color(*SECONDARY)
+            pdf.multi_cell(
+                0,
+                4,
+                _livability_comparison_note(is_nl),
+                align="L",
+                new_x="LMARGIN",
+                new_y="NEXT",
+            )
+            pdf.set_text_color(*SLATE)
 
     # Source attribution
     pdf.set_font("Satoshi", "", 8)
@@ -5091,7 +5449,7 @@ def _draw_checks_subsection(
     pdf.set_line_width(0.2)
     pdf.rect(card_x, card_y, content_w, card_h, "DF")
     pdf.set_fill_color(*border_color)
-    pdf.rect(card_x, card_y, 1.2, card_h, "F")
+    pdf.rect(card_x, card_y, 1.5, card_h, "F")
 
     icon_x = card_x + 3.5
     icon_y = card_y + 4.5
@@ -5534,12 +5892,13 @@ def _draw_property_checks_page(
             val = _fn(sun.annual_average, 1, is_nl)
             unit = "u/dag" if is_nl else "h/day"
             extra_lines.append(f"{label}: {val} {unit}")
-        if (
-            sun.svf_anisotropic is not None
-            and sun.svf_anisotropic != sun.svf_percent
+        svf_percent, weighted_svf_percent = _sunlight_svf_values(sun)
+        if weighted_svf_percent is not None and not _is_same_percent(
+            weighted_svf_percent,
+            svf_percent,
         ):
             label = "SVF (anisotropisch)" if is_nl else "SVF (anisotropic)"
-            val = _fn(sun.svf_anisotropic, 0, is_nl)
+            val = _fn(weighted_svf_percent, 0, is_nl)
             extra_lines.append(f"{label}: {val}%")
         if sun.irradiance_kwh_m2 is not None:
             label = "Zonnestraling" if is_nl else "Solar irradiance"
@@ -5714,8 +6073,10 @@ def _draw_checklist_page(
     viewing_questions: ViewingQuestionsResponse | None,
     is_nl: bool,
     crime_score: int | None = None,
+    tier_b_data: TierBResponse | None = None,
 ) -> None:
     """Viewing checklist with front-loaded action items and mini score strip."""
+    viewing_questions = _with_crime_viewing_questions(viewing_questions, tier_b_data)
     pdf.draw_h1("Bezichtigingsvragen" if is_nl else "Viewing Questions", add_divider=False)
     pdf.set_font("Satoshi", "B", 10)
     pdf.set_text_color(*SECONDARY)

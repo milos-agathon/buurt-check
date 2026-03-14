@@ -68,6 +68,18 @@ describe('ShadowSnapshots', () => {
     expect(screen.getByText('Bovenaanzicht (12:00)')).toBeInTheDocument();
   });
 
+  it('uses viewpoint labels and actual hours for six-panel snapshots', () => {
+    renderSnapshots([
+      { label: 'top_morning', hour: 9, dataUrl: 'data:image/png;base64,top', viewpoint: 'top' },
+      { label: 'front_morning', hour: 9, dataUrl: 'data:image/png;base64,front', viewpoint: 'front' },
+      { label: 'rear_afternoon', hour: 15, dataUrl: 'data:image/png;base64,rear', viewpoint: 'rear' },
+    ]);
+
+    expect(screen.getByText('Top view (09:00)')).toBeInTheDocument();
+    expect(screen.getByText('Front facade (09:00)')).toBeInTheDocument();
+    expect(screen.getByText('Rear facade (15:00)')).toBeInTheDocument();
+  });
+
   it('thumbnail buttons have accessible label', () => {
     renderSnapshots(makeShadowSnapshots());
     const buttons = screen.getAllByRole('button', { name: 'View full size' });

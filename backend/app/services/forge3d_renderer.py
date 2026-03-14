@@ -17,6 +17,7 @@ import logging
 import math
 from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.cache.redis import cache_get, cache_set
 from app.config import Settings
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 _forge3d = None
 _forge3d_import_error: str | None = None
+_AMSTERDAM_TZ = ZoneInfo("Europe/Amsterdam")
 
 
 def _ensure_forge3d() -> bool:
@@ -128,20 +130,32 @@ def _sun_azimuth_altitude_deg(
     return azimuth, altitude
 
 
+def _local_snapshot_datetime(date_iso: str, time_str: str) -> datetime:
+    """Parse Amsterdam wall-clock snapshot time and convert it to UTC."""
+    try:
+        year, month, day = (int(part) for part in date_iso.split("-"))
+        hour, minute = (int(part) for part in time_str.split(":"))
+        local_dt = datetime(year, month, day, hour, minute, tzinfo=_AMSTERDAM_TZ)
+        return local_dt.astimezone(timezone.utc)
+    except (ValueError, IndexError):
+        fallback_local = datetime(2026, 6, 21, 12, 0, tzinfo=_AMSTERDAM_TZ)
+        return fallback_local.astimezone(timezone.utc)
+
+
 # ---------------------------------------------------------------------------
 # Camera viewpoint presets
 # ---------------------------------------------------------------------------
 
 _VIEWPOINT_CONFIGS = [
-    {"viewpoint": "top", "bearing_offset": 45.0},
+    {"viewpoint": "top", "bearing_offset": 30.0},
     {"viewpoint": "front", "bearing_offset": 0.0},   # uses building orientation
     {"viewpoint": "rear", "bearing_offset": 180.0},   # opposite of front
 ]
 
-# Summer morning + afternoon time presets (Amsterdam CEST = UTC+2)
+# Summer morning + afternoon time presets in Amsterdam local time.
 _TIME_PRESETS = [
-    {"label": "morning", "time": "07:00", "hour": 9},   # 07:00 UTC = 09:00 CEST
-    {"label": "afternoon", "time": "15:00", "hour": 17},  # 15:00 UTC = 17:00 CEST
+    {"label": "morning", "time": "09:00", "hour": 9},
+    {"label": "afternoon", "time": "15:00", "hour": 15},
 ]
 
 _SNAPSHOT_RADIUS_METERS = 30.0   # house clearly visible with context
@@ -233,7 +247,8 @@ class Forge3DRenderService:
         dates : list[str]
             ISO date strings (e.g. ["2026-06-21"]).
         times : list[str]
-            Time strings — now supports multiple (e.g. ["07:00", "15:00"]).
+            Amsterdam-local time strings — now supports multiple
+            (e.g. ["09:00", "15:00"]).
             When ``camera_preset="triptych_6"`` the caller should pass 2 times
             and ``_TIME_PRESETS`` will be used for morning/afternoon labels.
         camera_preset : str
@@ -336,15 +351,8 @@ class Forge3DRenderService:
                     logger.exception("forge3d render failed for %s at %s", pand_id, time_str)
                     return None
 
-            # Compute sun position for metadata
-            try:
-                parts = date_iso.split("-")
-                year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
-                h, m = (int(x) for x in time_str.split(":"))
-                dt = datetime(year, month, day, h, m, tzinfo=timezone.utc)
-            except (ValueError, IndexError):
-                dt = datetime(2026, 6, 21, 12, 0, tzinfo=timezone.utc)
-
+            # Compute sun position for metadata from Amsterdam local snapshot time.
+            dt = _local_snapshot_datetime(date_iso, time_str)
             sun_az, sun_alt = _sun_azimuth_altitude_deg(dt, lat, lng)
 
             # Assemble results in viewpoint order for this time slot
@@ -408,16 +416,8 @@ class Forge3DRenderService:
         width = settings.forge3d_snapshot_width
         height = settings.forge3d_snapshot_height
 
-        # Parse date/time for sun position
-        try:
-            parts = date_iso.split("-")
-            year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
-            hour, minute = (int(x) for x in time_str.split(":"))
-            # Use UTC+2 approximation for Amsterdam summer (CEST)
-            dt = datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
-        except (ValueError, IndexError):
-            dt = datetime(2026, 6, 21, 12, 0, tzinfo=timezone.utc)
-
+        # Parse Amsterdam wall-clock snapshot time for sun position.
+        dt = _local_snapshot_datetime(date_iso, time_str)
         sun_dir = _sun_direction(dt, lat, lng)
 
         # Build forge3d scene

@@ -41,6 +41,7 @@ CLAUDE.local.md
 
 # Tasks
 tasks/
+docs/
 
 # Chrome debug profiles
 .chrome-debug-profile/

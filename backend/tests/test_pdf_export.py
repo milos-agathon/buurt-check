@@ -643,21 +643,31 @@ class TestBuurtCheckPDF:
         # 2 rows * 7.0 row_h = 14, plus axis labels ~3.5
         assert end_y > 30 + 14
 
-    def test_draw_comparison_chart_with_title(self):
-        """Chart title renders above bars and shifts content down."""
+    def test_draw_comparison_chart_with_title(self, monkeypatch: pytest.MonkeyPatch):
+        """Chart title is forwarded to the chart renderer."""
         pdf = BuurtCheckPDF()
         pdf.add_page()
         rows = [
             ("This address", 80, TEAL, False),
         ]
-        end_no_title = pdf.draw_comparison_chart(10, 30, 180, rows)
-        pdf2 = BuurtCheckPDF()
-        pdf2.add_page()
-        end_with_title = pdf2.draw_comparison_chart(
-            10, 30, 180, rows, chart_title="Noise — comparison",
+        captured: dict[str, str] = {}
+
+        def _fake_render_risk_comparison(**kwargs):  # type: ignore[no-untyped-def]
+            captured["category"] = kwargs["category"]
+            return base64.b64decode(_tiny_png())
+
+        monkeypatch.setattr(
+            pe.chart_renderer,
+            "render_risk_comparison",
+            _fake_render_risk_comparison,
         )
-        # Title adds ~5mm to chart height
-        assert end_with_title > end_no_title
+
+        end_y = pdf.draw_comparison_chart(
+            10, 30, 180, rows, chart_title="Noise comparison",
+        )
+
+        assert end_y > 30
+        assert captured["category"] == "Noise comparison"
 
     def test_draw_comparison_chart_with_legend(self):
         """Legend renders below bars and increases chart height."""
@@ -1239,6 +1249,36 @@ class TestGenerateFullDossier:
         assert "CBS" in all_text
         assert "2024" in all_text
 
+    def test_crime_comparison_uses_normalized_national_score(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        captured: dict[str, list[tuple[str, int, tuple[int, int, int], bool]]] = {}
+
+        def _fake_draw_comparison_chart(*, rows, **kwargs):  # type: ignore[no-untyped-def]
+            captured["rows"] = rows
+            return 80.0
+
+        monkeypatch.setattr(pdf, "draw_comparison_chart", _fake_draw_comparison_chart)
+
+        pe._draw_rate_comparison_chart(
+            pdf,
+            title="Crime comparison",
+            address_rate=65.3,
+            national_rate=52.1,
+            is_nl=False,
+            score=42,
+        )
+
+        rows = captured["rows"]
+        assert rows[0][0] == "This address"
+        assert rows[0][1] == 42
+        assert rows[1][0] == "Netherlands"
+        assert rows[1][1] == pe.normalize_crime_score(52.1)
+        assert rows[1][1] != 34
+
     def test_crime_scored_risk_card_nl(self):
         """Crime section renders NL meaning + labels."""
         tier_b = TierBResponse(
@@ -1564,6 +1604,36 @@ class TestRiskFactsheetGuidelines:
         assert air_measurements["NO₂"] == "18,0 µg/m³"
         assert air_measurements["WHO-richtlijn PM2.5"] == "5,0 µg/m³"
         assert air_measurements["WHO-richtlijn NO₂"] == "10,0 µg/m³"
+
+    def test_climate_measurements_include_scale_guidance(self):
+        rows = pe._measurement_table_rows(
+            "Climate Stress",
+            [("Heat", "Medium"), ("Water nuisance", "Low")],
+            is_nl=False,
+        )
+
+        by_metric = {metric: reference for metric, _value, reference, _color in rows}
+        assert "Target: low" in by_metric["Heat"]
+        assert "scale: low / medium / high" in by_metric["Water nuisance"]
+
+    def test_sunlight_measurements_include_benchmarks(self):
+        rows = pe._measurement_table_rows(
+            "Sunlight",
+            [
+                ("Winter", "3.5 h/day"),
+                ("Equinox", "4.2 h/day"),
+                ("Annual average", "5.6 h/day"),
+                ("SVF", "62%"),
+            ],
+            is_nl=False,
+        )
+
+        by_metric = {metric: reference for metric, _value, reference, _color in rows}
+        assert "TNO mild" in by_metric["Winter"]
+        assert "EN 17037" in by_metric["Equinox"]
+        assert "higher = brighter" in by_metric["Annual average"]
+        assert "60%" in by_metric["SVF"]
+        assert "moderate" in by_metric["SVF"]
 
 
 class TestComparisonChartScaleCaptionCallsites:
@@ -2292,6 +2362,30 @@ class TestEliminateEmptyPages:
         assert "VIEWING QUESTIONS" in page_2
         assert "RISK DETAILS" not in page_2
         assert "RISK DETAILS" in remaining
+
+    def test_checklist_page_adds_crime_questions_from_tier_b(self):
+        """Crime gets a viewing-checklist category even when the API payload omitted it."""
+        result = pe._generate_full_dossier_fpdf(
+            address="Kerkstraat 10, Katwijk",
+            building_year=1970,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            floor_area=95,
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+            livability=_make_livability(),
+        )
+
+        reader = PdfReader(io.BytesIO(result))
+        page_2 = _norm(reader.pages[1].extract_text() or "")
+
+        assert "CRIME" in page_2
+        assert "42/100" in page_2
 
     def test_shadow_image_not_on_property_checks(self):
         """Shadow analysis text appears outside the property-check page."""
@@ -3527,6 +3621,42 @@ class TestLocationMap:
 
         assert "DF" in polygon_calls
 
+    def test_draw_location_map_keeps_target_marker_with_footprint_overlay(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        ellipse_calls: list[str] = []
+        original_ellipse = pdf.ellipse
+        footprint = {
+            "type": "Polygon",
+            "coordinates": [[
+                [4.89195, 52.37195],
+                [4.89205, 52.37195],
+                [4.89205, 52.37205],
+                [4.89195, 52.37205],
+                [4.89195, 52.37195],
+            ]],
+        }
+
+        def tracking_ellipse(*args, **kwargs):  # type: ignore[no-untyped-def]
+            style = kwargs.get("style")
+            if style is None and len(args) >= 5:
+                style = args[4]
+            ellipse_calls.append(style or "")
+            return original_ellipse(*args, **kwargs)
+
+        pdf.ellipse = tracking_ellipse
+        _draw_location_map(
+            pdf,
+            _tiny_png(),
+            is_nl=False,
+            center_lat=52.372,
+            center_lng=4.892,
+            footprint_geojson=footprint,
+        )
+
+        assert ellipse_calls.count("DF") >= 2
+        assert "F" in ellipse_calls
+
     def test_draw_location_map_derives_anchor_from_footprint_when_center_missing(self):
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
@@ -3876,7 +4006,7 @@ def test_fpdf_climate_source_wraps_without_truncation():
     text = _norm("\n".join(page.extract_text() or "" for page in reader.pages))
 
     assert "Source: Klimaateffectatlas (Dutch Climate Atlas) · 2024" in text
-    assert "Current climate conditions" in text
+    assert "Modeled climate scenario" in text
     assert "etten:gr1_t100" not in text
 
 
@@ -4231,6 +4361,37 @@ class TestDrawLivabilitySection:
         text = "".join(page.extract_text() or "" for page in reader.pages)
         assert text.count("Deurne") == 1
         assert text.count("Helmond") == 1
+
+    def test_identical_comparison_values_render_text_note(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        livability = _make_livability(overall_normalized=88, with_trend=False)
+        livability.buurt_name = "'t Joght"
+        livability.gemeente = "Katwijk"
+        livability.comparison = [
+            LivabilityComparisonRow(
+                level="wijk",
+                name="'t Joght",
+                overall_score=8,
+                overall_normalized=88,
+                dimensions=[],
+            ),
+            LivabilityComparisonRow(
+                level="gemeente",
+                name="Katwijk",
+                overall_score=8,
+                overall_normalized=88,
+                dimensions=[],
+            ),
+        ]
+
+        _draw_livability_section(pdf, livability, is_nl=False)
+        output = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(output))
+        text = "".join(page.extract_text() or "" for page in reader.pages)
+
+        assert "same normalized score" in text
+        assert "instead of a chart" in text
 
 
 class TestFullDossierWithLivability:
@@ -4720,6 +4881,18 @@ class TestExpandedSunlightMeasurements:
         labels = [m[0] for m in measurements]
         assert "SVF (anisotropic)" in labels
 
+    def test_svf_anisotropic_ratio_is_normalized_to_percent(self):
+        """Ratio-form anisotropic SVF values are shown as percentages in the PDF pipeline."""
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = self._make_sunlight_risks(svf_percent=100.0, svf_anisotropic=0.55)
+        data = _build_risk_detail_data(risks, 80, None, False)
+        sunlight_entry = data[-1]
+        measurements = dict(sunlight_entry[5] or [])
+
+        assert measurements["SVF"] == "100%"
+        assert measurements["SVF (anisotropic)"] == "55%"
+
     def test_svf_anisotropic_skipped_when_same_as_svf(self):
         """svf_anisotropic is NOT shown when equal to svf_percent."""
         from app.services.pdf_export import _build_risk_detail_data
@@ -4788,7 +4961,7 @@ class TestExpandedSunlightMeasurements:
         assert "Climate context" in line
         assert "2024" in line
         assert "Layers:" not in line
-        assert "Current climate conditions" in line
+        assert "Modeled climate scenario" in line
 
     def test_wrapped_latex_metadata_adds_soft_breaks(self):
         wrapped = pe._format_wrapped_latex_metadata(
@@ -5191,7 +5364,7 @@ class TestShadowTriptych:
         """Create 6 shadow image dicts (3 views × 2 times) for 6-panel layout."""
         b64 = _tiny_png()
         images = []
-        for time_label, hour in [("morning", 9), ("afternoon", 17)]:
+        for time_label, hour in [("morning", 9), ("afternoon", 15)]:
             for vp in ["top", "front", "rear"]:
                 images.append({
                     "hour": hour,
@@ -5217,6 +5390,76 @@ class TestShadowTriptych:
         assert "Top view" in text
         assert "Front facade" in text
         assert "Rear facade" in text
+
+    def test_six_panel_sorts_scrambled_payload_by_time_and_viewpoint(self):
+        """6-panel layout should not depend on client/server payload ordering."""
+        images = [
+            {
+                "hour": 15,
+                "label": "rear_afternoon",
+                "viewpoint": "rear",
+                "image_b64": _tiny_png(),
+            },
+            {
+                "hour": 9,
+                "label": "rear_morning",
+                "viewpoint": "rear",
+                "image_b64": _tiny_png(),
+            },
+            {
+                "hour": 15,
+                "label": "front_afternoon",
+                "viewpoint": "front",
+                "image_b64": _tiny_png(),
+            },
+            {
+                "hour": 9,
+                "label": "top_morning",
+                "viewpoint": "top",
+                "image_b64": _tiny_png(),
+            },
+            {
+                "hour": 15,
+                "label": "top_afternoon",
+                "viewpoint": "top",
+                "image_b64": _tiny_png(),
+            },
+            {
+                "hour": 9,
+                "label": "front_morning",
+                "viewpoint": "front",
+                "image_b64": _tiny_png(),
+            },
+        ]
+        ordered_labels: list[str] = []
+
+        def capture_panel(
+            _pdf: BuurtCheckPDF,
+            img_data: dict,
+            _x: float,
+            _y: float,
+            _w: float,
+            _h: float,
+            *,
+            is_nl: bool,
+        ) -> bool:
+            _ = is_nl
+            ordered_labels.append(img_data["label"])
+            return True
+
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        with patch("app.services.pdf_export._draw_shadow_panel", side_effect=capture_panel):
+            _draw_shadow_triptych(pdf, images, is_nl=False)
+
+        assert ordered_labels == [
+            "top_morning",
+            "front_morning",
+            "rear_morning",
+            "top_afternoon",
+            "front_afternoon",
+            "rear_afternoon",
+        ]
 
     def test_six_panel_renders_nl(self):
         """6-panel Dutch layout renders Ochtend + Middag row headers."""

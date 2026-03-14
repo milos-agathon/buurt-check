@@ -256,6 +256,7 @@ def test_risk_grid_4_cells():
     assert "MODERATE" in text
     assert "POOR" in text
     assert "CRITICAL" in text
+    assert "82/100" in text
     assert "70+" not in text
 
 
@@ -364,8 +365,8 @@ def test_livability_good_score():
     text = _pdf_text(chart)
     assert "Livability" in text
     assert "Crime" in text
-    assert "78" in text
-    assert "42" in text
+    assert "78/100" in text
+    assert "42/100" in text
 
 
 def test_livability_no_crime_data():

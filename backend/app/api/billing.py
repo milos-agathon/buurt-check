@@ -4,13 +4,13 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-import aiosqlite
 import stripe
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from stripe import SignatureVerificationError
 
 from app.config import settings
+from app.db import DatabaseError
 from app.rate_limit import limiter
 from app.services.reports import (
     get_report,
@@ -66,7 +66,7 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
     """
     try:
         report = await get_report(body.report_id)
-    except aiosqlite.Error:
+    except DatabaseError:
         logger.exception("Database error fetching report %s", body.report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     if not report:
@@ -108,7 +108,7 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
 
     try:
         await store_provider_session(body.report_id, provider_session_id=session.id)
-    except aiosqlite.Error:
+    except DatabaseError:
         logger.exception(
             "Failed to store session %s for report %s", session.id, body.report_id,
         )
