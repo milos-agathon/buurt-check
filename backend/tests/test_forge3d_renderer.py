@@ -22,6 +22,7 @@ from app.services.forge3d_renderer import (
     Forge3DRenderService,
     _cache_key,
     _camera_position,
+    _local_snapshot_datetime,
     _sun_azimuth_altitude_deg,
     _sun_direction,
     get_forge3d_status,
@@ -237,6 +238,14 @@ class TestSunDirection:
         assert 0 <= az < 360
         assert 0 <= alt <= 90
 
+    def test_local_snapshot_datetime_uses_amsterdam_wall_clock(self):
+        from datetime import timezone
+
+        dt = _local_snapshot_datetime("2026-06-21", "15:00")
+
+        assert dt.tzinfo == timezone.utc
+        assert dt.hour == 13
+
 
 class TestCameraPosition:
     """Tests for _camera_position()."""
@@ -378,7 +387,7 @@ class TestForge3DRenderService:
                     result = await svc.render_shadow_snapshots(
                         pand_id="0363100012345678",
                         dates=["2026-06-21"],
-                        times=["07:00", "15:00"],
+                        times=["09:00", "15:00"],
                         camera_preset="triptych_6",
                         scene_data=self._make_scene_data(),
                     )
@@ -388,6 +397,8 @@ class TestForge3DRenderService:
         # First 3 = morning, last 3 = afternoon
         assert result[0]["time_label"] == "morning"
         assert result[3]["time_label"] == "afternoon"
+        assert all(item["hour"] == 9 for item in result[:3])
+        assert all(item["hour"] == 15 for item in result[3:])
         viewpoints = [r["viewpoint"] for r in result[:3]]
         assert viewpoints == ["top", "front", "rear"]
 

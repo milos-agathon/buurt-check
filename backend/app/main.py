@@ -11,10 +11,11 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.router import router
 from app.config import settings
-from app.db import init_db
+from app.db import database_backend_label, init_db
 from app.rate_limit import limiter
 from app.sentry_setup import init_sentry
 
+logger = logging.getLogger(__name__)
 _access = logging.getLogger("buurt.access")
 
 init_sentry()
@@ -23,6 +24,7 @@ init_sentry()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    logger.info("Persistence backend ready: %s", database_backend_label())
     yield
 
 

@@ -1489,7 +1489,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
                         await render_service.render_shadow_snapshots(
                             pand_id=vbo_id,
                             dates=["2026-06-21"],
-                            times=["07:00", "15:00"],
+                            times=["09:00", "15:00"],
                             camera_preset="triptych_6",
                             scene_data=scene_data,
                             lat=body.lat,

@@ -40,6 +40,13 @@ import { buildRoofPointGrid } from '../utils/spatialHashGrid';
 import { ROOF_EVALUATION_OFFSET_METERS } from '../utils/sunlightConstants';
 import { generateFacadePoints, generateGroundProxyPoints } from '../utils/roofSampling';
 import { computeIrradiance } from '../utils/irradianceComputation';
+import {
+  centroidOfFootprint,
+  frontSnapshotBearingDeg,
+  northOverlayRotationRad,
+  snapshotCameraScenePosition,
+  snapshotTargetSceneZ,
+} from '../utils/shadowSnapshotGeometry';
 import { computeRoofNormal } from '../utils/surfaceNormals';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import { fetchWeatherTmy } from '../services/api';
@@ -249,7 +256,7 @@ function waitForMainThreadIdle(abortSignal: AbortSignal, timeoutMs: number): Pro
 /**
  * Create a BufferGeometry from LoD 2.2 surfaces.
  * Each surface is a polygon of [dx, dy, z_nap] vertices (RD offsets + NAP height).
- * Converts to Three.js Y-up: [dx, z_nap - buildingGround, dy].
+ * Converts to Three.js Y-up: [dx, z_nap - buildingGround, -dy] so north points toward -Z.
  * Uses fan triangulation from vertex 0 for each polygon.
  */
 function createLod22Geometry(surfaces: number[][][], buildingGround: number): BufferGeometry {
@@ -1054,90 +1061,15 @@ export default function NeighborhoodViewer3D({
     const focusFootprint = targetFootprint && targetFootprint.length >= 3
       ? targetFootprint
       : buildings[0]?.footprint ?? [[0, 0]];
-    const centroid = focusFootprint.reduce(
-      (acc, [x, y]) => ({ x: acc.x + x, y: acc.y + y }),
-      { x: 0, y: 0 },
-    );
-    const cx = centroid.x / focusFootprint.length;
-    const cy = centroid.y / focusFootprint.length;
+    const centroid = centroidOfFootprint(focusFootprint);
+    const cx = centroid.x;
+    const cy = centroid.y;
     const targetHeight = targetBuilding?.building_height ?? 12;
     const snapshotTargetY = Math.max(targetHeight * 0.45, 6);
-    const orientationDegRaw = targetBuilding?.orientation_deg;
-    const orientationDeg = typeof orientationDegRaw === 'number' && Number.isFinite(orientationDegRaw)
-      ? ((orientationDegRaw % 180) + 180) % 180
-      : 0;
-    // Determine the front facade bearing using OBB face proximity.
-    //
-    // The scene origin (0, 0) IS the address point (BAG verblijfsobject,
-    // typically at or near the front door).  We find which of the 4 OBB
-    // faces is closest to the address point — that face is the front.
-    //
-    // This works even when the address point is INSIDE the footprint
-    // (common for BAG), because we measure perpendicular distance to each
-    // face plane.  The closest face is the one the front door is nearest.
-    //
-    // Camera bearing convention: bearing b places the camera at
-    //   (sin(b)*d, h, -cos(b)*d)  looking toward the building.
-    // bearing 0° = camera south, facing north.
-    //
-    // Geographic bearing to (east, north) unit vector:
-    //   east  = sin(bearing)
-    //   north = cos(bearing)
-    //
-    // To see a face in direction (dx, dy), the camera bearing is:
-    //   b = atan2(dx, -dy)   [derived from sin(b)=dx, -cos(b)=dy]
-    let frontBearingDeg: number;
-    if (focusFootprint.length >= 3) {
-      const orientRad = (orientationDeg * Math.PI) / 180;
-      // OBB axes in (east, north) — standard geographic bearing conversion
-      const alongX = Math.sin(orientRad);    // east component of along-axis
-      const alongY = Math.cos(orientRad);    // north component of along-axis
-      const perpX = Math.cos(orientRad);     // east component of perp-axis (90° CW)
-      const perpY = -Math.sin(orientRad);    // north component of perp-axis
-
-      // Compute OBB extents (relative to centroid)
-      let minAlong = Infinity, maxAlong = -Infinity;
-      let minPerp = Infinity, maxPerp = -Infinity;
-      for (const [fx, fy] of focusFootprint) {
-        const dx = fx - cx;
-        const dy = fy - cy;
-        const a = dx * alongX + dy * alongY;
-        const p = dx * perpX + dy * perpY;
-        if (a < minAlong) minAlong = a;
-        if (a > maxAlong) maxAlong = a;
-        if (p < minPerp) minPerp = p;
-        if (p > maxPerp) maxPerp = p;
-      }
-
-      // Project address point (origin) into OBB-local coordinates
-      const addrAlong = (-cx) * alongX + (-cy) * alongY;
-      const addrPerp = (-cx) * perpX + (-cy) * perpY;
-
-      // Camera bearing for each face direction:
-      //   +along face at (alongX, alongY) → b = atan2(alongX, -alongY) = 180° - orient
-      //   -along face at (-alongX,-alongY) → b = atan2(-alongX, alongY) = 360° - orient
-      //   +perp  face at (perpX, perpY)    → b = atan2(perpX, -perpY)   =  90° - orient
-      //   -perp  face at (-perpX,-perpY)   → b = atan2(-perpX, perpY)   = 270° - orient
-      const bearingPlusAlong  = (180 - orientationDeg + 360) % 360;
-      const bearingMinusAlong = (360 - orientationDeg) % 360;
-      const bearingPlusPerp   = (90 - orientationDeg + 360) % 360;
-      const bearingMinusPerp  = (270 - orientationDeg + 360) % 360;
-
-      // Signed distance from address point to each face plane.
-      // Positive = point is on interior side; smallest = closest face.
-      const faceCandidates: { bearing: number; dist: number }[] = [
-        { bearing: bearingPlusAlong,  dist: maxAlong - addrAlong },
-        { bearing: bearingMinusAlong, dist: addrAlong - minAlong },
-        { bearing: bearingPlusPerp,   dist: maxPerp - addrPerp },
-        { bearing: bearingMinusPerp,  dist: addrPerp - minPerp },
-      ];
-
-      faceCandidates.sort((a, b) => a.dist - b.dist);
-      frontBearingDeg = faceCandidates[0].bearing;
-    } else {
-      // Degenerate footprint — fall back to along-axis view
-      frontBearingDeg = orientationDeg;
-    }
+    const frontBearingDeg = frontSnapshotBearingDeg(
+      focusFootprint,
+      targetBuilding?.orientation_deg,
+    );
     const year = new Date().getFullYear();
     // 6-panel layout: 3 viewpoints × 2 times of day (morning 09:00 + afternoon 15:00 CEST)
     // This matches the forge3d server-side rendering layout.
@@ -1167,7 +1099,6 @@ export default function NeighborhoodViewer3D({
     try {
       for (const config of snapshotConfigs) {
         const date = createDateInTimeZone(year, config.month, config.day, config.hour, 0);
-        const bearingRad = (config.bearingDeg * Math.PI) / 180;
         // Front/rear views use shorter planar distance for a closer, more
         // informative perspective.  Top view keeps a wider distance for context.
         const isTopView = config.viewpoint === 'top';
@@ -1175,12 +1106,13 @@ export default function NeighborhoodViewer3D({
         // enough that it's never clipped at the edges.
         const planarDistance = isTopView ? snapshotCameraHeight : Math.max(14, snapshotCameraHeight * 0.55);
         const cameraElevation = isTopView ? snapshotCameraHeight : Math.max(10, snapshotCameraHeight * 0.45);
+        const cameraPos = snapshotCameraScenePosition(centroid, config.bearingDeg, planarDistance);
         ctx.camera.position.set(
-          cx + Math.sin(bearingRad) * planarDistance,
+          cameraPos.x,
           snapshotTargetY + cameraElevation,
-          cy - Math.cos(bearingRad) * planarDistance,
+          cameraPos.z,
         );
-        ctx.camera.lookAt(cx, snapshotTargetY, cy);
+        ctx.camera.lookAt(cx, snapshotTargetY, snapshotTargetSceneZ(cy));
         ctx.camera.updateProjectionMatrix();
 
         const sunDir = getSunDirection(date, center.lat, center.lng);
@@ -1223,9 +1155,6 @@ export default function NeighborhoodViewer3D({
           const uiTextColor = 'rgba(28, 45, 63, 0.96)';
 
           // --- Compass rose (top-right, rotated so N points toward geographic north) ---
-          // Camera looks from bearing toward center; in screen space, north
-          // is rotated by the negative of the camera bearing.
-          const northRotationRad = -(config.bearingDeg * Math.PI) / 180;
           const compassDiameterPx = px(190);
           const compassRadius = compassDiameterPx / 2;
           const compassCx = cw - uiMargin - compassRadius;
@@ -1241,7 +1170,7 @@ export default function NeighborhoodViewer3D({
           overlayCtx.stroke();
           // Rotate the inner arrow + N label around the compass center
           overlayCtx.translate(compassCx, compassCy);
-          overlayCtx.rotate(northRotationRad);
+          overlayCtx.rotate(northOverlayRotationRad(config.bearingDeg));
           overlayCtx.fillStyle = uiTextColor;
           overlayCtx.strokeStyle = uiTextColor;
           overlayCtx.lineWidth = px(5);

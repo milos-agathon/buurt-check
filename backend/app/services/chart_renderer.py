@@ -235,6 +235,12 @@ def _score_display(score: int | float | None) -> str:
     return str(int(round(score)))
 
 
+def _summary_score_display(score: int | float | None) -> str:
+    if score is None:
+        return "\u2014"
+    return f"{int(round(score))}/100"
+
+
 def _wrap_chart_label(label: str, max_chars: int) -> str:
     """Wrap long chart labels so vector PDF text does not collide across rows."""
     normalized = " ".join(label.split())
@@ -584,11 +590,12 @@ def render_risk_summary_grid(
             va="top",
             ha="center",
         )
+        score_font_size = 18.0 if cols >= 5 else 20.0
         ax.text(
             x + cell_w_mm / 2,
             y + 20.0,
-            _score_display(cell.score),
-            fontsize=TYPE_SCORE_PT,
+            _summary_score_display(cell.score),
+            fontsize=score_font_size,
             fontweight=FONT_WEIGHT_DISPLAY,
             color=color,
             va="center",
@@ -724,7 +731,7 @@ def _panel_annotation(
 def _shadow_legend_text() -> str:
     return (
         "Legend: teal outline = target building · shadow = no direct sun · "
-        "Summer solstice · 12:00 local · Source: 3DBAG / TU Delft + SunCalc"
+        "Summer solstice (June 21) · 12:00 local · Source: 3DBAG / TU Delft + SunCalc"
     )
 
 
@@ -959,7 +966,7 @@ def render_livability_score(
         ax.text(
             livability_score + 1.2,
             y_livability,
-            _score_display(livability.score),
+            _summary_score_display(livability.score),
             fontsize=TYPE_BODY_PT,
             color=C_PRIMARY,
             va="center",
@@ -988,7 +995,7 @@ def render_livability_score(
         ax.text(
             crime_score + 1.2,
             y_crime,
-            _score_display(crime.score),
+            _summary_score_display(crime.score),
             fontsize=TYPE_CAPTION_PT,
             color=C_PRIMARY,
             va="center",

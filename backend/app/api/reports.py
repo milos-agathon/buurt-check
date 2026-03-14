@@ -3,10 +3,10 @@
 import logging
 from datetime import datetime, timezone
 
-import aiosqlite
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.db import DatabaseError
 from app.rate_limit import limiter
 from app.services.reports import (
     check_entitlement,
@@ -64,7 +64,7 @@ async def create_short_report(request: Request, body: ShortReportRequest):
                 purchased_at=datetime.now(timezone.utc).isoformat(),
             )
         return ShortReportResponse(report_id=report_id, report_type="short")
-    except aiosqlite.Error:
+    except DatabaseError:
         logger.exception("Database error creating short report for vbo_id=%s", body.vbo_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
@@ -79,7 +79,7 @@ async def get_entitlement(request: Request, report_id: str):
     """
     try:
         report = await get_report(report_id)
-    except aiosqlite.Error:
+    except DatabaseError:
         logger.exception("Database error checking entitlement for report_id=%s", report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
@@ -88,7 +88,7 @@ async def get_entitlement(request: Request, report_id: str):
 
     try:
         entitled = await check_entitlement(report_id)
-    except aiosqlite.Error:
+    except DatabaseError:
         logger.exception("Database error checking entitlement for report_id=%s", report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 

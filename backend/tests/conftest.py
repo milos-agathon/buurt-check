@@ -3,6 +3,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from app.api.dependencies import require_entitlement
+from app.config import settings
 from app.main import app
 from app.rate_limit import limiter
 
@@ -18,6 +19,15 @@ def _reset_rate_limiter():
     limiter.reset()
     yield
     limiter.reset()
+
+
+@pytest.fixture(autouse=True)
+def _disable_turso_by_default(monkeypatch, request):
+    """Keep tests on local SQLite unless they explicitly opt into Turso."""
+    if request.node.get_closest_marker("turso"):
+        return
+    monkeypatch.setattr(settings, "turso_database_url", "")
+    monkeypatch.setattr(settings, "turso_auth_token", "")
 
 
 async def _entitlement_bypass():

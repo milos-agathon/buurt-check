@@ -14,11 +14,10 @@ const LABEL_KEYS: Record<string, string> = {
   rear: 'snapshots.rear',
 };
 
-const HOURS: Record<string, number> = {
-  top: 12,
-  front: 12,
-  rear: 12,
-};
+function snapshotViewKey(label: string, viewpoint?: string): string {
+  if (viewpoint) return viewpoint;
+  return label.split('_')[0];
+}
 
 function ShadowSnapshots({ snapshots, loading }: Props) {
   const { t } = useTranslation();
@@ -74,8 +73,11 @@ function ShadowSnapshots({ snapshots, loading }: Props) {
 
   if (!snapshots) return null;
 
-  const getLabel = (snap: ShadowSnapshot) =>
-    `${t(LABEL_KEYS[snap.label] ?? snap.label)} (${HOURS[snap.label] ?? snap.hour}:00)`;
+  const getLabel = (snap: ShadowSnapshot) => {
+    const viewKey = snapshotViewKey(snap.label, snap.viewpoint);
+    const hour = String(snap.hour).padStart(2, '0');
+    return `${t(LABEL_KEYS[viewKey] ?? viewKey)} (${hour}:00)`;
+  };
 
   return (
     <div className="shadow-snapshots">
