@@ -7,9 +7,8 @@ import { expect, test } from '@playwright/test';
  * This test uses real rendered components against the live backend.
  *
  * v7 canonical order:
- *   AttentionSummary → AddressHeader → SummaryStrip → BuildingFacts →
- *   RiskTiles → PropertyWarnings → SoilInfo → Livability →
- *   3D Viewer → Sunlight → NeighborhoodStats → TierB →
+ *   AttentionSummary → AddressHeader → RiskTiles → BuildingFacts →
+ *   Livability → 3D Viewer → NeighborhoodStats → TierB →
  *   ViewingChecklist → ActionBar
  *
  * Not all sections may render (3D/sunlight depend on 3DBAG availability).
@@ -24,14 +23,10 @@ import { expect, test } from '@playwright/test';
 const CANONICAL_ORDER: { selector: string; name: string }[] = [
   { selector: '[data-testid="attention-summary"]', name: 'AttentionSummary' },
   { selector: '[data-testid="address-header"]', name: 'AddressHeader' },
-  { selector: '[data-testid="summary-strip"]', name: 'SummaryStrip' },
+  { selector: '.risk-tiles-grid', name: 'RiskTiles' },
   { selector: '.building-card', name: 'BuildingFacts' },
-  { selector: '.risk-cards', name: 'RiskCards' },
-  { selector: '[data-testid="property-warnings"]', name: 'PropertyWarnings' },
-  { selector: '[data-testid="soil-info-card"]', name: 'SoilInfoCard' },
   { selector: '[data-testid="livability-card"]', name: 'LivabilityCard' },
   { selector: '.viewer-3d', name: '3DViewer' },
-  { selector: '.sunlight-card', name: 'SunlightCard' },
   { selector: '.neighborhood-card', name: 'NeighborhoodStats' },
   { selector: '[data-testid="tier-b-card"]', name: 'TierBSignals' },
   { selector: '[data-testid="viewing-checklist"]', name: 'ViewingChecklist' },

@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SeverityLevel } from '../types/api';
 import AnimatedScore from './ui/AnimatedScore';
@@ -41,7 +41,7 @@ function SummaryStrip({ pills, onPillTap }: SummaryStripProps) {
           key={pill.category}
           className="summary-strip__pill"
           role="listitem"
-          style={{ '--pill-color': SEVERITY_COLORS[pill.severity] } as React.CSSProperties}
+          style={{ '--pill-color': SEVERITY_COLORS[pill.severity] } as CSSProperties}
           onClick={() => onPillTap?.(pill.category)}
           aria-label={pill.score != null
             ? t('risk.tileAria', { label: t(pill.labelKey), score: pill.score, max: 100 })

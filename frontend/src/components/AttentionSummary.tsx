@@ -1,59 +1,24 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { RiskCardsResponse } from '../types/api';
+import type { AttentionSummaryState } from '../utils/attentionSummary';
 import './AttentionSummary.css';
 
 interface Props {
-  riskCards?: RiskCardsResponse;
+  summary?: AttentionSummaryState | null;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
-interface Flag {
-  category: string;
-  severity: 'critical' | 'elevated' | 'high' | 'medium' | 'info';
-}
-
-function computeFlags(
-  riskCards: RiskCardsResponse | undefined,
-): { flags: Flag[]; assessed: number } {
-  const flags: Flag[] = [];
-  let assessed = 0;
-
-  const scores: Record<string, number | undefined> = {};
-  if (riskCards) {
-    scores.noise = riskCards.noise.score;
-    scores.air_quality = riskCards.air_quality.score;
-    scores.climate = riskCards.climate_stress.score;
-  }
-
-  for (const [cat, score] of Object.entries(scores)) {
-    if (score == null) continue;
-    assessed += 1;
-    if (score < 30) {
-      flags.push({ category: cat, severity: 'critical' });
-    } else if (score < 50) {
-      flags.push({ category: cat, severity: 'elevated' });
-    }
-  }
-
-  return { flags, assessed };
-}
-
-function AttentionSummary({
-  riskCards,
-}: Props) {
+function AttentionSummary({ summary, error, onRetry }: Props) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
 
-  const { flags, assessed } = useMemo(
-    () => computeFlags(riskCards),
-    [riskCards],
-  );
+  if (!summary && !error) return null;
 
-  // Don't render if no data at all
-  if (!riskCards) return null;
-
-  const total = 3;
-  const missing = total - assessed;
+  const flags = summary?.flags ?? [];
+  const assessed = summary?.assessed ?? 0;
+  const total = summary?.total ?? 0;
+  const missing = Math.max(0, total - assessed);
   const count = flags.length;
   const badgeVariant = count === 0 ? 'green' : count === 1 ? 'amber' : 'red';
 
@@ -93,13 +58,31 @@ function AttentionSummary({
 
       {expanded && (
         <div id="attention-details" className="attention-summary__details">
+          {error && (
+            <div className="attention-summary__error" data-testid="attention-error">
+              <span>{error}</span>
+              {onRetry && (
+                <button
+                  type="button"
+                  className="app__retry-button attention-summary__retry"
+                  onClick={onRetry}
+                >
+                  {t('error.retry', 'Retry')}
+                </button>
+              )}
+            </div>
+          )}
+
           {flags.length > 0 && (
             <ul className="attention-summary__flags" data-testid="attention-flags">
-              {flags.map((f) => (
-                <li key={f.category} className={`attention-summary__flag attention-summary__flag--${f.severity}`}>
-                  {t(`risk.category.${f.category}`, {
-                    defaultValue: t(`warnings.attention.flag.${f.category}`, {
-                      defaultValue: f.category,
+              {flags.map((flag) => (
+                <li
+                  key={`${flag.category}-${flag.severity}`}
+                  className={`attention-summary__flag attention-summary__flag--${flag.severity}`}
+                >
+                  {t(`risk.category.${flag.category}`, {
+                    defaultValue: t(`warnings.attention.flag.${flag.category}`, {
+                      defaultValue: flag.label,
                     }),
                   })}
                 </li>
@@ -107,7 +90,7 @@ function AttentionSummary({
             </ul>
           )}
 
-          {flags.length === 0 && assessed > 0 && (
+          {flags.length === 0 && (assessed > 0 || total === 0) && (
             <span className="attention-summary__detail" data-testid="attention-detail">
               {t('warnings.attention.no_flags_detail')}
             </span>
@@ -119,9 +102,11 @@ function AttentionSummary({
             </span>
           )}
 
-          <span className="attention-summary__completeness">
-            {t('warnings.attention.based_on', { assessed, total })}
-          </span>
+          {total > 0 && (
+            <span className="attention-summary__completeness">
+              {t('warnings.attention.based_on', { assessed, total })}
+            </span>
+          )}
         </div>
       )}
     </div>

@@ -1,6 +1,11 @@
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import RiskTile from './RiskTile';
-import type { RiskCardsResponse, SeverityLevel, RiskLevel } from '../types/api';
+import type {
+  RiskCardsResponse,
+  SeverityLevel,
+  RiskLevel,
+} from '../types/api';
 import './RiskTilesGrid.css';
 
 interface RiskTilesGridProps {
@@ -24,29 +29,57 @@ function levelToSeverity(level: RiskLevel, score?: number): SeverityLevel {
 }
 
 function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
+  const { i18n, t } = useTranslation();
+  const isNl = i18n.language === 'nl';
+  const unavailableSummary = t('risk.tileUnavailable');
+
+  const cards = [
+    {
+      category: 'noise',
+      labelKey: 'risk.noise.title',
+      score: risks?.noise.score,
+      severity: risks ? levelToSeverity(risks.noise.level, risks.noise.score) : 'unavailable',
+      summary: risks
+        ? (isNl ? risks.noise.summary_nl : risks.noise.summary)
+        : unavailableSummary,
+      unavailable: !risks || risks.noise.level === 'unavailable' || risks.noise.score == null,
+    },
+    {
+      category: 'air',
+      labelKey: 'risk.air.title',
+      score: risks?.air_quality.score,
+      severity: risks ? levelToSeverity(risks.air_quality.level, risks.air_quality.score) : 'unavailable',
+      summary: risks
+        ? (isNl ? risks.air_quality.summary_nl : risks.air_quality.summary)
+        : unavailableSummary,
+      unavailable: !risks || risks.air_quality.level === 'unavailable' || risks.air_quality.score == null,
+    },
+    {
+      category: 'climate',
+      labelKey: 'risk.climate.title',
+      score: risks?.climate_stress.score,
+      severity: risks ? levelToSeverity(risks.climate_stress.level, risks.climate_stress.score) : 'unavailable',
+      summary: risks
+        ? (isNl ? risks.climate_stress.summary_nl : risks.climate_stress.summary)
+        : unavailableSummary,
+      unavailable: !risks || risks.climate_stress.level === 'unavailable' || risks.climate_stress.score == null,
+    },
+  ] as const;
+
   return (
     <div className="risk-tiles-grid">
-      <RiskTile
-        category="noise"
-        labelKey="risk.noise.title"
-        score={risks?.noise.score}
-        severity={risks ? levelToSeverity(risks.noise.level, risks.noise.score) : 'unavailable'}
-        onTap={() => onTileTap?.('noise')}
-      />
-      <RiskTile
-        category="air"
-        labelKey="risk.air.title"
-        score={risks?.air_quality.score}
-        severity={risks ? levelToSeverity(risks.air_quality.level, risks.air_quality.score) : 'unavailable'}
-        onTap={() => onTileTap?.('air')}
-      />
-      <RiskTile
-        category="climate"
-        labelKey="risk.climate.title"
-        score={risks?.climate_stress.score}
-        severity={risks ? levelToSeverity(risks.climate_stress.level, risks.climate_stress.score) : 'unavailable'}
-        onTap={() => onTileTap?.('climate')}
-      />
+      {cards.map((card) => (
+        <RiskTile
+          key={card.category}
+          category={card.category}
+          labelKey={card.labelKey}
+          score={card.score}
+          severity={card.severity}
+          summary={card.unavailable ? unavailableSummary : card.summary}
+          unavailable={card.unavailable}
+          onTap={card.unavailable ? undefined : () => onTileTap?.(card.category)}
+        />
+      ))}
     </div>
   );
 }

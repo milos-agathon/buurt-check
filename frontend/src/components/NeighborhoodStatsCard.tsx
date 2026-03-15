@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import QuartileDots from './ui/QuartileDots';
 import SectionSkeleton from './ui/SectionSkeleton';
-import type { NeighborhoodStatsResponse, NeighborhoodIndicator, AgeProfile } from '../types/api';
+import type { AgeProfile, NeighborhoodIndicator, NeighborhoodStatsResponse } from '../types/api';
 import './NeighborhoodStatsCard.css';
 
 interface Props {
@@ -12,13 +12,41 @@ interface Props {
   onRetry?: () => void;
 }
 
+function formatNumber(
+  value: number,
+  language: string,
+  options?: Intl.NumberFormatOptions,
+): string {
+  const locale = language === 'nl' ? 'nl-NL' : 'en-US';
+  return new Intl.NumberFormat(locale, options).format(value);
+}
+
+function formatIndicatorValue(
+  value: number | string,
+  unit: string | undefined,
+  language: string,
+): string {
+  if (typeof value === 'string') {
+    return unit ? `${value} ${unit}` : value;
+  }
+
+  const maximumFractionDigits = unit === 'km' || unit === '%' ? 1 : 0;
+  const formatted = formatNumber(value, language, {
+    maximumFractionDigits,
+    minimumFractionDigits: Number.isInteger(value) ? 0 : Math.min(1, maximumFractionDigits),
+  });
+  return unit ? `${formatted} ${unit}` : formatted;
+}
+
 function Indicator({
   label,
   indicator,
+  language,
   formatValue,
 }: {
   label: string;
   indicator: NeighborhoodIndicator;
+  language: string;
   formatValue?: (value: number | string) => string;
 }) {
   const { t } = useTranslation();
@@ -32,11 +60,11 @@ function Indicator({
       </div>
     );
   }
+
   const display = formatValue
     ? formatValue(indicator.value)
-    : indicator.unit
-      ? `${indicator.value} ${indicator.unit}`
-      : String(indicator.value);
+    : formatIndicatorValue(indicator.value, indicator.unit, language);
+
   return (
     <div className="neighborhood-card__indicator">
       <span className="neighborhood-card__indicator-label">{label}</span>
@@ -48,26 +76,31 @@ function Indicator({
   );
 }
 
-function AgeBars({ profile }: { profile: AgeProfile }) {
+function AgeBars({ profile, language }: { profile: AgeProfile; language: string }) {
   const { t } = useTranslation();
   const bands: { key: string; label: string; value: number | undefined }[] = [
     { key: '0_24', label: t('neighborhood.age.0_24'), value: profile.age_0_24 },
     { key: '25_64', label: t('neighborhood.age.25_64'), value: profile.age_25_64 },
     { key: '65_plus', label: t('neighborhood.age.65_plus'), value: profile.age_65_plus },
   ];
+
   return (
     <div className="neighborhood-card__age-bars" data-testid="age-bars">
       {bands.map((band) => (
         <div key={band.key} className="neighborhood-card__age-row">
           <span className="neighborhood-card__age-label">{band.label}</span>
           <div className="neighborhood-card__age-bar-track">
-            <div
-              className="neighborhood-card__age-bar-fill"
-              style={{ width: `${band.value ?? 0}%` }}
-            />
+            {band.value != null ? (
+              <div
+                className="neighborhood-card__age-bar-fill"
+                style={{ width: `${band.value}%` }}
+              />
+            ) : (
+              <div className="neighborhood-card__age-bar-fill neighborhood-card__age-bar-fill--unavailable" />
+            )}
           </div>
           <span className="neighborhood-card__age-pct">
-            {band.value != null ? `${band.value}%` : '–'}
+            {band.value != null ? `${formatNumber(band.value, language, { maximumFractionDigits: 1 })}%` : '–'}
           </span>
         </div>
       ))}
@@ -75,13 +108,26 @@ function AgeBars({ profile }: { profile: AgeProfile }) {
   );
 }
 
-function formatEuro(value: number | string): string {
-  const num = typeof value === 'string' ? parseFloat(value) : value;
-  return `€${num.toLocaleString('nl-NL', { maximumFractionDigits: 0 })}`;
+function formatEuro(value: number | string, language: string): string {
+  const numeric = typeof value === 'string' ? Number.parseFloat(value) : value;
+  const locale = language === 'nl' ? 'nl-NL' : 'en-US';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  }).format(numeric);
+}
+
+function messageCopy(message: string | undefined, t: ReturnType<typeof useTranslation>['t']): string {
+  if (!message) return t('neighborhood.unavailable');
+  return t(`neighborhood.message.${message}`, {
+    defaultValue: t('neighborhood.unavailable'),
+  });
 }
 
 function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
 
   if (loading) {
     return (
@@ -105,6 +151,18 @@ function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
             {t('error.retry', 'Retry')}
           </button>
         )}
+      </section>
+    );
+  }
+
+  if (stats && !stats.stats) {
+    return (
+      <section className="neighborhood-card" data-state="unavailable">
+        <h2 className="neighborhood-card__title">{t('neighborhood.title')}</h2>
+        <p className="neighborhood-card__unavailable">{messageCopy(stats.message, t)}</p>
+        <p className="neighborhood-card__source">
+          {t('neighborhood.source', { source: stats.source, year: stats.source_year })}
+        </p>
       </section>
     );
   }
@@ -133,21 +191,22 @@ function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
       <div className="neighborhood-card__group">
         <h3 className="neighborhood-card__group-title">{t('neighborhood.group.people')}</h3>
         <div className="neighborhood-card__indicators">
-          <Indicator label={t('neighborhood.populationDensity')} indicator={s.population_density} />
-          <Indicator label={t('neighborhood.avgHouseholdSize')} indicator={s.avg_household_size} />
-          <Indicator label={t('neighborhood.singlePersonPct')} indicator={s.single_person_pct} />
+          <Indicator label={t('neighborhood.populationDensity')} indicator={s.population_density} language={language} />
+          <Indicator label={t('neighborhood.avgHouseholdSize')} indicator={s.avg_household_size} language={language} />
+          <Indicator label={t('neighborhood.singlePersonPct')} indicator={s.single_person_pct} language={language} />
         </div>
-        <AgeBars profile={s.age_profile} />
+        <AgeBars profile={s.age_profile} language={language} />
       </div>
 
       <div className="neighborhood-card__group">
         <h3 className="neighborhood-card__group-title">{t('neighborhood.group.housing')}</h3>
         <div className="neighborhood-card__indicators">
-          <Indicator label={t('neighborhood.ownerOccupiedPct')} indicator={s.owner_occupied_pct} />
+          <Indicator label={t('neighborhood.ownerOccupiedPct')} indicator={s.owner_occupied_pct} language={language} />
           <Indicator
             label={t('neighborhood.avgPropertyValue')}
             indicator={s.avg_property_value}
-            formatValue={formatEuro}
+            language={language}
+            formatValue={(value) => formatEuro(value, language)}
           />
         </div>
       </div>
@@ -158,10 +217,12 @@ function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
           <Indicator
             label={t('neighborhood.distanceToTrain')}
             indicator={s.distance_to_train_km}
+            language={language}
           />
           <Indicator
             label={t('neighborhood.distanceToSupermarket')}
             indicator={s.distance_to_supermarket_km}
+            language={language}
           />
         </div>
       </div>

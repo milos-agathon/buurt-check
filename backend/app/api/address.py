@@ -50,7 +50,10 @@ from app.services.scoring import (
     severity_from_score,
     sunlight_summary,
 )
-from app.services.viewing_questions import build_viewing_questions
+from app.services.viewing_questions import (
+    build_viewing_questions,
+    with_crime_viewing_questions,
+)
 from app.services.weather import fetch_tmy_data
 
 logger = logging.getLogger(__name__)
@@ -810,15 +813,12 @@ async def viewing_questions(
     rd_y: float = Query(..., ge=285000, le=625000),
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
+    buurt_code: str | None = Query(None),
     street: str | None = Query(None, description="Street name for contextualized questions"),
     city: str | None = Query(None, description="City name for contextualized questions"),
     _: None = Depends(require_entitlement),
 ):
-    """Generate viewing questions based on risk card scores.
-
-    Fetches risk cards, filters categories with score < 70 (moderate or worse),
-    and returns structured bilingual questions grouped by category.
-    """
+    """Generate viewing questions based on risk card scores and crime context."""
     # Re-use cached risk cards if available
     cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
@@ -842,7 +842,21 @@ async def viewing_questions(
         risk_result.sunlight = await _get_cached_sunlight_card(vbo_id)
 
     response.headers["Cache-Control"] = _CACHE_DATA
-    return build_viewing_questions(vbo_id, risk_result, street=street, city=city)
+    questions = build_viewing_questions(vbo_id, risk_result, street=street, city=city)
+
+    buurt_code = _validate_buurt_code(buurt_code)
+    cache_key_tier_b = f"tier-b:{vbo_id}:{buurt_code or '-'}"
+    cached_tier_b = await cache_get(cache_key_tier_b)
+    if cached_tier_b is not None:
+        tier_b_result = TierBResponse(**cached_tier_b)
+    else:
+        try:
+            tier_b_result = await tier_b.get_tier_b_data(vbo_id=vbo_id, buurt_code=buurt_code)
+        except Exception:
+            logger.warning("viewing_questions tier-b augmentation failed for vbo=%s", vbo_id)
+            tier_b_result = None
+
+    return with_crime_viewing_questions(questions, tier_b_result) or questions
 
 
 @router.get("/{vbo_id}/tier-b", response_model=TierBResponse)
@@ -1033,6 +1047,7 @@ class ExportRequest(BaseModel):
     report_id: str | None = None
     street: str | None = None
     city: str | None = None
+    municipality: str | None = None
     buurt_code: str | None = None
     postcode: str | None = None
     house_number: str | None = None
@@ -1400,7 +1415,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
                 rd_y=body.rd_y,
                 construction_year=building_year,
                 num_units=num_units,
-                municipality=body.city,
+                municipality=body.municipality,
             ),
             _fetch_location_map(body.rd_x, body.rd_y),
             _fetch_livability_for_export(body.rd_x, body.rd_y),

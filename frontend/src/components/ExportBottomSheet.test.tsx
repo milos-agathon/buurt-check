@@ -113,6 +113,43 @@ describe('ExportBottomSheet', () => {
     });
   });
 
+  it('forwards municipality separately from city in the export payload', async () => {
+    vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    renderSheet({ city: 'Amstelveen', municipality: 'Amsterdam' });
+
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          city: 'Amstelveen',
+          municipality: 'Amsterdam',
+        }),
+      );
+    });
+  });
+
+  it('prefers the real top-noon shadow snapshot for quick brief export', async () => {
+    vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    renderSheet({
+      shadowSnapshots: [
+        { label: 'top_morning', hour: 9, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
+        { label: 'front_noon', hour: 12, dataUrl: 'data:image/png;base64,BBB', viewpoint: 'front' },
+        { label: 'top_noon', hour: 12, dataUrl: 'data:image/png;base64,CCC', viewpoint: 'top' },
+      ],
+    });
+
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          shadowImageB64: 'CCC',
+        }),
+      );
+    });
+  });
+
   it('awaits onBeforeGenerate before calling export API', async () => {
     let releasePreflight: (() => void) | undefined;
     const onBeforeGenerate = vi.fn().mockImplementation(

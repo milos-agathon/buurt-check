@@ -43,7 +43,9 @@ describe('HeatmapLegend', () => {
   });
 
   it('renders Dutch translation', () => {
-    renderLegend(true, 2, 12, 'nl');
+    renderLegend(true, 1.2, 8.4, 'nl');
     expect(screen.getByText('Warmtekaart zonuren dak')).toBeInTheDocument();
+    expect(screen.getByText('1,2h')).toBeInTheDocument();
+    expect(screen.getByText('8,4h')).toBeInTheDocument();
   });
 });

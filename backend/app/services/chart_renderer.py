@@ -64,6 +64,7 @@ OutputFormat = Literal["pdf", "png"]
 # --- Colors ---
 C_PRIMARY = "#1C2D3F"
 C_ACCENT = "#2EC4B6"
+C_ACCENT_TEXT = "#1C8C83"
 C_ACCENT_DARK = "#187E76"
 C_MUTE_1 = "#B4C0CE"
 C_MUTE_2 = "#D1D8E0"
@@ -586,7 +587,7 @@ def render_risk_summary_grid(
             y + 6.0,
             cell.category.upper(),
             fontsize=TYPE_GRID_LABEL_PT,
-            color=C_MUTE_1,
+            color=C_REFERENCE,
             va="top",
             ha="center",
         )
@@ -615,7 +616,7 @@ def render_risk_summary_grid(
         )
         # Single-color bar: no green zone, no tick, no "70+" label
         if cell.score is not None:
-            fill_w = max(1.2, track_w * max(0.0, min(float(cell.score), 100.0)) / 100.0)
+            fill_w = track_w * max(0.0, min(float(cell.score), 100.0)) / 100.0
             ax.add_patch(
                 Rectangle(
                     (track_x, track_y),
@@ -861,8 +862,8 @@ def render_age_distribution(
     labels = ["0\u201324", "25\u201364", "65+"]
     raw_values = [age_data.age_0_24, age_data.age_25_64, age_data.age_65_plus]
     national_values = [NL_AGE_0_24, NL_AGE_25_64, NL_AGE_65_PLUS]
-    bar_values = [float(v) if v is not None else 0.0 for v in raw_values]
-    max_x = max(100.0, max(bar_values, default=0.0) + 10.0)
+    available_values = [float(v) for v in raw_values if v is not None]
+    max_x = max(100.0, max([*available_values, *national_values], default=0.0) + 10.0)
     label_space = 16.0
 
     fig, ax = plt.subplots(
@@ -873,9 +874,18 @@ def render_age_distribution(
 
     y_positions = np.arange(len(labels))[::-1]
     ax.barh(y_positions + 0.16, national_values, height=0.24, color=C_MUTE_2, edgecolor="none")
-    ax.barh(y_positions - 0.16, bar_values, height=0.24, color=C_ACCENT, edgecolor="none")
+    for raw_value, y in zip(raw_values, y_positions, strict=True):
+        if raw_value is None:
+            continue
+        ax.barh(
+            y - 0.16,
+            float(raw_value),
+            height=0.24,
+            color=C_ACCENT_TEXT,
+            edgecolor="none",
+        )
 
-    for label, raw_value, value, y in zip(labels, raw_values, bar_values, y_positions, strict=True):
+    for label, raw_value, y in zip(labels, raw_values, y_positions, strict=True):
         ax.text(
             -label_space + 0.6,
             y,
@@ -887,7 +897,7 @@ def render_age_distribution(
         )
         endpoint = "\u2014" if raw_value is None else f"{int(round(raw_value))}%"
         ax.text(
-            min(max_x - 1.0, value + 1.2),
+            1.2 if raw_value is None else min(max_x - 1.0, float(raw_value) + 1.2),
             y - 0.16,
             endpoint,
             fontsize=TYPE_BODY_PT,
@@ -903,7 +913,7 @@ def render_age_distribution(
         len(labels) - 0.15,
         legend_local,
         fontsize=TYPE_CAPTION_PT,
-        color=C_ACCENT_DARK,
+        color=C_ACCENT_TEXT,
         ha="left",
     )
     ax.text(
@@ -984,11 +994,12 @@ def render_livability_score(
 
     if crime.score is not None:
         crime_score = float(crime.score)
+        crime_color = _severity_color(_score_severity(int(crime.score)))
         ax.barh(
             y_crime,
             crime_score,
-            height=0.22,
-            color=C_MUTE_1,
+            height=0.28,
+            color=crime_color,
             edgecolor="none",
             zorder=3,
         )
@@ -996,7 +1007,7 @@ def render_livability_score(
             crime_score + 1.2,
             y_crime,
             _summary_score_display(crime.score),
-            fontsize=TYPE_CAPTION_PT,
+            fontsize=TYPE_BODY_PT,
             color=C_PRIMARY,
             va="center",
             ha="left",
@@ -1005,8 +1016,8 @@ def render_livability_score(
             -2.0,
             y_crime,
             crime.label,
-            fontsize=TYPE_CAPTION_PT,
-            color=C_REFERENCE,
+            fontsize=TYPE_BODY_PT,
+            color=C_PRIMARY,
             va="center",
             ha="right",
         )

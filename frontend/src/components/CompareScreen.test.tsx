@@ -104,6 +104,16 @@ describe('CompareScreen', () => {
     expect(screen.getAllByText('Sun').length).toBeGreaterThan(0);
   });
 
+  it('renders a placeholder instead of a 0% score bar when a score is unavailable', () => {
+    renderCompare([
+      makeItem({ vboId: 'a', riskScores: { noise: undefined, air: 65, climate: 80, sunlight: 55 } }),
+      makeItem({ vboId: 'b', riskScores: { noise: 72, air: 60, climate: 70, sunlight: 50 } }),
+    ]);
+
+    expect(screen.getAllByTestId('score-bar')).toHaveLength(7);
+    expect(document.querySelector('.compare-screen__scorebar-placeholder')).toBeInTheDocument();
+  });
+
   it('renders parallel coordinates chart when at least 2 metrics are shown', () => {
     renderCompare([
       makeItem({ vboId: 'a', address: 'Address A' }),

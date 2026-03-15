@@ -23,7 +23,6 @@ from app.models.risk import (
     QuestionCategory,
     RiskCardsResponse,
     RiskComparisonsResponse,
-    ViewingQuestion,
     ViewingQuestionsResponse,
 )
 from app.models.tier_b import TierBResponse
@@ -39,6 +38,12 @@ from app.services.scoring import (
     normalize_crime_score,
     normalize_sunlight_score,
     severity_from_score,
+)
+from app.services.viewing_questions import (
+    _crime_checklist_category as _shared_crime_checklist_category,
+)
+from app.services.viewing_questions import (
+    with_crime_viewing_questions as _augment_viewing_questions_with_crime,
 )
 
 try:
@@ -72,6 +77,34 @@ CALL_OUT_CRITICAL_BG = (254, 242, 242)  # #FEF2F2
 CALL_OUT_POOR_BG = (255, 247, 237)  # #FFF7ED
 PEER_BAR = (209, 213, 219)  # #D1D5DB — recessive comparison gray
 GOOD_THRESHOLD = 70
+_MONTH_NAMES_EN = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+_MONTH_NAMES_NL = (
+    "januari",
+    "februari",
+    "maart",
+    "april",
+    "mei",
+    "juni",
+    "juli",
+    "augustus",
+    "september",
+    "oktober",
+    "november",
+    "december",
+)
 _TNO_WINTER_POSSIBLE_HOURS = 7.5
 _TNO_WINTER_MILD_HOURS = round(_TNO_WINTER_POSSIBLE_HOURS * 0.5, 1)
 _TNO_WINTER_STRICT_HOURS = round(_TNO_WINTER_POSSIBLE_HOURS * 0.8, 1)
@@ -151,6 +184,34 @@ def format_number(value: float, decimals: int = 0, is_nl: bool = False) -> str:
         # Swap: comma→placeholder, period→comma, placeholder→period
         formatted = formatted.replace(",", "_COMMA_").replace(".", ",").replace("_COMMA_", ".")
     return formatted
+
+
+def _format_cbs_period_label(period: str | None, *, is_nl: bool) -> str | None:
+    if not period:
+        return None
+    yearly_match = re.fullmatch(r"(\d{4})JJ00", period)
+    if yearly_match:
+        return yearly_match.group(1)
+
+    monthly_match = re.fullmatch(r"(\d{4})MM(\d{2})", period)
+    if monthly_match:
+        year = monthly_match.group(1)
+        month_index = int(monthly_match.group(2)) - 1
+        if 0 <= month_index < 12:
+            month_names = _MONTH_NAMES_NL if is_nl else _MONTH_NAMES_EN
+            return f"{month_names[month_index]} {year}"
+    return period
+
+
+def _crime_source_date_label(crime: Any, *, is_nl: bool) -> str | None:
+    source_date = getattr(crime, "source_date", None)
+    yearly_period = getattr(crime, "yearly_period", None)
+    monthly_period = getattr(crime, "monthly_period", None)
+    return (
+        _format_cbs_period_label(source_date, is_nl=is_nl)
+        or _format_cbs_period_label(yearly_period, is_nl=is_nl)
+        or _format_cbs_period_label(monthly_period, is_nl=is_nl)
+    )
 
 
 def _score_value(score: int | float | None) -> str:
@@ -1669,6 +1730,11 @@ _SHADOW_TIME_LABELS: dict[str, dict[str, str]] = {
     "afternoon": {"en": "Afternoon (15:00)", "nl": "Middag (15:00)"},
     "noon": {"en": "Noon (12:00)", "nl": "Middag (12:00)"},
 }
+_SHADOW_TIME_CLOCKS: dict[str, str] = {
+    "morning": "09:00",
+    "noon": "12:00",
+    "afternoon": "15:00",
+}
 _SHADOW_VIEW_ORDER = ["top", "front", "rear", "back", "winter", "equinox", "summer"]
 
 
@@ -1691,7 +1757,27 @@ def _shadow_view_key(item: dict[str, Any]) -> str:
     return _normalize_shadow_label(str(preferred))
 
 
-def _shadow_overlay_label(item: dict[str, Any], *, is_nl: bool) -> str:
+def _shadow_layout_context(shadow_images: list[dict[str, Any]]) -> str:
+    """Classify the shadow payload so legends and labels stay accurate."""
+    if len(shadow_images) >= 6:
+        return "summer_multi_view"
+    if len(shadow_images) != 3:
+        return "default"
+
+    time_keys = [_shadow_time_key(item) for item in shadow_images]
+    viewpoints = {_shadow_view_key(item) for item in shadow_images if _shadow_view_key(item)}
+    if all(time_keys) and len(viewpoints) == 1:
+        return "time_series"
+    return "default"
+
+
+def _shadow_overlay_label(
+    item: dict[str, Any],
+    *,
+    is_nl: bool,
+    compact_for_row_header: bool = False,
+    context_mode: str = "default",
+) -> str:
     """Build overlay label for a shadow panel.
 
     For 6-panel grids the row header already shows time + sun position,
@@ -1703,9 +1789,15 @@ def _shadow_overlay_label(item: dict[str, Any], *, is_nl: bool) -> str:
 
     # In 6-panel mode, labels like "front_morning" signal we should be brief
     raw_label = str(item.get("label") or "")
-    if _shadow_time_from_label(raw_label):
+    time_key = _shadow_time_from_label(raw_label) or _shadow_time_key(item)
+    if compact_for_row_header and time_key:
         # Just the viewpoint name — time/sun shown in row header
         return view_text
+
+    if context_mode == "time_series" and time_key:
+        season_text = "Zomer" if is_nl else "Summer"
+        time_text = _SHADOW_TIME_CLOCKS.get(time_key, "12:00")
+        return f"{view_text} \u00b7 {season_text} \u00b7 {time_text}"
 
     azimuth = item.get("sun_azimuth")
     altitude = item.get("sun_altitude")
@@ -1750,7 +1842,32 @@ def _shadow_time_key(item: dict[str, Any]) -> str:
     return ""
 
 
-def _shadow_legend_line(is_nl: bool) -> str:
+def _shadow_legend_line(is_nl: bool, *, context_mode: str = "default") -> str:
+    if context_mode == "time_series":
+        if is_nl:
+            return (
+                "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
+                "\u00b7 21 juni (zomerzonnewende) \u00b7 topbeelden om 09:00, 12:00 en 15:00 "
+                "\u00b7 Bron: 3DBAG / TU Delft + SunCalc"
+            )
+        return (
+            "Legend: teal outline = target building \u00b7 shadow = no direct sun "
+            "\u00b7 June 21 (summer solstice) "
+            "\u00b7 top-view snapshots at 09:00, 12:00, and 15:00 "
+            "\u00b7 Source: 3DBAG / TU Delft + SunCalc"
+        )
+    if context_mode == "summer_multi_view":
+        if is_nl:
+            return (
+                "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
+                "\u00b7 21 juni (zomerzonnewende) \u00b7 ochtend- en middagbeelden "
+                "\u00b7 Bron: 3DBAG / TU Delft + SunCalc"
+            )
+        return (
+            "Legend: teal outline = target building \u00b7 shadow = no direct sun "
+            "\u00b7 June 21 (summer solstice) \u00b7 morning and afternoon snapshots "
+            "\u00b7 Source: 3DBAG / TU Delft + SunCalc"
+        )
     if is_nl:
         return (
             "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
@@ -1773,6 +1890,8 @@ def _draw_shadow_panel(
     h: float,
     *,
     is_nl: bool,
+    compact_for_row_header: bool = False,
+    context_mode: str = "default",
 ) -> bool:
     """Draw a single shadow panel with overlay label. Returns True on success."""
     b64 = img_data.get("image_b64", "")
@@ -1794,7 +1913,12 @@ def _draw_shadow_panel(
     pdf.set_line_width(0.2)
     pdf.rect(x, y, w, h, "D")
 
-    overlay_text = _shadow_overlay_label(img_data, is_nl=is_nl)
+    overlay_text = _shadow_overlay_label(
+        img_data,
+        is_nl=is_nl,
+        compact_for_row_header=compact_for_row_header,
+        context_mode=context_mode,
+    )
     pdf.set_font("SatoshiMedium", "", 7)
     label_w = min(w - 3.0, pdf.get_string_width(overlay_text) + 5.0)
     label_h = 4.8
@@ -1828,9 +1952,12 @@ def _draw_shadow_triptych(
     if not shadow_images:
         return
 
+    context_mode = _shadow_layout_context(shadow_images)
+
     # If fewer than 3 images, fall back to single image
     if len(shadow_images) < 3:
         first = shadow_images[0]
+        _ensure_page_space(pdf, 96.0)
         pdf.draw_premium_badge()
         pdf.draw_h1("Schaduwanalyse" if is_nl else "Shadow Analysis", add_divider=False)
         _draw_shadow_image(pdf, first.get("image_b64"), is_nl)
@@ -1873,12 +2000,9 @@ def _draw_shadow_triptych(
             + 14.0                            # legend + spacing
         )
 
-        # Section heading
+        _ensure_page_space(pdf, total_h + 18.0)
         pdf.draw_premium_badge()
         pdf.draw_h1("Schaduwanalyse" if is_nl else "Shadow Analysis", add_divider=False)
-
-        if pdf.h - pdf.b_margin - pdf.get_y() < total_h:
-            pdf.add_page()
 
         rendered = 0
 
@@ -1910,7 +2034,17 @@ def _draw_shadow_triptych(
 
             for col_idx, img_data in enumerate(row_imgs):
                 x = pdf.l_margin + col_idx * (col_w + gap)
-                ok = _draw_shadow_panel(pdf, img_data, x, row_y, col_w, col_h, is_nl=is_nl)
+                ok = _draw_shadow_panel(
+                    pdf,
+                    img_data,
+                    x,
+                    row_y,
+                    col_w,
+                    col_h,
+                    is_nl=is_nl,
+                    compact_for_row_header=True,
+                    context_mode=context_mode,
+                )
                 if ok:
                     rendered += 1
 
@@ -1921,9 +2055,15 @@ def _draw_shadow_triptych(
         view_rank = {s: i for i, s in enumerate(_SHADOW_VIEW_ORDER)}
         sorted_imgs = sorted(
             shadow_images[:3],
-            key=lambda s: view_rank.get(
-                _shadow_view_key(s),
-                s.get("hour", 0),
+            key=(
+                (lambda s: s.get("hour", 0))
+                if context_mode == "time_series"
+                else (
+                    lambda s: view_rank.get(
+                        _shadow_view_key(s),
+                        s.get("hour", 0),
+                    )
+                )
             ),
         )
 
@@ -1933,11 +2073,9 @@ def _draw_shadow_triptych(
         bottom_h = bottom_w * 0.56
         total_h = top_h + gap + bottom_h + 14.0
 
+        _ensure_page_space(pdf, total_h + 18.0)
         pdf.draw_premium_badge()
         pdf.draw_h1("Schaduwanalyse" if is_nl else "Shadow Analysis", add_divider=False)
-
-        if pdf.h - pdf.b_margin - pdf.get_y() < total_h:
-            pdf.add_page()
 
         rendered = 0
         for idx, img_data in enumerate(sorted_imgs):
@@ -1953,7 +2091,16 @@ def _draw_shadow_triptych(
                 x = pdf.l_margin + bottom_w + gap
                 cur_w, cur_h = bottom_w, bottom_h
 
-            ok = _draw_shadow_panel(pdf, img_data, x, cur_y, cur_w, cur_h, is_nl=is_nl)
+            ok = _draw_shadow_panel(
+                pdf,
+                img_data,
+                x,
+                cur_y,
+                cur_w,
+                cur_h,
+                is_nl=is_nl,
+                context_mode=context_mode,
+            )
             if ok:
                 rendered += 1
             if idx == 0:
@@ -1964,7 +2111,7 @@ def _draw_shadow_triptych(
     if rendered:
         pdf.set_y(pdf.get_y() + 3.0)
         pdf.draw_tinted_box(
-            text=_shadow_legend_line(is_nl),
+            text=_shadow_legend_line(is_nl, context_mode=context_mode),
             fill=WHITE,
             border=BORDER,
             accent=TEAL,
@@ -2634,6 +2781,7 @@ def _generate_full_dossier_latex(
         crime_score=crime_score,
     )
     methodology_payload = _methodology_payload(is_nl=is_nl)
+    viewing_questions = _with_crime_viewing_questions(viewing_questions, tier_b)
 
     try:
 
@@ -2667,24 +2815,31 @@ def _generate_full_dossier_latex(
         with tempfile.TemporaryDirectory(prefix="buurtcheck_latex_assets_") as tmp:
             assets_dir = Path(tmp)
             shadow_image_paths: list[str] = []
-            for stem, b64 in [
-                ("shadow_winter", shadow_image_b64 or _primary_shadow_from_triptych(shadow_images)),
-                ("shadow_equinox", shadow_equinox_b64),
-                ("shadow_summer", shadow_summer_b64),
-            ]:
-                decoded = _decode_b64_asset(b64, output_dir=assets_dir, filename_stem=stem)
-                if decoded:
-                    shadow_image_paths.append(decoded)
-            if not shadow_image_paths and shadow_images:
+            if shadow_images:
                 for idx, item in enumerate(
                     s for s in shadow_images if isinstance(s, dict) and s.get("image_b64")
                 ):
-                    if idx >= 3:
-                        break
                     decoded = _decode_b64_asset(
                         str(item["image_b64"]),
                         output_dir=assets_dir,
                         filename_stem=f"shadow_{idx}",
+                    )
+                    if decoded:
+                        shadow_image_paths.append(decoded)
+            else:
+                for stem, b64 in [
+                    ("shadow_winter", shadow_image_b64),
+                    ("shadow_equinox", shadow_equinox_b64),
+                    ("shadow_summer", shadow_summer_b64),
+                ]:
+                    decoded = _decode_b64_asset(b64, output_dir=assets_dir, filename_stem=stem)
+                    if decoded:
+                        shadow_image_paths.append(decoded)
+                if not shadow_image_paths:
+                    decoded = _decode_b64_asset(
+                        shadow_image_b64 or _primary_shadow_from_triptych(shadow_images),
+                        output_dir=assets_dir,
+                        filename_stem="shadow_primary",
                     )
                     if decoded:
                         shadow_image_paths.append(decoded)
@@ -2698,6 +2853,7 @@ def _generate_full_dossier_latex(
             age_interpretation_text: str | None = None
             livability_trend_summary_text: str | None = None
             shadow_time_labels: list[str] | None = None
+            shadow_caption_text: str | None = None
             comparison_chart_blocks: list[dict[str, str]] = []
             category_rows = _build_risk_detail_data(
                 risks,
@@ -2716,24 +2872,36 @@ def _generate_full_dossier_latex(
                     is_nl,
                 )
             if shadow_images:
-                ordered_shadow_times = [s for s in shadow_images if isinstance(s, dict)][:3]
+                ordered_shadow_times = [s for s in shadow_images if isinstance(s, dict)]
                 labels: list[str] = []
                 for item in ordered_shadow_times:
                     hour = int(item.get("hour", 12))
-                    season_hint = str(item.get("label", "")).strip()
-                    if season_hint:
-                        _season_full = {
-                            "winter": "Winter solstice",
-                            "equinox": "Spring equinox",
-                            "summer": "Summer solstice",
-                        }
-                        full_name = _season_full.get(
-                            season_hint.lower(), season_hint.title()
-                        )
-                        labels.append(f"{full_name} \u00b7 {hour:02d}:00 CET")
-                    else:
-                        labels.append(f"{hour:02d}:00 CET")
+                    view_key = _shadow_view_key(item)
+                    time_key = _shadow_time_key(item)
+                    view_label = _SHADOW_VIEW_LABELS.get(view_key, {}).get(
+                        "nl" if is_nl else "en",
+                        view_key.title(),
+                    )
+                    time_label = _SHADOW_TIME_LABELS.get(time_key, {}).get(
+                        "nl" if is_nl else "en",
+                        f"{hour:02d}:00",
+                    )
+                    labels.append(f"{view_label} \u00b7 {time_label}")
                 shadow_time_labels = labels or None
+                shadow_caption_text = (
+                    "Ingezonden schaduwbeelden uit de 3D-viewer. Bron: 3DBAG / TU Delft +"
+                    " SunCalc."
+                    if is_nl
+                    else "Submitted shadow snapshots from the 3D viewer. Source: 3DBAG /"
+                    " TU Delft + SunCalc."
+                )
+            elif shadow_image_paths:
+                shadow_caption_text = (
+                    "Seizoensopnamen op 12:00 lokale tijd. Bron: 3DBAG / TU Delft + SunCalc."
+                    if is_nl
+                    else "Seasonal snapshots at 12:00 local time. Source: 3DBAG / TU Delft +"
+                    " SunCalc."
+                )
 
             if chart_renderer is not None:
                 chart_jobs: dict[str, Any] = {}
@@ -2923,6 +3091,17 @@ def _generate_full_dossier_latex(
                     deduped.append(comp_row)
                 livability_dict["comparison"] = deduped
 
+            tier_b_dict = _model_to_dict(tier_b)
+            if (
+                tier_b_dict
+                and isinstance(tier_b_dict.get("crime"), dict)
+                and tier_b
+                and tier_b.crime
+            ):
+                source_date_label = _crime_source_date_label(tier_b.crime, is_nl=is_nl)
+                if source_date_label:
+                    tier_b_dict["crime"]["source_date"] = source_date_label
+
             tex = render_dossier(
                 address=escape_latex(address),
                 language=language,
@@ -2936,7 +3115,7 @@ def _generate_full_dossier_latex(
                 risk_comparisons=_model_to_dict(risk_comparisons),
                 neighborhood=_model_to_dict(neighborhood_stats),
                 livability=livability_dict,
-                tier_b=_model_to_dict(tier_b),
+                tier_b=tier_b_dict,
                 property_warnings=_model_to_dict(property_warnings_data),
                 viewing_questions=_model_to_dict(viewing_questions),
                 provenance=_model_to_dict(provenance),
@@ -2956,6 +3135,7 @@ def _generate_full_dossier_latex(
                 energy_label=None,
                 shadow_images=shadow_image_paths or None,
                 location_map=map_path,
+                shadow_caption=escape_latex(shadow_caption_text) if shadow_caption_text else None,
                 sunlight_state=state,
                 sunlight_pending_message=(
                     escape_latex(pending_msg) if pending_msg is not None else None
@@ -3133,6 +3313,9 @@ def _generate_full_dossier_fpdf(
         shadow_images=shadow_images,
         livability=livability,
         crime_score=crime_score,
+        crime_summary=(
+            tier_b.crime.meaning_nl if is_nl else tier_b.crime.meaning_en
+        ) if tier_b and tier_b.crime else None,
     )
 
     # Viewing checklist section — front-loaded for print usability (pp2-3)
@@ -3353,33 +3536,12 @@ def _draw_location_map(
                     py = img_y + img_h / 2 - (dy / 150.0) * img_h
                     projected.append((px, py))
                 if len(projected) >= 3:
-                    # White outline halo for contrast
-                    pdf.set_draw_color(*WHITE)
-                    pdf.set_line_width(1.5)
-                    pdf.polygon(projected, style="D")
-                    # Teal filled highlight
-                    pdf.set_fill_color(*TEAL_LIGHT)
                     pdf.set_draw_color(*TEAL)
-                    pdf.set_line_width(0.8)
-                    pdf.polygon(projected, style="DF")
+                    pdf.set_line_width(1.2)
+                    pdf.polygon(projected, style="D")
                     pdf.set_line_width(0.1)
             except Exception:
                 logger.warning("Failed to draw footprint overlay on location map")
-
-        # Clear target marker at map center, even when a footprint polygon is present.
-        cx = pdf.l_margin + img_w / 2
-        cy_pin = img_y + img_h / 2
-        pdf.set_fill_color(*WHITE)
-        pdf.set_draw_color(*WHITE)
-        pdf.ellipse(cx - 3.2, cy_pin - 3.2, 6.4, 6.4, "DF")
-        pdf.set_fill_color(*TEAL_LIGHT)
-        pdf.set_draw_color(*TEAL)
-        pdf.set_line_width(0.7)
-        pdf.ellipse(cx - 2.4, cy_pin - 2.4, 4.8, 4.8, "DF")
-        pdf.set_fill_color(*TEAL)
-        pdf.ellipse(cx - 0.9, cy_pin - 0.9, 1.8, 1.8, "F")
-        pdf.set_line_width(0.1)
-        pdf.set_draw_color(*BORDER)
 
         # North arrow (top-right of map)
         nx = pdf.l_margin + img_w - 5
@@ -3512,6 +3674,7 @@ def _draw_cover_page(
     shadow_images: list[dict] | None = None,
     livability: LivabilityResponse | None = None,
     crime_score: int | None = None,
+    crime_summary: str | None = None,
 ) -> None:
     """Page 1: concise cover with summary, key concerns, and score tiles."""
     pdf.set_font("SatoshiBlack", "", 16)
@@ -3538,7 +3701,13 @@ def _draw_cover_page(
         line_height=5.1,
     )
 
-    concerns = _risk_concerns(risks, sunlight_score, is_nl, crime_score=crime_score)
+    concerns = _risk_concerns(
+        risks,
+        sunlight_score,
+        is_nl,
+        crime_score=crime_score,
+        crime_summary=crime_summary,
+    )
     if concerns:
         pdf.draw_h3("Belangrijkste aandachtspunt" if is_nl else "Key concern")
 
@@ -3696,86 +3865,14 @@ def _draw_rate_comparison_chart(
 def _crime_checklist_category(
     tier_b_data: TierBResponse | None,
 ) -> QuestionCategory | None:
-    crime = tier_b_data.crime if tier_b_data and tier_b_data.crime else None
-    if not crime or crime.score is None:
-        return None
-
-    score_text = f"{crime.score}/100"
-    rate_text = (
-        f" Latest rate: {crime.total_per_1000:.1f} per 1,000 residents."
-        if crime.total_per_1000 is not None
-        else ""
-    )
-    rate_text_nl = (
-        f" Laatste cijfer: {crime.total_per_1000:.1f} per 1.000 inwoners."
-        if crime.total_per_1000 is not None
-        else ""
-    )
-    if crime.score >= GOOD_THRESHOLD:
-        questions = [
-            ViewingQuestion(
-                text_en=(
-                    f"Crime context scores well ({score_text}). Confirm street lighting, entry"
-                    " controls, and whether the area still feels safe after dark."
-                ),
-                text_nl=(
-                    f"Criminaliteitscontext scoort goed ({score_text}). Controleer"
-                    " straatverlichting, toegangsbeveiliging en of de omgeving ook"
-                    " na donker veilig aanvoelt."
-                ),
-            )
-        ]
-    else:
-        questions = [
-            ViewingQuestion(
-                text_en=(
-                    f"Walk the street after dark and check lighting, sightlines, and access"
-                    f" control around the entrance ({score_text}).{rate_text}"
-                ),
-                text_nl=(
-                    f"Loop na donker door de straat en controleer verlichting,"
-                    f" zichtlijnen en toegangscontrole rond de entree ({score_text})."
-                    f"{rate_text_nl}"
-                ),
-            ),
-            ViewingQuestion(
-                text_en=(
-                    "Ask the seller or agent about recent break-ins, nuisance, and whether"
-                    " residents use extra security measures."
-                ),
-                text_nl=(
-                    "Vraag verkoper of makelaar naar recente inbraken, overlast en of"
-                    " bewoners extra beveiligingsmaatregelen gebruiken."
-                ),
-            ),
-        ]
-
-    return QuestionCategory(
-        name="Crime",
-        name_nl="Criminaliteit",
-        severity=crime.severity or _severity_for_score(crime.score),
-        questions=questions,
-    )
+    return _shared_crime_checklist_category(tier_b_data)
 
 
 def _with_crime_viewing_questions(
     viewing_questions: ViewingQuestionsResponse | None,
     tier_b_data: TierBResponse | None,
 ) -> ViewingQuestionsResponse | None:
-    crime_category = _crime_checklist_category(tier_b_data)
-    if crime_category is None:
-        return viewing_questions
-
-    if viewing_questions is None:
-        address_id = tier_b_data.address_id if tier_b_data is not None else ""
-        return ViewingQuestionsResponse(address_id=address_id, categories=[crime_category])
-
-    if any(category.name.lower() == "crime" for category in viewing_questions.categories):
-        return viewing_questions
-
-    return viewing_questions.model_copy(
-        update={"categories": [*viewing_questions.categories, crime_category]}
-    )
+    return _augment_viewing_questions_with_crime(viewing_questions, tier_b_data)
 
 
 def _draw_risk_details_page(
@@ -3923,10 +4020,9 @@ def _draw_risk_details_page(
             score=crime.score,
         )
         source_parts = [crime.source]
-        if crime.source_date:
-            source_parts.append(crime.source_date)
-        elif crime.yearly_period:
-            source_parts.append(crime.yearly_period)
+        source_date_label = _crime_source_date_label(crime, is_nl=is_nl)
+        if source_date_label:
+            source_parts.append(source_date_label)
         pdf.draw_h3("Source" if not is_nl else "Bron")
         pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)

@@ -1,7 +1,14 @@
 .risk-tiles-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-sm);
   margin: 0;
   contain: content;
+  align-items: stretch;
+}
+
+@media (max-width: 340px) {
+  .risk-tiles-grid {
+    grid-template-columns: 1fr;
+  }
 }

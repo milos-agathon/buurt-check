@@ -914,6 +914,114 @@ async def test_full_dossier_export_builds_comparisons_after_waited_sunlight():
 
 
 @pytest.mark.asyncio
+async def test_full_dossier_export_forwards_request_municipality_to_property_warnings():
+    from app.api.address import ExportRequest, _do_export_briefing
+
+    body = ExportRequest(
+        rd_x=121286,
+        rd_y=487296,
+        lat=52.372,
+        lng=4.892,
+        address="Kalverstraat 1, Amstelveen",
+        template="full_dossier",
+        language="en",
+        report_id="report-123",
+        city="Amstelveen",
+        municipality="Amsterdam",
+    )
+    building_resp = BuildingFactsResponse(
+        address_id="0363010000696734",
+        building=BuildingFacts(
+            pand_id="0363100012345678",
+            construction_year=1910,
+            status="Pand in gebruik",
+            status_en="Building in use",
+            intended_use=["woonfunctie"],
+            intended_use_en=["residential"],
+            num_units=3,
+        ),
+    )
+    risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+    )
+
+    with (
+        patch(
+            "app.services.reports.check_entitlement",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=building_resp,
+        ),
+        patch(
+            "app.api.address._fetch_risks_for_export",
+            new_callable=AsyncMock,
+            return_value=risks,
+        ),
+        patch("app.api.address.build_viewing_questions", return_value=None),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as mock_fetch_property_warnings,
+        patch(
+            "app.api.address._fetch_location_map",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_risk_comparisons", return_value=None),
+        patch(
+            "app.api.address.generate_full_dossier",
+            return_value=b"%PDF-1.4\n",
+        ),
+    ):
+        resp = await _do_export_briefing("0363010000696734", body)
+
+    assert resp.status_code == 200
+    assert mock_fetch_property_warnings.await_args.kwargs["municipality"] == "Amsterdam"
+
+
+@pytest.mark.asyncio
 async def test_full_dossier_export_prefers_request_sunlight_payload_over_cache():
     """Export should use the submitted sunlight payload even when cache is stale or unavailable."""
     from app.api.address import ExportRequest, _do_export_briefing

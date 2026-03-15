@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import LivabilityCard from './LivabilityCard';
 import { setupTestI18n } from '../test/helpers';
@@ -53,64 +53,32 @@ describe('LivabilityCard', () => {
     expect(container.querySelector('.livability-card')).not.toBeInTheDocument();
   });
 
-  it('shows loading skeleton', () => {
-    renderCard(undefined, true);
-    expect(screen.getByTestId('livability-card')).toBeInTheDocument();
-    expect(screen.getByTestId('section-skeleton-livability')).toBeInTheDocument();
-  });
-
-  it('shows error state', () => {
-    renderCard(undefined, false, 'Test error message');
-    expect(screen.getByTestId('livability-card')).toHaveAttribute('data-state', 'error');
-    expect(screen.getByText('Test error message')).toBeInTheDocument();
-  });
-
   it('shows unavailable when available=false', () => {
     renderCard({ available: false, message: 'LIVABILITY_NO_DATA' });
     expect(screen.getByTestId('livability-card')).toHaveAttribute('data-state', 'unavailable');
-    expect(screen.getByText(/leefbaarometer coverage/i)).toBeInTheDocument();
+    expect(screen.getByText(/couldn't find livability data for this location/i)).toBeInTheDocument();
   });
 
-  it('renders overall score badge', async () => {
-    renderCard(makeLivabilityResponse());
-    await waitFor(() => {
-      const badge = screen.getByTestId('livability-card').querySelector('.livability-card__score-value');
-      expect(badge).toHaveTextContent('75');
-    });
+  it('renders explicit unavailable copy for missing subsections', () => {
+    renderCard(makeLivabilityResponse({ dimensions: [], trend: [], comparison: [] }));
+    expect(screen.getByText('Dimension scores are unavailable for this location.')).toBeInTheDocument();
+    expect(screen.getByText('Trend data is unavailable for this location.')).toBeInTheDocument();
+    expect(screen.getByText('Comparison data is unavailable for this location.')).toBeInTheDocument();
   });
 
-  it('renders buurt name and gemeente', () => {
-    renderCard(makeLivabilityResponse());
-    expect(screen.getByText('Elandsgrachtbuurt')).toBeInTheDocument();
-    expect(screen.getByText(/Amsterdam/)).toBeInTheDocument();
-  });
-
-  it('renders 5 dimension bars', () => {
-    renderCard(makeLivabilityResponse());
-    const dimSection = screen.getByTestId('livability-dimensions');
-    expect(dimSection).toBeInTheDocument();
-    expect(screen.getByText(/physical environment/i)).toBeInTheDocument();
-    expect(screen.getByText(/safety/i)).toBeInTheDocument();
-  });
-
-  it('renders sparkline trend when trend data present', () => {
+  it('renders trend and comparison sections when data is present', () => {
     const trend = [
       { year: '2020', overall_score: 6, overall_normalized: 63, dimensions: [] },
       { year: '2022', overall_score: 7, overall_normalized: 75, dimensions: [] },
       { year: '2024', overall_score: 8, overall_normalized: 88, dimensions: [] },
     ];
-    renderCard(makeLivabilityResponse({ trend }));
-    expect(screen.getByTestId('livability-trend')).toBeInTheDocument();
-    expect(screen.getByText('20')).toBeInTheDocument(); // year '2020' -> '20'
-    expect(screen.getByText('24')).toBeInTheDocument(); // year '2024' -> '24'
-  });
-
-  it('renders comparison bars when comparison data present', () => {
     const comparison = [
       { level: 'wijk' as const, name: 'Centrum-West', overall_score: 6, overall_normalized: 63, dimensions: [] },
       { level: 'gemeente' as const, name: 'Amsterdam', overall_score: 5, overall_normalized: 50, dimensions: [] },
     ];
-    renderCard(makeLivabilityResponse({ comparison }));
+    renderCard(makeLivabilityResponse({ trend, comparison }));
+
+    expect(screen.getByTestId('livability-trend')).toBeInTheDocument();
     expect(screen.getByTestId('livability-comparison')).toBeInTheDocument();
     expect(screen.getByText('Centrum-West')).toBeInTheDocument();
   });

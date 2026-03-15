@@ -485,9 +485,9 @@ The primary content screen. A vertically scrolling intelligence briefing compose
 │                                         │
 │  RISK ASSESSMENT                        │ ← Section label
 │  ┌──────────┐  ┌──────────┐             │
-│  │  NOISE   │  │   AIR    │             │ ← RISK TILES (2×2 grid)
-│  │   72     │  │   84     │             │   (see §5 for full spec)
-│  │ Moderate │  │  Good    │             │
+│  │  NOISE   │  │   AIR    │             │ ← RISK TILES (2×2 grid, single
+│  │   72     │  │   84     │             │   instance at top of dossier)
+│  │ Moderate │  │  Good    │             │   (see §5 for full spec)
 │  └──────────┘  └──────────┘             │
 │  ┌──────────┐  ┌──────────┐             │
 │  │ CLIMATE  │  │ SUNLIGHT │             │
@@ -495,10 +495,11 @@ The primary content screen. A vertically scrolling intelligence briefing compose
 │  │ Moderate │  │ Moderate │             │
 │  └──────────┘  └──────────┘             │
 │                                         │
-│  ┌─────────────────────────────────┐    │
-│  │  Property warnings              │    │ ← PROPERTY WARNINGS
-│  │  Soil info                      │    │ ← SOIL INFO
-│  └─────────────────────────────────┘    │
+│  NOTE: Property Warnings, Soil Info,    │
+│  Sunlight analysis, Shadow Snapshots,   │
+│  and heatmap overlay are premium-only   │
+│  content — shown in Full Dossier/PDF    │
+│  but NOT in the interactive viewer.     │
 │                                         │
 │  NEIGHBORHOOD                           │ ← Section label (buurt transition)
 │  ┌─────────────────────────────────┐    │
@@ -512,10 +513,6 @@ The primary content screen. A vertically scrolling intelligence briefing compose
 │  │                                 │    │
 │  │  ❄️ Winter 🌸 Spring ☀️ Sum 🍂 Aut │    │
 │  │  06 ──────●────────────── 21    │    │
-│  └─────────────────────────────────┘    │
-│                                         │
-│  ┌─────────────────────────────────┐    │
-│  │  Sunlight analysis              │    │ ← SUNLIGHT CARD
 │  └─────────────────────────────────┘    │
 │                                         │
 │  ┌─────────────────────────────────┐    │

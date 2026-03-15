@@ -22,6 +22,7 @@ interface ExportBottomSheetProps {
   reportId?: string;
   street?: string;
   city?: string;
+  municipality?: string;
   buurtCode?: string;
   postcode?: string;
   houseNumber?: string;
@@ -52,6 +53,7 @@ export default function ExportBottomSheet({
   reportId,
   street,
   city,
+  municipality,
   buurtCode,
   postcode,
   houseNumber,
@@ -166,13 +168,18 @@ export default function ExportBottomSheet({
           };
         });
 
-        const primarySnapshot = shadowSnapshots.find(s => (s.viewpoint ?? s.label) === 'top')
-          || shadowSnapshots.find(s => s.hour === 12)
-          || shadowSnapshots[0];
-        const dataUrl = primarySnapshot.dataUrl;
-        shadowB64 = dataUrl.startsWith('data:')
-          ? dataUrl.split(',')[1]
-          : dataUrl;
+        if (template !== 'full_dossier') {
+          const primarySnapshot = shadowSnapshots.find(
+            s => (s.viewpoint ?? s.label) === 'top' && s.hour === 12,
+          )
+            || shadowSnapshots.find(s => s.hour === 12)
+            || shadowSnapshots.find(s => (s.viewpoint ?? s.label) === 'top')
+            || shadowSnapshots[0];
+          const dataUrl = primarySnapshot.dataUrl;
+          shadowB64 = dataUrl.startsWith('data:')
+            ? dataUrl.split(',')[1]
+            : dataUrl;
+        }
       }
 
       setProgressStage('rendering');
@@ -187,6 +194,7 @@ export default function ExportBottomSheet({
         template,
         street,
         city,
+        municipality,
         buurtCode,
         postcode,
         houseNumber,

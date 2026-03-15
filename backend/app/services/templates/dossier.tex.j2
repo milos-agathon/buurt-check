@@ -71,6 +71,7 @@ SunCalc + 3DBAG \\
 <% endif %>
 
 <% if comparison_chart_blocks %>
+\Needspace{110mm}
 \subsection*{<% if language == "nl" %>Vergelijkingsgrafieken<% else %>Comparison Charts<% endif %>}
 <% for block in comparison_chart_blocks %>
 \Needspace{58mm}
@@ -126,7 +127,9 @@ SunCalc + 3DBAG \\
 \noindent\includegraphics[width=\linewidth]{<< img >>}
 <% if not loop.last %>\vspace{4pt}<% endif %>
 <% endfor %>
-\\{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Seizoensopnamen op 12:00 lokale tijd. Bron: 3DBAG / TU Delft + SunCalc.<% else %>Seasonal snapshots at 12:00 local time. Source: 3DBAG / TU Delft + SunCalc.<% endif %>}}
+<% if shadow_caption %>
+\\{\footnotesize\textcolor{MutedText}{<< shadow_caption >>}}
+<% endif %>
 <% if shadow_time_labels %>
 \\{\footnotesize\textcolor{MutedText}{<< shadow_time_labels|join(" · ") >>}}
 <% endif %>

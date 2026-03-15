@@ -69,6 +69,12 @@
   margin-top: var(--space-sm);
 }
 
+.viewer-3d__status-message {
+  margin-top: calc(var(--space-sm) * -0.25);
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+}
+
 .viewer-3d__error {
   position: absolute;
   left: var(--space-sm);

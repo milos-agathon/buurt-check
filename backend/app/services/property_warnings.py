@@ -34,6 +34,7 @@ def build_attention_summary(
         "noise": "noise risk",
         "air_quality": "air quality risk",
         "climate": "climate risk",
+        "climate_stress": "climate stress risk",
         "sunlight": "sunlight risk",
     }
     assessed = 0
@@ -110,7 +111,7 @@ def build_attention_summary(
         flag_count=len(flags),
         flags=flags,
         risk_categories_assessed=assessed,
-        risk_categories_total=4,
+        risk_categories_total=len(risk_scores),
     )
 
 
@@ -180,7 +181,7 @@ async def get_property_warnings(
 
     # Attention summary — property-level signals only (risk scores not available here)
     attention = build_attention_summary(
-        risk_scores={"noise": None, "air_quality": None, "climate": None, "sunlight": None},
+        risk_scores={},
         foundation_level=fr.level,
         erfpacht_detected=erfpacht_detected,
         is_apartment=is_apartment,

@@ -59,6 +59,9 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
   }
 
   const severity = scoreSeverity(data.overall_normalized);
+  const hasDimensions = data.dimensions.length > 0;
+  const hasTrend = data.trend.length > 1;
+  const hasComparison = data.comparison.length > 0;
 
   return (
     <section
@@ -85,78 +88,79 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
         )}
       </div>
 
-      {/* 5 dimension bars */}
-      {data.dimensions.length > 0 && (
-        <div className="livability-card__dimensions" data-testid="livability-dimensions">
-          {data.dimensions.map((dim) => {
-            const dimSeverity = scoreSeverity(dim.normalized_score);
-            return (
-              <div className="livability-card__dimension" key={dim.name}>
-                <span className="livability-card__dimension-label">
-                  {t(dim.label_code, dim.name)}
-                </span>
-                <div className="livability-card__dimension-track">
-                  <div
-                    className={`livability-card__dimension-fill livability-card__dimension-fill--${dimSeverity}`}
-                    style={{ width: `${dim.normalized_score}%` }}
-                  />
-                </div>
-                <span className="livability-card__dimension-value">{dim.normalized_score}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Sparkline trend */}
-      {data.trend.length > 1 && (
-        <div className="livability-card__trend" data-testid="livability-trend">
-          <span className="livability-card__trend-label">{t('livability.trend')}</span>
-          <div className="livability-card__sparkline">
-            {data.trend.map((point) => {
-              const pctHeight = Math.max(10, point.overall_normalized);
-              const barSeverity = scoreSeverity(point.overall_normalized);
-              return (
-                <div
-                  key={point.year}
-                  className={`livability-card__spark-bar livability-card__spark-bar--${barSeverity}`}
-                  style={{ height: `${pctHeight}%` }}
-                  role="img"
-                  aria-label={`${point.year}: ${point.overall_normalized}/100`}
-                />
-              );
-            })}
-          </div>
-          <div className="livability-card__spark-years">
-            {data.trend.map((point) => (
-              <span key={point.year} className="livability-card__spark-year">
-                {point.year.slice(-2)}
+      <div className="livability-card__dimensions" data-testid="livability-dimensions">
+        {hasDimensions ? data.dimensions.map((dim) => {
+          const dimSeverity = scoreSeverity(dim.normalized_score);
+          return (
+            <div className="livability-card__dimension" key={dim.name}>
+              <span className="livability-card__dimension-label">
+                {t(dim.label_code, dim.name)}
               </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Wijk/Gemeente comparison */}
-      {data.comparison.length > 0 && (
-        <div className="livability-card__comparison" data-testid="livability-comparison">
-          <span className="livability-card__comparison-label">{t('livability.comparison')}</span>
-          {data.comparison.map((row) => (
-            <div className="livability-card__comparison-row" key={row.level}>
-              <span className="livability-card__comparison-name">
-                {row.name}
-              </span>
-              <div className="livability-card__comparison-track">
+              <div className="livability-card__dimension-track">
                 <div
-                  className="livability-card__comparison-fill"
-                  style={{ width: `${row.overall_normalized}%` }}
+                  className={`livability-card__dimension-fill livability-card__dimension-fill--${dimSeverity}`}
+                  style={{ width: `${dim.normalized_score}%` }}
                 />
               </div>
-              <span className="livability-card__comparison-value">{row.overall_normalized}</span>
+              <span className="livability-card__dimension-value">{dim.normalized_score}</span>
             </div>
-          ))}
-        </div>
-      )}
+          );
+        }) : (
+          <p className="livability-card__unavailable">{t('livability.dimensionsUnavailable')}</p>
+        )}
+      </div>
+
+      <div className="livability-card__trend" data-testid="livability-trend">
+        <span className="livability-card__trend-label">{t('livability.trend')}</span>
+        {hasTrend ? (
+          <>
+            <div className="livability-card__sparkline">
+              {data.trend.map((point) => {
+                const pctHeight = Math.max(10, point.overall_normalized);
+                const barSeverity = scoreSeverity(point.overall_normalized);
+                return (
+                  <div
+                    key={point.year}
+                    className={`livability-card__spark-bar livability-card__spark-bar--${barSeverity}`}
+                    style={{ height: `${pctHeight}%` }}
+                    role="img"
+                    aria-label={`${point.year}: ${point.overall_normalized}/100`}
+                  />
+                );
+              })}
+            </div>
+            <div className="livability-card__spark-years">
+              {data.trend.map((point) => (
+                <span key={point.year} className="livability-card__spark-year">
+                  {point.year.slice(-2)}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="livability-card__unavailable">{t('livability.trendUnavailable')}</p>
+        )}
+      </div>
+
+      <div className="livability-card__comparison" data-testid="livability-comparison">
+        <span className="livability-card__comparison-label">{t('livability.comparison')}</span>
+        {hasComparison ? data.comparison.map((row) => (
+          <div className="livability-card__comparison-row" key={row.level}>
+            <span className="livability-card__comparison-name">
+              {row.name}
+            </span>
+            <div className="livability-card__comparison-track">
+              <div
+                className="livability-card__comparison-fill"
+                style={{ width: `${row.overall_normalized}%` }}
+              />
+            </div>
+            <span className="livability-card__comparison-value">{row.overall_normalized}</span>
+          </div>
+        )) : (
+          <p className="livability-card__unavailable">{t('livability.comparisonUnavailable')}</p>
+        )}
+      </div>
 
       {/* Source */}
       <p className="livability-card__source">

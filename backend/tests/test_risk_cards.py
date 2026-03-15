@@ -35,6 +35,11 @@ def test_risk_from_threshold():
     assert _risk_from_threshold(40.0, 20.0, 30.0) == RiskLevel.high
 
 
+def test_risk_from_threshold_non_finite_is_unavailable():
+    assert _risk_from_threshold(float("nan"), 20.0, 30.0) == RiskLevel.unavailable
+    assert _risk_from_threshold(float("inf"), 20.0, 30.0) == RiskLevel.unavailable
+
+
 def test_select_noise_layer_prefers_latest_date():
     layers = [
         "rivm_20220601_Geluid_lden_wegverkeer_2020",
@@ -85,6 +90,13 @@ def test_classify_water_from_gridcode():
     assert level == RiskLevel.medium
     assert value == 2
     assert signal == "GRIDCODE"
+
+
+def test_classify_water_from_gridcode_sentinel_is_unavailable():
+    level, value, signal = _classify_water_from_properties({"GRIDCODE": float("nan")})
+    assert level == RiskLevel.unavailable
+    assert value is None
+    assert signal is None
 
 
 def test_classify_water_from_klasse_20():

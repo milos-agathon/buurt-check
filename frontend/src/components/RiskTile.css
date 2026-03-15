@@ -9,17 +9,26 @@
   border-radius: var(--radius-card);
   box-shadow: var(--elevation-1);
   padding: var(--space-sm) var(--space-base);
-  min-height: 64px;
+  min-height: 76px;
   min-width: 0;
   cursor: pointer;
   text-align: left;
   width: 100%;
+  height: 100%;
   transition: box-shadow var(--transition-fast);
   overflow: hidden;
 }
 
 .risk-tile:hover {
   box-shadow: var(--elevation-2);
+}
+
+.risk-tile:disabled {
+  cursor: default;
+}
+
+.risk-tile--unavailable {
+  background: color-mix(in srgb, var(--color-surface) 88%, white);
 }
 
 .risk-tile:focus-visible {
@@ -32,7 +41,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  justify-content: center;
+  gap: 4px;
   flex: 1;
   min-width: 0;
 }
@@ -65,14 +75,6 @@
 .risk-tile__score--poor { color: var(--color-risk-poor); }
 .risk-tile__score--critical { color: var(--color-risk-critical); }
 .risk-tile__score--unavailable { color: var(--color-risk-unavailable); }
-
-.risk-tile__summary {
-  font: var(--type-small);
-  color: var(--color-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .risk-tile__chevron {
   flex-shrink: 0;

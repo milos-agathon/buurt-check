@@ -3,9 +3,12 @@
 from app.models.risk import (
     QuestionCategory,
     RiskCardsResponse,
+    RiskLevel,
     ViewingQuestion,
     ViewingQuestionsResponse,
 )
+from app.models.tier_b import TierBResponse
+from app.services.scoring import severity_from_score
 
 
 def _should_include(score: int | None) -> bool:
@@ -164,10 +167,10 @@ def _climate_questions(
     score_nl = _score_nl(score)
     levels_en = []
     levels_nl = []
-    if heat_level:
+    if heat_level and heat_level != RiskLevel.unavailable.value:
         levels_en.append(f"heat: {heat_level}")
         levels_nl.append(f"hitte: {heat_level}")
-    if water_level:
+    if water_level and water_level != RiskLevel.unavailable.value:
         levels_en.append(f"water: {water_level}")
         levels_nl.append(f"water: {water_level}")
     levels_text_en = f" Current levels are {', '.join(levels_en)}." if levels_en else ""
@@ -357,6 +360,100 @@ def _is_good(score: int | None) -> bool:
     return score is not None and score >= 70
 
 
+def _flagged_severity(score: int | None, severity: str | None) -> str:
+    if severity:
+        return severity
+    if score is None:
+        return "moderate"
+    return severity_from_score(score).value
+
+
+def _crime_checklist_category(
+    tier_b_data: TierBResponse | None,
+) -> QuestionCategory | None:
+    crime = tier_b_data.crime if tier_b_data and tier_b_data.crime else None
+    if not crime or crime.score is None:
+        return None
+
+    score_text = f"{crime.score}/100"
+    rate_text = (
+        f" Latest rate: {crime.total_per_1000:.1f} per 1,000 residents."
+        if crime.total_per_1000 is not None
+        else ""
+    )
+    rate_text_nl = (
+        f" Laatste cijfer: {crime.total_per_1000:.1f} per 1.000 inwoners."
+        if crime.total_per_1000 is not None
+        else ""
+    )
+
+    if crime.score >= 70:
+        questions = [
+            ViewingQuestion(
+                text_en=(
+                    f"Crime context scores well ({score_text}). Confirm street lighting, entry"
+                    " controls, and whether the area still feels safe after dark."
+                ),
+                text_nl=(
+                    f"Criminaliteitscontext scoort goed ({score_text}). Controleer"
+                    " straatverlichting, toegangsbeveiliging en of de omgeving ook"
+                    " na donker veilig aanvoelt."
+                ),
+            )
+        ]
+    else:
+        questions = [
+            ViewingQuestion(
+                text_en=(
+                    f"Walk the street after dark and check lighting, sightlines, and access"
+                    f" control around the entrance ({score_text}).{rate_text}"
+                ),
+                text_nl=(
+                    f"Loop na donker door de straat en controleer verlichting,"
+                    f" zichtlijnen en toegangscontrole rond de entree ({score_text})."
+                    f"{rate_text_nl}"
+                ),
+            ),
+            ViewingQuestion(
+                text_en=(
+                    "Ask the seller or agent about recent break-ins, nuisance, and whether"
+                    " residents use extra security measures."
+                ),
+                text_nl=(
+                    "Vraag verkoper of makelaar naar recente inbraken, overlast en of"
+                    " bewoners extra beveiligingsmaatregelen gebruiken."
+                ),
+            ),
+        ]
+
+    return QuestionCategory(
+        name="Crime",
+        name_nl="Criminaliteit",
+        severity=crime.severity or _flagged_severity(crime.score, None),
+        questions=questions,
+    )
+
+
+def with_crime_viewing_questions(
+    viewing_questions: ViewingQuestionsResponse | None,
+    tier_b_data: TierBResponse | None,
+) -> ViewingQuestionsResponse | None:
+    crime_category = _crime_checklist_category(tier_b_data)
+    if crime_category is None:
+        return viewing_questions
+
+    if viewing_questions is None:
+        address_id = tier_b_data.address_id if tier_b_data is not None else ""
+        return ViewingQuestionsResponse(address_id=address_id, categories=[crime_category])
+
+    if any(category.name.lower() == "crime" for category in viewing_questions.categories):
+        return viewing_questions
+
+    return viewing_questions.model_copy(
+        update={"categories": [*viewing_questions.categories, crime_category]}
+    )
+
+
 def build_viewing_questions(
     vbo_id: str,
     risk_cards: RiskCardsResponse,
@@ -376,7 +473,7 @@ def build_viewing_questions(
             QuestionCategory(
                 name="Noise",
                 name_nl="Geluid",
-                severity=risk_cards.noise.severity or "moderate",
+                severity=_flagged_severity(risk_cards.noise.score, risk_cards.noise.severity),
                 questions=_noise_questions(
                     risk_cards.noise.score,
                     risk_cards.noise.lden_db,
@@ -403,7 +500,10 @@ def build_viewing_questions(
             QuestionCategory(
                 name="Air Quality",
                 name_nl="Luchtkwaliteit",
-                severity=risk_cards.air_quality.severity or "moderate",
+                severity=_flagged_severity(
+                    risk_cards.air_quality.score,
+                    risk_cards.air_quality.severity,
+                ),
                 questions=_air_questions(
                     risk_cards.air_quality.score,
                     risk_cards.air_quality.pm25_ug_m3,
@@ -431,7 +531,10 @@ def build_viewing_questions(
             QuestionCategory(
                 name="Climate Stress",
                 name_nl="Klimaatstress",
-                severity=risk_cards.climate_stress.severity or "moderate",
+                severity=_flagged_severity(
+                    risk_cards.climate_stress.score,
+                    risk_cards.climate_stress.severity,
+                ),
                 questions=_climate_questions(
                     risk_cards.climate_stress.score,
                     risk_cards.climate_stress.heat_level.value,
@@ -459,7 +562,10 @@ def build_viewing_questions(
             QuestionCategory(
                 name="Sunlight",
                 name_nl="Zonlicht",
-                severity=risk_cards.sunlight.severity or "moderate",
+                severity=_flagged_severity(
+                    risk_cards.sunlight.score,
+                    risk_cards.sunlight.severity,
+                ),
                 questions=_sunlight_questions(
                     risk_cards.sunlight.score,
                     risk_cards.sunlight.winter_hours,

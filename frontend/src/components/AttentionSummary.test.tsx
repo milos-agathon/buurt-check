@@ -1,12 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import AttentionSummary from './AttentionSummary';
-import {
-  setupTestI18n,
-  makeRiskCardsResponse,
-} from '../test/helpers';
-import type { RiskCardsResponse } from '../types/api';
+import { setupTestI18n } from '../test/helpers';
+import { buildAttentionSummary } from '../utils/attentionSummary';
+import type { PropertyWarningsResponse, RiskCardsResponse } from '../types/api';
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -14,152 +12,112 @@ beforeEach(async () => {
   i18n = await setupTestI18n('en');
 });
 
-function makeGoodRiskCards(): RiskCardsResponse {
-  return makeRiskCardsResponse({
-    noise: { ...makeRiskCardsResponse().noise, score: 75, severity: 'good' },
-    air_quality: { ...makeRiskCardsResponse().air_quality, score: 80, severity: 'good' },
-    climate_stress: { ...makeRiskCardsResponse().climate_stress, score: 85, severity: 'good' },
-  });
-}
-
-function makePoorNoiseRiskCards(): RiskCardsResponse {
-  return makeRiskCardsResponse({
-    noise: { ...makeRiskCardsResponse().noise, score: 38, severity: 'poor' },
-    air_quality: { ...makeRiskCardsResponse().air_quality, score: 80, severity: 'good' },
-    climate_stress: { ...makeRiskCardsResponse().climate_stress, score: 85, severity: 'good' },
-  });
-}
-
-function makeCriticalRiskCards(): RiskCardsResponse {
-  return makeRiskCardsResponse({
-    noise: { ...makeRiskCardsResponse().noise, score: 22, severity: 'poor' },
-    air_quality: { ...makeRiskCardsResponse().air_quality, score: 80, severity: 'good' },
-    climate_stress: { ...makeRiskCardsResponse().climate_stress, score: 15, severity: 'critical' },
-  });
-}
-
-function makePartialRiskCards(): RiskCardsResponse {
-  return makeRiskCardsResponse({
-    noise: { ...makeRiskCardsResponse().noise, score: 75, severity: 'good' },
-    air_quality: { ...makeRiskCardsResponse().air_quality, score: 80, severity: 'good' },
-    climate_stress: { ...makeRiskCardsResponse().climate_stress, score: undefined, severity: undefined },
-  });
-}
-
 function renderSummary(props: {
-  riskCards?: RiskCardsResponse;
+  summary?: ReturnType<typeof buildAttentionSummary>;
+  error?: string | null;
+  onRetry?: () => void;
 }) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <AttentionSummary riskCards={props.riskCards} />
+      <AttentionSummary {...props} />
     </I18nextProvider>,
   );
 }
 
+function buildSummary(
+  riskCards?: RiskCardsResponse | null,
+  propertyWarnings?: PropertyWarningsResponse | null,
+) {
+  return buildAttentionSummary(riskCards, propertyWarnings);
+}
+
 describe('AttentionSummary', () => {
-  it('renders nothing when no data provided', () => {
+  it('renders nothing when no summary and no error are provided', () => {
     const { container } = renderSummary({});
     expect(container.querySelector('.attention-summary')).not.toBeInTheDocument();
   });
 
-  it('shows green badge when no flags', () => {
+  it('shows no-flags state when all assessed categories are clean', () => {
     renderSummary({
-      riskCards: makeGoodRiskCards(),
+      summary: { flags: [], assessed: 4, total: 5 },
     });
-    expect(screen.getByText(/no flags raised/i)).toBeInTheDocument();
-  });
 
-  it('shows amber badge for single flag', () => {
-    renderSummary({
-      riskCards: makePoorNoiseRiskCards(),
-    });
-    expect(screen.getByText(/1 item needs attention/i)).toBeInTheDocument();
-  });
-
-  it('shows red badge for multiple flags', () => {
-    renderSummary({
-      riskCards: makeCriticalRiskCards(),
-    });
-    const badge = screen.getByText(/items need attention/i);
-    expect(badge).toBeInTheDocument();
-  });
-
-  it('shows data completeness suffix', () => {
-    renderSummary({
-      riskCards: makeGoodRiskCards(),
-    });
-    expect(screen.getByText(/3 of 3/i)).toBeInTheDocument();
-  });
-
-  it('shows partial data completeness', () => {
-    renderSummary({
-      riskCards: makePartialRiskCards(),
-    });
-    // noise + air scored, climate undefined = 2 of 3
-    expect(screen.getByText(/based on 2 of 3/i)).toBeInTheDocument();
-  });
-
-  it('renders in Dutch', async () => {
-    const nlI18n = await setupTestI18n('nl');
-    render(
-      <I18nextProvider i18n={nlI18n}>
-        <AttentionSummary
-          riskCards={makeGoodRiskCards()}
-        />
-      </I18nextProvider>,
-    );
-    expect(screen.getByText(/geen/i)).toBeInTheDocument();
-  });
-
-  it('uses Dutch risk category labels for flagged items', async () => {
-    const nlI18n = await setupTestI18n('nl');
-    render(
-      <I18nextProvider i18n={nlI18n}>
-        <AttentionSummary
-          riskCards={makePoorNoiseRiskCards()}
-        />
-      </I18nextProvider>,
-    );
-    expect(screen.getByText(/geluidrisico/i)).toBeInTheDocument();
-    expect(screen.queryByText(/noise risk/i)).not.toBeInTheDocument();
-  });
-
-  it('renders flag bullet list when flags exist', () => {
-    renderSummary({
-      riskCards: makeCriticalRiskCards(),
-    });
-    const flagList = screen.getByTestId('attention-flags');
-    expect(flagList).toBeInTheDocument();
-    const items = flagList.querySelectorAll('li');
-    expect(items.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('renders green-state detail when no flags and data assessed', () => {
-    renderSummary({
-      riskCards: makeGoodRiskCards(),
-    });
-    expect(screen.getByTestId('attention-detail')).toBeInTheDocument();
-    expect(screen.getByText(/all assessed risk categories/i)).toBeInTheDocument();
-  });
-
-  it('does not render flag list when no flags', () => {
-    renderSummary({
-      riskCards: makeGoodRiskCards(),
-    });
-    expect(screen.queryByTestId('attention-flags')).not.toBeInTheDocument();
-  });
-
-  it('renders missing-category explanation for partial data', () => {
-    renderSummary({
-      riskCards: makePartialRiskCards(),
-    });
+    expect(screen.getByText('No flags raised')).toBeInTheDocument();
+    expect(screen.getByText('Based on 4 of 5 risk categories + property analysis.')).toBeInTheDocument();
     expect(screen.getByTestId('attention-missing')).toBeInTheDocument();
   });
 
-  it('does not render missing-category when all assessed', () => {
+  it('renders sunlight and property-level flags from the merged summary', () => {
+    const riskCards = {
+      address_id: 'vbo-123',
+      noise: { level: 'low', source: 'RIVM', sampled_at: '2026-02-05', score: 80 },
+      air_quality: {
+        level: 'low',
+        pm25_level: 'low',
+        no2_level: 'low',
+        source: 'RIVM',
+        sampled_at: '2026-02-05',
+        score: 82,
+      },
+      climate_stress: {
+        level: 'low',
+        heat_level: 'low',
+        water_level: 'low',
+        source: 'KEA',
+        sampled_at: '2026-02-05',
+        score: 78,
+      },
+      sunlight: {
+        score: 24,
+        severity: 'poor',
+      },
+    } as RiskCardsResponse;
+    const propertyWarnings = {
+      address_id: 'vbo-123',
+      attention_summary: {
+        flag_count: 1,
+        flags: [{ category: 'lead_pipe', severity: 'elevated', label: 'Lead pipe risk' }],
+        risk_categories_assessed: 4,
+        risk_categories_total: 4,
+      },
+      foundation_risk: { level: 'low', messages: [] },
+      erfpacht: { detected: false, messages: [] },
+      vve: { is_apartment: false, messages: [] },
+      asbestos: { flagged: false, messages: [] },
+      lead_pipe: { flagged: true, messages: [] },
+    } as PropertyWarningsResponse;
+
     renderSummary({
-      riskCards: makeGoodRiskCards(),
+      summary: buildSummary(riskCards, propertyWarnings),
     });
-    expect(screen.queryByTestId('attention-missing')).not.toBeInTheDocument();
+
+    expect(screen.getByText('2 items need attention')).toBeInTheDocument();
+    expect(screen.getByText('Sunlight risk')).toBeInTheDocument();
+    expect(screen.getByText('Lead pipe risk')).toBeInTheDocument();
+  });
+
+  it('shows an error state with retry action when risk fetch fails', () => {
+    const onRetry = vi.fn();
+    renderSummary({
+      error: 'Risk cards unavailable',
+      onRetry,
+      summary: { flags: [], assessed: 0, total: 0 },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(screen.getByTestId('attention-error')).toBeInTheDocument();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders in Dutch with localized flag labels', async () => {
+    const nlI18n = await setupTestI18n('nl');
+    render(
+      <I18nextProvider i18n={nlI18n}>
+        <AttentionSummary summary={{ flags: [{ category: 'noise', severity: 'elevated', label: 'Noise risk' }], assessed: 4, total: 4 }} />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByText(/punt(en)? verdienen aandacht|1 punt verdient aandacht/i)).toBeInTheDocument();
+    expect(screen.getByText('Geluidrisico')).toBeInTheDocument();
   });
 });

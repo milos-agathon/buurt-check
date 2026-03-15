@@ -120,10 +120,8 @@ def test_parse_age_profile_with_sentinels():
         "percentage_personen_45_tot_65_jaar": -99999,
     }
     profile = _parse_age_profile(props)
-    # age_0_24 should be 12.1 (only 15_24 is valid)
-    assert profile.age_0_24 == 12.1
-    # age_25_64 should be 30.0 (only 25_44 is valid)
-    assert profile.age_25_64 == 30.0
+    assert profile.age_0_24 is None
+    assert profile.age_25_64 is None
 
 
 # --- full stats parsing ---

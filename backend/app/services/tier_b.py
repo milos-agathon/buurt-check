@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import re
 from typing import Any
 
@@ -38,9 +39,24 @@ def _to_float(value: Any) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
+        numeric = float(value)
     except (TypeError, ValueError):
         return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
+
+
+def _format_period_label(period: str | None) -> str | None:
+    if not period:
+        return None
+    yearly_match = re.fullmatch(r"(\d{4})JJ00", period)
+    if yearly_match:
+        return yearly_match.group(1)
+    monthly_match = re.fullmatch(r"(\d{4})MM(\d{2})", period)
+    if monthly_match:
+        return f"{monthly_match.group(1)}-{monthly_match.group(2)}"
+    return period
 
 
 def _per_1000(count: float | None, population: float | None) -> float | None:
@@ -256,12 +272,16 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     burglary_count = code_to_count.get(_CRIME_BURGLARY_KEY)
     # Distinguish "no violent crime categories in data" (None) from "zero crimes" (0.0)
     violent_entries = [
-        value for code, value in code_to_count.items()
-        if code in _CRIME_VIOLENT_KEYS
+        code_to_count[code]
+        for code in _CRIME_VIOLENT_KEYS
+        if code in code_to_count
     ]
-    violent_count: float | None = (
-        sum(v or 0.0 for v in violent_entries) if violent_entries else None
-    )
+    if violent_entries and any(value is None for value in violent_entries):
+        violent_count = None
+    elif violent_entries:
+        violent_count = float(sum(value for value in violent_entries if value is not None))
+    else:
+        violent_count = None
     monthly_count = None
     if monthly_rows:
         monthly_count = _to_float(monthly_rows[0].get("GeregistreerdeMisdrijven_1"))
@@ -298,7 +318,7 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
         severity=severity,
         meaning_en=meaning_en if score is not None else None,
         meaning_nl=meaning_nl if score is not None else None,
-        source_date=latest_year,
+        source_date=_format_period_label(latest_year),
         message=message,
     )
 

@@ -12,6 +12,7 @@ import {
   makeSuggestion,
   setupTestI18n,
 } from './test/helpers';
+import { getShortlist } from './services/shortlist';
 
 type MockNeighborhoodViewer3DProps = {
   buildings: unknown[];
@@ -220,6 +221,28 @@ function renderApp() {
       <App />
     </I18nextProvider>,
   );
+}
+
+function makeScoredRiskCards() {
+  const base = makeRiskCardsResponse();
+  return makeRiskCardsResponse({
+    noise: { ...base.noise, score: 61, severity: 'moderate' },
+    air_quality: { ...base.air_quality, score: 58, severity: 'moderate' },
+    climate_stress: { ...base.climate_stress, score: 74, severity: 'good' },
+    sunlight: {
+      score: 67,
+      severity: 'moderate',
+      summary: 'Winter sunlight is acceptable.',
+      summary_nl: 'Winterzonlicht is acceptabel.',
+      winter_hours: 3.5,
+      summer_hours: 9.5,
+      equinox_hours: 6.0,
+      svf_percent: 64,
+      svf_score: 67,
+      source: '3DBAG + SunCalc',
+      source_date: '2026',
+    },
+  });
 }
 
 /**
@@ -460,8 +483,7 @@ describe('error handling', () => {
     await waitFor(() => {
       expect(screen.getByText('Building Facts')).toBeInTheDocument();
     });
-    // No error shown to user for risk cards failure
-    expect(screen.queryByText('Something went wrong on our end. Your data is safe — try refreshing.')).not.toBeInTheDocument();
+    expect(screen.getByText('Something went wrong on our end. Your data is safe — try refreshing.')).toBeInTheDocument();
   });
 
   it('clears previous building data on new selection', async () => {
@@ -661,7 +683,7 @@ describe('3D viewer integration', () => {
     expect(screen.queryByText('Loading 3D data...')).not.toBeInTheDocument();
   });
 
-  it('does not render sunlight card when 3D fetch fails', async () => {
+  it('does not render sunlight card in viewer (premium-only)', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockRejectedValue(new Error('3DBAG down'));
@@ -673,6 +695,7 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
+    // SunlightRiskCard is premium-only (PDF/Full Dossier), not shown in viewer
     expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
   });
@@ -734,10 +757,11 @@ describe('3D viewer integration', () => {
       expect(screen.getByText(/1 buildings/)).toBeInTheDocument();
     });
     expect(screen.queryByText('No 3D building data available.')).not.toBeInTheDocument();
+    // SunlightRiskCard is premium-only, not in viewer
     expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
   });
 
-  it('does not render sunlight card when 3D returns empty buildings', async () => {
+  it('does not render sunlight card in viewer when 3D returns empty buildings (premium-only)', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(
@@ -751,11 +775,12 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
+    // SunlightRiskCard is premium-only (PDF/Full Dossier), not shown in viewer
     expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
   });
 
-  it('does not render sunlight loading card when sunlight is pending', async () => {
+  it('does not render sunlight loading card in viewer (premium-only)', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
@@ -767,10 +792,11 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
+    // SunlightRiskCard is premium-only, not rendered in the viewer
     expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
   });
 
-  it('does not render sunlight card when neighborhood omits target_pand_id', async () => {
+  it('does not render sunlight card when neighborhood omits target_pand_id (premium-only)', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(
@@ -784,6 +810,7 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
+    // SunlightRiskCard is premium-only, not rendered in the viewer
     expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
     expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
   });
@@ -964,11 +991,11 @@ describe('dossier section order (v7 canonical)', () => {
     });
 
     // Verify canonical dossier order:
-    // AttentionSummary → AddressHeader → BuildingFacts →
-    // RiskTiles → Livability → 3D Viewer →
+    // AttentionSummary → AddressHeader → RiskTiles → BuildingFacts →
+    // Livability → 3D Viewer →
     // NeighborhoodStats → TierB → ViewingChecklist → ActionBar
     const expected = [
-      'attention', 'address-header', 'building', 'risk',
+      'attention', 'address-header', 'risk', 'building',
       'livability', 'viewer-3d',
       'stats', 'tierb', 'checklist', 'actionbar',
     ];
@@ -1003,7 +1030,7 @@ describe('dossier section order (v7 canonical)', () => {
     const uniqueIndexes = [...new Set(indexes)];
 
     expect(indexes).toEqual(uniqueIndexes);
-    expect(uniqueIndexes).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(uniqueIndexes).toEqual([0, 1, 2, 4, 5, 6, 7, 8, 9]);
     sections.forEach((section) => {
       const attr = section.getAttribute('data-section-index');
       if (attr == null) return;
@@ -1133,6 +1160,108 @@ describe('property warnings param forwarding', () => {
       expect.any(AbortSignal),
       'report-123',
     );
+  });
+});
+
+describe('shortlist score gating', () => {
+  it('keeps save actions disabled until risk scores settle', async () => {
+    let resolveRiskCards: ((value: ReturnType<typeof makeScoredRiskCards>) => void) | null = null;
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockRiskCards.mockReturnValue(new Promise<ReturnType<typeof makeScoredRiskCards>>((resolve) => {
+      resolveRiskCards = resolve;
+    }));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('action-bar')).toBeInTheDocument();
+    });
+
+    const actionBarSave = screen.getByTestId('action-bar').querySelector('.action-bar__btn--secondary');
+    expect(actionBarSave).not.toBeNull();
+    expect(actionBarSave).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save this address to compare later' })).toBeDisabled();
+    expect(getShortlist()).toEqual([]);
+
+    await act(async () => {
+      resolveRiskCards?.(makeScoredRiskCards());
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Save this address to compare later' })).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save this address to compare later' }));
+    });
+
+    await waitFor(() => {
+      expect(getShortlist()).toHaveLength(1);
+    });
+    expect(getShortlist()[0].riskScores).toEqual({
+      noise: 61,
+      air: 58,
+      climate: 74,
+      sunlight: 67,
+    });
+  });
+
+  it('does not overwrite saved shortlist scores before refreshed risk cards settle', async () => {
+    localStorage.setItem('buurt-check-shortlist', JSON.stringify([{
+      vboId: 'vbo-123',
+      lookupId: 'adr-abc123',
+      address: 'Keizersgracht 100, 1015AA Amsterdam',
+      postcode: '1015AA',
+      city: 'Amsterdam',
+      buildingYear: 1875,
+      riskScores: {
+        noise: 82,
+        air: 76,
+        climate: 71,
+        sunlight: 64,
+      },
+      savedAt: 1,
+    }]));
+
+    let resolveRiskCards: ((value: ReturnType<typeof makeScoredRiskCards>) => void) | null = null;
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockRiskCards.mockReturnValue(new Promise<ReturnType<typeof makeScoredRiskCards>>((resolve) => {
+      resolveRiskCards = resolve;
+    }));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Address saved — search another to compare' }),
+      ).toBeInTheDocument();
+    });
+
+    expect(getShortlist()[0].riskScores).toEqual({
+      noise: 82,
+      air: 76,
+      climate: 71,
+      sunlight: 64,
+    });
+
+    await act(async () => {
+      resolveRiskCards?.(makeScoredRiskCards());
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(getShortlist()[0].riskScores).toEqual({
+        noise: 61,
+        air: 58,
+        climate: 74,
+        sunlight: 67,
+      });
+    });
   });
 });
 

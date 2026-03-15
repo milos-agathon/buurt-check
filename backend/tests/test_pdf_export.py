@@ -3619,9 +3619,9 @@ class TestLocationMap:
             footprint_geojson=footprint,
         )
 
-        assert "DF" in polygon_calls
+        assert polygon_calls == ["D"]
 
-    def test_draw_location_map_keeps_target_marker_with_footprint_overlay(self):
+    def test_draw_location_map_omits_target_marker_with_footprint_overlay(self):
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         ellipse_calls: list[str] = []
@@ -3654,8 +3654,7 @@ class TestLocationMap:
             footprint_geojson=footprint,
         )
 
-        assert ellipse_calls.count("DF") >= 2
-        assert "F" in ellipse_calls
+        assert ellipse_calls == []
 
     def test_draw_location_map_derives_anchor_from_footprint_when_center_missing(self):
         pdf = BuurtCheckPDF(language="en")
@@ -3685,7 +3684,7 @@ class TestLocationMap:
             footprint_geojson=footprint,
         )
 
-        assert "DF" in polygon_calls
+        assert polygon_calls == ["D"]
 
     def test_draw_location_map_renders_placeholder_when_none(self):
         """Missing map data renders a visible unavailable placeholder."""
@@ -5337,6 +5336,40 @@ class TestShadowTriptych:
         assert "Front facade" in text
         assert "Rear facade" in text
 
+    def test_triptych_clarifies_summer_time_series(self):
+        """Three top-view time snapshots must state summer timing explicitly."""
+        b64 = _tiny_png()
+        images = [
+            {"hour": 9, "label": "top_morning", "viewpoint": "top", "image_b64": b64},
+            {"hour": 12, "label": "top_noon", "viewpoint": "top", "image_b64": b64},
+            {"hour": 15, "label": "top_afternoon", "viewpoint": "top", "image_b64": b64},
+        ]
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, images, is_nl=False)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert "June 21" in text
+        assert "Top view" in text
+        assert "Summer" in text
+        assert "09:00" in text
+        assert "12:00" in text
+        assert "15:00" in text
+
+    def test_triptych_keeps_heading_with_panels_when_space_runs_out(self):
+        """Shadow section heading should move to the next page with its panels."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        pdf.set_y(pdf.h - pdf.b_margin - 16)
+        _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=False)
+        result = bytes(pdf.output())
+        reader = PdfReader(io.BytesIO(result))
+        page_texts = [page.extract_text() or "" for page in reader.pages]
+        assert len(page_texts) >= 2
+        assert "shadow analysis" not in page_texts[0].lower()
+        assert "shadow analysis" in page_texts[1].lower()
+
     def test_full_dossier_with_triptych(self):
         """Full dossier renders the triptych on the neighborhood page."""
         images = self._make_shadow_images()
@@ -5442,6 +5475,7 @@ class TestShadowTriptych:
             _h: float,
             *,
             is_nl: bool,
+            **_: object,
         ) -> bool:
             _ = is_nl
             ordered_labels.append(img_data["label"])

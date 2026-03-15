@@ -265,7 +265,11 @@ export default function CompareScreen({ items, onBack, onSearchAddress }: Props)
                     className={`compare-screen__cell ${isBest ? 'compare-screen__cell--best' : ''} ${isWorst ? 'compare-screen__cell--worst' : ''}`}
                   >
                     <span className="compare-screen__score">{score ?? '--'}</span>
-                    <ScoreBar score={score ?? 0} severity={sev} />
+                    {score != null ? (
+                      <ScoreBar score={score} severity={sev} />
+                    ) : (
+                      <div className="compare-screen__scorebar-placeholder" aria-hidden="true" />
+                    )}
                     <SeverityBadge severity={sev} size="sm" />
                   </div>
                 </section>

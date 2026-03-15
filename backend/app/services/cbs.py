@@ -102,14 +102,13 @@ def _parse_age_profile(props: dict[str, Any]) -> AgeProfile:
     age_45_64 = _safe_float(props, "percentage_personen_45_tot_65_jaar")
     age_65_plus = _safe_float(props, "percentage_personen_65_jaar_en_ouder")
 
-    # Sum bands (handle None values)
-    age_0_24_val = None
-    if age_0_14 is not None or age_15_24 is not None:
-        age_0_24_val = (age_0_14 or 0.0) + (age_15_24 or 0.0)
+    def _sum_complete(*values: float | None) -> float | None:
+        if any(value is None for value in values):
+            return None
+        return float(sum(value for value in values if value is not None))
 
-    age_25_64_val = None
-    if age_25_44 is not None or age_45_64 is not None:
-        age_25_64_val = (age_25_44 or 0.0) + (age_45_64 or 0.0)
+    age_0_24_val = _sum_complete(age_0_14, age_15_24)
+    age_25_64_val = _sum_complete(age_25_44, age_45_64)
 
     return AgeProfile(
         age_0_24=age_0_24_val,

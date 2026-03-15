@@ -24,6 +24,10 @@ import TierBSignalsCard from './components/TierBSignalsCard';
 import AttentionSummary from './components/AttentionSummary';
 import LivabilityCard from './components/LivabilityCard';
 import LivabilityDetailView from './components/LivabilityDetailView';
+// PropertyWarningsCard, SoilInfoCard, SunlightRiskCard, and ShadowSnapshots are
+// premium-only (PDF/Full Dossier). They are not rendered in the interactive viewer.
+// Their state (propertyWarnings, shadowSnapshots, sunlight) is still fetched and
+// passed to ExportBottomSheet for PDF generation.
 import ViewingChecklist from './components/ViewingChecklist';
 import LockedSection from './components/LockedSection';
 import ActionBar from './components/ActionBar';
@@ -49,7 +53,14 @@ import {
   toSunlightSubmissionPayload,
   mapApiError,
 } from './services/api';
-import { getShortlist, addToShortlist, removeFromShortlist, isInShortlist, clearShortlist } from './services/shortlist';
+import {
+  getShortlist,
+  addToShortlist,
+  removeFromShortlist,
+  isInShortlist,
+  clearShortlist,
+  upsertShortlistItem,
+} from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
 import { storeEntitlement, clearEntitlement } from './services/entitlement';
 import { isFirstDossierAvailable, markFirstDossierUsed } from './services/firstDossier';
@@ -84,6 +95,8 @@ import {
   type SourceFetchStatus,
   type ParsedSourceDate,
 } from './utils/dataCoverage';
+import { buildAttentionSummary } from './utils/attentionSummary';
+import { localizeViewer3DMessage } from './utils/viewer3dMessages';
 import './App.css';
 
 const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMap'));
@@ -798,28 +811,55 @@ function App() {
     setHashRoute('#/compare');
   }, [setHashRoute]);
 
+  const buildShortlistItem = useCallback((): ShortlistItem | null => {
+    if (!address?.adresseerbaar_object_id) return null;
+    return {
+      vboId: address.adresseerbaar_object_id,
+      lookupId: address.id,
+      address: address.display_name,
+      postcode: address.postcode,
+      city: address.city,
+      buildingYear: buildingResponse?.building?.construction_year,
+      riskScores: {
+        noise: riskCards?.noise.score,
+        air: riskCards?.air_quality.score,
+        climate: riskCards?.climate_stress.score,
+        sunlight: sunlight ? normalizeSunlightScore(sunlight.winter) : riskCards?.sunlight?.score,
+      },
+      savedAt: Date.now(),
+    };
+  }, [address, buildingResponse?.building?.construction_year, riskCards, sunlight]);
+
+  const currentAddressBookmarked = !!address?.adresseerbaar_object_id
+    && isInShortlist(address.adresseerbaar_object_id);
+  // Wait until risk cards have either resolved, failed, or are impossible for this address
+  // before persisting a shortlist snapshot with address-level scores.
+  const shortlistRiskSnapshotReady = !address?.adresseerbaar_object_id
+    ? false
+    : (
+        address.rd_x == null
+        || address.rd_y == null
+        || address.latitude == null
+        || address.longitude == null
+        || riskCards != null
+        || riskError != null
+      );
+  const bookmarkPending = loading
+    || buildingLoading
+    || (!currentAddressBookmarked && !shortlistRiskSnapshotReady);
+
   const handleBookmark = useCallback(() => {
-    if (!address?.adresseerbaar_object_id) return;
-    const vboId = address.adresseerbaar_object_id;
+    const item = buildShortlistItem();
+    if (!item) return;
+    const { vboId } = item;
     if (isInShortlist(vboId)) {
       removeFromShortlist(vboId);
       showToast(t('toast.addressRemoved'));
     } else {
-      const item: ShortlistItem = {
-        vboId,
-        lookupId: address.id,
-        address: address.display_name,
-        postcode: address.postcode,
-        city: address.city,
-        buildingYear: buildingResponse?.building?.construction_year,
-        riskScores: {
-          noise: riskCards?.noise.score,
-          air: riskCards?.air_quality.score,
-          climate: riskCards?.climate_stress.score,
-          sunlight: sunlight ? normalizeSunlightScore(sunlight.winter) : undefined,
-        },
-        savedAt: Date.now(),
-      };
+      if (!shortlistRiskSnapshotReady) {
+        showToast(t('toast.shortlistScoresPending'));
+        return;
+      }
       const added = addToShortlist(item);
       if (added) {
         const updatedShortlist = getShortlist();
@@ -837,7 +877,14 @@ function App() {
       }
     }
     setShortlistItems(getShortlist());
-  }, [address, buildingResponse, riskCards, showToast, sunlight, t, handleNavigateToCompare]);
+  }, [buildShortlistItem, handleNavigateToCompare, shortlistRiskSnapshotReady, showToast, t]);
+
+  useEffect(() => {
+    const item = buildShortlistItem();
+    if (!item || !shortlistRiskSnapshotReady || !isInShortlist(item.vboId)) return;
+    upsertShortlistItem(item);
+    setShortlistItems(getShortlist());
+  }, [buildShortlistItem, shortlistRiskSnapshotReady]);
 
   const handleRemoveFromShortlist = useCallback((vboId: string) => {
     removeFromShortlist(vboId);
@@ -1406,6 +1453,7 @@ function App() {
           {
             street: address.street ?? undefined,
             city: address.city ?? undefined,
+            buurtCode: address.buurt_code ?? undefined,
           },
           controller.signal,
           reportId,
@@ -2029,6 +2077,7 @@ function App() {
                 {
                   street: resolved.street ?? undefined,
                   city: resolved.city ?? undefined,
+                  buurtCode: resolved.buurt_code ?? undefined,
                 },
                 requestSignal,
                 activeReportId,
@@ -2445,6 +2494,8 @@ function App() {
         ? riskComparisons.air_quality
         : category === 'climate'
           ? riskComparisons.climate_stress
+          : category === 'sunlight'
+            ? riskComparisons.sunlight
           : [];
     return rows.map((row) => ({
       label: comparisonLabel(row.label_code),
@@ -2503,6 +2554,15 @@ function App() {
         comparisons: buildComparisons('climate'),
         source: currentRiskCards?.climate_stress.source,
         sourceDate: currentRiskCards?.climate_stress.source_date,
+      };
+      case 'sunlight': return {
+        titleKey: 'risk.sunlight.title',
+        score: sunlightTile.score,
+        severity: sunlightTile.severity,
+        meaning: sunlightTile.summary,
+        comparisons: buildComparisons('sunlight'),
+        source: sunlightTile.source,
+        sourceDate: sunlightTile.sourceDate,
       };
       default: return null;
     }
@@ -2655,6 +2715,39 @@ function App() {
     tierBLoading,
   ]);
 
+  const attentionSummary = useMemo(
+    () => buildAttentionSummary(riskCards, propertyWarnings),
+    [propertyWarnings, riskCards],
+  );
+  const viewer3DStatusMessage = useMemo(
+    () => localizeViewer3DMessage(neighborhood3D?.message, t),
+    [neighborhood3D?.message, t],
+  );
+
+  const sunlightTile = useMemo(() => {
+    const score = sunlight
+      ? normalizeSunlightScore(sunlight.winter)
+      : riskCards?.sunlight?.score;
+    const severity = score != null
+      ? levelToSeverity('unavailable', score)
+      : riskCards?.sunlight?.severity
+        ?? (sunlightUnavailable ? 'unavailable' : 'unavailable');
+    const summary = riskCards?.sunlight
+      ? (isNl ? riskCards.sunlight.summary_nl : riskCards.sunlight.summary)
+      : score != null
+        ? t(`risk.sunlight.summary.${severity}`)
+        : t('sunlight.meaning.unavailable');
+
+    return {
+      score,
+      severity,
+      summary,
+      unavailable: score == null,
+      source: riskCards?.sunlight?.source ?? '3DBAG + SunCalc',
+      sourceDate: riskCards?.sunlight?.source_date ?? sunlight?.analysisYear?.toString(),
+    };
+  }, [isNl, riskCards?.sunlight, sunlight, sunlightUnavailable, t]);
+
   // Get viewing questions for active detail category
   const activeQuestions = activeDetailCategory
     ? (() => {
@@ -2794,7 +2887,7 @@ function App() {
                 </div>
 
                 <section role="region" aria-label={t('nav.jumpHouse')}>
-                  {(!riskLoading && (riskCards || riskError)) && (
+                  {(!riskLoading && (riskCards || riskError || propertyWarnings)) && (
                     <div
                       className="dossier-section"
                       style={dossierSectionStyle(0)}
@@ -2802,7 +2895,9 @@ function App() {
                       data-dossier-section="attention-summary"
                     >
                       <AttentionSummary
-                        riskCards={riskCards ?? undefined}
+                        summary={attentionSummary}
+                        error={riskError}
+                        onRetry={riskError ? handleRetryRiskCards : undefined}
                       />
                     </div>
                   )}
@@ -2850,6 +2945,58 @@ function App() {
                     </div>
                   )}
 
+                  {((loading && !riskCards) || riskLoading || riskCards || riskError || activeDetailCategory) && (
+                    <div className="dossier-section" style={dossierSectionStyle(1.5)} data-section-index={1.5}>
+                      {loading && !riskCards && <RiskTileSkeleton />}
+                      {(riskLoading || riskCards || riskError || activeDetailCategory) && (
+                        <LayoutGroup>
+                          {(riskLoading || riskCards || riskError) && (
+                            <RiskTilesGrid
+                              risks={riskCards ?? undefined}
+                              onTileTap={handleRiskTileTap}
+                            />
+                          )}
+                          <AnimatePresence initial={false} mode="wait">
+                            {isEntitled && activeDetailCategory && (() => {
+                              const detail = getDetailProps(activeDetailCategory);
+                              if (!detail) return null;
+                              return (
+                                <RiskDetailView
+                                  key={`${activeDetailCategory}:${useFallbackDetailTransition ? 'fallback' : 'shared'}`}
+                                  category={activeDetailCategory}
+                                  titleKey={detail.titleKey}
+                                  score={detail.score}
+                                  severity={detail.severity}
+                                  meaning={detail.meaning}
+                                  comparisons={detail.comparisons}
+                                  comparisonsError={riskComparisonsError}
+                                  onRetryComparisons={riskComparisonsError ? handleRetryRiskComparisons : undefined}
+                                  questions={activeQuestions}
+                                  source={detail.source}
+                                  sourceDate={detail.sourceDate}
+                                  useSharedElement={!useFallbackDetailTransition}
+                                  onBack={() => {
+                                    animationPerformance.stopMonitoring();
+                                    setActiveDetailCategory(null);
+                                    setIsTransitioning(false);
+                                  }}
+                                  onAnimationStart={() => {
+                                    setIsTransitioning(true);
+                                    animationPerformance.startMonitoring();
+                                  }}
+                                  onAnimationComplete={() => {
+                                    animationPerformance.stopMonitoring();
+                                    setIsTransitioning(false);
+                                  }}
+                                />
+                              );
+                            })()}
+                          </AnimatePresence>
+                        </LayoutGroup>
+                      )}
+                    </div>
+                  )}
+
                   {(buildingLoading || buildingResponse || buildingError) && (
                     <div className="dossier-section" style={dossierSectionStyle(2)} data-section-index={2}>
                       <BuildingFactsCard
@@ -2861,58 +3008,8 @@ function App() {
                     </div>
                   )}
 
-                  {progressivePhase !== 'house' &&
-                    ((loading && !riskCards) || riskLoading || riskCards || riskError || activeDetailCategory) && (
-                      <div className="dossier-section" style={dossierSectionStyle(3)} data-section-index={3}>
-                        {loading && !riskCards && <RiskTileSkeleton />}
-                        {(riskLoading || riskCards || riskError || activeDetailCategory) && (
-                          <LayoutGroup>
-                            {(riskLoading || riskCards || riskError) && (
-                              <RiskTilesGrid
-                                risks={riskCards ?? undefined}
-                                onTileTap={handleRiskTileTap}
-                              />
-                            )}
-                            <AnimatePresence initial={false} mode="wait">
-                              {isEntitled && activeDetailCategory && (() => {
-                                const detail = getDetailProps(activeDetailCategory);
-                                if (!detail) return null;
-                                return (
-                                  <RiskDetailView
-                                    key={`${activeDetailCategory}:${useFallbackDetailTransition ? 'fallback' : 'shared'}`}
-                                    category={activeDetailCategory}
-                                    titleKey={detail.titleKey}
-                                    score={detail.score}
-                                    severity={detail.severity}
-                                    meaning={detail.meaning}
-                                    comparisons={detail.comparisons}
-                                    comparisonsError={riskComparisonsError}
-                                    onRetryComparisons={riskComparisonsError ? handleRetryRiskComparisons : undefined}
-                                    questions={activeQuestions}
-                                    source={detail.source}
-                                    sourceDate={detail.sourceDate}
-                                    useSharedElement={!useFallbackDetailTransition}
-                                    onBack={() => {
-                                      animationPerformance.stopMonitoring();
-                                      setActiveDetailCategory(null);
-                                      setIsTransitioning(false);
-                                    }}
-                                    onAnimationStart={() => {
-                                      setIsTransitioning(true);
-                                      animationPerformance.startMonitoring();
-                                    }}
-                                    onAnimationComplete={() => {
-                                      animationPerformance.stopMonitoring();
-                                      setIsTransitioning(false);
-                                    }}
-                                  />
-                                );
-                              })()}
-                            </AnimatePresence>
-                          </LayoutGroup>
-                        )}
-                      </div>
-                    )}
+                  {/* PropertyWarningsCard and SoilInfoCard are premium-only (PDF/Full Dossier).
+                      They are NOT rendered in the interactive viewer. */}
 
                 </section>
 
@@ -2979,7 +3076,7 @@ function App() {
 
                             {!neighborhood3DLoading && !neighborhood3DError && neighborhood3D && neighborhood3D.buildings.length === 0 && (
                               <div className="viewer-3d-status">
-                                <p>{t('viewer3d.noData')}</p>
+                                <p>{viewer3DStatusMessage ?? t('viewer3d.noData')}</p>
                               </div>
                             )}
 
@@ -2998,6 +3095,7 @@ function App() {
                                   loading={surroundingLoading}
                                   error={neighborhood3DError}
                                   onRetry={neighborhood3DError ? handleRetryNeighborhood3D : undefined}
+                                  statusMessage={viewer3DStatusMessage}
                                 />
                               </Suspense>
                             )}
@@ -3010,6 +3108,9 @@ function App() {
                               />
                             )}
                           </div>
+
+                          {/* SunlightRiskCard and ShadowSnapshots are premium-only (PDF/Full Dossier).
+                              They are NOT rendered in the interactive viewer. */}
                         </>
                       ) : (
                         <>
@@ -3060,7 +3161,7 @@ function App() {
                 )}
 
                 {(isEntitled
-                  ? ((viewingQuestions && viewingQuestions.categories.length > 0) || viewingQuestionsError)
+                  ? (viewingQuestions || viewingQuestionsError)
                   : progressivePhase === 'buurt') && (
                   <>
                   <div className="app__phase-divider" id="section-action-start">
@@ -3101,10 +3202,12 @@ function App() {
                       <li>
                         <button
                           type="button"
-                          className={`app__next-steps-action${address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id) ? ' app__next-steps-action--saved' : ''}`}
+                          className={`app__next-steps-action${currentAddressBookmarked ? ' app__next-steps-action--saved' : ''}`}
+                          disabled={!currentAddressBookmarked && bookmarkPending}
+                          aria-busy={!currentAddressBookmarked && bookmarkPending ? true : undefined}
                           onClick={() => {
                             hapticTap();
-                            if (address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)) {
+                            if (currentAddressBookmarked) {
                               setActiveScreen('search');
                               setActiveTab('home');
                               setHashRoute('#/search');
@@ -3114,13 +3217,13 @@ function App() {
                           }}
                         >
                           <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            {address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id) ? (
+                            {currentAddressBookmarked ? (
                               <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor"/>
                             ) : (
                               <path d="M5 4a1 1 0 00-1 1v11.586l5.707-3.805a1 1 0 011.086 0L16 16.586V5a1 1 0 00-1-1H5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
                             )}
                           </svg>
-                          {address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)
+                          {currentAddressBookmarked
                             ? t('dossier.nextSteps.saved')
                             : t('dossier.nextSteps.save')}
                         </button>
@@ -3150,14 +3253,14 @@ function App() {
                 {address && (
                   <div className="dossier-section" style={dossierSectionStyle(9)} data-section-index={9}>
                     <ActionBar
-                      isBookmarked={!!address.adresseerbaar_object_id && isInShortlist(address.adresseerbaar_object_id)}
+                      isBookmarked={currentAddressBookmarked}
                       onAddToShortlist={handleBookmark}
                       onExportBriefing={() => {
                         hapticTap();
                         setExportSheetOpen(true);
                       }}
                       showBookmarkTooltip={!!address}
-                      bookmarkPending={loading || buildingLoading}
+                      bookmarkPending={bookmarkPending}
                       exportPending={exportGenerating}
                       visible={actionBarVisible}
                     />
@@ -3262,6 +3365,7 @@ function App() {
             reportId={isEntitled ? reportId ?? undefined : undefined}
             street={address.street ?? undefined}
             city={address.city ?? undefined}
+            municipality={address.municipality ?? undefined}
             buurtCode={address.buurt_code ?? undefined}
             postcode={address.postcode ?? undefined}
             houseNumber={address.house_number ?? undefined}

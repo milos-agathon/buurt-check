@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -118,6 +119,8 @@ def _resolve_climate_layer_date(layer_name: str | None) -> str | None:
 
 
 def _risk_from_threshold(value: float, low_max: float, medium_max: float) -> RiskLevel:
+    if not math.isfinite(value):
+        return RiskLevel.unavailable
     if value <= low_max:
         return RiskLevel.low
     if value <= medium_max:
@@ -303,6 +306,8 @@ def _extract_numeric(
         if any(pattern in key_l for pattern in ignore_key_patterns):
             continue
         numeric = float(value)
+        if not math.isfinite(numeric):
+            continue
         # Common no-data sentinel values in geospatial rasters.
         if numeric <= -999 or numeric >= 1e30:
             continue
@@ -316,6 +321,8 @@ def _sanitize_raster_value(
     min_value: float | None = None,
 ) -> float | None:
     if value is None:
+        return None
+    if not math.isfinite(value):
         return None
     if value <= -999 or value >= 1e30:
         return None
@@ -479,7 +486,9 @@ def _classify_water_from_properties(
         value = props.get(key)
         if not isinstance(value, (int, float)):
             continue
-        klasse = float(value)
+        klasse = _sanitize_raster_value(float(value), min_value=0.0)
+        if klasse is None:
+            continue
         if klasse <= 1:
             return RiskLevel.low, klasse, key
         if klasse <= 2:
@@ -490,7 +499,9 @@ def _classify_water_from_properties(
         value = props.get(key)
         if not isinstance(value, (int, float)):
             continue
-        numeric = float(value)
+        numeric = _sanitize_raster_value(float(value), min_value=0.0)
+        if numeric is None:
+            continue
         if numeric <= 0:
             return RiskLevel.low, numeric, key
         if numeric <= 1:
@@ -508,20 +519,22 @@ def _classify_water_from_properties(
         return RiskLevel.medium, None, "medium impact label"
 
     if isinstance(props.get("GRIDCODE"), (int, float)):
-        grid = float(props["GRIDCODE"])
-        if grid <= 1:
-            return RiskLevel.low, grid, "GRIDCODE"
-        if grid == 2:
-            return RiskLevel.medium, grid, "GRIDCODE"
-        return RiskLevel.high, grid, "GRIDCODE"
+        grid = _sanitize_raster_value(float(props["GRIDCODE"]), min_value=0.0)
+        if grid is not None:
+            if grid <= 1:
+                return RiskLevel.low, grid, "GRIDCODE"
+            if grid == 2:
+                return RiskLevel.medium, grid, "GRIDCODE"
+            return RiskLevel.high, grid, "GRIDCODE"
 
     if isinstance(props.get("ror"), (int, float)):
-        ror = float(props["ror"])
-        if ror <= 2:
-            return RiskLevel.low, ror, "ror"
-        if ror <= 4:
-            return RiskLevel.medium, ror, "ror"
-        return RiskLevel.high, ror, "ror"
+        ror = _sanitize_raster_value(float(props["ror"]), min_value=0.0)
+        if ror is not None:
+            if ror <= 2:
+                return RiskLevel.low, ror, "ror"
+            if ror <= 4:
+                return RiskLevel.medium, ror, "ror"
+            return RiskLevel.high, ror, "ror"
 
     value, key = _extract_numeric(props)
     if value is None:

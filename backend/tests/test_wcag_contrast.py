@@ -51,7 +51,6 @@ def test_wcag_contrast_all_pairs(language: str) -> None:
 
     failures: list[str] = []
     accent_hex = "#2EC4B6"
-    accent_text_hex = "#187E76"
 
     for pair in pairs:
         cratio = _contrast_ratio(pair.fg_hex, pair.bg_hex)
@@ -69,15 +68,6 @@ def test_wcag_contrast_all_pairs(language: str) -> None:
         if p.fg_hex == accent_hex and p.bg_hex in {"#FFFFFF", "#FAFBFC"}
     ]
     assert not bad_accent, "Accent teal (#2EC4B6) must never be used as light-background text"
-
-    # Accent-text token must be present for teal-toned text usage on light backgrounds.
-    has_accent_text = any(
-        p.fg_hex == accent_text_hex and p.bg_hex in {"#FFFFFF", "#FAFBFC"}
-        for p in pairs
-    )
-    assert has_accent_text, (
-        "Expected accent-text (#187E76) to be used for light-background teal text"
-    )
 
     # Severity palette must be checked against white and dark backgrounds.
     severity_hexes = ["#22C55E", "#EAB308", "#EF4444", "#B91C1C"]

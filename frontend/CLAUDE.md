@@ -58,10 +58,12 @@ npx vitest --watch   # Watch mode
 
 ### Components
 - Functional components, named exports, co-located CSS + tests
-- Dossier canonical order (14 sections, enforced by regression test):
-  AttentionSummary → AddressHeader → SummaryStrip → BuildingFacts → RiskTiles →
-  PropertyWarnings → SoilInfo → Livability → 3DViewer → Sunlight →
-  NeighborhoodStats → TierB → ViewingChecklist → ActionBar
+- Dossier canonical order (viewer sections only):
+  AttentionSummary → AddressHeader → SummaryStrip → RiskTiles → BuildingFacts →
+  Livability → 3DViewer → NeighborhoodStats → TierB → ViewingChecklist → ActionBar
+- Premium-only sections (PDF only, NOT in viewer):
+  PropertyWarnings, SoilInfo, SunlightRiskCard, ShadowSnapshots, heatmap overlay
+- RiskTilesGrid appears ONCE at the top (after SummaryStrip), not duplicated lower
 
 ## Testing patterns
 
@@ -169,7 +171,7 @@ Use `services/checklistStorage.ts` pattern for any state that should survive tab
 ### Skeleton Layout Fidelity
 
 - `RiskTileSkeleton` must mirror `RiskTilesGrid`'s exact CSS grid (2 columns, 2 rows, same gap). Mismatched structures cause layout shift on load. Validate at 375px (iPhone) and 360px (Android).
-- `SectionSkeleton` (`components/ui/SectionSkeleton.tsx`): variant-based skeleton for building-facts, property-warnings, livability, neighborhood-stats. Uses `Skeleton` atom, `aria-hidden="true"`, `data-testid` prop.
+- `SectionSkeleton` (`components/ui/SectionSkeleton.tsx`): variant-based skeleton for building-facts, livability, neighborhood-stats. Uses `Skeleton` atom, `aria-hidden="true"`, `data-testid` prop. Note: property-warnings variant is no longer used in the viewer (premium-only).
 
 ### ConfirmSheet Pattern
 

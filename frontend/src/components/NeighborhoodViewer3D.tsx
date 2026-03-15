@@ -2,7 +2,6 @@ import { useEffect, useRef, useCallback, useState, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   BufferGeometry,
-  CanvasTexture,
   Color,
   DirectionalLight,
   DoubleSide,
@@ -66,23 +65,6 @@ const NEIGHBOR_COLOR_DARK = 0x8A9BB0;
 const NEIGHBOR_OPACITY_LIGHT = 0.90;
 const NEIGHBOR_OPACITY_DARK = 0.80;
 
-// Convert lat/lng to Web Mercator tile coordinates and fractional position within tile
-function latLngToTile(lat: number, lng: number, zoom: number) {
-  const n = Math.pow(2, zoom);
-  const xFloat = ((lng + 180) / 360) * n;
-  const latRad = (lat * Math.PI) / 180;
-  const yFloat = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
-
-  const x = Math.floor(xFloat);
-  const y = Math.floor(yFloat);
-
-  // Fractional position within the tile (0-1)
-  const fracX = xFloat - x;
-  const fracY = yFloat - y;
-
-  return { x, y, zoom, fracX, fracY };
-}
-
 interface Props {
   addressId?: string;
   reportId?: string;
@@ -98,6 +80,7 @@ interface Props {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  statusMessage?: string | null;
 }
 
 interface HeatmapRange {
@@ -108,7 +91,6 @@ interface HeatmapRange {
 // Canvas quality controls — feature-flagged for safe rollout.
 const SHADOW_MAP_SIZE = Number(import.meta.env.VITE_VIEWER3D_SHADOW_SIZE) || 2048;
 const DPR_CAP = Number(import.meta.env.VITE_VIEWER3D_DPR_CAP) || 2;
-const TILE_GRID: '3x3' | '2x2' = import.meta.env.VITE_VIEWER3D_TILE_GRID === '2x2' ? '2x2' : '3x3';
 const SVF_SAMPLE_POINTS = Math.max(1, Number(import.meta.env.VITE_SVF_SAMPLE_POINTS) || 5);
 const SVF_SAMPLE_POINTS_MOBILE = Math.max(1, Number(import.meta.env.VITE_SVF_SAMPLE_POINTS_MOBILE) || 3);
 const SVF_IDLE_TIMEOUT_MS = Math.max(0, Number(import.meta.env.VITE_SVF_IDLE_TIMEOUT_MS) || 200);
@@ -128,6 +110,8 @@ const CAMERA_MAX_DISTANCE_FACTOR = 1.35;
 const GROUND_COLOR_LIGHT = 0xCDD5DF;
 const GROUND_COLOR_DARK = 0x263848;
 const HEATMAP_ROOF_NORMAL_MIN_Y = 0.25;
+const TARGET_EMISSIVE = 0x57D4C8;
+const GROUND_BASEMAP_SIZE = 1024;
 
 type IdleWindow = Window & {
   requestIdleCallback?: (
@@ -381,6 +365,7 @@ export default function NeighborhoodViewer3D({
   loading = false,
   error,
   onRetry,
+  statusMessage,
 }: Props) {
   const { t } = useTranslation();
   const sceneSummaryId = useId();
@@ -398,7 +383,7 @@ export default function NeighborhoodViewer3D({
     renderQueued: boolean;
   } | null>(null);
 
-  const basemapMeshesRef = useRef<Mesh[]>([]);
+  const groundTextureRef = useRef<Texture | null>(null);
   const targetMeshRef = useRef<Mesh | null>(null);
   const targetMaterialCloneRef = useRef<MeshStandardMaterial | null>(null);
   const sunlightComputed = useRef(false);
@@ -672,6 +657,10 @@ export default function NeighborhoodViewer3D({
       }
 
       const sampleHours = perPointAnnual[nearest.index];
+      if (!Number.isFinite(sampleHours)) {
+        colors.setXYZ(i, baseColor[0], baseColor[1], baseColor[2]);
+        continue;
+      }
       const [r, g, b] = sunHoursToColor(sampleHours, range.minHours, range.maxHours);
       colors.setXYZ(i, r, g, b);
     }
@@ -879,8 +868,8 @@ export default function NeighborhoodViewer3D({
     };
   }, [renderOnce]);
 
-  // Capture shadow snapshots for export: three summer-solstice viewpoints
-  // around the target building (top / front / rear) at 12:00 local time.
+  // Capture shadow snapshots for export: three summer-solstice top views
+  // at 09:00, 12:00, and 15:00 local time.
   const captureSnapshots = useCallback(() => {
     const ctx = sceneRef.current;
     const callback = onShadowSnapshotsRef.current;
@@ -894,12 +883,12 @@ export default function NeighborhoodViewer3D({
     const OFFSCREEN_H = 1200;
     const HIRES_SHADOW_MAP = 4096;
     const SNAPSHOT_RADIUS_METERS = 30;
-    const SNAPSHOT_BACKGROUND_COLOR = 0xF5F8FB;
-    const SNAPSHOT_GROUND_COLOR = 0xE2E8F0;
-    const SNAPSHOT_NEIGHBOR_COLOR = 0x6E7D8C;
+    const SNAPSHOT_BACKGROUND_COLOR = 0xF7FAFD;
+    const SNAPSHOT_GROUND_COLOR = 0xDDE6EF;
+    const SNAPSHOT_NEIGHBOR_COLOR = 0xBAC6D1;
     const SCALE_BAR_METERS = 15;
     const SNAPSHOT_MIME_TYPE = 'image/jpeg';
-    const SNAPSHOT_JPEG_QUALITY = 0.82;
+    const SNAPSHOT_JPEG_QUALITY = 0.86;
 
     // Save camera + sun state
     const savedCameraPos = ctx.camera.position.clone();
@@ -990,14 +979,14 @@ export default function NeighborhoodViewer3D({
     };
 
     // Snapshot styling is print-first and independent from interactive dark mode.
-    // Override ambient light to ensure consistent print-quality shadow contrast
-    // regardless of the current theme (dark mode ambient would wash out shadows).
+    // Use lighter surfaces plus lower ambient fill so cast shadows stay legible
+    // in the exported dossier instead of blending into neighboring buildings.
     const savedAmbientSky = ctx.ambientLight.color.getHex();
     const savedAmbientGround = ctx.ambientLight.groundColor.getHex();
     const savedAmbientIntensity = ctx.ambientLight.intensity;
-    ctx.ambientLight.color.setHex(0xE7EDF3);
-    ctx.ambientLight.groundColor.setHex(0xBEC8D2);
-    ctx.ambientLight.intensity = 0.15;
+    ctx.ambientLight.color.setHex(0xF0F5F9);
+    ctx.ambientLight.groundColor.setHex(0xCDD8E2);
+    ctx.ambientLight.intensity = 0.08;
 
     ctx.scene.background = new Color(SNAPSHOT_BACKGROUND_COLOR);
     const groundMaterials = Array.isArray(ctx.ground.material) ? ctx.ground.material : [ctx.ground.material];
@@ -1018,7 +1007,7 @@ export default function NeighborhoodViewer3D({
         if (isTargetMesh) {
           styleMaterial(material, {
             color: TARGET_COLOR,
-            emissive: 0x59DCD0,
+            emissive: TARGET_EMISSIVE,
             emissiveIntensity: 0.55,
             transparent: false,
             opacity: 1,
@@ -1030,8 +1019,8 @@ export default function NeighborhoodViewer3D({
             color: SNAPSHOT_NEIGHBOR_COLOR,
             emissive: 0x000000,
             emissiveIntensity: 0,
-            transparent: true,
-            opacity: 0.96,
+            transparent: false,
+            opacity: 1,
             roughness: 0.86,
             metalness: 0.05,
           });
@@ -1071,22 +1060,14 @@ export default function NeighborhoodViewer3D({
       targetBuilding?.orientation_deg,
     );
     const year = new Date().getFullYear();
-    // 6-panel layout: 3 viewpoints × 2 times of day (morning 09:00 + afternoon 15:00 CEST)
-    // This matches the forge3d server-side rendering layout.
-    // Morning and afternoon produce visibly different shadow directions,
-    // giving the buyer a complete picture of sunlight exposure.
-    // Top view: offset 30° clockwise from front bearing for an oblique
-    // aerial perspective that shows the front facade + one side.
+    // Capture summer-solstice evidence using one stable oblique top view at
+    // three times of day, so the viewer and export flows share the same
+    // morning / noon / late-afternoon evidence set.
     const topBearingDeg = (frontBearingDeg + 30) % 360;
     const snapshotConfigs = [
-      // Morning row (09:00 CEST — sun from east)
       { hour: 9, label: 'top_morning', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: topBearingDeg },
-      { hour: 9, label: 'front_morning', viewpoint: 'front' as const, month: 5, day: 21, bearingDeg: frontBearingDeg },
-      { hour: 9, label: 'rear_morning', viewpoint: 'rear' as const, month: 5, day: 21, bearingDeg: (frontBearingDeg + 180) % 360 },
-      // Afternoon row (15:00 CEST — sun from west)
+      { hour: 12, label: 'top_noon', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: topBearingDeg },
       { hour: 15, label: 'top_afternoon', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: topBearingDeg },
-      { hour: 15, label: 'front_afternoon', viewpoint: 'front' as const, month: 5, day: 21, bearingDeg: frontBearingDeg },
-      { hour: 15, label: 'rear_afternoon', viewpoint: 'rear' as const, month: 5, day: 21, bearingDeg: (frontBearingDeg + 180) % 360 },
     ];
 
     // Overlay canvas for cartographic elements
@@ -1129,8 +1110,9 @@ export default function NeighborhoodViewer3D({
             sunDir.y * SUN_DISTANCE,
             sunDir.z * SUN_DISTANCE,
           );
-          // Print-optimized: use full intensity for contrast
-          ctx.sunLight.intensity = 1.0;
+          // Slightly stronger directional light keeps lit surfaces bright while
+          // preserving distinctly darker shadow areas in the exported images.
+          ctx.sunLight.intensity = 1.15;
         } else {
           ctx.sunLight.intensity = 0;
         }
@@ -1365,7 +1347,7 @@ export default function NeighborhoodViewer3D({
         if (!geom) continue;
         const mat = new MeshStandardMaterial({
           color: TARGET_COLOR,
-          emissive: 0x57D4C8,
+          emissive: TARGET_EMISSIVE,
           emissiveIntensity: isDarkMode ? 0.20 : 0.40,
           side: DoubleSide,
         });
@@ -1524,123 +1506,98 @@ export default function NeighborhoodViewer3D({
     renderOnce();
   }, [sunDateTime, center.lat, center.lng, renderOnce]);
 
-  // Load PDOK street map as a 3x3 grid of basemap tiles
+  // Load orthophoto imagery onto the ground plane. Prefer the backend WMS
+  // proxy when a report id is available so viewer and export imagery match.
   useEffect(() => {
     const ctx = sceneRef.current;
-    if (!ctx || !center.lat || !center.lng) return;
+    if (!ctx) return;
     let cancelled = false;
-    const pendingImages: HTMLImageElement[] = [];
-
-    for (const mesh of basemapMeshesRef.current) {
-      ctx.scene.remove(mesh);
-      if ((mesh.material as MeshStandardMaterial).map) {
-        (mesh.material as MeshStandardMaterial).map!.dispose();
-      }
-      mesh.geometry.dispose();
-      (mesh.material as Material).dispose();
-    }
-    basemapMeshesRef.current = [];
-
-    const zoom = 16;
-    const centerTile = latLngToTile(center.lat, center.lng, zoom);
-
-    const offsets = TILE_GRID === '2x2'
-      ? [
-        { dx: 0, dy: 0 }, { dx: 1, dy: 0 },
-        { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
-      ]
-      : [
-        { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
-        { dx: -1, dy: 0 }, { dx: 0, dy: 0 }, { dx: 1, dy: 0 },
-        { dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
-      ];
-
-    const meshes: Mesh[] = [];
-    basemapMeshesRef.current = meshes;
-
+    const img = new Image();
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-
-    const equatorTileWidth = 40075016.686 / Math.pow(2, zoom);
-    const tileWidthMeters = equatorTileWidth * Math.cos((center.lat * Math.PI) / 180);
-
-    const centerOffsetX = (centerTile.fracX - 0.5) * tileWidthMeters;
-    const centerOffsetY = (centerTile.fracY - 0.5) * tileWidthMeters;
-
-    offsets.forEach(({ dx, dy }) => {
-      const tileX = centerTile.x + dx;
-      const tileY = centerTile.y + dy;
-
-      const url = `https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/${zoom}/${tileX}/${tileY}.png`;
-
-      const img = new Image();
-      pendingImages.push(img);
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        if (cancelled || !sceneRef.current) return;
-
-        let texture: Texture;
-        if (isDark) {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const c = canvas.getContext('2d')!;
-          c.filter = 'invert(1) hue-rotate(180deg) brightness(1.8) contrast(1.5) saturate(1.2)';
-          c.drawImage(img, 0, 0);
-          texture = new CanvasTexture(canvas);
-        } else {
-          texture = new Texture(img);
-          texture.needsUpdate = true;
-        }
-        texture.colorSpace = SRGBColorSpace;
-        texture.minFilter = LinearFilter;
-        texture.magFilter = LinearFilter;
-
-        const tileGeom = new PlaneGeometry(tileWidthMeters, tileWidthMeters);
-        const tileMat = new MeshStandardMaterial({
-          map: texture,
-          roughness: 0.95,
-          side: DoubleSide,
-        });
-        const tileMesh = new Mesh(tileGeom, tileMat);
-        tileMesh.rotation.x = -Math.PI / 2;
-
-        const worldX = (dx * tileWidthMeters) - centerOffsetX;
-        const worldZ = (dy * tileWidthMeters) - centerOffsetY;
-
-        tileMesh.position.set(worldX, 0.01, worldZ);
-        tileMesh.receiveShadow = true;
-
-        sceneRef.current.scene.add(tileMesh);
-        meshes.push(tileMesh);
-        renderOnce();
-      };
-      img.onerror = () => {
-        if (cancelled) return;
-        if (import.meta.env.DEV) {
-          console.warn(`[3D] Basemap tile failed: ${url}`);
-        }
-      };
-      img.src = url;
+    const radius = Math.round(GROUND_SIZE / 2);
+    const proxyBase = import.meta.env.VITE_API_BASE || '/api';
+    const proxyParams = new URLSearchParams({
+      type: 'luchtfoto',
+      rd_x: String(center.rd_x),
+      rd_y: String(center.rd_y),
+      radius: String(radius),
+      size: String(GROUND_BASEMAP_SIZE),
     });
+    if (reportId) {
+      proxyParams.set('report_id', reportId);
+    }
+    const directParams = new URLSearchParams({
+      SERVICE: 'WMS',
+      VERSION: '1.3.0',
+      REQUEST: 'GetMap',
+      LAYERS: 'Actueel_orthoHR',
+      STYLES: '',
+      CRS: 'EPSG:28992',
+      BBOX: `${center.rd_x - radius},${center.rd_y - radius},${center.rd_x + radius},${center.rd_y + radius}`,
+      WIDTH: String(GROUND_BASEMAP_SIZE),
+      HEIGHT: String(GROUND_BASEMAP_SIZE),
+      FORMAT: 'image/jpeg',
+      TRANSPARENT: 'false',
+    });
+    const url = reportId
+      ? `${proxyBase}/address/wms-tile?${proxyParams}`
+      : `https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?${directParams}`;
+
+    const groundMaterial = Array.isArray(ctx.ground.material) ? ctx.ground.material[0] : ctx.ground.material;
+    if (!(groundMaterial instanceof MeshStandardMaterial)) {
+      return;
+    }
+
+    if (groundTextureRef.current) {
+      groundTextureRef.current.dispose();
+      groundTextureRef.current = null;
+    }
+    groundMaterial.map = null;
+    groundMaterial.color.setHex(isDark ? 0x8A97A5 : 0xffffff);
+    groundMaterial.needsUpdate = true;
+
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (cancelled || !sceneRef.current) return;
+
+      const texture = new Texture(img);
+      texture.needsUpdate = true;
+      texture.colorSpace = SRGBColorSpace;
+      texture.minFilter = LinearFilter;
+      texture.magFilter = LinearFilter;
+      groundTextureRef.current = texture;
+
+      groundMaterial.map = texture;
+      groundMaterial.roughness = 0.95;
+      groundMaterial.color.setHex(isDark ? 0xAAB6C2 : 0xffffff);
+      groundMaterial.needsUpdate = true;
+      renderOnce();
+    };
+    img.onerror = () => {
+      if (cancelled) return;
+      groundMaterial.map = null;
+      groundMaterial.color.setHex(isDark ? GROUND_COLOR_DARK : GROUND_COLOR_LIGHT);
+      groundMaterial.needsUpdate = true;
+      if (import.meta.env.DEV) {
+        console.warn(`[3D] Orthophoto basemap failed: ${url}`);
+      }
+    };
+    img.src = url;
 
     return () => {
       cancelled = true;
-      for (const img of pendingImages) {
-        img.onload = null;
-        img.onerror = null;
-        img.src = '';
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
+      if (groundTextureRef.current) {
+        groundTextureRef.current.dispose();
+        groundTextureRef.current = null;
       }
-      for (const mesh of basemapMeshesRef.current) {
-        sceneRef.current?.scene.remove(mesh);
-        if ((mesh.material as MeshStandardMaterial).map) {
-          (mesh.material as MeshStandardMaterial).map!.dispose();
-        }
-        mesh.geometry.dispose();
-        (mesh.material as Material).dispose();
-      }
-      basemapMeshesRef.current = [];
+      groundMaterial.map = null;
+      groundMaterial.color.setHex(isDark ? GROUND_COLOR_DARK : GROUND_COLOR_LIGHT);
+      groundMaterial.needsUpdate = true;
     };
-  }, [center.lat, center.lng, renderOnce]);
+  }, [center.rd_x, center.rd_y, renderOnce, reportId]);
 
   // Sunlight analysis — async multipoint sampling with cooperative scheduling.
   const computeSunlight = useCallback(async () => {
@@ -2099,6 +2056,9 @@ export default function NeighborhoodViewer3D({
       <p id={sceneSummaryId} className="viewer-3d__summary">
         {staticSceneSummary} {t('viewer3d.keyboardHint')}
       </p>
+      {statusMessage && !error && (
+        <p className="viewer-3d__status-message">{statusMessage}</p>
+      )}
       <p className="viewer-3d__source">{t('viewer3d.source')}</p>
     </div>
   );

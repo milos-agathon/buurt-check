@@ -222,10 +222,26 @@ def test_to_float_edge_cases():
     assert _to_float(None) is None
     assert _to_float("abc") is None
     assert _to_float("") is None
+    assert _to_float(float("nan")) is None
+    assert _to_float(float("inf")) is None
     assert _to_float(0) == 0.0
     assert _to_float(0.0) == 0.0
     assert _to_float("3.14") == 3.14
     assert _to_float(42) == 42.0
+
+
+@pytest.mark.asyncio
+async def test_yearly_period_source_date_is_human_readable():
+    yearly_rows = _make_yearly_rows(total=50.0, burglary=5.0)
+    side_effect = _build_side_effect(yearly_rows)
+    mock_cl = _mock_client_with_side_effect(side_effect)
+
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
+        result = await _get_crime_stats("BU0363AD07")
+
+    assert isinstance(result, CrimeStatsCard)
+    assert result.yearly_period == "2025JJ00"
+    assert result.source_date == "2025"
 
 
 # ═══════ buurt_code validation (#48) ═══════

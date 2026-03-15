@@ -56,6 +56,11 @@ describe('sunHoursToColor', () => {
     }
   });
 
+  it('falls back to a safe color when inputs are non-finite', () => {
+    expect(sunHoursToColor(Number.NaN, 0, 16)).toEqual(sunHoursToColor(0, 0, 16));
+    expect(sunHoursToColor(4, Number.NaN, 16)).toEqual(sunHoursToColor(0, 0, 16));
+  });
+
   it('exposes a gradient CSS string that matches heatmap stops', () => {
     const gradient = getSunHoursGradientCss();
     expect(gradient).toContain('rgb(224 64 64)');

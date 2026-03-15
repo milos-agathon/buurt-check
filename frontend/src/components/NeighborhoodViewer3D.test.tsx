@@ -320,6 +320,11 @@ describe('NeighborhoodViewer3D', () => {
     expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
   });
 
+  it('renders a localized degraded-state message when provided', () => {
+    renderViewer({ statusMessage: '3D context is partial because some surrounding buildings could not be loaded.' });
+    expect(screen.getByText('3D context is partial because some surrounding buildings could not be loaded.')).toBeInTheDocument();
+  });
+
   it('snapshot capture restores sun state', () => {
     const onSnapshots = vi.fn();
     renderViewer({ onShadowSnapshots: onSnapshots });
@@ -470,7 +475,7 @@ describe('NeighborhoodViewer3D', () => {
     });
   });
 
-  it('captures shadow snapshots only after all neighbor chunks are processed', async () => {
+  it('captures summer morning, noon, and afternoon snapshots only after all neighbor chunks are processed', async () => {
     // Collect rAF callbacks so we can control when chunks execute
     const rafCallbacks: (() => void)[] = [];
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -508,11 +513,8 @@ describe('NeighborhoodViewer3D', () => {
     expect(onSnapshots).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ label: 'top_morning', hour: 9, viewpoint: 'top' }),
-        expect.objectContaining({ label: 'front_morning', hour: 9, viewpoint: 'front' }),
-        expect.objectContaining({ label: 'rear_morning', hour: 9, viewpoint: 'rear' }),
+        expect.objectContaining({ label: 'top_noon', hour: 12, viewpoint: 'top' }),
         expect.objectContaining({ label: 'top_afternoon', hour: 15, viewpoint: 'top' }),
-        expect.objectContaining({ label: 'front_afternoon', hour: 15, viewpoint: 'front' }),
-        expect.objectContaining({ label: 'rear_afternoon', hour: 15, viewpoint: 'rear' }),
       ])
     );
   });

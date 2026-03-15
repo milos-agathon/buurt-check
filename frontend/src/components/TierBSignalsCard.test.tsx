@@ -43,7 +43,8 @@ describe('TierBSignalsCard', () => {
     expect(screen.getByText('Crime (registered)')).toBeInTheDocument();
     expect(screen.getAllByText('12.5').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Source \+ date: CBS OData/)).toBeInTheDocument();
-    expect(screen.getByText('Latest month: December 2025')).toBeInTheDocument();
+    expect(screen.getByText(/2025\)/)).toBeInTheDocument();
+    expect(screen.getByText('Latest month: Dec 2025')).toBeInTheDocument();
   });
 
   it('renders comparison bars when per-1000 rates are available', () => {
@@ -63,7 +64,7 @@ describe('TierBSignalsCard', () => {
     expect(screen.getByText('How it compares (per 1,000 residents)')).toBeInTheDocument();
     expect(screen.getByText('This area')).toBeInTheDocument();
     expect(screen.getByText('National avg.')).toBeInTheDocument();
-    expect(screen.getByText('52.0')).toBeInTheDocument();
+    expect(screen.getByText('52')).toBeInTheDocument();
     expect(screen.getAllByText('25.3').length).toBeGreaterThanOrEqual(1);
   });
 
@@ -107,8 +108,23 @@ describe('TierBSignalsCard', () => {
     });
 
     expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
-    expect(screen.getByText('Per-capita rates unavailable — showing total registered incidents.')).toBeInTheDocument();
-    expect(screen.getByText('Population data unavailable for this neighborhood. Showing raw registered incident counts. Data is indicative.')).toBeInTheDocument();
+    expect(screen.getByText('CBS returned no crime data for this neighborhood.')).toBeInTheDocument();
+    expect(screen.getByText('Crime context is unavailable for this export. No reliable rate or raw-count fallback could be shown.')).toBeInTheDocument();
+  });
+
+  it('renders distinct lookup-failure copy instead of raw-count fallback copy', () => {
+    renderCard({
+      data: {
+        address_id: 'vbo-1',
+        crime: {
+          source: 'CBS OData 47018NED/47022NED',
+          message: 'CRIME_LOOKUP_FAILED',
+        },
+      },
+    });
+
+    expect(screen.getByText('Crime context is temporarily unavailable because the CBS crime lookup failed.')).toBeInTheDocument();
+    expect(screen.queryByText('Population data unavailable for this neighborhood. Showing raw registered incident counts. Data is indicative.')).not.toBeInTheDocument();
   });
 
   it('renders error state marker when data request fails', () => {

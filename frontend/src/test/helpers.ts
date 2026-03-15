@@ -202,9 +202,9 @@ export interface ShadowSnapshotData {
 
 export function makeShadowSnapshots(): ShadowSnapshotData[] {
   return [
-    { label: 'top', hour: 12, dataUrl: 'data:image/png;base64,mock', viewpoint: 'top', sunAzimuth: 180, sunAltitude: 55 },
-    { label: 'front', hour: 12, dataUrl: 'data:image/png;base64,mock', viewpoint: 'front', sunAzimuth: 180, sunAltitude: 55 },
-    { label: 'rear', hour: 12, dataUrl: 'data:image/png;base64,mock', viewpoint: 'rear', sunAzimuth: 180, sunAltitude: 55 },
+    { label: 'top_morning', hour: 9, dataUrl: 'data:image/png;base64,mock', viewpoint: 'top', sunAzimuth: 145, sunAltitude: 12 },
+    { label: 'top_noon', hour: 12, dataUrl: 'data:image/png;base64,mock', viewpoint: 'top', sunAzimuth: 180, sunAltitude: 19 },
+    { label: 'top_afternoon', hour: 15, dataUrl: 'data:image/png;base64,mock', viewpoint: 'top', sunAzimuth: 220, sunAltitude: 10 },
   ];
 }
 

@@ -322,7 +322,7 @@ export async function getViewingQuestions(
   rdY: number,
   lat: number,
   lng: number,
-  context?: { street?: string; city?: string },
+  context?: { street?: string; city?: string; buurtCode?: string },
   signal?: AbortSignal,
   reportId?: string,
 ): Promise<ViewingQuestionsResponse> {
@@ -334,6 +334,7 @@ export async function getViewingQuestions(
   });
   if (context?.street) params.set('street', context.street);
   if (context?.city) params.set('city', context.city);
+  if (context?.buurtCode) params.set('buurt_code', context.buurtCode);
   if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(20000, signal);
   try {
@@ -367,6 +368,7 @@ export interface ExportOptions {
   reportId?: string;
   street?: string;
   city?: string;
+  municipality?: string;
   language?: string;
   shadowImageB64?: string;
   shadowEquinoxB64?: string;
@@ -400,6 +402,7 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
   if (options.reportId) body.report_id = options.reportId;
   if (options.street) body.street = options.street;
   if (options.city) body.city = options.city;
+  if (options.municipality) body.municipality = options.municipality;
   if (options.buurtCode) body.buurt_code = options.buurtCode;
   if (options.postcode) body.postcode = options.postcode;
   if (options.houseNumber) body.house_number = options.houseNumber;

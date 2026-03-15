@@ -355,6 +355,23 @@ def test_age_distribution_partial_data():
     assert "14%" in text
 
 
+def test_age_distribution_local_legend_matches_bar_color(monkeypatch):
+    captured_color: str | None = None
+    original_text = Axes.text
+
+    def _patched_text(self, x, y, s, *args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal captured_color
+        if str(s) == "This neighborhood":
+            captured_color = str(kwargs.get("color"))
+        return original_text(self, x, y, s, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "text", _patched_text)
+
+    render_age_distribution(AgeProfile(age_0_24=22, age_25_64=65, age_65_plus=13))
+
+    assert captured_color == cr.C_ACCENT_TEXT
+
+
 def test_livability_good_score():
     chart = render_livability_score(
         livability=LivabilityData(score=78, label="Livability"),

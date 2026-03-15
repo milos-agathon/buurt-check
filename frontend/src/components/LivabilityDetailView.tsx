@@ -68,9 +68,9 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
         </div>
 
         {/* 5 dimension bars */}
-        {data.dimensions.length > 0 && (
-          <section className="livability-detail__section" data-testid="livability-detail-dimensions">
-            <h3 className="livability-detail__section-title">{t('livability.dimensions', 'Dimensions')}</h3>
+        <section className="livability-detail__section" data-testid="livability-detail-dimensions">
+          <h3 className="livability-detail__section-title">{t('livability.dimensions', 'Dimensions')}</h3>
+          {data.dimensions.length > 0 ? (
             <div className="livability-detail__dimensions">
               {data.dimensions.map((dim) => {
                 const dimSev = scoreSeverity(dim.normalized_score);
@@ -90,13 +90,14 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
                 );
               })}
             </div>
-          </section>
-        )}
+          ) : (
+            <p className="livability-detail__unavailable">{t('livability.dimensionsUnavailable')}</p>
+          )}
+        </section>
 
-        {/* Trend chart */}
-        {data.trend.length > 1 && (
-          <section className="livability-detail__section" data-testid="livability-detail-trend">
-            <h3 className="livability-detail__section-title">{t('livability.trend')}</h3>
+        <section className="livability-detail__section" data-testid="livability-detail-trend">
+          <h3 className="livability-detail__section-title">{t('livability.trend')}</h3>
+          {data.trend.length > 1 ? (
             <div className="livability-detail__trend-chart">
               {data.trend.map((point) => {
                 const barSev = scoreSeverity(point.overall_normalized);
@@ -114,14 +115,16 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
                 );
               })}
             </div>
-          </section>
-        )}
+          ) : (
+            <p className="livability-detail__unavailable">{t('livability.trendUnavailable')}</p>
+          )}
+        </section>
 
         {/* Per-dimension trends */}
-        {hasDimensionTrends && (
+        {data.trend.length > 1 && (
           <section className="livability-detail__section" data-testid="livability-detail-dim-trends">
             <h3 className="livability-detail__section-title">{t('livability.dimensionTrends', 'Dimension trends')}</h3>
-            {dimensionNames.map((dimName) => {
+            {hasDimensionTrends ? dimensionNames.map((dimName) => {
               const dimLabel = `livability.dimension.${dimName}`;
               return (
                 <div className="livability-detail__dim-trend-row" key={dimName}>
@@ -131,7 +134,13 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
                   <div className="livability-detail__dim-trend-bars">
                     {data.trend.map((point) => {
                       const dim = point.dimensions.find((d) => d.name === dimName);
-                      if (!dim) return <div className="livability-detail__dim-trend-bar-slot" key={point.year} />;
+                      if (!dim) {
+                        return (
+                          <div className="livability-detail__dim-trend-bar-slot" key={point.year}>
+                            <span className="livability-detail__dim-trend-missing">—</span>
+                          </div>
+                        );
+                      }
                       const barSev = scoreSeverity(dim.normalized_score);
                       return (
                         <div
@@ -146,46 +155,52 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
                   </div>
                 </div>
               );
-            })}
+            }) : (
+              <p className="livability-detail__unavailable">{t('livability.dimensionTrendsUnavailable')}</p>
+            )}
           </section>
         )}
 
         {/* Comparison bars */}
-        {data.comparison.length > 0 && (
-          <section className="livability-detail__section" data-testid="livability-detail-comparison">
-            <h3 className="livability-detail__section-title">{t('livability.comparison')}</h3>
-            <div className="livability-detail__legend" data-testid="livability-comparison-legend">
-              {(['address', 'city', 'nl'] as const)
-                .filter((key) => data.comparison.some((r) => levelToColorKey(r.level) === key))
-                .map((key) => (
-                  <span key={key} className="livability-detail__legend-item">
-                    <span className={`livability-detail__legend-dot livability-detail__legend-dot--${key}`} />
-                    {t(`compare.legend.${key}`)}
-                  </span>
-                ))}
-            </div>
-            <div className="livability-detail__comparisons">
-              {data.comparison.map((row) => {
-                const colorKey = levelToColorKey(row.level);
-                return (
-                  <div className="livability-detail__cmp-row" key={row.level}>
-                    <span className="livability-detail__cmp-label">{row.name}</span>
-                    <div className="livability-detail__cmp-track">
-                      <div
-                        className={`livability-detail__cmp-fill livability-detail__cmp-fill--${colorKey}`}
-                        style={{ width: `${row.overall_normalized}%` }}
-                      />
+        <section className="livability-detail__section" data-testid="livability-detail-comparison">
+          <h3 className="livability-detail__section-title">{t('livability.comparison')}</h3>
+          {data.comparison.length > 0 ? (
+            <>
+              <div className="livability-detail__legend" data-testid="livability-comparison-legend">
+                {(['address', 'city', 'nl'] as const)
+                  .filter((key) => data.comparison.some((r) => levelToColorKey(r.level) === key))
+                  .map((key) => (
+                    <span key={key} className="livability-detail__legend-item">
+                      <span className={`livability-detail__legend-dot livability-detail__legend-dot--${key}`} />
+                      {t(`compare.legend.${key}`)}
+                    </span>
+                  ))}
+              </div>
+              <div className="livability-detail__comparisons">
+                {data.comparison.map((row) => {
+                  const colorKey = levelToColorKey(row.level);
+                  return (
+                    <div className="livability-detail__cmp-row" key={row.level}>
+                      <span className="livability-detail__cmp-label">{row.name}</span>
+                      <div className="livability-detail__cmp-track">
+                        <div
+                          className={`livability-detail__cmp-fill livability-detail__cmp-fill--${colorKey}`}
+                          style={{ width: `${row.overall_normalized}%` }}
+                        />
+                      </div>
+                      <span className="livability-detail__cmp-value">{row.overall_normalized}</span>
                     </div>
-                    <span className="livability-detail__cmp-value">{row.overall_normalized}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="livability-detail__directionality" data-testid="livability-comparison-directionality">
-              {t('compare.legend.higher_is_better')}
-            </p>
-          </section>
-        )}
+                  );
+                })}
+              </div>
+              <p className="livability-detail__directionality" data-testid="livability-comparison-directionality">
+                {t('compare.legend.higher_is_better')}
+              </p>
+            </>
+          ) : (
+            <p className="livability-detail__unavailable">{t('livability.comparisonUnavailable')}</p>
+          )}
+        </section>
 
         {/* Source */}
         <footer className="livability-detail__footer">

@@ -39,13 +39,22 @@ export function getShortlist(): ShortlistItem[] {
   return readStorage();
 }
 
-export function addToShortlist(item: ShortlistItem): boolean {
+export function upsertShortlistItem(item: ShortlistItem): boolean {
   const items = readStorage();
+  const existingIndex = items.findIndex((entry) => entry.vboId === item.vboId);
+  if (existingIndex >= 0) {
+    items[existingIndex] = item;
+    writeStorage(items);
+    return true;
+  }
   if (items.length >= MAX_ITEMS) return false;
-  if (items.some(i => i.vboId === item.vboId)) return false;
   items.push(item);
   writeStorage(items);
   return true;
+}
+
+export function addToShortlist(item: ShortlistItem): boolean {
+  return upsertShortlistItem(item);
 }
 
 export function removeFromShortlist(vboId: string): void {

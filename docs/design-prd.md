@@ -282,20 +282,22 @@ A minimal top bar appears on all screens:
 │       ├── ── HOUSE (this property) ──
 │       ├── Attention summary
 │       ├── Address header + 2D footprint map + summary strip
-│       ├── Building facts
-│       ├── Risk tiles (2×2 grid)
+│       ├── Risk tiles (2×2 grid, single instance at top)
 │       │   ├── Noise → Detail view
 │       │   ├── Air quality → Detail view
 │       │   ├── Climate stress → Detail view
 │       │   └── Sunlight → Detail view
-│       ├── Property warnings + Soil info
+│       ├── Building facts
 │       ├── ── BUURT (neighborhood) ──
 │       ├── Livability (Leefbaarometer)
 │       ├── 3D neighborhood viewer
 │       │   ├── Interactive mode (Three.js)
 │       │   └── Shadow timeline (slider + season presets)
-│       ├── Sunlight analysis card
 │       ├── Neighborhood snapshot (CBS stats)
+│       │
+│       │   Premium-only (PDF/Full Dossier only, not in viewer):
+│       │   Property warnings, Soil info, SunlightRiskCard,
+│       │   ShadowSnapshots, heatmap overlay, clear-sky visibility
 │       ├── ── ACTION ──
 │       ├── Viewing checklist (aggregated questions)
 │       └── Action bar: Add to Shortlist | Export PDF (fixed bottom)

@@ -39,10 +39,11 @@ describe('shortlist service', () => {
     expect(getShortlist()[0].vboId).toBe('vbo-001');
   });
 
-  it('prevents duplicate vboId', () => {
+  it('upserts duplicate vboId entries instead of duplicating them', () => {
     addToShortlist(makeItem());
-    expect(addToShortlist(makeItem())).toBe(false);
+    expect(addToShortlist(makeItem({ city: 'Rotterdam' }))).toBe(true);
     expect(getShortlistCount()).toBe(1);
+    expect(getShortlist()[0].city).toBe('Rotterdam');
   });
 
   it('enforces 3-item limit', () => {

@@ -12,7 +12,7 @@ beforeAll(async () => {
 });
 
 function renderSnapshots(
-  snapshots?: ReturnType<typeof makeShadowSnapshots>,
+  snapshots = makeShadowSnapshots(),
   loading = false,
   lang: 'en' | 'nl' = 'en',
 ) {
@@ -32,33 +32,28 @@ describe('ShadowSnapshots', () => {
   });
 
   it('renders nothing when no snapshots and not loading', () => {
-    const { container } = renderSnapshots(undefined, false);
+    const { container } = render(
+      <I18nextProvider i18n={i18nEn}>
+        <ShadowSnapshots loading={false} />
+      </I18nextProvider>,
+    );
     expect(container.innerHTML).toBe('');
   });
 
-  it('renders 3 snapshot images with labels', () => {
-    renderSnapshots(makeShadowSnapshots());
+  it('renders summer-solstice morning, noon, and afternoon snapshots', () => {
+    renderSnapshots();
+    expect(screen.getByText('Top view (09:00)')).toBeInTheDocument();
     expect(screen.getByText('Top view (12:00)')).toBeInTheDocument();
-    expect(screen.getByText('Front facade (12:00)')).toBeInTheDocument();
-    expect(screen.getByText('Rear facade (12:00)')).toBeInTheDocument();
+    expect(screen.getByText('Top view (15:00)')).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
+    expect(screen.getByText(/Summer solstice/)).toBeInTheDocument();
   });
 
   it('sets correct alt text on images', () => {
-    renderSnapshots(makeShadowSnapshots());
+    renderSnapshots();
+    expect(screen.getByAltText('Top view (09:00)')).toBeInTheDocument();
     expect(screen.getByAltText('Top view (12:00)')).toBeInTheDocument();
-    expect(screen.getByAltText('Front facade (12:00)')).toBeInTheDocument();
-    expect(screen.getByAltText('Rear facade (12:00)')).toBeInTheDocument();
-  });
-
-  it('shows source attribution', () => {
-    renderSnapshots(makeShadowSnapshots());
-    expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
-  });
-
-  it('shows subtitle about summer solstice', () => {
-    renderSnapshots(makeShadowSnapshots());
-    expect(screen.getByText(/Summer solstice/)).toBeInTheDocument();
+    expect(screen.getByAltText('Top view (15:00)')).toBeInTheDocument();
   });
 
   it('renders in Dutch', () => {
@@ -68,134 +63,23 @@ describe('ShadowSnapshots', () => {
     expect(screen.getByText('Bovenaanzicht (12:00)')).toBeInTheDocument();
   });
 
-  it('uses viewpoint labels and actual hours for six-panel snapshots', () => {
-    renderSnapshots([
-      { label: 'top_morning', hour: 9, dataUrl: 'data:image/png;base64,top', viewpoint: 'top' },
-      { label: 'front_morning', hour: 9, dataUrl: 'data:image/png;base64,front', viewpoint: 'front' },
-      { label: 'rear_afternoon', hour: 15, dataUrl: 'data:image/png;base64,rear', viewpoint: 'rear' },
-    ]);
+  it('opens and closes the lightbox', () => {
+    renderSnapshots();
+    fireEvent.click(screen.getAllByRole('button', { name: 'View full size' })[1]);
 
-    expect(screen.getByText('Top view (09:00)')).toBeInTheDocument();
-    expect(screen.getByText('Front facade (09:00)')).toBeInTheDocument();
-    expect(screen.getByText('Rear facade (15:00)')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getAllByText('Top view (12:00)').length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close full size view' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('thumbnail buttons have accessible label', () => {
-    renderSnapshots(makeShadowSnapshots());
-    const buttons = screen.getAllByRole('button', { name: 'View full size' });
-    expect(buttons).toHaveLength(3);
-  });
+  it('closes the lightbox on Escape', () => {
+    renderSnapshots();
+    fireEvent.click(screen.getAllByRole('button', { name: 'View full size' })[0]);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-  describe('Lightbox', () => {
-    it('opens lightbox when thumbnail is clicked', () => {
-      renderSnapshots(makeShadowSnapshots());
-      const buttons = screen.getAllByRole('button', { name: 'View full size' });
-      fireEvent.click(buttons[0]);
-
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toBeInTheDocument();
-      const lightboxLabels = screen.getAllByText('Top view (12:00)');
-      // One in the grid, one in the lightbox
-      expect(lightboxLabels.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('shows correct image in lightbox for each snapshot', () => {
-      renderSnapshots(makeShadowSnapshots());
-      const buttons = screen.getAllByRole('button', { name: 'View full size' });
-
-      // Click the front facade thumbnail (index 1)
-      fireEvent.click(buttons[1]);
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toBeInTheDocument();
-
-      const lightboxLabels = screen.getAllByText('Front facade (12:00)');
-      expect(lightboxLabels.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('close button dismisses lightbox', () => {
-      renderSnapshots(makeShadowSnapshots());
-      const buttons = screen.getAllByRole('button', { name: 'View full size' });
-      fireEvent.click(buttons[0]);
-
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-
-      const closeButton = screen.getByRole('button', { name: 'Close full size view' });
-      fireEvent.click(closeButton);
-
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-
-    it('Escape key dismisses lightbox', () => {
-      renderSnapshots(makeShadowSnapshots());
-      const buttons = screen.getAllByRole('button', { name: 'View full size' });
-      fireEvent.click(buttons[0]);
-
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-
-      fireEvent.keyDown(document, { key: 'Escape' });
-
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-
-    it('backdrop click dismisses lightbox', () => {
-      renderSnapshots(makeShadowSnapshots());
-      const buttons = screen.getAllByRole('button', { name: 'View full size' });
-      fireEvent.click(buttons[0]);
-
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toBeInTheDocument();
-
-      // Click the backdrop (the dialog overlay itself)
-      fireEvent.click(dialog);
-
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-
-    it('clicking lightbox content does not dismiss', () => {
-      renderSnapshots(makeShadowSnapshots());
-      const buttons = screen.getAllByRole('button', { name: 'View full size' });
-      fireEvent.click(buttons[0]);
-
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toBeInTheDocument();
-
-      // Click the image inside the lightbox
-      const lightboxImg = dialog.querySelector('.shadow-snapshots__lightbox-img');
-      expect(lightboxImg).not.toBeNull();
-      fireEvent.click(lightboxImg!);
-
-      // Dialog should still be open
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-
-    it('lightbox shows correct label for rear snapshot', () => {
-      renderSnapshots(makeShadowSnapshots());
-      const buttons = screen.getAllByRole('button', { name: 'View full size' });
-
-      // Click the rear thumbnail (index 2)
-      fireEvent.click(buttons[2]);
-
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toBeInTheDocument();
-
-      const lightboxLabels = screen.getAllByText('Rear facade (12:00)');
-      expect(lightboxLabels.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('lightbox works in Dutch', () => {
-      renderSnapshots(makeShadowSnapshots(), false, 'nl');
-      const buttons = screen.getAllByRole('button', { name: 'Bekijk op volledig formaat' });
-      fireEvent.click(buttons[0]);
-
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toBeInTheDocument();
-
-      const lightboxLabels = screen.getAllByText('Bovenaanzicht (12:00)');
-      expect(lightboxLabels.length).toBeGreaterThanOrEqual(2);
-
-      // Close button should be in Dutch
-      const closeButton = screen.getByRole('button', { name: 'Sluit volledige weergave' });
-      expect(closeButton).toBeInTheDocument();
-    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

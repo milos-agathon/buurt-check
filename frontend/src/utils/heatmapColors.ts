@@ -30,6 +30,9 @@ export function sunHoursToColor(
   min: number,
   max: number,
 ): [number, number, number] {
+  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max)) {
+    return HEATMAP_RED;
+  }
   const span = max - min;
   const normalized = span <= 0 ? 0.5 : (value - min) / span;
   const t = clamp01(normalized);

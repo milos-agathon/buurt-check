@@ -76,10 +76,9 @@ describe('RiskTile', () => {
     expect(container.querySelector('.risk-tile__score--unavailable')?.textContent).toBe('--');
   });
 
-  it('renders summary text when provided', () => {
+  it('does not render summary text even when provided', () => {
     const { container } = renderTile({ summary: 'Moderate noise levels' });
-    const summary = container.querySelector('.risk-tile__summary');
-    expect(summary?.textContent).toBe('Moderate noise levels');
+    expect(container.querySelector('.risk-tile__summary')).not.toBeInTheDocument();
   });
 
   it('does not render summary when not provided', () => {
@@ -88,7 +87,7 @@ describe('RiskTile', () => {
   });
 
   it('renders chevron icon', () => {
-    const { container } = renderTile({});
+    const { container } = renderTile({ onTap: vi.fn() });
     expect(container.querySelector('.risk-tile__chevron')).toBeInTheDocument();
   });
 

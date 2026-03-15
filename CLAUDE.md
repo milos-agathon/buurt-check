@@ -91,6 +91,27 @@ cd frontend && npm run test                 # Vitest (867+ baseline)
 - `Query(...)` in dependencies requiring custom HTTP errors — use `Query(None)` + explicit validation for 402 payment-required flows
 - Divergent frontend/backend price env vars — keep backend as source of truth via `GET /api/pricing`
 
+## Content visibility rules
+
+### Scope definitions
+- **Frontend viewer**: on-screen app experience before purchase
+- **Full Dossier/PDF**: paid downloadable report
+
+### Premium-only content (PDF only, NOT in viewer)
+- Property Warnings (foundation risk, erfpacht, VvE, asbestos awareness)
+- Soil Contamination Check (lead pipe, Bodemloket link)
+- Shadow Snapshots
+- SunlightRiskCard (scored sunlight analysis)
+- Direct sun / clear-sky visibility (heatmap overlay + legend)
+- Foundation Risk
+
+These items MUST remain in the Full Dossier/PDF output. They must NOT be rendered in the interactive dossier viewer. Components and tests for these items are kept in the codebase (used by PDF/export paths).
+
+### Risk cards layout
+- Risk cards (RiskTilesGrid) appear **once** at the top of the dossier, in the house phase after AddressHeader/SummaryStrip.
+- No duplicate risk cards blocks exist elsewhere in the dossier.
+- Tap-to-expand RiskDetailView is accessible from the top-positioned tiles.
+
 ## Risk card contract
 
 Every risk card must have: (1) score 0-100 + severity, (2) plain-language meaning, (3) viewing questions, (4) source + date. Tiles in 2x2 grid; tap opens detail with comparison chart (address vs city vs NL vs WHO).
