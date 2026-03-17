@@ -34,17 +34,19 @@ npx vitest --watch   # Watch mode
 - Warning codes: `t('feature.warning.${code}', code)` with fallback
 - Keep EN/NL key parity; current floor assertion is 396+ keys per language, including `premium.*` monetization keys
 
-### Entitlement & gating
-- `isEntitled` + `reportId` state in `App.tsx` controls premium access per selected address
-- Premium sections render `LockedSection` when not entitled; server-side entitlement remains the source of truth
-- Premium API calls must forward `report_id` so backend `require_entitlement` can validate access
-- First dossier free rule is local-only (`services/firstDossier.ts` with `buurt-check:first-dossier-used` localStorage key)
+### Export purchase flow
+- The on-screen dossier viewer remains free; do not document or build it as a post-purchase premium surface
+- `reportId` identifies the current address snapshot for export and checkout coordination
+- Buyer-bound entitlement determines whether `full_dossier` can be downloaded for the current address
+- `quick_brief` remains the free export path; `full_dossier` starts checkout when no entitlement exists
+- Browser-only trial or entitlement shortcuts are deprecated and must not be used for the product contract
 
 ### Checkout flow
 - Upgrade actions call `createCheckoutSession(report_id)` then redirect to Stripe URL
 - Post-redirect verification reads hash query params (`report`, `session_id`) and polls entitlement state
 - Guard against duplicate checkout starts with `isCheckingOut` boolean
 - Funnel events are tracked in `services/analytics.ts` (checkout started/completed/failed, dossier unlocked, etc.)
+- The supported contract is buyer-scoped verification for `full_dossier` only; preview-era full-view overrides are deprecated
 
 ### Three.js (NeighborhoodViewer3D.tsx)
 - Plain Three.js only — NOT react-three-fiber
@@ -103,7 +105,7 @@ npx vitest --watch   # Watch mode
 ## Card Layout & Tab Bar (added 2026-02-17)
 
 - **Card width:** All dossier cards use `margin: 0` (full DossierSheet width). Text inset via padding on individual elements, not card-level margins
-- **Tab bar:** 3 tabs (Home, Briefing, Saved). `position: fixed; bottom: 0; z-index: 50`. Stateless component — no useState/useEffect. Dossier tab triggers PDF export sheet
+- **Tab bar:** 3 tabs (Home, Briefing, Saved). `position: fixed; bottom: 0; z-index: 50`. Stateless component — no useState/useEffect. Dossier tab triggers the export sheet
 - **DossierSheet bottom padding:** `calc(var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px) + var(--space-lg))`
 - **OLED dark mode trap:** Semi-transparent overlays on `#000000` are invisible. Use solid `var(--color-nav-bg)` with accent borders
 - **Risk tile titles:** No parenthetical technical details in tile labels

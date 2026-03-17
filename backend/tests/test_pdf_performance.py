@@ -28,7 +28,6 @@ def _latency_stats(durations: list[float]) -> tuple[float, float]:
 
 
 @pytest.mark.benchmark
-@pytest.mark.skipif(shutil.which("lualatex") is None, reason="lualatex not installed")
 def test_dossier_generation_latency() -> None:
     runs = 10
     durations: list[float] = []

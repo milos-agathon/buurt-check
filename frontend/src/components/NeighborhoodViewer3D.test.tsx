@@ -475,7 +475,7 @@ describe('NeighborhoodViewer3D', () => {
     });
   });
 
-  it('captures summer morning, noon, and afternoon snapshots only after all neighbor chunks are processed', async () => {
+  it('captures winter, equinox, and summer noon snapshots only after all neighbor chunks are processed', async () => {
     // Collect rAF callbacks so we can control when chunks execute
     const rafCallbacks: (() => void)[] = [];
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -512,9 +512,9 @@ describe('NeighborhoodViewer3D', () => {
     });
     expect(onSnapshots).toHaveBeenCalledWith(
       expect.arrayContaining([
-        expect.objectContaining({ label: 'top_morning', hour: 9, viewpoint: 'top' }),
-        expect.objectContaining({ label: 'top_noon', hour: 12, viewpoint: 'top' }),
-        expect.objectContaining({ label: 'top_afternoon', hour: 15, viewpoint: 'top' }),
+        expect.objectContaining({ label: 'winter', hour: 12, viewpoint: 'top' }),
+        expect.objectContaining({ label: 'equinox', hour: 12, viewpoint: 'top' }),
+        expect.objectContaining({ label: 'summer', hour: 12, viewpoint: 'top' }),
       ])
     );
   });

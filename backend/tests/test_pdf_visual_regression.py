@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 import warnings
 from pathlib import Path
 
@@ -23,7 +22,6 @@ DELTA_THRESHOLD = 16
 
 pytestmark = [
     pytest.mark.visual,
-    pytest.mark.skipif(shutil.which("lualatex") is None, reason="lualatex not installed"),
 ]
 
 

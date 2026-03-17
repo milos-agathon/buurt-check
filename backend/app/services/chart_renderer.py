@@ -359,39 +359,27 @@ def render_risk_comparison(
     SchererTheme().apply()
 
     bar_rows: list[CompRow] = [CompRow(label="This address", value=address_score)]
-    reference_rows: list[CompRow] = []
 
     for row in comparisons:
         if row.value is None:
-            continue
-        if row.role == "reference":
-            reference_rows.append(row)
             continue
         label = row.label.strip()
         if not label:
             continue
         if "address" in label.lower():
             continue
-        bar_rows.append(CompRow(label=label, value=row.value))
+        bar_rows.append(CompRow(label=label, value=row.value, role=row.role))
 
     max_bar = max(float(row.value) for row in bar_rows if row.value is not None)
-    max_ref = max(
-        (float(row.value) for row in reference_rows if row.value is not None),
-        default=0.0,
-    )
-    max_x = max(100.0, max_bar, max_ref) + 12.0
+    max_x = max(100.0, max_bar) + 12.0
     wrapped_bar_labels = [
         _wrap_chart_label(row.label, 24 if idx > 0 else 22)
         for idx, row in enumerate(bar_rows)
     ]
-    wrapped_ref_labels = [
-        _wrap_chart_label(row.label, 18)
-        for row in reference_rows
-    ]
     longest_label_chars = max(
         (
             len(line)
-            for label in [*wrapped_bar_labels, *wrapped_ref_labels]
+            for label in wrapped_bar_labels
             for line in label.splitlines()
         ),
         default=0,
@@ -410,10 +398,6 @@ def render_risk_comparison(
         for label in wrapped_bar_labels
     ]
     total_row_units = sum(row_units) or 1.0
-    reference_units = sum(
-        0.34 + max(0, _label_line_count(label) - 1) * 0.28
-        for label in wrapped_ref_labels
-    )
 
     # Scale chart height to row count; cap minimum so single-row charts
     # (e.g. crime with no peer bars) don't stretch the bar vertically.
@@ -422,7 +406,7 @@ def render_risk_comparison(
         12.0 + total_row_units * (RISK_ROW_HEIGHT_MM + 1.5),
     )
     # For very few rows, keep the chart compact to prevent bar stretching
-    if len(bar_rows) <= 1 and not reference_rows:
+    if len(bar_rows) <= 1:
         chart_h_mm = min(chart_h_mm, 22.0)
     fig, ax = plt.subplots(
         figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(chart_h_mm)),
@@ -431,6 +415,7 @@ def render_risk_comparison(
     fig.patch.set_facecolor(C_BG)
 
     alt_colors = [C_MUTE_1, C_MUTE_2]
+    alt_idx = 0
     row_centers: list[float] = []
     cursor = total_row_units
     for row_unit in row_units:
@@ -444,11 +429,13 @@ def render_risk_comparison(
         value = float(row.value) if row.value is not None else 0.0
         is_primary = idx == 0
         bar_height = min(0.68 if is_primary else 0.4, max(0.35, row_unit - 0.2))
-        bar_color = (
-            _severity_color(_score_severity(address_score))
-            if is_primary
-            else alt_colors[(idx - 1) % len(alt_colors)]
-        )
+        if is_primary:
+            bar_color = _severity_color(_score_severity(address_score))
+        elif row.role == "reference":
+            bar_color = C_ACCENT
+        else:
+            bar_color = alt_colors[alt_idx % len(alt_colors)]
+            alt_idx += 1
         ax.barh(y=y, width=value, height=bar_height, color=bar_color, edgecolor="none")
         if show_row_labels:
             ax.text(
@@ -472,27 +459,6 @@ def render_risk_comparison(
             ha="right",
         )
 
-    label_y = total_row_units + 0.2
-    ref_cursor = label_y
-    for row, wrapped_label in zip(reference_rows, wrapped_ref_labels, strict=True):
-        if row.value is None:
-            continue
-        x = float(row.value)
-        ax.axvline(x=x, color=C_REFERENCE, linewidth=0.8, linestyle=(0, (3, 2)))
-        label_x = x - 0.8 if x > (max_x - 28.0) else x + 0.8
-        label_ha = "right" if x > (max_x - 28.0) else "left"
-        ax.text(
-            label_x,
-            ref_cursor,
-            wrapped_label,
-            fontsize=TYPE_CAPTION_PT,
-            color=C_PRIMARY,
-            va="bottom",
-            ha=label_ha,
-            linespacing=1.1,
-        )
-        ref_cursor -= 0.34 + max(0, _label_line_count(wrapped_label) - 1) * 0.28
-
     ax.set_title(
         category,
         loc="left",
@@ -502,7 +468,7 @@ def render_risk_comparison(
         pad=6,
     )
     ax.set_xlim(-label_space, max_x)
-    ax.set_ylim(-0.7, total_row_units + max(0.8, reference_units + 0.45))
+    ax.set_ylim(-0.7, total_row_units + 0.8)
     ax.set_yticks([])
     # Render threshold ticks inside the chart so they align with the
     # coordinate system regardless of how the image is embedded.
@@ -913,7 +879,7 @@ def render_age_distribution(
         len(labels) - 0.15,
         legend_local,
         fontsize=TYPE_CAPTION_PT,
-        color=C_ACCENT_TEXT,
+        color=C_ACCENT_DARK,
         ha="left",
     )
     ax.text(

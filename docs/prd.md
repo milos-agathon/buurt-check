@@ -2,7 +2,7 @@
 
 > **Version:** 2.0 | **Last updated:** 2026-02-06
 
-> **One-liner:** Paste a Dutch address, get an instant risk-and-reality dossier with 3D context, environmental risk cards, and a printable viewing briefing.
+> **One-liner:** Paste a Dutch address, get an instant risk-and-reality dossier with 3D context, environmental risk cards, and a printable quick checklist.
 
 ## Phase 1 alignment addendum (2026-02-11)
 
@@ -42,7 +42,7 @@ This section maps which problems have strong open data support and weak coverage
 
 These are the ones where you can make a *real market contribution* fast:
 
-1. **Address → Risk & Reality Dossier (the "Viewing Briefing")**
+1. **Address → Risk & Reality Dossier**
    One link/address becomes a shareable, bilingual (EN/NL) dossier: building facts + neighborhood stats + environmental/climate risks + noise/air quality + 3D context.
    Why this stands out: most apps show *a map*; you'll show **consequences + questions to ask at the viewing**.
    Data is there: BAG, CBS, RIVM/Atlas Leefomgeving WMS, Klimaateffectatlas WMS/WFS, 3DBAG/3D Basisvoorziening. ([api.pdok.nl][1])
@@ -100,7 +100,7 @@ Users are navigating high-stakes property decisions (often six-figure) in an unf
    * **House details:** Building facts (BAG), risk assessment (noise, air, climate, sunlight), property warnings, soil info
    * **Neighborhood context:** Livability (Leefbaarometer), 3D block view + sunlight & shadow analysis (3DBAG + Three.js + SunCalc), neighborhood snapshot (CBS)
 3. User explores **3D shadow timeline**: drags time slider to see how shadows fall on the property at different times of day and seasons.
-4. User saves to a **Shortlist**, compares up to **3 homes**, exports a **PDF "Viewing Briefing"** with forge3d-rendered shadow snapshots.
+4. User saves to a **Shortlist**, compares up to **3 homes**, downloads a free **Quick checklist** PDF, or buys a **Full Dossier** PDF with forge3d-rendered shadow snapshots.
 5. At viewing: user opens "**Questions to ask**" checklist auto-generated from detected risks.
 
 ## 5. MVP feature set (must ship)
@@ -152,7 +152,7 @@ The 3D viewer uses a **dual-renderer architecture**: Three.js (WebGL) handles re
 * Default date: December 21 (winter solstice — worst-case daylight)
 * Rendered by forge3d's Rust/wgpu PBR pipeline with full ambient occlusion, sun shading, and supersampled output (render at 4000×4000, deliver at 2000×2000 for crisp PDF embedding)
 * Three PNG images per address, generated on-demand and cached server-side (Redis, 7-day TTL)
-* Used in the PDF "Viewing Briefing" export and as fallback for low-powered mobile devices that cannot run the Three.js viewer
+* Used in the paid `full_dossier` export and as fallback for low-powered mobile devices that cannot run the Three.js viewer
 * Same 3DBAG LoD2.2 geometry and SunCalc sun positions as F2a — visual parity between interactive and export views
 
 **F2c — Annual sunlight analysis (forge3d, server-side)**
@@ -189,7 +189,8 @@ Cards in MVP:
 
 * Shortlist items store the resolved address + cached indicators
 * Compare 2–3 homes side by side
-* Export PDF "Viewing Briefing" with two templates: `quick_brief` (1 page) and `full_dossier` (3-4 pages), including forge3-rendered shadow snapshots (F2b)
+* Export PDF with two templates: `quick_brief` (1 page, free) and `full_dossier` (3-4 pages, paid before first download), including forge3-rendered shadow snapshots (F2b)
+* The on-screen viewer remains free. Payment applies to the downloadable `full_dossier` artifact, not to unlocking the interactive dossier.
 
 ### Tier B — included in current scope after F1-F5
 
@@ -222,8 +223,8 @@ Define these before launch. Track outcomes, not outputs.
 | Metric | Target | Measurement |
 |--------|--------|-------------|
 | Dossier generation success rate | > 95% of valid NL addresses | % of address inputs that return a complete dossier (all must-ship cards populated) |
-| Time to dossier | < 5 seconds | p95 latency from address submission to full dossier render (excluding 3D viewer) |
-| PDF export completion | > 80% of shortlisted homes | % of shortlisted addresses where user generates a Viewing Briefing PDF |
+| Time to dossier | < 5 seconds | p95 latency from address submission to usable dossier viewer render (excluding 3D viewer) |
+| PDF export completion | > 80% of shortlisted homes | % of shortlisted addresses where user generates either a free `quick_brief` PDF or a purchased `full_dossier` PDF |
 | Return usage | > 30% within 14 days | % of users who generate a second dossier within 2 weeks |
 
 ### Guardrail metrics
@@ -242,7 +243,7 @@ Define these before launch. Track outcomes, not outputs.
 - **F2b:** forge3d produces 3 shadow snapshot PNGs at 2000×2000 in < 8 seconds total; visual parity with interactive viewer (same building geometry, same sun positions)
 - **F3:** Each risk card displays score, explanation, viewing questions, and source. Thresholds match official Dutch guidelines where applicable
 - **F4:** Neighborhood snapshot shows 5–8 CBS indicators with EN/NL labels
-- **F5:** User can save 3 homes, compare side-by-side, and export either `quick_brief` (1 page) or `full_dossier` (3-4 pages) with embedded shadow snapshots
+- **F5:** User can save 3 homes, compare side-by-side, download `quick_brief` (1 page, free), or purchase `full_dossier` (3-4 pages) with embedded shadow snapshots
 
 ---
 
@@ -645,7 +646,7 @@ You win if the product feels like:
 
 That's *not* what Funda is built to do.
 
-The dual-renderer architecture is a genuine competitive advantage: Three.js delivers instant, responsive exploration in the browser — no one else in the Dutch property market offers interactive shadow simulation. forge3d delivers publication-quality PDF exports with PBR lighting and supersampled resolution — this is the "Viewing Briefing" that buyers print, share with their mortgage advisor, and carry to the open house. No existing Dutch property tool produces anything close to this level of 3D intelligence.
+The dual-renderer architecture is a genuine competitive advantage: Three.js delivers instant, responsive exploration in the browser — no one else in the Dutch property market offers interactive shadow simulation. forge3d delivers publication-quality PDF exports with PBR lighting and supersampled resolution — this is the Quick Checklist / Full Dossier export package that buyers print, share with their mortgage advisor, and carry to the open house. No existing Dutch property tool produces anything close to this level of 3D intelligence.
 
 ---
 

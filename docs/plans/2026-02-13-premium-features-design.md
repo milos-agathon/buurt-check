@@ -11,7 +11,7 @@
 
 **Phase 1 (immediate):** Property Warnings — 5 new warning signals derived from existing or cheaply-available data. Ship fully free. Goal: Reddit buzz, organic sharing, product-market fit validation.
 
-**Phase 2 (after 2-4 weeks of usage data):** Monetization Infrastructure — Stripe one-time payments, per-report entitlements, conversion analytics. No subscriptions, no user accounts in MVP. Free short report + paid long dossier.
+**Phase 2 (after 2-4 weeks of usage data):** Monetization Infrastructure — Stripe one-time payments, buyer-bound entitlements, conversion analytics. No subscriptions, no user accounts in MVP. Free quick brief + paid full dossier.
 
 **Phase 3 (behind premium paywall):** Financial Intelligence — closing cost calculator, energy renovation estimates, street-level sale price history from Kadaster.
 
@@ -332,80 +332,78 @@ Three states:
 
 > **Decision (2026-02-25):** One-time dossier purchase, no subscriptions, no user accounts in MVP. Auth deferred until a concrete requirement forces it. This is architecturally cleaner than a subscription MVP — it fits buurt-check's value delivery: a high-value, address-specific decision artifact for a one-off buyer need.
 
-### Freemium Model
+### Export Product Model
 
-**Free short report (always available, unlimited):**
+**Free interactive viewer (always available):**
 - Full address search with map
-- Dossier with: 2x2 risk tile grid (scores + severity labels + one-line summary per tile)
-- AttentionSummary badge (e.g., "2 items need attention") — **always visible**
-- Neighborhood stats card (summary level)
-- Building facts card
+- On-screen dossier viewer with risk tiles, neighborhood context, shortlist, compare, and viewing checklist
+- Free `quick_brief` / "Quick checklist" PDF export
 
-**Paid long dossier (one-time purchase per address):**
-- Full 6-page dossier: all risk detail views, viewing questions, individual property warning cards, neighborhood stats, Tier B data
-- PDF export (both `quick_brief` and `full_dossier` templates)
-- Compare (side-by-side, for purchased dossiers)
+**Paid downloadable artifact (one-time purchase per buyer + address):**
+- `full_dossier` PDF with the complete exported package: charts, warning cards, shadow snapshots, and extended checklist content
+- Repeat downloads for the same anonymous buyer and the same address after purchase
 - Future: financial intelligence features (Phase 3)
 
 **Conversion triggers:**
-- AttentionSummary shows flag count in free report ("2 items need attention") but individual warning cards are gated — user sees *that* flags exist but can't read *what* they are
-- Upgrade CTA clearly shows what the long dossier adds
-- First full dossier is completely ungated (per `ui-principles.md` Section 13: "Let users search and view at least one full neighborhood dossier before asking them to create an account")
+- The free viewer demonstrates value before payment
+- The export sheet makes the choice explicit: free `quick_brief` vs paid `full_dossier`
+- The premium value proposition is the downloadable artifact, not unlocking the on-screen viewer
 
 ### Conversion Flow (MVP)
 
 ```
 1. User enters address
-2. Generate and show free short report immediately
+2. Generate and show the free viewer immediately
 3. Highlight the value they already got
-4. Show what the 6-page dossier adds (value delta)
-5. CTA: "Unlock full dossier"
+4. Show what the downloadable Full Dossier adds (value delta)
+5. CTA: "Buy Full Dossier"
 6. Stripe Checkout (one-time payment)
-7. Return directly to unlocked dossier/export
+7. Return directly to entitled full-dossier export
 ```
 
-**Key rule:** Do NOT paywall before showing value. If users must pay before seeing anything, conversion will be materially worse.
+**Key rule:** Do NOT paywall the on-screen viewer. Payment applies to the first `full_dossier` download, not to searching or reading the dossier in-app.
 
 ### Pricing
 
-- Start at **EUR 14.99** for the 6-page dossier
-- Free short report always available
+- Start at **EUR 14.99** for the Full Dossier PDF
+- Free `quick_brief` always available
 - No subscription in MVP
 - Store pricing config in one place so you can test EUR 9.99 / 14.99 / 19.99 without touching entitlement logic
 
 ### Entitlement Model
 
-Per-report entitlements, not user-based. No accounts needed.
+Buyer-bound entitlements. No accounts needed.
 
 **Required data model primitives (MVP-safe):**
 
 | Field | Type | Purpose |
 |---|---|---|
-| `report_id` | UUID | Immutable ID for a generated report snapshot |
-| `report_type` | `short` / `long` | Which report variant |
+| `buyer_key` | string | Anonymous buyer/session identifier issued server-side via httpOnly cookie |
+| `report_id` | UUID | Immutable ID for a generated export snapshot |
+| `report_type` | `quick_brief` / `full_dossier` | Which export variant |
 | `address_key` | string | Normalized address or source lookup key |
+| `vbo_id` | string | BAG address identifier used to bind entitlement to the address |
 | `generation_version` | string | Track report schema/content version |
 | `payment_status` | `unpaid` / `paid` / `failed` / `refunded` | Payment lifecycle |
-| `entitlement_scope` | string | `report:<report_id>` (not user-wide) |
+| `entitlement_scope` | string | `buyer:<buyer_key>:address:<vbo_id>` |
 | `entitlement_status` | `active` / `revoked` | Access state |
-| `purchase_id` | UUID | Internal purchase record |
 | `provider` | string | `stripe` |
 | `provider_payment_id` | string | Stripe checkout/payment ID |
 | `purchased_at` | datetime | Purchase timestamp |
 
-This design supports future additions (user accounts, multi-report bundles, subscriptions, agency plans) without rewriting the access model.
+`report_id` may reference the generated export, but it must not be treated as a reusable bearer token by itself. The server must validate both buyer ownership and address match before allowing `full_dossier` generation or download.
 
 ### Technical Stack (Phase 2)
 
 - **Payments:** Stripe (one-time checkout only)
 - **Auth:** Deferred — no Supabase Auth, no Clerk, no accounts in MVP
-- **Entitlements:** Server-side per-report lookup. Payment tied to `report_id`, one-time unlock token or signed receipt
-- **User state:** No persistent user state in MVP. localStorage for shortlist (existing)
+- **Entitlements:** Server-side buyer + address lookup. Payment tied to the current anonymous buyer session and `vbo_id`
+- **User state:** No named accounts in MVP. Server-issued httpOnly cookie identifies the anonymous buyer for repeat downloads of the same address
 
 **Stripe MVP scope (implement only these):**
 - One-time checkout session creation
 - Payment success webhook (signature-verified)
-- Dossier entitlement unlock on confirmed payment
+- Full-dossier entitlement unlock on confirmed payment
 - Refund-safe state handling (basic)
 - Payment failure + retry UX
 
@@ -422,21 +420,21 @@ This design supports future additions (user accounts, multi-report bundles, subs
 
 **Frontend:**
 1. User submits address
-2. Call backend to generate/retrieve `short` report
-3. Render short report
-4. Show upgrade CTA with clear value delta
+2. Call backend to generate/retrieve the current address snapshot
+3. Render the free viewer
+4. Show export options with clear value delta
 5. CTA calls backend `POST /billing/checkout-session` with `report_id`
 6. Redirect to Stripe Checkout
 7. On success redirect, call backend `GET /reports/{report_id}/entitlement`
-8. If paid, load `long` dossier + unlock export
+8. If paid, enable `full_dossier` export for that anonymous buyer and address
 
 **Backend:**
-1. `POST /reports/short` returns short report + `report_id`
+1. `POST /reports/short` returns address snapshot metadata + `report_id`
 2. `POST /billing/checkout-session` validates `report_id`, creates Stripe checkout
 3. `POST /billing/webhook` verifies Stripe signature
-4. On payment success: mark `payment_status = paid`, create `entitlement_scope = report:<report_id>`
-5. `GET /reports/{report_id}/long` checks entitlement before returning dossier
-6. `POST /exports/pdf` checks entitlement before generating full export
+4. On payment success: mark `payment_status = paid`, create `entitlement_scope = buyer:<buyer_key>:address:<vbo_id>`
+5. `GET /reports/{report_id}/entitlement` verifies buyer-scoped access
+6. `POST /exports/pdf` allows `quick_brief` without entitlement and requires active buyer+address entitlement for `full_dossier`
 
 **Security/robustness:**
 - Never trust frontend payment success query params alone
@@ -715,13 +713,13 @@ warnings.asbestos.disclaimer
 1. Sentry (frontend + backend)
 2. Secrets hygiene audit (rotate if needed)
 3. Analytics events for funnel + failures
-4. Entitlement model (per-report unlock)
+4. Entitlement model (buyer-bound unlock)
 5. README update for payment/env/webhook setup
 
-### Tier 1 — Launch freemium
+### Tier 1 — Launch paid full-dossier export
 6. Stripe one-time checkout
 7. Webhook-based unlock flow
-8. Upgrade CTA UX and value framing
+8. Export-sheet purchase UX and value framing
 9. Paid dossier export path (entitlement-gated)
 
 ### Tier 2 — Tighten conversion after launch
@@ -756,3 +754,4 @@ PDOK BRO WFS uses the same httpx + PDOK pattern as existing BAG/CBS/Klimaateffec
 
 - **2026-02-13:** Initial version. Phase 1 property warnings, Phase 2 subscription-based freemium with Supabase Auth, Phase 3 financial intelligence.
 - **2026-02-27:** Revised Phase 2 to one-time dossier purchase model (no subscriptions, no auth in MVP). Integrated analytics event taxonomy, Sentry requirements, entitlement data model, priority ordering, and "what NOT to build" guardrails from the ChatGPT freemium assessment (`docs/plans/chatgpt-vibecoding-checklist.md`, now superseded by this document).
+- **2026-03-16:** Revised Phase 2 again to immediate-pay Full Dossier export. `quick_brief` remains free, `full_dossier` is paid before first download, entitlements are buyer-bound and address-bound, and the viewer is no longer documented as a post-purchase premium surface.

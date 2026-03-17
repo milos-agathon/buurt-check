@@ -451,7 +451,7 @@
   "export.quickBrief": "Quick checklist (FREE)",
   "export.quickBriefMeta": "1 page",
   "export.fullDossier": "Full Dossier",
-  "export.fullDossierMeta": "5+ pages",
+  "export.fullDossierMeta": "10+ pages",
   "export.buyFullDossier": "Buy Full Dossier",
   "export.language": "Language",
   "export.languageEn": "EN",
@@ -497,11 +497,9 @@
   "tierB.crime.comparison.national": "National avg.",
   "tierB.crime.scoreScale": "/100",
   "tierB.source.crime": "Source + date: {{source}} ({{date}})",
-
   "warnings.sectionTitle": "Property Warnings",
   "warnings.loading": "Analyzing property warnings...",
   "warnings.error": "We couldn't load property warnings. The analysis service may be temporarily slow — try again.",
-
   "warnings.attention.no_flags": "No flags raised",
   "warnings.attention.no_flags_detail": "All assessed risk categories are within normal ranges.",
   "warnings.attention.one_item": "1 item needs attention",
@@ -519,7 +517,6 @@
   "warnings.attention.flag.vve": "VvE (owners' association)",
   "warnings.attention.flag.asbestos": "Asbestos risk",
   "warnings.attention.flag.lead_pipe": "Lead pipe risk",
-
   "warnings.foundation.title": "Foundation Risk",
   "warnings.foundation.high": "Pre-1970 construction on {{soil}} soil with {{rate}} mm/year subsidence. Buildings from this era on soft soil are most affected. Repair costs typically range from EUR 60,000 to EUR 100,000+.",
   "warnings.foundation.medium": "Transition-era construction on {{soil}} soil. Foundation practices from this period vary. The soft soil in this area warrants verification.",
@@ -531,7 +528,6 @@
   "warnings.foundation.question_4": "Ask neighbors: have any buildings on this street had foundation work done?",
   "warnings.foundation.source": "Soil: PDOK (Dutch National Geo-Registry) BRO. Subsidence: Klimaateffectatlas (Dutch Climate Atlas). Construction year: BAG (Building & Address Registry).",
   "warnings.foundation.disclaimer": "This is an indicative assessment based on building age, soil type, and regional subsidence data. Only a professional funderingsonderzoek can determine actual condition.",
-
   "warnings.erfpacht.title": "Erfpacht (Ground Lease)",
   "warnings.erfpacht.likely": "{{municipality}} issues erfpacht for many properties. Verify the eigendomsstatus with the seller or via Kadaster.",
   "warnings.erfpacht.badge.confirmed": "Confirmed",
@@ -545,7 +541,6 @@
   "warnings.erfpacht.municipality_only_note": "Detection is based on municipal land policy, not confirmed via Kadaster for this specific property.",
   "warnings.erfpacht.source": "Municipality: PDOK (Dutch National Geo-Registry) Locatieserver. Erfpacht prevalence based on municipal land policy.",
   "warnings.erfpacht.disclaimer": "Erfpacht status should be confirmed via the Kadaster register or the seller's notary deed.",
-
   "warnings.vve.title": "VvE (Owners' Association)",
   "warnings.vve.description": "This is an apartment ({{units}} units) with mandatory VvE membership. All owners share responsibility for maintenance, insurance, and communal areas.",
   "warnings.vve.question_1": "Request the VvE jaarrekening (annual financial report) — is the reserve fund healthy?",
@@ -555,7 +550,6 @@
   "warnings.vve.question_5": "How many units are in the VvE? (Fewer units = higher per-unit costs)",
   "warnings.vve.question_6": "Is the building insured through the VvE? What does the policy cover?",
   "warnings.vve.source": "Building type: BAG (Building & Address Registry).",
-
   "warnings.asbestos.title": "Asbestos Awareness",
   "warnings.asbestos.description": "Built in {{year}}, before the 1993 asbestos ban. Asbestos-containing materials may be present. Professional removal is legally required if materials are disturbed during renovation.",
   "warnings.asbestos.question_1": "Has an asbestos inventory (asbestinventarisatie) been conducted?",
@@ -564,7 +558,6 @@
   "warnings.asbestos.question_4": "Is there an asbestos-free certificate (asbestvrij verklaring)?",
   "warnings.asbestos.source": "Construction year: BAG (Building & Address Registry). Dutch asbestos ban: Asbestverwijderingsbesluit 2005.",
   "warnings.asbestos.disclaimer": "The presence of asbestos can only be confirmed by professional inspection.",
-
   "dossier.livability": "Livability",
   "livability.loading": "Loading livability data...",
   "livability.error": "We couldn't load livability data. The Leefbaarometer service may be temporarily slow — try again.",
@@ -585,7 +578,6 @@
   "livability.detailTitle": "Livability Analysis",
   "livability.dimensions": "Dimensions",
   "livability.dimensionTrends": "Dimension trends",
-
   "dossier.soilInfo": "Soil & Pipes",
   "soil.title": "Soil Contamination Check",
   "soil.description": "Dutch law requires buyers to investigate soil contamination (onderzoeksplicht). Soil contamination can cost EUR 25,000-100,000+ to remediate.",
@@ -600,18 +592,15 @@
   "soil.lead_pipe_note": "Built in {{constructionYear}}, before 1960. Original water supply pipes may contain lead. If the property has a garden used by young children, or original pre-1960 water pipes, request a lead test (loodtest).",
   "soil.lead_pipe_viewing_question": "Does this property have original water pipes (pre-1960)? Has a lead test been conducted on soil or drinking water?",
   "soil.lead_pipe_source": "Construction year: BAG (Building & Address Registry). Lead pipe risk proxy based on Dutch water utility guidelines.",
-
   "dossier.nextSteps.title": "What's next?",
   "dossier.nextSteps.save": "Save this address to compare later",
   "dossier.nextSteps.saved": "Address saved — search another to compare",
   "dossier.nextSteps.export": "Download viewing checklist as PDF",
   "dossier.nextSteps.search": "Search another address to compare",
-
   "a11y.skip_to_content": "Skip to main content",
   "common.back": "Back",
   "score.scale": "/100",
   "quartileDots.ariaLabel": "Quartile {{quartile}} of {{total}}",
-
   "tooltip.bookmark": "Save this address to compare it with others later",
   "tooltip.compare": "Tap Compare to see addresses side by side",
   "tooltip.export": "Take this to your viewing appointment",

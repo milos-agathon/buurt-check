@@ -3,43 +3,11 @@
 from __future__ import annotations
 
 import io
-import shutil
-import subprocess
-import tempfile
 
-import pytest
 from pypdf import PdfReader
 
 from app.services.latex_env import render_dossier
 from tests.epic4_pdf_fixtures import dossier_kwargs, render_dossier_pdf
-
-
-def _lualatex_can_compile() -> bool:
-    """Check if lualatex can compile a document with the packages our templates use."""
-    if shutil.which("lualatex") is None:
-        return False
-    try:
-        from app.services.latex_env import render_preamble
-
-        preamble = render_preamble(language="en")
-        tex = preamble + "\n\\begin{document}\nProbe.\n\\end{document}\n"
-        tmp = tempfile.mkdtemp(prefix="buurtcheck_probe_")
-        tex_path = f"{tmp}/probe.tex"
-        with open(tex_path, "w") as f:
-            f.write(tex)
-        result = subprocess.run(
-            ["lualatex", "--interaction=nonstopmode", "probe.tex"],
-            cwd=tmp,
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
-        return result.returncode == 0
-    except Exception:
-        return False
-
-
-_CAN_COMPILE = _lualatex_can_compile()
 
 
 def _extract_text(pdf_bytes: bytes) -> str:
@@ -65,7 +33,6 @@ def _assert_order(text: str, labels: list[str]) -> None:
         pos = found
 
 
-@pytest.mark.skipif(not _CAN_COMPILE, reason="lualatex cannot compile (missing or broken)")
 def test_bilingual_page_count_parity() -> None:
     en_pdf = render_dossier_pdf("full", "en")
     nl_pdf = render_dossier_pdf("full", "nl")
@@ -73,12 +40,10 @@ def test_bilingual_page_count_parity() -> None:
     en_pages = len(PdfReader(io.BytesIO(en_pdf)).pages)
     nl_pages = len(PdfReader(io.BytesIO(nl_pdf)).pages)
 
-    assert abs(en_pages - nl_pages) <= 1, (
-        f"Page count parity failed: en={en_pages}, nl={nl_pages}"
-    )
+    assert en_pages == nl_pages
+    assert en_pages >= 6
 
 
-@pytest.mark.skipif(not _CAN_COMPILE, reason="lualatex cannot compile (missing or broken)")
 def test_bilingual_section_order() -> None:
     en_pdf = render_dossier_pdf("full", "en")
     nl_pdf = render_dossier_pdf("full", "nl")
@@ -89,39 +54,61 @@ def test_bilingual_section_order() -> None:
     _assert_order(
         en_text,
         [
-            "Property Risk Dossier",
-            "Risk Scores",
+            "Executive Summary",
+            "Risk Details",
+            "Shadow Analysis",
             "Neighborhood Context",
+            "Additional Property Checks",
             "Viewing Questions",
-            "Provenance",
+            "Methodology",
         ],
     )
     _assert_order(
         nl_text,
         [
-            "Vastgoedrisico Dossier",
-            "Risicoscores",
+            "Samenvatting",
+            "Risicodetails",
+            "Schaduwanalyse",
             "Buurtcontext",
+            "Aanvullende vastgoedcontroles",
             "Bezichtigingsvragen",
-            "Provenance",
+            "Methodologie",
         ],
     )
 
     # No EN leak in NL headings, no NL leak in EN headings.
-    assert not _contains(nl_text, "Property Risk Dossier")
-    assert not _contains(en_text, "Vastgoedrisico Dossier")
-    assert not _contains(nl_text, "Risk Scores")
-    assert not _contains(en_text, "Risicoscores")
+    assert not _contains(nl_text, "Executive Summary")
+    assert not _contains(en_text, "Samenvatting")
+    assert not _contains(nl_text, "Risk Details")
+    assert not _contains(en_text, "Risicodetails")
+    assert not _contains(nl_text, "Neighborhood Context")
+    assert not _contains(en_text, "Buurtcontext")
 
     # Date formatting must stay language-specific.
     assert _contains(en_text, "2 March 2026")
     assert _contains(nl_text, "2 maart 2026")
 
-    # Header/footer disclaimer must switch with language.
+    # Rich dossier uses seasonal noon evidence in both languages.
+    for label in ["Winter solstice", "Spring equinox", "Summer solstice", "12:00"]:
+        assert _contains(en_text, label)
+    for label in ["Winterzonnewende", "Lentepunt", "Zomerzonnewende", "12:00"]:
+        assert _contains(nl_text, label)
+
+    # Viewing questions stay language-specific in the rich dossier.
+    assert _contains(en_text, "Open a window facing the street")
+    assert not _contains(en_text, "Open een raam aan de straatkant")
+    assert _contains(nl_text, "Open een raam aan de straatkant")
+    assert not _contains(nl_text, "Open a window facing the street")
+
+    # Footer disclaimer must switch with language.
     assert _contains(en_text, "Data is indicative. Verify on-site.")
-    assert _contains(nl_text, "Data is indicatief. Verifieer ter plaatse.")
+    assert _contains(nl_text, "Data is indicatief. Verifieer op locatie.")
     assert not _contains(nl_text, "Data is indicative. Verify on-site.")
-    assert not _contains(en_text, "Data is indicatief. Verifieer ter plaatse.")
+    assert not _contains(en_text, "Data is indicatief. Verifieer op locatie.")
+
+    # Cover sources must include livability attribution when used in the summary.
+    assert _contains(en_text, "Leefbaarometer")
+    assert _contains(nl_text, "Leefbaarometer")
 
 
 def test_bilingual_template_no_cross_language_static_strings() -> None:

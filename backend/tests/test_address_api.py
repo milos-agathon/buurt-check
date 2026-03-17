@@ -1381,6 +1381,316 @@ async def test_full_dossier_export_passes_footprint_geojson_to_generator():
 
 
 @pytest.mark.asyncio
+async def test_full_dossier_export_provenance_prefers_municipality_over_city():
+    """Provenance gemeente must come from municipality, not the postal city."""
+    from app.api.address import ExportRequest, _do_export_briefing
+
+    risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+        sunlight=None,
+    )
+    body = ExportRequest(
+        rd_x=121286,
+        rd_y=487296,
+        lat=52.372,
+        lng=4.892,
+        address="Voorstraat 1, Valkenburg",
+        template="full_dossier",
+        language="en",
+        report_id="report-123",
+        city="Valkenburg",
+        municipality="Katwijk",
+    )
+
+    with (
+        patch(
+            "app.services.reports.check_entitlement",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_risks_for_export",
+            new_callable=AsyncMock,
+            return_value=risks,
+        ),
+        patch(
+            "app.api.address._await_sunlight_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_viewing_questions", return_value=None),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_location_map",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_risk_comparisons", return_value=None),
+        patch(
+            "app.api.address.generate_full_dossier",
+            return_value=b"%PDF-1.4\n",
+        ) as mock_generate_full_dossier,
+    ):
+        resp = await _do_export_briefing("0363010000696734", body)
+
+    assert resp.status_code == 200
+    provenance = mock_generate_full_dossier.call_args.kwargs["provenance"]
+    assert provenance.gemeente_name == "Katwijk"
+
+
+@pytest.mark.asyncio
+async def test_full_dossier_export_maps_forge3d_seasonal_triptych_to_generator():
+    """forge3d server renders must match the 3-image seasonal noon PDF contract."""
+    from app.api.address import ExportRequest, _do_export_briefing
+
+    fake_jpeg = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+    body = ExportRequest(
+        rd_x=121286,
+        rd_y=487296,
+        lat=52.372,
+        lng=4.892,
+        address="Kalverstraat 1, Amsterdam",
+        template="full_dossier",
+        language="en",
+        report_id="report-123",
+    )
+    building_resp = BuildingFactsResponse(
+        address_id="0363010000696734",
+        building=BuildingFacts(
+            pand_id="0363100012345678",
+            construction_year=1910,
+            status="Pand in gebruik",
+            status_en="Building in use",
+            intended_use=["woonfunctie"],
+            intended_use_en=["residential"],
+            num_units=3,
+        ),
+    )
+    risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
+    )
+    neighborhood_3d = Neighborhood3DResponse(
+        address_id="0363010000696734",
+        target_pand_id="0363100012345678",
+        center=Neighborhood3DCenter(
+            lat=52.372,
+            lng=4.892,
+            rd_x=121286.0,
+            rd_y=487296.0,
+        ),
+        buildings=[
+            BuildingBlock(
+                pand_id="0363100012345678",
+                ground_height=1.5,
+                building_height=12.0,
+                footprint=[[5.0, 5.0], [-5.0, 5.0], [-5.0, -5.0], [5.0, -5.0]],
+                year=1910,
+            ),
+            BuildingBlock(
+                pand_id="0363100099999999",
+                ground_height=1.5,
+                building_height=10.0,
+                footprint=[[15.0, 15.0], [7.0, 15.0], [7.0, 7.0], [15.0, 7.0]],
+                year=1980,
+            ),
+        ],
+    )
+    mock_render_service = type("MockRenderService", (), {})()
+    mock_render_service.render_shadow_snapshots = AsyncMock(
+        side_effect=[
+            [
+                {
+                    "hour": 12,
+                    "time_label": "noon",
+                    "jpeg_bytes": fake_jpeg,
+                    "sun_azimuth": 165.0,
+                    "sun_altitude": 15.0,
+                }
+            ],
+            [
+                {
+                    "hour": 12,
+                    "time_label": "noon",
+                    "jpeg_bytes": fake_jpeg,
+                    "sun_azimuth": 180.0,
+                    "sun_altitude": 38.0,
+                }
+            ],
+            [
+                {
+                    "hour": 12,
+                    "time_label": "noon",
+                    "jpeg_bytes": fake_jpeg,
+                    "sun_azimuth": 195.0,
+                    "sun_altitude": 60.0,
+                }
+            ],
+        ],
+    )
+
+    with (
+        patch(
+            "app.services.reports.check_entitlement",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=building_resp,
+        ),
+        patch(
+            "app.api.address._fetch_risks_for_export",
+            new_callable=AsyncMock,
+            return_value=risks,
+        ),
+        patch(
+            "app.api.address._await_sunlight_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_viewing_questions", return_value=None),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_location_map",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_risk_comparisons", return_value=None),
+        patch(
+            "app.api.address.get_render_service",
+            return_value=mock_render_service,
+        ),
+        patch(
+            "app.api.address.three_d_bag.get_neighborhood_3d",
+            new_callable=AsyncMock,
+            return_value=neighborhood_3d,
+        ),
+        patch(
+            "app.api.address.generate_full_dossier",
+            return_value=b"%PDF-1.4\n",
+        ) as mock_generate_full_dossier,
+    ):
+        resp = await _do_export_briefing("0363010000696734", body)
+
+    assert resp.status_code == 200
+    assert mock_render_service.render_shadow_snapshots.await_count == 3
+    render_calls = mock_render_service.render_shadow_snapshots.await_args_list
+    render_kwargs = render_calls[0].kwargs
+    assert render_kwargs["pand_id"] == "0363100012345678"
+    assert [call.kwargs["dates"] for call in render_calls] == [
+        ["2026-12-21"],
+        ["2026-03-20"],
+        ["2026-06-21"],
+    ]
+    assert [call.kwargs["times"] for call in render_calls] == [
+        ["12:00"],
+        ["12:00"],
+        ["12:00"],
+    ]
+    assert render_kwargs["camera_preset"] == "top"
+
+    shadow_images = mock_generate_full_dossier.call_args.kwargs["shadow_images"]
+    assert [item["label"] for item in shadow_images] == [
+        "winter",
+        "equinox",
+        "summer",
+    ]
+    assert [item["viewpoint"] for item in shadow_images] == ["winter", "equinox", "summer"]
+    assert [item["hour"] for item in shadow_images] == [12, 12, 12]
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_image_b64"] == shadow_images[0]["image_b64"]
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_equinox_b64"] == shadow_images[1]["image_b64"]
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_summer_b64"] == shadow_images[2]["image_b64"]
+
+
+@pytest.mark.asyncio
 @patch("app.api.address.cache_get", new_callable=AsyncMock)
 @patch("app.api.address.risk_cards")
 async def test_risk_cards_merges_cached_sunlight_when_base_cache_has_no_sunlight(

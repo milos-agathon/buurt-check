@@ -41,7 +41,12 @@
       "mcp__puppeteer__puppeteer_evaluate",
       "mcp__puppeteer__puppeteer_fill",
       "mcp__puppeteer__puppeteer_click",
-      "mcp__puppeteer__puppeteer_screenshot"
+      "mcp__puppeteer__puppeteer_screenshot",
+      "Bash(npx vite:*)",
+      "Bash(pip install:*)",
+      "Bash(BUURT_TURSO_DATABASE_URL=\"\" BUURT_TURSO_AUTH_TOKEN=\"\" uvicorn:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(dir:*)"
     ]
   }
 }

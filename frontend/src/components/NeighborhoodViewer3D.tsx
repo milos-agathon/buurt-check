@@ -868,7 +868,7 @@ export default function NeighborhoodViewer3D({
     };
   }, [renderOnce]);
 
-  // Capture shadow snapshots for export: three summer-solstice top views
+  // Capture shadow snapshots for export: three seasonal noon top views
   // at 09:00, 12:00, and 15:00 local time.
   const captureSnapshots = useCallback(() => {
     const ctx = sceneRef.current;
@@ -1060,14 +1060,13 @@ export default function NeighborhoodViewer3D({
       targetBuilding?.orientation_deg,
     );
     const year = new Date().getFullYear();
-    // Capture summer-solstice evidence using one stable oblique top view at
-    // three times of day, so the viewer and export flows share the same
-    // morning / noon / late-afternoon evidence set.
+    // Capture a stable seasonal-noon triptych so the paid export can render
+    // winter / equinox / summer evidence without relying on server rendering.
     const topBearingDeg = (frontBearingDeg + 30) % 360;
     const snapshotConfigs = [
-      { hour: 9, label: 'top_morning', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: topBearingDeg },
-      { hour: 12, label: 'top_noon', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: topBearingDeg },
-      { hour: 15, label: 'top_afternoon', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: topBearingDeg },
+      { hour: 12, label: 'winter', viewpoint: 'top' as const, month: 11, day: 21, bearingDeg: topBearingDeg },
+      { hour: 12, label: 'equinox', viewpoint: 'top' as const, month: 2, day: 20, bearingDeg: topBearingDeg },
+      { hour: 12, label: 'summer', viewpoint: 'top' as const, month: 5, day: 21, bearingDeg: topBearingDeg },
     ];
 
     // Overlay canvas for cartographic elements

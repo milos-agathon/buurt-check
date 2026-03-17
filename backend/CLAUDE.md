@@ -1,6 +1,6 @@
 # Backend — FastAPI + httpx + Pydantic + Redis + SQLite + Stripe
 
-Python 3.12 API aggregator. External data stays stateless/cached, monetization state is stored in SQLite (per-report entitlements, payments; no user accounts).
+Python 3.12 API aggregator. External data stays stateless/cached; monetization state is stored in SQLite for buyer-bound dossier purchases and payment state (no user accounts).
 
 ## Commands
 
@@ -16,8 +16,8 @@ ruff check . && ruff format .               # MUST pass before commit
 | Endpoint | Description |
 |----------|-------------|
 | `GET /api/pricing` | Authoritative dossier price from backend config |
-| `POST /api/reports/short` | Create/report short dossier record |
-| `GET /api/reports/{report_id}/entitlement` | Check entitlement status |
+| `POST /api/reports/short` | Create/report address snapshot for the current anonymous buyer session |
+| `GET /api/reports/{report_id}/entitlement` | Check buyer-scoped entitlement status for that address |
 | `POST /api/billing/checkout-session` | Create Stripe Checkout Session |
 | `POST /api/billing/webhook` | Stripe webhook (checkout + refund) |
 | `GET /suggest?q=` | Autocomplete via PDOK Locatieserver |
@@ -33,7 +33,7 @@ ruff check . && ruff format .               # MUST pass before commit
 | `GET /{vbo_id}/tier-b?buurt_code=` | Crime context |
 | `GET /{vbo_id}/property-warnings` | Foundation, erfpacht, VvE, asbestos |
 | `GET /{vbo_id}/livability?rd_x=&rd_y=` | Leefbaarometer scores + trend |
-| `POST /{vbo_id}/export` | PDF (quick_brief / full_dossier) |
+| `POST /{vbo_id}/export` | PDF export (`quick_brief` free, `full_dossier` paid) |
 
 ## Conventions
 
@@ -48,9 +48,11 @@ ruff check . && ruff format .               # MUST pass before commit
 - **Feature flags**: `BUURT_ENABLE_LOD22_ROOFS` etc. Toggle requires cache invalidation
 - **CBS crime normalization**: per-1,000 residents (`raw / population * 1000`). Population can be suppressed (`-99995`) → `CRIME_NO_POPULATION`
 - **SQLite access**: use `aiosqlite` via `get_db()` context manager; DB runs in WAL mode for concurrent reads
-- **Server-side gating**: premium endpoints must depend on `Depends(require_entitlement)`
+- **Entitlement scope**: document and implement purchases as `buyer_key + vbo_id`, issued via server-managed httpOnly cookie. `report_id` may reference the export snapshot, but must not be treated as a bearer token by itself
+- **Server-side gating**: the current product contract requires entitlement checks for `full_dossier` export/download. Do not add new viewer paywalls as a product default
 - **Webhook safety**: webhook handlers must remain idempotent (safe on duplicate Stripe events)
 - **Entitlement reads are not cached**: always query SQLite for latest payment state
+- **Migration direction**: keep documentation and future implementation aligned around buyer-bound, address-bound export access even if temporary legacy code paths still exist during migration
 
 ## Anti-patterns
 

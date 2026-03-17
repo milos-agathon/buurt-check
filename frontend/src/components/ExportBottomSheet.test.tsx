@@ -57,7 +57,7 @@ describe('ExportBottomSheet', () => {
 
   it('shows updated Full Dossier page metadata', () => {
     renderSheet();
-    expect(screen.getByText('5+ pages')).toBeInTheDocument();
+    expect(screen.getByText('10+ pages')).toBeInTheDocument();
   });
 
   it('does not render when closed', () => {
@@ -129,13 +129,13 @@ describe('ExportBottomSheet', () => {
     });
   });
 
-  it('prefers the real top-noon shadow snapshot for quick brief export', async () => {
+  it('prefers the summer seasonal shadow snapshot for quick brief export', async () => {
     vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
     renderSheet({
       shadowSnapshots: [
-        { label: 'top_morning', hour: 9, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
-        { label: 'front_noon', hour: 12, dataUrl: 'data:image/png;base64,BBB', viewpoint: 'front' },
-        { label: 'top_noon', hour: 12, dataUrl: 'data:image/png;base64,CCC', viewpoint: 'top' },
+        { label: 'winter', hour: 12, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
+        { label: 'equinox', hour: 12, dataUrl: 'data:image/png;base64,BBB', viewpoint: 'top' },
+        { label: 'summer', hour: 12, dataUrl: 'data:image/png;base64,CCC', viewpoint: 'top' },
       ],
     });
 
@@ -145,6 +145,29 @@ describe('ExportBottomSheet', () => {
       expect(api.exportBriefing).toHaveBeenCalledWith(
         expect.objectContaining({
           shadowImageB64: 'CCC',
+        }),
+      );
+    });
+  });
+
+  it('maps seasonal shadow fields for full dossier export', async () => {
+    vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    renderSheet({
+      shadowSnapshots: [
+        { label: 'winter', hour: 12, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
+        { label: 'equinox', hour: 12, dataUrl: 'data:image/png;base64,BBB', viewpoint: 'top' },
+        { label: 'summer', hour: 12, dataUrl: 'data:image/png;base64,CCC', viewpoint: 'top' },
+      ],
+    });
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          shadowImageB64: 'AAA',
+          shadowEquinoxB64: 'BBB',
+          shadowSummerB64: 'CCC',
         }),
       );
     });

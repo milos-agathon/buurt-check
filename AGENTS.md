@@ -1,6 +1,6 @@
 # CLAUDE.md -- buurt-check
 
-Mobile-first web app helping expats and first-time homebuyers in the Netherlands avoid bad property purchases. User pastes an address, gets an evidence-backed dossier with risk cards, 3D context, neighborhood stats, and a viewing briefing.
+Mobile-first web app helping expats and first-time homebuyers in the Netherlands avoid bad property purchases. User pastes an address, gets an evidence-backed dossier with risk cards, 3D context, neighborhood stats, and a viewing checklist.
 
 ## Tech stack
 
@@ -15,7 +15,7 @@ Mobile-first web app helping expats and first-time homebuyers in the Netherlands
 ## Project structure
 
 ```
-backend/           # FastAPI stateless API aggregator — NO database, all data from external APIs
+backend/           # FastAPI external-data aggregator + buyer-bound monetization state
   app/api/         # Route handlers (address.py — all 15 endpoints under /api/address/)
   app/services/    # Business logic (bag, risk_cards, cbs, scoring, pdf_export, livability, etc.)
   app/models/      # Pydantic response models
@@ -47,11 +47,13 @@ cd frontend && npm run test                 # Vitest (705+ baseline)
 
 ## Architecture decisions
 
-- **Stateless aggregator**: No DB. Backend proxies Dutch government APIs (BAG, CBS, RIVM, 3DBAG, Klimaateffectatlas, Leefbaarometer) with Redis caching
+- **Stateless external data aggregator**: Backend proxies Dutch government APIs (BAG, CBS, RIVM, 3DBAG, Klimaateffectatlas, Leefbaarometer) with Redis caching; SQLite/Turso stores buyer-bound dossier purchase state
 - **Single router**: All endpoints in `api/address.py`. Services do the work
 - **0-100 risk scoring**: Backend normalizes raw values via `scoring.py`. 4-level severity: good (70-100), moderate (40-69), poor (20-39), critical (0-19)
 - **State management**: App-level `useState` in `App.tsx`. No Redux/Zustand. Screen routing via `activeScreen`
 - **i18n from day one**: All strings via `t()`. EN + NL. Warning codes from backend: `t('feature.warning.${code}', code)`
+- **Export contract**: `quick_brief` / quick checklist PDF is free; `full_dossier` requires payment before first download; the interactive viewer remains free
+- **Purchase scope**: No user accounts in MVP. Use a server-issued anonymous buyer key and bind entitlement to `buyer_key + vbo_id`
 
 ## Product principles
 
@@ -60,6 +62,12 @@ cd frontend && npm run test                 # Vitest (705+ baseline)
 3. **Bilingual by default** — EN/NL, not bolted on later
 4. **Disclaimers mandatory** — always cite source, date, and limitations
 5. **Graceful degradation** — if a data source fails, show "unavailable", never crash the dossier
+
+## Monetization notes
+
+- Keep the supported product contract simple: free on-screen viewer, free `quick_brief`, paid-before-download `full_dossier`
+- Make entitlement decisions on the server, scoped to the anonymous buyer and the address
+- Do not treat `report_id` as a bearer token by itself; docs and future implementation should treat it as an export snapshot reference within a buyer-bound purchase flow
 
 ## Development conventions
 

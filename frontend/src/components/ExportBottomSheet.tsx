@@ -138,6 +138,8 @@ export default function ExportBottomSheet({
       await onBeforeGenerate?.(template);
 
       let shadowB64: string | undefined;
+      let shadowEquinoxB64: string | undefined;
+      let shadowSummerB64: string | undefined;
       let shadowImages:
         | Array<{
           hour: number;
@@ -168,10 +170,26 @@ export default function ExportBottomSheet({
           };
         });
 
-        if (template !== 'full_dossier') {
+        if (template === 'full_dossier') {
+          const winterSnapshot = shadowSnapshots.find(s => s.label === 'winter');
+          const equinoxSnapshot = shadowSnapshots.find(s => s.label === 'equinox');
+          const summerSnapshot = shadowSnapshots.find(s => s.label === 'summer');
+          const toB64 = (dataUrl?: string) => {
+            if (!dataUrl) return undefined;
+            return dataUrl.startsWith('data:')
+              ? dataUrl.split(',')[1]
+              : dataUrl;
+          };
+          shadowB64 = toB64(winterSnapshot?.dataUrl);
+          shadowEquinoxB64 = toB64(equinoxSnapshot?.dataUrl);
+          shadowSummerB64 = toB64(summerSnapshot?.dataUrl);
+        } else {
           const primarySnapshot = shadowSnapshots.find(
-            s => (s.viewpoint ?? s.label) === 'top' && s.hour === 12,
+            s => s.label === 'summer',
           )
+            || shadowSnapshots.find(
+              s => (s.viewpoint ?? s.label) === 'top' && s.hour === 12,
+            )
             || shadowSnapshots.find(s => s.hour === 12)
             || shadowSnapshots.find(s => (s.viewpoint ?? s.label) === 'top')
             || shadowSnapshots[0];
@@ -203,6 +221,8 @@ export default function ExportBottomSheet({
         sunlightPayload,
         language: exportLanguage,
         shadowImageB64: shadowB64,
+        shadowEquinoxB64,
+        shadowSummerB64,
         shadowImages,
       });
       setProgressStage('downloading');
@@ -307,7 +327,7 @@ export default function ExportBottomSheet({
                 <rect x="28" y="8" width="18" height="24" rx="2.5" />
               </svg>
               <span className="export-sheet__template-title">{t('export.fullDossier', 'Full Dossier')}</span>
-              <span className="export-sheet__template-meta">{t('export.fullDossierMeta', '5+ pages')}</span>
+              <span className="export-sheet__template-meta">{t('export.fullDossierMeta', '10+ pages')}</span>
             </button>
           </div>
 
@@ -463,8 +483,8 @@ export default function ExportBottomSheet({
             {requiresPurchase
               ? t('export.buyFullDossier', 'Buy Full Dossier')
               : generating
-              ? t('export.generating', 'Generating...')
-              : t('export.generate', 'Generate PDF')}
+                ? t('export.generating', 'Generating...')
+                : t('export.generate', 'Generate PDF')}
           </button>
         )}
       </div>

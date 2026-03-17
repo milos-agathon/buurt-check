@@ -25,7 +25,7 @@ buurt-check is not a data tool. It's a prepared, trustworthy intelligence briefi
 
 - **White space is the main design material.** Resist the urge to fill every pixel with data. Dense layouts signal "power user tool"; generous spacing signals "someone curated this for you."
 - **Hard cap: 5–8 indicators per section.** CBS, RIVM, Kadaster, and other Dutch open data sources can easily explode a screen with dozens of metrics. The design's job is to select, not to display. If you can't justify why a metric changes a buying decision, cut it.
-- **One dominant action per screen.** Each screen gets a single primary CTA (e.g., "Add to shortlist," "Export PDF"). Everything else is secondary or tertiary. If two buttons are fighting for attention, the screen has a hierarchy problem.
+- **One dominant action per screen.** Each screen gets a single primary CTA (e.g., "Add to shortlist," "Download Quick Checklist"). Everything else is secondary or tertiary. If two buttons are fighting for attention, the screen has a hierarchy problem.
 - **No dashboard sprawl.** Avoid side-by-side chart grids, multi-tab analytics panels, or anything that makes the user feel like they're operating software. The user's mental model is "I'm reading a report," not "I'm running queries."
 
 ---
@@ -118,7 +118,7 @@ Mobile is fingers, not cursors. buurt-check has a unique challenge: dossier scro
 - **Resolve gesture conflicts with clear boundaries.** The dossier captures vertical scroll. The 3D viewer card captures orbit/zoom within its bounded viewport. The timeline slider captures horizontal drag. These zones are mutually exclusive — the viewer card boundary is the dividing line.
 - **No hover-dependent interactions.** There is no hover state on mobile. Anything shown via tooltip on desktop must be accessible via tap on mobile.
 - **Provide haptic feedback on key actions.** A subtle vibration on shortlist save, PDF export complete, and tab switches reinforces quality and responsiveness. Use sparingly — only primary actions.
-- **Primary CTA button height: 48px minimum.** Maintain this discipline on "Add to Shortlist," "Export Briefing," and "Compare."
+- **Primary CTA button height: 48px minimum.** Maintain this discipline on "Add to Shortlist," "Download Quick Checklist," and "Compare."
 
 ---
 
@@ -141,7 +141,7 @@ In buurt-check, slowness doesn't just feel annoying — it feels *untrustworthy*
 The MVP caps the shortlist at 3 addresses with compare + PDF export. That's ideal mobile UX: small set, high intention. The shortlist is where casual browsing turns into serious decision-making.
 
 - **"Saved (n)" as a persistent nav affordance.** The Saved tab in the bottom nav shows a counter badge. The user can always see how many addresses they've saved and reach the shortlist in one tap from any screen.
-- **Compare screen: synchronized columns, 5–8 indicators max.** Only the most decision-relevant metrics. More than that creates analysis paralysis. Let users tap into a full dossier for any address from the compare view.
+- **Compare screen: synchronized columns, 5–8 indicators max.** Only the most decision-relevant metrics. More than that creates analysis paralysis. Let users buy a full dossier for any address from the compare view.
 - **PDF export is the "hand it to my partner" moment.** The exported briefing should be a clean, printable document that works as a standalone artifact — not a screenshot of the app. This is how buurt-check enters the household conversation beyond the phone screen.
 
 ---
@@ -172,7 +172,7 @@ Condensing geospatial and statistical data onto a ~375px-wide screen requires di
 
 ## 13. Onboarding & First-Run Experience
 
-- **Skip registration.** Let users search and view at least one full neighborhood dossier before asking them to create an account. Gating content behind sign-up is the fastest way to lose first-time users — especially expats still evaluating the product.
+- **Skip registration.** Let users search, inspect the on-screen dossier, and download the quick checklist before asking them to create an account. Gating the core viewer behind sign-up is the fastest way to lose first-time users — especially expats still evaluating the product.
 - **Minimize onboarding.** The search screen's value proposition rows (3D sunlight analysis, environmental risk cards, printable viewing brief) serve as the onboarding. No swipeable tutorial cards, no feature tours, no permission requests until contextually needed.
 - **Use the first search as the tutorial.** The branded loading animation and progressive dossier reveal teach the product's structure through use.
 

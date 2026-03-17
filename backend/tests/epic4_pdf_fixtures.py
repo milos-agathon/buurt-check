@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
+import base64
+import io
 from copy import deepcopy
 from datetime import date
 from typing import Any
+from unittest.mock import patch
 
+from PIL import Image
+
+from app.models.livability import LivabilityResponse
+from app.models.neighborhood import NeighborhoodStats
+from app.models.property_warnings import PropertyWarningsResponse
+from app.models.report import ProvenanceData
+from app.models.risk import RiskCardsResponse, RiskComparisonsResponse, ViewingQuestionsResponse
+from app.models.tier_b import TierBResponse
 from app.services.latex_env import (
     compile_latex_to_pdf,
     format_preparation_date,
     render_brief,
-    render_dossier,
 )
+from app.services.pdf_export import generate_full_dossier
 
 SCENARIOS: tuple[tuple[str, str], ...] = (
     ("full", "en"),
@@ -21,10 +32,56 @@ SCENARIOS: tuple[tuple[str, str], ...] = (
 )
 
 _FIXED_DATE = date(2026, 3, 2)
+_ADDRESS_ID = "0363010012345678"
+
+
+class _FrozenDate(date):
+    """Freeze date.today() so PDF fixtures stay deterministic."""
+
+    @classmethod
+    def today(cls) -> "_FrozenDate":
+        return cls(_FIXED_DATE.year, _FIXED_DATE.month, _FIXED_DATE.day)
+
+
+def _solid_png_b64(rgb: tuple[int, int, int]) -> str:
+    image = Image.new("RGB", (320, 180), rgb)
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _seasonal_shadow_images() -> list[dict[str, Any]]:
+    return [
+        {
+            "hour": 12,
+            "label": "winter",
+            "image_b64": _solid_png_b64((216, 232, 244)),
+            "viewpoint": "winter",
+            "sun_azimuth": 165.0,
+            "sun_altitude": 15.0,
+        },
+        {
+            "hour": 12,
+            "label": "equinox",
+            "image_b64": _solid_png_b64((244, 233, 178)),
+            "viewpoint": "equinox",
+            "sun_azimuth": 180.0,
+            "sun_altitude": 38.0,
+        },
+        {
+            "hour": 12,
+            "label": "summer",
+            "image_b64": _solid_png_b64((239, 208, 170)),
+            "viewpoint": "summer",
+            "sun_azimuth": 195.0,
+            "sun_altitude": 60.0,
+        },
+    ]
 
 
 def _full_risks() -> dict[str, Any]:
     return {
+        "address_id": _ADDRESS_ID,
         "noise": {
             "level": "medium",
             "lden_db": 58.3,
@@ -40,6 +97,8 @@ def _full_risks() -> dict[str, Any]:
             "level": "low",
             "pm25_ug_m3": 9.2,
             "no2_ug_m3": 18.5,
+            "pm25_level": "low",
+            "no2_level": "low",
             "source": "RIVM - GCN",
             "source_date": "2024",
             "sampled_at": "2026-03-01T12:00:00Z",
@@ -51,7 +110,9 @@ def _full_risks() -> dict[str, Any]:
         "climate_stress": {
             "level": "medium",
             "heat_value": 2.5,
+            "heat_level": "medium",
             "water_value": 1.0,
+            "water_level": "low",
             "source": "Klimaateffectatlas",
             "source_date": "2023",
             "sampled_at": "2026-03-01T12:00:00Z",
@@ -64,13 +125,64 @@ def _full_risks() -> dict[str, Any]:
             "level": "good",
             "winter_hours": 3.5,
             "summer_hours": 8.2,
+            "equinox_hours": 5.4,
+            "svf_percent": 63.0,
             "source": "3DBAG + SunCalc",
             "source_date": "2024",
             "score": 72,
+            "svf_score": 63,
             "severity": "good",
-            "summary": "Good sunlight access from south-facing facade.",
+            "summary": "Good sunlight access from a south-facing facade.",
             "summary_nl": "Goede zonlichttoegang via gevel op het zuiden.",
+            "annual_average": 5.7,
+            "ground_annual_average": 4.8,
+            "svf_anisotropic": 59.0,
+            "irradiance_kwh_m2": 915.0,
+            "facade_results": [
+                {
+                    "orientation": "south",
+                    "height_label": "3m",
+                    "winter_hours": 4.0,
+                    "summer_hours": 10.9,
+                    "annual_average": 7.1,
+                },
+                {
+                    "orientation": "east",
+                    "height_label": "3m",
+                    "winter_hours": 2.1,
+                    "summer_hours": 8.0,
+                    "annual_average": 5.0,
+                },
+            ],
         },
+    }
+
+
+def _full_risk_comparisons() -> dict[str, Any]:
+    return {
+        "address_id": _ADDRESS_ID,
+        "noise": [
+            {"label_code": "address", "value": 62},
+            {"label_code": "city_avg", "value": 55},
+            {"label_code": "nl_avg", "value": 60},
+            {"label_code": "who_limit", "value": 74, "pattern": "dashed"},
+        ],
+        "air_quality": [
+            {"label_code": "address", "value": 81},
+            {"label_code": "city_avg", "value": 72},
+            {"label_code": "nl_avg", "value": 76},
+        ],
+        "climate_stress": [
+            {"label_code": "address", "value": 50},
+            {"label_code": "city_avg", "value": 58},
+            {"label_code": "adaptation_target", "value": 70, "pattern": "dashed"},
+        ],
+        "sunlight": [
+            {"label_code": "address", "value": 72},
+            {"label_code": "city_avg", "value": 64},
+            {"label_code": "daylight_target", "value": 60, "pattern": "dashed"},
+        ],
+        "generated_at": "2026-03-02T12:00:00Z",
     }
 
 
@@ -79,13 +191,19 @@ def _full_neighborhood() -> dict[str, Any]:
         "buurt_code": "BU03630000",
         "buurt_name": "Burgwallen-Oude Zijde",
         "gemeente_name": "Amsterdam",
-        "population_density": {"value": 15234, "unit": "per km2", "available": True},
-        "avg_household_size": {"value": 1.6, "available": True},
-        "single_person_pct": {"value": 68.2, "available": True},
-        "owner_occupied_pct": {"value": 22.1, "available": True},
-        "avg_property_value": {"value": "385,000", "available": True},
-        "distance_to_train_km": {"value": 0.8, "available": True},
-        "distance_to_supermarket_km": {"value": 0.3, "available": True},
+        "population_density": {
+            "value": 15234,
+            "unit": "per km2",
+            "available": True,
+            "quartile": 4,
+        },
+        "avg_household_size": {"value": 1.6, "available": True, "quartile": 1},
+        "single_person_pct": {"value": 68.2, "available": True, "quartile": 4},
+        "age_profile": {"age_0_24": 18.0, "age_25_64": 67.0, "age_65_plus": 15.0},
+        "owner_occupied_pct": {"value": 22.1, "available": True, "quartile": 1},
+        "avg_property_value": {"value": 385000, "available": True, "quartile": 4},
+        "distance_to_train_km": {"value": 0.8, "available": True, "quartile": 1},
+        "distance_to_supermarket_km": {"value": 0.3, "available": True, "quartile": 1},
         "urbanization": "very_urban",
     }
 
@@ -131,6 +249,25 @@ def _full_livability() -> dict[str, Any]:
                 "label_code": "livability.dimension.housing",
             },
         ],
+        "trend": [
+            {"year": "2018", "overall_score": 4, "overall_normalized": 44},
+            {"year": "2022", "overall_score": 5, "overall_normalized": 48},
+            {"year": "2024", "overall_score": 5, "overall_normalized": 50},
+        ],
+        "comparison": [
+            {
+                "level": "wijk",
+                "name": "Centrum-West",
+                "overall_score": 6,
+                "overall_normalized": 58,
+            },
+            {
+                "level": "gemeente",
+                "name": "Amsterdam",
+                "overall_score": 6,
+                "overall_normalized": 61,
+            },
+        ],
         "source": "Leefbaarometer",
         "source_date": "2024",
     }
@@ -138,6 +275,7 @@ def _full_livability() -> dict[str, Any]:
 
 def _full_tier_b() -> dict[str, Any]:
     return {
+        "address_id": _ADDRESS_ID,
         "crime": {
             "total_per_1000": 142.3,
             "national_per_1000": 52.1,
@@ -187,6 +325,7 @@ def _full_property_warnings(language: str) -> dict[str, Any]:
         lead_messages = ["Building predates 1960. Lead pipes may still be present."]
 
     return {
+        "address_id": _ADDRESS_ID,
         "attention_summary": {
             "flag_count": 2,
             "flags": [
@@ -212,7 +351,7 @@ def _full_property_warnings(language: str) -> dict[str, Any]:
         },
         "erfpacht": {
             "detected": True,
-            "confidence": "municipality based",
+            "confidence": "municipality_based",
             "municipality": "Amsterdam",
             "messages": erfpacht_messages,
         },
@@ -274,7 +413,7 @@ def _full_viewing_questions() -> dict[str, Any]:
 def _full_provenance() -> dict[str, Any]:
     return {
         "report_id": "rpt-epic4-0001",
-        "vbo_id": "0363010012345678",
+        "vbo_id": _ADDRESS_ID,
         "pand_id": "0363100012345678",
         "buurt_code": "BU03630000",
         "gemeente_name": "Amsterdam",
@@ -297,7 +436,7 @@ def dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
         "preparation_date": format_preparation_date(_FIXED_DATE, language),
         "risks": _full_risks(),
         "sunlight_score": 72,
-        "risk_comparisons": None,
+        "risk_comparisons": _full_risk_comparisons(),
         "neighborhood": _full_neighborhood(),
         "livability": _full_livability(),
         "tier_b": _full_tier_b(),
@@ -316,6 +455,7 @@ def dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
         kwargs = deepcopy(kwargs)
         kwargs["risks"]["sunlight"] = None
         kwargs["sunlight_score"] = None
+        kwargs["risk_comparisons"] = None
         kwargs["neighborhood"] = None
         kwargs["livability"] = None
         kwargs["tier_b"] = None
@@ -325,9 +465,70 @@ def dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
     return kwargs
 
 
+def _full_dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
+    kwargs = dossier_kwargs(kind, language)
+    risks = RiskCardsResponse.model_validate(kwargs["risks"])
+    seasonal_images = _seasonal_shadow_images() if kind == "full" else None
+    viewing_questions = None
+    if kwargs["viewing_questions"] is not None:
+        viewing_questions = ViewingQuestionsResponse.model_validate(
+            {
+                "address_id": _ADDRESS_ID,
+                **kwargs["viewing_questions"],
+            }
+        )
+
+    return {
+        "address": kwargs["address"],
+        "building_year": kwargs["building_year"],
+        "building_use": kwargs["building_use"],
+        "risks": risks,
+        "sunlight_score": kwargs["sunlight_score"],
+        "viewing_questions": viewing_questions,
+        "shadow_image_b64": seasonal_images[0]["image_b64"] if seasonal_images else None,
+        "language": language,
+        "floor_area": kwargs["floor_area"],
+        "neighborhood_stats": (
+            NeighborhoodStats.model_validate(kwargs["neighborhood"])
+            if kwargs["neighborhood"] is not None
+            else None
+        ),
+        "tier_b": (
+            TierBResponse.model_validate(kwargs["tier_b"])
+            if kwargs["tier_b"] is not None
+            else None
+        ),
+        "risk_comparisons": (
+            RiskComparisonsResponse.model_validate(kwargs["risk_comparisons"])
+            if kwargs["risk_comparisons"] is not None
+            else None
+        ),
+        "property_warnings_data": (
+            PropertyWarningsResponse.model_validate(kwargs["property_warnings"])
+            if kwargs["property_warnings"] is not None
+            else None
+        ),
+        "provenance": ProvenanceData.model_validate(kwargs["provenance"]),
+        "location_map_b64": None,
+        "livability": (
+            LivabilityResponse.model_validate(kwargs["livability"])
+            if kwargs["livability"] is not None
+            else None
+        ),
+        "shadow_images": seasonal_images,
+        "shadow_equinox_b64": seasonal_images[1]["image_b64"] if seasonal_images else None,
+        "shadow_summer_b64": seasonal_images[2]["image_b64"] if seasonal_images else None,
+        "postcode": "1012LG",
+        "footprint_geojson": None,
+        "map_lat": 52.372,
+        "map_lng": 4.892,
+    }
+
+
 def render_dossier_pdf(kind: str, language: str, *, timeout: int = 30) -> bytes:
-    tex_source = render_dossier(**dossier_kwargs(kind, language))
-    return compile_latex_to_pdf(tex_source, timeout=timeout, passes=2)
+    del timeout
+    with patch("app.services.pdf_export.date", _FrozenDate):
+        return generate_full_dossier(**_full_dossier_kwargs(kind, language))
 
 
 def render_brief_pdf(language: str = "en", *, timeout: int = 30) -> bytes:

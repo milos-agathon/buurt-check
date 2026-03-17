@@ -162,6 +162,23 @@ _SNAPSHOT_RADIUS_METERS = 30.0   # house clearly visible with context
 _SUN_DISTANCE = 300.0
 
 # Fallback ground material if scene_data doesn't provide one
+
+
+def _time_slot_for_label(time_str: str) -> dict[str, Any]:
+    """Normalize Amsterdam wall-clock strings to stable export labels."""
+    try:
+        hour, minute = (int(part) for part in time_str.split(":"))
+    except (TypeError, ValueError):
+        return {"label": "noon", "time": "12:00", "hour": 12}
+
+    normalized_time = f"{hour:02d}:{minute:02d}"
+    if hour < 12:
+        label = "morning"
+    elif hour >= 15:
+        label = "afternoon"
+    else:
+        label = "noon"
+    return {"label": label, "time": normalized_time, "hour": hour}
 GROUND_MATERIAL_FALLBACK = {
     "albedo": (0.88, 0.91, 0.94),
     "roughness": 0.95,
@@ -293,7 +310,7 @@ class Forge3DRenderService:
         if camera_preset == "triptych_6":
             time_slots = _TIME_PRESETS
         elif times:
-            time_slots = [{"label": "noon", "time": times[0], "hour": 12}]
+            time_slots = [_time_slot_for_label(time_str) for time_str in times]
         else:
             time_slots = [{"label": "noon", "time": "12:00", "hour": 12}]
 

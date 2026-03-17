@@ -1038,7 +1038,7 @@ class ExportRequest(BaseModel):
     )
     shadow_images: list[ShadowImageItem] | None = Field(
         default=None,
-        description="Array of shadow snapshots for triptych layout (top/front/rear)",
+        description="Array of shadow snapshots for rich full-dossier layouts (seasonal or multi-view)",
     )
     sunlight_submission: SunlightSubmission | None = Field(
         default=None,
@@ -1449,7 +1449,7 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             pand_id = building_resp.building.pand_id
 
         provenance_buurt = body.buurt_code
-        provenance_gemeente = body.city
+        provenance_gemeente = body.municipality
         if neighborhood_stats:
             provenance_buurt = provenance_buurt or neighborhood_stats.buurt_code
             provenance_gemeente = (
@@ -1469,8 +1469,8 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
         )
 
         # --- forge3d server-side rendering (always preferred when available) ---
-        # Server-rendered snapshots are higher quality than client captures
-        # and produce 6 panels (3 views × 2 times of day).
+        # The paid dossier prefers a seasonal noon triptych that mirrors the
+        # richer attached-PDF contract: winter solstice, equinox, summer solstice.
         render_service = get_render_service()
         if (
             render_service is not None
@@ -1500,56 +1500,47 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
                     scene_data = building_blocks_to_forge3d_scene(
                         target_block, neighbors,
                     )
-                    server_images = (
-                        await render_service.render_shadow_snapshots(
-                            pand_id=vbo_id,
-                            dates=["2026-06-21"],
-                            times=["09:00", "15:00"],
-                            camera_preset="triptych_6",
+                    seasonal_specs = [
+                        ("winter", "2026-12-21"),
+                        ("equinox", "2026-03-20"),
+                        ("summer", "2026-06-21"),
+                    ]
+                    seasonal_items: list[ShadowImageItem] = []
+                    for season_label, date_iso in seasonal_specs:
+                        server_images = await render_service.render_shadow_snapshots(
+                            pand_id=building_resp.building.pand_id,
+                            dates=[date_iso],
+                            times=["12:00"],
+                            camera_preset="top",
                             scene_data=scene_data,
                             lat=body.lat,
                             lng=body.lng,
                         )
-                    )
-                    if server_images and len(server_images) == 6:
-                        body.shadow_images = [
+                        if not server_images:
+                            continue
+                        item = server_images[0]
+                        seasonal_items.append(
                             ShadowImageItem(
-                                hour=item["hour"],
-                                label=f"{item['viewpoint']}_{item['time_label']}",
+                                hour=12,
+                                label=season_label,
                                 image_b64=base64.b64encode(
                                     item["jpeg_bytes"],
                                 ).decode("ascii"),
-                                viewpoint=item["viewpoint"],
+                                viewpoint=season_label,
                                 sun_azimuth=item.get("sun_azimuth"),
                                 sun_altitude=item.get("sun_altitude"),
                             )
-                            for item in server_images
-                        ]
-                        elapsed = time.monotonic() - t0
-                        logger.info(
-                            "export %s: forge3d rendered 6 snapshots "
-                            "(3 views × 2 times) in %.2fs",
-                            vbo_id,
-                            elapsed,
                         )
-                    elif server_images and len(server_images) == 3:
-                        # Legacy 3-image fallback
-                        body.shadow_images = [
-                            ShadowImageItem(
-                                hour=item["hour"],
-                                label=item["viewpoint"],
-                                image_b64=base64.b64encode(
-                                    item["jpeg_bytes"],
-                                ).decode("ascii"),
-                                viewpoint=item["viewpoint"],
-                                sun_azimuth=item.get("sun_azimuth"),
-                                sun_altitude=item.get("sun_altitude"),
-                            )
-                            for item in server_images
-                        ]
+
+                    if len(seasonal_items) == 3:
+                        body.shadow_images = seasonal_items
+                        body.shadow_image_b64 = seasonal_items[0].image_b64
+                        body.shadow_equinox_b64 = seasonal_items[1].image_b64
+                        body.shadow_summer_b64 = seasonal_items[2].image_b64
                         elapsed = time.monotonic() - t0
                         logger.info(
-                            "export %s: forge3d rendered 3 viewpoints in %.2fs",
+                            "export %s: forge3d rendered 3 seasonal noon "
+                            "snapshots (winter, equinox, summer) in %.2fs",
                             vbo_id,
                             elapsed,
                         )

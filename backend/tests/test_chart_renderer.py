@@ -182,7 +182,7 @@ def test_risk_comparison_can_omit_row_labels():
     assert "This address" not in text
     assert "City average" not in text
     assert "Netherlands" not in text
-    assert "WHO guideline" in text
+    assert "WHO guideline" not in text
     assert "72" in text
 
 
@@ -209,7 +209,7 @@ def test_risk_comparison_value_labels_use_shared_right_column(monkeypatch):
     value_positions = {
         round(x, 2)
         for x, text, ha in captured
-        if text in {"72", "66", "61"} and ha == "right"
+        if text in {"72", "66", "61", "74"} and ha == "right"
     }
     assert len(value_positions) == 1
 
@@ -369,7 +369,7 @@ def test_age_distribution_local_legend_matches_bar_color(monkeypatch):
 
     render_age_distribution(AgeProfile(age_0_24=22, age_25_64=65, age_65_plus=13))
 
-    assert captured_color == cr.C_ACCENT_TEXT
+    assert captured_color == cr.C_ACCENT_DARK
 
 
 def test_livability_good_score():

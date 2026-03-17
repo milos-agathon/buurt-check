@@ -17,7 +17,7 @@
 6. [Risk card system](#6-risk-card-system)
 7. [Neighborhood snapshot](#7-neighborhood-snapshot)
 8. [Shortlist & compare](#8-shortlist--compare)
-9. [PDF viewing briefing](#9-pdf-viewing-briefing)
+9. [PDF export](#9-pdf-export)
 10. [Bilingual system](#10-bilingual-system)
 11. [Animation & micro-interactions](#11-animation--micro-interactions)
 12. [Accessibility specification](#12-accessibility-specification)
@@ -210,7 +210,7 @@ Built on an **8pt base grid** with 4pt half-steps for fine adjustments.
 | Severity: Poor | Triangle (exclamation) | 16px | Inline severity indicator |
 | Severity: Critical | X in circle | 16px | Inline severity indicator |
 | Action | Arrow-down into tray | 20px | Export/download |
-| Action | Share (iOS-style) | 20px | Share briefing |
+| Action | Share (iOS-style) | 20px | Share PDF |
 | Action | Plus | 20px | Add to shortlist |
 | Action | Columns (side by side) | 20px | Compare view |
 | Action | Chevron right | 16px | Detail navigation |
@@ -300,7 +300,7 @@ A minimal top bar appears on all screens:
 │       │   ShadowSnapshots, heatmap overlay, clear-sky visibility
 │       ├── ── ACTION ──
 │       ├── Viewing checklist (aggregated questions)
-│       └── Action bar: Add to Shortlist | Export PDF (fixed bottom)
+│       └── Action bar: Add to Shortlist | Download Quick Checklist (fixed bottom)
 │
 └── Saved (Tab 3)
     ├── Shortlist (1-3 saved addresses)
@@ -495,13 +495,13 @@ Fixed at the bottom of the dossier screen (above the tab bar), appearing when th
 - Height: 64px + safe area
 - Two buttons, side by side with 12px gap:
   - **Left (secondary):** "Add to Shortlist" — outlined style, `--color-accent` border + text, white background, bookmark icon left. If already saved: "Saved ✓" in `--color-accent` filled style.
-  - **Right (primary):** "Export Briefing" — filled `--color-accent` background, white text, download icon left. This is the most prominent CTA on the screen.
+  - **Right (primary):** "Download Quick Checklist" — filled `--color-accent` background, white text, download icon left. This is the free export CTA.
 - On phones narrower than 360px: stack vertically (primary on top)
 
 **Success criteria:**
 - SC-4.3.5a: Action bar becomes visible when user scrolls to viewing checklist section
 - SC-4.3.5b: "Add to Shortlist" updates to "Saved ✓" state within 200ms of tap, with haptic feedback
-- SC-4.3.5c: "Export Briefing" triggers the PDF generation flow (see §9) within 200ms of tap
+- SC-4.3.5c: "Download Quick Checklist" triggers the `quick_brief` PDF generation flow (see §9) within 200ms of tap
 - SC-4.3.5d: Shortlisted addresses appear in the Saved tab within 500ms
 
 ---
@@ -949,23 +949,26 @@ Below the chart: A "Differences only" toggle (pill button) that filters the colu
 
 ---
 
-## 9. PDF Viewing Briefing
+## 9. PDF Export
 
 ### 9.1 Export flow
 
-1. **Trigger:** User taps "Export Briefing" (primary CTA in dossier action bar, or option in compare view)
+1. **Trigger:** User taps "Download Quick Checklist" (primary CTA in dossier action bar) or opens the export sheet from another dossier action.
 2. **Configuration bottom sheet** (Level 2 elevation, 24px top border radius):
    - Slides up from bottom, 45% viewport height
    - **Template selector:** Two tappable cards side by side:
-     - "Quick Brief" — 1 page summary with scores and top questions. Thumbnail preview showing the layout.
-     - "Full Dossier" — 3–4 pages with all data, charts, shadow snapshots, and complete viewing checklist. Thumbnail preview.
+     - "Quick Brief" — 1 page summary with scores and top questions. Free. Thumbnail preview showing the layout.
+     - "Full Dossier" — 3–4 pages with all data, charts, shadow snapshots, and complete viewing checklist. Paid before first download. Thumbnail preview.
    - **Shadow snapshots:** Toggle (default: ON) — "Include 3D shadow analysis (winter + summer)"
    - **Language:** Segmented control (EN | NL). Defaults to app language.
-   - **Generate button:** Full-width, `--color-accent`, "Generate Briefing"
+   - **Primary button behavior:** Full-width, `--color-accent`
+     - For `quick_brief`: "Download Quick Checklist"
+     - For `full_dossier` without entitlement: "Buy Full Dossier"
+     - For `full_dossier` with active entitlement: "Download Full Dossier"
 3. **Generation state:**
    - Bottom sheet expands to show progress
    - If shadow snapshots are included and not cached: Three.js renders 3 PNGs (morning/noon/evening, December 21). Progress shows: "Rendering shadow analysis... [1/3]" with a thin teal progress bar
-   - If cached: "Building your briefing..." with determinate progress bar
+   - If cached: "Building your PDF..." with determinate progress bar
    - Maximum generation time: 12 seconds (if Three.js renders needed)
 4. **Preview:**
    - Full-screen PDF preview with pinch-to-zoom
@@ -1310,7 +1313,7 @@ In dark mode, elevation is communicated through **progressively lighter surfaces
 | Animations (UI) | CSS transitions + component-level animation helpers | Framer Motion migration deferred |
 | Animations (3D) | GSAP | For Three.js camera tweens |
 | Internationalization | react-i18next | EN/NL string files |
-| PDF generation | Server-side Python `fpdf2` (+ Three.js export snapshots) | Quick brief + full dossier templates |
+| PDF generation | Server-side Python `fpdf2` (+ Three.js export snapshots) | Quick brief (free) + full dossier (paid) templates |
 | Styling | Plain CSS with design tokens | Tokens in `frontend/src/styles/tokens.css` |
 | Icons | Lucide React (customized stroke weight) | MIT license |
 | Haptics | `navigator.vibrate()` (Android) + native bridge (iOS) | Progressive enhancement |

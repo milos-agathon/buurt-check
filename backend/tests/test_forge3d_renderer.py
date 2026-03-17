@@ -403,6 +403,36 @@ class TestForge3DRenderService:
         assert viewpoints == ["top", "front", "rear"]
 
     @pytest.mark.asyncio
+    async def test_top_preset_multiple_times_returns_summer_time_series(self):
+        """Single-view top preset supports 09:00 / 12:00 / 15:00 export evidence."""
+        svc = Forge3DRenderService(self._make_settings())
+        svc._available = True
+
+        fake_jpeg = b"\xff\xd8\xff\xe0" + b"\x00" * 100
+        mock_rendered = {"top": fake_jpeg}
+
+        with patch.object(svc, "_render_viewpoints_sync", return_value=mock_rendered):
+            with patch(
+                "app.services.forge3d_renderer.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ):
+                with patch("app.services.forge3d_renderer.cache_set", new_callable=AsyncMock):
+                    result = await svc.render_shadow_snapshots(
+                        pand_id="0363100012345678",
+                        dates=["2026-06-21"],
+                        times=["09:00", "12:00", "15:00"],
+                        camera_preset="top",
+                        scene_data=self._make_scene_data(),
+                    )
+
+        assert result is not None
+        assert len(result) == 3
+        assert [item["viewpoint"] for item in result] == ["top", "top", "top"]
+        assert [item["hour"] for item in result] == [9, 12, 15]
+        assert [item["time_label"] for item in result] == ["morning", "noon", "afternoon"]
+
+    @pytest.mark.asyncio
     async def test_cache_hit_skips_render(self):
         """When all viewpoints are cached, render is never called."""
         svc = Forge3DRenderService(self._make_settings())
