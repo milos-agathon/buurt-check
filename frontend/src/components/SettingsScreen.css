@@ -128,6 +128,13 @@
   line-height: 1.5;
 }
 
+.settings-screen__link-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
 .settings-screen__link {
   font: var(--type-small);
   color: var(--color-accent-text);

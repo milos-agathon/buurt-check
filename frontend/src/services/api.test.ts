@@ -19,6 +19,7 @@ import {
   mapApiError,
   submitSunlightAnalysis,
   suggestAddresses,
+  verifyGooglePlayPurchase,
 } from './api';
 
 // Minimal stand-in TFunction for mapApiError unit tests — returns the key unchanged.
@@ -799,6 +800,36 @@ describe('createCheckoutSession', () => {
       report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
     });
     expect(result.checkout_url).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
+  });
+});
+
+describe('verifyGooglePlayPurchase', () => {
+  it('posts the report ID, purchase token, and product ID', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+        entitled: true,
+        provider: 'google_play',
+        consumed: true,
+      }),
+    );
+
+    const result = await verifyGooglePlayPurchase(
+      '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+      'purchase-token-123',
+      'full_dossier_unlock',
+    );
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/billing/google-play/verify');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({
+      report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+      purchase_token: 'purchase-token-123',
+      product_id: 'full_dossier_unlock',
+    });
+    expect(result.provider).toBe('google_play');
+    expect(result.consumed).toBe(true);
   });
 });
 

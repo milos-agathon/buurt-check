@@ -27,6 +27,13 @@ export interface CheckoutSessionResponse {
   checkout_url: string;
 }
 
+export interface GooglePlayPurchaseVerificationResponse {
+  report_id: string;
+  entitled: boolean;
+  provider: 'google_play';
+  consumed: boolean;
+}
+
 export interface PricingResponse {
   price_cents: number;
   price_eur: string;

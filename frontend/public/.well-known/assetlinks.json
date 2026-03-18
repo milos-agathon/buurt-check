@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "TODO_SET_PLAY_PACKAGE_NAME",
+      "sha256_cert_fingerprints": [
+        "TODO_SET_SHA256_CERT_FINGERPRINT"
+      ]
+    }
+  }
+]

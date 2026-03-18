@@ -32,6 +32,7 @@ interface ExportBottomSheetProps {
   shadowSnapshots?: ShadowSnapshot[] | null;
   isEntitled?: boolean;
   onBuyFullDossier?: () => void;
+  buyLabel?: string;
   buyPending?: boolean;
   sunlightReady?: boolean;
   sunlightFailed?: boolean;
@@ -63,6 +64,7 @@ export default function ExportBottomSheet({
   shadowSnapshots,
   isEntitled = false,
   onBuyFullDossier,
+  buyLabel,
   buyPending = false,
   sunlightReady = true,
   sunlightFailed = false,
@@ -481,7 +483,7 @@ export default function ExportBottomSheet({
             data-testid="export-generate-btn"
           >
             {requiresPurchase
-              ? t('export.buyFullDossier', 'Buy Full Dossier')
+              ? (buyLabel ?? t('export.buyFullDossier', 'Buy Full Dossier'))
               : generating
                 ? t('export.generating', 'Generating...')
                 : t('export.generate', 'Generate PDF')}

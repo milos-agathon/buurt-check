@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Buurt Check Offline</title>
+    <meta
+      name="description"
+      content="Offline fallback for Buurt Check."
+    />
+    <link rel="icon" type="image/svg+xml" href="/logos/buurt-check-favicon.svg" />
+    <link rel="stylesheet" href="/legal.css" />
+  </head>
+  <body>
+    <main class="legal-page">
+      <section class="legal-page__hero">
+        <span class="legal-page__eyebrow">Offline</span>
+        <h1 class="legal-page__title">Buurt Check is offline right now</h1>
+        <p class="legal-page__lead">
+          The app shell is installed, but this page could not reach the live data services. Reconnect
+          to the internet to search new addresses, refresh reports, or start a purchase flow.
+        </p>
+        <p class="legal-page__meta">Cached pages and previously opened screens may still load after reconnect.</p>
+      </section>
+
+      <div class="legal-page__grid">
+        <section class="legal-page__section">
+          <h2>What you can do</h2>
+          <ul>
+            <li>Check your connection and try again.</li>
+            <li>Open the cached app shell if you have used Buurt Check on this device before.</li>
+            <li>Return later for live dossier generation and payment verification.</li>
+          </ul>
+          <p>
+            <button type="button" class="legal-page__back" onclick="window.location.reload()">Try again</button>
+          </p>
+          <p>
+            <a class="legal-page__back" href="/#/search">Open cached app</a>
+          </p>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

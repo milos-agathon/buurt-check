@@ -76,4 +76,11 @@ describe('SettingsScreen accessibility semantics', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear now' }));
     expect(onClearRecent).toHaveBeenCalledTimes(1);
   });
+
+  it('renders privacy policy and terms links', () => {
+    renderSettings();
+
+    expect(screen.getByRole('link', { name: 'Privacy policy' })).toHaveAttribute('href', '/privacy.html');
+    expect(screen.getByRole('link', { name: 'Terms of use' })).toHaveAttribute('href', '/terms.html');
+  });
 });

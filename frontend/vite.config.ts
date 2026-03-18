@@ -1,12 +1,41 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 // Default to loopback; Playwright starts backend on 127.0.0.1:8000.
 // Override via VITE_DEV_API_PROXY_TARGET for LAN/mobile testing.
 const devApiProxyTarget =
   process.env.VITE_DEV_API_PROXY_TARGET ?? 'http://127.0.0.1:8000'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      registerType: 'autoUpdate',
+      injectRegister: false,
+      includeAssets: [
+        'logos/buurt-check-favicon.svg',
+        'logos/app_icons/pwa-192x192.png',
+        'logos/app_icons/pwa-192x192-maskable.png',
+        'logos/app_icons/pwa-512x512.png',
+        'logos/app_icons/pwa-512x512-maskable.png',
+        'legal.css',
+        'offline.html',
+        'privacy.html',
+        'terms.html',
+        '.well-known/assetlinks.json',
+      ],
+      manifest: false,
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'],
+      },
+      devOptions: {
+        enabled: false,
+      },
+    }),
+  ],
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '0.0.0'),
   },

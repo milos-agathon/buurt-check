@@ -39,6 +39,7 @@ async function main() {
 
   // Avoid stale hashed assets inflating bundle-budget checks.
   rmSync(resolve(process.cwd(), 'dist'), { recursive: true, force: true });
+  await runNpm(['exec', '--', 'node', './scripts/generate-assetlinks.mjs']);
 
   // Prevent esbuild OOM crashes seen on constrained Windows hosts.
   const goMaxProcs = process.env.GOMAXPROCS ?? '1';

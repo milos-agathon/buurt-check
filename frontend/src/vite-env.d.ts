@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/client" />
 
 declare const __APP_VERSION__: string;
 
@@ -6,6 +7,9 @@ interface ImportMetaEnv {
   readonly VITE_APP_VERSION?: string;
   readonly VITE_SENTRY_DSN?: string;
   readonly VITE_SENTRY_ENVIRONMENT?: string;
+  readonly VITE_GOOGLE_PLAY_PRODUCT_ID?: string;
+  readonly VITE_PLAY_PACKAGE_NAME?: string;
+  readonly VITE_PLAY_SHA256_CERT_FINGERPRINTS?: string;
   readonly VITE_PREVIEW_DISABLE_PAYMENTS?: string;
   readonly VITE_PREVIEW_FORCE_FULL_DOSSIER_VIEW?: string;
   readonly VITE_VIEWER3D_SHADOW_SIZE?: string;

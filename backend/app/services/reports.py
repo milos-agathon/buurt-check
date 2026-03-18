@@ -16,6 +16,46 @@ from app.models.report import PaymentStatus, Report, ReportType
 logger = logging.getLogger(__name__)
 
 
+async def _sync_google_play_entitlement(
+    report: Report,
+    db_path: str | None = None,
+) -> bool:
+    """Refresh Google Play-backed entitlement state before returning it."""
+    if report.provider != "google_play" or not report.provider_payment_id:
+        return report.entitlement_status == "active"
+
+    from app.services.google_play import (
+        GooglePlayAPIError,
+        GooglePlayConfigError,
+        GooglePlayPurchaseNotFound,
+        get_product_purchase,
+    )
+
+    try:
+        purchase = await get_product_purchase(report.provider_payment_id)
+    except GooglePlayConfigError:
+        logger.warning(
+            "Google Play verification is unavailable; trusting stored entitlement for report %s",
+            report.report_id,
+        )
+        return report.entitlement_status == "active"
+    except GooglePlayPurchaseNotFound:
+        await refund_report(report.report_id, db_path=db_path)
+        return False
+    except GooglePlayAPIError:
+        logger.exception(
+            "Google Play verification failed for report %s; leaving stored entitlement unchanged",
+            report.report_id,
+        )
+        return report.entitlement_status == "active"
+
+    if purchase.purchase_state != 0:
+        await refund_report(report.report_id, db_path=db_path)
+        return False
+
+    return True
+
+
 async def create_report(
     vbo_id: str,
     address_key: str,
@@ -26,8 +66,7 @@ async def create_report(
     report_id = str(uuid.uuid4())
     async with get_db(db_path) as db:
         await db.execute(
-            "INSERT INTO reports (report_id, report_type, address_key, vbo_id) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO reports (report_id, report_type, address_key, vbo_id) VALUES (?, ?, ?, ?)",
             (report_id, report_type, address_key, vbo_id),
         )
         await db.commit()
@@ -109,16 +148,13 @@ async def check_entitlement(
     report_id: str,
     db_path: str | None = None,
 ) -> bool:
-    """Return True if entitlement_status == 'active'."""
-    async with get_db(db_path) as db:
-        cursor = await db.execute(
-            "SELECT entitlement_status FROM reports WHERE report_id = ?",
-            (report_id,),
-        )
-        row = await cursor.fetchone()
-    if row is None:
+    """Return True if entitlement_status == 'active' after provider sync when needed."""
+    report = await get_report(report_id, db_path=db_path)
+    if report is None:
         return False
-    return row["entitlement_status"] == "active"
+    if report.entitlement_status != "active":
+        return False
+    return await _sync_google_play_entitlement(report, db_path=db_path)
 
 
 async def activate_entitlement(
@@ -190,8 +226,26 @@ async def find_existing_paid_report(
             "SELECT * FROM reports "
             "WHERE vbo_id = ? AND payment_status = 'paid' "
             "AND entitlement_status = 'active' "
-            "ORDER BY created_at DESC LIMIT 1",
+            "ORDER BY created_at DESC LIMIT 5",
             (vbo_id,),
+        )
+        rows = await cursor.fetchall()
+    for row in rows:
+        report = Report(**dict(row))
+        if await _sync_google_play_entitlement(report, db_path=db_path):
+            return report
+    return None
+
+
+async def get_report_by_provider_payment_id(
+    provider_payment_id: str,
+    db_path: str | None = None,
+) -> Report | None:
+    """Lookup a report by provider payment identifier (payment intent or purchase token)."""
+    async with get_db(db_path) as db:
+        cursor = await db.execute(
+            "SELECT * FROM reports WHERE provider_payment_id = ?",
+            (provider_payment_id,),
         )
         row = await cursor.fetchone()
     if row is None:
@@ -203,16 +257,11 @@ async def get_report_by_payment_intent(
     provider_payment_id: str,
     db_path: str | None = None,
 ) -> Report | None:
-    """Lookup a report by Stripe payment intent ID."""
-    async with get_db(db_path) as db:
-        cursor = await db.execute(
-            "SELECT * FROM reports WHERE provider_payment_id = ?",
-            (provider_payment_id,),
-        )
-        row = await cursor.fetchone()
-    if row is None:
-        return None
-    return Report(**dict(row))
+    """Backward-compatible alias for Stripe-oriented call sites/tests."""
+    return await get_report_by_provider_payment_id(
+        provider_payment_id,
+        db_path=db_path,
+    )
 
 
 async def revoke_entitlement(

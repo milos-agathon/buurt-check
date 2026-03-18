@@ -1,7 +1,8 @@
 """Tests for the billing API endpoints (Story 3.1 — Stripe Checkout Session)."""
 
 from contextlib import ExitStack
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -182,6 +183,108 @@ async def test_checkout_stripe_call_args(db_path):
         assert "cancel_url" in call_kwargs.kwargs
 
 
+@pytest.mark.asyncio
+async def test_verify_google_play_purchase_unlocks_report_and_consumes_token(db_path):
+    """Google Play verification unlocks the report and consumes the product token."""
+    from app.services.reports import create_report, get_report
+
+    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+
+    stack, _mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={
+            "google_play_enabled": True,
+            "google_play_package_name": "nl.buurtcheck.app",
+            "google_play_product_id": "full_dossier_unlock",
+            "google_play_service_account_json": '{"type":"service_account"}',
+        },
+    )
+    with (
+        stack,
+        patch(
+            "app.api.billing.get_product_purchase",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    purchase_state=0,
+                    consumption_state=0,
+                )
+            ),
+        ),
+        patch(
+            "app.api.billing.consume_product_purchase",
+            new=AsyncMock(),
+        ) as mock_consume,
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/billing/google-play/verify",
+                json={
+                    "report_id": rid,
+                    "purchase_token": "purchase-token-123",
+                    "product_id": "full_dossier_unlock",
+                },
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "report_id": rid,
+        "entitled": True,
+        "provider": "google_play",
+        "consumed": True,
+    }
+    mock_consume.assert_awaited_once_with(
+        "purchase-token-123",
+        product_id="full_dossier_unlock",
+    )
+
+    report = await get_report(rid, db_path=db_path)
+    assert report is not None
+    assert report.payment_status == "paid"
+    assert report.entitlement_status == "active"
+    assert report.provider == "google_play"
+    assert report.provider_payment_id == "purchase-token-123"
+
+
+@pytest.mark.asyncio
+async def test_verify_google_play_purchase_rejects_token_reuse_across_reports(db_path):
+    """A consumed or active purchase token cannot unlock a second report."""
+    from app.services.reports import create_report, unlock_report
+
+    original_report = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    second_report = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    await unlock_report(
+        original_report,
+        provider="google_play",
+        provider_payment_id="purchase-token-123",
+        purchased_at="2026-03-17T10:00:00Z",
+        db_path=db_path,
+    )
+
+    stack, _mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={
+            "google_play_enabled": True,
+            "google_play_package_name": "nl.buurtcheck.app",
+            "google_play_product_id": "full_dossier_unlock",
+            "google_play_service_account_json": '{"type":"service_account"}',
+        },
+    )
+    with stack:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/billing/google-play/verify",
+                json={
+                    "report_id": second_report,
+                    "purchase_token": "purchase-token-123",
+                    "product_id": "full_dossier_unlock",
+                },
+            )
+
+    assert response.status_code == 409
+
+
 # ---------------------------------------------------------------------------
 # Webhook tests (Story 3.2)
 # ---------------------------------------------------------------------------
@@ -322,7 +425,8 @@ async def test_webhook_charge_refunded(db_path):
     rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
     # Simulate a prior successful payment
     await update_payment_status(
-        rid, "paid",
+        rid,
+        "paid",
         provider="stripe",
         provider_payment_id="pi_test_refund",
         db_path=db_path,
@@ -367,7 +471,8 @@ async def test_webhook_refund_idempotent(db_path):
 
     rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
     await update_payment_status(
-        rid, "paid",
+        rid,
+        "paid",
         provider="stripe",
         provider_payment_id="pi_test_refund2",
         db_path=db_path,

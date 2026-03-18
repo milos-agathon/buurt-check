@@ -5,6 +5,8 @@ import ConfirmSheet from './ui/ConfirmSheet';
 import './SettingsScreen.css';
 
 const GITHUB_ISSUES_URL = 'https://github.com/milosblag/buurt-check/issues';
+const PRIVACY_POLICY_URL = '/privacy.html';
+const TERMS_URL = '/terms.html';
 
 const DATA_SOURCE_KEYS = [
   'bag',
@@ -145,6 +147,19 @@ export default function SettingsScreen({ onClearRecent, onClearShortlist, theme 
       <div className="settings-screen__group settings-screen__group--info">
         <h3 className="settings-screen__section-title">{t('settings.scoring.title')}</h3>
         <p className="settings-screen__description">{t('settings.scoring.description')}</p>
+      </div>
+
+      <div className="settings-screen__group settings-screen__group--info">
+        <h3 className="settings-screen__section-title">{t('settings.legal.title')}</h3>
+        <p className="settings-screen__description">{t('settings.legal.description')}</p>
+        <div className="settings-screen__link-list">
+          <a href={PRIVACY_POLICY_URL} className="settings-screen__link">
+            {t('settings.legal.privacy')}
+          </a>
+          <a href={TERMS_URL} className="settings-screen__link">
+            {t('settings.legal.terms')}
+          </a>
+        </div>
       </div>
 
       <div className="settings-screen__group settings-screen__group--info">

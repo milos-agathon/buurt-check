@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     stripe_price_cents: int = 399  # EUR 3.99
     base_url: str = "http://localhost:5173"
 
+    # Google Play Billing (Android Path A)
+    google_play_enabled: bool = False
+    google_play_package_name: str = ""
+    google_play_product_id: str = "full_dossier_unlock"
+    google_play_service_account_json: str = ""
+    google_play_service_account_file: str = ""
+
     # Rate limiting
     rate_limit_enabled: bool = True
 

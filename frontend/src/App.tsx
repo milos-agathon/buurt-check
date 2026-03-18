@@ -52,7 +52,18 @@ import {
   submitSunlightAnalysis,
   toSunlightSubmissionPayload,
   mapApiError,
+  verifyGooglePlayPurchase,
 } from './services/api';
+import {
+  beginPlayBillingPurchase,
+  clearPendingPlayBillingReport,
+  completePlayBillingPurchase,
+  consumePlayBillingPurchaseToken,
+  findRestorablePlayBillingPurchase,
+  getPendingPlayBillingReport,
+  isPlayBillingContextAvailableSync,
+  isPlayBillingReady,
+} from './services/playBilling';
 import {
   getShortlist,
   addToShortlist,
@@ -338,8 +349,8 @@ function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
   return fallback;
 }
 
-const TEMP_DISABLE_PAYMENTS = readBooleanEnv(import.meta.env.VITE_PREVIEW_DISABLE_PAYMENTS, true);
-const TEMP_FORCE_FULL_DOSSIER_VIEW = readBooleanEnv(import.meta.env.VITE_PREVIEW_FORCE_FULL_DOSSIER_VIEW, true);
+const TEMP_DISABLE_PAYMENTS = readBooleanEnv(import.meta.env.VITE_PREVIEW_DISABLE_PAYMENTS, false);
+const TEMP_FORCE_FULL_DOSSIER_VIEW = readBooleanEnv(import.meta.env.VITE_PREVIEW_FORCE_FULL_DOSSIER_VIEW, false);
 interface ParsedHashRoute {
   route: HashRoute;
   vboId?: string;
@@ -476,6 +487,9 @@ function App() {
   const [activeLookupId, setActiveLookupId] = useState<string | null>(dossierSeed?.address?.id ?? null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [dossierPriceEur, setDossierPriceEur] = useState(() => getDossierPrice());
+  const [androidBillingAvailable, setAndroidBillingAvailable] = useState(
+    isPlayBillingContextAvailableSync(),
+  );
   const [isEntitled, setIsEntitled] = useState(TEMP_FORCE_FULL_DOSSIER_VIEW);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutStatusMessage, setCheckoutStatusMessage] = useState<string | null>(null);
@@ -683,6 +697,26 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!isPlayBillingContextAvailableSync()) {
+      setAndroidBillingAvailable(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void isPlayBillingReady().then((ready) => {
+      if (!cancelled) {
+        setAndroidBillingAvailable(ready);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Mark first visit complete when dossier loads (address + building resolved)
   const hasMarkedVisited = useRef(false);
   useEffect(() => {
@@ -709,6 +743,19 @@ function App() {
     setTheme(pref);
     setThemePreference(pref);
   }, []);
+
+  const activatePurchasedEntitlement = useCallback((
+    unlockedReportId: string,
+    provider: 'stripe' | 'google_play',
+  ) => {
+    setReportId(unlockedReportId);
+    setIsEntitled(true);
+    setCheckoutStatusMessage(null);
+    trackEvent('dossier_unlocked', { report_id: unlockedReportId, provider });
+    if (address?.adresseerbaar_object_id) {
+      storeEntitlement(address.adresseerbaar_object_id, unlockedReportId, true);
+    }
+  }, [address?.adresseerbaar_object_id]);
 
   const setHashRoute = useCallback((hash: string, options?: { replace?: boolean }) => {
     if (typeof window === 'undefined') return;
@@ -783,17 +830,105 @@ function App() {
 
     setIsCheckingOut(true);
     setCheckoutStatusMessage(null);
-    trackEvent('checkout_started', { report_id: reportId, price_eur: dossierPriceEur });
+    trackEvent('checkout_started', {
+      report_id: reportId,
+      price_eur: dossierPriceEur,
+      provider: androidBillingAvailable ? 'google_play' : 'stripe',
+    });
 
     try {
+      if (androidBillingAvailable) {
+        const pendingReportId = getPendingPlayBillingReport();
+        if (pendingReportId === reportId) {
+          const pendingPurchase = await findRestorablePlayBillingPurchase();
+          if (pendingPurchase) {
+            const verification = await verifyGooglePlayPurchase(
+              reportId,
+              pendingPurchase.purchaseToken,
+              pendingPurchase.productId,
+            );
+            if (!verification.consumed) {
+              await consumePlayBillingPurchaseToken(pendingPurchase.purchaseToken);
+            }
+            clearPendingPlayBillingReport();
+            activatePurchasedEntitlement(verification.report_id, 'google_play');
+            trackEvent('checkout_completed', {
+              report_id: verification.report_id,
+              provider: 'google_play',
+              restored: true,
+            });
+            showToast(t('premium.checkout.success'));
+            return;
+          }
+          clearPendingPlayBillingReport();
+        }
+
+        let purchase = null as Awaited<ReturnType<typeof beginPlayBillingPurchase>> | null;
+        try {
+          purchase = await beginPlayBillingPurchase(reportId);
+          const verification = await verifyGooglePlayPurchase(
+            reportId,
+            purchase.purchaseToken,
+            purchase.productId,
+          );
+          if (!verification.consumed) {
+            await consumePlayBillingPurchaseToken(purchase.purchaseToken);
+          }
+          await completePlayBillingPurchase(purchase, 'success');
+          clearPendingPlayBillingReport();
+          activatePurchasedEntitlement(verification.report_id, 'google_play');
+          trackEvent('checkout_completed', {
+            report_id: verification.report_id,
+            provider: 'google_play',
+          });
+          showToast(t('premium.checkout.success'));
+          return;
+        } catch (error) {
+          if (purchase) {
+            await completePlayBillingPurchase(purchase, 'unknown');
+            trackEvent('checkout_failed', {
+              report_id: reportId,
+              provider: 'google_play',
+              reason: 'verification',
+            });
+            setCheckoutStatusMessage(t('premium.checkout.delayed'));
+            showToast(t('premium.checkout.delayed'));
+            return;
+          }
+
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            clearPendingPlayBillingReport();
+            return;
+          }
+
+          throw error;
+        }
+      }
+
       const session = await createCheckoutSession(reportId);
       window.location.href = session.checkout_url;
     } catch {
-      trackEvent('checkout_failed', { report_id: reportId, reason: 'session_creation' });
+      trackEvent('checkout_failed', {
+        report_id: reportId,
+        provider: androidBillingAvailable ? 'google_play' : 'stripe',
+        reason: 'session_creation',
+      });
       setIsCheckingOut(false);
       showToast(t('premium.checkout.startFailed'));
+      return;
+    } finally {
+      setIsCheckingOut(false);
     }
-  }, [activeLookupId, dossierPriceEur, isCheckingOut, reportId, showToast, t]);
+  }, [
+    activatePurchasedEntitlement,
+    activeLookupId,
+    androidBillingAvailable,
+    dossierPriceEur,
+    isCheckingOut,
+    reportId,
+    showToast,
+    t,
+  ]);
 
   const handleToggleQuestion = useCallback((id: string) => {
     hapticTap();
@@ -2424,15 +2559,12 @@ function App() {
           if (cancelled) return;
 
           if (entitlement.entitled) {
-            setReportId(entitlement.report_id);
-            setIsEntitled(true);
-            setCheckoutStatusMessage(null);
-            trackEvent('dossier_unlocked', { report_id: entitlement.report_id });
+            activatePurchasedEntitlement(entitlement.report_id, 'stripe');
             if (checkoutVerification.sessionId) {
-              trackEvent('checkout_completed', { report_id: entitlement.report_id });
-            }
-            if (address?.adresseerbaar_object_id) {
-              storeEntitlement(address.adresseerbaar_object_id, entitlement.report_id, true);
+              trackEvent('checkout_completed', {
+                report_id: entitlement.report_id,
+                provider: 'stripe',
+              });
             }
             showToast(t('premium.checkout.success'));
             return;
@@ -2475,7 +2607,54 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [address?.adresseerbaar_object_id, checkoutVerification, showToast, t]);
+  }, [activatePurchasedEntitlement, checkoutVerification, showToast, t]);
+
+  useEffect(() => {
+    if (!androidBillingAvailable || !reportId || isEntitled) return;
+    if (getPendingPlayBillingReport() !== reportId) return;
+
+    let cancelled = false;
+
+    const restorePendingPurchase = async () => {
+      try {
+        const pendingPurchase = await findRestorablePlayBillingPurchase();
+        if (cancelled) return;
+        if (!pendingPurchase) {
+          clearPendingPlayBillingReport();
+          return;
+        }
+
+        const verification = await verifyGooglePlayPurchase(
+          reportId,
+          pendingPurchase.purchaseToken,
+          pendingPurchase.productId,
+        );
+        if (!verification.consumed) {
+          await consumePlayBillingPurchaseToken(pendingPurchase.purchaseToken);
+        }
+        if (cancelled) return;
+
+        clearPendingPlayBillingReport();
+        activatePurchasedEntitlement(verification.report_id, 'google_play');
+        trackEvent('checkout_completed', {
+          report_id: verification.report_id,
+          provider: 'google_play',
+          restored: true,
+        });
+        showToast(t('premium.checkout.success'));
+      } catch {
+        if (!cancelled) {
+          setCheckoutStatusMessage(t('premium.checkout.delayed'));
+        }
+      }
+    };
+
+    void restorePendingPurchase();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activatePurchasedEntitlement, androidBillingAvailable, isEntitled, reportId, showToast, t]);
 
   const comparisonLabel = useCallback((code: string): string => {
     if (code === 'city_avg') return t('risk.detail.cityAvg');
@@ -3380,6 +3559,7 @@ function App() {
             onBuyFullDossier={() => {
               void handleUpgrade();
             }}
+            buyLabel={androidBillingAvailable ? t('export.buyFullDossierPlay') : undefined}
             buyPending={isCheckingOut}
             onGenerateStart={() => {
               setExportGenerating(true);

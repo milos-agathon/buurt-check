@@ -1,0 +1,15 @@
+{
+  "name": "buurt-check-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "android:manifest": "node ./scripts/generate-twa-manifest.mjs",
+    "android:sync": "node ./scripts/update-android-wrapper.mjs",
+    "android:build": "node ./scripts/build-android-bundle.mjs",
+    "android:keygen": "node ./scripts/create-android-upload-key.mjs",
+    "android:assetlinks": "node ./frontend/scripts/generate-assetlinks.mjs"
+  },
+  "devDependencies": {
+    "@bubblewrap/cli": "^1.24.1"
+  }
+}

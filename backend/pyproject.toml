@@ -15,6 +15,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "aiosqlite>=0.20.0",
     "libsql>=0.1.11",
+    "google-auth>=2.39.0",
     "stripe>=8.0.0",
 ]
 

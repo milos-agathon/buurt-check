@@ -3,6 +3,7 @@ import type {
   BuildingFactsResponse,
   CheckoutSessionResponse,
   EntitlementResponse,
+  GooglePlayPurchaseVerificationResponse,
   LivabilityResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
@@ -165,6 +166,24 @@ export async function createCheckoutSession(reportId: string): Promise<CheckoutS
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ report_id: reportId }),
+  });
+  if (!resp.ok) throwHttpError(resp.status);
+  return resp.json();
+}
+
+export async function verifyGooglePlayPurchase(
+  reportId: string,
+  purchaseToken: string,
+  productId: string,
+): Promise<GooglePlayPurchaseVerificationResponse> {
+  const resp = await fetch(`${API_BASE}/billing/google-play/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      report_id: reportId,
+      purchase_token: purchaseToken,
+      product_id: productId,
+    }),
   });
   if (!resp.ok) throwHttpError(resp.status);
   return resp.json();

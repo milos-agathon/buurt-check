@@ -1,0 +1,39 @@
+{
+  "packageId": "nl.buurtcheck.app",
+  "host": "app.buurt-check.nl",
+  "name": "Buurt Check",
+  "launcherName": "Buurt Check",
+  "display": "standalone",
+  "themeColor": "#FAFBFC",
+  "themeColorDark": "#FAFBFC",
+  "navigationColor": "#FAFBFC",
+  "navigationColorDark": "#FAFBFC",
+  "navigationDividerColor": "#00000000",
+  "navigationDividerColorDark": "#00000000",
+  "backgroundColor": "#FAFBFC",
+  "enableNotifications": true,
+  "enableSiteSettingsShortcut": true,
+  "startUrl": "/#/search",
+  "iconUrl": "https://app.buurt-check.nl/logos/app_icons/pwa-512x512.png",
+  "maskableIconUrl": "https://app.buurt-check.nl/logos/app_icons/pwa-512x512-maskable.png",
+  "monochromeIconUrl": "https://app.buurt-check.nl/logos/app_icons/AppIcon_Mono.png",
+  "splashScreenFadeOutDuration": 300,
+  "fallbackType": "customtabs",
+  "orientation": "portrait-primary",
+  "fullScopeUrl": "https://app.buurt-check.nl/",
+  "appVersion": "1",
+  "appVersionCode": 1,
+  "signingKey": {
+    "path": "./android/android-upload-key.jks",
+    "alias": "upload"
+  },
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://app.buurt-check.nl/manifest.json",
+  "features": {
+    "playBilling": {
+      "enabled": true
+    }
+  },
+  "shortcuts": [],
+  "additionalTrustedOrigins": []
+}

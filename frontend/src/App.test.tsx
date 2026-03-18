@@ -30,6 +30,7 @@ vi.mock('./services/api', async () => {
     createShortReport: vi.fn(),
     checkEntitlement: vi.fn(),
     createCheckoutSession: vi.fn(),
+    verifyGooglePlayPurchase: vi.fn(),
     suggestAddresses: vi.fn(),
     lookupAddress: vi.fn(),
     getBuildingFacts: vi.fn(),
@@ -50,6 +51,17 @@ vi.mock('./services/api', async () => {
     ApiError: actual.ApiError,
   };
 });
+
+vi.mock('./services/playBilling', () => ({
+  beginPlayBillingPurchase: vi.fn(),
+  clearPendingPlayBillingReport: vi.fn(),
+  completePlayBillingPurchase: vi.fn(),
+  consumePlayBillingPurchaseToken: vi.fn(),
+  findRestorablePlayBillingPurchase: vi.fn(),
+  getPendingPlayBillingReport: vi.fn(() => null),
+  isPlayBillingContextAvailableSync: vi.fn(() => false),
+  isPlayBillingReady: vi.fn().mockResolvedValue(false),
+}));
 
 vi.mock('./config/pricing', () => ({
   fetchPrice: vi.fn().mockResolvedValue('3.99'),
@@ -94,6 +106,7 @@ import {
   checkEntitlement,
   createCheckoutSession,
   createShortReport,
+  verifyGooglePlayPurchase,
   lookupAddress,
   getBuildingFacts,
   getBuilding3D,
@@ -109,10 +122,21 @@ import {
   submitSunlightAnalysis,
   exportBriefing,
 } from './services/api';
+import {
+  beginPlayBillingPurchase,
+  clearPendingPlayBillingReport,
+  completePlayBillingPurchase,
+  consumePlayBillingPurchaseToken,
+  findRestorablePlayBillingPurchase,
+  getPendingPlayBillingReport,
+  isPlayBillingContextAvailableSync,
+  isPlayBillingReady,
+} from './services/playBilling';
 const mockLookup = vi.mocked(lookupAddress);
 const mockCreateShortReport = vi.mocked(createShortReport);
 const mockCheckEntitlement = vi.mocked(checkEntitlement);
 const mockCreateCheckoutSession = vi.mocked(createCheckoutSession);
+const mockVerifyGooglePlayPurchase = vi.mocked(verifyGooglePlayPurchase);
 const mockBuilding = vi.mocked(getBuildingFacts);
 const mockBuilding3D = vi.mocked(getBuilding3D);
 const mockSuggest = vi.mocked(suggestAddresses);
@@ -126,6 +150,14 @@ const mockPropertyWarnings = vi.mocked(getPropertyWarnings);
 const mockLivability = vi.mocked(getLivability);
 const mockSubmitSunlightAnalysis = vi.mocked(submitSunlightAnalysis);
 const mockExportBriefing = vi.mocked(exportBriefing);
+const mockBeginPlayBillingPurchase = vi.mocked(beginPlayBillingPurchase);
+const mockClearPendingPlayBillingReport = vi.mocked(clearPendingPlayBillingReport);
+const mockCompletePlayBillingPurchase = vi.mocked(completePlayBillingPurchase);
+const mockConsumePlayBillingPurchaseToken = vi.mocked(consumePlayBillingPurchaseToken);
+const mockFindRestorablePlayBillingPurchase = vi.mocked(findRestorablePlayBillingPurchase);
+const mockGetPendingPlayBillingReport = vi.mocked(getPendingPlayBillingReport);
+const mockIsPlayBillingContextAvailableSync = vi.mocked(isPlayBillingContextAvailableSync);
+const mockIsPlayBillingReady = vi.mocked(isPlayBillingReady);
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
@@ -142,6 +174,7 @@ beforeEach(() => {
   mockCreateShortReport.mockReset();
   mockCheckEntitlement.mockReset();
   mockCreateCheckoutSession.mockReset();
+  mockVerifyGooglePlayPurchase.mockReset();
   mockLookup.mockReset();
   mockBuilding.mockReset();
   mockBuilding3D.mockReset();
@@ -156,6 +189,14 @@ beforeEach(() => {
   mockLivability.mockReset();
   mockSubmitSunlightAnalysis.mockReset();
   mockExportBriefing.mockReset();
+  mockBeginPlayBillingPurchase.mockReset();
+  mockClearPendingPlayBillingReport.mockReset();
+  mockCompletePlayBillingPurchase.mockReset();
+  mockConsumePlayBillingPurchaseToken.mockReset();
+  mockFindRestorablePlayBillingPurchase.mockReset();
+  mockGetPendingPlayBillingReport.mockReset();
+  mockIsPlayBillingContextAvailableSync.mockReset();
+  mockIsPlayBillingReady.mockReset();
   neighborhoodViewer3DPropsRef.current = null;
   mockCreateShortReport.mockResolvedValue({
     report_id: 'report-123',
@@ -170,6 +211,23 @@ beforeEach(() => {
   mockCreateCheckoutSession.mockResolvedValue({
     checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_123',
   });
+  mockVerifyGooglePlayPurchase.mockResolvedValue({
+    report_id: 'report-123',
+    entitled: true,
+    provider: 'google_play',
+    consumed: true,
+  });
+  mockBeginPlayBillingPurchase.mockResolvedValue({
+    productId: 'full_dossier_unlock',
+    purchaseToken: 'purchase-token',
+    paymentResponse: { complete: vi.fn().mockResolvedValue(undefined) } as unknown as PaymentResponse,
+  });
+  mockCompletePlayBillingPurchase.mockResolvedValue(undefined);
+  mockConsumePlayBillingPurchaseToken.mockResolvedValue(undefined);
+  mockFindRestorablePlayBillingPurchase.mockResolvedValue(null);
+  mockGetPendingPlayBillingReport.mockReturnValue(null);
+  mockIsPlayBillingContextAvailableSync.mockReturnValue(false);
+  mockIsPlayBillingReady.mockResolvedValue(false);
   // Resolve Phase 1 quickly with empty data so dossier sheet expands while
   // Phase 2 neighborhood fetch still controls 3D content in tests.
   mockBuilding3D.mockResolvedValue(
@@ -660,6 +718,54 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
     expect(screen.queryByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).not.toBeInTheDocument();
+  });
+
+  it('uses Google Play Billing instead of Stripe when the Android billing runtime is available', async () => {
+    localStorage.setItem('buurt-check:first-dossier-used', '1');
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockIsPlayBillingContextAvailableSync.mockReturnValue(true);
+    mockIsPlayBillingReady.mockResolvedValue(true);
+
+    renderApp();
+    await selectAddress();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Buy in Google Play/i })).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Buy in Google Play/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockBeginPlayBillingPurchase).toHaveBeenCalledWith('report-123');
+      expect(mockVerifyGooglePlayPurchase).toHaveBeenCalledWith(
+        'report-123',
+        'purchase-token',
+        'full_dossier_unlock',
+      );
+    });
+    expect(mockCreateCheckoutSession).not.toHaveBeenCalled();
+    expect(mockCompletePlayBillingPurchase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purchaseToken: 'purchase-token',
+      }),
+      'success',
+    );
   });
 
   it('does not crash when getNeighborhood3D fails', async () => {

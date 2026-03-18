@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Buurt Check Privacy Policy</title>
+    <meta
+      name="description"
+      content="Privacy policy for Buurt Check web and Android experiences."
+    />
+    <link rel="icon" type="image/svg+xml" href="/logos/buurt-check-favicon.svg" />
+    <link rel="stylesheet" href="/legal.css" />
+  </head>
+  <body>
+    <main class="legal-page">
+      <div class="legal-page__topbar">
+        <a class="legal-page__brand" href="/#/search">
+          <img src="/logos/buurt-check-lockup-horizontal.svg" alt="Buurt Check" />
+          <span>Buurt Check</span>
+        </a>
+        <a class="legal-page__back" href="/#/search">Back to the app</a>
+      </div>
+
+      <section class="legal-page__hero">
+        <span class="legal-page__eyebrow">Privacy policy</span>
+        <h1 class="legal-page__title">Buurt Check Privacy Policy</h1>
+        <p class="legal-page__lead">
+          Buurt Check helps buyers evaluate Dutch properties with open data, 3D context,
+          and exportable dossiers. This policy explains what data is processed, why it is
+          processed, and how the payment paths differ between the web app and the Android app.
+        </p>
+        <p class="legal-page__meta">Last updated: March 17, 2026</p>
+      </section>
+
+      <div class="legal-page__grid">
+        <section class="legal-page__section">
+          <h2>What we process</h2>
+          <p>
+            When you search for an address, Buurt Check sends the address lookup to Dutch public
+            data sources and to our backend so we can assemble the dossier. We process the address,
+            the BAG identifiers linked to that address, coordinates, generated report IDs, and the
+            risk and neighborhood datasets needed to render the dossier and exports.
+          </p>
+          <p>
+            The app does not require a user account for the MVP. Instead, the backend issues an
+            anonymous buyer identifier and stores buyer-bound entitlement records so a purchased
+            full dossier stays linked to the address and the browser or Android app instance that
+            initiated the purchase flow.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>On-device data</h2>
+          <p>
+            The web app stores recent searches, shortlist entries, theme preference, checklist
+            state, and non-sensitive report coordination data in browser storage so the experience
+            survives tab changes and repeat visits. The Android app stores the same app data inside
+            the Trusted Web Activity container.
+          </p>
+          <div class="legal-page__callout">
+            <h3>Dutch summary</h3>
+            <p>
+              We bewaren recente zoekopdrachten, shortlist-items, thema-instellingen en enkele
+              anonieme rapportreferenties lokaal op je apparaat zodat de app tussen sessies bruikbaar
+              blijft.
+            </p>
+          </div>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Payments and purchase records</h2>
+          <p>
+            The free interactive viewer and the quick brief export remain free. Paid unlocks apply
+            only to the full dossier export.
+          </p>
+          <ul>
+            <li>On the web, checkout is handled by Stripe Checkout.</li>
+            <li>On Android distributed through Google Play, checkout is handled by Google Play Billing.</li>
+            <li>
+              Our backend stores the report ID, anonymous buyer key, payment provider, provider
+              reference token, entitlement status, and purchase timestamp needed to fulfil the
+              purchase and handle fraud, refunds, and support requests.
+            </li>
+          </ul>
+          <p>
+            Buurt Check does not store full payment card numbers. Stripe and Google Play act as the
+            payment processors for their respective channels and handle the payment credential data.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Diagnostics and security</h2>
+          <p>
+            If Sentry is enabled, operational diagnostics such as browser information, request
+            context, and error traces may be processed to detect crashes and investigate service
+            failures. We also keep server logs needed for abuse prevention, rate limiting, and
+            payment reconciliation.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Retention and deletion</h2>
+          <p>
+            Browser-stored data stays on your device until you clear it in the app or your browser.
+            Server-side buyer, entitlement, and payment records are retained only as long as needed
+            to provide the purchased export, comply with accounting obligations, prevent fraud, and
+            handle refunds or disputes.
+          </p>
+          <p>
+            To request deletion of server-side data that can reasonably be linked to your anonymous
+            buyer key, contact <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>
+            and include the relevant report ID if available.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Your rights</h2>
+          <p>
+            If GDPR applies to your use of the service, you may request access, correction,
+            deletion, objection, or portability where applicable. Because the product does not use
+            named accounts in the MVP, we may ask for the report ID or other supporting details to
+            identify the correct anonymous record set before acting on a request.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Contact</h2>
+          <p>
+            Questions about this policy can be sent to
+            <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>.
+          </p>
+        </section>
+      </div>
+
+      <p class="legal-page__footer">
+        This policy covers the web app and the Google Play Android release of Buurt Check.
+      </p>
+    </main>
+  </body>
+</html>
