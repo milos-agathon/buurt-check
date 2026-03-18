@@ -1,3 +1,6 @@
 # Offline raster data (downloaded by scripts/ingest_rivm.py)
 data/
 env.txt
+build/
+dist/
+*.egg-info/
