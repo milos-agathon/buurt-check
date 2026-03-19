@@ -219,6 +219,25 @@ Key patterns from subagent-driven P2 dossier implementation session:
 - **Text color reset before each PDF section heading**: fpdf2 inherits text color state across calls. Always `set_text_color(*SLATE)` before section headings to prevent color leakage from prior rendering.
 - **Verify audit state before dispatching subagents**: Multi-session audit documents may show all items as PASS. Check whether work actually remains before launching the subagent-driven development workflow.
 
+## Session Learnings (2026-03-18) — Android Google Play Deployment
+
+Key patterns from the Android TWA + Google Play Billing integration session:
+
+- **Two payment paths require separate backend routes**: Stripe (web) and Google Play Billing (Android) are distinct providers. The Google Play verify endpoint (`POST /api/billing/google-play/verify`) handles purchase token → entitlement unlock, completely separate from Stripe webhook flow.
+- **Purchase token deduplication is mandatory**: `get_report_by_provider_payment_id(purchase_token)` must run before unlock. A token already linked to a different report returns 409 — prevents one purchase unlocking multiple reports.
+- **Google Play purchase state enum**: `0` = active/valid, `2` = pending. Reject pending purchases (409). Any other non-zero state is also invalid.
+- **Consume after unlock, not before**: Call `consume_product_purchase()` only after `unlock_report()` succeeds. Consume failure is non-fatal — entitlement remains active. Prevents double-unlock while tolerating consume API hiccups.
+- **Google Play OAuth token caching requires double-check locking**: `asyncio.Lock` + expiry check before AND after acquiring the lock prevents redundant token refreshes under concurrent requests. 60-second buffer before expiry avoids using tokens that expire in flight.
+- **401 on Google Play API calls should invalidate token cache and retry once**: `_reset_cached_token()` + re-fetch + re-request handles token expiry race condition at the API layer.
+- **TWA requires `.well-known/assetlinks.json` served from the domain**: Digital Asset Links file must be accessible for Android to verify the TWA binding. Include it in the Vite PWA `includeAssets` list so it is precached by the service worker.
+- **`VitePWA` with `injectManifest` strategy**: Use `strategies: 'injectManifest'` for fine-grained caching control. The `sw.ts` file receives `self.__WB_MANIFEST` injected by Workbox at build time. Set `manifest: false` when `manifest.json` is managed separately.
+- **Service worker routing order matters**: Register specific routes (legal pages, API deny) BEFORE the catch-all `NavigationRoute`. Workbox evaluates routes in registration order.
+- **`isPlayBillingContextAvailableSync()` for routing, `isPlayBillingReady()` for actual use**: Synchronous check (`window.getDigitalGoodsService` exists) is safe for conditional rendering. Async check (fetches product details from Play) is needed before showing prices.
+- **Store pending report ID before `paymentRequest.show()`**: The Play Billing sheet blocks the thread. Store report ID in `sessionStorage` before calling `show()` so a page reload mid-flow can recover it. Clear on success and on abort.
+- **`SimpleNamespace` for lightweight mock return values in backend tests**: Instead of constructing full dataclasses in test patches, `SimpleNamespace(purchase_state=0, consumption_state=0)` is terser and less fragile to schema changes.
+- **Google Play service account credentials: file OR inline JSON**: Support both `google_play_service_account_file` (path) and `google_play_service_account_json` (inline JSON) in config. Tests use inline JSON; production uses a mounted file.
+- **Backend packaging artifacts (`.dist-info`, `wheel/`) must be gitignored**: `bdist.linux-x86_64/` directory from `pip install -e .` gets picked up by git. Add to `backend/.gitignore` immediately when they appear.
+
 ## Session Learnings (2026-03-09) — PDF Dossier Design Audits
 
 Key findings from two expert design/data-visualization audits of the generated full dossier PDF:
