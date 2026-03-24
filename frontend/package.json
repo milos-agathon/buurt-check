@@ -18,6 +18,8 @@
     "test:visual:update": "playwright test tests/e2e/visual-regression.spec.ts --update-snapshots"
   },
   "dependencies": {
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/core": "^8.2.0",
     "@sentry/react": "^10.40.0",
     "framer-motion": "^12.34.0",
     "i18next": "^25.8.1",
