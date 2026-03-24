@@ -1,7 +1,15 @@
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 
-import { resolveVercelTarget } from './vercel-target.mjs';
+const ROOT = process.cwd();
+const FRONTEND_DIR = resolve(ROOT, 'frontend');
+const FRONTEND_DIST_DIR = resolve(FRONTEND_DIR, 'dist');
+const ROOT_OUTPUT_DIRS = [
+  resolve(ROOT, 'dist'),
+  resolve(ROOT, 'public'),
+];
 
 function quoteArg(arg) {
   if (/^[A-Za-z0-9_./:-]+$/.test(arg)) {
@@ -11,7 +19,7 @@ function quoteArg(arg) {
 }
 
 function runNpm(args) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolvePromise, reject) => {
     const isWindows = process.platform === 'win32';
     const command = isWindows ? (process.env.ComSpec ?? 'cmd.exe') : 'npm';
     const commandArgs = isWindows
@@ -19,7 +27,7 @@ function runNpm(args) {
       : args;
 
     const child = spawn(command, commandArgs, {
-      cwd: process.cwd(),
+      cwd: ROOT,
       env: process.env,
       stdio: 'inherit',
     });
@@ -27,7 +35,7 @@ function runNpm(args) {
     child.on('error', reject);
     child.on('close', (code) => {
       if (code === 0) {
-        resolve();
+        resolvePromise();
         return;
       }
       reject(new Error(`npm ${args.join(' ')} exited with code ${code}`));
@@ -35,16 +43,22 @@ function runNpm(args) {
   });
 }
 
-async function main() {
-  const target = resolveVercelTarget();
-  console.log(`[vercel-install] target=${target}`);
+function resetOutputDir(directory) {
+  rmSync(directory, { force: true, recursive: true });
+  mkdirSync(directory, { recursive: true });
+}
 
-  if (target === 'landing') {
-    console.log('[vercel-install] landing deployment does not require npm install.');
-    return;
+async function main() {
+  await runNpm(['--prefix', 'frontend', 'run', 'build']);
+
+  if (!existsSync(FRONTEND_DIST_DIR)) {
+    throw new Error(`Missing frontend build output at ${FRONTEND_DIST_DIR}`);
   }
 
-  await runNpm(['--prefix', 'frontend', 'ci']);
+  for (const outputDir of ROOT_OUTPUT_DIRS) {
+    resetOutputDir(outputDir);
+    cpSync(FRONTEND_DIST_DIR, outputDir, { force: true, recursive: true });
+  }
 }
 
 main().catch((error) => {

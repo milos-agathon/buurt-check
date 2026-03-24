@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "prebuild": "npm --prefix frontend ci",
-    "build": "npm --prefix frontend run build",
+    "build": "node ./scripts/build-root-frontend-app.mjs",
     "android:manifest": "node ./scripts/generate-twa-manifest.mjs",
     "android:sync": "node ./scripts/update-android-wrapper.mjs",
     "android:build": "node ./scripts/build-android-bundle.mjs",
