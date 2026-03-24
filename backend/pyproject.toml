@@ -29,6 +29,7 @@ dev = [
     "pytest-httpx>=0.30.0",
     "ruff>=0.6.0",
     "fonttools>=4.40.0",
+    "PyMuPDF>=1.24.0",
     "pypdf>=4.0.0",
 ]
 
