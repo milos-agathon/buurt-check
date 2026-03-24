@@ -26,104 +26,257 @@
         <h1 class="legal-page__title">Buurt Check Privacy Policy</h1>
         <p class="legal-page__lead">
           Buurt Check helps buyers evaluate Dutch properties with open data, 3D context,
-          and exportable dossiers. This policy explains what data is processed, why it is
-          processed, and how the payment paths differ between the web app, the Google Play
-          Android app, and the App Store iPhone app.
+          and exportable dossiers. This policy explains what data is collected, why it is
+          processed, how it is shared, and how you can manage or delete it. It covers the
+          web app, the Google Play Android app, and the App Store iPhone app.
         </p>
-        <p class="legal-page__meta">Last updated: March 23, 2026</p>
+        <p class="legal-page__meta">Last updated: March 24, 2026</p>
       </section>
 
       <div class="legal-page__grid">
         <section class="legal-page__section">
-          <h2>What we process</h2>
+          <h2>Who we are</h2>
           <p>
-            When you search for an address, Buurt Check sends the address lookup to Dutch public
-            data sources and to our backend so we can assemble the dossier. We process the address,
-            the BAG identifiers linked to that address, coordinates, generated report IDs, and the
-            risk and neighborhood datasets needed to render the dossier and exports.
+            Buurt Check is developed and operated by <strong>Milos Popovic</strong>,
+            publishing under the developer name <strong>Milos GIS</strong> on Google Play
+            and the App Store.
           </p>
           <p>
-            The app does not require a user account for the MVP. Instead, the backend issues an
-            anonymous buyer identifier and stores buyer-bound entitlement records so a purchased
-            full dossier stays linked to the address and the browser, Android app, or iPhone app
-            instance that initiated the purchase flow.
+            Duinzicht 23<br />
+            2235 BV Valkenburg<br />
+            Netherlands
+          </p>
+          <p>
+            For privacy inquiries, contact
+            <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>.
           </p>
         </section>
 
         <section class="legal-page__section">
-          <h2>On-device data</h2>
+          <h2>Data we collect and process</h2>
+
+          <h3>Location (approximate)</h3>
           <p>
-            The web app stores recent searches, shortlist entries, theme preference, checklist
-            state, and non-sensitive report coordination data in browser storage so the experience
-            survives tab changes and repeat visits. The Android app stores the same app data inside
-            the Trusted Web Activity container. The iPhone app stores equivalent data inside the
-            native `WKWebView` container, which is separate from Safari storage.
+            When you search for an address, Buurt Check sends it to the Dutch PDOK
+            geocoder and derives geographic coordinates (RD New / EPSG:28992) to query
+            neighborhood data sources. We do not access your device GPS location.
           </p>
+          <p><strong>Purpose:</strong> app functionality (assembling the dossier).</p>
+
+          <h3>Personal information</h3>
+          <ul>
+            <li>
+              <strong>Address searched:</strong> the Dutch street address you enter.
+              Purpose: app functionality.
+            </li>
+            <li>
+              <strong>Anonymous buyer identifier:</strong> a random token linking your
+              browser or app instance to purchased exports. Purpose: purchase fulfilment,
+              fraud prevention.
+            </li>
+            <li>
+              <strong>Report ID:</strong> a unique identifier for each dossier snapshot.
+              Purpose: purchase fulfilment, export delivery.
+            </li>
+          </ul>
+
+          <h3>Financial information</h3>
+          <ul>
+            <li>
+              <strong>Purchase history:</strong> report ID, payment provider, provider
+              reference token, entitlement status, and purchase timestamp. Purpose:
+              purchase fulfilment, refunds, fraud prevention, accounting.
+            </li>
+            <li>
+              <strong>Payment credentials:</strong> not collected by Buurt Check. Handled
+              entirely by Stripe (web), Google Play Billing (Android), or Apple In-App
+              Purchase (iOS).
+            </li>
+          </ul>
+
+          <h3>App activity</h3>
+          <ul>
+            <li>
+              <strong>In-app search history:</strong> recent address searches stored
+              locally on your device (browser storage or app container). Not transmitted
+              to our servers. Purpose: convenience (quick re-access).
+            </li>
+            <li>
+              <strong>App interactions:</strong> anonymized event breadcrumbs
+              (e.g. "checkout started", "dossier viewed") recorded via the Sentry SDK.
+              Purpose: analytics, crash diagnostics.
+            </li>
+            <li>
+              <strong>Shortlist entries and preferences:</strong> saved addresses, theme
+              setting, and checklist state stored locally on your device. Not transmitted
+              to our servers. Purpose: app functionality.
+            </li>
+          </ul>
+
+          <h3>App info and performance</h3>
+          <ul>
+            <li>
+              <strong>Crash logs:</strong> stack traces and error messages. Purpose: app
+              stability, bug fixes.
+            </li>
+            <li>
+              <strong>Diagnostics:</strong> browser or device type, OS version, app
+              version, request context, and performance metrics. Purpose: service
+              reliability.
+            </li>
+          </ul>
+
+          <h3>Device or other identifiers</h3>
+          <p>
+            The Sentry SDK may collect a device or session identifier for crash grouping.
+            We do not collect advertising identifiers or hardware serial numbers.
+          </p>
+
           <div class="legal-page__callout">
             <h3>Dutch summary</h3>
             <p>
-              We bewaren recente zoekopdrachten, shortlist-items, thema-instellingen en enkele
-              anonieme rapportreferenties lokaal op je apparaat zodat de app tussen sessies bruikbaar
-              blijft.
+              We verwerken het adres dat je opzoekt, anonieme koop-tokens, en
+              foutdiagnostiek. Recente zoekopdrachten, shortlist-items en
+              thema-instellingen blijven lokaal op je apparaat. We hebben geen toegang
+              tot je GPS-locatie of betaalgegevens.
             </p>
           </div>
         </section>
 
         <section class="legal-page__section">
-          <h2>Payments and purchase records</h2>
-          <p>
-            The free interactive viewer and the quick brief export remain free. Paid unlocks apply
-            only to the full dossier export.
-          </p>
-          <ul>
-            <li>On the web, checkout is handled by Stripe Checkout.</li>
-            <li>On Android distributed through Google Play, checkout is handled by Google Play Billing.</li>
-            <li>On iPhone distributed through the App Store, checkout is handled by Apple In-App Purchase.</li>
-            <li>
-              Our backend stores the report ID, anonymous buyer key, payment provider, provider
-              reference token, entitlement status, and purchase timestamp needed to fulfil the
-              purchase and handle fraud, refunds, and support requests.
-            </li>
-          </ul>
-          <p>
-            Buurt Check does not store full payment card numbers. Stripe, Google Play, and Apple
-            act as the payment processors for their respective channels and handle the payment
-            credential data.
-          </p>
+          <h2>Third parties that receive data</h2>
+          <table class="legal-page__table">
+            <thead>
+              <tr>
+                <th>Third party</th>
+                <th>Data shared</th>
+                <th>Purpose</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Sentry (Functional Software, Inc.)</td>
+                <td>Crash logs, diagnostics, device info, interaction breadcrumbs</td>
+                <td>Error monitoring, app stability</td>
+              </tr>
+              <tr>
+                <td>Stripe (web only)</td>
+                <td>Payment credentials (handled by Stripe, not our servers)</td>
+                <td>Payment processing</td>
+              </tr>
+              <tr>
+                <td>Google Play Billing (Android)</td>
+                <td>Purchase tokens, entitlement verification</td>
+                <td>Payment processing</td>
+              </tr>
+              <tr>
+                <td>Apple In-App Purchase (iOS)</td>
+                <td>Transaction receipts, entitlement verification</td>
+                <td>Payment processing</td>
+              </tr>
+              <tr>
+                <td>Dutch public data APIs (PDOK, BAG, CBS, RIVM, etc.)</td>
+                <td>Address coordinates and BAG identifiers</td>
+                <td>Property and neighborhood data retrieval</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>We do not sell user data to any third party.</p>
         </section>
 
         <section class="legal-page__section">
-          <h2>Diagnostics and security</h2>
+          <h2>Data security</h2>
           <p>
-            If Sentry is enabled, operational diagnostics such as browser information, request
-            context, and error traces may be processed to detect crashes and investigate service
-            failures. We also keep server logs needed for abuse prevention, rate limiting, and
-            payment reconciliation.
+            All data transmitted between your device and our servers is encrypted in
+            transit using HTTPS (TLS 1.2 or higher). Server-side records (report metadata,
+            entitlement status, payment references) are stored in a database accessible
+            only to authorized systems. Access to production infrastructure is restricted
+            to the developer. Sentry processes diagnostic data under its own Data
+            Processing Agreement and security practices.
           </p>
         </section>
 
         <section class="legal-page__section">
           <h2>Retention and deletion</h2>
+
+          <h3>On-device data</h3>
           <p>
-            Browser-stored data stays on your device until you clear it in the app or your browser.
-            Server-side buyer, entitlement, and payment records are retained only as long as needed
-            to provide the purchased export, comply with accounting obligations, prevent fraud, and
-            handle refunds or disputes.
+            You can clear all locally stored data (recent searches, shortlist, preferences,
+            checklist state) at any time through the app's Settings screen or by clearing
+            your browser or app data.
           </p>
+
+          <h3>Server-side data</h3>
           <p>
-            To request deletion of server-side data that can reasonably be linked to your anonymous
-            buyer key, contact <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>
-            and include the relevant report ID if available.
+            Report records, anonymous buyer keys, and payment references are retained as
+            long as needed to deliver purchased exports and comply with accounting
+            obligations (up to 7 years for financial records under Dutch law). Crash logs
+            and diagnostics in Sentry are retained for 90 days.
           </p>
+
+          <h3>How to request deletion</h3>
+          <p>
+            To request deletion of server-side data linked to your anonymous buyer key,
+            email
+            <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>
+            with the report ID (shown in your export or purchase confirmation). We will
+            process deletion requests within 30 days.
+          </p>
+
+          <h3>What is deleted vs. retained</h3>
+          <ul>
+            <li>
+              <strong>Deleted on request:</strong> anonymous buyer key, entitlement
+              records, report metadata, cached dossier data.
+            </li>
+            <li>
+              <strong>Retained where legally required:</strong> payment transaction records
+              (Dutch accounting law), server access logs (abuse prevention, up to 90 days).
+            </li>
+          </ul>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Legal basis for processing</h2>
+          <ul>
+            <li>
+              <strong>Contract performance:</strong> processing addresses and assembling
+              dossiers to deliver the service you requested.
+            </li>
+            <li>
+              <strong>Legitimate interest:</strong> crash diagnostics, fraud prevention,
+              service improvement.
+            </li>
+            <li>
+              <strong>Legal obligation:</strong> retaining payment records as required by
+              Dutch accounting law.
+            </li>
+          </ul>
         </section>
 
         <section class="legal-page__section">
           <h2>Your rights</h2>
           <p>
-            If GDPR applies to your use of the service, you may request access, correction,
-            deletion, objection, or portability where applicable. Because the product does not use
-            named accounts in the MVP, we may ask for the report ID or other supporting details to
-            identify the correct anonymous record set before acting on a request.
+            Under the GDPR you may request access, correction, deletion, restriction,
+            objection, or portability of your data where applicable. Because the product
+            does not use named accounts, we may ask for the report ID or other supporting
+            details to identify the correct anonymous record set before acting on a
+            request.
+          </p>
+          <p>
+            You also have the right to lodge a complaint with the Dutch Data Protection
+            Authority (Autoriteit Persoonsgegevens) at
+            <a href="https://autoriteitpersoonsgegevens.nl">autoriteitpersoonsgegevens.nl</a>.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Changes to this policy</h2>
+          <p>
+            We may update this privacy policy to reflect changes in our practices or
+            applicable law. When we make changes, we will update the "Last updated" date
+            at the top of this page. For material changes affecting how we process your
+            data, we will provide notice through the app before the changes take effect.
           </p>
         </section>
 
@@ -137,8 +290,9 @@
       </div>
 
       <p class="legal-page__footer">
-        This policy covers the web app, the Google Play Android release, and the App Store iPhone
-        release of Buurt Check.
+        This policy covers the web app at
+        <a href="https://app.buurt-check.nl">app.buurt-check.nl</a>, the Google Play
+        Android release, and the App Store iPhone release of Buurt Check.
       </p>
     </main>
   </body>
