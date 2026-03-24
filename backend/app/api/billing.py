@@ -1,4 +1,4 @@
-"""Billing endpoints — Stripe Checkout Session creation + webhook handling."""
+"""Billing endpoints — Stripe, Google Play, and Apple App Store handlers."""
 
 import asyncio
 import logging
@@ -13,6 +13,16 @@ from stripe import SignatureVerificationError
 from app.config import settings
 from app.db import DatabaseError
 from app.rate_limit import limiter
+from app.services.apple_app_store import (
+    AppleAppStoreAPIError,
+    AppleAppStoreConfigError,
+    AppleAppStoreTransactionNotFound,
+    AppleAppStoreVerificationError,
+    apple_app_store_configured,
+    get_transaction_status,
+    verify_and_decode_notification,
+    verify_signed_transaction,
+)
 from app.services.google_play import (
     GooglePlayAPIError,
     GooglePlayConfigError,
@@ -80,6 +90,31 @@ class GooglePlayVerifyResponse(BaseModel):
     entitled: bool = True
     provider: Literal["google_play"] = "google_play"
     consumed: bool
+
+
+class AppleAppStoreVerifyRequest(BaseModel):
+    report_id: str = Field(
+        ...,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    )
+    signed_transaction_info: str = Field(..., min_length=1, max_length=8192)
+    product_id: str = Field(..., min_length=1, max_length=255)
+
+
+class AppleAppStoreVerifyResponse(BaseModel):
+    report_id: str
+    entitled: bool = True
+    provider: Literal["apple_app_store"] = "apple_app_store"
+    transaction_id: str
+
+
+class AppleNotificationRequest(BaseModel):
+    signed_payload: str = Field(
+        ...,
+        alias="signedPayload",
+        min_length=1,
+        max_length=16384,
+    )
 
 
 @limiter.limit("5/minute")
@@ -233,6 +268,151 @@ async def verify_google_play_purchase(request: Request, body: GooglePlayVerifyRe
             )
 
     return GooglePlayVerifyResponse(report_id=body.report_id, consumed=consumed)
+
+
+@limiter.limit("10/minute")
+@router.post("/apple-app-store/verify", response_model=AppleAppStoreVerifyResponse)
+async def verify_apple_app_store_purchase(
+    request: Request,
+    body: AppleAppStoreVerifyRequest,
+):
+    """Verify an Apple App Store consumable and unlock the matching dossier."""
+    if not apple_app_store_configured():
+        raise HTTPException(status_code=503, detail="Apple App Store Billing is not configured")
+    if body.product_id != settings.apple_product_id:
+        raise HTTPException(status_code=400, detail="Unexpected Apple product ID")
+
+    try:
+        report = await get_report(body.report_id)
+    except DatabaseError:
+        logger.exception("Database error fetching report %s", body.report_id)
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    try:
+        device_transaction = verify_signed_transaction(body.signed_transaction_info)
+        authoritative_transaction = await get_transaction_status(
+            device_transaction.transaction_id,
+        )
+    except AppleAppStoreConfigError:
+        raise HTTPException(status_code=503, detail="Apple App Store Billing is not configured")
+    except AppleAppStoreVerificationError:
+        raise HTTPException(status_code=409, detail="Apple transaction could not be verified")
+    except AppleAppStoreTransactionNotFound:
+        raise HTTPException(status_code=409, detail="Apple transaction identifier was not found")
+    except AppleAppStoreAPIError:
+        logger.exception("Apple transaction lookup failed for report %s", body.report_id)
+        raise HTTPException(status_code=502, detail="Apple verification failed")
+
+    if authoritative_transaction.product_id != settings.apple_product_id:
+        raise HTTPException(status_code=409, detail="Apple transaction product mismatch")
+    if authoritative_transaction.revoked:
+        raise HTTPException(status_code=409, detail="Apple transaction is revoked or refunded")
+
+    try:
+        token_report = await get_report_by_provider_payment_id(
+            authoritative_transaction.transaction_id,
+        )
+    except DatabaseError:
+        logger.exception(
+            "Database error checking Apple transaction usage for report %s",
+            body.report_id,
+        )
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if token_report and token_report.report_id != body.report_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Apple transaction is already linked to another report",
+        )
+
+    if report.payment_status == "paid" and report.provider not in (None, "apple_app_store"):
+        raise HTTPException(status_code=409, detail="Report is already paid with another provider")
+
+    if (
+        report.payment_status != "paid"
+        or report.entitlement_status != "active"
+        or report.provider != "apple_app_store"
+        or report.provider_payment_id != authoritative_transaction.transaction_id
+    ):
+        try:
+            await unlock_report(
+                body.report_id,
+                provider="apple_app_store",
+                provider_payment_id=authoritative_transaction.transaction_id,
+                purchased_at=(
+                    authoritative_transaction.purchase_date_iso
+                    or datetime.now(timezone.utc).isoformat()
+                ),
+            )
+        except DatabaseError:
+            logger.exception(
+                "Failed to unlock report %s after Apple verification",
+                body.report_id,
+            )
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    return AppleAppStoreVerifyResponse(
+        report_id=body.report_id,
+        transaction_id=authoritative_transaction.transaction_id,
+    )
+
+
+@router.post("/apple-app-store/notifications")
+async def apple_app_store_notifications(body: AppleNotificationRequest):
+    """Receive App Store Server Notifications v2."""
+    if not apple_app_store_configured():
+        raise HTTPException(status_code=503, detail="Apple App Store Billing is not configured")
+
+    try:
+        notification = verify_and_decode_notification(body.signed_payload)
+    except AppleAppStoreConfigError:
+        raise HTTPException(status_code=503, detail="Apple App Store Billing is not configured")
+    except AppleAppStoreVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid Apple signed payload")
+
+    if not notification.transaction or not notification.notification_uuid:
+        return {"status": "ok", "applied": False}
+
+    if notification.notification_type not in {"REFUND", "REVOKE"}:
+        return {"status": "ok", "applied": False}
+
+    try:
+        report = await get_report_by_provider_payment_id(notification.transaction.transaction_id)
+    except DatabaseError:
+        logger.exception(
+            "Database error checking Apple notification transaction %s",
+            notification.transaction.transaction_id,
+        )
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    if not report:
+        logger.info(
+            "Apple notification %s had no matching report for transaction %s",
+            notification.notification_uuid,
+            notification.transaction.transaction_id,
+        )
+        return {"status": "ok", "applied": False}
+
+    if report.payment_status == "refunded":
+        return {"status": "ok", "applied": False}
+
+    try:
+        await refund_report(report.report_id)
+    except DatabaseError:
+        logger.exception(
+            "Failed to revoke Apple-backed entitlement for report %s",
+            report.report_id,
+        )
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    logger.info(
+        "Apple notification %s revoked report %s via %s",
+        notification.notification_uuid,
+        report.report_id,
+        notification.notification_type,
+    )
+    return {"status": "ok", "applied": True}
 
 
 # ---------------------------------------------------------------------------

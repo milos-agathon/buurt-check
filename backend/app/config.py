@@ -87,6 +87,17 @@ class Settings(BaseSettings):
     google_play_service_account_json: str = ""
     google_play_service_account_file: str = ""
 
+    # Apple App Store Billing (iOS Path A)
+    apple_enabled: bool = False
+    apple_bundle_id: str = "nl.buurtcheck.app.ios"
+    apple_product_id: str = "full_dossier_unlock"
+    apple_environment: str = "production"
+    apple_issuer_id: str = ""
+    apple_key_id: str = ""
+    apple_private_key_file: str = ""
+    apple_private_key_pem: str = ""
+    apple_app_store_id: str = ""
+
     # Rate limiting
     rate_limit_enabled: bool = True
 
@@ -114,6 +125,7 @@ class Settings(BaseSettings):
     model_config = {
         "env_prefix": "BUURT_",
         "env_file": (".env", "backend/.env"),
+        "extra": "ignore",
     }
 
 

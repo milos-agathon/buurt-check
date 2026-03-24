@@ -17,6 +17,7 @@ dependencies = [
     "libsql>=0.1.11",
     "google-auth>=2.39.0",
     "stripe>=8.0.0",
+    "app-store-server-library>=3.0.0",
 ]
 
 [project.optional-dependencies]

@@ -69,14 +69,14 @@ def test_pdf_visual_regression(kind: str, language: str) -> None:
     if not scenario_dir.exists():
         pytest.fail(
             f"Missing baseline directory: {scenario_dir}. "
-            "Run scripts/update-pdf-baselines.sh to generate baselines.",
+            "Run backend/scripts/update_pdf_baselines.py to generate baselines.",
         )
 
     baseline_pages = _load_baseline_pages(scenario_dir)
     if not baseline_pages:
         pytest.fail(
             f"No baseline PNG pages found in {scenario_dir}. "
-            "Run scripts/update-pdf-baselines.sh to generate page images.",
+            "Run backend/scripts/update_pdf_baselines.py to generate page images.",
         )
 
     actual_pdf = render_dossier_pdf(kind, language)

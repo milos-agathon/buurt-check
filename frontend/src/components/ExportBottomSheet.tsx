@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import BottomSheet from './ui/BottomSheet';
 import ContextualTooltip from './ui/ContextualTooltip';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
-import { downloadPdfBlob, exportBriefing } from '../services/api';
+import { downloadPdfBlob, exportBriefing, sharePdfBlob } from '../services/api';
 import { trackEvent } from '../services/analytics';
 import { isServerRenderAvailable } from '../config/pricing';
 import type { ShadowSnapshot } from '../types/api';
@@ -33,6 +33,7 @@ interface ExportBottomSheetProps {
   isEntitled?: boolean;
   onBuyFullDossier?: () => void;
   buyLabel?: string;
+  buyPriceLabel?: string;
   buyPending?: boolean;
   sunlightReady?: boolean;
   sunlightFailed?: boolean;
@@ -65,6 +66,7 @@ export default function ExportBottomSheet({
   isEntitled = false,
   onBuyFullDossier,
   buyLabel,
+  buyPriceLabel,
   buyPending = false,
   sunlightReady = true,
   sunlightFailed = false,
@@ -250,34 +252,19 @@ export default function ExportBottomSheet({
 
   const handleDownload = () => {
     if (!generatedBlob) return;
-    downloadPdfBlob(generatedBlob, filename);
+    void Promise.resolve(downloadPdfBlob(generatedBlob, filename)).catch(() => {
+      setShareError(true);
+    });
   };
 
   const handleShare = async () => {
     if (!generatedBlob) return;
     setShareError(false);
-    const nav = navigator as Navigator & {
-      canShare?: (data?: ShareData) => boolean;
-      share?: (data?: ShareData) => Promise<void>;
-    };
-    if (typeof File !== 'undefined' && nav.share) {
-      const file = new File([generatedBlob], filename, { type: 'application/pdf' });
-      const canShareFile = nav.canShare ? nav.canShare({ files: [file] }) : true;
-      if (canShareFile) {
-        try {
-          await nav.share({
-            title: t('export.title', 'Export Briefing'),
-            files: [file],
-          });
-          return;
-        } catch {
-          // Fall back to direct download if share is cancelled/unavailable.
-        }
-      }
-    }
-
     try {
-      downloadPdfBlob(generatedBlob, filename);
+      const shared = await sharePdfBlob(generatedBlob, filename, t('export.title', 'Export Briefing'));
+      if (!shared) {
+        await downloadPdfBlob(generatedBlob, filename);
+      }
     } catch {
       setShareError(true);
     }
@@ -342,6 +329,12 @@ export default function ExportBottomSheet({
           {template === 'full_dossier' && sunlightReady && sunlightFailed && (
             <p id="sunlight-warning-msg" role="status" className="export-sheet__sunlight-warning" data-testid="export-sunlight-warning">
               {t('export.sunlightUnavailableWarning', 'Sunlight data unavailable — dossier will show N/A')}
+            </p>
+          )}
+
+          {template === 'full_dossier' && requiresPurchase && buyPriceLabel && (
+            <p className="export-sheet__sunlight-status" data-testid="export-buy-price">
+              {t('export.fullDossierPrice', { price: buyPriceLabel })}
             </p>
           )}
         </div>

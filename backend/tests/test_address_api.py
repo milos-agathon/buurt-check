@@ -1685,9 +1685,18 @@ async def test_full_dossier_export_maps_forge3d_seasonal_triptych_to_generator()
     ]
     assert [item["viewpoint"] for item in shadow_images] == ["winter", "equinox", "summer"]
     assert [item["hour"] for item in shadow_images] == [12, 12, 12]
-    assert mock_generate_full_dossier.call_args.kwargs["shadow_image_b64"] == shadow_images[0]["image_b64"]
-    assert mock_generate_full_dossier.call_args.kwargs["shadow_equinox_b64"] == shadow_images[1]["image_b64"]
-    assert mock_generate_full_dossier.call_args.kwargs["shadow_summer_b64"] == shadow_images[2]["image_b64"]
+    assert (
+        mock_generate_full_dossier.call_args.kwargs["shadow_image_b64"]
+        == shadow_images[0]["image_b64"]
+    )
+    assert (
+        mock_generate_full_dossier.call_args.kwargs["shadow_equinox_b64"]
+        == shadow_images[1]["image_b64"]
+    )
+    assert (
+        mock_generate_full_dossier.call_args.kwargs["shadow_summer_b64"]
+        == shadow_images[2]["image_b64"]
+    )
 
 
 @pytest.mark.asyncio

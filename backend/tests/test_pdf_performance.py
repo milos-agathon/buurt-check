@@ -27,10 +27,19 @@ def _latency_stats(durations: list[float]) -> tuple[float, float]:
     return median, ordered[idx]
 
 
+def _warm_pdf_renderer(render_pdf) -> None:  # type: ignore[no-untyped-def]
+    # Discard first-run LuaLaTeX/font startup cost so the benchmark captures
+    # steady-state dossier generation rather than one-time process warmup.
+    pdf = render_pdf()
+    assert pdf.startswith(b"%PDF-")
+
+
 @pytest.mark.benchmark
 def test_dossier_generation_latency() -> None:
     runs = 10
     durations: list[float] = []
+
+    _warm_pdf_renderer(lambda: render_dossier_pdf("full", "en", timeout=20))
 
     for _ in range(runs):
         t0 = time.perf_counter()
@@ -48,6 +57,8 @@ def test_dossier_generation_latency() -> None:
 def test_brief_generation_latency() -> None:
     runs = 10
     durations: list[float] = []
+
+    _warm_pdf_renderer(lambda: render_brief_pdf("en", timeout=20))
 
     for _ in range(runs):
         t0 = time.perf_counter()

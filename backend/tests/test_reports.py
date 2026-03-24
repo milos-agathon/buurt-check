@@ -6,6 +6,7 @@ import pytest
 import pytest_asyncio
 
 from app.db import init_db
+from app.services.apple_app_store import reset_apple_app_store_clients
 from app.services.google_play import GooglePlayPurchaseNotFound
 from app.services.reports import (
     activate_entitlement,
@@ -25,6 +26,13 @@ async def db_path(tmp_path):
     path = str(tmp_path / "test.db")
     await init_db(path)
     return path
+
+
+@pytest.fixture(autouse=True)
+def reset_apple_clients():
+    reset_apple_app_store_clients()
+    yield
+    reset_apple_app_store_clients()
 
 
 @pytest.mark.asyncio
@@ -217,6 +225,76 @@ async def test_find_existing_paid_report_skips_invalid_google_play_purchase(db_p
     with patch(
         "app.services.google_play.get_product_purchase",
         new=AsyncMock(side_effect=GooglePlayPurchaseNotFound("missing")),
+    ):
+        found = await find_existing_paid_report("0363010012345678", db_path=db_path)
+
+    assert found is not None
+    assert found.report_id == older_report
+
+
+@pytest.mark.asyncio
+async def test_check_entitlement_revokes_refunded_apple_transaction(db_path):
+    """Revoked Apple transactions invalidate stored entitlement state."""
+    report_id = await create_report(
+        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+    )
+    await update_payment_status(
+        report_id,
+        "paid",
+        provider="apple_app_store",
+        provider_payment_id="apple-transaction-123",
+        db_path=db_path,
+    )
+    await activate_entitlement(report_id, db_path=db_path)
+
+    with patch(
+        "app.services.apple_app_store.get_transaction_status",
+        new=AsyncMock(
+            return_value=type(
+                "AppleTransaction",
+                (),
+                {"revoked": True},
+            )()
+        ),
+    ):
+        assert await check_entitlement(report_id, db_path=db_path) is False
+
+    report = await get_report(report_id, db_path=db_path)
+    assert report is not None
+    assert report.payment_status == "refunded"
+    assert report.entitlement_status == "revoked"
+
+
+@pytest.mark.asyncio
+async def test_find_existing_paid_report_skips_invalid_apple_transaction(db_path):
+    """Invalid Apple records are skipped in favor of the next valid paid report."""
+    older_report = await create_report(
+        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+    )
+    await update_payment_status(older_report, "paid", provider="stripe", db_path=db_path)
+    await activate_entitlement(older_report, db_path=db_path)
+
+    newer_report = await create_report(
+        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+    )
+    await update_payment_status(
+        newer_report,
+        "paid",
+        provider="apple_app_store",
+        provider_payment_id="apple-transaction-123",
+        db_path=db_path,
+    )
+    await activate_entitlement(newer_report, db_path=db_path)
+
+    with patch(
+        "app.services.apple_app_store.get_transaction_status",
+        new=AsyncMock(
+            return_value=type(
+                "AppleTransaction",
+                (),
+                {"revoked": True},
+            )()
+        ),
     ):
         found = await find_existing_paid_report("0363010012345678", db_path=db_path)
 

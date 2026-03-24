@@ -458,6 +458,8 @@
   "export.fullDossierMeta": "10+ pages",
   "export.buyFullDossier": "Buy Full Dossier",
   "export.buyFullDossierPlay": "Buy in Google Play",
+  "export.buyFullDossierApple": "Buy in App Store",
+  "export.fullDossierPrice": "Full dossier: {{price}}",
   "export.language": "Language",
   "export.languageEn": "EN",
   "export.languageNl": "NL",

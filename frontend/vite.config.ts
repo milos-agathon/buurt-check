@@ -26,6 +26,7 @@ export default defineConfig({
         'privacy.html',
         'terms.html',
         '.well-known/assetlinks.json',
+        '.well-known/apple-app-site-association',
       ],
       manifest: false,
       injectManifest: {

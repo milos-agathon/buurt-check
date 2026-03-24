@@ -8,6 +8,7 @@ import * as api from '../services/api';
 vi.mock('../services/api', () => ({
   exportBriefing: vi.fn(),
   downloadPdfBlob: vi.fn(),
+  sharePdfBlob: vi.fn(),
 }));
 
 vi.mock('../services/analytics', () => ({
@@ -35,6 +36,7 @@ describe('ExportBottomSheet', () => {
   beforeEach(async () => {
     vi.mocked(api.exportBriefing).mockReset();
     vi.mocked(api.downloadPdfBlob).mockReset();
+    vi.mocked(api.sharePdfBlob).mockReset();
     mockTrackEvent.mockReset();
     mockClose.mockReset();
     i18nInstance = await setupTestI18n('en');
@@ -304,10 +306,46 @@ describe('ExportBottomSheet', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Download PDF/i }));
 
-    expect(api.downloadPdfBlob).toHaveBeenCalledWith(
-      blob,
-      'buurt-check-quick-brief-0363010012345678.pdf',
-    );
+    await waitFor(() => {
+      expect(api.downloadPdfBlob).toHaveBeenCalledWith(
+        blob,
+        'buurt-check-quick-brief-0363010012345678.pdf',
+      );
+    });
+  });
+
+  it('shares the generated PDF from the ready actions', async () => {
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    vi.mocked(api.exportBriefing).mockResolvedValue(blob);
+    vi.mocked(api.sharePdfBlob).mockResolvedValue(true);
+    renderSheet();
+
+    fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Share PDF/i }));
+
+    await waitFor(() => {
+      expect(api.sharePdfBlob).toHaveBeenCalledWith(
+        blob,
+        'buurt-check-quick-brief-0363010012345678.pdf',
+        'Download viewing checklist',
+      );
+    });
+  });
+
+  it('shows the localized full dossier price for purchase flows', () => {
+    renderSheet({
+      isEntitled: false,
+      buyPriceLabel: '$4.99',
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: $4.99');
   });
 
   describe('sunlight readiness messaging', () => {

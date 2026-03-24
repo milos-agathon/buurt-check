@@ -11,6 +11,10 @@ from httpx import ASGITransport, AsyncClient
 from app.config import settings
 from app.db import init_db
 from app.main import app
+from app.services.apple_app_store import (
+    AppleAppStoreVerificationError,
+    reset_apple_app_store_clients,
+)
 
 
 @pytest_asyncio.fixture
@@ -19,6 +23,13 @@ async def db_path(tmp_path):
     path = str(tmp_path / "test.db")
     await init_db(path)
     return path
+
+
+@pytest.fixture(autouse=True)
+def reset_apple_clients():
+    reset_apple_app_store_clients()
+    yield
+    reset_apple_app_store_clients()
 
 
 def _billing_patches(db_path, extra_settings=None):
@@ -283,6 +294,224 @@ async def test_verify_google_play_purchase_rejects_token_reuse_across_reports(db
             )
 
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_verify_apple_purchase_unlocks_report_and_stores_transaction_id(db_path):
+    """Apple verification unlocks the report and stores provider=apple_app_store."""
+    from app.services.reports import create_report, get_report
+
+    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+
+    stack, _mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={
+            "apple_enabled": True,
+            "apple_bundle_id": "nl.buurtcheck.app.ios",
+            "apple_product_id": "full_dossier_unlock",
+            "apple_environment": "production",
+            "apple_issuer_id": "issuer-123",
+            "apple_key_id": "key-123",
+            "apple_private_key_pem": "-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----",
+            "apple_app_store_id": "1234567890",
+        },
+    )
+    with (
+        stack,
+        patch(
+            "app.api.billing.verify_signed_transaction",
+            return_value=SimpleNamespace(
+                transaction_id="apple-transaction-123",
+                product_id="full_dossier_unlock",
+            ),
+        ),
+        patch(
+            "app.api.billing.get_transaction_status",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    transaction_id="apple-transaction-123",
+                    product_id="full_dossier_unlock",
+                    revoked=False,
+                    purchase_date_iso="2026-03-23T12:00:00+00:00",
+                )
+            ),
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/billing/apple-app-store/verify",
+                json={
+                    "report_id": rid,
+                    "signed_transaction_info": "signed-jws-123",
+                    "product_id": "full_dossier_unlock",
+                },
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "report_id": rid,
+        "entitled": True,
+        "provider": "apple_app_store",
+        "transaction_id": "apple-transaction-123",
+    }
+
+    report = await get_report(rid, db_path=db_path)
+    assert report is not None
+    assert report.payment_status == "paid"
+    assert report.entitlement_status == "active"
+    assert report.provider == "apple_app_store"
+    assert report.provider_payment_id == "apple-transaction-123"
+
+
+@pytest.mark.asyncio
+async def test_verify_apple_purchase_rejects_transaction_reuse_across_reports(db_path):
+    """An Apple transaction cannot unlock two different reports."""
+    from app.services.reports import create_report, unlock_report
+
+    original_report = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    second_report = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    await unlock_report(
+        original_report,
+        provider="apple_app_store",
+        provider_payment_id="apple-transaction-123",
+        purchased_at="2026-03-23T12:00:00Z",
+        db_path=db_path,
+    )
+
+    stack, _mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={
+            "apple_enabled": True,
+            "apple_bundle_id": "nl.buurtcheck.app.ios",
+            "apple_product_id": "full_dossier_unlock",
+            "apple_environment": "production",
+            "apple_issuer_id": "issuer-123",
+            "apple_key_id": "key-123",
+            "apple_private_key_pem": "-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----",
+            "apple_app_store_id": "1234567890",
+        },
+    )
+    with (
+        stack,
+        patch(
+            "app.api.billing.verify_signed_transaction",
+            return_value=SimpleNamespace(
+                transaction_id="apple-transaction-123",
+                product_id="full_dossier_unlock",
+            ),
+        ),
+        patch(
+            "app.api.billing.get_transaction_status",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    transaction_id="apple-transaction-123",
+                    product_id="full_dossier_unlock",
+                    revoked=False,
+                    purchase_date_iso="2026-03-23T12:00:00+00:00",
+                )
+            ),
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/billing/apple-app-store/verify",
+                json={
+                    "report_id": second_report,
+                    "signed_transaction_info": "signed-jws-123",
+                    "product_id": "full_dossier_unlock",
+                },
+            )
+
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_apple_notifications_revoke_entitlement(db_path):
+    """Verified Apple refund/revoke notifications revoke entitlement."""
+    from app.services.reports import create_report, get_report, unlock_report
+
+    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    await unlock_report(
+        rid,
+        provider="apple_app_store",
+        provider_payment_id="apple-transaction-123",
+        purchased_at="2026-03-23T12:00:00Z",
+        db_path=db_path,
+    )
+
+    stack, _mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={
+            "apple_enabled": True,
+            "apple_bundle_id": "nl.buurtcheck.app.ios",
+            "apple_product_id": "full_dossier_unlock",
+            "apple_environment": "production",
+            "apple_issuer_id": "issuer-123",
+            "apple_key_id": "key-123",
+            "apple_private_key_pem": "-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----",
+            "apple_app_store_id": "1234567890",
+        },
+    )
+    with (
+        stack,
+        patch(
+            "app.api.billing.verify_and_decode_notification",
+            return_value=SimpleNamespace(
+                notification_uuid="notification-123",
+                notification_type="REFUND",
+                transaction=SimpleNamespace(transaction_id="apple-transaction-123"),
+            ),
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/billing/apple-app-store/notifications",
+                json={"signedPayload": "signed-payload-123"},
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "applied": True}
+
+    report = await get_report(rid, db_path=db_path)
+    assert report is not None
+    assert report.payment_status == "refunded"
+    assert report.entitlement_status == "revoked"
+
+
+@pytest.mark.asyncio
+async def test_apple_notifications_reject_invalid_signed_payload(db_path):
+    """Unverified Apple notifications must be rejected."""
+    stack, _mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={
+            "apple_enabled": True,
+            "apple_bundle_id": "nl.buurtcheck.app.ios",
+            "apple_product_id": "full_dossier_unlock",
+            "apple_environment": "production",
+            "apple_issuer_id": "issuer-123",
+            "apple_key_id": "key-123",
+            "apple_private_key_pem": "-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----",
+            "apple_app_store_id": "1234567890",
+        },
+    )
+    with (
+        stack,
+        patch(
+            "app.api.billing.verify_and_decode_notification",
+            side_effect=AppleAppStoreVerificationError("invalid"),
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/billing/apple-app-store/notifications",
+                json={"signedPayload": "invalid-payload"},
+            )
+
+    assert response.status_code == 400
 
 
 # ---------------------------------------------------------------------------

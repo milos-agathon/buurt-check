@@ -55,10 +55,10 @@ from app.services.pdf_export import (
     BORDER,
     MUTED,
     NATIONAL,
-    PEER_BAR,
     NL_AGE_0_24,
     NL_AGE_25_64,
     NL_AGE_65_PLUS,
+    PEER_BAR,
     SECONDARY,
     TEAL,
     BuurtCheckPDF,
@@ -5053,7 +5053,10 @@ class TestExpandedSunlightMeasurements:
         reader = PdfReader(io.BytesIO(result))
         text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
         assert "Direct sun (clear-sky visibility)" in text
-        assert "Estimated direct sunlight: winter 5.0h/day, equinox 7.5h/day, summer 10.0h/day." in text
+        assert (
+            "Estimated direct sunlight: winter 5.0h/day, equinox 7.5h/day, "
+            "summer 10.0h/day."
+        ) in text
         assert "Annual average: 6.3 h/day" in text
         assert "SVF (anisotropic): 58%" in text
         assert "Solar irradiance: 985 kWh/m²/year" in text
@@ -5083,7 +5086,10 @@ class TestExpandedSunlightMeasurements:
         reader = PdfReader(io.BytesIO(result))
         text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
         assert "Direct zonlicht (helderheidsschatting)" in text
-        assert "Geschat direct zonlicht: winter 5,0h/dag, equinox 7,5h/dag, zomer 10,0h/dag." in text
+        assert (
+            "Geschat direct zonlicht: winter 5,0h/dag, equinox 7,5h/dag, "
+            "zomer 10,0h/dag."
+        ) in text
         assert "Jaargemiddelde: 6,3 u/dag" in text
         assert "SVF (anisotropisch): 58%" in text
         assert "Zonnestraling: 985 kWh/m²/jaar" in text

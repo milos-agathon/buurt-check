@@ -7,9 +7,20 @@
     "android:sync": "node ./scripts/update-android-wrapper.mjs",
     "android:build": "node ./scripts/build-android-bundle.mjs",
     "android:keygen": "node ./scripts/create-android-upload-key.mjs",
-    "android:assetlinks": "node ./frontend/scripts/generate-assetlinks.mjs"
+    "android:assetlinks": "node ./frontend/scripts/generate-assetlinks.mjs",
+    "ios:sync": "node ./scripts/update-ios-wrapper.mjs",
+    "ios:check": "node ./scripts/check-ios-release-readiness.mjs",
+    "ios:open": "node ./scripts/open-ios-project.mjs",
+    "ios:archive": "node ./scripts/archive-ios-app.mjs"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
+    "@capacitor/ios": "^8.2.0"
   },
   "devDependencies": {
-    "@bubblewrap/cli": "^1.24.1"
+    "@bubblewrap/cli": "^1.24.1",
+    "typescript": "^5.9.3"
   }
 }

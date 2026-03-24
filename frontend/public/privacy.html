@@ -6,7 +6,7 @@
     <title>Buurt Check Privacy Policy</title>
     <meta
       name="description"
-      content="Privacy policy for Buurt Check web and Android experiences."
+      content="Privacy policy for Buurt Check web, Android, and iPhone app experiences."
     />
     <link rel="icon" type="image/svg+xml" href="/logos/buurt-check-favicon.svg" />
     <link rel="stylesheet" href="/legal.css" />
@@ -27,9 +27,10 @@
         <p class="legal-page__lead">
           Buurt Check helps buyers evaluate Dutch properties with open data, 3D context,
           and exportable dossiers. This policy explains what data is processed, why it is
-          processed, and how the payment paths differ between the web app and the Android app.
+          processed, and how the payment paths differ between the web app, the Google Play
+          Android app, and the App Store iPhone app.
         </p>
-        <p class="legal-page__meta">Last updated: March 17, 2026</p>
+        <p class="legal-page__meta">Last updated: March 23, 2026</p>
       </section>
 
       <div class="legal-page__grid">
@@ -44,8 +45,8 @@
           <p>
             The app does not require a user account for the MVP. Instead, the backend issues an
             anonymous buyer identifier and stores buyer-bound entitlement records so a purchased
-            full dossier stays linked to the address and the browser or Android app instance that
-            initiated the purchase flow.
+            full dossier stays linked to the address and the browser, Android app, or iPhone app
+            instance that initiated the purchase flow.
           </p>
         </section>
 
@@ -55,7 +56,8 @@
             The web app stores recent searches, shortlist entries, theme preference, checklist
             state, and non-sensitive report coordination data in browser storage so the experience
             survives tab changes and repeat visits. The Android app stores the same app data inside
-            the Trusted Web Activity container.
+            the Trusted Web Activity container. The iPhone app stores equivalent data inside the
+            native `WKWebView` container, which is separate from Safari storage.
           </p>
           <div class="legal-page__callout">
             <h3>Dutch summary</h3>
@@ -76,6 +78,7 @@
           <ul>
             <li>On the web, checkout is handled by Stripe Checkout.</li>
             <li>On Android distributed through Google Play, checkout is handled by Google Play Billing.</li>
+            <li>On iPhone distributed through the App Store, checkout is handled by Apple In-App Purchase.</li>
             <li>
               Our backend stores the report ID, anonymous buyer key, payment provider, provider
               reference token, entitlement status, and purchase timestamp needed to fulfil the
@@ -83,8 +86,9 @@
             </li>
           </ul>
           <p>
-            Buurt Check does not store full payment card numbers. Stripe and Google Play act as the
-            payment processors for their respective channels and handle the payment credential data.
+            Buurt Check does not store full payment card numbers. Stripe, Google Play, and Apple
+            act as the payment processors for their respective channels and handle the payment
+            credential data.
           </p>
         </section>
 
@@ -133,7 +137,8 @@
       </div>
 
       <p class="legal-page__footer">
-        This policy covers the web app and the Google Play Android release of Buurt Check.
+        This policy covers the web app, the Google Play Android release, and the App Store iPhone
+        release of Buurt Check.
       </p>
     </main>
   </body>

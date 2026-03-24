@@ -1,0 +1,34 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "TODO_SET_TEAM_ID.nl.buurtcheck.app.ios"
+        ],
+        "components": [
+          {
+            "/": "/address/*",
+            "comment": "Open dossier deep links in the iPhone app."
+          },
+          {
+            "/": "/search",
+            "comment": "Open the search screen in the iPhone app."
+          },
+          {
+            "/": "/saved",
+            "comment": "Open the shortlist screen in the iPhone app."
+          },
+          {
+            "/": "/compare",
+            "comment": "Open the compare screen in the iPhone app."
+          },
+          {
+            "/": "/settings",
+            "comment": "Open the settings screen in the iPhone app."
+          }
+        ]
+      }
+    ]
+  }
+}

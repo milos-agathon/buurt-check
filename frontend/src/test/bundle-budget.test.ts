@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { gzipSync } from 'zlib';
 
@@ -22,10 +22,25 @@ function collectFiles(dir: string): string[] {
   });
 }
 
+function normalizeDistPath(filePath: string): string {
+  return relative(distRoot, filePath).replace(/\\/g, '/');
+}
+
+function isStandaloneRuntimeAsset(filePath: string): boolean {
+  const normalized = normalizeDistPath(filePath);
+  return normalized === 'privacy.html'
+    || normalized === 'terms.html'
+    || normalized === 'offline.html'
+    || normalized === 'legal.css'
+    || normalized === '.well-known/apple-app-site-association'
+    || normalized === '.well-known/assetlinks.json';
+}
+
 describe.skipIf(!hasDistDir)('Bundle budget', () => {
-  it('initial app dist gzip total under 500KB (excludes lazy workers)', () => {
+  it('initial app dist gzip total under 500KB (excludes workers and standalone docs)', () => {
     const files = collectFiles(distRoot).filter((filePath) => (
       !filePath.includes('sunlightWorker-') && !filePath.includes('svfWorker-')
+      && !isStandaloneRuntimeAsset(filePath)
     ));
     const totalGzip = files.reduce((sum, filePath) => {
       const gzipped = gzipSync(readFileSync(filePath)).length;

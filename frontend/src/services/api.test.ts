@@ -1,7 +1,18 @@
 import type { TFunction } from 'i18next';
 import {
+  isAppleBillingContextAvailableSync,
+  presentAppleBillingPdfShareSheet,
+} from './appleBilling';
+
+vi.mock('./appleBilling', () => ({
+  isAppleBillingContextAvailableSync: vi.fn(() => false),
+  presentAppleBillingPdfShareSheet: vi.fn(),
+}));
+
+import {
   ApiError,
   checkEntitlement,
+  verifyAppleAppStorePurchase,
   createCheckoutSession,
   createShortReport,
   downloadPdfBlob,
@@ -27,8 +38,13 @@ import {
 const t = ((key: string) => key) as unknown as TFunction;
 
 const mockFetch = vi.fn();
+const mockIsAppleBillingContextAvailableSync = vi.mocked(isAppleBillingContextAvailableSync);
+const mockPresentAppleBillingPdfShareSheet = vi.mocked(presentAppleBillingPdfShareSheet);
 beforeEach(() => {
   mockFetch.mockReset();
+  mockIsAppleBillingContextAvailableSync.mockReset();
+  mockPresentAppleBillingPdfShareSheet.mockReset();
+  mockIsAppleBillingContextAvailableSync.mockReturnValue(false);
   globalThis.fetch = mockFetch;
 });
 
@@ -833,6 +849,36 @@ describe('verifyGooglePlayPurchase', () => {
   });
 });
 
+describe('verifyAppleAppStorePurchase', () => {
+  it('posts the report ID, signed transaction, and product ID', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+        entitled: true,
+        provider: 'apple_app_store',
+        transaction_id: '2000000678901234',
+      }),
+    );
+
+    const result = await verifyAppleAppStorePurchase(
+      '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+      'signed-jws-payload',
+      'full_dossier_unlock',
+    );
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/billing/apple-app-store/verify');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({
+      report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+      signed_transaction_info: 'signed-jws-payload',
+      product_id: 'full_dossier_unlock',
+    });
+    expect(result.provider).toBe('apple_app_store');
+    expect(result.transaction_id).toBe('2000000678901234');
+  });
+});
+
 // ─── downloadPdfBlob ──────────────────────────────────────────────────────────
 
 describe('downloadPdfBlob', () => {
@@ -842,7 +888,7 @@ describe('downloadPdfBlob', () => {
     );
   }
 
-  it('creates and clicks a download link', () => {
+  it('creates and clicks a download link', async () => {
     vi.useFakeTimers();
     const appendChildSpy = vi.spyOn(document.body, 'appendChild');
     const removeChildSpy = vi.spyOn(document.body, 'removeChild');
@@ -867,7 +913,7 @@ describe('downloadPdfBlob', () => {
       value: '',
     });
 
-    downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
+    await downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
 
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(openSpy).not.toHaveBeenCalled();
@@ -892,7 +938,7 @@ describe('downloadPdfBlob', () => {
     vi.useRealTimers();
   });
 
-  it('opens blob in a new tab on iOS instead of anchor download', () => {
+  it('opens blob in a new tab on iOS instead of anchor download', async () => {
     vi.useFakeTimers();
     mockNavigatorForIOS();
     const appendChildSpy = vi.spyOn(document.body, 'appendChild');
@@ -900,7 +946,7 @@ describe('downloadPdfBlob', () => {
     const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(window);
 
-    downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
+    await downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
 
     expect(openSpy).toHaveBeenCalledWith('blob:test', '_blank', 'noopener,noreferrer');
     expect(appendChildSpy).not.toHaveBeenCalled();
@@ -912,6 +958,18 @@ describe('downloadPdfBlob', () => {
     createObjectURLSpy.mockRestore();
     revokeObjectURLSpy.mockRestore();
     vi.useRealTimers();
+  });
+
+  it('uses the native Apple share sheet inside the iOS app wrapper', async () => {
+    mockIsAppleBillingContextAvailableSync.mockReturnValue(true);
+
+    await downloadPdfBlob(new Blob(['pdf']), 'test.pdf');
+
+    expect(mockPresentAppleBillingPdfShareSheet).toHaveBeenCalledWith(
+      expect.any(Blob),
+      'test.pdf',
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
 

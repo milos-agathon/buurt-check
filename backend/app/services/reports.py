@@ -56,6 +56,47 @@ async def _sync_google_play_entitlement(
     return True
 
 
+async def _sync_apple_entitlement(
+    report: Report,
+    db_path: str | None = None,
+) -> bool:
+    """Refresh Apple-backed entitlement state before returning it."""
+    if report.provider != "apple_app_store" or not report.provider_payment_id:
+        return report.entitlement_status == "active"
+
+    from app.services.apple_app_store import (
+        AppleAppStoreAPIError,
+        AppleAppStoreConfigError,
+        AppleAppStoreTransactionNotFound,
+        AppleAppStoreVerificationError,
+        get_transaction_status,
+    )
+
+    try:
+        transaction = await get_transaction_status(report.provider_payment_id)
+    except AppleAppStoreConfigError:
+        logger.warning(
+            "Apple verification is unavailable; trusting stored entitlement for report %s",
+            report.report_id,
+        )
+        return report.entitlement_status == "active"
+    except (AppleAppStoreTransactionNotFound, AppleAppStoreVerificationError):
+        await refund_report(report.report_id, db_path=db_path)
+        return False
+    except AppleAppStoreAPIError:
+        logger.exception(
+            "Apple verification failed for report %s; leaving stored entitlement unchanged",
+            report.report_id,
+        )
+        return report.entitlement_status == "active"
+
+    if transaction.revoked:
+        await refund_report(report.report_id, db_path=db_path)
+        return False
+
+    return True
+
+
 async def create_report(
     vbo_id: str,
     address_key: str,
@@ -154,7 +195,11 @@ async def check_entitlement(
         return False
     if report.entitlement_status != "active":
         return False
-    return await _sync_google_play_entitlement(report, db_path=db_path)
+    if report.provider == "google_play":
+        return await _sync_google_play_entitlement(report, db_path=db_path)
+    if report.provider == "apple_app_store":
+        return await _sync_apple_entitlement(report, db_path=db_path)
+    return report.entitlement_status == "active"
 
 
 async def activate_entitlement(
@@ -232,7 +277,13 @@ async def find_existing_paid_report(
         rows = await cursor.fetchall()
     for row in rows:
         report = Report(**dict(row))
-        if await _sync_google_play_entitlement(report, db_path=db_path):
+        if report.provider == "google_play":
+            is_active = await _sync_google_play_entitlement(report, db_path=db_path)
+        elif report.provider == "apple_app_store":
+            is_active = await _sync_apple_entitlement(report, db_path=db_path)
+        else:
+            is_active = report.entitlement_status == "active"
+        if is_active:
             return report
     return None
 

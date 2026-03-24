@@ -1,5 +1,7 @@
 import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import AddressSearch from './components/AddressSearch';
 import ErrorBoundary from './components/ErrorBoundary';
 import RiskTileSkeleton from './components/RiskTileSkeleton';
@@ -35,6 +37,7 @@ import ExportBottomSheet from './components/ExportBottomSheet';
 
 import {
   checkEntitlement,
+  verifyAppleAppStorePurchase,
   createCheckoutSession,
   createShortReport,
   suggestAddresses,
@@ -55,15 +58,23 @@ import {
   verifyGooglePlayPurchase,
 } from './services/api';
 import {
+  beginAppleBillingPurchase,
+  clearPendingAppleBillingReport,
+  findPendingAppleBillingPurchase,
+  finishAppleBillingTransaction,
+  getPendingAppleBillingReport,
+  isAppleBillingCancelledError,
+  isAppleBillingPendingError,
+} from './services/appleBilling';
+import {
   beginPlayBillingPurchase,
   clearPendingPlayBillingReport,
   completePlayBillingPurchase,
   consumePlayBillingPurchaseToken,
   findRestorablePlayBillingPurchase,
   getPendingPlayBillingReport,
-  isPlayBillingContextAvailableSync,
-  isPlayBillingReady,
 } from './services/playBilling';
+import { resolveBillingProvider, type BillingProvider } from './services/billingProvider';
 import {
   getShortlist,
   addToShortlist,
@@ -375,13 +386,18 @@ function parseHashRoute(hash: string): ParsedHashRoute {
   const value = hash.startsWith('#') ? hash.slice(1) : hash;
   const [pathPart = '', queryPart = ''] = value.split('?');
   const path = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
+  return parseRoute(path, queryPart);
+}
+
+function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   const params = new URLSearchParams(queryPart);
+  const normalizedPath = path === '/index.html' ? '/' : path;
 
-  if (path === '/saved') return { route: 'shortlist' };
-  if (path === '/compare') return { route: 'compare' };
-  if (path === '/settings') return { route: 'settings' };
+  if (normalizedPath === '/saved') return { route: 'shortlist' };
+  if (normalizedPath === '/compare') return { route: 'compare' };
+  if (normalizedPath === '/settings') return { route: 'settings' };
 
-  const dossierMatch = path.match(/^\/address\/([^/]+)$/);
+  const dossierMatch = normalizedPath.match(/^\/address\/([^/]+)$/);
   if (dossierMatch) {
     try {
       return {
@@ -396,8 +412,51 @@ function parseHashRoute(hash: string): ParsedHashRoute {
     }
   }
 
-  if (path === '/briefing') return { route: 'dossier' };
+  if (normalizedPath === '/briefing') return { route: 'dossier' };
   return { route: 'search' };
+}
+
+function parseLocationRoute(location: Location): ParsedHashRoute {
+  if (location.hash) {
+    return parseHashRoute(location.hash);
+  }
+
+  return parseRoute(
+    location.pathname || '/',
+    location.search.startsWith('?') ? location.search.slice(1) : location.search,
+  );
+}
+
+function buildHashRoute(parsed: ParsedHashRoute): string {
+  if (parsed.route === 'shortlist') return '#/saved';
+  if (parsed.route === 'compare') return '#/compare';
+  if (parsed.route === 'settings') return '#/settings';
+  if (parsed.route !== 'dossier') return '#/search';
+
+  if (!parsed.vboId) return '#/briefing';
+
+  const params = new URLSearchParams();
+  if (parsed.lookupId) params.set('lookup', parsed.lookupId);
+  if (parsed.reportId) params.set('report', parsed.reportId);
+  if (parsed.sessionId) params.set('session_id', parsed.sessionId);
+
+  const query = params.toString();
+  return `#/address/${encodeURIComponent(parsed.vboId)}${query ? `?${query}` : ''}`;
+}
+
+function hashRouteFromUrl(urlString: string): string | null {
+  try {
+    const url = new URL(urlString);
+    const parsed = url.hash
+      ? parseHashRoute(url.hash)
+      : parseRoute(
+        url.pathname || '/',
+        url.search.startsWith('?') ? url.search.slice(1) : url.search,
+      );
+    return buildHashRoute(parsed);
+  } catch {
+    return null;
+  }
 }
 
 function getDossierScrollContainer(): HTMLElement | null {
@@ -487,9 +546,8 @@ function App() {
   const [activeLookupId, setActiveLookupId] = useState<string | null>(dossierSeed?.address?.id ?? null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [dossierPriceEur, setDossierPriceEur] = useState(() => getDossierPrice());
-  const [androidBillingAvailable, setAndroidBillingAvailable] = useState(
-    isPlayBillingContextAvailableSync(),
-  );
+  const [billingProvider, setBillingProvider] = useState<BillingProvider>('stripe');
+  const [appleLocalizedPriceLabel, setAppleLocalizedPriceLabel] = useState<string | null>(null);
   const [isEntitled, setIsEntitled] = useState(TEMP_FORCE_FULL_DOSSIER_VIEW);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutStatusMessage, setCheckoutStatusMessage] = useState<string | null>(null);
@@ -699,16 +757,14 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!isPlayBillingContextAvailableSync()) {
-      setAndroidBillingAvailable(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void isPlayBillingReady().then((ready) => {
+    void resolveBillingProvider().then((resolution) => {
+      if (cancelled) return;
+      setBillingProvider(resolution.provider);
+      setAppleLocalizedPriceLabel(resolution.localizedPriceLabel ?? null);
+    }).catch(() => {
       if (!cancelled) {
-        setAndroidBillingAvailable(ready);
+        setBillingProvider('stripe');
+        setAppleLocalizedPriceLabel(null);
       }
     });
 
@@ -746,7 +802,7 @@ function App() {
 
   const activatePurchasedEntitlement = useCallback((
     unlockedReportId: string,
-    provider: 'stripe' | 'google_play',
+    provider: 'stripe' | 'google_play' | 'apple_app_store',
   ) => {
     setReportId(unlockedReportId);
     setIsEntitled(true);
@@ -756,6 +812,14 @@ function App() {
       storeEntitlement(address.adresseerbaar_object_id, unlockedReportId, true);
     }
   }, [address?.adresseerbaar_object_id]);
+
+  const androidBillingAvailable = billingProvider === 'google_play';
+  const appleBillingAvailable = billingProvider === 'apple_app_store';
+  const exportBuyPriceLabel = billingProvider === 'apple_app_store'
+    ? appleLocalizedPriceLabel ?? undefined
+    : billingProvider === 'stripe'
+      ? `€${dossierPriceEur}`
+      : undefined;
 
   const setHashRoute = useCallback((hash: string, options?: { replace?: boolean }) => {
     if (typeof window === 'undefined') return;
@@ -770,11 +834,11 @@ function App() {
   }, []);
 
   const dossierHash = useCallback((vboId?: string | null, lookupId?: string | null) => {
-    if (!vboId) return '#/briefing';
-    const params = new URLSearchParams();
-    if (lookupId) params.set('lookup', lookupId);
-    const query = params.toString();
-    return `#/address/${encodeURIComponent(vboId)}${query ? `?${query}` : ''}`;
+    return buildHashRoute({
+      route: 'dossier',
+      vboId: vboId ?? undefined,
+      lookupId: lookupId ?? undefined,
+    });
   }, []);
 
   const openSettings = useCallback(() => {
@@ -833,10 +897,77 @@ function App() {
     trackEvent('checkout_started', {
       report_id: reportId,
       price_eur: dossierPriceEur,
-      provider: androidBillingAvailable ? 'google_play' : 'stripe',
+      provider: billingProvider,
     });
 
     try {
+      if (appleBillingAvailable) {
+        const pendingReportId = getPendingAppleBillingReport();
+        if (pendingReportId === reportId) {
+          const pendingPurchase = await findPendingAppleBillingPurchase();
+          if (pendingPurchase) {
+            const verification = await verifyAppleAppStorePurchase(
+              reportId,
+              pendingPurchase.signedTransactionInfo,
+              pendingPurchase.productId,
+            );
+            await finishAppleBillingTransaction(pendingPurchase.transactionId);
+            clearPendingAppleBillingReport();
+            activatePurchasedEntitlement(verification.report_id, 'apple_app_store');
+            trackEvent('checkout_completed', {
+              report_id: verification.report_id,
+              provider: 'apple_app_store',
+              restored: true,
+            });
+            showToast(t('premium.checkout.success'));
+            return;
+          }
+          clearPendingAppleBillingReport();
+        }
+
+        let purchase = null as Awaited<ReturnType<typeof beginAppleBillingPurchase>> | null;
+        try {
+          purchase = await beginAppleBillingPurchase(reportId);
+          const verification = await verifyAppleAppStorePurchase(
+            reportId,
+            purchase.signedTransactionInfo,
+            purchase.productId,
+          );
+          await finishAppleBillingTransaction(purchase.transactionId);
+          clearPendingAppleBillingReport();
+          activatePurchasedEntitlement(verification.report_id, 'apple_app_store');
+          trackEvent('checkout_completed', {
+            report_id: verification.report_id,
+            provider: 'apple_app_store',
+          });
+          showToast(t('premium.checkout.success'));
+          return;
+        } catch (error) {
+          if (purchase) {
+            trackEvent('checkout_failed', {
+              report_id: reportId,
+              provider: 'apple_app_store',
+              reason: 'verification',
+            });
+            setCheckoutStatusMessage(t('premium.checkout.delayed'));
+            showToast(t('premium.checkout.delayed'));
+            return;
+          }
+
+          if (isAppleBillingCancelledError(error)) {
+            clearPendingAppleBillingReport();
+            return;
+          }
+          if (isAppleBillingPendingError(error)) {
+            setCheckoutStatusMessage(t('premium.checkout.delayed'));
+            showToast(t('premium.checkout.delayed'));
+            return;
+          }
+
+          throw error;
+        }
+      }
+
       if (androidBillingAvailable) {
         const pendingReportId = getPendingPlayBillingReport();
         if (pendingReportId === reportId) {
@@ -910,7 +1041,7 @@ function App() {
     } catch {
       trackEvent('checkout_failed', {
         report_id: reportId,
-        provider: androidBillingAvailable ? 'google_play' : 'stripe',
+        provider: billingProvider,
         reason: 'session_creation',
       });
       setIsCheckingOut(false);
@@ -922,6 +1053,8 @@ function App() {
   }, [
     activatePurchasedEntitlement,
     activeLookupId,
+    appleBillingAvailable,
+    billingProvider,
     androidBillingAvailable,
     dossierPriceEur,
     isCheckingOut,
@@ -2447,7 +2580,7 @@ function App() {
   // Ref-based applyRoute — always reads current state without triggering effect re-runs
   const applyRouteRef = useRef<() => void>(() => {});
   applyRouteRef.current = () => {
-    const parsed = parseHashRoute(window.location.hash || '#/search');
+    const parsed = parseLocationRoute(window.location);
     if (parsed.route === 'shortlist') {
       setActiveTab('saved');
       setActiveScreen('shortlist');
@@ -2518,7 +2651,10 @@ function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    if (!window.location.hash) {
+    const hasDirectRoutePath = window.location.pathname !== '/'
+      && window.location.pathname !== '/index.html';
+
+    if (!window.location.hash && !hasDirectRoutePath) {
       setHashRoute(
         initialHasDossier
           ? dossierHash(address?.adresseerbaar_object_id, activeLookupId)
@@ -2541,6 +2677,46 @@ function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'ios') {
+      return;
+    }
+
+    let cancelled = false;
+    let removeListener: (() => Promise<void>) | null = null;
+
+    const applyNativeUrl = (url: string, replace: boolean = false) => {
+      const nextHash = hashRouteFromUrl(url);
+      if (!nextHash) return;
+      setHashRoute(nextHash, { replace });
+    };
+
+    const registerListener = async () => {
+      try {
+        const launchUrl = await CapacitorApp.getLaunchUrl();
+        if (!cancelled && launchUrl?.url) {
+          applyNativeUrl(launchUrl.url, true);
+        }
+
+        const handle = await CapacitorApp.addListener('appUrlOpen', ({ url }) => {
+          applyNativeUrl(url);
+        });
+        removeListener = () => handle.remove();
+      } catch {
+        // Ignore native URL bridge failures outside the iOS wrapper.
+      }
+    };
+
+    void registerListener();
+
+    return () => {
+      cancelled = true;
+      if (removeListener) {
+        void removeListener();
+      }
+    };
+  }, [setHashRoute]);
 
   useEffect(() => {
     if (!checkoutVerification?.reportId) return;
@@ -2608,6 +2784,51 @@ function App() {
       cancelled = true;
     };
   }, [activatePurchasedEntitlement, checkoutVerification, showToast, t]);
+
+  useEffect(() => {
+    if (!appleBillingAvailable || !reportId || isEntitled) return;
+    if (getPendingAppleBillingReport() !== reportId) return;
+
+    let cancelled = false;
+
+    const restorePendingPurchase = async () => {
+      try {
+        const pendingPurchase = await findPendingAppleBillingPurchase();
+        if (cancelled) return;
+        if (!pendingPurchase) {
+          clearPendingAppleBillingReport();
+          return;
+        }
+
+        const verification = await verifyAppleAppStorePurchase(
+          reportId,
+          pendingPurchase.signedTransactionInfo,
+          pendingPurchase.productId,
+        );
+        await finishAppleBillingTransaction(pendingPurchase.transactionId);
+        if (cancelled) return;
+
+        clearPendingAppleBillingReport();
+        activatePurchasedEntitlement(verification.report_id, 'apple_app_store');
+        trackEvent('checkout_completed', {
+          report_id: verification.report_id,
+          provider: 'apple_app_store',
+          restored: true,
+        });
+        showToast(t('premium.checkout.success'));
+      } catch {
+        if (!cancelled) {
+          setCheckoutStatusMessage(t('premium.checkout.delayed'));
+        }
+      }
+    };
+
+    void restorePendingPurchase();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activatePurchasedEntitlement, appleBillingAvailable, isEntitled, reportId, showToast, t]);
 
   useEffect(() => {
     if (!androidBillingAvailable || !reportId || isEntitled) return;
@@ -3559,7 +3780,14 @@ function App() {
             onBuyFullDossier={() => {
               void handleUpgrade();
             }}
-            buyLabel={androidBillingAvailable ? t('export.buyFullDossierPlay') : undefined}
+            buyLabel={
+              appleBillingAvailable
+                ? t('export.buyFullDossierApple')
+                : androidBillingAvailable
+                  ? t('export.buyFullDossierPlay')
+                  : undefined
+            }
+            buyPriceLabel={exportBuyPriceLabel}
             buyPending={isCheckingOut}
             onGenerateStart={() => {
               setExportGenerating(true);

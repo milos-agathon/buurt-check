@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import type {
+  AppleAppStorePurchaseVerificationResponse,
   BuildingFactsResponse,
   CheckoutSessionResponse,
   EntitlementResponse,
@@ -18,6 +19,10 @@ import type {
   ViewingQuestionsResponse,
 } from '../types/api';
 import type { HourlyWeatherRecord } from '../utils/irradianceComputation';
+import {
+  isAppleBillingContextAvailableSync,
+  presentAppleBillingPdfShareSheet,
+} from './appleBilling';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 const EXPORT_TIMEOUT_QUICK_MS = Math.max(
@@ -182,6 +187,24 @@ export async function verifyGooglePlayPurchase(
     body: JSON.stringify({
       report_id: reportId,
       purchase_token: purchaseToken,
+      product_id: productId,
+    }),
+  });
+  if (!resp.ok) throwHttpError(resp.status);
+  return resp.json();
+}
+
+export async function verifyAppleAppStorePurchase(
+  reportId: string,
+  signedTransactionInfo: string,
+  productId: string,
+): Promise<AppleAppStorePurchaseVerificationResponse> {
+  const resp = await fetch(`${API_BASE}/billing/apple-app-store/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      report_id: reportId,
+      signed_transaction_info: signedTransactionInfo,
       product_id: productId,
     }),
   });
@@ -449,7 +472,44 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
   }
 }
 
-export function downloadPdfBlob(blob: Blob, filename: string): void {
+export async function sharePdfBlob(
+  blob: Blob,
+  filename: string,
+  title?: string,
+): Promise<boolean> {
+  if (isAppleBillingContextAvailableSync()) {
+    await presentAppleBillingPdfShareSheet(blob, filename, title);
+    return true;
+  }
+
+  const nav = navigator as Navigator & {
+    canShare?: (data?: ShareData) => boolean;
+    share?: (data?: ShareData) => Promise<void>;
+  };
+
+  if (typeof File === 'undefined' || !nav.share) {
+    return false;
+  }
+
+  const file = new File([blob], filename, { type: 'application/pdf' });
+  const canShareFile = nav.canShare ? nav.canShare({ files: [file] }) : true;
+  if (!canShareFile) {
+    return false;
+  }
+
+  await nav.share({
+    title,
+    files: [file],
+  });
+  return true;
+}
+
+export async function downloadPdfBlob(blob: Blob, filename: string): Promise<void> {
+  if (isAppleBillingContextAvailableSync()) {
+    await presentAppleBillingPdfShareSheet(blob, filename);
+    return;
+  }
+
   const url = URL.createObjectURL(blob);
   const openPdfFallback = () => {
     const opened = window.open(url, '_blank', 'noopener,noreferrer');

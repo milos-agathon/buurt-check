@@ -34,6 +34,13 @@ export interface GooglePlayPurchaseVerificationResponse {
   consumed: boolean;
 }
 
+export interface AppleAppStorePurchaseVerificationResponse {
+  report_id: string;
+  entitled: boolean;
+  provider: 'apple_app_store';
+  transaction_id: string;
+}
+
 export interface PricingResponse {
   price_cents: number;
   price_eur: string;

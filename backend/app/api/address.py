@@ -1038,7 +1038,10 @@ class ExportRequest(BaseModel):
     )
     shadow_images: list[ShadowImageItem] | None = Field(
         default=None,
-        description="Array of shadow snapshots for rich full-dossier layouts (seasonal or multi-view)",
+        description=(
+            "Array of shadow snapshots for rich full-dossier layouts "
+            "(seasonal or multi-view)"
+        ),
     )
     sunlight_submission: SunlightSubmission | None = Field(
         default=None,

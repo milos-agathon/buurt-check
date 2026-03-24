@@ -30,6 +30,7 @@ vi.mock('./services/api', async () => {
     createShortReport: vi.fn(),
     checkEntitlement: vi.fn(),
     createCheckoutSession: vi.fn(),
+    verifyAppleAppStorePurchase: vi.fn(),
     verifyGooglePlayPurchase: vi.fn(),
     suggestAddresses: vi.fn(),
     lookupAddress: vi.fn(),
@@ -52,6 +53,16 @@ vi.mock('./services/api', async () => {
   };
 });
 
+vi.mock('./services/appleBilling', () => ({
+  beginAppleBillingPurchase: vi.fn(),
+  clearPendingAppleBillingReport: vi.fn(),
+  findPendingAppleBillingPurchase: vi.fn(),
+  finishAppleBillingTransaction: vi.fn(),
+  getPendingAppleBillingReport: vi.fn(() => null),
+  isAppleBillingCancelledError: vi.fn(() => false),
+  isAppleBillingPendingError: vi.fn(() => false),
+}));
+
 vi.mock('./services/playBilling', () => ({
   beginPlayBillingPurchase: vi.fn(),
   clearPendingPlayBillingReport: vi.fn(),
@@ -61,6 +72,10 @@ vi.mock('./services/playBilling', () => ({
   getPendingPlayBillingReport: vi.fn(() => null),
   isPlayBillingContextAvailableSync: vi.fn(() => false),
   isPlayBillingReady: vi.fn().mockResolvedValue(false),
+}));
+
+vi.mock('./services/billingProvider', () => ({
+  resolveBillingProvider: vi.fn().mockResolvedValue({ provider: 'stripe' }),
 }));
 
 vi.mock('./config/pricing', () => ({
@@ -106,6 +121,7 @@ import {
   checkEntitlement,
   createCheckoutSession,
   createShortReport,
+  verifyAppleAppStorePurchase,
   verifyGooglePlayPurchase,
   lookupAddress,
   getBuildingFacts,
@@ -132,10 +148,21 @@ import {
   isPlayBillingContextAvailableSync,
   isPlayBillingReady,
 } from './services/playBilling';
+import {
+  beginAppleBillingPurchase,
+  clearPendingAppleBillingReport,
+  findPendingAppleBillingPurchase,
+  finishAppleBillingTransaction,
+  getPendingAppleBillingReport,
+  isAppleBillingCancelledError,
+  isAppleBillingPendingError,
+} from './services/appleBilling';
+import { resolveBillingProvider } from './services/billingProvider';
 const mockLookup = vi.mocked(lookupAddress);
 const mockCreateShortReport = vi.mocked(createShortReport);
 const mockCheckEntitlement = vi.mocked(checkEntitlement);
 const mockCreateCheckoutSession = vi.mocked(createCheckoutSession);
+const mockVerifyAppleAppStorePurchase = vi.mocked(verifyAppleAppStorePurchase);
 const mockVerifyGooglePlayPurchase = vi.mocked(verifyGooglePlayPurchase);
 const mockBuilding = vi.mocked(getBuildingFacts);
 const mockBuilding3D = vi.mocked(getBuilding3D);
@@ -158,6 +185,14 @@ const mockFindRestorablePlayBillingPurchase = vi.mocked(findRestorablePlayBillin
 const mockGetPendingPlayBillingReport = vi.mocked(getPendingPlayBillingReport);
 const mockIsPlayBillingContextAvailableSync = vi.mocked(isPlayBillingContextAvailableSync);
 const mockIsPlayBillingReady = vi.mocked(isPlayBillingReady);
+const mockBeginAppleBillingPurchase = vi.mocked(beginAppleBillingPurchase);
+const mockClearPendingAppleBillingReport = vi.mocked(clearPendingAppleBillingReport);
+const mockFindPendingAppleBillingPurchase = vi.mocked(findPendingAppleBillingPurchase);
+const mockFinishAppleBillingTransaction = vi.mocked(finishAppleBillingTransaction);
+const mockGetPendingAppleBillingReport = vi.mocked(getPendingAppleBillingReport);
+const mockIsAppleBillingCancelledError = vi.mocked(isAppleBillingCancelledError);
+const mockIsAppleBillingPendingError = vi.mocked(isAppleBillingPendingError);
+const mockResolveBillingProvider = vi.mocked(resolveBillingProvider);
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
@@ -174,6 +209,7 @@ beforeEach(() => {
   mockCreateShortReport.mockReset();
   mockCheckEntitlement.mockReset();
   mockCreateCheckoutSession.mockReset();
+  mockVerifyAppleAppStorePurchase.mockReset();
   mockVerifyGooglePlayPurchase.mockReset();
   mockLookup.mockReset();
   mockBuilding.mockReset();
@@ -197,6 +233,13 @@ beforeEach(() => {
   mockGetPendingPlayBillingReport.mockReset();
   mockIsPlayBillingContextAvailableSync.mockReset();
   mockIsPlayBillingReady.mockReset();
+  mockBeginAppleBillingPurchase.mockReset();
+  mockClearPendingAppleBillingReport.mockReset();
+  mockFindPendingAppleBillingPurchase.mockReset();
+  mockFinishAppleBillingTransaction.mockReset();
+  mockGetPendingAppleBillingReport.mockReset();
+  mockIsAppleBillingCancelledError.mockReset();
+  mockResolveBillingProvider.mockReset();
   neighborhoodViewer3DPropsRef.current = null;
   mockCreateShortReport.mockResolvedValue({
     report_id: 'report-123',
@@ -211,12 +254,29 @@ beforeEach(() => {
   mockCreateCheckoutSession.mockResolvedValue({
     checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_123',
   });
+  mockVerifyAppleAppStorePurchase.mockResolvedValue({
+    report_id: 'report-123',
+    entitled: true,
+    provider: 'apple_app_store',
+    transaction_id: 'apple-transaction-123',
+  });
   mockVerifyGooglePlayPurchase.mockResolvedValue({
     report_id: 'report-123',
     entitled: true,
     provider: 'google_play',
     consumed: true,
   });
+  mockBeginAppleBillingPurchase.mockResolvedValue({
+    productId: 'full_dossier_unlock',
+    transactionId: 'apple-transaction-123',
+    originalTransactionId: 'apple-original-123',
+    signedTransactionInfo: 'signed-transaction',
+  });
+  mockFindPendingAppleBillingPurchase.mockResolvedValue(null);
+  mockFinishAppleBillingTransaction.mockResolvedValue(undefined);
+  mockGetPendingAppleBillingReport.mockReturnValue(null);
+  mockIsAppleBillingCancelledError.mockReturnValue(false);
+  mockIsAppleBillingPendingError.mockReturnValue(false);
   mockBeginPlayBillingPurchase.mockResolvedValue({
     productId: 'full_dossier_unlock',
     purchaseToken: 'purchase-token',
@@ -228,6 +288,7 @@ beforeEach(() => {
   mockGetPendingPlayBillingReport.mockReturnValue(null);
   mockIsPlayBillingContextAvailableSync.mockReturnValue(false);
   mockIsPlayBillingReady.mockResolvedValue(false);
+  mockResolveBillingProvider.mockResolvedValue({ provider: 'stripe' });
   // Resolve Phase 1 quickly with empty data so dossier sheet expands while
   // Phase 2 neighborhood fetch still controls 3D content in tests.
   mockBuilding3D.mockResolvedValue(
@@ -411,6 +472,18 @@ describe('hash route recovery', () => {
       screen.getByText("We couldn't reopen this address. Try searching for it again."),
     ).toBeInTheDocument();
     expect(mockLookup).not.toHaveBeenCalled();
+  });
+
+  it('opens a direct dossier pathname route for a native cold start', async () => {
+    window.history.replaceState({}, '', '/address/vbo-123?lookup=adr-abc123');
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockLookup).toHaveBeenCalledWith('adr-abc123', expect.any(AbortSignal));
+    });
   });
 });
 
@@ -722,13 +795,18 @@ describe('3D viewer integration', () => {
 
   it('uses Google Play Billing instead of Stripe when the Android billing runtime is available', async () => {
     localStorage.setItem('buurt-check:first-dossier-used', '1');
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockResolveBillingProvider.mockResolvedValue({ provider: 'google_play' });
     mockIsPlayBillingContextAvailableSync.mockReturnValue(true);
     mockIsPlayBillingReady.mockResolvedValue(true);
 
     renderApp();
-    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
@@ -766,6 +844,132 @@ describe('3D viewer integration', () => {
       }),
       'success',
     );
+  });
+
+  it('uses Apple billing instead of Stripe when the iOS runtime is available', async () => {
+    localStorage.setItem('buurt-check:first-dossier-used', '1');
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockResolveBillingProvider.mockResolvedValue({
+      provider: 'apple_app_store',
+      localizedPriceLabel: '$4.99',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Buy in App Store/i })).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: $4.99');
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Buy in App Store/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockBeginAppleBillingPurchase).toHaveBeenCalledWith('report-123');
+      expect(mockVerifyAppleAppStorePurchase).toHaveBeenCalledWith(
+        'report-123',
+        'signed-transaction',
+        'full_dossier_unlock',
+      );
+    });
+    expect(mockFinishAppleBillingTransaction).toHaveBeenCalledWith('apple-transaction-123');
+    expect(mockCreateCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it('restores a pending Apple purchase for the current report', async () => {
+    localStorage.setItem('buurt-check:first-dossier-used', '1');
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockResolveBillingProvider.mockResolvedValue({
+      provider: 'apple_app_store',
+      localizedPriceLabel: '$4.99',
+    });
+    mockGetPendingAppleBillingReport.mockReturnValue('report-123');
+    mockFindPendingAppleBillingPurchase.mockResolvedValue({
+      productId: 'full_dossier_unlock',
+      transactionId: 'apple-restored-123',
+      originalTransactionId: 'apple-original-123',
+      signedTransactionInfo: 'signed-restored-transaction',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockVerifyAppleAppStorePurchase).toHaveBeenCalledWith(
+        'report-123',
+        'signed-restored-transaction',
+        'full_dossier_unlock',
+      );
+    });
+    expect(mockFinishAppleBillingTransaction).toHaveBeenCalledWith('apple-restored-123');
+    expect(mockClearPendingAppleBillingReport).toHaveBeenCalled();
+  });
+
+  it('keeps the dossier in delayed state when the Apple purchase is pending approval', async () => {
+    localStorage.setItem('buurt-check:first-dossier-used', '1');
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockResolveBillingProvider.mockResolvedValue({
+      provider: 'apple_app_store',
+      localizedPriceLabel: '$4.99',
+    });
+    mockBeginAppleBillingPurchase.mockRejectedValue({ code: 'PURCHASE_PENDING' });
+    mockIsAppleBillingPendingError.mockImplementation(
+      (error) => (error as { code?: string }).code === 'PURCHASE_PENDING',
+    );
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Buy in App Store/i }));
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(
+          'Payment received — your dossier will unlock shortly. Refresh in a moment.',
+        ).length,
+      ).toBeGreaterThan(0);
+    });
   });
 
   it('does not crash when getNeighborhood3D fails', async () => {
