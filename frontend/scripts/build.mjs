@@ -34,13 +34,31 @@ function runNpm(args, extraEnv = {}) {
   });
 }
 
+function runNodeScript(scriptPath) {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(process.execPath, [scriptPath], {
+      stdio: 'inherit',
+      env: process.env,
+    });
+
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolvePromise();
+        return;
+      }
+      reject(new Error(`node ${scriptPath} exited with code ${code}`));
+    });
+  });
+}
+
 async function main() {
   await runNpm(['exec', '--', 'tsc', '-b']);
 
   // Avoid stale hashed assets inflating bundle-budget checks.
   rmSync(resolve(process.cwd(), 'dist'), { recursive: true, force: true });
-  await runNpm(['exec', '--', 'node', './scripts/generate-assetlinks.mjs']);
-  await runNpm(['exec', '--', 'node', './scripts/generate-apple-app-site-association.mjs']);
+  await runNodeScript(resolve(process.cwd(), 'scripts', 'generate-assetlinks.mjs'));
+  await runNodeScript(resolve(process.cwd(), 'scripts', 'generate-apple-app-site-association.mjs'));
 
   // Prevent esbuild OOM crashes seen on constrained Windows hosts.
   const goMaxProcs = process.env.GOMAXPROCS ?? '1';
