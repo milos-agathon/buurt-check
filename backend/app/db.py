@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS reports (
     report_type TEXT NOT NULL CHECK(report_type IN ('short', 'long')),
     address_key TEXT NOT NULL,
     vbo_id TEXT NOT NULL,
+    buyer_key TEXT NOT NULL,
     generation_version TEXT NOT NULL DEFAULT '1',
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     payment_status TEXT NOT NULL DEFAULT 'unpaid'
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS reports (
     purchased_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_reports_vbo_id ON reports(vbo_id);
+CREATE INDEX IF NOT EXISTS idx_reports_buyer_vbo ON reports(buyer_key, vbo_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reports_provider_session ON reports(provider_session_id);
 CREATE INDEX IF NOT EXISTS idx_reports_provider_payment ON reports(provider_payment_id);
 """
@@ -184,6 +186,35 @@ def _create_turso_connection() -> TursoConnection:
     return TursoConnection(connection)
 
 
+async def _reports_column_names(db: DatabaseConnection) -> set[str]:
+    cursor = await db.execute("PRAGMA table_info(reports)")
+    rows = await cursor.fetchall()
+    columns: set[str] = set()
+    for row in rows:
+        if isinstance(row, Mapping):
+            columns.add(str(row["name"]))
+        else:
+            columns.add(str(row[1]))
+    return columns
+
+
+async def _migrate_reports_schema(db: DatabaseConnection) -> None:
+    columns = await _reports_column_names(db)
+
+    if "buyer_key" not in columns:
+        await db.execute("ALTER TABLE reports ADD COLUMN buyer_key TEXT")
+        await db.execute(
+            "UPDATE reports SET buyer_key = report_id "
+            "WHERE buyer_key IS NULL OR buyer_key = ''"
+        )
+
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_reports_buyer_vbo "
+        "ON reports(buyer_key, vbo_id, created_at DESC)"
+    )
+    await db.commit()
+
+
 async def init_db(db_path: str | None = None) -> None:
     """Create tables if they don't exist and enable WAL mode.
 
@@ -195,6 +226,7 @@ async def init_db(db_path: str | None = None) -> None:
         try:
             for statement in _SCHEMA_STATEMENTS:
                 await db.execute(statement)
+            await _migrate_reports_schema(db)
             await db.commit()
         finally:
             await db.close()
@@ -205,6 +237,7 @@ async def init_db(db_path: str | None = None) -> None:
     async with aiosqlite.connect(path) as db:
         await db.execute("PRAGMA journal_mode=WAL")
         await db.executescript(_SCHEMA)
+        await _migrate_reports_schema(db)
         await db.commit()
     logger.info("Database initialized using local SQLite at %s", path)
 

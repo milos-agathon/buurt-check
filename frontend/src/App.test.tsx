@@ -672,6 +672,11 @@ describe('3D viewer integration', () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
 
     renderApp();
     await selectAddress();
@@ -699,6 +704,11 @@ describe('3D viewer integration', () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
 
     renderApp();
     await selectAddress();
@@ -733,6 +743,11 @@ describe('3D viewer integration', () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
     mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
     mockSubmitSunlightAnalysis.mockResolvedValue({
       status: 'ok',
       score: 50,
@@ -794,7 +809,6 @@ describe('3D viewer integration', () => {
   });
 
   it('uses Google Play Billing instead of Stripe when the Android billing runtime is available', async () => {
-    localStorage.setItem('buurt-check:first-dossier-used', '1');
     window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
@@ -847,7 +861,6 @@ describe('3D viewer integration', () => {
   });
 
   it('uses Apple billing instead of Stripe when the iOS runtime is available', async () => {
-    localStorage.setItem('buurt-check:first-dossier-used', '1');
     window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
@@ -897,7 +910,6 @@ describe('3D viewer integration', () => {
   });
 
   it('restores a pending Apple purchase for the current report', async () => {
-    localStorage.setItem('buurt-check:first-dossier-used', '1');
     window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
@@ -927,7 +939,6 @@ describe('3D viewer integration', () => {
   });
 
   it('keeps the dossier in delayed state when the Apple purchase is pending approval', async () => {
-    localStorage.setItem('buurt-check:first-dossier-used', '1');
     window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
@@ -1451,6 +1462,11 @@ describe('property warnings param forwarding', () => {
         floor_area_m2: 120,
       },
     }));
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
 
     renderApp();
     await selectAddress();

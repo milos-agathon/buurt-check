@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import Response
 from pydantic import AliasChoices, BaseModel, Field
 
+from app.api.buyer import get_buyer_key
 from app.api.dependencies import get_render_service, require_entitlement
 from app.cache.redis import cache_get, cache_set, cache_set_verified
 from app.config import settings
@@ -379,7 +380,6 @@ async def wms_tile_proxy(
     rd_y: float = Query(..., ge=285000, le=625000, description="RD Y coordinate"),
     radius: float = Query(250.0, ge=10, le=500, description="Tile radius in meters"),
     size: int = Query(512, ge=128, le=2048, description="Tile size in pixels"),
-    _: None = Depends(require_entitlement),
 ):
     """Proxy WMS GetMap tiles to avoid CORS issues in the browser."""
     if type not in VALID_TILE_TYPES:
@@ -468,7 +468,6 @@ async def building_3d(
     rd_y: float = Query(..., ge=285000, le=625000),
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
-    _: None = Depends(require_entitlement),
 ):
     """Fast Phase 1: fetch only the target building (~2s, no bbox)."""
     cache_key = f"building3d:{pand_id}"
@@ -505,7 +504,6 @@ async def neighborhood_3d(
     rd_y: float = Query(..., ge=285000, le=625000),
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
-    _: None = Depends(require_entitlement),
 ):
     """Fetch 3D neighborhood building data from 3DBAG."""
     # v26: parallel quadrant strategy for accelerated mode (4 concurrent bbox queries at 120m).
@@ -740,7 +738,6 @@ async def risk_comparisons(
     lat: float = Query(..., ge=50.5, le=53.8),
     lng: float = Query(..., ge=3.2, le=7.3),
     buurt_code: str | None = Query(None),
-    _: None = Depends(require_entitlement),
 ):
     """Return data-driven comparison rows for risk detail views."""
     cache_key_risks = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
@@ -816,7 +813,6 @@ async def viewing_questions(
     buurt_code: str | None = Query(None),
     street: str | None = Query(None, description="Street name for contextualized questions"),
     city: str | None = Query(None, description="City name for contextualized questions"),
-    _: None = Depends(require_entitlement),
 ):
     """Generate viewing questions based on risk card scores and crime context."""
     # Re-use cached risk cards if available
@@ -864,7 +860,6 @@ async def tier_b_signals(
     response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     buurt_code: str | None = Query(None),
-    _: None = Depends(require_entitlement),
 ):
     """Fetch Tier-B signals: crime context."""
     buurt_code = _validate_buurt_code(buurt_code)
@@ -902,7 +897,6 @@ async def address_livability(
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
     rd_x: float = Query(..., ge=0, le=300000),
     rd_y: float = Query(..., ge=285000, le=625000),
-    _: None = Depends(require_entitlement),
 ):
     """Fetch Leefbaarometer livability data: current score + trend + comparison."""
     cache_key = f"livability_full:{rd_x:.0f}:{rd_y:.0f}"
@@ -1289,7 +1283,7 @@ async def _fetch_location_map(
     return None
 
 
-async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
+async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest) -> Response:
     """Core export logic shared by POST and GET endpoints."""
     if body.template not in ("quick_brief", "full_dossier"):
         raise HTTPException(
@@ -1305,7 +1299,8 @@ async def _do_export_briefing(vbo_id: str, body: ExportRequest) -> Response:
             raise HTTPException(status_code=402, detail="Payment required")
         from app.services.reports import check_entitlement
 
-        if not await check_entitlement(body.report_id):
+        buyer_key = get_buyer_key(request)
+        if not buyer_key or not await check_entitlement(body.report_id, buyer_key=buyer_key):
             raise HTTPException(status_code=402, detail="Payment required")
 
     # --- Phase 1: Fetch building + risks in parallel ---
@@ -1650,7 +1645,7 @@ async def export_briefing(
     avoiding URL-length limits. Full Dossier fetches additional data
     (neighborhood stats, tier-b, risk comparisons) in parallel.
     """
-    return await _do_export_briefing(vbo_id, body)
+    return await _do_export_briefing(request, vbo_id, body)
 
 
 @router.get("/{vbo_id}/export")
@@ -1693,5 +1688,5 @@ async def export_briefing_get(
         street=street, city=city, buurt_code=buurt_code, postcode=postcode,
         house_number=house_number, house_letter=house_letter, addition=addition,
     )
-    return await _do_export_briefing(vbo_id, body)
+    return await _do_export_briefing(request, vbo_id, body)
 

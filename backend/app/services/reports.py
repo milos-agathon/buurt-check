@@ -101,14 +101,17 @@ async def create_report(
     vbo_id: str,
     address_key: str,
     report_type: ReportType,
+    buyer_key: str | None = None,
     db_path: str | None = None,
 ) -> str:
     """Generate a UUID, insert a new report row, and return the report_id."""
     report_id = str(uuid.uuid4())
+    resolved_buyer_key = buyer_key or report_id
     async with get_db(db_path) as db:
         await db.execute(
-            "INSERT INTO reports (report_id, report_type, address_key, vbo_id) VALUES (?, ?, ?, ?)",
-            (report_id, report_type, address_key, vbo_id),
+            "INSERT INTO reports (report_id, report_type, address_key, vbo_id, buyer_key) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (report_id, report_type, address_key, vbo_id, resolved_buyer_key),
         )
         await db.commit()
     logger.info("Created report %s for vbo_id=%s", report_id, vbo_id)
@@ -124,6 +127,23 @@ async def get_report(
         cursor = await db.execute(
             "SELECT * FROM reports WHERE report_id = ?",
             (report_id,),
+        )
+        row = await cursor.fetchone()
+    if row is None:
+        return None
+    return Report(**dict(row))
+
+
+async def get_report_for_buyer(
+    report_id: str,
+    buyer_key: str,
+    db_path: str | None = None,
+) -> Report | None:
+    """Return a buyer-owned Report model by ID, or None if not found."""
+    async with get_db(db_path) as db:
+        cursor = await db.execute(
+            "SELECT * FROM reports WHERE report_id = ? AND buyer_key = ?",
+            (report_id, buyer_key),
         )
         row = await cursor.fetchone()
     if row is None:
@@ -187,10 +207,14 @@ async def store_provider_session(
 
 async def check_entitlement(
     report_id: str,
+    buyer_key: str | None = None,
     db_path: str | None = None,
 ) -> bool:
     """Return True if entitlement_status == 'active' after provider sync when needed."""
-    report = await get_report(report_id, db_path=db_path)
+    if buyer_key is not None:
+        report = await get_report_for_buyer(report_id, buyer_key, db_path=db_path)
+    else:
+        report = await get_report(report_id, db_path=db_path)
     if report is None:
         return False
     if report.entitlement_status != "active":
@@ -263,16 +287,17 @@ async def refund_report(
 
 async def find_existing_paid_report(
     vbo_id: str,
+    buyer_key: str,
     db_path: str | None = None,
 ) -> Report | None:
     """Return the most recent paid + active report for an address, or None."""
     async with get_db(db_path) as db:
         cursor = await db.execute(
             "SELECT * FROM reports "
-            "WHERE vbo_id = ? AND payment_status = 'paid' "
+            "WHERE buyer_key = ? AND vbo_id = ? AND payment_status = 'paid' "
             "AND entitlement_status = 'active' "
             "ORDER BY created_at DESC LIMIT 5",
-            (vbo_id,),
+            (buyer_key, vbo_id),
         )
         rows = await cursor.fetchall()
     for row in rows:

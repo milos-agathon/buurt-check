@@ -8,6 +8,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.api.buyer import BUYER_COOKIE_NAME
 from app.config import settings
 from app.db import init_db
 from app.main import app
@@ -79,7 +80,13 @@ async def test_create_checkout_session(db_path):
     """stripe.checkout.Session.create is called via asyncio.to_thread."""
     from app.services.reports import create_report
 
-    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
 
     mock_session = MagicMock()
     mock_session.id = "cs_test_abc123"
@@ -90,6 +97,7 @@ async def test_create_checkout_session(db_path):
         mock_stripe.checkout.Session.create.return_value = mock_session
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             response = await client.post(
                 "/api/billing/checkout-session",
                 json={"report_id": rid},
@@ -107,6 +115,7 @@ async def test_checkout_rejects_nonexistent_report(db_path):
     with stack:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             response = await client.post(
                 "/api/billing/checkout-session",
                 json={"report_id": "00000000-0000-0000-0000-000000000000"},
@@ -119,13 +128,20 @@ async def test_checkout_rejects_already_paid(db_path):
     """Requesting checkout for an already-paid report returns 409."""
     from app.services.reports import create_report, update_payment_status
 
-    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
     await update_payment_status(rid, "paid", db_path=db_path)
 
     stack, _mock_stripe = _billing_patches(db_path)
     with stack:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             response = await client.post(
                 "/api/billing/checkout-session",
                 json={"report_id": rid},
@@ -138,7 +154,13 @@ async def test_checkout_stores_provider_session_id(db_path):
     """After checkout, the provider_session_id is stored on the report."""
     from app.services.reports import create_report, get_report
 
-    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
 
     mock_session = MagicMock()
     mock_session.id = "cs_test_stored_id"
@@ -149,6 +171,7 @@ async def test_checkout_stores_provider_session_id(db_path):
         mock_stripe.checkout.Session.create.return_value = mock_session
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             await client.post(
                 "/api/billing/checkout-session",
                 json={"report_id": rid},
@@ -164,7 +187,13 @@ async def test_checkout_stripe_call_args(db_path):
     """Verify the Stripe API is called with the correct parameters."""
     from app.services.reports import create_report
 
-    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
 
     mock_session = MagicMock()
     mock_session.id = "cs_test_args"
@@ -175,6 +204,7 @@ async def test_checkout_stripe_call_args(db_path):
         mock_stripe.checkout.Session.create.return_value = mock_session
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             await client.post(
                 "/api/billing/checkout-session",
                 json={"report_id": rid},

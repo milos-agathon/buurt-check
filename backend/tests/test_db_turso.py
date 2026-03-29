@@ -114,10 +114,25 @@ async def test_init_db_executes_schema_on_turso(monkeypatch, turso_settings):
 
     await init_db("ignored-local.db")
 
-    assert len(fake_connection.calls) == 4
-    assert fake_connection.calls[0][0].startswith("CREATE TABLE IF NOT EXISTS reports")
-    assert fake_connection.calls[-1][0].startswith(
-        "CREATE INDEX IF NOT EXISTS idx_reports_provider_payment"
+    statements = [sql for sql, _params in fake_connection.calls]
+
+    assert statements[0].startswith("CREATE TABLE IF NOT EXISTS reports")
+    assert any(
+        statement.startswith("CREATE INDEX IF NOT EXISTS idx_reports_buyer_vbo")
+        for statement in statements
+    )
+    assert any(statement == "PRAGMA table_info(reports)" for statement in statements)
+    assert any(
+        statement == "ALTER TABLE reports ADD COLUMN buyer_key TEXT"
+        for statement in statements
+    )
+    assert any(
+        statement.startswith("UPDATE reports SET buyer_key = report_id")
+        for statement in statements
+    )
+    assert any(
+        statement.startswith("CREATE INDEX IF NOT EXISTS idx_reports_provider_payment")
+        for statement in statements
     )
     assert fake_connection.committed is True
     assert fake_connection.closed is True

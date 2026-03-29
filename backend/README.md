@@ -8,6 +8,37 @@ FastAPI API aggregator for Dutch property intelligence. Aggregates data from BAG
 uvicorn app.main:app --reload --port 8000
 ```
 
+## Production web launch
+
+Deploy the backend as a dedicated FastAPI service and keep the public browser origin on `https://app.buurt-check.nl`. The frontend Vercel app should proxy `/api/*` to this backend by setting `BACKEND_URL` in the frontend project.
+
+### Container build
+
+```bash
+cd backend
+docker build -t buurt-check-backend .
+docker run --env-file .env -p 8000:8000 buurt-check-backend
+```
+
+### Required production env vars
+
+- `BUURT_BASE_URL=https://app.buurt-check.nl`
+- `BUURT_CORS_ORIGINS=["https://app.buurt-check.nl","https://buurt-check.nl"]`
+- `BUURT_STRIPE_SECRET_KEY`
+- `BUURT_STRIPE_WEBHOOK_SECRET`
+- `BUURT_TURSO_DATABASE_URL`
+- `BUURT_TURSO_AUTH_TOKEN`
+- `BUURT_REDIS_URL`
+- `BUURT_SENTRY_DSN`
+- `BUURT_SENTRY_ENVIRONMENT=production`
+
+`BUURT_DATABASE_PATH` is acceptable for local development only. For production, use Turso or another networked libsql backend so buyer-bound report state survives container restarts and scales beyond a single instance.
+
+### Health checks
+
+- `GET /health`
+- `GET /health/forge3d`
+
 ## Testing
 
 ```bash

@@ -3,8 +3,10 @@ import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from starlette.requests import Request
 
 import app.cache.redis as cache_module
+from app.api.buyer import BUYER_COOKIE_NAME
 from app.models.address import AddressSuggestion, ResolvedAddress
 from app.models.building import BuildingFacts, BuildingFactsResponse
 from app.models.livability import (
@@ -43,6 +45,28 @@ from app.models.risk import (
     ViewingQuestionsResponse,
 )
 from app.models.tier_b import CrimeStatsCard, TierBResponse
+
+
+def _make_export_request() -> Request:
+    return Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "https",
+            "path": "/api/address/export-briefing",
+            "raw_path": b"/api/address/export-briefing",
+            "query_string": b"",
+            "headers": [
+                (
+                    b"cookie",
+                    f"{BUYER_COOKIE_NAME}=test-buyer".encode("latin-1"),
+                )
+            ],
+            "client": ("testclient", 50000),
+            "server": ("testserver", 443),
+        }
+    )
 
 
 @pytest.mark.asyncio
@@ -902,7 +926,11 @@ async def test_full_dossier_export_builds_comparisons_after_waited_sunlight():
             return_value=b"%PDF-1.4\n",
         ) as mock_generate_full_dossier,
     ):
-        resp = await _do_export_briefing("0363010000696734", body)
+        resp = await _do_export_briefing(
+            _make_export_request(),
+            "0363010000696734",
+            body,
+        )
 
     assert resp.status_code == 200
     assert initial_risks.sunlight == waited_sunlight
@@ -1015,7 +1043,11 @@ async def test_full_dossier_export_forwards_request_municipality_to_property_war
             return_value=b"%PDF-1.4\n",
         ),
     ):
-        resp = await _do_export_briefing("0363010000696734", body)
+        resp = await _do_export_briefing(
+            _make_export_request(),
+            "0363010000696734",
+            body,
+        )
 
     assert resp.status_code == 200
     assert mock_fetch_property_warnings.await_args.kwargs["municipality"] == "Amsterdam"
@@ -1143,7 +1175,11 @@ async def test_full_dossier_export_prefers_request_sunlight_payload_over_cache()
             return_value=b"%PDF-1.4\n",
         ) as mock_generate_full_dossier,
     ):
-        resp = await _do_export_briefing("0363010000696734", body)
+        resp = await _do_export_briefing(
+            _make_export_request(),
+            "0363010000696734",
+            body,
+        )
 
     assert resp.status_code == 200
     assert mock_wait_for_sunlight.call_count == 0
@@ -1255,7 +1291,11 @@ async def test_full_dossier_export_passes_location_map_to_generator():
             return_value=b"%PDF-1.4\n",
         ) as mock_generate_full_dossier,
     ):
-        resp = await _do_export_briefing("0363010000696734", body)
+        resp = await _do_export_briefing(
+            _make_export_request(),
+            "0363010000696734",
+            body,
+        )
 
     assert resp.status_code == 200
     assert mock_generate_full_dossier.call_args.kwargs["location_map_b64"] == "map-bytes"
@@ -1374,7 +1414,11 @@ async def test_full_dossier_export_passes_footprint_geojson_to_generator():
             return_value=b"%PDF-1.4\n",
         ) as mock_generate_full_dossier,
     ):
-        resp = await _do_export_briefing("0363010000696734", body)
+        resp = await _do_export_briefing(
+            _make_export_request(),
+            "0363010000696734",
+            body,
+        )
 
     assert resp.status_code == 200
     assert mock_generate_full_dossier.call_args.kwargs["footprint_geojson"] == footprint
@@ -1477,7 +1521,11 @@ async def test_full_dossier_export_provenance_prefers_municipality_over_city():
             return_value=b"%PDF-1.4\n",
         ) as mock_generate_full_dossier,
     ):
-        resp = await _do_export_briefing("0363010000696734", body)
+        resp = await _do_export_briefing(
+            _make_export_request(),
+            "0363010000696734",
+            body,
+        )
 
     assert resp.status_code == 200
     provenance = mock_generate_full_dossier.call_args.kwargs["provenance"]
@@ -1658,7 +1706,11 @@ async def test_full_dossier_export_maps_forge3d_seasonal_triptych_to_generator()
             return_value=b"%PDF-1.4\n",
         ) as mock_generate_full_dossier,
     ):
-        resp = await _do_export_briefing("0363010000696734", body)
+        resp = await _do_export_briefing(
+            _make_export_request(),
+            "0363010000696734",
+            body,
+        )
 
     assert resp.status_code == 200
     assert mock_render_service.render_shadow_snapshots.await_count == 3

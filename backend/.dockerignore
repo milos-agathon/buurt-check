@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.pytest-basetemp/
+.ruff_cache/
+.benchmarks/
+.claude/
+.env
+.env.local
+build/
+dist/
+tests/
+*.egg-info/
+*.log
+buurt_check.db

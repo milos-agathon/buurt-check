@@ -13,6 +13,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.api.buyer import BUYER_COOKIE_NAME
 from app.config import settings
 from app.db import init_db
 from app.main import app
@@ -68,6 +69,7 @@ async def test_full_dossier_rejects_without_report_id(db_path):
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             response = await client.post(
                 f"/api/address/{_VBO_ID}/export",
                 json={**_BASE_BODY, "template": "full_dossier"},
@@ -98,7 +100,13 @@ async def test_full_dossier_rejects_unentitled_report(db_path):
     """full_dossier template returns 402 for unpaid report_id."""
     from app.services.reports import create_report
 
-    rid = await create_report(_VBO_ID, "Test 1", "long", db_path=db_path)
+    rid = await create_report(
+        _VBO_ID,
+        "Test 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
 
     with (
         patch.object(settings, "database_path", db_path),
@@ -106,6 +114,7 @@ async def test_full_dossier_rejects_unentitled_report(db_path):
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             response = await client.post(
                 f"/api/address/{_VBO_ID}/export",
                 json={
@@ -127,6 +136,7 @@ async def test_full_dossier_rejects_nonexistent_report(db_path):
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             response = await client.post(
                 f"/api/address/{_VBO_ID}/export",
                 json={
@@ -150,7 +160,13 @@ async def test_full_dossier_allowed_with_entitled_report(
     """full_dossier template succeeds when report has active entitlement."""
     from app.services.reports import activate_entitlement, create_report
 
-    rid = await create_report(_VBO_ID, "Test 1", "long", db_path=db_path)
+    rid = await create_report(
+        _VBO_ID,
+        "Test 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
     await activate_entitlement(rid, db_path=db_path)
 
     mock_bag.get_building_facts = AsyncMock(return_value=None)
@@ -163,6 +179,7 @@ async def test_full_dossier_allowed_with_entitled_report(
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             response = await client.post(
                 f"/api/address/{_VBO_ID}/export",
                 json={
@@ -187,7 +204,13 @@ async def test_full_dossier_get_allowed_with_entitled_report(
     """GET full_dossier succeeds when report has active entitlement."""
     from app.services.reports import activate_entitlement, create_report
 
-    rid = await create_report(_VBO_ID, "Test 1", "long", db_path=db_path)
+    rid = await create_report(
+        _VBO_ID,
+        "Test 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
     await activate_entitlement(rid, db_path=db_path)
 
     mock_bag.get_building_facts = AsyncMock(return_value=None)
@@ -200,6 +223,7 @@ async def test_full_dossier_get_allowed_with_entitled_report(
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             response = await client.get(
                 f"/api/address/{_VBO_ID}/export",
                 params={**_BASE_BODY, "template": "full_dossier", "report_id": rid},

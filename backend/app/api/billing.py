@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from stripe import SignatureVerificationError
 
+from app.api.buyer import get_buyer_key
 from app.config import settings
 from app.db import DatabaseError
 from app.rate_limit import limiter
@@ -36,6 +37,7 @@ from app.services.reports import (
     get_report,
     get_report_by_payment_intent,
     get_report_by_provider_payment_id,
+    get_report_for_buyer,
     refund_report,
     store_provider_session,
     unlock_report,
@@ -126,8 +128,12 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
     page. The provider_session_id is stored on the report for webhook
     reconciliation.
     """
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=404, detail="Report not found")
+
     try:
-        report = await get_report(body.report_id)
+        report = await get_report_for_buyer(body.report_id, buyer_key)
     except DatabaseError:
         logger.exception("Database error fetching report %s", body.report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")

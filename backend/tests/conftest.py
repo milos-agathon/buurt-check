@@ -2,6 +2,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.api.buyer import BUYER_COOKIE_NAME
 from app.api.dependencies import require_entitlement
 from app.config import settings
 from app.main import app
@@ -40,5 +41,6 @@ async def client():
     app.dependency_overrides[require_entitlement] = _entitlement_bypass
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
+        c.cookies.set(BUYER_COOKIE_NAME, "test-buyer")
         yield c
     app.dependency_overrides.pop(require_entitlement, None)

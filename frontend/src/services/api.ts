@@ -145,7 +145,6 @@ export async function lookupAddress(id: string, signal?: AbortSignal): Promise<R
 export async function createShortReport(
   vboId: string,
   addressKey: string,
-  firstFree: boolean = false,
 ): Promise<ShortReportResponse> {
   const resp = await fetch(`${API_BASE}/reports/short`, {
     method: 'POST',
@@ -153,7 +152,6 @@ export async function createShortReport(
     body: JSON.stringify({
       vbo_id: vboId,
       address_key: addressKey,
-      first_free: firstFree,
     }),
   });
   if (!resp.ok) throwHttpError(resp.status);

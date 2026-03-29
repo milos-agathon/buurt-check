@@ -1,19 +1,18 @@
 """Report endpoints — freemium funnel entry point."""
 
 import logging
-from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
+from app.api.buyer import ensure_buyer_key, get_buyer_key
 from app.db import DatabaseError
 from app.rate_limit import limiter
 from app.services.reports import (
     check_entitlement,
     create_report,
     find_existing_paid_report,
-    get_report,
-    unlock_report,
+    get_report_for_buyer,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,7 +22,6 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 class ShortReportRequest(BaseModel):
     vbo_id: str = Field(..., pattern=r"^[0-9]{16}$")
     address_key: str = Field(..., min_length=1, max_length=500)
-    first_free: bool = False
 
 
 class ShortReportResponse(BaseModel):
@@ -40,14 +38,15 @@ class EntitlementResponse(BaseModel):
 
 @limiter.limit("10/minute")
 @router.post("/short", response_model=ShortReportResponse)
-async def create_short_report(request: Request, body: ShortReportRequest):
+async def create_short_report(request: Request, response: Response, body: ShortReportRequest):
     """Create a short report record and return its ID.
 
     If a paid + active report already exists for this vbo_id, return that
     instead so the frontend can skip the purchase flow.
     """
+    buyer_key = ensure_buyer_key(request, response)
     try:
-        existing = await find_existing_paid_report(body.vbo_id)
+        existing = await find_existing_paid_report(body.vbo_id, buyer_key)
         if existing:
             return ShortReportResponse(
                 report_id=existing.report_id,
@@ -55,14 +54,12 @@ async def create_short_report(request: Request, body: ShortReportRequest):
                 already_purchased=True,
             )
 
-        report_id = await create_report(body.vbo_id, body.address_key, "short")
-        if body.first_free:
-            await unlock_report(
-                report_id=report_id,
-                provider="first_free",
-                provider_payment_id=None,
-                purchased_at=datetime.now(timezone.utc).isoformat(),
-            )
+        report_id = await create_report(
+            body.vbo_id,
+            body.address_key,
+            "short",
+            buyer_key,
+        )
         return ShortReportResponse(report_id=report_id, report_type="short")
     except DatabaseError:
         logger.exception("Database error creating short report for vbo_id=%s", body.vbo_id)
@@ -77,8 +74,12 @@ async def get_entitlement(request: Request, report_id: str):
     Called by the frontend after Stripe checkout redirect to verify that
     payment went through and the user is entitled to view the full report.
     """
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=404, detail="Report not found")
+
     try:
-        report = await get_report(report_id)
+        report = await get_report_for_buyer(report_id, buyer_key)
     except DatabaseError:
         logger.exception("Database error checking entitlement for report_id=%s", report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
@@ -87,7 +88,7 @@ async def get_entitlement(request: Request, report_id: str):
         raise HTTPException(status_code=404, detail="Report not found")
 
     try:
-        entitled = await check_entitlement(report_id)
+        entitled = await check_entitlement(report_id, buyer_key=buyer_key)
     except DatabaseError:
         logger.exception("Database error checking entitlement for report_id=%s", report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")

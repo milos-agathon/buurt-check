@@ -31,11 +31,11 @@ import LivabilityDetailView from './components/LivabilityDetailView';
 // Their state (propertyWarnings, shadowSnapshots, sunlight) is still fetched and
 // passed to ExportBottomSheet for PDF generation.
 import ViewingChecklist from './components/ViewingChecklist';
-import LockedSection from './components/LockedSection';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
 
 import {
+  ApiError,
   checkEntitlement,
   verifyAppleAppStorePurchase,
   createCheckoutSession,
@@ -85,7 +85,6 @@ import {
 } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
 import { storeEntitlement, clearEntitlement } from './services/entitlement';
-import { isFirstDossierAvailable, markFirstDossierUsed } from './services/firstDossier';
 import { markVisited } from './services/firstVisit';
 import { trackEvent } from './services/analytics';
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
@@ -551,7 +550,6 @@ function App() {
   const [isEntitled, setIsEntitled] = useState(TEMP_FORCE_FULL_DOSSIER_VIEW);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutStatusMessage, setCheckoutStatusMessage] = useState<string | null>(null);
-  const [pendingFirstDossierMark, setPendingFirstDossierMark] = useState(false);
   const [checkoutVerification, setCheckoutVerification] = useState<{
     reportId: string;
     sessionId?: string;
@@ -781,13 +779,6 @@ function App() {
       markVisited();
     }
   }, [address, buildingResponse]);
-
-  useEffect(() => {
-    if (!pendingFirstDossierMark || !address || !buildingResponse || !isEntitled) return;
-    markFirstDossierUsed();
-    setPendingFirstDossierMark(false);
-    showToast(t('premium.first_free'));
-  }, [address, buildingResponse, isEntitled, pendingFirstDossierMark, showToast, t]);
 
   useEffect(() => {
     const vboId = address?.adresseerbaar_object_id;
@@ -1527,7 +1518,7 @@ function App() {
   }, [address, t]);
 
   const handleRetryRiskComparisons = useCallback(() => {
-    if (!address?.adresseerbaar_object_id || !isEntitled || !reportId) return;
+    if (!address?.adresseerbaar_object_id) return;
     const { adresseerbaar_object_id: vboId, rd_x, rd_y, latitude, longitude } = address;
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
     setRiskComparisonsError(null);
@@ -1543,7 +1534,7 @@ function App() {
           longitude,
           address.buurt_code ?? undefined,
           controller.signal,
-          reportId,
+          reportId ?? undefined,
         );
         if (activeScreenRef.current !== 'dossier') return;
         setRiskComparisons(comparisons);
@@ -1556,7 +1547,7 @@ function App() {
         retryControllersRef.current.delete(controller);
       }
     })();
-  }, [address, isEntitled, reportId, t]);
+  }, [address, reportId, t]);
 
   const handleRetryPropertyWarnings = useCallback(() => {
     if (
@@ -1637,7 +1628,7 @@ function App() {
   }, [address, t]);
 
   const handleRetryTierB = useCallback(() => {
-    if (!address?.adresseerbaar_object_id || !isEntitled || !reportId) return;
+    if (!address?.adresseerbaar_object_id) return;
     setTierBError(null);
     setTierBLoading(true);
     const controller = new AbortController();
@@ -1650,7 +1641,7 @@ function App() {
             buurtCode: address.buurt_code ?? undefined,
           },
           controller.signal,
-          reportId,
+          reportId ?? undefined,
         );
         if (activeScreenRef.current !== 'dossier') return;
         setTierBData(tierB);
@@ -1665,15 +1656,13 @@ function App() {
         }
       }
     })();
-  }, [address, isEntitled, reportId, t]);
+  }, [address, reportId, t]);
 
   const handleRetryLivability = useCallback(() => {
     if (
       !address?.adresseerbaar_object_id
       || address.rd_x == null
       || address.rd_y == null
-      || !isEntitled
-      || !reportId
     ) return;
     setLivabilityError(null);
     setLivabilityLoading(true);
@@ -1686,7 +1675,7 @@ function App() {
           address.rd_x!,
           address.rd_y!,
           controller.signal,
-          reportId,
+          reportId ?? undefined,
         );
         if (activeScreenRef.current !== 'dossier') return;
         setLivability(livData);
@@ -1701,10 +1690,10 @@ function App() {
         }
       }
     })();
-  }, [address, isEntitled, reportId, t]);
+  }, [address, reportId, t]);
 
   const handleRetryViewingQuestions = useCallback(() => {
-    if (!address?.adresseerbaar_object_id || !isEntitled || !reportId) return;
+    if (!address?.adresseerbaar_object_id) return;
     const { adresseerbaar_object_id: vboId, rd_x, rd_y, latitude, longitude } = address;
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
     setViewingQuestionsError(null);
@@ -1724,7 +1713,7 @@ function App() {
             buurtCode: address.buurt_code ?? undefined,
           },
           controller.signal,
-          reportId,
+          reportId ?? undefined,
         );
         if (activeScreenRef.current !== 'dossier') return;
         setViewingQuestions(questions);
@@ -1736,7 +1725,7 @@ function App() {
         retryControllersRef.current.delete(controller);
       }
     })();
-  }, [address, isEntitled, reportId, t]);
+  }, [address, reportId, t]);
 
   const handleLivabilityTap = useCallback(() => {
     setShowLivabilityDetail(true);
@@ -1772,7 +1761,6 @@ function App() {
 
   // Trigger 3D fetch — called by IntersectionObserver when 3D section nears viewport
   const trigger3DFetch = useCallback(() => {
-    if (!isEntitled || !reportId) return;
     const params = deferred3DParamsRef.current;
     if (!params) return;
     const { vboId, pandId, rdX, rdY, lat, lng, building, requestId } = params;
@@ -1812,7 +1800,7 @@ function App() {
           lat,
           lng,
           requestSignal,
-          reportId,
+          reportId ?? undefined,
         );
         const hasTargetBuilding = target3d.buildings.length > 0;
         if (hasTargetBuilding) {
@@ -1844,7 +1832,7 @@ function App() {
           lat,
           lng,
           requestSignal,
-          reportId,
+          reportId ?? undefined,
         );
         phase2Done = true;
         const merged3d = mergeNeighborhood3DWithFallback(n3d, phase1TargetData);
@@ -1864,12 +1852,12 @@ function App() {
           const mapped = mapApiError(err, t);
           setNeighborhood3DError(mapped);
           trackEvent('3d_view_failed', {
-            report_id: reportId,
+            report_id: reportId ?? 'none',
             vbo_id: vboId,
           });
           trackEvent('report_generation_failed', {
             stage: 'neighborhood_3d',
-            report_id: reportId,
+            report_id: reportId ?? 'none',
             vbo_id: vboId,
           });
         }
@@ -1878,10 +1866,9 @@ function App() {
         setSunlightUnavailable(true);
       }
     })();
-  }, [isActiveDossierRequest, isEntitled, reportId, t]);
+  }, [isActiveDossierRequest, reportId, t]);
 
   const handleRetryNeighborhood3D = useCallback(() => {
-    if (!isEntitled) return;
     setNeighborhood3DError(null);
     if (deferred3DParamsRef.current) {
       setViewer3DTriggered(true);
@@ -1892,7 +1879,7 @@ function App() {
     deferred3DParamsRef.current = last3DParamsRef.current;
     setViewer3DTriggered(true);
     trigger3DFetch();
-  }, [isEntitled, trigger3DFetch]);
+  }, [trigger3DFetch]);
 
   useEffect(() => {
     const vboId = address?.adresseerbaar_object_id;
@@ -1910,9 +1897,9 @@ function App() {
   }, [address?.adresseerbaar_object_id, neighborhood3D, reportId]);
 
   useEffect(() => {
-    if (!isEntitled || !reportId || !address?.adresseerbaar_object_id) return;
+    if (!address?.adresseerbaar_object_id) return;
 
-    if (!propertyWarnings && !propertyWarningsLoading && !propertyWarningsError) {
+    if (isEntitled && reportId && !propertyWarnings && !propertyWarningsLoading && !propertyWarningsError) {
       handleRetryPropertyWarnings();
     }
     if (!riskComparisons && !riskComparisonsError) {
@@ -1975,7 +1962,6 @@ function App() {
     handleRetryRiskComparisons,
     handleRetryTierB,
     handleRetryViewingQuestions,
-    isEntitled,
     livability,
     livabilityError,
     livabilityLoading,
@@ -1993,6 +1979,7 @@ function App() {
     trigger3DFetch,
     viewingQuestions,
     viewingQuestionsError,
+    isEntitled,
   ]);
 
   // IntersectionObserver callback ref for the 3D section
@@ -2107,7 +2094,6 @@ function App() {
     setIsEntitled(TEMP_FORCE_FULL_DOSSIER_VIEW);
     setIsCheckingOut(false);
     setCheckoutStatusMessage(null);
-    setPendingFirstDossierMark(false);
     setBuildingResponse(null);
     setBuildingError(null);
     setNeighborhood3D(null);
@@ -2180,17 +2166,25 @@ function App() {
       let entitledForAddress = false;
 
       if (activeReportId) {
-        const entitlement = await checkEntitlement(activeReportId);
-        entitledForAddress = entitlement.entitled;
-      } else {
-        const firstFreeAvailable = TEMP_FORCE_FULL_DOSSIER_VIEW ? true : isFirstDossierAvailable();
-        const shortReport = await createShortReport(vboId, resolved.display_name, firstFreeAvailable);
-        activeReportId = shortReport.report_id;
-        entitledForAddress = shortReport.already_purchased || firstFreeAvailable;
-        if (!TEMP_FORCE_FULL_DOSSIER_VIEW && firstFreeAvailable && entitledForAddress) {
-          setPendingFirstDossierMark(true);
+        try {
+          const entitlement = await checkEntitlement(activeReportId);
+          entitledForAddress = entitlement.entitled;
+        } catch (err) {
+          if (err instanceof ApiError && err.httpStatus === 404) {
+            activeReportId = null;
+          } else {
+            throw err;
+          }
         }
+      }
+
+      if (!activeReportId) {
+        const shortReport = await createShortReport(vboId, resolved.display_name);
+        activeReportId = shortReport.report_id;
+        entitledForAddress = shortReport.already_purchased;
         trackEvent('short_report_generated', { report_id: shortReport.report_id, vbo_id: vboId });
+      } else {
+        trackEvent('short_report_loaded', { report_id: activeReportId, vbo_id: vboId });
       }
 
       const effectiveEntitlement = TEMP_FORCE_FULL_DOSSIER_VIEW || entitledForAddress;
@@ -2304,69 +2298,67 @@ function App() {
           }
         })();
 
-        if (effectiveEntitlement && activeReportId) {
-          void (async () => {
-            try {
-              const comparisons = await getRiskComparisons(
-                vboId,
-                rd_x,
-                rd_y,
-                latitude,
-                longitude,
-                resolved.buurt_code ?? undefined,
-                requestSignal,
-                activeReportId,
-              );
-              if (isActiveDossierRequest(requestId)) {
-                setRiskComparisons(comparisons);
-                setRiskComparisonsError(null);
-              }
-            } catch (err) {
-              const isAbort = err instanceof DOMException && err.name === 'AbortError';
-              if (isAbort || !isActiveDossierRequest(requestId)) return;
-              const mapped = mapApiError(err, t);
-              setRiskComparisonsError(mapped);
-              trackEvent('report_generation_failed', {
-                stage: 'risk_comparisons',
-                report_id: activeReportId ?? 'none',
-                vbo_id: vboId,
-              });
+        void (async () => {
+          try {
+            const comparisons = await getRiskComparisons(
+              vboId,
+              rd_x,
+              rd_y,
+              latitude,
+              longitude,
+              resolved.buurt_code ?? undefined,
+              requestSignal,
+              activeReportId ?? undefined,
+            );
+            if (isActiveDossierRequest(requestId)) {
+              setRiskComparisons(comparisons);
+              setRiskComparisonsError(null);
             }
-          })();
+          } catch (err) {
+            const isAbort = err instanceof DOMException && err.name === 'AbortError';
+            if (isAbort || !isActiveDossierRequest(requestId)) return;
+            const mapped = mapApiError(err, t);
+            setRiskComparisonsError(mapped);
+            trackEvent('report_generation_failed', {
+              stage: 'risk_comparisons',
+              report_id: activeReportId ?? 'none',
+              vbo_id: vboId,
+            });
+          }
+        })();
 
-          void (async () => {
-            try {
-              const questions = await getViewingQuestions(
-                vboId,
-                rd_x,
-                rd_y,
-                latitude,
-                longitude,
-                {
-                  street: resolved.street ?? undefined,
-                  city: resolved.city ?? undefined,
-                  buurtCode: resolved.buurt_code ?? undefined,
-                },
-                requestSignal,
-                activeReportId,
-              );
-              if (isActiveDossierRequest(requestId)) {
-                setViewingQuestions(questions);
-                setViewingQuestionsError(null);
-              }
-            } catch (err) {
-              const isAbort = err instanceof DOMException && err.name === 'AbortError';
-              if (isAbort || !isActiveDossierRequest(requestId)) return;
-              const mapped = mapApiError(err, t);
-              setViewingQuestionsError(mapped);
-              trackEvent('report_generation_failed', {
-                stage: 'viewing_questions',
-                report_id: activeReportId ?? 'none',
-                vbo_id: vboId,
-              });
+        void (async () => {
+          try {
+            const questions = await getViewingQuestions(
+              vboId,
+              rd_x,
+              rd_y,
+              latitude,
+              longitude,
+              {
+                street: resolved.street ?? undefined,
+                city: resolved.city ?? undefined,
+                buurtCode: resolved.buurt_code ?? undefined,
+              },
+              requestSignal,
+              activeReportId ?? undefined,
+            );
+            if (isActiveDossierRequest(requestId)) {
+              setViewingQuestions(questions);
+              setViewingQuestionsError(null);
             }
-          })();
-        }
+          } catch (err) {
+            const isAbort = err instanceof DOMException && err.name === 'AbortError';
+            if (isAbort || !isActiveDossierRequest(requestId)) return;
+            const mapped = mapApiError(err, t);
+            setViewingQuestionsError(mapped);
+            trackEvent('report_generation_failed', {
+              stage: 'viewing_questions',
+              report_id: activeReportId ?? 'none',
+              vbo_id: vboId,
+            });
+          }
+        })();
       }
 
       if (phase2Promise) {
@@ -2415,68 +2407,64 @@ function App() {
           }
         })();
 
-        if (effectiveEntitlement && activeReportId) {
-          setLivabilityLoading(true);
-          void (async () => {
-            try {
-              const livData = await getLivability(vboId, rd_x, rd_y, requestSignal, activeReportId);
-              if (!isActiveDossierRequest(requestId)) return;
-              setLivability(livData);
-            } catch (err) {
-              const isAbort = err instanceof DOMException && err.name === 'AbortError';
-              if (isAbort || !isActiveDossierRequest(requestId)) return;
-              const mapped = mapApiError(err, t);
-              setLivabilityError(mapped);
-              trackEvent('report_generation_failed', {
-                stage: 'livability',
-                report_id: activeReportId ?? 'none',
-                vbo_id: vboId,
-              });
-            } finally {
-              if (isActiveDossierRequest(requestId)) {
-                setLivabilityLoading(false);
-              }
+        setLivabilityLoading(true);
+        void (async () => {
+          try {
+            const livData = await getLivability(vboId, rd_x, rd_y, requestSignal, activeReportId ?? undefined);
+            if (!isActiveDossierRequest(requestId)) return;
+            setLivability(livData);
+          } catch (err) {
+            const isAbort = err instanceof DOMException && err.name === 'AbortError';
+            if (isAbort || !isActiveDossierRequest(requestId)) return;
+            const mapped = mapApiError(err, t);
+            setLivabilityError(mapped);
+            trackEvent('report_generation_failed', {
+              stage: 'livability',
+              report_id: activeReportId ?? 'none',
+              vbo_id: vboId,
+            });
+          } finally {
+            if (isActiveDossierRequest(requestId)) {
+              setLivabilityLoading(false);
             }
-          })();
+          }
+        })();
 
-          setTierBLoading(true);
-          void (async () => {
-            try {
-              const tierB = await getTierBData(
-                vboId,
-                {
-                  buurtCode: resolved.buurt_code ?? undefined,
-                },
-                requestSignal,
-                activeReportId,
-              );
-              if (!isActiveDossierRequest(requestId)) return;
-              setTierBData(tierB);
-            } catch (err) {
-              const isAbort = err instanceof DOMException && err.name === 'AbortError';
-              if (isAbort || !isActiveDossierRequest(requestId)) return;
-              const mapped = mapApiError(err, t);
-              setTierBError(mapped);
-              trackEvent('report_generation_failed', {
-                stage: 'tier_b',
-                report_id: activeReportId ?? 'none',
-                vbo_id: vboId,
-              });
-            } finally {
-              if (isActiveDossierRequest(requestId)) {
-                setTierBLoading(false);
-              }
+        setTierBLoading(true);
+        void (async () => {
+          try {
+            const tierB = await getTierBData(
+              vboId,
+              {
+                buurtCode: resolved.buurt_code ?? undefined,
+              },
+              requestSignal,
+              activeReportId ?? undefined,
+            );
+            if (!isActiveDossierRequest(requestId)) return;
+            setTierBData(tierB);
+          } catch (err) {
+            const isAbort = err instanceof DOMException && err.name === 'AbortError';
+            if (isAbort || !isActiveDossierRequest(requestId)) return;
+            const mapped = mapApiError(err, t);
+            setTierBError(mapped);
+            trackEvent('report_generation_failed', {
+              stage: 'tier_b',
+              report_id: activeReportId ?? 'none',
+              vbo_id: vboId,
+            });
+          } finally {
+            if (isActiveDossierRequest(requestId)) {
+              setTierBLoading(false);
             }
-          })();
-        }
+          }
+        })();
       }
 
       setLoadingStep('checkingClimate');
       const pandId = resolved.pand_id ?? building?.building?.pand_id ?? null;
       if (
-        effectiveEntitlement
-        && activeReportId
-        && pandId
+        pandId
         && rd_x != null
         && rd_y != null
         && latitude != null
@@ -3426,107 +3414,89 @@ function App() {
                       <p className="app__phase-divider-subtitle">{t('dossier.buurtSubtitle')}</p>
                     </div>
                     <section role="region" aria-label={t('nav.neighborhood')}>
-                      {isEntitled ? (
-                        <>
-                          {(livabilityLoading || livability || livabilityError) && (
-                            <div className="dossier-section" style={dossierSectionStyle(4)} data-section-index={4}>
-                              <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
-                              <LivabilityCard
-                                data={livability ?? undefined}
-                                loading={livabilityLoading}
-                                error={livabilityError}
-                                onRetry={livabilityError ? handleRetryLivability : undefined}
-                                onTap={livability?.available ? handleLivabilityTap : undefined}
-                              />
-                            </div>
-                          )}
-
-                          {showLivabilityDetail && livability?.available && (
-                            <LivabilityDetailView
-                              data={livability}
-                              onClose={() => setShowLivabilityDetail(false)}
-                            />
-                          )}
-
-                          <div ref={viewer3DRefCallback} className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5} data-testid="viewer-3d-sentinel">
-                            {!viewer3DTriggered && !neighborhood3D && (
-                              <div className="viewer-3d-status">
-                                <p>{t('viewer3d.loading')}</p>
-                              </div>
-                            )}
-
-                            {neighborhood3DLoading && (
-                              <div className="viewer-3d-status">
-                                <p>{t('viewer3d.loading')}</p>
-                              </div>
-                            )}
-
-                            {!neighborhood3DLoading && neighborhood3DError && (!neighborhood3D || neighborhood3D.buildings.length === 0) && (
-                              <div className="viewer-3d-status" data-state="error">
-                                <p>{neighborhood3DError}</p>
-                                <button
-                                  type="button"
-                                  className="app__retry-button"
-                                  onClick={handleRetryNeighborhood3D}
-                                >
-                                  {t('error.retry')}
-                                </button>
-                              </div>
-                            )}
-
-                            {!neighborhood3DLoading && !neighborhood3DError && neighborhood3D && neighborhood3D.buildings.length === 0 && (
-                              <div className="viewer-3d-status">
-                                <p>{viewer3DStatusMessage ?? t('viewer3d.noData')}</p>
-                              </div>
-                            )}
-
-                            {neighborhood3D && neighborhood3D.buildings.length > 0 && (
-                              <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
-                                <NeighborhoodViewer3D
-                                  addressId={address.adresseerbaar_object_id ?? undefined}
-                                  reportId={isEntitled ? reportId ?? undefined : undefined}
-                                  buildings={neighborhood3D.buildings}
-                                  targetPandId={neighborhood3D.target_pand_id ?? undefined}
-                                  center={neighborhood3D.center}
-                                  sunDateTime={sunDateTime}
-                                  onSunlightAnalysis={handleSunlightAnalysis}
-                                  onSunlightError={() => setSunlightUnavailable(true)}
-                                  onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
-                                  loading={surroundingLoading}
-                                  error={neighborhood3DError}
-                                  onRetry={neighborhood3DError ? handleRetryNeighborhood3D : undefined}
-                                  statusMessage={viewer3DStatusMessage}
-                                />
-                              </Suspense>
-                            )}
-
-                            {neighborhood3D && neighborhood3D.buildings.length > 0 && (
-                              <ShadowTimeSlider
-                                lat={neighborhood3D.center.lat}
-                                lng={neighborhood3D.center.lng}
-                                onChange={setSunDateTime}
-                              />
-                            )}
-                          </div>
-
-                          {/* SunlightRiskCard and ShadowSnapshots are premium-only (PDF/Full Dossier).
-                              They are NOT rendered in the interactive viewer. */}
-                        </>
-                      ) : (
-                        <>
-                          <div className="dossier-section" style={dossierSectionStyle(4)} data-section-index={4}>
-                            <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
-                            <LockedSection
-                              sectionName={t('premium.section.livability', 'livability analysis')}
-                            />
-                          </div>
-                          <div className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5}>
-                            <LockedSection
-                              sectionName={t('premium.section.3d', '3D building analysis')}
-                            />
-                          </div>
-                        </>
+                      {(livabilityLoading || livability || livabilityError) && (
+                        <div className="dossier-section" style={dossierSectionStyle(4)} data-section-index={4}>
+                          <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
+                          <LivabilityCard
+                            data={livability ?? undefined}
+                            loading={livabilityLoading}
+                            error={livabilityError}
+                            onRetry={livabilityError ? handleRetryLivability : undefined}
+                            onTap={livability?.available ? handleLivabilityTap : undefined}
+                          />
+                        </div>
                       )}
+
+                      {showLivabilityDetail && livability?.available && (
+                        <LivabilityDetailView
+                          data={livability}
+                          onClose={() => setShowLivabilityDetail(false)}
+                        />
+                      )}
+
+                      <div ref={viewer3DRefCallback} className="dossier-section" style={dossierSectionStyle(5)} data-section-index={5} data-testid="viewer-3d-sentinel">
+                        {!viewer3DTriggered && !neighborhood3D && (
+                          <div className="viewer-3d-status">
+                            <p>{t('viewer3d.loading')}</p>
+                          </div>
+                        )}
+
+                        {neighborhood3DLoading && (
+                          <div className="viewer-3d-status">
+                            <p>{t('viewer3d.loading')}</p>
+                          </div>
+                        )}
+
+                        {!neighborhood3DLoading && neighborhood3DError && (!neighborhood3D || neighborhood3D.buildings.length === 0) && (
+                          <div className="viewer-3d-status" data-state="error">
+                            <p>{neighborhood3DError}</p>
+                            <button
+                              type="button"
+                              className="app__retry-button"
+                              onClick={handleRetryNeighborhood3D}
+                            >
+                              {t('error.retry')}
+                            </button>
+                          </div>
+                        )}
+
+                        {!neighborhood3DLoading && !neighborhood3DError && neighborhood3D && neighborhood3D.buildings.length === 0 && (
+                          <div className="viewer-3d-status">
+                            <p>{viewer3DStatusMessage ?? t('viewer3d.noData')}</p>
+                          </div>
+                        )}
+
+                        {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                          <Suspense fallback={<div className="viewer-3d-status"><p>{t('viewer3d.loading')}</p></div>}>
+                            <NeighborhoodViewer3D
+                              addressId={address.adresseerbaar_object_id ?? undefined}
+                              reportId={isEntitled ? reportId ?? undefined : undefined}
+                              buildings={neighborhood3D.buildings}
+                              targetPandId={neighborhood3D.target_pand_id ?? undefined}
+                              center={neighborhood3D.center}
+                              sunDateTime={sunDateTime}
+                              onSunlightAnalysis={handleSunlightAnalysis}
+                              onSunlightError={() => setSunlightUnavailable(true)}
+                              onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
+                              loading={surroundingLoading}
+                              error={neighborhood3DError}
+                              onRetry={neighborhood3DError ? handleRetryNeighborhood3D : undefined}
+                              statusMessage={viewer3DStatusMessage}
+                            />
+                          </Suspense>
+                        )}
+
+                        {neighborhood3D && neighborhood3D.buildings.length > 0 && (
+                          <ShadowTimeSlider
+                            lat={neighborhood3D.center.lat}
+                            lng={neighborhood3D.center.lng}
+                            onChange={setSunDateTime}
+                          />
+                        )}
+                      </div>
+
+                      {/* SunlightRiskCard and ShadowSnapshots are premium-only (PDF/Full Dossier).
+                          They are NOT rendered in the interactive viewer. */}
                       {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
                         <div className="dossier-section" style={dossierSectionStyle(6)} data-section-index={6}>
                           <h3 id="section-neighborhood" className="app__section-label">{t('dossier.neighborhood')}</h3>
@@ -3539,30 +3509,22 @@ function App() {
                         </div>
                       )}
 
-                      {(isEntitled ? (tierBLoading || tierBData || tierBError) : true) && (
+                      {(tierBLoading || tierBData || tierBError) && (
                         <div className="dossier-section" style={dossierSectionStyle(7)} data-section-index={7}>
                           <h3 id="section-tier-b" className="app__section-label">{t('dossier.tierB')}</h3>
-                          {isEntitled ? (
-                            <TierBSignalsCard
-                              data={tierBData ?? undefined}
-                              loading={tierBLoading}
-                              error={tierBError}
-                              onRetry={tierBError ? handleRetryTierB : undefined}
-                            />
-                          ) : (
-                            <LockedSection
-                              sectionName={t('premium.section.tierb', 'crime data')}
-                            />
-                          )}
+                          <TierBSignalsCard
+                            data={tierBData ?? undefined}
+                            loading={tierBLoading}
+                            error={tierBError}
+                            onRetry={tierBError ? handleRetryTierB : undefined}
+                          />
                         </div>
                       )}
                     </section>
                   </>
                 )}
 
-                {(isEntitled
-                  ? (viewingQuestions || viewingQuestionsError)
-                  : progressivePhase === 'buurt') && (
+                {(progressivePhase === 'buurt' || viewingQuestions || viewingQuestionsError) && (
                   <>
                   <div className="app__phase-divider" id="section-action-start">
                     <div className="app__phase-divider-header">
@@ -3577,19 +3539,13 @@ function App() {
                   <div ref={actionBarSentinelRefCallback} className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8}>
                     <section role="region" aria-label={t('nav.jumpBriefing')}>
                       <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
-                      {isEntitled ? (
-                        <ViewingChecklist
-                          categories={viewingQuestions?.categories}
-                          checkedQuestions={checkedQuestions}
-                          onToggleQuestion={handleToggleQuestion}
-                          error={viewingQuestionsError}
-                          onRetry={viewingQuestionsError ? handleRetryViewingQuestions : undefined}
-                        />
-                      ) : (
-                        <LockedSection
-                          sectionName={t('premium.section.viewing', 'viewing questions')}
-                        />
-                      )}
+                      <ViewingChecklist
+                        categories={viewingQuestions?.categories}
+                        checkedQuestions={checkedQuestions}
+                        onToggleQuestion={handleToggleQuestion}
+                        error={viewingQuestionsError}
+                        onRetry={viewingQuestionsError ? handleRetryViewingQuestions : undefined}
+                      />
                     </section>
                   </div>
                   </>

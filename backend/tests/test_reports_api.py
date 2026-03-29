@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.api.buyer import BUYER_COOKIE_NAME
 from app.config import settings
 from app.db import init_db
 from app.main import app
@@ -51,6 +52,7 @@ async def test_create_short_report(client):
     assert "report_id" in data
     assert data["report_type"] == "short"
     assert data["already_purchased"] is False
+    assert BUYER_COOKIE_NAME in response.headers.get("set-cookie", "")
 
 
 @pytest.mark.asyncio
@@ -69,8 +71,8 @@ async def test_create_short_report_returns_uuid(client):
 
 
 @pytest.mark.asyncio
-async def test_create_short_report_first_free_unlocks_entitlement(client, db_path):
-    """first_free=True should auto-unlock the created report."""
+async def test_create_short_report_persists_buyer_key(client, db_path):
+    """POST /api/reports/short binds the created report to the buyer cookie."""
     from app.services.reports import get_report
 
     response = await client.post(
@@ -78,16 +80,15 @@ async def test_create_short_report_first_free_unlocks_entitlement(client, db_pat
         json={
             "vbo_id": "0363010012345678",
             "address_key": "Damrak 1, Amsterdam",
-            "first_free": True,
         },
     )
     assert response.status_code == 200
     rid = response.json()["report_id"]
     report = await get_report(rid, db_path=db_path)
     assert report is not None
-    assert report.payment_status == "paid"
-    assert report.entitlement_status == "active"
-    assert report.provider == "first_free"
+    buyer_cookie = client.cookies.get(BUYER_COOKIE_NAME)
+    assert buyer_cookie
+    assert report.buyer_key == buyer_cookie
 
 
 @pytest.mark.asyncio
@@ -99,8 +100,9 @@ async def test_returns_existing_paid_report(client, db_path):
         update_payment_status,
     )
 
+    client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
     rid = await create_report(
-        "0363010012345678", "Damrak 1", "long", db_path=db_path
+        "0363010012345678", "Damrak 1", "long", buyer_key="buyer-123", db_path=db_path
     )
     await update_payment_status(rid, "paid", db_path=db_path)
     await activate_entitlement(rid, db_path=db_path)
@@ -117,6 +119,47 @@ async def test_returns_existing_paid_report(client, db_path):
     assert data["report_id"] == rid
     assert data["report_type"] == "long"
     assert data["already_purchased"] is True
+
+
+@pytest.mark.asyncio
+async def test_different_buyer_does_not_reuse_existing_paid_report(client, db_path):
+    """Paid reports are re-used only for the same buyer and address."""
+    from app.services.reports import (
+        activate_entitlement,
+        create_report,
+        update_payment_status,
+    )
+
+    await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-a",
+        db_path=db_path,
+    )
+    paid_report_id = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-a",
+        db_path=db_path,
+    )
+    await update_payment_status(paid_report_id, "paid", db_path=db_path)
+    await activate_entitlement(paid_report_id, db_path=db_path)
+
+    client.cookies.set(BUYER_COOKIE_NAME, "buyer-b")
+    response = await client.post(
+        "/api/reports/short",
+        json={
+            "vbo_id": "0363010012345678",
+            "address_key": "Damrak 1",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["report_id"] != paid_report_id
+    assert data["already_purchased"] is False
 
 
 @pytest.mark.asyncio
@@ -184,7 +227,14 @@ async def test_entitlement_check_false(client, db_path):
     """Newly created report should NOT be entitled."""
     from app.services.reports import create_report
 
-    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
     response = await client.get(f"/api/reports/{rid}/entitlement")
     assert response.status_code == 200
     data = response.json()
@@ -198,7 +248,14 @@ async def test_entitlement_check_true(client, db_path):
     """After activation, report should be entitled."""
     from app.services.reports import activate_entitlement, create_report
 
-    rid = await create_report("0363010012345678", "Damrak 1", "long", db_path=db_path)
+    client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
     await activate_entitlement(rid, db_path=db_path)
     response = await client.get(f"/api/reports/{rid}/entitlement")
     assert response.status_code == 200
@@ -209,7 +266,28 @@ async def test_entitlement_check_true(client, db_path):
 
 
 @pytest.mark.asyncio
+async def test_entitlement_check_rejects_other_buyer(client, db_path):
+    """A copied report URL does not reveal or unlock another buyer's report."""
+    from app.services.reports import activate_entitlement, create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-a",
+        db_path=db_path,
+    )
+    await activate_entitlement(rid, db_path=db_path)
+
+    client.cookies.set(BUYER_COOKIE_NAME, "buyer-b")
+    response = await client.get(f"/api/reports/{rid}/entitlement")
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_entitlement_check_not_found(client):
     """Unknown report_id returns 404."""
+    client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
     response = await client.get("/api/reports/nonexistent/entitlement")
     assert response.status_code == 404

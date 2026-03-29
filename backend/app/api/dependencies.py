@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import HTTPException, Query
+from fastapi import HTTPException, Query, Request
 
+from app.api.buyer import get_buyer_key
 from app.config import settings
 from app.services.forge3d_renderer import Forge3DRenderService
 from app.services.reports import check_entitlement
@@ -16,7 +17,10 @@ logger = logging.getLogger(__name__)
 _render_service: Forge3DRenderService | None = None
 
 
-async def require_entitlement(report_id: str | None = Query(None)):
+async def require_entitlement(
+    request: Request,
+    report_id: str | None = Query(None),
+):
     """Dependency that verifies report_id has active entitlement.
 
     Add to premium endpoints via ``Depends(require_entitlement)``.
@@ -27,7 +31,8 @@ async def require_entitlement(report_id: str | None = Query(None)):
     """
     if not report_id:
         raise HTTPException(status_code=402, detail="Payment required")
-    entitled = await check_entitlement(report_id)
+    buyer_key = get_buyer_key(request)
+    entitled = await check_entitlement(report_id, buyer_key=buyer_key)
     if not entitled:
         raise HTTPException(status_code=402, detail="Payment required")
 

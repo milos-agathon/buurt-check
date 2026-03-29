@@ -78,19 +78,29 @@ async def test_update_payment_status(db_path):
 @pytest.mark.asyncio
 async def test_find_existing_paid_report(db_path):
     report_id = await create_report(
-        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+        "0363010012345678",
+        "Amsterdam, Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
     )
     await update_payment_status(report_id, "paid", db_path=db_path)
     await activate_entitlement(report_id, db_path=db_path)
-    found = await find_existing_paid_report("0363010012345678", db_path=db_path)
+    found = await find_existing_paid_report("0363010012345678", "buyer-123", db_path=db_path)
     assert found is not None
     assert found.report_id == report_id
 
 
 @pytest.mark.asyncio
 async def test_find_existing_paid_report_none_when_unpaid(db_path):
-    await create_report("0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path)
-    found = await find_existing_paid_report("0363010012345678", db_path=db_path)
+    await create_report(
+        "0363010012345678",
+        "Amsterdam, Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    found = await find_existing_paid_report("0363010012345678", "buyer-123", db_path=db_path)
     assert found is None
 
 
@@ -190,28 +200,45 @@ async def test_write_functions_return_false_for_nonexistent_id(db_path):
 async def test_find_existing_paid_report_excludes_revoked(db_path):
     """Paid but revoked reports must NOT be returned by find_existing_paid_report."""
     report_id = await create_report(
-        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+        "0363010012345678",
+        "Amsterdam, Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
     )
     await update_payment_status(report_id, "paid", db_path=db_path)
     await activate_entitlement(report_id, db_path=db_path)
     # Verify it's found when active
-    assert await find_existing_paid_report("0363010012345678", db_path=db_path) is not None
+    found_active = await find_existing_paid_report(
+        "0363010012345678",
+        "buyer-123",
+        db_path=db_path,
+    )
+    assert found_active is not None
     # Revoke and verify it's no longer found
     await revoke_entitlement(report_id, db_path=db_path)
-    assert await find_existing_paid_report("0363010012345678", db_path=db_path) is None
+    assert await find_existing_paid_report("0363010012345678", "buyer-123", db_path=db_path) is None
 
 
 @pytest.mark.asyncio
 async def test_find_existing_paid_report_skips_invalid_google_play_purchase(db_path):
     """Invalid Google Play records are skipped in favor of the next valid paid report."""
     older_report = await create_report(
-        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+        "0363010012345678",
+        "Amsterdam, Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
     )
     await update_payment_status(older_report, "paid", provider="stripe", db_path=db_path)
     await activate_entitlement(older_report, db_path=db_path)
 
     newer_report = await create_report(
-        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+        "0363010012345678",
+        "Amsterdam, Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
     )
     await update_payment_status(
         newer_report,
@@ -226,7 +253,7 @@ async def test_find_existing_paid_report_skips_invalid_google_play_purchase(db_p
         "app.services.google_play.get_product_purchase",
         new=AsyncMock(side_effect=GooglePlayPurchaseNotFound("missing")),
     ):
-        found = await find_existing_paid_report("0363010012345678", db_path=db_path)
+        found = await find_existing_paid_report("0363010012345678", "buyer-123", db_path=db_path)
 
     assert found is not None
     assert found.report_id == older_report
@@ -269,13 +296,21 @@ async def test_check_entitlement_revokes_refunded_apple_transaction(db_path):
 async def test_find_existing_paid_report_skips_invalid_apple_transaction(db_path):
     """Invalid Apple records are skipped in favor of the next valid paid report."""
     older_report = await create_report(
-        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+        "0363010012345678",
+        "Amsterdam, Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
     )
     await update_payment_status(older_report, "paid", provider="stripe", db_path=db_path)
     await activate_entitlement(older_report, db_path=db_path)
 
     newer_report = await create_report(
-        "0363010012345678", "Amsterdam, Damrak 1", "long", db_path=db_path
+        "0363010012345678",
+        "Amsterdam, Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
     )
     await update_payment_status(
         newer_report,
@@ -296,7 +331,7 @@ async def test_find_existing_paid_report_skips_invalid_apple_transaction(db_path
             )()
         ),
     ):
-        found = await find_existing_paid_report("0363010012345678", db_path=db_path)
+        found = await find_existing_paid_report("0363010012345678", "buyer-123", db_path=db_path)
 
     assert found is not None
     assert found.report_id == older_report

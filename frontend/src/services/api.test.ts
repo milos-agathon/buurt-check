@@ -755,7 +755,7 @@ describe('exportBriefing', () => {
 // ─── reports + billing (monetization) ───────────────────────────────────────
 
 describe('createShortReport', () => {
-  it('posts vbo_id, address_key, and first_free', async () => {
+  it('posts vbo_id and address_key', async () => {
     mockFetch.mockResolvedValue(
       okResponse({
         report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
@@ -764,11 +764,7 @@ describe('createShortReport', () => {
       }),
     );
 
-    const result = await createShortReport(
-      '0363100012345678',
-      'Keizersgracht 1, Amsterdam',
-      true,
-    );
+    const result = await createShortReport('0363100012345678', 'Keizersgracht 1, Amsterdam');
 
     const [url, init] = mockFetch.mock.calls[0];
     expect(url).toBe('/api/reports/short');
@@ -777,7 +773,6 @@ describe('createShortReport', () => {
     expect(body).toEqual({
       vbo_id: '0363100012345678',
       address_key: 'Keizersgracht 1, Amsterdam',
-      first_free: true,
     });
     expect(result.report_id).toBe('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
   });

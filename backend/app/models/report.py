@@ -19,6 +19,7 @@ class Report(BaseModel):
     report_type: ReportType
     address_key: str
     vbo_id: str
+    buyer_key: str
     generation_version: str
     created_at: str  # ISO 8601 (from SQLite strftime default)
     payment_status: PaymentStatus

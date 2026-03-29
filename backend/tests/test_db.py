@@ -43,9 +43,9 @@ async def test_concurrent_reads_and_writes(tmp_path):
     async def write_row(i: int) -> None:
         async with get_db(db_path) as db:
             await db.execute(
-                "INSERT INTO reports (report_id, report_type, address_key, vbo_id) "
-                "VALUES (?, 'short', 'test', '0363010012345678')",
-                (f"report-{i}",),
+                "INSERT INTO reports (report_id, report_type, address_key, vbo_id, buyer_key) "
+                "VALUES (?, 'short', 'test', '0363010012345678', ?)",
+                (f"report-{i}", f"buyer-{i}"),
             )
             await db.commit()
 
