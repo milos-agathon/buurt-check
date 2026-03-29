@@ -36,7 +36,7 @@ else:
     # libsql currently raises ValueError for SQL and transport failures.
     DatabaseError = (aiosqlite.Error, LibsqlError, ValueError)
 
-_SCHEMA = """\
+_REPORTS_TABLE_SCHEMA = """\
 CREATE TABLE IF NOT EXISTS reports (
     report_id TEXT NOT NULL PRIMARY KEY,
     report_type TEXT NOT NULL CHECK(report_type IN ('short', 'long')),
@@ -54,15 +54,12 @@ CREATE TABLE IF NOT EXISTS reports (
     provider_session_id TEXT,
     purchased_at TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_reports_vbo_id ON reports(vbo_id);
-CREATE INDEX IF NOT EXISTS idx_reports_buyer_vbo ON reports(buyer_key, vbo_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_reports_provider_session ON reports(provider_session_id);
-CREATE INDEX IF NOT EXISTS idx_reports_provider_payment ON reports(provider_payment_id);
 """
-_SCHEMA_STATEMENTS = tuple(
-    statement.strip()
-    for statement in _SCHEMA.split(";")
-    if statement.strip()
+_BOOTSTRAP_SCHEMA_STATEMENTS = (
+    _REPORTS_TABLE_SCHEMA.strip(),
+    "CREATE INDEX IF NOT EXISTS idx_reports_vbo_id ON reports(vbo_id)",
+    "CREATE INDEX IF NOT EXISTS idx_reports_provider_session ON reports(provider_session_id)",
+    "CREATE INDEX IF NOT EXISTS idx_reports_provider_payment ON reports(provider_payment_id)",
 )
 
 
@@ -224,7 +221,7 @@ async def init_db(db_path: str | None = None) -> None:
     if using_turso():
         db = _create_turso_connection()
         try:
-            for statement in _SCHEMA_STATEMENTS:
+            for statement in _BOOTSTRAP_SCHEMA_STATEMENTS:
                 await db.execute(statement)
             await _migrate_reports_schema(db)
             await db.commit()
@@ -236,7 +233,8 @@ async def init_db(db_path: str | None = None) -> None:
     path = db_path if db_path is not None else settings.database_path
     async with aiosqlite.connect(path) as db:
         await db.execute("PRAGMA journal_mode=WAL")
-        await db.executescript(_SCHEMA)
+        for statement in _BOOTSTRAP_SCHEMA_STATEMENTS:
+            await db.execute(statement)
         await _migrate_reports_schema(db)
         await db.commit()
     logger.info("Database initialized using local SQLite at %s", path)

@@ -117,6 +117,13 @@ async def test_init_db_executes_schema_on_turso(monkeypatch, turso_settings):
     statements = [sql for sql, _params in fake_connection.calls]
 
     assert statements[0].startswith("CREATE TABLE IF NOT EXISTS reports")
+    assert statements.index("ALTER TABLE reports ADD COLUMN buyer_key TEXT") < (
+        next(
+            idx
+            for idx, statement in enumerate(statements)
+            if statement.startswith("CREATE INDEX IF NOT EXISTS idx_reports_buyer_vbo")
+        )
+    )
     assert any(
         statement.startswith("CREATE INDEX IF NOT EXISTS idx_reports_buyer_vbo")
         for statement in statements
