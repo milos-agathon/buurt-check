@@ -6,7 +6,7 @@ from pathlib import Path
 SVG_WIDTH = 1024
 SVG_HEIGHT = 500
 GROUND_Y = 500
-OUTPUT_PATH = Path(__file__).with_name("og-image.svg")
+OUTPUT_PATH = Path(__file__).resolve().parent.parent / "public" / "og-image.svg"
 
 
 def fmt(value: float) -> str:

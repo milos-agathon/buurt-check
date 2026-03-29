@@ -28,10 +28,15 @@ function normalizeDistPath(filePath: string): string {
 
 function isStandaloneRuntimeAsset(filePath: string): boolean {
   const normalized = normalizeDistPath(filePath);
+  if (normalized.startsWith('__pycache__/') || normalized.endsWith('.py') || normalized.endsWith('.pyc')) {
+    return true;
+  }
   return normalized === 'privacy.html'
     || normalized === 'terms.html'
     || normalized === 'offline.html'
     || normalized === 'legal.css'
+    || normalized === 'og-image.svg'
+    || normalized === 'og-image.png'
     || normalized === '.well-known/apple-app-site-association'
     || normalized === '.well-known/assetlinks.json';
 }

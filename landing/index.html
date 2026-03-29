@@ -11,10 +11,25 @@
   <meta property="og:description"
     content="Onafhankelijke woninganalyse op basis van open overheidsdata. Risicoscores, 3D-analyse, bezichtigingsvragen en PDF-export.">
   <meta property="og:url" content="https://buurt-check.nl">
+  <meta property="og:site_name" content="Buurt Check">
+  <meta property="og:image" content="https://buurt-check.nl/og-image.png">
+  <meta property="og:image:secure_url" content="https://buurt-check.nl/og-image.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1024">
+  <meta property="og:image:height" content="500">
+  <meta property="og:image:alt" content="Buurt Check preview with Dutch property risk insights and viewing guidance.">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="nl_NL">
   <meta property="og:locale:alternate" content="en_GB">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Buurt Check — Weet wat je koopt">
+  <meta name="twitter:description"
+    content="Onafhankelijke woninganalyse op basis van open overheidsdata. Risicoscores, 3D-analyse, bezichtigingsvragen en PDF-export.">
+  <meta name="twitter:image" content="https://buurt-check.nl/og-image.png">
+  <meta name="twitter:image:alt"
+    content="Buurt Check preview with Dutch property risk insights and viewing guidance.">
   <link rel="canonical" href="https://buurt-check.nl">
+  <meta name="theme-color" content="#000000">
 
   <style>
     /* ── Font ── */
@@ -25,6 +40,29 @@
       font-weight: 300 900;
       font-style: normal;
       font-display: swap;
+    }
+
+    :root {
+      color-scheme: dark;
+      --landing-bg: #000000;
+      --landing-bg-top: #142131;
+      --landing-bg-mid: #0D1620;
+      --landing-surface: rgba(13, 22, 32, 0.94);
+      --landing-surface-strong: rgba(28, 45, 63, 0.92);
+      --landing-surface-soft: rgba(255, 255, 255, 0.06);
+      --landing-border: #2E4459;
+      --landing-text: #E2E7ED;
+      --landing-text-secondary: #B4C0CE;
+      --landing-text-muted: #637892;
+      --landing-nav-bg: rgba(13, 22, 32, 0.94);
+      --landing-nav-control: rgba(255, 255, 255, 0.08);
+      --landing-nav-control-hover: rgba(255, 255, 255, 0.14);
+      --landing-accent: #2EC4B6;
+      --landing-accent-hover: #57D4C8;
+      --landing-accent-soft: rgba(46, 196, 182, 0.15);
+      --landing-accent-text: #57D4C8;
+      --landing-button-text: #08141E;
+      --landing-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
     }
 
     /* ── Reset & Base ── */
@@ -40,13 +78,17 @@
       font-size: 16px;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      background: var(--landing-bg);
     }
 
     body {
       font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      color: #1C2D3F;
-      background: #FAFBFC;
+      color: var(--landing-text);
+      background:
+        radial-gradient(circle at top, rgba(46, 196, 182, 0.18) 0%, rgba(46, 196, 182, 0.08) 18%, transparent 42%),
+        linear-gradient(180deg, var(--landing-bg-top) 0%, var(--landing-bg-mid) 24%, var(--landing-bg) 100%);
       line-height: 1.6;
+      min-height: 100vh;
     }
 
     /* ── Layout ── */
@@ -58,7 +100,8 @@
 
     /* ── Nav ── */
     .nav {
-      background: #1C2D3F;
+      background: linear-gradient(180deg, rgba(20, 33, 49, 0.96) 0%, var(--landing-nav-bg) 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       padding: 16px 0;
     }
 
@@ -69,7 +112,7 @@
     }
 
     .nav__brand {
-      color: #fff;
+      color: var(--landing-text);
       font-size: 18px;
       font-weight: 700;
       text-decoration: none;
@@ -77,24 +120,24 @@
     }
 
     .nav__brand span {
-      color: #2EC4B6;
+      color: var(--landing-accent);
     }
 
     .nav__lang {
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--landing-text-secondary);
       font-size: 14px;
       font-weight: 500;
       text-decoration: none;
       cursor: pointer;
-      background: rgba(255, 255, 255, 0.12);
+      background: var(--landing-nav-control);
       padding: 6px 14px;
       border-radius: 24px;
-      border: none;
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .nav__lang:hover {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.18);
+      color: var(--landing-text);
+      background: var(--landing-nav-control-hover);
     }
 
     /* ── Hero ── */
@@ -105,8 +148,8 @@
 
     .hero__badge {
       display: inline-block;
-      background: #E6F9F7;
-      color: #1C8C83;
+      background: var(--landing-accent-soft);
+      color: var(--landing-accent-hover);
       font-size: 13px;
       font-weight: 600;
       padding: 6px 16px;
@@ -125,12 +168,12 @@
 
     .hero__title em {
       font-style: normal;
-      color: #1C8C83;
+      color: var(--landing-accent-hover);
     }
 
     .hero__subtitle {
       font-size: 18px;
-      color: #637892;
+      color: var(--landing-text-secondary);
       max-width: 520px;
       margin: 0 auto 36px;
       line-height: 1.6;
@@ -138,8 +181,8 @@
 
     .hero__cta {
       display: inline-block;
-      background: #2EC4B6;
-      color: #fff;
+      background: var(--landing-accent);
+      color: var(--landing-button-text);
       font-family: inherit;
       font-size: 16px;
       font-weight: 700;
@@ -148,17 +191,19 @@
       border: none;
       text-decoration: none;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.15s, transform 0.15s;
+      box-shadow: 0 12px 32px rgba(46, 196, 182, 0.2);
     }
 
     .hero__cta:hover {
-      background: #25A89C;
+      background: var(--landing-accent-hover);
+      transform: translateY(-1px);
     }
 
     .hero__note {
       margin-top: 14px;
       font-size: 14px;
-      color: #8A9BB0;
+      color: var(--landing-text-muted);
     }
 
     /* ── Sections ── */
@@ -169,7 +214,7 @@
     .section-label {
       font-size: 13px;
       font-weight: 600;
-      color: #1C8C83;
+      color: var(--landing-accent-text);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       margin-bottom: 12px;
@@ -185,7 +230,7 @@
 
     .section-desc {
       font-size: 17px;
-      color: #637892;
+      color: var(--landing-text-secondary);
       margin-bottom: 36px;
       line-height: 1.65;
     }
@@ -204,22 +249,28 @@
     }
 
     .feature-card {
-      background: #fff;
-      border: 1px solid #E2E7ED;
+      background: linear-gradient(180deg, var(--landing-surface-strong) 0%, var(--landing-surface) 100%);
+      border: 1px solid var(--landing-border);
       border-radius: 16px;
       padding: 28px 24px;
+      box-shadow: var(--landing-shadow);
     }
 
     .feature-card__icon {
       width: 40px;
       height: 40px;
-      background: #E6F9F7;
+      background: var(--landing-accent-soft);
+      color: var(--landing-accent-hover);
       border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       margin-bottom: 16px;
-      font-size: 20px;
+    }
+
+    .feature-card__icon svg {
+      width: 22px;
+      height: 22px;
     }
 
     .feature-card__title {
@@ -230,7 +281,7 @@
 
     .feature-card__desc {
       font-size: 14px;
-      color: #637892;
+      color: var(--landing-text-secondary);
       line-height: 1.55;
     }
 
@@ -247,15 +298,16 @@
     }
 
     .step+.step {
-      border-top: 1px solid #E2E7ED;
+      border-top: 1px solid var(--landing-border);
     }
 
     .step__number {
       flex-shrink: 0;
       width: 36px;
       height: 36px;
-      background: #1C2D3F;
-      color: #fff;
+      background: var(--landing-surface-strong);
+      color: var(--landing-accent-hover);
+      border: 1px solid var(--landing-border);
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -272,16 +324,17 @@
 
     .step__desc {
       font-size: 15px;
-      color: #637892;
+      color: var(--landing-text-secondary);
       line-height: 1.55;
     }
 
     /* ── Data sources ── */
     .sources {
-      background: #fff;
-      border: 1px solid #E2E7ED;
+      background: linear-gradient(180deg, var(--landing-surface-strong) 0%, var(--landing-surface) 100%);
+      border: 1px solid var(--landing-border);
       border-radius: 16px;
       padding: 32px 28px;
+      box-shadow: var(--landing-shadow);
     }
 
     .sources__title {
@@ -297,8 +350,9 @@
     }
 
     .source-pill {
-      background: #F5F7F9;
-      color: #445B74;
+      background: var(--landing-surface-soft);
+      color: var(--landing-text-secondary);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       font-size: 13px;
       font-weight: 500;
       padding: 6px 14px;
@@ -307,13 +361,14 @@
 
     /* ── Pricing ── */
     .pricing-card {
-      background: #fff;
-      border: 2px solid #2EC4B6;
+      background: linear-gradient(180deg, var(--landing-surface-strong) 0%, var(--landing-surface) 100%);
+      border: 2px solid var(--landing-accent);
       border-radius: 16px;
       padding: 40px 32px;
       text-align: center;
       max-width: 420px;
       margin: 0 auto;
+      box-shadow: var(--landing-shadow);
     }
 
     .pricing-card__price {
@@ -326,11 +381,11 @@
     .pricing-card__price span {
       font-size: 20px;
       font-weight: 600;
-      color: #637892;
+      color: var(--landing-text-secondary);
     }
 
     .pricing-card__label {
-      color: #637892;
+      color: var(--landing-text-secondary);
       font-size: 15px;
       margin-bottom: 24px;
     }
@@ -355,7 +410,7 @@
       width: 20px;
       height: 20px;
       flex-shrink: 0;
-      background: #E6F9F7;
+      background: var(--landing-accent-soft);
       border-radius: 50%;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 10l3 3 5-5' stroke='%231C8C83' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     }
@@ -363,8 +418,8 @@
     .pricing-card__cta {
       display: block;
       width: 100%;
-      background: #2EC4B6;
-      color: #fff;
+      background: var(--landing-accent);
+      color: var(--landing-button-text);
       font-family: inherit;
       font-size: 16px;
       font-weight: 700;
@@ -374,17 +429,19 @@
       text-decoration: none;
       cursor: pointer;
       text-align: center;
-      transition: background 0.15s;
+      transition: background 0.15s, transform 0.15s;
+      box-shadow: 0 12px 32px rgba(46, 196, 182, 0.18);
     }
 
     .pricing-card__cta:hover {
-      background: #25A89C;
+      background: var(--landing-accent-hover);
+      transform: translateY(-1px);
     }
 
     .pricing-card__note {
       margin-top: 12px;
       font-size: 13px;
-      color: #8A9BB0;
+      color: var(--landing-text-muted);
     }
 
     /* ── FAQ ── */
@@ -393,7 +450,7 @@
     }
 
     .faq-item+.faq-item {
-      border-top: 1px solid #E2E7ED;
+      border-top: 1px solid var(--landing-border);
     }
 
     .faq-item__q {
@@ -404,14 +461,15 @@
 
     .faq-item__a {
       font-size: 15px;
-      color: #637892;
+      color: var(--landing-text-secondary);
       line-height: 1.6;
     }
 
     /* ── Footer ── */
     .footer {
-      background: #1C2D3F;
-      color: rgba(255, 255, 255, 0.6);
+      background: #09111A;
+      color: var(--landing-text-muted);
+      border-top: 1px solid var(--landing-border);
       padding: 40px 0;
       font-size: 14px;
       margin-top: 40px;
@@ -426,21 +484,21 @@
     }
 
     .footer__brand {
-      color: #fff;
+      color: var(--landing-text);
       font-weight: 700;
     }
 
     .footer__brand span {
-      color: #2EC4B6;
+      color: var(--landing-accent);
     }
 
     .footer a {
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--landing-text-muted);
       text-decoration: none;
     }
 
     .footer a:hover {
-      color: #fff;
+      color: var(--landing-text);
     }
 
     .footer__links {
@@ -451,7 +509,7 @@
     /* ── Divider ── */
     .divider {
       border: none;
-      border-top: 1px solid #E2E7ED;
+      border-top: 1px solid var(--landing-border);
       margin: 0;
     }
 
@@ -538,7 +596,11 @@
 
       <div class="features">
         <div class="feature-card">
-          <div class="feature-card__icon">&#127911;</div>
+          <div class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15.536 8.464a5 5 0 010 7.072M12 12v.01" />
+            </svg>
+          </div>
           <h3 class="feature-card__title">
             <span class="nl-only">Geluidshinder</span>
             <span class="en-only">Noise pollution</span>
@@ -551,7 +613,11 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#127811;</div>
+          <div class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 15h4l3-8 4 16 3-8h4" />
+            </svg>
+          </div>
           <h3 class="feature-card__title">
             <span class="nl-only">Luchtkwaliteit</span>
             <span class="en-only">Air quality</span>
@@ -563,7 +629,11 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#127782;&#65039;</div>
+          <div class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+            </svg>
+          </div>
           <h3 class="feature-card__title">
             <span class="nl-only">Klimaatrisico</span>
             <span class="en-only">Climate risk</span>
@@ -575,7 +645,12 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#9728;&#65039;</div>
+          <div class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5" />
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+            </svg>
+          </div>
           <h3 class="feature-card__title">
             <span class="nl-only">Zonlichtanalyse</span>
             <span class="en-only">Sunlight analysis</span>
@@ -589,7 +664,11 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#127959;&#65039;</div>
+          <div class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
+            </svg>
+          </div>
           <h3 class="feature-card__title">
             <span class="nl-only">3D buurtmodel</span>
             <span class="en-only">3D neighborhood</span>
@@ -603,7 +682,13 @@
         </div>
 
         <div class="feature-card">
-          <div class="feature-card__icon">&#128203;</div>
+          <div class="feature-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+              <path d="M9 14l2 2 4-4" />
+            </svg>
+          </div>
           <h3 class="feature-card__title">
             <span class="nl-only">Bezichtigingschecklist</span>
             <span class="en-only">Viewing checklist</span>
