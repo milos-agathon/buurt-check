@@ -3,14 +3,11 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "${BACKEND_URL}/api/$1",
-      "env": ["BACKEND_URL"]
-    }
-  ],
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://buurt-check.onrender.com/api/:path*"
+    },
     {
       "source": "/search",
       "destination": "/index.html"
