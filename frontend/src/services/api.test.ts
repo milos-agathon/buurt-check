@@ -823,6 +823,7 @@ describe('createShortReport', () => {
       vbo_id: '0363100012345678',
       address_key: 'Keizersgracht 1, Amsterdam',
     });
+    expect(init.credentials).toBe('include');
     expect(result.report_id).toBe('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
   });
 });
@@ -839,8 +840,9 @@ describe('checkEntitlement', () => {
 
     const result = await checkEntitlement('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url, init] = mockFetch.mock.calls[0];
     expect(url).toBe('/api/reports/7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de/entitlement');
+    expect(init.credentials).toBe('include');
     expect(result.entitled).toBe(true);
   });
 });
@@ -859,6 +861,7 @@ describe('createCheckoutSession', () => {
     expect(JSON.parse(init.body)).toEqual({
       report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
     });
+    expect(init.credentials).toBe('include');
     expect(result.checkout_url).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
   });
 });

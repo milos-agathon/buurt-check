@@ -56,6 +56,34 @@ async def test_create_short_report(client):
 
 
 @pytest.mark.asyncio
+async def test_create_short_report_sets_cross_origin_cookie_for_hosted_app(db_path):
+    """Cross-origin app requests need SameSite=None so the buyer cookie round-trips."""
+    limiter.reset()
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "base_url", "https://app.buurt-check.nl"),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="https://buurt-check.onrender.com",
+        ) as client:
+            response = await client.post(
+                "/api/reports/short",
+                headers={"origin": "https://app.buurt-check.nl"},
+                json={
+                    "vbo_id": "0363010012345678",
+                    "address_key": "Damrak 1, Amsterdam",
+                },
+            )
+
+    assert response.status_code == 200
+    set_cookie = response.headers.get("set-cookie", "").lower()
+    assert "samesite=none" in set_cookie
+    assert "secure" in set_cookie
+
+
+@pytest.mark.asyncio
 async def test_create_short_report_returns_uuid(client):
     """The report_id should be a valid UUID v4 string."""
     response = await client.post(

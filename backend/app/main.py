@@ -17,6 +17,10 @@ from app.sentry_setup import init_sentry
 
 logger = logging.getLogger(__name__)
 _access = logging.getLogger("buurt.access")
+_NATIVE_APP_CORS_ORIGINS = (
+    "capacitor://localhost",
+    "http://localhost",
+)
 
 init_sentry()
 
@@ -38,9 +42,19 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+def _resolved_cors_origins() -> list[str]:
+    origins = [origin.rstrip("/") for origin in settings.cors_origins if origin.strip()]
+    origins.extend(_NATIVE_APP_CORS_ORIGINS)
+    deduped: list[str] = []
+    for origin in origins:
+        if origin not in deduped:
+            deduped.append(origin)
+    return deduped
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=_resolved_cors_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],

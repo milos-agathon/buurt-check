@@ -206,6 +206,36 @@
       color: var(--landing-text-muted);
     }
 
+    .hero__preview {
+      margin: 32px auto 0;
+      max-width: 860px;
+      padding: 14px;
+      background: linear-gradient(180deg, rgba(28, 45, 63, 0.96) 0%, rgba(13, 22, 32, 0.98) 100%);
+      border: 1px solid var(--landing-border);
+      border-radius: 24px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32);
+    }
+
+    .hero__preview img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 14px;
+      background: #0F1923;
+    }
+
+    @media (max-width: 640px) {
+      .hero__preview {
+        margin-top: 24px;
+        padding: 10px;
+        border-radius: 18px;
+      }
+
+      .hero__preview img {
+        border-radius: 12px;
+      }
+    }
+
     /* ── Sections ── */
     section {
       padding: 56px 0;
@@ -571,6 +601,9 @@
         <span class="nl-only">Gratis interactieve viewer en gratis quick brief. Betaal alleen voor het volledige dossier.</span>
         <span class="en-only">Free interactive viewer and free quick brief. Pay only for the full dossier.</span>
       </p>
+      <div class="hero__preview">
+        <img src="og-image.svg" alt="Buurt Check skyline preview" width="1024" height="500">
+      </div>
     </div>
   </header>
 

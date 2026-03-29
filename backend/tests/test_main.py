@@ -4,7 +4,8 @@ import httpx
 import pytest
 
 from app.api.dependencies import require_entitlement
-from app.main import app
+from app.config import settings
+from app.main import _resolved_cors_origins, app
 from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
 
 
@@ -25,6 +26,14 @@ def test_gzip_minimum_size_is_1000():
         if m.cls.__name__ == "GZipMiddleware"
     )
     assert gzip_entry.kwargs.get("minimum_size") == 1000
+
+
+def test_resolved_cors_origins_include_native_app_origin():
+    with patch.object(settings, "cors_origins", ["https://app.buurt-check.nl"]):
+        origins = _resolved_cors_origins()
+
+    assert "https://app.buurt-check.nl" in origins
+    assert "capacitor://localhost" in origins
 
 
 @pytest.mark.asyncio

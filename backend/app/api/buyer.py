@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from secrets import token_urlsafe
+from urllib.parse import urlsplit
 
 from fastapi import Request, Response
 
@@ -24,6 +25,25 @@ def _cookie_secure(request: Request) -> bool:
     return request.url.scheme == "https" or settings.base_url.startswith("https://")
 
 
+def _cross_origin_request(request: Request) -> bool:
+    origin = request.headers.get("origin", "").strip()
+    if not origin:
+        return False
+
+    parsed_origin = urlsplit(origin)
+    if parsed_origin.scheme not in {"http", "https"}:
+        return True
+
+    request_host = (request.headers.get("host") or request.url.netloc).strip()
+    return parsed_origin.scheme != request.url.scheme or parsed_origin.netloc != request_host
+
+
+def _cookie_samesite(request: Request) -> str:
+    if _cross_origin_request(request) and _cookie_secure(request):
+        return "none"
+    return "lax"
+
+
 def ensure_buyer_key(request: Request, response: Response) -> str:
     """Return an anonymous buyer key, minting and setting one when absent."""
     existing = get_buyer_key(request)
@@ -36,7 +56,7 @@ def ensure_buyer_key(request: Request, response: Response) -> str:
         value=buyer_key,
         max_age=BUYER_COOKIE_MAX_AGE_SECONDS,
         httponly=True,
-        samesite="lax",
+        samesite=_cookie_samesite(request),
         secure=_cookie_secure(request),
         path="/",
     )
