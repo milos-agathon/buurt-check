@@ -12,8 +12,11 @@ import App from './App.tsx'
 initSentry()
 
 if ('serviceWorker' in navigator) {
-  registerSW({
+  const updateSW = registerSW({
     immediate: true,
+    onNeedRefresh() {
+      updateSW(true)
+    },
     onRegisterError(error: unknown) {
       console.error('Service worker registration failed', error)
     },

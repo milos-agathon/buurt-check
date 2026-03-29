@@ -5,6 +5,8 @@ declare const __APP_VERSION__: string;
 
 interface ImportMetaEnv {
   readonly VITE_APP_VERSION?: string;
+  readonly VITE_API_BASE?: string;
+  readonly VITE_ADDRESS_FALLBACK_API_BASE?: string;
   readonly VITE_SENTRY_DSN?: string;
   readonly VITE_SENTRY_ENVIRONMENT?: string;
   readonly VITE_GOOGLE_PLAY_PRODUCT_ID?: string;

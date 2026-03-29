@@ -150,6 +150,8 @@ describe('input behavior', () => {
 
     // Not called yet — within debounce window
     expect(mockSuggest).not.toHaveBeenCalled();
+    expect(screen.getByText('Searching...')).toBeInTheDocument();
+    expect(screen.queryByText('No addresses found')).not.toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(300);
@@ -354,6 +356,32 @@ describe('keyboard navigation', () => {
 });
 
 describe('error handling', () => {
+  it('does not show no-results before the debounced request settles', async () => {
+    const pending = deferred<SuggestResponse>();
+    mockSuggest.mockReturnValue(pending.promise);
+    renderSearch();
+
+    await typeInto(screen.getByRole('combobox'), 'am');
+
+    expect(screen.getByText('Searching...')).toBeInTheDocument();
+    expect(screen.queryByText('No addresses found')).not.toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('Searching...')).toBeInTheDocument();
+    expect(screen.queryByText('No addresses found')).not.toBeInTheDocument();
+
+    pending.resolve({ suggestions: [] });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('No addresses found')).toBeInTheDocument();
+  });
+
   it('shows error message when API fails', async () => {
     mockSuggest.mockRejectedValue(new TypeError('Network error'));
     renderSearch();

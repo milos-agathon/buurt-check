@@ -179,6 +179,43 @@ describe('suggestAddresses', () => {
       httpStatus: 500,
     });
   });
+
+  it('retries against the fallback address API when the app-domain proxy returns 404', async () => {
+    mockFetch
+      .mockResolvedValueOnce(errorResponse(404))
+      .mockResolvedValueOnce(okResponse({
+        suggestions: [{ id: 'adr-1', display_name: 'Damrak 1, Amsterdam', type: 'adres', score: 1 }],
+      }));
+
+    const result = await suggestAddresses('Damrak');
+
+    expect(result.suggestions).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[0][0]).toContain('/api/address/suggest?q=Damrak&limit=7');
+    expect(mockFetch.mock.calls[1][0]).toBe('https://buurt-check.onrender.com/api/address/suggest?q=Damrak&limit=7');
+    expect(mockFetch.mock.calls[1][1]).toMatchObject({ credentials: 'omit' });
+  });
+
+  it('retries against the fallback address API on network failures', async () => {
+    mockFetch
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(okResponse({ suggestions: [] }));
+
+    await suggestAddresses('Damrak');
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[1][0]).toBe('https://buurt-check.onrender.com/api/address/suggest?q=Damrak&limit=7');
+  });
+
+  it('does not retry client-side 4xx validation failures', async () => {
+    mockFetch.mockResolvedValue(errorResponse(400));
+
+    await expect(suggestAddresses('Damrak')).rejects.toMatchObject({
+      errorKey: 'error.data_source',
+      httpStatus: 400,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ─── lookupAddress ────────────────────────────────────────────────────────────
@@ -200,6 +237,18 @@ describe('lookupAddress', () => {
       errorKey: 'error.data_source',
       httpStatus: 404,
     });
+  });
+
+  it('retries lookup against the fallback address API when the primary host fails', async () => {
+    mockFetch
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(okResponse({ id: 'adr-123', display_name: 'Damrak 1, Amsterdam' }));
+
+    const result = await lookupAddress('adr-123');
+
+    expect(result.display_name).toBe('Damrak 1, Amsterdam');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[1][0]).toBe('https://buurt-check.onrender.com/api/address/lookup?id=adr-123');
   });
 });
 

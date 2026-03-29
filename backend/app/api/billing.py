@@ -4,6 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Literal
+from urllib.parse import urlsplit, urlunsplit
 
 import stripe
 from fastapi import APIRouter, HTTPException, Request
@@ -47,12 +48,54 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/billing", tags=["billing"])
 public_router = APIRouter(tags=["billing"])
 
+_LOCAL_BASE_URLS = frozenset({
+    "",
+    "http://localhost",
+    "http://localhost:5173",
+    "http://127.0.0.1",
+    "http://127.0.0.1:5173",
+})
+
 
 class PricingResponse(BaseModel):
     price_cents: int = Field(..., ge=1)
     price_eur: str
     currency: str = "EUR"
     server_render_available: bool = False
+
+
+def stripe_configured() -> bool:
+    """Return True when Stripe checkout has a usable secret key."""
+    return bool(settings.stripe_secret_key.strip())
+
+
+def _normalized_base_url(value: str) -> str:
+    return value.strip().rstrip("/")
+
+
+def _request_origin(request: Request) -> str:
+    """Resolve the public origin from forwarded headers or the request URL."""
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    forwarded_host = request.headers.get("x-forwarded-host", "").split(",")[0].strip()
+
+    proto = forwarded_proto or request.url.scheme
+    host = forwarded_host or request.headers.get("host") or request.url.netloc
+
+    return f"{proto}://{host}".rstrip("/")
+
+
+def _public_base_url(request: Request) -> str:
+    """Prefer a configured public origin, but never emit localhost in production."""
+    configured = _normalized_base_url(settings.base_url)
+    if configured and configured not in _LOCAL_BASE_URLS:
+        return configured
+
+    request_origin = _request_origin(request)
+    parsed = urlsplit(request_origin)
+    if parsed.scheme in {"http", "https"} and parsed.hostname not in {"localhost", "127.0.0.1"}:
+        return urlunsplit((parsed.scheme, parsed.netloc, "", "", "")).rstrip("/")
+
+    return configured or request_origin
 
 
 @public_router.get("/pricing", response_model=PricingResponse)
@@ -141,8 +184,15 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
         raise HTTPException(status_code=404, detail="Report not found")
     if report.payment_status == "paid":
         raise HTTPException(status_code=409, detail="Report already paid")
+    if not stripe_configured():
+        logger.error(
+            "Stripe checkout requested for report %s but BUURT_STRIPE_SECRET_KEY is empty",
+            body.report_id,
+        )
+        raise HTTPException(status_code=503, detail="Stripe Billing is not configured")
 
     stripe.api_key = settings.stripe_secret_key
+    public_base_url = _public_base_url(request)
 
     try:
         session = await asyncio.to_thread(
@@ -162,18 +212,30 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
                 }
             ],
             success_url=(
-                f"{settings.base_url}/#/address/{report.vbo_id}"
+                f"{public_base_url}/#/address/{report.vbo_id}"
                 f"?report={body.report_id}"
                 "&session_id={CHECKOUT_SESSION_ID}"
             ),
-            cancel_url=f"{settings.base_url}/#/address/{report.vbo_id}",
+            cancel_url=f"{public_base_url}/#/address/{report.vbo_id}",
             metadata={
                 "report_id": body.report_id,
                 "vbo_id": report.vbo_id,
             },
         )
+    except stripe.AuthenticationError as exc:
+        logger.exception(
+            "Stripe authentication failed for report %s: %s",
+            body.report_id,
+            exc,
+        )
+        raise HTTPException(status_code=503, detail="Stripe Billing is not configured")
     except stripe.StripeError as exc:
-        logger.exception("Stripe session creation failed for report %s: %s", body.report_id, exc)
+        logger.exception(
+            "Stripe session creation failed for report %s (base_url=%s): %s",
+            body.report_id,
+            public_base_url,
+            exc,
+        )
         raise HTTPException(status_code=502, detail="Payment provider unavailable")
 
     try:

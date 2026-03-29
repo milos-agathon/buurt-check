@@ -24,7 +24,10 @@ import {
   presentAppleBillingPdfShareSheet,
 } from './appleBilling';
 
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE || '/api');
+const ADDRESS_FALLBACK_API_BASE = normalizeApiBase(
+  import.meta.env.VITE_ADDRESS_FALLBACK_API_BASE || 'https://buurt-check.onrender.com/api',
+);
 const EXPORT_TIMEOUT_QUICK_MS = Math.max(
   30_000,
   Number(import.meta.env.VITE_EXPORT_TIMEOUT_QUICK_MS) || 90_000,
@@ -37,6 +40,10 @@ const EXPORT_TIMEOUT_FULL_MS = Math.max(
 interface TimeoutSignal {
   signal: AbortSignal;
   cleanup: () => void;
+}
+
+function normalizeApiBase(base: string): string {
+  return base.replace(/\/+$/, '');
 }
 
 function withTimeoutSignal(timeoutMs: number, externalSignal?: AbortSignal): TimeoutSignal {
@@ -78,6 +85,16 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.errorKey = errorKey;
     this.httpStatus = httpStatus;
+  }
+}
+
+class HttpStatusError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`HTTP ${status}`);
+    this.name = 'HttpStatusError';
+    this.status = status;
   }
 }
 
@@ -124,22 +141,73 @@ function throwHttpError(status: number): never {
   throw new ApiError('error.generic', status);
 }
 
+async function fetchJsonOrThrow<T>(url: string, init?: RequestInit): Promise<T> {
+  const resp = await fetch(url, init);
+  if (!resp.ok) {
+    throw new HttpStatusError(resp.status);
+  }
+  return resp.json() as Promise<T>;
+}
+
+function shouldRetryAddressFallback(status: number): boolean {
+  return status === 404 || status >= 500;
+}
+
+function canUseAddressFallback(primaryUrl: string): boolean {
+  return Boolean(ADDRESS_FALLBACK_API_BASE) && !primaryUrl.startsWith(ADDRESS_FALLBACK_API_BASE);
+}
+
+async function fetchAddressJsonWithFallback<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const primaryUrl = `${API_BASE}${path}`;
+
+  try {
+    return await fetchJsonOrThrow<T>(primaryUrl, init);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error;
+    }
+
+    const retryWithFallback = canUseAddressFallback(primaryUrl) && (
+      error instanceof TypeError
+      || (error instanceof HttpStatusError && shouldRetryAddressFallback(error.status))
+    );
+
+    if (!retryWithFallback) {
+      if (error instanceof HttpStatusError) {
+        throwHttpError(error.status);
+      }
+      throw error;
+    }
+
+    try {
+      return await fetchJsonOrThrow<T>(`${ADDRESS_FALLBACK_API_BASE}${path}`, {
+        ...init,
+        credentials: 'omit',
+      });
+    } catch (fallbackError) {
+      if (fallbackError instanceof HttpStatusError) {
+        throwHttpError(fallbackError.status);
+      }
+      throw fallbackError;
+    }
+  }
+}
+
 export async function suggestAddresses(
   query: string,
   limit: number = 7,
   signal?: AbortSignal,
 ): Promise<SuggestResponse> {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
-  const resp = await fetch(`${API_BASE}/address/suggest?${params}`, { signal });
-  if (!resp.ok) throwHttpError(resp.status);
-  return resp.json();
+  return fetchAddressJsonWithFallback<SuggestResponse>(`/address/suggest?${params}`, { signal });
 }
 
 export async function lookupAddress(id: string, signal?: AbortSignal): Promise<ResolvedAddress> {
   const params = new URLSearchParams({ id });
-  const resp = await fetch(`${API_BASE}/address/lookup?${params}`, { signal });
-  if (!resp.ok) throwHttpError(resp.status);
-  return resp.json();
+  return fetchAddressJsonWithFallback<ResolvedAddress>(`/address/lookup?${params}`, { signal });
 }
 
 export async function createShortReport(

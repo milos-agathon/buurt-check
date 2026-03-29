@@ -225,6 +225,78 @@ async def test_checkout_stripe_call_args(db_path):
 
 
 @pytest.mark.asyncio
+async def test_checkout_uses_request_origin_when_base_url_is_localhost_default(db_path):
+    """Checkout redirects should use the public request origin, not localhost defaults."""
+    from app.services.reports import create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+
+    mock_session = MagicMock()
+    mock_session.id = "cs_test_public_origin"
+    mock_session.url = "https://checkout.stripe.com/pay/cs_test_public_origin"
+
+    stack, mock_stripe = _billing_patches(db_path)
+    with stack:
+        mock_stripe.checkout.Session.create.return_value = mock_session
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="https://app.buurt-check.nl",
+        ) as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.post(
+                "/api/billing/checkout-session",
+                json={"report_id": rid},
+            )
+
+    assert response.status_code == 200
+    call_kwargs = mock_stripe.checkout.Session.create.call_args
+    assert call_kwargs.kwargs["success_url"].startswith(
+        "https://app.buurt-check.nl/#/address/0363010012345678"
+    )
+    assert call_kwargs.kwargs["cancel_url"] == (
+        "https://app.buurt-check.nl/#/address/0363010012345678"
+    )
+
+
+@pytest.mark.asyncio
+async def test_checkout_rejects_when_stripe_is_not_configured(db_path):
+    """Missing Stripe secret should fail explicitly before any provider call."""
+    from app.services.reports import create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+
+    stack, mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={"stripe_secret_key": ""},
+    )
+    with stack:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.post(
+                "/api/billing/checkout-session",
+                json={"report_id": rid},
+            )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Stripe Billing is not configured"}
+    mock_stripe.checkout.Session.create.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_verify_google_play_purchase_unlocks_report_and_consumes_token(db_path):
     """Google Play verification unlocks the report and consumes the product token."""
     from app.services.reports import create_report, get_report

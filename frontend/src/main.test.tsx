@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const renderRootMock = vi.fn();
 const createRootMock = vi.fn(() => ({ render: renderRootMock }));
-const registerSWMock = vi.fn();
+const updateSWMock = vi.fn();
+const registerSWMock = vi.fn(() => updateSWMock);
 
 vi.mock('react-dom/client', () => ({
   createRoot: createRootMock,
@@ -30,6 +31,7 @@ describe('main entry', () => {
     renderRootMock.mockReset();
     createRootMock.mockClear();
     registerSWMock.mockReset();
+    updateSWMock.mockReset();
   });
 
   it('wraps App in MotionConfig with reducedMotion=user', async () => {
@@ -43,11 +45,17 @@ describe('main entry', () => {
 
     expect(screen.getByTestId('motion-config')).toHaveAttribute('data-reduced-motion', 'user');
     expect(screen.getByTestId('app-root')).toBeInTheDocument();
-    expect(registerSWMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        immediate: true,
-      }),
-    );
+    const registerArgs = (registerSWMock.mock.calls as unknown as Array<[unknown]>)[0]?.[0] as {
+      immediate?: boolean;
+      onNeedRefresh?: () => void;
+    } | undefined;
+    expect(registerArgs).toEqual(expect.objectContaining({
+      immediate: true,
+      onNeedRefresh: expect.any(Function),
+    }));
+
+    registerArgs?.onNeedRefresh?.();
+    expect(updateSWMock).toHaveBeenCalledWith(true);
   });
 });
 

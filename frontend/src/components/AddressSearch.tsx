@@ -22,6 +22,7 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
   const [activeIndex, setActiveIndex] = useState(-1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const [hasSettledSuggestions, setHasSettledSuggestions] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(getRecent());
   const [isFirst] = useState(() => isFirstVisit());
 
@@ -52,15 +53,18 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
       setSuggestions(data.suggestions);
       setIsOpen(data.suggestions.length > 0);
       setActiveIndex(-1);
+      setHasSettledSuggestions(true);
     } catch (err) {
       const isAbort = err instanceof DOMException && err.name === 'AbortError';
       if (!isAbort && requestSeqRef.current === requestId) {
         setErrorMessage(mapApiError(err, t));
         setSuggestions([]);
         setIsOpen(false);
+        setHasSettledSuggestions(true);
       }
     } finally {
       if (requestSeqRef.current === requestId) {
+        abortRef.current = null;
         setSearching(false);
       }
     }
@@ -75,9 +79,16 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
     if (value.length < 2) {
       setSuggestions([]);
       setIsOpen(false);
+      setActiveIndex(-1);
+      setHasSettledSuggestions(false);
       return;
     }
 
+    setSuggestions([]);
+    setIsOpen(false);
+    setActiveIndex(-1);
+    setHasSettledSuggestions(false);
+    setSearching(true);
     debounceRef.current = setTimeout(() => fetchSuggestions(value), 300);
   };
 
@@ -232,7 +243,7 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
           ))}
         </ul>
       )}
-      {!searching && suggestions.length === 0 && query.length >= 2 && !errorMessage && (
+      {!searching && hasSettledSuggestions && suggestions.length === 0 && query.length >= 2 && !errorMessage && (
         <div className="address-search__dropdown" id="address-suggestions">
           <div className="address-search__no-results">{t('search.noResults')}</div>
           <div className="address-search__no-results-hint">{t('search.noResultsHint')}</div>
