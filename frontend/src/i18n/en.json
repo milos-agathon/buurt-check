@@ -635,6 +635,7 @@
   "premium.checkout.delayed": "Payment received \u2014 your dossier will unlock shortly. Refresh in a moment.",
   "premium.checkout.failed": "Payment could not be completed. Please try again.",
   "premium.checkout.startFailed": "Could not start checkout. Please try again.",
+  "premium.checkout.unavailable": "Full dossier checkout is temporarily unavailable. Please try again later.",
   "premium.section.warnings": "property warnings",
   "premium.section.soil": "soil information",
   "premium.section.livability": "livability analysis",

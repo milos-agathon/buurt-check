@@ -348,6 +348,21 @@ describe('ExportBottomSheet', () => {
     expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: $4.99');
   });
 
+  it('disables the buy button and shows the checkout-unavailable message', () => {
+    renderSheet({
+      isEntitled: false,
+      buyDisabled: true,
+      buyDisabledMessage: 'Checkout is temporarily unavailable.',
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+    expect(screen.getByTestId('export-generate-btn')).toBeDisabled();
+    expect(screen.getByTestId('export-buy-unavailable')).toHaveTextContent(
+      'Checkout is temporarily unavailable.',
+    );
+  });
+
   describe('sunlight readiness messaging', () => {
     it('disables Generate button for full_dossier when sunlight not ready', () => {
       renderSheet({ sunlightReady: false });

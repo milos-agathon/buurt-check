@@ -9,7 +9,7 @@ import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import DossierSheet, { type SheetSnap } from './components/DossierSheet';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
 import { SPRING_TAB } from './config/springs';
-import { fetchPrice, getDossierPrice } from './config/pricing';
+import { fetchPrice, getDossierPrice, isWebCheckoutAvailable } from './config/pricing';
 import { hapticTap } from './utils/haptic';
 import { useAnimationPerformance } from './hooks/useAnimationPerformance';
 import ShortlistScreen from './components/ShortlistScreen';
@@ -75,6 +75,7 @@ import {
   getPendingPlayBillingReport,
 } from './services/playBilling';
 import { resolveBillingProvider, type BillingProvider } from './services/billingProvider';
+import { navigateToExternal } from './services/navigation';
 import {
   getShortlist,
   addToShortlist,
@@ -545,6 +546,7 @@ function App() {
   const [activeLookupId, setActiveLookupId] = useState<string | null>(dossierSeed?.address?.id ?? null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [dossierPriceEur, setDossierPriceEur] = useState(() => getDossierPrice());
+  const [webCheckoutAvailable, setWebCheckoutAvailable] = useState(() => isWebCheckoutAvailable());
   const [billingProvider, setBillingProvider] = useState<BillingProvider>('stripe');
   const [appleLocalizedPriceLabel, setAppleLocalizedPriceLabel] = useState<string | null>(null);
   const [isEntitled, setIsEntitled] = useState(TEMP_FORCE_FULL_DOSSIER_VIEW);
@@ -746,6 +748,7 @@ function App() {
     void fetchPrice().then((price) => {
       if (!cancelled) {
         setDossierPriceEur(price);
+        setWebCheckoutAvailable(isWebCheckoutAvailable());
       }
     });
     return () => {
@@ -876,6 +879,17 @@ function App() {
     if (isCheckingOut) return;
     if (!reportId) {
       showToast(t('premium.checkout.startFailed'));
+      return;
+    }
+    if (billingProvider === 'stripe' && !webCheckoutAvailable) {
+      const message = t('premium.checkout.unavailable');
+      trackEvent('checkout_failed', {
+        report_id: reportId,
+        provider: 'stripe',
+        reason: 'checkout_unavailable',
+      });
+      setCheckoutStatusMessage(message);
+      showToast(message);
       return;
     }
 
@@ -1028,15 +1042,20 @@ function App() {
       }
 
       const session = await createCheckoutSession(reportId);
-      window.location.href = session.checkout_url;
-    } catch {
+      navigateToExternal(session.checkout_url);
+    } catch (error) {
+      const checkoutUnavailable = error instanceof ApiError
+        && error.errorKey === 'premium.checkout.unavailable';
+      const message = checkoutUnavailable
+        ? t('premium.checkout.unavailable')
+        : t('premium.checkout.startFailed');
       trackEvent('checkout_failed', {
         report_id: reportId,
         provider: billingProvider,
-        reason: 'session_creation',
+        reason: checkoutUnavailable ? 'billing_not_configured' : 'session_creation',
       });
-      setIsCheckingOut(false);
-      showToast(t('premium.checkout.startFailed'));
+      setCheckoutStatusMessage(message);
+      showToast(message);
       return;
     } finally {
       setIsCheckingOut(false);
@@ -1052,6 +1071,7 @@ function App() {
     reportId,
     showToast,
     t,
+    webCheckoutAvailable,
   ]);
 
   const handleToggleQuestion = useCallback((id: string) => {
@@ -3744,6 +3764,12 @@ function App() {
                   : undefined
             }
             buyPriceLabel={exportBuyPriceLabel}
+            buyDisabled={billingProvider === 'stripe' && !webCheckoutAvailable}
+            buyDisabledMessage={
+              billingProvider === 'stripe' && !webCheckoutAvailable
+                ? t('premium.checkout.unavailable')
+                : undefined
+            }
             buyPending={isCheckingOut}
             onGenerateStart={() => {
               setExportGenerating(true);

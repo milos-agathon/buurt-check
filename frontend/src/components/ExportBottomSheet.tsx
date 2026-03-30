@@ -34,6 +34,8 @@ interface ExportBottomSheetProps {
   onBuyFullDossier?: () => void;
   buyLabel?: string;
   buyPriceLabel?: string;
+  buyDisabled?: boolean;
+  buyDisabledMessage?: string;
   buyPending?: boolean;
   sunlightReady?: boolean;
   sunlightFailed?: boolean;
@@ -67,6 +69,8 @@ export default function ExportBottomSheet({
   onBuyFullDossier,
   buyLabel,
   buyPriceLabel,
+  buyDisabled = false,
+  buyDisabledMessage,
   buyPending = false,
   sunlightReady = true,
   sunlightFailed = false,
@@ -337,6 +341,16 @@ export default function ExportBottomSheet({
               {t('export.fullDossierPrice', { price: buyPriceLabel })}
             </p>
           )}
+
+          {template === 'full_dossier' && requiresPurchase && buyDisabled && buyDisabledMessage && (
+            <p
+              id="checkout-unavailable-msg"
+              className="export-sheet__checkout-warning"
+              data-testid="export-buy-unavailable"
+            >
+              {buyDisabledMessage}
+            </p>
+          )}
         </div>
 
         <div className="export-sheet__section">
@@ -464,10 +478,16 @@ export default function ExportBottomSheet({
             type="button"
             className="export-sheet__btn"
             onClick={handleGenerate}
-            disabled={generating || (requiresPurchase && (buyPending || !onBuyFullDossier)) || (!requiresPurchase && template === 'full_dossier' && !sunlightReady)}
+            disabled={
+              generating
+              || (requiresPurchase && (buyPending || buyDisabled || !onBuyFullDossier))
+              || (!requiresPurchase && template === 'full_dossier' && !sunlightReady)
+            }
             aria-busy={(requiresPurchase && buyPending) || undefined}
             aria-describedby={
-              !requiresPurchase && template === 'full_dossier' && !sunlightReady
+              requiresPurchase && buyDisabled && buyDisabledMessage
+                ? 'checkout-unavailable-msg'
+                : !requiresPurchase && template === 'full_dossier' && !sunlightReady
                 ? 'sunlight-computing-msg'
                 : template === 'full_dossier' && sunlightReady && sunlightFailed
                   ? 'sunlight-warning-msg'

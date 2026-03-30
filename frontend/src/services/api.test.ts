@@ -864,6 +864,23 @@ describe('createCheckoutSession', () => {
     expect(init.credentials).toBe('include');
     expect(result.checkout_url).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
   });
+
+  it('maps Stripe config failures to a dedicated checkout-unavailable error', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      clone: () => ({
+        json: () => Promise.resolve({ detail: 'Stripe Billing is not configured' }),
+      }),
+    } as Response);
+
+    await expect(
+      createCheckoutSession('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de'),
+    ).rejects.toMatchObject({
+      errorKey: 'premium.checkout.unavailable',
+      httpStatus: 503,
+    });
+  });
 });
 
 describe('verifyGooglePlayPurchase', () => {

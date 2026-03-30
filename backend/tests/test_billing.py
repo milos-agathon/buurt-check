@@ -60,6 +60,8 @@ async def test_get_pricing_returns_backend_authoritative_price(db_path):
     with (
         patch.object(settings, "database_path", db_path),
         patch.object(settings, "stripe_price_cents", 1999),
+        patch.object(settings, "stripe_secret_key", "sk_test_123"),
+        patch.object(settings, "stripe_webhook_secret", "whsec_123"),
         patch.object(settings, "rate_limit_enabled", False),
     ):
         transport = ASGITransport(app=app)
@@ -72,7 +74,27 @@ async def test_get_pricing_returns_backend_authoritative_price(db_path):
         "price_eur": "19.99",
         "currency": "EUR",
         "server_render_available": False,
+        "web_checkout_provider": "stripe",
+        "web_checkout_available": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_get_pricing_marks_web_checkout_unavailable_without_stripe_config(db_path):
+    """Pricing should expose when web Stripe checkout is unavailable."""
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "stripe_secret_key", ""),
+        patch.object(settings, "stripe_webhook_secret", ""),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/pricing")
+
+    assert response.status_code == 200
+    assert response.json()["web_checkout_provider"] == "stripe"
+    assert response.json()["web_checkout_available"] is False
 
 
 @pytest.mark.asyncio
@@ -281,6 +303,37 @@ async def test_checkout_rejects_when_stripe_is_not_configured(db_path):
     stack, mock_stripe = _billing_patches(
         db_path,
         extra_settings={"stripe_secret_key": ""},
+    )
+    with stack:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.post(
+                "/api/billing/checkout-session",
+                json={"report_id": rid},
+            )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Stripe Billing is not configured"}
+    mock_stripe.checkout.Session.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_checkout_rejects_when_stripe_webhook_is_not_configured(db_path):
+    """Web checkout should stay disabled without the webhook secret."""
+    from app.services.reports import create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+
+    stack, mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={"stripe_webhook_secret": ""},
     )
     with stack:
         transport = ASGITransport(app=app)

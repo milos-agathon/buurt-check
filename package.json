@@ -5,6 +5,8 @@
   "scripts": {
     "prebuild": "npm --prefix frontend ci",
     "build": "node ./scripts/build-root-frontend-app.mjs",
+    "billing:preflight": "python backend/scripts/check_web_billing_readiness.py",
+    "billing:smoke": "python backend/scripts/smoke_test_web_checkout.py",
     "android:manifest": "node ./scripts/generate-twa-manifest.mjs",
     "android:sync": "node ./scripts/update-android-wrapper.mjs",
     "android:build": "node ./scripts/build-android-bundle.mjs",

@@ -152,6 +152,15 @@ function throwHttpError(status: number): never {
   throw new ApiError('error.generic', status);
 }
 
+async function readErrorDetail(resp: Response): Promise<string | null> {
+  try {
+    const data = await resp.clone().json() as { detail?: unknown };
+    return typeof data.detail === 'string' ? data.detail : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchJsonOrThrow<T>(url: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(url, init);
   if (!resp.ok) {
@@ -249,7 +258,13 @@ export async function createCheckoutSession(reportId: string): Promise<CheckoutS
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ report_id: reportId }),
   });
-  if (!resp.ok) throwHttpError(resp.status);
+  if (!resp.ok) {
+    const detail = await readErrorDetail(resp);
+    if (resp.status === 503 && detail === 'Stripe Billing is not configured') {
+      throw new ApiError('premium.checkout.unavailable', resp.status);
+    }
+    throwHttpError(resp.status);
+  }
   return resp.json();
 }
 

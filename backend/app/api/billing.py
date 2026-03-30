@@ -15,6 +15,8 @@ from app.api.buyer import get_buyer_key
 from app.config import settings
 from app.db import DatabaseError
 from app.rate_limit import limiter
+from app.sentry_setup import capture_message
+from app.services import metrics
 from app.services.apple_app_store import (
     AppleAppStoreAPIError,
     AppleAppStoreConfigError,
@@ -24,6 +26,11 @@ from app.services.apple_app_store import (
     get_transaction_status,
     verify_and_decode_notification,
     verify_signed_transaction,
+)
+from app.services.billing_readiness import (
+    LOCAL_BASE_URLS,
+    get_stripe_web_checkout_readiness,
+    normalized_base_url,
 )
 from app.services.google_play import (
     GooglePlayAPIError,
@@ -48,29 +55,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/billing", tags=["billing"])
 public_router = APIRouter(tags=["billing"])
 
-_LOCAL_BASE_URLS = frozenset({
-    "",
-    "http://localhost",
-    "http://localhost:5173",
-    "http://127.0.0.1",
-    "http://127.0.0.1:5173",
-})
-
 
 class PricingResponse(BaseModel):
     price_cents: int = Field(..., ge=1)
     price_eur: str
     currency: str = "EUR"
     server_render_available: bool = False
+    web_checkout_provider: Literal["stripe"] = "stripe"
+    web_checkout_available: bool = False
 
 
 def stripe_configured() -> bool:
-    """Return True when Stripe checkout has a usable secret key."""
-    return bool(settings.stripe_secret_key.strip())
-
-
-def _normalized_base_url(value: str) -> str:
-    return value.strip().rstrip("/")
+    """Return True when web Stripe checkout has the required runtime config."""
+    return get_stripe_web_checkout_readiness().web_checkout_available
 
 
 def _request_origin(request: Request) -> str:
@@ -86,8 +83,8 @@ def _request_origin(request: Request) -> str:
 
 def _public_base_url(request: Request) -> str:
     """Prefer a configured public origin, but never emit localhost in production."""
-    configured = _normalized_base_url(settings.base_url)
-    if configured and configured not in _LOCAL_BASE_URLS:
+    configured = normalized_base_url(settings.base_url)
+    if configured and configured not in LOCAL_BASE_URLS:
         return configured
 
     request_origin = _request_origin(request)
@@ -102,11 +99,14 @@ def _public_base_url(request: Request) -> str:
 async def get_pricing():
     """Return the authoritative dossier price from backend config."""
     price_cents = settings.stripe_price_cents
+    readiness = get_stripe_web_checkout_readiness()
     return PricingResponse(
         price_cents=price_cents,
         price_eur=f"{price_cents / 100:.2f}",
         currency="EUR",
         server_render_available=settings.forge3d_enabled,
+        web_checkout_provider=readiness.provider,
+        web_checkout_available=readiness.web_checkout_available,
     )
 
 
@@ -184,10 +184,22 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
         raise HTTPException(status_code=404, detail="Report not found")
     if report.payment_status == "paid":
         raise HTTPException(status_code=409, detail="Report already paid")
-    if not stripe_configured():
+    readiness = get_stripe_web_checkout_readiness()
+    if not readiness.web_checkout_available:
+        reasons = ",".join(readiness.reasons) or "unknown"
+        metrics.inc("billing.checkout.unavailable")
         logger.error(
-            "Stripe checkout requested for report %s but BUURT_STRIPE_SECRET_KEY is empty",
+            "Stripe checkout requested for report %s but web checkout is unavailable (%s)",
             body.report_id,
+            reasons,
+        )
+        capture_message(
+            "stripe_checkout_unavailable",
+            level="error",
+            tags={
+                "route": "/billing/checkout-session",
+                "reasons": reasons,
+            },
         )
         raise HTTPException(status_code=503, detail="Stripe Billing is not configured")
 

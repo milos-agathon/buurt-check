@@ -23,6 +23,9 @@ type MockNeighborhoodViewer3DProps = {
 const neighborhoodViewer3DPropsRef = vi.hoisted(
   () => ({ current: null as MockNeighborhoodViewer3DProps | null }),
 );
+const pricingConfigRef = vi.hoisted(
+  () => ({ current: { price: '3.99', webCheckoutAvailable: true } }),
+);
 
 vi.mock('./services/api', async () => {
   const actual = await vi.importActual<typeof import('./services/api')>('./services/api');
@@ -78,9 +81,14 @@ vi.mock('./services/billingProvider', () => ({
   resolveBillingProvider: vi.fn().mockResolvedValue({ provider: 'stripe' }),
 }));
 
+vi.mock('./services/navigation', () => ({
+  navigateToExternal: vi.fn(),
+}));
+
 vi.mock('./config/pricing', () => ({
-  fetchPrice: vi.fn().mockResolvedValue('3.99'),
-  getDossierPrice: vi.fn(() => '3.99'),
+  fetchPrice: vi.fn().mockImplementation(async () => pricingConfigRef.current.price),
+  getDossierPrice: vi.fn(() => pricingConfigRef.current.price),
+  isWebCheckoutAvailable: vi.fn(() => pricingConfigRef.current.webCheckoutAvailable),
 }));
 
 vi.mock('./components/NeighborhoodViewer3D', () => ({
@@ -118,6 +126,7 @@ vi.mock('./components/NeighborhoodStatsCard', () => ({
 }));
 
 import {
+  ApiError,
   checkEntitlement,
   createCheckoutSession,
   createShortReport,
@@ -158,6 +167,7 @@ import {
   isAppleBillingPendingError,
 } from './services/appleBilling';
 import { resolveBillingProvider } from './services/billingProvider';
+import { navigateToExternal } from './services/navigation';
 const mockLookup = vi.mocked(lookupAddress);
 const mockCreateShortReport = vi.mocked(createShortReport);
 const mockCheckEntitlement = vi.mocked(checkEntitlement);
@@ -193,6 +203,7 @@ const mockGetPendingAppleBillingReport = vi.mocked(getPendingAppleBillingReport)
 const mockIsAppleBillingCancelledError = vi.mocked(isAppleBillingCancelledError);
 const mockIsAppleBillingPendingError = vi.mocked(isAppleBillingPendingError);
 const mockResolveBillingProvider = vi.mocked(resolveBillingProvider);
+const mockNavigateToExternal = vi.mocked(navigateToExternal);
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
@@ -240,7 +251,12 @@ beforeEach(() => {
   mockGetPendingAppleBillingReport.mockReset();
   mockIsAppleBillingCancelledError.mockReset();
   mockResolveBillingProvider.mockReset();
+  mockNavigateToExternal.mockReset();
   neighborhoodViewer3DPropsRef.current = null;
+  pricingConfigRef.current = {
+    price: '3.99',
+    webCheckoutAvailable: true,
+  };
   mockCreateShortReport.mockResolvedValue({
     report_id: 'report-123',
     report_type: 'short',
@@ -857,6 +873,111 @@ describe('3D viewer integration', () => {
         purchaseToken: 'purchase-token',
       }),
       'success',
+    );
+  });
+
+  it('disables the web Stripe buy button when pricing marks checkout unavailable', async () => {
+    pricingConfigRef.current.webCheckoutAvailable = false;
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Buy Full Dossier/i })).toBeDisabled();
+    });
+    expect(screen.getByText(
+      'Full dossier checkout is temporarily unavailable. Please try again later.',
+    )).toBeInTheDocument();
+  });
+
+  it('shows the dedicated unavailable message when checkout-session returns Stripe-config 503', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCreateCheckoutSession.mockRejectedValue(
+      new ApiError('premium.checkout.unavailable', 503),
+    );
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText(
+        'Full dossier checkout is temporarily unavailable. Please try again later.',
+      ).length).toBeGreaterThan(0);
+    });
+  });
+
+  it('redirects to Stripe checkout when web checkout starts successfully', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123');
+    });
+    expect(mockNavigateToExternal).toHaveBeenCalledWith(
+      'https://checkout.stripe.com/c/pay/cs_test_123',
     );
   });
 

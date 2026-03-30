@@ -20,17 +20,26 @@ describe('pricing config', () => {
     vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '3.99');
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ price_eur: '19.99' }),
+      json: () => Promise.resolve({
+        price_eur: '19.99',
+        web_checkout_available: false,
+      }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { fetchPrice, getDossierPrice, getDossierPriceDisplay } = await import('./pricing');
+    const {
+      fetchPrice,
+      getDossierPrice,
+      getDossierPriceDisplay,
+      isWebCheckoutAvailable,
+    } = await import('./pricing');
     const fetched = await fetchPrice();
 
     expect(fetchMock).toHaveBeenCalledWith('/api/pricing');
     expect(fetched).toBe('19.99');
     expect(getDossierPrice()).toBe('19.99');
     expect(getDossierPriceDisplay()).toBe('€19.99');
+    expect(isWebCheckoutAvailable()).toBe(false);
   });
 
   it('keeps fallback when API returns invalid price', async () => {

@@ -46,6 +46,8 @@ export interface PricingResponse {
   price_eur: string;
   currency: string;
   server_render_available?: boolean;
+  web_checkout_provider?: 'stripe';
+  web_checkout_available?: boolean;
 }
 
 export interface ResolvedAddress {
