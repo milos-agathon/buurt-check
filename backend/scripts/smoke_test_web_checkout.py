@@ -10,16 +10,25 @@ from pathlib import Path
 import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from app.config import settings
-from app.services.billing_readiness import LOCAL_BASE_URLS, normalized_base_url
+
+def _ensure_backend_root() -> None:
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+
+
+def _billing_readiness_imports():
+    _ensure_backend_root()
+    from app.config import settings
+    from app.services.billing_readiness import LOCAL_BASE_URLS, normalized_base_url
+
+    return settings, LOCAL_BASE_URLS, normalized_base_url
 
 
 def _default_base_url() -> str:
+    settings, local_base_urls, normalized_base_url = _billing_readiness_imports()
     configured = normalized_base_url(settings.base_url)
-    if configured and configured not in LOCAL_BASE_URLS:
+    if configured and configured not in local_base_urls:
         return configured
     return "https://app.buurt-check.nl"
 
@@ -30,6 +39,7 @@ def _fail(message: str) -> int:
 
 
 def main() -> int:
+    _, _, normalized_base_url = _billing_readiness_imports()
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default=_default_base_url())
     parser.add_argument("--timeout-seconds", type=float, default=20.0)

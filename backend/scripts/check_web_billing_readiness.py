@@ -6,12 +6,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from app.config import settings
-from app.db import database_backend_label
-from app.services.billing_readiness import get_stripe_web_checkout_readiness
+
+def _ensure_backend_root() -> None:
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
 
 
 def _print_check(label: str, passed: bool, detail: str) -> None:
@@ -20,6 +19,11 @@ def _print_check(label: str, passed: bool, detail: str) -> None:
 
 
 def main() -> int:
+    _ensure_backend_root()
+    from app.config import settings
+    from app.db import database_backend_label
+    from app.services.billing_readiness import get_stripe_web_checkout_readiness
+
     readiness = get_stripe_web_checkout_readiness()
 
     _print_check(
