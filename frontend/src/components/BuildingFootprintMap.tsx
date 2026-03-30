@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Geometry, Position } from 'geojson';
 import { useTranslation } from 'react-i18next';
+import { buildPrimaryApiUrl } from '../config/apiBase';
 import './BuildingFootprintMap.css';
 
 interface Props {
@@ -131,8 +132,7 @@ export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint, re
       size: '512',
     });
     if (reportId) params.set('report_id', reportId);
-    const base = import.meta.env.VITE_API_BASE || '/api';
-    return `${base}/address/wms-tile?${params}`;
+    return `${buildPrimaryApiUrl('/address/wms-tile')}?${params}`;
   }, [rdX, rdY, reportId]);
 
   // Map footprint WGS84 coords to SVG overlay on the aerial image

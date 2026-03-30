@@ -49,6 +49,7 @@ import {
 import { computeRoofNormal } from '../utils/surfaceNormals';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import { fetchWeatherTmy } from '../services/api';
+import { buildPrimaryApiUrl } from '../config/apiBase';
 import { serializeBuildings } from '../workers/geometrySerialization';
 import { isWorkerSupported, runSunlightInWorker } from '../workers/sunlightBridge';
 import { isOffscreenCanvasSupported, runSvfInWorker } from '../workers/svfBridge';
@@ -1514,7 +1515,6 @@ export default function NeighborhoodViewer3D({
     const img = new Image();
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const radius = Math.round(GROUND_SIZE / 2);
-    const proxyBase = import.meta.env.VITE_API_BASE || '/api';
     const proxyParams = new URLSearchParams({
       type: 'luchtfoto',
       rd_x: String(center.rd_x),
@@ -1539,7 +1539,7 @@ export default function NeighborhoodViewer3D({
       TRANSPARENT: 'false',
     });
     const url = reportId
-      ? `${proxyBase}/address/wms-tile?${proxyParams}`
+      ? `${buildPrimaryApiUrl('/address/wms-tile')}?${proxyParams}`
       : `https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?${directParams}`;
 
     const groundMaterial = Array.isArray(ctx.ground.material) ? ctx.ground.material[0] : ctx.ground.material;

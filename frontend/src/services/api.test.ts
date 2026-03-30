@@ -3,6 +3,7 @@ import {
   isAppleBillingContextAvailableSync,
   presentAppleBillingPdfShareSheet,
 } from './appleBilling';
+import { resetPrimaryApiBaseTestState, setPrimaryApiBaseTestRuntime } from '../config/apiBase';
 
 vi.mock('./appleBilling', () => ({
   isAppleBillingContextAvailableSync: vi.fn(() => false),
@@ -45,6 +46,8 @@ beforeEach(() => {
   mockIsAppleBillingContextAvailableSync.mockReset();
   mockPresentAppleBillingPdfShareSheet.mockReset();
   mockIsAppleBillingContextAvailableSync.mockReturnValue(false);
+  vi.unstubAllEnvs();
+  resetPrimaryApiBaseTestState();
   globalThis.fetch = mockFetch;
 });
 
@@ -744,6 +747,30 @@ describe('exportBriefing', () => {
     expect(body.report_id).toBe('report-123');
   });
 
+  it('keeps hosted web full-dossier export first-party when VITE_API_BASE is cross-origin', async () => {
+    vi.stubEnv('VITE_API_BASE', 'https://buurt-check.onrender.com/api');
+    setPrimaryApiBaseTestRuntime({
+      protocol: 'https:',
+      hostname: 'app.buurt-check.nl',
+      origin: 'https://app.buurt-check.nl',
+    });
+    const expectedBlob = new Blob(['pdf']);
+    mockFetch.mockResolvedValue({ ok: true, blob: () => Promise.resolve(expectedBlob) } as Response);
+
+    await exportBriefing({
+      vboId: 'vbo-1',
+      rdX: 1,
+      rdY: 2,
+      lat: 3,
+      lng: 4,
+      address: 'Test',
+      template: 'full_dossier',
+      reportId: 'report-123',
+    });
+
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/address/vbo-1/export');
+  });
+
   it('uses a longer timeout for quick_brief exports (90s default)', async () => {
     vi.useFakeTimers();
     let capturedSignal: AbortSignal | null | undefined;
@@ -845,6 +872,26 @@ describe('checkEntitlement', () => {
     expect(init.credentials).toBe('include');
     expect(result.entitled).toBe(true);
   });
+
+  it('keeps hosted web entitlement checks first-party when VITE_API_BASE is cross-origin', async () => {
+    vi.stubEnv('VITE_API_BASE', 'https://buurt-check.onrender.com/api');
+    setPrimaryApiBaseTestRuntime({
+      protocol: 'https:',
+      hostname: 'app.buurt-check.nl',
+      origin: 'https://app.buurt-check.nl',
+    });
+    mockFetch.mockResolvedValue(
+      okResponse({
+        report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+        entitled: true,
+        report_type: 'short',
+      }),
+    );
+
+    await checkEntitlement('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
+
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/reports/7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de/entitlement');
+  });
 });
 
 describe('createCheckoutSession', () => {
@@ -863,6 +910,22 @@ describe('createCheckoutSession', () => {
     });
     expect(init.credentials).toBe('include');
     expect(result.checkout_url).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
+  });
+
+  it('keeps hosted web checkout creation first-party when VITE_API_BASE is cross-origin', async () => {
+    vi.stubEnv('VITE_API_BASE', 'https://buurt-check.onrender.com/api');
+    setPrimaryApiBaseTestRuntime({
+      protocol: 'https:',
+      hostname: 'app.buurt-check.nl',
+      origin: 'https://app.buurt-check.nl',
+    });
+    mockFetch.mockResolvedValue(
+      okResponse({ checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_123' }),
+    );
+
+    await createCheckoutSession('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de');
+
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/billing/checkout-session');
   });
 
   it('maps Stripe config failures to a dedicated checkout-unavailable error', async () => {

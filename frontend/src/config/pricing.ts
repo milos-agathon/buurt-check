@@ -1,4 +1,5 @@
 import type { PricingResponse } from '../types/api';
+import { buildPrimaryApiUrl } from './apiBase';
 
 const FALLBACK_PRICE = import.meta.env.VITE_DOSSIER_PRICE_EUR || '3.99';
 
@@ -16,7 +17,7 @@ export async function fetchPrice(): Promise<string> {
 
   inFlight = (async () => {
     try {
-      const response = await fetch('/api/pricing');
+      const response = await fetch(buildPrimaryApiUrl('/pricing'));
       if (!response.ok) return cachedPrice;
       const data = await response.json() as Partial<PricingResponse>;
       const price = data.price_eur;

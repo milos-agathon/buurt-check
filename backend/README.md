@@ -12,6 +12,8 @@ uvicorn app.main:app --reload --port 8000
 
 Deploy the backend as a dedicated FastAPI service and keep the public browser origin on `https://app.buurt-check.nl`. The frontend Vercel app should proxy `/api/*` to this backend by setting `BACKEND_URL` in the frontend project.
 
+For hosted web builds, keep `VITE_API_BASE=/api` (or omit it and rely on the default). Do not point the browser build directly at `https://buurt-check.onrender.com/api`; the Stripe return flow depends on the buyer cookie staying first-party on `app.buurt-check.nl`.
+
 ### Container build
 
 ```bash
@@ -31,6 +33,9 @@ docker run --env-file .env -p 8000:8000 buurt-check-backend
 - `BUURT_REDIS_URL`
 - `BUURT_SENTRY_DSN`
 - `BUURT_SENTRY_ENVIRONMENT=production`
+
+Frontend web deploy:
+- `VITE_API_BASE=/api`
 
 `BUURT_DATABASE_PATH` is acceptable for local development only. For production, use Turso or another networked libsql backend so buyer-bound report state survives container restarts and scales beyond a single instance.
 

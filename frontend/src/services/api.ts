@@ -24,8 +24,8 @@ import {
   isAppleBillingContextAvailableSync,
   presentAppleBillingPdfShareSheet,
 } from './appleBilling';
+import { buildPrimaryApiUrl, normalizeApiBase } from '../config/apiBase';
 
-const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE || '/api');
 const ADDRESS_FALLBACK_API_BASE = normalizeApiBase(
   import.meta.env.VITE_ADDRESS_FALLBACK_API_BASE || 'https://buurt-check.onrender.com/api',
 );
@@ -43,8 +43,8 @@ interface TimeoutSignal {
   cleanup: () => void;
 }
 
-function normalizeApiBase(base: string): string {
-  return base.replace(/\/+$/, '');
+function primaryApiUrl(path: string): string {
+  return buildPrimaryApiUrl(path);
 }
 
 function withPrimaryApiCredentials(init?: RequestInit): RequestInit {
@@ -182,7 +182,7 @@ async function fetchAddressJsonWithFallback<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const primaryUrl = `${API_BASE}${path}`;
+  const primaryUrl = primaryApiUrl(path);
 
   try {
     return await fetchJsonOrThrow<T>(primaryUrl, withPrimaryApiCredentials(init));
@@ -235,7 +235,7 @@ export async function createShortReport(
   vboId: string,
   addressKey: string,
 ): Promise<ShortReportResponse> {
-  const resp = await fetchPrimaryApi(`${API_BASE}/reports/short`, {
+  const resp = await fetchPrimaryApi(primaryApiUrl('/reports/short'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -248,13 +248,13 @@ export async function createShortReport(
 }
 
 export async function checkEntitlement(reportId: string): Promise<EntitlementResponse> {
-  const resp = await fetchPrimaryApi(`${API_BASE}/reports/${reportId}/entitlement`);
+  const resp = await fetchPrimaryApi(primaryApiUrl(`/reports/${reportId}/entitlement`));
   if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
 
 export async function createCheckoutSession(reportId: string): Promise<CheckoutSessionResponse> {
-  const resp = await fetchPrimaryApi(`${API_BASE}/billing/checkout-session`, {
+  const resp = await fetchPrimaryApi(primaryApiUrl('/billing/checkout-session'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ report_id: reportId }),
@@ -275,7 +275,7 @@ export async function confirmStripeCheckoutSession(
 ): Promise<CheckoutConfirmationResponse> {
   const params = new URLSearchParams({ report_id: reportId });
   const resp = await fetchPrimaryApi(
-    `${API_BASE}/billing/checkout-session/${encodeURIComponent(sessionId)}/confirm?${params}`,
+    `${primaryApiUrl(`/billing/checkout-session/${encodeURIComponent(sessionId)}/confirm`)}?${params}`,
   );
   if (!resp.ok) {
     const detail = await readErrorDetail(resp);
@@ -292,7 +292,7 @@ export async function verifyGooglePlayPurchase(
   purchaseToken: string,
   productId: string,
 ): Promise<GooglePlayPurchaseVerificationResponse> {
-  const resp = await fetchPrimaryApi(`${API_BASE}/billing/google-play/verify`, {
+  const resp = await fetchPrimaryApi(primaryApiUrl('/billing/google-play/verify'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -310,7 +310,7 @@ export async function verifyAppleAppStorePurchase(
   signedTransactionInfo: string,
   productId: string,
 ): Promise<AppleAppStorePurchaseVerificationResponse> {
-  const resp = await fetchPrimaryApi(`${API_BASE}/billing/apple-app-store/verify`, {
+  const resp = await fetchPrimaryApi(primaryApiUrl('/billing/apple-app-store/verify'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -327,7 +327,7 @@ export async function getBuildingFacts(
   vboId: string,
   signal?: AbortSignal,
 ): Promise<BuildingFactsResponse> {
-  const resp = await fetchPrimaryApi(`${API_BASE}/address/${vboId}/building`, { signal });
+  const resp = await fetchPrimaryApi(primaryApiUrl(`/address/${vboId}/building`), { signal });
   if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
@@ -350,7 +350,9 @@ export async function getBuilding3D(
     lng: String(lng),
   });
   if (reportId) params.set('report_id', reportId);
-  const resp = await fetchPrimaryApi(`${API_BASE}/address/${vboId}/building3d?${params}`, { signal });
+  const resp = await fetchPrimaryApi(`${primaryApiUrl(`/address/${vboId}/building3d`)}?${params}`, {
+    signal,
+  });
   if (!resp.ok) throwHttpError(resp.status);
   return resp.json();
 }
@@ -377,7 +379,7 @@ export async function getNeighborhood3D(
   const timeout = withTimeoutSignal(90000, signal);
   try {
     const resp = await fetchPrimaryApi(
-      `${API_BASE}/address/${vboId}/neighborhood3d?${params}`,
+      `${primaryApiUrl(`/address/${vboId}/neighborhood3d`)}?${params}`,
       { signal: timeout.signal },
     );
     if (!resp.ok) throwHttpError(resp.status);
@@ -403,7 +405,7 @@ export async function getRiskCards(
   });
   const timeout = withTimeoutSignal(20000, signal);
   try {
-    const resp = await fetchPrimaryApi(`${API_BASE}/address/${vboId}/risks?${params}`, {
+    const resp = await fetchPrimaryApi(`${primaryApiUrl(`/address/${vboId}/risks`)}?${params}`, {
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
@@ -429,7 +431,7 @@ export async function getNeighborhoodStats(
   }
   const timeout = withTimeoutSignal(15000, signal);
   try {
-    const resp = await fetchPrimaryApi(`${API_BASE}/address/${vboId}/neighborhood?${params}`, {
+    const resp = await fetchPrimaryApi(`${primaryApiUrl(`/address/${vboId}/neighborhood`)}?${params}`, {
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
@@ -459,7 +461,7 @@ export async function getRiskComparisons(
   if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(20000, signal);
   try {
-    const resp = await fetchPrimaryApi(`${API_BASE}/address/${vboId}/risk-comparisons?${params}`, {
+    const resp = await fetchPrimaryApi(`${primaryApiUrl(`/address/${vboId}/risk-comparisons`)}?${params}`, {
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
@@ -491,7 +493,7 @@ export async function getViewingQuestions(
   if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(20000, signal);
   try {
-    const resp = await fetchPrimaryApi(`${API_BASE}/address/${vboId}/viewing-questions?${params}`, {
+    const resp = await fetchPrimaryApi(`${primaryApiUrl(`/address/${vboId}/viewing-questions`)}?${params}`, {
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
@@ -568,7 +570,7 @@ export async function exportBriefing(options: ExportOptions): Promise<Blob> {
   );
   try {
     const resp = await fetchPrimaryApi(
-      `${API_BASE}/address/${options.vboId}/export`,
+      primaryApiUrl(`/address/${options.vboId}/export`),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -676,7 +678,7 @@ export async function getTierBData(
 
   const timeout = withTimeoutSignal(20000, signal);
   try {
-    const resp = await fetchPrimaryApi(`${API_BASE}/address/${vboId}/tier-b?${params}`, {
+    const resp = await fetchPrimaryApi(`${primaryApiUrl(`/address/${vboId}/tier-b`)}?${params}`, {
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
@@ -700,7 +702,7 @@ export async function getLivability(
   if (reportId) params.set('report_id', reportId);
   const timeout = withTimeoutSignal(15000, signal);
   try {
-    const resp = await fetchPrimaryApi(`${API_BASE}/address/${vboId}/livability?${params}`, {
+    const resp = await fetchPrimaryApi(`${primaryApiUrl(`/address/${vboId}/livability`)}?${params}`, {
       signal: timeout.signal,
     });
     if (!resp.ok) throwHttpError(resp.status);
@@ -739,7 +741,7 @@ export async function getPropertyWarnings(
   const timeout = withTimeoutSignal(15000, signal);
   try {
     const resp = await fetchPrimaryApi(
-      `${API_BASE}/address/${vboId}/property-warnings?${params}`,
+      `${primaryApiUrl(`/address/${vboId}/property-warnings`)}?${params}`,
       { signal: timeout.signal },
     );
     if (!resp.ok) throwHttpError(resp.status);
@@ -803,7 +805,7 @@ export async function fetchWeatherTmy(
     });
     if (reportId) params.set('report_id', reportId);
     const resp = await fetchPrimaryApi(
-      `${API_BASE}/address/${vboId}/weather-tmy?${params}`,
+      `${primaryApiUrl(`/address/${vboId}/weather-tmy`)}?${params}`,
       { signal: timeout.signal },
     );
     if (!resp.ok) return null;
@@ -886,7 +888,7 @@ export async function submitSunlightAnalysis(
   const params = new URLSearchParams();
   if (reportId) params.set('report_id', reportId);
   const query = params.toString();
-  const endpoint = `${API_BASE}/address/${vboId}/sunlight${query ? `?${query}` : ''}`;
+  const endpoint = `${primaryApiUrl(`/address/${vboId}/sunlight`)}${query ? `?${query}` : ''}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);

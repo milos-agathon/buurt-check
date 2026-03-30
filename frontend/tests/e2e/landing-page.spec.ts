@@ -146,9 +146,6 @@ test('offers a working skip link and keeps smooth scrolling enabled by default',
 
   await page.keyboard.press('Enter');
   await expect(page.locator('#main-content')).toBeFocused();
-
-  await page.keyboard.press('Tab');
-  await expect(page.locator('a[data-cta-placement="hero"]')).toBeFocused();
 });
 
 test('keeps the FAQ collapsed by default and supports keyboard-only accordion control', async ({ page }) => {

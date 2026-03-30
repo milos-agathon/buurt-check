@@ -2889,7 +2889,8 @@ function App() {
           if (checkoutVerification.sessionId) {
             trackEvent('checkout_failed', {
               report_id: checkoutVerification.reportId,
-              reason: 'entitlement_check_error',
+              provider: 'stripe',
+              reason: 'post_checkout_confirmation_error',
             });
             setCheckoutStatusMessage(t('premium.checkout.failed'));
             showToast(t('premium.checkout.failed'));
@@ -2910,7 +2911,8 @@ function App() {
       if (!cancelled && checkoutVerification.sessionId) {
         trackEvent('checkout_failed', {
           report_id: checkoutVerification.reportId,
-          reason: 'entitlement_not_active',
+          provider: 'stripe',
+          reason: 'post_checkout_entitlement_not_active',
         });
         setCheckoutStatusMessage(t('premium.checkout.delayed'));
         showToast(t('premium.checkout.delayed'));

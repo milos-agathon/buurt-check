@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { setupTestI18n, makeNeighborhood3DResponse, makeNeighborhood3DResponseWithLod22 } from '../test/helpers';
+import { resetPrimaryApiBaseTestState, setPrimaryApiBaseTestRuntime } from '../config/apiBase';
 
 // Mock Three.js — jsdom has no WebGL
 const mockCanvas = document.createElement('canvas');
@@ -284,6 +285,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  resetPrimaryApiBaseTestState();
   vi.restoreAllMocks();
 });
 
@@ -728,6 +732,46 @@ describe('NeighborhoodViewer3D', () => {
         irradianceKwhM2: expect.any(Number),
       }),
     );
+  });
+
+  it('routes hosted-web orthophoto tiles through same-origin /api when VITE_API_BASE is cross-origin', async () => {
+    vi.stubEnv('VITE_API_BASE', 'https://buurt-check.onrender.com/api');
+    setPrimaryApiBaseTestRuntime({
+      protocol: 'https:',
+      hostname: 'app.buurt-check.nl',
+      origin: 'https://app.buurt-check.nl',
+    });
+
+    const requestedUrls: string[] = [];
+    class MockImage {
+      crossOrigin = '';
+      onload: null | (() => void) = null;
+      onerror: null | (() => void) = null;
+      private _src = '';
+
+      get src(): string {
+        return this._src;
+      }
+
+      set src(value: string) {
+        this._src = value;
+        requestedUrls.push(value);
+      }
+    }
+    vi.stubGlobal('Image', MockImage);
+
+    const target = n3d.buildings.find((b) => b.pand_id === n3d.target_pand_id) ?? n3d.buildings[0];
+    renderViewer({
+      reportId: 'report-123',
+      buildings: [target],
+      targetPandId: target.pand_id,
+    });
+
+    await waitFor(() => {
+      expect(requestedUrls[0]).toContain('/api/address/wms-tile?');
+    });
+    expect(requestedUrls[0]).toContain('report_id=report-123');
+    expect(requestedUrls[0]).not.toContain('buurt-check.onrender.com');
   });
 
   it('uses dark-mode material values when data-theme is dark', () => {

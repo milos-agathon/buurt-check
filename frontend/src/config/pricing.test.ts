@@ -42,6 +42,48 @@ describe('pricing config', () => {
     expect(isWebCheckoutAvailable()).toBe(false);
   });
 
+  it('keeps hosted web pricing requests first-party when VITE_API_BASE is cross-origin', async () => {
+    vi.stubEnv('VITE_API_BASE', 'https://buurt-check.onrender.com/api');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ price_eur: '3.99' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const apiBase = await import('./apiBase');
+    apiBase.setPrimaryApiBaseTestRuntime({
+      protocol: 'https:',
+      hostname: 'app.buurt-check.nl',
+      origin: 'https://app.buurt-check.nl',
+    });
+    const { fetchPrice } = await import('./pricing');
+
+    await fetchPrice();
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/pricing');
+  });
+
+  it('honors an explicit absolute pricing API base on localhost runtimes', async () => {
+    vi.stubEnv('VITE_API_BASE', 'https://buurt-check.onrender.com/api');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ price_eur: '3.99' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const apiBase = await import('./apiBase');
+    apiBase.setPrimaryApiBaseTestRuntime({
+      protocol: 'http:',
+      hostname: 'localhost',
+      origin: 'http://localhost:4173',
+    });
+    const { fetchPrice } = await import('./pricing');
+
+    await fetchPrice();
+
+    expect(fetchMock).toHaveBeenCalledWith('https://buurt-check.onrender.com/api/pricing');
+  });
+
   it('keeps fallback when API returns invalid price', async () => {
     vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '3.99');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
