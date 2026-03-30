@@ -3,6 +3,9 @@
   top: var(--top-bar-height);
   z-index: 39;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   background: var(--color-bg);
   padding-bottom: var(--space-xs);
 }
@@ -51,6 +54,12 @@
 
 .address-search__input::placeholder {
   color: var(--color-text-tertiary);
+}
+
+.address-search__below-input {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .address-search__dropdown {
@@ -124,6 +133,14 @@
     animation: none;
     opacity: 1;
   }
+
+  .address-search__value-row,
+  .address-search__example-link,
+  .address-search__trust-signal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .address-search__error {
@@ -134,14 +151,16 @@
 
 /* Recent searches */
 .address-search__recent {
-  margin-top: var(--space-base);
+  margin-top: var(--space-sm);
 }
 
 .address-search__recent-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--color-border);
 }
 
 .address-search__recent-title {
@@ -196,32 +215,49 @@
 .address-search__value-props {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
-  gap: var(--space-sm);
-  margin-top: var(--space-3xl);
+  gap: var(--space-md);
+  flex: 1;
+  margin-top: 0;
+  padding-bottom: var(--space-3xl);
 }
 
 .address-search__value-row {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-md);
   min-height: 44px;
   padding: 0 var(--space-sm);
 }
 
-.address-search__value-icon {
+.address-search__value-icon-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-accent-light);
   flex-shrink: 0;
 }
 
+.address-search__value-icon {
+  flex-shrink: 0;
+  color: var(--color-accent-text);
+}
+
 .address-search__value-text {
-  font: var(--type-small);
-  color: var(--color-text-secondary);
+  font: var(--type-body);
+  color: var(--color-primary);
+  flex: 1;
+  min-width: 0;
 }
 
 /* Example address link */
 .address-search__example-link {
   display: inline-block;
-  margin-top: var(--space-base);
+  margin-top: var(--space-lg);
   padding: 0 var(--space-sm);
   background: none;
   border: none;
@@ -246,9 +282,9 @@
 
 /* Trust signal */
 .address-search__trust-signal {
-  margin: var(--space-xs) 0 0;
+  margin: var(--space-sm) 0 0;
   padding: 0 var(--space-sm);
-  font: var(--type-micro);
+  font: var(--type-small);
   color: var(--color-text-secondary);
 }
 
@@ -257,7 +293,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  margin-top: var(--space-xl);
+  margin-top: auto;
+  margin-bottom: auto;
   padding: var(--space-base);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -301,8 +338,57 @@
   outline-offset: 2px;
 }
 
+.address-search__welcome-back-action--primary {
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-button);
+  padding: 0 var(--space-base);
+  font-weight: 500;
+}
+
+.address-search__welcome-back-action--primary:hover {
+  background: var(--color-accent-light);
+}
+
 .address-search__welcome-back-prompt {
   margin: 0;
   font: var(--type-small);
   color: var(--color-text-secondary);
+}
+
+.address-search__value-row,
+.address-search__example-link,
+.address-search__trust-signal {
+  opacity: 0;
+  animation: address-search-value-reveal var(--duration-base) var(--ease-out-subtle) forwards;
+}
+
+.address-search__value-row:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.address-search__value-row:nth-child(2) {
+  animation-delay: var(--stagger-item);
+}
+
+.address-search__value-row:nth-child(3) {
+  animation-delay: calc(2 * var(--stagger-item));
+}
+
+.address-search__example-link {
+  animation-delay: calc(3 * var(--stagger-item));
+}
+
+.address-search__trust-signal {
+  animation-delay: calc(4 * var(--stagger-item));
+}
+
+@keyframes address-search-value-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

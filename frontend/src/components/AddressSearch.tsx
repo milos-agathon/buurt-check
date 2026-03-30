@@ -216,137 +216,145 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
           placeholder={t('search.placeholder')}
           autoComplete="off"
         />
-      </div>
-      {errorMessage && <p className="address-search__error">{errorMessage}</p>}
-      {searching && !isOpen && !errorMessage && (
-        <div className="address-search__dropdown" id="address-suggestions">
-          <div className="address-search__searching">
-            <span className="address-search__searching-dot" />
-            {t('search.searching')}
+        {errorMessage && <p className="address-search__error">{errorMessage}</p>}
+        {searching && !isOpen && !errorMessage && (
+          <div className="address-search__dropdown" id="address-suggestions">
+            <div className="address-search__searching">
+              <span className="address-search__searching-dot" />
+              {t('search.searching')}
+            </div>
           </div>
-        </div>
-      )}
-      {isOpen && suggestions.length > 0 && (
-        <ul className="address-search__dropdown" id="address-suggestions" role="listbox">
-          {suggestions.map((s, i) => (
-            <li
-              key={s.id}
-              id={`address-suggestion-${i}`}
-              role="option"
-              aria-selected={i === activeIndex}
-              className={`address-search__item${i === activeIndex ? ' address-search__item--active' : ''}`}
-              onMouseDown={() => handleSelect(s)}
-              onMouseEnter={() => setActiveIndex(i)}
-            >
-              {s.display_name}
-            </li>
-          ))}
-        </ul>
-      )}
-      {!searching && hasSettledSuggestions && suggestions.length === 0 && query.length >= 2 && !errorMessage && (
-        <div className="address-search__dropdown" id="address-suggestions">
-          <div className="address-search__no-results">{t('search.noResults')}</div>
-          <div className="address-search__no-results-hint">{t('search.noResultsHint')}</div>
-        </div>
-      )}
-      {showRecent && (
-        <div className="address-search__recent" data-testid="recent-searches">
-          <div className="address-search__recent-header">
-            <span className="address-search__recent-title">{t('search.recentTitle')}</span>
-          </div>
-          <ul className="address-search__recent-list">
-            {recentSearches.map(r => (
+        )}
+        {isOpen && suggestions.length > 0 && (
+          <ul className="address-search__dropdown" id="address-suggestions" role="listbox">
+            {suggestions.map((s, i) => (
               <li
-                key={r.id}
-                className="address-search__recent-item"
-                onMouseDown={() => handleRecentSelect(r)}
+                key={s.id}
+                id={`address-suggestion-${i}`}
+                role="option"
+                aria-selected={i === activeIndex}
+                className={`address-search__item${i === activeIndex ? ' address-search__item--active' : ''}`}
+                onMouseDown={() => handleSelect(s)}
+                onMouseEnter={() => setActiveIndex(i)}
               >
-                <svg className="address-search__recent-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 6v6l4 2" />
-                </svg>
-                <span className="address-search__recent-name">{r.display_name}</span>
-                <span className="address-search__recent-time">{formatRelativeTime(r.timestamp)}</span>
+                {s.display_name}
               </li>
             ))}
           </ul>
-        </div>
-      )}
-      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && isFirst && (
-        <div className="address-search__value-props" data-testid="value-props">
-          <div className="address-search__value-row">
-            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-            <span className="address-search__value-text">{t('search.valueProp.risk')}</span>
+        )}
+        {!searching && hasSettledSuggestions && suggestions.length === 0 && query.length >= 2 && !errorMessage && (
+          <div className="address-search__dropdown" id="address-suggestions">
+            <div className="address-search__no-results">{t('search.noResults')}</div>
+            <div className="address-search__no-results-hint">{t('search.noResultsHint')}</div>
           </div>
-          <div className="address-search__value-row">
-            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
-              <circle cx="12" cy="12" r="5" />
-              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-            </svg>
-            <span className="address-search__value-text">{t('search.valueProp.sunlight')}</span>
+        )}
+      </div>
+      <div className="address-search__below-input">
+        {showRecent && (
+          <div className="address-search__recent" data-testid="recent-searches">
+            <div className="address-search__recent-header">
+              <span className="address-search__recent-title">{t('search.recentTitle')}</span>
+            </div>
+            <ul className="address-search__recent-list">
+              {recentSearches.map(r => (
+                <li
+                  key={r.id}
+                  className="address-search__recent-item"
+                  onMouseDown={() => handleRecentSelect(r)}
+                >
+                  <svg className="address-search__recent-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l4 2" />
+                  </svg>
+                  <span className="address-search__recent-name">{r.display_name}</span>
+                  <span className="address-search__recent-time">{formatRelativeTime(r.timestamp)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="address-search__value-row">
-            <svg className="address-search__value-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-              <rect x="9" y="3" width="6" height="4" rx="1" />
-              <path d="M9 14l2 2 4-4" />
-            </svg>
-            <span className="address-search__value-text">{t('search.valueProp.checklist')}</span>
-          </div>
-          <button
-            type="button"
-            className="address-search__example-link"
-            onClick={() => handleSelect({
-              id: 'adr-d3836e3ae5e5c07f18109908abba6dab',
-              display_name: 'Keizersgracht 1, 1015CD Amsterdam',
-              type: 'adres',
-              score: 1,
-            }, 'example')}
-          >
-            {t('search.exampleAddress')}
-          </button>
-          <p className="address-search__trust-signal">{t('search.trustSignal')}</p>
-        </div>
-      )}
-      {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && !isFirst && (
-        <div className="address-search__welcome-back" data-testid="welcome-back">
-          <h3 className="address-search__welcome-back-title">{t('search.welcomeBack')}</h3>
-          {shortlistCount > 0 && (
-            <p className="address-search__welcome-back-saved">
-              {t('search.savedCount', { count: shortlistCount })}
-            </p>
-          )}
-          {shortlistCount > 0 && onNavigateToSaved && (
+        )}
+        {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && isFirst && (
+          <div className="address-search__value-props" data-testid="value-props">
+            <div className="address-search__value-row">
+              <span className="address-search__value-icon-circle">
+                <svg className="address-search__value-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+              </span>
+              <span className="address-search__value-text">{t('search.valueProp.risk')}</span>
+            </div>
+            <div className="address-search__value-row">
+              <span className="address-search__value-icon-circle">
+                <svg className="address-search__value-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <circle cx="12" cy="12" r="5" />
+                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                </svg>
+              </span>
+              <span className="address-search__value-text">{t('search.valueProp.sunlight')}</span>
+            </div>
+            <div className="address-search__value-row">
+              <span className="address-search__value-icon-circle">
+                <svg className="address-search__value-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+                  <rect x="9" y="3" width="6" height="4" rx="1" />
+                  <path d="M9 14l2 2 4-4" />
+                </svg>
+              </span>
+              <span className="address-search__value-text">{t('search.valueProp.checklist')}</span>
+            </div>
             <button
               type="button"
-              className="address-search__welcome-back-action"
-              onClick={onNavigateToSaved}
+              className="address-search__example-link"
+              onClick={() => handleSelect({
+                id: 'adr-d3836e3ae5e5c07f18109908abba6dab',
+                display_name: 'Keizersgracht 1, 1015CD Amsterdam',
+                type: 'adres',
+                score: 1,
+              }, 'example')}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
-              </svg>
-              {t('search.viewSaved')}
+              {t('search.exampleAddress')}
             </button>
-          )}
-          {shortlistCount >= 2 && onNavigateToCompare && (
-            <button
-              type="button"
-              className="address-search__welcome-back-action"
-              onClick={onNavigateToCompare}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="20" x2="18" y2="10" />
-                <line x1="12" y1="20" x2="12" y2="4" />
-                <line x1="6" y1="20" x2="6" y2="14" />
-              </svg>
-              {t('search.compareSaved')}
-            </button>
-          )}
-          <p className="address-search__welcome-back-prompt">{t('search.searchAnother')}</p>
-        </div>
-      )}
+            <p className="address-search__trust-signal">{t('search.trustSignal')}</p>
+          </div>
+        )}
+        {!showRecent && recentSearches.length === 0 && !isOpen && query.length < 2 && !isFirst && (
+          <div className="address-search__welcome-back" data-testid="welcome-back">
+            <h3 className="address-search__welcome-back-title">{t('search.welcomeBack')}</h3>
+            {shortlistCount > 0 && (
+              <p className="address-search__welcome-back-saved">
+                {t('search.savedCount', { count: shortlistCount })}
+              </p>
+            )}
+            {shortlistCount > 0 && onNavigateToSaved && (
+              <button
+                type="button"
+                className="address-search__welcome-back-action address-search__welcome-back-action--primary"
+                onClick={onNavigateToSaved}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+                </svg>
+                {t('search.viewSaved')}
+              </button>
+            )}
+            {shortlistCount >= 2 && onNavigateToCompare && (
+              <button
+                type="button"
+                className="address-search__welcome-back-action"
+                onClick={onNavigateToCompare}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="20" x2="18" y2="10" />
+                  <line x1="12" y1="20" x2="12" y2="4" />
+                  <line x1="6" y1="20" x2="6" y2="14" />
+                </svg>
+                {t('search.compareSaved')}
+              </button>
+            )}
+            <p className="address-search__welcome-back-prompt">{t('search.searchAnother')}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
