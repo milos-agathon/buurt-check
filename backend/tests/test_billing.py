@@ -98,6 +98,23 @@ async def test_get_pricing_marks_web_checkout_unavailable_without_stripe_config(
 
 
 @pytest.mark.asyncio
+async def test_get_pricing_keeps_web_checkout_available_without_webhook_secret(db_path):
+    """Web checkout can start with a secret key even when webhook verification is absent."""
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "stripe_secret_key", "sk_test_123"),
+        patch.object(settings, "stripe_webhook_secret", ""),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/pricing")
+
+    assert response.status_code == 200
+    assert response.json()["web_checkout_available"] is True
+
+
+@pytest.mark.asyncio
 async def test_create_checkout_session(db_path):
     """stripe.checkout.Session.create is called via asyncio.to_thread."""
     from app.services.reports import create_report
@@ -319,8 +336,8 @@ async def test_checkout_rejects_when_stripe_is_not_configured(db_path):
 
 
 @pytest.mark.asyncio
-async def test_checkout_rejects_when_stripe_webhook_is_not_configured(db_path):
-    """Web checkout should stay disabled without the webhook secret."""
+async def test_checkout_allows_missing_webhook_secret_when_secret_key_exists(db_path):
+    """Checkout session creation should still work without the webhook secret."""
     from app.services.reports import create_report
 
     rid = await create_report(
@@ -331,11 +348,16 @@ async def test_checkout_rejects_when_stripe_webhook_is_not_configured(db_path):
         db_path=db_path,
     )
 
+    mock_session = MagicMock()
+    mock_session.id = "cs_test_without_webhook"
+    mock_session.url = "https://checkout.stripe.com/pay/cs_test_without_webhook"
+
     stack, mock_stripe = _billing_patches(
         db_path,
         extra_settings={"stripe_webhook_secret": ""},
     )
     with stack:
+        mock_stripe.checkout.Session.create.return_value = mock_session
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
@@ -344,9 +366,89 @@ async def test_checkout_rejects_when_stripe_webhook_is_not_configured(db_path):
                 json={"report_id": rid},
             )
 
-    assert response.status_code == 503
-    assert response.json() == {"detail": "Stripe Billing is not configured"}
-    mock_stripe.checkout.Session.create.assert_not_called()
+    assert response.status_code == 200
+    assert response.json() == {
+        "checkout_url": "https://checkout.stripe.com/pay/cs_test_without_webhook"
+    }
+    mock_stripe.checkout.Session.create.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_confirm_checkout_session_unlocks_paid_report(db_path):
+    """Redirect confirmation should unlock the Stripe report when payment is paid."""
+    from app.services.reports import create_report, get_report, store_provider_session
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await store_provider_session(rid, "cs_test_confirm", db_path=db_path)
+
+    stack, mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={"stripe_webhook_secret": ""},
+    )
+    with stack:
+        mock_stripe.checkout.Session.retrieve.return_value = {
+            "id": "cs_test_confirm",
+            "payment_status": "paid",
+            "payment_intent": "pi_test_confirm",
+            "metadata": {
+                "report_id": rid,
+                "vbo_id": "0363010012345678",
+            },
+        }
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.get(
+                f"/api/billing/checkout-session/cs_test_confirm/confirm?report_id={rid}",
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "report_id": rid,
+        "entitled": True,
+        "report_type": "long",
+    }
+
+    report = await get_report(rid, db_path=db_path)
+    assert report is not None
+    assert report.payment_status == "paid"
+    assert report.entitlement_status == "active"
+    assert report.provider == "stripe"
+    assert report.provider_payment_id == "pi_test_confirm"
+
+
+@pytest.mark.asyncio
+async def test_confirm_checkout_session_rejects_session_mismatch(db_path):
+    """A report can only confirm the Stripe session that was issued for it."""
+    from app.services.reports import create_report, store_provider_session
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await store_provider_session(rid, "cs_test_expected", db_path=db_path)
+
+    stack, mock_stripe = _billing_patches(db_path)
+    with stack:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.get(
+                f"/api/billing/checkout-session/cs_test_other/confirm?report_id={rid}",
+            )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Checkout session not found"}
+    mock_stripe.checkout.Session.retrieve.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -27,6 +27,12 @@ export interface CheckoutSessionResponse {
   checkout_url: string;
 }
 
+export interface CheckoutConfirmationResponse {
+  report_id: string;
+  entitled: boolean;
+  report_type: 'short' | 'long';
+}
+
 export interface GooglePlayPurchaseVerificationResponse {
   report_id: string;
   entitled: boolean;

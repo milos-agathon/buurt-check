@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import BottomSheet from './ui/BottomSheet';
 import ContextualTooltip from './ui/ContextualTooltip';
@@ -43,6 +43,8 @@ interface ExportBottomSheetProps {
   onGenerateStart?: () => void;
   onGenerateSuccess?: () => void;
   onGenerateError?: () => void;
+  initialTemplate?: 'quick_brief' | 'full_dossier';
+  autoGenerateToken?: string | null;
 }
 
 export default function ExportBottomSheet({
@@ -78,6 +80,8 @@ export default function ExportBottomSheet({
   onGenerateStart,
   onGenerateSuccess,
   onGenerateError,
+  initialTemplate,
+  autoGenerateToken,
 }: ExportBottomSheetProps) {
   const { t, i18n } = useTranslation();
   const [template, setTemplate] = useState<'quick_brief' | 'full_dossier'>('quick_brief');
@@ -91,6 +95,8 @@ export default function ExportBottomSheet({
   const [shareError, setShareError] = useState(false);
   const [generatedBlob, setGeneratedBlob] = useState<Blob | null>(null);
   const [exportTooltipVisible, setExportTooltipVisible] = useState(false);
+  const [lastAutoGenerateToken, setLastAutoGenerateToken] = useState<string | null>(null);
+  const [lastAutoDownloadToken, setLastAutoDownloadToken] = useState<string | null>(null);
 
   const dismissExportTooltip = useCallback(() => {
     setExportTooltipVisible(false);
@@ -105,8 +111,15 @@ export default function ExportBottomSheet({
       setGeneratedBlob(null);
       setExportTooltipVisible(false);
       setExportLanguage(i18n.language === 'nl' ? 'nl' : 'en');
+      setLastAutoGenerateToken(null);
+      setLastAutoDownloadToken(null);
     }
   }, [i18n.language, isOpen]);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    setTemplate(initialTemplate ?? 'quick_brief');
+  }, [initialTemplate, isOpen]);
 
   const filename = useMemo(() => {
     const suffix = template === 'full_dossier' ? 'full-dossier' : 'quick-brief';
@@ -125,7 +138,7 @@ export default function ExportBottomSheet({
     ? ringCircumference * 0.75
     : ringCircumference - (progressPercent / 100) * ringCircumference;
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
     if (template === 'full_dossier' && !isEntitled) {
       onBuyFullDossier?.();
       return;
@@ -252,7 +265,86 @@ export default function ExportBottomSheet({
     } finally {
       setGenerating(false);
     }
-  };
+  }, [
+    addition,
+    address,
+    buurtCode,
+    city,
+    exportLanguage,
+    houseLetter,
+    houseNumber,
+    isEntitled,
+    lat,
+    lng,
+    municipality,
+    onBeforeGenerate,
+    onBuyFullDossier,
+    onGenerateError,
+    onGenerateStart,
+    onGenerateSuccess,
+    postcode,
+    rdX,
+    rdY,
+    reportId,
+    shadowSnapshots,
+    street,
+    sunlightPayload,
+    template,
+    vboId,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen || !autoGenerateToken || autoGenerateToken === lastAutoGenerateToken) {
+      return;
+    }
+    const desiredTemplate = initialTemplate ?? template;
+    if (template !== desiredTemplate) {
+      return;
+    }
+    const requiresPurchase = desiredTemplate === 'full_dossier' && !isEntitled;
+    const waitingOnSunlight = desiredTemplate === 'full_dossier' && !sunlightReady;
+    if (generating || generatedBlob || requiresPurchase || waitingOnSunlight) {
+      return;
+    }
+
+    setLastAutoGenerateToken(autoGenerateToken);
+    void handleGenerate();
+  }, [
+    autoGenerateToken,
+    generating,
+    generatedBlob,
+    handleGenerate,
+    initialTemplate,
+    isEntitled,
+    isOpen,
+    lastAutoGenerateToken,
+    sunlightReady,
+    template,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isOpen
+      || !generatedBlob
+      || progressStage !== 'ready'
+      || !autoGenerateToken
+      || autoGenerateToken === lastAutoDownloadToken
+    ) {
+      return;
+    }
+
+    setLastAutoDownloadToken(autoGenerateToken);
+    void Promise.resolve(downloadPdfBlob(generatedBlob, filename)).catch(() => {
+      setShareError(true);
+    });
+  }, [
+    autoGenerateToken,
+    filename,
+    generatedBlob,
+    isOpen,
+    lastAutoDownloadToken,
+    progressStage,
+  ]);
 
   const handleDownload = () => {
     if (!generatedBlob) return;

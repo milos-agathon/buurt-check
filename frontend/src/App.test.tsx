@@ -32,6 +32,7 @@ vi.mock('./services/api', async () => {
   return {
     createShortReport: vi.fn(),
     checkEntitlement: vi.fn(),
+    confirmStripeCheckoutSession: vi.fn(),
     createCheckoutSession: vi.fn(),
     verifyAppleAppStorePurchase: vi.fn(),
     verifyGooglePlayPurchase: vi.fn(),
@@ -128,6 +129,7 @@ vi.mock('./components/NeighborhoodStatsCard', () => ({
 import {
   ApiError,
   checkEntitlement,
+  confirmStripeCheckoutSession,
   createCheckoutSession,
   createShortReport,
   verifyAppleAppStorePurchase,
@@ -171,6 +173,7 @@ import { navigateToExternal } from './services/navigation';
 const mockLookup = vi.mocked(lookupAddress);
 const mockCreateShortReport = vi.mocked(createShortReport);
 const mockCheckEntitlement = vi.mocked(checkEntitlement);
+const mockConfirmStripeCheckoutSession = vi.mocked(confirmStripeCheckoutSession);
 const mockCreateCheckoutSession = vi.mocked(createCheckoutSession);
 const mockVerifyAppleAppStorePurchase = vi.mocked(verifyAppleAppStorePurchase);
 const mockVerifyGooglePlayPurchase = vi.mocked(verifyGooglePlayPurchase);
@@ -219,6 +222,7 @@ beforeEach(() => {
   (globalThis as Record<string, unknown>).__intersectionObserverTarget = null;
   mockCreateShortReport.mockReset();
   mockCheckEntitlement.mockReset();
+  mockConfirmStripeCheckoutSession.mockReset();
   mockCreateCheckoutSession.mockReset();
   mockVerifyAppleAppStorePurchase.mockReset();
   mockVerifyGooglePlayPurchase.mockReset();
@@ -263,6 +267,11 @@ beforeEach(() => {
     already_purchased: false,
   });
   mockCheckEntitlement.mockResolvedValue({
+    report_id: 'report-123',
+    entitled: true,
+    report_type: 'short',
+  });
+  mockConfirmStripeCheckoutSession.mockResolvedValue({
     report_id: 'report-123',
     entitled: true,
     report_type: 'short',
@@ -876,7 +885,7 @@ describe('3D viewer integration', () => {
     );
   });
 
-  it('disables the web Stripe buy button when pricing marks checkout unavailable', async () => {
+  it('still attempts Stripe checkout when pricing metadata says unavailable', async () => {
     pricingConfigRef.current.webCheckoutAvailable = false;
     window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
     mockLookup.mockResolvedValue(makeResolvedAddress());
@@ -902,11 +911,16 @@ describe('3D viewer integration', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Buy Full Dossier/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /Buy Full Dossier/i })).not.toBeDisabled();
     });
-    expect(screen.getByText(
-      'Full dossier checkout is temporarily unavailable. Please try again later.',
-    )).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123');
+    });
   });
 
   it('shows the dedicated unavailable message when checkout-session returns Stripe-config 503', async () => {
@@ -979,6 +993,42 @@ describe('3D viewer integration', () => {
     expect(mockNavigateToExternal).toHaveBeenCalledWith(
       'https://checkout.stripe.com/c/pay/cs_test_123',
     );
+  });
+
+  it('resumes full dossier export after Stripe redirect confirmation', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123&report=report-123&session_id=cs_test_123';
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith('report-123', 'cs_test_123');
+    });
+    expect(mockCreateCheckoutSession).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: /Full Dossier/i })).toHaveAttribute('aria-checked', 'true');
+    });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
+    });
+    expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
   });
 
   it('uses Apple billing instead of Stripe when the iOS runtime is available', async () => {

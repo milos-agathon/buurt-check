@@ -121,6 +121,12 @@ class CheckoutResponse(BaseModel):
     checkout_url: str
 
 
+class CheckoutConfirmationResponse(BaseModel):
+    report_id: str
+    entitled: bool
+    report_type: Literal["short", "long"]
+
+
 class GooglePlayVerifyRequest(BaseModel):
     report_id: str = Field(
         ...,
@@ -261,6 +267,103 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
         # Stripe session already exists — return URL anyway; webhook will reconcile.
 
     return CheckoutResponse(checkout_url=session.url)
+
+
+def _stripe_field(value: object, key: str):
+    if isinstance(value, dict):
+        return value.get(key)
+
+    getter = getattr(value, "get", None)
+    if callable(getter):
+        result = getter(key, None)
+        if result is not None:
+            return result
+
+    return getattr(value, key, None)
+
+
+@limiter.limit("30/minute")
+@router.get(
+    "/checkout-session/{session_id}/confirm",
+    response_model=CheckoutConfirmationResponse,
+)
+async def confirm_checkout_session(request: Request, session_id: str, report_id: str):
+    """Confirm a Stripe Checkout redirect and unlock the report when payment succeeded."""
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    try:
+        report = await get_report_for_buyer(report_id, buyer_key)
+    except DatabaseError:
+        logger.exception("Database error fetching report %s for checkout confirmation", report_id)
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if report.provider_session_id != session_id:
+        raise HTTPException(status_code=404, detail="Checkout session not found")
+    if report.payment_status == "paid" and report.entitlement_status == "active":
+        return CheckoutConfirmationResponse(
+            report_id=report_id,
+            entitled=True,
+            report_type=report.report_type,
+        )
+
+    readiness = get_stripe_web_checkout_readiness()
+    if not readiness.has_secret_key:
+        raise HTTPException(status_code=503, detail="Stripe Billing is not configured")
+
+    stripe.api_key = settings.stripe_secret_key
+
+    try:
+        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, session_id)
+    except stripe.InvalidRequestError:
+        raise HTTPException(status_code=404, detail="Checkout session not found")
+    except stripe.AuthenticationError:
+        raise HTTPException(status_code=503, detail="Stripe Billing is not configured")
+    except stripe.StripeError:
+        logger.exception(
+            "Stripe session retrieval failed during checkout confirmation for report %s",
+            report_id,
+        )
+        raise HTTPException(status_code=502, detail="Payment provider unavailable")
+
+    metadata = _stripe_field(session, "metadata") or {}
+    if not isinstance(metadata, dict):
+        metadata = dict(metadata)
+    if metadata.get("report_id") != report_id or metadata.get("vbo_id") != report.vbo_id:
+        raise HTTPException(status_code=409, detail="Checkout session does not match report")
+
+    if _stripe_field(session, "payment_status") != "paid":
+        return CheckoutConfirmationResponse(
+            report_id=report_id,
+            entitled=False,
+            report_type=report.report_type,
+        )
+
+    payment_intent = _stripe_field(session, "payment_intent")
+    provider_payment_id = (
+        payment_intent
+        if isinstance(payment_intent, str)
+        else _stripe_field(payment_intent, "id")
+    )
+
+    try:
+        await unlock_report(
+            report_id,
+            provider="stripe",
+            provider_payment_id=provider_payment_id,
+            purchased_at=datetime.now(timezone.utc).isoformat(),
+        )
+    except DatabaseError:
+        logger.exception("Failed to unlock report %s after checkout confirmation", report_id)
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    return CheckoutConfirmationResponse(
+        report_id=report_id,
+        entitled=True,
+        report_type=report.report_type,
+    )
 
 
 @limiter.limit("10/minute")

@@ -9,7 +9,7 @@ import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import DossierSheet, { type SheetSnap } from './components/DossierSheet';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
 import { SPRING_TAB } from './config/springs';
-import { fetchPrice, getDossierPrice, isWebCheckoutAvailable } from './config/pricing';
+import { fetchPrice, getDossierPrice } from './config/pricing';
 import { hapticTap } from './utils/haptic';
 import { useAnimationPerformance } from './hooks/useAnimationPerformance';
 import ShortlistScreen from './components/ShortlistScreen';
@@ -37,6 +37,7 @@ import ExportBottomSheet from './components/ExportBottomSheet';
 import {
   ApiError,
   checkEntitlement,
+  confirmStripeCheckoutSession,
   verifyAppleAppStorePurchase,
   createCheckoutSession,
   createShortReport,
@@ -351,6 +352,12 @@ const PHASE_1_TIMEOUT_MS = 7000;
 const PHASE_2_TIMEOUT_MS = 9000;
 const CHECKLIST_SESSION_KEY = 'buurt-check:viewing-checklist';
 const REPORT_LOOKUP_SESSION_KEY = 'buurt-check:report-lookup';
+const POST_CHECKOUT_EXPORT_SESSION_KEY = 'buurt-check:post-checkout-export';
+
+interface PostCheckoutExportIntent {
+  reportId: string;
+  template: 'full_dossier';
+}
 
 function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
   if (value == null) return fallback;
@@ -531,6 +538,54 @@ function persistChecklistState(vboId: string, checked: Set<string>): void {
   }
 }
 
+function storePostCheckoutExportIntent(intent: PostCheckoutExportIntent): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(
+      POST_CHECKOUT_EXPORT_SESSION_KEY,
+      JSON.stringify(intent),
+    );
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function loadPostCheckoutExportIntent(): PostCheckoutExportIntent | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(POST_CHECKOUT_EXPORT_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PostCheckoutExportIntent>;
+    if (parsed.reportId && parsed.template === 'full_dossier') {
+      return {
+        reportId: parsed.reportId,
+        template: 'full_dossier',
+      };
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+  return null;
+}
+
+function clearPostCheckoutExportIntent(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(POST_CHECKOUT_EXPORT_SESSION_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function consumePostCheckoutExportIntent(reportId: string): PostCheckoutExportIntent | null {
+  const intent = loadPostCheckoutExportIntent();
+  if (!intent || intent.reportId !== reportId) {
+    return null;
+  }
+  clearPostCheckoutExportIntent();
+  return intent;
+}
+
 function App() {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
@@ -546,7 +601,6 @@ function App() {
   const [activeLookupId, setActiveLookupId] = useState<string | null>(dossierSeed?.address?.id ?? null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [dossierPriceEur, setDossierPriceEur] = useState(() => getDossierPrice());
-  const [webCheckoutAvailable, setWebCheckoutAvailable] = useState(() => isWebCheckoutAvailable());
   const [billingProvider, setBillingProvider] = useState<BillingProvider>('stripe');
   const [appleLocalizedPriceLabel, setAppleLocalizedPriceLabel] = useState<string | null>(null);
   const [isEntitled, setIsEntitled] = useState(TEMP_FORCE_FULL_DOSSIER_VIEW);
@@ -618,6 +672,10 @@ function App() {
   const retryControllersRef = useRef<Set<AbortController>>(new Set());
   const previousScreenRef = useRef<Screen>('search');
   const handledCheckoutParamsRef = useRef<string | null>(null);
+  const latestEntitlementRef = useRef<{ reportId: string | null; isEntitled: boolean }>({
+    reportId: null,
+    isEntitled: TEMP_FORCE_FULL_DOSSIER_VIEW,
+  });
   const tracked3DOpenKeyRef = useRef<string | null>(null);
   const latestSunlightSubmissionKeyRef = useRef<string | null>(null);
   const sunlightSubmissionPromiseRef = useRef<Promise<void> | null>(null);
@@ -644,6 +702,8 @@ function App() {
 
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [exportGenerating, setExportGenerating] = useState(false);
+  const [exportInitialTemplate, setExportInitialTemplate] = useState<'quick_brief' | 'full_dossier' | null>(null);
+  const [exportAutoGenerateToken, setExportAutoGenerateToken] = useState<string | null>(null);
 
   // ActionBar visibility: shown when ViewingChecklist section enters viewport.
   const [actionBarVisible, setActionBarVisible] = useState(false);
@@ -748,7 +808,6 @@ function App() {
     void fetchPrice().then((price) => {
       if (!cancelled) {
         setDossierPriceEur(price);
-        setWebCheckoutAvailable(isWebCheckoutAvailable());
       }
     });
     return () => {
@@ -789,6 +848,13 @@ function App() {
     storeEntitlement(vboId, reportId, isEntitled);
   }, [address?.adresseerbaar_object_id, isEntitled, reportId]);
 
+  useEffect(() => {
+    latestEntitlementRef.current = {
+      reportId,
+      isEntitled,
+    };
+  }, [isEntitled, reportId]);
+
   const handleThemeChange = useCallback((pref: ThemePreference) => {
     setTheme(pref);
     setThemePreference(pref);
@@ -798,6 +864,10 @@ function App() {
     unlockedReportId: string,
     provider: 'stripe' | 'google_play' | 'apple_app_store',
   ) => {
+    latestEntitlementRef.current = {
+      reportId: unlockedReportId,
+      isEntitled: true,
+    };
     setReportId(unlockedReportId);
     setIsEntitled(true);
     setCheckoutStatusMessage(null);
@@ -806,6 +876,15 @@ function App() {
       storeEntitlement(address.adresseerbaar_object_id, unlockedReportId, true);
     }
   }, [address?.adresseerbaar_object_id]);
+
+  const resumePurchasedExport = useCallback((unlockedReportId: string) => {
+    const pendingIntent = consumePostCheckoutExportIntent(unlockedReportId);
+    if (!pendingIntent) return;
+
+    setExportInitialTemplate(pendingIntent.template);
+    setExportAutoGenerateToken(`${unlockedReportId}:${Date.now()}`);
+    setExportSheetOpen(true);
+  }, []);
 
   const androidBillingAvailable = billingProvider === 'google_play';
   const appleBillingAvailable = billingProvider === 'apple_app_store';
@@ -881,21 +960,14 @@ function App() {
       showToast(t('premium.checkout.startFailed'));
       return;
     }
-    if (billingProvider === 'stripe' && !webCheckoutAvailable) {
-      const message = t('premium.checkout.unavailable');
-      trackEvent('checkout_failed', {
-        report_id: reportId,
-        provider: 'stripe',
-        reason: 'checkout_unavailable',
-      });
-      setCheckoutStatusMessage(message);
-      showToast(message);
-      return;
-    }
 
     if (activeLookupId) {
       storeReportLookup(reportId, activeLookupId);
     }
+    storePostCheckoutExportIntent({
+      reportId,
+      template: 'full_dossier',
+    });
 
     setIsCheckingOut(true);
     setCheckoutStatusMessage(null);
@@ -919,6 +991,7 @@ function App() {
             await finishAppleBillingTransaction(pendingPurchase.transactionId);
             clearPendingAppleBillingReport();
             activatePurchasedEntitlement(verification.report_id, 'apple_app_store');
+            resumePurchasedExport(verification.report_id);
             trackEvent('checkout_completed', {
               report_id: verification.report_id,
               provider: 'apple_app_store',
@@ -941,6 +1014,7 @@ function App() {
           await finishAppleBillingTransaction(purchase.transactionId);
           clearPendingAppleBillingReport();
           activatePurchasedEntitlement(verification.report_id, 'apple_app_store');
+          resumePurchasedExport(verification.report_id);
           trackEvent('checkout_completed', {
             report_id: verification.report_id,
             provider: 'apple_app_store',
@@ -960,6 +1034,7 @@ function App() {
           }
 
           if (isAppleBillingCancelledError(error)) {
+            clearPostCheckoutExportIntent();
             clearPendingAppleBillingReport();
             return;
           }
@@ -988,6 +1063,7 @@ function App() {
             }
             clearPendingPlayBillingReport();
             activatePurchasedEntitlement(verification.report_id, 'google_play');
+            resumePurchasedExport(verification.report_id);
             trackEvent('checkout_completed', {
               report_id: verification.report_id,
               provider: 'google_play',
@@ -1013,6 +1089,7 @@ function App() {
           await completePlayBillingPurchase(purchase, 'success');
           clearPendingPlayBillingReport();
           activatePurchasedEntitlement(verification.report_id, 'google_play');
+          resumePurchasedExport(verification.report_id);
           trackEvent('checkout_completed', {
             report_id: verification.report_id,
             provider: 'google_play',
@@ -1033,6 +1110,7 @@ function App() {
           }
 
           if (error instanceof DOMException && error.name === 'AbortError') {
+            clearPostCheckoutExportIntent();
             clearPendingPlayBillingReport();
             return;
           }
@@ -1054,6 +1132,7 @@ function App() {
         provider: billingProvider,
         reason: checkoutUnavailable ? 'billing_not_configured' : 'session_creation',
       });
+      clearPostCheckoutExportIntent();
       setCheckoutStatusMessage(message);
       showToast(message);
       return;
@@ -1069,9 +1148,9 @@ function App() {
     dossierPriceEur,
     isCheckingOut,
     reportId,
+    resumePurchasedExport,
     showToast,
     t,
-    webCheckoutAvailable,
   ]);
 
   const handleToggleQuestion = useCallback((id: string) => {
@@ -1255,6 +1334,8 @@ function App() {
 
   const handleRiskTileTap = useCallback((category: string) => {
     if (!isEntitled) {
+      setExportInitialTemplate(null);
+      setExportAutoGenerateToken(null);
       setExportSheetOpen(true);
       return;
     }
@@ -1902,6 +1983,41 @@ function App() {
   }, [trigger3DFetch]);
 
   useEffect(() => {
+    if (!exportSheetOpen || exportInitialTemplate !== 'full_dossier' || !exportAutoGenerateToken) {
+      return;
+    }
+    if (sunlight || sunlightUnavailable || neighborhood3DLoading || surroundingLoading) {
+      return;
+    }
+
+    if (deferred3DParamsRef.current) {
+      setViewer3DTriggered(true);
+      trigger3DFetch();
+      return;
+    }
+
+    const hasRenderableNeighborhood = Boolean(neighborhood3D && neighborhood3D.buildings.length > 0);
+    if (!hasRenderableNeighborhood && last3DParamsRef.current) {
+      deferred3DParamsRef.current = last3DParamsRef.current;
+      setViewer3DTriggered(true);
+      trigger3DFetch();
+    }
+  }, [
+    address?.adresseerbaar_object_id,
+    address?.pand_id,
+    buildingResponse?.building?.pand_id,
+    exportAutoGenerateToken,
+    exportInitialTemplate,
+    exportSheetOpen,
+    neighborhood3D,
+    neighborhood3DLoading,
+    sunlight,
+    sunlightUnavailable,
+    surroundingLoading,
+    trigger3DFetch,
+  ]);
+
+  useEffect(() => {
     const vboId = address?.adresseerbaar_object_id;
     if (!vboId || !neighborhood3D || neighborhood3D.buildings.length === 0) return;
 
@@ -2112,6 +2228,10 @@ function App() {
     setActiveLookupId(suggestion.id);
     setReportId(null);
     setIsEntitled(TEMP_FORCE_FULL_DOSSIER_VIEW);
+    latestEntitlementRef.current = {
+      reportId: null,
+      isEntitled: TEMP_FORCE_FULL_DOSSIER_VIEW,
+    };
     setIsCheckingOut(false);
     setCheckoutStatusMessage(null);
     setBuildingResponse(null);
@@ -2207,7 +2327,12 @@ function App() {
         trackEvent('short_report_loaded', { report_id: activeReportId, vbo_id: vboId });
       }
 
-      const effectiveEntitlement = TEMP_FORCE_FULL_DOSSIER_VIEW || entitledForAddress;
+      const effectiveEntitlement = TEMP_FORCE_FULL_DOSSIER_VIEW
+        || entitledForAddress
+        || (
+          latestEntitlementRef.current.reportId === activeReportId
+          && latestEntitlementRef.current.isEntitled
+        );
       setReportId(activeReportId);
       setIsEntitled(effectiveEntitlement);
       if (activeReportId) {
@@ -2739,11 +2864,17 @@ function App() {
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
-          const entitlement = await checkEntitlement(checkoutVerification.reportId);
+          const entitlement = checkoutVerification.sessionId
+            ? await confirmStripeCheckoutSession(
+              checkoutVerification.reportId,
+              checkoutVerification.sessionId,
+            )
+            : await checkEntitlement(checkoutVerification.reportId);
           if (cancelled) return;
 
           if (entitlement.entitled) {
             activatePurchasedEntitlement(entitlement.report_id, 'stripe');
+            resumePurchasedExport(entitlement.report_id);
             if (checkoutVerification.sessionId) {
               trackEvent('checkout_completed', {
                 report_id: entitlement.report_id,
@@ -2753,17 +2884,17 @@ function App() {
             showToast(t('premium.checkout.success'));
             return;
           }
-          } catch {
-            if (cancelled) return;
-            if (checkoutVerification.sessionId) {
-              trackEvent('checkout_failed', {
-                report_id: checkoutVerification.reportId,
-                reason: 'entitlement_check_error',
-              });
-              setCheckoutStatusMessage(t('premium.checkout.failed'));
-              showToast(t('premium.checkout.failed'));
-            }
-            return;
+        } catch {
+          if (cancelled) return;
+          if (checkoutVerification.sessionId) {
+            trackEvent('checkout_failed', {
+              report_id: checkoutVerification.reportId,
+              reason: 'entitlement_check_error',
+            });
+            setCheckoutStatusMessage(t('premium.checkout.failed'));
+            showToast(t('premium.checkout.failed'));
+          }
+          return;
         }
 
         if (!checkoutVerification.sessionId || attempt >= maxAttempts) {
@@ -2791,7 +2922,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [activatePurchasedEntitlement, checkoutVerification, showToast, t]);
+  }, [activatePurchasedEntitlement, checkoutVerification, resumePurchasedExport, showToast, t]);
 
   useEffect(() => {
     if (!appleBillingAvailable || !reportId || isEntitled) return;
@@ -2818,6 +2949,7 @@ function App() {
 
         clearPendingAppleBillingReport();
         activatePurchasedEntitlement(verification.report_id, 'apple_app_store');
+        resumePurchasedExport(verification.report_id);
         trackEvent('checkout_completed', {
           report_id: verification.report_id,
           provider: 'apple_app_store',
@@ -2836,7 +2968,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [activatePurchasedEntitlement, appleBillingAvailable, isEntitled, reportId, showToast, t]);
+  }, [activatePurchasedEntitlement, appleBillingAvailable, isEntitled, reportId, resumePurchasedExport, showToast, t]);
 
   useEffect(() => {
     if (!androidBillingAvailable || !reportId || isEntitled) return;
@@ -2865,6 +2997,7 @@ function App() {
 
         clearPendingPlayBillingReport();
         activatePurchasedEntitlement(verification.report_id, 'google_play');
+        resumePurchasedExport(verification.report_id);
         trackEvent('checkout_completed', {
           report_id: verification.report_id,
           provider: 'google_play',
@@ -2883,7 +3016,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [activatePurchasedEntitlement, androidBillingAvailable, isEntitled, reportId, showToast, t]);
+  }, [activatePurchasedEntitlement, androidBillingAvailable, isEntitled, reportId, resumePurchasedExport, showToast, t]);
 
   const comparisonLabel = useCallback((code: string): string => {
     if (code === 'city_avg') return t('risk.detail.cityAvg');
@@ -3633,6 +3766,8 @@ function App() {
                       onAddToShortlist={handleBookmark}
                       onExportBriefing={() => {
                         hapticTap();
+                        setExportInitialTemplate(null);
+                        setExportAutoGenerateToken(null);
                         setExportSheetOpen(true);
                       }}
                       showBookmarkTooltip={!!address}
@@ -3731,6 +3866,8 @@ function App() {
             onClose={() => {
               setExportSheetOpen(false);
               setExportGenerating(false);
+              setExportInitialTemplate(null);
+              setExportAutoGenerateToken(null);
             }}
             vboId={address.adresseerbaar_object_id}
             rdX={address.rd_x}
@@ -3764,12 +3901,6 @@ function App() {
                   : undefined
             }
             buyPriceLabel={exportBuyPriceLabel}
-            buyDisabled={billingProvider === 'stripe' && !webCheckoutAvailable}
-            buyDisabledMessage={
-              billingProvider === 'stripe' && !webCheckoutAvailable
-                ? t('premium.checkout.unavailable')
-                : undefined
-            }
             buyPending={isCheckingOut}
             onGenerateStart={() => {
               setExportGenerating(true);
@@ -3783,6 +3914,8 @@ function App() {
               setExportGenerating(false);
               showToast(t('export.error'));
             }}
+            initialTemplate={exportInitialTemplate ?? undefined}
+            autoGenerateToken={exportAutoGenerateToken}
           />
         </Suspense>
         </ErrorBoundary>

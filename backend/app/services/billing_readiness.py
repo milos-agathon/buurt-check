@@ -54,10 +54,14 @@ def get_stripe_web_checkout_readiness() -> StripeWebCheckoutReadiness:
     has_webhook_secret = bool(settings.stripe_webhook_secret.strip())
     public_base_url = has_public_base_url()
     persistent_storage = using_turso()
-    web_checkout_available = has_secret_key and has_webhook_secret
+    # A secret key is sufficient to create and later confirm Checkout Sessions.
+    # The webhook secret remains part of release readiness because it powers
+    # asynchronous reconciliation and refund handling.
+    web_checkout_available = has_secret_key
     release_ready = (
         web_checkout_available
         and public_base_url
+        and has_webhook_secret
         and persistent_storage
     )
 

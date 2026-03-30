@@ -101,6 +101,31 @@ describe('ExportBottomSheet', () => {
     expect(mockClose).not.toHaveBeenCalled();
   });
 
+  it('auto-generates the initial full dossier after purchase continuation', async () => {
+    vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    renderSheet({
+      initialTemplate: 'full_dossier',
+      autoGenerateToken: 'paid-report-123',
+    });
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'full_dossier',
+          language: 'en',
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+    expect(api.downloadPdfBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      'buurt-check-full-dossier-0363010012345678.pdf',
+    );
+  });
+
   it('uses segmented language control independent from app language', async () => {
     vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
     renderSheet();

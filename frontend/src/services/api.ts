@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next';
 import type {
   AppleAppStorePurchaseVerificationResponse,
   BuildingFactsResponse,
+  CheckoutConfirmationResponse,
   CheckoutSessionResponse,
   EntitlementResponse,
   GooglePlayPurchaseVerificationResponse,
@@ -258,6 +259,24 @@ export async function createCheckoutSession(reportId: string): Promise<CheckoutS
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ report_id: reportId }),
   });
+  if (!resp.ok) {
+    const detail = await readErrorDetail(resp);
+    if (resp.status === 503 && detail === 'Stripe Billing is not configured') {
+      throw new ApiError('premium.checkout.unavailable', resp.status);
+    }
+    throwHttpError(resp.status);
+  }
+  return resp.json();
+}
+
+export async function confirmStripeCheckoutSession(
+  reportId: string,
+  sessionId: string,
+): Promise<CheckoutConfirmationResponse> {
+  const params = new URLSearchParams({ report_id: reportId });
+  const resp = await fetchPrimaryApi(
+    `${API_BASE}/billing/checkout-session/${encodeURIComponent(sessionId)}/confirm?${params}`,
+  );
   if (!resp.ok) {
     const detail = await readErrorDetail(resp);
     if (resp.status === 503 && detail === 'Stripe Billing is not configured') {
