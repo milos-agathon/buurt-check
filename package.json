@@ -5,6 +5,11 @@
   "scripts": {
     "prebuild": "npm --prefix frontend ci",
     "build": "node ./scripts/build-root-frontend-app.mjs",
+    "landing:serve": "node ./scripts/serve-landing.mjs",
+    "landing:test:e2e": "npm --prefix frontend exec -- playwright test --config frontend/playwright.landing.config.ts",
+    "landing:perf:local": "node ./scripts/measure-landing-lcp.mjs local",
+    "landing:perf:live": "node ./scripts/measure-landing-lcp.mjs live",
+    "landing:check": "npm run landing:test:e2e && npm run landing:perf:local",
     "billing:preflight": "python backend/scripts/check_web_billing_readiness.py",
     "billing:smoke": "python backend/scripts/smoke_test_web_checkout.py",
     "android:manifest": "node ./scripts/generate-twa-manifest.mjs",

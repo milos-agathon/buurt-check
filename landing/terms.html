@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Buurt Check Terms of Use</title>
+    <meta
+      name="description"
+      content="Terms of use for Buurt Check web, Android, and iPhone app experiences."
+    />
+    <meta name="buurtcheck-ga-measurement-id" content="__BUURTCHECK_GA_MEASUREMENT_ID__" />
+    <link rel="icon" type="image/svg+xml" href="/logos/buurt-check-favicon.svg" />
+    <link rel="stylesheet" href="/legal.css" />
+    <script>
+      (function () {
+        const GA_PLACEHOLDER = '__BUURTCHECK' + '_GA_MEASUREMENT_ID__';
+        const metaMeasurementId = document
+          .querySelector('meta[name="buurtcheck-ga-measurement-id"]')
+          ?.getAttribute('content')
+          ?.trim() || '';
+        const configuredMeasurementId = (typeof window.BUURTCHECK_GA_MEASUREMENT_ID === 'string'
+          ? window.BUURTCHECK_GA_MEASUREMENT_ID.trim()
+          : '') || metaMeasurementId;
+        const resolvedMeasurementId = configuredMeasurementId === GA_PLACEHOLDER
+          ? ''
+          : configuredMeasurementId.toUpperCase();
+
+        if (!/^G-[A-Z0-9]+$/i.test(resolvedMeasurementId)) {
+          return;
+        }
+
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = window.gtag || function gtag() {
+          window.dataLayer.push(arguments);
+        };
+
+        window.gtag('consent', 'default', {
+          analytics_storage: 'denied',
+          ad_storage: 'denied',
+          ad_user_data: 'denied',
+          ad_personalization: 'denied',
+          functionality_storage: 'granted',
+          security_storage: 'granted',
+          wait_for_update: 500,
+        });
+        window.gtag('js', new Date());
+        window.gtag('config', resolvedMeasurementId, {
+          anonymize_ip: true,
+          send_page_view: true,
+        });
+
+        const gaScript = document.createElement('script');
+        gaScript.async = true;
+        gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(resolvedMeasurementId)}`;
+        gaScript.dataset.analyticsProvider = 'google-analytics';
+        gaScript.dataset.measurementId = resolvedMeasurementId;
+        document.head.appendChild(gaScript);
+      }());
+    </script>
+  </head>
+  <body>
+    <main class="legal-page">
+      <div class="legal-page__topbar">
+        <a class="legal-page__brand" href="https://app.buurt-check.nl/#/search">
+          <img src="/logos/buurt-check-lockup-horizontal.svg" alt="Buurt Check" />
+          <span>Buurt Check</span>
+        </a>
+        <a class="legal-page__back" href="https://app.buurt-check.nl/#/search">Back to the app</a>
+      </div>
+
+      <section class="legal-page__hero">
+        <span class="legal-page__eyebrow">Terms of use</span>
+        <h1 class="legal-page__title">Buurt Check Terms of Use</h1>
+        <p class="legal-page__lead">
+          These terms govern the free viewer, the free quick brief export, and the paid full
+          dossier export delivered through the web app, the Google Play Android app, and the
+          App Store iPhone app.
+        </p>
+        <p class="legal-page__meta">Last updated: March 23, 2026</p>
+      </section>
+
+      <div class="legal-page__grid">
+        <section class="legal-page__section">
+          <h2>Service scope</h2>
+          <p>
+            Buurt Check provides indicative, evidence-backed property intelligence for Dutch
+            addresses. The on-screen dossier viewer is free. The quick brief export is free. The
+            full dossier export is a paid digital good linked to the anonymous buyer and the
+            address-specific report record created at the time of purchase.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>No professional advice</h2>
+          <p>
+            Buurt Check summarizes public datasets and generated analysis. It is not legal, tax,
+            mortgage, structural, surveying, or notarial advice. You remain responsible for
+            carrying out professional inspections, due diligence, and purchase decisions.
+          </p>
+          <div class="legal-page__callout">
+            <h3>Dutch summary</h3>
+            <p>
+              Buurt Check is een informatieve dienst, geen juridisch, bouwkundig of financieel
+              advies. Controleer belangrijke punten altijd met professionele adviseurs.
+            </p>
+          </div>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Payment channels</h2>
+          <ul>
+            <li>Web purchases are processed through Stripe Checkout.</li>
+            <li>Android purchases in the Google Play build are processed through Google Play Billing.</li>
+            <li>iPhone purchases in the App Store build are processed through Apple In-App Purchase.</li>
+            <li>
+              The payment provider terms, refund rules, and platform rights also apply to the
+              relevant channel.
+            </li>
+          </ul>
+          <p>
+            We may refuse, reverse, or revoke an entitlement if a payment is cancelled, refunded,
+            charged back, or determined to be invalid by the relevant payment platform.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Availability and changes</h2>
+          <p>
+            Public data sources can fail, change, or become temporarily unavailable. We aim to
+            degrade gracefully, but we do not guarantee uninterrupted availability of every source,
+            section, or export. We may update the app, pricing, or these terms as the product and
+            platform rules evolve.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Allowed use</h2>
+          <p>
+            You may use Buurt Check for lawful personal or internal evaluation purposes. You may
+            not reverse engineer the service, scrape it at scale, interfere with platform security
+            measures, or resell paid exports as your own product.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Liability</h2>
+          <p>
+            To the maximum extent permitted by law, Buurt Check is provided on an as-is basis and
+            we are not liable for indirect or consequential losses resulting from your reliance on
+            indicative data, third-party source errors, or service interruptions.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Contact</h2>
+          <p>
+            Product and support questions can be sent to
+            <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>.
+          </p>
+        </section>
+      </div>
+
+      <p class="legal-page__footer">
+        If a specific platform rule or mandatory local law conflicts with these terms, the mandatory
+        rule controls for that channel.
+      </p>
+    </main>
+  </body>
+</html>

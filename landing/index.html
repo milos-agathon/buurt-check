@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="nl" data-language="nl">
 
 <head>
   <meta charset="UTF-8">
@@ -21,6 +21,7 @@
   <meta property="og:type" content="website">
   <meta property="og:locale" content="nl_NL">
   <meta property="og:locale:alternate" content="en_GB">
+  <meta name="buurtcheck-ga-measurement-id" content="__BUURTCHECK_GA_MEASUREMENT_ID__">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Buurt Check — Weet wat je koopt">
   <meta name="twitter:description"
@@ -31,8 +32,93 @@
   <link rel="canonical" href="https://buurt-check.nl">
   <meta name="theme-color" content="#000000">
 
+  <script>
+    (function () {
+      const LANG_STORAGE_KEY = 'buurtcheck_lang';
+      const storedLang = (() => {
+        try {
+          return localStorage.getItem(LANG_STORAGE_KEY);
+        } catch (error) {
+          return null;
+        }
+      })();
+
+      const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length > 0
+        ? navigator.languages
+        : [navigator.language];
+
+      let initialLanguage = 'nl';
+
+      if (storedLang === 'nl' || storedLang === 'en') {
+        initialLanguage = storedLang;
+      } else {
+        for (const language of browserLanguages) {
+          const normalized = String(language || '').toLowerCase();
+          if (normalized.startsWith('nl')) {
+            initialLanguage = 'nl';
+            break;
+          }
+          if (normalized.startsWith('en')) {
+            initialLanguage = 'en';
+            break;
+          }
+        }
+      }
+
+      document.documentElement.lang = initialLanguage;
+      document.documentElement.dataset.language = initialLanguage;
+    }());
+  </script>
+
+  <script>
+    (function () {
+      const GA_PLACEHOLDER = '__BUURTCHECK' + '_GA_MEASUREMENT_ID__';
+      const metaMeasurementId = document
+        .querySelector('meta[name="buurtcheck-ga-measurement-id"]')
+        ?.getAttribute('content')
+        ?.trim() || '';
+      const configuredMeasurementId = (typeof window.BUURTCHECK_GA_MEASUREMENT_ID === 'string'
+        ? window.BUURTCHECK_GA_MEASUREMENT_ID.trim()
+        : '') || metaMeasurementId;
+      const resolvedMeasurementId = configuredMeasurementId === GA_PLACEHOLDER
+        ? ''
+        : configuredMeasurementId.toUpperCase();
+
+      if (!/^G-[A-Z0-9]+$/i.test(resolvedMeasurementId)) {
+        return;
+      }
+
+      window.__landingGaMeasurementId = resolvedMeasurementId;
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = window.gtag || function gtag() {
+        window.dataLayer.push(arguments);
+      };
+
+      window.gtag('consent', 'default', {
+        analytics_storage: 'denied',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        functionality_storage: 'granted',
+        security_storage: 'granted',
+        wait_for_update: 500,
+      });
+      window.gtag('js', new Date());
+      window.gtag('config', resolvedMeasurementId, {
+        anonymize_ip: true,
+        send_page_view: true,
+      });
+
+      const gaScript = document.createElement('script');
+      gaScript.async = true;
+      gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(resolvedMeasurementId)}`;
+      gaScript.dataset.analyticsProvider = 'google-analytics';
+      gaScript.dataset.measurementId = resolvedMeasurementId;
+      document.head.appendChild(gaScript);
+    }());
+  </script>
+
   <style>
-    /* ── Font ── */
     @font-face {
       font-family: 'Satoshi';
       src: url('fonts/Satoshi-Variable.woff2') format('woff2'),
@@ -51,21 +137,30 @@
       --landing-surface-strong: rgba(28, 45, 63, 0.92);
       --landing-surface-soft: rgba(255, 255, 255, 0.06);
       --landing-border: #2E4459;
+      --landing-border-soft: rgba(255, 255, 255, 0.08);
       --landing-text: #E2E7ED;
       --landing-text-secondary: #B4C0CE;
       --landing-text-muted: #637892;
-      --landing-nav-bg: rgba(13, 22, 32, 0.94);
+      --landing-nav-bg: rgba(13, 22, 32, 0.88);
       --landing-nav-control: rgba(255, 255, 255, 0.08);
       --landing-nav-control-hover: rgba(255, 255, 255, 0.14);
+      --landing-preview-bg: #0F1923;
+      --landing-footer-bg: #09111A;
       --landing-accent: #2EC4B6;
       --landing-accent-hover: #57D4C8;
       --landing-accent-soft: rgba(46, 196, 182, 0.15);
       --landing-accent-text: #57D4C8;
       --landing-button-text: #08141E;
       --landing-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+      --landing-shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.2);
+      --landing-radius-lg: 28px;
+      --landing-radius-md: 20px;
+      --landing-radius-sm: 16px;
+      --landing-max-width: 1180px;
+      --landing-focus: 0 0 0 3px rgba(87, 212, 200, 0.38);
+      --landing-nav-height: 132px;
     }
 
-    /* ── Reset & Base ── */
     *,
     *::before,
     *::after {
@@ -79,6 +174,7 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       background: var(--landing-bg);
+      scroll-behavior: smooth;
     }
 
     body {
@@ -91,24 +187,179 @@
       min-height: 100vh;
     }
 
-    /* ── Layout ── */
+    a,
+    button {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: none;
+      box-shadow: var(--landing-focus);
+    }
+
+    [data-lang-group] > [data-lang] {
+      display: none;
+    }
+
+    html[data-language="nl"] [data-lang-group]:not([data-active-lang]) > [data-lang="nl"],
+    html[data-language="en"] [data-lang-group]:not([data-active-lang]) > [data-lang="en"],
+    [data-lang-group][data-active-lang="nl"] > [data-lang="nl"],
+    [data-lang-group][data-active-lang="en"] > [data-lang="en"] {
+      display: inline;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: 16px;
+      left: 20px;
+      z-index: 1000;
+      display: inline-flex;
+      align-items: center;
+      min-height: 48px;
+      padding: 0 16px;
+      border-radius: 14px;
+      background: var(--landing-accent);
+      color: var(--landing-button-text);
+      font-size: 15px;
+      font-weight: 800;
+      text-decoration: none;
+      transform: translateY(-160%);
+      transition: transform 0.15s ease;
+    }
+
+    .skip-link:focus,
+    .skip-link:focus-visible {
+      transform: translateY(0);
+    }
+
     .container {
-      max-width: 720px;
+      width: min(var(--landing-max-width), calc(100vw - 40px));
       margin: 0 auto;
-      padding: 0 24px;
     }
 
-    /* ── Nav ── */
+    .section,
+    .hero {
+      position: relative;
+      padding: 64px 0;
+      scroll-margin-top: calc(var(--landing-nav-height) + 20px);
+    }
+
+    .section + .section::before,
+    .hero + .section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: min(var(--landing-max-width), calc(100vw - 40px));
+      transform: translateX(-50%);
+      border-top: 1px solid var(--landing-border);
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--landing-accent-text);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: clamp(28px, 6vw, 42px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.08;
+      margin-bottom: 14px;
+    }
+
+    .section-desc {
+      max-width: 720px;
+      font-size: 16px;
+      color: var(--landing-text-secondary);
+      margin-bottom: 28px;
+      line-height: 1.7;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      text-decoration: none;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .button--primary {
+      background: var(--landing-accent);
+      color: var(--landing-button-text);
+      box-shadow: 0 12px 32px rgba(46, 196, 182, 0.18);
+    }
+
+    .button--primary:hover {
+      background: var(--landing-accent-hover);
+    }
+
+    .button--ghost {
+      background: var(--landing-nav-control);
+      border-color: var(--landing-border-soft);
+      color: var(--landing-text);
+    }
+
+    .button--ghost:hover {
+      background: var(--landing-nav-control-hover);
+      border-color: rgba(87, 212, 200, 0.2);
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--landing-surface-strong) 0%, var(--landing-surface) 100%);
+      border: 1px solid var(--landing-border);
+      border-radius: var(--landing-radius-md);
+      box-shadow: var(--landing-shadow);
+    }
+
     .nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
       background: linear-gradient(180deg, rgba(20, 33, 49, 0.96) 0%, var(--landing-nav-bg) 100%);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 16px 0;
+      border-bottom: 1px solid var(--landing-border-soft);
+      backdrop-filter: blur(18px);
     }
 
-    .nav .container {
+    .nav__shell {
+      display: grid;
+      gap: 14px;
+      padding: 14px 0 16px;
+    }
+
+    .nav__top {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 16px;
     }
 
     .nav__brand {
@@ -124,46 +375,104 @@
     }
 
     .nav__lang {
-      color: var(--landing-text-secondary);
-      font-size: 14px;
-      font-weight: 500;
-      text-decoration: none;
-      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px;
+      border: 1px solid var(--landing-border-soft);
+      border-radius: 999px;
       background: var(--landing-nav-control);
-      padding: 6px 14px;
-      border-radius: 24px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .nav__lang:hover {
+    .nav__lang-option {
+      min-width: 48px;
+      min-height: 44px;
+      padding: 0 14px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--landing-text-secondary);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .nav__lang-option:hover {
       color: var(--landing-text);
-      background: var(--landing-nav-control-hover);
     }
 
-    /* ── Hero ── */
-    .hero {
-      padding: 72px 0 56px;
-      text-align: center;
-    }
-
-    .hero__badge {
-      display: inline-block;
+    .nav__lang-option[data-active="true"] {
       background: var(--landing-accent-soft);
       color: var(--landing-accent-hover);
+    }
+
+    .nav__lang-separator {
+      color: var(--landing-text-muted);
       font-size: 13px;
+      font-weight: 700;
+    }
+
+    .nav__links {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding-bottom: 2px;
+    }
+
+    .nav__links a {
+      white-space: nowrap;
+    }
+
+    .nav__link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      color: var(--landing-text-secondary);
+      text-decoration: none;
+      background: transparent;
+      font-size: 14px;
       font-weight: 600;
-      padding: 6px 16px;
-      border-radius: 24px;
-      margin-bottom: 24px;
-      letter-spacing: 0.01em;
+    }
+
+    .nav__link:hover {
+      color: var(--landing-text);
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--landing-border-soft);
+    }
+
+    .nav__cta {
+      padding: 0 18px;
+      font-size: 14px;
+    }
+
+    .hero {
+      padding-top: 36px;
+      padding-bottom: 56px;
+    }
+
+    .hero__layout {
+      display: grid;
+      gap: 28px;
+      align-items: center;
+    }
+
+    .hero__content {
+      display: grid;
+      gap: 18px;
+      align-content: start;
     }
 
     .hero__title {
-      font-size: clamp(32px, 6vw, 48px);
+      font-size: clamp(36px, 8vw, 64px);
       font-weight: 900;
-      line-height: 1.1;
-      letter-spacing: -0.03em;
-      margin-bottom: 20px;
+      line-height: 1.02;
+      letter-spacing: -0.04em;
     }
 
     .hero__title em {
@@ -172,47 +481,48 @@
     }
 
     .hero__subtitle {
-      font-size: 18px;
+      max-width: 34rem;
+      font-size: 17px;
       color: var(--landing-text-secondary);
-      max-width: 520px;
-      margin: 0 auto 36px;
-      line-height: 1.6;
+      line-height: 1.7;
+    }
+
+    .hero__actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 14px;
     }
 
     .hero__cta {
-      display: inline-block;
-      background: var(--landing-accent);
-      color: var(--landing-button-text);
-      font-family: inherit;
-      font-size: 16px;
-      font-weight: 700;
-      padding: 14px 32px;
-      border-radius: 12px;
-      border: none;
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.15s;
-      box-shadow: 0 12px 32px rgba(46, 196, 182, 0.2);
+      padding: 0 28px;
     }
 
-    .hero__cta:hover {
-      background: var(--landing-accent-hover);
-      transform: translateY(-1px);
+    .hero__badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      width: fit-content;
+      max-width: 100%;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: var(--landing-accent-soft);
+      color: var(--landing-accent-hover);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
     }
 
     .hero__note {
-      margin-top: 14px;
       font-size: 14px;
       color: var(--landing-text-muted);
     }
 
     .hero__preview {
-      margin: 32px auto 0;
-      max-width: 860px;
-      padding: 14px;
+      padding: 12px;
+      border-radius: var(--landing-radius-lg);
       background: linear-gradient(180deg, rgba(28, 45, 63, 0.96) 0%, rgba(13, 22, 32, 0.98) 100%);
       border: 1px solid var(--landing-border);
-      border-radius: 24px;
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32);
     }
 
@@ -220,82 +530,47 @@
       display: block;
       width: 100%;
       height: auto;
-      border-radius: 14px;
-      background: #0F1923;
+      border-radius: 18px;
+      background: var(--landing-preview-bg);
     }
 
-    @media (max-width: 640px) {
-      .hero__preview {
-        margin-top: 24px;
-        padding: 10px;
-        border-radius: 18px;
-      }
-
-      .hero__preview img {
-        border-radius: 12px;
-      }
-    }
-
-    /* ── Sections ── */
-    section {
-      padding: 56px 0;
-    }
-
-    .section-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--landing-accent-text);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 12px;
-    }
-
-    .section-title {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
-      line-height: 1.2;
-    }
-
-    .section-desc {
-      font-size: 17px;
-      color: var(--landing-text-secondary);
-      margin-bottom: 36px;
-      line-height: 1.65;
-    }
-
-    /* ── Feature cards ── */
-    .features {
+    .differentiators__grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
       gap: 16px;
     }
 
-    @media (max-width: 520px) {
-      .features {
-        grid-template-columns: 1fr;
-      }
+    .differentiators__stack {
+      display: grid;
+      gap: 16px;
     }
 
     .feature-card {
-      background: linear-gradient(180deg, var(--landing-surface-strong) 0%, var(--landing-surface) 100%);
-      border: 1px solid var(--landing-border);
-      border-radius: 16px;
-      padding: 28px 24px;
-      box-shadow: var(--landing-shadow);
+      display: grid;
+      gap: 18px;
+      padding: 24px 22px;
+      height: 100%;
+    }
+
+    .feature-card--primary {
+      padding: 30px 28px;
+    }
+
+    .feature-card--supporting {
+      gap: 14px;
+      padding: 22px 20px;
+      background: linear-gradient(180deg, rgba(28, 45, 63, 0.84) 0%, rgba(13, 22, 32, 0.9) 100%);
+      box-shadow: var(--landing-shadow-soft);
     }
 
     .feature-card__icon {
-      width: 40px;
-      height: 40px;
-      background: var(--landing-accent-soft);
-      color: var(--landing-accent-hover);
-      border-radius: 10px;
-      display: flex;
+      width: 44px;
+      height: 44px;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 16px;
+      border-radius: 12px;
+      background: var(--landing-accent-soft);
+      color: var(--landing-accent-hover);
     }
 
     .feature-card__icon svg {
@@ -304,701 +579,1502 @@
     }
 
     .feature-card__title {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 8px;
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
     }
 
     .feature-card__desc {
-      font-size: 14px;
       color: var(--landing-text-secondary);
-      line-height: 1.55;
+      font-size: 15px;
+      line-height: 1.7;
     }
 
-    /* ── How it works ── */
     .steps {
-      counter-reset: step;
+      display: grid;
+      gap: 14px;
     }
 
     .step {
-      display: flex;
-      gap: 20px;
-      align-items: flex-start;
-      padding: 20px 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 22px 20px;
+      border: 1px solid var(--landing-border);
+      border-radius: var(--landing-radius-sm);
+      background: linear-gradient(180deg, rgba(28, 45, 63, 0.74) 0%, rgba(13, 22, 32, 0.86) 100%);
+      box-shadow: var(--landing-shadow-soft);
     }
 
-    .step+.step {
-      border-top: 1px solid var(--landing-border);
+    .step--1 {
+      opacity: 0.84;
+    }
+
+    .step--2 {
+      opacity: 0.94;
+    }
+
+    .step--3 {
+      border-color: rgba(46, 196, 182, 0.4);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
     }
 
     .step__number {
-      flex-shrink: 0;
-      width: 36px;
-      height: 36px;
-      background: var(--landing-surface-strong);
-      color: var(--landing-accent-hover);
-      border: 1px solid var(--landing-border);
-      border-radius: 50%;
+      width: 42px;
+      height: 42px;
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 50%;
+      background: var(--landing-surface-strong);
+      border: 1px solid var(--landing-border);
+      color: var(--landing-accent-hover);
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 800;
+    }
+
+    .step--3 .step__number {
+      background: var(--landing-accent-soft);
+      border-color: rgba(46, 196, 182, 0.36);
     }
 
     .step__title {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 4px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      line-height: 1.2;
     }
 
     .step__desc {
       font-size: 15px;
       color: var(--landing-text-secondary);
-      line-height: 1.55;
+      line-height: 1.65;
     }
 
-    /* ── Data sources ── */
-    .sources {
-      background: linear-gradient(180deg, var(--landing-surface-strong) 0%, var(--landing-surface) 100%);
-      border: 1px solid var(--landing-border);
-      border-radius: 16px;
-      padding: 32px 28px;
-      box-shadow: var(--landing-shadow);
+    .pricing__intro,
+    .pricing__title {
+      text-align: left;
     }
 
-    .sources__title {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 16px;
-    }
-
-    .sources__grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .source-pill {
-      background: var(--landing-surface-soft);
-      color: var(--landing-text-secondary);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 13px;
-      font-weight: 500;
-      padding: 6px 14px;
-      border-radius: 24px;
-    }
-
-    /* ── Pricing ── */
     .pricing-card {
-      background: linear-gradient(180deg, var(--landing-surface-strong) 0%, var(--landing-surface) 100%);
+      display: grid;
+      gap: 28px;
+      padding: 32px 24px;
       border: 2px solid var(--landing-accent);
-      border-radius: 16px;
-      padding: 40px 32px;
-      text-align: center;
-      max-width: 420px;
-      margin: 0 auto;
-      box-shadow: var(--landing-shadow);
+    }
+
+    .pricing-card__summary {
+      display: grid;
+      gap: 16px;
+      align-content: start;
     }
 
     .pricing-card__price {
-      font-size: 48px;
+      font-size: clamp(56px, 12vw, 92px);
       font-weight: 900;
-      letter-spacing: -0.03em;
-      margin-bottom: 4px;
+      line-height: 0.95;
+      letter-spacing: -0.05em;
+      margin-top: 4px;
     }
 
-    .pricing-card__price span {
-      font-size: 20px;
-      font-weight: 600;
+    .pricing-card__price-context {
+      display: inline-block;
+      margin-left: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0;
       color: var(--landing-text-secondary);
     }
 
     .pricing-card__label {
       color: var(--landing-text-secondary);
       font-size: 15px;
-      margin-bottom: 24px;
-    }
-
-    .pricing-card__list {
-      text-align: left;
-      list-style: none;
-      margin-bottom: 28px;
-    }
-
-    .pricing-card__list li {
-      padding: 8px 0;
-      font-size: 15px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .pricing-card__list li::before {
-      content: '';
-      display: block;
-      width: 20px;
-      height: 20px;
-      flex-shrink: 0;
-      background: var(--landing-accent-soft);
-      border-radius: 50%;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 10l3 3 5-5' stroke='%231C8C83' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      line-height: 1.6;
     }
 
     .pricing-card__cta {
-      display: block;
-      width: 100%;
-      background: var(--landing-accent);
-      color: var(--landing-button-text);
-      font-family: inherit;
-      font-size: 16px;
-      font-weight: 700;
-      padding: 14px;
-      border-radius: 12px;
-      border: none;
-      text-decoration: none;
-      cursor: pointer;
-      text-align: center;
-      transition: background 0.15s, transform 0.15s;
-      box-shadow: 0 12px 32px rgba(46, 196, 182, 0.18);
-    }
-
-    .pricing-card__cta:hover {
-      background: var(--landing-accent-hover);
-      transform: translateY(-1px);
+      width: fit-content;
+      padding: 0 24px;
     }
 
     .pricing-card__note {
-      margin-top: 12px;
-      font-size: 13px;
       color: var(--landing-text-muted);
+      font-size: 13px;
+      line-height: 1.6;
     }
 
-    /* ── FAQ ── */
-    .faq-item {
-      padding: 20px 0;
+    .pricing-card__list {
+      list-style: none;
+      display: grid;
+      gap: 12px;
     }
 
-    .faq-item+.faq-item {
-      border-top: 1px solid var(--landing-border);
-    }
-
-    .faq-item__q {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    .faq-item__a {
+    .pricing-card__list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
       font-size: 15px;
       color: var(--landing-text-secondary);
       line-height: 1.6;
     }
 
-    /* ── Footer ── */
-    .footer {
-      background: #09111A;
-      color: var(--landing-text-muted);
-      border-top: 1px solid var(--landing-border);
-      padding: 40px 0;
-      font-size: 14px;
-      margin-top: 40px;
+    .pricing-card__list li::before {
+      content: '';
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      border-radius: 50%;
+      background: var(--landing-accent-soft);
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 10l3 3 5-5' stroke='%231C8C83' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     }
 
-    .footer .container {
+    .trust__card {
+      padding: 28px 24px;
+    }
+
+    .sources__title {
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .sources__grid {
       display: flex;
       flex-wrap: wrap;
-      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .source-pill {
+      display: inline-flex;
       align-items: center;
+      min-height: 38px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--landing-border-soft);
+      background: var(--landing-surface-soft);
+      color: var(--landing-text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .supporting-features__grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .faq__list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .faq-item {
+      border: 1px solid var(--landing-border);
+      border-radius: var(--landing-radius-sm);
+      background: linear-gradient(180deg, rgba(28, 45, 63, 0.74) 0%, rgba(13, 22, 32, 0.86) 100%);
+      box-shadow: var(--landing-shadow-soft);
+    }
+
+    .faq-item__trigger {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 16px;
+      min-height: 60px;
+      padding: 18px 20px;
+      border: none;
+      border-radius: inherit;
+      background: transparent;
+      color: var(--landing-text);
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .faq-item__icon {
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+      position: relative;
+      border-radius: 50%;
+      background: var(--landing-surface-soft);
+    }
+
+    .faq-item__icon::before,
+    .faq-item__icon::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 12px;
+      height: 2px;
+      background: var(--landing-accent-hover);
+      border-radius: 999px;
+      transform: translate(-50%, -50%);
+      transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+    }
+
+    .faq-item__icon::after {
+      transform: translate(-50%, -50%) rotate(90deg);
+    }
+
+    .faq-item[data-open="true"] .faq-item__icon::after {
+      opacity: 0;
+      transform: translate(-50%, -50%) rotate(90deg) scale(0.6);
+    }
+
+    .faq-item__panel {
+      height: 0;
+      overflow: hidden;
+      transition: height 0.2s ease-out;
+    }
+
+    .faq-item__content {
+      padding: 0 20px 20px;
+      color: var(--landing-text-secondary);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .final-cta {
+      padding-top: 48px;
+      padding-bottom: 48px;
+    }
+
+    .final-cta__wrap {
+      padding: 36px 24px;
+      border-radius: var(--landing-radius-lg);
+      border: 1px solid rgba(46, 196, 182, 0.22);
+      background: linear-gradient(180deg, rgba(28, 45, 63, 0.92) 0%, rgba(13, 22, 32, 0.96) 100%);
+      box-shadow: var(--landing-shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .final-cta__button {
+      padding: 0 28px;
+    }
+
+    .footer {
+      border-top: 1px solid var(--landing-border);
+      background: var(--landing-footer-bg);
+      color: var(--landing-text-secondary);
+      padding: 32px 0 40px;
+      margin-top: 12px;
+    }
+
+    .footer__wrap {
+      display: grid;
+      gap: 18px;
     }
 
     .footer__brand {
       color: var(--landing-text);
+      font-size: 18px;
       font-weight: 700;
+      letter-spacing: -0.02em;
     }
 
     .footer__brand span {
       color: var(--landing-accent);
     }
 
-    .footer a {
-      color: var(--landing-text-muted);
-      text-decoration: none;
-    }
-
-    .footer a:hover {
-      color: var(--landing-text);
+    .footer__meta {
+      font-size: 14px;
+      margin-top: 4px;
     }
 
     .footer__links {
       display: flex;
-      gap: 24px;
+      flex-wrap: wrap;
+      gap: 16px 22px;
     }
 
-    /* ── Divider ── */
-    .divider {
-      border: none;
-      border-top: 1px solid var(--landing-border);
-      margin: 0;
+    .footer__links a {
+      color: var(--landing-text-secondary);
+      text-decoration: none;
+      font-size: 14px;
     }
 
-    /* ── Bilingual toggle ── */
-    [lang="en"] .nl-only {
-      display: none;
+    .footer__links a:hover {
+      color: var(--landing-text);
     }
 
-    [lang="en"] .en-only {
-      display: unset;
+    @media (min-width: 720px) {
+      :root {
+        --landing-nav-height: 90px;
+      }
+
+      .nav__shell {
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 24px;
+        padding: 14px 0;
+      }
+
+      .nav__top {
+        display: contents;
+      }
+
+      .nav__links {
+        justify-content: center;
+        gap: 12px;
+        min-width: 0;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .nav__links::-webkit-scrollbar {
+        display: none;
+      }
+
+      .hero {
+        padding-top: 48px;
+        padding-bottom: 72px;
+      }
+
+      .hero__layout {
+        grid-template-columns: minmax(0, 1fr) minmax(360px, 0.92fr);
+        gap: 40px;
+      }
+
+      .hero__preview {
+        padding: 14px;
+      }
+
+      .section,
+      .hero {
+        padding-top: 80px;
+        padding-bottom: 80px;
+      }
+
+      .section-desc {
+        margin-bottom: 36px;
+      }
+
+      .differentiators__grid {
+        grid-template-columns: minmax(0, 58fr) minmax(0, 42fr);
+      }
+
+      .steps {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .step {
+        grid-template-columns: 1fr;
+        gap: 18px;
+        padding: 24px;
+      }
+
+      .step__number {
+        width: 48px;
+        height: 48px;
+      }
+
+      .pricing__title,
+      .pricing__intro {
+        text-align: center;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .pricing-card {
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+        align-items: start;
+        gap: 42px;
+        padding: 44px 40px;
+      }
+
+      .pricing-card__summary {
+        gap: 20px;
+      }
+
+      .pricing-card__cta {
+        min-width: 224px;
+      }
+
+      .trust__card {
+        padding: 32px 28px;
+      }
+
+      .supporting-features__grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .final-cta {
+        padding-top: 80px;
+        padding-bottom: 80px;
+      }
+
+      .final-cta__wrap {
+        padding: 48px 40px;
+      }
+
+      .footer {
+        margin-top: 24px;
+      }
+
+      .footer__wrap {
+        grid-template-columns: 1fr auto;
+        align-items: end;
+      }
     }
 
-    [lang="nl"] .en-only {
-      display: none;
-    }
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
 
-    [lang="nl"] .nl-only {
-      display: unset;
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
     }
   </style>
 </head>
 
-<body>
+<body lang="nl" data-language="nl">
+  <script>
+    document.body.lang = document.documentElement.lang;
+    document.body.dataset.language = document.documentElement.dataset.language || document.documentElement.lang;
+  </script>
+  <a href="#main-content" class="skip-link" data-skip-link>
+    <span data-lang-group>
+      <span data-lang="nl" lang="nl">Ga naar hoofdinhoud</span>
+      <span data-lang="en" lang="en">Skip to main content</span>
+    </span>
+  </a>
+  <nav class="nav" aria-label="Primary">
+    <div class="container nav__shell">
+      <div class="nav__top">
+        <a href="/" class="nav__brand">buurt<span>check</span></a>
+        <div class="nav__lang" role="radiogroup" aria-label="Language">
+          <button type="button" class="nav__lang-option" data-language-choice="nl" role="radio" aria-checked="true"
+            tabindex="0">
+            NL
+          </button>
+          <span class="nav__lang-separator" aria-hidden="true">/</span>
+          <button type="button" class="nav__lang-option" data-language-choice="en" role="radio" aria-checked="false"
+            tabindex="-1">
+            EN
+          </button>
+        </div>
+      </div>
 
-  <!-- Nav -->
-  <nav class="nav">
-    <div class="container">
-      <a href="/" class="nav__brand">buurt<span>check</span></a>
-      <button class="nav__lang" onclick="toggleLang()" aria-label="Switch language">
-        <span class="nl-only">EN</span>
-        <span class="en-only">NL</span>
-      </button>
+      <div class="nav__links">
+        <a href="#how-it-works" class="nav__link" data-nav-target="how-it-works">
+          <span data-lang-group>
+            <span data-lang="nl" lang="nl">Hoe het werkt</span>
+            <span data-lang="en" lang="en">How it works</span>
+          </span>
+        </a>
+        <a href="#pricing" class="nav__link" data-nav-target="pricing">
+          <span data-lang-group>
+            <span data-lang="nl" lang="nl">Prijzen</span>
+            <span data-lang="en" lang="en">Pricing</span>
+          </span>
+        </a>
+        <a href="#faq" class="nav__link" data-nav-target="faq">FAQ</a>
+        <a href="https://app.buurt-check.nl/#/search" class="button button--ghost nav__cta" data-cta-placement="nav">
+          <span data-lang-group>
+            <span data-lang="nl" lang="nl">Open de webapp</span>
+            <span data-lang="en" lang="en">Open the web app</span>
+          </span>
+        </a>
+      </div>
     </div>
   </nav>
 
-  <!-- Hero -->
-  <header class="hero">
-    <div class="container">
-      <div class="hero__badge">
-        <span class="nl-only">100% onafhankelijk &middot; open overheidsdata</span>
-        <span class="en-only">100% independent &middot; open government data</span>
-      </div>
-      <h1 class="hero__title">
-        <span class="nl-only">Weet wat je koopt,<br><em>voordat</em> je bezichtigt</span>
-        <span class="en-only">Know what you're buying<br><em>before</em> you visit</span>
-      </h1>
-      <p class="hero__subtitle">
-        <span class="nl-only">Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico,
-          zonlicht en leefbaarheid. Ontvang een compleet dossier met risicoscores, 3D-analyse en
-          bezichtigingsvragen.</span>
-        <span class="en-only">Buurt Check analyzes any Dutch address for noise, air quality, climate risk, sunlight and
-          livability. Get a complete dossier with risk scores, 3D analysis and viewing questions.</span>
-      </p>
-      <a href="https://app.buurt-check.nl/#/search" class="hero__cta">
-        <span class="nl-only">Open de webapp</span>
-        <span class="en-only">Open the web app</span>
-      </a>
-      <p class="hero__note">
-        <span class="nl-only">Gratis interactieve viewer en gratis quick brief. Betaal alleen voor het volledige dossier.</span>
-        <span class="en-only">Free interactive viewer and free quick brief. Pay only for the full dossier.</span>
-      </p>
-      <div class="hero__preview">
-        <img src="og-image.svg" alt="Buurt Check skyline preview" width="1024" height="500">
-      </div>
-    </div>
-  </header>
+  <main id="main-content" data-language-root tabindex="-1">
+    <header class="hero" id="hero">
+      <div class="container hero__layout">
+        <div class="hero__content">
+          <h1 class="hero__title" data-lang-group>
+            <span data-lang="nl" lang="nl">Weet wat je koopt,<br><em>voordat</em> je bezichtigt</span>
+            <span data-lang="en" lang="en">Know what you're buying<br><em>before</em> you visit</span>
+          </h1>
 
-  <hr class="divider">
-
-  <!-- What you get -->
-  <section>
-    <div class="container">
-      <p class="section-label">
-        <span class="nl-only">Wat zit erin</span>
-        <span class="en-only">What you get</span>
-      </p>
-      <h2 class="section-title">
-        <span class="nl-only">Alles wat makelaars je niet vertellen</span>
-        <span class="en-only">Everything estate agents don't tell you</span>
-      </h2>
-      <p class="section-desc">
-        <span class="nl-only">Elk dossier combineert data van 10+ overheidsbronnen tot een helder, actiegericht
-          rapport.</span>
-        <span class="en-only">Each dossier combines data from 10+ government sources into a clear, action-oriented
-          report.</span>
-      </p>
-
-      <div class="features">
-        <div class="feature-card">
-          <div class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15.536 8.464a5 5 0 010 7.072M12 12v.01" />
-            </svg>
-          </div>
-          <h3 class="feature-card__title">
-            <span class="nl-only">Geluidshinder</span>
-            <span class="en-only">Noise pollution</span>
-          </h3>
-          <p class="feature-card__desc">
-            <span class="nl-only">Weg-, rail- en vliegverkeer gecombineerd in een 0-100 score met
-              WHO-vergelijking.</span>
-            <span class="en-only">Road, rail and air traffic combined into a 0-100 score with WHO comparison.</span>
+          <p class="hero__subtitle" data-lang-group>
+            <span data-lang="nl" lang="nl">Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit,
+              klimaatrisico, zonlicht en leefbaarheid. Ontvang een compleet dossier met risicoscores, 3D-analyse en
+              bezichtigingsvragen.</span>
+            <span data-lang="en" lang="en">Buurt Check analyzes any Dutch address for noise, air quality, climate risk,
+              sunlight and livability. Get a complete dossier with risk scores, 3D analysis and viewing questions.</span>
           </p>
+
+          <div class="hero__actions">
+            <a href="https://app.buurt-check.nl/#/search" class="button button--primary hero__cta"
+              data-cta-placement="hero">
+              <span data-lang-group>
+                <span data-lang="nl" lang="nl">Open de webapp</span>
+                <span data-lang="en" lang="en">Open the web app</span>
+              </span>
+            </a>
+
+            <p class="hero__badge" data-lang-group>
+              <span data-lang="nl" lang="nl">100% onafhankelijk &middot; open overheidsdata</span>
+              <span data-lang="en" lang="en">100% independent &middot; open government data</span>
+            </p>
+
+            <p class="hero__note" data-lang-group>
+              <span data-lang="nl" lang="nl">Gratis interactieve viewer en gratis quick brief. Betaal alleen voor het
+                volledige dossier.</span>
+              <span data-lang="en" lang="en">Free interactive viewer and free quick brief. Pay only for the full
+                dossier.</span>
+            </p>
+          </div>
         </div>
 
-        <div class="feature-card">
-          <div class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 15h4l3-8 4 16 3-8h4" />
-            </svg>
-          </div>
-          <h3 class="feature-card__title">
-            <span class="nl-only">Luchtkwaliteit</span>
-            <span class="en-only">Air quality</span>
-          </h3>
-          <p class="feature-card__desc">
-            <span class="nl-only">NO2, PM2.5 en PM10 getoetst aan EU- en WHO-normen. Inclusief trendanalyse.</span>
-            <span class="en-only">NO2, PM2.5 and PM10 tested against EU and WHO limits. Including trend analysis.</span>
-          </p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
-            </svg>
-          </div>
-          <h3 class="feature-card__title">
-            <span class="nl-only">Klimaatrisico</span>
-            <span class="en-only">Climate risk</span>
-          </h3>
-          <p class="feature-card__desc">
-            <span class="nl-only">Overstromingsrisico, hittestress, bodemdaling en wateroverlast per adres.</span>
-            <span class="en-only">Flood risk, heat stress, subsidence and waterlogging per address.</span>
-          </p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="5" />
-              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-            </svg>
-          </div>
-          <h3 class="feature-card__title">
-            <span class="nl-only">Zonlichtanalyse</span>
-            <span class="en-only">Sunlight analysis</span>
-          </h3>
-          <p class="feature-card__desc">
-            <span class="nl-only">3D schaduwsimulatie op basis van echte gebouwhoogtes. Zomer en winter
-              vergeleken.</span>
-            <span class="en-only">3D shadow simulation based on real building heights. Summer and winter
-              compared.</span>
-          </p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
-            </svg>
-          </div>
-          <h3 class="feature-card__title">
-            <span class="nl-only">3D buurtmodel</span>
-            <span class="en-only">3D neighborhood</span>
-          </h3>
-          <p class="feature-card__desc">
-            <span class="nl-only">Interactief 3D-model met luchtfoto-daken, gevels en schaduwen. Roteer, zoom,
-              verken.</span>
-            <span class="en-only">Interactive 3D model with aerial roofs, facades and shadows. Rotate, zoom,
-              explore.</span>
-          </p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-              <rect x="9" y="3" width="6" height="4" rx="1" />
-              <path d="M9 14l2 2 4-4" />
-            </svg>
-          </div>
-          <h3 class="feature-card__title">
-            <span class="nl-only">Bezichtigingschecklist</span>
-            <span class="en-only">Viewing checklist</span>
-          </h3>
-          <p class="feature-card__desc">
-            <span class="nl-only">Gepersonaliseerde vragen op basis van de gevonden risico's. Neem ze mee naar de
-              bezichtiging.</span>
-            <span class="en-only">Personalized questions based on detected risks. Take them to your viewing.</span>
-          </p>
+        <div class="hero__preview">
+          <img src="og-image.svg" alt="Buurt Check skyline preview" width="1024" height="500">
         </div>
       </div>
-    </div>
-  </section>
+    </header>
 
-  <hr class="divider">
-
-  <!-- How it works -->
-  <section>
-    <div class="container">
-      <p class="section-label">
-        <span class="nl-only">Hoe het werkt</span>
-        <span class="en-only">How it works</span>
-      </p>
-      <h2 class="section-title">
-        <span class="nl-only">Van adres naar dossier in seconden</span>
-        <span class="en-only">From address to dossier in seconds</span>
-      </h2>
-
-      <div class="steps">
-        <div class="step">
-          <div class="step__number">1</div>
-          <div>
-            <p class="step__title">
-              <span class="nl-only">Voer een adres in</span>
-              <span class="en-only">Enter an address</span>
-            </p>
-            <p class="step__desc">
-              <span class="nl-only">Typ een Nederlands adres. Autocomplete helpt je het juiste adres te vinden.</span>
-              <span class="en-only">Type any Dutch address. Autocomplete helps you find the right one.</span>
-            </p>
-          </div>
-        </div>
-
-        <div class="step">
-          <div class="step__number">2</div>
-          <div>
-            <p class="step__title">
-              <span class="nl-only">Wij analyseren 10+ bronnen</span>
-              <span class="en-only">We analyze 10+ sources</span>
-            </p>
-            <p class="step__desc">
-              <span class="nl-only">Buurt Check bevraagt het BAG, RIVM, CBS, Klimaatatlas, 3DBAG en meer. Binnen
-                seconden.</span>
-              <span class="en-only">Buurt Check queries BAG, RIVM, CBS, Climate Atlas, 3DBAG and more. Within
-                seconds.</span>
-            </p>
-          </div>
-        </div>
-
-        <div class="step">
-          <div class="step__number">3</div>
-          <div>
-            <p class="step__title">
-              <span class="nl-only">Ontvang je dossier</span>
-              <span class="en-only">Get your dossier</span>
-            </p>
-            <p class="step__desc">
-              <span class="nl-only">Risicoscores, 3D-model, vergelijkingen met de stad en landelijk gemiddelde, en een
-                PDF voor bij de bezichtiging.</span>
-              <span class="en-only">Risk scores, 3D model, city and national comparisons, and a PDF to take to your
-                viewing.</span>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <hr class="divider">
-
-  <!-- Data sources -->
-  <section>
-    <div class="container">
-      <p class="section-label">
-        <span class="nl-only">Databronnen</span>
-        <span class="en-only">Data sources</span>
-      </p>
-      <h2 class="section-title">
-        <span class="nl-only">Gebouwd op open overheidsdata</span>
-        <span class="en-only">Built on open government data</span>
-      </h2>
-      <p class="section-desc">
-        <span class="nl-only">Geen meningen, geen schattingen. Alleen officieel gepubliceerde, verifieerbare data van
-          Nederlandse overheidsinstellingen.</span>
-        <span class="en-only">No opinions, no estimates. Only officially published, verifiable data from Dutch
-          government institutions.</span>
-      </p>
-
-      <div class="sources">
-        <p class="sources__title">
-          <span class="nl-only">Bronnen die we combineren</span>
-          <span class="en-only">Sources we combine</span>
+    <section class="section" id="differentiators">
+      <div class="container">
+        <p class="section-label" data-lang-group>
+          <span data-lang="nl" lang="nl">Wat zit erin</span>
+          <span data-lang="en" lang="en">What you get</span>
         </p>
-        <div class="sources__grid">
-          <span class="source-pill">BAG (Kadaster)</span>
-          <span class="source-pill">RIVM</span>
-          <span class="source-pill">CBS</span>
-          <span class="source-pill">3DBAG (TU Delft)</span>
-          <span class="source-pill">Klimaatatlas</span>
-          <span class="source-pill">Leefbaarometer</span>
-          <span class="source-pill">EP-Online (RVO)</span>
-          <span class="source-pill">PDOK</span>
-          <span class="source-pill">PVGIS (EU JRC)</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <hr class="divider">
-
-  <!-- Pricing -->
-  <section id="pricing">
-    <div class="container">
-      <p class="section-label">
-        <span class="nl-only">Prijzen</span>
-        <span class="en-only">Pricing</span>
-      </p>
-      <h2 class="section-title" style="text-align: center;">
-        <span class="nl-only">Eenvoudig en eerlijk</span>
-        <span class="en-only">Simple and fair</span>
-      </h2>
-      <p class="section-desc" style="text-align: center;">
-        <span class="nl-only">Geen abonnement. Geen account. Bekijk gratis en betaal alleen voor de volledige PDF.</span>
-        <span class="en-only">No subscription. No account. View for free and only pay for the full PDF.</span>
-      </p>
-
-      <div class="pricing-card">
-        <p class="pricing-card__price">&euro;3,99 <span>
-            <span class="nl-only">per adres</span>
-            <span class="en-only">per address</span>
-          </span></p>
-        <p class="pricing-card__label">
-          <span class="nl-only">Volledig dossier &middot; eenmalige betaling</span>
-          <span class="en-only">Full dossier &middot; one-time payment</span>
+        <h2 class="section-title" data-lang-group>
+          <span data-lang="nl" lang="nl">Alles wat makelaars je niet vertellen</span>
+          <span data-lang="en" lang="en">Everything estate agents don't tell you</span>
+        </h2>
+        <p class="section-desc" data-lang-group>
+          <span data-lang="nl" lang="nl">Elk dossier combineert data van 10+ overheidsbronnen tot een helder,
+            actiegericht rapport.</span>
+          <span data-lang="en" lang="en">Each dossier combines data from 10+ government sources into a clear,
+            action-oriented report.</span>
         </p>
-        <ul class="pricing-card__list">
-          <li>
-            <span class="nl-only">Gratis interactieve viewer met risicoscores, 3D en buurtcontext</span>
-            <span class="en-only">Free interactive viewer with risk scores, 3D and neighborhood context</span>
-          </li>
-          <li>
-            <span class="nl-only">Gratis quick brief PDF voor je bezichtiging</span>
-            <span class="en-only">Free quick brief PDF for your viewing</span>
-          </li>
-          <li>
-            <span class="nl-only">Volledig dossier met woningwaarschuwingen en verdiepende analyse</span>
-            <span class="en-only">Full dossier with property warnings and deeper analysis</span>
-          </li>
-          <li>
-            <span class="nl-only">Betaal via Stripe wanneer je de uitgebreide PDF wilt downloaden</span>
-            <span class="en-only">Pay with Stripe only when you want to download the extended PDF</span>
-          </li>
-          <li>
-            <span class="nl-only">Geen abonnement of account nodig</span>
-            <span class="en-only">No subscription or account required</span>
-          </li>
-          <li>
-            <span class="nl-only">Vergelijkingen met buurt, stad en landelijk niveau</span>
-            <span class="en-only">Comparisons against neighborhood, city and national levels</span>
-          </li>
-        </ul>
-        <a href="https://app.buurt-check.nl/#/search" class="pricing-card__cta">
-          <span class="nl-only">Start in de webapp</span>
-          <span class="en-only">Start in the web app</span>
-        </a>
-        <p class="pricing-card__note">
-          <span class="nl-only">Interactive viewer en quick brief zijn gratis. Betaling via Stripe alleen voor het volledige dossier.</span>
-          <span class="en-only">The interactive viewer and quick brief are free. Stripe payment is only for the full dossier.</span>
+
+        <div class="differentiators__grid">
+          <article class="card feature-card feature-card--primary">
+            <div class="feature-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path
+                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="feature-card__title" data-lang-group>
+                <span data-lang="nl" lang="nl">3D buurtmodel</span>
+                <span data-lang="en" lang="en">3D neighborhood</span>
+              </h3>
+            </div>
+            <p class="feature-card__desc" data-lang-group>
+              <span data-lang="nl" lang="nl">Interactief 3D-model met luchtfoto-daken, gevels en schaduwen. Roteer,
+                zoom, verken.</span>
+              <span data-lang="en" lang="en">Interactive 3D model with aerial roofs, facades and shadows. Rotate, zoom,
+                explore.</span>
+            </p>
+          </article>
+
+          <div class="differentiators__stack">
+            <article class="card feature-card">
+              <div class="feature-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="5" />
+                  <path
+                    d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="feature-card__title" data-lang-group>
+                  <span data-lang="nl" lang="nl">Zonlichtanalyse</span>
+                  <span data-lang="en" lang="en">Sunlight analysis</span>
+                </h3>
+              </div>
+              <p class="feature-card__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">3D schaduwsimulatie op basis van echte gebouwhoogtes. Zomer en winter
+                  vergeleken.</span>
+                <span data-lang="en" lang="en">3D shadow simulation based on real building heights. Summer and winter
+                  compared.</span>
+              </p>
+            </article>
+
+            <article class="card feature-card">
+              <div class="feature-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+                  <rect x="9" y="3" width="6" height="4" rx="1" />
+                  <path d="M9 14l2 2 4-4" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="feature-card__title" data-lang-group>
+                  <span data-lang="nl" lang="nl">Bezichtigingschecklist</span>
+                  <span data-lang="en" lang="en">Viewing checklist</span>
+                </h3>
+              </div>
+              <p class="feature-card__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">Gepersonaliseerde vragen op basis van de gevonden risico's. Neem ze mee
+                  naar de bezichtiging.</span>
+                <span data-lang="en" lang="en">Personalized questions based on detected risks. Take them to your
+                  viewing.</span>
+              </p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="how-it-works">
+      <div class="container">
+        <p class="section-label" data-lang-group>
+          <span data-lang="nl" lang="nl">Hoe het werkt</span>
+          <span data-lang="en" lang="en">How it works</span>
         </p>
-      </div>
-    </div>
-  </section>
+        <h2 class="section-title" data-lang-group>
+          <span data-lang="nl" lang="nl">Van adres naar dossier in seconden</span>
+          <span data-lang="en" lang="en">From address to dossier in seconds</span>
+        </h2>
 
-  <hr class="divider">
+        <div class="steps">
+          <article class="step step--1">
+            <div class="step__number" aria-hidden="true">1</div>
+            <div>
+              <h3 class="step__title" data-lang-group>
+                <span data-lang="nl" lang="nl">Voer een adres in</span>
+                <span data-lang="en" lang="en">Enter an address</span>
+              </h3>
+              <p class="step__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">Typ een Nederlands adres. Autocomplete helpt je het juiste adres te
+                  vinden.</span>
+                <span data-lang="en" lang="en">Type any Dutch address. Autocomplete helps you find the right one.</span>
+              </p>
+            </div>
+          </article>
 
-  <!-- FAQ -->
-  <section>
-    <div class="container">
-      <p class="section-label">FAQ</p>
-      <h2 class="section-title">
-        <span class="nl-only">Veelgestelde vragen</span>
-        <span class="en-only">Frequently asked questions</span>
-      </h2>
+          <article class="step step--2">
+            <div class="step__number" aria-hidden="true">2</div>
+            <div>
+              <h3 class="step__title" data-lang-group>
+                <span data-lang="nl" lang="nl">Wij analyseren 10+ bronnen</span>
+                <span data-lang="en" lang="en">We analyze 10+ sources</span>
+              </h3>
+              <p class="step__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">Buurt Check bevraagt het BAG, RIVM, CBS, Klimaatatlas, 3DBAG en meer.
+                  Binnen seconden.</span>
+                <span data-lang="en" lang="en">Buurt Check queries BAG, RIVM, CBS, Climate Atlas, 3DBAG and more.
+                  Within seconds.</span>
+              </p>
+            </div>
+          </article>
 
-      <div>
-        <div class="faq-item">
-          <p class="faq-item__q">
-            <span class="nl-only">Voor wie is Buurt Check bedoeld?</span>
-            <span class="en-only">Who is Buurt Check for?</span>
-          </p>
-          <p class="faq-item__a">
-            <span class="nl-only">Voor iedereen die een woning wil kopen in Nederland, met name starters en expats die
-              de lokale markt nog niet kennen. Buurt Check geeft je de context die je normaal pas na jaren in een buurt
-              leert.</span>
-            <span class="en-only">Anyone buying a home in the Netherlands, especially first-time buyers and expats
-              unfamiliar with the local market. Buurt Check gives you the context you'd normally only learn after years
-              in a neighborhood.</span>
-          </p>
-        </div>
-
-        <div class="faq-item">
-          <p class="faq-item__q">
-            <span class="nl-only">Waar komen de data vandaan?</span>
-            <span class="en-only">Where does the data come from?</span>
-          </p>
-          <p class="faq-item__a">
-            <span class="nl-only">Uitsluitend van officiële Nederlandse overheidsinstellingen: het Kadaster (BAG), RIVM,
-              CBS, Klimaatatlas, TU Delft (3DBAG), en meer. Wij voegen geen meningen of schattingen toe.</span>
-            <span class="en-only">Exclusively from official Dutch government institutions: Kadaster (BAG), RIVM, CBS,
-              Climate Atlas, TU Delft (3DBAG), and more. We don't add opinions or estimates.</span>
-          </p>
-        </div>
-
-        <div class="faq-item">
-          <p class="faq-item__q">
-            <span class="nl-only">Heb ik een account nodig?</span>
-            <span class="en-only">Do I need an account?</span>
-          </p>
-          <p class="faq-item__a">
-            <span class="nl-only">Nee. Je voert een adres in, krijgt je dossier, en betaalt alleen als je het volledige
-              rapport wilt. Geen registratie, geen wachtwoord.</span>
-            <span class="en-only">No. Enter an address, get your dossier, and only pay if you want the full report. No
-              registration, no password.</span>
-          </p>
-        </div>
-
-        <div class="faq-item">
-          <p class="faq-item__q">
-            <span class="nl-only">Wat krijg ik gratis?</span>
-            <span class="en-only">What do I get for free?</span>
-          </p>
-          <p class="faq-item__a">
-            <span class="nl-only">Voor elk adres krijg je gratis de interactieve viewer, risicoscores, 3D-context,
-              buurtinzichten en een quick brief PDF. Het volledige dossier met uitgebreide woningwaarschuwingen en de
-              complete export kost &euro;3,99.</span>
-            <span class="en-only">For every address you get the interactive viewer, risk scores, 3D context,
-              neighborhood insights and a quick brief PDF for free. The full dossier with detailed property warnings and
-              the complete export costs &euro;3.99.</span>
-          </p>
+          <article class="step step--3">
+            <div class="step__number" aria-hidden="true">3</div>
+            <div>
+              <h3 class="step__title" data-lang-group>
+                <span data-lang="nl" lang="nl">Ontvang je dossier</span>
+                <span data-lang="en" lang="en">Get your dossier</span>
+              </h3>
+              <p class="step__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">Risicoscores, 3D-model, vergelijkingen met de stad en landelijk
+                  gemiddelde, en een PDF voor bij de bezichtiging.</span>
+                <span data-lang="en" lang="en">Risk scores, 3D model, city and national comparisons, and a PDF to take
+                  to your viewing.</span>
+              </p>
+            </div>
+          </article>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Footer -->
+    <section class="section" id="pricing" data-track-section-view>
+      <div class="container">
+        <p class="section-label pricing__intro" data-lang-group>
+          <span data-lang="nl" lang="nl">Prijzen</span>
+          <span data-lang="en" lang="en">Pricing</span>
+        </p>
+        <h2 class="section-title pricing__title" data-lang-group>
+          <span data-lang="nl" lang="nl">Eenvoudig en eerlijk</span>
+          <span data-lang="en" lang="en">Simple and fair</span>
+        </h2>
+        <p class="section-desc pricing__intro" data-lang-group>
+          <span data-lang="nl" lang="nl">Geen abonnement. Geen account. Bekijk gratis en betaal alleen voor de
+            volledige PDF.</span>
+          <span data-lang="en" lang="en">No subscription. No account. View for free and only pay for the full PDF.</span>
+        </p>
+
+        <div class="card pricing-card">
+          <div class="pricing-card__summary">
+            <p class="pricing-card__price" data-lang-group>
+              <span data-lang="nl" lang="nl">&euro;3,99 <span class="pricing-card__price-context">per adres</span></span>
+              <span data-lang="en" lang="en">&euro;3.99 <span class="pricing-card__price-context">per address</span></span>
+            </p>
+
+            <p class="pricing-card__label" data-lang-group>
+              <span data-lang="nl" lang="nl">Volledig dossier &middot; eenmalige betaling</span>
+              <span data-lang="en" lang="en">Full dossier &middot; one-time payment</span>
+            </p>
+
+            <a href="https://app.buurt-check.nl/#/search" class="button button--primary pricing-card__cta"
+              data-cta-placement="pricing">
+              <span data-lang-group>
+                <span data-lang="nl" lang="nl">Start in de webapp</span>
+                <span data-lang="en" lang="en">Start in the web app</span>
+              </span>
+            </a>
+
+            <p class="pricing-card__note" data-lang-group>
+              <span data-lang="nl" lang="nl">Interactive viewer en quick brief zijn gratis. Betaling via Stripe alleen
+                voor het volledige dossier.</span>
+              <span data-lang="en" lang="en">The interactive viewer and quick brief are free. Stripe payment is only for
+                the full dossier.</span>
+            </p>
+          </div>
+
+          <ul class="pricing-card__list">
+            <li data-lang-group>
+              <span data-lang="nl" lang="nl">Gratis interactieve viewer met risicoscores, 3D en buurtcontext</span>
+              <span data-lang="en" lang="en">Free interactive viewer with risk scores, 3D and neighborhood context</span>
+            </li>
+            <li data-lang-group>
+              <span data-lang="nl" lang="nl">Gratis quick brief PDF voor je bezichtiging</span>
+              <span data-lang="en" lang="en">Free quick brief PDF for your viewing</span>
+            </li>
+            <li data-lang-group>
+              <span data-lang="nl" lang="nl">Volledig dossier met woningwaarschuwingen en verdiepende analyse</span>
+              <span data-lang="en" lang="en">Full dossier with property warnings and deeper analysis</span>
+            </li>
+            <li data-lang-group>
+              <span data-lang="nl" lang="nl">Betaal via Stripe wanneer je de uitgebreide PDF wilt downloaden</span>
+              <span data-lang="en" lang="en">Pay with Stripe only when you want to download the extended PDF</span>
+            </li>
+            <li data-lang-group>
+              <span data-lang="nl" lang="nl">Geen abonnement of account nodig</span>
+              <span data-lang="en" lang="en">No subscription or account required</span>
+            </li>
+            <li data-lang-group>
+              <span data-lang="nl" lang="nl">Vergelijkingen met buurt, stad en landelijk niveau</span>
+              <span data-lang="en" lang="en">Comparisons against neighborhood, city and national levels</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section class="section" id="trust">
+      <div class="container">
+        <p class="section-label" data-lang-group>
+          <span data-lang="nl" lang="nl">Databronnen</span>
+          <span data-lang="en" lang="en">Data sources</span>
+        </p>
+        <h2 class="section-title" data-lang-group>
+          <span data-lang="nl" lang="nl">Gebouwd op open overheidsdata</span>
+          <span data-lang="en" lang="en">Built on open government data</span>
+        </h2>
+        <p class="section-desc" data-lang-group>
+          <span data-lang="nl" lang="nl">Geen meningen, geen schattingen. Alleen officieel gepubliceerde,
+            verifieerbare data van Nederlandse overheidsinstellingen.</span>
+          <span data-lang="en" lang="en">No opinions, no estimates. Only officially published, verifiable data from
+            Dutch government institutions.</span>
+        </p>
+
+        <div class="card trust__card">
+          <p class="sources__title" data-lang-group>
+            <span data-lang="nl" lang="nl">Bronnen die we combineren</span>
+            <span data-lang="en" lang="en">Sources we combine</span>
+          </p>
+          <div class="sources__grid">
+            <span class="source-pill">BAG (Kadaster)</span>
+            <span class="source-pill">RIVM</span>
+            <span class="source-pill">CBS</span>
+            <span class="source-pill">3DBAG (TU Delft)</span>
+            <span class="source-pill">Klimaatatlas</span>
+            <span class="source-pill">Leefbaarometer</span>
+            <span class="source-pill">EP-Online (RVO)</span>
+            <span class="source-pill">PDOK</span>
+            <span class="source-pill">PVGIS (EU JRC)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="container">
+        <h2 class="sr-only" data-lang-group>
+          <span data-lang="nl" lang="nl">Wat zit erin</span>
+          <span data-lang="en" lang="en">What you get</span>
+        </h2>
+
+        <div class="supporting-features__grid">
+          <article class="card feature-card feature-card--supporting">
+            <div class="feature-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M15.536 8.464a5 5 0 010 7.072M12 12v.01" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="feature-card__title" data-lang-group>
+                <span data-lang="nl" lang="nl">Geluidshinder</span>
+                <span data-lang="en" lang="en">Noise pollution</span>
+              </h3>
+            </div>
+            <p class="feature-card__desc" data-lang-group>
+              <span data-lang="nl" lang="nl">Weg-, rail- en vliegverkeer gecombineerd in een 0-100 score met
+                WHO-vergelijking.</span>
+              <span data-lang="en" lang="en">Road, rail and air traffic combined into a 0-100 score with WHO
+                comparison.</span>
+            </p>
+          </article>
+
+          <article class="card feature-card feature-card--supporting">
+            <div class="feature-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M3 15h4l3-8 4 16 3-8h4" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="feature-card__title" data-lang-group>
+                <span data-lang="nl" lang="nl">Luchtkwaliteit</span>
+                <span data-lang="en" lang="en">Air quality</span>
+              </h3>
+            </div>
+            <p class="feature-card__desc" data-lang-group>
+              <span data-lang="nl" lang="nl">NO2, PM2.5 en PM10 getoetst aan EU- en WHO-normen. Inclusief
+                trendanalyse.</span>
+              <span data-lang="en" lang="en">NO2, PM2.5 and PM10 tested against EU and WHO limits. Including trend
+                analysis.</span>
+            </p>
+          </article>
+
+          <article class="card feature-card feature-card--supporting">
+            <div class="feature-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path
+                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="feature-card__title" data-lang-group>
+                <span data-lang="nl" lang="nl">Klimaatrisico</span>
+                <span data-lang="en" lang="en">Climate risk</span>
+              </h3>
+            </div>
+            <p class="feature-card__desc" data-lang-group>
+              <span data-lang="nl" lang="nl">Overstromingsrisico, hittestress, bodemdaling en wateroverlast per
+                adres.</span>
+              <span data-lang="en" lang="en">Flood risk, heat stress, subsidence and waterlogging per address.</span>
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="faq" data-track-section-view>
+      <div class="container">
+        <p class="section-label">FAQ</p>
+        <h2 class="section-title" data-lang-group>
+          <span data-lang="nl" lang="nl">Veelgestelde vragen</span>
+          <span data-lang="en" lang="en">Frequently asked questions</span>
+        </h2>
+
+        <div class="faq__list" data-faq-list>
+          <article class="faq-item" data-faq-item data-open="false">
+            <h3>
+              <button type="button" class="faq-item__trigger" data-faq-trigger id="faq-trigger-1"
+                aria-expanded="false" aria-controls="faq-panel-1">
+                <span data-lang-group>
+                  <span data-lang="nl" lang="nl">Voor wie is Buurt Check bedoeld?</span>
+                  <span data-lang="en" lang="en">Who is Buurt Check for?</span>
+                </span>
+                <span class="faq-item__icon" aria-hidden="true"></span>
+              </button>
+            </h3>
+            <div class="faq-item__panel" id="faq-panel-1" role="region" aria-labelledby="faq-trigger-1"
+              aria-hidden="true">
+              <div class="faq-item__content" data-lang-group>
+                <span data-lang="nl" lang="nl">Voor iedereen die een woning wil kopen in Nederland, met name starters en
+                  expats die de lokale markt nog niet kennen. Buurt Check geeft je de context die je normaal pas na jaren
+                  in een buurt leert.</span>
+                <span data-lang="en" lang="en">Anyone buying a home in the Netherlands, especially first-time buyers and
+                  expats unfamiliar with the local market. Buurt Check gives you the context you'd normally only learn
+                  after years in a neighborhood.</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="faq-item" data-faq-item data-open="false">
+            <h3>
+              <button type="button" class="faq-item__trigger" data-faq-trigger id="faq-trigger-2"
+                aria-expanded="false" aria-controls="faq-panel-2">
+                <span data-lang-group>
+                  <span data-lang="nl" lang="nl">Waar komen de data vandaan?</span>
+                  <span data-lang="en" lang="en">Where does the data come from?</span>
+                </span>
+                <span class="faq-item__icon" aria-hidden="true"></span>
+              </button>
+            </h3>
+            <div class="faq-item__panel" id="faq-panel-2" role="region" aria-labelledby="faq-trigger-2"
+              aria-hidden="true">
+              <div class="faq-item__content" data-lang-group>
+                <span data-lang="nl" lang="nl">Uitsluitend van officiële Nederlandse overheidsinstellingen: het Kadaster
+                  (BAG), RIVM, CBS, Klimaatatlas, TU Delft (3DBAG), en meer. Wij voegen geen meningen of schattingen
+                  toe.</span>
+                <span data-lang="en" lang="en">Exclusively from official Dutch government institutions: Kadaster (BAG),
+                  RIVM, CBS, Climate Atlas, TU Delft (3DBAG), and more. We don't add opinions or estimates.</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="faq-item" data-faq-item data-open="false">
+            <h3>
+              <button type="button" class="faq-item__trigger" data-faq-trigger id="faq-trigger-3"
+                aria-expanded="false" aria-controls="faq-panel-3">
+                <span data-lang-group>
+                  <span data-lang="nl" lang="nl">Heb ik een account nodig?</span>
+                  <span data-lang="en" lang="en">Do I need an account?</span>
+                </span>
+                <span class="faq-item__icon" aria-hidden="true"></span>
+              </button>
+            </h3>
+            <div class="faq-item__panel" id="faq-panel-3" role="region" aria-labelledby="faq-trigger-3"
+              aria-hidden="true">
+              <div class="faq-item__content" data-lang-group>
+                <span data-lang="nl" lang="nl">Nee. Je voert een adres in, krijgt je dossier, en betaalt alleen als je
+                  het volledige rapport wilt. Geen registratie, geen wachtwoord.</span>
+                <span data-lang="en" lang="en">No. Enter an address, get your dossier, and only pay if you want the full
+                  report. No registration, no password.</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="faq-item" data-faq-item data-open="false">
+            <h3>
+              <button type="button" class="faq-item__trigger" data-faq-trigger id="faq-trigger-4"
+                aria-expanded="false" aria-controls="faq-panel-4">
+                <span data-lang-group>
+                  <span data-lang="nl" lang="nl">Wat krijg ik gratis?</span>
+                  <span data-lang="en" lang="en">What do I get for free?</span>
+                </span>
+                <span class="faq-item__icon" aria-hidden="true"></span>
+              </button>
+            </h3>
+            <div class="faq-item__panel" id="faq-panel-4" role="region" aria-labelledby="faq-trigger-4"
+              aria-hidden="true">
+              <div class="faq-item__content" data-lang-group>
+                <span data-lang="nl" lang="nl">Voor elk adres krijg je gratis de interactieve viewer, risicoscores,
+                  3D-context, buurtinzichten en een quick brief PDF. Het volledige dossier met uitgebreide
+                  woningwaarschuwingen en de complete export kost &euro;3,99.</span>
+                <span data-lang="en" lang="en">For every address you get the interactive viewer, risk scores, 3D context,
+                  neighborhood insights and a quick brief PDF for free. The full dossier with detailed property warnings
+                  and the complete export costs &euro;3.99.</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section final-cta" id="final-cta">
+      <div class="container">
+        <h2 class="sr-only" data-lang-group>
+          <span data-lang="nl" lang="nl">Start in de webapp</span>
+          <span data-lang="en" lang="en">Start in the web app</span>
+        </h2>
+        <div class="final-cta__wrap">
+          <a href="https://app.buurt-check.nl/#/search" class="button button--primary final-cta__button"
+            data-cta-placement="final">
+            <span data-lang-group>
+              <span data-lang="nl" lang="nl">Start in de webapp</span>
+              <span data-lang="en" lang="en">Start in the web app</span>
+            </span>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
   <footer class="footer">
-    <div class="container">
+    <div class="container footer__wrap">
       <div>
         <p class="footer__brand">buurt-<span>check</span>.nl</p>
-        <p style="margin-top: 4px;">
-          <span class="nl-only">&copy; 2026 Buurt Check</span>
-          <span class="en-only">&copy; 2026 Buurt Check</span>
+        <p class="footer__meta">
+          <span data-lang-group>
+            <span data-lang="nl" lang="nl">&copy; 2026 Buurt Check</span>
+            <span data-lang="en" lang="en">&copy; 2026 Buurt Check</span>
+          </span>
         </p>
       </div>
+
       <div class="footer__links">
-        <a href="mailto:milos-makes-maps@protonmail.com">Contact</a>
+        <a href="mailto:milos-makes-maps@protonmail.com">
+          <span data-lang-group>
+            <span data-lang="nl" lang="nl">Contact</span>
+            <span data-lang="en" lang="en">Contact</span>
+          </span>
+        </a>
+        <a href="/privacy.html">
+          <span data-lang-group>
+            <span data-lang="nl" lang="nl">Privacy</span>
+            <span data-lang="en" lang="en">Privacy</span>
+          </span>
+        </a>
+        <a href="/terms.html">
+          <span data-lang-group>
+            <span data-lang="nl" lang="nl">Terms</span>
+            <span data-lang="en" lang="en">Terms</span>
+          </span>
+        </a>
       </div>
     </div>
   </footer>
 
   <script>
-    function toggleLang() {
-      const html = document.documentElement;
-      html.lang = html.lang === 'nl' ? 'en' : 'nl';
-    }
-  </script>
+    const LANDING_LANGUAGE_KEY = 'buurtcheck_lang';
+    const landingState = {
+      currentLanguage: document.documentElement.dataset.language === 'en' ? 'en' : 'nl',
+      faqButtons: [],
+      faqItems: [],
+      observedSections: new Set(),
+    };
 
+    function detectBrowserLanguage() {
+      const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length > 0
+        ? navigator.languages
+        : [navigator.language];
+
+      for (const language of browserLanguages) {
+        const normalized = String(language || '').toLowerCase();
+        if (normalized.startsWith('nl')) {
+          return 'nl';
+        }
+        if (normalized.startsWith('en')) {
+          return 'en';
+        }
+      }
+
+      return 'nl';
+    }
+
+    function resolveInitialLanguage() {
+      try {
+        const storedLang = localStorage.getItem(LANDING_LANGUAGE_KEY);
+        if (storedLang === 'nl' || storedLang === 'en') {
+          return storedLang;
+        }
+      } catch (error) {
+        // Ignore storage failures and fall back to browser language detection.
+      }
+
+      return detectBrowserLanguage();
+    }
+
+    function persistLanguage(language) {
+      try {
+        localStorage.setItem(LANDING_LANGUAGE_KEY, language);
+      } catch (error) {
+        // Ignore storage failures so the page keeps working in private or blocked modes.
+      }
+    }
+
+    function getActiveText(container) {
+      const langGroup = container.querySelector('[data-lang-group]');
+      if (!langGroup) {
+        return container.textContent.replace(/\s+/g, ' ').trim();
+      }
+
+      const activeLanguage = langGroup.dataset.activeLang || landingState.currentLanguage;
+      const activeNode = langGroup.querySelector(`:scope > [data-lang="${activeLanguage}"]`);
+      if (activeNode) {
+        return activeNode.textContent.replace(/\s+/g, ' ').trim();
+      }
+
+      return container.textContent.replace(/\s+/g, ' ').trim();
+    }
+
+    function trackLandingEvent(name, payload = {}) {
+      const detail = { name, payload };
+      window.__landingAnalyticsEvents = window.__landingAnalyticsEvents || [];
+      window.__landingAnalyticsEvents.push(detail);
+      window.dispatchEvent(new CustomEvent('buurtcheck:landing-event', { detail }));
+
+      try {
+        if (window.landingAnalytics && typeof window.landingAnalytics.track === 'function') {
+          window.landingAnalytics.track(name, payload);
+          return;
+        }
+
+        if (typeof window.plausible === 'function') {
+          window.plausible(name, { props: payload });
+          return;
+        }
+
+        if (typeof window.gtag === 'function') {
+          window.gtag('event', name, payload);
+          return;
+        }
+
+        if (Array.isArray(window.dataLayer)) {
+          window.dataLayer.push({ event: name, ...payload });
+        }
+      } catch (error) {
+        // Ignore analytics sink failures so they never break the landing page.
+      }
+    }
+
+    function syncLanguageGroups(language) {
+      const groups = document.querySelectorAll('[data-lang-group]');
+
+      groups.forEach((group) => {
+        const preferredNode = group.querySelector(`:scope > [data-lang="${language}"]`);
+        const dutchNode = group.querySelector(':scope > [data-lang="nl"]');
+        const fallbackNode = dutchNode || group.querySelector(':scope > [data-lang]');
+        const preferredText = preferredNode ? preferredNode.textContent.trim() : '';
+        const activeLanguage = preferredText ? language : (fallbackNode ? fallbackNode.getAttribute('data-lang') : language);
+
+        if (activeLanguage) {
+          group.dataset.activeLang = activeLanguage;
+        } else {
+          group.removeAttribute('data-active-lang');
+        }
+      });
+    }
+
+    function syncLanguageControls(language) {
+      document.querySelectorAll('[data-language-choice]').forEach((button) => {
+        const isActive = button.getAttribute('data-language-choice') === language;
+        button.dataset.active = isActive ? 'true' : 'false';
+        button.setAttribute('aria-checked', isActive ? 'true' : 'false');
+        button.setAttribute('tabindex', isActive ? '0' : '-1');
+      });
+    }
+
+    function getLanguageButtons() {
+      return Array.from(document.querySelectorAll('[data-language-choice]'));
+    }
+
+    function activateLanguageButton(button, source, options = {}) {
+      const nextLanguage = button?.getAttribute('data-language-choice');
+      if (!nextLanguage) {
+        return;
+      }
+
+      if (nextLanguage !== landingState.currentLanguage) {
+        applyLanguage(nextLanguage, source);
+      }
+
+      if (options.focus) {
+        button.focus();
+      }
+    }
+
+    function moveLanguageSelection(currentButton, direction) {
+      const buttons = getLanguageButtons();
+      const currentIndex = buttons.indexOf(currentButton);
+      if (currentIndex === -1 || buttons.length === 0) {
+        return;
+      }
+
+      const nextIndex = (currentIndex + direction + buttons.length) % buttons.length;
+      activateLanguageButton(buttons[nextIndex], 'manual', { focus: true });
+    }
+
+    function syncOpenFaqHeight() {
+      landingState.faqItems.forEach((item) => {
+        const panel = item.querySelector('.faq-item__panel');
+        const isOpen = item.dataset.open === 'true';
+
+        if (!panel) {
+          return;
+        }
+
+        panel.style.height = isOpen ? `${panel.scrollHeight}px` : '0px';
+      });
+    }
+
+    function applyLanguage(language, source) {
+      const previousLanguage = landingState.currentLanguage;
+      landingState.currentLanguage = language;
+      document.documentElement.lang = language;
+      document.documentElement.dataset.language = language;
+      document.body.lang = language;
+      document.body.dataset.language = language;
+
+      document.querySelectorAll('[data-language-root]').forEach((node) => {
+        node.lang = language;
+      });
+
+      syncLanguageGroups(language);
+      syncLanguageControls(language);
+      persistLanguage(language);
+      requestAnimationFrame(syncOpenFaqHeight);
+
+      if (source === 'manual') {
+        trackLandingEvent('landing_language_toggle', {
+          from: previousLanguage,
+          to: language,
+          source: 'toggle',
+          language_after: language,
+        });
+      }
+    }
+
+    function closeFaqItem(item, itemIndex) {
+      const trigger = item.querySelector('[data-faq-trigger]');
+      const panel = item.querySelector('.faq-item__panel');
+
+      if (!trigger || !panel) {
+        return;
+      }
+
+      item.dataset.open = 'false';
+      trigger.setAttribute('aria-expanded', 'false');
+      panel.setAttribute('aria-hidden', 'true');
+      panel.style.height = '0px';
+
+      if (typeof itemIndex === 'number') {
+        trackLandingEvent('landing_faq_toggle', {
+          item_index: itemIndex + 1,
+          state: 'closed',
+          language: landingState.currentLanguage,
+        });
+      }
+    }
+
+    function openFaqItem(item, itemIndex) {
+      const trigger = item.querySelector('[data-faq-trigger]');
+      const panel = item.querySelector('.faq-item__panel');
+
+      if (!trigger || !panel) {
+        return;
+      }
+
+      item.dataset.open = 'true';
+      trigger.setAttribute('aria-expanded', 'true');
+      panel.setAttribute('aria-hidden', 'false');
+      panel.style.height = `${panel.scrollHeight}px`;
+
+      trackLandingEvent('landing_faq_toggle', {
+        item_index: itemIndex + 1,
+        state: 'opened',
+        language: landingState.currentLanguage,
+      });
+    }
+
+    function toggleFaqItem(item, itemIndex) {
+      const isOpen = item.dataset.open === 'true';
+
+      landingState.faqItems.forEach((faqItem, index) => {
+        if (faqItem !== item && faqItem.dataset.open === 'true') {
+          closeFaqItem(faqItem, index);
+        }
+      });
+
+      if (isOpen) {
+        closeFaqItem(item, itemIndex);
+      } else {
+        openFaqItem(item, itemIndex);
+      }
+    }
+
+    function initFaq() {
+      landingState.faqItems = Array.from(document.querySelectorAll('[data-faq-item]'));
+      landingState.faqButtons = landingState.faqItems.map((item) => item.querySelector('[data-faq-trigger]'));
+
+      landingState.faqItems.forEach((item, itemIndex) => {
+        const trigger = item.querySelector('[data-faq-trigger]');
+        const panel = item.querySelector('.faq-item__panel');
+
+        if (!trigger || !panel) {
+          return;
+        }
+
+        item.dataset.open = 'false';
+        trigger.setAttribute('aria-expanded', 'false');
+        panel.setAttribute('aria-hidden', 'true');
+        panel.style.height = '0px';
+
+        trigger.addEventListener('click', () => {
+          toggleFaqItem(item, itemIndex);
+        });
+
+        trigger.addEventListener('keydown', (event) => {
+          const currentIndex = landingState.faqButtons.indexOf(trigger);
+
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            landingState.faqButtons[(currentIndex + 1) % landingState.faqButtons.length]?.focus();
+          }
+
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            const previousIndex = (currentIndex - 1 + landingState.faqButtons.length) % landingState.faqButtons.length;
+            landingState.faqButtons[previousIndex]?.focus();
+          }
+
+          if (event.key === 'Home') {
+            event.preventDefault();
+            landingState.faqButtons[0]?.focus();
+          }
+
+          if (event.key === 'End') {
+            event.preventDefault();
+            landingState.faqButtons[landingState.faqButtons.length - 1]?.focus();
+          }
+        });
+      });
+    }
+
+    function initLanguageController() {
+      const initialLanguage = resolveInitialLanguage();
+      applyLanguage(initialLanguage, 'init');
+
+      getLanguageButtons().forEach((button, buttonIndex, buttons) => {
+        button.addEventListener('click', () => {
+          activateLanguageButton(button, 'manual');
+        });
+
+        button.addEventListener('keydown', (event) => {
+          if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+            event.preventDefault();
+            moveLanguageSelection(button, 1);
+            return;
+          }
+
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            moveLanguageSelection(button, -1);
+            return;
+          }
+
+          if (event.key === 'Home') {
+            event.preventDefault();
+            activateLanguageButton(buttons[0], 'manual', { focus: true });
+            return;
+          }
+
+          if (event.key === 'End') {
+            event.preventDefault();
+            activateLanguageButton(buttons[buttons.length - 1], 'manual', { focus: true });
+            return;
+          }
+
+          if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+            event.preventDefault();
+            activateLanguageButton(button, 'manual', { focus: true });
+          }
+        });
+      });
+    }
+
+    function initSectionObservers() {
+      const sectionNodes = document.querySelectorAll('[data-track-section-view]');
+
+      if (!('IntersectionObserver' in window)) {
+        sectionNodes.forEach((section) => {
+          if (!section.id || landingState.observedSections.has(section.id)) {
+            return;
+          }
+
+          landingState.observedSections.add(section.id);
+          trackLandingEvent('landing_section_view', {
+            section: section.id,
+            language: landingState.currentLanguage,
+          });
+        });
+        return;
+      }
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            return;
+          }
+
+          const section = entry.target;
+          if (!section.id || landingState.observedSections.has(section.id)) {
+            return;
+          }
+
+          landingState.observedSections.add(section.id);
+          trackLandingEvent('landing_section_view', {
+            section: section.id,
+            language: landingState.currentLanguage,
+          });
+          observer.unobserve(section);
+        });
+      }, {
+        threshold: 0.35,
+      });
+
+      sectionNodes.forEach((section) => observer.observe(section));
+    }
+
+    function initClickTracking() {
+      document.querySelectorAll('[data-cta-placement]').forEach((link) => {
+        link.addEventListener('click', () => {
+          trackLandingEvent('landing_cta_click', {
+            placement: link.getAttribute('data-cta-placement'),
+            label: getActiveText(link),
+            href: link.getAttribute('href'),
+            language: landingState.currentLanguage,
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-nav-target]').forEach((link) => {
+        link.addEventListener('click', () => {
+          trackLandingEvent('landing_nav_click', {
+            target: link.getAttribute('data-nav-target'),
+            language: landingState.currentLanguage,
+          });
+        });
+      });
+    }
+
+    function initSkipLink() {
+      const skipLink = document.querySelector('[data-skip-link]');
+      const mainContent = document.getElementById('main-content');
+
+      if (!skipLink || !mainContent) {
+        return;
+      }
+
+      skipLink.addEventListener('click', () => {
+        requestAnimationFrame(() => {
+          try {
+            mainContent.focus({ preventScroll: true });
+          } catch (error) {
+            mainContent.focus();
+          }
+        });
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initSkipLink();
+      initLanguageController();
+      initFaq();
+      initSectionObservers();
+      initClickTracking();
+      window.addEventListener('resize', syncOpenFaqHeight, { passive: true });
+    });
+  </script>
 </body>
 
 </html>
