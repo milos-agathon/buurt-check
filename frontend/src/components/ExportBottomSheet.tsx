@@ -95,8 +95,9 @@ export default function ExportBottomSheet({
   const [shareError, setShareError] = useState(false);
   const [generatedBlob, setGeneratedBlob] = useState<Blob | null>(null);
   const [exportTooltipVisible, setExportTooltipVisible] = useState(false);
-  const [lastAutoGenerateToken, setLastAutoGenerateToken] = useState<string | null>(null);
+  const [lastResumeToken, setLastResumeToken] = useState<string | null>(null);
   const isPostCheckoutResume = Boolean(autoGenerateToken && initialTemplate === 'full_dossier');
+  const checkpointTemplate = initialTemplate ?? template;
 
   const logPostCheckoutCheckpoint = useCallback((
     checkpoint: string,
@@ -106,7 +107,7 @@ export default function ExportBottomSheet({
 
     const payload = {
       checkpoint,
-      template,
+      template: checkpointTemplate,
       ...details,
     };
 
@@ -114,7 +115,7 @@ export default function ExportBottomSheet({
       console.info('[post-checkout-export]', payload);
     }
     trackEvent('post_checkout_export_checkpoint', payload);
-  }, [isPostCheckoutResume, template]);
+  }, [checkpointTemplate, isPostCheckoutResume]);
 
   const dismissExportTooltip = useCallback(() => {
     setExportTooltipVisible(false);
@@ -129,7 +130,7 @@ export default function ExportBottomSheet({
       setGeneratedBlob(null);
       setExportTooltipVisible(false);
       setExportLanguage(i18n.language === 'nl' ? 'nl' : 'en');
-      setLastAutoGenerateToken(null);
+      setLastResumeToken(null);
     }
   }, [i18n.language, isOpen]);
 
@@ -166,6 +167,7 @@ export default function ExportBottomSheet({
       report_id: reportId ?? 'none',
       vbo_id: vboId,
     });
+    logPostCheckoutCheckpoint('generate_started');
     setGenerating(true);
     setProgressStage('collecting');
     setError(false);
@@ -279,7 +281,7 @@ export default function ExportBottomSheet({
       });
       onGenerateSuccess?.();
     } catch {
-      logPostCheckoutCheckpoint('auto_generate_failed');
+      logPostCheckoutCheckpoint('generate_failed');
       setError(true);
       setProgressStage('idle');
       onGenerateError?.();
@@ -316,34 +318,16 @@ export default function ExportBottomSheet({
   ]);
 
   useEffect(() => {
-    if (!isOpen || !autoGenerateToken || autoGenerateToken === lastAutoGenerateToken) {
+    if (!isOpen || !autoGenerateToken || autoGenerateToken === lastResumeToken) {
       return;
     }
-    const desiredTemplate = initialTemplate ?? template;
-    if (template !== desiredTemplate) {
-      return;
-    }
-    const requiresPurchase = desiredTemplate === 'full_dossier' && !isEntitled;
-    const waitingOnSunlight = desiredTemplate === 'full_dossier' && !sunlightReady;
-    if (generating || generatedBlob || requiresPurchase || waitingOnSunlight) {
-      return;
-    }
-
-    setLastAutoGenerateToken(autoGenerateToken);
-    logPostCheckoutCheckpoint('auto_generate_started');
-    void handleGenerate();
+    setLastResumeToken(autoGenerateToken);
+    logPostCheckoutCheckpoint('resume_ready_to_generate');
   }, [
     autoGenerateToken,
-    generating,
-    generatedBlob,
-    handleGenerate,
-    initialTemplate,
-    isEntitled,
     isOpen,
-    lastAutoGenerateToken,
+    lastResumeToken,
     logPostCheckoutCheckpoint,
-    sunlightReady,
-    template,
   ]);
 
   const handleDownload = () => {
@@ -374,6 +358,8 @@ export default function ExportBottomSheet({
 
   const hasShadows = shadowSnapshots && shadowSnapshots.length > 0;
   const requiresPurchase = template === 'full_dossier' && !isEntitled;
+  const showPostCheckoutUnlockedState = isPostCheckoutResume && progressStage === 'idle' && !generatedBlob && !error;
+  const showPostCheckoutGeneratingState = isPostCheckoutResume && generating && !error;
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} height="45vh" ariaLabel={t('export.title')}>
@@ -499,11 +485,20 @@ export default function ExportBottomSheet({
           <p className="export-sheet__error">{t('export.error', 'Export failed. Please try again.')}</p>
         )}
 
-        {isPostCheckoutResume && progressStage !== 'ready' && !error && (
+        {showPostCheckoutUnlockedState && (
+          <p className="export-sheet__resume-note" data-testid="export-post-checkout-unlocked">
+            {t(
+              'export.postCheckoutUnlocked',
+              'Payment confirmed. Your full dossier is unlocked. Generate it when you are ready.',
+            )}
+          </p>
+        )}
+
+        {showPostCheckoutGeneratingState && (
           <p className="export-sheet__resume-note" data-testid="export-post-checkout-status">
             {t(
               'export.postCheckoutGenerating',
-              'Payment confirmed. We are preparing your dossier. Download will appear below when it is ready.',
+              'Payment confirmed. We are generating your dossier now. Download will appear below when it is ready.',
             )}
           </p>
         )}
@@ -627,6 +622,8 @@ export default function ExportBottomSheet({
               ? (buyLabel ?? t('export.buyFullDossier', 'Buy Full Dossier'))
               : generating
                 ? t('export.generating', 'Generating...')
+                : isPostCheckoutResume && template === 'full_dossier'
+                  ? t('export.generatePurchasedDossier', 'Generate dossier')
                 : t('export.generate', 'Generate PDF')}
           </button>
         )}

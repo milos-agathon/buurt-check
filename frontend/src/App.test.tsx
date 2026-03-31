@@ -1038,16 +1038,21 @@ describe('3D viewer integration', () => {
       expect(screen.getByRole('radio', { name: /Full Dossier/i })).toHaveAttribute('aria-checked', 'true');
     });
     await waitFor(() => {
+      expect(screen.getByTestId('export-post-checkout-unlocked')).toHaveTextContent(
+        'Payment confirmed. Your full dossier is unlocked. Generate it when you are ready.',
+      );
+    });
+    expect(mockExportBriefing).not.toHaveBeenCalled();
+    expect(mockDownloadPdfBlob).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Generate dossier/i }));
+
+    await waitFor(() => {
       expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
         reportId: 'report-123',
         template: 'full_dossier',
       }));
     });
-    expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
-    expect(screen.getByTestId('export-post-checkout-ready')).toHaveTextContent(
-      'Payment confirmed. Your dossier is ready. Tap Download PDF to save it.',
-    );
-    expect(mockDownloadPdfBlob).not.toHaveBeenCalled();
   });
 
   it('retries transient Stripe confirmation errors and still resumes the export', async () => {
@@ -1086,6 +1091,13 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(2);
     }, { timeout: 3_500 });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-post-checkout-unlocked')).toBeInTheDocument();
+    });
+    expect(mockExportBriefing).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Generate dossier/i }));
+
     await waitFor(() => {
       expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
         reportId: 'report-123',
@@ -1176,6 +1188,13 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(5);
     }, { timeout: 12_500 });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-post-checkout-unlocked')).toBeInTheDocument();
+    }, { timeout: 12_500 });
+    expect(mockExportBriefing).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Generate dossier/i }));
+
     await waitFor(() => {
       expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
         reportId: 'report-123',

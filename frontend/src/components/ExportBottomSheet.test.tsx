@@ -101,13 +101,22 @@ describe('ExportBottomSheet', () => {
     expect(mockClose).not.toHaveBeenCalled();
   });
 
-  it('auto-generates the initial full dossier after purchase continuation and waits for a manual download click', async () => {
+  it('waits for manual generation after purchase continuation and then allows manual download', async () => {
     const blob = new Blob(['pdf'], { type: 'application/pdf' });
     vi.mocked(api.exportBriefing).mockResolvedValue(blob);
     renderSheet({
       initialTemplate: 'full_dossier',
       autoGenerateToken: 'paid-report-123',
     });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-post-checkout-unlocked')).toHaveTextContent(
+        'Payment confirmed. Your full dossier is unlocked. Generate it when you are ready.',
+      );
+    });
+    expect(api.exportBriefing).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Generate dossier/i }));
 
     await waitFor(() => {
       expect(api.exportBriefing).toHaveBeenCalledWith(

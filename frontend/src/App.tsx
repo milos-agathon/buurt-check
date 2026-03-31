@@ -915,6 +915,20 @@ function App() {
     setAnalyticsConsentState(consent);
   }, []);
 
+  const logCheckoutResumeCheckpoint = useCallback((
+    checkpoint: string,
+    details?: Record<string, string | number | boolean>,
+  ) => {
+    const payload = {
+      checkpoint,
+      ...details,
+    };
+    if (import.meta.env.DEV) {
+      console.info('[checkout-resume]', payload);
+    }
+    trackEvent('checkout_resume_checkpoint', payload);
+  }, []);
+
   const activatePurchasedEntitlement = useCallback((
     unlockedReportId: string,
     provider: 'stripe' | 'google_play' | 'apple_app_store',
@@ -926,21 +940,28 @@ function App() {
     setReportId(unlockedReportId);
     setIsEntitled(true);
     setCheckoutStatusMessage(null);
+    logCheckoutResumeCheckpoint('entitlement_active', { provider });
     trackEvent('dossier_unlocked', { report_id: unlockedReportId, provider });
     if (address?.adresseerbaar_object_id) {
       storeEntitlement(address.adresseerbaar_object_id, unlockedReportId, true);
     }
-  }, [address?.adresseerbaar_object_id]);
+  }, [address?.adresseerbaar_object_id, logCheckoutResumeCheckpoint]);
   activatePurchasedEntitlementRef.current = activatePurchasedEntitlement;
 
   const resumePurchasedExport = useCallback((unlockedReportId: string) => {
     const pendingIntent = consumePostCheckoutExportIntent(unlockedReportId);
-    if (!pendingIntent) return;
+    if (!pendingIntent) {
+      logCheckoutResumeCheckpoint('resume_intent_missing');
+      return;
+    }
 
     setExportInitialTemplate(pendingIntent.template);
     setExportAutoGenerateToken(`${unlockedReportId}:${Date.now()}`);
     setExportSheetOpen(true);
-  }, []);
+    logCheckoutResumeCheckpoint('export_sheet_opened', {
+      template: pendingIntent.template,
+    });
+  }, [logCheckoutResumeCheckpoint]);
   resumePurchasedExportRef.current = resumePurchasedExport;
 
   const androidBillingAvailable = billingProvider === 'google_play';
@@ -2918,6 +2939,10 @@ function App() {
     let cancelled = false;
 
     const verifyEntitlement = async () => {
+      logCheckoutResumeCheckpoint('checkout_confirm_started', {
+        has_session_id: Boolean(checkoutVerification.sessionId),
+      });
+
       const finishSuccessfulVerification = (resolvedReportId: string) => {
         activatePurchasedEntitlementRef.current?.(resolvedReportId, 'stripe');
         resumePurchasedExportRef.current?.(resolvedReportId);
@@ -3023,7 +3048,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [checkoutVerification, showToast, t]);
+  }, [checkoutVerification, logCheckoutResumeCheckpoint, showToast, t]);
 
   useEffect(() => {
     if (!appleBillingAvailable || !reportId || isEntitled) return;
