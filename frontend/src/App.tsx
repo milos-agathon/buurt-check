@@ -434,14 +434,25 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
 }
 
 function parseLocationRoute(location: Location): ParsedHashRoute {
+  const searchQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+
   if (location.hash) {
-    return parseHashRoute(location.hash);
+    const parsed = parseHashRoute(location.hash);
+    if (parsed.route !== 'dossier' || !searchQuery) {
+      return parsed;
+    }
+
+    const params = new URLSearchParams(searchQuery);
+    return {
+      ...parsed,
+      lookupId: parsed.lookupId ?? params.get('lookup') ?? undefined,
+      reportId: parsed.reportId ?? params.get('report') ?? undefined,
+      sessionId: parsed.sessionId ?? params.get('session_id') ?? undefined,
+      buyerResume: parsed.buyerResume ?? params.get('buyer_resume') ?? undefined,
+    };
   }
 
-  return parseRoute(
-    location.pathname || '/',
-    location.search.startsWith('?') ? location.search.slice(1) : location.search,
-  );
+  return parseRoute(location.pathname || '/', searchQuery);
 }
 
 function buildHashRoute(parsed: ParsedHashRoute): string {

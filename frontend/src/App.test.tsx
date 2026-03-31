@@ -996,7 +996,11 @@ describe('3D viewer integration', () => {
   });
 
   it('resumes full dossier export after Stripe redirect confirmation', async () => {
-    window.location.hash = '#/address/vbo-123?lookup=adr-abc123&report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token';
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
     sessionStorage.setItem(
       'buurt-check:post-checkout-export',
       JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),

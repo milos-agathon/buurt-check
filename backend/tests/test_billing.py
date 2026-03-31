@@ -262,8 +262,9 @@ async def test_checkout_stripe_call_args(db_path):
         assert call_kwargs.kwargs["metadata"]["vbo_id"] == "0363010012345678"
         assert "success_url" in call_kwargs.kwargs
         assert "cancel_url" in call_kwargs.kwargs
-        success_fragment = urlsplit(call_kwargs.kwargs["success_url"]).fragment
-        success_query = success_fragment.split("?", 1)[1]
+        success_url = urlsplit(call_kwargs.kwargs["success_url"])
+        assert success_url.fragment == "#/address/0363010012345678".lstrip("#")
+        success_query = success_url.query
         success_params = parse_qs(success_query)
         assert success_params["report"] == [rid]
         assert success_params["session_id"] == ["{CHECKOUT_SESSION_ID}"]
@@ -304,10 +305,11 @@ async def test_checkout_uses_request_origin_when_base_url_is_localhost_default(d
     assert response.status_code == 200
     call_kwargs = mock_stripe.checkout.Session.create.call_args
     assert call_kwargs.kwargs["success_url"].startswith(
-        "https://app.buurt-check.nl/#/address/0363010012345678"
+        "https://app.buurt-check.nl/?"
     )
-    success_fragment = urlsplit(call_kwargs.kwargs["success_url"]).fragment
-    success_query = success_fragment.split("?", 1)[1]
+    success_url = urlsplit(call_kwargs.kwargs["success_url"])
+    assert success_url.fragment == "#/address/0363010012345678".lstrip("#")
+    success_query = success_url.query
     success_params = parse_qs(success_query)
     assert success_params["report"] == [rid]
     assert success_params["session_id"] == ["{CHECKOUT_SESSION_ID}"]
