@@ -480,6 +480,7 @@
   "export.postCheckoutStateGenerating": "Dossier wordt gegenereerd",
   "export.postCheckoutStateReady": "Dossier gereed",
   "export.postCheckoutUnlocked": "Je volledige dossier is ontgrendeld. We bereiden het automatisch voor. Dit kan even duren.",
+  "export.postCheckoutPreparing": "Dossier wordt voorbereid...",
   "export.postCheckoutGenerating": "We genereren je dossier nu. Dit kan even duren. De downloadknop verschijnt hieronder zodra het klaar is.",
   "export.postCheckoutReady": "Je dossier is gereed. Tik op Dossier downloaden om het op te slaan.",
   "export.generatePurchasedDossier": "Dossier genereren",

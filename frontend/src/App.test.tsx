@@ -1014,6 +1014,45 @@ describe('3D viewer integration', () => {
     );
   });
 
+  it('prewarms 3D prerequisites before redirecting to Stripe checkout', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123');
+    });
+    await waitFor(() => {
+      expect(mockBuilding3D).toHaveBeenCalled();
+      expect(mockNeighborhood3D).toHaveBeenCalled();
+    });
+    expect(mockNavigateToExternal).toHaveBeenCalledWith(
+      'https://checkout.stripe.com/c/pay/cs_test_123',
+    );
+  });
+
   it('resumes full dossier export after Stripe redirect confirmation', async () => {
     window.history.replaceState(
       null,

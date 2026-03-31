@@ -49,6 +49,7 @@ interface ExportBottomSheetProps {
 
 type RecoveryPhase = 'waiting_prerequisites' | 'generating' | 'ready' | 'error';
 type GenerateTrigger = 'manual' | 'post_checkout_auto' | 'post_checkout_retry';
+const POST_CHECKOUT_WAIT_TIMEOUT_MS = 10_000;
 
 export default function ExportBottomSheet({
   isOpen,
@@ -100,6 +101,7 @@ export default function ExportBottomSheet({
   const [generatedBlob, setGeneratedBlob] = useState<Blob | null>(null);
   const [exportTooltipVisible, setExportTooltipVisible] = useState(false);
   const [recoveryPhase, setRecoveryPhase] = useState<RecoveryPhase | null>(null);
+  const [bypassPrerequisites, setBypassPrerequisites] = useState(false);
   const recoveryTokenRef = useRef<string | null>(null);
   const waitingCheckpointTokenRef = useRef<string | null>(null);
   const autoGenerateStartedTokenRef = useRef<string | null>(null);
@@ -166,6 +168,7 @@ export default function ExportBottomSheet({
       setExportTooltipVisible(false);
       setExportLanguage(uiLanguage);
       setRecoveryPhase(null);
+      setBypassPrerequisites(false);
       recoveryTokenRef.current = null;
       waitingCheckpointTokenRef.current = null;
       autoGenerateStartedTokenRef.current = null;
@@ -196,6 +199,7 @@ export default function ExportBottomSheet({
     setGeneratedBlob(null);
     setExportTooltipVisible(false);
     setRecoveryPhase('waiting_prerequisites');
+    setBypassPrerequisites(false);
   }, [isOpen, isPostCheckoutRecovery, recoveryToken, uiLanguage]);
 
   const filename = useMemo(() => {
@@ -430,7 +434,7 @@ export default function ExportBottomSheet({
       || !isPostCheckoutRecovery
       || !recoveryToken
       || recoveryPhase !== 'waiting_prerequisites'
-      || !postCheckoutPrerequisitesReady
+      || (!postCheckoutPrerequisitesReady && !bypassPrerequisites)
     ) {
       return;
     }
@@ -445,6 +449,38 @@ export default function ExportBottomSheet({
     handleGenerate,
     isOpen,
     isPostCheckoutRecovery,
+    postCheckoutPrerequisitesReady,
+    bypassPrerequisites,
+    recoveryPhase,
+    recoveryToken,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isOpen
+      || !isPostCheckoutRecovery
+      || !recoveryToken
+      || recoveryPhase !== 'waiting_prerequisites'
+      || postCheckoutPrerequisitesReady
+      || bypassPrerequisites
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (import.meta.env.DEV) {
+        console.warn('[post-checkout-export] waiting for prerequisites timed out; continuing without sunlight gate');
+      }
+      logPostCheckoutCheckpoint('waiting_prerequisites_timeout');
+      setBypassPrerequisites(true);
+    }, POST_CHECKOUT_WAIT_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    bypassPrerequisites,
+    isOpen,
+    isPostCheckoutRecovery,
+    logPostCheckoutCheckpoint,
     postCheckoutPrerequisitesReady,
     recoveryPhase,
     recoveryToken,
@@ -493,6 +529,15 @@ export default function ExportBottomSheet({
   const hasShadows = shadowSnapshots && shadowSnapshots.length > 0;
   const requiresPurchase = activeTemplate === 'full_dossier' && !isEntitled;
   const showPostCheckoutSummary = isPostCheckoutRecovery && recoveryPhase != null && recoveryPhase !== 'error';
+  const showRecoveryProgress = recoveryPhase === 'waiting_prerequisites' || recoveryPhase === 'generating';
+  const recoveryProgressIndeterminate = recoveryPhase === 'waiting_prerequisites' || isIndeterminate;
+  const recoveryProgressText = recoveryPhase === 'waiting_prerequisites'
+    ? t('export.postCheckoutPreparing', 'Preparing dossier...')
+    : progressStage === 'collecting'
+      ? t('export.progress.collecting', 'Collecting data...')
+      : progressStage === 'rendering'
+        ? t('export.progress.rendering', 'Rendering PDF...')
+        : t('export.progress.downloading', 'Preparing download...');
 
   return (
     <BottomSheet isOpen={isOpen} onClose={handleCloseRequest} height="45vh" ariaLabel={sheetTitle}>
@@ -527,7 +572,7 @@ export default function ExportBottomSheet({
               <p className="export-sheet__error">{t('export.error', 'Export failed. Please try again.')}</p>
             )}
 
-            {recoveryPhase === 'generating' && (
+            {showRecoveryProgress && (
               <div className="export-sheet__progress" data-testid="export-progress">
                 <div
                   className="export-sheet__progress-ring"
@@ -535,16 +580,16 @@ export default function ExportBottomSheet({
                   aria-label={t('export.generating', 'Generating...')}
                   aria-valuemin={0}
                   aria-valuemax={100}
-                  {...(isIndeterminate ? {} : { 'aria-valuenow': progressPercent })}
+                  {...(recoveryProgressIndeterminate ? {} : { 'aria-valuenow': progressPercent })}
                 >
                   <svg
                     viewBox="0 0 40 40"
-                    className={`export-sheet__progress-svg${isIndeterminate ? ' export-sheet__progress-svg--indeterminate' : ''}`}
+                    className={`export-sheet__progress-svg${recoveryProgressIndeterminate ? ' export-sheet__progress-svg--indeterminate' : ''}`}
                     aria-hidden="true"
                   >
                     <circle className="export-sheet__progress-track" cx="20" cy="20" r={ringRadius} />
                     <circle
-                      className={`export-sheet__progress-value${isIndeterminate ? ' export-sheet__progress-value--indeterminate' : ''}`}
+                      className={`export-sheet__progress-value${recoveryProgressIndeterminate ? ' export-sheet__progress-value--indeterminate' : ''}`}
                       cx="20"
                       cy="20"
                       r={ringRadius}
@@ -558,15 +603,11 @@ export default function ExportBottomSheet({
                     <path d="M7 3h7l5 5v13H7z" />
                     <path d="M14 3v6h5" />
                   </svg>
-                  {!isIndeterminate && (
+                  {!recoveryProgressIndeterminate && (
                     <span className="export-sheet__progress-percent">{progressPercent}%</span>
                   )}
                 </div>
-                <p className="export-sheet__progress-text">
-                  {progressStage === 'collecting' && t('export.progress.collecting', 'Collecting data...')}
-                  {progressStage === 'rendering' && t('export.progress.rendering', 'Rendering PDF...')}
-                  {progressStage === 'downloading' && t('export.progress.downloading', 'Preparing download...')}
-                </p>
+                <p className="export-sheet__progress-text">{recoveryProgressText}</p>
               </div>
             )}
 

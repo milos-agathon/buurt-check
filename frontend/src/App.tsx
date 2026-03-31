@@ -736,6 +736,7 @@ function App() {
   const tracked3DOpenKeyRef = useRef<string | null>(null);
   const latestSunlightSubmissionKeyRef = useRef<string | null>(null);
   const sunlightSubmissionPromiseRef = useRef<Promise<void> | null>(null);
+  const kickoffPostCheckoutPrerequisitesRef = useRef<(() => void) | null>(null);
 
   // Deferred 3D fetch: store parameters when address resolves, trigger when viewport-near
   type Deferred3DParams = {
@@ -969,6 +970,7 @@ function App() {
 
     setExportInitialTemplate(pendingIntent.template);
     setExportAutoGenerateToken(`${unlockedReportId}:${Date.now()}`);
+    setCheckoutStatusMessage(null);
     setExportSheetOpen(true);
     logCheckoutResumeCheckpoint('export_sheet_opened', {
       template: pendingIntent.template,
@@ -1116,6 +1118,7 @@ function App() {
       reportId,
       template: 'full_dossier',
     });
+    kickoffPostCheckoutPrerequisitesRef.current?.();
 
     setIsCheckingOut(true);
     setCheckoutStatusMessage(null);
@@ -2117,6 +2120,66 @@ function App() {
     })();
   }, [isActiveDossierRequest, reportId, t]);
 
+  const kickoffPostCheckoutPrerequisites = useCallback(() => {
+    if (sunlight || sunlightUnavailable || neighborhood3DLoading || surroundingLoading) {
+      return;
+    }
+
+    if (deferred3DParamsRef.current) {
+      setViewer3DTriggered(true);
+      trigger3DFetch();
+      return;
+    }
+
+    const hasRenderableNeighborhood = Boolean(neighborhood3D && neighborhood3D.buildings.length > 0);
+    if (hasRenderableNeighborhood) {
+      return;
+    }
+
+    const currentParams = last3DParamsRef.current ?? (
+      address?.adresseerbaar_object_id
+      && address.rd_x != null
+      && address.rd_y != null
+      && address.latitude != null
+      && address.longitude != null
+      && (address.pand_id ?? buildingResponse?.building?.pand_id)
+        ? {
+          vboId: address.adresseerbaar_object_id,
+          pandId: address.pand_id ?? buildingResponse?.building?.pand_id ?? '',
+          rdX: address.rd_x,
+          rdY: address.rd_y,
+          lat: address.latitude,
+          lng: address.longitude,
+          building: buildingResponse?.building,
+          requestId: neighborhood3DRequestId.current,
+        }
+        : null
+    );
+
+    if (!currentParams) {
+      return;
+    }
+
+    deferred3DParamsRef.current = currentParams;
+    setViewer3DTriggered(true);
+    trigger3DFetch();
+  }, [
+    address?.adresseerbaar_object_id,
+    address?.latitude,
+    address?.longitude,
+    address?.pand_id,
+    address?.rd_x,
+    address?.rd_y,
+    buildingResponse?.building,
+    neighborhood3D,
+    neighborhood3DLoading,
+    sunlight,
+    sunlightUnavailable,
+    surroundingLoading,
+    trigger3DFetch,
+  ]);
+  kickoffPostCheckoutPrerequisitesRef.current = kickoffPostCheckoutPrerequisites;
+
   const handleRetryNeighborhood3D = useCallback(() => {
     setNeighborhood3DError(null);
     if (deferred3DParamsRef.current) {
@@ -2134,35 +2197,12 @@ function App() {
     if (!exportSheetOpen || exportInitialTemplate !== 'full_dossier' || !exportAutoGenerateToken) {
       return;
     }
-    if (sunlight || sunlightUnavailable || neighborhood3DLoading || surroundingLoading) {
-      return;
-    }
-
-    if (deferred3DParamsRef.current) {
-      setViewer3DTriggered(true);
-      trigger3DFetch();
-      return;
-    }
-
-    const hasRenderableNeighborhood = Boolean(neighborhood3D && neighborhood3D.buildings.length > 0);
-    if (!hasRenderableNeighborhood && last3DParamsRef.current) {
-      deferred3DParamsRef.current = last3DParamsRef.current;
-      setViewer3DTriggered(true);
-      trigger3DFetch();
-    }
+    kickoffPostCheckoutPrerequisites();
   }, [
-    address?.adresseerbaar_object_id,
-    address?.pand_id,
-    buildingResponse?.building?.pand_id,
     exportAutoGenerateToken,
     exportInitialTemplate,
     exportSheetOpen,
-    neighborhood3D,
-    neighborhood3DLoading,
-    sunlight,
-    sunlightUnavailable,
-    surroundingLoading,
-    trigger3DFetch,
+    kickoffPostCheckoutPrerequisites,
   ]);
 
   useEffect(() => {

@@ -480,6 +480,7 @@
   "export.postCheckoutStateGenerating": "Generating dossier",
   "export.postCheckoutStateReady": "Dossier ready",
   "export.postCheckoutUnlocked": "Your full dossier is unlocked. We will prepare it automatically. This can take a moment.",
+  "export.postCheckoutPreparing": "Preparing dossier...",
   "export.postCheckoutGenerating": "We are generating your dossier now. This can take a moment. The download button will appear below when it is ready.",
   "export.postCheckoutReady": "Your dossier is ready. Tap Download dossier to save it.",
   "export.generatePurchasedDossier": "Generate dossier",
