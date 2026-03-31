@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Buurt Check Privacy Policy</title>
+    <meta
+      name="description"
+      content="Privacy policy for Buurt Check web, Android, and iPhone app experiences."
+    />
+    <meta name="buurtcheck-ga-measurement-id" content="G-TEST1234" />
+    <link rel="icon" type="image/svg+xml" href="/logos/buurt-check-favicon.svg" />
+    <link rel="stylesheet" href="/legal.css" />
+    <link rel="stylesheet" href="/analytics-consent.css" />
+    <script>
+      (function () {
+        const GA_PLACEHOLDER = '__BUURTCHECK' + '_GA_MEASUREMENT_ID__';
+        const CONSENT_KEY = 'buurtcheck_analytics_consent';
+        const readStoredConsent = () => {
+          const cookiePrefix = `${CONSENT_KEY}=`;
+          const cookieValue = document.cookie
+            .split(';')
+            .map((segment) => segment.trim())
+            .find((segment) => segment.startsWith(cookiePrefix));
+          if (cookieValue) {
+            const value = decodeURIComponent(cookieValue.slice(cookiePrefix.length));
+            if (value === 'granted' || value === 'denied') {
+              return value;
+            }
+          }
+
+          try {
+            const storedValue = localStorage.getItem(CONSENT_KEY);
+            if (storedValue === 'granted' || storedValue === 'denied') {
+              return storedValue;
+            }
+          } catch (error) {
+            // Ignore storage failures and keep consent default-denied.
+          }
+
+          return '';
+        };
+        const metaMeasurementId = document
+          .querySelector('meta[name="buurtcheck-ga-measurement-id"]')
+          ?.getAttribute('content')
+          ?.trim() || '';
+        const configuredMeasurementId = (typeof window.BUURTCHECK_GA_MEASUREMENT_ID === 'string'
+          ? window.BUURTCHECK_GA_MEASUREMENT_ID.trim()
+          : '') || metaMeasurementId;
+        const resolvedMeasurementId = configuredMeasurementId === GA_PLACEHOLDER
+          ? ''
+          : configuredMeasurementId.toUpperCase();
+
+        if (!/^G-[A-Z0-9]+$/i.test(resolvedMeasurementId)) {
+          return;
+        }
+
+        window.__landingGaMeasurementId = resolvedMeasurementId;
+        const storedConsent = readStoredConsent();
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = window.gtag || function gtag() {
+          window.dataLayer.push(arguments);
+        };
+
+        const consentDefaults = {
+          analytics_storage: storedConsent === 'granted' ? 'granted' : 'denied',
+          ad_storage: 'denied',
+          ad_user_data: 'denied',
+          ad_personalization: 'denied',
+          functionality_storage: 'granted',
+          security_storage: 'granted',
+        };
+        if (!storedConsent) {
+          consentDefaults.wait_for_update = 500;
+        }
+
+        window.gtag('consent', 'default', consentDefaults);
+        window.gtag('js', new Date());
+        window.gtag('config', resolvedMeasurementId, {
+          anonymize_ip: true,
+          send_page_view: true,
+          linker: {
+            domains: ['buurt-check.nl', 'app.buurt-check.nl'],
+          },
+        });
+
+        const gaScript = document.createElement('script');
+        gaScript.async = true;
+        gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(resolvedMeasurementId)}`;
+        gaScript.dataset.analyticsProvider = 'google-analytics';
+        gaScript.dataset.measurementId = resolvedMeasurementId;
+        document.head.appendChild(gaScript);
+      }());
+    </script>
+    <script defer src="/analytics-consent.js"></script>
+  </head>
+  <body>
+    <main class="legal-page">
+      <div class="legal-page__topbar">
+        <a class="legal-page__brand" href="https://app.buurt-check.nl/#/search">
+          <img src="/logos/buurt-check-lockup-horizontal.svg" alt="Buurt Check" />
+          <span>Buurt Check</span>
+        </a>
+        <a class="legal-page__back" href="https://app.buurt-check.nl/#/search">Back to the app</a>
+      </div>
+
+      <section class="legal-page__hero">
+        <span class="legal-page__eyebrow">Privacy policy</span>
+        <h1 class="legal-page__title">Buurt Check Privacy Policy</h1>
+        <p class="legal-page__lead">
+          Buurt Check helps buyers evaluate Dutch properties with open data, 3D context,
+          and exportable dossiers. This policy explains what data is collected, why it is
+          processed, how it is shared, and how you can manage or delete it. It covers the
+          web app, the Google Play Android app, and the App Store iPhone app.
+        </p>
+        <p class="legal-page__meta">Last updated: March 24, 2026</p>
+      </section>
+
+      <div class="legal-page__grid">
+        <section class="legal-page__section">
+          <h2>Who we are</h2>
+          <p>
+            Buurt Check is developed and operated by <strong>Milos Popovic</strong>,
+            publishing under the developer name <strong>Milos GIS</strong> on Google Play
+            and the App Store.
+          </p>
+          <p>
+            Duinzicht 23<br />
+            2235 BV Valkenburg<br />
+            Netherlands
+          </p>
+          <p>
+            For privacy inquiries, contact
+            <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Data we collect and process</h2>
+
+          <h3>Website analytics</h3>
+          <p>
+            On the marketing website we may send page views and high-level interaction events,
+            such as CTA clicks, FAQ opens, pricing reach, and language-toggle usage, to
+            Google Analytics 4. Buurt Check configures this in consent mode with advertising
+            features disabled and IP anonymization enabled.
+          </p>
+          <p>
+            <strong>Purpose:</strong> understand landing-page performance, monitor product
+            messaging, and improve the website without using the data for advertising.
+          </p>
+
+          <h3>Address searches and property data</h3>
+          <p>
+            When you type an address into Buurt Check, the search query is sent to our
+            backend, which queries Dutch public-data services that power address lookup.
+            When you select an address, we process the selected address, derived
+            coordinates, Dutch property identifiers such as BAG or VBO IDs, and generated
+            report IDs to assemble the dossier and exports you request.
+          </p>
+          <p>
+            <strong>Purpose:</strong> address autocomplete, dossier generation, export
+            delivery, and service operation.
+          </p>
+
+          <h3>Purchase and entitlement records</h3>
+          <ul>
+            <li>
+              <strong>Report and entitlement records:</strong> report ID, report type,
+              payment status, entitlement status, and purchase timestamp when a dossier is
+              bought.
+            </li>
+            <li>
+              <strong>Payment provider references:</strong> provider session IDs,
+              purchase tokens, transaction IDs, or similar payment references returned by
+              Stripe, Google Play Billing, or Apple In-App Purchase so we can verify and
+              fulfil a purchase.
+            </li>
+            <li>
+              <strong>Payment credentials:</strong> Buurt Check does not collect your
+              card number, bank details, or other payment credentials. Those are handled
+              directly by the payment provider.
+            </li>
+          </ul>
+          <p>
+            <strong>Purpose:</strong> payment processing, purchase fulfilment, refunds,
+            fraud prevention, and legal/accounting compliance.
+          </p>
+
+          <h3>Data stored only on your device</h3>
+          <ul>
+            <li>
+              <strong>Recent searches:</strong> recently selected addresses are stored in
+              local browser or app storage for convenience. This is separate from the live
+              search queries sent to our backend to return suggestions.
+            </li>
+            <li>
+              <strong>Shortlist and preferences:</strong> saved addresses, theme
+              preference, tooltip state, and similar convenience settings may be stored
+              locally on your device.
+            </li>
+            <li>
+              <strong>Temporary session state:</strong> viewing checklist state, pending
+              purchase restore state, and report-to-address lookup state may be stored in
+              session or local storage so the app can recover cleanly after navigation or
+              an interrupted billing flow.
+            </li>
+          </ul>
+          <p>
+            <strong>Purpose:</strong> app functionality and convenience. This on-device
+            data is not used for advertising.
+          </p>
+
+          <h3>Data we do not intentionally collect</h3>
+          <p>
+            Buurt Check does not require named user accounts and does not use your device
+            GPS location. We do not intentionally collect contacts, photos, messages,
+            advertising identifiers, or payment credentials.
+          </p>
+
+          <div class="legal-page__callout">
+            <h3>Dutch summary</h3>
+            <p>
+              We verwerken de adressen die je opzoekt, de woning-ID's die nodig zijn om
+              een dossier op te bouwen, en aankoop- of entitlementgegevens wanneer je een
+              betaald dossier koopt. Recente zoekopdrachten, shortlist-items,
+              thema-instellingen en checkliststatus kunnen lokaal op je apparaat blijven
+              staan. We hebben geen toegang tot je GPS-locatie of betaalgegevens.
+            </p>
+          </div>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Third parties that receive data</h2>
+          <table class="legal-page__table">
+            <thead>
+              <tr>
+                <th>Third party</th>
+                <th>Data shared</th>
+                <th>Purpose</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Google Analytics 4 (marketing site only)</td>
+                <td>Page views, CTA clicks, FAQ interaction, pricing reach, and language-toggle events</td>
+                <td>Website analytics and conversion monitoring</td>
+              </tr>
+              <tr>
+                <td>Stripe (web only)</td>
+                <td>Payment details entered into Stripe Checkout and Stripe session data</td>
+                <td>Payment processing</td>
+              </tr>
+              <tr>
+                <td>Google Play Billing (Android)</td>
+                <td>Purchase tokens, entitlement verification</td>
+                <td>Payment processing</td>
+              </tr>
+              <tr>
+                <td>Apple In-App Purchase (iOS)</td>
+                <td>Transaction receipts, entitlement verification</td>
+                <td>Payment processing</td>
+              </tr>
+              <tr>
+                <td>Dutch public data APIs (PDOK, BAG, CBS, RIVM, etc.)</td>
+                <td>Address searches, selected addresses, coordinates, and BAG or VBO identifiers as needed</td>
+                <td>Property and neighborhood data retrieval</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            We do not sell your personal data. We do not use your data for third-party
+            advertising.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Data security</h2>
+          <p>
+            All data transmitted between your device and our servers is encrypted in
+            transit using HTTPS (TLS 1.2 or higher). Server-side records such as report
+            metadata, entitlement status, and payment references are stored in systems used
+            to operate Buurt Check and are limited to the systems and operators needed to
+            run the service.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Retention and deletion</h2>
+
+          <h3>On-device data</h3>
+          <p>
+            You can clear recent searches and shortlist entries through the app's Settings
+            screen. Other locally stored data, such as theme preference, checklist state,
+            and temporary session state, can be cleared by clearing your browser or app
+            data.
+          </p>
+
+          <h3>Server-side data</h3>
+          <p>
+            Report records, entitlement records, and payment references are retained for
+            as long as reasonably needed to provide purchased exports, handle refunds or
+            disputes, prevent abuse, and comply with legal or accounting obligations.
+            Operational caches may expire sooner according to technical time limits.
+          </p>
+
+          <h3>How to request deletion</h3>
+          <p>
+            To request deletion of server-side data, email
+            <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>
+            with the report ID shown in your export or purchase confirmation, or with the
+            searched address and approximate purchase or usage date. We aim to respond to
+            deletion requests within 30 days.
+          </p>
+
+          <h3>What may be retained</h3>
+          <ul>
+            <li>
+              <strong>Deleted where possible:</strong> report metadata, entitlement
+              records, and related cached service data that are no longer required.
+            </li>
+            <li>
+              <strong>Retained where necessary:</strong> transaction records or other data
+              that must be kept for legal compliance, fraud prevention, dispute handling,
+              or security.
+            </li>
+          </ul>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Legal basis for processing</h2>
+          <ul>
+            <li>
+              <strong>Contract performance:</strong> processing addresses and assembling
+              dossiers to deliver the service you requested.
+            </li>
+            <li>
+              <strong>Legitimate interest:</strong> operating and securing the service,
+              preventing abuse or fraud, and improving reliability.
+            </li>
+            <li>
+              <strong>Legal obligation:</strong> retaining records where required by tax,
+              accounting, or other applicable laws.
+            </li>
+          </ul>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Your rights</h2>
+          <p>
+            Under the GDPR you may request access, correction, deletion, restriction,
+            objection, or portability of your data where applicable. Because the product
+            does not use named accounts, we may ask for the report ID, purchase
+            confirmation, searched address, or other supporting details to identify the
+            correct records before acting on a request.
+          </p>
+          <p>
+            You also have the right to lodge a complaint with the Dutch Data Protection
+            Authority (Autoriteit Persoonsgegevens) at
+            <a href="https://autoriteitpersoonsgegevens.nl">autoriteitpersoonsgegevens.nl</a>.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Changes to this policy</h2>
+          <p>
+            We may update this privacy policy to reflect changes in our practices or
+            applicable law. When we make changes, we will update the "Last updated" date
+            at the top of this page. For material changes affecting how we process your
+            data, we will provide notice through the app before the changes take effect.
+          </p>
+        </section>
+
+        <section class="legal-page__section">
+          <h2>Contact</h2>
+          <p>
+            Questions about this policy can be sent to
+            <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>.
+          </p>
+        </section>
+      </div>
+
+      <p class="legal-page__footer">
+        This policy covers the web app at
+        <a href="https://app.buurt-check.nl">app.buurt-check.nl</a>, the Google Play
+        Android release, and the App Store iPhone release of Buurt Check.
+      </p>
+    </main>
+  </body>
+</html>
