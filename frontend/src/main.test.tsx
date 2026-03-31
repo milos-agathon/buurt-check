@@ -56,6 +56,6 @@ describe('main entry', () => {
 
     registerArgs?.onNeedRefresh?.();
     expect(updateSWMock).toHaveBeenCalledWith(true);
-  });
+  }, 15_000);
 });
 

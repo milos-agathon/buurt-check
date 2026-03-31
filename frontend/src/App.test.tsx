@@ -86,6 +86,15 @@ vi.mock('./services/navigation', () => ({
   navigateToExternal: vi.fn(),
 }));
 
+vi.mock('./services/analytics', async () => {
+  const actual = await vi.importActual<typeof import('./services/analytics')>('./services/analytics');
+  return {
+    ...actual,
+    trackEvent: vi.fn(),
+    trackPageView: vi.fn(),
+  };
+});
+
 vi.mock('./config/pricing', () => ({
   fetchPrice: vi.fn().mockImplementation(async () => pricingConfigRef.current.price),
   getDossierPrice: vi.fn(() => pricingConfigRef.current.price),
@@ -171,6 +180,7 @@ import {
 } from './services/appleBilling';
 import { resolveBillingProvider } from './services/billingProvider';
 import { navigateToExternal } from './services/navigation';
+import { trackEvent } from './services/analytics';
 const mockLookup = vi.mocked(lookupAddress);
 const mockCreateShortReport = vi.mocked(createShortReport);
 const mockCheckEntitlement = vi.mocked(checkEntitlement);
@@ -209,6 +219,7 @@ const mockIsAppleBillingCancelledError = vi.mocked(isAppleBillingCancelledError)
 const mockIsAppleBillingPendingError = vi.mocked(isAppleBillingPendingError);
 const mockResolveBillingProvider = vi.mocked(resolveBillingProvider);
 const mockNavigateToExternal = vi.mocked(navigateToExternal);
+const mockTrackEvent = vi.mocked(trackEvent);
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
@@ -259,6 +270,7 @@ beforeEach(() => {
   mockIsAppleBillingCancelledError.mockReset();
   mockResolveBillingProvider.mockReset();
   mockNavigateToExternal.mockReset();
+  mockTrackEvent.mockReset();
   neighborhoodViewer3DPropsRef.current = null;
   pricingConfigRef.current = {
     price: '3.99',
@@ -1035,24 +1047,41 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
     await waitFor(() => {
-      expect(screen.getByRole('radio', { name: /Full Dossier/i })).toHaveAttribute('aria-checked', 'true');
-    });
-    await waitFor(() => {
-      expect(screen.getByTestId('export-post-checkout-unlocked')).toHaveTextContent(
-        'Payment confirmed. Your full dossier is unlocked. Generate it when you are ready.',
-      );
-    });
-    expect(mockExportBriefing).not.toHaveBeenCalled();
-    expect(mockDownloadPdfBlob).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: /Generate dossier/i }));
-
-    await waitFor(() => {
       expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
         reportId: 'report-123',
         template: 'full_dossier',
       }));
     });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('export-post-checkout-ready')).toHaveTextContent(
+      'Your dossier is ready. Tap Download dossier to save it.',
+    );
+    expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
+    expect(mockDownloadPdfBlob).not.toHaveBeenCalled();
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      'checkout_resume_checkpoint',
+      expect.objectContaining({
+        checkpoint: 'checkout_confirm_started',
+        has_session_id: true,
+      }),
+    );
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      'checkout_resume_checkpoint',
+      expect.objectContaining({
+        checkpoint: 'entitlement_active',
+        provider: 'stripe',
+      }),
+    );
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      'checkout_resume_checkpoint',
+      expect.objectContaining({
+        checkpoint: 'export_sheet_opened',
+        template: 'full_dossier',
+        provider: 'stripe',
+      }),
+    );
   });
 
   it('keeps the post-checkout export intent queued until dossier context is ready', async () => {
@@ -1102,8 +1131,15 @@ describe('3D viewer integration', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('export-post-checkout-unlocked')).toBeInTheDocument();
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
+    });
+    expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
     expect(sessionStorage.getItem('buurt-check:post-checkout-export')).toBeNull();
   });
 
@@ -1144,18 +1180,15 @@ describe('3D viewer integration', () => {
       expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(2);
     }, { timeout: 3_500 });
     await waitFor(() => {
-      expect(screen.getByTestId('export-post-checkout-unlocked')).toBeInTheDocument();
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
-    expect(mockExportBriefing).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: /Generate dossier/i }));
-
     await waitFor(() => {
       expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
         reportId: 'report-123',
         template: 'full_dossier',
       }));
     });
+    expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Payment could not be completed. Please try again.')).not.toBeInTheDocument();
   });
 
@@ -1241,18 +1274,15 @@ describe('3D viewer integration', () => {
       expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(5);
     }, { timeout: 12_500 });
     await waitFor(() => {
-      expect(screen.getByTestId('export-post-checkout-unlocked')).toBeInTheDocument();
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     }, { timeout: 12_500 });
-    expect(mockExportBriefing).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: /Generate dossier/i }));
-
     await waitFor(() => {
       expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
         reportId: 'report-123',
         template: 'full_dossier',
       }));
     }, { timeout: 12_500 });
+    expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
   }, 15_000);
 
   it('activates entitlement even when Stripe confirmation resolves after address loads', async () => {
@@ -1312,7 +1342,10 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
     await waitFor(() => {
-      expect(screen.getByRole('radio', { name: /Full Dossier/i })).toHaveAttribute('aria-checked', 'true');
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
     });
   });
 

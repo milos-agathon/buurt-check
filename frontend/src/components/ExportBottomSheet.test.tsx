@@ -101,22 +101,18 @@ describe('ExportBottomSheet', () => {
     expect(mockClose).not.toHaveBeenCalled();
   });
 
-  it('waits for manual generation after purchase continuation and then allows manual download', async () => {
+  it('auto-generates after purchase continuation and still requires manual dossier download', async () => {
     const blob = new Blob(['pdf'], { type: 'application/pdf' });
-    vi.mocked(api.exportBriefing).mockResolvedValue(blob);
+    let resolveExport!: (value: Blob) => void;
+    vi.mocked(api.exportBriefing).mockImplementation(
+      () => new Promise<Blob>((resolve) => { resolveExport = resolve; }),
+    );
     renderSheet({
       initialTemplate: 'full_dossier',
       autoGenerateToken: 'paid-report-123',
     });
 
-    await waitFor(() => {
-      expect(screen.getByTestId('export-post-checkout-unlocked')).toHaveTextContent(
-        'Payment confirmed. Your full dossier is unlocked. Generate it when you are ready.',
-      );
-    });
-    expect(api.exportBriefing).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: /Generate dossier/i }));
+    expect(screen.queryByTestId('export-generate-btn')).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(api.exportBriefing).toHaveBeenCalledWith(
@@ -126,16 +122,40 @@ describe('ExportBottomSheet', () => {
         }),
       );
     });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'generating');
+    });
+    expect(screen.getByText('Generating dossier')).toBeInTheDocument();
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      'post_checkout_export_checkpoint',
+      expect.objectContaining({
+        checkpoint: 'auto_generate_started',
+        template: 'full_dossier',
+        trigger: 'automatic',
+      }),
+    );
+    expect(mockTrackEvent).not.toHaveBeenCalledWith(
+      'post_checkout_export_checkpoint',
+      expect.objectContaining({ checkpoint: 'download_attempt_started' }),
+    );
+    expect(api.downloadPdfBlob).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveExport(blob);
+      await Promise.resolve();
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
+    expect(screen.getByText('Dossier ready')).toBeInTheDocument();
     expect(screen.getByTestId('export-post-checkout-ready')).toHaveTextContent(
-      'Payment confirmed. Your dossier is ready. Tap Download PDF to save it.',
+      'Your dossier is ready. Tap Download dossier to save it.',
     );
+    expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
     expect(api.downloadPdfBlob).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: /Download PDF/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Download dossier/i }));
 
     await waitFor(() => {
       expect(api.downloadPdfBlob).toHaveBeenCalledWith(
@@ -143,6 +163,181 @@ describe('ExportBottomSheet', () => {
         'buurt-check-full-dossier-0363010012345678.pdf',
       );
     });
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      'post_checkout_export_checkpoint',
+      expect.objectContaining({
+        checkpoint: 'download_attempt_started',
+        template: 'full_dossier',
+        trigger: 'manual_button',
+      }),
+    );
+  });
+
+  it('waits for prerequisites and hides export controls in post-checkout recovery', async () => {
+    const view = renderSheet({
+      initialTemplate: 'full_dossier',
+      autoGenerateToken: 'paid-report-123',
+      sunlightReady: false,
+      sunlightFailed: false,
+      shadowSnapshots: [
+        { label: 'summer', hour: 12, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'waiting_prerequisites');
+    });
+    expect(screen.getByText('Payment confirmed')).toBeInTheDocument();
+    expect(screen.getByTestId('export-post-checkout-waiting')).toHaveTextContent(
+      'Your full dossier is unlocked. We will prepare it automatically. This can take a moment.',
+    );
+    expect(api.exportBriefing).not.toHaveBeenCalled();
+    expect(screen.queryByRole('radio', { name: /Quick checklist/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'EN' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Include shadow snapshot')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('export-generate-btn')).not.toBeInTheDocument();
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      'post_checkout_export_checkpoint',
+      expect.objectContaining({
+        checkpoint: 'waiting_prerequisites',
+        template: 'full_dossier',
+      }),
+    );
+
+    view.rerender(
+      <I18nextProvider i18n={i18nInstance}>
+        <ExportBottomSheet
+          {...defaultProps}
+          initialTemplate="full_dossier"
+          autoGenerateToken="paid-report-123"
+          sunlightReady={true}
+          sunlightFailed={false}
+          shadowSnapshots={[
+            { label: 'summer', hour: 12, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
+          ]}
+        />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('blocks close requests during waiting and generating, then allows close after dossier is ready', async () => {
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    let resolveExport!: (value: Blob) => void;
+    const view = renderSheet({
+      initialTemplate: 'full_dossier',
+      autoGenerateToken: 'paid-report-123',
+      sunlightReady: false,
+      sunlightFailed: false,
+    });
+
+    fireEvent.click(screen.getByTestId('bottom-sheet-overlay'));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(mockClose).not.toHaveBeenCalled();
+
+    vi.mocked(api.exportBriefing).mockImplementation(
+      () => new Promise<Blob>((resolve) => { resolveExport = resolve; }),
+    );
+
+    view.rerender(
+      <I18nextProvider i18n={i18nInstance}>
+        <ExportBottomSheet
+          {...defaultProps}
+          initialTemplate="full_dossier"
+          autoGenerateToken="paid-report-123"
+          sunlightReady={true}
+          sunlightFailed={false}
+        />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'generating');
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(mockClose).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveExport(blob);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('bottom-sheet-overlay'));
+    expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows retry after a post-checkout export error and allows retrying the generation flow', async () => {
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    vi.mocked(api.exportBriefing)
+      .mockRejectedValueOnce(new Error('export failed'))
+      .mockResolvedValueOnce(blob);
+
+    renderSheet({
+      initialTemplate: 'full_dossier',
+      autoGenerateToken: 'paid-report-123',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-retry-btn')).toBeInTheDocument();
+    });
+    expect(screen.getByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(mockClose).toHaveBeenCalledTimes(1);
+    mockClose.mockClear();
+
+    fireEvent.click(screen.getByTestId('export-retry-btn'));
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      'post_checkout_export_checkpoint',
+      expect.objectContaining({
+        checkpoint: 'auto_generate_started',
+        template: 'full_dossier',
+        trigger: 'retry_button',
+      }),
+    );
+  });
+
+  it('keeps the ready state visible and logs download failures in post-checkout recovery', async () => {
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    vi.mocked(api.exportBriefing).mockResolvedValue(blob);
+    vi.mocked(api.downloadPdfBlob).mockRejectedValueOnce(new Error('download failed'));
+
+    renderSheet({
+      initialTemplate: 'full_dossier',
+      autoGenerateToken: 'paid-report-123',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Download dossier/i }));
+
+    await waitFor(() => {
+      expect(mockTrackEvent).toHaveBeenCalledWith(
+        'post_checkout_export_checkpoint',
+        expect.objectContaining({
+          checkpoint: 'download_attempt_failed',
+          template: 'full_dossier',
+          trigger: 'manual_button',
+        }),
+      );
+    });
+    expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Download dossier/i })).toBeInTheDocument();
   });
 
   it('uses segmented language control independent from app language', async () => {

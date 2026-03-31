@@ -17,7 +17,7 @@ Scope: payment success redirect -> entitlement restore -> export resume -> PDF d
 | --- | --- | --- | --- | --- |
 | 1 | H1 | Browser blocks the post-checkout auto-download because it fires after async export completion, outside a user gesture | `rejected` | 2026-03-31 |
 | 2 | H2 | Regenerating the PDF after checkout is too fragile or too slow, so payment success does not reliably lead to a ready file | `rejected` | 2026-03-31 |
-| 3 | H3 | Stripe confirmation plus entitlement restore has a race, so export resume sometimes starts before unlock has settled | `testing` | 2026-03-31 |
+| 3 | H3 | Stripe confirmation plus entitlement restore has a race, so export resume sometimes starts before unlock has settled | `rejected` | 2026-03-31 |
 | 4 | H4 | Full dossier export is gated by sunlight / 3D readiness, so post-checkout resume can stall before PDF generation starts | `queued` | 2026-03-31 |
 | 5 | H5 | `sessionStorage` is an unreliable bridge for the post-checkout export intent on some browsers or webviews | `queued` | 2026-03-31 |
 | 6 | H6 | The backend export endpoint is too expensive and synchronous, so "download never starts" is really "export never finished" | `queued` | 2026-03-31 |
@@ -105,7 +105,7 @@ Reason for rejection:
 
 ### H3. Stripe confirmation plus entitlement restore has a race
 
-Status: `testing`
+Status: `rejected`
 
 Why it is plausible:
 
@@ -134,9 +134,17 @@ What this test is trying to prove:
 
 - Whether the resumed export was being triggered too early, during a transient report/loading state where the unlocked sheet could be lost before the user ever saw it.
 
-Reject H3 if:
+Observed result:
 
-- Failing sessions still miss `export_sheet_opened` even after `entitlement_active` and a queued resume have both happened.
+- Real checkout behavior still stopped at:
+  - `Betaling wordt verwerkt...`
+  - `Betaling ontvangen — je dossier wordt zo ontgrendeld.`
+- The flow still did not advance into the resumed export UI after entitlement restore.
+- The queued post-checkout resume never surfaced a visible unlocked export sheet or recovery state.
+
+Reason for rejection:
+
+- The user still never reaches the resumed export UI after payment success, so delaying resume until the dossier context settles did not isolate the failure.
 
 ### H4. Sunlight / 3D gating blocks full dossier export
 
@@ -205,12 +213,46 @@ Reject H6 if:
 | 2026-03-31 | Shipped the H2 isolation patch on `main`: stop post-checkout auto-generation, open an unlocked export state first, require explicit `Generate dossier`, add checkout/export checkpoints | H2 moved from `queued` to `testing` |
 | 2026-03-31 | Browser test result for H2: user still saw the delayed payment state and never reached the unlocked `Generate dossier` sheet | H2 moved from `testing` to `rejected` |
 | 2026-03-31 | Shipped the H3 isolation patch on `main`: queue the post-checkout resume until dossier context is ready, retain the stored export intent until the sheet actually opens, add confirm-attempt checkpoints | H3 moved from `queued` to `testing` |
+| 2026-03-31 | Browser test result for H3: user still saw the delayed payment state and never advanced into the resumed export UI after entitlement restore | H3 moved from `testing` to `rejected` |
+
+## Immediate recovery plan
+
+The next change should stop relying on an automatic post-checkout recovery path. H4-H6 remain queued as deferred follow-up hypotheses, but they are not the immediate next action while this recovery flow is being implemented and validated.
+
+Recovery flow direction:
+
+- After payment success, show a dedicated success state.
+- Present a visible `Download dossier` button in that state.
+- Do not keep automatic download as an option in the post-checkout path.
+
+Explicit user-visible states:
+
+- `payment confirmed`
+- `generating dossier`
+- `dossier ready`
+
+Required client checkpoints:
+
+- `checkout_confirm_started`
+- `entitlement_active`
+- `export_sheet_opened`
+- `auto_generate_started`
+- `export_response_received`
+- `download_attempt_started`
+- `download_attempt_failed`
+
+Frontend flow contract for the next implementation:
+
+- The manual post-payment recovery CTA label is `Download dossier`.
+- The post-checkout flow should not use any automatic download fallback.
+- Checkpoint names stay in snake_case to match the existing client logging convention.
+- UI states are documented in plain language for the user-facing flow, separate from checkpoint names.
 
 ## Next action
 
-Run a real browser checkout on the previously failing device/browser and record:
+Implement and validate the dedicated post-payment recovery UI:
 
-1. whether `entitlement_active` is followed by `resume_queued`
-2. whether the export sheet opens only after dossier loading clears
-3. whether the sheet now shows the unlocked `Generate dossier` state
-4. which checkpoint is last if the flow still stalls
+1. show the dedicated payment-success state with a visible `Download dossier` CTA
+2. move the user through the explicit `payment confirmed` -> `generating dossier` -> `dossier ready` states
+3. emit the required client checkpoints consistently through that flow
+4. return to H4-H6 only if this recovery path still fails to produce a reliable download experience
