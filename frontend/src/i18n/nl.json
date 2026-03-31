@@ -649,7 +649,7 @@
   "premium.upgrade.includes.compare": "Adresvergelijking naast elkaar",
   "premium.checkout.processing": "Betaling wordt verwerkt...",
   "premium.checkout.success": "Dossier ontgrendeld!",
-  "premium.checkout.delayed": "Betaling ontvangen \u2014 je dossier wordt zo ontgrendeld. Vernieuw over een moment.",
+  "premium.checkout.delayed": "Betaling ontvangen \u2014 je dossier wordt zo ontgrendeld.",
   "premium.checkout.failed": "Betaling kon niet worden afgerond. Probeer het opnieuw.",
   "premium.checkout.startFailed": "Checkout kon niet worden gestart. Probeer het opnieuw.",
   "premium.checkout.unavailable": "Checkout voor het volledige dossier is tijdelijk niet beschikbaar. Probeer het later opnieuw.",

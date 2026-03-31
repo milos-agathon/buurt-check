@@ -1124,6 +1124,59 @@ describe('3D viewer integration', () => {
     expect(mockExportBriefing).not.toHaveBeenCalled();
   });
 
+  it('keeps polling after the delayed Stripe state and resumes the export when entitlement unlocks later', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+
+    let confirmAttempt = 0;
+    mockConfirmStripeCheckoutSession.mockImplementation(async () => {
+      confirmAttempt += 1;
+      if (confirmAttempt < 5) {
+        return {
+          report_id: 'report-123',
+          entitled: false,
+          report_type: 'short',
+        };
+      }
+      return {
+        report_id: 'report-123',
+        entitled: true,
+        report_type: 'short',
+      };
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText('Payment received — your dossier will unlock shortly.').length,
+      ).toBeGreaterThan(0);
+    }, { timeout: 8_500 });
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(5);
+    }, { timeout: 12_500 });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
+    }, { timeout: 12_500 });
+  }, 15_000);
+
   it('activates entitlement even when Stripe confirmation resolves after address loads', async () => {
     // Reproduce the real Stripe return URL: no lookup= in hash, lookup in sessionStorage.
     // confirmStripeCheckoutSession resolves AFTER lookupAddress, which is the realistic
@@ -1302,7 +1355,7 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(
         screen.getAllByText(
-          'Payment received — your dossier will unlock shortly. Refresh in a moment.',
+          'Payment received — your dossier will unlock shortly.',
         ).length,
       ).toBeGreaterThan(0);
     });

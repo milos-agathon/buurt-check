@@ -638,7 +638,7 @@
   "premium.upgrade.includes.compare": "Side-by-side address comparison",
   "premium.checkout.processing": "Processing payment...",
   "premium.checkout.success": "Dossier unlocked!",
-  "premium.checkout.delayed": "Payment received \u2014 your dossier will unlock shortly. Refresh in a moment.",
+  "premium.checkout.delayed": "Payment received \u2014 your dossier will unlock shortly.",
   "premium.checkout.failed": "Payment could not be completed. Please try again.",
   "premium.checkout.startFailed": "Could not start checkout. Please try again.",
   "premium.checkout.unavailable": "Full dossier checkout is temporarily unavailable. Please try again later.",
