@@ -367,6 +367,12 @@ interface PostCheckoutExportIntent {
   template: 'full_dossier';
 }
 
+interface QueuedPostCheckoutResume {
+  reportId: string;
+  provider: 'stripe' | 'google_play' | 'apple_app_store';
+  queuedAt: number;
+}
+
 function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
   if (value == null) return fallback;
   const normalized = value.trim().toLowerCase();
@@ -654,6 +660,7 @@ function App() {
     sessionId?: string;
     buyerResume?: string;
   } | null>(null);
+  const [queuedPostCheckoutResume, setQueuedPostCheckoutResume] = useState<QueuedPostCheckoutResume | null>(null);
   const [buildingResponse, setBuildingResponse] = useState<BuildingFactsResponse | null>(
     dossierSeed?.buildingResponse ?? null,
   );
@@ -719,7 +726,9 @@ function App() {
   const activatePurchasedEntitlementRef = useRef<
     ((reportId: string, provider: 'stripe' | 'google_play' | 'apple_app_store') => void) | null
   >(null);
-  const resumePurchasedExportRef = useRef<((reportId: string) => void) | null>(null);
+  const resumePurchasedExportRef = useRef<
+    ((reportId: string, provider: 'stripe' | 'google_play' | 'apple_app_store') => void) | null
+  >(null);
   const latestEntitlementRef = useRef<{ reportId: string | null; isEntitled: boolean }>({
     reportId: null,
     isEntitled: TEMP_FORCE_FULL_DOSSIER_VIEW,
@@ -948,11 +957,14 @@ function App() {
   }, [address?.adresseerbaar_object_id, logCheckoutResumeCheckpoint]);
   activatePurchasedEntitlementRef.current = activatePurchasedEntitlement;
 
-  const resumePurchasedExport = useCallback((unlockedReportId: string) => {
+  const openQueuedPurchasedExport = useCallback((
+    unlockedReportId: string,
+    details?: Record<string, string | number | boolean>,
+  ) => {
     const pendingIntent = consumePostCheckoutExportIntent(unlockedReportId);
     if (!pendingIntent) {
       logCheckoutResumeCheckpoint('resume_intent_missing');
-      return;
+      return false;
     }
 
     setExportInitialTemplate(pendingIntent.template);
@@ -960,9 +972,67 @@ function App() {
     setExportSheetOpen(true);
     logCheckoutResumeCheckpoint('export_sheet_opened', {
       template: pendingIntent.template,
+      ...details,
     });
+    return true;
   }, [logCheckoutResumeCheckpoint]);
+
+  const resumePurchasedExport = useCallback((
+    unlockedReportId: string,
+    provider: 'stripe' | 'google_play' | 'apple_app_store',
+  ) => {
+    setQueuedPostCheckoutResume({
+      reportId: unlockedReportId,
+      provider,
+      queuedAt: Date.now(),
+    });
+    logCheckoutResumeCheckpoint('resume_queued', {
+      provider,
+      has_address: Boolean(address?.adresseerbaar_object_id),
+      report_matches_current: reportId === unlockedReportId,
+      entitled: latestEntitlementRef.current.reportId === unlockedReportId
+        ? latestEntitlementRef.current.isEntitled
+        : isEntitled && reportId === unlockedReportId,
+      loading,
+    });
+  }, [
+    address?.adresseerbaar_object_id,
+    isEntitled,
+    loading,
+    logCheckoutResumeCheckpoint,
+    reportId,
+  ]);
   resumePurchasedExportRef.current = resumePurchasedExport;
+
+  useEffect(() => {
+    if (!queuedPostCheckoutResume) return;
+    if (activeScreen !== 'dossier') return;
+
+    const hasAddress = Boolean(address?.adresseerbaar_object_id);
+    const reportMatches = reportId === queuedPostCheckoutResume.reportId;
+    const entitledForQueuedReport = latestEntitlementRef.current.reportId === queuedPostCheckoutResume.reportId
+      ? latestEntitlementRef.current.isEntitled
+      : isEntitled && reportMatches;
+
+    if (!hasAddress || !reportMatches || !entitledForQueuedReport || loading) {
+      return;
+    }
+
+    setQueuedPostCheckoutResume(null);
+    openQueuedPurchasedExport(queuedPostCheckoutResume.reportId, {
+      provider: queuedPostCheckoutResume.provider,
+      queued_delay_ms: Date.now() - queuedPostCheckoutResume.queuedAt,
+      resume_mode: 'queued',
+    });
+  }, [
+    activeScreen,
+    address?.adresseerbaar_object_id,
+    isEntitled,
+    loading,
+    openQueuedPurchasedExport,
+    queuedPostCheckoutResume,
+    reportId,
+  ]);
 
   const androidBillingAvailable = billingProvider === 'google_play';
   const appleBillingAvailable = billingProvider === 'apple_app_store';
@@ -1069,7 +1139,7 @@ function App() {
             await finishAppleBillingTransaction(pendingPurchase.transactionId);
             clearPendingAppleBillingReport();
             activatePurchasedEntitlement(verification.report_id, 'apple_app_store');
-            resumePurchasedExport(verification.report_id);
+            resumePurchasedExport(verification.report_id, 'apple_app_store');
             trackEvent('checkout_completed', {
               report_id: verification.report_id,
               provider: 'apple_app_store',
@@ -1092,7 +1162,7 @@ function App() {
           await finishAppleBillingTransaction(purchase.transactionId);
           clearPendingAppleBillingReport();
           activatePurchasedEntitlement(verification.report_id, 'apple_app_store');
-          resumePurchasedExport(verification.report_id);
+          resumePurchasedExport(verification.report_id, 'apple_app_store');
           trackEvent('checkout_completed', {
             report_id: verification.report_id,
             provider: 'apple_app_store',
@@ -1141,7 +1211,7 @@ function App() {
             }
             clearPendingPlayBillingReport();
             activatePurchasedEntitlement(verification.report_id, 'google_play');
-            resumePurchasedExport(verification.report_id);
+            resumePurchasedExport(verification.report_id, 'google_play');
             trackEvent('checkout_completed', {
               report_id: verification.report_id,
               provider: 'google_play',
@@ -1167,7 +1237,7 @@ function App() {
           await completePlayBillingPurchase(purchase, 'success');
           clearPendingPlayBillingReport();
           activatePurchasedEntitlement(verification.report_id, 'google_play');
-          resumePurchasedExport(verification.report_id);
+          resumePurchasedExport(verification.report_id, 'google_play');
           trackEvent('checkout_completed', {
             report_id: verification.report_id,
             provider: 'google_play',
@@ -2312,6 +2382,7 @@ function App() {
     };
     setIsCheckingOut(false);
     setCheckoutStatusMessage(null);
+    setQueuedPostCheckoutResume(null);
     setBuildingResponse(null);
     setBuildingError(null);
     setNeighborhood3D(null);
@@ -2945,7 +3016,7 @@ function App() {
 
       const finishSuccessfulVerification = (resolvedReportId: string) => {
         activatePurchasedEntitlementRef.current?.(resolvedReportId, 'stripe');
-        resumePurchasedExportRef.current?.(resolvedReportId);
+        resumePurchasedExportRef.current?.(resolvedReportId, 'stripe');
         if (checkoutVerification.sessionId) {
           trackEvent('checkout_completed', {
             report_id: resolvedReportId,
@@ -3006,6 +3077,10 @@ function App() {
         : 1;
 
       for (let attempt = 1; attempt <= immediateAttempts; attempt += 1) {
+        logCheckoutResumeCheckpoint('checkout_confirm_attempt', {
+          attempt,
+          phase: 'immediate',
+        });
         const outcome = await verifyAttempt();
         if (outcome !== 'pending') {
           return;
@@ -3029,6 +3104,10 @@ function App() {
           await sleep(POST_CHECKOUT_BACKGROUND_DELAY_MS);
           if (cancelled) return;
 
+          logCheckoutResumeCheckpoint('checkout_confirm_attempt', {
+            attempt: immediateAttempts + attempt,
+            phase: 'background',
+          });
           const outcome = await verifyAttempt();
           if (outcome !== 'pending') {
             return;
@@ -3075,7 +3154,7 @@ function App() {
 
         clearPendingAppleBillingReport();
         activatePurchasedEntitlement(verification.report_id, 'apple_app_store');
-        resumePurchasedExport(verification.report_id);
+        resumePurchasedExport(verification.report_id, 'apple_app_store');
         trackEvent('checkout_completed', {
           report_id: verification.report_id,
           provider: 'apple_app_store',
@@ -3123,7 +3202,7 @@ function App() {
 
         clearPendingPlayBillingReport();
         activatePurchasedEntitlement(verification.report_id, 'google_play');
-        resumePurchasedExport(verification.report_id);
+        resumePurchasedExport(verification.report_id, 'google_play');
         trackEvent('checkout_completed', {
           report_id: verification.report_id,
           provider: 'google_play',

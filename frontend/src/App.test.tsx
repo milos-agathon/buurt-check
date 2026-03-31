@@ -1055,6 +1055,58 @@ describe('3D viewer integration', () => {
     });
   });
 
+  it('keeps the post-checkout export intent queued until dossier context is ready', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+    mockConfirmStripeCheckoutSession.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: true,
+      report_type: 'short',
+    });
+
+    let resolveBuilding!: (value: ReturnType<typeof makeBuildingResponse>) => void;
+    const buildingPromise = new Promise<ReturnType<typeof makeBuildingResponse>>((resolve) => {
+      resolveBuilding = resolve;
+    });
+    mockBuilding.mockReturnValue(buildingPromise);
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith(
+        'report-123',
+        'cs_test_123',
+        'signed-buyer-token',
+      );
+    });
+
+    expect(sessionStorage.getItem('buurt-check:post-checkout-export')).not.toBeNull();
+    expect(screen.queryByTestId('export-sheet')).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveBuilding(makeBuildingResponse());
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-post-checkout-unlocked')).toBeInTheDocument();
+    });
+    expect(sessionStorage.getItem('buurt-check:post-checkout-export')).toBeNull();
+  });
+
   it('retries transient Stripe confirmation errors and still resumes the export', async () => {
     window.history.replaceState(
       null,

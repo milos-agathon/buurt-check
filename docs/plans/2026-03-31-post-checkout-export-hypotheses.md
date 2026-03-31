@@ -16,8 +16,8 @@ Scope: payment success redirect -> entitlement restore -> export resume -> PDF d
 | Rank | ID | Hypothesis | Status | Last update |
 | --- | --- | --- | --- | --- |
 | 1 | H1 | Browser blocks the post-checkout auto-download because it fires after async export completion, outside a user gesture | `rejected` | 2026-03-31 |
-| 2 | H2 | Regenerating the PDF after checkout is too fragile or too slow, so payment success does not reliably lead to a ready file | `testing` | 2026-03-31 |
-| 3 | H3 | Stripe confirmation plus entitlement restore has a race, so export resume sometimes starts before unlock has settled | `queued` | 2026-03-31 |
+| 2 | H2 | Regenerating the PDF after checkout is too fragile or too slow, so payment success does not reliably lead to a ready file | `rejected` | 2026-03-31 |
+| 3 | H3 | Stripe confirmation plus entitlement restore has a race, so export resume sometimes starts before unlock has settled | `testing` | 2026-03-31 |
 | 4 | H4 | Full dossier export is gated by sunlight / 3D readiness, so post-checkout resume can stall before PDF generation starts | `queued` | 2026-03-31 |
 | 5 | H5 | `sessionStorage` is an unreliable bridge for the post-checkout export intent on some browsers or webviews | `queued` | 2026-03-31 |
 | 6 | H6 | The backend export endpoint is too expensive and synchronous, so "download never starts" is really "export never finished" | `queued` | 2026-03-31 |
@@ -63,7 +63,7 @@ Reason for rejection:
 
 ### H2. Regenerating the PDF after checkout is too fragile or too slow
 
-Status: `testing`
+Status: `rejected`
 
 Why it is plausible:
 
@@ -91,13 +91,21 @@ What this test is trying to prove:
 
 - Whether separating payment confirmation from expensive PDF regeneration makes the post-checkout flow visible, understandable, and reliable enough to complete.
 
-Reject H2 if:
+Observed result:
 
-- The post-checkout sheet still fails to open, or the user still never reaches a clear unlocked state before generation even starts.
+- Real checkout behavior still stopped at:
+  - `Betaling wordt verwerkt...`
+  - `Betaling ontvangen — je dossier wordt zo ontgrendeld.`
+- The flow still did not advance into the explicit unlocked export sheet state with `Generate dossier`.
+- That means PDF generation is not the first thing going wrong after payment success.
+
+Reason for rejection:
+
+- The user still never reaches the manual generation state, so separating checkout from PDF generation did not isolate the failure.
 
 ### H3. Stripe confirmation plus entitlement restore has a race
 
-Status: `queued`
+Status: `testing`
 
 Why it is plausible:
 
@@ -105,18 +113,30 @@ Why it is plausible:
 - `frontend/src/App.tsx` retries, then falls back to delayed polling.
 - A frontend return that lands before unlock settles could interrupt clean export resume.
 
-Planned test:
+Change shipped to test H3:
 
+- Stop opening the export sheet immediately from the checkout-success callback.
+- Queue the post-checkout resume until the current dossier context is ready:
+  - address resolved
+  - report ID matches the unlocked report
+  - entitlement is active
+  - the initial dossier loading state has cleared
+- Keep the `sessionStorage` post-checkout intent intact until the sheet is actually opened.
 - Add explicit checkpoints for:
   - `checkout_confirm_started`
+  - `checkout_confirm_attempt`
   - `entitlement_active`
+  - `resume_queued`
   - `export_sheet_opened`
-- Capture timestamps and retry counts during a real checkout flow.
-- Compare successful and failed resumes to see whether failures cluster before entitlement activation.
+- Add a regression test covering a Stripe confirmation that succeeds before building facts finish loading.
+
+What this test is trying to prove:
+
+- Whether the resumed export was being triggered too early, during a transient report/loading state where the unlocked sheet could be lost before the user ever saw it.
 
 Reject H3 if:
 
-- Entitlement is already active when the failing sessions resume and export still stalls later in the flow.
+- Failing sessions still miss `export_sheet_opened` even after `entitlement_active` and a queued resume have both happened.
 
 ### H4. Sunlight / 3D gating blocks full dossier export
 
@@ -183,12 +203,14 @@ Reject H6 if:
 | 2026-03-31 | Shipped the H1 isolation patch on `main`: keep post-checkout auto-generation, remove auto-download, show manual `Download PDF` CTA, add lightweight checkpoints | H1 moved from proposed to `testing` |
 | 2026-03-31 | Browser test result for H1: user still saw delayed payment state and then nothing | H1 moved from `testing` to `rejected` |
 | 2026-03-31 | Shipped the H2 isolation patch on `main`: stop post-checkout auto-generation, open an unlocked export state first, require explicit `Generate dossier`, add checkout/export checkpoints | H2 moved from `queued` to `testing` |
+| 2026-03-31 | Browser test result for H2: user still saw the delayed payment state and never reached the unlocked `Generate dossier` sheet | H2 moved from `testing` to `rejected` |
+| 2026-03-31 | Shipped the H3 isolation patch on `main`: queue the post-checkout resume until dossier context is ready, retain the stored export intent until the sheet actually opens, add confirm-attempt checkpoints | H3 moved from `queued` to `testing` |
 
 ## Next action
 
 Run a real browser checkout on the previously failing device/browser and record:
 
-1. whether the export sheet opens after entitlement is restored
-2. whether the sheet shows the unlocked state with `Generate dossier`
-3. whether the flow reaches `export_response_received` after that click
+1. whether `entitlement_active` is followed by `resume_queued`
+2. whether the export sheet opens only after dossier loading clears
+3. whether the sheet now shows the unlocked `Generate dossier` state
 4. which checkpoint is last if the flow still stalls
