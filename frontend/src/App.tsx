@@ -535,6 +535,18 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+function isRetryableCheckoutVerificationError(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return error.httpStatus === undefined || error.httpStatus >= 500 || error.httpStatus === 429;
+  }
+
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return true;
+  }
+
+  return error instanceof TypeError;
+}
+
 function readChecklistState(vboId: string): Set<string> {
   if (typeof window === 'undefined') return new Set();
   try {
@@ -2902,6 +2914,7 @@ function App() {
 
     const verifyEntitlement = async () => {
       const maxAttempts = checkoutVerification.sessionId ? 4 : 1;
+      let usedRetryableFallback = false;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
@@ -2926,9 +2939,10 @@ function App() {
             showToast(t('premium.checkout.success'));
             return;
           }
-        } catch {
+        } catch (error) {
           if (cancelled) return;
-          if (checkoutVerification.sessionId) {
+
+          if (!checkoutVerification.sessionId || !isRetryableCheckoutVerificationError(error)) {
             trackEvent('checkout_failed', {
               report_id: checkoutVerification.reportId,
               provider: 'stripe',
@@ -2936,8 +2950,28 @@ function App() {
             });
             setCheckoutStatusMessage(t('premium.checkout.failed'));
             showToast(t('premium.checkout.failed'));
+            return;
           }
-          return;
+
+          usedRetryableFallback = true;
+
+          try {
+            const entitlement = await checkEntitlement(checkoutVerification.reportId);
+            if (cancelled) return;
+
+            if (entitlement.entitled) {
+              activatePurchasedEntitlementRef.current?.(entitlement.report_id, 'stripe');
+              resumePurchasedExportRef.current?.(entitlement.report_id);
+              trackEvent('checkout_completed', {
+                report_id: entitlement.report_id,
+                provider: 'stripe',
+              });
+              showToast(t('premium.checkout.success'));
+              return;
+            }
+          } catch {
+            if (cancelled) return;
+          }
         }
 
         if (!checkoutVerification.sessionId || attempt >= maxAttempts) {
@@ -2954,7 +2988,9 @@ function App() {
         trackEvent('checkout_failed', {
           report_id: checkoutVerification.reportId,
           provider: 'stripe',
-          reason: 'post_checkout_entitlement_not_active',
+          reason: usedRetryableFallback
+            ? 'post_checkout_confirmation_pending'
+            : 'post_checkout_entitlement_not_active',
         });
         setCheckoutStatusMessage(t('premium.checkout.delayed'));
         showToast(t('premium.checkout.delayed'));

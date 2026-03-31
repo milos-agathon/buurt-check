@@ -1043,6 +1043,87 @@ describe('3D viewer integration', () => {
     expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
   });
 
+  it('retries transient Stripe confirmation errors and still resumes the export', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+    mockConfirmStripeCheckoutSession
+      .mockRejectedValueOnce(new ApiError('error.server', 503))
+      .mockResolvedValueOnce({
+        report_id: 'report-123',
+        entitled: true,
+        report_type: 'short',
+      });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Processing payment...')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(2);
+    }, { timeout: 3_500 });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
+    });
+    expect(screen.queryByText('Payment could not be completed. Please try again.')).not.toBeInTheDocument();
+  });
+
+  it('shows a payment failure when Stripe confirmation returns a definitive error', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+    mockConfirmStripeCheckoutSession.mockRejectedValue(new ApiError('error.data_source', 404));
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith(
+        'report-123',
+        'cs_test_123',
+        'signed-buyer-token',
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText(
+        'Payment could not be completed. Please try again.',
+      ).length).toBeGreaterThan(0);
+    });
+    expect(mockExportBriefing).not.toHaveBeenCalled();
+  });
+
   it('activates entitlement even when Stripe confirmation resolves after address loads', async () => {
     // Reproduce the real Stripe return URL: no lookup= in hash, lookup in sessionStorage.
     // confirmStripeCheckoutSession resolves AFTER lookupAddress, which is the realistic
