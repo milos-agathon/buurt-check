@@ -42,9 +42,10 @@ function isStandaloneRuntimeAsset(filePath: string): boolean {
 }
 
 describe.skipIf(!hasDistDir)('Bundle budget', () => {
-  it('initial app dist gzip total under 500KB (excludes workers and standalone docs)', () => {
+  it('initial app dist gzip total under 500KB (excludes workers, service worker, and standalone docs)', () => {
     const files = collectFiles(distRoot).filter((filePath) => (
       !filePath.includes('sunlightWorker-') && !filePath.includes('svfWorker-')
+      && normalizeDistPath(filePath) !== 'sw.js'
       && !isStandaloneRuntimeAsset(filePath)
     ));
     const totalGzip = files.reduce((sum, filePath) => {
@@ -92,5 +93,12 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
     expect(indexChunk).toBeDefined();
     const size = statSync(resolve(distDir, indexChunk!)).size;
     expect(size).toBeLessThan(360 * 1024);
+  });
+
+  it('service worker bundle under 35KB', () => {
+    const serviceWorker = resolve(distRoot, 'sw.js');
+    expect(existsSync(serviceWorker)).toBe(true);
+    const size = statSync(serviceWorker).size;
+    expect(size).toBeLessThan(35 * 1024);
   });
 });

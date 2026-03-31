@@ -12,7 +12,6 @@ export interface RuntimeLocation {
 
 export interface PrimaryApiBaseResolution {
   apiBase: string;
-  configuredBase: string;
   forcedToFirstParty: boolean;
 }
 
@@ -63,14 +62,12 @@ export function resolvePrimaryApiBase(
   if (!isAbsoluteHttpUrl(normalizedConfiguredBase)) {
     return {
       apiBase: normalizedConfiguredBase,
-      configuredBase: normalizedConfiguredBase,
       forcedToFirstParty: false,
     };
   }
   if (!isHostedWebRuntime(runtime)) {
     return {
       apiBase: normalizedConfiguredBase,
-      configuredBase: normalizedConfiguredBase,
       forcedToFirstParty: false,
     };
   }
@@ -79,14 +76,12 @@ export function resolvePrimaryApiBase(
   if (parsed.origin === runtime.origin) {
     return {
       apiBase: normalizedConfiguredBase,
-      configuredBase: normalizedConfiguredBase,
       forcedToFirstParty: false,
     };
   }
 
   return {
     apiBase: DEFAULT_PRIMARY_API_BASE,
-    configuredBase: normalizedConfiguredBase,
     forcedToFirstParty: true,
   };
 }
@@ -94,15 +89,14 @@ export function resolvePrimaryApiBase(
 function warnForcedFirstPartyBase(configuredBase: string): void {
   if (warnedAboutForcedFirstPartyBase) return;
   warnedAboutForcedFirstPartyBase = true;
-  console.warn(
-    `[api-base] Hosted web app ignored cross-origin VITE_API_BASE (${configuredBase}) and is using ${DEFAULT_PRIMARY_API_BASE}.`,
-  );
+  console.warn('[api-base] Hosted web forced same-origin /api.', configuredBase);
 }
 
 export function getPrimaryApiBase(): string {
-  const resolution = resolvePrimaryApiBase(import.meta.env.VITE_API_BASE);
+  const configuredBase = normalizeApiBase(import.meta.env.VITE_API_BASE || DEFAULT_PRIMARY_API_BASE);
+  const resolution = resolvePrimaryApiBase(configuredBase);
   if (resolution.forcedToFirstParty) {
-    warnForcedFirstPartyBase(resolution.configuredBase);
+    warnForcedFirstPartyBase(configuredBase);
   }
   return resolution.apiBase;
 }

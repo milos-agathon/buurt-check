@@ -22,7 +22,6 @@ describe('primary API base resolution', () => {
   it('forces hosted web cross-origin API bases back to first-party /api', () => {
     expect(resolvePrimaryApiBase('https://buurt-check.onrender.com/api', HOSTED_WEB_RUNTIME)).toEqual({
       apiBase: '/api',
-      configuredBase: 'https://buurt-check.onrender.com/api',
       forcedToFirstParty: true,
     });
   });
@@ -37,7 +36,6 @@ describe('primary API base resolution', () => {
       },
     )).toEqual({
       apiBase: 'https://buurt-check.onrender.com/api',
-      configuredBase: 'https://buurt-check.onrender.com/api',
       forcedToFirstParty: false,
     });
   });
@@ -52,7 +50,6 @@ describe('primary API base resolution', () => {
       },
     )).toEqual({
       apiBase: 'https://buurt-check.onrender.com/api',
-      configuredBase: 'https://buurt-check.onrender.com/api',
       forcedToFirstParty: false,
     });
   });
@@ -67,7 +64,8 @@ describe('primary API base resolution', () => {
 
     expect(warnSpy).toHaveBeenCalledOnce();
     expect(warnSpy).toHaveBeenCalledWith(
-      '[api-base] Hosted web app ignored cross-origin VITE_API_BASE (https://buurt-check.onrender.com/api) and is using /api.',
+      '[api-base] Hosted web forced same-origin /api.',
+      'https://buurt-check.onrender.com/api',
     );
   });
 });
