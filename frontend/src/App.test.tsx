@@ -1039,6 +1039,67 @@ describe('3D viewer integration', () => {
     expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
   });
 
+  it('activates entitlement even when Stripe confirmation resolves after address loads', async () => {
+    // Reproduce the real Stripe return URL: no lookup= in hash, lookup in sessionStorage.
+    // confirmStripeCheckoutSession resolves AFTER lookupAddress, which is the realistic
+    // timing since confirm calls Stripe API while lookup is a fast PDOK call.
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:report-lookup:report-123',
+      'adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+
+    // confirmStripeCheckoutSession uses a deferred promise so it resolves
+    // AFTER lookupAddress and the address state update.
+    let resolveConfirm!: (v: { report_id: string; entitled: boolean; report_type: 'short' | 'long' }) => void;
+    const confirmPromise = new Promise<{ report_id: string; entitled: boolean; report_type: 'short' | 'long' }>(
+      (resolve) => { resolveConfirm = resolve; },
+    );
+    mockConfirmStripeCheckoutSession.mockReturnValue(confirmPromise);
+
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+
+    renderApp();
+
+    // Wait for the address to fully load (lookupAddress + building facts resolved).
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+
+    // At this point address state changed, which recreates activatePurchasedEntitlement,
+    // which re-triggers the checkout verification effect and cancels the in-flight promise.
+    // Now resolve the confirm — it must NOT be discarded.
+    await act(async () => {
+      resolveConfirm({
+        report_id: 'report-123',
+        entitled: true,
+        report_type: 'short',
+      });
+    });
+
+    // The export sheet should open and auto-generate the full dossier.
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: /Full Dossier/i })).toHaveAttribute('aria-checked', 'true');
+    });
+  });
+
   it('uses Apple billing instead of Stripe when the iOS runtime is available', async () => {
     window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
     mockLookup.mockResolvedValue(makeResolvedAddress());

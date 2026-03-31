@@ -699,6 +699,10 @@ function App() {
   const retryControllersRef = useRef<Set<AbortController>>(new Set());
   const previousScreenRef = useRef<Screen>('search');
   const handledCheckoutParamsRef = useRef<string | null>(null);
+  const activatePurchasedEntitlementRef = useRef<
+    ((reportId: string, provider: 'stripe' | 'google_play' | 'apple_app_store') => void) | null
+  >(null);
+  const resumePurchasedExportRef = useRef<((reportId: string) => void) | null>(null);
   const latestEntitlementRef = useRef<{ reportId: string | null; isEntitled: boolean }>({
     reportId: null,
     isEntitled: TEMP_FORCE_FULL_DOSSIER_VIEW,
@@ -910,6 +914,7 @@ function App() {
       storeEntitlement(address.adresseerbaar_object_id, unlockedReportId, true);
     }
   }, [address?.adresseerbaar_object_id]);
+  activatePurchasedEntitlementRef.current = activatePurchasedEntitlement;
 
   const resumePurchasedExport = useCallback((unlockedReportId: string) => {
     const pendingIntent = consumePostCheckoutExportIntent(unlockedReportId);
@@ -919,6 +924,7 @@ function App() {
     setExportAutoGenerateToken(`${unlockedReportId}:${Date.now()}`);
     setExportSheetOpen(true);
   }, []);
+  resumePurchasedExportRef.current = resumePurchasedExport;
 
   const androidBillingAvailable = billingProvider === 'google_play';
   const appleBillingAvailable = billingProvider === 'apple_app_store';
@@ -2909,8 +2915,8 @@ function App() {
           if (cancelled) return;
 
           if (entitlement.entitled) {
-            activatePurchasedEntitlement(entitlement.report_id, 'stripe');
-            resumePurchasedExport(entitlement.report_id);
+            activatePurchasedEntitlementRef.current?.(entitlement.report_id, 'stripe');
+            resumePurchasedExportRef.current?.(entitlement.report_id);
             if (checkoutVerification.sessionId) {
               trackEvent('checkout_completed', {
                 report_id: entitlement.report_id,
@@ -2960,7 +2966,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [activatePurchasedEntitlement, checkoutVerification, resumePurchasedExport, showToast, t]);
+  }, [checkoutVerification, showToast, t]);
 
   useEffect(() => {
     if (!appleBillingAvailable || !reportId || isEntitled) return;
