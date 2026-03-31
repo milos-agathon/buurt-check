@@ -457,7 +457,11 @@ async function selectAddress() {
     expect(screen.getByRole('option')).toBeInTheDocument();
   });
   await act(async () => {
-    fireEvent.mouseDown(screen.getByRole('option'));
+    fireEvent.pointerDown(screen.getByRole('option'), {
+      button: 0,
+      isPrimary: true,
+      pointerType: 'touch',
+    });
   });
 }
 

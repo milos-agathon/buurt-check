@@ -202,9 +202,12 @@ describe('suggestions dropdown', () => {
 
     await typeAndFlush(screen.getByRole('combobox'), 'am');
 
-    // Use fireEvent.mouseDown because the component uses onMouseDown
     await act(async () => {
-      fireEvent.mouseDown(screen.getAllByRole('option')[1]);
+      fireEvent.pointerDown(screen.getAllByRole('option')[1], {
+        button: 0,
+        isPrimary: true,
+        pointerType: 'touch',
+      });
     });
 
     expect(onSelect).toHaveBeenCalledWith(response.suggestions[1]);
@@ -223,7 +226,11 @@ describe('suggestions dropdown', () => {
     await typeAndFlush(screen.getByRole('combobox'), 'am');
 
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole('option'));
+      fireEvent.pointerDown(screen.getByRole('option'), {
+        button: 0,
+        isPrimary: true,
+        pointerType: 'touch',
+      });
     });
     expect(screen.getByRole('combobox')).toHaveValue(response.suggestions[0].display_name);
   });
@@ -499,6 +506,40 @@ describe('recent search i18n formatting', () => {
     expect(dateSpy).toHaveBeenCalledWith('en-US');
 
     dateSpy.mockRestore();
+  });
+});
+
+describe('recent searches', () => {
+  it('supports pointer selection for recent items on touch devices', async () => {
+    const now = Date.now();
+    localStorage.setItem('buurt-check-recent-searches', JSON.stringify([
+      {
+        id: 'recent-1',
+        display_name: 'Prinsengracht 1, Amsterdam',
+        timestamp: now - 60000,
+      },
+    ]));
+
+    const { onSelect } = renderSearch();
+
+    await act(async () => {
+      fireEvent.pointerDown(screen.getByText('Prinsengracht 1, Amsterdam'), {
+        button: 0,
+        isPrimary: true,
+        pointerType: 'touch',
+      });
+    });
+
+    expect(onSelect).toHaveBeenCalledWith({
+      id: 'recent-1',
+      display_name: 'Prinsengracht 1, Amsterdam',
+      type: 'adres',
+      score: 1,
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith('address_search_submitted', {
+      lookup_id: 'recent-1',
+      source: 'recent',
+    });
   });
 });
 

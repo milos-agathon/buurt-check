@@ -111,14 +111,15 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
     onSelect(suggestion);
   };
 
-  const handleRecentSelect = (recent: RecentSearch) => {
-    const suggestion: AddressSuggestion = {
-      id: recent.id,
-      display_name: recent.display_name,
-      type: 'adres',
-      score: 1,
-    };
-    handleSelect(suggestion, 'recent');
+  const handleSelectPointerDown = (
+    event: React.PointerEvent,
+    suggestion: AddressSuggestion,
+    source: 'search' | 'recent' | 'example' = 'search',
+  ) => {
+    if (!event.isPrimary) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.preventDefault();
+    handleSelect(suggestion, source);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -147,13 +148,13 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
 
   // Close dropdown on click outside
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    const handler = (e: PointerEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
   }, []);
 
   // Cleanup on unmount
@@ -234,7 +235,7 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
                 role="option"
                 aria-selected={i === activeIndex}
                 className={`address-search__item${i === activeIndex ? ' address-search__item--active' : ''}`}
-                onMouseDown={() => handleSelect(s)}
+                onPointerDown={event => handleSelectPointerDown(event, s)}
                 onMouseEnter={() => setActiveIndex(i)}
               >
                 {s.display_name}
@@ -260,7 +261,12 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
                 <li
                   key={r.id}
                   className="address-search__recent-item"
-                  onMouseDown={() => handleRecentSelect(r)}
+                  onPointerDown={event => handleSelectPointerDown(event, {
+                    id: r.id,
+                    display_name: r.display_name,
+                    type: 'adres',
+                    score: 1,
+                  }, 'recent')}
                 >
                   <svg className="address-search__recent-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <circle cx="12" cy="12" r="10" />
