@@ -110,6 +110,13 @@ class HttpStatusError extends Error {
   }
 }
 
+class InvalidJsonError extends Error {
+  constructor() {
+    super('Invalid JSON response');
+    this.name = 'InvalidJsonError';
+  }
+}
+
 /**
  * Maps any caught error to a human-friendly translated string.
  * Guarantees that no technical error text (status codes, hostnames,
@@ -167,7 +174,11 @@ async function fetchJsonOrThrow<T>(url: string, init?: RequestInit): Promise<T> 
   if (!resp.ok) {
     throw new HttpStatusError(resp.status);
   }
-  return resp.json() as Promise<T>;
+  try {
+    return await resp.json() as T;
+  } catch {
+    throw new InvalidJsonError();
+  }
 }
 
 function shouldRetryAddressFallback(status: number): boolean {
@@ -193,12 +204,16 @@ async function fetchAddressJsonWithFallback<T>(
 
     const retryWithFallback = canUseAddressFallback(primaryUrl) && (
       error instanceof TypeError
+      || error instanceof InvalidJsonError
       || (error instanceof HttpStatusError && shouldRetryAddressFallback(error.status))
     );
 
     if (!retryWithFallback) {
       if (error instanceof HttpStatusError) {
         throwHttpError(error.status);
+      }
+      if (error instanceof InvalidJsonError) {
+        throw new ApiError('error.server');
       }
       throw error;
     }
@@ -211,6 +226,9 @@ async function fetchAddressJsonWithFallback<T>(
     } catch (fallbackError) {
       if (fallbackError instanceof HttpStatusError) {
         throwHttpError(fallbackError.status);
+      }
+      if (fallbackError instanceof InvalidJsonError) {
+        throw new ApiError('error.server');
       }
       throw fallbackError;
     }

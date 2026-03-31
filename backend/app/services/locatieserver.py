@@ -30,6 +30,38 @@ def _parse_wkt_point(wkt: str | None) -> tuple[float, float] | None:
     return float(m.group(1)), float(m.group(2))
 
 
+def _normalize_query(query: str) -> str:
+    return " ".join(query.split())
+
+
+def _parse_suggestion_docs(docs: list[dict]) -> list[AddressSuggestion]:
+    suggestions: list[AddressSuggestion] = []
+    seen_ids: set[str] = set()
+
+    for doc in docs:
+        suggestion_id = str(doc.get("id", "")).strip()
+        display_name = str(doc.get("weergavenaam", "")).strip()
+        if not suggestion_id or not display_name or suggestion_id in seen_ids:
+            continue
+
+        try:
+            score = float(doc.get("score", 0.0))
+        except (TypeError, ValueError):
+            score = 0.0
+
+        seen_ids.add(suggestion_id)
+        suggestions.append(
+            AddressSuggestion(
+                id=suggestion_id,
+                display_name=display_name,
+                type=str(doc.get("type", "adres") or "adres"),
+                score=score,
+            )
+        )
+
+    return suggestions
+
+
 def _is_retryable_locatieserver_error(exc: Exception) -> bool:
     if isinstance(exc, httpx.RequestError):
         return True
@@ -67,26 +99,28 @@ async def _get_with_retry(
     raise last_exc
 
 
-async def suggest(query: str, limit: int = 7) -> list[AddressSuggestion]:
+async def _search_addresses(path: str, query: str, limit: int) -> list[AddressSuggestion]:
     resp = await _get_with_retry(
-        "/suggest",
+        path,
         params={"q": query, "fq": "type:adres", "rows": limit},
     )
     data = resp.json()
-
     docs = data.get("response", {}).get("docs", [])
+    return _parse_suggestion_docs(docs)
 
-    suggestions = []
-    for doc in docs:
-        suggestions.append(
-            AddressSuggestion(
-                id=doc.get("id", ""),
-                display_name=doc.get("weergavenaam", ""),
-                type=doc.get("type", "adres"),
-                score=doc.get("score", 0.0),
-            )
-        )
 
+async def suggest(query: str, limit: int = 7) -> list[AddressSuggestion]:
+    normalized_query = _normalize_query(query)
+    suggestions = await _search_addresses("/suggest", normalized_query, limit)
+    if suggestions:
+        return suggestions
+
+    logger.info(
+        "locatieserver suggest empty, retrying free search query=%r limit=%d",
+        normalized_query,
+        limit,
+    )
+    suggestions = await _search_addresses("/free", normalized_query, limit)
     return suggestions
 
 

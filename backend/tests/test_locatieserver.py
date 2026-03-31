@@ -78,6 +78,12 @@ async def test_suggest_empty_results(httpx_mock):
             "highlighting": {},
         }
     )
+    httpx_mock.add_response(
+        json={
+            "response": {"numFound": 0, "start": 0, "maxScore": 0, "docs": []},
+            "highlighting": {},
+        }
+    )
 
     locatieserver._client._client = None
 
@@ -172,6 +178,46 @@ async def test_lookup_maps_huisnummertoevoeging(httpx_mock):
     assert result.addition == "3"
 
     locatieserver._client._client = None
+
+
+@pytest.mark.asyncio
+async def test_suggest_falls_back_to_free_results_when_suggest_is_empty():
+    empty_response = MagicMock()
+    empty_response.raise_for_status.return_value = None
+    empty_response.json.return_value = {
+        "response": {"docs": []}
+    }
+
+    free_response = MagicMock()
+    free_response.raise_for_status.return_value = None
+    free_response.json.return_value = {
+        "response": {
+            "docs": [
+                {
+                    "id": "adr-1",
+                    "weergavenaam": "IJburglaan 1000, 1087JK Amsterdam",
+                    "type": "adres",
+                    "score": 9.8,
+                }
+            ]
+        }
+    }
+
+    mock_client = MagicMock()
+    mock_client.get = AsyncMock(side_effect=[empty_response, free_response])
+
+    with patch.object(locatieserver._client, "get", return_value=mock_client):
+        result = await locatieserver.suggest("  IJburglaan   1000   Amsterdam  ", 3)
+
+    assert len(result) == 1
+    assert result[0].display_name == "IJburglaan 1000, 1087JK Amsterdam"
+    assert mock_client.get.await_count == 2
+    first_call = mock_client.get.await_args_list[0]
+    second_call = mock_client.get.await_args_list[1]
+    assert first_call.args[0] == "/suggest"
+    assert second_call.args[0] == "/free"
+    assert first_call.kwargs["params"]["q"] == "IJburglaan 1000 Amsterdam"
+    assert second_call.kwargs["params"]["q"] == "IJburglaan 1000 Amsterdam"
 
 
 @pytest.mark.asyncio

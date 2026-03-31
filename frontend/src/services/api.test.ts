@@ -55,6 +55,13 @@ function okResponse(body: unknown) {
   return { ok: true, json: () => Promise.resolve(body) } as Response;
 }
 
+function invalidJsonResponse() {
+  return {
+    ok: true,
+    json: () => Promise.reject(new SyntaxError('Unexpected token <')),
+  } as Response;
+}
+
 function errorResponse(status: number) {
   return { ok: false, status } as Response;
 }
@@ -210,6 +217,20 @@ describe('suggestAddresses', () => {
     expect(mockFetch.mock.calls[1][0]).toBe('https://buurt-check.onrender.com/api/address/suggest?q=Damrak&limit=7');
   });
 
+  it('retries against the fallback address API when the primary host returns non-JSON content', async () => {
+    mockFetch
+      .mockResolvedValueOnce(invalidJsonResponse())
+      .mockResolvedValueOnce(okResponse({
+        suggestions: [{ id: 'adr-1', display_name: 'Damrak 1, Amsterdam', type: 'adres', score: 1 }],
+      }));
+
+    const result = await suggestAddresses('Damrak');
+
+    expect(result.suggestions).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[1][0]).toBe('https://buurt-check.onrender.com/api/address/suggest?q=Damrak&limit=7');
+  });
+
   it('does not retry client-side 4xx validation failures', async () => {
     mockFetch.mockResolvedValue(errorResponse(400));
 
@@ -245,6 +266,18 @@ describe('lookupAddress', () => {
   it('retries lookup against the fallback address API when the primary host fails', async () => {
     mockFetch
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(okResponse({ id: 'adr-123', display_name: 'Damrak 1, Amsterdam' }));
+
+    const result = await lookupAddress('adr-123');
+
+    expect(result.display_name).toBe('Damrak 1, Amsterdam');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[1][0]).toBe('https://buurt-check.onrender.com/api/address/lookup?id=adr-123');
+  });
+
+  it('retries lookup against the fallback address API when the primary host returns non-JSON content', async () => {
+    mockFetch
+      .mockResolvedValueOnce(invalidJsonResponse())
       .mockResolvedValueOnce(okResponse({ id: 'adr-123', display_name: 'Damrak 1, Amsterdam' }));
 
     const result = await lookupAddress('adr-123');
