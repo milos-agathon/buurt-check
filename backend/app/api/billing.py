@@ -47,6 +47,7 @@ from app.services.google_play import (
     google_play_configured,
 )
 from app.services.reports import (
+    activate_entitlement,
     get_report,
     get_report_by_payment_intent,
     get_report_by_provider_payment_id,
@@ -54,6 +55,7 @@ from app.services.reports import (
     refund_report,
     store_provider_session,
     unlock_report,
+    update_payment_status,
 )
 
 logger = logging.getLogger(__name__)
@@ -375,16 +377,45 @@ async def confirm_checkout_session(
         else _stripe_field(payment_intent, "id")
     )
 
+    purchased_at = datetime.now(timezone.utc).isoformat()
+
     try:
         await unlock_report(
             report_id,
             provider="stripe",
             provider_payment_id=provider_payment_id,
-            purchased_at=datetime.now(timezone.utc).isoformat(),
+            purchased_at=purchased_at,
         )
     except DatabaseError:
         logger.exception("Failed to unlock report %s after checkout confirmation", report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    except Exception:
+        logger.exception(
+            "Atomic unlock failed for report %s; retrying with legacy two-step update",
+            report_id,
+        )
+        try:
+            payment_updated = await update_payment_status(
+                report_id,
+                "paid",
+                provider="stripe",
+                provider_payment_id=provider_payment_id,
+                purchased_at=purchased_at,
+            )
+            entitlement_updated = await activate_entitlement(report_id)
+        except DatabaseError:
+            logger.exception(
+                "Legacy unlock fallback failed for report %s after checkout confirmation",
+                report_id,
+            )
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+        if not payment_updated or not entitlement_updated:
+            logger.error(
+                "Legacy unlock fallback did not update report %s after checkout confirmation",
+                report_id,
+            )
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
     return CheckoutConfirmationResponse(
         report_id=report_id,

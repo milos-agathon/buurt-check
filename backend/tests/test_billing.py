@@ -489,6 +489,65 @@ async def test_confirm_checkout_session_restores_buyer_cookie_from_resume_token(
 
 
 @pytest.mark.asyncio
+async def test_confirm_checkout_session_falls_back_to_legacy_unlock_when_atomic_unlock_fails(
+    db_path,
+):
+    """Confirmation should not abort if the atomic unlock path hits a driver-specific error."""
+    from app.services.reports import create_report, get_report, store_provider_session
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await store_provider_session(rid, "cs_test_fallback", db_path=db_path)
+
+    stack, mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={"stripe_webhook_secret": ""},
+    )
+    with (
+        stack,
+        patch(
+            "app.api.billing.unlock_report",
+            new=AsyncMock(side_effect=TypeError("rowcount is None")),
+        ) as mock_unlock,
+    ):
+        mock_stripe.checkout.Session.retrieve.return_value = {
+            "id": "cs_test_fallback",
+            "payment_status": "paid",
+            "payment_intent": "pi_test_fallback",
+            "metadata": {
+                "report_id": rid,
+                "vbo_id": "0363010012345678",
+            },
+        }
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.get(
+                f"/api/billing/checkout-session/cs_test_fallback/confirm?report_id={rid}",
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "report_id": rid,
+        "entitled": True,
+        "report_type": "long",
+    }
+    mock_unlock.assert_awaited_once()
+
+    report = await get_report(rid, db_path=db_path)
+    assert report is not None
+    assert report.payment_status == "paid"
+    assert report.entitlement_status == "active"
+    assert report.provider == "stripe"
+    assert report.provider_payment_id == "pi_test_fallback"
+
+
+@pytest.mark.asyncio
 async def test_confirm_checkout_session_rejects_session_mismatch(db_path):
     """A report can only confirm the Stripe session that was issued for it."""
     from app.services.reports import create_report, store_provider_session
