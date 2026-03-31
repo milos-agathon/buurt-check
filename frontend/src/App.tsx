@@ -375,6 +375,7 @@ interface ParsedHashRoute {
   lookupId?: string;
   reportId?: string;
   sessionId?: string;
+  buyerResume?: string;
 }
 
 function settleWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<'done' | 'timeout'> {
@@ -413,6 +414,7 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
         lookupId: params.get('lookup') ?? undefined,
         reportId: params.get('report') ?? undefined,
         sessionId: params.get('session_id') ?? undefined,
+        buyerResume: params.get('buyer_resume') ?? undefined,
       };
     } catch {
       return { route: 'search' };
@@ -446,6 +448,7 @@ function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.lookupId) params.set('lookup', parsed.lookupId);
   if (parsed.reportId) params.set('report', parsed.reportId);
   if (parsed.sessionId) params.set('session_id', parsed.sessionId);
+  if (parsed.buyerResume) params.set('buyer_resume', parsed.buyerResume);
 
   const query = params.toString();
   return `#/address/${encodeURIComponent(parsed.vboId)}${query ? `?${query}` : ''}`;
@@ -609,6 +612,7 @@ function App() {
   const [checkoutVerification, setCheckoutVerification] = useState<{
     reportId: string;
     sessionId?: string;
+    buyerResume?: string;
   } | null>(null);
   const [buildingResponse, setBuildingResponse] = useState<BuildingFactsResponse | null>(
     dossierSeed?.buildingResponse ?? null,
@@ -2736,6 +2740,7 @@ function App() {
         setCheckoutVerification({
           reportId: parsed.reportId,
           sessionId: parsed.sessionId,
+          buyerResume: parsed.buyerResume,
         });
       }
       if (
@@ -2868,6 +2873,7 @@ function App() {
             ? await confirmStripeCheckoutSession(
               checkoutVerification.reportId,
               checkoutVerification.sessionId,
+              checkoutVerification.buyerResume,
             )
             : await checkEntitlement(checkoutVerification.reportId);
           if (cancelled) return;

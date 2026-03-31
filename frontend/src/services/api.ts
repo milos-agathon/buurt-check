@@ -290,8 +290,12 @@ export async function createCheckoutSession(reportId: string): Promise<CheckoutS
 export async function confirmStripeCheckoutSession(
   reportId: string,
   sessionId: string,
+  buyerResume?: string,
 ): Promise<CheckoutConfirmationResponse> {
   const params = new URLSearchParams({ report_id: reportId });
+  if (buyerResume) {
+    params.set('buyer_resume', buyerResume);
+  }
   const resp = await fetchPrimaryApi(
     `${primaryApiUrl(`/billing/checkout-session/${encodeURIComponent(sessionId)}/confirm`)}?${params}`,
   );

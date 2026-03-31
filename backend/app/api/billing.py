@@ -4,14 +4,19 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Literal
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import stripe
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from stripe import SignatureVerificationError
 
-from app.api.buyer import get_buyer_key
+from app.api.buyer import (
+    create_buyer_resume_token,
+    get_buyer_key,
+    set_buyer_key,
+    verify_buyer_resume_token,
+)
 from app.config import settings
 from app.db import DatabaseError
 from app.rate_limit import limiter
@@ -213,6 +218,13 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
     public_base_url = _public_base_url(request)
 
     try:
+        buyer_resume = create_buyer_resume_token(body.report_id, buyer_key)
+        success_params = {
+            "report": body.report_id,
+            "session_id": "{CHECKOUT_SESSION_ID}",
+        }
+        if buyer_resume:
+            success_params["buyer_resume"] = buyer_resume
         session = await asyncio.to_thread(
             stripe.checkout.Session.create,
             mode="payment",
@@ -231,8 +243,7 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
             ],
             success_url=(
                 f"{public_base_url}/#/address/{report.vbo_id}"
-                f"?report={body.report_id}"
-                "&session_id={CHECKOUT_SESSION_ID}"
+                f"?{urlencode(success_params)}"
             ),
             cancel_url=f"{public_base_url}/#/address/{report.vbo_id}",
             metadata={
@@ -287,14 +298,30 @@ def _stripe_field(value: object, key: str):
     "/checkout-session/{session_id}/confirm",
     response_model=CheckoutConfirmationResponse,
 )
-async def confirm_checkout_session(request: Request, session_id: str, report_id: str):
+async def confirm_checkout_session(
+    request: Request,
+    response: Response,
+    session_id: str,
+    report_id: str,
+    buyer_resume: str | None = None,
+):
     """Confirm a Stripe Checkout redirect and unlock the report when payment succeeded."""
     buyer_key = get_buyer_key(request)
-    if not buyer_key:
-        raise HTTPException(status_code=404, detail="Report not found")
+    recovered_buyer_key = (
+        verify_buyer_resume_token(
+            buyer_resume,
+            expected_report_id=report_id,
+        )
+        if buyer_resume
+        else None
+    )
 
     try:
-        report = await get_report_for_buyer(report_id, buyer_key)
+        report = await get_report_for_buyer(report_id, buyer_key) if buyer_key else None
+        if report is None and recovered_buyer_key:
+            report = await get_report_for_buyer(report_id, recovered_buyer_key)
+            if report is not None:
+                buyer_key = set_buyer_key(response, request, recovered_buyer_key)
     except DatabaseError:
         logger.exception("Database error fetching report %s for checkout confirmation", report_id)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")

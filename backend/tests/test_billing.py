@@ -3,12 +3,13 @@
 from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.api.buyer import BUYER_COOKIE_NAME
+from app.api.buyer import BUYER_COOKIE_NAME, create_buyer_resume_token
 from app.config import settings
 from app.db import init_db
 from app.main import app
@@ -261,6 +262,12 @@ async def test_checkout_stripe_call_args(db_path):
         assert call_kwargs.kwargs["metadata"]["vbo_id"] == "0363010012345678"
         assert "success_url" in call_kwargs.kwargs
         assert "cancel_url" in call_kwargs.kwargs
+        success_fragment = urlsplit(call_kwargs.kwargs["success_url"]).fragment
+        success_query = success_fragment.split("?", 1)[1]
+        success_params = parse_qs(success_query)
+        assert success_params["report"] == [rid]
+        assert success_params["session_id"] == ["{CHECKOUT_SESSION_ID}"]
+        assert "buyer_resume" in success_params
 
 
 @pytest.mark.asyncio
@@ -299,6 +306,12 @@ async def test_checkout_uses_request_origin_when_base_url_is_localhost_default(d
     assert call_kwargs.kwargs["success_url"].startswith(
         "https://app.buurt-check.nl/#/address/0363010012345678"
     )
+    success_fragment = urlsplit(call_kwargs.kwargs["success_url"]).fragment
+    success_query = success_fragment.split("?", 1)[1]
+    success_params = parse_qs(success_query)
+    assert success_params["report"] == [rid]
+    assert success_params["session_id"] == ["{CHECKOUT_SESSION_ID}"]
+    assert "buyer_resume" in success_params
     assert call_kwargs.kwargs["cancel_url"] == (
         "https://app.buurt-check.nl/#/address/0363010012345678"
     )
@@ -421,6 +434,54 @@ async def test_confirm_checkout_session_unlocks_paid_report(db_path):
     assert report.entitlement_status == "active"
     assert report.provider == "stripe"
     assert report.provider_payment_id == "pi_test_confirm"
+
+
+@pytest.mark.asyncio
+async def test_confirm_checkout_session_restores_buyer_cookie_from_resume_token(db_path):
+    """Stripe return confirmation can recover the original buyer when the cookie is lost."""
+    from app.services.reports import create_report, store_provider_session
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await store_provider_session(rid, "cs_test_resume", db_path=db_path)
+
+    stack, mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={"stripe_webhook_secret": ""},
+    )
+    with stack:
+        buyer_resume = create_buyer_resume_token(rid, "buyer-123")
+        assert buyer_resume is not None
+        mock_stripe.checkout.Session.retrieve.return_value = {
+            "id": "cs_test_resume",
+            "payment_status": "paid",
+            "payment_intent": "pi_test_resume",
+            "metadata": {
+                "report_id": rid,
+                "vbo_id": "0363010012345678",
+            },
+        }
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(
+                f"/api/billing/checkout-session/cs_test_resume/confirm?report_id={rid}"
+                f"&buyer_resume={buyer_resume}",
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "report_id": rid,
+        "entitled": True,
+        "report_type": "long",
+    }
+    set_cookie = response.headers.get("set-cookie", "")
+    assert BUYER_COOKIE_NAME in set_cookie
+    assert "buyer-123" in set_cookie
 
 
 @pytest.mark.asyncio

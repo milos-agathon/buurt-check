@@ -996,7 +996,7 @@ describe('3D viewer integration', () => {
   });
 
   it('resumes full dossier export after Stripe redirect confirmation', async () => {
-    window.location.hash = '#/address/vbo-123?lookup=adr-abc123&report=report-123&session_id=cs_test_123';
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123&report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token';
     sessionStorage.setItem(
       'buurt-check:post-checkout-export',
       JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
@@ -1012,7 +1012,11 @@ describe('3D viewer integration', () => {
     renderApp();
 
     await waitFor(() => {
-      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith('report-123', 'cs_test_123');
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith(
+        'report-123',
+        'cs_test_123',
+        'signed-buyer-token',
+      );
     });
     expect(mockCreateCheckoutSession).not.toHaveBeenCalled();
 

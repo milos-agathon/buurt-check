@@ -13,6 +13,7 @@ vi.mock('./appleBilling', () => ({
 import {
   ApiError,
   checkEntitlement,
+  confirmStripeCheckoutSession,
   verifyAppleAppStorePurchase,
   createCheckoutSession,
   createShortReport,
@@ -976,6 +977,47 @@ describe('createCheckoutSession', () => {
       errorKey: 'premium.checkout.unavailable',
       httpStatus: 503,
     });
+  });
+});
+
+describe('confirmStripeCheckoutSession', () => {
+  it('includes buyer_resume on Stripe return confirmation when provided', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+        entitled: true,
+        report_type: 'short',
+      }),
+    );
+
+    await confirmStripeCheckoutSession(
+      '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+      'cs_test_123',
+      'signed-buyer-token',
+    );
+
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      '/api/billing/checkout-session/cs_test_123/confirm?report_id=7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de&buyer_resume=signed-buyer-token',
+    );
+  });
+
+  it('omits buyer_resume on Stripe return confirmation when absent', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({
+        report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+        entitled: true,
+        report_type: 'short',
+      }),
+    );
+
+    await confirmStripeCheckoutSession(
+      '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+      'cs_test_123',
+    );
+
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      '/api/billing/checkout-session/cs_test_123/confirm?report_id=7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+    );
   });
 });
 
