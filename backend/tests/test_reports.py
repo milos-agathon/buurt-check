@@ -1,5 +1,6 @@
 """Tests for the report repository service (Story 1.2)."""
 
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -17,6 +18,7 @@ from app.services.reports import (
     get_report_by_payment_intent,
     revoke_entitlement,
     store_provider_session,
+    unlock_report,
     update_payment_status,
 )
 
@@ -218,6 +220,84 @@ async def test_find_existing_paid_report_excludes_revoked(db_path):
     # Revoke and verify it's no longer found
     await revoke_entitlement(report_id, db_path=db_path)
     assert await find_existing_paid_report("0363010012345678", "buyer-123", db_path=db_path) is None
+
+
+@pytest.mark.asyncio
+async def test_unlock_report_falls_back_when_rowcount_is_unavailable():
+    """LibSQL/Turso update cursors may not expose an integer rowcount."""
+
+    class FakeCursor:
+        def __init__(self, rowcount, row=None):
+            self.rowcount = rowcount
+            self._row = row
+
+        async def fetchone(self):
+            return self._row
+
+    class FakeDB:
+        def __init__(self, exists: bool):
+            self.exists = exists
+            self.executed: list[tuple[str, object]] = []
+
+        async def execute(self, sql: str, params=None):
+            self.executed.append((sql, params))
+            if sql.startswith("UPDATE reports SET payment_status = 'paid'"):
+                return FakeCursor(None)
+            if sql.startswith("SELECT 1 FROM reports WHERE report_id = ?"):
+                return FakeCursor(1, (1,) if self.exists else None)
+            raise AssertionError(f"Unexpected SQL: {sql}")
+
+        async def commit(self):
+            return None
+
+    fake_db = FakeDB(exists=True)
+
+    @asynccontextmanager
+    async def fake_get_db(_db_path=None):
+        yield fake_db
+
+    with patch("app.services.reports.get_db", fake_get_db):
+        assert await unlock_report(
+            "report-123",
+            provider="stripe",
+            provider_payment_id="pi_123",
+            purchased_at="2026-03-31T09:00:00Z",
+        ) is True
+
+    assert fake_db.executed[1][0] == "SELECT 1 FROM reports WHERE report_id = ? LIMIT 1"
+    assert fake_db.executed[1][1] == ("report-123",)
+
+
+@pytest.mark.asyncio
+async def test_store_provider_session_returns_false_when_rowcount_is_unavailable_and_report_missing(
+):
+    """Unsupported rowcount values should not turn missing reports into false positives."""
+
+    class FakeCursor:
+        def __init__(self, rowcount, row=None):
+            self.rowcount = rowcount
+            self._row = row
+
+        async def fetchone(self):
+            return self._row
+
+    class FakeDB:
+        async def execute(self, sql: str, params=None):
+            if sql.startswith("UPDATE reports SET provider_session_id = ?"):
+                return FakeCursor(None)
+            if sql.startswith("SELECT 1 FROM reports WHERE report_id = ?"):
+                return FakeCursor(0, None)
+            raise AssertionError(f"Unexpected SQL: {sql}")
+
+        async def commit(self):
+            return None
+
+    @asynccontextmanager
+    async def fake_get_db(_db_path=None):
+        yield FakeDB()
+
+    with patch("app.services.reports.get_db", fake_get_db):
+        assert await store_provider_session("missing-report", "cs_test_123") is False
 
 
 @pytest.mark.asyncio

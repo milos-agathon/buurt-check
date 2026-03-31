@@ -16,6 +16,18 @@ from app.models.report import PaymentStatus, Report, ReportType
 logger = logging.getLogger(__name__)
 
 
+async def _rowcount_matches_report(db, rowcount: object, report_id: str) -> bool:
+    """Fallback when DB drivers do not expose an integer rowcount for UPDATEs."""
+    if isinstance(rowcount, int) and rowcount >= 0:
+        return rowcount > 0
+
+    cursor = await db.execute(
+        "SELECT 1 FROM reports WHERE report_id = ? LIMIT 1",
+        (report_id,),
+    )
+    return await cursor.fetchone() is not None
+
+
 async def _sync_google_play_entitlement(
     report: Report,
     db_path: str | None = None,
@@ -184,7 +196,7 @@ async def update_payment_status(
             params,
         )
         await db.commit()
-        return cursor.rowcount > 0
+        return await _rowcount_matches_report(db, cursor.rowcount, report_id)
 
 
 async def store_provider_session(
@@ -202,7 +214,7 @@ async def store_provider_session(
             (provider_session_id, report_id),
         )
         await db.commit()
-        return cursor.rowcount > 0
+        return await _rowcount_matches_report(db, cursor.rowcount, report_id)
 
 
 async def check_entitlement(
@@ -240,7 +252,7 @@ async def activate_entitlement(
             (report_id,),
         )
         await db.commit()
-        return cursor.rowcount > 0
+        return await _rowcount_matches_report(db, cursor.rowcount, report_id)
 
 
 async def unlock_report(
@@ -264,7 +276,7 @@ async def unlock_report(
             (provider, provider_payment_id, purchased_at, report_id),
         )
         await db.commit()
-        return cursor.rowcount > 0
+        return await _rowcount_matches_report(db, cursor.rowcount, report_id)
 
 
 async def refund_report(
@@ -282,7 +294,7 @@ async def refund_report(
             (report_id,),
         )
         await db.commit()
-        return cursor.rowcount > 0
+        return await _rowcount_matches_report(db, cursor.rowcount, report_id)
 
 
 async def find_existing_paid_report(
@@ -354,4 +366,4 @@ async def revoke_entitlement(
             (report_id,),
         )
         await db.commit()
-        return cursor.rowcount > 0
+        return await _rowcount_matches_report(db, cursor.rowcount, report_id)
