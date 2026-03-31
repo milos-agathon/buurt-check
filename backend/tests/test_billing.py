@@ -264,6 +264,7 @@ async def test_checkout_stripe_call_args(db_path):
         assert "cancel_url" in call_kwargs.kwargs
         success_url = urlsplit(call_kwargs.kwargs["success_url"])
         assert success_url.fragment == "#/address/0363010012345678".lstrip("#")
+        assert "session_id={CHECKOUT_SESSION_ID}" in call_kwargs.kwargs["success_url"]
         success_query = success_url.query
         success_params = parse_qs(success_query)
         assert success_params["report"] == [rid]
@@ -309,6 +310,7 @@ async def test_checkout_uses_request_origin_when_base_url_is_localhost_default(d
     )
     success_url = urlsplit(call_kwargs.kwargs["success_url"])
     assert success_url.fragment == "#/address/0363010012345678".lstrip("#")
+    assert "session_id={CHECKOUT_SESSION_ID}" in call_kwargs.kwargs["success_url"]
     success_query = success_url.query
     success_params = parse_qs(success_query)
     assert success_params["report"] == [rid]

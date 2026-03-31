@@ -242,7 +242,7 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
                 }
             ],
             success_url=(
-                f"{public_base_url}/?{urlencode(success_params)}"
+                f"{public_base_url}/?{urlencode(success_params, safe='{}')}"
                 f"#/address/{report.vbo_id}"
             ),
             cancel_url=f"{public_base_url}/#/address/{report.vbo_id}",
