@@ -148,6 +148,7 @@ import {
   getLivability,
   submitSunlightAnalysis,
   exportBriefing,
+  downloadPdfBlob,
 } from './services/api';
 import {
   beginPlayBillingPurchase,
@@ -190,6 +191,7 @@ const mockPropertyWarnings = vi.mocked(getPropertyWarnings);
 const mockLivability = vi.mocked(getLivability);
 const mockSubmitSunlightAnalysis = vi.mocked(submitSunlightAnalysis);
 const mockExportBriefing = vi.mocked(exportBriefing);
+const mockDownloadPdfBlob = vi.mocked(downloadPdfBlob);
 const mockBeginPlayBillingPurchase = vi.mocked(beginPlayBillingPurchase);
 const mockClearPendingPlayBillingReport = vi.mocked(clearPendingPlayBillingReport);
 const mockCompletePlayBillingPurchase = vi.mocked(completePlayBillingPurchase);
@@ -240,6 +242,7 @@ beforeEach(() => {
   mockLivability.mockReset();
   mockSubmitSunlightAnalysis.mockReset();
   mockExportBriefing.mockReset();
+  mockDownloadPdfBlob.mockReset();
   mockBeginPlayBillingPurchase.mockReset();
   mockClearPendingPlayBillingReport.mockReset();
   mockCompletePlayBillingPurchase.mockReset();
@@ -1041,6 +1044,10 @@ describe('3D viewer integration', () => {
       }));
     });
     expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
+    expect(screen.getByTestId('export-post-checkout-ready')).toHaveTextContent(
+      'Payment confirmed. Your dossier is ready. Tap Download PDF to save it.',
+    );
+    expect(mockDownloadPdfBlob).not.toHaveBeenCalled();
   });
 
   it('retries transient Stripe confirmation errors and still resumes the export', async () => {

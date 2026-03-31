@@ -101,8 +101,9 @@ describe('ExportBottomSheet', () => {
     expect(mockClose).not.toHaveBeenCalled();
   });
 
-  it('auto-generates the initial full dossier after purchase continuation', async () => {
-    vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+  it('auto-generates the initial full dossier after purchase continuation and waits for a manual download click', async () => {
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    vi.mocked(api.exportBriefing).mockResolvedValue(blob);
     renderSheet({
       initialTemplate: 'full_dossier',
       autoGenerateToken: 'paid-report-123',
@@ -120,10 +121,19 @@ describe('ExportBottomSheet', () => {
     await waitFor(() => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
-    expect(api.downloadPdfBlob).toHaveBeenCalledWith(
-      expect.any(Blob),
-      'buurt-check-full-dossier-0363010012345678.pdf',
+    expect(screen.getByTestId('export-post-checkout-ready')).toHaveTextContent(
+      'Payment confirmed. Your dossier is ready. Tap Download PDF to save it.',
     );
+    expect(api.downloadPdfBlob).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Download PDF/i }));
+
+    await waitFor(() => {
+      expect(api.downloadPdfBlob).toHaveBeenCalledWith(
+        blob,
+        'buurt-check-full-dossier-0363010012345678.pdf',
+      );
+    });
   });
 
   it('uses segmented language control independent from app language', async () => {

@@ -476,6 +476,8 @@
   "export.progress.rendering": "PDF renderen...",
   "export.progress.downloading": "Download voorbereiden...",
   "export.progress.ready": "PDF is gereed. Deel hem of download een kopie.",
+  "export.postCheckoutGenerating": "Betaling bevestigd. We bereiden je dossier voor. De downloadknop verschijnt hieronder zodra het klaar is.",
+  "export.postCheckoutReady": "Betaling bevestigd. Je dossier is gereed. Tik op PDF downloaden om het op te slaan.",
   "export.share": "PDF delen",
   "export.download": "PDF downloaden",
   "export.shareError": "We konden de PDF niet delen — je apparaat ondersteunt dit mogelijk niet. Download de PDF als alternatief.",

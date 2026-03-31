@@ -96,7 +96,25 @@ export default function ExportBottomSheet({
   const [generatedBlob, setGeneratedBlob] = useState<Blob | null>(null);
   const [exportTooltipVisible, setExportTooltipVisible] = useState(false);
   const [lastAutoGenerateToken, setLastAutoGenerateToken] = useState<string | null>(null);
-  const [lastAutoDownloadToken, setLastAutoDownloadToken] = useState<string | null>(null);
+  const isPostCheckoutResume = Boolean(autoGenerateToken && initialTemplate === 'full_dossier');
+
+  const logPostCheckoutCheckpoint = useCallback((
+    checkpoint: string,
+    details?: Record<string, string | number | boolean>,
+  ) => {
+    if (!isPostCheckoutResume) return;
+
+    const payload = {
+      checkpoint,
+      template,
+      ...details,
+    };
+
+    if (import.meta.env.DEV) {
+      console.info('[post-checkout-export]', payload);
+    }
+    trackEvent('post_checkout_export_checkpoint', payload);
+  }, [isPostCheckoutResume, template]);
 
   const dismissExportTooltip = useCallback(() => {
     setExportTooltipVisible(false);
@@ -112,7 +130,6 @@ export default function ExportBottomSheet({
       setExportTooltipVisible(false);
       setExportLanguage(i18n.language === 'nl' ? 'nl' : 'en');
       setLastAutoGenerateToken(null);
-      setLastAutoDownloadToken(null);
     }
   }, [i18n.language, isOpen]);
 
@@ -249,6 +266,9 @@ export default function ExportBottomSheet({
       setProgressStage('downloading');
       setGeneratedBlob(blob);
       setProgressStage('ready');
+      logPostCheckoutCheckpoint('export_response_received', {
+        blob_ready: true,
+      });
       if (!hasSeenTooltip('export')) {
         setExportTooltipVisible(true);
       }
@@ -259,6 +279,7 @@ export default function ExportBottomSheet({
       });
       onGenerateSuccess?.();
     } catch {
+      logPostCheckoutCheckpoint('auto_generate_failed');
       setError(true);
       setProgressStage('idle');
       onGenerateError?.();
@@ -291,6 +312,7 @@ export default function ExportBottomSheet({
     sunlightPayload,
     template,
     vboId,
+    logPostCheckoutCheckpoint,
   ]);
 
   useEffect(() => {
@@ -308,6 +330,7 @@ export default function ExportBottomSheet({
     }
 
     setLastAutoGenerateToken(autoGenerateToken);
+    logPostCheckoutCheckpoint('auto_generate_started');
     void handleGenerate();
   }, [
     autoGenerateToken,
@@ -318,37 +341,20 @@ export default function ExportBottomSheet({
     isEntitled,
     isOpen,
     lastAutoGenerateToken,
+    logPostCheckoutCheckpoint,
     sunlightReady,
     template,
   ]);
 
-  useEffect(() => {
-    if (
-      !isOpen
-      || !generatedBlob
-      || progressStage !== 'ready'
-      || !autoGenerateToken
-      || autoGenerateToken === lastAutoDownloadToken
-    ) {
-      return;
-    }
-
-    setLastAutoDownloadToken(autoGenerateToken);
-    void Promise.resolve(downloadPdfBlob(generatedBlob, filename)).catch(() => {
-      setShareError(true);
-    });
-  }, [
-    autoGenerateToken,
-    filename,
-    generatedBlob,
-    isOpen,
-    lastAutoDownloadToken,
-    progressStage,
-  ]);
-
   const handleDownload = () => {
     if (!generatedBlob) return;
+    logPostCheckoutCheckpoint('download_attempt_started', {
+      trigger: 'manual_button',
+    });
     void Promise.resolve(downloadPdfBlob(generatedBlob, filename)).catch(() => {
+      logPostCheckoutCheckpoint('download_attempt_failed', {
+        trigger: 'manual_button',
+      });
       setShareError(true);
     });
   };
@@ -493,6 +499,15 @@ export default function ExportBottomSheet({
           <p className="export-sheet__error">{t('export.error', 'Export failed. Please try again.')}</p>
         )}
 
+        {isPostCheckoutResume && progressStage !== 'ready' && !error && (
+          <p className="export-sheet__resume-note" data-testid="export-post-checkout-status">
+            {t(
+              'export.postCheckoutGenerating',
+              'Payment confirmed. We are preparing your dossier. Download will appear below when it is ready.',
+            )}
+          </p>
+        )}
+
         {generating && (
           <div className="export-sheet__progress" data-testid="export-progress">
             <div
@@ -539,6 +554,14 @@ export default function ExportBottomSheet({
         {progressStage === 'ready' && generatedBlob && (
           <div className="export-sheet__ready" data-testid="export-ready-actions">
             <div className="export-sheet__ready-header">
+              {isPostCheckoutResume && (
+                <p className="export-sheet__resume-note export-sheet__resume-note--ready" data-testid="export-post-checkout-ready">
+                  {t(
+                    'export.postCheckoutReady',
+                    'Payment confirmed. Your dossier is ready. Tap Download PDF to save it.',
+                  )}
+                </p>
+              )}
               <p className="export-sheet__progress-text">
                 {t('export.progress.ready', 'PDF is ready. Share it or download a copy.')}
               </p>
@@ -551,12 +574,25 @@ export default function ExportBottomSheet({
               )}
             </div>
             <div className="export-sheet__actions">
-              <button type="button" className="export-sheet__btn export-sheet__btn--secondary" onClick={handleShare}>
-                {t('export.share', 'Share PDF')}
-              </button>
-              <button type="button" className="export-sheet__btn export-sheet__btn--secondary" onClick={handleDownload}>
-                {t('export.download', 'Download PDF')}
-              </button>
+              {isPostCheckoutResume ? (
+                <>
+                  <button type="button" className="export-sheet__btn" onClick={handleDownload}>
+                    {t('export.download', 'Download PDF')}
+                  </button>
+                  <button type="button" className="export-sheet__btn export-sheet__btn--secondary" onClick={handleShare}>
+                    {t('export.share', 'Share PDF')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="export-sheet__btn export-sheet__btn--secondary" onClick={handleShare}>
+                    {t('export.share', 'Share PDF')}
+                  </button>
+                  <button type="button" className="export-sheet__btn export-sheet__btn--secondary" onClick={handleDownload}>
+                    {t('export.download', 'Download PDF')}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
