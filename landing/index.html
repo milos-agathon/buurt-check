@@ -31,6 +31,7 @@
     content="Buurt Check preview with Dutch property risk insights and viewing guidance.">
   <link rel="canonical" href="https://buurt-check.nl">
   <meta name="theme-color" content="#000000">
+  <link rel="stylesheet" href="analytics-consent.css">
 
   <script>
     (function () {
@@ -73,6 +74,31 @@
   <script>
     (function () {
       const GA_PLACEHOLDER = '__BUURTCHECK' + '_GA_MEASUREMENT_ID__';
+      const CONSENT_KEY = 'buurtcheck_analytics_consent';
+      const readStoredConsent = () => {
+        const cookiePrefix = `${CONSENT_KEY}=`;
+        const cookieValue = document.cookie
+          .split(';')
+          .map((segment) => segment.trim())
+          .find((segment) => segment.startsWith(cookiePrefix));
+        if (cookieValue) {
+          const value = decodeURIComponent(cookieValue.slice(cookiePrefix.length));
+          if (value === 'granted' || value === 'denied') {
+            return value;
+          }
+        }
+
+        try {
+          const storedValue = localStorage.getItem(CONSENT_KEY);
+          if (storedValue === 'granted' || storedValue === 'denied') {
+            return storedValue;
+          }
+        } catch (error) {
+          // Ignore storage failures and keep consent default-denied.
+        }
+
+        return '';
+      };
       const metaMeasurementId = document
         .querySelector('meta[name="buurtcheck-ga-measurement-id"]')
         ?.getAttribute('content')
@@ -89,24 +115,32 @@
       }
 
       window.__landingGaMeasurementId = resolvedMeasurementId;
+      const storedConsent = readStoredConsent();
       window.dataLayer = window.dataLayer || [];
       window.gtag = window.gtag || function gtag() {
         window.dataLayer.push(arguments);
       };
 
-      window.gtag('consent', 'default', {
-        analytics_storage: 'denied',
+      const consentDefaults = {
+        analytics_storage: storedConsent === 'granted' ? 'granted' : 'denied',
         ad_storage: 'denied',
         ad_user_data: 'denied',
         ad_personalization: 'denied',
         functionality_storage: 'granted',
         security_storage: 'granted',
-        wait_for_update: 500,
-      });
+      };
+      if (!storedConsent) {
+        consentDefaults.wait_for_update = 500;
+      }
+
+      window.gtag('consent', 'default', consentDefaults);
       window.gtag('js', new Date());
       window.gtag('config', resolvedMeasurementId, {
         anonymize_ip: true,
         send_page_view: true,
+        linker: {
+          domains: ['buurt-check.nl', 'app.buurt-check.nl'],
+        },
       });
 
       const gaScript = document.createElement('script');
@@ -117,6 +151,7 @@
       document.head.appendChild(gaScript);
     }());
   </script>
+  <script defer src="analytics-consent.js"></script>
 
   <style>
     @font-face {

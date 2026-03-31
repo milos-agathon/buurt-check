@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MotionConfig } from 'framer-motion'
 import { registerSW } from 'virtual:pwa-register'
+import { initAnalytics } from './services/analytics'
 import { initSentry } from './services/sentry'
 import './i18n'
 import './styles/satoshi.css'
@@ -10,6 +11,7 @@ import './index.css'
 import App from './App.tsx'
 
 initSentry()
+initAnalytics()
 
 if ('serviceWorker' in navigator) {
   const updateSW = registerSW({

@@ -18,6 +18,7 @@ function renderSettings(overrides?: Partial<ComponentProps<typeof SettingsScreen
   const onThemeChange = vi.fn();
   const onClearRecent = vi.fn();
   const onClearShortlist = vi.fn();
+  const onAnalyticsConsentChange = vi.fn();
   render(
     <I18nextProvider i18n={i18nInstance}>
       <SettingsScreen
@@ -25,11 +26,14 @@ function renderSettings(overrides?: Partial<ComponentProps<typeof SettingsScreen
         onClearShortlist={onClearShortlist}
         theme="light"
         onThemeChange={onThemeChange}
+        analyticsEnabled={true}
+        analyticsConsent="granted"
+        onAnalyticsConsentChange={onAnalyticsConsentChange}
         {...overrides}
       />
     </I18nextProvider>,
   );
-  return { onThemeChange, onClearRecent, onClearShortlist };
+  return { onThemeChange, onClearRecent, onClearShortlist, onAnalyticsConsentChange };
 }
 
 describe('SettingsScreen accessibility semantics', () => {
@@ -64,6 +68,20 @@ describe('SettingsScreen accessibility semantics', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: /Dark|Donker/i }));
     expect(onThemeChange).toHaveBeenCalledWith('dark');
+  });
+
+  it('renders analytics consent controls and updates the selected state', () => {
+    const { onAnalyticsConsentChange } = renderSettings({ analyticsConsent: 'denied' });
+
+    const analyticsGroup = screen.getByRole('radiogroup', { name: 'Analytics' });
+    const allowAnalytics = within(analyticsGroup).getByRole('radio', { name: 'Allow analytics' });
+    const essentialOnly = within(analyticsGroup).getByRole('radio', { name: 'Essential only' });
+
+    expect(allowAnalytics).toHaveAttribute('aria-checked', 'false');
+    expect(essentialOnly).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.click(allowAnalytics);
+    expect(onAnalyticsConsentChange).toHaveBeenCalledWith('granted');
   });
 
   it('requires confirmation before clearing recent searches', () => {

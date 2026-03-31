@@ -17,6 +17,7 @@ import TabBar from './components/TabBar';
 import TopBar from './components/TopBar';
 import type { TabId } from './components/TabBar';
 import AddressHeader from './components/AddressHeader';
+import AnalyticsConsentBanner from './components/AnalyticsConsentBanner';
 import BuildingFactsCard from './components/BuildingFactsCard';
 import ShadowTimeSlider from './components/ShadowTimeSlider';
 import RiskTilesGrid from './components/RiskTilesGrid';
@@ -88,7 +89,14 @@ import {
 import { clearRecent } from './services/recentSearches';
 import { storeEntitlement, clearEntitlement } from './services/entitlement';
 import { markVisited } from './services/firstVisit';
-import { trackEvent } from './services/analytics';
+import {
+  getAnalyticsConsent,
+  isAnalyticsEnabled,
+  setAnalyticsConsent,
+  trackEvent,
+  trackPageView,
+  type AnalyticsConsentState,
+} from './services/analytics';
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import type { Geometry, Position } from 'geojson';
@@ -592,6 +600,7 @@ function consumePostCheckoutExportIntent(reportId: string): PostCheckoutExportIn
 function App() {
   const { t, i18n } = useTranslation();
   const isNl = i18n.language === 'nl';
+  const analyticsEnabled = isAnalyticsEnabled();
   const dossierSeed = useMemo(readDossierSeed, []);
   const initialHasDossier = !!(dossierSeed?.address && dossierSeed?.buildingResponse);
   const { toasts, showToast, dismissToast } = useToast();
@@ -600,6 +609,9 @@ function App() {
     initialHasDossier ? 'dossier' : 'search',
   );
   const [themePreference, setThemePreference] = useState<ThemePreference>(getTheme());
+  const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsentState>(() =>
+    analyticsEnabled ? getAnalyticsConsent() : 'unknown',
+  );
   const [address, setAddress] = useState<ResolvedAddress | null>(dossierSeed?.address ?? null);
   const [activeLookupId, setActiveLookupId] = useState<string | null>(dossierSeed?.address?.id ?? null);
   const [reportId, setReportId] = useState<string | null>(null);
@@ -862,6 +874,13 @@ function App() {
   const handleThemeChange = useCallback((pref: ThemePreference) => {
     setTheme(pref);
     setThemePreference(pref);
+  }, []);
+
+  const handleAnalyticsConsentChange = useCallback((
+    consent: Exclude<AnalyticsConsentState, 'unknown'>,
+  ) => {
+    setAnalyticsConsent(consent);
+    setAnalyticsConsentState(consent);
   }, []);
 
   const activatePurchasedEntitlement = useCallback((
@@ -3126,8 +3145,44 @@ function App() {
         : activeTab === 'home'
           ? 'buurt-check'
           : activeScreen === 'dossier'
-            ? t('nav.briefing')
-            : 'buurt-check';
+          ? t('nav.briefing')
+          : 'buurt-check';
+
+  useEffect(() => {
+    if (!analyticsEnabled || typeof window === 'undefined') {
+      return;
+    }
+
+    const pageHash = activeScreen === 'shortlist'
+      ? '#/saved'
+      : activeScreen === 'compare'
+        ? '#/compare'
+        : activeScreen === 'settings'
+          ? '#/settings'
+          : activeScreen === 'dossier'
+            ? '#/address'
+            : '#/search';
+    const pageTitle = activeScreen === 'search'
+      ? 'Buurt Check'
+      : topBarTitle;
+    const pageSignature = activeScreen === 'dossier'
+      ? `dossier:${address?.adresseerbaar_object_id ?? activeLookupId ?? 'pending'}`
+      : activeScreen;
+
+    trackPageView({
+      pageLocation: `${window.location.origin}/${pageHash}`,
+      pageTitle,
+      signature: pageSignature,
+      language: i18n.language,
+    });
+  }, [
+    activeLookupId,
+    activeScreen,
+    address?.adresseerbaar_object_id,
+    analyticsEnabled,
+    i18n.language,
+    topBarTitle,
+  ]);
 
   const coverageSummary = useMemo(() => {
     const isDossierActive = activeScreen === 'dossier' && !!address?.adresseerbaar_object_id;
@@ -3858,12 +3913,22 @@ function App() {
                   onClearShortlist={handleClearShortlist}
                   theme={themePreference}
                   onThemeChange={handleThemeChange}
+                  analyticsEnabled={analyticsEnabled}
+                  analyticsConsent={analyticsConsent}
+                  onAnalyticsConsentChange={handleAnalyticsConsentChange}
                 />
               </Suspense>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
+
+      {analyticsEnabled && analyticsConsent === 'unknown' && (
+        <AnalyticsConsentBanner
+          onAccept={() => handleAnalyticsConsentChange('granted')}
+          onReject={() => handleAnalyticsConsentChange('denied')}
+        />
+      )}
 
       {/* Export bottom sheet */}
       {address?.adresseerbaar_object_id && address.rd_x != null && address.rd_y != null && address.latitude != null && address.longitude != null && (

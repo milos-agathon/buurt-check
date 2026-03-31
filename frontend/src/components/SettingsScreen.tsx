@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { AnalyticsConsentState } from '../services/analytics';
 import type { ThemePreference } from '../services/theme';
 import ConfirmSheet from './ui/ConfirmSheet';
 import './SettingsScreen.css';
@@ -27,9 +28,20 @@ interface Props {
   onClearShortlist: () => void;
   theme?: ThemePreference;
   onThemeChange?: (pref: ThemePreference) => void;
+  analyticsEnabled?: boolean;
+  analyticsConsent?: AnalyticsConsentState;
+  onAnalyticsConsentChange?: (consent: Exclude<AnalyticsConsentState, 'unknown'>) => void;
 }
 
-export default function SettingsScreen({ onClearRecent, onClearShortlist, theme = 'system', onThemeChange }: Props) {
+export default function SettingsScreen({
+  onClearRecent,
+  onClearShortlist,
+  theme = 'system',
+  onThemeChange,
+  analyticsEnabled = false,
+  analyticsConsent = 'unknown',
+  onAnalyticsConsentChange,
+}: Props) {
   const { t, i18n } = useTranslation();
   const [confirmTarget, setConfirmTarget] = useState<'recent' | 'shortlist' | null>(null);
 
@@ -112,6 +124,38 @@ export default function SettingsScreen({ onClearRecent, onClearShortlist, theme 
           </div>
         )}
       </div>
+
+      {analyticsEnabled && onAnalyticsConsentChange && (
+        <div className="settings-screen__group settings-screen__group--info">
+          <h3 className="settings-screen__section-title">{t('analytics.title')}</h3>
+          <p className="settings-screen__description">{t('settings.analytics.description')}</p>
+          <div
+            className="settings-screen__consent-toggle"
+            data-testid="analytics-consent-toggle"
+            role="radiogroup"
+            aria-label={t('analytics.title')}
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={analyticsConsent === 'granted'}
+              className={`settings-screen__consent-btn${analyticsConsent === 'granted' ? ' settings-screen__consent-btn--active' : ''}`}
+              onClick={() => onAnalyticsConsentChange('granted')}
+            >
+              {t('analytics.allow')}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={analyticsConsent === 'denied'}
+              className={`settings-screen__consent-btn${analyticsConsent === 'denied' ? ' settings-screen__consent-btn--active' : ''}`}
+              onClick={() => onAnalyticsConsentChange('denied')}
+            >
+              {t('analytics.essentialOnly')}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="settings-screen__group">
         <button

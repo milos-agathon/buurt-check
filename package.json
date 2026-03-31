@@ -5,6 +5,7 @@
   "scripts": {
     "prebuild": "npm --prefix frontend ci",
     "build": "node ./scripts/build-root-frontend-app.mjs",
+    "landing:build": "node ./scripts/build-landing.mjs",
     "landing:serve": "node ./scripts/serve-landing.mjs",
     "landing:test:e2e": "npm --prefix frontend exec -- playwright test --config frontend/playwright.landing.config.ts",
     "landing:perf:local": "node ./scripts/measure-landing-lcp.mjs local",

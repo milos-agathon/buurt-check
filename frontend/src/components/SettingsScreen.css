@@ -162,6 +162,15 @@
   max-width: 100%;
 }
 
+.settings-screen__consent-toggle {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  max-width: 100%;
+  margin-top: var(--space-sm);
+}
+
 .settings-screen__theme-btn {
   padding: 3px 10px;
   min-height: 44px;
@@ -176,7 +185,28 @@
   min-width: 44px;
 }
 
+.settings-screen__consent-btn {
+  padding: 3px 10px;
+  min-height: 44px;
+  border: none;
+  background: var(--color-surface);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  min-width: 44px;
+  flex: 1 1 0;
+}
+
 .settings-screen__theme-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+.settings-screen__consent-btn:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: inherit;
@@ -187,8 +217,14 @@
   color: var(--color-overlay-text);
 }
 
+.settings-screen__consent-btn--active {
+  background: var(--color-accent);
+  color: var(--color-overlay-text);
+}
+
 [data-theme='dark'] .settings-screen__lang-btn,
-[data-theme='dark'] .settings-screen__theme-btn {
+[data-theme='dark'] .settings-screen__theme-btn,
+[data-theme='dark'] .settings-screen__consent-btn {
   color: var(--color-overlay-text);
 }
 
@@ -204,6 +240,11 @@
   }
 
   .settings-screen__row--toggle .settings-screen__theme-btn {
+    padding: 3px 8px;
+    min-width: 44px;
+  }
+
+  .settings-screen__consent-btn {
     padding: 3px 8px;
     min-width: 44px;
   }
