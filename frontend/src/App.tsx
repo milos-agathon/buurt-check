@@ -713,6 +713,7 @@ function App() {
   const [isEntitled, setIsEntitled] = useState(TEMP_FORCE_FULL_DOSSIER_VIEW);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutStatusMessage, setCheckoutStatusMessage] = useState<string | null>(null);
+  const [checkoutRetryAvailable, setCheckoutRetryAvailable] = useState(false);
   const [checkoutVerification, setCheckoutVerification] = useState<{
     reportId: string;
     sessionId?: string;
@@ -997,6 +998,22 @@ function App() {
     trackEvent('checkout_resume_checkpoint', payload);
   }, []);
 
+  const retryCheckoutVerification = useCallback(() => {
+    if (!checkoutVerification?.reportId) return;
+
+    handledCheckoutParamsRef.current = null;
+    setCheckoutRetryAvailable(false);
+    setCheckoutStatusMessage(t('premium.checkout.processing'));
+    logCheckoutResumeCheckpoint('checkout_confirm_manual_retry', {
+      has_session_id: Boolean(checkoutVerification.sessionId),
+    });
+    setCheckoutVerification({
+      reportId: checkoutVerification.reportId,
+      sessionId: checkoutVerification.sessionId,
+      buyerResume: checkoutVerification.buyerResume,
+    });
+  }, [checkoutVerification, logCheckoutResumeCheckpoint, t]);
+
   const activatePurchasedEntitlement = useCallback((
     unlockedReportId: string,
     provider: 'stripe' | 'google_play' | 'apple_app_store',
@@ -1008,6 +1025,7 @@ function App() {
     setReportId(unlockedReportId);
     setIsEntitled(true);
     setCheckoutStatusMessage(null);
+    setCheckoutRetryAvailable(false);
     logCheckoutResumeCheckpoint('entitlement_active', { provider });
     trackEvent('dossier_unlocked', { report_id: unlockedReportId, provider });
     if (address?.adresseerbaar_object_id) {
@@ -1189,6 +1207,7 @@ function App() {
 
     setIsCheckingOut(true);
     setCheckoutStatusMessage(null);
+    setCheckoutRetryAvailable(false);
     trackEvent('checkout_started', {
       report_id: reportId,
       price_eur: dossierPriceEur,
@@ -1247,6 +1266,7 @@ function App() {
               reason: 'verification',
             });
             setCheckoutStatusMessage(t('premium.checkout.delayed'));
+            setCheckoutRetryAvailable(false);
             showToast(t('premium.checkout.delayed'));
             return;
           }
@@ -1258,6 +1278,7 @@ function App() {
           }
           if (isAppleBillingPendingError(error)) {
             setCheckoutStatusMessage(t('premium.checkout.delayed'));
+            setCheckoutRetryAvailable(false);
             showToast(t('premium.checkout.delayed'));
             return;
           }
@@ -1323,6 +1344,7 @@ function App() {
               reason: 'verification',
             });
             setCheckoutStatusMessage(t('premium.checkout.delayed'));
+            setCheckoutRetryAvailable(false);
             showToast(t('premium.checkout.delayed'));
             return;
           }
@@ -2489,6 +2511,7 @@ function App() {
     };
     setIsCheckingOut(false);
     setCheckoutStatusMessage(null);
+    setCheckoutRetryAvailable(false);
     setQueuedPostCheckoutResume(null);
     setBuildingResponse(null);
     setBuildingError(null);
@@ -3220,6 +3243,7 @@ function App() {
               reason: 'post_checkout_confirmation_error',
             });
             setCheckoutStatusMessage(t('premium.checkout.failed'));
+            setCheckoutRetryAvailable(false);
             showToast(t('premium.checkout.failed'));
             return 'failed';
           }
@@ -3260,12 +3284,14 @@ function App() {
 
         if (attempt === 1) {
           setCheckoutStatusMessage(t('premium.checkout.processing'));
+          setCheckoutRetryAvailable(false);
         }
         await sleep(POST_CHECKOUT_CONFIRM_DELAY_MS);
       }
 
       if (!cancelled && checkoutVerification.sessionId) {
         setCheckoutStatusMessage(t('premium.checkout.delayed'));
+        setCheckoutRetryAvailable(false);
         showToast(t('premium.checkout.delayed'));
 
         for (let attempt = 1; attempt <= POST_CHECKOUT_BACKGROUND_ATTEMPTS; attempt += 1) {
@@ -3287,7 +3313,9 @@ function App() {
           provider: 'stripe',
           reason: 'post_checkout_entitlement_timeout',
         });
-        clearCheckoutReturnContext();
+        setCheckoutStatusMessage(t('premium.checkout.timeout'));
+        setCheckoutRetryAvailable(true);
+        showToast(t('premium.checkout.timeout'));
       }
     };
 
@@ -3759,7 +3787,20 @@ function App() {
               transition={SPRING_TAB}
             >
             {error && <p className="app__error">{error}</p>}
-            {checkoutStatusMessage && <p className="app__error">{checkoutStatusMessage}</p>}
+            {checkoutStatusMessage && (
+              <div>
+                <p className="app__error">{checkoutStatusMessage}</p>
+                {checkoutRetryAvailable && (
+                  <button
+                    type="button"
+                    className="app__retry-button"
+                    onClick={retryCheckoutVerification}
+                  >
+                    {t('error.retry')}
+                  </button>
+                )}
+              </div>
+            )}
 
             {showLoadingScreen ? (
               <LoadingScreen

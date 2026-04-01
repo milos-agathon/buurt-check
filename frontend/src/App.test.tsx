@@ -374,6 +374,10 @@ beforeEach(() => {
   mockExportBriefing.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 function renderApp() {
   return render(
     <I18nextProvider i18n={i18nInstance}>
@@ -1379,6 +1383,57 @@ describe('3D viewer integration', () => {
       }));
     }, { timeout: 12_500 });
     expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
+  }, 15_000);
+
+  it('shows a retry action after post-checkout polling times out', async () => {
+    vi.useFakeTimers();
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+
+    let confirmAttempt = 0;
+    mockConfirmStripeCheckoutSession.mockImplementation(async () => {
+      confirmAttempt += 1;
+      return {
+        report_id: 'report-123',
+        entitled: confirmAttempt >= 15,
+        report_type: 'short',
+      };
+    });
+
+    renderApp();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(37_000);
+    });
+
+    expect(
+      screen.getAllByText(
+        'Unlock is taking longer than expected. Retry to check your dossier again.',
+      ).length,
+    ).toBeGreaterThan(0);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(15);
+    expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
   }, 15_000);
 
   it('activates entitlement even when Stripe confirmation resolves after address loads', async () => {
