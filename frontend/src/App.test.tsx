@@ -1123,6 +1123,63 @@ describe('3D viewer integration', () => {
     );
   });
 
+  it('keeps the paid report pinned when entitlement 404s during Stripe return recovery', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockRejectedValue(new ApiError('error.data_source', 404));
+    mockConfirmStripeCheckoutSession.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: true,
+      report_type: 'short',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith(
+        'report-123',
+        'cs_test_123',
+        'signed-buyer-token',
+      );
+    });
+    expect(mockCreateShortReport).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
+    });
+    expect(mockCreateShortReport).not.toHaveBeenCalled();
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      'checkout_resume_checkpoint',
+      expect.objectContaining({
+        checkpoint: 'entitlement_active',
+        provider: 'stripe',
+      }),
+    );
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      'checkout_resume_checkpoint',
+      expect.objectContaining({
+        checkpoint: 'export_sheet_opened',
+        template: 'full_dossier',
+        provider: 'stripe',
+      }),
+    );
+  });
+
   it('keeps the post-checkout export intent queued until dossier context is ready', async () => {
     window.history.replaceState(
       null,
@@ -1386,6 +1443,154 @@ describe('3D viewer integration', () => {
         template: 'full_dossier',
       }));
     });
+  });
+
+  it('still resumes the paid export when Stripe confirmation resolves late after a 404 entitlement check', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:report-lookup:report-123',
+      'adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+
+    let resolveConfirm!: (v: { report_id: string; entitled: boolean; report_type: 'short' | 'long' }) => void;
+    const confirmPromise = new Promise<{ report_id: string; entitled: boolean; report_type: 'short' | 'long' }>(
+      (resolve) => { resolveConfirm = resolve; },
+    );
+    mockConfirmStripeCheckoutSession.mockReturnValue(confirmPromise);
+
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockRejectedValue(new ApiError('error.data_source', 404));
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith(
+        'report-123',
+        'cs_test_123',
+        'signed-buyer-token',
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+    expect(mockCreateShortReport).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveConfirm({
+        report_id: 'report-123',
+        entitled: true,
+        report_type: 'short',
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
+    });
+    expect(mockCreateShortReport).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a fresh short report on a later different-address navigation with stale Stripe params', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+
+    const initialAddress = makeResolvedAddress();
+    const nextAddress = makeResolvedAddress({
+      id: 'adr-new456',
+      adresseerbaar_object_id: 'vbo-999',
+      display_name: 'Nieuwezijds 1, 1012AB Amsterdam',
+      street: 'Nieuwezijds Voorburgwal',
+      house_number: '1',
+      postcode: '1012AB',
+      rd_x: 121100,
+      rd_y: 487100,
+      latitude: 52.371,
+      longitude: 4.896,
+      buurt_code: 'BU99999999',
+    });
+    const initialBuilding = makeBuildingResponse();
+    const nextBuilding = makeBuildingResponse({
+      address_id: 'vbo-999',
+      building: {
+        pand_id: '0363100099999998',
+        construction_year: 2001,
+        status: 'Verblijfsobject in gebruik',
+        status_en: 'Addressable object in use',
+        intended_use: ['woonfunctie'],
+        intended_use_en: ['residential'],
+        num_units: 1,
+        floor_area_m2: 95,
+      },
+    });
+
+    mockLookup.mockImplementation(async (lookupId) => {
+      return lookupId === 'adr-new456' ? nextAddress : initialAddress;
+    });
+    mockBuilding.mockImplementation(async (vboId) => {
+      return vboId === 'vbo-999' ? nextBuilding : initialBuilding;
+    });
+    mockCheckEntitlement.mockRejectedValue(new ApiError('error.data_source', 404));
+    mockConfirmStripeCheckoutSession.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: true,
+      report_type: 'short',
+    });
+    mockCreateShortReport.mockImplementation(async (vboId) => ({
+      report_id: vboId === 'vbo-999' ? 'report-999' : 'report-123',
+      report_type: 'short',
+      already_purchased: false,
+    }));
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      window.history.replaceState(
+        null,
+        '',
+        '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+      );
+      window.location.hash = '#/address/vbo-999?lookup=adr-new456';
+      window.dispatchEvent(new Event('hashchange'));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockLookup).toHaveBeenCalledWith('adr-new456', expect.any(AbortSignal));
+    });
+    await waitFor(() => {
+      expect(mockCreateShortReport).toHaveBeenCalledWith('vbo-999', nextAddress.display_name);
+    });
+    expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledTimes(1);
+    expect(mockCreateShortReport).toHaveBeenCalledTimes(1);
   });
 
   it('uses Apple billing instead of Stripe when the iOS runtime is available', async () => {

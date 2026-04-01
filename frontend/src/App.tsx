@@ -361,10 +361,19 @@ const PHASE_2_TIMEOUT_MS = 9000;
 const CHECKLIST_SESSION_KEY = 'buurt-check:viewing-checklist';
 const REPORT_LOOKUP_SESSION_KEY = 'buurt-check:report-lookup';
 const POST_CHECKOUT_EXPORT_SESSION_KEY = 'buurt-check:post-checkout-export';
+const CHECKOUT_RETURN_SESSION_KEY = 'buurt-check:checkout-return';
 
 interface PostCheckoutExportIntent {
   reportId: string;
   template: 'full_dossier';
+}
+
+interface CheckoutReturnContext {
+  reportId: string;
+  sessionId: string;
+  buyerResume?: string;
+  vboId?: string;
+  lookupId?: string;
 }
 
 interface QueuedPostCheckoutResume {
@@ -492,6 +501,10 @@ function hashRouteFromUrl(urlString: string): string | null {
   } catch {
     return null;
   }
+}
+
+function checkoutVerificationKey(reportId: string, sessionId?: string): string {
+  return `${reportId}:${sessionId ?? ''}`;
 }
 
 function getDossierScrollContainer(): HTMLElement | null {
@@ -629,6 +642,51 @@ function consumePostCheckoutExportIntent(reportId: string): PostCheckoutExportIn
   }
   clearPostCheckoutExportIntent();
   return intent;
+}
+
+function storeCheckoutReturnContext(context: CheckoutReturnContext): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(
+      CHECKOUT_RETURN_SESSION_KEY,
+      JSON.stringify(context),
+    );
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function loadCheckoutReturnContext(): CheckoutReturnContext | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(CHECKOUT_RETURN_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CheckoutReturnContext>;
+    if (
+      typeof parsed.reportId === 'string'
+      && typeof parsed.sessionId === 'string'
+    ) {
+      return {
+        reportId: parsed.reportId,
+        sessionId: parsed.sessionId,
+        buyerResume: typeof parsed.buyerResume === 'string' ? parsed.buyerResume : undefined,
+        vboId: typeof parsed.vboId === 'string' ? parsed.vboId : undefined,
+        lookupId: typeof parsed.lookupId === 'string' ? parsed.lookupId : undefined,
+      };
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+  return null;
+}
+
+function clearCheckoutReturnContext(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(CHECKOUT_RETURN_SESSION_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
 function App() {
@@ -1054,6 +1112,15 @@ function App() {
     } else {
       window.history.pushState(null, '', normalized);
     }
+  }, []);
+
+  const replaceHashRouteAndClearSearch = useCallback((hash: string) => {
+    if (typeof window === 'undefined') return;
+    const normalized = hash.startsWith('#') ? hash : `#${hash}`;
+    const rawBasePath = import.meta.env.BASE_URL || '/';
+    const basePath = rawBasePath === './' ? '/' : rawBasePath;
+    const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
+    window.history.replaceState(null, '', `${normalizedBasePath}${normalized}`);
   }, []);
 
   const dossierHash = useCallback((vboId?: string | null, lookupId?: string | null) => {
@@ -2392,7 +2459,7 @@ function App() {
 
   const handleAddressSelect = useCallback(async (
     suggestion: AddressSuggestion,
-    options?: { forcedReportId?: string },
+    options?: { forcedReportId?: string; recoveryMode?: 'checkout_return' },
   ) => {
     addressRequestAbortRef.current?.abort();
     retryControllersRef.current.forEach(c => c.abort());
@@ -2500,7 +2567,11 @@ function App() {
           entitledForAddress = entitlement.entitled;
         } catch (err) {
           if (err instanceof ApiError && err.httpStatus === 404) {
-            activeReportId = null;
+            if (options?.recoveryMode !== 'checkout_return') {
+              activeReportId = null;
+            }
+            // During Stripe return recovery, keep the forced report pinned.
+            // confirmStripeCheckoutSession restores the buyer/report context.
           } else {
             throw err;
           }
@@ -2921,11 +2992,66 @@ function App() {
     if (parsed.route === 'dossier') {
       setActiveTab('briefing');
       setActiveScreen('dossier');
-      if (parsed.reportId) {
-        setCheckoutVerification({
+
+      const checkoutKey = parsed.reportId && parsed.sessionId
+        ? checkoutVerificationKey(parsed.reportId, parsed.sessionId)
+        : null;
+      const isFreshCheckoutReturn = checkoutKey !== null
+        && handledCheckoutParamsRef.current !== checkoutKey;
+      const storedCheckoutReturn = loadCheckoutReturnContext();
+      const isBriefingRecoveryRoute = !parsed.vboId;
+      // Dev StrictMode can remount while handleAddressSelect has temporarily moved the
+      // hash to #/briefing. Rehydrate from the stored checkout context in that window.
+      const matchingStoredCheckoutReturn = storedCheckoutReturn && (
+        (parsed.vboId && storedCheckoutReturn.vboId === parsed.vboId)
+        || (
+          isBriefingRecoveryRoute
+          && Boolean(storedCheckoutReturn.lookupId)
+        )
+      )
+        ? storedCheckoutReturn
+        : null;
+      const shortlistMatch = parsed.vboId
+        ? getShortlist().find((item) => item.vboId === parsed.vboId)
+        : undefined;
+      const routeLookupId = parsed.lookupId
+        ?? matchingStoredCheckoutReturn?.lookupId
+        ?? shortlistMatch?.lookupId
+        ?? (parsed.reportId ? getReportLookup(parsed.reportId) ?? undefined : undefined);
+
+      const checkoutReturnContext = isFreshCheckoutReturn && parsed.reportId && parsed.sessionId
+        ? {
           reportId: parsed.reportId,
           sessionId: parsed.sessionId,
           buyerResume: parsed.buyerResume,
+          vboId: parsed.vboId,
+          lookupId: routeLookupId,
+        }
+        : matchingStoredCheckoutReturn;
+
+      if (isFreshCheckoutReturn && parsed.reportId && parsed.sessionId) {
+        storeCheckoutReturnContext({
+          reportId: parsed.reportId,
+          sessionId: parsed.sessionId,
+          buyerResume: parsed.buyerResume,
+          vboId: parsed.vboId,
+          lookupId: routeLookupId,
+        });
+        if (parsed.vboId) {
+          replaceHashRouteAndClearSearch(dossierHash(parsed.vboId, routeLookupId));
+        }
+      }
+
+      const shouldSetCheckoutVerification = checkoutReturnContext
+        && handledCheckoutParamsRef.current !== checkoutVerificationKey(
+          checkoutReturnContext.reportId,
+          checkoutReturnContext.sessionId,
+        );
+      if (shouldSetCheckoutVerification) {
+        setCheckoutVerification({
+          reportId: checkoutReturnContext.reportId,
+          sessionId: checkoutReturnContext.sessionId,
+          buyerResume: checkoutReturnContext.buyerResume,
         });
       }
       if (
@@ -2936,12 +3062,6 @@ function App() {
         setSheetSnap('half');
         return;
       }
-      const shortlistMatch = parsed.vboId
-        ? getShortlist().find((item) => item.vboId === parsed.vboId)
-        : undefined;
-      const routeLookupId = parsed.lookupId
-        ?? shortlistMatch?.lookupId
-        ?? (parsed.reportId ? getReportLookup(parsed.reportId) ?? undefined : undefined);
       if (!routeLookupId) {
         if (parsed.vboId) {
           showToast(t('shortlist.reopenError', 'Could not reopen this address. Search for it again.'));
@@ -2964,7 +3084,10 @@ function App() {
         display_name: shortlistMatch?.address ?? pendingDisplayName ?? routeLookupId,
         type: 'adres',
         score: 1,
-      }, { forcedReportId: parsed.reportId });
+      }, {
+        forcedReportId: checkoutReturnContext?.reportId ?? parsed.reportId,
+        recoveryMode: checkoutReturnContext ? 'checkout_return' : undefined,
+      });
       return;
     }
     setActiveTab('home');
@@ -3043,7 +3166,10 @@ function App() {
 
   useEffect(() => {
     if (!checkoutVerification?.reportId) return;
-    const key = `${checkoutVerification.reportId}:${checkoutVerification.sessionId ?? ''}`;
+    const key = checkoutVerificationKey(
+      checkoutVerification.reportId,
+      checkoutVerification.sessionId,
+    );
     if (handledCheckoutParamsRef.current === key) return;
     handledCheckoutParamsRef.current = key;
 
@@ -3055,6 +3181,7 @@ function App() {
       });
 
       const finishSuccessfulVerification = (resolvedReportId: string) => {
+        clearCheckoutReturnContext();
         activatePurchasedEntitlementRef.current?.(resolvedReportId, 'stripe');
         resumePurchasedExportRef.current?.(resolvedReportId, 'stripe');
         if (checkoutVerification.sessionId) {
@@ -3086,6 +3213,7 @@ function App() {
           if (cancelled) return 'failed';
 
           if (!checkoutVerification.sessionId || !isRetryableCheckoutVerificationError(error)) {
+            clearCheckoutReturnContext();
             trackEvent('checkout_failed', {
               report_id: checkoutVerification.reportId,
               provider: 'stripe',
@@ -3159,6 +3287,7 @@ function App() {
           provider: 'stripe',
           reason: 'post_checkout_entitlement_timeout',
         });
+        clearCheckoutReturnContext();
       }
     };
 
