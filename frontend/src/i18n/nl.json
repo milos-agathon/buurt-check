@@ -492,6 +492,8 @@
   "export.languageMismatch": "PDF wordt gegenereerd in het {{language}}",
   "export.sunlightComputing": "Zonlichtanalyse wordt berekend...",
   "export.sunlightUnavailableWarning": "Zonlichtanalyse was niet voltooid voor export — exporteer opnieuw na het bekijken van het 3D-model.",
+  "export.shadowComputing": "Schaduwanalyse wordt vastgelegd...",
+  "export.shadowUnavailableWarning": "Schaduwanalyse was niet voltooid voor export — het dossier toont N/B.",
   "tierB.title": "Aanvullende woningcontroles",
   "tierB.loading": "Aanvullende woninggegevens laden...",
   "tierB.error": "We konden de aanvullende woninggegevens niet laden. De dienst is mogelijk tijdelijk traag — probeer opnieuw.",

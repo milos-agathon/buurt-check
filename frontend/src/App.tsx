@@ -9,7 +9,7 @@ import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import DossierSheet, { type SheetSnap } from './components/DossierSheet';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
 import { SPRING_TAB } from './config/springs';
-import { fetchPrice, getDossierPrice } from './config/pricing';
+import { fetchPrice, getDossierPrice, isServerRenderAvailable } from './config/pricing';
 import { hapticTap } from './utils/haptic';
 import { useAnimationPerformance } from './hooks/useAnimationPerformance';
 import ShortlistScreen from './components/ShortlistScreen';
@@ -189,6 +189,25 @@ function sunlightSubmissionKey(vboId: string, reportId: string, result: Sunlight
   return [vboId, reportId, JSON.stringify(toSunlightSubmissionPayload(result))].join('|');
 }
 
+type ExportLanguage = 'en' | 'nl';
+
+function normalizeUiLanguage(language: string | undefined): ExportLanguage {
+  return language?.startsWith('nl') ? 'nl' : 'en';
+}
+
+const REQUIRED_SHADOW_SNAPSHOT_LABELS = ['winter', 'equinox', 'summer'] as const;
+
+function hasRequiredShadowSnapshotTriptych(
+  snapshots: ShadowSnapshot[] | null | undefined,
+): boolean {
+  if (!snapshots || snapshots.length === 0) {
+    return false;
+  }
+
+  const labels = new Set(snapshots.map((snapshot) => snapshot.label));
+  return REQUIRED_SHADOW_SNAPSHOT_LABELS.every((label) => labels.has(label));
+}
+
 
 const PLACEHOLDER_BUILDING_HEIGHT_M = 12;
 const PLACEHOLDER_HALF_SIZE_M = 6;
@@ -366,6 +385,7 @@ const CHECKOUT_RETURN_SESSION_KEY = 'buurt-check:checkout-return';
 interface PostCheckoutExportIntent {
   reportId: string;
   template: 'full_dossier';
+  language: ExportLanguage;
 }
 
 interface CheckoutReturnContext {
@@ -608,7 +628,7 @@ function storePostCheckoutExportIntent(intent: PostCheckoutExportIntent): void {
   }
 }
 
-function loadPostCheckoutExportIntent(): PostCheckoutExportIntent | null {
+function loadPostCheckoutExportIntent(fallbackLanguage: ExportLanguage): PostCheckoutExportIntent | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = window.sessionStorage.getItem(POST_CHECKOUT_EXPORT_SESSION_KEY);
@@ -618,6 +638,9 @@ function loadPostCheckoutExportIntent(): PostCheckoutExportIntent | null {
       return {
         reportId: parsed.reportId,
         template: 'full_dossier',
+        language: parsed.language === 'en' || parsed.language === 'nl'
+          ? parsed.language
+          : fallbackLanguage,
       };
     }
   } catch {
@@ -635,8 +658,11 @@ function clearPostCheckoutExportIntent(): void {
   }
 }
 
-function consumePostCheckoutExportIntent(reportId: string): PostCheckoutExportIntent | null {
-  const intent = loadPostCheckoutExportIntent();
+function consumePostCheckoutExportIntent(
+  reportId: string,
+  fallbackLanguage: ExportLanguage,
+): PostCheckoutExportIntent | null {
+  const intent = loadPostCheckoutExportIntent(fallbackLanguage);
   if (!intent || intent.reportId !== reportId) {
     return null;
   }
@@ -691,8 +717,10 @@ function clearCheckoutReturnContext(): void {
 
 function App() {
   const { t, i18n } = useTranslation();
-  const isNl = i18n.language === 'nl';
+  const uiLanguage = normalizeUiLanguage(i18n.resolvedLanguage ?? i18n.language);
+  const isNl = uiLanguage === 'nl';
   const analyticsEnabled = isAnalyticsEnabled();
+  const serverRenderAvailable = isServerRenderAvailable();
   const dossierSeed = useMemo(readDossierSeed, []);
   const initialHasDossier = !!(dossierSeed?.address && dossierSeed?.buildingResponse);
   const { toasts, showToast, dismissToast } = useToast();
@@ -761,6 +789,7 @@ function App() {
   const [shadowSnapshots, setShadowSnapshots] = useState<ShadowSnapshot[] | null>(
     dossierSeed?.shadowSnapshots ?? null,
   );
+  const [shadowSnapshotsUnavailable, setShadowSnapshotsUnavailable] = useState(false);
   const [viewingQuestions, setViewingQuestions] = useState<ViewingQuestionsResponse | null>(
     dossierSeed?.viewingQuestions ?? null,
   );
@@ -820,7 +849,16 @@ function App() {
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [exportGenerating, setExportGenerating] = useState(false);
   const [exportInitialTemplate, setExportInitialTemplate] = useState<'quick_brief' | 'full_dossier' | null>(null);
+  const [exportInitialLanguage, setExportInitialLanguage] = useState<ExportLanguage | null>(null);
   const [exportAutoGenerateToken, setExportAutoGenerateToken] = useState<string | null>(null);
+  const hasShadowSnapshotTriptych = useMemo(
+    () => hasRequiredShadowSnapshotTriptych(shadowSnapshots),
+    [shadowSnapshots],
+  );
+  const shadowSnapshotsReady = serverRenderAvailable || hasShadowSnapshotTriptych || shadowSnapshotsUnavailable;
+  const shadowSnapshotsFailed = !serverRenderAvailable
+    && shadowSnapshotsUnavailable
+    && !hasShadowSnapshotTriptych;
 
   // ActionBar visibility: shown when ViewingChecklist section enters viewport.
   const [actionBarVisible, setActionBarVisible] = useState(false);
@@ -1038,22 +1076,24 @@ function App() {
     unlockedReportId: string,
     details?: Record<string, string | number | boolean>,
   ) => {
-    const pendingIntent = consumePostCheckoutExportIntent(unlockedReportId);
+    const pendingIntent = consumePostCheckoutExportIntent(unlockedReportId, uiLanguage);
     if (!pendingIntent) {
       logCheckoutResumeCheckpoint('resume_intent_missing');
       return false;
     }
 
     setExportInitialTemplate(pendingIntent.template);
+    setExportInitialLanguage(pendingIntent.language);
     setExportAutoGenerateToken(`${unlockedReportId}:${Date.now()}`);
     setCheckoutStatusMessage(null);
     setExportSheetOpen(true);
     logCheckoutResumeCheckpoint('export_sheet_opened', {
       template: pendingIntent.template,
+      language: pendingIntent.language,
       ...details,
     });
     return true;
-  }, [logCheckoutResumeCheckpoint]);
+  }, [logCheckoutResumeCheckpoint, uiLanguage]);
 
   const resumePurchasedExport = useCallback((
     unlockedReportId: string,
@@ -1185,7 +1225,7 @@ function App() {
     setHashRoute,
   ]);
 
-  const handleUpgrade = useCallback(async () => {
+  const handleUpgrade = useCallback(async (language: ExportLanguage = uiLanguage) => {
     if (TEMP_DISABLE_PAYMENTS) {
       showToast(t('premium.checkout.startFailed'));
       return;
@@ -1202,6 +1242,7 @@ function App() {
     storePostCheckoutExportIntent({
       reportId,
       template: 'full_dossier',
+      language,
     });
     kickoffPostCheckoutPrerequisitesRef.current?.();
 
@@ -1391,6 +1432,7 @@ function App() {
     resumePurchasedExport,
     showToast,
     t,
+    uiLanguage,
   ]);
 
   const handleToggleQuestion = useCallback((id: string) => {
@@ -1575,6 +1617,7 @@ function App() {
   const handleRiskTileTap = useCallback((category: string) => {
     if (!isEntitled) {
       setExportInitialTemplate(null);
+      setExportInitialLanguage(null);
       setExportAutoGenerateToken(null);
       setExportSheetOpen(true);
       return;
@@ -1753,6 +1796,15 @@ function App() {
     });
   }, [submitSunlightForExport]);
 
+  const handleShadowSnapshots = useCallback((snapshots: ShadowSnapshot[]) => {
+    setShadowSnapshots(snapshots);
+    setShadowSnapshotsUnavailable(false);
+  }, []);
+
+  const handleShadowSnapshotsError = useCallback(() => {
+    setShadowSnapshotsUnavailable(true);
+  }, []);
+
   useEffect(() => {
     if (!sunlight) return;
     void submitSunlightForExport(sunlight, 'entitlement-sync').catch((error) => {
@@ -1776,6 +1828,46 @@ function App() {
     }, SUNLIGHT_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [surroundingLoading, sunlight, sunlightUnavailable]);
+
+  const SHADOW_SNAPSHOT_TIMEOUT_MS = 9_000;
+  useEffect(() => {
+    if (serverRenderAvailable || hasShadowSnapshotTriptych || shadowSnapshotsUnavailable) {
+      return;
+    }
+    if (neighborhood3DLoading || surroundingLoading) {
+      return;
+    }
+
+    const hasRenderableNeighborhood = Boolean(neighborhood3D && neighborhood3D.buildings.length > 0);
+    if (!hasRenderableNeighborhood) {
+      if (neighborhood3D || neighborhood3DError) {
+        setShadowSnapshotsUnavailable(true);
+      }
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (!hasRequiredShadowSnapshotTriptych(shadowSnapshots)) {
+        console.warn(
+          '[shadow] timeout — marking snapshot capture unavailable after',
+          SHADOW_SNAPSHOT_TIMEOUT_MS,
+          'ms',
+        );
+        setShadowSnapshotsUnavailable(true);
+      }
+    }, SHADOW_SNAPSHOT_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    hasShadowSnapshotTriptych,
+    neighborhood3D,
+    neighborhood3DError,
+    neighborhood3DLoading,
+    serverRenderAvailable,
+    shadowSnapshots,
+    shadowSnapshotsUnavailable,
+    surroundingLoading,
+  ]);
 
   const handleBeforeExportGenerate = useCallback(async (
     template: 'quick_brief' | 'full_dossier',
@@ -2528,6 +2620,9 @@ function App() {
     }
     setExportSheetOpen(false);
     setExportGenerating(false);
+    setExportInitialTemplate(null);
+    setExportInitialLanguage(null);
+    setExportAutoGenerateToken(null);
     setActionBarVisible(false);
     setRiskCards(null);
     setRiskComparisons(null);
@@ -2551,6 +2646,7 @@ function App() {
     setSunlightUnavailable(false);
     setSunDateTime(undefined);
     setShadowSnapshots(null);
+    setShadowSnapshotsUnavailable(false);
     setViewingQuestions(null);
     setViewingQuestionsError(null);
     setActiveDetailCategory(null);
@@ -4081,7 +4177,8 @@ function App() {
                               sunDateTime={sunDateTime}
                               onSunlightAnalysis={handleSunlightAnalysis}
                               onSunlightError={() => setSunlightUnavailable(true)}
-                              onShadowSnapshots={surroundingLoading ? undefined : setShadowSnapshots}
+                              onShadowSnapshots={surroundingLoading ? undefined : handleShadowSnapshots}
+                              onShadowSnapshotsError={surroundingLoading ? undefined : handleShadowSnapshotsError}
                               loading={surroundingLoading}
                               error={neighborhood3DError}
                               onRetry={neighborhood3DError ? handleRetryNeighborhood3D : undefined}
@@ -4218,6 +4315,7 @@ function App() {
                       onExportBriefing={() => {
                         hapticTap();
                         setExportInitialTemplate(null);
+                        setExportInitialLanguage(null);
                         setExportAutoGenerateToken(null);
                         setExportSheetOpen(true);
                       }}
@@ -4328,6 +4426,7 @@ function App() {
               setExportSheetOpen(false);
               setExportGenerating(false);
               setExportInitialTemplate(null);
+              setExportInitialLanguage(null);
               setExportAutoGenerateToken(null);
             }}
             vboId={address.adresseerbaar_object_id}
@@ -4349,10 +4448,12 @@ function App() {
             shadowSnapshots={shadowSnapshots}
             sunlightReady={sunlight !== null || sunlightUnavailable}
             sunlightFailed={sunlightUnavailable && sunlight === null}
+            shadowSnapshotsReady={shadowSnapshotsReady}
+            shadowSnapshotsFailed={shadowSnapshotsFailed}
             onBeforeGenerate={handleBeforeExportGenerate}
             isEntitled={isEntitled}
-            onBuyFullDossier={() => {
-              void handleUpgrade();
+            onBuyFullDossier={(language) => {
+              void handleUpgrade(language);
             }}
             buyLabel={
               appleBillingAvailable
@@ -4376,6 +4477,7 @@ function App() {
               showToast(t('export.error'));
             }}
             initialTemplate={exportInitialTemplate ?? undefined}
+            initialExportLanguage={exportInitialLanguage ?? undefined}
             autoGenerateToken={exportAutoGenerateToken}
           />
         </Suspense>

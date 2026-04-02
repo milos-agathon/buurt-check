@@ -31,6 +31,7 @@ describe('ExportBottomSheet', () => {
     lng: 4.89,
     address: 'Keizersgracht 100, Amsterdam',
     isEntitled: true,
+    shadowSnapshotsReady: true,
   };
 
   beforeEach(async () => {
@@ -216,6 +217,48 @@ describe('ExportBottomSheet', () => {
           sunlightFailed={false}
           shadowSnapshots={[
             { label: 'summer', hour: 12, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
+          ]}
+        />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('waits for shadow snapshots before auto-generating in post-checkout recovery', async () => {
+    const view = renderSheet({
+      initialTemplate: 'full_dossier',
+      autoGenerateToken: 'paid-report-456',
+      sunlightReady: true,
+      sunlightFailed: false,
+      shadowSnapshotsReady: false,
+      shadowSnapshotsFailed: false,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'waiting_prerequisites');
+    });
+    expect(api.exportBriefing).not.toHaveBeenCalled();
+    expect(screen.getByTestId('export-post-checkout-waiting')).toHaveTextContent(
+      'Your full dossier is unlocked. We will prepare it automatically. This can take a moment.',
+    );
+
+    view.rerender(
+      <I18nextProvider i18n={i18nInstance}>
+        <ExportBottomSheet
+          {...defaultProps}
+          initialTemplate="full_dossier"
+          autoGenerateToken="paid-report-456"
+          sunlightReady={true}
+          sunlightFailed={false}
+          shadowSnapshotsReady={true}
+          shadowSnapshotsFailed={false}
+          shadowSnapshots={[
+            { label: 'winter', hour: 12, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
+            { label: 'equinox', hour: 12, dataUrl: 'data:image/png;base64,BBB', viewpoint: 'top' },
+            { label: 'summer', hour: 12, dataUrl: 'data:image/png;base64,CCC', viewpoint: 'top' },
           ]}
         />
       </I18nextProvider>,
@@ -527,6 +570,31 @@ describe('ExportBottomSheet', () => {
     expect(screen.getByTestId('export-language-warning')).toHaveTextContent('PDF wordt gegenereerd in het English');
   });
 
+  it('uses the stored export language during post-checkout recovery', async () => {
+    const nlI18n = await setupTestI18n('nl');
+    vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+
+    render(
+      <I18nextProvider i18n={nlI18n}>
+        <ExportBottomSheet
+          {...defaultProps}
+          initialTemplate="full_dossier"
+          initialExportLanguage="en"
+          autoGenerateToken="paid-report-789"
+        />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(api.exportBriefing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'full_dossier',
+          language: 'en',
+        }),
+      );
+    });
+  });
+
   it('shows error when export fails', async () => {
     vi.mocked(api.exportBriefing).mockRejectedValue(new Error('fail'));
     renderSheet();
@@ -749,6 +817,43 @@ describe('ExportBottomSheet', () => {
       expect(screen.getByTestId('export-sunlight-warning')).toHaveTextContent(
         'Zonlichtanalyse was niet voltooid voor export',
       );
+    });
+
+    it('disables Generate for full_dossier while shadow snapshots are still pending', () => {
+      renderSheet({
+        sunlightReady: true,
+        shadowSnapshotsReady: false,
+        shadowSnapshotsFailed: false,
+      });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      expect(screen.getByTestId('export-shadow-computing')).toHaveTextContent('Capturing shadow analysis...');
+      expect(screen.getByTestId('export-generate-btn')).toBeDisabled();
+    });
+
+    it('shows a shadow warning and still allows full_dossier export when shadow capture failed', async () => {
+      vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+      renderSheet({
+        sunlightReady: true,
+        shadowSnapshotsReady: true,
+        shadowSnapshotsFailed: true,
+      });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      expect(screen.getByTestId('export-shadow-warning')).toHaveTextContent(
+        'Shadow analysis was not completed before export',
+      );
+      expect(screen.getByTestId('export-generate-btn')).not.toBeDisabled();
+
+      fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+      await waitFor(() => {
+        expect(api.exportBriefing).toHaveBeenCalledWith(
+          expect.objectContaining({
+            template: 'full_dossier',
+          }),
+        );
+      });
     });
   });
 

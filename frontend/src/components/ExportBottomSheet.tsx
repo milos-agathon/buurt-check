@@ -30,8 +30,10 @@ interface ExportBottomSheetProps {
   addition?: string;
   sunlightPayload?: SunlightSubmissionPayload;
   shadowSnapshots?: ShadowSnapshot[] | null;
+  shadowSnapshotsReady?: boolean;
+  shadowSnapshotsFailed?: boolean;
   isEntitled?: boolean;
-  onBuyFullDossier?: () => void;
+  onBuyFullDossier?: (language: 'en' | 'nl') => void;
   buyLabel?: string;
   buyPriceLabel?: string;
   buyDisabled?: boolean;
@@ -44,6 +46,7 @@ interface ExportBottomSheetProps {
   onGenerateSuccess?: () => void;
   onGenerateError?: () => void;
   initialTemplate?: 'quick_brief' | 'full_dossier';
+  initialExportLanguage?: 'en' | 'nl';
   autoGenerateToken?: string | null;
 }
 
@@ -71,6 +74,8 @@ export default function ExportBottomSheet({
   addition,
   sunlightPayload,
   shadowSnapshots,
+  shadowSnapshotsReady = true,
+  shadowSnapshotsFailed = false,
   isEntitled = false,
   onBuyFullDossier,
   buyLabel,
@@ -85,13 +90,16 @@ export default function ExportBottomSheet({
   onGenerateSuccess,
   onGenerateError,
   initialTemplate,
+  initialExportLanguage,
   autoGenerateToken,
 }: ExportBottomSheetProps) {
   const { t, i18n } = useTranslation();
-  const uiLanguage: 'en' | 'nl' = i18n.language === 'nl' ? 'nl' : 'en';
+  const uiLanguage: 'en' | 'nl' = (i18n.resolvedLanguage ?? i18n.language).startsWith('nl') ? 'nl' : 'en';
+  const resolvedInitialExportLanguage = initialExportLanguage ?? uiLanguage;
+  const serverRenderAvailable = isServerRenderAvailable();
   const [template, setTemplate] = useState<'quick_brief' | 'full_dossier'>('quick_brief');
   const [exportLanguage, setExportLanguage] = useState<'en' | 'nl'>(
-    uiLanguage,
+    resolvedInitialExportLanguage,
   );
   const [includeShadows, setIncludeShadows] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -109,7 +117,12 @@ export default function ExportBottomSheet({
   const recoveryToken = isPostCheckoutRecovery ? autoGenerateToken : null;
   const activeTemplate = isPostCheckoutRecovery ? 'full_dossier' : template;
   const checkpointTemplate = activeTemplate;
-  const postCheckoutPrerequisitesReady = sunlightReady || sunlightFailed;
+  const sunlightResolved = sunlightReady || sunlightFailed;
+  const requiresClientShadowSnapshots = activeTemplate === 'full_dossier' && !serverRenderAvailable;
+  const shadowSnapshotsResolved = !requiresClientShadowSnapshots
+    || shadowSnapshotsReady
+    || shadowSnapshotsFailed;
+  const postCheckoutPrerequisitesReady = sunlightResolved && shadowSnapshotsResolved;
   const sheetTitle = isPostCheckoutRecovery
     ? t('export.downloadDossier', 'Download dossier')
     : t('export.title', 'Export Briefing');
@@ -166,14 +179,14 @@ export default function ExportBottomSheet({
       setShareError(false);
       setGeneratedBlob(null);
       setExportTooltipVisible(false);
-      setExportLanguage(uiLanguage);
+      setExportLanguage(resolvedInitialExportLanguage);
       setRecoveryPhase(null);
       setBypassPrerequisites(false);
       recoveryTokenRef.current = null;
       waitingCheckpointTokenRef.current = null;
       autoGenerateStartedTokenRef.current = null;
     }
-  }, [isOpen, uiLanguage]);
+  }, [isOpen, resolvedInitialExportLanguage]);
 
   useLayoutEffect(() => {
     if (!isOpen) return;
@@ -191,7 +204,7 @@ export default function ExportBottomSheet({
     recoveryTokenRef.current = recoveryToken;
     waitingCheckpointTokenRef.current = null;
     autoGenerateStartedTokenRef.current = null;
-    setExportLanguage(uiLanguage);
+    setExportLanguage(resolvedInitialExportLanguage);
     setGenerating(false);
     setProgressStage('idle');
     setError(false);
@@ -200,7 +213,7 @@ export default function ExportBottomSheet({
     setExportTooltipVisible(false);
     setRecoveryPhase('waiting_prerequisites');
     setBypassPrerequisites(false);
-  }, [isOpen, isPostCheckoutRecovery, recoveryToken, uiLanguage]);
+  }, [isOpen, isPostCheckoutRecovery, recoveryToken, resolvedInitialExportLanguage]);
 
   const filename = useMemo(() => {
     const suffix = activeTemplate === 'full_dossier' ? 'full-dossier' : 'quick-brief';
@@ -221,7 +234,7 @@ export default function ExportBottomSheet({
 
   const handleGenerate = useCallback(async (trigger: GenerateTrigger = 'manual') => {
     if (activeTemplate === 'full_dossier' && !isEntitled) {
-      onBuyFullDossier?.();
+      onBuyFullDossier?.(exportLanguage);
       return;
     }
 
@@ -269,7 +282,7 @@ export default function ExportBottomSheet({
       const useClientSnapshots = includeShadows
         && shadowSnapshots
         && shadowSnapshots.length > 0
-        && !isServerRenderAvailable();
+        && !serverRenderAvailable;
 
       if (useClientSnapshots && shadowSnapshots && shadowSnapshots.length > 0) {
         shadowImages = shadowSnapshots.map(s => {
@@ -394,6 +407,7 @@ export default function ExportBottomSheet({
     rdX,
     rdY,
     reportId,
+    serverRenderAvailable,
     shadowSnapshots,
     street,
     sunlightPayload,
@@ -528,6 +542,17 @@ export default function ExportBottomSheet({
 
   const hasShadows = shadowSnapshots && shadowSnapshots.length > 0;
   const requiresPurchase = activeTemplate === 'full_dossier' && !isEntitled;
+  const manualSunlightPending = !requiresPurchase && template === 'full_dossier' && !sunlightReady;
+  const manualShadowSnapshotsPending = !requiresPurchase
+    && template === 'full_dossier'
+    && includeShadows
+    && !serverRenderAvailable
+    && !shadowSnapshotsResolved;
+  const manualShadowSnapshotsFailed = !requiresPurchase
+    && template === 'full_dossier'
+    && includeShadows
+    && !serverRenderAvailable
+    && shadowSnapshotsFailed;
   const showPostCheckoutSummary = isPostCheckoutRecovery && recoveryPhase != null && recoveryPhase !== 'error';
   const showRecoveryProgress = recoveryPhase === 'waiting_prerequisites' || recoveryPhase === 'generating';
   const recoveryProgressIndeterminate = recoveryPhase === 'waiting_prerequisites' || isIndeterminate;
@@ -536,8 +561,15 @@ export default function ExportBottomSheet({
     : progressStage === 'collecting'
       ? t('export.progress.collecting', 'Collecting data...')
       : progressStage === 'rendering'
-        ? t('export.progress.rendering', 'Rendering PDF...')
+      ? t('export.progress.rendering', 'Rendering PDF...')
         : t('export.progress.downloading', 'Preparing download...');
+  const generateButtonDescriptionIds = [
+    requiresPurchase && buyDisabled && buyDisabledMessage ? 'checkout-unavailable-msg' : null,
+    manualSunlightPending ? 'sunlight-computing-msg' : null,
+    template === 'full_dossier' && sunlightReady && sunlightFailed ? 'sunlight-warning-msg' : null,
+    manualShadowSnapshotsPending ? 'shadow-computing-msg' : null,
+    manualShadowSnapshotsFailed ? 'shadow-warning-msg' : null,
+  ].filter((value): value is string => Boolean(value));
 
   return (
     <BottomSheet isOpen={isOpen} onClose={handleCloseRequest} height="45vh" ariaLabel={sheetTitle}>
@@ -695,7 +727,7 @@ export default function ExportBottomSheet({
                 </button>
               </div>
 
-              {template === 'full_dossier' && !requiresPurchase && !sunlightReady && (
+              {manualSunlightPending && (
                 <p id="sunlight-computing-msg" role="status" className="export-sheet__sunlight-status" data-testid="export-sunlight-computing">
                   {t('export.sunlightComputing', 'Calculating sunlight analysis...')}
                 </p>
@@ -704,6 +736,18 @@ export default function ExportBottomSheet({
               {template === 'full_dossier' && sunlightReady && sunlightFailed && (
                 <p id="sunlight-warning-msg" role="status" className="export-sheet__sunlight-warning" data-testid="export-sunlight-warning">
                   {t('export.sunlightUnavailableWarning', 'Sunlight data unavailable — dossier will show N/A')}
+                </p>
+              )}
+
+              {manualShadowSnapshotsPending && (
+                <p id="shadow-computing-msg" role="status" className="export-sheet__sunlight-status" data-testid="export-shadow-computing">
+                  {t('export.shadowComputing', 'Capturing shadow analysis...')}
+                </p>
+              )}
+
+              {manualShadowSnapshotsFailed && (
+                <p id="shadow-warning-msg" role="status" className="export-sheet__sunlight-warning" data-testid="export-shadow-warning">
+                  {t('export.shadowUnavailableWarning', 'Shadow analysis was not completed before export — dossier will show N/A')}
                 </p>
               )}
 
@@ -748,7 +792,7 @@ export default function ExportBottomSheet({
                   {t('export.languageNl', 'NL')}
                 </button>
               </div>
-              {exportLanguage !== i18n.language && (
+              {exportLanguage !== uiLanguage && (
                 <p className="export-sheet__language-warning" data-testid="export-language-warning">
                   {t('export.languageMismatch', {
                     language: exportLanguage === 'en' ? 'English' : 'Nederlands',
@@ -854,18 +898,11 @@ export default function ExportBottomSheet({
                 disabled={
                   generating
                   || (requiresPurchase && (buyPending || buyDisabled || !onBuyFullDossier))
-                  || (!requiresPurchase && template === 'full_dossier' && !sunlightReady)
+                  || manualSunlightPending
+                  || manualShadowSnapshotsPending
                 }
                 aria-busy={(requiresPurchase && buyPending) || undefined}
-                aria-describedby={
-                  requiresPurchase && buyDisabled && buyDisabledMessage
-                    ? 'checkout-unavailable-msg'
-                    : !requiresPurchase && template === 'full_dossier' && !sunlightReady
-                      ? 'sunlight-computing-msg'
-                      : template === 'full_dossier' && sunlightReady && sunlightFailed
-                        ? 'sunlight-warning-msg'
-                        : undefined
-                }
+                aria-describedby={generateButtonDescriptionIds.join(' ') || undefined}
                 data-testid="export-generate-btn"
               >
                 {requiresPurchase

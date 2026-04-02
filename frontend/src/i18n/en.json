@@ -492,6 +492,8 @@
   "export.languageMismatch": "PDF will be generated in {{language}}",
   "export.sunlightComputing": "Calculating sunlight analysis...",
   "export.sunlightUnavailableWarning": "Sunlight analysis was not completed before export — re-export after viewing the 3D model.",
+  "export.shadowComputing": "Capturing shadow analysis...",
+  "export.shadowUnavailableWarning": "Shadow analysis was not completed before export — dossier will show N/A.",
   "tierB.title": "Additional property checks",
   "tierB.loading": "Loading additional property data...",
   "tierB.error": "We couldn't load the additional property data. The service may be temporarily slow — try again.",

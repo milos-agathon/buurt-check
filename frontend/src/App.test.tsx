@@ -1,4 +1,4 @@
-import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, act, fireEvent, waitFor, within } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import App from './App';
 import {
@@ -18,13 +18,15 @@ type MockNeighborhoodViewer3DProps = {
   buildings: unknown[];
   loading?: boolean;
   onSunlightAnalysis?: (result: unknown) => void;
+  onShadowSnapshots?: (snapshots: unknown[]) => void;
+  onShadowSnapshotsError?: () => void;
 };
 
 const neighborhoodViewer3DPropsRef = vi.hoisted(
   () => ({ current: null as MockNeighborhoodViewer3DProps | null }),
 );
 const pricingConfigRef = vi.hoisted(
-  () => ({ current: { price: '3.99', webCheckoutAvailable: true } }),
+  () => ({ current: { price: '3.99', webCheckoutAvailable: true, serverRenderAvailable: true } }),
 );
 
 vi.mock('./services/api', async () => {
@@ -99,6 +101,7 @@ vi.mock('./config/pricing', () => ({
   fetchPrice: vi.fn().mockImplementation(async () => pricingConfigRef.current.price),
   getDossierPrice: vi.fn(() => pricingConfigRef.current.price),
   isWebCheckoutAvailable: vi.fn(() => pricingConfigRef.current.webCheckoutAvailable),
+  isServerRenderAvailable: vi.fn(() => pricingConfigRef.current.serverRenderAvailable),
 }));
 
 vi.mock('./components/NeighborhoodViewer3D', () => ({
@@ -226,7 +229,8 @@ beforeAll(async () => {
   i18nInstance = await setupTestI18n('en');
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  await i18nInstance.changeLanguage('en');
   window.history.replaceState({}, '', '/');
   localStorage.clear();
   sessionStorage.clear();
@@ -275,6 +279,7 @@ beforeEach(() => {
   pricingConfigRef.current = {
     price: '3.99',
     webCheckoutAvailable: true,
+    serverRenderAvailable: true,
   };
   mockCreateShortReport.mockResolvedValue({
     report_id: 'report-123',
@@ -1018,6 +1023,47 @@ describe('3D viewer integration', () => {
     );
   });
 
+  it('stores the selected export language before redirecting to Stripe checkout', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(within(screen.getByTestId('export-sheet')).getByRole('radio', { name: 'NL' }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123');
+    });
+    expect(sessionStorage.getItem('buurt-check:post-checkout-export')).toBe(
+      JSON.stringify({
+        reportId: 'report-123',
+        template: 'full_dossier',
+        language: 'nl',
+      }),
+    );
+  });
+
   it('prewarms 3D prerequisites before redirecting to Stripe checkout', async () => {
     window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
     mockLookup.mockResolvedValue(makeResolvedAddress());
@@ -1125,6 +1171,99 @@ describe('3D viewer integration', () => {
         provider: 'stripe',
       }),
     );
+  });
+
+  it('uses the stored export language when post-checkout recovery resumes in a Dutch UI', async () => {
+    await i18nInstance.changeLanguage('nl');
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier', language: 'en' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith(
+        'report-123',
+        'cs_test_123',
+        'signed-buyer-token',
+      );
+    });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+        language: 'en',
+      }));
+    });
+  });
+
+  it('waits for the seasonal shadow triptych before post-checkout auto-generation when server rendering is unavailable', async () => {
+    pricingConfigRef.current.serverRenderAvailable = false;
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123?lookup=adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier', language: 'en' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis).toBeTypeOf('function');
+      expect(neighborhoodViewer3DPropsRef.current?.onShadowSnapshots).toBeTypeOf('function');
+    });
+
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(makeSunlightResult({ svf: 0.63 }));
+    });
+
+    expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'waiting_prerequisites');
+    expect(mockExportBriefing).not.toHaveBeenCalled();
+
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onShadowSnapshots?.([
+        { label: 'winter', hour: 12, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
+        { label: 'equinox', hour: 12, dataUrl: 'data:image/png;base64,BBB', viewpoint: 'top' },
+        { label: 'summer', hour: 12, dataUrl: 'data:image/png;base64,CCC', viewpoint: 'top' },
+      ]);
+    });
+
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+        language: 'en',
+        shadowImageB64: 'AAA',
+        shadowEquinoxB64: 'BBB',
+        shadowSummerB64: 'CCC',
+      }));
+    });
   });
 
   it('keeps the paid report pinned when entitlement 404s during Stripe return recovery', async () => {

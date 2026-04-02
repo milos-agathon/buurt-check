@@ -12,8 +12,14 @@ i18n
       en: { translation: en },
       nl: { translation: nl },
     },
-    lng: 'nl',
+    supportedLngs: ['en', 'nl'],
     fallbackLng: 'nl',
+    nonExplicitSupportedLngs: true,
+    load: 'languageOnly',
+    detection: {
+      order: ['localStorage', 'navigator', 'htmlTag'],
+      caches: ['localStorage'],
+    },
     interpolation: {
       escapeValue: false,
     },

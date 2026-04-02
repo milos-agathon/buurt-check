@@ -78,6 +78,7 @@ interface Props {
   onSunlightError?: () => void;
   sunlightRetryToken?: number;
   onShadowSnapshots?: (snapshots: ShadowSnapshot[]) => void;
+  onShadowSnapshotsError?: () => void;
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
@@ -363,6 +364,7 @@ export default function NeighborhoodViewer3D({
   onSunlightError,
   sunlightRetryToken = 0,
   onShadowSnapshots,
+  onShadowSnapshotsError,
   loading = false,
   error,
   onRetry,
@@ -397,6 +399,8 @@ export default function NeighborhoodViewer3D({
   onSunlightErrorRef.current = onSunlightError;
   const onShadowSnapshotsRef = useRef(onShadowSnapshots);
   onShadowSnapshotsRef.current = onShadowSnapshots;
+  const onShadowSnapshotsErrorRef = useRef(onShadowSnapshotsError);
+  onShadowSnapshotsErrorRef.current = onShadowSnapshotsError;
   const loadingRef = useRef(loading);
   loadingRef.current = loading;
   const allBuildingsReadyRef = useRef(false);
@@ -1239,6 +1243,9 @@ export default function NeighborhoodViewer3D({
 
       captureSucceeded = true;
       callback(snapshots);
+    } catch (error) {
+      console.warn('[3D] Shadow snapshot capture failed', error);
+      onShadowSnapshotsErrorRef.current?.();
     } finally {
       // Dispose offscreen renderer
       if (offscreenRenderer) {
