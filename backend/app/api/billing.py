@@ -357,10 +357,10 @@ async def confirm_checkout_session(
         )
         raise HTTPException(status_code=502, detail="Payment provider unavailable")
 
-    metadata = _stripe_field(session, "metadata") or {}
-    if not isinstance(metadata, dict):
-        metadata = dict(metadata)
-    if metadata.get("report_id") != report_id or metadata.get("vbo_id") != report.vbo_id:
+    metadata = _stripe_field(session, "metadata")
+    metadata_report_id = _stripe_field(metadata, "report_id")
+    metadata_vbo_id = _stripe_field(metadata, "vbo_id")
+    if metadata_report_id != report_id or metadata_vbo_id != report.vbo_id:
         raise HTTPException(status_code=409, detail="Checkout session does not match report")
 
     if _stripe_field(session, "payment_status") != "paid":

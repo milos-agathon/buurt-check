@@ -55,6 +55,19 @@ def _billing_patches(db_path, extra_settings=None):
     return stack, mock_stripe
 
 
+class _StripeLikeMetadata:
+    """Minimal Stripe metadata stub that supports .get() but not dict()."""
+
+    def __init__(self, values: dict[str, str]):
+        self._values = values
+
+    def get(self, key: str, default=None):
+        return self._values.get(key, default)
+
+    def __iter__(self):
+        raise TypeError("Stripe metadata is not directly iterable")
+
+
 @pytest.mark.asyncio
 async def test_get_pricing_returns_backend_authoritative_price(db_path):
     """GET /api/pricing should derive EUR display from backend cents config."""
@@ -486,6 +499,58 @@ async def test_confirm_checkout_session_restores_buyer_cookie_from_resume_token(
     set_cookie = response.headers.get("set-cookie", "")
     assert BUYER_COOKIE_NAME in set_cookie
     assert "buyer-123" in set_cookie
+
+
+@pytest.mark.asyncio
+async def test_confirm_checkout_session_accepts_stripe_metadata_objects(db_path):
+    """Confirmation should accept Stripe metadata wrappers exposed via .get()."""
+    from app.services.reports import create_report, get_report, store_provider_session
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await store_provider_session(rid, "cs_test_metadata_wrapper", db_path=db_path)
+
+    stack, mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={"stripe_webhook_secret": ""},
+    )
+    with stack:
+        mock_stripe.checkout.Session.retrieve.return_value = SimpleNamespace(
+            id="cs_test_metadata_wrapper",
+            payment_status="paid",
+            payment_intent="pi_test_metadata_wrapper",
+            metadata=_StripeLikeMetadata(
+                {
+                    "report_id": rid,
+                    "vbo_id": "0363010012345678",
+                }
+            ),
+        )
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.get(
+                f"/api/billing/checkout-session/cs_test_metadata_wrapper/confirm?report_id={rid}",
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "report_id": rid,
+        "entitled": True,
+        "report_type": "long",
+    }
+
+    report = await get_report(rid, db_path=db_path)
+    assert report is not None
+    assert report.payment_status == "paid"
+    assert report.entitlement_status == "active"
+    assert report.provider == "stripe"
+    assert report.provider_payment_id == "pi_test_metadata_wrapper"
 
 
 @pytest.mark.asyncio
