@@ -20,6 +20,7 @@ from app.models.report import ProvenanceData
 from app.models.risk import (
     ClimateStressRiskCard,
     ComparisonPattern,
+    FacadeResult,
     QuestionCategory,
     RiskCardsResponse,
     RiskComparisonsResponse,
@@ -1748,6 +1749,11 @@ _SHADOW_TIME_CLOCKS: dict[str, str] = {
     "afternoon": "15:00",
 }
 _SHADOW_VIEW_ORDER = ["top", "front", "rear", "back", "winter", "equinox", "summer"]
+_SHADOW_SEASON_ROW_ORDER = ["equinox", "summer", "winter"]
+_SHADOW_FACADE_VIEW_ORDER = ["front", "rear"]
+_SHADOW_TIME_SERIES_MIN_HEIGHT_MM = 42.0
+_SHADOW_SIX_PANEL_MIN_HEIGHT_MM = 36.0
+_SHADOW_TAKEAWAY_RESERVED_MM = 10.0
 
 
 def _normalize_shadow_label(value: str) -> str:
@@ -1764,6 +1770,43 @@ def _normalize_shadow_label(value: str) -> str:
     return lower
 
 
+def _shadow_label_tokens(value: str) -> list[str]:
+    return [token for token in value.strip().lower().replace("-", "_").split("_") if token]
+
+
+def _shadow_season_key(item: dict[str, Any]) -> str:
+    for raw in (
+        str(item.get("season") or ""),
+        str(item.get("label") or ""),
+        str(item.get("viewpoint") or ""),
+    ):
+        normalized = _normalize_shadow_label(raw)
+        if normalized in {"winter", "equinox", "summer"}:
+            return normalized
+        tokens = _shadow_label_tokens(raw)
+        if "winter" in tokens:
+            return "winter"
+        if "spring" in tokens or "equinox" in tokens:
+            return "equinox"
+        if "summer" in tokens:
+            return "summer"
+    return ""
+
+
+def _shadow_viewpoint_from_raw(raw: str) -> str:
+    normalized = _normalize_shadow_label(raw)
+    if normalized in {"top", "front", "rear"}:
+        return normalized
+    tokens = _shadow_label_tokens(raw)
+    if "top" in tokens:
+        return "top"
+    if "front" in tokens:
+        return "front"
+    if "rear" in tokens or "back" in tokens:
+        return "rear"
+    return ""
+
+
 def _shadow_view_key(item: dict[str, Any]) -> str:
     preferred = item.get("viewpoint") or item.get("label") or ""
     return _normalize_shadow_label(str(preferred))
@@ -1772,6 +1815,21 @@ def _shadow_view_key(item: dict[str, Any]) -> str:
 def _shadow_layout_context(shadow_images: list[dict[str, Any]]) -> str:
     """Classify the shadow payload so legends and labels stay accurate."""
     if len(shadow_images) >= 6:
+        seasons = {_shadow_season_key(item) for item in shadow_images if _shadow_season_key(item)}
+        viewpoints = {_shadow_view_key(item) for item in shadow_images if _shadow_view_key(item)}
+        if seasons == {"equinox", "summer", "winter"} and viewpoints <= {"front", "rear"}:
+            season_view_pairs = {
+                (_shadow_season_key(item), _shadow_view_key(item))
+                for item in shadow_images
+                if _shadow_season_key(item) and _shadow_view_key(item) in {"front", "rear"}
+            }
+            expected_pairs = {
+                (season, viewpoint)
+                for season in _SHADOW_SEASON_ROW_ORDER
+                for viewpoint in _SHADOW_FACADE_VIEW_ORDER
+            }
+            if expected_pairs.issubset(season_view_pairs):
+                return "seasonal_facades"
         return "summer_multi_view"
     if len(shadow_images) != 3:
         return "default"
@@ -1780,6 +1838,10 @@ def _shadow_layout_context(shadow_images: list[dict[str, Any]]) -> str:
     viewpoints = {_shadow_view_key(item) for item in shadow_images if _shadow_view_key(item)}
     if all(time_keys) and len(viewpoints) == 1:
         return "time_series"
+    if viewpoints == {"top", "front", "rear"}:
+        return "summer_noon_views"
+    if viewpoints == {"winter", "equinox", "summer"}:
+        return "seasonal_noon"
     return "default"
 
 
@@ -1802,6 +1864,8 @@ def _shadow_overlay_label(
     # In 6-panel mode, labels like "front_morning" signal we should be brief
     raw_label = str(item.get("label") or "")
     time_key = _shadow_time_from_label(raw_label) or _shadow_time_key(item)
+    if context_mode == "seasonal_facades" and compact_for_row_header:
+        return view_text
     if compact_for_row_header and time_key:
         # Just the viewpoint name — time/sun shown in row header
         return view_text
@@ -1880,6 +1944,44 @@ def _shadow_legend_line(is_nl: bool, *, context_mode: str = "default") -> str:
             "\u00b7 June 21 (summer solstice) \u00b7 morning and afternoon snapshots "
             "\u00b7 Source: 3DBAG / TU Delft + SunCalc"
         )
+    if context_mode == "summer_noon_views":
+        if is_nl:
+            return (
+                "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
+                "\u00b7 21 juni (zomerzonnewende) om 12:00 lokale tijd "
+                "\u00b7 top-, voor- en achteraanzicht "
+                "\u00b7 Bron: 3DBAG / TU Delft + SunCalc"
+            )
+        return (
+            "Legend: teal outline = target building \u00b7 shadow = no direct sun "
+            "\u00b7 June 21 (summer solstice) at 12:00 local time "
+            "\u00b7 top, front, and rear views "
+            "\u00b7 Source: 3DBAG / TU Delft + SunCalc"
+        )
+    if context_mode == "seasonal_noon":
+        if is_nl:
+            return (
+                "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
+                "\u00b7 21 december / 20 maart / 21 juni om 12:00 lokale tijd \u00b7 Bron: 3DBAG / "
+                "TU Delft + SunCalc"
+            )
+        return (
+            "Legend: teal outline = target building \u00b7 shadow = no direct sun "
+            "\u00b7 December 21 / March 20 / June 21 at 12:00 local time \u00b7 Source: 3DBAG / "
+            "TU Delft + SunCalc"
+        )
+    if context_mode == "seasonal_facades":
+        if is_nl:
+            return (
+                "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
+                "\u00b7 lentepunt / zomerzonnewende / winterzonnewende om 12:00 lokale tijd "
+                "\u00b7 voor- en achtergevel \u00b7 Bron: 3DBAG / TU Delft + SunCalc"
+            )
+        return (
+            "Legend: teal outline = target building \u00b7 shadow = no direct sun "
+            "\u00b7 spring equinox / summer solstice / winter solstice at 12:00 local time "
+            "\u00b7 front and rear facades \u00b7 Source: 3DBAG / TU Delft + SunCalc"
+        )
     if is_nl:
         return (
             "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
@@ -1890,6 +1992,74 @@ def _shadow_legend_line(is_nl: bool, *, context_mode: str = "default") -> str:
         "Legend: teal outline = target building \u00b7 shadow = no direct sun "
         "\u00b7 December 21 / March 20 / June 21 at 12:00 local time \u00b7 Source: 3DBAG / "
         "TU Delft + SunCalc"
+    )
+
+
+def _shadow_takeaway(
+    shadow_images: list[dict[str, Any]],
+    *,
+    is_nl: bool,
+    context_mode: str,
+) -> str:
+    """Buyer-facing takeaway line keyed to the classified shadow layout."""
+    del shadow_images
+    if context_mode == "summer_multi_view":
+        return (
+            "Vergelijk ochtend en middag om te zien waar tuin of gevel later op de dag dichttrekt."
+            if is_nl
+            else (
+                "Compare morning and afternoon to see which outdoor areas "
+                "or facades lose sun later in the day."
+            )
+        )
+    if context_mode == "time_series":
+        return (
+            "Hetzelfde aanzicht blijft vast, zodat je direct ziet hoe de zon "
+            "tussen 09:00 en 15:00 verschuift."
+            if is_nl
+            else (
+                "The viewpoint stays fixed so you can compare how direct sun "
+                "shifts between 09:00 and 15:00."
+            )
+        )
+    if context_mode == "summer_noon_views":
+        return (
+            "Deze drie zomerbeelden tonen hetzelfde moment vanuit boven, voor en achter, "
+            "zodat blinde hoeken minder snel worden gemist."
+            if is_nl
+            else (
+                "These three summer-noon views show the same moment from above, "
+                "front, and rear so fewer blind spots are missed."
+            )
+        )
+    if context_mode == "seasonal_noon":
+        return (
+            "Seizoensvergelijking op hetzelfde middagmoment laat zien of winterzon "
+            "hier duidelijk zwakker is dan in voorjaar en zomer."
+            if is_nl
+            else (
+                "A same-time seasonal comparison shows whether winter sun drops off "
+                "materially versus spring and summer."
+            )
+        )
+    if context_mode == "seasonal_facades":
+        return (
+            "Vergelijk voor- en achtergevel in lente, zomer en winter om te zien "
+            "waar zonlicht het langst blijft."
+            if is_nl
+            else (
+                "Compare front and rear facades across spring, summer, and winter "
+                "to see where sunlight lasts longest."
+            )
+        )
+    return (
+        "Gebruik deze beelden als indicatie van waar directe zon het snelst "
+        "verdwijnt rond het gebouw."
+        if is_nl
+        else (
+            "Use these snapshots to spot where direct sun disappears fastest "
+            "around the building."
+        )
     )
 
 
@@ -1965,6 +2135,7 @@ def _draw_shadow_triptych(
         return
 
     context_mode = _shadow_layout_context(shadow_images)
+    takeaway_text = _shadow_takeaway(shadow_images, is_nl=is_nl, context_mode=context_mode)
 
     # If fewer than 3 images, fall back to single image
     if len(shadow_images) < 3:
@@ -1982,85 +2153,194 @@ def _draw_shadow_triptych(
     is_six_panel = len(shadow_images) >= 6
 
     if is_six_panel:
-        view_rank = {s: i for i, s in enumerate(_SHADOW_VIEW_ORDER)}
-        time_rank = {"morning": 0, "afternoon": 1, "noon": 2}
-
-        sorted_imgs = sorted(
-            shadow_images[:6],
-            key=lambda s: (
-                time_rank.get(_shadow_time_key(s), 99),
-                view_rank.get(_shadow_view_key(s), 99),
-                s.get("hour", 0),
-            ),
-        )
-        morning_imgs = [s for s in sorted_imgs if _shadow_time_key(s) == "morning"][:3]
-        afternoon_imgs = [s for s in sorted_imgs if _shadow_time_key(s) == "afternoon"][:3]
-        if len(morning_imgs) < 3 or len(afternoon_imgs) < 3:
-            # Fall back to renderer order when metadata is incomplete.
-            morning_imgs = shadow_images[:3]
-            afternoon_imgs = shadow_images[3:6]
-
-        # 3 columns × 2 rows
-        col_w = (page_w - gap * 2) / 3
-        col_h = col_w * 0.75  # 4:3 aspect — more vertical for close-up building views
-        row_gap = 2.5
-        time_label_h = 6.0  # row header height
-
-        total_h = (
-            time_label_h + col_h + row_gap  # morning row
-            + time_label_h + col_h           # afternoon row
-            + 14.0                            # legend + spacing
-        )
-
-        _ensure_page_space(pdf, total_h + 18.0)
-        pdf.draw_premium_badge()
-        pdf.draw_h1("Schaduwanalyse" if is_nl else "Shadow Analysis", add_divider=False)
-
         rendered = 0
+        if context_mode == "seasonal_facades":
+            season_view_map: dict[tuple[str, str], dict[str, Any]] = {
+                (_shadow_season_key(item), _shadow_view_key(item)): item
+                for item in shadow_images
+                if _shadow_season_key(item) in _SHADOW_SEASON_ROW_ORDER
+                and _shadow_view_key(item) in _SHADOW_FACADE_VIEW_ORDER
+            }
+            seasonal_rows = [
+                (
+                    season,
+                    [
+                        season_view_map[(season, viewpoint)]
+                        for viewpoint in _SHADOW_FACADE_VIEW_ORDER
+                        if (season, viewpoint) in season_view_map
+                    ],
+                )
+                for season in _SHADOW_SEASON_ROW_ORDER
+            ]
+            seasonal_rows = [
+                (season, row_imgs) for season, row_imgs in seasonal_rows if len(row_imgs) == 2
+            ]
+            if len(seasonal_rows) != 3:
+                # Fall back to incoming order if classification was overly optimistic.
+                seasonal_rows = [
+                    (
+                        season,
+                        shadow_images[idx * 2: idx * 2 + 2],
+                    )
+                    for idx, season in enumerate(_SHADOW_SEASON_ROW_ORDER)
+                ]
 
-        for row_idx, (row_imgs, time_key) in enumerate([
-            (morning_imgs, "morning"),
-            (afternoon_imgs, "afternoon"),
-        ]):
-            # Row time label
-            time_text = _SHADOW_TIME_LABELS.get(time_key, {}).get(
-                "nl" if is_nl else "en", time_key.title(),
+            row_gap = 2.0
+            row_label_h = 5.5
+            col_w = (page_w - gap) / 2
+            reserved_after_panels = 14.0 + _SHADOW_TAKEAWAY_RESERVED_MM
+            minimum_total_h = (
+                len(seasonal_rows) * (row_label_h + _SHADOW_SIX_PANEL_MIN_HEIGHT_MM)
+                + (len(seasonal_rows) - 1) * row_gap
+                + reserved_after_panels
             )
-            # Extract sun position from first image in this row
-            az = row_imgs[0].get("sun_azimuth")
-            alt = row_imgs[0].get("sun_altitude")
-            if az is not None and alt is not None:
-                sun_str = (
-                    f"Zon {int(round(float(az)))}\u00b0/{int(round(float(alt)))}\u00b0"
-                    if is_nl
-                    else f"Sun {int(round(float(az)))}\u00b0/{int(round(float(alt)))}\u00b0"
+
+            _ensure_page_space(pdf, minimum_total_h + 18.0)
+            pdf.draw_premium_badge()
+            pdf.draw_h1("Schaduwanalyse" if is_nl else "Shadow Analysis", add_divider=False)
+
+            rows_top_y = pdf.get_y()
+            available_for_rows = (
+                pdf.h
+                - pdf.b_margin
+                - reserved_after_panels
+                - rows_top_y
+                - (len(seasonal_rows) - 1) * row_gap
+                - len(seasonal_rows) * row_label_h
+            )
+            col_h = max(
+                _SHADOW_SIX_PANEL_MIN_HEIGHT_MM,
+                available_for_rows / max(1, len(seasonal_rows)),
+            )
+
+            for row_index, (season, row_imgs) in enumerate(seasonal_rows):
+                season_text = _SHADOW_VIEW_LABELS.get(season, {}).get(
+                    "nl" if is_nl else "en",
+                    season.title(),
                 )
-                time_text = f"{time_text} \u00b7 {sun_str}"
+                az = row_imgs[0].get("sun_azimuth")
+                alt = row_imgs[0].get("sun_altitude")
+                if az is not None and alt is not None:
+                    sun_text = (
+                        f"Zon {int(round(float(az)))}\u00b0/{int(round(float(alt)))}\u00b0"
+                        if is_nl
+                        else f"Sun {int(round(float(az)))}\u00b0/{int(round(float(alt)))}\u00b0"
+                    )
+                    season_text = (
+                        f"{season_text} \u00b7 12:00 \u00b7 {sun_text}"
+                    )
+                else:
+                    season_text = f"{season_text} \u00b7 12:00"
 
-            pdf.set_font("SatoshiMedium", "", 8)
-            pdf.set_text_color(*SECONDARY)
-            pdf.cell(0, time_label_h, time_text, new_x="LMARGIN", new_y="NEXT")
-            pdf.set_text_color(*SLATE)
+                pdf.set_font("SatoshiMedium", "", 8)
+                pdf.set_text_color(*SECONDARY)
+                pdf.cell(0, row_label_h, season_text, new_x="LMARGIN", new_y="NEXT")
+                pdf.set_text_color(*SLATE)
 
-            row_y = pdf.get_y()
+                row_y = pdf.get_y()
+                for col_idx, img_data in enumerate(row_imgs):
+                    x = pdf.l_margin + col_idx * (col_w + gap)
+                    ok = _draw_shadow_panel(
+                        pdf,
+                        img_data,
+                        x,
+                        row_y,
+                        col_w,
+                        col_h,
+                        is_nl=is_nl,
+                        compact_for_row_header=True,
+                        context_mode=context_mode,
+                    )
+                    if ok:
+                        rendered += 1
 
-            for col_idx, img_data in enumerate(row_imgs):
-                x = pdf.l_margin + col_idx * (col_w + gap)
-                ok = _draw_shadow_panel(
-                    pdf,
-                    img_data,
-                    x,
-                    row_y,
-                    col_w,
-                    col_h,
-                    is_nl=is_nl,
-                    compact_for_row_header=True,
-                    context_mode=context_mode,
+                next_y = row_y + col_h
+                if row_index < len(seasonal_rows) - 1:
+                    next_y += row_gap
+                pdf.set_y(next_y)
+        else:
+            view_rank = {s: i for i, s in enumerate(_SHADOW_VIEW_ORDER)}
+            time_rank = {"morning": 0, "afternoon": 1, "noon": 2}
+
+            sorted_imgs = sorted(
+                shadow_images[:6],
+                key=lambda s: (
+                    time_rank.get(_shadow_time_key(s), 99),
+                    view_rank.get(_shadow_view_key(s), 99),
+                    s.get("hour", 0),
+                ),
+            )
+            morning_imgs = [s for s in sorted_imgs if _shadow_time_key(s) == "morning"][:3]
+            afternoon_imgs = [s for s in sorted_imgs if _shadow_time_key(s) == "afternoon"][:3]
+            if len(morning_imgs) < 3 or len(afternoon_imgs) < 3:
+                # Fall back to renderer order when metadata is incomplete.
+                morning_imgs = shadow_images[:3]
+                afternoon_imgs = shadow_images[3:6]
+
+            # 3 columns × 2 rows
+            col_w = (page_w - gap * 2) / 3
+            col_h = max(_SHADOW_SIX_PANEL_MIN_HEIGHT_MM, col_w * 0.75)
+            row_gap = 2.5
+            time_label_h = 6.0  # row header height
+
+            total_h = (
+                time_label_h + col_h + row_gap  # morning row
+                + time_label_h + col_h           # afternoon row
+                + 14.0                            # legend + spacing
+                + _SHADOW_TAKEAWAY_RESERVED_MM
+            )
+
+            _ensure_page_space(pdf, total_h + 18.0)
+            pdf.draw_premium_badge()
+            pdf.draw_h1("Schaduwanalyse" if is_nl else "Shadow Analysis", add_divider=False)
+
+            summer_rows = [
+                (morning_imgs, "morning"),
+                (afternoon_imgs, "afternoon"),
+            ]
+            for row_index, (row_imgs, time_key) in enumerate(summer_rows):
+                # Row time label
+                time_text = _SHADOW_TIME_LABELS.get(time_key, {}).get(
+                    "nl" if is_nl else "en", time_key.title(),
                 )
-                if ok:
-                    rendered += 1
+                # Extract sun position from first image in this row
+                az = row_imgs[0].get("sun_azimuth")
+                alt = row_imgs[0].get("sun_altitude")
+                if az is not None and alt is not None:
+                    sun_str = (
+                        f"Zon {int(round(float(az)))}\u00b0/{int(round(float(alt)))}\u00b0"
+                        if is_nl
+                        else f"Sun {int(round(float(az)))}\u00b0/{int(round(float(alt)))}\u00b0"
+                    )
+                    time_text = f"{time_text} \u00b7 {sun_str}"
 
-            pdf.set_y(row_y + col_h + row_gap)
+                pdf.set_font("SatoshiMedium", "", 8)
+                pdf.set_text_color(*SECONDARY)
+                pdf.cell(0, time_label_h, time_text, new_x="LMARGIN", new_y="NEXT")
+                pdf.set_text_color(*SLATE)
+
+                row_y = pdf.get_y()
+
+                for col_idx, img_data in enumerate(row_imgs):
+                    x = pdf.l_margin + col_idx * (col_w + gap)
+                    ok = _draw_shadow_panel(
+                        pdf,
+                        img_data,
+                        x,
+                        row_y,
+                        col_w,
+                        col_h,
+                        is_nl=is_nl,
+                        compact_for_row_header=True,
+                        context_mode=context_mode,
+                    )
+                    if ok:
+                        rendered += 1
+
+                next_y = row_y + col_h
+                if row_index < len(summer_rows) - 1:
+                    next_y += row_gap
+                pdf.set_y(next_y)
 
     else:
         view_rank = {s: i for i, s in enumerate(_SHADOW_VIEW_ORDER)}
@@ -2080,8 +2360,8 @@ def _draw_shadow_triptych(
 
         if context_mode == "time_series":
             col_w = (page_w - gap * 2) / 3
-            col_h = col_w * 0.78
-            total_h = col_h + 14.0
+            col_h = max(_SHADOW_TIME_SERIES_MIN_HEIGHT_MM, col_w * 0.78)
+            total_h = col_h + 14.0 + _SHADOW_TAKEAWAY_RESERVED_MM
 
             _ensure_page_space(pdf, total_h + 18.0)
             pdf.draw_premium_badge()
@@ -2110,7 +2390,7 @@ def _draw_shadow_triptych(
             top_h = top_w * 0.56
             bottom_w = (page_w - gap) / 2
             bottom_h = bottom_w * 0.56
-            total_h = top_h + gap + bottom_h + 14.0
+            total_h = top_h + gap + bottom_h + 14.0 + _SHADOW_TAKEAWAY_RESERVED_MM
 
             _ensure_page_space(pdf, total_h + 18.0)
             pdf.draw_premium_badge()
@@ -2161,6 +2441,10 @@ def _draw_shadow_triptych(
             padding=2.2,
             line_height=3.6,
         )
+        pdf.ln(1.0)
+        pdf.set_font("Satoshi", "", 9)
+        pdf.set_text_color(*SLATE)
+        pdf.multi_cell(0, 4.2, takeaway_text, new_x="LMARGIN", new_y="NEXT")
     else:
         # No panels rendered — show an explicit unavailable placeholder
         # instead of leaving blank space below the heading.
@@ -3412,7 +3696,32 @@ def _generate_full_dossier_fpdf(
         tier_b_data=tier_b,
     )
 
-    # Page 3: Seasonal shadow evidence
+    # Additional property checks + viewing questions
+    pdf.section_title = "EXTRA CONTROLES" if is_nl else "ADDITIONAL CHECKS"
+    pdf.add_page()
+    _draw_property_checks_page(
+        pdf=pdf,
+        risks=risks,
+        sunlight_score=sunlight_score,
+        shadow_image_b64=shadow_summer_b64 or shadow_image_b64,
+        property_warnings=property_warnings_data,
+        is_nl=is_nl,
+        shadow_images=dossier_shadow_images,
+        postcode=postcode,
+    )
+    _ensure_page_space(pdf, 70.0)
+    _draw_checklist_page(
+        pdf,
+        address,
+        risks,
+        sunlight_score,
+        viewing_questions,
+        is_nl,
+        crime_score=crime_score,
+        tier_b_data=tier_b,
+    )
+
+    # Seasonal shadow evidence
     pdf.section_title = "SCHADUWANALYSE" if is_nl else "SHADOW ANALYSIS"
     pdf.add_page()
     if dossier_shadow_images:
@@ -3437,7 +3746,7 @@ def _generate_full_dossier_fpdf(
             line_height=4.2,
         )
 
-    # Page 4+: Neighborhood context, livability, and crime evidence
+    # Neighborhood context, livability, and crime evidence
     pdf.section_title = "BUURT" if is_nl else "NEIGHBORHOOD"
     pdf.add_page()
     _draw_neighborhood_page(
@@ -3451,31 +3760,6 @@ def _generate_full_dossier_fpdf(
         center_lat=map_lat or (provenance.lat if provenance else None),
         center_lng=map_lng or (provenance.lng if provenance else None),
         footprint_geojson=footprint_geojson,
-    )
-
-    # Additional property checks + viewing questions
-    pdf.section_title = "EXTRA CONTROLES" if is_nl else "ADDITIONAL CHECKS"
-    pdf.add_page()
-    _draw_property_checks_page(
-        pdf=pdf,
-        risks=risks,
-        sunlight_score=sunlight_score,
-        shadow_image_b64=shadow_summer_b64 or shadow_image_b64,
-        property_warnings=property_warnings_data,
-        is_nl=is_nl,
-        shadow_images=dossier_shadow_images,
-        postcode=postcode,
-    )
-    _ensure_page_space(pdf, 70.0)
-    _draw_checklist_page(
-        pdf,
-        address,
-        risks,
-        sunlight_score,
-        viewing_questions,
-        is_nl,
-        crime_score=crime_score,
-        tier_b_data=tier_b,
     )
 
     # Methodology + provenance
@@ -3892,23 +4176,31 @@ def _shadow_hour_for_time_key(time_key: str) -> int:
 
 def _normalized_shadow_item(item: dict[str, Any]) -> dict[str, Any]:
     time_key = _shadow_time_key(item) or "noon"
-    raw_label = _normalize_shadow_label(str(item.get("label") or ""))
-    raw_viewpoint = _normalize_shadow_label(str(item.get("viewpoint") or ""))
-    if raw_label in {"winter", "equinox", "summer", "top", "front", "rear", "back"}:
-        default_viewpoint = raw_label
-    elif "_" in raw_label:
-        default_viewpoint = raw_label.split("_", 1)[0]
-    else:
-        default_viewpoint = "top"
-    viewpoint = raw_viewpoint or default_viewpoint
+    raw_label = str(item.get("label") or "")
+    raw_viewpoint = str(item.get("viewpoint") or "")
+    viewpoint = _shadow_viewpoint_from_raw(raw_viewpoint) or _shadow_viewpoint_from_raw(raw_label)
+    if not viewpoint:
+        normalized_label = _normalize_shadow_label(raw_label)
+        if normalized_label in {"winter", "equinox", "summer"}:
+            viewpoint = normalized_label
+        else:
+            viewpoint = "top"
+    season = _shadow_season_key(item) or None
     hour = item.get("hour")
     if not isinstance(hour, (int, float)):
         hour = _shadow_hour_for_time_key(time_key)
+    if item.get("label"):
+        label = item["label"]
+    elif season and viewpoint in {"front", "rear"}:
+        label = f"{season}_{viewpoint}"
+    else:
+        label = f"{viewpoint}_{time_key}"
     return {
         "hour": int(hour),
-        "label": item.get("label") or f"{viewpoint}_{time_key}",
+        "label": label,
         "image_b64": item.get("image_b64"),
         "viewpoint": viewpoint,
+        "season": season,
         "sun_azimuth": item.get("sun_azimuth"),
         "sun_altitude": item.get("sun_altitude"),
     }
@@ -3922,12 +4214,44 @@ def _full_dossier_shadow_images(
     shadow_summer_b64: str | None = None,
 ) -> list[dict[str, Any]]:
     """Normalize export evidence with seasonal noon snapshots preferred."""
+    valid = [
+        _normalized_shadow_item(item)
+        for item in (shadow_images or [])
+        if isinstance(item, dict) and item.get("image_b64")
+    ]
+
+    if valid:
+        seasonal_facades = [
+            item
+            for item in valid
+            if _shadow_season_key(item) in _SHADOW_SEASON_ROW_ORDER
+            and _shadow_view_key(item) in _SHADOW_FACADE_VIEW_ORDER
+        ]
+        expected_pairs = {
+            (season, viewpoint)
+            for season in _SHADOW_SEASON_ROW_ORDER
+            for viewpoint in _SHADOW_FACADE_VIEW_ORDER
+        }
+        found_pairs = {
+            (_shadow_season_key(item), _shadow_view_key(item))
+            for item in seasonal_facades
+        }
+        if expected_pairs.issubset(found_pairs):
+            return sorted(
+                seasonal_facades,
+                key=lambda item: (
+                    _SHADOW_SEASON_ROW_ORDER.index(_shadow_season_key(item)),
+                    _SHADOW_FACADE_VIEW_ORDER.index(_shadow_view_key(item)),
+                ),
+            )
+
     seasonal_from_fields = [
         {
             "hour": 12,
             "label": season,
             "image_b64": image_b64,
             "viewpoint": season,
+            "season": season,
         }
         for season, image_b64 in [
             ("winter", shadow_image_b64),
@@ -3938,12 +4262,6 @@ def _full_dossier_shadow_images(
     ]
     if seasonal_from_fields:
         return seasonal_from_fields
-
-    valid = [
-        _normalized_shadow_item(item)
-        for item in (shadow_images or [])
-        if isinstance(item, dict) and item.get("image_b64")
-    ]
 
     if not valid:
         return []
@@ -3967,6 +4285,16 @@ def _full_dossier_hero_shadow(
     shadow_images: list[dict[str, Any]] | None,
     shadow_image_b64: str | None,
 ) -> str | None:
+    seasonal_front = next(
+        (
+            item.get("image_b64")
+            for item in (shadow_images or [])
+            if _shadow_season_key(item) == "summer" and _shadow_view_key(item) == "front"
+        ),
+        None,
+    )
+    if seasonal_front:
+        return str(seasonal_front)
     noon_top = next(
         (
             item.get("image_b64")
@@ -5623,11 +5951,15 @@ def _draw_sunlight_details(
 
     # --- Facade orientation table (E2-S4) ---
     if sun.facade_results:
-        # Page overflow guard: need ~50mm for facade table
-        n_rows = len(sun.facade_results)
-        est_table_h = 10 + n_rows * 6 + 12  # header + rows + interpretation
+        display_rows = _build_facade_display_rows(sun.facade_results, is_nl=is_nl)
+        est_table_h = _estimate_facade_table_height_mm(display_rows)
+        est_primary_h = (
+            chart_renderer.facade_heatmap_height_mm(len(display_rows)) + 9.0
+            if chart_renderer is not None
+            else est_table_h
+        )
         remaining = pdf.h - pdf.get_y() - 20
-        if remaining < est_table_h and pdf.get_y() > 40:
+        if remaining < est_primary_h and pdf.get_y() > 40:
             pdf.add_page()
 
         # Section label
@@ -5637,120 +5969,188 @@ def _draw_sunlight_details(
         pdf.cell(0, 5, label, new_x="LMARGIN", new_y="NEXT")
         pdf.ln(1)
 
-        # Orientation label mapping
-        _ORI_LABELS_NL = {
-            "n": "Noord", "north": "Noord",
-            "e": "Oost", "east": "Oost",
-            "s": "Zuid", "south": "Zuid",
-            "w": "West", "west": "West",
-            "ne": "NO", "northeast": "NO",
-            "nw": "NW", "northwest": "NW",
-            "se": "ZO", "southeast": "ZO",
-            "sw": "ZW", "southwest": "ZW",
-        }
-        _ORI_LABELS_EN = {
-            "n": "North", "north": "North",
-            "e": "East", "east": "East",
-            "s": "South", "south": "South",
-            "w": "West", "west": "West",
-            "ne": "NE", "northeast": "NE",
-            "nw": "NW", "northwest": "NW",
-            "se": "SE", "southeast": "SE",
-            "sw": "SW", "southwest": "SW",
-        }
+        if chart_renderer is not None:
+            try:
+                heatmap_rows = _build_facade_heatmap_rows(sun.facade_results)
+                heatmap_h = chart_renderer.facade_heatmap_height_mm(len(heatmap_rows))
+                heatmap_png = chart_renderer.render_facade_heatmap(
+                    heatmap_rows,
+                    is_nl=is_nl,
+                    output_format="png",
+                )
+                chart_end_y = _embed_chart_png(
+                    pdf,
+                    heatmap_png,
+                    x=pdf.l_margin,
+                    y=pdf.get_y(),
+                    width=content_w,
+                    source_width_mm=chart_renderer.CHART_WIDTH_MM,
+                    source_height_mm=heatmap_h,
+                )
+                pdf.set_y(chart_end_y + 2)
+            except Exception:
+                logger.exception(
+                    "chart_renderer facade heatmap failed; falling back to native facade table"
+                )
+                _draw_facade_table(pdf, display_rows, is_nl=is_nl)
+        else:
+            _draw_facade_table(pdf, display_rows, is_nl=is_nl)
 
-        ori_map = _ORI_LABELS_NL if is_nl else _ORI_LABELS_EN
+        best_facade, best_winter = _best_winter_facade(display_rows)
+        _draw_facade_interpretation(
+            pdf,
+            best_facade=best_facade,
+            best_winter=best_winter,
+            is_nl=is_nl,
+        )
+        pdf.ln(3)
 
-        # Check if any orientation appears at multiple heights — if so,
-        # append the height label to disambiguate rows.
-        _ori_count: dict[str, int] = {}
-        for _fr in sun.facade_results:
-            _k = _fr.orientation.lower().strip()
-            _ori_count[_k] = _ori_count.get(_k, 0) + 1
-        _has_multi_height = any(v > 1 for v in _ori_count.values())
 
-        # Column widths (facade column wider when height labels shown)
-        col_facade = 45 if _has_multi_height else 35
-        col_winter = 30
-        col_summer = 30
-        row_h = 6
+_FACADE_ORIENTATION_LABELS_NL = {
+    "n": "Noord", "north": "Noord",
+    "e": "Oost", "east": "Oost",
+    "s": "Zuid", "south": "Zuid",
+    "w": "West", "west": "West",
+    "ne": "NO", "northeast": "NO",
+    "nw": "NW", "northwest": "NW",
+    "se": "ZO", "southeast": "ZO",
+    "sw": "ZW", "southwest": "ZW",
+}
+_FACADE_ORIENTATION_LABELS_EN = {
+    "n": "North", "north": "North",
+    "e": "East", "east": "East",
+    "s": "South", "south": "South",
+    "w": "West", "west": "West",
+    "ne": "NE", "northeast": "NE",
+    "nw": "NW", "northwest": "NW",
+    "se": "SE", "southeast": "SE",
+    "sw": "SW", "southwest": "SW",
+}
 
-        # Table header (Bold 9pt SLATE)
+
+def _build_facade_display_rows(
+    facade_results: list[FacadeResult],
+    *,
+    is_nl: bool,
+) -> list[tuple[str, FacadeResult]]:
+    ori_map = _FACADE_ORIENTATION_LABELS_NL if is_nl else _FACADE_ORIENTATION_LABELS_EN
+    counts: dict[str, int] = {}
+    for facade in facade_results:
+        key = facade.orientation.lower().strip()
+        counts[key] = counts.get(key, 0) + 1
+    display_rows: list[tuple[str, FacadeResult]] = []
+    for facade in facade_results:
+        key = facade.orientation.lower().strip()
+        label = ori_map.get(key, facade.orientation.capitalize())
+        if counts.get(key, 0) > 1 and getattr(facade, "height_label", ""):
+            label = f"{label} ({facade.height_label})"
+        display_rows.append((label, facade))
+    return display_rows
+
+
+def _estimate_facade_table_height_mm(display_rows: list[tuple[str, FacadeResult]]) -> float:
+    return 10.0 + len(display_rows) * 6.0 + 12.0
+
+
+def _build_facade_heatmap_rows(
+    facade_results: list[FacadeResult],
+) -> list[Any]:
+    if chart_renderer is None:
+        return []
+    return [
+        chart_renderer.FacadeHeatmapRow(
+            orientation=facade.orientation,
+            height_label=facade.height_label,
+            winter_hours=facade.winter_hours,
+            summer_hours=facade.summer_hours,
+            annual_average=facade.annual_average,
+        )
+        for facade in facade_results
+    ]
+
+
+def _draw_facade_table(
+    pdf: BuurtCheckPDF,
+    display_rows: list[tuple[str, FacadeResult]],
+    *,
+    is_nl: bool,
+) -> None:
+    has_multi_height = any("(" in label for label, _facade in display_rows)
+    col_facade = 45 if has_multi_height else 35
+    col_winter = 30
+    col_summer = 30
+    row_h = 6
+    unit = "u" if is_nl else "h"
+
+    pdf.set_font("Satoshi", "B", 9)
+    pdf.set_text_color(*SLATE)
+    header_y = pdf.get_y()
+    pdf.set_xy(pdf.l_margin, header_y)
+    pdf.cell(col_facade, row_h, "Gevel" if is_nl else "Facade")
+    pdf.cell(col_winter, row_h, "Winter")
+    pdf.cell(col_summer, row_h, "Zomer" if is_nl else "Summer")
+    pdf.set_y(header_y + row_h)
+
+    pdf.set_draw_color(*BORDER)
+    pdf.line(
+        pdf.l_margin,
+        pdf.get_y(),
+        pdf.l_margin + col_facade + col_winter + col_summer,
+        pdf.get_y(),
+    )
+    pdf.ln(0.5)
+
+    for label, facade in display_rows:
+        row_y = pdf.get_y()
+        pdf.set_font("SatoshiMedium", "", 9)
+        pdf.set_text_color(*SECONDARY)
+        pdf.set_xy(pdf.l_margin, row_y)
+        pdf.cell(col_facade, row_h, label)
+
         pdf.set_font("Satoshi", "B", 9)
         pdf.set_text_color(*SLATE)
-        header_y = pdf.get_y()
-        pdf.set_xy(pdf.l_margin, header_y)
-        pdf.cell(col_facade, row_h, "Gevel" if is_nl else "Facade")
-        pdf.cell(col_winter, row_h, "Winter")
-        pdf.cell(col_summer, row_h, "Zomer" if is_nl else "Summer")
-        pdf.set_y(header_y + row_h)
+        winter_val = format_number(facade.winter_hours, 1, is_nl)
+        pdf.cell(col_winter, row_h, f"{winter_val}{unit}")
 
-        # Header underline
-        pdf.set_draw_color(*BORDER)
-        pdf.line(
-            pdf.l_margin, pdf.get_y(),
-            pdf.l_margin + col_facade + col_winter + col_summer,
-            pdf.get_y(),
+        summer_val = format_number(facade.summer_hours, 1, is_nl)
+        pdf.cell(col_summer, row_h, f"{summer_val}{unit}")
+        pdf.set_y(row_y + row_h)
+
+    pdf.ln(2)
+
+
+def _best_winter_facade(display_rows: list[tuple[str, FacadeResult]]) -> tuple[str, float]:
+    best_facade = ""
+    best_winter = -1.0
+    for label, facade in display_rows:
+        if facade.winter_hours > best_winter:
+            best_winter = facade.winter_hours
+            best_facade = label
+    return best_facade, best_winter
+
+
+def _draw_facade_interpretation(
+    pdf: BuurtCheckPDF,
+    *,
+    best_facade: str,
+    best_winter: float,
+    is_nl: bool,
+) -> None:
+    if not best_facade or best_winter <= 0:
+        return
+    pdf.set_font("Satoshi", "", 10)
+    pdf.set_text_color(*SLATE)
+    if is_nl:
+        interp = (
+            f"{best_facade} ontvangt het meeste winterzonlicht "
+            f"({format_number(best_winter, 1, is_nl)}u/dag)"
         )
-        pdf.ln(0.5)
-
-        # Data rows
-        unit = "u" if is_nl else "h"
-        best_facade = ""
-        best_winter = -1.0
-
-        for fr in sun.facade_results:
-            row_y = pdf.get_y()
-            ori_key = fr.orientation.lower().strip()
-            ori_label = ori_map.get(ori_key, fr.orientation.capitalize())
-            if _has_multi_height and getattr(fr, "height_label", ""):
-                ori_label = f"{ori_label} ({fr.height_label})"
-
-            # Facade name (Medium 9pt SECONDARY)
-            pdf.set_font("SatoshiMedium", "", 9)
-            pdf.set_text_color(*SECONDARY)
-            pdf.set_xy(pdf.l_margin, row_y)
-            pdf.cell(col_facade, row_h, ori_label)
-
-            # Winter hours (Bold 9pt SLATE)
-            pdf.set_font("Satoshi", "B", 9)
-            pdf.set_text_color(*SLATE)
-            w_val = format_number(fr.winter_hours, 1, is_nl)
-            pdf.cell(col_winter, row_h, f"{w_val}{unit}")
-
-            # Summer hours
-            s_val = format_number(fr.summer_hours, 1, is_nl)
-            pdf.cell(col_summer, row_h, f"{s_val}{unit}")
-
-            pdf.set_y(row_y + row_h)
-
-            # Track best winter facade
-            if fr.winter_hours > best_winter:
-                best_winter = fr.winter_hours
-                best_facade = ori_label
-
-        pdf.ln(2)
-
-        # Interpretation line (Regular 10pt SLATE)
-        if best_facade and best_winter > 0:
-            pdf.set_font("Satoshi", "", 10)
-            pdf.set_text_color(*SLATE)
-            if is_nl:
-                interp = (
-                    f"{best_facade}gevel ontvangt het meeste "
-                    f"winterzonlicht ({format_number(best_winter, 1, is_nl)}u/dag)"
-                )
-            else:
-                interp = (
-                    f"{best_facade} facade receives the most "
-                    f"winter sunlight ({format_number(best_winter, 1, is_nl)}h/day)"
-                )
-            pdf.multi_cell(
-                0, 5, interp, align="L",
-                new_x="LMARGIN", new_y="NEXT",
-            )
-
-        pdf.ln(3)
+    else:
+        interp = (
+            f"{best_facade} facade receives the most "
+            f"winter sunlight ({format_number(best_winter, 1, is_nl)}h/day)"
+        )
+    pdf.multi_cell(0, 5, interp, align="L", new_x="LMARGIN", new_y="NEXT")
 
 
 def _risk_level_label(level: str, is_nl: bool) -> str:

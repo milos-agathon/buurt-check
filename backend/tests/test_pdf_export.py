@@ -5263,7 +5263,7 @@ class TestExpandedSunlightMeasurements:
         assert "Zonnestraling: 985 kWh/m²/jaar" in text
 
     def test_full_dossier_renders_sunlight_facade_table_with_multi_height_rows(self):
-        """Expanded sunlight payloads still render after the 4-page realignment."""
+        """Facade heatmap path keeps the section heading and best-facade interpretation."""
         risks = self._make_sunlight_risks(
             facade_results=[
                 FacadeResult(
@@ -5308,9 +5308,8 @@ class TestExpandedSunlightMeasurements:
         text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
 
         assert "FACADE ANALYSIS" in text
-        assert "South (ground) 5.8h 10.9h" in text
-        assert "South (upper) 4.7h 9.6h" in text
-        assert "North (ground) 1.6h 5.2h" in text
+        assert "South (ground) facade receives the most winter sunlight (5.8h/day)" in text
+        assert result[:5] == b"%PDF-"
 
     def test_no_extended_sunlight_metrics_when_absent(self):
         """Neighborhood evidence omits extended summer metrics when absent."""
@@ -5361,6 +5360,81 @@ class TestShadowTriptych:
             },
         ]
 
+    def _make_seasonal_shadow_images(self) -> list[dict]:
+        b64 = _tiny_png()
+        return [
+            {"hour": 12, "label": "winter", "viewpoint": "winter", "image_b64": b64},
+            {"hour": 12, "label": "equinox", "viewpoint": "equinox", "image_b64": b64},
+            {"hour": 12, "label": "summer", "viewpoint": "summer", "image_b64": b64},
+        ]
+
+    def _make_seasonal_facade_shadow_images(self) -> list[dict]:
+        b64 = _tiny_png()
+        return [
+            {
+                "hour": 12,
+                "label": "winter_rear",
+                "viewpoint": "rear",
+                "season": "winter",
+                "image_b64": b64,
+                "sun_azimuth": 165,
+                "sun_altitude": 15,
+            },
+            {
+                "hour": 12,
+                "label": "summer_front",
+                "viewpoint": "front",
+                "season": "summer",
+                "image_b64": b64,
+                "sun_azimuth": 195,
+                "sun_altitude": 60,
+            },
+            {
+                "hour": 12,
+                "label": "equinox_rear",
+                "viewpoint": "rear",
+                "season": "equinox",
+                "image_b64": b64,
+                "sun_azimuth": 180,
+                "sun_altitude": 38,
+            },
+            {
+                "hour": 12,
+                "label": "winter_front",
+                "viewpoint": "front",
+                "season": "winter",
+                "image_b64": b64,
+                "sun_azimuth": 165,
+                "sun_altitude": 15,
+            },
+            {
+                "hour": 12,
+                "label": "equinox_front",
+                "viewpoint": "front",
+                "season": "equinox",
+                "image_b64": b64,
+                "sun_azimuth": 180,
+                "sun_altitude": 38,
+            },
+            {
+                "hour": 12,
+                "label": "summer_rear",
+                "viewpoint": "rear",
+                "season": "summer",
+                "image_b64": b64,
+                "sun_azimuth": 195,
+                "sun_altitude": 60,
+            },
+        ]
+
+    def _make_time_series_shadow_images(self) -> list[dict]:
+        b64 = _tiny_png()
+        return [
+            {"hour": 9, "label": "top_morning", "viewpoint": "top", "image_b64": b64},
+            {"hour": 12, "label": "top_noon", "viewpoint": "top", "image_b64": b64},
+            {"hour": 15, "label": "top_afternoon", "viewpoint": "top", "image_b64": b64},
+        ]
+
     def test_triptych_renders_three_captions_en(self):
         """English triptych shows viewpoint labels and a single shared legend."""
         pdf = BuurtCheckPDF(language="en")
@@ -5390,6 +5464,31 @@ class TestShadowTriptych:
         assert "Zon 182°/54°" in text
         assert text.count("Legenda:") == 1
         assert "3DBAG / TU Delft" in text
+
+    def test_triptych_renders_takeaway_en(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=False)
+        text = "\n".join(
+            p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+        )
+
+        assert (
+            "These three summer-noon views show the same moment from above, front, and rear"
+            in text
+        )
+        assert text.count("Legend:") == 1
+
+    def test_triptych_renders_takeaway_nl(self):
+        pdf = BuurtCheckPDF(language="nl")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=True)
+        text = "\n".join(
+            p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+        )
+
+        assert "Deze drie zomerbeelden tonen hetzelfde moment vanuit boven, voor en achter" in text
+        assert text.count("Legenda:") == 1
 
     def test_triptych_section_label_en(self):
         """English triptych has generic 'Shadow Analysis' section label."""
@@ -5485,12 +5584,7 @@ class TestShadowTriptych:
 
     def test_triptych_clarifies_seasonal_noon_snapshots(self):
         """Seasonal shadow snapshots must state the correct season labels and noon timing."""
-        b64 = _tiny_png()
-        images = [
-            {"hour": 12, "label": "winter", "viewpoint": "winter", "image_b64": b64},
-            {"hour": 12, "label": "equinox", "viewpoint": "equinox", "image_b64": b64},
-            {"hour": 12, "label": "summer", "viewpoint": "summer", "image_b64": b64},
-        ]
+        images = self._make_seasonal_shadow_images()
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         _draw_shadow_triptych(pdf, images, is_nl=False)
@@ -5504,6 +5598,98 @@ class TestShadowTriptych:
         assert "December 21" in text
         assert "March 20" in text
         assert "June 21" in text
+        assert text.count("Legend:") == 1
+
+    def test_seasonal_triptych_renders_takeaway(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_seasonal_shadow_images(), is_nl=False)
+        text = "\n".join(
+            p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+        )
+
+        assert (
+            "A same-time seasonal comparison shows whether winter sun drops off materially"
+            in text
+        )
+        assert text.count("Legend:") == 1
+
+    def test_seasonal_facades_six_panel_order_is_spring_summer_winter(self):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        _draw_shadow_triptych(pdf, self._make_seasonal_facade_shadow_images(), is_nl=False)
+        text = "\n".join(
+            p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+        )
+
+        spring_pos = text.find("Spring equinox")
+        summer_pos = text.find("Summer solstice")
+        winter_pos = text.find("Winter solstice")
+        assert spring_pos >= 0
+        assert summer_pos > spring_pos
+        assert winter_pos > summer_pos
+        assert text.count("Front facade") >= 1
+        assert text.count("Rear facade") >= 1
+        assert text.count("Legend:") == 1
+
+    def test_seasonal_facades_six_panel_uses_front_then_rear_columns(self):
+        ordered_labels: list[str] = []
+
+        def capture_panel(
+            _pdf: BuurtCheckPDF,
+            img_data: dict,
+            _x: float,
+            _y: float,
+            _w: float,
+            _h: float,
+            *,
+            is_nl: bool,
+            **_: object,
+        ) -> bool:
+            _ = is_nl
+            ordered_labels.append(img_data["label"])
+            return True
+
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        with patch("app.services.pdf_export._draw_shadow_panel", side_effect=capture_panel):
+            _draw_shadow_triptych(pdf, self._make_seasonal_facade_shadow_images(), is_nl=False)
+
+        assert ordered_labels == [
+            "equinox_front",
+            "equinox_rear",
+            "summer_front",
+            "summer_rear",
+            "winter_front",
+            "winter_rear",
+        ]
+
+    def test_seasonal_facades_six_panel_occupies_full_page_body(self):
+        heights: list[float] = []
+
+        def capture_panel(
+            _pdf: BuurtCheckPDF,
+            _img_data: dict,
+            _x: float,
+            _y: float,
+            _w: float,
+            _h: float,
+            *,
+            is_nl: bool,
+            **_: object,
+        ) -> bool:
+            _ = is_nl
+            heights.append(_h)
+            return True
+
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        with patch("app.services.pdf_export._draw_shadow_panel", side_effect=capture_panel):
+            _draw_shadow_triptych(pdf, self._make_seasonal_facade_shadow_images(), is_nl=False)
+
+        assert len(heights) == 6
+        assert min(heights) >= 50.0
+        assert max(heights) - min(heights) < 0.1
 
     def test_triptych_keeps_heading_with_panels_when_space_runs_out(self):
         """Shadow section heading should move to the next page with its panels."""
@@ -5558,7 +5744,7 @@ class TestShadowTriptych:
         return images
 
     def test_six_panel_renders_two_rows(self):
-        """6-panel layout renders morning + afternoon row headers."""
+        """Summer multi-view 6-panel layout renders morning + afternoon row headers."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_six_panel_shadow_images(), is_nl=False)
@@ -5571,6 +5757,58 @@ class TestShadowTriptych:
         assert "Top view" in text
         assert "Front facade" in text
         assert "Rear facade" in text
+        assert text.count("Legend:") == 1
+
+    def test_time_series_triptych_respects_minimum_panel_height(self):
+        heights: list[float] = []
+
+        def capture_panel(
+            _pdf: BuurtCheckPDF,
+            _img_data: dict,
+            _x: float,
+            _y: float,
+            _w: float,
+            _h: float,
+            *,
+            is_nl: bool,
+            **_: object,
+        ) -> bool:
+            _ = is_nl
+            heights.append(_h)
+            return True
+
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        with patch("app.services.pdf_export._draw_shadow_panel", side_effect=capture_panel):
+            _draw_shadow_triptych(pdf, self._make_time_series_shadow_images(), is_nl=False)
+
+        assert heights == pytest.approx([42.0, 42.0, 42.0])
+
+    def test_six_panel_respects_minimum_panel_height(self):
+        heights: list[float] = []
+
+        def capture_panel(
+            _pdf: BuurtCheckPDF,
+            _img_data: dict,
+            _x: float,
+            _y: float,
+            _w: float,
+            _h: float,
+            *,
+            is_nl: bool,
+            **_: object,
+        ) -> bool:
+            _ = is_nl
+            heights.append(_h)
+            return True
+
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        with patch("app.services.pdf_export._draw_shadow_panel", side_effect=capture_panel):
+            _draw_shadow_triptych(pdf, self._make_six_panel_shadow_images(), is_nl=False)
+
+        assert heights
+        assert min(heights) >= 36.0
 
     def test_six_panel_sorts_scrambled_payload_by_time_and_viewpoint(self):
         """6-panel layout should not depend on client/server payload ordering."""
@@ -5719,6 +5957,74 @@ class TestShadowTriptych:
         assert checks_page
         assert "Shadow Analysis" not in checks_page
         assert "Schaduwanalyse" not in checks_page
+
+    def test_full_dossier_section_order_house_before_buurt_and_viewing_before_shadow(self):
+        def assert_order(text: str, labels: list[str]) -> None:
+            normalized = "".join(ch.lower() for ch in text if ch.isalnum())
+            cursor = -1
+            for label in labels:
+                position = normalized.find(
+                    "".join(ch.lower() for ch in label if ch.isalnum()),
+                    cursor + 1,
+                )
+                assert position >= 0, f"Missing section label: {label}"
+                assert position > cursor, f"Section out of order: {label}"
+                cursor = position
+
+        en_pdf = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            shadow_images=self._make_shadow_images(),
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+        nl_pdf = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Woonfunctie",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="nl",
+            shadow_images=self._make_shadow_images(),
+            neighborhood_stats=_make_neighborhood_stats(),
+            tier_b=_make_tier_b(),
+            risk_comparisons=_make_risk_comparisons(),
+            property_warnings_data=_make_property_warnings(),
+        )
+
+        en_text = "\n".join(
+            page.extract_text() or "" for page in PdfReader(io.BytesIO(en_pdf)).pages
+        )
+        nl_text = "\n".join(
+            page.extract_text() or "" for page in PdfReader(io.BytesIO(nl_pdf)).pages
+        )
+
+        assert_order(
+            en_text,
+            [
+                "Additional Property Checks",
+                "Viewing Questions",
+                "Shadow Analysis",
+                "Neighborhood Context",
+            ],
+        )
+        assert_order(
+            nl_text,
+            [
+                "Aanvullende vastgoedcontroles",
+                "Bezichtigingsvragen",
+                "Schaduwanalyse",
+                "Buurtcontext",
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------

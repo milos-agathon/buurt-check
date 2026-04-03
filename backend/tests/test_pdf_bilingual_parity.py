@@ -56,11 +56,12 @@ def test_bilingual_section_order() -> None:
         [
             "Executive Summary",
             "Risk Details",
-            "Shadow Analysis",
-            "Neighborhood Context",
             "Additional Property Checks",
             "Viewing Questions",
+            "Shadow Analysis",
+            "Neighborhood Context",
             "Methodology",
+            "Your viewing notes",
         ],
     )
     _assert_order(
@@ -68,11 +69,12 @@ def test_bilingual_section_order() -> None:
         [
             "Samenvatting",
             "Risicodetails",
-            "Schaduwanalyse",
-            "Buurtcontext",
             "Aanvullende vastgoedcontroles",
             "Bezichtigingsvragen",
+            "Schaduwanalyse",
+            "Buurtcontext",
             "Methodologie",
+            "Uw notities",
         ],
     )
 
@@ -88,10 +90,14 @@ def test_bilingual_section_order() -> None:
     assert _contains(en_text, "2 March 2026")
     assert _contains(nl_text, "2 maart 2026")
 
-    # Rich dossier uses seasonal noon evidence in both languages.
+    # Rich dossier uses seasonal facade evidence in both languages.
     for label in ["Winter solstice", "Spring equinox", "Summer solstice", "12:00"]:
         assert _contains(en_text, label)
     for label in ["Winterzonnewende", "Lentepunt", "Zomerzonnewende", "12:00"]:
+        assert _contains(nl_text, label)
+    for label in ["Front facade", "Rear facade"]:
+        assert _contains(en_text, label)
+    for label in ["Voorgevel", "Achtergevel"]:
         assert _contains(nl_text, label)
 
     # Viewing questions stay language-specific in the rich dossier.

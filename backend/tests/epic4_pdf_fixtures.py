@@ -9,7 +9,7 @@ from datetime import date
 from typing import Any
 from unittest.mock import patch
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from app.models.livability import LivabilityResponse
 from app.models.neighborhood import NeighborhoodStats
@@ -43,19 +43,70 @@ class _FrozenDate(date):
         return cls(_FIXED_DATE.year, _FIXED_DATE.month, _FIXED_DATE.day)
 
 
-def _solid_png_b64(rgb: tuple[int, int, int]) -> str:
-    image = Image.new("RGB", (320, 180), rgb)
+def _shadow_snapshot_png_b64(
+    *,
+    sky_rgb: tuple[int, int, int],
+    ground_rgb: tuple[int, int, int],
+    shadow_rgb: tuple[int, int, int],
+    sun_center: tuple[int, int],
+    target_shadow: list[tuple[int, int]],
+    ambient_shadows: list[list[tuple[int, int]]],
+) -> str:
+    image = Image.new("RGB", (320, 180), sky_rgb)
+    draw = ImageDraw.Draw(image)
+
+    draw.rectangle((0, 104, 320, 180), fill=ground_rgb)
+    draw.rectangle((0, 100, 320, 104), fill=(210, 219, 228))
+
+    for x in range(-20, 340, 36):
+        draw.line((x, 124, x + 16, 180), fill=(198, 206, 214), width=2)
+
+    sun_x, sun_y = sun_center
+    draw.ellipse(
+        (sun_x - 13, sun_y - 13, sun_x + 13, sun_y + 13),
+        fill=(250, 212, 110),
+        outline=(238, 186, 58),
+        width=2,
+    )
+
+    left_mass = (28, 84, 96, 140)
+    right_mass = (228, 90, 290, 142)
+    target_mass = (128, 66, 194, 134)
+
+    for polygon in ambient_shadows:
+        draw.polygon(polygon, fill=shadow_rgb)
+
+    draw.rectangle(left_mass, fill=(154, 165, 178), outline=(111, 123, 138), width=2)
+    draw.rectangle(right_mass, fill=(168, 178, 190), outline=(122, 132, 145), width=2)
+    draw.polygon(target_shadow, fill=shadow_rgb)
+    draw.rectangle(target_mass, fill=(228, 233, 239), outline=(46, 196, 182), width=4)
+
+    for x in (145, 168):
+        draw.rectangle((x, 82, x + 12, 98), fill=(187, 210, 230), outline=(111, 123, 138))
+    draw.rectangle((153, 108, 171, 134), fill=(137, 147, 162), outline=(96, 107, 121))
+    draw.line((128, 100, 194, 100), fill=(170, 181, 194), width=2)
+
     buf = io.BytesIO()
     image.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def _seasonal_shadow_images() -> list[dict[str, Any]]:
+def _seasonal_top_shadow_images() -> list[dict[str, Any]]:
     return [
         {
             "hour": 12,
             "label": "winter",
-            "image_b64": _solid_png_b64((216, 232, 244)),
+            "image_b64": _shadow_snapshot_png_b64(
+                sky_rgb=(216, 232, 244),
+                ground_rgb=(231, 235, 240),
+                shadow_rgb=(137, 152, 171),
+                sun_center=(256, 34),
+                target_shadow=[(194, 132), (240, 132), (300, 174), (224, 174)],
+                ambient_shadows=[
+                    [(96, 138), (140, 138), (210, 174), (150, 174)],
+                    [(290, 140), (320, 144), (320, 180), (252, 180)],
+                ],
+            ),
             "viewpoint": "winter",
             "sun_azimuth": 165.0,
             "sun_altitude": 15.0,
@@ -63,7 +114,17 @@ def _seasonal_shadow_images() -> list[dict[str, Any]]:
         {
             "hour": 12,
             "label": "equinox",
-            "image_b64": _solid_png_b64((244, 233, 178)),
+            "image_b64": _shadow_snapshot_png_b64(
+                sky_rgb=(244, 233, 178),
+                ground_rgb=(232, 226, 201),
+                shadow_rgb=(145, 145, 132),
+                sun_center=(210, 26),
+                target_shadow=[(194, 132), (228, 132), (256, 164), (208, 164)],
+                ambient_shadows=[
+                    [(96, 138), (126, 138), (168, 166), (126, 166)],
+                    [(228, 142), (290, 142), (320, 162), (264, 162)],
+                ],
+            ),
             "viewpoint": "equinox",
             "sun_azimuth": 180.0,
             "sun_altitude": 38.0,
@@ -71,10 +132,139 @@ def _seasonal_shadow_images() -> list[dict[str, Any]]:
         {
             "hour": 12,
             "label": "summer",
-            "image_b64": _solid_png_b64((239, 208, 170)),
+            "image_b64": _shadow_snapshot_png_b64(
+                sky_rgb=(239, 208, 170),
+                ground_rgb=(228, 215, 188),
+                shadow_rgb=(151, 136, 118),
+                sun_center=(160, 22),
+                target_shadow=[(194, 132), (214, 132), (232, 150), (202, 150)],
+                ambient_shadows=[
+                    [(96, 138), (116, 138), (140, 154), (112, 154)],
+                    [(228, 142), (280, 142), (302, 154), (258, 154)],
+                ],
+            ),
             "viewpoint": "summer",
             "sun_azimuth": 195.0,
             "sun_altitude": 60.0,
+        },
+    ]
+
+
+def _seasonal_facade_shadow_images() -> list[dict[str, Any]]:
+    return [
+        {
+            "hour": 12,
+            "label": "equinox_front",
+            "image_b64": _shadow_snapshot_png_b64(
+                sky_rgb=(245, 236, 191),
+                ground_rgb=(234, 228, 206),
+                shadow_rgb=(145, 145, 132),
+                sun_center=(212, 28),
+                target_shadow=[(194, 132), (228, 132), (260, 166), (208, 166)],
+                ambient_shadows=[
+                    [(96, 138), (128, 138), (172, 166), (126, 166)],
+                    [(228, 142), (290, 142), (320, 160), (264, 160)],
+                ],
+            ),
+            "viewpoint": "front",
+            "season": "equinox",
+            "sun_azimuth": 180.0,
+            "sun_altitude": 38.0,
+        },
+        {
+            "hour": 12,
+            "label": "equinox_rear",
+            "image_b64": _shadow_snapshot_png_b64(
+                sky_rgb=(245, 236, 191),
+                ground_rgb=(232, 227, 203),
+                shadow_rgb=(141, 141, 129),
+                sun_center=(108, 28),
+                target_shadow=[(128, 132), (164, 132), (196, 164), (146, 164)],
+                ambient_shadows=[
+                    [(28, 142), (86, 142), (118, 162), (66, 162)],
+                    [(194, 138), (226, 138), (266, 166), (220, 166)],
+                ],
+            ),
+            "viewpoint": "rear",
+            "season": "equinox",
+            "sun_azimuth": 180.0,
+            "sun_altitude": 38.0,
+        },
+        {
+            "hour": 12,
+            "label": "summer_front",
+            "image_b64": _shadow_snapshot_png_b64(
+                sky_rgb=(239, 208, 170),
+                ground_rgb=(228, 215, 188),
+                shadow_rgb=(151, 136, 118),
+                sun_center=(164, 22),
+                target_shadow=[(194, 132), (214, 132), (232, 150), (202, 150)],
+                ambient_shadows=[
+                    [(96, 138), (116, 138), (142, 154), (112, 154)],
+                    [(228, 142), (280, 142), (304, 154), (258, 154)],
+                ],
+            ),
+            "viewpoint": "front",
+            "season": "summer",
+            "sun_azimuth": 195.0,
+            "sun_altitude": 60.0,
+        },
+        {
+            "hour": 12,
+            "label": "summer_rear",
+            "image_b64": _shadow_snapshot_png_b64(
+                sky_rgb=(239, 208, 170),
+                ground_rgb=(227, 214, 186),
+                shadow_rgb=(147, 133, 116),
+                sun_center=(126, 22),
+                target_shadow=[(150, 132), (170, 132), (188, 150), (158, 150)],
+                ambient_shadows=[
+                    [(30, 142), (82, 142), (106, 154), (60, 154)],
+                    [(194, 138), (214, 138), (240, 154), (210, 154)],
+                ],
+            ),
+            "viewpoint": "rear",
+            "season": "summer",
+            "sun_azimuth": 195.0,
+            "sun_altitude": 60.0,
+        },
+        {
+            "hour": 12,
+            "label": "winter_front",
+            "image_b64": _shadow_snapshot_png_b64(
+                sky_rgb=(216, 232, 244),
+                ground_rgb=(231, 235, 240),
+                shadow_rgb=(137, 152, 171),
+                sun_center=(256, 34),
+                target_shadow=[(194, 132), (242, 132), (306, 176), (224, 176)],
+                ambient_shadows=[
+                    [(96, 138), (142, 138), (214, 176), (152, 176)],
+                    [(290, 140), (320, 144), (320, 180), (250, 180)],
+                ],
+            ),
+            "viewpoint": "front",
+            "season": "winter",
+            "sun_azimuth": 165.0,
+            "sun_altitude": 15.0,
+        },
+        {
+            "hour": 12,
+            "label": "winter_rear",
+            "image_b64": _shadow_snapshot_png_b64(
+                sky_rgb=(216, 232, 244),
+                ground_rgb=(230, 234, 240),
+                shadow_rgb=(132, 147, 168),
+                sun_center=(74, 34),
+                target_shadow=[(108, 132), (156, 132), (220, 176), (138, 176)],
+                ambient_shadows=[
+                    [(16, 142), (70, 142), (144, 178), (72, 178)],
+                    [(194, 138), (240, 138), (312, 176), (250, 176)],
+                ],
+            ),
+            "viewpoint": "rear",
+            "season": "winter",
+            "sun_azimuth": 165.0,
+            "sun_altitude": 15.0,
         },
     ]
 
@@ -468,7 +658,8 @@ def dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
 def _full_dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
     kwargs = dossier_kwargs(kind, language)
     risks = RiskCardsResponse.model_validate(kwargs["risks"])
-    seasonal_images = _seasonal_shadow_images() if kind == "full" else None
+    seasonal_facade_images = _seasonal_facade_shadow_images() if kind == "full" else None
+    seasonal_top_images = _seasonal_top_shadow_images() if kind == "full" else None
     viewing_questions = None
     if kwargs["viewing_questions"] is not None:
         viewing_questions = ViewingQuestionsResponse.model_validate(
@@ -485,7 +676,7 @@ def _full_dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
         "risks": risks,
         "sunlight_score": kwargs["sunlight_score"],
         "viewing_questions": viewing_questions,
-        "shadow_image_b64": seasonal_images[0]["image_b64"] if seasonal_images else None,
+        "shadow_image_b64": seasonal_top_images[0]["image_b64"] if seasonal_top_images else None,
         "language": language,
         "floor_area": kwargs["floor_area"],
         "neighborhood_stats": (
@@ -515,9 +706,9 @@ def _full_dossier_kwargs(kind: str, language: str) -> dict[str, Any]:
             if kwargs["livability"] is not None
             else None
         ),
-        "shadow_images": seasonal_images,
-        "shadow_equinox_b64": seasonal_images[1]["image_b64"] if seasonal_images else None,
-        "shadow_summer_b64": seasonal_images[2]["image_b64"] if seasonal_images else None,
+        "shadow_images": seasonal_facade_images,
+        "shadow_equinox_b64": seasonal_top_images[1]["image_b64"] if seasonal_top_images else None,
+        "shadow_summer_b64": seasonal_top_images[2]["image_b64"] if seasonal_top_images else None,
         "postcode": "1012LG",
         "footprint_geojson": None,
         "map_lat": 52.372,

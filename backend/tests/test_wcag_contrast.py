@@ -20,11 +20,13 @@ from app.services import chart_renderer as cr
 from app.services.chart_renderer import (
     CompRow,
     CrimeData,
+    FacadeHeatmapRow,
     LivabilityData,
     RiskCell,
     ShadowImage,
     SunlightMeta,
     render_age_distribution,
+    render_facade_heatmap,
     render_livability_score,
     render_risk_comparison,
     render_risk_summary_grid,
@@ -79,6 +81,49 @@ def test_wcag_contrast_all_pairs(language: str) -> None:
         )
 
     assert not failures, "WCAG contrast violations:\n" + "\n".join(failures)
+
+
+def test_facade_heatmap_value_text_meets_wcag_contrast() -> None:
+    rows = [
+        FacadeHeatmapRow(
+            orientation="south",
+            height_label="ground",
+            winter_hours=5.8,
+            summer_hours=10.9,
+            annual_average=8.1,
+        ),
+        FacadeHeatmapRow(
+            orientation="north",
+            height_label="ground",
+            winter_hours=1.6,
+            summer_hours=5.2,
+            annual_average=3.8,
+        ),
+    ]
+    max_hours = max(max(row.winter_hours, row.summer_hours) for row in rows)
+
+    for row in rows:
+        for value in (row.winter_hours, row.summer_hours):
+            fill_hex = cr._facade_heatmap_fill_color(value, max_hours)
+            text_hex = cr._facade_heatmap_text_color(fill_hex)
+            assert _contrast_ratio(text_hex, fill_hex) >= 4.5
+
+
+def test_facade_heatmap_renderer_keeps_label_text_on_safe_light_background() -> None:
+    render_facade_heatmap(
+        [
+            FacadeHeatmapRow(
+                orientation="south",
+                height_label="ground",
+                winter_hours=5.8,
+                summer_hours=10.9,
+                annual_average=8.1,
+            ),
+        ],
+        output_format="pdf",
+    )
+    assert _contrast_ratio(cr.C_PRIMARY, cr.C_BG) >= 4.5
+    assert _contrast_ratio(cr.C_REFERENCE, cr.C_BG) >= 4.5
 
 
 def _threshold_for_pair(pair: ContrastPair) -> float | None:

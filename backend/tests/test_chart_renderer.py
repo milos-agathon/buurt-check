@@ -19,12 +19,14 @@ from app.services.chart_renderer import (
     CHART_WIDTH_MM,
     CompRow,
     CrimeData,
+    FacadeHeatmapRow,
     LivabilityData,
     RiskCell,
     SchererTheme,
     ShadowImage,
     SunlightMeta,
     render_age_distribution,
+    render_facade_heatmap,
     render_livability_score,
     render_risk_comparison,
     render_risk_summary_grid,
@@ -43,6 +45,24 @@ def _pdf_size_mm(pdf_bytes: bytes) -> tuple[float, float]:
     width_mm = float(page.mediabox.width) * 25.4 / 72.0
     height_mm = float(page.mediabox.height) * 25.4 / 72.0
     return width_mm, height_mm
+
+
+def _contrast_ratio_hex(fg_hex: str, bg_hex: str) -> float:
+    def _luminance(hex_color: str) -> float:
+        r, g, b = mcolors.to_rgb(hex_color)
+
+        def _channel(value: float) -> float:
+            if value <= 0.03928:
+                return value / 12.92
+            return ((value + 0.055) / 1.055) ** 2.4
+
+        return 0.2126 * _channel(r) + 0.7152 * _channel(g) + 0.0722 * _channel(b)
+
+    fg = _luminance(fg_hex)
+    bg = _luminance(bg_hex)
+    lighter = max(fg, bg)
+    darker = min(fg, bg)
+    return (lighter + 0.05) / (darker + 0.05)
 
 
 def _tiny_png_b64(rgb: tuple[int, int, int]) -> str:
@@ -369,6 +389,170 @@ def test_risk_grid_with_none_score():
     text = _pdf_text(chart)
     assert "N/A" not in text
     assert "SUNLIGHT" in text
+
+
+def test_facade_heatmap_happy_path():
+    chart = render_facade_heatmap(
+        [
+            FacadeHeatmapRow(
+                orientation="south",
+                height_label="ground",
+                winter_hours=5.8,
+                summer_hours=10.9,
+                annual_average=8.1,
+            ),
+            FacadeHeatmapRow(
+                orientation="north",
+                height_label="ground",
+                winter_hours=1.6,
+                summer_hours=5.2,
+                annual_average=3.8,
+            ),
+        ],
+        output_format="pdf",
+    )
+
+    assert chart.startswith(b"%PDF-")
+    width_mm, height_mm = _pdf_size_mm(chart)
+    assert width_mm >= CHART_WIDTH_MM - 12
+    assert height_mm >= cr.facade_heatmap_height_mm(2) - 6
+    text = _pdf_text(chart)
+    assert "Facade" in text
+    assert "Winter" in text
+    assert "Summer" in text
+    assert "South" in text
+    assert "North" in text
+    assert "5.8h" in text
+    assert "10.9h" in text
+
+
+def test_facade_heatmap_bilingual():
+    chart = render_facade_heatmap(
+        [
+            FacadeHeatmapRow(
+                orientation="south",
+                height_label="ground",
+                winter_hours=5.8,
+                summer_hours=10.9,
+                annual_average=8.1,
+            ),
+        ],
+        is_nl=True,
+        output_format="pdf",
+    )
+
+    text = _pdf_text(chart)
+    assert "Gevel" in text
+    assert "Winter" in text
+    assert "Zomer" in text
+    assert "Zuid" in text
+    assert "Directe zonuren" in text
+
+
+def test_facade_heatmap_legend_uses_true_payload_max():
+    chart = render_facade_heatmap(
+        [
+            FacadeHeatmapRow(
+                orientation="north",
+                height_label="ground",
+                winter_hours=0.2,
+                summer_hours=0.7,
+                annual_average=0.4,
+            ),
+            FacadeHeatmapRow(
+                orientation="east",
+                height_label="ground",
+                winter_hours=0.1,
+                summer_hours=0.5,
+                annual_average=0.3,
+            ),
+        ],
+        output_format="pdf",
+    )
+
+    text = _pdf_text(chart)
+    assert "0h" in text
+    assert "0.7h" in text
+    assert "0h 1h" not in text
+
+
+def test_facade_heatmap_appends_height_label_when_orientation_repeats():
+    chart = render_facade_heatmap(
+        [
+            FacadeHeatmapRow(
+                orientation="south",
+                height_label="ground",
+                winter_hours=5.8,
+                summer_hours=10.9,
+                annual_average=8.1,
+            ),
+            FacadeHeatmapRow(
+                orientation="south",
+                height_label="upper",
+                winter_hours=4.7,
+                summer_hours=9.6,
+                annual_average=7.0,
+            ),
+        ],
+        output_format="pdf",
+    )
+
+    text = _pdf_text(chart)
+    assert "South (ground)" in text
+    assert "South (upper)" in text
+
+
+def test_facade_heatmap_preserves_payload_order(monkeypatch):
+    captured_labels: list[str] = []
+    original_text = Axes.text
+    expected_labels = {"West", "South", "North"}
+
+    def _patched_text(self, x, y, s, *args, **kwargs):  # type: ignore[no-untyped-def]
+        text = str(s)
+        if text in expected_labels:
+            captured_labels.append(text)
+        return original_text(self, x, y, s, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "text", _patched_text)
+
+    render_facade_heatmap(
+        [
+            FacadeHeatmapRow(
+                orientation="west",
+                height_label="",
+                winter_hours=2.0,
+                summer_hours=6.0,
+                annual_average=4.0,
+            ),
+            FacadeHeatmapRow(
+                orientation="south",
+                height_label="",
+                winter_hours=5.8,
+                summer_hours=10.9,
+                annual_average=8.1,
+            ),
+            FacadeHeatmapRow(
+                orientation="north",
+                height_label="",
+                winter_hours=1.6,
+                summer_hours=5.2,
+                annual_average=3.8,
+            ),
+        ],
+        output_format="pdf",
+    )
+
+    assert captured_labels == ["West", "South", "North"]
+
+
+def test_facade_heatmap_uses_contrast_safe_value_text():
+    light_fill = cr._facade_heatmap_fill_color(1.0, 10.0)
+    dark_fill = cr._facade_heatmap_fill_color(10.0, 10.0)
+
+    assert cr._facade_heatmap_text_color(light_fill) == cr.C_PRIMARY
+    assert cr._facade_heatmap_text_color(dark_fill) == cr.C_WHITE
+    assert _contrast_ratio_hex(cr._facade_heatmap_text_color(light_fill), light_fill) >= 4.5
+    assert _contrast_ratio_hex(cr._facade_heatmap_text_color(dark_fill), dark_fill) >= 4.5
 
 
 def test_shadow_triptych_three_images():

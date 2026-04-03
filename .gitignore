@@ -50,6 +50,10 @@ docs/
 # Agent memory (subagent-generated)
 backend/.claude/
 
+# Local test artifacts
+backend/tests/baselines/
+backend/tmp/
+
 # Android / Bubblewrap
 android/.generated/
 android/.gradle/

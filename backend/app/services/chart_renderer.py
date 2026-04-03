@@ -21,6 +21,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import colors as mcolors
 from matplotlib import font_manager, rcParams
 from matplotlib.patches import Rectangle
 from PIL import Image
@@ -58,6 +59,12 @@ SHADOW_SINGLE_HEIGHT_MM = 90.0
 SHADOW_PANEL_GAP_MM = 6.0
 AGE_CHART_HEIGHT_MM = 25.0
 LIVABILITY_HEIGHT_MM = 32.0
+FACADE_HEATMAP_HEADER_HEIGHT_MM = 8.0
+FACADE_HEATMAP_ROW_HEIGHT_MM = 8.5
+FACADE_HEATMAP_LEGEND_GAP_MM = 4.0
+FACADE_HEATMAP_LEGEND_HEIGHT_MM = 8.0
+FACADE_HEATMAP_TOP_PAD_MM = 3.0
+FACADE_HEATMAP_BOTTOM_PAD_MM = 3.0
 COMPARISON_AXIS_TICKS: tuple[int, ...] = (0, 20, 40, 70, 100)
 COMPARISON_GUIDE_TICKS: tuple[int, ...] = (20, 40, 70)
 COMPARISON_SEGMENT_WIDTH = 4.0
@@ -157,6 +164,50 @@ DEFAULT_SUN_POSITIONS: MappingProxyType[str, tuple[float, float]] = MappingProxy
         "summer": (180.0, 61.0),
     }
 )
+FACADE_ORIENTATION_LABELS: MappingProxyType[str, MappingProxyType[str, str]] = MappingProxyType(
+    {
+        "en": MappingProxyType(
+            {
+                "n": "North",
+                "north": "North",
+                "e": "East",
+                "east": "East",
+                "s": "South",
+                "south": "South",
+                "w": "West",
+                "west": "West",
+                "ne": "NE",
+                "northeast": "NE",
+                "nw": "NW",
+                "northwest": "NW",
+                "se": "SE",
+                "southeast": "SE",
+                "sw": "SW",
+                "southwest": "SW",
+            }
+        ),
+        "nl": MappingProxyType(
+            {
+                "n": "Noord",
+                "north": "Noord",
+                "e": "Oost",
+                "east": "Oost",
+                "s": "Zuid",
+                "south": "Zuid",
+                "w": "West",
+                "west": "West",
+                "ne": "NO",
+                "northeast": "NO",
+                "nw": "NW",
+                "northwest": "NW",
+                "se": "ZO",
+                "southeast": "ZO",
+                "sw": "ZW",
+                "southwest": "ZW",
+            }
+        ),
+    }
+)
 
 
 def _mm_to_inch(mm: float) -> float:
@@ -170,6 +221,74 @@ def risk_summary_grid_height_mm(cell_count: int, cols: int = 4) -> float:
     safe_cell_count = max(1, cell_count)
     row_count = math.ceil(safe_cell_count / cols)
     return row_count * GRID_CELL_HEIGHT_MM + (row_count - 1) * GRID_GAP_MM
+
+
+def facade_heatmap_height_mm(row_count: int) -> float:
+    """Return the intrinsic figure height for the facade heatmap."""
+    safe_rows = max(1, row_count)
+    return (
+        FACADE_HEATMAP_TOP_PAD_MM
+        + FACADE_HEATMAP_HEADER_HEIGHT_MM
+        + safe_rows * FACADE_HEATMAP_ROW_HEIGHT_MM
+        + FACADE_HEATMAP_LEGEND_GAP_MM
+        + FACADE_HEATMAP_LEGEND_HEIGHT_MM
+        + FACADE_HEATMAP_BOTTOM_PAD_MM
+    )
+
+
+def _relative_luminance(hex_color: str) -> float:
+    r, g, b = mcolors.to_rgb(hex_color)
+
+    def _channel(value: float) -> float:
+        if value <= 0.03928:
+            return value / 12.92
+        return ((value + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * _channel(r) + 0.7152 * _channel(g) + 0.0722 * _channel(b)
+
+
+def _contrast_ratio_hex(fg_hex: str, bg_hex: str) -> float:
+    fg = _relative_luminance(fg_hex)
+    bg = _relative_luminance(bg_hex)
+    lighter = max(fg, bg)
+    darker = min(fg, bg)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def _blend_hex(start_hex: str, end_hex: str, fraction: float) -> str:
+    start_rgb = np.array(mcolors.to_rgb(start_hex))
+    end_rgb = np.array(mcolors.to_rgb(end_hex))
+    ratio = max(0.0, min(1.0, fraction))
+    return mcolors.to_hex(start_rgb + (end_rgb - start_rgb) * ratio).upper()
+
+
+def _facade_heatmap_fill_color(value: float, max_hours: float) -> str:
+    if max_hours <= 0:
+        return C_MUTE_2
+    ratio = max(0.0, min(float(value) / max_hours, 1.0))
+    return _blend_hex(C_MUTE_2, C_ACCENT_DARK, ratio)
+
+
+def _facade_heatmap_text_color(fill_hex: str) -> str:
+    primary_ratio = _contrast_ratio_hex(C_PRIMARY, fill_hex)
+    white_ratio = _contrast_ratio_hex(C_WHITE, fill_hex)
+    if primary_ratio >= 4.5 and primary_ratio >= white_ratio:
+        return C_PRIMARY
+    if white_ratio >= 4.5:
+        return C_WHITE
+    return C_PRIMARY if primary_ratio >= white_ratio else C_WHITE
+
+
+def _facade_label(row: "FacadeHeatmapRow", *, is_nl: bool, duplicate_orientations: set[str]) -> str:
+    orientation_key = row.orientation.strip().lower()
+    language_key = "nl" if is_nl else "en"
+    orientation = FACADE_ORIENTATION_LABELS[language_key].get(
+        orientation_key,
+        row.orientation.capitalize(),
+    )
+    if orientation_key in duplicate_orientations and row.height_label:
+        return f"{orientation} ({row.height_label})"
+    return orientation
 
 
 def _save_figure(
@@ -494,6 +613,17 @@ class RiskCell:
 
 
 @dataclass(frozen=True, slots=True)
+class FacadeHeatmapRow:
+    """Facade sunlight payload for the winter/summer heatmap."""
+
+    orientation: str
+    winter_hours: float
+    summer_hours: float
+    annual_average: float
+    height_label: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class ShadowImage:
     """Input image payload for shadow panel rendering."""
 
@@ -767,6 +897,181 @@ def render_risk_summary_grid(
         )
 
     fig.subplots_adjust(left=0.03, right=0.98, top=0.95, bottom=0.1)
+    return _save_figure(fig, output_format=output_format)
+
+
+def render_facade_heatmap(
+    rows: list[FacadeHeatmapRow],
+    *,
+    is_nl: bool = False,
+    output_format: OutputFormat = "pdf",
+) -> bytes:
+    """Render a winter/summer facade heatmap as vector PDF or PNG bytes."""
+    if not rows:
+        raise ValueError("rows must not be empty")
+
+    SchererTheme().apply()
+
+    duplicate_orientations = {
+        key
+        for key in {row.orientation.strip().lower() for row in rows}
+        if sum(1 for row in rows if row.orientation.strip().lower() == key) > 1
+    }
+    display_rows = [
+        (_facade_label(row, is_nl=is_nl, duplicate_orientations=duplicate_orientations), row)
+        for row in rows
+    ]
+
+    longest_label_chars = max((len(label) for label, _row in display_rows), default=8)
+    label_w = max(30.0, min(58.0, 2.35 * longest_label_chars))
+    left_pad = 2.5
+    right_pad = 2.5
+    col_gap = 2.5
+    cell_w = (CHART_WIDTH_MM - left_pad - right_pad - label_w - col_gap) / 2
+    grid_x = left_pad + label_w
+    grid_w = cell_w * 2 + col_gap
+    grid_h = len(display_rows) * FACADE_HEATMAP_ROW_HEIGHT_MM
+    legend_y = (
+        FACADE_HEATMAP_TOP_PAD_MM
+        + FACADE_HEATMAP_HEADER_HEIGHT_MM
+        + grid_h
+        + FACADE_HEATMAP_LEGEND_GAP_MM
+    )
+    legend_h = 3.8
+    raw_max_hours = max(
+        max(float(row.winter_hours), float(row.summer_hours))
+        for _label, row in display_rows
+    )
+    scale_max_hours = raw_max_hours if raw_max_hours > 0 else 1.0
+    max_hours_label = f"{raw_max_hours:.1f}".rstrip("0").rstrip(".")
+
+    fig_h_mm = facade_heatmap_height_mm(len(display_rows))
+    fig, ax = plt.subplots(
+        figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(fig_h_mm)),
+        dpi=CHART_DPI,
+    )
+    fig.patch.set_facecolor(C_BG)
+    ax.set_facecolor(C_BG)
+    ax.set_xlim(0.0, CHART_WIDTH_MM)
+    ax.set_ylim(fig_h_mm, 0.0)
+    ax.axis("off")
+
+    header_y = FACADE_HEATMAP_TOP_PAD_MM + FACADE_HEATMAP_HEADER_HEIGHT_MM / 2
+    ax.text(
+        left_pad,
+        header_y,
+        "Facade" if not is_nl else "Gevel",
+        fontsize=TYPE_CAPTION_PT,
+        color=C_REFERENCE,
+        fontweight=FONT_WEIGHT_HEADING,
+        va="center",
+        ha="left",
+    )
+    for col_idx, column_label in enumerate(
+        ("Winter", "Summer" if not is_nl else "Zomer"),
+    ):
+        col_x = grid_x + col_idx * (cell_w + col_gap) + cell_w / 2
+        ax.text(
+            col_x,
+            header_y,
+            column_label,
+            fontsize=TYPE_CAPTION_PT,
+            color=C_REFERENCE,
+            fontweight=FONT_WEIGHT_HEADING,
+            va="center",
+            ha="center",
+        )
+
+    for row_idx, (label, row) in enumerate(display_rows):
+        row_y = FACADE_HEATMAP_TOP_PAD_MM + FACADE_HEATMAP_HEADER_HEIGHT_MM + (
+            row_idx * FACADE_HEATMAP_ROW_HEIGHT_MM
+        )
+        center_y = row_y + FACADE_HEATMAP_ROW_HEIGHT_MM / 2
+        ax.text(
+            left_pad,
+            center_y,
+            label,
+            fontsize=TYPE_BODY_PT,
+            color=C_PRIMARY,
+            va="center",
+            ha="left",
+        )
+        for col_idx, value in enumerate((row.winter_hours, row.summer_hours)):
+            cell_x = grid_x + col_idx * (cell_w + col_gap)
+            fill_hex = _facade_heatmap_fill_color(float(value), scale_max_hours)
+            ax.add_patch(
+                Rectangle(
+                    (cell_x, row_y),
+                    cell_w,
+                    FACADE_HEATMAP_ROW_HEIGHT_MM,
+                    facecolor=fill_hex,
+                    edgecolor=C_AXIS,
+                    linewidth=0.8,
+                )
+            )
+            ax.text(
+                cell_x + cell_w / 2,
+                center_y,
+                f"{float(value):.1f}h",
+                fontsize=TYPE_BODY_PT,
+                color=_facade_heatmap_text_color(fill_hex),
+                fontweight=FONT_WEIGHT_HEADING,
+                va="center",
+                ha="center",
+            )
+
+    legend_segments = 48
+    segment_w = grid_w / legend_segments
+    for idx in range(legend_segments):
+        fraction = idx / max(1, legend_segments - 1)
+        ax.add_patch(
+            Rectangle(
+                (grid_x + idx * segment_w, legend_y),
+                segment_w,
+                legend_h,
+                facecolor=_blend_hex(C_MUTE_2, C_ACCENT_DARK, fraction),
+                edgecolor="none",
+            )
+        )
+    ax.add_patch(
+        Rectangle(
+            (grid_x, legend_y),
+            grid_w,
+            legend_h,
+            facecolor="none",
+            edgecolor=C_AXIS,
+            linewidth=0.8,
+        )
+    )
+    ax.text(
+        grid_x,
+        legend_y - 1.0,
+        "0h",
+        fontsize=TYPE_CAPTION_PT,
+        color=C_REFERENCE,
+        va="bottom",
+        ha="left",
+    )
+    ax.text(
+        grid_x + grid_w,
+        legend_y - 1.0,
+        f"{max_hours_label}h",
+        fontsize=TYPE_CAPTION_PT,
+        color=C_REFERENCE,
+        va="bottom",
+        ha="right",
+    )
+    ax.text(
+        grid_x + grid_w / 2,
+        legend_y + legend_h + 2.5,
+        "Direct-sun hours" if not is_nl else "Directe zonuren",
+        fontsize=TYPE_CAPTION_PT,
+        color=C_REFERENCE,
+        va="bottom",
+        ha="center",
+    )
+
+    fig.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.05)
     return _save_figure(fig, output_format=output_format)
 
 
@@ -1167,6 +1472,9 @@ def render_livability_score(
 
 
 __all__ = [
+    "FACADE_HEATMAP_HEADER_HEIGHT_MM",
+    "FACADE_HEATMAP_ROW_HEIGHT_MM",
+    "FACADE_HEATMAP_LEGEND_HEIGHT_MM",
     "CHART_DPI",
     "AgeProfile",
     "AGE_CHART_HEIGHT_MM",
@@ -1180,6 +1488,7 @@ __all__ = [
     "C_COMPARISON_NATIONAL",
     "C_COMPARISON_PEER",
     "C_COMPARISON_REFERENCE",
+    "FacadeHeatmapRow",
     "FONT_WEIGHT_BODY",
     "FONT_WEIGHT_CAPTION",
     "FONT_WEIGHT_DISPLAY",
@@ -1192,10 +1501,12 @@ __all__ = [
     "SchererTheme",
     "ShadowImage",
     "SunlightMeta",
+    "facade_heatmap_height_mm",
     "build_risk_comparison_layout",
     "comparison_data_x_offset_mm",
     "comparison_row_center_offset_mm",
     "render_age_distribution",
+    "render_facade_heatmap",
     "render_livability_score",
     "render_risk_comparison",
     "render_risk_summary_grid",

@@ -9,6 +9,16 @@ from PIL import Image
 from pypdf import PdfReader
 
 from app.models.neighborhood import AgeProfile
+from app.models.risk import (
+    AirQualityRiskCard,
+    ClimateStressRiskCard,
+    FacadeResult,
+    NoiseRiskCard,
+    RiskCardsResponse,
+    RiskLevel,
+    SeverityLevel,
+    SunlightRiskCard,
+)
 from app.services import pdf_export as pe
 from app.services.pdf_export import MUTED, TEAL, BuurtCheckPDF
 
@@ -18,6 +28,81 @@ def _tiny_png_bytes() -> bytes:
     buf = io.BytesIO()
     image.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _pdf_text(pdf: BuurtCheckPDF) -> str:
+    return "\n".join(
+        page.extract_text() or "" for page in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+    )
+
+
+def _make_sunlight_risks() -> RiskCardsResponse:
+    return RiskCardsResponse(
+        address_id="0363010012345678",
+        noise=NoiseRiskCard(
+            level=RiskLevel.medium,
+            lden_db=58.0,
+            source="RIVM",
+            sampled_at="2026-01-01",
+            score=65,
+            severity="moderate",
+            summary="Moderate traffic noise",
+            summary_nl="Matig verkeerslawaai",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            no2_ug_m3=18.0,
+            source="RIVM GCN",
+            sampled_at="2026-01-01",
+            score=72,
+            severity="good",
+            summary="Good air quality",
+            summary_nl="Goede luchtkwaliteit",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.medium,
+            source="Klimaateffectatlas",
+            sampled_at="2026-01-01",
+            score=45,
+            severity="moderate",
+            summary="Some flood risk",
+            summary_nl="Enig overstromingsrisico",
+        ),
+        sunlight=SunlightRiskCard(
+            level=SeverityLevel.good,
+            winter_hours=5.0,
+            summer_hours=10.0,
+            equinox_hours=7.5,
+            source="SunCalc + 3DBAG",
+            score=80,
+            severity="good",
+            summary="Good sunlight",
+            summary_nl="Goed zonlicht",
+            facade_results=[
+                FacadeResult(
+                    orientation="south",
+                    height_label="ground",
+                    winter_hours=5.8,
+                    summer_hours=10.9,
+                    annual_average=8.1,
+                ),
+                FacadeResult(
+                    orientation="south",
+                    height_label="upper",
+                    winter_hours=4.7,
+                    summer_hours=9.6,
+                    annual_average=7.0,
+                ),
+                FacadeResult(
+                    orientation="north",
+                    height_label="ground",
+                    winter_hours=1.6,
+                    summer_hours=5.2,
+                    annual_average=3.8,
+                ),
+            ],
+        ),
+    )
 
 
 def test_embed_chart_png_uses_passed_dimensions_without_pil_probe(monkeypatch):
@@ -263,3 +348,71 @@ def test_draw_age_bars_uses_chart_renderer(monkeypatch):
 
     assert called["value"] is True
     assert end_y > 30
+
+
+@pytest.mark.skipif(
+    not hasattr(pe, "chart_renderer") or pe.chart_renderer is None,
+    reason="chart_renderer unavailable",
+)
+def test_draw_sunlight_details_uses_facade_heatmap_when_chart_renderer_available(monkeypatch):
+    called = {"value": False}
+
+    def _fake_heatmap(rows, *, is_nl=False, output_format="pdf"):
+        called["value"] = True
+        assert output_format == "png"
+        assert is_nl is False
+        assert len(rows) == 3
+        return _tiny_png_bytes()
+
+    monkeypatch.setattr(pe.chart_renderer, "render_facade_heatmap", _fake_heatmap)
+    monkeypatch.setattr(pe.chart_renderer, "facade_heatmap_height_mm", lambda row_count: 36.0)
+
+    pdf = BuurtCheckPDF(language="en")
+    pdf.add_page()
+    pe._draw_sunlight_details(pdf, _make_sunlight_risks(), is_nl=False)
+
+    assert called["value"] is True
+    text = _pdf_text(pdf)
+    assert "FACADE ANALYSIS" in text
+    assert "South (ground) facade receives the most winter sunlight (5.8h/day)" in text
+
+
+def test_draw_sunlight_details_falls_back_to_text_table_when_chart_renderer_unavailable(
+    monkeypatch,
+):
+    monkeypatch.setattr(pe, "chart_renderer", None)
+
+    pdf = BuurtCheckPDF(language="en")
+    pdf.add_page()
+    pe._draw_sunlight_details(pdf, _make_sunlight_risks(), is_nl=False)
+
+    text = _pdf_text(pdf)
+    assert "FACADE ANALYSIS" in text
+    assert "South (ground) 5.8h 10.9h" in text
+    assert "South (upper) 4.7h 9.6h" in text
+    assert "North 1.6h 5.2h" in text
+    assert "North (ground) 1.6h 5.2h" not in text
+
+
+@pytest.mark.skipif(
+    not hasattr(pe, "chart_renderer") or pe.chart_renderer is None,
+    reason="chart_renderer unavailable",
+)
+def test_draw_sunlight_details_falls_back_to_text_table_when_heatmap_render_fails(monkeypatch):
+    monkeypatch.setattr(pe.chart_renderer, "facade_heatmap_height_mm", lambda row_count: 36.0)
+
+    def _boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("heatmap renderer failed")
+
+    monkeypatch.setattr(pe.chart_renderer, "render_facade_heatmap", _boom)
+
+    pdf = BuurtCheckPDF(language="en")
+    pdf.add_page()
+    pe._draw_sunlight_details(pdf, _make_sunlight_risks(), is_nl=False)
+
+    text = _pdf_text(pdf)
+    assert "FACADE ANALYSIS" in text
+    assert "South (ground) 5.8h 10.9h" in text
+    assert "South (upper) 4.7h 9.6h" in text
+    assert "North 1.6h 5.2h" in text
+    assert "North (ground) 1.6h 5.2h" not in text

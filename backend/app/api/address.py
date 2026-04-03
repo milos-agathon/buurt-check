@@ -999,6 +999,7 @@ class ShadowImageItem(BaseModel):
     label: str = Field(max_length=50)
     image_b64: str = Field(max_length=2_000_000)
     viewpoint: str | None = Field(default=None, max_length=50)
+    season: str | None = Field(default=None, max_length=20)
     sun_azimuth: float | None = None
     sun_altitude: float | None = None
 
@@ -1499,46 +1500,53 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
                         target_block, neighbors,
                     )
                     seasonal_specs = [
-                        ("winter", "2026-12-21"),
                         ("equinox", "2026-03-20"),
                         ("summer", "2026-06-21"),
+                        ("winter", "2026-12-21"),
                     ]
                     seasonal_items: list[ShadowImageItem] = []
+                    seasonal_top_images: dict[str, str] = {}
                     for season_label, date_iso in seasonal_specs:
                         server_images = await render_service.render_shadow_snapshots(
                             pand_id=building_resp.building.pand_id,
                             dates=[date_iso],
                             times=["12:00"],
-                            camera_preset="top",
+                            camera_preset="triptych",
                             scene_data=scene_data,
                             lat=body.lat,
                             lng=body.lng,
                         )
                         if not server_images:
                             continue
-                        item = server_images[0]
-                        seasonal_items.append(
-                            ShadowImageItem(
-                                hour=12,
-                                label=season_label,
-                                image_b64=base64.b64encode(
-                                    item["jpeg_bytes"],
-                                ).decode("ascii"),
-                                viewpoint=season_label,
-                                sun_azimuth=item.get("sun_azimuth"),
-                                sun_altitude=item.get("sun_altitude"),
+                        for item in server_images:
+                            viewpoint = str(item.get("viewpoint") or "").lower()
+                            image_b64 = base64.b64encode(item["jpeg_bytes"]).decode("ascii")
+                            if viewpoint == "top":
+                                seasonal_top_images[season_label] = image_b64
+                                continue
+                            if viewpoint not in {"front", "rear"}:
+                                continue
+                            seasonal_items.append(
+                                ShadowImageItem(
+                                    hour=12,
+                                    label=f"{season_label}_{viewpoint}",
+                                    image_b64=image_b64,
+                                    viewpoint=viewpoint,
+                                    season=season_label,
+                                    sun_azimuth=item.get("sun_azimuth"),
+                                    sun_altitude=item.get("sun_altitude"),
+                                )
                             )
-                        )
 
-                    if len(seasonal_items) == 3:
+                    if len(seasonal_items) == 6 and len(seasonal_top_images) == 3:
                         body.shadow_images = seasonal_items
-                        body.shadow_image_b64 = seasonal_items[0].image_b64
-                        body.shadow_equinox_b64 = seasonal_items[1].image_b64
-                        body.shadow_summer_b64 = seasonal_items[2].image_b64
+                        body.shadow_image_b64 = seasonal_top_images["winter"]
+                        body.shadow_equinox_b64 = seasonal_top_images["equinox"]
+                        body.shadow_summer_b64 = seasonal_top_images["summer"]
                         elapsed = time.monotonic() - t0
                         logger.info(
-                            "export %s: forge3d rendered 3 seasonal noon "
-                            "snapshots (winter, equinox, summer) in %.2fs",
+                            "export %s: forge3d rendered 6 seasonal facade "
+                            "snapshots plus 3 top-view seasonal heroes in %.2fs",
                             vbo_id,
                             elapsed,
                         )
@@ -1571,6 +1579,7 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
                     "label": s.label,
                     "image_b64": s.image_b64,
                     "viewpoint": s.viewpoint,
+                    "season": s.season,
                     "sun_azimuth": s.sun_azimuth,
                     "sun_altitude": s.sun_altitude,
                 }

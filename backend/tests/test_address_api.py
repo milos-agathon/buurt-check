@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import time
 from unittest.mock import AsyncMock, patch
 
@@ -1533,11 +1534,19 @@ async def test_full_dossier_export_provenance_prefers_municipality_over_city():
 
 
 @pytest.mark.asyncio
-async def test_full_dossier_export_maps_forge3d_seasonal_triptych_to_generator():
-    """forge3d server renders must match the 3-image seasonal noon PDF contract."""
+async def test_full_dossier_export_maps_forge3d_seasonal_facades_to_generator():
+    """forge3d server renders must match the 6-image seasonal facade PDF contract."""
     from app.api.address import ExportRequest, _do_export_briefing
 
-    fake_jpeg = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+    equinox_top = b"equinox-top"
+    equinox_front = b"equinox-front"
+    equinox_rear = b"equinox-rear"
+    summer_top = b"summer-top"
+    summer_front = b"summer-front"
+    summer_rear = b"summer-rear"
+    winter_top = b"winter-top"
+    winter_front = b"winter-front"
+    winter_rear = b"winter-rear"
     body = ExportRequest(
         rd_x=121286,
         rd_y=487296,
@@ -1617,29 +1626,80 @@ async def test_full_dossier_export_maps_forge3d_seasonal_triptych_to_generator()
             [
                 {
                     "hour": 12,
+                    "viewpoint": "top",
                     "time_label": "noon",
-                    "jpeg_bytes": fake_jpeg,
-                    "sun_azimuth": 165.0,
-                    "sun_altitude": 15.0,
-                }
-            ],
-            [
-                {
-                    "hour": 12,
-                    "time_label": "noon",
-                    "jpeg_bytes": fake_jpeg,
+                    "jpeg_bytes": equinox_top,
                     "sun_azimuth": 180.0,
                     "sun_altitude": 38.0,
-                }
+                },
+                {
+                    "hour": 12,
+                    "viewpoint": "front",
+                    "time_label": "noon",
+                    "jpeg_bytes": equinox_front,
+                    "sun_azimuth": 180.0,
+                    "sun_altitude": 38.0,
+                },
+                {
+                    "hour": 12,
+                    "viewpoint": "rear",
+                    "time_label": "noon",
+                    "jpeg_bytes": equinox_rear,
+                    "sun_azimuth": 180.0,
+                    "sun_altitude": 38.0,
+                },
             ],
             [
                 {
                     "hour": 12,
+                    "viewpoint": "top",
                     "time_label": "noon",
-                    "jpeg_bytes": fake_jpeg,
+                    "jpeg_bytes": summer_top,
                     "sun_azimuth": 195.0,
                     "sun_altitude": 60.0,
-                }
+                },
+                {
+                    "hour": 12,
+                    "viewpoint": "front",
+                    "time_label": "noon",
+                    "jpeg_bytes": summer_front,
+                    "sun_azimuth": 195.0,
+                    "sun_altitude": 60.0,
+                },
+                {
+                    "hour": 12,
+                    "viewpoint": "rear",
+                    "time_label": "noon",
+                    "jpeg_bytes": summer_rear,
+                    "sun_azimuth": 195.0,
+                    "sun_altitude": 60.0,
+                },
+            ],
+            [
+                {
+                    "hour": 12,
+                    "viewpoint": "top",
+                    "time_label": "noon",
+                    "jpeg_bytes": winter_top,
+                    "sun_azimuth": 165.0,
+                    "sun_altitude": 15.0,
+                },
+                {
+                    "hour": 12,
+                    "viewpoint": "front",
+                    "time_label": "noon",
+                    "jpeg_bytes": winter_front,
+                    "sun_azimuth": 165.0,
+                    "sun_altitude": 15.0,
+                },
+                {
+                    "hour": 12,
+                    "viewpoint": "rear",
+                    "time_label": "noon",
+                    "jpeg_bytes": winter_rear,
+                    "sun_azimuth": 165.0,
+                    "sun_altitude": 15.0,
+                },
             ],
         ],
     )
@@ -1718,36 +1778,54 @@ async def test_full_dossier_export_maps_forge3d_seasonal_triptych_to_generator()
     render_kwargs = render_calls[0].kwargs
     assert render_kwargs["pand_id"] == "0363100012345678"
     assert [call.kwargs["dates"] for call in render_calls] == [
-        ["2026-12-21"],
         ["2026-03-20"],
         ["2026-06-21"],
+        ["2026-12-21"],
     ]
     assert [call.kwargs["times"] for call in render_calls] == [
         ["12:00"],
         ["12:00"],
         ["12:00"],
     ]
-    assert render_kwargs["camera_preset"] == "top"
+    assert render_kwargs["camera_preset"] == "triptych"
 
     shadow_images = mock_generate_full_dossier.call_args.kwargs["shadow_images"]
     assert [item["label"] for item in shadow_images] == [
-        "winter",
+        "equinox_front",
+        "equinox_rear",
+        "summer_front",
+        "summer_rear",
+        "winter_front",
+        "winter_rear",
+    ]
+    assert [item["viewpoint"] for item in shadow_images] == [
+        "front",
+        "rear",
+        "front",
+        "rear",
+        "front",
+        "rear",
+    ]
+    assert [item["season"] for item in shadow_images] == [
+        "equinox",
         "equinox",
         "summer",
+        "summer",
+        "winter",
+        "winter",
     ]
-    assert [item["viewpoint"] for item in shadow_images] == ["winter", "equinox", "summer"]
-    assert [item["hour"] for item in shadow_images] == [12, 12, 12]
+    assert [item["hour"] for item in shadow_images] == [12, 12, 12, 12, 12, 12]
     assert (
         mock_generate_full_dossier.call_args.kwargs["shadow_image_b64"]
-        == shadow_images[0]["image_b64"]
+        == base64.b64encode(winter_top).decode("ascii")
     )
     assert (
         mock_generate_full_dossier.call_args.kwargs["shadow_equinox_b64"]
-        == shadow_images[1]["image_b64"]
+        == base64.b64encode(equinox_top).decode("ascii")
     )
     assert (
         mock_generate_full_dossier.call_args.kwargs["shadow_summer_b64"]
-        == shadow_images[2]["image_b64"]
+        == base64.b64encode(summer_top).decode("ascii")
     )
 
 
