@@ -5161,6 +5161,117 @@ def _draw_rate_comparison_chart(
     pdf.ln(1)
 
 
+def _estimate_pdf_text_height(
+    pdf: BuurtCheckPDF,
+    *,
+    text: str | None,
+    width: float,
+    line_height: float,
+    font_family: str = "Satoshi",
+    font_style: str = "",
+    font_size: float = 10,
+) -> float:
+    """Estimate wrapped text height using the current FPDF font metrics."""
+    if not text:
+        return 0.0
+    pdf.set_font(font_family, font_style, font_size)
+    return float(
+        pdf.multi_cell(
+            width,
+            line_height,
+            text,
+            dry_run=True,
+            output="HEIGHT",
+        )
+    )
+
+
+def _comparison_chart_legend_text(*, is_nl: bool) -> str:
+    return (
+        "Legenda: ernstkleurige balk = dit adres, "
+        "blauwgrijs = vergelijkingsgroep, lichtblauw = nationaal, "
+        "gestreept = richtlijn"
+        if is_nl
+        else (
+            "Legend: severity-colored bar = this address, "
+            "blue-gray = peer group, light blue = national, "
+            "dashed = benchmark"
+        )
+    )
+
+
+def _estimate_comparison_chart_height(
+    pdf: BuurtCheckPDF,
+    *,
+    rows: list[tuple[str, int, tuple[int, int, int], bool]],
+    width: float,
+    chart_title: str,
+    show_legend: bool,
+    is_nl: bool,
+) -> float:
+    """Estimate comparison chart height using the same layout rules as rendering."""
+    if not rows:
+        return 0.0
+
+    if chart_renderer is not None:
+        try:
+            address_idx = next(
+                (
+                    idx
+                    for idx, row in enumerate(rows)
+                    if _is_address_comparison_label(row[0])
+                    and not row[3]
+                    and row[1] is not None
+                ),
+                None,
+            )
+            if address_idx is not None:
+                _, address_score_raw, _, _ = rows[address_idx]
+                address_score = int(round(address_score_raw))
+                comparisons_payload = _build_chart_renderer_comparisons(rows)
+                layout = chart_renderer.build_risk_comparison_layout(
+                    category=chart_title or ("Vergelijking" if is_nl else "Comparison"),
+                    address_score=address_score,
+                    comparisons=comparisons_payload,
+                )
+                chart_h = _scaled_chart_height(
+                    width,
+                    source_width_mm=chart_renderer.CHART_WIDTH_MM,
+                    source_height_mm=layout.chart_height_mm,
+                )
+                legend_h = 0.0
+                if show_legend:
+                    legend_h = 1.0 + _estimate_pdf_text_height(
+                        pdf,
+                        text=_comparison_chart_legend_text(is_nl=is_nl),
+                        width=width,
+                        line_height=3.5,
+                        font_family="Satoshi",
+                        font_size=8,
+                    )
+                return chart_h + 4.0 + legend_h
+        except Exception:
+            logger.exception(
+                "comparison chart height estimate failed; using native fallback"
+            )
+
+    row_h = 7.0
+    address_gap = 2.5
+    address_rows = [row for row in rows if _is_address_comparison_label(row[0]) and not row[3]]
+    reference_rows = [row for row in rows if row not in address_rows]
+    sorted_rows = address_rows + reference_rows
+    total_h = len(sorted_rows) * row_h
+    if address_rows and reference_rows:
+        total_h += address_gap
+
+    chart_h = total_h + 4.0
+    if chart_title:
+        chart_h += 5.0
+    if show_legend:
+        chart_h += 4.0
+    return chart_h
+
+
 def _crime_checklist_category(
     tier_b_data: TierBResponse | None,
 ) -> QuestionCategory | None:
@@ -5244,6 +5355,15 @@ def _draw_risk_details_page(
                 f"{cat_name} \u2014 vergelijking" if is_nl
                 else f"{cat_name} \u2014 comparison"
             )
+            chart_required_h = _estimate_comparison_chart_height(
+                pdf,
+                rows=comp_rows,
+                width=pdf.w - pdf.l_margin - pdf.r_margin,
+                chart_title=chart_title,
+                show_legend=not first_chart_drawn,
+                is_nl=is_nl,
+            )
+            _start_new_page_if_needed(chart_required_h)
             chart_end_y = pdf.draw_comparison_chart(
                 x=pdf.l_margin,
                 y=pdf.get_y(),

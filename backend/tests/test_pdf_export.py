@@ -1614,6 +1614,62 @@ class TestRiskDetailsPageBreak:
                 f"Page {i + 1} has too little content"
             )
 
+    def test_comparison_chart_overflow_does_not_create_tick_only_pages(self):
+        """Wrapped sections must move before the chart spills ticks onto blank pages."""
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+
+        fake_categories = [
+            (
+                "Noise",
+                50,
+                "Long contextual summary for the previous section. "
+                "Long contextual summary for the previous section.",
+                "Source: Short source",
+                [],
+                [(f"Metric {i}", f"Value {i}") for i in range(10)],
+                "Context text.",
+            ),
+            (
+                "Air Quality",
+                82,
+                " ".join(["Good air quality with extra explanatory text."] * 8),
+                "Source: " + " \u00b7 ".join(["RIVM - GCN 2025 extended provenance"] * 8),
+                [
+                    ("This address", 82, TEAL, False),
+                    ("Peer baseline (urbanization)", 72, MUTED, False),
+                    ("Netherlands", 76, NATIONAL, False),
+                    ("WHO target", 90, COMPARISON_REFERENCE, True),
+                ],
+                [("PM2.5", "8.6 \u00b5g/m\u00b3"), ("NO\u2082", "13.8 \u00b5g/m\u00b3")],
+                " ".join(
+                    [
+                        "PM2.5 = fine particulate matter and NO2 = nitrogen dioxide annual mean."
+                    ] * 5
+                ),
+            ),
+        ]
+
+        with patch("app.services.pdf_export._build_risk_detail_data", return_value=fake_categories):
+            pe._draw_risk_details_page(pdf, "Damrak 1, Amsterdam", None, 80, None, False)
+
+        reader = PdfReader(io.BytesIO(bytes(pdf.output())))
+        assert len(reader.pages) <= 3
+
+        import re
+
+        tick_only_re = re.compile(
+            r"^(RISK DETAILS )?(0|20|40|70|100) "
+            r"Buurt Check Data is indicative\. Verify on-site\. p\. \d+ $"
+        )
+        tick_only_pages = []
+        for i, page in enumerate(reader.pages, start=1):
+            normalized = _norm(page.extract_text() or "")
+            if tick_only_re.fullmatch(normalized):
+                tick_only_pages.append(i)
+
+        assert not tick_only_pages, f"unexpected tick-only pages: {tick_only_pages}"
+
 
 class TestComparisonChartScaleDeclaration:
     """E4-S1: Every comparison chart has a scale declaration caption."""
