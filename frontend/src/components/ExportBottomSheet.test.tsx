@@ -269,12 +269,9 @@ describe('ExportBottomSheet', () => {
     });
   });
 
-  it('falls back to generation when post-checkout prerequisites never resolve', async () => {
+  it('keeps waiting when post-checkout prerequisites never resolve', async () => {
     vi.useFakeTimers();
     try {
-      const blob = new Blob(['pdf'], { type: 'application/pdf' });
-      vi.mocked(api.exportBriefing).mockResolvedValue(blob);
-
       renderSheet({
         initialTemplate: 'full_dossier',
         autoGenerateToken: 'paid-report-123',
@@ -290,16 +287,9 @@ describe('ExportBottomSheet', () => {
         await vi.advanceTimersByTimeAsync(10_000);
       });
 
-      expect(api.exportBriefing).toHaveBeenCalledTimes(1);
-      expect(mockTrackEvent).toHaveBeenCalledWith(
-        'post_checkout_export_checkpoint',
-        expect.objectContaining({
-          checkpoint: 'waiting_prerequisites_timeout',
-          template: 'full_dossier',
-        }),
-      );
-      expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'ready');
-      expect(screen.getByRole('button', { name: /Download dossier/i })).toBeInTheDocument();
+      expect(api.exportBriefing).not.toHaveBeenCalled();
+      expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'waiting_prerequisites');
+      expect(screen.getByText('Preparing dossier...')).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

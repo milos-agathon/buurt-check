@@ -52,7 +52,6 @@ interface ExportBottomSheetProps {
 
 type RecoveryPhase = 'waiting_prerequisites' | 'generating' | 'ready' | 'error';
 type GenerateTrigger = 'manual' | 'post_checkout_auto' | 'post_checkout_retry';
-const POST_CHECKOUT_WAIT_TIMEOUT_MS = 10_000;
 
 export default function ExportBottomSheet({
   isOpen,
@@ -109,7 +108,6 @@ export default function ExportBottomSheet({
   const [generatedBlob, setGeneratedBlob] = useState<Blob | null>(null);
   const [exportTooltipVisible, setExportTooltipVisible] = useState(false);
   const [recoveryPhase, setRecoveryPhase] = useState<RecoveryPhase | null>(null);
-  const [bypassPrerequisites, setBypassPrerequisites] = useState(false);
   const recoveryTokenRef = useRef<string | null>(null);
   const waitingCheckpointTokenRef = useRef<string | null>(null);
   const autoGenerateStartedTokenRef = useRef<string | null>(null);
@@ -181,7 +179,6 @@ export default function ExportBottomSheet({
       setExportTooltipVisible(false);
       setExportLanguage(resolvedInitialExportLanguage);
       setRecoveryPhase(null);
-      setBypassPrerequisites(false);
       recoveryTokenRef.current = null;
       waitingCheckpointTokenRef.current = null;
       autoGenerateStartedTokenRef.current = null;
@@ -212,7 +209,6 @@ export default function ExportBottomSheet({
     setGeneratedBlob(null);
     setExportTooltipVisible(false);
     setRecoveryPhase('waiting_prerequisites');
-    setBypassPrerequisites(false);
   }, [isOpen, isPostCheckoutRecovery, recoveryToken, resolvedInitialExportLanguage]);
 
   const filename = useMemo(() => {
@@ -448,7 +444,7 @@ export default function ExportBottomSheet({
       || !isPostCheckoutRecovery
       || !recoveryToken
       || recoveryPhase !== 'waiting_prerequisites'
-      || (!postCheckoutPrerequisitesReady && !bypassPrerequisites)
+      || !postCheckoutPrerequisitesReady
     ) {
       return;
     }
@@ -463,38 +459,6 @@ export default function ExportBottomSheet({
     handleGenerate,
     isOpen,
     isPostCheckoutRecovery,
-    postCheckoutPrerequisitesReady,
-    bypassPrerequisites,
-    recoveryPhase,
-    recoveryToken,
-  ]);
-
-  useEffect(() => {
-    if (
-      !isOpen
-      || !isPostCheckoutRecovery
-      || !recoveryToken
-      || recoveryPhase !== 'waiting_prerequisites'
-      || postCheckoutPrerequisitesReady
-      || bypassPrerequisites
-    ) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      if (import.meta.env.DEV) {
-        console.warn('[post-checkout-export] waiting for prerequisites timed out; continuing without sunlight gate');
-      }
-      logPostCheckoutCheckpoint('waiting_prerequisites_timeout');
-      setBypassPrerequisites(true);
-    }, POST_CHECKOUT_WAIT_TIMEOUT_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    bypassPrerequisites,
-    isOpen,
-    isPostCheckoutRecovery,
-    logPostCheckoutCheckpoint,
     postCheckoutPrerequisitesReady,
     recoveryPhase,
     recoveryToken,
