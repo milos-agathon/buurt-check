@@ -6,6 +6,7 @@ import io
 
 import pytest
 from PIL import Image
+from pypdf import PdfReader
 
 from app.models.neighborhood import AgeProfile
 from app.services import pdf_export as pe
@@ -96,6 +97,76 @@ def test_draw_comparison_chart_uses_chart_renderer(monkeypatch):
 
     assert called["value"] is True
     assert end_y > 30
+
+
+@pytest.mark.skipif(
+    not hasattr(pe, "chart_renderer") or pe.chart_renderer is None,
+    reason="chart_renderer unavailable",
+)
+def test_draw_comparison_chart_uses_shared_layout_for_wrapped_labels(monkeypatch):
+    def _fake_render(**_kwargs):  # type: ignore[no-untyped-def]
+        return _tiny_png_bytes()
+
+    monkeypatch.setattr(pe.chart_renderer, "render_risk_comparison", _fake_render)
+
+    pdf = BuurtCheckPDF(language="en")
+    pdf.add_page()
+    positions: dict[str, float] = {}
+    original_multi_cell = pdf.multi_cell
+
+    def tracking_multi_cell(w, h, text, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if text in {"This address", "WHO target"} or "Peer baseline for" in str(text):
+            positions[str(text)] = pdf.get_y()
+        return original_multi_cell(w, h, text, *args, **kwargs)
+
+    pdf.multi_cell = tracking_multi_cell
+    rows = [
+        ("This address", 65, TEAL, False),
+        ("Peer baseline for comparable urbanized neighborhoods", 55, MUTED, False),
+        ("WHO target", 74, (234, 179, 8), True),
+    ]
+    end_y = pdf.draw_comparison_chart(
+        10,
+        30,
+        180,
+        rows,
+        chart_title="Noise - comparison",
+    )
+
+    comparisons_payload = pe._build_chart_renderer_comparisons(rows)
+    layout = pe.chart_renderer.build_risk_comparison_layout(
+        category="Noise - comparison",
+        address_score=65,
+        comparisons=comparisons_payload,
+    )
+    scale = 180 / pe.chart_renderer.CHART_WIDTH_MM
+    line_height = 3.1 * scale
+    expected_positions = {
+        row.wrapped_label: 30
+        + scale * pe.chart_renderer.comparison_row_center_offset_mm(layout, row.center)
+        - max(line_height, row.line_count * line_height) / 2
+        for row in layout.rows
+    }
+
+    wrapped_peer_label = next(label for label in positions if "Peer baseline for" in label)
+    assert "\n" in wrapped_peer_label
+    assert positions["This address"] == pytest.approx(
+        expected_positions["This address"],
+        abs=0.25,
+    )
+    assert positions[wrapped_peer_label] == pytest.approx(
+        expected_positions[wrapped_peer_label],
+        abs=0.25,
+    )
+    assert positions["WHO target"] == pytest.approx(expected_positions["WHO target"], abs=0.25)
+    assert end_y > 30
+
+    result = bytes(pdf.output())
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(result)).pages)
+    assert "Peer baseline for" in text
+    assert "WHO target" in text
+    for threshold in ("0", "20", "40", "70", "100"):
+        assert threshold in text
 
 
 @pytest.mark.skipif(

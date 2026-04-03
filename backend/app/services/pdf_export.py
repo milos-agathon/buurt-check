@@ -76,6 +76,10 @@ TILE_BG = (248, 249, 250)  # #F8F9FA — subtle tile/card background
 CALL_OUT_CRITICAL_BG = (254, 242, 242)  # #FEF2F2
 CALL_OUT_POOR_BG = (255, 247, 237)  # #FFF7ED
 PEER_BAR = (209, 213, 219)  # #D1D5DB — recessive comparison gray
+COMPARISON_PEER = SECONDARY  # #637892 — peer / city baseline
+COMPARISON_NATIONAL = (138, 155, 176)  # #8A9BB0 — national baseline
+COMPARISON_REFERENCE = AMBER_WARN  # #EAB308 — benchmark / target
+COMPARISON_GUIDES = (20, 40, 70)
 GOOD_THRESHOLD = 70
 _MONTH_NAMES_EN = (
     "January",
@@ -235,6 +239,11 @@ def _score_text(score: int | None, *, is_nl: bool) -> str:
 def _is_address_comparison_label(label: str) -> bool:
     normalized = " ".join(label.lower().split())
     return normalized in {"this address", "dit adres"}
+
+
+def _is_national_comparison_label(label: str) -> bool:
+    normalized = " ".join(label.lower().split())
+    return normalized in {"netherlands", "nederland", "national", "nationaal"}
 
 
 def _quartile_label(quartile: int | None, *, is_nl: bool) -> str | None:
@@ -1004,6 +1013,7 @@ class BuurtCheckPDF(FPDF):
         *,
         highlight_good_zone: bool = False,
         show_target_label: bool = False,
+        show_threshold_markers: bool = False,
     ) -> None:
         """Draw horizontal score bar: gray track + single colored fill."""
         # Grey track background
@@ -1014,6 +1024,14 @@ class BuurtCheckPDF(FPDF):
             fill_w = max(width * min(score, 100) / 100, 1.0)
             self.set_fill_color(*_severity_color(score))
             self.rect(x, y, fill_w, height, "F")
+        if show_threshold_markers:
+            self.set_draw_color(*SECONDARY)
+            self.set_line_width(0.2)
+            for threshold in COMPARISON_GUIDES:
+                marker_x = x + width * threshold / 100
+                self.line(marker_x, y - 0.2, marker_x, y + height + 0.2)
+            self.set_draw_color(*BORDER)
+            self.set_line_width(0.1)
 
     def draw_checkbox(self, x: float, y: float, size: float = 3.0) -> None:
         """Draw an empty checkbox square."""
@@ -1041,21 +1059,6 @@ class BuurtCheckPDF(FPDF):
         """
         if chart_renderer is not None and rows:
             try:
-                row_h = 7.0
-                address_gap = 2.5
-                title_h = 5.0 if chart_title else 0.0
-                address_rows = [
-                    r for r in rows
-                    if _is_address_comparison_label(r[0]) and not r[3]
-                ]
-                reference_rows = [r for r in rows if r not in address_rows]
-                sorted_rows = address_rows + reference_rows
-                has_address_gap = bool(address_rows) and bool(reference_rows)
-                target_chart_h = len(sorted_rows) * row_h + (
-                    address_gap if has_address_gap else 0.0
-                )
-                target_chart_h += title_h
-
                 address_idx = next(
                     (
                         idx
@@ -1069,18 +1072,12 @@ class BuurtCheckPDF(FPDF):
                 if address_idx is not None:
                     _, address_score_raw, _, _ = rows[address_idx]
                     address_score = int(round(address_score_raw))
-                    comparisons_payload = []
-                    for idx, (label, value, _color, dashed) in enumerate(rows):
-                        if idx == address_idx or value is None:
-                            continue
-                        role = "reference" if dashed else "comparison"
-                        comparisons_payload.append(
-                            chart_renderer.CompRow(
-                                label=label,
-                                value=int(round(value)),
-                                role=role,
-                            )
-                        )
+                    comparisons_payload = _build_chart_renderer_comparisons(rows)
+                    layout = chart_renderer.build_risk_comparison_layout(
+                        category=chart_title or ("Vergelijking" if is_nl else "Comparison"),
+                        address_score=address_score,
+                        comparisons=comparisons_payload,
+                    )
                     chart_png = chart_renderer.render_risk_comparison(
                         category=chart_title or ("Vergelijking" if is_nl else "Comparison"),
                         address_score=address_score,
@@ -1089,61 +1086,66 @@ class BuurtCheckPDF(FPDF):
                         show_row_labels=False,
                         show_axis_labels=False,
                     )
-                    # Derive embed height from the PNG's actual aspect ratio
-                    # so the chart is never stretched.  matplotlib calculates
-                    # its own height (with minimums for short charts) which
-                    # can differ from the target_chart_h we estimated above.
-                    try:
-                        from PIL import Image as _PILImage
-                        with io.BytesIO(chart_png) as _buf:
-                            _img = _PILImage.open(_buf)
-                            _pw, _ph = _img.size
-                        embed_h = width * _ph / _pw if _pw > 0 else target_chart_h
-                    except Exception:
-                        embed_h = target_chart_h
                     chart_end_y = _embed_chart_png(
                         self,
                         chart_png,
                         x=x,
                         y=y,
                         width=width,
-                        height=embed_h,
+                        source_width_mm=chart_renderer.CHART_WIDTH_MM,
+                        source_height_mm=layout.chart_height_mm,
                     )
+                    scale = width / chart_renderer.CHART_WIDTH_MM
 
                     # The PNG omits row labels in this path so the final PDF keeps a
-                    # single, extractable text layer without visual overlap.
-                    # Scale overlay positions to match the actual embed height
-                    # (which may differ from target_chart_h when matplotlib
-                    # applies its own minimum-height rules).
-                    h_scale = embed_h / target_chart_h if target_chart_h > 0 else 1.0
-                    scaled_row_h = row_h * h_scale
-                    scaled_title_h = title_h * h_scale
-                    scaled_gap = address_gap * h_scale
-                    label_w = min(width * 0.42, 68.0)
-                    row_y = y + scaled_title_h
-                    n_address = len(address_rows)
-                    for idx, (label, _value, color, dashed) in enumerate(sorted_rows):
-                        if has_address_gap and idx == n_address:
-                            row_y += scaled_gap
-                        is_address = _is_address_comparison_label(label) and not dashed
-                        self.set_font("Satoshi", "B" if is_address else "", 8)
+                    # single, extractable text layer without rasterizing labels.
+                    line_height = 3.1 * scale
+                    label_left = (
+                        x
+                        + scale * chart_renderer.comparison_data_x_offset_mm(
+                            layout,
+                            -layout.label_space + 1.0,
+                        )
+                    )
+                    label_right = (
+                        x
+                        + scale * chart_renderer.comparison_data_x_offset_mm(layout, -0.8)
+                    )
+                    label_w = max(16.0, label_right - label_left)
+                    for row in layout.rows:
+                        block_h = max(line_height, row.line_count * line_height)
+                        center_y = (
+                            y
+                            + scale * chart_renderer.comparison_row_center_offset_mm(
+                                layout,
+                                row.center,
+                            )
+                        )
+                        block_y = center_y - block_h / 2
+                        self.set_font("Satoshi", "B" if row.is_primary else "", 8)
                         self.set_text_color(*SLATE)
-                        self.set_xy(x + 1.0, row_y)
-                        self.cell(label_w, scaled_row_h, label)
-                        row_y += scaled_row_h
+                        self.set_xy(label_left, block_y)
+                        self.multi_cell(
+                            label_w,
+                            line_height,
+                            row.wrapped_label,
+                            align="L",
+                        )
 
                     # Keep axis labels extractable in the fpdf2 output while
                     # the PNG focuses on the bars/benchmarks only.
                     axis_y = chart_end_y + 0.5
                     self.set_font("Satoshi", "", 8)
                     self.set_text_color(*SECONDARY)
-                    self.set_xy(x, axis_y)
-                    self.cell(10, 3, "0")
-                    self.set_xy(x + width - 10, axis_y)
-                    self.cell(10, 3, "100", align="R")
-                    for threshold in (20, 40, 70):
-                        tx = x + width * threshold / 100
-                        self.set_xy(tx - 3, axis_y)
+                    for threshold in (0, *COMPARISON_GUIDES, 100):
+                        tick_x = (
+                            x
+                            + scale * chart_renderer.comparison_data_x_offset_mm(
+                                layout,
+                                float(threshold),
+                            )
+                        )
+                        self.set_xy(tick_x - 3, axis_y)
                         self.cell(6, 3, str(threshold), align="C")
                     self.set_text_color(*SLATE)
                     cur_y = axis_y + 3.5
@@ -1154,11 +1156,13 @@ class BuurtCheckPDF(FPDF):
                         self.set_text_color(*SECONDARY)
                         legend_text = (
                             "Legenda: ernstkleurige balk = dit adres, "
-                            "grijs = vergelijking, gestreept = richtlijn"
+                            "blauwgrijs = vergelijkingsgroep, lichtblauw = nationaal, "
+                            "gestreept = richtlijn"
                             if is_nl
                             else (
                                 "Legend: severity-colored bar = this address, "
-                                "gray = peer, dashed = benchmark"
+                                "blue-gray = peer group, light blue = national, "
+                                "dashed = benchmark"
                             )
                         )
                         self.multi_cell(
@@ -1215,7 +1219,7 @@ class BuurtCheckPDF(FPDF):
         bars_bottom = cur_y + total_h
         self.set_draw_color(*GRIDLINE)
         self.set_line_width(0.15)
-        for pct in (25, 50, 75):
+        for pct in COMPARISON_GUIDES:
             gx = bar_x + bar_w * pct / 100
             self.line(gx, bars_top, gx, bars_bottom)
         self.set_line_width(0.1)
@@ -1246,8 +1250,18 @@ class BuurtCheckPDF(FPDF):
             self.rect(bar_x, bar_y, bar_w, bar_h, "F")
 
             fill_w = bar_w * min(value or 0, 100) / 100
-            self.set_fill_color(*color)
-            self.rect(bar_x, bar_y, fill_w, bar_h, "F")
+            if dashed and fill_w > 0:
+                segment_w = 3.0
+                gap_w = 1.6
+                cursor_x = bar_x
+                self.set_fill_color(*color)
+                while cursor_x < bar_x + fill_w:
+                    draw_w = min(segment_w, bar_x + fill_w - cursor_x)
+                    self.rect(cursor_x, bar_y, draw_w, bar_h, "F")
+                    cursor_x += segment_w + gap_w
+            elif fill_w > 0:
+                self.set_fill_color(*color)
+                self.rect(bar_x, bar_y, fill_w, bar_h, "F")
 
             self.set_font("Satoshi", "B", 8)
             self.set_xy(x + width - score_w, ry)
@@ -1265,7 +1279,7 @@ class BuurtCheckPDF(FPDF):
         self.cell(10, 3, "100", align="R")
 
         # Severity zone threshold labels at 20, 40, 70
-        for threshold in (20, 40, 70):
+        for threshold in COMPARISON_GUIDES:
             tx = bar_x + bar_w * threshold / 100
             self.set_xy(tx - 3, axis_y)
             self.cell(6, 3, str(threshold), align="C")
@@ -1292,8 +1306,8 @@ class BuurtCheckPDF(FPDF):
             self.cell(20, 3, label_text)
             lx += 20 + gap
 
-            # Light gray swatch — "Vergelijkingsgroep" / "Peer group" (city_avg)
-            self.set_fill_color(*PEER_BAR)
+            # Peer baseline swatch.
+            self.set_fill_color(*COMPARISON_PEER)
             self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
             lx += swatch_w + 1
             label_text = "Vergelijkingsgroep" if is_nl else "Peer group"
@@ -1301,8 +1315,8 @@ class BuurtCheckPDF(FPDF):
             self.cell(22, 3, label_text)
             lx += 22 + gap
 
-            # Light gray swatch — "Nationaal" / "National" (nl_avg)
-            self.set_fill_color(*PEER_BAR)
+            # National baseline swatch.
+            self.set_fill_color(*COMPARISON_NATIONAL)
             self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
             lx += swatch_w + 1
             label_text = "Nationaal" if is_nl else "National"
@@ -1310,9 +1324,11 @@ class BuurtCheckPDF(FPDF):
             self.cell(18, 3, label_text)
             lx += 18 + gap
 
-            # Teal swatch — "Richtlijn" / "Benchmark"
-            self.set_fill_color(*TEAL)
-            self.rect(lx, legend_y + 0.5, swatch_w, swatch_h, "F")
+            # Segmented amber swatch — "Richtlijn" / "Benchmark".
+            self.set_fill_color(*COMPARISON_REFERENCE)
+            self.rect(lx, legend_y + 0.5, 1.5, swatch_h, "F")
+            self.rect(lx + 2.2, legend_y + 0.5, 1.5, swatch_h, "F")
+            self.rect(lx + 4.4, legend_y + 0.5, 0.6, swatch_h, "F")
             lx += swatch_w + 1
             label_text = "Richtlijn" if is_nl else "Benchmark"
             self.set_xy(lx, legend_y)
@@ -1402,6 +1418,7 @@ class BuurtCheckPDF(FPDF):
                 cell_w - 2 * bar_margin, score,
                 height=4.0,
                 highlight_good_zone=True,
+                show_threshold_markers=True,
             )
 
             self.set_font("Satoshi", "", 8)
@@ -2293,6 +2310,39 @@ def _dedupe_comparison_rows(
     return deduped
 
 
+def _comparison_role_from_style(
+    label: str,
+    color: tuple[int, int, int],
+    dashed: bool,
+) -> str:
+    if dashed:
+        return "reference"
+    if _is_national_comparison_label(label) or color == COMPARISON_NATIONAL:
+        return "national"
+    if color == COMPARISON_PEER:
+        return "peer"
+    return "comparison"
+
+
+def _build_chart_renderer_comparisons(
+    rows: list[tuple[str, int | float | None, tuple[int, int, int], bool]],
+) -> list[Any]:
+    if chart_renderer is None:
+        return []
+    comparisons_payload: list[Any] = []
+    for label, value, color, dashed in rows:
+        if value is None or _is_address_comparison_label(label):
+            continue
+        comparisons_payload.append(
+            chart_renderer.CompRow(
+                label=label,
+                value=int(round(value)),
+                role=_comparison_role_from_style(label, color, dashed),
+            )
+        )
+    return comparisons_payload
+
+
 def _draw_notes_section(pdf: BuurtCheckPDF, is_nl: bool) -> None:
     pdf.set_text_color(*SLATE)
     pdf.set_font("Satoshi", "B", 12)
@@ -2991,22 +3041,7 @@ def _generate_full_dossier_latex(
                                 continue
                             address_score = int(round(address_value))
 
-                        comparisons_payload = []
-                        skipped_primary = False
-                        for label, value, color, dashed in comp_rows:
-                            if value is None:
-                                continue
-                            if color == TEAL and not dashed and not skipped_primary:
-                                skipped_primary = True
-                                continue
-                            role = "reference" if dashed else "comparison"
-                            comparisons_payload.append(
-                                chart_renderer.CompRow(
-                                    label=label,
-                                    value=int(round(value)),
-                                    role=role,
-                                )
-                            )
+                        comparisons_payload = _build_chart_renderer_comparisons(comp_rows)
 
                         bundle[_slugify_label(cat_name)] = chart_renderer.render_risk_comparison(
                             category=cat_name,
@@ -5692,25 +5727,25 @@ def _build_risk_detail_data(
         ),
         "city_avg": (
             "Vergelijkingswaarde (stedelijkheid)" if is_nl
-            else "Peer baseline (urbanization)", PEER_BAR, False,
+            else "Peer baseline (urbanization)", COMPARISON_PEER, False,
         ),
         "nl_avg": (
             "Nederland" if is_nl else "Netherlands",
-            PEER_BAR, False,
+            COMPARISON_NATIONAL, False,
         ),
         "who_limit": (
             "WHO-doel" if is_nl
             else "WHO target",
-            TEAL, True,
+            COMPARISON_REFERENCE, True,
         ),
         "adaptation_target": (
             "Klimaatdoel" if is_nl
-            else "Climate target", TEAL, True,
+            else "Climate target", COMPARISON_REFERENCE, True,
         ),
         "daylight_target": (
             "Daglichtdoel" if is_nl
             else "Daylight target",
-            TEAL, True,
+            COMPARISON_REFERENCE, True,
         ),
     }
 
@@ -5723,7 +5758,7 @@ def _build_risk_detail_data(
             if row.label_code == "address" and row.value is None:
                 continue
             label_info = _COMPARISON_LABELS.get(
-                row.label_code, (row.label_code, MUTED, False)
+                row.label_code, (row.label_code, COMPARISON_PEER, False)
             )
             is_dashed = (
                 row.pattern == ComparisonPattern.dashed

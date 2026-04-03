@@ -53,12 +53,14 @@ from app.models.tier_b import CrimeStatsCard, TierBResponse
 from app.services import pdf_export as pe
 from app.services.pdf_export import (
     BORDER,
+    COMPARISON_NATIONAL,
+    COMPARISON_PEER,
+    COMPARISON_REFERENCE,
     MUTED,
     NATIONAL,
     NL_AGE_0_24,
     NL_AGE_25_64,
     NL_AGE_65_PLUS,
-    PEER_BAR,
     SECONDARY,
     TEAL,
     BuurtCheckPDF,
@@ -559,6 +561,25 @@ class TestBuurtCheckPDF:
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
         assert "70+" not in text
 
+    def test_draw_score_bar_can_render_threshold_markers(self):
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        original_line = pdf.line
+        line_calls = []
+
+        def tracking_line(x1, y1, x2, y2):
+            line_calls.append((x1, y1, x2, y2))
+            return original_line(x1, y1, x2, y2)
+
+        pdf.line = tracking_line
+        pdf.draw_score_bar(10, 50, 100, 75, height=4.0, show_threshold_markers=True)
+
+        marker_lines = [
+            c for c in line_calls
+            if abs(c[1] - 49.8) < 0.05 and abs(c[3] - 54.2) < 0.05
+        ]
+        assert [round(c[0], 1) for c in marker_lines] == [30.0, 50.0, 80.0]
+
     def test_draw_score_bar_minimum_fill_width(self):
         """E9-S1: Score=1 produces fill_w >= 1mm (visible)."""
         pdf = BuurtCheckPDF()
@@ -709,8 +730,38 @@ class TestBuurtCheckPDF:
         assert en_output[:5] == b"%PDF-"
         assert nl_output != en_output
 
+    def test_draw_comparison_chart_legend_copy_keeps_benchmark_pattern_text(self):
+        pdf_nl = BuurtCheckPDF()
+        pdf_nl.add_page()
+        pdf_nl.draw_comparison_chart(
+            10,
+            30,
+            180,
+            [("Dit adres", 65, TEAL, False)],
+            show_legend=True,
+            is_nl=True,
+        )
+        nl_reader = PdfReader(io.BytesIO(bytes(pdf_nl.output())))
+        nl_text = "\n".join(p.extract_text() or "" for p in nl_reader.pages)
+
+        pdf_en = BuurtCheckPDF()
+        pdf_en.add_page()
+        pdf_en.draw_comparison_chart(
+            10,
+            30,
+            180,
+            [("This address", 65, TEAL, False)],
+            show_legend=True,
+            is_nl=False,
+        )
+        en_reader = PdfReader(io.BytesIO(bytes(pdf_en.output())))
+        en_text = "\n".join(p.extract_text() or "" for p in en_reader.pages)
+
+        assert "gestreept = richtlijn" in nl_text
+        assert "dashed = benchmark" in en_text
+
     def test_draw_comparison_chart_gridlines_do_not_crash(self):
-        """Gridlines at 25/50/75 render without errors for various row counts."""
+        """Threshold guides at 20/40/70 render without errors for various row counts."""
         for n_rows in (1, 2, 4):
             pdf = BuurtCheckPDF()
             pdf.add_page()
@@ -722,6 +773,28 @@ class TestBuurtCheckPDF:
             assert end_y > 30
             result = bytes(pdf.output())
             assert result[:5] == b"%PDF-"
+
+    def test_draw_comparison_chart_fallback_guides_use_shared_thresholds(self, monkeypatch):
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        line_calls = []
+        original_line = pdf.line
+
+        def tracking_line(x1, y1, x2, y2):
+            line_calls.append((x1, y1, x2, y2))
+            return original_line(x1, y1, x2, y2)
+
+        pdf.line = tracking_line
+        monkeypatch.setattr(pe, "chart_renderer", None)
+
+        rows = [
+            ("This address", 65, TEAL, False),
+            ("Peer", 55, COMPARISON_PEER, False),
+        ]
+        pdf.draw_comparison_chart(10, 30, 180, rows)
+
+        guide_xs = [round(call[0], 1) for call in line_calls[:3]]
+        assert guide_xs == [76.2, 100.4, 136.7]
 
     def test_draw_comparison_chart_threshold_labels(self):
         """E9-S5: Severity zone labels 20, 40, 70 appear on axis."""
@@ -742,15 +815,49 @@ class TestBuurtCheckPDF:
                 f"Threshold label {threshold} missing"
             )
 
+    def test_draw_comparison_chart_fallback_renders_segmented_benchmark(self, monkeypatch):
+        pdf = BuurtCheckPDF()
+        pdf.add_page()
+        monkeypatch.setattr(pe, "chart_renderer", None)
+
+        fill_color = None
+        rect_calls = []
+        original_set_fill_color = pdf.set_fill_color
+        original_rect = pdf.rect
+
+        def tracking_set_fill_color(r, g=None, b=None):
+            nonlocal fill_color
+            fill_color = (r, g, b)
+            return original_set_fill_color(r, g, b)
+
+        def tracking_rect(x, y, w, h, style=""):
+            rect_calls.append((x, y, w, h, style, fill_color))
+            return original_rect(x, y, w, h, style)
+
+        pdf.set_fill_color = tracking_set_fill_color
+        pdf.rect = tracking_rect
+
+        rows = [
+            ("This address", 65, TEAL, False),
+            ("WHO target", 74, COMPARISON_REFERENCE, True),
+        ]
+        pdf.draw_comparison_chart(10, 30, 180, rows)
+
+        benchmark_segments = [
+            call for call in rect_calls
+            if call[4] == "F" and call[5] == COMPARISON_REFERENCE and call[2] < 5.0
+        ]
+        assert len(benchmark_segments) >= 2
+
     def test_draw_comparison_chart_full_features(self):
         """Chart with title + legend + all row types produces valid PDF."""
         pdf = BuurtCheckPDF()
         pdf.add_page()
         rows = [
             ("Dit adres", 65, TEAL, False),
-            ("Vergelijkingswaarde", 55, MUTED, False),
-            ("Nederland", 50, NATIONAL, False),
-            ("WHO-doel", 74, (234, 179, 8), True),
+            ("Vergelijkingswaarde", 55, COMPARISON_PEER, False),
+            ("Nederland", 50, COMPARISON_NATIONAL, False),
+            ("WHO-doel", 74, COMPARISON_REFERENCE, True),
         ]
         end_y = pdf.draw_comparison_chart(
             10, 30, 180, rows,
@@ -3298,40 +3405,44 @@ class TestContrastCompliance:
 # ---------------------------------------------------------------------------
 
 class TestDifferentiatedBarColors:
-    """All 4 bar types must be distinguishable including in grayscale."""
+    """Comparison bars use the audit-approved semantic palette."""
 
     def test_four_bar_colors_are_distinct(self):
-        """TEAL, MUTED (peer), NATIONAL (national), AMBER_WARN (guideline) are all unique."""
-        from app.services.pdf_export import AMBER_WARN
-        colors = {TEAL, MUTED, NATIONAL, AMBER_WARN}
+        """Address, peer, national, and benchmark treatments remain distinct."""
+        colors = {TEAL, COMPARISON_PEER, COMPARISON_NATIONAL, COMPARISON_REFERENCE}
         assert len(colors) == 4, "Not all 4 bar colors are distinct"
 
     def test_grayscale_distinguishable(self):
-        """NATIONAL bar fill is distinct from all others in grayscale.
-
-        TEAL and MUTED are close in grayscale (~2.8 diff) but are
-        differentiated by hue -- the risk card contract requires 4
-        channels (color + label + pattern + score), so hue-based
-        distinction is valid.  NATIONAL must be well-separated since
-        it was added specifically to replace the invisible BORDER fill.
-        """
-        from app.services.pdf_export import AMBER_WARN
+        """Peer and national bars stay visually separable even before labels."""
 
         def _gray(rgb):
             return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
 
-        g_national = _gray(NATIONAL)
-        # NATIONAL must differ from every other bar color by >= 8 gray levels
-        for name, color in [
-            ("TEAL", TEAL), ("MUTED", MUTED), ("AMBER_WARN", AMBER_WARN),
-        ]:
-            diff = abs(g_national - _gray(color))
-            assert diff >= 8, (
-                f"NATIONAL too similar to {name} in grayscale: diff={diff:.1f}"
+        diff = abs(_gray(COMPARISON_NATIONAL) - _gray(COMPARISON_PEER))
+        assert diff >= 20, f"National and peer fills are too similar in grayscale: diff={diff:.1f}"
+
+    def test_comparison_palette_matches_audit_contract(self):
+        assert COMPARISON_PEER == (99, 120, 146)
+        assert COMPARISON_NATIONAL == (138, 155, 176)
+        assert COMPARISON_REFERENCE == (234, 179, 8)
+
+    def test_city_avg_rows_use_peer_baseline_color(self):
+        from app.services.pdf_export import _build_risk_detail_data
+
+        data = _build_risk_detail_data(
+            risks=_make_risks(), sunlight_score=80,
+            comparisons=_make_risk_comparisons(), is_nl=False,
+        )
+        noise_rows = data[0][4]
+        peer_rows = [r for r in noise_rows if "Peer baseline" in r[0]]
+        assert peer_rows, "No city_avg row found in noise comparisons"
+        for label, _val, color, _dashed in peer_rows:
+            assert color == COMPARISON_PEER, (
+                f"city_avg row '{label}' uses {color} instead of COMPARISON_PEER"
             )
 
-    def test_nl_avg_rows_use_light_grey_color(self):
-        """National baseline rows use the light grey PEER_BAR comparison color."""
+    def test_nl_avg_rows_use_light_blue_color(self):
+        """National baseline rows use the dedicated light-blue comparison color."""
         from app.services.pdf_export import _build_risk_detail_data
 
         data = _build_risk_detail_data(
@@ -3343,8 +3454,8 @@ class TestDifferentiatedBarColors:
         nl_rows = [r for r in noise_rows if "Netherlands" in r[0] or "Nederland" in r[0]]
         assert nl_rows, "No nl_avg row found in noise comparisons"
         for label, _val, color, _dashed in nl_rows:
-            assert color == PEER_BAR, (
-                f"nl_avg row '{label}' uses {color} instead of PEER_BAR"
+            assert color == COMPARISON_NATIONAL, (
+                f"nl_avg row '{label}' uses {color} instead of COMPARISON_NATIONAL"
             )
 
     def test_border_never_used_as_data_fill(self):
@@ -3361,20 +3472,21 @@ class TestDifferentiatedBarColors:
                     f"BORDER used as data-carrying fill for '{_label}'"
                 )
 
-    def test_national_meets_graphical_contrast(self):
-        """NATIONAL bar fill must have >= 3:1 contrast vs white (WCAG AA graphical)."""
-        def _luminance(rgb: tuple[int, int, int]) -> float:
-            vals = []
-            for c in rgb:
-                s = c / 255.0
-                vals.append(s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4)
-            return 0.2126 * vals[0] + 0.7152 * vals[1] + 0.0722 * vals[2]
+    def test_reference_rows_use_benchmark_color_and_pattern(self):
+        from app.services.pdf_export import _build_risk_detail_data
 
-        white = (255, 255, 255)
-        l_nat = _luminance(NATIONAL)
-        l_white = _luminance(white)
-        cr = (l_white + 0.05) / (l_nat + 0.05)
-        assert cr >= 3.0, f"NATIONAL contrast {cr:.2f} < 3:1 graphical minimum"
+        data = _build_risk_detail_data(
+            risks=_make_risks(), sunlight_score=80,
+            comparisons=_make_risk_comparisons(), is_nl=False,
+        )
+        noise_rows = data[0][4]
+        reference_rows = [r for r in noise_rows if "WHO target" in r[0]]
+        assert reference_rows, "No benchmark row found in noise comparisons"
+        for label, _val, color, dashed in reference_rows:
+            assert color == COMPARISON_REFERENCE, (
+                f"reference row '{label}' uses {color} instead of COMPARISON_REFERENCE"
+            )
+            assert dashed is True
 
     def test_legend_has_four_swatches(self):
         """Legend must render 4 swatches: address, peer, national, benchmark."""
@@ -3382,9 +3494,9 @@ class TestDifferentiatedBarColors:
         pdf.add_page()
         rows = [
             ("Dit adres", 65, TEAL, False),
-            ("Vergelijkingsgroep", 55, MUTED, False),
-            ("Nationaal", 50, NATIONAL, False),
-            ("Richtlijn", 74, (234, 179, 8), True),
+            ("Vergelijkingsgroep", 55, COMPARISON_PEER, False),
+            ("Nationaal", 50, COMPARISON_NATIONAL, False),
+            ("Richtlijn", 74, COMPARISON_REFERENCE, True),
         ]
         end_y = pdf.draw_comparison_chart(
             10, 30, 180, rows, show_legend=True, is_nl=True,
@@ -4723,14 +4835,14 @@ async def test_export_full_dossier_fetches_livability(
 
 
 # ---------------------------------------------------------------------------
-# MUTED bar fill meets >= 3:1 graphical contrast (WCAG AA)
+# Peer baseline bar fill meets >= 3:1 graphical contrast (WCAG AA)
 # ---------------------------------------------------------------------------
 
-class TestMutedGraphicalContrast:
-    """MUTED bar fill must achieve >= 3:1 contrast vs white for WCAG AA graphical."""
+class TestComparisonPeerGraphicalContrast:
+    """Peer baseline fill must achieve >= 3:1 contrast vs white for WCAG AA graphical."""
 
-    def test_muted_meets_graphical_contrast(self):
-        """MUTED bar fill must have >= 3:1 contrast vs white."""
+    def test_peer_baseline_meets_graphical_contrast(self):
+        """Peer baseline fill must have >= 3:1 contrast vs white."""
         def _luminance(rgb: tuple[int, int, int]) -> float:
             vals = []
             for c in rgb:
@@ -4739,10 +4851,10 @@ class TestMutedGraphicalContrast:
             return 0.2126 * vals[0] + 0.7152 * vals[1] + 0.0722 * vals[2]
 
         white = (255, 255, 255)
-        l_muted = _luminance(MUTED)
+        l_muted = _luminance(COMPARISON_PEER)
         l_white = _luminance(white)
         cr = (l_white + 0.05) / (l_muted + 0.05)
-        assert cr >= 3.0, f"MUTED contrast {cr:.2f} < 3:1 graphical minimum"
+        assert cr >= 3.0, f"peer baseline contrast {cr:.2f} < 3:1 graphical minimum"
 
     def test_legend_label_vergelijkingsgroep_nl(self):
         """Dutch legend renders 'Vergelijkingsgroep' (not old 'Stedelijk')."""
@@ -4750,7 +4862,7 @@ class TestMutedGraphicalContrast:
         pdf.add_page()
         rows = [
             ("Dit adres", 65, TEAL, False),
-            ("Vergelijkingsgroep", 55, MUTED, False),
+            ("Vergelijkingsgroep", 55, COMPARISON_PEER, False),
         ]
         pdf.draw_comparison_chart(10, 30, 180, rows, show_legend=True, is_nl=True)
         result = bytes(pdf.output())
@@ -4765,7 +4877,7 @@ class TestMutedGraphicalContrast:
         pdf.add_page()
         rows = [
             ("This address", 65, TEAL, False),
-            ("Peer group", 55, MUTED, False),
+            ("Peer group", 55, COMPARISON_PEER, False),
         ]
         pdf.draw_comparison_chart(10, 30, 180, rows, show_legend=True, is_nl=False)
         result = bytes(pdf.output())

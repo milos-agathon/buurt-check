@@ -58,6 +58,14 @@ SHADOW_SINGLE_HEIGHT_MM = 90.0
 SHADOW_PANEL_GAP_MM = 6.0
 AGE_CHART_HEIGHT_MM = 25.0
 LIVABILITY_HEIGHT_MM = 32.0
+COMPARISON_AXIS_TICKS: tuple[int, ...] = (0, 20, 40, 70, 100)
+COMPARISON_GUIDE_TICKS: tuple[int, ...] = (20, 40, 70)
+COMPARISON_SEGMENT_WIDTH = 4.0
+COMPARISON_SEGMENT_GAP = 2.0
+COMPARISON_SUBPLOT_LEFT = 0.04
+COMPARISON_SUBPLOT_RIGHT = 0.985
+COMPARISON_SUBPLOT_TOP = 0.84
+COMPARISON_SUBPLOT_BOTTOM = 0.22
 
 OutputFormat = Literal["pdf", "png"]
 
@@ -69,6 +77,10 @@ C_ACCENT_DARK = "#187E76"
 C_MUTE_1 = "#B4C0CE"
 C_MUTE_2 = "#D1D8E0"
 C_REFERENCE = "#637892"
+C_COMPARISON_PEER = "#637892"
+C_COMPARISON_NATIONAL = "#8A9BB0"
+C_COMPARISON_REFERENCE = "#EAB308"
+C_COMPARISON_GUIDE = "#D1D8E0"
 C_SEV_GOOD = "#22C55E"
 C_SEV_MOD = "#EAB308"
 C_SEV_POOR = "#EF4444"
@@ -260,6 +272,151 @@ def _label_line_count(label: str) -> int:
     return label.count("\n") + 1
 
 
+def _normalized_comparison_label(label: str) -> str:
+    return " ".join(label.lower().split())
+
+
+def _comparison_role(row: CompRow) -> Literal["peer", "national", "reference"]:
+    if row.role == "reference":
+        return "reference"
+    if row.role == "national":
+        return "national"
+    if row.role == "peer":
+        return "peer"
+    normalized = _normalized_comparison_label(row.label)
+    if normalized in {"netherlands", "nederland", "national", "nationaal"}:
+        return "national"
+    return "peer"
+
+
+def _comparison_color(
+    role: Literal["address", "peer", "national", "reference"],
+    address_score: int,
+) -> str:
+    if role == "address":
+        return _severity_color(_score_severity(address_score))
+    if role == "national":
+        return C_COMPARISON_NATIONAL
+    if role == "reference":
+        return C_COMPARISON_REFERENCE
+    return C_COMPARISON_PEER
+
+
+def _comparison_segments(value: float) -> list[tuple[float, float]]:
+    if value <= 0:
+        return []
+    segments: list[tuple[float, float]] = []
+    cursor = 0.0
+    while cursor < value:
+        seg_w = min(COMPARISON_SEGMENT_WIDTH, value - cursor)
+        segments.append((cursor, seg_w))
+        cursor += COMPARISON_SEGMENT_WIDTH + COMPARISON_SEGMENT_GAP
+    return segments
+
+
+def build_risk_comparison_layout(
+    category: str,
+    address_score: int,
+    comparisons: list[CompRow],
+) -> ComparisonChartLayout:
+    bar_rows: list[CompRow] = [
+        CompRow(label="This address", value=address_score, role="comparison")
+    ]
+
+    for row in comparisons:
+        if row.value is None:
+            continue
+        label = row.label.strip()
+        if not label:
+            continue
+        if "address" in label.lower():
+            continue
+        bar_rows.append(CompRow(label=label, value=row.value, role=row.role))
+
+    max_bar = max(float(row.value) for row in bar_rows if row.value is not None)
+    max_x = max(100.0, max_bar) + 12.0
+    wrapped_bar_labels = [
+        _wrap_chart_label(row.label, 24 if idx > 0 else 22)
+        for idx, row in enumerate(bar_rows)
+    ]
+    longest_label_chars = max(
+        (
+            len(line)
+            for label in wrapped_bar_labels
+            for line in label.splitlines()
+        ),
+        default=0,
+    )
+    label_space = max(30.0, min(76.0, 2.5 * longest_label_chars))
+    value_x = max_x - 1.0
+
+    row_units = [
+        1.0 + max(0, _label_line_count(label) - 1) * 0.55
+        for label in wrapped_bar_labels
+    ]
+    total_row_units = sum(row_units) or 1.0
+
+    chart_h_mm = max(
+        RISK_MIN_HEIGHT_MM,
+        12.0 + total_row_units * (RISK_ROW_HEIGHT_MM + 1.5),
+    )
+    if len(bar_rows) <= 1:
+        chart_h_mm = min(chart_h_mm, 22.0)
+
+    row_centers: list[float] = []
+    cursor = total_row_units
+    for row_unit in row_units:
+        center = cursor - row_unit / 2
+        row_centers.append(center)
+        cursor -= row_unit
+
+    rows = tuple(
+        ComparisonRowLayout(
+            label=row.label,
+            wrapped_label=wrapped_label,
+            value=float(row.value) if row.value is not None else 0.0,
+            role="address" if idx == 0 else _comparison_role(row),
+            center=center,
+            row_unit=row_unit,
+            is_primary=idx == 0,
+        )
+        for idx, (row, wrapped_label, center, row_unit) in enumerate(
+            zip(bar_rows, wrapped_bar_labels, row_centers, row_units, strict=True)
+        )
+    )
+
+    return ComparisonChartLayout(
+        category=category,
+        rows=rows,
+        chart_height_mm=chart_h_mm,
+        label_space=label_space,
+        max_x=max_x,
+        value_x=value_x,
+        total_row_units=total_row_units,
+        y_min=-0.7,
+        y_max=total_row_units + 0.8,
+    )
+
+
+def comparison_row_center_offset_mm(layout: ComparisonChartLayout, center: float) -> float:
+    axis_fraction = (center - layout.y_min) / max(1e-9, layout.y_max - layout.y_min)
+    figure_fraction = (
+        COMPARISON_SUBPLOT_BOTTOM
+        + axis_fraction * (COMPARISON_SUBPLOT_TOP - COMPARISON_SUBPLOT_BOTTOM)
+    )
+    return layout.chart_height_mm * (1.0 - figure_fraction)
+
+
+def comparison_data_x_offset_mm(layout: ComparisonChartLayout, value: float) -> float:
+    x_min = -layout.label_space
+    axis_fraction = (value - x_min) / max(1e-9, layout.max_x - x_min)
+    figure_fraction = (
+        COMPARISON_SUBPLOT_LEFT
+        + axis_fraction * (COMPARISON_SUBPLOT_RIGHT - COMPARISON_SUBPLOT_LEFT)
+    )
+    return CHART_WIDTH_MM * figure_fraction
+
+
 @dataclass(frozen=True, slots=True)
 class SchererTheme:
     """Reusable Scherer-style theme that configures matplotlib globally."""
@@ -296,7 +453,35 @@ class CompRow:
 
     label: str
     value: float | int | None
-    role: Literal["comparison", "reference"] = "comparison"
+    role: Literal["comparison", "reference", "peer", "national"] = "comparison"
+
+
+@dataclass(frozen=True, slots=True)
+class ComparisonRowLayout:
+    label: str
+    wrapped_label: str
+    value: float
+    role: Literal["address", "peer", "national", "reference"]
+    center: float
+    row_unit: float
+    is_primary: bool
+
+    @property
+    def line_count(self) -> int:
+        return _label_line_count(self.wrapped_label)
+
+
+@dataclass(frozen=True, slots=True)
+class ComparisonChartLayout:
+    category: str
+    rows: tuple[ComparisonRowLayout, ...]
+    chart_height_mm: float
+    label_space: float
+    max_x: float
+    value_x: float
+    total_row_units: float
+    y_min: float
+    y_max: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -357,102 +542,65 @@ def render_risk_comparison(
 ) -> bytes:
     """Render Scherer-style risk comparison chart as vector PDF bytes."""
     SchererTheme().apply()
-
-    bar_rows: list[CompRow] = [CompRow(label="This address", value=address_score)]
-
-    for row in comparisons:
-        if row.value is None:
-            continue
-        label = row.label.strip()
-        if not label:
-            continue
-        if "address" in label.lower():
-            continue
-        bar_rows.append(CompRow(label=label, value=row.value, role=row.role))
-
-    max_bar = max(float(row.value) for row in bar_rows if row.value is not None)
-    max_x = max(100.0, max_bar) + 12.0
-    wrapped_bar_labels = [
-        _wrap_chart_label(row.label, 24 if idx > 0 else 22)
-        for idx, row in enumerate(bar_rows)
-    ]
-    longest_label_chars = max(
-        (
-            len(line)
-            for label in wrapped_bar_labels
-            for line in label.splitlines()
-        ),
-        default=0,
+    layout = build_risk_comparison_layout(
+        category=category,
+        address_score=address_score,
+        comparisons=comparisons,
     )
-    # Keep a generous left gutter for longer peer-baseline labels and reserve
-    # a fixed right column for score values so labels do not collide with them.
-    label_space = (
-        max(30.0, min(76.0, 2.5 * longest_label_chars))
-        if show_row_labels
-        else 0.0
-    )
-    value_x = max_x - 1.0
-
-    row_units = [
-        1.0 + max(0, _label_line_count(label) - 1) * 0.55
-        for label in wrapped_bar_labels
-    ]
-    total_row_units = sum(row_units) or 1.0
-
-    # Scale chart height to row count; cap minimum so single-row charts
-    # (e.g. crime with no peer bars) don't stretch the bar vertically.
-    chart_h_mm = max(
-        RISK_MIN_HEIGHT_MM,
-        12.0 + total_row_units * (RISK_ROW_HEIGHT_MM + 1.5),
-    )
-    # For very few rows, keep the chart compact to prevent bar stretching
-    if len(bar_rows) <= 1:
-        chart_h_mm = min(chart_h_mm, 22.0)
     fig, ax = plt.subplots(
-        figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(chart_h_mm)),
+        figsize=(_mm_to_inch(CHART_WIDTH_MM), _mm_to_inch(layout.chart_height_mm)),
         dpi=CHART_DPI,
     )
     fig.patch.set_facecolor(C_BG)
 
-    alt_colors = [C_MUTE_1, C_MUTE_2]
-    alt_idx = 0
-    row_centers: list[float] = []
-    cursor = total_row_units
-    for row_unit in row_units:
-        center = cursor - row_unit / 2
-        row_centers.append(center)
-        cursor -= row_unit
+    for threshold in COMPARISON_GUIDE_TICKS:
+        ax.axvline(
+            threshold,
+            color=C_COMPARISON_GUIDE,
+            linewidth=0.8,
+            zorder=0,
+        )
 
-    for idx, (row, wrapped_label, y, row_unit) in enumerate(
-        zip(bar_rows, wrapped_bar_labels, row_centers, row_units, strict=True)
-    ):
-        value = float(row.value) if row.value is not None else 0.0
-        is_primary = idx == 0
-        bar_height = min(0.68 if is_primary else 0.4, max(0.35, row_unit - 0.2))
-        if is_primary:
-            bar_color = _severity_color(_score_severity(address_score))
-        elif row.role == "reference":
-            bar_color = C_ACCENT
+    for row in layout.rows:
+        bar_height = min(0.68 if row.is_primary else 0.4, max(0.35, row.row_unit - 0.2))
+        bar_color = _comparison_color(row.role, address_score)
+        if row.role == "reference":
+            for start, segment_w in _comparison_segments(row.value):
+                ax.add_patch(
+                    Rectangle(
+                        (start, row.center - bar_height / 2),
+                        segment_w,
+                        bar_height,
+                        facecolor=bar_color,
+                        edgecolor="none",
+                        linewidth=0,
+                        zorder=3,
+                    )
+                )
         else:
-            bar_color = alt_colors[alt_idx % len(alt_colors)]
-            alt_idx += 1
-        ax.barh(y=y, width=value, height=bar_height, color=bar_color, edgecolor="none")
+            ax.barh(
+                y=row.center,
+                width=row.value,
+                height=bar_height,
+                color=bar_color,
+                edgecolor="none",
+            )
         if show_row_labels:
             ax.text(
-                -label_space + 1.0,
-                y,
-                wrapped_label,
+                -layout.label_space + 1.0,
+                row.center,
+                row.wrapped_label,
                 fontsize=TYPE_BODY_PT,
-                fontweight=FONT_WEIGHT_HEADING if is_primary else FONT_WEIGHT_BODY,
+                fontweight=FONT_WEIGHT_HEADING if row.is_primary else FONT_WEIGHT_BODY,
                 color=C_PRIMARY,
                 va="center",
                 ha="left",
                 linespacing=1.15,
             )
         ax.text(
-            value_x,
-            y,
-            _score_display(value),
+            layout.value_x,
+            row.center,
+            _score_display(row.value),
             fontsize=TYPE_BODY_PT,
             color=C_PRIMARY,
             va="center",
@@ -467,14 +615,12 @@ def render_risk_comparison(
         fontweight=FONT_WEIGHT_HEADING,
         pad=6,
     )
-    ax.set_xlim(-label_space, max_x)
-    ax.set_ylim(-0.7, total_row_units + 0.8)
+    ax.set_xlim(-layout.label_space, layout.max_x)
+    ax.set_ylim(layout.y_min, layout.y_max)
     ax.set_yticks([])
-    # Render threshold ticks inside the chart so they align with the
-    # coordinate system regardless of how the image is embedded.
-    ax.set_xticks([0, 20, 40, 70, 100])
+    ax.set_xticks(list(COMPARISON_AXIS_TICKS))
     if show_axis_labels:
-        ax.set_xticklabels(["0", "20", "40", "70", "100"])
+        ax.set_xticklabels([str(tick) for tick in COMPARISON_AXIS_TICKS])
     else:
         ax.set_xticklabels([])
     ax.tick_params(
@@ -491,9 +637,14 @@ def render_risk_comparison(
     ax.spines["right"].set_visible(False)
     ax.spines["bottom"].set_color(C_AXIS)
     ax.spines["bottom"].set_linewidth(0.4)
-    fig.subplots_adjust(left=0.04, right=0.985, top=0.84, bottom=0.22)
+    fig.subplots_adjust(
+        left=COMPARISON_SUBPLOT_LEFT,
+        right=COMPARISON_SUBPLOT_RIGHT,
+        top=COMPARISON_SUBPLOT_TOP,
+        bottom=COMPARISON_SUBPLOT_BOTTOM,
+    )
 
-    return _save_figure(fig, output_format=output_format, tight=True)
+    return _save_figure(fig, output_format=output_format)
 
 
 def render_risk_summary_grid(
@@ -580,7 +731,19 @@ def render_risk_summary_grid(
                 edgecolor="none",
             )
         )
-        # Single-color bar: no green zone, no tick, no "70+" label
+        for threshold in COMPARISON_GUIDE_TICKS:
+            marker_x = track_x + track_w * threshold / 100.0
+            ax.add_patch(
+                Rectangle(
+                    (marker_x - 0.18, track_y - 0.35),
+                    0.36,
+                    3.5,
+                    facecolor=C_REFERENCE,
+                    edgecolor="none",
+                    alpha=0.55,
+                )
+            )
+        # Keep the fill proportional while showing shared severity thresholds.
         if cell.score is not None:
             fill_w = track_w * max(0.0, min(float(cell.score), 100.0)) / 100.0
             ax.add_patch(
@@ -918,11 +1081,11 @@ def render_livability_score(
     )
     fig.patch.set_facecolor(C_BG)
 
-    # Subtle severity context bands.
-    ax.axvspan(0, 20, color=C_SEV_CRIT, alpha=0.08)
-    ax.axvspan(20, 40, color=C_SEV_POOR, alpha=0.08)
-    ax.axvspan(40, 70, color=C_SEV_MOD, alpha=0.08)
-    ax.axvspan(70, 100, color=C_SEV_GOOD, alpha=0.08)
+    # Shared score bands need enough opacity to remain visible in print.
+    ax.axvspan(0, 20, color=C_SEV_CRIT, alpha=0.14)
+    ax.axvspan(20, 40, color=C_SEV_POOR, alpha=0.14)
+    ax.axvspan(40, 70, color=C_SEV_MOD, alpha=0.14)
+    ax.axvspan(70, 100, color=C_SEV_GOOD, alpha=0.14)
 
     y_livability = 1.0
     y_crime = 0.35
@@ -991,7 +1154,7 @@ def render_livability_score(
     ax.set_xlim(-12, 108)
     ax.set_ylim(0.05, 1.3)
     ax.set_yticks([])
-    ax.set_xticks([0, 25, 50, 75, 100])
+    ax.set_xticks(list(COMPARISON_AXIS_TICKS))
     ax.tick_params(axis="x", length=0, colors=C_REFERENCE, labelsize=TYPE_CAPTION_PT)
     ax.tick_params(axis="y", length=0)
     ax.spines["left"].set_visible(False)
@@ -1008,8 +1171,15 @@ __all__ = [
     "AgeProfile",
     "AGE_CHART_HEIGHT_MM",
     "CHART_WIDTH_MM",
+    "COMPARISON_AXIS_TICKS",
+    "COMPARISON_GUIDE_TICKS",
     "CompRow",
+    "ComparisonChartLayout",
+    "ComparisonRowLayout",
     "CrimeData",
+    "C_COMPARISON_NATIONAL",
+    "C_COMPARISON_PEER",
+    "C_COMPARISON_REFERENCE",
     "FONT_WEIGHT_BODY",
     "FONT_WEIGHT_CAPTION",
     "FONT_WEIGHT_DISPLAY",
@@ -1022,6 +1192,9 @@ __all__ = [
     "SchererTheme",
     "ShadowImage",
     "SunlightMeta",
+    "build_risk_comparison_layout",
+    "comparison_data_x_offset_mm",
+    "comparison_row_center_offset_mm",
     "render_age_distribution",
     "render_livability_score",
     "render_risk_comparison",

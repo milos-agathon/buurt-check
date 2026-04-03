@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import io
 
+import pytest
+from matplotlib import colors as mcolors
 from matplotlib import rcParams
 from matplotlib.axes import Axes
 from PIL import Image
@@ -236,6 +238,59 @@ def test_risk_comparison_primary_bar_uses_severity_color(monkeypatch):
     assert captured_colors[0] == cr.C_SEV_CRIT
 
 
+def test_risk_comparison_uses_semantic_palette(monkeypatch):
+    solid_colors: list[str] = []
+    segmented_colors: list[str] = []
+    original_barh = Axes.barh
+    original_add_patch = Axes.add_patch
+
+    def _patched_barh(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        solid_colors.append(mcolors.to_hex(kwargs.get("color")).lower())
+        return original_barh(self, *args, **kwargs)
+
+    def _patched_add_patch(self, patch, *args, **kwargs):  # type: ignore[no-untyped-def]
+        facecolor = patch.get_facecolor()
+        if facecolor is not None:
+            segmented_colors.append(mcolors.to_hex(facecolor).lower())
+        return original_add_patch(self, patch, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "barh", _patched_barh)
+    monkeypatch.setattr(Axes, "add_patch", _patched_add_patch)
+
+    render_risk_comparison(
+        category="Noise",
+        address_score=72,
+        comparisons=[
+            CompRow("Peer baseline (urbanization)", 66, role="peer"),
+            CompRow("Netherlands", 61, role="national"),
+            CompRow("WHO guideline", 74, role="reference"),
+        ],
+    )
+
+    assert cr.C_COMPARISON_PEER.lower() in solid_colors
+    assert cr.C_COMPARISON_NATIONAL.lower() in solid_colors
+    assert cr.C_COMPARISON_REFERENCE.lower() in segmented_colors
+
+
+def test_risk_comparison_draws_threshold_guides(monkeypatch):
+    captured_guides: list[float] = []
+    original_axvline = Axes.axvline
+
+    def _patched_axvline(self, x=0, *args, **kwargs):  # type: ignore[no-untyped-def]
+        captured_guides.append(float(x))
+        return original_axvline(self, x, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "axvline", _patched_axvline)
+
+    render_risk_comparison(
+        category="Air",
+        address_score=64,
+        comparisons=[CompRow("Netherlands", 61, role="national")],
+    )
+
+    assert captured_guides == list(cr.COMPARISON_GUIDE_TICKS)
+
+
 def test_risk_grid_4_cells():
     chart = render_risk_summary_grid(
         [
@@ -276,6 +331,28 @@ def test_risk_grid_5_cells():
     text = _pdf_text(chart)
     assert "CRIME" in text
     assert text.count("GOOD") >= 2
+
+
+def test_risk_grid_draws_threshold_markers(monkeypatch):
+    marker_x_positions: list[float] = []
+    original_add_patch = Axes.add_patch
+
+    def _patched_add_patch(self, patch, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if (
+            hasattr(patch, "get_width")
+            and hasattr(patch, "get_height")
+            and patch.get_width() < 0.5
+            and patch.get_height() > 3.0
+        ):
+            marker_x_positions.append(float(patch.get_x()))
+        return original_add_patch(self, patch, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "add_patch", _patched_add_patch)
+
+    render_risk_summary_grid([RiskCell("Noise", 82, severity="good")], cols=1)
+
+    expected = [34.22, 64.62, 110.22]
+    assert marker_x_positions == pytest.approx(expected, abs=0.15)
 
 
 def test_risk_grid_with_none_score():
@@ -405,3 +482,35 @@ def test_livability_empty_state():
         crime=CrimeData(score=None, label="Crime"),
     )
     assert chart.startswith(b"%PDF-")
+
+
+def test_livability_uses_shared_threshold_ticks_and_bands(monkeypatch):
+    spans: list[tuple[float, float, float | None]] = []
+    ticks: list[float] = []
+    original_axvspan = Axes.axvspan
+    original_set_xticks = Axes.set_xticks
+
+    def _patched_axvspan(self, xmin, xmax, *args, **kwargs):  # type: ignore[no-untyped-def]
+        spans.append((float(xmin), float(xmax), kwargs.get("alpha")))
+        return original_axvspan(self, xmin, xmax, *args, **kwargs)
+
+    def _patched_set_xticks(self, values, *args, **kwargs):  # type: ignore[no-untyped-def]
+        ticks[:] = [float(value) for value in values]
+        return original_set_xticks(self, values, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "axvspan", _patched_axvspan)
+    monkeypatch.setattr(Axes, "set_xticks", _patched_set_xticks)
+
+    render_livability_score(
+        livability=LivabilityData(score=78, label="Livability"),
+        crime=CrimeData(score=42, label="Crime"),
+    )
+
+    assert [(start, end) for start, end, _alpha in spans] == [
+        (0.0, 20.0),
+        (20.0, 40.0),
+        (40.0, 70.0),
+        (70.0, 100.0),
+    ]
+    assert all((alpha or 0) > 0.08 for _start, _end, alpha in spans)
+    assert ticks == [float(value) for value in cr.COMPARISON_AXIS_TICKS]
