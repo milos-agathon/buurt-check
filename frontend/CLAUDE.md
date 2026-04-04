@@ -42,7 +42,10 @@ npx vitest --watch   # Watch mode
 - Browser-only trial or entitlement shortcuts are deprecated and must not be used for the product contract
 
 ### Checkout flow
-- Upgrade actions call `createCheckoutSession(report_id)` then redirect to Stripe URL
+- Three billing providers: Stripe (web), Google Play (Android TWA), Apple (iOS Capacitor). Resolved at runtime by `billingProvider.ts`
+- Provider priority: Apple (Capacitor iOS) > Google Play (Digital Goods API) > Stripe (web fallback)
+- `isAppleBillingContextAvailableSync()` / `isPlayBillingContextAvailableSync()` for conditional rendering (sync); `isAppleBillingReady()` / `isPlayBillingReady()` for actual use (async)
+- Upgrade actions call `createCheckoutSession(report_id)` then redirect to Stripe URL (web path)
 - Post-redirect verification reads hash query params (`report`, `session_id`) and polls entitlement state
 - Guard against duplicate checkout starts with `isCheckingOut` boolean
 - Funnel events are tracked in `services/analytics.ts` (checkout started/completed/failed, dossier unlocked, etc.)
@@ -105,8 +108,8 @@ npx vitest --watch   # Watch mode
 ## Card Layout & Tab Bar (added 2026-02-17)
 
 - **Card width:** All dossier cards use `margin: 0` (full DossierSheet width). Text inset via padding on individual elements, not card-level margins
-- **Tab bar:** 3 tabs (Home, Briefing, Saved). `position: fixed; bottom: 0; z-index: 50`. Stateless component — no useState/useEffect. Dossier tab triggers the export sheet
-- **DossierSheet bottom padding:** `calc(var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px) + var(--space-lg))`
+- **Tab bar:** 3 tabs (Home, Briefing, Saved). `position: fixed; z-index: 50`. Two-layer structure: outer `.tab-bar` owns safe-area padding + `--viewport-bottom-offset`, inner `.tab-bar__inner` owns flex layout. Stateless component — no useState/useEffect. Dossier tab triggers the export sheet
+- **DossierSheet bottom padding:** `calc(var(--viewport-bottom-offset, 0px) + var(--tab-bar-height, 56px) + var(--dossier-action-bar-offset, 0px) + env(safe-area-inset-bottom, 0px) + var(--space-lg))`
 - **OLED dark mode trap:** Semi-transparent overlays on `#000000` are invisible. Use solid `var(--color-nav-bg)` with accent borders
 - **Risk tile titles:** No parenthetical technical details in tile labels
 
@@ -123,6 +126,15 @@ npx vitest --watch   # Watch mode
 ## Coordinate Conversion (added 2026-02-17)
 
 - **WGS84-to-RD linear approximation:** 68710 m/deg longitude, 111320 m/deg latitude at ~52°N (Amsterdam). Sufficient for ±500m bbox calculations
+
+## Mobile Browser Chrome Compensation (added 2026-04-04)
+
+- **`useViewportBottomOffset` hook**: Computes `layoutViewportHeight - (visualViewportHeight + offsetTop)` via `window.visualViewport` API. Publishes `--viewport-bottom-offset` CSS custom property on `<html>`.
+- **Problem**: Mobile browsers (Chrome, Safari) show dynamic bottom chrome (URL bar, toolbar) that covers `position: fixed; bottom: 0` elements. `env(safe-area-inset-bottom)` only covers device notch/home indicator, NOT browser UI.
+- **All fixed-bottom elements must include `var(--viewport-bottom-offset, 0px)`**: TabBar, ActionBar, Toast, BottomSheet, DossierSheet, AnalyticsConsentBanner. Forgetting one element = it gets covered by browser chrome.
+- **rAF throttling**: `visualViewport` resize/scroll events fire rapidly during chrome animation. Single `requestAnimationFrame` gate prevents layout thrashing.
+- **Cleanup**: Hook cleanup resets CSS var to `0px` and cancels pending rAF.
+- **E2E test**: `tab-bar-visual-viewport.spec.ts` mocks `visualViewport` metrics and asserts `--viewport-bottom-offset` propagation.
 
 ## Resilience & Polish Patterns (added 2026-02-25)
 
@@ -270,7 +282,51 @@ setTimeout(() => { setViewer3DTriggered(true); trigger3DFetch(); }, 0);
 - **Refactored code locations invalidate DoD line references**: Story 2.4 referenced `AddressHeader.tsx:49` for an aria-label, but that code had moved to `ActionBar.tsx`. DoD items referencing file:line locations become stale after refactoring
 - **Frontend seasonal shadow field gap**: `api.ts` sends only `shadow_image_b64` and `shadow_images`, not `shadow_equinox_b64`/`shadow_summer_b64`. Cross-cutting gap between frontend export and backend PDF rendering
 
+## Session Learnings (2026-03-24) — Apple App Store + Vercel
+
+### Capacitor iOS Integration
+- **`@capacitor/core` must be in frontend `package.json`**: It is a peer dependency of Capacitor plugins. Even though root monorepo has it, frontend imports (`appleBilling.ts`) need it in their own dependency tree.
+- **`isAppleBillingContextAvailableSync()` for routing**: Checks `Capacitor.isNativePlatform()` + plugin registered. Safe for conditional rendering. `isAppleBillingReady()` (async) fetches actual product from StoreKit — needed before showing prices.
+- **Store pending report ID before StoreKit sheet**: `storePendingAppleBillingReport(reportId)` writes to localStorage before `purchaseProduct()` since the payment sheet blocks the thread. Clear on success/abort. Recover on page reload.
+- **`downloadPdfBlob()` iOS path**: WebKit ignores `download` attribute on blob URLs. Detect iOS and fall back to `window.open()` with `noopener,noreferrer`.
+
+### Build & Deployment
+- **`npm exec` behaves differently in Vercel**: `npm exec -- node ./scripts/foo.mjs` resolves differently. Fix: spawn `node` directly via `process.execPath` with resolved absolute path in `scripts/build.mjs`.
+- **`quoteArg()` + `cmd.exe` pattern**: Windows requires `cmd.exe /d /s /c` wrapper for spawning node scripts. Pattern duplicated across multiple `.mjs` build scripts.
+
+### Privacy / Legal Pages
+- **Static HTML for app store compliance**: `public/privacy.html` with dedicated `legal.css`. Store review bots and crawlers need accessible pages without JavaScript execution.
+- **Hash-based navigation back to SPA**: Legal pages use `/#/search` links matching the app's hash routing pattern.
+
 ## Test Baseline (updated 2026-03-01)
 
 - **Vitest**: 867 tests (post-Sunlight v2 Phases 4-6)
 - **i18n**: 396+ keys per language with parity + floor assertions
+
+
+## Session Learnings (2026-03-26 to 2026-04-02) � Post-Checkout + Mobile
+
+### Post-Checkout Recovery
+- **recoveryMode parameter pattern**: Pass recoveryMode: 'checkout_return' through address selection so 404s on entitlement are treated as 'not yet processed' rather than 'doesn't exist'.
+- **handledCheckoutParamsRef dedup gate**: A ref tracks processed checkout params, preventing stale URL params from re-triggering verification on re-renders.
+- **sessionStorage for cross-reload state**: Store checkout return context before URL scrubbing. Clear on success, definitive failure, and retry exhaustion.
+- **URL scrubbing via history.replaceState**: Strip billing query params immediately after capture. Use replaceState (not pushState) to avoid polluting browser history.
+- **Gate recovery on shadow snapshot availability**: Don't auto-trigger export if shadows haven't been computed. Let user trigger manually after data loads.
+
+### Mobile / Touch
+- **pointerDown over mouseDown**: Touch events don't fire mouseDown. Use pointerDown with pointerType: 'touch' and isPrimary: true.
+- **Price format through i18n**: Hardcoded comma-formatted prices outside bilingual system show Dutch format to English users.
+
+### CSS Patterns
+- **position: absolute; top: 100% resolves against nearest positioned ancestor**: Can be sticky parent rather than intended relative parent. Nest dropdown inside correct positioning context.
+- **Flex height propagation requires flex: 1 at every chain level**: Not just the outer container.
+
+### SVG Building Silhouettes
+- **SVG Y-axis increases downward**: Subtracting from body_top floats elements above roof. Recurring coordinate-direction trap.
+- **Complex SVG paths as blobs at small sizes**: Use composite geometric primitives (separate rect + polygon) for readable silhouettes.
+- **Curved gable shapes misread culturally**: klokgevel/halsgevel read as mosque domes. Restrict to unambiguous macro-shapes.
+
+## Session Learnings (2026-04-03) -- Post-Checkout Export
+
+- **Removed bypassPrerequisites timeout fallback**: Previously auto-generated PDF after 10s if prerequisites (shadows) were not ready. Now waits indefinitely until user triggers manually. Prevents generating incomplete dossiers.
+- **Single boolean prerequisite gate**: postCheckoutPrerequisitesReady replaces complex bypass + timeout logic. Reduces ExportBottomSheet state by 2 variables and 1 timeout constant.

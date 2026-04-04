@@ -20,6 +20,9 @@ ruff check . && ruff format .               # MUST pass before commit
 | `GET /api/reports/{report_id}/entitlement` | Check buyer-scoped entitlement status for that address |
 | `POST /api/billing/checkout-session` | Create Stripe Checkout Session |
 | `POST /api/billing/webhook` | Stripe webhook (checkout + refund) |
+| `POST /api/billing/google-play/verify` | Google Play purchase token verification + unlock |
+| `POST /api/billing/apple-app-store/verify` | Apple StoreKit JWS transaction verification + unlock |
+| `POST /api/billing/apple-app-store/notifications` | App Store Server Notifications v2 (refund/revoke) |
 | `GET /suggest?q=` | Autocomplete via PDOK Locatieserver |
 | `GET /lookup?id=` | Resolve BAG IDs + coordinates |
 | `GET /{vbo_id}/building` | Building facts from BAG WFS |
@@ -131,6 +134,14 @@ ruff check . && ruff format .               # MUST pass before commit
 - **Pre-existing test failures from uncommitted changes confuse verification**: Other tasks' uncommitted edits to pdf_export.py/dossier.tex.j2 caused failures unrelated to current work. Run only the task-specific test file for verification, not the full suite
 - **Subagent-driven 3-stage pattern (implement -> spec review -> code quality review) catches ~5 issues per task**: Misleading test names, missing dependency guards, imprecise assertions, inaccurate comments. The two review stages add real value
 
+## Session Learnings (2026-04-04) — iOS PDF Font Compatibility
+
+- **CFF/OpenType fonts with `.ttf` extension break iOS PDFKit**: The original Satoshi webfont conversion produced CFF-backed fonts disguised as TrueType. fpdf2 embeds these as CIDFontType2/FontFile2, which desktop viewers tolerate but iOS rejects (blank/invisible text).
+- **`fontTools.varLib.instancer.instantiateVariableFont()` for static TrueType instances**: Generates real glyf-based outlines from Inter variable font. Output has correct TrueType tables for universal PDF compatibility.
+- **Font family aliases preserved to avoid cascade**: Internal aliases ("Satoshi", "SatoshiBlack", "SatoshiMedium") kept in pdf_export.py `_register_fonts()`. Only the backing `.ttf` files changed — no template or layout code needed updating.
+- **matplotlib chart font stack updated**: Satoshi removed, Inter is now primary. Stack: `Inter > Source Sans 3 > Helvetica Neue > DejaVu Sans`.
+- **Font table assertion test**: `test_pdf_font_compatibility.py` opens each font file with `TTFont` and asserts `glyf` table presence, `CFF` table absence. Catches regressions from future font pipeline changes.
+
 ## Session Learnings (2026-03-06) — P2 Dossier Audit Fixes
 
 - **PDOK BRT to Luchtfoto migration**: `_fetch_location_map()` now uses `settings.luchtfoto_wms_base` with layer `Actueel_orthoHR` (JPEG). BRT `standaard` layer endpoint retired. Attribution: "PDOK Luchtfoto (CC BY 4.0)"
@@ -145,3 +156,37 @@ ruff check . && ruff format .               # MUST pass before commit
 - **`_draw_notes_section()` helper with page guard**: Extracted from inline while loop. Constants: `_NOTES_RULE_COUNT = 4`, `_NOTES_RULE_SPACING_MM = 8.0`, `_NOTES_SECTION_REQUIRED_MM = 47.0`. Uses `_ensure_page_space()` to avoid orphaned section headers
 - **Text color reset before section headings**: `pdf.set_text_color(*SLATE)` before each section title. fpdf2 inherits text color state — if a prior section set red for risk, the next heading would be red without explicit reset
 - **`_ensure_page_space(pdf, required_mm)` pattern**: Check `pdf.h - pdf.b_margin - pdf.get_y() < required_mm` before rendering; `pdf.add_page()` if insufficient. Document the budget arithmetic in a comment on the required_mm constant
+
+## Session Learnings (2026-03-24) — Apple App Store Billing
+
+- **Two-step JWS verification for Apple**: Verify device-side `signedTransactionInfo` via `SignedDataVerifier` locally, then fetch authoritative transaction from Apple Server API. Device-side JWS can be stale or replayed.
+- **`lru_cache(maxsize=1)` for Apple client singletons**: `_build_signed_data_verifier()` and `_build_api_client()` cached; `reset_apple_app_store_clients()` clears all caches for test isolation.
+- **Apple root certificates as binary assets**: Three `.cer` files at `app/certs/apple/`. Loaded once and cached. Required by `SignedDataVerifier` for JWS chain-of-trust.
+- **`rawNotificationType` over typed enum**: App Store Server Library enum may not cover all notification types. Use raw string field as primary, typed enum as convenience.
+- **Apple price in millis, not cents or micros**: `decoded.price` returns milliunits (2990 = 2.99 EUR). Stripe uses cents, Google Play uses micros.
+- **Transaction deduplication pattern identical across all 3 providers**: `get_report_by_provider_payment_id(txn_id)` before unlock. Return 409 if already linked to different report.
+- **`asyncio.to_thread()` for synchronous Apple SDK calls**: `AppStoreServerAPIClient` methods are blocking. Same wrapper pattern as Google Play and Stripe SDK.
+- **`matplotlib` and `tzdata` are undeclared production dependencies**: Both required at runtime (`chart_renderer.py` and timezone ops) but were missing from `pyproject.toml`. CI fails on clean install without them.
+- **`PyMuPDF` required as dev dependency**: Visual regression tests render PDF to PNG for comparison. Must be in `[dev]` extras.
+- **`BUURTCHECK_TEX_INSTALL_MODE` env var controls TeX install path**: `apt` for CI (deterministic), `tlmgr` for local dev (lighter). TinyTeX remote install was flaky in CI.
+
+
+## Session Learnings (2026-03-26 to 2026-04-02) � Database + Stripe
+
+- **libsql/Turso cursor.rowcount unreliable for UPDATEs**: Returns non-integer. Fallback: do a SELECT verification query after UPDATE.
+- **Dual database support via env vars**: BUURT_TURSO_DATABASE_URL + BUURT_TURSO_AUTH_TOKEN switch to Turso; empty strings = aiosqlite fallback.
+- **Stripe metadata wrapper objects**: session.metadata may not be a plain dict. Use _stripe_field() accessor for reliable extraction across all Stripe object types.
+- **Post-checkout entitlement polling**: After Stripe redirect, webhook may not have fired yet. Poll entitlement with exponential backoff (3 attempts, 1s/2s/4s) before declaring failure.
+- **matplotlib and tzdata are undeclared production deps**: Both required at runtime but were missing from pyproject.toml. CI fails on clean install.
+- **PyMuPDF required as dev dependency**: Visual regression tests render PDF to PNG for comparison. Must be in [dev] extras.
+- **BUURTCHECK_TEX_INSTALL_MODE controls TeX install**: apt for CI (deterministic), tlmgr for local dev. TinyTeX remote install is flaky in CI.
+
+## Session Learnings (2026-04-03) -- PDF Chart + Shadow Rendering
+
+- **Segmented bar rendering for comparison charts**: Use discrete segments (4mm wide, 2mm gap) instead of solid fills. Readable at print resolution where continuous bars merge.
+- **Role-based color assignment for comparison rows**: CompRow.role field (peer/national/reference) drives bar color. Heuristic fallback normalizes label text to assign roles when field is missing.
+- **multi_cell(dry_run=True, output="HEIGHT") for pre-rendering height**: fpdf2 can estimate wrapped text height without rendering. Essential for _ensure_page_space() before chart sections.
+- **seasonal_facades shadow layout detection**: 6-panel grid needs explicit pair-matching (3 seasons x 2 viewpoints). _shadow_season_key() and _shadow_viewpoint_from_raw() extract from mixed dict keys and label strings.
+- **Shadow label tokenization handles multiple naming conventions**: _shadow_label_tokens() splits on _ and -, handles "winter_front", "front-winter", "Winter Front" uniformly.
+- **Visual regression baselines are environment-specific**: Deleted PNG baselines to avoid binary bloat. Baselines should be regenerated per-CI-environment rather than committed.
+- **WCAG contrast tests for chart colors**: New test module validates all chart color constants against minimum contrast ratios.

@@ -6,8 +6,8 @@ Mobile-first web app helping expats and first-time homebuyers in the Netherlands
 
 | Layer | Stack |
 |-------|-------|
-| Backend | Python 3.12, FastAPI, httpx (async), Pydantic v2, pydantic-settings, Redis, aiosqlite, stripe, sentry-sdk[fastapi], scipy, fpdf2 |
-| Frontend | React 18, TypeScript 5, Vite 6, Framer Motion, Three.js, Leaflet, SunCalc, i18next, @sentry/react |
+| Backend | Python 3.12, FastAPI, httpx (async), Pydantic v2, pydantic-settings, Redis, aiosqlite, stripe, app-store-server-library, sentry-sdk[fastapi], scipy, fpdf2 |
+| Frontend | React 18, TypeScript 5, Vite 6, Framer Motion, Three.js, Leaflet, SunCalc, i18next, @capacitor/core, @sentry/react |
 | Styling | Plain CSS with design tokens ("Polar Frost"). NO Tailwind, NO CSS-in-JS |
 | Testing | pytest + pytest-asyncio (backend), Vitest 4.x + Testing Library (frontend), Playwright (E2E) |
 | Linting | ruff (backend), TypeScript strict mode via `npm run build` (frontend) |
@@ -31,6 +31,8 @@ frontend/          # React + Vite + TypeScript
   src/i18n/        # en.json + nl.json (~380 keys each, parity enforced)
   src/types/       # TypeScript interfaces mirroring backend models
 docs/              # Design specs, plans, palette, UI principles
+ios/               # Capacitor iOS wrapper (Swift, Xcode project)
+scripts/           # Build, deployment, and release readiness scripts
 ```
 
 ## Commands
@@ -237,6 +239,125 @@ Key patterns from the Android TWA + Google Play Billing integration session:
 - **`SimpleNamespace` for lightweight mock return values in backend tests**: Instead of constructing full dataclasses in test patches, `SimpleNamespace(purchase_state=0, consumption_state=0)` is terser and less fragile to schema changes.
 - **Google Play service account credentials: file OR inline JSON**: Support both `google_play_service_account_file` (path) and `google_play_service_account_json` (inline JSON) in config. Tests use inline JSON; production uses a mounted file.
 - **Backend packaging artifacts (`.dist-info`, `wheel/`) must be gitignored**: `bdist.linux-x86_64/` directory from `pip install -e .` gets picked up by git. Add to `backend/.gitignore` immediately when they appear.
+
+## Session Learnings (2026-03-24) — Apple App Store + Vercel + CI
+
+Key patterns from the Apple App Store deployment, Vercel hosting, CI stabilization, and privacy policy sessions:
+
+### Apple App Store Billing Integration
+- **Three-provider billing abstraction**: `billingProvider.ts` resolves `stripe | google_play | apple_app_store` at runtime. Priority order: Apple (Capacitor iOS) > Google Play (Digital Goods API) > Stripe (web fallback). Sync check for conditional rendering, async check for actual purchase flow.
+- **Capacitor native bridge pattern**: `AppleBillingBridge.swift` is a `CAPPlugin` exposing StoreKit methods. `purchaseProduct` must run on `@MainActor`. All StoreKit-dependent methods need `guard #available(iOS 15.0, *)` since `Product.purchase()` requires iOS 15+.
+- **Server-side JWS verification is two-step**: Verify device-side `signedTransactionInfo` locally via `SignedDataVerifier`, THEN fetch authoritative transaction from Apple Server API via `get_transaction_status()`. Never trust device-side JWS alone (could be stale or replayed).
+- **`asyncio.to_thread()` for all blocking SDK calls**: `AppStoreServerAPIClient.get_transaction_info()` is synchronous — must wrap in `asyncio.to_thread()`. Same pattern as Google Play and Stripe SDK calls.
+- **`lru_cache(maxsize=1)` for Apple client singletons**: Both `_build_signed_data_verifier()` and `_build_api_client()` cached with `reset_apple_app_store_clients()` for test teardown.
+- **Apple root certificates bundled as binary assets**: Three `.cer` files at `backend/app/certs/apple/`. Loaded once, cached. Required for JWS chain-of-trust validation.
+- **App Store Server Notifications v2 for refunds**: `POST /api/billing/apple-app-store/notifications` handles `REFUND` and `REVOKE` types. Use `rawNotificationType` (string) over typed enum to avoid mapping failures on unknown types.
+- **`rawEnvironment` over `.environment.value`**: Same pattern for environment field — raw string more resilient than enum.
+- **Apple `price` field is in millis**: `decoded.price` returns integer in milliunits (2990 = 2.99 EUR). Differs from Stripe (cents) and Google Play (micros).
+- **PDF share sheet for iOS**: `presentPdfShareSheet` converts base64 blob to temp file, presents `UIActivityViewController`. Temp file cleaned up in `completionWithItemsHandler`. Bypasses WebKit blob URL limitation.
+- **`cap sync ios` fails on Windows**: Catch error, fall back to `cap copy ios`. CocoaPods and archive steps require macOS.
+- **Xcode project normalization after Capacitor generation**: `update-ios-wrapper.mjs` post-processes `project.pbxproj` to force bundle ID, deployment target (15.0), device family, team ID, entitlements, version numbers. Capacitor defaults don't match production requirements.
+- **Release readiness script validates 30+ settings**: `check-ios-release-readiness.mjs` checks Xcode settings, entitlements, AASA file, env vars, certificates, Info.plist, Capacitor config, bundle ID consistency. Supports `--strict` for CI.
+
+### Vercel Deployment
+- **7 commits in 30 minutes = cost of deploying without local reproduction**: Each commit was a CI experiment. `vercel build` locally would have caught issues faster.
+- **Over-engineering before understanding constraint**: Built 3-script Vercel routing system (`vercel-target.mjs` inspecting Vercel env vars) then immediately deleted it. Simple copy of frontend dist to `dist/` + `public/` was sufficient.
+- **`npm exec` behaves differently in Vercel**: `npm exec -- node ./scripts/foo.mjs` worked locally but not in Vercel. Fix: spawn `node` directly via `process.execPath` with resolved absolute path.
+- **Monorepo Vercel output directory confusion**: Vercel expects output in predictable location. Root `package.json` + `frontend/package.json` needed explicit routing. Ended with root `build-root-frontend-app.mjs` that copies frontend dist.
+- **Root `/public/` directory must be gitignored**: Build script copies frontend dist there for Vercel; don't commit it.
+
+### CI Pipeline Fixes
+- **Undeclared dependencies surface in CI first**: `matplotlib`, `tzdata`, `PyMuPDF` all worked locally (transitive deps or platform-provided) but failed in clean CI. Always verify `pip install -e ".[dev]"` in a fresh virtualenv.
+- **`tzdata` is a hidden Linux-only dependency**: Windows/macOS have system timezone databases. Linux minimal CI images may not. Python 3.12 falls back to `tzdata` PyPI package.
+- **TinyTeX to apt TeX Live for CI**: TinyTeX lighter but requires network fetches via `tlmgr`. `apt`-based install is deterministic. For CI, determinism wins. Controlled by `BUURTCHECK_TEX_INSTALL_MODE` env var.
+- **Dual TeX install modes**: `install-texlive.sh` supports both `apt` (CI) and `tlmgr` (local dev with TinyTeX) via env var.
+
+### Privacy Policy Page
+- **Static HTML, not React route**: Store review bots don't execute JavaScript. `frontend/public/privacy.html` with own `legal.css` loads independently.
+- **Three-provider privacy coverage**: Explicitly names Stripe (web), Google Play Billing (Android), Apple In-App Purchase (iOS) as separate payment data processors.
+- **Hash-based app links from legal pages**: Navigation uses `/#/search` to return to SPA, matching hash routing pattern.
+
+### Cross-Cutting Patterns
+- **Symmetric provider architecture is predictable but verbose**: Each new billing provider requires ~300 lines backend + ~200 lines frontend + native bridge. Verify/unlock/consume lifecycle and dedup pattern identical across all three.
+- **`quoteArg()` + `cmd.exe` spawn pattern duplicated across 5+ scripts**: Build, deploy, and iOS scripts all have near-identical Windows cmd.exe spawn wrappers.
+- **Capacitor peer dependencies must be in frontend package.json**: `@capacitor/core` is a peer dep of plugins. Even though it is in root monorepo `package.json`, frontend imports (`appleBilling.ts`) need it in their own dependency tree.
+- **Store pending state before native payment sheet**: Both Play Billing and StoreKit sheets block the thread. Store report ID in localStorage/sessionStorage before calling `show()`/`purchaseProduct()`. Clear on success and abort. Recover on page reload.
+
+
+## Session Learnings (2026-03-26 to 2026-04-02) — Post-Checkout Recovery + Database Abstraction
+
+Key patterns from 10+ iterative commits fixing post-Stripe checkout dossier recovery, database abstraction, and SVG rendering:
+
+### Post-Stripe Checkout Recovery (10 commits)
+- **Post-checkout state loss is the core problem**: After Stripe redirect, the app loses all in-memory state (shadow snapshots, sunlight data, 3D viewer). The `handleAddressSelect` flow hits 404 on `checkEntitlement` (webhook not yet processed), falls through to `createShortReport`, overwriting the paid report.
+- **`recoveryMode` parameter pattern**: Pass `recoveryMode: 'checkout_return'` through address selection so 404s on entitlement checks are treated as "not yet processed" rather than "doesn't exist," preventing `createShortReport` fallback.
+- **`handledCheckoutParamsRef` deduplication gate**: A ref tracks which checkout params have been processed, preventing stale URL params from re-triggering verification on re-renders.
+- **Transient sessionStorage for cross-reload state**: Store checkout return context (report ID, VBO ID, session ID) in `sessionStorage` before URL scrubbing. Clear on all three terminal outcomes: success, definitive failure, retry exhaustion.
+- **URL scrubbing via `history.replaceState`**: Strip billing query params immediately after capture to prevent stale-parameter replay. Use `replaceState` (not `pushState`) to avoid polluting browser history.
+- **Gate recovery on shadow snapshot availability**: Dossier export requires shadow snapshots. Don't auto-trigger export if shadows haven't been computed yet — let the user manually trigger after data loads.
+- **Stripe metadata is a wrapper object, not a dict**: `session.metadata` may not support `.get()`. Use accessor functions (`_stripe_field`) for reliable field extraction.
+
+### Database Abstraction
+- **libsql/Turso `cursor.rowcount` is unreliable for UPDATEs**: Returns non-integer values. Fallback pattern: if `rowcount` is not `int >= 0`, do a SELECT verification query after the UPDATE.
+- **Dual database support (aiosqlite + libsql)**: `BUURT_TURSO_DATABASE_URL` + `BUURT_TURSO_AUTH_TOKEN` env vars switch to Turso. Empty strings = aiosqlite fallback (essential for Windows dev where libsql doesn't build).
+
+### SVG Building Silhouettes (Mar 29)
+- **SVG Y-axis increases downward**: Subtracting from `body_top` floats elements above the roof, not below. Recurring coordinate-direction trap.
+- **Complex SVG paths render as blobs at small sizes**: Composite geometric primitives (separate rect + polygon per feature) are required for readable silhouettes.
+- **Curved gable shapes (klokgevel, halsgevel) read as mosque domes**: Restrict to unambiguous macro-shapes for cultural recognition.
+
+### CSS + Frontend Patterns
+- **`position: absolute; top: 100%` resolves against nearest positioned ancestor**: Can be a `sticky` parent rather than intended `relative` parent. Fix: nest dropdown inside correct positioning context.
+- **Flex height propagation requires `flex: 1` at every chain level**: Not just the outer container.
+- **`pointerDown` over `mouseDown` for mobile**: Touch events don't fire `mouseDown`. Use `pointerDown` with `pointerType: 'touch'` and `isPrimary: true`.
+- **Price format must go through i18n**: Hardcoded `3,99` outside bilingual system shows Dutch comma format to English users.
+
+### Process Patterns
+- **Auto-compound `git reset --hard origin/main` orphans unpushed commits**: Script must verify push success before resetting. Mar 26 compound commit `6db9661` was lost this way.
+- **Compound sessions are token-intensive**: Reading large JSONL session files consumes significant context. 3 of 5 automated compound attempts hit rate limits before completing.
+- **Assessment without test execution gives "Fully Implemented" for ~93% actual**: Read-only PRD assessment continues to overestimate. Always run tests.
+
+## Session Learnings (2026-04-03) — PDF Comparison Charts + Shadow Layout
+
+Key patterns from 4 commits improving PDF dossier chart rendering and seasonal shadow layout:
+
+### Comparison Chart Rendering
+- **Segmented bar pattern for comparison charts**: Bars composed of discrete segments (4mm wide, 2mm gap) instead of solid fills. Provides visual differentiation at print resolution where thin continuous bars merge.
+- **Role-based bar coloring**: Address bar = severity-colored, peer = `#637892`, national = `#8A9BB0`, reference/benchmark = `#EAB308` dashed. Assign role via `CompRow.role` field + label-text heuristic fallback.
+- **`_estimate_comparison_chart_height()` before rendering**: Pre-calculate chart height using `multi_cell(dry_run=True)` for text wrapping, then `_ensure_page_space()`. Prevents charts from spilling across page boundaries.
+- **`_estimate_pdf_text_height()` utility**: Wraps fpdf2 `multi_cell(dry_run=True, output="HEIGHT")` for consistent height estimation across all chart types.
+- **Legend text as trailing line, not separate section**: Chart legend below the bars as small-font descriptive text. Avoids orphaned legend sections.
+
+### Seasonal Shadow Layout
+- **`seasonal_facades` layout context**: 6-panel grid (3 seasons x 2 facade views) detected when shadow images contain equinox/summer/winter + front/rear pairs. Renders as labeled 3x2 grid with season row headers.
+- **Shadow label tokenization for robust matching**: `_shadow_label_tokens()` splits on `_` and `-`, normalizes to lowercase. Matches "winter_front", "front-winter", "Winter Front" variants.
+- **`_shadow_season_key()` + `_shadow_viewpoint_from_raw()`**: Two-level extraction — first check explicit `season`/`viewpoint` fields, then fall back to token matching in `label` strings.
+- **Baseline PDF images removed**: Visual regression baselines deleted to avoid binary bloat. Baselines should be regenerated per-environment.
+- **`FacadeResult` model imported for shadow data typing**: Shadow analysis pipeline produces `FacadeResult` with structured season/viewpoint metadata, replacing ad-hoc dict structures.
+
+### Post-Checkout Export Gating
+- **Removed `bypassPrerequisites` timeout fallback**: Previously auto-generated PDF after 10s if prerequisites (shadows) weren't ready. Now waits indefinitely — user triggers manually when ready. Prevents generating incomplete dossiers.
+- **Simpler prerequisite gate**: Single boolean `postCheckoutPrerequisitesReady` replaces complex bypass logic. Reduces ExportBottomSheet state complexity.
+
+## Session Learnings (2026-04-04) — iOS PDF Fonts + Mobile Browser Chrome
+
+Key patterns from 3 commits fixing iOS PDF rendering and mobile browser bottom-bar occlusion:
+
+### iOS PDF Font Compatibility
+- **Satoshi `.ttf` assets were actually CFF/OpenType with `.ttf` extension**: Desktop PDF viewers (macOS Preview, Adobe Reader) tolerate CFF fonts embedded as TrueType by fpdf2, but iOS PDFKit does not — text renders as invisible/blank. The file extension was misleading.
+- **Solution: generate real glyf-based TrueType from Inter variable font**: `fontTools.varLib.instancer.instantiateVariableFont()` produces static instances with correct TrueType outlines. Font family aliases ("Satoshi", "SatoshiBlack", "SatoshiMedium") kept to avoid cascading PDF template changes.
+- **Satoshi removed from matplotlib chart font stack**: Charts now use `Inter > Source Sans 3 > Helvetica Neue > DejaVu Sans`. Satoshi was never reliably available at chart render time.
+- **Font format verification test**: `test_pdf_font_compatibility.py` validates that embedded fonts have `glyf` table (TrueType) not `CFF` table (OpenType). Prevents regression to CFF fonts.
+
+### iOS Safe-Area Tab Bar
+- **Two-layer tab bar structure for safe-area**: Outer `.tab-bar` handles `padding-bottom: env(safe-area-inset-bottom)` and `min-height` including safe area. Inner `.tab-bar__inner` contains flex layout at fixed `--tab-bar-height`. Single-layer flex + padding causes button distribution into the safe-area padding zone.
+
+### Mobile Browser Bottom Chrome
+- **`position: fixed; bottom: 0` is occluded by mobile browser chrome**: Chrome/Safari mobile show dynamic bottom bars (URL bar, toolbar) that cover fixed-bottom elements. `env(safe-area-inset-bottom)` does NOT account for browser chrome — only device notch/home indicator.
+- **`window.visualViewport` API solves this**: `layoutViewportHeight - (visualViewportHeight + offsetTop)` = pixels hidden by browser chrome. Published as CSS custom property `--viewport-bottom-offset`.
+- **All fixed-bottom elements must include `var(--viewport-bottom-offset, 0px)`**: TabBar, ActionBar, Toast, BottomSheet, DossierSheet, AnalyticsConsentBanner all updated. Missing one element = partial occlusion.
+- **rAF-throttled viewport listener**: `visualViewport` fires resize/scroll events rapidly during browser chrome animation. Single `requestAnimationFrame` gate prevents layout thrashing.
+- **Cleanup resets CSS var to `0px`**: Hook cleanup must reset `--viewport-bottom-offset` to avoid stale values if component unmounts.
 
 ## Session Learnings (2026-03-09) — PDF Dossier Design Audits
 
