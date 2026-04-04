@@ -99,6 +99,7 @@ import {
 } from './services/analytics';
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
 import { ToastContainer, useToast } from './components/ui/Toast';
+import { useViewportBottomOffset } from './hooks/useViewportBottomOffset';
 import type { Geometry, Position } from 'geojson';
 import type {
   AddressSuggestion,
@@ -716,6 +717,7 @@ function clearCheckoutReturnContext(): void {
 }
 
 function App() {
+  useViewportBottomOffset();
   const { t, i18n } = useTranslation();
   const uiLanguage = normalizeUiLanguage(i18n.resolvedLanguage ?? i18n.language);
   const isNl = uiLanguage === 'nl';

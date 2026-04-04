@@ -1,6 +1,6 @@
 .action-bar {
   position: fixed;
-  bottom: calc(var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--viewport-bottom-offset, 0px) + var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   max-width: var(--max-width, 600px);
@@ -23,7 +23,7 @@
 }
 
 .action-bar--hidden {
-  transform: translateY(calc(100% + var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px)));
+  transform: translateY(calc(100% + var(--viewport-bottom-offset, 0px) + var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px)));
   pointer-events: none;
 }
 

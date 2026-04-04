@@ -1,6 +1,8 @@
 .bottom-sheet-overlay {
   position: fixed;
   inset: 0;
+  box-sizing: border-box;
+  padding-bottom: var(--viewport-bottom-offset, 0px);
   background: var(--color-backdrop);
   z-index: 100;
   display: flex;

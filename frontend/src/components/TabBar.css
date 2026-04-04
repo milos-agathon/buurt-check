@@ -1,6 +1,6 @@
 .tab-bar {
   position: fixed;
-  bottom: 0;
+  bottom: var(--viewport-bottom-offset, 0px);
   left: 0;
   right: 0;
   display: flex;

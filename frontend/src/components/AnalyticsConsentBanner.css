@@ -2,7 +2,7 @@
   position: fixed;
   left: var(--space-base);
   right: var(--space-base);
-  bottom: calc(var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px) + var(--space-sm));
+  bottom: calc(var(--viewport-bottom-offset, 0px) + var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px) + var(--space-sm));
   z-index: 80;
   display: grid;
   gap: var(--space-base);
@@ -85,7 +85,7 @@
     left: auto;
     width: min(420px, calc(100vw - 2 * var(--space-lg)));
     right: var(--space-lg);
-    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--space-lg));
+    bottom: calc(var(--viewport-bottom-offset, 0px) + env(safe-area-inset-bottom, 0px) + var(--space-lg));
   }
 
   .analytics-consent-banner__actions {
