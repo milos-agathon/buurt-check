@@ -126,7 +126,7 @@ SCHERER_RCPARAMS: MappingProxyType[str, object] = MappingProxyType(
         "xtick.labelsize": TYPE_CAPTION_PT,
         "ytick.labelsize": TYPE_BODY_PT,
         "font.family": "sans-serif",
-        "font.sans-serif": ["Satoshi", "Inter", "Source Sans 3", "Helvetica Neue", "DejaVu Sans"],
+        "font.sans-serif": ["Inter", "Source Sans 3", "Helvetica Neue", "DejaVu Sans"],
         "font.size": TYPE_BODY_PT,
         "figure.facecolor": C_BG,
         "figure.dpi": CHART_DPI,
@@ -540,7 +540,7 @@ def comparison_data_x_offset_mm(layout: ComparisonChartLayout, value: float) -> 
 class SchererTheme:
     """Reusable Scherer-style theme that configures matplotlib globally."""
 
-    preferred_fonts: tuple[str, ...] = ("Satoshi", "Inter", "Source Sans 3")
+    preferred_fonts: tuple[str, ...] = ("Inter", "Source Sans 3")
     fallback_fonts: tuple[str, ...] = ("Helvetica Neue", "DejaVu Sans")
 
     def apply(self) -> tuple[str, ...]:

@@ -145,6 +145,12 @@ _LOCATION_MAP_PLACEHOLDER_REQUIRED_MM = 48.0
 
 # --- PDF Type Hierarchy (8 primary levels) ---
 #
+# Implementation note:
+# PDF text uses static Inter TrueType instances under the legacy family aliases
+# below. The repo's historical Satoshi "*.ttf" assets are actually CFF/OpenType
+# fonts with a ".ttf" extension, which desktop viewers tolerate but iOS PDFKit
+# does not when embedded by fpdf2.
+#
 # Level         | Font                   | Size | Color     | Usage
 # --------------|------------------------|------|-----------|-------------------------------
 # Display       | SatoshiBlack           | 24pt | severity  | Score numerals in risk grid
@@ -820,18 +826,18 @@ class BuurtCheckPDF(FPDF):
         self.set_auto_page_break(auto=True, margin=20)
 
     def _register_fonts(self) -> None:
-        """Register Satoshi font weights for Unicode support."""
+        """Register export-safe static TrueType weights for Unicode PDF text."""
         for style, filename in [
-            ("", "Satoshi-Regular.ttf"),
-            ("B", "Satoshi-Bold.ttf"),
+            ("", "Inter-Regular.ttf"),
+            ("B", "Inter-Bold.ttf"),
         ]:
             path = _FONTS_DIR / filename
             if path.exists():
                 self.add_font("Satoshi", style, str(path))
-        black_path = _FONTS_DIR / "Satoshi-Black.ttf"
+        black_path = _FONTS_DIR / "Inter-Black.ttf"
         if black_path.exists():
             self.add_font("SatoshiBlack", "", str(black_path))
-        medium_path = _FONTS_DIR / "Satoshi-Medium.ttf"
+        medium_path = _FONTS_DIR / "Inter-Medium.ttf"
         if medium_path.exists():
             self.add_font("SatoshiMedium", "", str(medium_path))
 

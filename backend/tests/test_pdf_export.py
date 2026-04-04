@@ -83,6 +83,10 @@ from app.services.pdf_export import (
 # --- Fixture helpers ---
 
 
+def _normalize_pdf_text(text: str) -> str:
+    return " ".join(text.split())
+
+
 def _make_risks(
     noise_score=65,
     air_score=72,
@@ -5469,8 +5473,10 @@ class TestShadowTriptych:
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=False)
-        text = "\n".join(
-            p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+        text = _normalize_pdf_text(
+            "\n".join(
+                p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+            )
         )
 
         assert (
@@ -5483,8 +5489,10 @@ class TestShadowTriptych:
         pdf = BuurtCheckPDF(language="nl")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_shadow_images(), is_nl=True)
-        text = "\n".join(
-            p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+        text = _normalize_pdf_text(
+            "\n".join(
+                p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+            )
         )
 
         assert "Deze drie zomerbeelden tonen hetzelfde moment vanuit boven, voor en achter" in text
@@ -5604,8 +5612,10 @@ class TestShadowTriptych:
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
         _draw_shadow_triptych(pdf, self._make_seasonal_shadow_images(), is_nl=False)
-        text = "\n".join(
-            p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+        text = _normalize_pdf_text(
+            "\n".join(
+                p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
+            )
         )
 
         assert (
