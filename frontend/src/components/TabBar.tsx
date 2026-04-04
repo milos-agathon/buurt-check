@@ -22,41 +22,43 @@ export default function TabBar({ activeTab, onTabChange, savedCount, inert }: Ta
 
   return (
     <nav className="tab-bar" role="tablist" aria-label={t('nav.primaryTabs')} inert={inert || undefined}>
-      {TABS.map(tab => {
-        const isActive = activeTab === tab.id;
-        return (
-          <motion.button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            aria-label={t(tab.labelKey)}
-            className={`tab-bar__tab${isActive ? ' tab-bar__tab--active' : ''}`}
-            onClick={() => onTabChange(tab.id)}
-            whileTap={{ scale: 0.97 }}
-          >
-            <div className="tab-bar__icon-wrapper">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d={tab.icon} />
-              </svg>
-              {tab.id === 'saved' && savedCount > 0 && (
-                <span className="tab-bar__badge">{savedCount}</span>
-              )}
-            </div>
-            <span className="tab-bar__label">{t(tab.labelKey)}</span>
-          </motion.button>
-        );
-      })}
+      <div className="tab-bar__inner">
+        {TABS.map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <motion.button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-label={t(tab.labelKey)}
+              className={`tab-bar__tab${isActive ? ' tab-bar__tab--active' : ''}`}
+              onClick={() => onTabChange(tab.id)}
+              whileTap={{ scale: 0.97 }}
+            >
+              <div className="tab-bar__icon-wrapper">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d={tab.icon} />
+                </svg>
+                {tab.id === 'saved' && savedCount > 0 && (
+                  <span className="tab-bar__badge">{savedCount}</span>
+                )}
+              </div>
+              <span className="tab-bar__label">{t(tab.labelKey)}</span>
+            </motion.button>
+          );
+        })}
+      </div>
     </nav>
   );
 }
