@@ -14,6 +14,32 @@ type LandingEvent = {
   payload: Record<string, string | number>;
 };
 
+type LandingGeometry = {
+  viewport_height_px: number;
+  nav_height_px: number | null;
+  nav_bottom_px: number | null;
+  visible_hero_real_estate_px: number | null;
+  hero_h1_top_px: number | null;
+  hero_h1_bottom_px: number | null;
+  hero_cta_top_px: number | null;
+  hero_cta_bottom_px: number | null;
+  hero_cta_viewport_clearance_px: number | null;
+  nav_link_rects: Array<{
+    text: string;
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+  }>;
+  nav_height_token_value: string;
+};
+
+const MOBILE_NAV_BASELINE = {
+  // Task 1 baseline captured on 2026-04-07 at 390x844 before the L1 nav fix.
+  hero_cta_viewport_clearance_px: 303,
+  nav_bottom_px: 203,
+};
+
 async function getGridColumnCount(page: Page, selector: string) {
   return page.locator(selector).evaluate((node) =>
     getComputedStyle(node).gridTemplateColumns.split(/\s+/).filter(Boolean).length,
@@ -46,6 +72,39 @@ async function getRect(page: Page, selector: string) {
     return {
       bottom: Math.round(rect.bottom),
       top: Math.round(rect.top),
+    };
+  });
+}
+
+async function readLandingGeometry(page: Page): Promise<LandingGeometry> {
+  return page.evaluate(() => {
+    const nav = document.querySelector('.nav')?.getBoundingClientRect() ?? null;
+    const h1 = document.querySelector('.hero__title')?.getBoundingClientRect() ?? null;
+    const cta = document.querySelector('.hero__cta')?.getBoundingClientRect() ?? null;
+
+    return {
+      viewport_height_px: window.innerHeight,
+      nav_height_px: nav ? Math.round(nav.height) : null,
+      nav_bottom_px: nav ? Math.round(nav.bottom) : null,
+      visible_hero_real_estate_px: nav ? window.innerHeight - Math.round(nav.bottom) : null,
+      hero_h1_top_px: h1 ? Math.round(h1.top) : null,
+      hero_h1_bottom_px: h1 ? Math.round(h1.bottom) : null,
+      hero_cta_top_px: cta ? Math.round(cta.top) : null,
+      hero_cta_bottom_px: cta ? Math.round(cta.bottom) : null,
+      hero_cta_viewport_clearance_px: cta ? window.innerHeight - Math.round(cta.bottom) : null,
+      nav_link_rects: Array.from(document.querySelectorAll('.nav__links a')).map((node) => {
+        const rect = node.getBoundingClientRect();
+        return {
+          text: node.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+          top: Math.round(rect.top),
+          bottom: Math.round(rect.bottom),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+        };
+      }),
+      nav_height_token_value: getComputedStyle(document.documentElement)
+        .getPropertyValue('--landing-nav-height')
+        .trim(),
     };
   });
 }
@@ -269,6 +328,35 @@ test('keeps sticky-nav controls keyboard reachable and records landing analytics
   expect(languageToggle?.payload.from).toBe('nl');
 });
 
+test('reduces the mobile sticky-nav footprint without shrinking touch targets', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'mobile nav geometry is only asserted on the mobile project');
+  await page.goto('/');
+
+  const after = await readLandingGeometry(page);
+
+  if (after.nav_bottom_px === null || after.hero_cta_viewport_clearance_px === null) {
+    throw new Error('Landing geometry probe did not find the nav or hero CTA');
+  }
+
+  expect(after.nav_bottom_px).toBeLessThanOrEqual(MOBILE_NAV_BASELINE.nav_bottom_px - 64);
+  expect(after.hero_cta_viewport_clearance_px).toBeGreaterThanOrEqual(
+    MOBILE_NAV_BASELINE.hero_cta_viewport_clearance_px,
+  );
+
+  const navLinksStyle = await page.locator('.nav__links').evaluate((node) => {
+    const style = getComputedStyle(node);
+    return { flexWrap: style.flexWrap, overflowX: style.overflowX };
+  });
+  expect(navLinksStyle.flexWrap).toBe('nowrap');
+  expect(['auto', 'scroll']).toContain(navLinksStyle.overflowX);
+
+  const languageButtonHeights = await page.locator('button[data-language-choice]').evaluateAll((nodes) =>
+    nodes.map((node) => Math.round(node.getBoundingClientRect().height)),
+  );
+  expect(languageButtonHeights.every((height) => height >= 44)).toBe(true);
+  expect(await getElementHeight(page, '.nav__cta')).toBeGreaterThanOrEqual(44);
+});
+
 test('bootstraps Google Analytics 4 when a measurement id is configured', async ({ page }) => {
   await page.route('https://www.googletagmanager.com/gtag/js*', async (route) => {
     await route.fulfill({
@@ -352,11 +440,31 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   await expect(page).toHaveTitle(/Privacy Policy/);
   await expect(page.getByRole('heading', { level: 1, name: 'Buurt Check Privacy Policy' })).toBeVisible();
   await expect(page.locator('a[href="https://app.buurt-check.nl/#/search"]').first()).toBeVisible();
+  await expect(page.getByText('Milos Popovic')).toBeVisible();
+  await expect(page.getByText('Milos GIS')).toBeVisible();
+  await expect(page.getByText('Duinzicht 23')).toBeVisible();
+  await expect(page.locator('a[href="mailto:support@buurt-check.nl"]').first()).toBeVisible();
 
   await page.goto('/terms.html');
   await expect(page).toHaveTitle(/Terms of Use/);
   await expect(page.getByRole('heading', { level: 1, name: 'Buurt Check Terms of Use' })).toBeVisible();
   await expect(page.locator('a[href="https://app.buurt-check.nl/#/search"]').first()).toBeVisible();
+  await expect(page.getByText('Milos Popovic')).toBeVisible();
+  await expect(page.getByText('Milos GIS')).toBeVisible();
+  await expect(page.getByText('Duinzicht 23')).toBeVisible();
+  await expect(page.locator('a[href="mailto:support@buurt-check.nl"]').first()).toBeVisible();
+});
+
+test('shows the approved operator identity in the landing footer', async ({ page }) => {
+  await page.goto('/');
+
+  const footer = page.locator('footer');
+  await expect(footer.getByText('Milos Popovic')).toBeVisible();
+  await expect(footer.getByText('Milos GIS')).toBeVisible();
+  await expect(footer.getByText('Duinzicht 23')).toBeVisible();
+  await expect(footer.getByText('2235 BV Valkenburg')).toBeVisible();
+  await expect(footer.getByText('Netherlands')).toBeVisible();
+  await expect(footer.locator('a[href="mailto:support@buurt-check.nl"]')).toBeVisible();
 });
 
 test('has no serious or critical axe violations on the landing page', async ({ page }) => {

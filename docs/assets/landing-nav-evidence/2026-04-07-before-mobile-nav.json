@@ -1,0 +1,42 @@
+{
+  "viewport_height_px": 844,
+  "nav_height_px": 203,
+  "nav_bottom_px": 203,
+  "visible_hero_real_estate_px": 641,
+  "hero_h1_top_px": 239,
+  "hero_h1_bottom_px": 312,
+  "hero_cta_top_px": 493,
+  "hero_cta_bottom_px": 541,
+  "hero_cta_viewport_clearance_px": 303,
+  "nav_link_rects": [
+    {
+      "text": "Hoe het werkt How it works",
+      "top": 82,
+      "bottom": 126,
+      "left": 20,
+      "right": 144
+    },
+    {
+      "text": "Prijzen Pricing",
+      "top": 82,
+      "bottom": 126,
+      "left": 154,
+      "right": 231
+    },
+    {
+      "text": "FAQ",
+      "top": 82,
+      "bottom": 126,
+      "left": 241,
+      "right": 302
+    },
+    {
+      "text": "Open de webapp Open the web app",
+      "top": 136,
+      "bottom": 184,
+      "left": 20,
+      "right": 170
+    }
+  ],
+  "nav_height_token_value": "132px"
+}

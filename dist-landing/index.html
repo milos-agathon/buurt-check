@@ -21,7 +21,7 @@
   <meta property="og:type" content="website">
   <meta property="og:locale" content="nl_NL">
   <meta property="og:locale:alternate" content="en_GB">
-  <meta name="buurtcheck-ga-measurement-id" content="G-TEST1234">
+  <meta name="buurtcheck-ga-measurement-id" content="">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Buurt Check — Weet wat je koopt">
   <meta name="twitter:description"
@@ -193,7 +193,7 @@
       --landing-radius-sm: 16px;
       --landing-max-width: 1180px;
       --landing-focus: 0 0 0 3px rgba(87, 212, 200, 0.38);
-      --landing-nav-height: 132px;
+      --landing-nav-height: 136px;
     }
 
     *,
@@ -386,8 +386,8 @@
 
     .nav__shell {
       display: grid;
-      gap: 14px;
-      padding: 14px 0 16px;
+      gap: 8px;
+      padding: 10px 0 12px;
     }
 
     .nav__top {
@@ -412,8 +412,8 @@
     .nav__lang {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 4px;
+      gap: 6px;
+      padding: 3px;
       border: 1px solid var(--landing-border-soft);
       border-radius: 999px;
       background: var(--landing-nav-control);
@@ -452,11 +452,21 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      flex-wrap: wrap;
-      padding-bottom: 2px;
+      min-width: 0;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 0;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .nav__links::-webkit-scrollbar {
+      display: none;
     }
 
     .nav__links a {
+      flex: 0 0 auto;
       white-space: nowrap;
     }
 
@@ -929,6 +939,18 @@
       margin-top: 4px;
     }
 
+    .footer__identity {
+      display: grid;
+      gap: 4px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .footer__identity-name {
+      color: var(--landing-text);
+      font-weight: 700;
+    }
+
     .footer__links {
       display: flex;
       flex-wrap: wrap;
@@ -1063,8 +1085,8 @@
       }
 
       .footer__wrap {
-        grid-template-columns: 1fr auto;
-        align-items: end;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: start;
       }
     }
 
@@ -1654,6 +1676,13 @@
             <span data-lang="en" lang="en">&copy; 2026 Buurt Check</span>
           </span>
         </p>
+      </div>
+
+      <div class="footer__identity" aria-label="Business identity">
+        <p class="footer__identity-name">Milos Popovic · Milos GIS</p>
+        <p>Duinzicht 23</p>
+        <p>2235 BV Valkenburg</p>
+        <p>Netherlands</p>
       </div>
 
       <div class="footer__links">
