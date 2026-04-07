@@ -6,6 +6,7 @@ const renderRootMock = vi.fn();
 const createRootMock = vi.fn(() => ({ render: renderRootMock }));
 const updateSWMock = vi.fn();
 const registerSWMock = vi.fn(() => updateSWMock);
+const prewarmAddressApiMock = vi.fn();
 
 vi.mock('react-dom/client', () => ({
   createRoot: createRootMock,
@@ -13,6 +14,10 @@ vi.mock('react-dom/client', () => ({
 
 vi.mock('virtual:pwa-register', () => ({
   registerSW: registerSWMock,
+}));
+
+vi.mock('./services/api', () => ({
+  prewarmAddressApi: prewarmAddressApiMock,
 }));
 
 vi.mock('./App.tsx', () => ({
@@ -32,6 +37,7 @@ describe('main entry', () => {
     createRootMock.mockClear();
     registerSWMock.mockReset();
     updateSWMock.mockReset();
+    prewarmAddressApiMock.mockReset();
   });
 
   it('wraps App in MotionConfig with reducedMotion=user', async () => {
@@ -45,6 +51,7 @@ describe('main entry', () => {
 
     expect(screen.getByTestId('motion-config')).toHaveAttribute('data-reduced-motion', 'user');
     expect(screen.getByTestId('app-root')).toBeInTheDocument();
+    expect(prewarmAddressApiMock).toHaveBeenCalledTimes(1);
     const registerArgs = (registerSWMock.mock.calls as unknown as Array<[unknown]>)[0]?.[0] as {
       immediate?: boolean;
       onNeedRefresh?: () => void;

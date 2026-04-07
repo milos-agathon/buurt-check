@@ -31,6 +31,7 @@ import {
   getTierBData,
   lookupAddress,
   mapApiError,
+  prewarmAddressApi,
   submitSunlightAnalysis,
   suggestAddresses,
   verifyGooglePlayPurchase,
@@ -287,6 +288,24 @@ describe('lookupAddress', () => {
     expect(result.display_name).toBe('Damrak 1, Amsterdam');
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(mockFetch.mock.calls[1][0]).toBe('https://buurt-check.onrender.com/api/address/lookup?id=adr-123');
+  });
+});
+
+describe('prewarmAddressApi', () => {
+  it('hits the same-origin health endpoint only once', async () => {
+    mockFetch.mockResolvedValue(okResponse({ status: 'ok' }));
+
+    prewarmAddressApi();
+    prewarmAddressApi();
+    await Promise.resolve();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/health');
+    expect(mockFetch.mock.calls[0][1]).toMatchObject({
+      cache: 'no-store',
+      credentials: 'include',
+      keepalive: true,
+    });
   });
 });
 

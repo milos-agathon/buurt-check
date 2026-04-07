@@ -862,8 +862,6 @@ export default function ExportBottomSheet({
                 disabled={
                   generating
                   || (requiresPurchase && (buyPending || buyDisabled || !onBuyFullDossier))
-                  || manualSunlightPending
-                  || manualShadowSnapshotsPending
                 }
                 aria-busy={(requiresPurchase && buyPending) || undefined}
                 aria-describedby={generateButtonDescriptionIds.join(' ') || undefined}

@@ -42,6 +42,12 @@ const SHADOW_PREWARM_TIMEOUT_MS = Math.max(
   30_000,
   Number(import.meta.env.VITE_SHADOW_PREWARM_TIMEOUT_MS) || 120_000,
 );
+const ADDRESS_API_WARMUP_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(import.meta.env.VITE_ADDRESS_API_WARMUP_TIMEOUT_MS) || 4_000,
+);
+
+let addressApiWarmupStarted = false;
 
 interface TimeoutSignal {
   signal: AbortSignal;
@@ -247,6 +253,24 @@ export async function suggestAddresses(
 ): Promise<SuggestResponse> {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   return fetchAddressJsonWithFallback<SuggestResponse>(`/address/suggest?${params}`, { signal });
+}
+
+export function prewarmAddressApi(): void {
+  if (addressApiWarmupStarted) {
+    return;
+  }
+  addressApiWarmupStarted = true;
+
+  const { signal, cleanup } = withTimeoutSignal(ADDRESS_API_WARMUP_TIMEOUT_MS);
+  void fetchPrimaryApi(primaryApiUrl('/health'), {
+    signal,
+    cache: 'no-store',
+    keepalive: true,
+  }).catch(() => {
+    // Best-effort warmup only; interactive requests still handle real failures.
+  }).finally(() => {
+    cleanup();
+  });
 }
 
 export async function lookupAddress(id: string, signal?: AbortSignal): Promise<ResolvedAddress> {

@@ -699,12 +699,12 @@ describe('ExportBottomSheet', () => {
   });
 
   describe('sunlight readiness messaging', () => {
-    it('disables Generate button for full_dossier when sunlight not ready', () => {
+    it('keeps Generate enabled for full_dossier when sunlight is still computing', () => {
       renderSheet({ sunlightReady: false });
       fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
 
       const btn = screen.getByTestId('export-generate-btn');
-      expect(btn).toBeDisabled();
+      expect(btn).not.toBeDisabled();
     });
 
     it('does NOT disable Generate button for quick_brief when sunlight not ready', () => {
@@ -764,15 +764,21 @@ describe('ExportBottomSheet', () => {
       expect(btn).not.toBeDisabled();
     });
 
-    it('does NOT start full_dossier export when sunlight is still computing', () => {
+    it('still allows full_dossier export when sunlight is still computing', async () => {
       vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
       renderSheet({ sunlightReady: false });
       fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
 
       const btn = screen.getByTestId('export-generate-btn');
-      expect(btn).toBeDisabled();
+      expect(btn).not.toBeDisabled();
       fireEvent.click(btn);
-      expect(api.exportBriefing).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(api.exportBriefing).toHaveBeenCalledWith(
+          expect.objectContaining({
+            template: 'full_dossier',
+          }),
+        );
+      });
     });
 
     it('does NOT show sunlight warning for quick_brief template', () => {
@@ -809,7 +815,7 @@ describe('ExportBottomSheet', () => {
       );
     });
 
-    it('disables Generate for full_dossier while shadow snapshots are still pending', () => {
+    it('keeps Generate enabled for full_dossier while shadow snapshots are still pending', () => {
       renderSheet({
         sunlightReady: true,
         shadowSnapshotsReady: false,
@@ -818,7 +824,27 @@ describe('ExportBottomSheet', () => {
       fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
 
       expect(screen.getByTestId('export-shadow-computing')).toHaveTextContent('Capturing shadow analysis...');
-      expect(screen.getByTestId('export-generate-btn')).toBeDisabled();
+      expect(screen.getByTestId('export-generate-btn')).not.toBeDisabled();
+    });
+
+    it('still allows full_dossier export while shadow snapshots are still pending', async () => {
+      vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+      renderSheet({
+        sunlightReady: true,
+        shadowSnapshotsReady: false,
+        shadowSnapshotsFailed: false,
+      });
+      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+      fireEvent.click(screen.getByTestId('export-generate-btn'));
+
+      await waitFor(() => {
+        expect(api.exportBriefing).toHaveBeenCalledWith(
+          expect.objectContaining({
+            template: 'full_dossier',
+          }),
+        );
+      });
     });
 
     it('shows a shadow warning and still allows full_dossier export when shadow capture failed', async () => {
