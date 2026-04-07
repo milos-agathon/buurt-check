@@ -193,7 +193,7 @@
       --landing-radius-sm: 16px;
       --landing-max-width: 1180px;
       --landing-focus: 0 0 0 3px rgba(87, 212, 200, 0.38);
-      --landing-nav-height: 136px;
+      --landing-nav-height: 128px;
     }
 
     *,
@@ -386,49 +386,53 @@
 
     .nav__shell {
       display: grid;
-      gap: 8px;
-      padding: 10px 0 12px;
-    }
-
-    .nav__top {
-      display: flex;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px 10px;
       align-items: center;
-      justify-content: space-between;
-      gap: 16px;
+      padding: 8px 0 10px;
     }
 
     .nav__brand {
-      color: var(--landing-text);
-      font-size: 18px;
-      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      max-width: 126px;
       text-decoration: none;
-      letter-spacing: -0.02em;
     }
 
-    .nav__brand span {
-      color: var(--landing-accent);
+    .nav__brand img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .nav__controls {
+      display: inline-flex;
+      align-items: center;
+      justify-self: end;
+      gap: 8px;
     }
 
     .nav__lang {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 3px;
+      gap: 4px;
+      padding: 2px;
       border: 1px solid var(--landing-border-soft);
       border-radius: 999px;
       background: var(--landing-nav-control);
     }
 
     .nav__lang-option {
-      min-width: 48px;
+      min-width: 44px;
       min-height: 44px;
-      padding: 0 14px;
+      padding: 0 12px;
       border: none;
       border-radius: 999px;
       background: transparent;
       color: var(--landing-text-secondary);
       font: inherit;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       cursor: pointer;
     }
@@ -444,19 +448,21 @@
 
     .nav__lang-separator {
       color: var(--landing-text-muted);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
     }
 
     .nav__links {
+      grid-column: 1 / -1;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       min-width: 0;
       flex-wrap: nowrap;
       overflow-x: auto;
       overflow-y: hidden;
-      padding-bottom: 0;
+      padding-top: 2px;
+      padding-bottom: 2px;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
     }
@@ -475,13 +481,13 @@
       align-items: center;
       justify-content: center;
       min-height: 44px;
-      padding: 0 16px;
+      padding: 0 14px;
       border-radius: 999px;
       border: 1px solid transparent;
       color: var(--landing-text-secondary);
       text-decoration: none;
       background: transparent;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
     }
 
@@ -492,31 +498,33 @@
     }
 
     .nav__cta {
-      padding: 0 18px;
-      font-size: 14px;
+      min-height: 44px;
+      padding: 0 14px;
+      font-size: 13px;
+      white-space: nowrap;
     }
 
     .hero {
-      padding-top: 36px;
-      padding-bottom: 56px;
+      padding-top: 24px;
+      padding-bottom: 44px;
     }
 
     .hero__layout {
       display: grid;
-      gap: 28px;
+      gap: 22px;
       align-items: center;
     }
 
     .hero__content {
       display: grid;
-      gap: 18px;
+      gap: 14px;
       align-content: start;
     }
 
     .hero__title {
-      font-size: clamp(36px, 8vw, 64px);
+      font-size: clamp(32px, 7.4vw, 64px);
       font-weight: 900;
-      line-height: 1.02;
+      line-height: 0.98;
       letter-spacing: -0.04em;
     }
 
@@ -527,44 +535,45 @@
 
     .hero__subtitle {
       max-width: 34rem;
-      font-size: 17px;
+      font-size: 16px;
       color: var(--landing-text-secondary);
-      line-height: 1.7;
+      line-height: 1.58;
     }
 
     .hero__actions {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 14px;
+      gap: 12px;
     }
 
     .hero__cta {
-      padding: 0 28px;
+      padding: 0 24px;
     }
 
     .hero__badge {
       display: inline-flex;
       align-items: center;
-      min-height: 40px;
+      min-height: 36px;
       width: fit-content;
       max-width: 100%;
-      padding: 8px 16px;
+      padding: 7px 14px;
       border-radius: 999px;
       background: var(--landing-accent-soft);
       color: var(--landing-accent-hover);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.02em;
     }
 
     .hero__note {
-      font-size: 14px;
+      font-size: 13px;
       color: var(--landing-text-muted);
+      line-height: 1.55;
     }
 
     .hero__preview {
-      padding: 12px;
+      padding: 10px;
       border-radius: var(--landing-radius-lg);
       background: linear-gradient(180deg, rgba(28, 45, 63, 0.96) 0%, rgba(13, 22, 32, 0.98) 100%);
       border: 1px solid var(--landing-border);
@@ -575,7 +584,7 @@
       display: block;
       width: 100%;
       height: auto;
-      border-radius: 18px;
+      border-radius: 16px;
       background: var(--landing-preview-bg);
     }
 
@@ -777,6 +786,69 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 10l3 3 5-5' stroke='%231C8C83' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     }
 
+    .showcase__grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .showcase-card {
+      display: grid;
+      gap: 18px;
+      padding: 20px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(28, 45, 63, 0.9) 0%, rgba(13, 22, 32, 0.96) 100%);
+      border: 1px solid var(--landing-border);
+      box-shadow: var(--landing-shadow);
+    }
+
+    .showcase-card--executive {
+      border-color: rgba(87, 212, 200, 0.28);
+      box-shadow: 0 20px 56px rgba(0, 0, 0, 0.3);
+    }
+
+    .showcase-card__media {
+      padding: 10px;
+      border-radius: 18px;
+      border: 1px solid rgba(87, 212, 200, 0.16);
+      background: linear-gradient(180deg, rgba(11, 18, 26, 0.98) 0%, rgba(18, 32, 46, 0.96) 100%);
+      overflow: hidden;
+    }
+
+    .showcase-card__media img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    .showcase-card__content {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .showcase-card__eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--landing-accent-text);
+    }
+
+    .showcase-card__title {
+      font-size: clamp(24px, 5vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.08;
+    }
+
+    .showcase-card__desc {
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--landing-text-secondary);
+    }
+
     .trust__card {
       padding: 28px 24px;
     }
@@ -969,7 +1041,7 @@
 
     @media (min-width: 720px) {
       :root {
-        --landing-nav-height: 90px;
+        --landing-nav-height: 92px;
       }
 
       .nav__shell {
@@ -979,17 +1051,23 @@
         padding: 14px 0;
       }
 
-      .nav__top {
-        display: contents;
+      .nav__brand {
+        max-width: 152px;
+      }
+
+      .nav__controls {
+        gap: 10px;
       }
 
       .nav__links {
+        grid-column: 2;
         justify-content: center;
         gap: 12px;
         min-width: 0;
         flex-wrap: nowrap;
         overflow-x: auto;
         scrollbar-width: none;
+        padding-top: 0;
       }
 
       .nav__links::-webkit-scrollbar {
@@ -1008,6 +1086,35 @@
 
       .hero__preview {
         padding: 14px;
+      }
+
+      .showcase__grid {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .showcase-card {
+        grid-column: span 12;
+        padding: 22px;
+      }
+
+      .showcase-card--executive {
+        grid-column: span 7;
+      }
+
+      .showcase-card--risk,
+      .showcase-card--sunlight {
+        grid-column: span 5;
+      }
+
+      .showcase-card--checklist {
+        grid-column: span 7;
+      }
+
+      .showcase-card--neighborhood {
+        grid-column: span 5;
+        align-content: start;
+        transform: translateY(28px);
       }
 
       .section,
@@ -1119,26 +1226,36 @@
     </span>
   </a>
   <nav class="nav" aria-label="Primary">
-    <div class="container nav__shell">
-      <div class="nav__top">
-        <a href="/" class="nav__brand">buurt<span>check</span></a>
-        <div class="nav__lang" role="radiogroup" aria-label="Language">
-          <button type="button" class="nav__lang-option" data-language-choice="nl" role="radio" aria-checked="true"
-            tabindex="0">
-            NL
-          </button>
-          <span class="nav__lang-separator" aria-hidden="true">/</span>
-          <button type="button" class="nav__lang-option" data-language-choice="en" role="radio" aria-checked="false"
-            tabindex="-1">
-            EN
-          </button>
-        </div>
-      </div>
+      <div class="container nav__shell">
+        <a href="/" class="nav__brand">
+          <img src="logos/buurt-check-lockup-horizontal-reverse.svg" alt="Buurt Check" width="360" height="72">
+        </a>
 
-      <div class="nav__links">
-        <a href="#how-it-works" class="nav__link" data-nav-target="how-it-works">
-          <span data-lang-group>
-            <span data-lang="nl" lang="nl">Hoe het werkt</span>
+        <div class="nav__controls">
+          <div class="nav__lang" role="radiogroup" aria-label="Language">
+            <button type="button" class="nav__lang-option" data-language-choice="nl" role="radio" aria-checked="true"
+              tabindex="0">
+              NL
+            </button>
+            <span class="nav__lang-separator" aria-hidden="true">/</span>
+            <button type="button" class="nav__lang-option" data-language-choice="en" role="radio" aria-checked="false"
+              tabindex="-1">
+              EN
+            </button>
+          </div>
+
+          <a href="https://app.buurt-check.nl/#/search" class="button button--ghost nav__cta" data-cta-placement="nav">
+            <span data-lang-group>
+              <span data-lang="nl" lang="nl">Open de webapp</span>
+              <span data-lang="en" lang="en">Open the web app</span>
+            </span>
+          </a>
+        </div>
+
+        <div class="nav__links">
+          <a href="#how-it-works" class="nav__link" data-nav-target="how-it-works">
+            <span data-lang-group>
+              <span data-lang="nl" lang="nl">Hoe het werkt</span>
             <span data-lang="en" lang="en">How it works</span>
           </span>
         </a>
@@ -1147,17 +1264,11 @@
             <span data-lang="nl" lang="nl">Prijzen</span>
             <span data-lang="en" lang="en">Pricing</span>
           </span>
-        </a>
-        <a href="#faq" class="nav__link" data-nav-target="faq">FAQ</a>
-        <a href="https://app.buurt-check.nl/#/search" class="button button--ghost nav__cta" data-cta-placement="nav">
-          <span data-lang-group>
-            <span data-lang="nl" lang="nl">Open de webapp</span>
-            <span data-lang="en" lang="en">Open the web app</span>
-          </span>
-        </a>
+          </a>
+          <a href="#faq" class="nav__link" data-nav-target="faq">FAQ</a>
+        </div>
       </div>
-    </div>
-  </nav>
+    </nav>
 
   <main id="main-content" data-language-root tabindex="-1">
     <header class="hero" id="hero">
@@ -1351,6 +1462,127 @@
                   gemiddelde, en een PDF voor bij de bezichtiging.</span>
                 <span data-lang="en" lang="en">Risk scores, 3D model, city and national comparisons, and a PDF to take
                   to your viewing.</span>
+              </p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="showcase">
+      <div class="container">
+        <p class="section-label" data-lang-group>
+          <span data-lang="nl" lang="nl">Volledig dossier</span>
+          <span data-lang="en" lang="en">Full dossier</span>
+        </p>
+        <h2 class="section-title" data-lang-group>
+          <span data-lang="nl" lang="nl">Zie precies wat je krijgt voordat je betaalt</span>
+          <span data-lang="en" lang="en">See exactly what you get before you pay</span>
+        </h2>
+        <p class="section-desc" data-lang-group>
+          <span data-lang="nl" lang="nl">Geen abstracte belofte, maar echte dossierpagina's uit de premium export:
+            overzicht, vergelijkingen, zonlichtanalyse en bezichtigingsvragen in één flow.</span>
+          <span data-lang="en" lang="en">Not a vague promise but real dossier pages from the premium export:
+            overview, comparisons, sunlight analysis and viewing questions in one flow.</span>
+        </p>
+
+        <div class="showcase__grid">
+          <article class="showcase-card showcase-card--executive">
+            <div class="showcase-card__media">
+              <img src="images/showcase-executive-summary.webp" alt="Buurt Check executive summary dossier page"
+                width="497" height="406" loading="lazy">
+            </div>
+            <div class="showcase-card__content">
+              <p class="showcase-card__eyebrow" data-lang-group>
+                <span data-lang="nl" lang="nl">Pagina 1</span>
+                <span data-lang="en" lang="en">Page 1</span>
+              </p>
+              <h3 class="showcase-card__title">Executive summary</h3>
+              <p class="showcase-card__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">Direct zien wat de grootste risico's zijn en waar je tijdens de
+                  bezichtiging op moet letten.</span>
+                <span data-lang="en" lang="en">See the main risks immediately and what to pay attention to during the
+                  viewing.</span>
+              </p>
+            </div>
+          </article>
+
+          <article class="showcase-card showcase-card--risk">
+            <div class="showcase-card__media">
+              <img src="images/showcase-risk-details.webp" alt="Buurt Check risk comparison dossier page" width="497"
+                height="528" loading="lazy">
+            </div>
+            <div class="showcase-card__content">
+              <p class="showcase-card__eyebrow" data-lang-group>
+                <span data-lang="nl" lang="nl">Vergelijkingen</span>
+                <span data-lang="en" lang="en">Comparisons</span>
+              </p>
+              <h3 class="showcase-card__title">Risk detail comparisons</h3>
+              <p class="showcase-card__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">Vergelijk per onderwerp jouw adres met richtlijnen, referenties en
+                  landelijke context.</span>
+                <span data-lang="en" lang="en">Compare your address against guidelines, peer context and national
+                  reference points.</span>
+              </p>
+            </div>
+          </article>
+
+          <article class="showcase-card showcase-card--sunlight">
+            <div class="showcase-card__media">
+              <img src="images/showcase-sunlight.webp" alt="Buurt Check sunlight analysis dossier page" width="497"
+                height="562" loading="lazy">
+            </div>
+            <div class="showcase-card__content">
+              <p class="showcase-card__eyebrow" data-lang-group>
+                <span data-lang="nl" lang="nl">Zonlicht</span>
+                <span data-lang="en" lang="en">Sunlight</span>
+              </p>
+              <h3 class="showcase-card__title">Sunlight analysis</h3>
+              <p class="showcase-card__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">Bekijk hoeveel direct zonlicht het pand krijgt in winter, lente en
+                  zomer.</span>
+                <span data-lang="en" lang="en">See how much direct sunlight the home gets in winter, spring and
+                  summer.</span>
+              </p>
+            </div>
+          </article>
+
+          <article class="showcase-card showcase-card--checklist">
+            <div class="showcase-card__media">
+              <img src="images/showcase-viewing-checklist.webp" alt="Buurt Check viewing checklist dossier page"
+                width="497" height="562" loading="lazy">
+            </div>
+            <div class="showcase-card__content">
+              <p class="showcase-card__eyebrow" data-lang-group>
+                <span data-lang="nl" lang="nl">Bezichtiging</span>
+                <span data-lang="en" lang="en">Viewing</span>
+              </p>
+              <h3 class="showcase-card__title">Viewing checklist</h3>
+              <p class="showcase-card__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">Neem concrete vragen mee naar de bezichtiging op basis van de gevonden
+                  risico's.</span>
+                <span data-lang="en" lang="en">Take concrete questions to the viewing based on the risks found for the
+                  address.</span>
+              </p>
+            </div>
+          </article>
+
+          <article class="showcase-card showcase-card--neighborhood">
+            <div class="showcase-card__media">
+              <img src="images/showcase-neighborhood.webp" alt="Buurt Check neighborhood context dossier page"
+                width="497" height="550" loading="lazy">
+            </div>
+            <div class="showcase-card__content">
+              <p class="showcase-card__eyebrow" data-lang-group>
+                <span data-lang="nl" lang="nl">Buurtcontext</span>
+                <span data-lang="en" lang="en">Neighborhood</span>
+              </p>
+              <h3 class="showcase-card__title">Neighborhood context</h3>
+              <p class="showcase-card__desc" data-lang-group>
+                <span data-lang="nl" lang="nl">Krijg buurtcontext, leefbaarheid en bereikbaarheid in dezelfde
+                  dossierflow.</span>
+                <span data-lang="en" lang="en">Get neighborhood context, livability and access in the same dossier
+                  flow.</span>
               </p>
             </div>
           </article>

@@ -1,5 +1,5 @@
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import process from 'node:process';
 
 const ROOT_DIR = process.cwd();
@@ -25,6 +25,10 @@ function copyTree(sourceDir, targetDir) {
     const stats = statSync(sourcePath);
 
     if (stats.isDirectory()) {
+      if (entry === 'source' && sourceDir === `${LANDING_DIR}${sep}images`) {
+        continue;
+      }
+
       copyTree(sourcePath, targetPath);
       continue;
     }

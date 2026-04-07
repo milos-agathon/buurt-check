@@ -15,15 +15,18 @@ type LandingEvent = {
 };
 
 type LandingGeometry = {
+  viewport_width_px: number;
   viewport_height_px: number;
   nav_height_px: number | null;
   nav_bottom_px: number | null;
   visible_hero_real_estate_px: number | null;
-  hero_h1_top_px: number | null;
-  hero_h1_bottom_px: number | null;
-  hero_cta_top_px: number | null;
-  hero_cta_bottom_px: number | null;
-  hero_cta_viewport_clearance_px: number | null;
+  hero_preview_top_px: number | null;
+  hero_preview_bottom_px: number | null;
+  hero_preview_visible_height_px: number | null;
+  nav_cta_left_px: number | null;
+  nav_cta_right_px: number | null;
+  nav_cta_top_px: number | null;
+  nav_cta_bottom_px: number | null;
   nav_link_rects: Array<{
     text: string;
     top: number;
@@ -32,12 +35,6 @@ type LandingGeometry = {
     right: number;
   }>;
   nav_height_token_value: string;
-};
-
-const MOBILE_NAV_BASELINE = {
-  // Task 1 baseline captured on 2026-04-07 at 390x844 before the L1 nav fix.
-  hero_cta_viewport_clearance_px: 303,
-  nav_bottom_px: 203,
 };
 
 async function getGridColumnCount(page: Page, selector: string) {
@@ -79,19 +76,24 @@ async function getRect(page: Page, selector: string) {
 async function readLandingGeometry(page: Page): Promise<LandingGeometry> {
   return page.evaluate(() => {
     const nav = document.querySelector('.nav')?.getBoundingClientRect() ?? null;
-    const h1 = document.querySelector('.hero__title')?.getBoundingClientRect() ?? null;
-    const cta = document.querySelector('.hero__cta')?.getBoundingClientRect() ?? null;
+    const preview = document.querySelector('.hero__preview')?.getBoundingClientRect() ?? null;
+    const navCta = document.querySelector('.nav__cta')?.getBoundingClientRect() ?? null;
 
     return {
+      viewport_width_px: window.innerWidth,
       viewport_height_px: window.innerHeight,
       nav_height_px: nav ? Math.round(nav.height) : null,
       nav_bottom_px: nav ? Math.round(nav.bottom) : null,
       visible_hero_real_estate_px: nav ? window.innerHeight - Math.round(nav.bottom) : null,
-      hero_h1_top_px: h1 ? Math.round(h1.top) : null,
-      hero_h1_bottom_px: h1 ? Math.round(h1.bottom) : null,
-      hero_cta_top_px: cta ? Math.round(cta.top) : null,
-      hero_cta_bottom_px: cta ? Math.round(cta.bottom) : null,
-      hero_cta_viewport_clearance_px: cta ? window.innerHeight - Math.round(cta.bottom) : null,
+      hero_preview_top_px: preview ? Math.round(preview.top) : null,
+      hero_preview_bottom_px: preview ? Math.round(preview.bottom) : null,
+      hero_preview_visible_height_px: preview
+        ? Math.max(0, Math.min(window.innerHeight, Math.round(preview.bottom)) - Math.max(0, Math.round(preview.top)))
+        : null,
+      nav_cta_left_px: navCta ? Math.round(navCta.left) : null,
+      nav_cta_right_px: navCta ? Math.round(navCta.right) : null,
+      nav_cta_top_px: navCta ? Math.round(navCta.top) : null,
+      nav_cta_bottom_px: navCta ? Math.round(navCta.bottom) : null,
       nav_link_rects: Array.from(document.querySelectorAll('.nav__links a')).map((node) => {
         const rect = node.getBoundingClientRect();
         return {
@@ -119,6 +121,7 @@ test('renders the PRD section order and preserves CTA/legal routes', async ({ pa
     'hero',
     'differentiators',
     'how-it-works',
+    'showcase',
     'pricing',
     'trust',
     'features',
@@ -131,6 +134,7 @@ test('renders the PRD section order and preserves CTA/legal routes', async ({ pa
   );
   expect(ctaHrefs).toEqual([APP_URL, APP_URL, APP_URL, APP_URL]);
 
+  await expect(page.locator('.nav__brand img[alt="Buurt Check"]')).toBeVisible();
   await expect(page.locator('footer a[href="/privacy.html"]')).toBeVisible();
   await expect(page.locator('footer a[href="/terms.html"]')).toBeVisible();
   await expect(page.locator('footer a[href*="mailto:"]')).toBeVisible();
@@ -289,6 +293,9 @@ test('keeps sticky-nav controls keyboard reachable and records landing analytics
   await expect(nlButton).toHaveAttribute('tabindex', '0');
 
   await page.keyboard.press('Tab');
+  await expect(page.locator('.nav__cta')).toBeFocused();
+
+  await page.keyboard.press('Tab');
   await expect(page.locator('a[data-nav-target="how-it-works"]')).toBeFocused();
 
   await page.locator('a[data-nav-target="pricing"]').click();
@@ -328,20 +335,33 @@ test('keeps sticky-nav controls keyboard reachable and records landing analytics
   expect(languageToggle?.payload.from).toBe('nl');
 });
 
-test('reduces the mobile sticky-nav footprint without shrinking touch targets', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile', 'mobile nav geometry is only asserted on the mobile project');
+test('keeps the mobile CTA visible in the fixed header row and exposes the hero preview on first load', async (
+  { page },
+  testInfo,
+) => {
+  test.skip(testInfo.project.name !== 'mobile', 'mobile first-load geometry is only asserted on the mobile project');
   await page.goto('/');
 
   const after = await readLandingGeometry(page);
 
-  if (after.nav_bottom_px === null || after.hero_cta_viewport_clearance_px === null) {
-    throw new Error('Landing geometry probe did not find the nav or hero CTA');
+  if (
+    after.nav_bottom_px === null ||
+    after.nav_cta_left_px === null ||
+    after.nav_cta_right_px === null ||
+    after.nav_cta_top_px === null ||
+    after.nav_cta_bottom_px === null ||
+    after.hero_preview_top_px === null ||
+    after.hero_preview_visible_height_px === null
+  ) {
+    throw new Error('Landing geometry probe did not find the nav CTA or hero preview');
   }
 
-  expect(after.nav_bottom_px).toBeLessThanOrEqual(MOBILE_NAV_BASELINE.nav_bottom_px - 64);
-  expect(after.hero_cta_viewport_clearance_px).toBeGreaterThanOrEqual(
-    MOBILE_NAV_BASELINE.hero_cta_viewport_clearance_px,
-  );
+  expect(after.nav_cta_left_px).toBeGreaterThanOrEqual(0);
+  expect(after.nav_cta_right_px).toBeLessThanOrEqual(after.viewport_width_px);
+  expect(after.nav_cta_top_px).toBeGreaterThanOrEqual(0);
+  expect(after.nav_cta_bottom_px).toBeLessThanOrEqual(after.nav_bottom_px);
+  expect(after.hero_preview_top_px).toBeLessThan(after.viewport_height_px);
+  expect(after.hero_preview_visible_height_px).toBeGreaterThanOrEqual(96);
 
   const navLinksStyle = await page.locator('.nav__links').evaluate((node) => {
     const style = getComputedStyle(node);
@@ -349,12 +369,32 @@ test('reduces the mobile sticky-nav footprint without shrinking touch targets', 
   });
   expect(navLinksStyle.flexWrap).toBe('nowrap');
   expect(['auto', 'scroll']).toContain(navLinksStyle.overflowX);
+  await expect(page.locator('.nav__links .nav__cta')).toHaveCount(0);
 
   const languageButtonHeights = await page.locator('button[data-language-choice]').evaluateAll((nodes) =>
     nodes.map((node) => Math.round(node.getBoundingClientRect().height)),
   );
   expect(languageButtonHeights.every((height) => height >= 44)).toBe(true);
   expect(await getElementHeight(page, '.nav__cta')).toBeGreaterThanOrEqual(44);
+});
+
+test('places the dossier showcase before pricing and renders all showcase cards', async ({ page }) => {
+  await page.goto('/');
+
+  const sectionOrder = await page.locator('main > [id]').evaluateAll((nodes) =>
+    nodes.map((node) => node.id),
+  );
+  expect(sectionOrder.indexOf('showcase')).toBeGreaterThan(-1);
+  expect(sectionOrder.indexOf('showcase')).toBeLessThan(sectionOrder.indexOf('pricing'));
+
+  const showcase = page.locator('#showcase');
+  await expect(showcase).toBeVisible();
+  await expect(showcase.locator('.showcase-card')).toHaveCount(5);
+  await expect(showcase.locator('img[alt="Buurt Check executive summary dossier page"]')).toBeVisible();
+  await expect(showcase.locator('img[alt="Buurt Check risk comparison dossier page"]')).toBeVisible();
+  await expect(showcase.locator('img[alt="Buurt Check sunlight analysis dossier page"]')).toBeVisible();
+  await expect(showcase.locator('img[alt="Buurt Check viewing checklist dossier page"]')).toBeVisible();
+  await expect(showcase.locator('img[alt="Buurt Check neighborhood context dossier page"]')).toBeVisible();
 });
 
 test('bootstraps Google Analytics 4 when a measurement id is configured', async ({ page }) => {
@@ -434,7 +474,12 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   expect(existsSync(resolve(LANDING_DIR, 'terms.html'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'legal.css'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'logos', 'buurt-check-lockup-horizontal.svg'))).toBe(true);
+  expect(existsSync(resolve(LANDING_DIR, 'logos', 'buurt-check-lockup-horizontal-reverse.svg'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'logos', 'buurt-check-favicon.svg'))).toBe(true);
+  expect(existsSync(resolve(LANDING_DIR, 'images', 'showcase-executive-summary.webp'))).toBe(true);
+  expect(existsSync(resolve(LANDING_DIR, 'images', 'showcase-risk-details.webp'))).toBe(true);
+  expect(existsSync(resolve(LANDING_DIR, 'images', 'showcase-sunlight.webp'))).toBe(true);
+  expect(existsSync(resolve(LANDING_DIR, 'images', 'showcase-viewing-checklist.webp'))).toBe(true);
 
   await page.goto('/privacy.html');
   await expect(page).toHaveTitle(/Privacy Policy/);
