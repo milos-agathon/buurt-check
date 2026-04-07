@@ -18,6 +18,7 @@ type MockNeighborhoodViewer3DProps = {
   buildings: unknown[];
   loading?: boolean;
   onSunlightAnalysis?: (result: unknown) => void;
+  onSunlightError?: () => void;
   onShadowSnapshots?: (snapshots: unknown[]) => void;
   onShadowSnapshotsError?: () => void;
 };
@@ -50,6 +51,7 @@ vi.mock('./services/api', async () => {
     getTierBData: vi.fn(),
     getPropertyWarnings: vi.fn(),
     getLivability: vi.fn(),
+    prewarmShadowEvidence: vi.fn(),
     submitSunlightAnalysis: vi.fn(),
     exportBriefing: vi.fn(),
     downloadPdfBlob: vi.fn(),
@@ -158,6 +160,7 @@ import {
   getTierBData,
   getPropertyWarnings,
   getLivability,
+  prewarmShadowEvidence,
   submitSunlightAnalysis,
   exportBriefing,
   downloadPdfBlob,
@@ -202,6 +205,7 @@ const mockViewingQuestions = vi.mocked(getViewingQuestions);
 const mockTierBData = vi.mocked(getTierBData);
 const mockPropertyWarnings = vi.mocked(getPropertyWarnings);
 const mockLivability = vi.mocked(getLivability);
+const mockPrewarmShadowEvidence = vi.mocked(prewarmShadowEvidence);
 const mockSubmitSunlightAnalysis = vi.mocked(submitSunlightAnalysis);
 const mockExportBriefing = vi.mocked(exportBriefing);
 const mockDownloadPdfBlob = vi.mocked(downloadPdfBlob);
@@ -255,6 +259,7 @@ beforeEach(async () => {
   mockTierBData.mockReset();
   mockPropertyWarnings.mockReset();
   mockLivability.mockReset();
+  mockPrewarmShadowEvidence.mockReset();
   mockSubmitSunlightAnalysis.mockReset();
   mockExportBriefing.mockReset();
   mockDownloadPdfBlob.mockReset();
@@ -369,6 +374,11 @@ beforeEach(async () => {
     comparison: [],
     source: 'Leefbaarometer 3.0',
     messages: [],
+  });
+  mockPrewarmShadowEvidence.mockResolvedValue({
+    status: 'ready',
+    facade_snapshot_count: 6,
+    hero_snapshot_count: 3,
   });
   mockSubmitSunlightAnalysis.mockResolvedValue({
     status: 'ok',
@@ -859,6 +869,410 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
     expect(screen.queryByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).not.toBeInTheDocument();
+  });
+
+  it('starts shadow prewarm automatically for entitled Forge3D dossier views', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockPrewarmShadowEvidence).toHaveBeenCalledWith(
+        'vbo-123',
+        { rdX: 121000, rdY: 487000, lat: 52.3676, lng: 4.8846 },
+        'report-123',
+      );
+    });
+  });
+
+  it('does not start shadow prewarm when server rendering is unavailable', async () => {
+    pricingConfigRef.current.serverRenderAvailable = false;
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+    expect(mockPrewarmShadowEvidence).not.toHaveBeenCalled();
+  });
+
+  it('does not start shadow prewarm for free users', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: false,
+    });
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+    expect(mockPrewarmShadowEvidence).not.toHaveBeenCalled();
+  });
+
+  it('does not rerun shadow prewarm after a terminal ready response for the same key', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+    });
+
+    await triggerViewer3DIntersection();
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(makeSunlightResult({ svf: 0.63 }));
+    });
+
+    await waitFor(() => {
+      expect(mockSubmitSunlightAnalysis).toHaveBeenCalled();
+    });
+    expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['skipped', 'unavailable'] as const)(
+    'does not rerun shadow prewarm after a terminal %s response for the same key',
+    async (status) => {
+      mockPrewarmShadowEvidence.mockResolvedValue({
+        status,
+        facade_snapshot_count: 0,
+        hero_snapshot_count: 0,
+      });
+      mockLookup.mockResolvedValue(makeResolvedAddress());
+      mockBuilding.mockResolvedValue(makeBuildingResponse());
+      mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+      mockCreateShortReport.mockResolvedValue({
+        report_id: 'report-123',
+        report_type: 'short',
+        already_purchased: true,
+      });
+
+      renderApp();
+      await selectAddress();
+
+      await waitFor(() => {
+        expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+      });
+
+      await triggerViewer3DIntersection();
+      await act(async () => {
+        neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(makeSunlightResult({ svf: 0.63 }));
+      });
+
+      await waitFor(() => {
+        expect(mockSubmitSunlightAnalysis).toHaveBeenCalled();
+      });
+      expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('awaits an already-pending shadow prewarm before full dossier export and does not start a second request', async () => {
+    let resolvePrewarm!: (value: { status: 'ready'; facade_snapshot_count: number; hero_snapshot_count: number }) => void;
+    mockPrewarmShadowEvidence.mockReturnValue(new Promise((resolve) => {
+      resolvePrewarm = resolve;
+    }));
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
+
+    renderApp();
+    await selectAddress();
+    await waitFor(() => {
+      expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+    });
+
+    await triggerViewer3DIntersection();
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(makeSunlightResult({ svf: 0.63 }));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('export-generate-btn'));
+    });
+
+    expect(mockExportBriefing).not.toHaveBeenCalled();
+    expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolvePrewarm({
+        status: 'ready',
+        facade_snapshot_count: 6,
+        hero_snapshot_count: 3,
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        template: 'full_dossier',
+        reportId: 'report-123',
+      }));
+    });
+    expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+  });
+
+  it('awaits an already-pending shadow prewarm before full dossier export when sunlight is unavailable', async () => {
+    let resolvePrewarm!: (value: { status: 'ready'; facade_snapshot_count: number; hero_snapshot_count: number }) => void;
+    mockPrewarmShadowEvidence.mockReturnValue(new Promise((resolve) => {
+      resolvePrewarm = resolve;
+    }));
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
+
+    renderApp();
+    await selectAddress();
+    await waitFor(() => {
+      expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+    });
+
+    await triggerViewer3DIntersection();
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
+      expect(neighborhoodViewer3DPropsRef.current?.onSunlightError).toBeTypeOf('function');
+    });
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onSunlightError?.();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sunlight-warning')).toBeInTheDocument();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('export-generate-btn'));
+    });
+
+    expect(mockSubmitSunlightAnalysis).not.toHaveBeenCalled();
+    expect(mockExportBriefing).not.toHaveBeenCalled();
+    expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolvePrewarm({
+        status: 'ready',
+        facade_snapshot_count: 6,
+        hero_snapshot_count: 3,
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        template: 'full_dossier',
+        reportId: 'report-123',
+      }));
+    });
+    expect(mockSubmitSunlightAnalysis).not.toHaveBeenCalled();
+    expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores stale completion from an older shadow prewarm key', async () => {
+    let resolveFirstPrewarm!: (value: { status: 'ready'; facade_snapshot_count: number; hero_snapshot_count: number }) => void;
+    let resolveSecondPrewarm!: (value: { status: 'ready'; facade_snapshot_count: number; hero_snapshot_count: number }) => void;
+    mockPrewarmShadowEvidence
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveFirstPrewarm = resolve;
+      }))
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveSecondPrewarm = resolve;
+      }));
+    mockLookup
+      .mockResolvedValueOnce(makeResolvedAddress({
+        id: 'adr-1',
+        display_name: 'Keizersgracht 100, 1015AA Amsterdam',
+        adresseerbaar_object_id: 'vbo-123',
+      }))
+      .mockResolvedValueOnce(makeResolvedAddress({
+        id: 'adr-2',
+        display_name: 'Damrak 1, 1012LG Amsterdam',
+        adresseerbaar_object_id: 'vbo-456',
+        latitude: 52.374,
+        longitude: 4.893,
+        rd_x: 121300,
+        rd_y: 487320,
+      }));
+    mockCreateShortReport
+      .mockResolvedValueOnce({
+        report_id: 'report-123',
+        report_type: 'short',
+        already_purchased: true,
+      })
+      .mockResolvedValueOnce({
+        report_id: 'report-456',
+        report_type: 'short',
+        already_purchased: true,
+      });
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+
+    renderApp();
+    await selectAddress();
+    await waitFor(() => {
+      expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+    });
+
+    await selectAddress();
+    await waitFor(() => {
+      expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(2);
+    });
+
+    await triggerViewer3DIntersection();
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(makeSunlightResult({ svf: 0.63 }));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('export-generate-btn'));
+    });
+
+    expect(mockExportBriefing).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveFirstPrewarm({
+        status: 'ready',
+        facade_snapshot_count: 6,
+        hero_snapshot_count: 3,
+      });
+      await Promise.resolve();
+    });
+
+    expect(mockExportBriefing).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveSecondPrewarm({
+        status: 'ready',
+        facade_snapshot_count: 6,
+        hero_snapshot_count: 3,
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        template: 'full_dossier',
+        reportId: 'report-456',
+      }));
+    });
+  });
+
+  it('stores a local failed shadow prewarm state and does not auto-retry or block export', async () => {
+    mockPrewarmShadowEvidence.mockRejectedValue(new Error('shadow prewarm failed'));
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockNeighborhood3D.mockResolvedValue(makeNeighborhood3DResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
+
+    renderApp();
+    await selectAddress();
+    await waitFor(() => {
+      expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+    });
+
+    await triggerViewer3DIntersection();
+    await act(async () => {
+      neighborhoodViewer3DPropsRef.current?.onSunlightAnalysis?.(makeSunlightResult({ svf: 0.63 }));
+    });
+
+    await waitFor(() => {
+      expect(mockSubmitSunlightAnalysis).toHaveBeenCalled();
+    });
+    expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Download viewing checklist/i,
+        hidden: true,
+      }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('export-generate-btn'));
+    });
+
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        template: 'full_dossier',
+        reportId: 'report-123',
+      }));
+    });
+    expect(mockPrewarmShadowEvidence).toHaveBeenCalledTimes(1);
   });
 
   it('uses Google Play Billing instead of Stripe when the Android billing runtime is available', async () => {

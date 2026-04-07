@@ -53,6 +53,8 @@ backend/.claude/
 # Local test artifacts
 backend/tests/baselines/
 backend/tmp/
+.tmp/
+.pytest-basetemp-local/
 
 # Android / Bubblewrap
 android/.generated/

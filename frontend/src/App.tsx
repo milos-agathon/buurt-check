@@ -54,6 +54,7 @@ import {
   getTierBData,
   getPropertyWarnings,
   getLivability,
+  prewarmShadowEvidence,
   submitSunlightAnalysis,
   toSunlightSubmissionPayload,
   mapApiError,
@@ -110,6 +111,7 @@ import type {
   NeighborhoodStatsResponse,
   RiskCardsResponse,
   RiskComparisonsResponse,
+  ShadowPrewarmResponse,
   SunlightResult,
   ShadowSnapshot,
   ViewingQuestionsResponse,
@@ -188,6 +190,23 @@ function normalizeSunlightScore(winterHours: number): number {
 
 function sunlightSubmissionKey(vboId: string, reportId: string, result: SunlightResult): string {
   return [vboId, reportId, JSON.stringify(toSunlightSubmissionPayload(result))].join('|');
+}
+
+type ShadowPrewarmStatus = 'idle' | 'pending' | 'ready' | 'skipped' | 'unavailable' | 'failed';
+
+const TERMINAL_SHADOW_PREWARM_STATUSES: ReadonlySet<ShadowPrewarmStatus> = new Set([
+  'ready',
+  'skipped',
+  'unavailable',
+  'failed',
+]);
+
+function shadowPrewarmKey(vboId: string, reportId: string): string {
+  return `${reportId}:${vboId}`;
+}
+
+function isShadowPrewarmTerminalStatus(status: ShadowPrewarmStatus): boolean {
+  return TERMINAL_SHADOW_PREWARM_STATUSES.has(status);
 }
 
 type ExportLanguage = 'en' | 'nl';
@@ -826,6 +845,9 @@ function App() {
   const tracked3DOpenKeyRef = useRef<string | null>(null);
   const latestSunlightSubmissionKeyRef = useRef<string | null>(null);
   const sunlightSubmissionPromiseRef = useRef<Promise<void> | null>(null);
+  const shadowPrewarmKeyRef = useRef<string | null>(null);
+  const shadowPrewarmStatusRef = useRef<ShadowPrewarmStatus>('idle');
+  const shadowPrewarmPromiseRef = useRef<Promise<ShadowPrewarmResponse> | null>(null);
   const kickoffPostCheckoutPrerequisitesRef = useRef<(() => void) | null>(null);
 
   // Deferred 3D fetch: store parameters when address resolves, trigger when viewport-near
@@ -861,6 +883,9 @@ function App() {
   const shadowSnapshotsFailed = !serverRenderAvailable
     && shadowSnapshotsUnavailable
     && !hasShadowSnapshotTriptych;
+  const currentShadowPrewarmKey = address?.adresseerbaar_object_id && reportId
+    ? shadowPrewarmKey(address.adresseerbaar_object_id, reportId)
+    : null;
 
   // ActionBar visibility: shown when ViewingChecklist section enters viewport.
   const [actionBarVisible, setActionBarVisible] = useState(false);
@@ -946,6 +971,21 @@ function App() {
     }
     setCheckedQuestions(readChecklistState(vboId));
   }, [address?.adresseerbaar_object_id]);
+
+  useEffect(() => {
+    if (!currentShadowPrewarmKey) {
+      shadowPrewarmKeyRef.current = null;
+      shadowPrewarmStatusRef.current = 'idle';
+      shadowPrewarmPromiseRef.current = null;
+      return;
+    }
+
+    if (shadowPrewarmKeyRef.current !== currentShadowPrewarmKey) {
+      shadowPrewarmKeyRef.current = currentShadowPrewarmKey;
+      shadowPrewarmStatusRef.current = 'idle';
+      shadowPrewarmPromiseRef.current = null;
+    }
+  }, [currentShadowPrewarmKey]);
 
   useEffect(() => {
     const vboId = address?.adresseerbaar_object_id;
@@ -1807,6 +1847,108 @@ function App() {
     setShadowSnapshotsUnavailable(true);
   }, []);
 
+  const startShadowPrewarm = useCallback(() => {
+    const vboId = address?.adresseerbaar_object_id;
+    const rdX = address?.rd_x;
+    const rdY = address?.rd_y;
+    const lat = address?.latitude;
+    const lng = address?.longitude;
+    if (
+      activeScreen !== 'dossier'
+      || !vboId
+      || !reportId
+      || !isEntitled
+      || !serverRenderAvailable
+      || rdX == null
+      || rdY == null
+      || lat == null
+      || lng == null
+    ) {
+      return null;
+    }
+
+    const key = shadowPrewarmKey(vboId, reportId);
+    if (shadowPrewarmKeyRef.current !== key) {
+      shadowPrewarmKeyRef.current = key;
+      shadowPrewarmStatusRef.current = 'idle';
+      shadowPrewarmPromiseRef.current = null;
+    }
+
+    if (
+      shadowPrewarmStatusRef.current === 'pending'
+      && shadowPrewarmPromiseRef.current
+    ) {
+      return shadowPrewarmPromiseRef.current;
+    }
+    if (isShadowPrewarmTerminalStatus(shadowPrewarmStatusRef.current)) {
+      return null;
+    }
+
+    const requestedAt = new Date().toISOString();
+    console.info('[shadow-prewarm] starting background request', {
+      timestamp: requestedAt,
+      vboId,
+      reportId,
+    });
+
+    shadowPrewarmStatusRef.current = 'pending';
+    let prewarmPromise: Promise<ShadowPrewarmResponse> | null = null;
+    prewarmPromise = prewarmShadowEvidence(
+      vboId,
+      { rdX, rdY, lat, lng },
+      reportId,
+    )
+      .then((result) => {
+        const isCurrentRequest = shadowPrewarmKeyRef.current === key
+          && shadowPrewarmPromiseRef.current === prewarmPromise;
+        if (isCurrentRequest) {
+          shadowPrewarmStatusRef.current = result.status;
+          shadowPrewarmPromiseRef.current = null;
+        }
+        console.info('[shadow-prewarm] completed', {
+          timestamp: new Date().toISOString(),
+          requestedAt,
+          vboId,
+          reportId,
+          status: result.status,
+        });
+        return result;
+      })
+      .catch((error) => {
+        const isCurrentRequest = shadowPrewarmKeyRef.current === key
+          && shadowPrewarmPromiseRef.current === prewarmPromise;
+        if (isCurrentRequest) {
+          shadowPrewarmStatusRef.current = 'failed';
+          shadowPrewarmPromiseRef.current = null;
+        }
+        console.warn('[shadow-prewarm] request failed', {
+          timestamp: new Date().toISOString(),
+          requestedAt,
+          vboId,
+          reportId,
+          error,
+        });
+        throw error;
+      });
+
+    shadowPrewarmPromiseRef.current = prewarmPromise;
+    return prewarmPromise;
+  }, [
+    activeScreen,
+    address?.adresseerbaar_object_id,
+    address?.latitude,
+    address?.longitude,
+    address?.rd_x,
+    address?.rd_y,
+    isEntitled,
+    reportId,
+    serverRenderAvailable,
+  ]);
+
+  useEffect(() => {
+    void startShadowPrewarm()?.catch(() => {});
+  }, [startShadowPrewarm]);
+
   useEffect(() => {
     if (!sunlight) return;
     void submitSunlightForExport(sunlight, 'entitlement-sync').catch((error) => {
@@ -1880,23 +2022,55 @@ function App() {
       template,
       hasSunlight: Boolean(sunlight),
     });
-    if (template !== 'full_dossier' || !sunlight) return;
-    try {
-      await submitSunlightForExport(sunlight, 'export');
-      if (import.meta.env.DEV) {
-        console.info('[sunlight] pre-export submission confirmed', {
+    if (template !== 'full_dossier') return;
+    if (sunlight) {
+      try {
+        await submitSunlightForExport(sunlight, 'export');
+        if (import.meta.env.DEV) {
+          console.info('[sunlight] pre-export submission confirmed', {
+            timestamp: new Date().toISOString(),
+            requestedAt: exportRequestedAt,
+          });
+        }
+      } catch (error) {
+        console.warn('[sunlight] pre-export submission failed; continuing with request payload fallback', {
           timestamp: new Date().toISOString(),
           requestedAt: exportRequestedAt,
+          error,
         });
       }
-    } catch (error) {
-      console.warn('[sunlight] pre-export submission failed; continuing with request payload fallback', {
-        timestamp: new Date().toISOString(),
-        requestedAt: exportRequestedAt,
-        error,
-      });
     }
-  }, [sunlight, submitSunlightForExport]);
+
+    const vboId = address?.adresseerbaar_object_id;
+    const prewarmJoinKey = vboId && reportId ? shadowPrewarmKey(vboId, reportId) : null;
+    const prewarmPromise = shadowPrewarmPromiseRef.current;
+    if (
+      template === 'full_dossier'
+      && serverRenderAvailable
+      && prewarmJoinKey
+      && shadowPrewarmKeyRef.current === prewarmJoinKey
+      && shadowPrewarmStatusRef.current === 'pending'
+      && prewarmPromise
+    ) {
+      try {
+        await prewarmPromise;
+      } catch (error) {
+        console.warn('[shadow-prewarm] pre-export join failed; continuing with export fallback', {
+          timestamp: new Date().toISOString(),
+          requestedAt: exportRequestedAt,
+          vboId,
+          reportId,
+          error,
+        });
+      }
+    }
+  }, [
+    address?.adresseerbaar_object_id,
+    reportId,
+    serverRenderAvailable,
+    sunlight,
+    submitSunlightForExport,
+  ]);
 
   const isActiveDossierRequest = useCallback((requestId: number) => {
     return neighborhood3DRequestId.current === requestId && activeScreenRef.current === 'dossier';

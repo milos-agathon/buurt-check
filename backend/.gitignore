@@ -4,3 +4,4 @@ env.txt
 build/
 dist/
 *.egg-info/
+.pytest-basetemp*/

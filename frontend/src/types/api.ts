@@ -174,6 +174,12 @@ export interface ShadowSnapshot {
   sunAltitude?: number;
 }
 
+export interface ShadowPrewarmResponse {
+  status: 'ready' | 'skipped' | 'unavailable';
+  facade_snapshot_count: number;
+  hero_snapshot_count: number;
+}
+
 export type RiskLevel = 'low' | 'medium' | 'high' | 'unavailable';
 
 export type SeverityLevel = 'good' | 'moderate' | 'poor' | 'critical' | 'unavailable';

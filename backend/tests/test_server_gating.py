@@ -74,6 +74,202 @@ async def test_sunlight_submission_rejects_without_report_id(db_path):
 
 
 @pytest.mark.asyncio
+async def test_shadow_prewarm_rejects_without_report_id(db_path):
+    """Forge3D shadow prewarm remains paid-only."""
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/address/0363010012345678/shadow-prewarm",
+                json={
+                    "rd_x": 121000,
+                    "rd_y": 487000,
+                    "lat": 52.37,
+                    "lng": 4.89,
+                },
+            )
+    assert response.status_code == 402
+
+
+@pytest.mark.asyncio
+async def test_shadow_prewarm_rejects_unentitled_report(db_path):
+    """Shadow prewarm requires an active entitlement, not just a report id."""
+    from app.services.reports import create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.post(
+                "/api/address/0363010012345678/shadow-prewarm",
+                params={"report_id": rid},
+                json={
+                    "rd_x": 121000,
+                    "rd_y": 487000,
+                    "lat": 52.37,
+                    "lng": 4.89,
+                },
+            )
+    assert response.status_code == 402
+
+
+@pytest.mark.asyncio
+async def test_shadow_prewarm_rejects_other_buyer(db_path):
+    """A report id owned by another buyer is not enough to prewarm GPU work."""
+    from app.services.reports import activate_entitlement, create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await activate_entitlement(rid, db_path=db_path)
+
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-456")
+            response = await client.post(
+                "/api/address/0363010012345678/shadow-prewarm",
+                params={"report_id": rid},
+                json={
+                    "rd_x": 121000,
+                    "rd_y": 487000,
+                    "lat": 52.37,
+                    "lng": 4.89,
+                },
+            )
+    assert response.status_code == 402
+
+
+@pytest.mark.asyncio
+async def test_shadow_prewarm_rejects_entitled_report_without_buyer_cookie(db_path):
+    """A paid report id alone must not authorize paid GPU work."""
+    from app.services.reports import activate_entitlement, create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await activate_entitlement(rid, db_path=db_path)
+
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "rate_limit_enabled", False),
+        patch("app.api.address.get_render_service", return_value=None),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/address/0363010012345678/shadow-prewarm",
+                params={"report_id": rid},
+                json={
+                    "rd_x": 121000,
+                    "rd_y": 487000,
+                    "lat": 52.37,
+                    "lng": 4.89,
+                },
+            )
+    assert response.status_code == 402
+
+
+@pytest.mark.asyncio
+async def test_shadow_prewarm_rejects_entitled_report_for_different_address(db_path):
+    """Entitlement is buyer and address scoped, not report-id bearer access."""
+    from app.services.reports import activate_entitlement, create_report
+
+    rid = await create_report(
+        "0363010099999999",
+        "Other address",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await activate_entitlement(rid, db_path=db_path)
+
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.post(
+                "/api/address/0363010012345678/shadow-prewarm",
+                params={"report_id": rid},
+                json={
+                    "rd_x": 121000,
+                    "rd_y": 487000,
+                    "lat": 52.37,
+                    "lng": 4.89,
+                },
+            )
+    assert response.status_code == 402
+
+
+@pytest.mark.asyncio
+async def test_shadow_prewarm_allows_entitled_owner_for_same_address(db_path):
+    """An entitled buyer/address pair reaches the prewarm route body."""
+    from app.services.reports import activate_entitlement, create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await activate_entitlement(rid, db_path=db_path)
+
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "rate_limit_enabled", False),
+        patch("app.api.address.get_render_service", return_value=None),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.post(
+                "/api/address/0363010012345678/shadow-prewarm",
+                params={"report_id": rid},
+                json={
+                    "rd_x": 121000,
+                    "rd_y": 487000,
+                    "lat": 52.37,
+                    "lng": 4.89,
+                },
+            )
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "unavailable",
+        "facade_snapshot_count": 0,
+        "hero_snapshot_count": 0,
+    }
+
+
+@pytest.mark.asyncio
 async def test_viewing_questions_are_free_without_report_id(db_path):
     """Viewing questions are part of the free viewer."""
     with (
@@ -247,6 +443,37 @@ async def test_paid_endpoint_rejects_unentitled_report(db_path):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.get(
+                "/api/address/0363010012345678/property-warnings",
+                params={
+                    "rd_x": "121000",
+                    "rd_y": "487000",
+                    "report_id": rid,
+                },
+            )
+    assert response.status_code == 402
+
+
+@pytest.mark.asyncio
+async def test_paid_endpoint_rejects_entitled_report_without_buyer_cookie(db_path):
+    """Shared premium dependency must not treat report_id as a bearer token."""
+    from app.services.reports import activate_entitlement, create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+    await activate_entitlement(rid, db_path=db_path)
+
+    with (
+        patch.object(settings, "database_path", db_path),
+        patch.object(settings, "rate_limit_enabled", False),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get(
                 "/api/address/0363010012345678/property-warnings",
                 params={

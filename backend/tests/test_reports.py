@@ -64,6 +64,16 @@ async def test_activate_entitlement(db_path):
     )
     await activate_entitlement(report_id, db_path=db_path)
     assert await check_entitlement(report_id, db_path=db_path) is True
+    assert await check_entitlement(
+        report_id,
+        vbo_id="0363010012345678",
+        db_path=db_path,
+    ) is True
+    assert await check_entitlement(
+        report_id,
+        vbo_id="0363010099999999",
+        db_path=db_path,
+    ) is False
 
 
 @pytest.mark.asyncio

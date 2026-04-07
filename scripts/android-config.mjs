@@ -129,7 +129,7 @@ export function resolveAndroidConfig() {
     launcherName,
     packageId,
     versionCode,
-    versionName: (env.BUURT_ANDROID_VERSION_NAME || `${versionCode}`).trim(),
+    versionName: (env.BUURT_ANDROID_VERSION_NAME || '1.0.0').trim(),
     themeColor,
     backgroundColor,
     startUrl,

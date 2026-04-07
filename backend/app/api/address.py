@@ -3,6 +3,7 @@ import base64
 import logging
 import re
 import time
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import Response
@@ -51,6 +52,7 @@ from app.services.scoring import (
     severity_from_score,
     sunlight_summary,
 )
+from app.services.shadow_prewarm import build_seasonal_shadow_evidence
 from app.services.viewing_questions import (
     build_viewing_questions,
     with_crime_viewing_questions,
@@ -1053,6 +1055,19 @@ class ExportRequest(BaseModel):
     addition: str | None = None
 
 
+class ShadowPrewarmRequest(BaseModel):
+    rd_x: float = Field(ge=0, le=300000)
+    rd_y: float = Field(ge=285000, le=625000)
+    lat: float = Field(ge=50.5, le=53.8)
+    lng: float = Field(ge=3.2, le=7.3)
+
+
+class ShadowPrewarmResponse(BaseModel):
+    status: Literal["ready", "skipped", "unavailable"]
+    facade_snapshot_count: int = Field(ge=0)
+    hero_snapshot_count: int = Field(ge=0)
+
+
 async def _fetch_building_for_export(vbo_id: str):
     """Cache-first building facts fetch for export."""
     cache_key = f"building:{vbo_id}"
@@ -1301,7 +1316,11 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
         from app.services.reports import check_entitlement
 
         buyer_key = get_buyer_key(request)
-        if not buyer_key or not await check_entitlement(body.report_id, buyer_key=buyer_key):
+        if not buyer_key or not await check_entitlement(
+            body.report_id,
+            buyer_key=buyer_key,
+            vbo_id=vbo_id,
+        ):
             raise HTTPException(status_code=402, detail="Payment required")
 
     # --- Phase 1: Fetch building + risks in parallel ---
@@ -1467,106 +1486,94 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
             rd_y=body.rd_y,
         )
 
-        # --- forge3d server-side rendering (always preferred when available) ---
-        # The paid dossier prefers a seasonal noon triptych that mirrors the
-        # richer attached-PDF contract: winter solstice, equinox, summer solstice.
         render_service = get_render_service()
-        if (
-            render_service is not None
-            and building_resp
-            and building_resp.building
-        ):
-            t0 = time.monotonic()
+        if render_service is None:
+            logger.info(
+                (
+                    "shadow_export fallback phase=export vbo_id=%s report_id=%s "
+                    "pand_id=%s reason=renderer_missing"
+                ),
+                vbo_id,
+                body.report_id,
+                pand_id,
+            )
+        elif not render_service.available:
+            logger.info(
+                (
+                    "shadow_export fallback phase=export vbo_id=%s report_id=%s "
+                    "pand_id=%s reason=renderer_unavailable"
+                ),
+                vbo_id,
+                body.report_id,
+                pand_id,
+            )
+        elif pand_id is None:
+            logger.info(
+                (
+                    "shadow_export fallback phase=export vbo_id=%s report_id=%s "
+                    "pand_id=%s reason=missing_building_context"
+                ),
+                vbo_id,
+                body.report_id,
+                pand_id,
+            )
+        else:
+            started_at = time.monotonic()
             try:
-                from app.services.forge3d_geometry import (
-                    building_blocks_to_forge3d_scene,
+                evidence = await build_seasonal_shadow_evidence(
+                    render_service=render_service,
+                    vbo_id=vbo_id,
+                    pand_id=pand_id,
+                    rd_x=body.rd_x,
+                    rd_y=body.rd_y,
+                    lat=body.lat,
+                    lng=body.lng,
                 )
-
-                # Fetch 3D neighbourhood context for the scene
-                n3d = await three_d_bag.get_neighborhood_3d(
-                    body.rd_x, body.rd_y,
-                )
-                target_block = None
-                neighbors = []
-                if n3d:
-                    for b in n3d.buildings:
-                        if b.pand_id == building_resp.building.pand_id:
-                            target_block = b
-                        else:
-                            neighbors.append(b)
-
-                if target_block is not None:
-                    scene_data = building_blocks_to_forge3d_scene(
-                        target_block, neighbors,
-                    )
-                    seasonal_specs = [
-                        ("equinox", "2026-03-20"),
-                        ("summer", "2026-06-21"),
-                        ("winter", "2026-12-21"),
+                if evidence is not None:
+                    body.shadow_images = [
+                        ShadowImageItem(**image)
+                        for image in evidence.facade_images
                     ]
-                    seasonal_items: list[ShadowImageItem] = []
-                    seasonal_top_images: dict[str, str] = {}
-                    for season_label, date_iso in seasonal_specs:
-                        server_images = await render_service.render_shadow_snapshots(
-                            pand_id=building_resp.building.pand_id,
-                            dates=[date_iso],
-                            times=["12:00"],
-                            camera_preset="triptych",
-                            scene_data=scene_data,
-                            lat=body.lat,
-                            lng=body.lng,
-                        )
-                        if not server_images:
-                            continue
-                        for item in server_images:
-                            viewpoint = str(item.get("viewpoint") or "").lower()
-                            image_b64 = base64.b64encode(item["jpeg_bytes"]).decode("ascii")
-                            if viewpoint == "top":
-                                seasonal_top_images[season_label] = image_b64
-                                continue
-                            if viewpoint not in {"front", "rear"}:
-                                continue
-                            seasonal_items.append(
-                                ShadowImageItem(
-                                    hour=12,
-                                    label=f"{season_label}_{viewpoint}",
-                                    image_b64=image_b64,
-                                    viewpoint=viewpoint,
-                                    season=season_label,
-                                    sun_azimuth=item.get("sun_azimuth"),
-                                    sun_altitude=item.get("sun_altitude"),
-                                )
-                            )
-
-                    if len(seasonal_items) == 6 and len(seasonal_top_images) == 3:
-                        body.shadow_images = seasonal_items
-                        body.shadow_image_b64 = seasonal_top_images["winter"]
-                        body.shadow_equinox_b64 = seasonal_top_images["equinox"]
-                        body.shadow_summer_b64 = seasonal_top_images["summer"]
-                        elapsed = time.monotonic() - t0
-                        logger.info(
-                            "export %s: forge3d rendered 6 seasonal facade "
-                            "snapshots plus 3 top-view seasonal heroes in %.2fs",
-                            vbo_id,
-                            elapsed,
-                        )
-                    else:
-                        logger.warning(
-                            "export %s: forge3d returned incomplete images, "
-                            "falling back to client",
-                            vbo_id,
-                        )
-                else:
-                    logger.debug(
-                        "export %s: target building not found in 3D context, "
-                        "skipping forge3d",
+                    body.shadow_image_b64 = evidence.winter_top_b64
+                    body.shadow_equinox_b64 = evidence.equinox_top_b64
+                    body.shadow_summer_b64 = evidence.summer_top_b64
+                    logger.info(
+                        (
+                            "shadow_export helper_used phase=export vbo_id=%s report_id=%s "
+                            "pand_id=%s status=ready facade_snapshot_count=%s "
+                            "hero_snapshot_count=%s elapsed_ms=%.0f"
+                        ),
                         vbo_id,
+                        body.report_id,
+                        pand_id,
+                        len(evidence.facade_images),
+                        3,
+                        (time.monotonic() - started_at) * 1000,
                     )
-            except Exception:
+                else:
+                    logger.warning(
+                        (
+                            "shadow_export fallback phase=export vbo_id=%s report_id=%s "
+                            "pand_id=%s reason=incomplete_or_missing "
+                            "elapsed_ms=%.0f"
+                        ),
+                        vbo_id,
+                        body.report_id,
+                        pand_id,
+                        (time.monotonic() - started_at) * 1000,
+                    )
+            except Exception as exc:
                 logger.warning(
-                    "export %s: forge3d rendering failed, "
-                    "falling back to client images",
+                    (
+                        "shadow_export fallback phase=export vbo_id=%s report_id=%s "
+                        "pand_id=%s reason=helper_exception error_class=%s "
+                        "elapsed_ms=%.0f"
+                    ),
                     vbo_id,
+                    body.report_id,
+                    pand_id,
+                    exc.__class__.__name__,
+                    (time.monotonic() - started_at) * 1000,
                     exc_info=True,
                 )
 
@@ -1638,6 +1645,152 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Cache-Control": _CACHE_NO_STORE,
         },
+    )
+
+
+@router.post(
+    "/{vbo_id}/shadow-prewarm",
+    response_model=ShadowPrewarmResponse,
+)
+async def shadow_prewarm(
+    response: Response,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    body: ShadowPrewarmRequest = ...,
+    report_id: str | None = Query(None),
+    _: None = Depends(require_entitlement),
+):
+    response.headers["Cache-Control"] = _CACHE_NO_STORE
+
+    logger.info(
+        "shadow_prewarm started phase=prewarm vbo_id=%s report_id=%s",
+        vbo_id,
+        report_id,
+    )
+    started_at = time.monotonic()
+
+    render_service = get_render_service()
+    if render_service is None or not render_service.available:
+        logger.info(
+            (
+                "shadow_prewarm unavailable phase=prewarm vbo_id=%s report_id=%s "
+                "status=unavailable elapsed_ms=%.0f"
+            ),
+            vbo_id,
+            report_id,
+            (time.monotonic() - started_at) * 1000,
+        )
+        return ShadowPrewarmResponse(
+            status="unavailable",
+            facade_snapshot_count=0,
+            hero_snapshot_count=0,
+        )
+
+    try:
+        building_resp = await _fetch_building_for_export(vbo_id)
+    except Exception as exc:
+        logger.warning(
+            (
+                "shadow_prewarm skipped phase=prewarm vbo_id=%s report_id=%s "
+                "pand_id=%s status=skipped reason=building_fetch_exception "
+                "error_class=%s elapsed_ms=%.0f"
+            ),
+            vbo_id,
+            report_id,
+            None,
+            exc.__class__.__name__,
+            (time.monotonic() - started_at) * 1000,
+            exc_info=True,
+        )
+        return ShadowPrewarmResponse(
+            status="skipped",
+            facade_snapshot_count=0,
+            hero_snapshot_count=0,
+        )
+
+    pand_id = building_resp.building.pand_id if building_resp and building_resp.building else None
+    if not pand_id:
+        logger.info(
+            (
+                "shadow_prewarm skipped phase=prewarm vbo_id=%s report_id=%s "
+                "pand_id=%s status=skipped reason=missing_building_context "
+                "elapsed_ms=%.0f"
+            ),
+            vbo_id,
+            report_id,
+            pand_id,
+            (time.monotonic() - started_at) * 1000,
+        )
+        return ShadowPrewarmResponse(
+            status="skipped",
+            facade_snapshot_count=0,
+            hero_snapshot_count=0,
+        )
+
+    try:
+        evidence = await build_seasonal_shadow_evidence(
+            render_service=render_service,
+            vbo_id=vbo_id,
+            pand_id=pand_id,
+            rd_x=body.rd_x,
+            rd_y=body.rd_y,
+            lat=body.lat,
+            lng=body.lng,
+        )
+    except Exception as exc:
+        logger.warning(
+            (
+                "shadow_prewarm skipped phase=prewarm vbo_id=%s report_id=%s "
+                "pand_id=%s status=skipped reason=helper_exception error_class=%s "
+                "elapsed_ms=%.0f"
+            ),
+            vbo_id,
+            report_id,
+            pand_id,
+            exc.__class__.__name__,
+            (time.monotonic() - started_at) * 1000,
+            exc_info=True,
+        )
+        return ShadowPrewarmResponse(
+            status="skipped",
+            facade_snapshot_count=0,
+            hero_snapshot_count=0,
+        )
+
+    if evidence is None:
+        logger.info(
+            (
+                "shadow_prewarm skipped phase=prewarm vbo_id=%s report_id=%s "
+                "pand_id=%s status=skipped reason=incomplete_or_missing "
+                "elapsed_ms=%.0f"
+            ),
+            vbo_id,
+            report_id,
+            pand_id,
+            (time.monotonic() - started_at) * 1000,
+        )
+        return ShadowPrewarmResponse(
+            status="skipped",
+            facade_snapshot_count=0,
+            hero_snapshot_count=0,
+        )
+
+    logger.info(
+        (
+            "shadow_prewarm completed phase=prewarm vbo_id=%s report_id=%s "
+            "pand_id=%s status=ready facade_snapshot_count=%s "
+            "hero_snapshot_count=%s elapsed_ms=%.0f"
+        ),
+        vbo_id,
+        report_id,
+        pand_id,
+        len(evidence.facade_images),
+        3,
+        (time.monotonic() - started_at) * 1000,
+    )
+    return ShadowPrewarmResponse(
+        status="ready",
+        facade_snapshot_count=len(evidence.facade_images),
+        hero_snapshot_count=3,
     )
 
 

@@ -8,14 +8,12 @@ test('F4 happy path: neighborhood card appears after address selection', async (
   await expect(page.getByRole('option').first()).toBeVisible();
   await page.getByRole('option').first().click();
 
-  // Wait for the neighborhood stats card to appear
-  const neighborhoodCard = page.locator('.neighborhood-card');
-  await expect(neighborhoodCard).toBeVisible({ timeout: 30000 });
-
-  // Should show title (English or Dutch)
-  await expect(
-    page.getByRole('heading', { name: /Neighborhood Snapshot|Buurtprofiel/ }),
-  ).toBeVisible();
+  const neighborhoodTitle = page.getByRole('heading', {
+    name: /Neighborhood Snapshot|Buurtprofiel/,
+  });
+  await expect(neighborhoodTitle).toBeVisible({ timeout: 30000 });
+  const neighborhoodCard = page.locator('.neighborhood-card').filter({ has: neighborhoodTitle });
+  await expect(neighborhoodCard).toBeVisible();
 
   // Should show loading state first, then data
   // (This assertion may pass too fast if API is cached, but validates the card appears)
@@ -31,7 +29,11 @@ test('F4 buurt name displays in subtitle', async ({ page }) => {
   await expect(page.getByRole('option').first()).toBeVisible();
   await page.getByRole('option').first().click();
 
-  const neighborhoodCard = page.locator('.neighborhood-card');
+  const neighborhoodTitle = page.getByRole('heading', {
+    name: /Neighborhood Snapshot|Buurtprofiel/,
+  });
+  await expect(neighborhoodTitle).toBeVisible({ timeout: 30000 });
+  const neighborhoodCard = page.locator('.neighborhood-card').filter({ has: neighborhoodTitle });
   await expect(neighborhoodCard).toBeVisible({ timeout: 30000 });
 
   // Should show buurt name + gemeente name in subtitle
@@ -48,7 +50,11 @@ test('F4 age distribution bars render', async ({ page }) => {
   await expect(page.getByRole('option').first()).toBeVisible();
   await page.getByRole('option').first().click();
 
-  const neighborhoodCard = page.locator('.neighborhood-card');
+  const neighborhoodTitle = page.getByRole('heading', {
+    name: /Neighborhood Snapshot|Buurtprofiel/,
+  });
+  await expect(neighborhoodTitle).toBeVisible({ timeout: 30000 });
+  const neighborhoodCard = page.locator('.neighborhood-card').filter({ has: neighborhoodTitle });
   await expect(neighborhoodCard).toBeVisible({ timeout: 30000 });
 
   // Should show age bars
@@ -76,7 +82,11 @@ test('F4 unavailable indicators show fallback', async ({ page }) => {
   await expect(page.getByRole('option').first()).toBeVisible();
   await page.getByRole('option').first().click();
 
-  const neighborhoodCard = page.locator('.neighborhood-card');
+  const neighborhoodTitle = page.getByRole('heading', {
+    name: /Neighborhood Snapshot|Buurtprofiel/,
+  });
+  await expect(neighborhoodTitle).toBeVisible({ timeout: 30000 });
+  const neighborhoodCard = page.locator('.neighborhood-card').filter({ has: neighborhoodTitle });
   await expect(neighborhoodCard).toBeVisible({ timeout: 30000 });
 
   // Check if any unavailable indicators exist
@@ -114,10 +124,16 @@ test('F4 error state renders on timeout', async ({ page }) => {
   });
 
   // Neighborhood card should appear with error message
-  const neighborhoodCard = page.locator('.neighborhood-card');
+  const neighborhoodTitle = page.getByRole('heading', {
+    name: /Neighborhood Snapshot|Buurtprofiel/,
+  });
+  await expect(neighborhoodTitle).toBeVisible({ timeout: 20000 });
+  const neighborhoodCard = page.locator('.neighborhood-card').filter({ has: neighborhoodTitle });
   await expect(neighborhoodCard).toBeVisible({ timeout: 20000 });
   await expect(
-    page.getByText(/Neighborhood data could not be loaded|Buurtgegevens konden niet/),
+    page.getByText(
+      /We couldn't connect to our servers|Our server hit a temporary problem|We konden geen verbinding maken met onze servers|Onze server heeft een tijdelijk probleem/,
+    ),
   ).toBeVisible();
 });
 
@@ -125,17 +141,18 @@ test('F4 bilingual support (Dutch)', async ({ page }) => {
   await page.goto('/');
 
   // Switch to Dutch
-  await page.locator('.language-toggle').click();
+  await page.getByRole('radio', { name: 'NL' }).click();
 
   await page.locator('input.address-search__input').fill('Keizersgracht 100 Amsterdam');
   await expect(page.getByRole('option').first()).toBeVisible();
   await page.getByRole('option').first().click();
 
-  const neighborhoodCard = page.locator('.neighborhood-card');
+  const neighborhoodTitle = page.getByRole('heading', { name: 'Buurtprofiel' });
+  const neighborhoodCard = page.locator('.neighborhood-card').filter({ has: neighborhoodTitle });
   await expect(neighborhoodCard).toBeVisible({ timeout: 30000 });
 
   // Should show Dutch title
-  await expect(page.getByRole('heading', { name: 'Buurtprofiel' })).toBeVisible();
+  await expect(neighborhoodTitle).toBeVisible();
 
   // Should show Dutch urbanization badge if available
   const badge = page.locator('.neighborhood-card__badge');

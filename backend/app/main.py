@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="buurt-check API",
-    version="0.1.0",
+    version="1.0.0",
     description="Pre-viewing intelligence for property buyers in the Netherlands",
     lifespan=lifespan,
 )

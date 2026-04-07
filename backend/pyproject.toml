@@ -1,6 +1,6 @@
 [project]
 name = "buurt-check-backend"
-version = "0.1.0"
+version = "1.0.0"
 description = "Backend for buurt-check: pre-viewing intelligence for property buyers in the Netherlands"
 requires-python = ">=3.11"
 dependencies = [
@@ -47,6 +47,7 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+exclude = ["build"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

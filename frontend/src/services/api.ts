@@ -13,6 +13,7 @@ import type {
   ResolvedAddress,
   RiskCardsResponse,
   RiskComparisonsResponse,
+  ShadowPrewarmResponse,
   ShortReportResponse,
   SunlightResult,
   SuggestResponse,
@@ -36,6 +37,10 @@ const EXPORT_TIMEOUT_QUICK_MS = Math.max(
 const EXPORT_TIMEOUT_FULL_MS = Math.max(
   30_000,
   Number(import.meta.env.VITE_EXPORT_TIMEOUT_FULL_MS) || 180_000,
+);
+const SHADOW_PREWARM_TIMEOUT_MS = Math.max(
+  30_000,
+  Number(import.meta.env.VITE_SHADOW_PREWARM_TIMEOUT_MS) || 120_000,
 );
 
 interface TimeoutSignal {
@@ -403,6 +408,36 @@ export async function getNeighborhood3D(
     const resp = await fetchPrimaryApi(
       `${primaryApiUrl(`/address/${vboId}/neighborhood3d`)}?${params}`,
       { signal: timeout.signal },
+    );
+    if (!resp.ok) throwHttpError(resp.status);
+    return resp.json();
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+export async function prewarmShadowEvidence(
+  vboId: string,
+  coords: { rdX: number; rdY: number; lat: number; lng: number },
+  reportId: string,
+  signal?: AbortSignal,
+): Promise<ShadowPrewarmResponse> {
+  const params = new URLSearchParams({ report_id: reportId });
+  const timeout = withTimeoutSignal(SHADOW_PREWARM_TIMEOUT_MS, signal);
+  try {
+    const resp = await fetchPrimaryApi(
+      `${primaryApiUrl(`/address/${vboId}/shadow-prewarm`)}?${params}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rd_x: coords.rdX,
+          rd_y: coords.rdY,
+          lat: coords.lat,
+          lng: coords.lng,
+        }),
+        signal: timeout.signal,
+      },
     );
     if (!resp.ok) throwHttpError(resp.status);
     return resp.json();

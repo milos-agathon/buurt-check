@@ -24,6 +24,7 @@ import {
   getLivability,
   getNeighborhood3D,
   getNeighborhoodStats,
+  prewarmShadowEvidence,
   getPropertyWarnings,
   getRiskComparisons,
   getRiskCards,
@@ -360,6 +361,71 @@ describe('getNeighborhood3D', () => {
 
     vi.useRealTimers();
     promise.catch(() => {});
+  });
+});
+
+describe('prewarmShadowEvidence', () => {
+  it('posts to the shadow-prewarm route with report_id in the query string', async () => {
+    mockFetch.mockResolvedValue(okResponse({
+      status: 'ready',
+      facade_snapshot_count: 6,
+      hero_snapshot_count: 3,
+    }));
+
+    await prewarmShadowEvidence(
+      'vbo-1',
+      { rdX: 121286, rdY: 487296, lat: 52.372, lng: 4.892 },
+      'report-123',
+    );
+
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/address/vbo-1/shadow-prewarm?report_id=report-123');
+    expect(options).toMatchObject({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+  });
+
+  it('sends only coordinates in the JSON body', async () => {
+    mockFetch.mockResolvedValue(okResponse({
+      status: 'ready',
+      facade_snapshot_count: 6,
+      hero_snapshot_count: 3,
+    }));
+
+    await prewarmShadowEvidence(
+      'vbo-1',
+      { rdX: 121286, rdY: 487296, lat: 52.372, lng: 4.892 },
+      'report-123',
+    );
+
+    const [, options] = mockFetch.mock.calls[0];
+    expect(JSON.parse(options.body as string)).toEqual({
+      rd_x: 121286,
+      rd_y: 487296,
+      lat: 52.372,
+      lng: 4.892,
+    });
+    expect(options.body).not.toContain('report-123');
+  });
+
+  it('parses the response into ShadowPrewarmResponse', async () => {
+    mockFetch.mockResolvedValue(okResponse({
+      status: 'skipped',
+      facade_snapshot_count: 0,
+      hero_snapshot_count: 0,
+    }));
+
+    await expect(prewarmShadowEvidence(
+      'vbo-1',
+      { rdX: 121286, rdY: 487296, lat: 52.372, lng: 4.892 },
+      'report-123',
+    )).resolves.toEqual({
+      status: 'skipped',
+      facade_snapshot_count: 0,
+      hero_snapshot_count: 0,
+    });
   });
 });
 

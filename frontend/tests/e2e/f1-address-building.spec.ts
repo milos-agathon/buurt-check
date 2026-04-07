@@ -7,9 +7,9 @@ test('F1 flow: search address and render building facts + footprint', async ({ p
   await expect(page.getByRole('option').first()).toBeVisible();
   await page.getByRole('option').first().click();
 
-  await expect(page.getByRole('heading', { name: 'Building Facts' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Building Footprint' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Building Facts|Gebouwgegevens/ })).toBeVisible();
+  await expect(page.getByTestId('map')).toBeVisible();
 
   await expect(page.locator('.building-card__mono')).toHaveText(/\d{16}/);
-  await expect(page.locator('.leaflet-overlay-pane path')).toHaveCount(1);
+  await expect(page.locator('.footprint-map__shape')).toHaveCount(1);
 });

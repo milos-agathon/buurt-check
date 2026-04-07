@@ -8,33 +8,25 @@ test('F3 happy path: risk cards render after address selection', async ({ page }
   await expect(page.getByRole('option').first()).toBeVisible();
   await page.getByRole('option').first().click();
 
-  // Wait for the risk cards section to appear (may take a few seconds for API calls)
-  const riskSection = page.locator('.risk-cards');
-  await expect(riskSection).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('heading', { name: /Building Facts|Gebouwgegevens/ })).toBeVisible({
+    timeout: 30000,
+  });
 
-  // Should show the section title
-  await expect(page.getByRole('heading', { name: /Environmental Risk Cards|Milieu-risicokaarten/ })).toBeVisible();
+  const noiseTile = page.getByTestId('risk-tile-noise');
+  const airTile = page.getByTestId('risk-tile-air');
+  const climateTile = page.getByTestId('risk-tile-climate');
 
-  // Should show 3 risk cards (noise, air, climate)
-  const cards = page.locator('.risk-card');
-  await expect(cards).toHaveCount(3);
+  await expect(noiseTile).toBeVisible();
+  await expect(airTile).toBeVisible();
+  await expect(climateTile).toBeVisible();
 
-  // Each card should have a badge (risk level)
-  const badges = page.locator('.risk-card__badge');
-  await expect(badges).toHaveCount(3);
+  await expect(noiseTile).toContainText(/Road Traffic Noise|Wegverkeersgeluid/);
+  await expect(airTile).toContainText(/Air Quality|Luchtkwaliteit/);
+  await expect(climateTile).toContainText(/Climate Risk|Klimaatrisico/);
 
-  // Each badge should show a valid risk level text
-  for (let i = 0; i < 3; i++) {
-    const badgeText = await badges.nth(i).textContent();
-    expect(badgeText).toMatch(/Low risk|Medium risk|High risk|Data unavailable|Laag risico|Gemiddeld risico|Hoog risico|Data niet beschikbaar/);
-  }
-
-  // Should show disclaimer
-  await expect(page.locator('.risk-cards__disclaimer')).toBeVisible();
-
-  // Should show source + date for each card
-  const sources = page.locator('.risk-card__source');
-  await expect(sources).toHaveCount(3);
+  await expect(noiseTile.locator('.severity-badge__label')).toBeVisible();
+  await expect(airTile.locator('.severity-badge__label')).toBeVisible();
+  await expect(climateTile.locator('.severity-badge__label')).toBeVisible();
 });
 
 test('F3 degraded path: dossier stays usable when risk API fails', async ({ page }) => {
@@ -51,21 +43,21 @@ test('F3 degraded path: dossier stays usable when risk API fails', async ({ page
   await page.getByRole('option').first().click();
 
   // Building facts should still render (F1 unaffected by F3 failure)
-  await expect(page.getByRole('heading', { name: 'Building Facts' })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('heading', { name: /Building Facts|Gebouwgegevens/ })).toBeVisible({
+    timeout: 30000,
+  });
 
-  // The risk cards section SHOULD appear with an error message
-  await expect(page.locator('.risk-cards')).toBeVisible({ timeout: 10000 });
-  await expect(page.getByText(/Risk data could not be loaded|Risicodata kon nu niet/)).toBeVisible();
+  const noiseTile = page.getByTestId('risk-tile-noise');
+  const airTile = page.getByTestId('risk-tile-air');
+  const climateTile = page.getByTestId('risk-tile-climate');
 
-  // Cards should still render in unavailable state
-  const cards = page.locator('.risk-card');
-  await expect(cards).toHaveCount(3);
-  const badges = page.locator('.risk-card__badge');
-  await expect(badges).toHaveCount(3);
-  for (let i = 0; i < 3; i++) {
-    const badgeText = await badges.nth(i).textContent();
-    expect(badgeText).toMatch(/Data unavailable|Data niet beschikbaar/);
-  }
+  await expect(noiseTile).toBeVisible({ timeout: 10000 });
+  await expect(airTile).toBeVisible();
+  await expect(climateTile).toBeVisible();
+
+  await expect(noiseTile).toContainText('--');
+  await expect(airTile).toContainText('--');
+  await expect(climateTile).toContainText('--');
 
   // The page should NOT show a generic error message
   await expect(page.getByText('Something went wrong')).not.toBeVisible();

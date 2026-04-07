@@ -220,14 +220,17 @@ async def store_provider_session(
 async def check_entitlement(
     report_id: str,
     buyer_key: str | None = None,
+    vbo_id: str | None = None,
     db_path: str | None = None,
 ) -> bool:
-    """Return True if entitlement_status == 'active' after provider sync when needed."""
+    """Return True if entitlement is active and optionally bound to the address."""
     if buyer_key is not None:
         report = await get_report_for_buyer(report_id, buyer_key, db_path=db_path)
     else:
         report = await get_report(report_id, db_path=db_path)
     if report is None:
+        return False
+    if vbo_id is not None and report.vbo_id != vbo_id:
         return False
     if report.entitlement_status != "active":
         return False

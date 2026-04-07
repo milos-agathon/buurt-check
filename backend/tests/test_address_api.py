@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import time
 from unittest.mock import AsyncMock, patch
 
@@ -1537,16 +1536,8 @@ async def test_full_dossier_export_provenance_prefers_municipality_over_city():
 async def test_full_dossier_export_maps_forge3d_seasonal_facades_to_generator():
     """forge3d server renders must match the 6-image seasonal facade PDF contract."""
     from app.api.address import ExportRequest, _do_export_briefing
+    from app.services.shadow_prewarm import SeasonalShadowEvidence
 
-    equinox_top = b"equinox-top"
-    equinox_front = b"equinox-front"
-    equinox_rear = b"equinox-rear"
-    summer_top = b"summer-top"
-    summer_front = b"summer-front"
-    summer_rear = b"summer-rear"
-    winter_top = b"winter-top"
-    winter_front = b"winter-front"
-    winter_rear = b"winter-rear"
     body = ExportRequest(
         rd_x=121286,
         rd_y=487296,
@@ -1594,114 +1585,70 @@ async def test_full_dossier_export_maps_forge3d_seasonal_facades_to_generator():
             sampled_at="2026-02-05",
         ),
     )
-    neighborhood_3d = Neighborhood3DResponse(
-        address_id="0363010000696734",
-        target_pand_id="0363100012345678",
-        center=Neighborhood3DCenter(
-            lat=52.372,
-            lng=4.892,
-            rd_x=121286.0,
-            rd_y=487296.0,
-        ),
-        buildings=[
-            BuildingBlock(
-                pand_id="0363100012345678",
-                ground_height=1.5,
-                building_height=12.0,
-                footprint=[[5.0, 5.0], [-5.0, 5.0], [-5.0, -5.0], [5.0, -5.0]],
-                year=1910,
-            ),
-            BuildingBlock(
-                pand_id="0363100099999999",
-                ground_height=1.5,
-                building_height=10.0,
-                footprint=[[15.0, 15.0], [7.0, 15.0], [7.0, 7.0], [15.0, 7.0]],
-                year=1980,
-            ),
-        ],
-    )
     mock_render_service = type("MockRenderService", (), {})()
-    mock_render_service.render_shadow_snapshots = AsyncMock(
-        side_effect=[
-            [
+    mock_render_service.available = True
+    mock_shadow_helper = AsyncMock(
+        return_value=SeasonalShadowEvidence(
+            facade_images=[
                 {
                     "hour": 12,
-                    "viewpoint": "top",
-                    "time_label": "noon",
-                    "jpeg_bytes": equinox_top,
+                    "label": "equinox_front",
+                    "image_b64": "equinox-front",
+                    "viewpoint": "front",
+                    "season": "equinox",
                     "sun_azimuth": 180.0,
                     "sun_altitude": 38.0,
                 },
                 {
                     "hour": 12,
-                    "viewpoint": "front",
-                    "time_label": "noon",
-                    "jpeg_bytes": equinox_front,
+                    "label": "equinox_rear",
+                    "image_b64": "equinox-rear",
+                    "viewpoint": "rear",
+                    "season": "equinox",
                     "sun_azimuth": 180.0,
                     "sun_altitude": 38.0,
                 },
                 {
                     "hour": 12,
-                    "viewpoint": "rear",
-                    "time_label": "noon",
-                    "jpeg_bytes": equinox_rear,
-                    "sun_azimuth": 180.0,
-                    "sun_altitude": 38.0,
-                },
-            ],
-            [
-                {
-                    "hour": 12,
-                    "viewpoint": "top",
-                    "time_label": "noon",
-                    "jpeg_bytes": summer_top,
-                    "sun_azimuth": 195.0,
-                    "sun_altitude": 60.0,
-                },
-                {
-                    "hour": 12,
+                    "label": "summer_front",
+                    "image_b64": "summer-front",
                     "viewpoint": "front",
-                    "time_label": "noon",
-                    "jpeg_bytes": summer_front,
+                    "season": "summer",
                     "sun_azimuth": 195.0,
                     "sun_altitude": 60.0,
                 },
                 {
                     "hour": 12,
+                    "label": "summer_rear",
+                    "image_b64": "summer-rear",
                     "viewpoint": "rear",
-                    "time_label": "noon",
-                    "jpeg_bytes": summer_rear,
+                    "season": "summer",
                     "sun_azimuth": 195.0,
                     "sun_altitude": 60.0,
                 },
-            ],
-            [
                 {
                     "hour": 12,
-                    "viewpoint": "top",
-                    "time_label": "noon",
-                    "jpeg_bytes": winter_top,
-                    "sun_azimuth": 165.0,
-                    "sun_altitude": 15.0,
-                },
-                {
-                    "hour": 12,
+                    "label": "winter_front",
+                    "image_b64": "winter-front",
                     "viewpoint": "front",
-                    "time_label": "noon",
-                    "jpeg_bytes": winter_front,
+                    "season": "winter",
                     "sun_azimuth": 165.0,
                     "sun_altitude": 15.0,
                 },
                 {
                     "hour": 12,
+                    "label": "winter_rear",
+                    "image_b64": "winter-rear",
                     "viewpoint": "rear",
-                    "time_label": "noon",
-                    "jpeg_bytes": winter_rear,
+                    "season": "winter",
                     "sun_azimuth": 165.0,
                     "sun_altitude": 15.0,
                 },
             ],
-        ],
+            winter_top_b64="winter-top",
+            equinox_top_b64="equinox-top",
+            summer_top_b64="summer-top",
+        ),
     )
 
     with (
@@ -1757,10 +1704,10 @@ async def test_full_dossier_export_maps_forge3d_seasonal_facades_to_generator():
             return_value=mock_render_service,
         ),
         patch(
-            "app.api.address.three_d_bag.get_neighborhood_3d",
+            "app.api.address.build_seasonal_shadow_evidence",
             new_callable=AsyncMock,
-            return_value=neighborhood_3d,
-        ),
+            side_effect=mock_shadow_helper,
+        ) as mock_build_shadow_evidence,
         patch(
             "app.api.address.generate_full_dossier",
             return_value=b"%PDF-1.4\n",
@@ -1773,21 +1720,15 @@ async def test_full_dossier_export_maps_forge3d_seasonal_facades_to_generator():
         )
 
     assert resp.status_code == 200
-    assert mock_render_service.render_shadow_snapshots.await_count == 3
-    render_calls = mock_render_service.render_shadow_snapshots.await_args_list
-    render_kwargs = render_calls[0].kwargs
-    assert render_kwargs["pand_id"] == "0363100012345678"
-    assert [call.kwargs["dates"] for call in render_calls] == [
-        ["2026-03-20"],
-        ["2026-06-21"],
-        ["2026-12-21"],
-    ]
-    assert [call.kwargs["times"] for call in render_calls] == [
-        ["12:00"],
-        ["12:00"],
-        ["12:00"],
-    ]
-    assert render_kwargs["camera_preset"] == "triptych"
+    mock_build_shadow_evidence.assert_awaited_once_with(
+        render_service=mock_render_service,
+        vbo_id="0363010000696734",
+        pand_id="0363100012345678",
+        rd_x=121286.0,
+        rd_y=487296.0,
+        lat=52.372,
+        lng=4.892,
+    )
 
     shadow_images = mock_generate_full_dossier.call_args.kwargs["shadow_images"]
     assert [item["label"] for item in shadow_images] == [
@@ -1815,18 +1756,426 @@ async def test_full_dossier_export_maps_forge3d_seasonal_facades_to_generator():
         "winter",
     ]
     assert [item["hour"] for item in shadow_images] == [12, 12, 12, 12, 12, 12]
-    assert (
-        mock_generate_full_dossier.call_args.kwargs["shadow_image_b64"]
-        == base64.b64encode(winter_top).decode("ascii")
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_image_b64"] == "winter-top"
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_equinox_b64"] == "equinox-top"
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_summer_b64"] == "summer-top"
+
+
+@pytest.mark.asyncio
+async def test_full_dossier_export_falls_back_when_shared_shadow_helper_raises():
+    from app.api.address import ExportRequest, ShadowImageItem, _do_export_briefing
+
+    body = ExportRequest(
+        rd_x=121286,
+        rd_y=487296,
+        lat=52.372,
+        lng=4.892,
+        address="Kalverstraat 1, Amsterdam",
+        template="full_dossier",
+        language="en",
+        report_id="report-123",
+        shadow_image_b64="client-winter-top",
+        shadow_equinox_b64="client-equinox-top",
+        shadow_summer_b64="client-summer-top",
+        shadow_images=[
+            ShadowImageItem(
+                hour=12,
+                label="client_winter_front",
+                image_b64="client-winter-front",
+                viewpoint="front",
+                season="winter",
+            )
+        ],
     )
-    assert (
-        mock_generate_full_dossier.call_args.kwargs["shadow_equinox_b64"]
-        == base64.b64encode(equinox_top).decode("ascii")
+    building_resp = BuildingFactsResponse(
+        address_id="0363010000696734",
+        building=BuildingFacts(
+            pand_id="0363100012345678",
+            construction_year=1910,
+            status="Pand in gebruik",
+            status_en="Building in use",
+            intended_use=["woonfunctie"],
+            intended_use_en=["residential"],
+            num_units=3,
+        ),
     )
-    assert (
-        mock_generate_full_dossier.call_args.kwargs["shadow_summer_b64"]
-        == base64.b64encode(summer_top).decode("ascii")
+    risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.low,
+            lden_db=45.0,
+            source="RIVM / Atlas Leefomgeving WMS",
+            sampled_at="2026-02-05",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_ug_m3=4.2,
+            no2_ug_m3=9.1,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM GCN WMS",
+            sampled_at="2026-02-05",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas WMS/WFS",
+            sampled_at="2026-02-05",
+        ),
     )
+    mock_render_service = type("MockRenderService", (), {})()
+    mock_render_service.available = True
+
+    with (
+        patch(
+            "app.services.reports.check_entitlement",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=building_resp,
+        ),
+        patch(
+            "app.api.address._fetch_risks_for_export",
+            new_callable=AsyncMock,
+            return_value=risks,
+        ),
+        patch(
+            "app.api.address._await_sunlight_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_viewing_questions", return_value=None),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_location_map",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.build_risk_comparisons", return_value=None),
+        patch(
+            "app.api.address.get_render_service",
+            return_value=mock_render_service,
+        ),
+        patch(
+            "app.api.address.build_seasonal_shadow_evidence",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("renderer blew up"),
+        ),
+        patch(
+            "app.api.address.generate_full_dossier",
+            return_value=b"%PDF-1.4\n",
+        ) as mock_generate_full_dossier,
+    ):
+        resp = await _do_export_briefing(
+            _make_export_request(),
+            "0363010000696734",
+            body,
+        )
+
+    assert resp.status_code == 200
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_image_b64"] == "client-winter-top"
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_equinox_b64"] == "client-equinox-top"
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_summer_b64"] == "client-summer-top"
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_images"] == [
+        {
+            "hour": 12,
+            "label": "client_winter_front",
+            "image_b64": "client-winter-front",
+            "viewpoint": "front",
+            "season": "winter",
+            "sun_azimuth": None,
+            "sun_altitude": None,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_shadow_prewarm_ready(client):
+    from app.models.building import BuildingFacts, BuildingFactsResponse
+    from app.services.shadow_prewarm import SeasonalShadowEvidence
+
+    building_resp = BuildingFactsResponse(
+        address_id="0363010000696734",
+        building=BuildingFacts(
+            pand_id="0363100012345678",
+            construction_year=1910,
+            intended_use=["woonfunctie"],
+            intended_use_en=["residential"],
+        ),
+    )
+    mock_render_service = type("MockRenderService", (), {})()
+    mock_render_service.available = True
+
+    with (
+        patch(
+            "app.api.address.get_render_service",
+            return_value=mock_render_service,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=building_resp,
+        ),
+        patch(
+            "app.api.address.build_seasonal_shadow_evidence",
+            new_callable=AsyncMock,
+            return_value=SeasonalShadowEvidence(
+                facade_images=[{"label": f"img-{idx}"} for idx in range(6)],
+                winter_top_b64="winter",
+                equinox_top_b64="equinox",
+                summer_top_b64="summer",
+            ),
+        ) as mock_build_shadow_evidence,
+    ):
+        resp = await client.post(
+            "/api/address/0363010000696734/shadow-prewarm",
+            params={"report_id": "report-123"},
+            json={
+                "rd_x": 121286,
+                "rd_y": 487296,
+                "lat": 52.372,
+                "lng": 4.892,
+            },
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers["Cache-Control"] == "no-store"
+    assert resp.json() == {
+        "status": "ready",
+        "facade_snapshot_count": 6,
+        "hero_snapshot_count": 3,
+    }
+    mock_build_shadow_evidence.assert_awaited_once_with(
+        render_service=mock_render_service,
+        vbo_id="0363010000696734",
+        pand_id="0363100012345678",
+        rd_x=121286.0,
+        rd_y=487296.0,
+        lat=52.372,
+        lng=4.892,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "render_service",
+    [
+        None,
+        type("UnavailableRenderService", (), {"available": False})(),
+    ],
+)
+async def test_shadow_prewarm_unavailable_when_renderer_missing_or_probe_fails(
+    client,
+    render_service,
+):
+    with (
+        patch(
+            "app.api.address.get_render_service",
+            return_value=render_service,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+        ) as mock_fetch_building,
+    ):
+        resp = await client.post(
+            "/api/address/0363010000696734/shadow-prewarm",
+            params={"report_id": "report-123"},
+            json={
+                "rd_x": 121286,
+                "rd_y": 487296,
+                "lat": 52.372,
+                "lng": 4.892,
+            },
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers["Cache-Control"] == "no-store"
+    assert resp.json() == {
+        "status": "unavailable",
+        "facade_snapshot_count": 0,
+        "hero_snapshot_count": 0,
+    }
+    mock_fetch_building.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("building_resp", "helper_result", "expected_helper_calls"),
+    [
+        (None, None, 0),
+        (
+            BuildingFactsResponse(
+                address_id="0363010000696734",
+                building=BuildingFacts(
+                    pand_id="0363100012345678",
+                    construction_year=1910,
+                    intended_use=["woonfunctie"],
+                    intended_use_en=["residential"],
+                ),
+            ),
+            None,
+            1,
+        ),
+    ],
+)
+async def test_shadow_prewarm_skipped_when_building_or_context_missing(
+    client,
+    building_resp,
+    helper_result,
+    expected_helper_calls,
+):
+    mock_render_service = type("MockRenderService", (), {})()
+    mock_render_service.available = True
+
+    with (
+        patch(
+            "app.api.address.get_render_service",
+            return_value=mock_render_service,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=building_resp,
+        ),
+        patch(
+            "app.api.address.build_seasonal_shadow_evidence",
+            new_callable=AsyncMock,
+            return_value=helper_result,
+        ) as mock_build_shadow_evidence,
+    ):
+        resp = await client.post(
+            "/api/address/0363010000696734/shadow-prewarm",
+            params={"report_id": "report-123"},
+            json={
+                "rd_x": 121286,
+                "rd_y": 487296,
+                "lat": 52.372,
+                "lng": 4.892,
+            },
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "status": "skipped",
+        "facade_snapshot_count": 0,
+        "hero_snapshot_count": 0,
+    }
+    assert mock_build_shadow_evidence.await_count == expected_helper_calls
+
+
+@pytest.mark.asyncio
+async def test_shadow_prewarm_skipped_when_helper_raises_unexpectedly(client):
+    building_resp = BuildingFactsResponse(
+        address_id="0363010000696734",
+        building=BuildingFacts(
+            pand_id="0363100012345678",
+            construction_year=1910,
+            intended_use=["woonfunctie"],
+            intended_use_en=["residential"],
+        ),
+    )
+    mock_render_service = type("MockRenderService", (), {})()
+    mock_render_service.available = True
+
+    with (
+        patch(
+            "app.api.address.get_render_service",
+            return_value=mock_render_service,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            return_value=building_resp,
+        ),
+        patch(
+            "app.api.address.build_seasonal_shadow_evidence",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("boom"),
+        ),
+    ):
+        resp = await client.post(
+            "/api/address/0363010000696734/shadow-prewarm",
+            params={"report_id": "report-123"},
+            json={
+                "rd_x": 121286,
+                "rd_y": 487296,
+                "lat": 52.372,
+                "lng": 4.892,
+            },
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "status": "skipped",
+        "facade_snapshot_count": 0,
+        "hero_snapshot_count": 0,
+    }
+    assert "boom" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_shadow_prewarm_skipped_when_building_fetch_raises_unexpectedly(client):
+    mock_render_service = type("MockRenderService", (), {})()
+    mock_render_service.available = True
+
+    with (
+        patch(
+            "app.api.address.get_render_service",
+            return_value=mock_render_service,
+        ),
+        patch(
+            "app.api.address._fetch_building_for_export",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("bag cache blew up"),
+        ),
+        patch(
+            "app.api.address.build_seasonal_shadow_evidence",
+            new_callable=AsyncMock,
+        ) as mock_build_shadow_evidence,
+    ):
+        resp = await client.post(
+            "/api/address/0363010000696734/shadow-prewarm",
+            params={"report_id": "report-123"},
+            json={
+                "rd_x": 121286,
+                "rd_y": 487296,
+                "lat": 52.372,
+                "lng": 4.892,
+            },
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "status": "skipped",
+        "facade_snapshot_count": 0,
+        "hero_snapshot_count": 0,
+    }
+    assert "bag cache blew up" not in resp.text
+    mock_build_shadow_evidence.assert_not_awaited()
 
 
 @pytest.mark.asyncio
