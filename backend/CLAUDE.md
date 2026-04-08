@@ -37,6 +37,7 @@ ruff check . && ruff format .               # MUST pass before commit
 | `GET /{vbo_id}/property-warnings` | Foundation, erfpacht, VvE, asbestos |
 | `GET /{vbo_id}/livability?rd_x=&rd_y=` | Leefbaarometer scores + trend |
 | `POST /{vbo_id}/export` | PDF export (`quick_brief` free, `full_dossier` paid) |
+| `POST /{vbo_id}/shadow-prewarm` | Pre-render seasonal shadow evidence after entitlement (background) |
 
 ## Conventions
 

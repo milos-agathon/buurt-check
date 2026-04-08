@@ -359,6 +359,33 @@ Key patterns from 3 commits fixing iOS PDF rendering and mobile browser bottom-b
 - **rAF-throttled viewport listener**: `visualViewport` fires resize/scroll events rapidly during browser chrome animation. Single `requestAnimationFrame` gate prevents layout thrashing.
 - **Cleanup resets CSS var to `0px`**: Hook cleanup must reset `--viewport-bottom-offset` to avoid stale values if component unmounts.
 
+## Session Learnings (2026-04-07) — Shadow Prewarm, 3D Viewer Polish, First-Visit Tracking
+
+Key patterns from 9 commits covering shadow prewarming, 3D viewer contrast/controls overhaul, landing page refresh, first-visit service, and store listing automation:
+
+### Shadow Prewarm Architecture
+- **Shared `build_seasonal_shadow_evidence()` service**: Both `shadow-prewarm` endpoint and export path call the same service function. Eliminates duplicate render logic that previously lived inline in `_do_export_briefing()`. Returns `SeasonalShadowEvidence` dataclass or `None` for all non-success states.
+- **Prewarm fires after entitlement, not after address selection**: Shadow rendering is expensive (~30-60s). Only trigger after payment confirmed. Frontend uses `ShadowPrewarmStatus` state machine (`idle -> pending -> ready|skipped|unavailable|failed`) with ref-based dedup keyed on `reportId:vboId`.
+- **Terminal status set prevents duplicate prewarm requests**: `TERMINAL_SHADOW_PREWARM_STATUSES` set gates re-entry. Promise ref allows awaiting in-flight requests from export path without re-triggering.
+- **`prewarmAddressApi()` at app boot**: Module-level `addressApiWarmupStarted` boolean prevents duplicate `/health` fetches. Best-effort only -- errors swallowed. Warms connection pool before first user interaction.
+
+### 3D Viewer Contrast and Controls
+- **Scene background != ground plane color**: Separating `SCENE_BACKGROUND_LIGHT/DARK` from `GROUND_COLOR_LIGHT/DARK` creates depth separation. Previous approach matched both, making geometry hard to distinguish from background.
+- **`renderer.outputColorSpace = SRGBColorSpace`**: Missing color space declaration caused washed-out colors in Three.js. Always set explicitly -- default is `LinearSRGBColorSpace` which looks wrong for non-PBR scenes.
+- **Camera distance bounds need building-aware floor**: Fixed multiplier (`0.90 * baseDistance`) clips into small buildings. `focusSafeDistance = max(focusSpan * 1.25, building_height * 1.2, 14)` prevents camera from going inside geometry.
+- **Camera far plane must exceed max zoom distance**: `PerspectiveCamera(..., near=0.5, far=1400)` -- previous `far=1000` caused clipping at max zoom on large neighborhoods. Set `far >= maxDistance * 1.2`.
+- **Material roughness/metalness constants extracted**: 6 material property constants (`TARGET_ROUGHNESS`, `NEIGHBOR_ROUGHNESS`, `GROUND_ROUGHNESS`, etc.) prevent drift between initialization and theme-switch code paths.
+- **HemisphereLight sky/ground split creates directional ambient**: Separate sky color (cool blue-white) and ground color (warm slate) replaces uniform ambient. Gives subtle top-down directionality without a second directional light.
+- **Hardcoded light intensities across 3 code paths drift silently**: Sun intensity was `0.95/1.0` in init, `0.85/0.9` in time-update, inconsistent in theme-switch. Extract to `SUNLIGHT_INTENSITY_LIGHT/DARK` constants referenced everywhere.
+
+### First-Visit Tracking
+- **`clearVisited()` paired with `clearRecent()`**: When user clears recent searches, also reset the first-visit marker so they can re-experience the onboarding search state. Small UX detail that prevents stuck states after data clearing.
+
+### Landing Page and Store Listing
+- **`dist-landing/` is the deployed artifact, `landing/` is the source**: Build script copies `landing/` to `dist-landing/` with transforms. Both checked in because landing page is static HTML (no build step from frontend).
+- **E2E store listing capture via Playwright**: `store-listing-capture.spec.ts` automates Android store screenshots at exact device dimensions. Declared in root `package.json` (not frontend) since it operates on `dist-landing/`.
+- **Landing showcase images as webp**: 3 product screenshots (neighborhood, risk-details, sunlight) at webp compression. Source PNGs kept in `landing/images/source/` for re-export.
+
 ## Session Learnings (2026-03-09) — PDF Dossier Design Audits
 
 Key findings from two expert design/data-visualization audits of the generated full dossier PDF:
