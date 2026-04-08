@@ -17,6 +17,7 @@
     "android:sync": "node ./scripts/update-android-wrapper.mjs",
     "android:build": "node ./scripts/build-android-bundle.mjs",
     "android:keygen": "node ./scripts/create-android-upload-key.mjs",
+    "android:store-listing:phone": "npm --prefix frontend run test:e2e -- tests/e2e/store-listing-capture.spec.ts",
     "android:assetlinks": "node ./frontend/scripts/generate-assetlinks.mjs",
     "ios:sync": "node ./scripts/update-ios-wrapper.mjs",
     "ios:check": "node ./scripts/check-ios-release-readiness.mjs",

@@ -9,6 +9,7 @@ This directory holds the Bubblewrap-generated Trusted Web Activity project for t
 - `npm run android:sync`
 - `npm run android:keygen`
 - `npm run android:build`
+- `npm run android:store-listing:phone` to regenerate `android/store-listing/01_search.png`
 
 ## Required env
 
