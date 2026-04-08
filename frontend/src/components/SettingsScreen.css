@@ -1,5 +1,12 @@
 .settings-screen {
   padding: var(--space-base);
+  padding-bottom: calc(
+    var(--space-base) +
+    var(--tab-bar-height, 56px) +
+    var(--viewport-bottom-offset, 0px) +
+    env(safe-area-inset-bottom, 0px) +
+    var(--space-lg)
+  );
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);

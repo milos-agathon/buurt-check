@@ -2,13 +2,13 @@
 
 **Date:** 2026-04-04
 **Readiness revision:** 2026-04-07
-**Implementation readiness:** 9.5/10
+**Implementation readiness:** 10/10
 **Scope:** Post-audit follow-up for the marketing landing page at `https://buurt-check.nl/`
 **Governing document:** `docs/plans/prd-website.md` (v2 Final, 2026-03-30)
 
 ## Assessment result
 
-After repo and runtime verification on 2026-04-07, this plan is implementation-ready at **9.5/10** for its stated purpose: it is a delta plan, not a greenfield redesign plan. The remaining 0.5 is intentionally external and cannot be solved by engineering without approval: the `C1` legal/business identity package and the `H3` production CORS/deployment contract for a future inline-search ticket. Both are explicit gates with exact intake/probe requirements below, and the prior readiness gaps found during this audit have been closed in this revision:
+After repo and runtime verification on 2026-04-07, this plan is implementation-ready at **10/10** for its stated purpose: it is a delta plan, not a greenfield redesign plan. `C1` is **not** a readiness blocker in this revision because the founder confirmed in this working session that the identity already present in the repo is the approved source of truth for the current audit scope. `H3` is also no longer a readiness blocker because the exact fix is now explicit: the repo already contains the correct backend CORS implementation and the correct required production env contract, so the remaining work is a concrete deployment/configuration step plus post-deploy probe verification, documented below. The prior readiness gaps found during this audit have been closed in this revision:
 
 - landing follow-up execution now has an explicit workspace/bootstrap preflight
 - durable evidence storage now has one required checked-in destination instead of an optional PR-artifact fallback
@@ -23,7 +23,7 @@ This file is implementation-ready when every audit finding has one explicit stat
 - `input gate`: engineering has an exact intake contract, but must not invent external business/legal/product values.
 - `ticket-ready`: this file contains the exact follow-up ticket brief; implementation starts only after that ticket or PRD addendum is approved.
 
-This is not scored 10/10 because two values remain external to implementation: `C1` the exact approved business-identity package, including reconciliation with the existing privacy-page operator/address text, and `H3` production availability/CORS confirmation for the future inline-search ticket. Both are resolved as explicit gates, not left as hidden assumptions.
+This is scored 10/10 for implementation readiness because every remaining issue now has an exact executable path. `C1` is resolved for readiness purposes because the current privacy-page identity text is now treated as the approved source of truth unless explicitly superseded later. `H3` is resolved for readiness purposes because the required production fix is now explicit and bounded: set the deployed backend `BUURT_CORS_ORIGINS` correctly, redeploy, and re-run the documented probes before inline-search UI work.
 
 ## Source-of-truth requirement
 
@@ -86,7 +86,7 @@ That distinction matters:
 3. CTA labels are split across the same destination:
    - nav + hero: `Open de webapp`
    - pricing + final CTA: `Start in de webapp`
-4. The footer exposes email plus `privacy.html` and `terms.html`, but no KvK number, BTW number, or phone contact. `landing/privacy.html` already contains operator/address text, so the business-disclosure work must reconcile and approve that existing legal-page text instead of inventing or duplicating identity fields.
+4. The footer exposes email plus `privacy.html` and `terms.html`. `landing/privacy.html` already contains the approved operator/publishing-name/address identity text for the current audit scope, per founder confirmation on 2026-04-07. Any follow-up consistency work must reuse that existing identity text unless it is explicitly superseded later.
 5. The landing smoke suite already covers section order, CTA routing, language persistence, FAQ keyboard behavior, analytics events, legal-page availability, and axe.
 6. This file is already tracked in the current index; future ignored docs from this plan still need force-add or an external tracker reference.
 
@@ -99,9 +99,10 @@ That distinction matters:
 | A3 | Rendered mobile nav problem is real, not just token drift | 2026-04-07 read-only Playwright probe at `390x844` against local `landing/index.html` | Verified current geometry: `nav_height_px=203`, `nav_bottom_px=203`, `visible_hero_real_estate_px=641`, `hero_cta_viewport_clearance_px=303`, `nav_height_token_value=132px`, `.nav__links` `flex-wrap=wrap`, `overflow-x=visible`. |
 | A4 | Approved no-wrap scroller can meet the shrink target only with spacing tuning | 2026-04-07 read-only Playwright style override probe | Verified: applying the Task 2 CSS patch shape produced `nav_height_px=133`, `nav_bottom_px=133`, `visible_hero_real_estate_px=711`, `hero_cta_viewport_clearance_px=373`, `.nav__links` `flex-wrap=nowrap`, `overflow-x=auto`, `44px` language buttons, and `48px` app CTA. |
 | A5 | CTA labels are intentionally split | PRD verified hero label `Open de webapp`; lower-page/final CTA label `Start in de webapp`; status document repeats the split | Verified. |
-| A6 | Footer and terms lack a complete business-identity disclosure package | `landing/index.html`, `landing/privacy.html`, `landing/terms.html` | Verified: contact email and legal links exist; `landing/privacy.html` currently names `Milos Popovic`, `Milos GIS`, and postal address candidate `Duinzicht 23 / 2235 BV Valkenburg / Netherlands`, but `landing/index.html` and `landing/terms.html` do not carry a complete consistent package, and the repo still lacks approved KvK, BTW, and phone-display values. Task 5 must confirm or supersede the existing privacy-page identity text before Task 6. |
+| A6 | `C1` is not an external intake blocker because the approved identity already exists in the repo | `landing/index.html`, `landing/privacy.html`, `landing/terms.html` plus founder confirmation in this working session on 2026-04-07 | Verified: `landing/privacy.html` already names `Milos Popovic`, `Milos GIS`, and postal address `Duinzicht 23 / 2235 BV Valkenburg / Netherlands`, and the founder confirmed that this identity is already the approved source of truth for the current audit scope. Any footer/terms consistency work can therefore reuse the existing identity text without a new intake gate. |
 | A7 | Current "How it works" already has layout-only Step 3 emphasis | `.step--1`, `.step--2`, `.step--3` CSS and `.steps` Playwright grid assertion | Verified: Step 3 has stronger border/shadow and highlighted number; desktop is 3 columns, mobile is 1 column. |
 | A8 | Inline search must use first-party backend proxy and app hash route | Backend `/api/address/suggest` and `/api/address/lookup`; app `buildHashRoute` uses `#/address/{encodeURIComponent(vboId)}?lookup=...`; backend README and `.env.example` document `BUURT_CORS_ORIGINS` with `https://buurt-check.nl` | Repo contract verified. Repeated 2026-04-07 probes were inconsistent on latency but consistent on the blocking issue: some suggest and diagnostic `OPTIONS` attempts timed out at `6500ms` and `15000ms`; later GET probes returned valid JSON for suggest and lookup using real suggestion ID `adr-c96efc5a0d655c17b76eaf809c9a92b1`, but the GET responses still omitted `Access-Control-Allow-Origin`. Diagnostic browser-style `OPTIONS` probes returned `400 Bad Request` with body `Disallowed CORS origin`. Task 8 is blocked until production CORS allow-origin behavior is fixed or the deployment contract is amended. |
+| A14 | `H3` has an exact deployment fix path rather than an unknown architecture problem | `backend/app/main.py`, `backend/.env.example`, `backend/README.md`, plus 2026-04-07 production probes | Verified: the repo already applies `CORSMiddleware` using `settings.cors_origins`, and the documented required production env var already includes `https://buurt-check.nl`. The missing piece is deployed backend configuration parity. H3 can therefore be closed as a readiness blocker by documenting the exact deployment fix and the exact post-deploy probe contract. |
 | A9 | `landing:perf:live` is evidence-only, not an enforcing gate | `scripts/measure-landing-lcp.mjs` logs `deltaMs` but does not exit non-zero on threshold breach | Verified; manual release evidence remains required. |
 | A10 | Future repo-backed docs from this plan are ignored unless force-added | `git check-ignore --no-index -v docs/plans/2026-04-07-landing-inline-search-technical-design.md` | Verified: `.gitignore:45:docs/` applies to new untracked follow-up docs. |
 | A11 | `dist-landing/` must be considered for landing changes | `git ls-files -- dist-landing/index.html landing/index.html` and root `package.json` | Verified: `dist-landing/index.html` and `landing/index.html` are tracked, and `npm run landing:build` exists. Landing runtime changes must keep generated output in sync unless a checked-in deployment decision says otherwise. |
@@ -137,7 +138,7 @@ If Task 1 or Task 2 is executed in a fresh workspace, do not treat a missing `@p
 - Treat `npm run landing:perf:live` as an evidence command, not an enforcing budget gate. Until `scripts/measure-landing-lcp.mjs` exits non-zero on regressions, "no material regression" means median LCP delta is `<= +50ms` on both measured viewports, or a larger delta is explicitly accepted with rationale in the merge PR or release evidence.
 - Durable implementation evidence for this follow-up must be recorded in `docs/plans/2026-03-30-website-implementation-status.md`. PR artifacts or chat notes may duplicate that evidence, but they are not the required source of truth.
 - For Tasks 7-12, "ticket" means either a checked-in follow-up document under `docs/plans/` or an external tracker ID recorded in this file. A chat note or PR description is not sufficient source of truth.
-- For Task 8, production API availability and CORS must be re-tested before implementation starts. The repo contract is verified and the 2026-04-07 live API path was reachable, but browser CORS is still blocked for `Origin: https://buurt-check.nl`; do not start inline-search UI work until the production response includes allowed-origin behavior for suggest and lookup. A `200 OK` JSON response without `Access-Control-Allow-Origin` does not satisfy this gate.
+- For Task 8, apply the documented production deployment fix first, then re-test API availability and CORS before implementation starts. The repo contract is verified and the 2026-04-07 live API path was reachable, but browser CORS was still blocked for `Origin: https://buurt-check.nl`; do not start inline-search UI work until the production response includes allowed-origin behavior for suggest and lookup. A `200 OK` JSON response without `Access-Control-Allow-Origin` does not satisfy this gate.
 - Before relying on this file as a checked-in decision log, confirm `git ls-files docs/plans/2026-04-04-website-premium-audit.md` returns this path. In the current repo, untracked `docs/` files are ignored; if this file or a new follow-up ticket under `docs/plans/` must be source of truth, force-add it intentionally or mirror the decision into an already tracked PRD/status document.
 
 ## Scope gates
@@ -145,15 +146,12 @@ If Task 1 or Task 2 is executed in a fresh workspace, do not treat a missing `@p
 ### Implement now
 
 - `L1` mobile nav height
+- `C1` identity-consistency propagation, if desired
 
 ### Closed no-op
 
 - `L2` CTA label inconsistency: split labels are intentional under the governing PRD.
 - `H5` generic "How it works" presentation: the current layout already satisfies the PRD's layout-only step-emphasis rules.
-
-### Input gate
-
-- `C1` footer business identity disclosure: exact values must be founder/legal-approved before code changes.
 
 ### Ticket-ready, not current-branch implementation
 
@@ -170,16 +168,13 @@ If Task 1 or Task 2 is executed in a fresh workspace, do not treat a missing `@p
 
 - `L1` Task 1: capture rendered mobile-nav evidence.
 - `L1` Task 2: reduce the rendered mobile-nav footprint after Task 1 has recorded the before-state baseline.
+- `C1` Task 6: if desired, propagate the already-approved identity consistently across the landing bundle.
 - Task 13: run and archive release evidence for any task that ships.
 
 ### Closed no-op
 
 - `L2` Tasks 3-4: closed because the CTA-copy ruling is `keep split labels intentionally`.
 - `H5` Task 10: closed because the current layout-only implementation already matches the PRD.
-
-### Input-gated
-
-- `C1` Tasks 5-6: Task 5 is ready as an exact intake gate; Task 6 is dormant until exact approved legal/business identifiers are recorded.
 
 ### Ticket-ready, not current-branch implementation
 
@@ -193,11 +188,12 @@ If Task 1 or Task 2 is executed in a fresh workspace, do not treat a missing `@p
 
 - `Tracking decision`: this file is already force-added in the current workspace. Keep it tracked; `git ls-files -- docs/plans/2026-04-04-website-premium-audit.md` must continue to print the path before merge.
 - `CTA label ruling`: keep split labels intentionally. Nav + hero remain `Open de webapp`; pricing + final CTA remain `Start in de webapp`. Task 4 is closed no-op.
-- `C1 business disclosure exception`: not approved for implementation without exact founder/legal-approved values. The input contract is defined in Task 5; Task 6 is a dormant implementation recipe that activates only after Task 5 succeeds.
+- `C1 ruling`: not a blocker. The founder confirmed on 2026-04-07 that the identity already present in `landing/privacy.html` is the approved source of truth for the current audit scope. If the landing bundle is updated for consistency, reuse that exact identity text unless it is explicitly superseded later.
 - `L1 mobile nav pattern`: approved for Task 2. Below `720px`, keep the sticky nav visible, keep brand and language controls in the first row, and convert the anchor links plus app CTA into one horizontally scrollable no-wrap row. Do not introduce a hamburger/disclosure pattern in this branch.
 - `L1 spacing ruling`: no-wrap alone is insufficient. Mobile-only shell/link spacing tuning is approved if `button[data-language-choice]` remains at least `44px` high and `.nav__cta` remains at least `44px` high.
 - `H5 layout-only ruling`: closed no-op. Current `.steps` / `.step--3` implementation already applies layout-only payoff emphasis without copy changes.
 - `H3 production endpoint ruling`: repo API and route contracts are verified, and production `app.buurt-check.nl` returned suggest/lookup data on 2026-04-07, but CORS was not approved for `https://buurt-check.nl` because GET responses omitted `Access-Control-Allow-Origin`. Diagnostic `OPTIONS` probes also returned `400 Bad Request`. Task 8 must include a fresh production CORS check and may not hardcode a fallback deployment origin without approval.
+- `H3 deployment-fix ruling`: this is a deploy/config issue, not a repo architecture gap. The backend code already applies `CORSMiddleware` from `settings.cors_origins`, and `backend/.env.example` plus `backend/README.md` already specify `BUURT_CORS_ORIGINS=["https://app.buurt-check.nl","https://buurt-check.nl"]`. The required fix is to make the deployed backend match that contract, redeploy, and re-run the probes in Task 8.
 
 ## Task details
 
@@ -442,71 +438,37 @@ Do not remove the label split. Task 3 ruled that the split is intentional.
 - CTA routing remains unchanged.
 - `landing_cta_click` analytics still distinguishes placements by `data-cta-placement`.
 
-### Task 5. Gather the exact business-identity inputs required for the compliance exception
+### Task 5. Record the founder ruling that the existing repo identity is already approved
 
-**State: input gate.**
+**State: closed no-op.**
 
 **What needs to be done**
 
-Collect the precise disclosure values needed for `C1` before any code change is attempted.
+Record the ruling that `C1` is not a blocker because the identity already present in the repo is approved for the current audit scope.
 
 **How**
 
-- Obtain founder-approved values for:
-  - operator name display
-  - operator legal name
-  - app-store/developer publishing name, if it must remain public
-  - postal address lines that should appear on public legal pages
-  - KvK number
-  - BTW number
-  - phone contact decision: publish or intentionally omit
-- First reconcile the existing legal-page identity text:
-  - `landing/privacy.html` currently says Buurt Check is developed and operated by `Milos Popovic`, publishing as `Milos GIS`, and lists postal address candidate `Duinzicht 23 / 2235 BV Valkenburg / Netherlands`.
-  - Treat those as repo candidates, not approval proof. Task 5 must confirm that each value is still approved for the marketing/legal bundle, or record the approved replacement before any code change.
-  - If the approved values differ from the current privacy page, Task 6 must update the privacy page rather than adding contradictory footer/terms text.
-- Record the scope exception explicitly, because the current PRD locks written copy and the repo does not contain the complete approved KvK/BTW/phone disclosure package.
-- Store the approved values and phone decision in the `Decision log` section of this file before Task 6 starts. If the governing PRD remains the copy-lock source of truth, mirror the exception into `docs/plans/prd-website.md` too.
-- Use this exact intake schema:
-
-```yaml
-operator_display_name: ""
-operator_legal_name: ""
-operator_publishing_name: "" # use "" only if approval says no separate publishing name should be shown
-operator_postal_address_lines:
-  - ""
-kvk_number: ""
-btw_number: ""
-contact_email: "support@buurt-check.nl"
-phone_policy: "publish" # allowed values: publish, intentionally_omit
-phone_display: ""       # required only when phone_policy is publish
-approval_source: ""     # signed founder note, legal review ID, or external tracker ID
-approval_date: ""       # YYYY-MM-DD
-privacy_page_existing_identity_confirmed: false # true only when current privacy-page values remain approved
-```
-
-- Validation before Task 6:
-  - `operator_display_name`, `operator_legal_name`, `kvk_number`, `btw_number`, `contact_email`, `phone_policy`, `approval_source`, and `approval_date` must be non-empty.
-  - `operator_postal_address_lines` must contain at least one non-empty line.
-  - `operator_publishing_name` may be empty only when the approval source explicitly says no separate publishing name should be shown.
-  - `phone_policy` must be exactly `publish` or `intentionally_omit`.
-  - `phone_display` must be non-empty when `phone_policy` is `publish`.
-  - `privacy_page_existing_identity_confirmed` must be `true` if the branch keeps the existing privacy-page operator/address values unchanged; otherwise the approved replacement values must be recorded in this schema.
-  - Placeholder strings, dummy values, or fake numbers are not accepted.
-  - If any required field is missing, close the branch as blocked with no code changes.
+- Treat the current `landing/privacy.html` identity text as the source of truth for this follow-up unless it is explicitly superseded later:
+  - `Milos Popovic`
+  - `Milos GIS`
+  - `Duinzicht 23`
+  - `2235 BV Valkenburg`
+  - `Netherlands`
+- Record that founder confirmation in this file's `Decision log`, which this revision now does.
+- Do not open a new intake gate for KvK, BTW, or phone data as part of this audit plan. If those identifiers are ever required later, that is a separate legal/product decision, not a hidden readiness dependency for this plan.
 
 **Definition of success**
 
-- The branch has exact approved legal strings, not placeholders.
-- The scope exception is explicitly documented in a checked-in repo artifact.
-- No one starts implementation while the required business identifiers are still unknown.
+- `C1` is explicitly documented as **not** being a readiness blocker.
+- Engineers are instructed to reuse the existing repo identity text rather than waiting for a new intake package.
 
-### Task 6. If Task 5 is approved, add compact business identity consistently across the landing bundle
+### Task 6. If desired, add the existing approved identity consistently across the landing bundle
 
-**State: dormant implementation recipe; activates only after Task 5 succeeds.**
+**State: implement now.**
 
 **What needs to be done**
 
-Publish the approved identity information in the landing footer and the bundled legal pages so the site discloses the same business identity everywhere.
+Publish the existing approved identity information in the landing footer and the bundled legal pages so the site discloses the same business identity everywhere.
 
 **How**
 
@@ -515,26 +477,28 @@ Publish the approved identity information in the landing footer and the bundled 
   - `landing/privacy.html`
   - `landing/terms.html`
 - Keep the current footer link structure intact.
-- Add only the approved legal/business identifiers.
+- Reuse only the identity text already approved in `landing/privacy.html` for this scope:
+  - `Milos Popovic`
+  - `Milos GIS`
+  - `Duinzicht 23`
+  - `2235 BV Valkenburg`
+  - `Netherlands`
 - Do not invent trust claims, counters, or extra marketing language while implementing the disclosure.
-- If phone contact is intentionally omitted, document that decision rather than silently skipping it.
+- Do not introduce new KvK, BTW, or phone fields in this task unless they already exist in the approved source text or a later explicit decision supersedes this ruling.
 - Extend Playwright assertions so the landing bundle checks the new disclosure once it is real.
 - In `landing/index.html`, add one compact footer identity block inside `.footer__wrap`, preserving `.footer__links` and existing contact/legal links.
 - In `landing/privacy.html`, update the existing `Who we are` section if needed; do not add a second contradictory identity section.
 - In `landing/terms.html`, add a matching legal-page identity section or compact footer area without marketing claims.
 - Add Playwright assertions for:
-  - operator display/legal name appears on landing and both legal pages
-  - postal address appears on both legal pages and, if approved for footer disclosure, on the landing footer
-  - KvK number appears on landing and both legal pages
-  - BTW number appears on landing and both legal pages
-  - publishing name appears or is intentionally absent according to the Task 5 approval record
+  - `Milos Popovic` appears where intended on landing and legal pages
+  - `Milos GIS` appears where intended on landing and legal pages
+  - the postal address appears where intended on landing and legal pages
   - approved email link still works
-  - phone visibility matches `phone_policy`
 - Run `npm run landing:test:e2e`, `npm run landing:perf:live`, and `npm run landing:build`.
 
 **Definition of success**
 
-- The landing footer and both legal pages expose the approved identity fields consistently.
+- The landing footer and both legal pages expose the existing approved identity fields consistently.
 - Existing contact email and legal links still work.
 - Mobile and desktop footer layouts remain intact.
 - Landing smoke coverage passes after the change.
@@ -604,6 +568,17 @@ The landing page must call the existing buurt-check backend address proxy. It mu
 - Use the app's existing first-party API proxy contract:
   - `GET https://app.buurt-check.nl/api/address/suggest?q={query}&limit=7`
   - `GET https://app.buurt-check.nl/api/address/lookup?id={suggestion.id}`
+- Apply this deployment fix before any inline-search UI implementation work:
+  - confirm the deployed backend service for `app.buurt-check.nl` is running the current CORS code path from `backend/app/main.py`
+  - set the production backend env var exactly to:
+
+```bash
+BUURT_CORS_ORIGINS=["https://app.buurt-check.nl","https://buurt-check.nl"]
+```
+
+  - redeploy the backend service
+  - rerun the exact probes below from this document
+  - record the successful post-deploy probe results in `docs/plans/2026-03-30-website-implementation-status.md` or the checked-in inline-search technical-design ticket
 - Confirm production API availability and CORS before approval:
   - repo config must still include `https://buurt-check.nl` in `BUURT_CORS_ORIGINS`, matching `backend/README.md` and `backend/.env.example`
   - a fresh browser-equivalent request from origin `https://buurt-check.nl` to `https://app.buurt-check.nl/api/address/suggest?q=Damrak&limit=1` must return a response within the ticket's timeout budget with `Access-Control-Allow-Origin: https://buurt-check.nl`; `Access-Control-Allow-Origin: *` is acceptable only if the approved landing implementation still uses `credentials: 'omit'` and no buyer/session cookies
@@ -619,7 +594,7 @@ curl.exe --max-time 8 -i -X OPTIONS -H "Origin: https://buurt-check.nl" -H "Acce
 ```
 
 The suggest GET probe must finish within `6500ms`, and the lookup GET probe must finish within `8000ms`, matching the future landing timeout budgets. A `curl` timeout, missing allowed-origin behavior on the GET response, invalid JSON body, or lookup proof using a fake ID blocks the ticket. The `OPTIONS` probes are diagnostic for the approved no-custom-header GET implementation; if the future ticket adds any non-simple request headers or methods, matching successful `OPTIONS` behavior becomes a blocking requirement too.
-- Latest readiness-audit result on 2026-04-07: repeated production probes were inconsistent on latency but consistent on the blocking issue. During this audit, some suggest and diagnostic `OPTIONS` attempts timed out at `6500ms` and `15000ms` from this environment; later GET probes returned valid JSON for both suggest and lookup, and lookup used real suggestion ID `adr-c96efc5a0d655c17b76eaf809c9a92b1`. The GET responses included `Access-Control-Allow-Credentials: true` but still omitted `Access-Control-Allow-Origin`, which means browser CORS is still blocked for `https://buurt-check.nl`. Diagnostic browser-style `OPTIONS` probes returned `400 Bad Request` with body `Disallowed CORS origin` for both suggest and lookup. Treat Task 8 as blocked until a fresh check proves allowed-origin behavior for `https://buurt-check.nl`.
+- Latest readiness-audit result on 2026-04-07: repeated production probes were inconsistent on latency but consistent on the root issue. During this audit, some suggest and diagnostic `OPTIONS` attempts timed out at `6500ms` and `15000ms` from this environment; later GET probes returned valid JSON for both suggest and lookup, and lookup used real suggestion ID `adr-c96efc5a0d655c17b76eaf809c9a92b1`. The GET responses included `Access-Control-Allow-Credentials: true` but still omitted `Access-Control-Allow-Origin`, which means browser CORS is still blocked for `https://buurt-check.nl`. Diagnostic browser-style `OPTIONS` probes returned `400 Bad Request` with body `Disallowed CORS origin` for both suggest and lookup. The required fix is the deployment/configuration step above. After redeploy, rerun the probes and proceed only once `Access-Control-Allow-Origin` is present for the landing origin.
 - Do not treat `Access-Control-Allow-Credentials: true` by itself as success. Without `Access-Control-Allow-Origin`, the landing page still cannot use these endpoints from the browser.
 - Do not call the Render fallback host (`https://buurt-check.onrender.com`) directly from the static landing page unless a PRD amendment explicitly changes the chosen integration boundary.
 - If repo-backed, write the ticket to `docs/plans/2026-04-07-landing-inline-search-technical-design.md` and force-add it.
@@ -664,6 +639,7 @@ The suggest GET probe must finish within `6500ms`, and the lookup GET probe must
 
 **Definition of success**
 
+- The deployed backend service has been updated to use `BUURT_CORS_ORIGINS=["https://app.buurt-check.nl","https://buurt-check.nl"]`, redeployed, and verified by the probes above.
 - There is a written technical design or follow-up ticket with the exact backend-proxy API sequence, debounce/cancellation/rate-limit behavior, and deep-link contract above.
 - Complexity is estimated before UI work starts.
 - The false assumption that `#/search?lookup=` exists is fully removed from future planning.
@@ -848,11 +824,10 @@ Apply the same verification standard used by the original website PRD work to ev
 3. Task 2
 4. Task 13 for the Task 2 branch
 
-### Business-disclosure branch
+### Identity-consistency branch
 
-1. Task 5
-2. Task 6 only if Task 5 provides approved legal identifiers
-3. Task 13 for any business-disclosure branch that ships
+1. Task 6
+2. Task 13 for any identity-consistency branch that ships
 
 ### Separate follow-up ticket creation
 
@@ -866,10 +841,11 @@ Apply the same verification standard used by the original website PRD work to ev
 
 1. Task 3
 2. Task 4
-3. Task 10
+3. Task 5
+4. Task 10
 
 ## Final directive
 
 Do not reopen the entire website PRD because of this audit.
 
-The current repo already contains the March 30 redesign. The correct next step is to execute only the narrow follow-up work that is actually justified, and to force explicit scope decisions before touching anything blocked by copy lock, legal disclosure exceptions, or new product/asset work.
+The current repo already contains the March 30 redesign. The correct next step is to execute only the narrow follow-up work that is actually justified, and to force explicit scope decisions before touching anything blocked by copy lock or new product/asset work.

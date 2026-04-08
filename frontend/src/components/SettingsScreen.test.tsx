@@ -101,4 +101,13 @@ describe('SettingsScreen accessibility semantics', () => {
     expect(screen.getByRole('link', { name: 'Privacy policy' })).toHaveAttribute('href', '/privacy.html');
     expect(screen.getByRole('link', { name: 'Terms of use' })).toHaveAttribute('href', '/terms.html');
   });
+
+  it('links feedback to the canonical GitHub repository', () => {
+    renderSettings();
+
+    expect(screen.getByRole('link', { name: 'Report an issue on GitHub' })).toHaveAttribute(
+      'href',
+      'https://github.com/milos-agathon/buurt-check',
+    );
+  });
 });

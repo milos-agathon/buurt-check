@@ -5,7 +5,7 @@ import type { ThemePreference } from '../services/theme';
 import ConfirmSheet from './ui/ConfirmSheet';
 import './SettingsScreen.css';
 
-const GITHUB_ISSUES_URL = 'https://github.com/milosblag/buurt-check/issues';
+const GITHUB_REPO_URL = 'https://github.com/milos-agathon/buurt-check';
 const PRIVACY_POLICY_URL = '/privacy.html';
 const TERMS_URL = '/terms.html';
 
@@ -209,7 +209,7 @@ export default function SettingsScreen({
       <div className="settings-screen__group settings-screen__group--info">
         <h3 className="settings-screen__section-title">{t('settings.feedback.title')}</h3>
         <a
-          href={GITHUB_ISSUES_URL}
+          href={GITHUB_REPO_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="settings-screen__link"
