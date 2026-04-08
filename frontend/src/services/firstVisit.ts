@@ -23,3 +23,14 @@ export function markVisited(): void {
     // Private browsing or quota exceeded — silently ignore
   }
 }
+
+/**
+ * Resets the first-visit marker so the app can show the onboarding search state again.
+ */
+export function clearVisited(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Private browsing or quota exceeded — silently ignore
+  }
+}

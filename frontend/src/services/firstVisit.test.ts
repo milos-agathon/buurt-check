@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { isFirstVisit, markVisited } from './firstVisit';
+import { clearVisited, isFirstVisit, markVisited } from './firstVisit';
 
 describe('firstVisit service', () => {
   beforeEach(() => {
@@ -13,6 +13,12 @@ describe('firstVisit service', () => {
   it('returns false after markVisited is called', () => {
     markVisited();
     expect(isFirstVisit()).toBe(false);
+  });
+
+  it('returns true again after clearVisited is called', () => {
+    markVisited();
+    clearVisited();
+    expect(isFirstVisit()).toBe(true);
   });
 
   it('persists across calls', () => {

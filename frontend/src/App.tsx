@@ -89,7 +89,7 @@ import {
 } from './services/shortlist';
 import { clearRecent } from './services/recentSearches';
 import { storeEntitlement, clearEntitlement } from './services/entitlement';
-import { markVisited } from './services/firstVisit';
+import { clearVisited, markVisited } from './services/firstVisit';
 import {
   getAnalyticsConsent,
   isAnalyticsEnabled,
@@ -1582,6 +1582,7 @@ function App() {
 
   const handleClearRecent = useCallback(() => {
     clearRecent();
+    clearVisited();
     showToast(t('toast.recentCleared'));
   }, [showToast, t]);
 
