@@ -396,7 +396,7 @@
       display: inline-flex;
       align-items: center;
       min-width: 0;
-      max-width: 126px;
+      max-width: 156px;
       text-decoration: none;
     }
 
@@ -801,11 +801,6 @@
       box-shadow: var(--landing-shadow);
     }
 
-    .showcase-card--executive {
-      border-color: rgba(87, 212, 200, 0.28);
-      box-shadow: 0 20px 56px rgba(0, 0, 0, 0.3);
-    }
-
     .showcase-card__media {
       padding: 10px;
       border-radius: 18px;
@@ -1052,7 +1047,7 @@
       }
 
       .nav__brand {
-        max-width: 152px;
+        max-width: 188px;
       }
 
       .nav__controls {
@@ -1098,23 +1093,11 @@
         padding: 22px;
       }
 
-      .showcase-card--executive {
-        grid-column: span 7;
-      }
-
       .showcase-card--risk,
-      .showcase-card--sunlight {
-        grid-column: span 5;
-      }
-
-      .showcase-card--checklist {
-        grid-column: span 7;
-      }
-
+      .showcase-card--sunlight,
       .showcase-card--neighborhood {
-        grid-column: span 5;
+        grid-column: span 4;
         align-content: start;
-        transform: translateY(28px);
       }
 
       .section,
@@ -1481,32 +1464,12 @@
         </h2>
         <p class="section-desc" data-lang-group>
           <span data-lang="nl" lang="nl">Geen abstracte belofte, maar echte dossierpagina's uit de premium export:
-            overzicht, vergelijkingen, zonlichtanalyse en bezichtigingsvragen in één flow.</span>
+            risicovergelijkingen, schaduwanalyse en buurtcontext in één flow.</span>
           <span data-lang="en" lang="en">Not a vague promise but real dossier pages from the premium export:
-            overview, comparisons, sunlight analysis and viewing questions in one flow.</span>
+            risk comparisons, shadow analysis and neighborhood context in one flow.</span>
         </p>
 
         <div class="showcase__grid">
-          <article class="showcase-card showcase-card--executive">
-            <div class="showcase-card__media">
-              <img src="images/showcase-executive-summary.webp" alt="Buurt Check executive summary dossier page"
-                width="497" height="406" loading="lazy">
-            </div>
-            <div class="showcase-card__content">
-              <p class="showcase-card__eyebrow" data-lang-group>
-                <span data-lang="nl" lang="nl">Pagina 1</span>
-                <span data-lang="en" lang="en">Page 1</span>
-              </p>
-              <h3 class="showcase-card__title">Executive summary</h3>
-              <p class="showcase-card__desc" data-lang-group>
-                <span data-lang="nl" lang="nl">Direct zien wat de grootste risico's zijn en waar je tijdens de
-                  bezichtiging op moet letten.</span>
-                <span data-lang="en" lang="en">See the main risks immediately and what to pay attention to during the
-                  viewing.</span>
-              </p>
-            </div>
-          </article>
-
           <article class="showcase-card showcase-card--risk">
             <div class="showcase-card__media">
               <img src="images/showcase-risk-details.webp" alt="Buurt Check risk comparison dossier page" width="497"
@@ -1529,40 +1492,20 @@
 
           <article class="showcase-card showcase-card--sunlight">
             <div class="showcase-card__media">
-              <img src="images/showcase-sunlight.webp" alt="Buurt Check sunlight analysis dossier page" width="497"
-                height="562" loading="lazy">
+              <img src="images/showcase-sunlight.webp" alt="Buurt Check shadow analysis dossier page" width="497"
+                height="703" loading="lazy">
             </div>
             <div class="showcase-card__content">
               <p class="showcase-card__eyebrow" data-lang-group>
-                <span data-lang="nl" lang="nl">Zonlicht</span>
-                <span data-lang="en" lang="en">Sunlight</span>
+                <span data-lang="nl" lang="nl">Schaduw</span>
+                <span data-lang="en" lang="en">Shadow</span>
               </p>
-              <h3 class="showcase-card__title">Sunlight analysis</h3>
+              <h3 class="showcase-card__title">Shadow analysis</h3>
               <p class="showcase-card__desc" data-lang-group>
-                <span data-lang="nl" lang="nl">Bekijk hoeveel direct zonlicht het pand krijgt in winter, lente en
-                  zomer.</span>
-                <span data-lang="en" lang="en">See how much direct sunlight the home gets in winter, spring and
-                  summer.</span>
-              </p>
-            </div>
-          </article>
-
-          <article class="showcase-card showcase-card--checklist">
-            <div class="showcase-card__media">
-              <img src="images/showcase-viewing-checklist.webp" alt="Buurt Check viewing checklist dossier page"
-                width="497" height="562" loading="lazy">
-            </div>
-            <div class="showcase-card__content">
-              <p class="showcase-card__eyebrow" data-lang-group>
-                <span data-lang="nl" lang="nl">Bezichtiging</span>
-                <span data-lang="en" lang="en">Viewing</span>
-              </p>
-              <h3 class="showcase-card__title">Viewing checklist</h3>
-              <p class="showcase-card__desc" data-lang-group>
-                <span data-lang="nl" lang="nl">Neem concrete vragen mee naar de bezichtiging op basis van de gevonden
-                  risico's.</span>
-                <span data-lang="en" lang="en">Take concrete questions to the viewing based on the risks found for the
-                  address.</span>
+                <span data-lang="nl" lang="nl">Bekijk winter-, lente- en zomerschaduwen rondom het pand op één
+                  pagina.</span>
+                <span data-lang="en" lang="en">See winter, spring, and summer shadow conditions around the home on one
+                  page.</span>
               </p>
             </div>
           </article>
@@ -1908,13 +1851,6 @@
             <span data-lang="en" lang="en">&copy; 2026 Buurt Check</span>
           </span>
         </p>
-      </div>
-
-      <div class="footer__identity" aria-label="Business identity">
-        <p class="footer__identity-name">Milos Popovic · Milos GIS</p>
-        <p>Duinzicht 23</p>
-        <p>2235 BV Valkenburg</p>
-        <p>Netherlands</p>
       </div>
 
       <div class="footer__links">

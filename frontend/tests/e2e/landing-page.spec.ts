@@ -389,11 +389,9 @@ test('places the dossier showcase before pricing and renders all showcase cards'
 
   const showcase = page.locator('#showcase');
   await expect(showcase).toBeVisible();
-  await expect(showcase.locator('.showcase-card')).toHaveCount(5);
-  await expect(showcase.locator('img[alt="Buurt Check executive summary dossier page"]')).toBeVisible();
+  await expect(showcase.locator('.showcase-card')).toHaveCount(3);
   await expect(showcase.locator('img[alt="Buurt Check risk comparison dossier page"]')).toBeVisible();
-  await expect(showcase.locator('img[alt="Buurt Check sunlight analysis dossier page"]')).toBeVisible();
-  await expect(showcase.locator('img[alt="Buurt Check viewing checklist dossier page"]')).toBeVisible();
+  await expect(showcase.locator('img[alt="Buurt Check shadow analysis dossier page"]')).toBeVisible();
   await expect(showcase.locator('img[alt="Buurt Check neighborhood context dossier page"]')).toBeVisible();
 });
 
@@ -476,10 +474,8 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   expect(existsSync(resolve(LANDING_DIR, 'logos', 'buurt-check-lockup-horizontal.svg'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'logos', 'buurt-check-lockup-horizontal-reverse.svg'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'logos', 'buurt-check-favicon.svg'))).toBe(true);
-  expect(existsSync(resolve(LANDING_DIR, 'images', 'showcase-executive-summary.webp'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'images', 'showcase-risk-details.webp'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'images', 'showcase-sunlight.webp'))).toBe(true);
-  expect(existsSync(resolve(LANDING_DIR, 'images', 'showcase-viewing-checklist.webp'))).toBe(true);
 
   await page.goto('/privacy.html');
   await expect(page).toHaveTitle(/Privacy Policy/);
@@ -494,22 +490,25 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   await expect(page).toHaveTitle(/Terms of Use/);
   await expect(page.getByRole('heading', { level: 1, name: 'Buurt Check Terms of Use' })).toBeVisible();
   await expect(page.locator('a[href="https://app.buurt-check.nl/#/search"]').first()).toBeVisible();
-  await expect(page.getByText('Milos Popovic')).toBeVisible();
-  await expect(page.getByText('Milos GIS')).toBeVisible();
-  await expect(page.getByText('Duinzicht 23')).toBeVisible();
   await expect(page.locator('a[href="mailto:support@buurt-check.nl"]').first()).toBeVisible();
+  await expect(page.locator('a[href="/privacy.html"]')).toBeVisible();
+  await expect(page.getByText('Milos Popovic')).toHaveCount(0);
+  await expect(page.getByText('Milos GIS')).toHaveCount(0);
+  await expect(page.getByText('Duinzicht 23')).toHaveCount(0);
 });
 
-test('shows the approved operator identity in the landing footer', async ({ page }) => {
+test('keeps the landing footer free of operator identity details while preserving support and legal links', async ({ page }) => {
   await page.goto('/');
 
   const footer = page.locator('footer');
-  await expect(footer.getByText('Milos Popovic')).toBeVisible();
-  await expect(footer.getByText('Milos GIS')).toBeVisible();
-  await expect(footer.getByText('Duinzicht 23')).toBeVisible();
-  await expect(footer.getByText('2235 BV Valkenburg')).toBeVisible();
-  await expect(footer.getByText('Netherlands')).toBeVisible();
+  await expect(footer.getByText('Milos Popovic')).toHaveCount(0);
+  await expect(footer.getByText('Milos GIS')).toHaveCount(0);
+  await expect(footer.getByText('Duinzicht 23')).toHaveCount(0);
+  await expect(footer.getByText('2235 BV Valkenburg')).toHaveCount(0);
+  await expect(footer.getByText('Netherlands')).toHaveCount(0);
   await expect(footer.locator('a[href="mailto:support@buurt-check.nl"]')).toBeVisible();
+  await expect(footer.locator('a[href="/privacy.html"]')).toBeVisible();
+  await expect(footer.locator('a[href="/terms.html"]')).toBeVisible();
 });
 
 test('has no serious or critical axe violations on the landing page', async ({ page }) => {
