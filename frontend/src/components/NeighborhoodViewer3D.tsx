@@ -55,16 +55,14 @@ import { isWorkerSupported, runSunlightInWorker } from '../workers/sunlightBridg
 import { isOffscreenCanvasSupported, runSvfInWorker } from '../workers/svfBridge';
 import './NeighborhoodViewer3D.css';
 
-/**
- * Theme-aware neighbor building appearance.
- * Contrast ratios (alpha-blended on ground, WCAG 1.4.11 graphical 3:1 min):
- *   Light: 0x556E85 @ 0.90 on #CDD5DF → blended #566F84 → 3.86:1
- *   Dark:  0x8A9BB0 @ 0.80 on #263848 → blended #738A9E → 3.52:1
- */
-const NEIGHBOR_COLOR_LIGHT = 0x556E85;
-const NEIGHBOR_COLOR_DARK = 0x8A9BB0;
-const NEIGHBOR_OPACITY_LIGHT = 0.90;
-const NEIGHBOR_OPACITY_DARK = 0.80;
+// Keep the live viewer visually closer to the export snapshots: calmer ground,
+// brighter background, and clearer separation between target and context massing.
+const SCENE_BACKGROUND_LIGHT = 0xF4F8FB;
+const SCENE_BACKGROUND_DARK = 0x182632;
+const NEIGHBOR_COLOR_LIGHT = 0x6C8296;
+const NEIGHBOR_COLOR_DARK = 0x93A9BC;
+const NEIGHBOR_OPACITY_LIGHT = 0.96;
+const NEIGHBOR_OPACITY_DARK = 0.92;
 
 interface Props {
   addressId?: string;
@@ -107,12 +105,29 @@ const VIEWER_FALLBACK_MAX_HEIGHT = 360;
 const ISOMETRIC_POLAR_ANGLE = Math.PI / 3.3;
 const ISOMETRIC_POLAR_RANGE = Math.PI / 30;
 const CAMERA_FIT_PADDING = 1.12;
-const CAMERA_MIN_DISTANCE_FACTOR = 0.90;
-const CAMERA_MAX_DISTANCE_FACTOR = 1.35;
-const GROUND_COLOR_LIGHT = 0xCDD5DF;
-const GROUND_COLOR_DARK = 0x263848;
+const CAMERA_MIN_DISTANCE_FACTOR = 0.24;
+const CAMERA_MAX_DISTANCE_FACTOR = 4.8;
+const GROUND_COLOR_LIGHT = 0xD7E0E8;
+const GROUND_COLOR_DARK = 0x223544;
+const GROUND_BASEMAP_TINT_LIGHT = 0xEDF3F8;
+const GROUND_BASEMAP_TINT_DARK = 0x8C9BA8;
+const AMBIENT_SKY_LIGHT = 0xF2F6FA;
+const AMBIENT_GROUND_LIGHT = 0xB8C5D0;
+const AMBIENT_SKY_DARK = 0x728596;
+const AMBIENT_GROUND_DARK = 0x182431;
+const AMBIENT_INTENSITY_LIGHT = 0.18;
+const AMBIENT_INTENSITY_DARK = 0.22;
+const SUNLIGHT_INTENSITY_LIGHT = 1.05;
+const SUNLIGHT_INTENSITY_DARK = 0.98;
 const HEATMAP_ROOF_NORMAL_MIN_Y = 0.25;
 const TARGET_EMISSIVE = 0x57D4C8;
+const TARGET_EMISSIVE_INTENSITY_LIGHT = 0.48;
+const TARGET_EMISSIVE_INTENSITY_DARK = 0.28;
+const TARGET_ROUGHNESS = 0.50;
+const TARGET_METALNESS = 0.06;
+const NEIGHBOR_ROUGHNESS = 0.86;
+const NEIGHBOR_METALNESS = 0.03;
+const GROUND_ROUGHNESS = 0.97;
 const GROUND_BASEMAP_SIZE = 1024;
 
 type IdleWindow = Window & {
@@ -464,6 +479,9 @@ export default function NeighborhoodViewer3D({
   // Detect pointer type for hint text: coarse = touch, fine = desktop
   const isTouchDevice = typeof window !== 'undefined'
     && window.matchMedia('(pointer: coarse)').matches;
+  const interactionHint = isTouchDevice
+    ? t('viewer3d.controlsHint.touch')
+    : t('viewer3d.controlsHint.desktop');
 
   // Extract camera framing into a callable function
   const frameCamera = useCallback(() => {
@@ -491,6 +509,11 @@ export default function NeighborhoodViewer3D({
     const targetBuilding = targetPandId ? buildings.find((b) => b.pand_id === targetPandId) : null;
     const focusBuilding = targetBuilding || buildings[0];
     const fp = focusBuilding.footprint;
+    const focusMinX = Math.min(...fp.map((point) => point[0]));
+    const focusMaxX = Math.max(...fp.map((point) => point[0]));
+    const focusMinY = Math.min(...fp.map((point) => point[1]));
+    const focusMaxY = Math.max(...fp.map((point) => point[1]));
+    const focusSpan = Math.max(focusMaxX - focusMinX, focusMaxY - focusMinY, 1);
     const cx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
     const cy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
     const targetY = focusBuilding.ground_height - minGround + Math.max(focusBuilding.building_height * 0.45, 6);
@@ -512,8 +535,17 @@ export default function NeighborhoodViewer3D({
     ctx.camera.position.set(cameraX, cameraY, cameraZ);
     ctx.camera.lookAt(cx, targetY, cy);
     ctx.controls.target.set(cx, targetY, cy);
-    ctx.controls.minDistance = baseDistance * CAMERA_MIN_DISTANCE_FACTOR;
-    ctx.controls.maxDistance = baseDistance * CAMERA_MAX_DISTANCE_FACTOR;
+    const focusSafeDistance = Math.max(
+      focusSpan * 1.25,
+      focusBuilding.building_height * 1.2,
+      14,
+    );
+    ctx.controls.minDistance = Math.max(baseDistance * CAMERA_MIN_DISTANCE_FACTOR, focusSafeDistance);
+    ctx.controls.maxDistance = Math.max(
+      baseDistance * CAMERA_MAX_DISTANCE_FACTOR,
+      maxSpan * 4.2,
+      ctx.controls.minDistance + 90,
+    );
     ctx.camera.updateProjectionMatrix();
     renderOnce();
   }, [buildings, targetPandId, renderOnce]);
@@ -694,14 +726,14 @@ export default function NeighborhoodViewer3D({
 
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
     const groundColor = isDarkMode ? GROUND_COLOR_DARK : GROUND_COLOR_LIGHT;
+    const sceneBackground = isDarkMode ? SCENE_BACKGROUND_DARK : SCENE_BACKGROUND_LIGHT;
 
     // Scene
     const scene = new Scene();
-    // Match the scene background to the ground plane so framing stays geometry-first.
-    scene.background = new Color(groundColor);
+    scene.background = new Color(sceneBackground);
 
     // Camera
-    const camera = new PerspectiveCamera(50, width / height, 1, 1000);
+    const camera = new PerspectiveCamera(50, width / height, 0.5, 1400);
     camera.position.set(100, 120, 100);
     camera.lookAt(0, 0, 0);
 
@@ -709,19 +741,23 @@ export default function NeighborhoodViewer3D({
     const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_CAP));
+    renderer.outputColorSpace = SRGBColorSpace;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
     // Lights
     const ambient = new HemisphereLight(
-      isDarkMode ? 0x5B6672 : 0xE7EDF3,
-      isDarkMode ? 0x2C3642 : 0xBEC8D2,
-      isDarkMode ? 0.20 : 0.26,
+      isDarkMode ? AMBIENT_SKY_DARK : AMBIENT_SKY_LIGHT,
+      isDarkMode ? AMBIENT_GROUND_DARK : AMBIENT_GROUND_LIGHT,
+      isDarkMode ? AMBIENT_INTENSITY_DARK : AMBIENT_INTENSITY_LIGHT,
     );
     scene.add(ambient);
 
-    const sunLight = new DirectionalLight(0xffffff, isDarkMode ? 0.95 : 1.0);
+    const sunLight = new DirectionalLight(
+      0xffffff,
+      isDarkMode ? SUNLIGHT_INTENSITY_DARK : SUNLIGHT_INTENSITY_LIGHT,
+    );
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = SHADOW_MAP_SIZE;
     sunLight.shadow.mapSize.height = SHADOW_MAP_SIZE;
@@ -740,7 +776,8 @@ export default function NeighborhoodViewer3D({
     const groundGeom = new PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
     const groundMat = new MeshStandardMaterial({
       color: groundColor,
-      roughness: 0.90,
+      roughness: GROUND_ROUGHNESS,
+      metalness: 0.01,
       side: DoubleSide,
     });
     const ground = new Mesh(groundGeom, groundMat);
@@ -753,6 +790,7 @@ export default function NeighborhoodViewer3D({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.enablePan = false;
+    controls.zoomSpeed = 1.12;
     controls.minPolarAngle = ISOMETRIC_POLAR_ANGLE - ISOMETRIC_POLAR_RANGE;
     controls.maxPolarAngle = ISOMETRIC_POLAR_ANGLE + ISOMETRIC_POLAR_RANGE;
 
@@ -1334,6 +1372,8 @@ export default function NeighborhoodViewer3D({
       color: isDarkMode ? NEIGHBOR_COLOR_DARK : NEIGHBOR_COLOR_LIGHT,
       transparent: true,
       opacity: isDarkMode ? NEIGHBOR_OPACITY_DARK : NEIGHBOR_OPACITY_LIGHT,
+      roughness: NEIGHBOR_ROUGHNESS,
+      metalness: NEIGHBOR_METALNESS,
       side: DoubleSide,
     });
     let neighborMaterialUsed = false;
@@ -1355,7 +1395,9 @@ export default function NeighborhoodViewer3D({
         const mat = new MeshStandardMaterial({
           color: TARGET_COLOR,
           emissive: TARGET_EMISSIVE,
-          emissiveIntensity: isDarkMode ? 0.20 : 0.40,
+          emissiveIntensity: isDarkMode ? TARGET_EMISSIVE_INTENSITY_DARK : TARGET_EMISSIVE_INTENSITY_LIGHT,
+          roughness: TARGET_ROUGHNESS,
+          metalness: TARGET_METALNESS,
           side: DoubleSide,
         });
         const mesh = new Mesh(geom, mat);
@@ -1480,7 +1522,7 @@ export default function NeighborhoodViewer3D({
     }
 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
+    ctx.sunLight.intensity = isDark ? SUNLIGHT_INTENSITY_DARK : SUNLIGHT_INTENSITY_LIGHT;
     ctx.sunLight.position.set(
       sunDir.x * SUN_DISTANCE,
       sunDir.y * SUN_DISTANCE,
@@ -1503,7 +1545,7 @@ export default function NeighborhoodViewer3D({
     }
 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    ctx.sunLight.intensity = isDark ? 0.85 : 0.9;
+    ctx.sunLight.intensity = isDark ? SUNLIGHT_INTENSITY_DARK : SUNLIGHT_INTENSITY_LIGHT;
     ctx.sunLight.position.set(
       sunDir.x * SUN_DISTANCE,
       sunDir.y * SUN_DISTANCE,
@@ -1559,7 +1601,7 @@ export default function NeighborhoodViewer3D({
       groundTextureRef.current = null;
     }
     groundMaterial.map = null;
-    groundMaterial.color.setHex(isDark ? 0x8A97A5 : 0xffffff);
+    groundMaterial.color.setHex(isDark ? GROUND_BASEMAP_TINT_DARK : GROUND_BASEMAP_TINT_LIGHT);
     groundMaterial.needsUpdate = true;
 
     img.crossOrigin = 'anonymous';
@@ -1574,8 +1616,8 @@ export default function NeighborhoodViewer3D({
       groundTextureRef.current = texture;
 
       groundMaterial.map = texture;
-      groundMaterial.roughness = 0.95;
-      groundMaterial.color.setHex(isDark ? 0xAAB6C2 : 0xffffff);
+      groundMaterial.roughness = GROUND_ROUGHNESS;
+      groundMaterial.color.setHex(isDark ? GROUND_BASEMAP_TINT_DARK : GROUND_BASEMAP_TINT_LIGHT);
       groundMaterial.needsUpdate = true;
       renderOnce();
     };
@@ -2038,9 +2080,7 @@ export default function NeighborhoodViewer3D({
         {showControlsHint && !loading && (
           <div className="viewer-3d__controls-hint" aria-hidden="true">
             <span className="viewer-3d__controls-hint-text">
-              {isTouchDevice
-                ? t('viewer3d.controlsHint.touch')
-                : t('viewer3d.controlsHint.desktop')}
+              {interactionHint}
             </span>
           </div>
         )}
@@ -2060,7 +2100,7 @@ export default function NeighborhoodViewer3D({
         )}
       </div>
       <p id={sceneSummaryId} className="viewer-3d__summary">
-        {staticSceneSummary} {t('viewer3d.keyboardHint')}
+        {staticSceneSummary} {interactionHint}
       </p>
       {statusMessage && !error && (
         <p className="viewer-3d__status-message">{statusMessage}</p>

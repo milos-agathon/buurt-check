@@ -158,9 +158,11 @@ describe('Skip navigation i18n', () => {
   });
 });
 
-describe('3D viewer keyboard hint i18n', () => {
-  it('viewer3d.keyboardHint translates correctly in both languages', () => {
-    expect(i18nEn.t('viewer3d.keyboardHint')).toMatch(/arrow keys/i);
-    expect(i18nNl.t('viewer3d.keyboardHint')).toMatch(/pijltjestoetsen/i);
+describe('3D viewer interaction hint i18n', () => {
+  it('viewer3d controls hints translate correctly in both languages', () => {
+    expect(i18nEn.t('viewer3d.controlsHint.touch')).toMatch(/pinch/i);
+    expect(i18nNl.t('viewer3d.controlsHint.touch')).toMatch(/knijp/i);
+    expect(i18nEn.t('viewer3d.controlsHint.desktop')).toMatch(/Home/i);
+    expect(i18nNl.t('viewer3d.controlsHint.desktop')).toMatch(/Home/i);
   });
 });

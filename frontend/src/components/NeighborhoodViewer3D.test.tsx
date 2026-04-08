@@ -34,6 +34,7 @@ vi.mock('three', () => {
   function PerspectiveCamera(this: any) {
     this.position = { set: vi.fn(), clone: vi.fn(() => ({ copy: vi.fn() })), copy: vi.fn() };
     this.lookAt = vi.fn();
+    this.fov = 50;
     this.aspect = 1;
     this.updateProjectionMatrix = vi.fn();
   }
@@ -43,6 +44,7 @@ vi.mock('three', () => {
     this.render = vi.fn();
     this.dispose = vi.fn();
     this.domElement = mockCanvas;
+    this.outputColorSpace = null;
     this.shadowMap = { enabled: false, type: null };
   }
   function HemisphereLight(this: any, skyColor?: number, groundColor?: number, intensity?: number) {
@@ -364,6 +366,14 @@ describe('NeighborhoodViewer3D', () => {
     expect(controls.addEventListener).toHaveBeenCalledWith('end', expect.any(Function));
   });
 
+  it('uses a wider zoom envelope around the fitted camera', () => {
+    renderViewer();
+    const controls = orbitControlsInstances[0];
+    expect(controls.minDistance).toBeGreaterThan(0);
+    expect(controls.maxDistance).toBeGreaterThan(controls.minDistance * 5);
+    expect(controls.zoomSpeed).toBe(1.12);
+  });
+
   it('reset button is keyboard-activatable', () => {
     renderViewer();
     const resetBtn = screen.getByRole('button', { name: /reset view/i });
@@ -529,8 +539,8 @@ describe('NeighborhoodViewer3D', () => {
       ({ args }) => args?.transparent === true && args?.opacity !== undefined
     );
     expect(neighborCall).toBeDefined();
-    expect(neighborCall!.args.color).toBe(0x556E85);
-    expect(neighborCall!.args.opacity).toBe(0.90);
+    expect(neighborCall!.args.color).toBe(0x6C8296);
+    expect(neighborCall!.args.opacity).toBe(0.96);
   });
 
   it('creates target material with theme-aware emissive intensity', () => {
@@ -540,7 +550,25 @@ describe('NeighborhoodViewer3D', () => {
     );
     expect(targetCall).toBeDefined();
     expect(targetCall!.args.color).toBe(0x2EC4B6);
-    expect(targetCall!.args.emissiveIntensity).toBe(0.40); // light mode (jsdom default)
+    expect(targetCall!.args.emissiveIntensity).toBe(0.48); // light mode (jsdom default)
+  });
+
+  it('renders touch-first interaction copy in the summary on coarse pointers', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(pointer: coarse)',
+      media: query,
+      onchange: null,
+      addListener: () => { },
+      removeListener: () => { },
+      addEventListener: () => { },
+      removeEventListener: () => { },
+      dispatchEvent: () => false,
+    }));
+
+    const { container } = renderViewer();
+    const summary = container.querySelector('.viewer-3d__summary');
+    expect(summary).toHaveTextContent(/pinch to zoom/i);
+    expect(summary).toHaveTextContent(/tap reset/i);
   });
 
   it('falls back to main-thread analysis with 64 points at 2m spacing when Worker unsupported', async () => {
@@ -782,14 +810,14 @@ describe('NeighborhoodViewer3D', () => {
         ({ args }) => args?.transparent === true && args?.opacity !== undefined
       );
       expect(neighborCall).toBeDefined();
-      expect(neighborCall!.args.color).toBe(0x8A9BB0);
-      expect(neighborCall!.args.opacity).toBe(0.80);
+      expect(neighborCall!.args.color).toBe(0x93A9BC);
+      expect(neighborCall!.args.opacity).toBe(0.92);
 
       const targetCall = materialCalls.find(
         ({ args }) => args?.emissive !== undefined && !args?.transparent
       );
       expect(targetCall).toBeDefined();
-      expect(targetCall!.args.emissiveIntensity).toBe(0.20);
+      expect(targetCall!.args.emissiveIntensity).toBe(0.28);
     } finally {
       document.documentElement.removeAttribute('data-theme');
     }
