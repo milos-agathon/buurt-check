@@ -241,7 +241,7 @@ class Forge3DRenderService:
         return self._available
 
     # -----------------------------------------------------------------------
-    # RenderService protocol
+    # Public render service methods
     # -----------------------------------------------------------------------
 
     async def render_shadow_snapshots(
@@ -388,16 +388,6 @@ class Forge3DRenderService:
                 })
 
         return all_results
-
-    async def compute_sunlight_analysis(
-        self,
-        pand_id: str,
-        lat: float,
-        lng: float,
-        sample_dates: list[str],
-    ) -> dict:
-        """Deferred — not yet implemented."""
-        raise NotImplementedError("Sunlight analysis via forge3d is deferred to Phase 2")
 
     # -----------------------------------------------------------------------
     # Sync rendering (runs in thread via asyncio.to_thread)

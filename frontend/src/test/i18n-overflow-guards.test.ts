@@ -9,14 +9,6 @@ describe('Epic 2 i18n overflow guards', () => {
     expect(css).toMatch(/\.toast__action\s*{[\s\S]*?white-space:\s*normal/i);
   });
 
-  it('allows wrapping for summary strip labels', () => {
-    const css = readFileSync('src/components/SummaryStrip.css', 'utf-8');
-
-    expect(css).toMatch(/\.summary-strip__label\s*{[\s\S]*?white-space:\s*normal/i);
-    expect(css).toMatch(/\.summary-strip__label\s*{[\s\S]*?overflow-wrap:\s*anywhere/i);
-    expect(css).not.toMatch(/\.summary-strip__label\s*{[\s\S]*?text-overflow:\s*ellipsis/i);
-  });
-
   it('allows wrapping for coverage strip segments', () => {
     const css = readFileSync('src/App.css', 'utf-8');
 

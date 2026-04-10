@@ -124,14 +124,6 @@ vi.mock('./components/ShadowTimeSlider', () => ({
   ),
 }));
 
-vi.mock('./components/SunlightRiskCard', () => ({
-  default: ({ loading, unavailable, orientationDeg }: { loading?: boolean; unavailable?: boolean; orientationDeg?: number }) => (
-    <div data-testid="sunlight-card" data-orientation={orientationDeg}>
-      {loading ? 'Loading sunlight...' : unavailable ? 'Sunlight unavailable' : 'Sunlight card'}
-    </div>
-  ),
-}));
-
 vi.mock('./components/NeighborhoodStatsCard', () => ({
   default: ({ loading, error }: { loading?: boolean; error?: string | null }) => (
     <div data-testid="neighborhood-stats">

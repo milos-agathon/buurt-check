@@ -27,10 +27,8 @@ import TierBSignalsCard from './components/TierBSignalsCard';
 import AttentionSummary from './components/AttentionSummary';
 import LivabilityCard from './components/LivabilityCard';
 import LivabilityDetailView from './components/LivabilityDetailView';
-// PropertyWarningsCard, SoilInfoCard, SunlightRiskCard, and ShadowSnapshots are
-// premium-only (PDF/Full Dossier). They are not rendered in the interactive viewer.
-// Their state (propertyWarnings, shadowSnapshots, sunlight) is still fetched and
-// passed to ExportBottomSheet for PDF generation.
+// Premium warnings and sunlight evidence remain export-only, not interactive viewer sections.
+// Their state is still fetched and passed to ExportBottomSheet for PDF generation.
 import ViewingChecklist from './components/ViewingChecklist';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
@@ -4291,8 +4289,7 @@ function App() {
                     </div>
                   )}
 
-                  {/* PropertyWarningsCard and SoilInfoCard are premium-only (PDF/Full Dossier).
-                      They are NOT rendered in the interactive viewer. */}
+                  {/* Premium warnings remain PDF-only per product contract. */}
 
                 </section>
 
@@ -4391,8 +4388,7 @@ function App() {
                         )}
                       </div>
 
-                      {/* SunlightRiskCard and ShadowSnapshots are premium-only (PDF/Full Dossier).
-                          They are NOT rendered in the interactive viewer. */}
+                      {/* Sunlight evidence remains PDF-only and is not rendered in the viewer. */}
                       {(neighborhoodStatsLoading || neighborhoodStats || neighborhoodStatsError) && (
                         <div className="dossier-section" style={dossierSectionStyle(6)} data-section-index={6}>
                           <h3 id="section-neighborhood" className="app__section-label">{t('dossier.neighborhood')}</h3>

@@ -64,11 +64,11 @@ npx vitest --watch   # Watch mode
 ### Components
 - Functional components, named exports, co-located CSS + tests
 - Dossier canonical order (viewer sections only):
-  AttentionSummary → AddressHeader → SummaryStrip → RiskTiles → BuildingFacts →
+  AttentionSummary → AddressHeader → RiskTiles → BuildingFacts →
   Livability → 3DViewer → NeighborhoodStats → TierB → ViewingChecklist → ActionBar
 - Premium-only sections (PDF only, NOT in viewer):
-  PropertyWarnings, SoilInfo, SunlightRiskCard, ShadowSnapshots, heatmap overlay
-- RiskTilesGrid appears ONCE at the top (after SummaryStrip), not duplicated lower
+  PropertyWarnings, SoilInfo, shadow snapshots, sunlight evidence, heatmap overlay
+- RiskTilesGrid appears ONCE at the top (after AddressHeader), not duplicated lower
 
 ## Testing patterns
 
@@ -273,8 +273,7 @@ setTimeout(() => { setViewer3DTriggered(true); trigger3DFetch(); }, 0);
 
 ### Phase 6: Standards Benchmarking
 
-- **Pure computation functions** for EN 17037 daylight exposure bands and TNO benchmark levels in `standardsBenchmark.ts`. 20 boundary-tested edge cases
-- **SunlightRiskCard UI:** Bilingual display of standards benchmarks with i18n labels
+- **Viewer simplification note:** Standards benchmarking is no longer rendered as a dedicated viewer card; sunlight evidence remains export-only
 
 ## Session Learnings (2026-03-03)
 

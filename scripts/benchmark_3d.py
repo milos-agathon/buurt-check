@@ -1,7 +1,6 @@
 
 import asyncio
 import time
-import httpx
 from app.services.three_d_bag import get_neighborhood_3d
 
 # Test coordinates (same as in tests)

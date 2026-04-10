@@ -1247,8 +1247,6 @@ class BuurtCheckPDF(FPDF):
         score: int | None,
         height: float = 4.0,
         *,
-        highlight_good_zone: bool = False,
-        show_target_label: bool = False,
         show_threshold_markers: bool = False,
     ) -> None:
         """Draw horizontal score bar: gray track + single colored fill."""
@@ -1653,7 +1651,6 @@ class BuurtCheckPDF(FPDF):
                 cx + bar_margin, bar_y,
                 cell_w - 2 * bar_margin, score,
                 height=4.0,
-                highlight_good_zone=True,
                 show_threshold_markers=True,
             )
 

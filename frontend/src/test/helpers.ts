@@ -9,7 +9,6 @@ import type {
   BuildingFactsResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
-  PropertyWarningsResponse,
   RiskComparisonsResponse,
   RiskCardsResponse,
   SunlightResult,
@@ -307,23 +306,6 @@ export function makeRiskComparisonsResponse(
   };
 }
 
-export interface ShadowSnapshotData {
-  label: string;
-  hour: number;
-  dataUrl: string;
-  viewpoint?: 'top' | 'front' | 'rear';
-  sunAzimuth?: number;
-  sunAltitude?: number;
-}
-
-export function makeShadowSnapshots(): ShadowSnapshotData[] {
-  return [
-    { label: 'summer_morning', hour: 9, dataUrl: 'data:image/png;base64,mock', viewpoint: 'top', sunAzimuth: 120, sunAltitude: 27 },
-    { label: 'summer_noon', hour: 12, dataUrl: 'data:image/png;base64,mock', viewpoint: 'top', sunAzimuth: 180, sunAltitude: 60 },
-    { label: 'summer_afternoon', hour: 15, dataUrl: 'data:image/png;base64,mock', viewpoint: 'top', sunAzimuth: 240, sunAltitude: 35 },
-  ];
-}
-
 export function makeNeighborhood3DResponseWithLod22(
   overrides: Partial<Neighborhood3DResponse> = {},
 ): Neighborhood3DResponse {
@@ -402,32 +384,3 @@ export function makeNeighborhoodStatsResponse(
   };
 }
 
-export function makePropertyWarningsResponse(
-  overrides: Partial<PropertyWarningsResponse> = {},
-): PropertyWarningsResponse {
-  return {
-    address_id: 'vbo-123',
-    attention_summary: {
-      flag_count: 0,
-      flags: [],
-      risk_categories_assessed: 4,
-      risk_categories_total: 4,
-    },
-    foundation_risk: {
-      level: 'low',
-      construction_year: 2005,
-      soil_type: 'zand',
-      messages: [],
-    },
-    erfpacht: {
-      detected: false,
-      scope: 'municipality',
-      verified_property_level: false,
-      messages: [],
-    },
-    vve: { is_apartment: false, messages: [] },
-    asbestos: { flagged: false, messages: [] },
-    lead_pipe: { flagged: false, messages: [] },
-    ...overrides,
-  };
-}

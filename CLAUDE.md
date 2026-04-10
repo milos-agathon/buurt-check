@@ -107,10 +107,10 @@ cd frontend && npm run test                 # Vitest (867+ baseline)
 - Direct sun / clear-sky visibility (heatmap overlay + legend)
 - Foundation Risk
 
-These items MUST remain in the Full Dossier/PDF output. They must NOT be rendered in the interactive dossier viewer. Components and tests for these items are kept in the codebase (used by PDF/export paths).
+These items MUST remain in the Full Dossier/PDF output. They must NOT be rendered in the interactive dossier viewer. The viewer no longer keeps separate premium-only React components for them; export flows consume the underlying fetched data directly.
 
 ### Risk cards layout
-- Risk cards (RiskTilesGrid) appear **once** at the top of the dossier, in the house phase after AddressHeader/SummaryStrip.
+- Risk cards (RiskTilesGrid) appear **once** at the top of the dossier, in the house phase after AddressHeader.
 - No duplicate risk cards blocks exist elsewhere in the dossier.
 - Tap-to-expand RiskDetailView is accessible from the top-positioned tiles.
 

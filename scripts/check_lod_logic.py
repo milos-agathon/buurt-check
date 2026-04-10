@@ -1,6 +1,5 @@
 import httpx
 import asyncio
-import json
 
 # Mimic the backend function exactly
 def _extract_lod22_surfaces(

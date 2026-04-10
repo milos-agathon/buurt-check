@@ -584,23 +584,6 @@ class TestBuurtCheckPDF:
         ]
         assert threshold_ticks == []
 
-    def test_draw_score_bar_ignores_legacy_good_threshold_label_flags(self):
-        pdf = BuurtCheckPDF()
-        pdf.add_page()
-        pdf.draw_score_bar(
-            10,
-            20,
-            100,
-            75,
-            highlight_good_zone=True,
-            show_target_label=True,
-        )
-
-        result = bytes(pdf.output())
-        reader = PdfReader(io.BytesIO(result))
-        text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "70+" not in text
-
     def test_draw_score_bar_can_render_threshold_markers(self):
         pdf = BuurtCheckPDF()
         pdf.add_page()

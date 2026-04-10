@@ -1,6 +1,5 @@
 import httpx
 import asyncio
-import json
 
 # Keizersgracht 100 details (from docs/conftest.py)
 # But we need a valid VBO ID and PAND ID.
@@ -11,8 +10,6 @@ import json
 
 VBO_ID = "0363010000742183"
 PAND_ID = "0363100012253924"
-import random
-# import random
 RD_X = 121308
 RD_Y = 487194
 LAT = 52.374

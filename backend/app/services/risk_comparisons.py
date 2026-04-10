@@ -48,7 +48,7 @@ class PeerBenchmarkSpec(BenchmarkMetadata):
     @field_validator("scores")
     @classmethod
     def validate_scores(
-        cls, scores: dict[UrbanizationLevel, int]
+        _cls, scores: dict[UrbanizationLevel, int]
     ) -> dict[UrbanizationLevel, int]:
         if set(scores) != _EXPECTED_URBANIZATION_LEVELS:
             raise ValueError(
