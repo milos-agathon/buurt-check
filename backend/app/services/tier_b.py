@@ -100,6 +100,9 @@ async def _fetch_typed_rows(
 
 
 _POPULATION_YEAR = 2024
+_POPULATION_SOURCE = "CBS Wijken & Buurten"
+_NL_POPULATION_YEAR = 2025
+_NL_POPULATION_SOURCE = "CBS national population estimate"
 
 
 async def _fetch_population_for_area(
@@ -159,8 +162,8 @@ async def _fetch_national_crime_total(period: str) -> float | None:
     return None
 
 
-# CBS StatLine: NL population ~17.9 million (2025).  For a comparison
-# bar this approximation is sufficient — no HTTP call needed.
+# CBS StatLine: NL population ~17.9 million (2025). This remains an explicit
+# estimate for the comparison bar rather than a period-matched denominator.
 _NL_POPULATION_ESTIMATE = 17_900_000.0
 
 
@@ -307,19 +310,26 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     total_rate = _per_1000(total_count, population)
     score = normalize_crime_score(total_rate)
     severity = severity_from_score(score).value if score is not None else None
-    meaning_en, meaning_nl = crime_summary(score, total_rate)
 
     # National crime rate for comparison bar (no HTTP call — uses estimate)
     national_rate = _per_1000(nl_total_count, _NL_POPULATION_ESTIMATE)
+    meaning_en, meaning_nl = crime_summary(score, total_rate, national_rate)
 
     return CrimeStatsCard(
         scope=scope,
         area_code=area_code,
         area_name=area_name,
         population=population,
+        population_source=_POPULATION_SOURCE if population is not None else None,
         population_year=_POPULATION_YEAR if population is not None else None,
+        population_is_estimate=False if population is not None else None,
         total_per_1000=total_rate,
         national_per_1000=national_rate,
+        national_population_source=(
+            _NL_POPULATION_SOURCE if national_rate is not None else None
+        ),
+        national_population_year=_NL_POPULATION_YEAR if national_rate is not None else None,
+        national_population_is_estimate=True if national_rate is not None else None,
         burglary_per_1000=_per_1000(burglary_count, population),
         violent_per_1000=_per_1000(violent_count, population),
         yearly_period=latest_year,

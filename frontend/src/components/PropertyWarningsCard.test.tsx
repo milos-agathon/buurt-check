@@ -53,6 +53,34 @@ describe('PropertyWarningsCard', () => {
     expect(screen.queryByText(/\bhigh\b/i)).not.toBeInTheDocument();
   });
 
+  it('renders a foundation fallback caveat when only municipality fallback data is available', () => {
+    const data = makePropertyWarningsResponse({
+      foundation_risk: {
+        level: 'medium',
+        construction_year: 1952,
+        messages: ['FOUNDATION_NO_SOIL_DATA', 'FOUNDATION_SOFT_SOIL_CITY'],
+      },
+    });
+    renderCard(data);
+
+    expect(screen.getByText(/assessment basis/i)).toBeInTheDocument();
+    expect(screen.getByText(/municipality fallback using a documented soft-soil municipality list/i)).toBeInTheDocument();
+  });
+
+  it('renders a low year-only fallback instead of hiding the foundation card', () => {
+    const data = makePropertyWarningsResponse({
+      foundation_risk: {
+        level: 'low',
+        construction_year: 2002,
+        messages: ['FOUNDATION_NO_SOIL_DATA', 'FOUNDATION_YEAR_ONLY'],
+      },
+    });
+    renderCard(data);
+
+    expect(screen.getByRole('heading', { name: /foundation risk/i })).toBeInTheDocument();
+    expect(screen.getByText(/this low-risk result is based on construction year only/i)).toBeInTheDocument();
+  });
+
   it('renders erfpacht card when detected', () => {
     const data = makePropertyWarningsResponse({
       erfpacht: {

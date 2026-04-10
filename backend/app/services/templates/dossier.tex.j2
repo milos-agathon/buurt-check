@@ -166,19 +166,23 @@ SunCalc + 3DBAG \\
 <% if age_interpretation %>\\{\footnotesize\textcolor{MutedText}{<< age_interpretation >>}}<% endif %>
 <% endif %>
 
-<% if livability_chart %>
+<% if livability and livability.available %>
 \subsection*{<% if language == "nl" %>Leefbaarheid<% else %>Livability<% endif %>}
-<% if livability and livability.overall_normalized is not none %>
-\textbf{<% if language == "nl" %>Leefbaarheidsscore<% else %>Livability score<% endif %>}: << livability.overall_normalized >>/100\\
-\textbf{<% if language == "nl" %>Ernst<% else %>Severity<% endif %>}:
-<% if livability.overall_normalized >= 70 %>\textcolor{sev-good}{<% if language == "nl" %>Goed<% else %>Good<% endif %>}<% elif livability.overall_normalized >= 40 %>\textcolor{sev-mod}{<% if language == "nl" %>Matig<% else %>Moderate<% endif %>}<% elif livability.overall_normalized >= 20 %>\textcolor{sev-poor}{<% if language == "nl" %>Slecht<% else %>Poor<% endif %>}<% else %>\textcolor{sev-crit}{<% if language == "nl" %>Kritiek<% else %>Critical<% endif %>}<% endif %>\\
+<% set livability_class = livability.overall_class if livability.overall_class is defined and livability.overall_class is not none else livability.overall_score %>
+<% if livability_class is not none %>
+\textbf{<% if language == "nl" %>Leefbaarheidsklasse<% else %>Livability class<% endif %>}:
+<% if language == "nl" %>Klasse <% else %>Class <% endif %><< livability_class >>\\
+<% if livability.overall_class_label is defined and livability.overall_class_label %><% if language == "nl" %><< livability.overall_class_label|replace("very low", "zeer laag")|replace("low", "laag")|replace("fairly low", "vrij laag")|replace("below average", "onder gemiddeld")|replace("around average", "rond gemiddeld")|replace("above average", "boven gemiddeld")|replace("good", "goed")|replace("very good", "zeer goed")|replace("excellent", "uitstekend") >><% else %><< livability.overall_class_label|title >><% endif %>\\<% endif %>
+<% if livability.overall_deviation is defined and livability.overall_deviation is not none %>
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Afwijking t.o.v. landelijk gemiddelde: << ("%.1f"|format(livability.overall_deviation)).replace(".", ",") >><% else %>Deviation vs national average: << "%+.1f"|format(livability.overall_deviation) >><% endif %>}}\\
+<% endif %>
 <% endif %>
 <% if livability and livability.dimensions %>
 \textbf{<% if language == "nl" %>Dimensies<% else %>Dimensions<% endif %>}\\
-{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Score per leefbaarheidsdimensie volgens Leefbaarometer-methodiek.<% else %>Dimension-level scores based on Leefbaarometer methodology.<% endif %>}}\\[2pt]
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Klasse per leefbaarheidsdimensie; afwijkingen worden getoond ten opzichte van het landelijk gemiddelde wanneer beschikbaar.<% else %>Class per livability dimension; deviations are shown against the national average when available.<% endif %>}}\\[2pt]
 \begin{tabular}{@{}p{0.55\linewidth}p{0.40\linewidth}@{}}
 <% for dim in livability.dimensions %>
-<< dim.name|dim_label(language) >> & <% if dim.normalized_score is defined and dim.normalized_score is not none %><< dim.normalized_score >>/100<% else %><% if language == "nl" %>Niet beschikbaar<% else %>Unavailable<% endif %><% endif %> \\
+<< dim.name|dim_label(language) >> & <% if dim.raw_score is defined and dim.raw_score is not none %><% if language == "nl" %>Klasse <% else %>Class <% endif %><< dim.raw_score >><% if dim.deviation is defined and dim.deviation is not none %> · <% if language == "nl" %><< ("%.1f"|format(dim.deviation)).replace(".", ",") >><% else %><< "%+.1f"|format(dim.deviation) >><% endif %><% elif dim.class_label is defined and dim.class_label %> · <% if language == "nl" %><< dim.class_label|replace("very low", "zeer laag")|replace("low", "laag")|replace("fairly low", "vrij laag")|replace("below average", "onder gemiddeld")|replace("around average", "rond gemiddeld")|replace("above average", "boven gemiddeld")|replace("good", "goed")|replace("very good", "zeer goed")|replace("excellent", "uitstekend") >><% else %><< dim.class_label >><% endif %><% endif %><% else %><% if language == "nl" %>Niet beschikbaar<% else %>Unavailable<% endif %><% endif %> \\
 <% endfor %>
 \end{tabular}\\
 <% endif %>
@@ -190,11 +194,10 @@ SunCalc + 3DBAG \\
 \textbf{<% if language == "nl" %>Vergelijking<% else %>Comparison<% endif %>}
 \begin{itemize}
 <% for row in livability.comparison %>
-  \item << row.name if row.name else ("Onbekend" if language == "nl" else "Unknown") >>: << row.overall_normalized if row.overall_normalized is not none else ("Niet beschikbaar" if language == "nl" else "Unavailable") >>
+  \item << row.name if row.name else ("Onbekend" if language == "nl" else "Unknown") >>: <% if (row.overall_class if row.overall_class is defined and row.overall_class is not none else row.overall_score) is not none %><% if language == "nl" %>Klasse <% else %>Class <% endif %><< row.overall_class if row.overall_class is defined and row.overall_class is not none else row.overall_score >><% else %><% if language == "nl" %>Niet beschikbaar<% else %>Unavailable<% endif %><% endif %>
 <% endfor %>
 \end{itemize}
 <% endif %>
-\includegraphics[width=0.92\linewidth]{<< livability_chart >>}
 \\{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: Leefbaarometer<% else %>Source: Leefbaarometer<% endif %>}}
 <% endif %>
 

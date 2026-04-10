@@ -50,6 +50,13 @@ _QUARTILE_THRESHOLDS: dict[str, tuple[float, float, float]] = {
     "grote_supermarkt_gemiddelde_afstand_in_km": (0.5, 0.8, 1.5),
 }
 
+_SOURCE_NOTE_FIELD_LABELS: dict[str, str] = {
+    "owner_occupied_pct": "owner-occupied share",
+    "avg_property_value": "property value",
+    "distance_to_train_km": "train distance",
+    "distance_to_supermarket_km": "supermarket distance",
+}
+
 
 def _compute_quartile(key: str, value: float) -> int | None:
     thresholds = _QUARTILE_THRESHOLDS.get(key)
@@ -72,6 +79,8 @@ def _make_indicator(
     transform: Callable[[float], float] | None = None,
     quartile_direction: Literal["higher_value", "lower_value"] | None = None,
     precision: int | None = None,
+    source_year: int | None = 2024,
+    source_note: str | None = None,
 ) -> NeighborhoodIndicator:
     value = _safe_float(props, key)
     if value is None:
@@ -79,6 +88,8 @@ def _make_indicator(
             available=False,
             quartile_direction=quartile_direction,
             precision=precision,
+            source_year=source_year,
+            source_note=source_note,
         )
     if transform is not None:
         value = transform(value)
@@ -95,6 +106,8 @@ def _make_indicator(
         quartile_direction=quartile_direction,
         favorable_quartile=favorable_quartile,
         precision=precision,
+        source_year=source_year,
+        source_note=source_note,
     )
 
 
@@ -135,7 +148,12 @@ def _parse_age_profile(props: dict[str, Any]) -> AgeProfile:
     )
 
 
-def _parse_stats(feature: dict[str, Any]) -> NeighborhoodStats | None:
+def _parse_stats(
+    feature: dict[str, Any],
+    *,
+    source_year: int = 2024,
+    source_note: str | None = None,
+) -> NeighborhoodStats | None:
     props = feature.get("properties") or {}
     buurt_code = props.get("buurtcode")
     if not buurt_code:
@@ -150,17 +168,23 @@ def _parse_stats(feature: dict[str, Any]) -> NeighborhoodStats | None:
             "bevolkingsdichtheid_inwoners_per_km2",
             "per km\u00b2",
             precision=0,
+            source_year=source_year,
+            source_note=source_note,
         ),
         avg_household_size=_make_indicator(
             props,
             "gemiddelde_huishoudsgrootte",
             precision=1,
+            source_year=source_year,
+            source_note=source_note,
         ),
         single_person_pct=_make_indicator(
             props,
             "percentage_eenpersoonshuishoudens",
             "%",
             precision=1,
+            source_year=source_year,
+            source_note=source_note,
         ),
         age_profile=_parse_age_profile(props),
         owner_occupied_pct=_make_indicator(
@@ -168,6 +192,8 @@ def _parse_stats(feature: dict[str, Any]) -> NeighborhoodStats | None:
             "percentage_koopwoningen",
             "%",
             precision=1,
+            source_year=source_year,
+            source_note=source_note,
         ),
         avg_property_value=_make_indicator(
             props,
@@ -175,6 +201,8 @@ def _parse_stats(feature: dict[str, Any]) -> NeighborhoodStats | None:
             "\u20ac",
             transform=_normalize_property_value,
             precision=0,
+            source_year=source_year,
+            source_note=source_note,
         ),
         distance_to_train_km=_make_indicator(
             props,
@@ -182,6 +210,8 @@ def _parse_stats(feature: dict[str, Any]) -> NeighborhoodStats | None:
             "km",
             quartile_direction="lower_value",
             precision=1,
+            source_year=source_year,
+            source_note=source_note,
         ),
         distance_to_supermarket_km=_make_indicator(
             props,
@@ -189,6 +219,8 @@ def _parse_stats(feature: dict[str, Any]) -> NeighborhoodStats | None:
             "km",
             quartile_direction="lower_value",
             precision=1,
+            source_year=source_year,
+            source_note=source_note,
         ),
         urbanization=_parse_urbanization(props),
     )
@@ -312,6 +344,53 @@ def _merge_missing_housing_access(
     )
 
 
+def _join_labels(labels: list[str]) -> str:
+    if not labels:
+        return ""
+    if len(labels) == 1:
+        return labels[0]
+    if len(labels) == 2:
+        return f"{labels[0]} and {labels[1]}"
+    return f"{', '.join(labels[:-1])}, and {labels[-1]}"
+
+
+def _iter_indicator_fields(stats: NeighborhoodStats):
+    yield "population_density", stats.population_density
+    yield "avg_household_size", stats.avg_household_size
+    yield "single_person_pct", stats.single_person_pct
+    yield "owner_occupied_pct", stats.owner_occupied_pct
+    yield "avg_property_value", stats.avg_property_value
+    yield "distance_to_train_km", stats.distance_to_train_km
+    yield "distance_to_supermarket_km", stats.distance_to_supermarket_km
+
+
+def _collect_source_metadata(
+    stats: NeighborhoodStats, default_year: int = 2024
+) -> tuple[list[int], list[str]]:
+    years: set[int] = set()
+    fallback_fields_by_year: dict[int, list[str]] = {}
+
+    for field_name, indicator in _iter_indicator_fields(stats):
+        if not indicator.available or indicator.value is None:
+            continue
+        if indicator.source_year is not None:
+            years.add(indicator.source_year)
+            if indicator.source_year != default_year and field_name in _SOURCE_NOTE_FIELD_LABELS:
+                fallback_fields_by_year.setdefault(indicator.source_year, []).append(
+                    _SOURCE_NOTE_FIELD_LABELS[field_name]
+                )
+
+    if not years:
+        years.add(default_year)
+
+    source_notes = [
+        f"{year} backfill for {_join_labels(fields)}"
+        for year, fields in sorted(fallback_fields_by_year.items(), reverse=True)
+        if fields
+    ]
+    return sorted(years, reverse=True), source_notes
+
+
 async def _fetch_by_bbox(lat: float, lng: float) -> dict[str, Any] | None:
     delta = 0.001
     bbox = f"{lng - delta},{lat - delta},{lng + delta},{lat + delta}"
@@ -375,7 +454,7 @@ async def get_neighborhood_stats(
             message="CBS_NO_BUURT_FOUND",
         )
 
-    stats = _parse_stats(feature)
+    stats = _parse_stats(feature, source_year=2024)
     if stats is None:
         return NeighborhoodStatsResponse(
             address_id=vbo_id,
@@ -395,14 +474,24 @@ async def get_neighborhood_stats(
                 "CBS 2023 fallback fetch failed for buurt_code=%s", stats.buurt_code
             )
         if legacy_feature is not None:
-            legacy_stats = _parse_stats(legacy_feature)
+            legacy_stats = _parse_stats(
+                legacy_feature,
+                source_year=2023,
+                source_note="CBS 2023 backfill",
+            )
             if legacy_stats is not None:
                 stats = _merge_missing_housing_access(stats, legacy_stats)
                 if not _needs_housing_access_backfill(stats):
                     source = "CBS (Statistics Netherlands)"
 
+    source_years, source_notes = _collect_source_metadata(stats)
+
     return NeighborhoodStatsResponse(
         address_id=vbo_id,
         stats=stats,
         source=source,
+        source_year=max(source_years) if source_years else 2024,
+        source_years=source_years,
+        mixed_source_years=len(source_years) > 1,
+        source_notes=source_notes,
     )

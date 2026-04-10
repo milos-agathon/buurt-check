@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
@@ -52,6 +52,28 @@ function runNodeScript(scriptPath) {
   });
 }
 
+async function withoutLegacyWoff(buildStep) {
+  const publicDir = resolve(process.cwd(), 'public', 'fonts');
+  const legacyWoff = resolve(publicDir, 'Satoshi-Variable.woff');
+  const stashDir = resolve(process.cwd(), '.build-temp');
+  const stashedWoff = resolve(stashDir, 'Satoshi-Variable.woff');
+
+  const hadLegacyWoff = existsSync(legacyWoff);
+  if (hadLegacyWoff) {
+    mkdirSync(stashDir, { recursive: true });
+    rmSync(stashedWoff, { force: true });
+    renameSync(legacyWoff, stashedWoff);
+  }
+
+  try {
+    await buildStep();
+  } finally {
+    if (existsSync(stashedWoff)) {
+      renameSync(stashedWoff, legacyWoff);
+    }
+  }
+}
+
 async function main() {
   await runNpm(['exec', '--', 'tsc', '-b']);
 
@@ -62,7 +84,9 @@ async function main() {
 
   // Prevent esbuild OOM crashes seen on constrained Windows hosts.
   const goMaxProcs = process.env.GOMAXPROCS ?? '1';
-  await runNpm(['exec', '--', 'vite', 'build'], { GOMAXPROCS: goMaxProcs });
+  await withoutLegacyWoff(async () => {
+    await runNpm(['exec', '--', 'vite', 'build'], { GOMAXPROCS: goMaxProcs });
+  });
 }
 
 main().catch((error) => {

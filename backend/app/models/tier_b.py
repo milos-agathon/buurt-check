@@ -8,9 +8,14 @@ class CrimeStatsCard(BaseModel):
     area_code: str | None = None
     area_name: str | None = None
     population: float | None = None
+    population_source: str | None = None
     population_year: int | None = None
+    population_is_estimate: bool | None = None
     total_per_1000: float | None = None
     national_per_1000: float | None = None
+    national_population_source: str | None = None
+    national_population_year: int | None = None
+    national_population_is_estimate: bool | None = None
     burglary_per_1000: float | None = None
     violent_per_1000: float | None = None
     yearly_period: str | None = None

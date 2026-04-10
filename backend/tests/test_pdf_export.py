@@ -363,6 +363,28 @@ class TestQuartileIndicators:
         assert pe._format_indicator_text(indicator, is_nl=False) == "1.8"
         assert pe._format_indicator_text(indicator, is_nl=True) == "1,8"
 
+    def test_mixed_year_neighborhood_source_mentions_backfill_fields(self):
+        """Neighborhood source text must disclose older CBS backfilled indicators."""
+        stats = _make_neighborhood_stats()
+        stats.avg_property_value.source_year = 2023
+        stats.distance_to_train_km.source_year = 2023
+
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2000,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            neighborhood_stats=stats,
+        )
+
+        reader = PdfReader(io.BytesIO(result))
+        text = _normalize_pdf_text("\n".join(page.extract_text() or "" for page in reader.pages))
+        assert "Source: CBS Wijken & Buurten 2024" in text
+        assert "2023 backfill for property value and train distance" in text
+
 
 # --- Unit tests: Number formatting locale (E10-S5) ---
 
@@ -1558,6 +1580,43 @@ class TestGenerateFullDossier:
         assert "2023" in all_text
         assert "Source" in all_text
 
+    def test_crime_source_discloses_denominator_years(self):
+        tier_b = TierBResponse(
+            address_id="0363010012345678",
+            crime=CrimeStatsCard(
+                total_per_1000=30.0,
+                national_per_1000=52.0,
+                population_year=2024,
+                population_is_estimate=False,
+                national_population_year=2025,
+                national_population_is_estimate=True,
+                yearly_period="2025JJ00",
+                score=75,
+                severity="good",
+                meaning_en=(
+                    "Low crime area (30.0/1,000 residents) — below the current "
+                    "national comparison"
+                ),
+                source="CBS",
+                source_date="2025",
+            ),
+        )
+        result = generate_full_dossier(
+            address="Test",
+            building_year=2000,
+            building_use=None,
+            risks=_make_risks(),
+            sunlight_score=75,
+            viewing_questions=None,
+            language="en",
+            tier_b=tier_b,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        all_text = _normalize_pdf_text("\n".join(p.extract_text() or "" for p in reader.pages))
+        assert "crime period 2025" in all_text
+        assert "local population 2024" in all_text
+        assert "national population estimate 2025" in all_text
+
     def test_unavailable_neighborhood_indicators(self):
         """Stats with unavailable indicators render dash."""
         stats = NeighborhoodStats(
@@ -1894,7 +1953,7 @@ class TestComparisonChartScaleCaptionCallsites:
 
         assert calls["count"] >= 1
 
-    def test_livability_chart_calls_scale_caption_helper(
+    def test_livability_section_does_not_use_score_scale_caption(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ):
@@ -1910,7 +1969,7 @@ class TestComparisonChartScaleCaptionCallsites:
 
         _draw_livability_section(pdf, _make_livability(), is_nl=False)
 
-        assert calls["count"] == 1
+        assert calls["count"] == 0
 
 
 def _norm(text: str) -> str:
@@ -2112,6 +2171,39 @@ class TestPropertyWarningsPdfSections:
             )
         )
         assert "Moderate foundation risk" in text
+
+    def test_foundation_year_only_fallback_caveat_appears(self):
+        """Year-only foundation fallback must be disclosed in the PDF."""
+        warnings = PropertyWarningsResponse(
+            address_id="0363010012345678",
+            attention_summary=AttentionSummary(
+                flag_count=0, flags=[],
+                risk_categories_assessed=0,
+            ),
+            foundation_risk=FoundationRisk(
+                level="low",
+                construction_year=2005,
+                messages=["FOUNDATION_NO_SOIL_DATA", "FOUNDATION_YEAR_ONLY"],
+            ),
+            erfpacht=ErfpachtWarning(detected=False),
+            vve=VvEInfo(is_apartment=False),
+            asbestos=AsbestosWarning(flagged=False),
+            lead_pipe=LeadPipeWarning(flagged=False),
+        )
+        result = generate_full_dossier(
+            address="Test 1, Amsterdam",
+            building_year=2005,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            property_warnings_data=warnings,
+        )
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
+        assert "Year-only fallback" in text
+        assert "BAG construction year fallback" in text
 
     def test_erfpacht_detected(self):
         """Erfpacht detected renders municipality."""
@@ -2414,7 +2506,7 @@ class TestPropertyWarningsPdfSections:
         assert "VvE" in text
         assert "Asbestbewustzijn" in text
         assert "Loden leidingen" in text
-        assert "BRO bodemdata + Klimaateffectatlas" in text
+        assert "BRO-bodemdata + Klimaateffectatlas bodemdaling" in text
         assert "Gemeentelijke erfpachtlijst" in text
         assert "BAG verblijfsobjecten" in text
 
@@ -4240,22 +4332,32 @@ def _make_livability_dimensions() -> list[LivabilityDimension]:
     return [
         LivabilityDimension(
             name="physical", raw_score=6, normalized_score=63,
+            class_label="above average",
+            deviation=0.4,
             label_code="livability.dimension.physical",
         ),
         LivabilityDimension(
             name="safety", raw_score=7, normalized_score=75,
+            class_label="good",
+            deviation=0.8,
             label_code="livability.dimension.safety",
         ),
         LivabilityDimension(
             name="social", raw_score=5, normalized_score=50,
+            class_label="around average",
+            deviation=0.0,
             label_code="livability.dimension.social",
         ),
         LivabilityDimension(
             name="amenities", raw_score=8, normalized_score=88,
+            class_label="very good",
+            deviation=1.6,
             label_code="livability.dimension.amenities",
         ),
         LivabilityDimension(
             name="housing", raw_score=4, normalized_score=38,
+            class_label="below average",
+            deviation=-0.7,
             label_code="livability.dimension.housing",
         ),
     ]
@@ -4263,29 +4365,42 @@ def _make_livability_dimensions() -> list[LivabilityDimension]:
 
 def _make_livability(
     *,
-    overall_normalized: int = 62,
+    overall_score: int | None = None,
+    overall_normalized: int | None = None,
     with_trend: bool = True,
     with_comparison: bool = True,
     with_dimensions: bool = True,
 ) -> LivabilityResponse:
     """Build a LivabilityResponse for tests."""
+    if overall_score is None:
+        if overall_normalized is None:
+            overall_score = 6
+        else:
+            overall_score = max(1, min(9, round((overall_normalized / 100) * 8 + 1)))
+    if overall_normalized is None:
+        overall_normalized = round((overall_score - 1) / 8 * 100)
+
     trend = []
     if with_trend:
         trend = [
             LivabilityTrendPoint(
                 year="2002", overall_score=4, overall_normalized=38,
+                overall_class=4, overall_class_label="below average", overall_deviation=-0.9,
                 dimensions=[],
             ),
             LivabilityTrendPoint(
                 year="2014", overall_score=5, overall_normalized=50,
+                overall_class=5, overall_class_label="around average", overall_deviation=0.0,
                 dimensions=[],
             ),
             LivabilityTrendPoint(
                 year="2020", overall_score=6, overall_normalized=63,
+                overall_class=6, overall_class_label="above average", overall_deviation=0.3,
                 dimensions=[],
             ),
             LivabilityTrendPoint(
                 year="2024", overall_score=6, overall_normalized=62,
+                overall_class=6, overall_class_label="above average", overall_deviation=0.2,
                 dimensions=[],
             ),
         ]
@@ -4295,11 +4410,13 @@ def _make_livability(
             LivabilityComparisonRow(
                 level="wijk", name="Centrum-West",
                 overall_score=6, overall_normalized=63,
+                overall_class=6, overall_class_label="above average", overall_deviation=0.4,
                 dimensions=[],
             ),
             LivabilityComparisonRow(
                 level="gemeente", name="Amsterdam",
                 overall_score=5, overall_normalized=50,
+                overall_class=5, overall_class_label="around average", overall_deviation=0.0,
                 dimensions=[],
             ),
         ]
@@ -4309,8 +4426,11 @@ def _make_livability(
         buurt_name="Grachtengordel-West",
         gemeente="Amsterdam",
         year="2024",
-        overall_score=6,
+        overall_score=overall_score,
         overall_normalized=overall_normalized,
+        overall_class=overall_score,
+        overall_class_label="above average" if overall_score == 6 else None,
+        overall_deviation=0.2 if overall_score == 6 else None,
         dimensions=_make_livability_dimensions() if with_dimensions else [],
         trend=trend,
         comparison=comparison,
@@ -4519,11 +4639,11 @@ class TestDrawLivabilitySection:
         output = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(output))
         text = "".join(page.extract_text() or "" for page in reader.pages)
-        assert "Fysiek" in text
+        assert "Fysieke omgeving" in text
         assert "Veiligheid" in text
-        assert "Sociaal" in text
+        assert "Sociale samenhang" in text
         assert "Voorzieningen" in text
-        assert "Woningen" in text
+        assert "Woningkwaliteit" in text
 
     def test_source_attribution_en(self):
         pdf = BuurtCheckPDF(language="en")
@@ -4610,8 +4730,8 @@ class TestDrawLivabilitySection:
         reader = PdfReader(io.BytesIO(output))
         text = "".join(page.extract_text() or "" for page in reader.pages)
 
-        assert "same normalized score" in text
-        assert "instead of a chart" in text
+        assert "same livability class" in text
+        assert "summarized in text" in text
 
 
 class TestFullDossierWithLivability:
@@ -4691,8 +4811,8 @@ class TestFullDossierWithLivability:
         all_text = "".join(p.extract_text() or "" for p in reader.pages)
         assert "Livability Score" not in all_text
 
-    def test_livability_severity_labels_correct(self):
-        """Score 62 should display 'Moderate' severity."""
+    def test_livability_class_band_renders(self):
+        """Overall livability renders as a class band, not a severity bucket."""
         result = generate_full_dossier(
             address="Test",
             building_year=None,
@@ -4701,14 +4821,15 @@ class TestFullDossierWithLivability:
             sunlight_score=None,
             viewing_questions=None,
             language="en",
-            livability=_make_livability(overall_normalized=62),
+            livability=_make_livability(overall_score=5),
         )
         reader = PdfReader(io.BytesIO(result))
         all_text = "".join(p.extract_text() or "" for p in reader.pages)
-        assert "Moderate" in all_text
+        assert "Class 5" in all_text
+        assert "Around Average" in all_text
 
-    def test_livability_good_severity(self):
-        """Score 80 should display 'Good' severity."""
+    def test_livability_dimension_zero_deviation_is_neutral(self):
+        """Class 5 with zero deviation is described as around average, not 50/100."""
         result = generate_full_dossier(
             address="Test",
             building_year=None,
@@ -4717,11 +4838,13 @@ class TestFullDossierWithLivability:
             sunlight_score=None,
             viewing_questions=None,
             language="en",
-            livability=_make_livability(overall_normalized=80),
+            livability=_make_livability(overall_score=6),
         )
         reader = PdfReader(io.BytesIO(result))
         all_text = "".join(p.extract_text() or "" for p in reader.pages)
-        assert "Good" in all_text
+        assert "Class 5" in all_text
+        assert "around national average (0.0)" in all_text.lower()
+        assert "50/100" not in all_text
 
     def test_comparison_chart_shows_levels(self):
         """Comparison section includes wijk and gemeente names."""

@@ -274,6 +274,12 @@ async def test_yearly_period_source_date_is_human_readable():
     assert isinstance(result, CrimeStatsCard)
     assert result.yearly_period == "2025JJ00"
     assert result.source_date == "2025"
+    assert result.population_source == "CBS Wijken & Buurten"
+    assert result.population_year == 2024
+    assert result.population_is_estimate is False
+    assert result.national_population_source == "CBS national population estimate"
+    assert result.national_population_year == 2025
+    assert result.national_population_is_estimate is True
 
 
 @pytest.mark.asyncio
@@ -290,7 +296,9 @@ async def test_buurt_scope_uses_buurt_population_denominator():
     assert result.area_code == "BU0363AD07"
     assert result.area_name == "Testbuurt"
     assert result.population == 5000.0
+    assert result.population_source == "CBS Wijken & Buurten"
     assert result.population_year == 2024
+    assert result.population_is_estimate is False
     assert result.total_count == 50.0
     assert result.total_per_1000 == 10.0
 
@@ -315,10 +323,15 @@ async def test_municipality_fallback_uses_municipality_population_denominator():
     assert result.area_code == "GM0537"
     assert result.area_name == "Delft"
     assert result.population == 100000.0
+    assert result.population_source == "CBS Wijken & Buurten"
     assert result.population_year == 2024
+    assert result.population_is_estimate is False
     assert result.total_count == 100.0
     assert result.total_per_1000 == 1.0
     assert result.total_per_1000 != 20.0
+    assert result.national_population_source == "CBS national population estimate"
+    assert result.national_population_year == 2025
+    assert result.national_population_is_estimate is True
     assert result.message == "CRIME_MUNICIPALITY_LEVEL"
 
 
@@ -340,6 +353,8 @@ async def test_municipality_fallback_without_population_keeps_counts_unscored():
     assert result.area_code == "GM0537"
     assert result.population is None
     assert result.population_year is None
+    assert result.population_source is None
+    assert result.population_is_estimate is None
     assert result.total_count == 100.0
     assert result.total_per_1000 is None
     assert result.score is None

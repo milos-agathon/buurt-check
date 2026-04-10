@@ -289,7 +289,7 @@ class TestAttentionSummary:
             construction_year=2005,
         )
         assert summary.flag_count == 1
-        assert summary.flags[0].severity == "elevated"
+        assert summary.flags[0].severity == "poor"
 
     def test_moderate_risk_not_flagged(self):
         summary = build_attention_summary(
@@ -299,7 +299,8 @@ class TestAttentionSummary:
             is_apartment=False,
             construction_year=2005,
         )
-        assert summary.flag_count == 0
+        assert summary.flag_count == 1
+        assert summary.flags[0].severity == "moderate"
 
     def test_foundation_high_flagged(self):
         summary = build_attention_summary(
@@ -334,7 +335,7 @@ class TestAttentionSummary:
         assert summary.flag_count == 1
         assert summary.flags[0].category == "vve"
 
-    def test_asbestos_flagged_pre_1980(self):
+    def test_asbestos_flagged_pre_1994(self):
         summary = build_attention_summary(
             risk_scores={"noise": 75, "air_quality": 80, "climate": 85, "sunlight": 70},
             foundation_level="low",
@@ -345,8 +346,8 @@ class TestAttentionSummary:
         assert summary.flag_count == 1
         assert summary.flags[0].category == "asbestos"
 
-    def test_asbestos_not_flagged_post_1980_pre_1994(self):
-        """Post-1980 pre-1994 gets asbestos CARD but NOT attention flag."""
+    def test_asbestos_flagged_post_1980_pre_1994(self):
+        """Post-1980 pre-1994 aligns with the asbestos awareness threshold."""
         summary = build_attention_summary(
             risk_scores={"noise": 75, "air_quality": 80, "climate": 85, "sunlight": 70},
             foundation_level="low",
@@ -354,7 +355,39 @@ class TestAttentionSummary:
             is_apartment=False,
             construction_year=1985,
         )
-        assert summary.flag_count == 0
+        assert summary.flag_count == 1
+        assert summary.flags[0].category == "asbestos"
+
+    @pytest.mark.parametrize(
+        ("score", "expected"),
+        [
+            (19, "critical"),
+            (20, "poor"),
+            (39, "poor"),
+            (40, "moderate"),
+            (69, "moderate"),
+            (70, None),
+        ],
+    )
+    def test_attention_summary_uses_canonical_score_boundaries(
+        self,
+        score: int,
+        expected: str | None,
+    ):
+        summary = build_attention_summary(
+            risk_scores={"noise": score},
+            foundation_level="low",
+            erfpacht_detected=False,
+            is_apartment=False,
+            construction_year=2005,
+        )
+
+        if expected is None:
+            assert summary.flag_count == 0
+            return
+
+        assert summary.flag_count == 1
+        assert summary.flags[0].severity == expected
 
     def test_multiple_flags(self):
         summary = build_attention_summary(
@@ -372,6 +405,26 @@ class TestAttentionSummary:
         assert "vve" in categories
         assert "asbestos" in categories
         assert summary.flag_count == 6
+
+    @pytest.mark.asyncio
+    async def test_1985_building_flags_asbestos_in_card_and_attention_summary(self):
+        with patch(
+            "app.services.property_warnings.foundation_risk.get_foundation_risk",
+            new_callable=AsyncMock,
+            return_value=FoundationRisk(level="low", construction_year=1985),
+        ):
+            result = await get_property_warnings(
+                vbo_id="0363200000000001",
+                rd_x=121000.0,
+                rd_y=487000.0,
+                construction_year=1985,
+                num_units=1,
+                municipality=None,
+            )
+
+        assert result.asbestos.flagged is True
+        categories = {f.category for f in result.attention_summary.flags}
+        assert "asbestos" in categories
 
     def test_risk_categories_assessed_counts_non_none(self):
         summary = build_attention_summary(

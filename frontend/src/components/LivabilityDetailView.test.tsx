@@ -13,11 +13,11 @@ beforeEach(async () => {
 
 function makeDimensions(): LivabilityDimension[] {
   return [
-    { name: 'physical', raw_score: 5, normalized_score: 50, label_code: 'livability.dimension.physical' },
-    { name: 'safety', raw_score: 3, normalized_score: 25, label_code: 'livability.dimension.safety' },
-    { name: 'social', raw_score: 7, normalized_score: 75, label_code: 'livability.dimension.social' },
-    { name: 'amenities', raw_score: 9, normalized_score: 100, label_code: 'livability.dimension.amenities' },
-    { name: 'housing', raw_score: 5, normalized_score: 50, label_code: 'livability.dimension.housing' },
+    { name: 'physical', raw_score: 5, normalized_score: 50, class_label: 'around average', deviation: 0.0, label_code: 'livability.dimension.physical' },
+    { name: 'safety', raw_score: 3, normalized_score: 25, class_label: 'fairly low', deviation: -1.1, label_code: 'livability.dimension.safety' },
+    { name: 'social', raw_score: 7, normalized_score: 75, class_label: 'good', deviation: 0.8, label_code: 'livability.dimension.social' },
+    { name: 'amenities', raw_score: 9, normalized_score: 100, class_label: 'excellent', deviation: 2.1, label_code: 'livability.dimension.amenities' },
+    { name: 'housing', raw_score: 5, normalized_score: 50, class_label: 'around average', deviation: 0.1, label_code: 'livability.dimension.housing' },
   ];
 }
 
@@ -30,15 +30,18 @@ function makeData(overrides: Partial<LivabilityAvailableResponse> = {}): Livabil
     year: '2024',
     overall_score: 7,
     overall_normalized: 75,
+    overall_class: 7,
+    overall_class_label: 'good',
+    overall_deviation: 0.8,
     dimensions: makeDimensions(),
     trend: [
-      { year: '2020', overall_score: 6, overall_normalized: 63, dimensions: [] },
-      { year: '2022', overall_score: 7, overall_normalized: 75, dimensions: [] },
-      { year: '2024', overall_score: 8, overall_normalized: 88, dimensions: [] },
+      { year: '2020', overall_score: 6, overall_normalized: 63, overall_class: 6, overall_class_label: 'above average', overall_deviation: 0.4, dimensions: [] },
+      { year: '2022', overall_score: 7, overall_normalized: 75, overall_class: 7, overall_class_label: 'good', overall_deviation: 0.7, dimensions: [] },
+      { year: '2024', overall_score: 8, overall_normalized: 88, overall_class: 8, overall_class_label: 'very good', overall_deviation: 1.3, dimensions: [] },
     ],
     comparison: [
-      { level: 'wijk', name: 'Centrum-West', overall_score: 6, overall_normalized: 63, dimensions: [] },
-      { level: 'gemeente', name: 'Amsterdam', overall_score: 5, overall_normalized: 50, dimensions: [] },
+      { level: 'wijk', name: 'Centrum-West', overall_score: 6, overall_normalized: 63, overall_class: 6, overall_class_label: 'above average', overall_deviation: 0.2, dimensions: [] },
+      { level: 'gemeente', name: 'Amsterdam', overall_score: 5, overall_normalized: 50, overall_class: 5, overall_class_label: 'around average', overall_deviation: 0.0, dimensions: [] },
     ],
     source: 'Leefbaarometer 3.0, Ministerie van BZK',
     messages: [],
@@ -63,7 +66,7 @@ describe('LivabilityDetailView', () => {
   });
 
   it('shows unavailable copy for missing subsection data instead of hiding the section', () => {
-    renderDetail(makeData({ dimensions: [], trend: [{ year: '2024', overall_score: 7, overall_normalized: 75, dimensions: [] }], comparison: [] }));
+    renderDetail(makeData({ dimensions: [], trend: [{ year: '2024', overall_score: 7, overall_normalized: 75, overall_class: 7, dimensions: [] }], comparison: [] }));
 
     expect(screen.getByText('Dimension scores are unavailable for this location.')).toBeInTheDocument();
     expect(screen.getByText('Trend data is unavailable for this location.')).toBeInTheDocument();
@@ -80,12 +83,28 @@ describe('LivabilityDetailView', () => {
     const dims = makeDimensions();
     renderDetail(makeData({
       trend: [
-        { year: '2020', overall_score: 6, overall_normalized: 63, dimensions: dims.map((dim) => ({ ...dim, normalized_score: dim.normalized_score - 10 })) },
-        { year: '2024', overall_score: 8, overall_normalized: 88, dimensions: dims },
+        { year: '2020', overall_score: 6, overall_normalized: 63, overall_class: 6, dimensions: dims.map((dim) => ({ ...dim, normalized_score: dim.normalized_score - 10 })) },
+        { year: '2024', overall_score: 8, overall_normalized: 88, overall_class: 8, dimensions: dims },
       ],
     }));
 
     expect(screen.getByTestId('livability-detail-dim-trends').querySelectorAll('.livability-detail__dim-trend-row')).toHaveLength(5);
+  });
+
+  it('renders municipality legend for gemeente rows instead of NL average', () => {
+    renderDetail(makeData());
+
+    const legend = screen.getByTestId('livability-comparison-legend');
+    expect(legend).toHaveTextContent('District');
+    expect(legend).toHaveTextContent('Municipality');
+    expect(legend).not.toHaveTextContent('NL avg.');
+  });
+
+  it('describes class 5 dimensions as around average instead of 50/100', () => {
+    renderDetail(makeData());
+
+    expect(screen.getByText('Around national average (+0.0)')).toBeInTheDocument();
+    expect(screen.queryByText('50/100')).not.toBeInTheDocument();
   });
 
   it('calls onClose when back button pressed', () => {

@@ -4,9 +4,11 @@ from app.services.scoring import (
     SeverityLevel,
     air_summary,
     climate_summary,
+    crime_summary,
     noise_summary,
     normalize_air_score,
     normalize_climate_score,
+    normalize_crime_score,
     normalize_noise_score,
     normalize_sunlight_score,
     severity_from_score,
@@ -437,3 +439,17 @@ class TestScoringPipeline:
         assert sev == SeverityLevel.poor
         en, nl = sunlight_summary(score, hours)
         assert "1.5" in en
+
+
+class TestCrimeSummary:
+    def test_summary_uses_national_comparison_only_when_supplied(self):
+        score = normalize_crime_score(25.0)
+        assert score is not None
+
+        en_without, nl_without = crime_summary(score, 25.0)
+        assert "national" not in en_without.lower()
+        assert "landelijk" not in nl_without.lower()
+
+        en_with, nl_with = crime_summary(score, 25.0, 52.0)
+        assert "current national comparison" in en_with
+        assert "huidige landelijke vergelijking" in nl_with

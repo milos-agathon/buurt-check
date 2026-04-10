@@ -8,6 +8,8 @@ Field mapping (verified live 2026-02-15):
   - kscore: overall score (1-9)
   - kfys: physical environment, konv: safety, ksoc: social cohesion,
     kvrz: amenities, kwon: housing quality
+  - afw: overall deviation from national average
+  - fys, onv, soc, vrz, won: per-dimension deviations from national average
 """
 from __future__ import annotations
 
@@ -35,13 +37,31 @@ _client = LoopAwareClient(timeout=httpx.Timeout(5.0, connect=3.0))
 # 9 selected for trend — skipping 04, 06, 10 (earlier methodology, less comparable).
 HISTORICAL_YEARS = ["02", "08", "12", "14", "16", "18", "20", "22", "24"]
 
-DIMENSION_MAP: list[tuple[str, Literal["physical", "safety", "social", "amenities", "housing"]]] = [
-    ("kfys", "physical"),
-    ("konv", "safety"),
-    ("ksoc", "social"),
-    ("kvrz", "amenities"),
-    ("kwon", "housing"),
+DIMENSION_MAP: list[
+    tuple[
+        str,
+        str,
+        Literal["physical", "safety", "social", "amenities", "housing"],
+    ]
+] = [
+    ("kfys", "fys", "physical"),
+    ("konv", "onv", "safety"),
+    ("ksoc", "soc", "social"),
+    ("kvrz", "vrz", "amenities"),
+    ("kwon", "won", "housing"),
 ]
+
+_CLASS_LABELS = {
+    1: "very low",
+    2: "low",
+    3: "fairly low",
+    4: "below average",
+    5: "around average",
+    6: "above average",
+    7: "good",
+    8: "very good",
+    9: "excellent",
+}
 
 
 def _normalize_score(raw: int) -> int:
@@ -59,17 +79,34 @@ def _safe_int(value: object) -> int | None:
         return None
 
 
+def _safe_float(value: object) -> float | None:
+    """Safely cast a WFS property value to float. Returns None for non-numeric."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _class_label(raw: int) -> str:
+    """Return a stable English band label for Leefbaarometer classes 1-9."""
+    return _CLASS_LABELS.get(raw, str(raw))
+
+
 def _parse_dimensions(props: dict) -> list[LivabilityDimension]:
     """Extract 5 dimensions from WFS feature properties."""
     dims = []
-    for field, name in DIMENSION_MAP:
-        raw = props.get(field)
+    for class_field, deviation_field, name in DIMENSION_MAP:
+        raw = props.get(class_field)
         raw_int = _safe_int(raw)
         if raw_int is not None:
             dims.append(LivabilityDimension(
                 name=name,
                 raw_score=raw_int,
                 normalized_score=_normalize_score(raw_int),
+                class_label=_class_label(raw_int),
+                deviation=_safe_float(props.get(deviation_field)),
                 label_code=f"livability.dimension.{name}",
             ))
     return dims
@@ -129,6 +166,9 @@ async def get_livability(rd_x: float, rd_y: float) -> LivabilityResponse | None:
         year=str(props.get("year", "2024")),
         overall_score=kscore_int,
         overall_normalized=_normalize_score(kscore_int),
+        overall_class=kscore_int,
+        overall_class_label=_class_label(kscore_int),
+        overall_deviation=_safe_float(props.get("afw")),
         dimensions=_parse_dimensions(props),
         source_date=str(props.get("year", "")),
     )
@@ -148,6 +188,9 @@ async def _fetch_year(
         year=str(props.get("year", f"20{year_suffix}")),
         overall_score=kscore_int,
         overall_normalized=_normalize_score(kscore_int),
+        overall_class=kscore_int,
+        overall_class_label=_class_label(kscore_int),
+        overall_deviation=_safe_float(props.get("afw")),
         dimensions=_parse_dimensions(props),
     )
 
@@ -181,6 +224,9 @@ async def _fetch_comparison_row(
         name=str(props.get("name", "")),
         overall_score=kscore_int,
         overall_normalized=_normalize_score(kscore_int),
+        overall_class=kscore_int,
+        overall_class_label=_class_label(kscore_int),
+        overall_deviation=_safe_float(props.get("afw")),
         dimensions=_parse_dimensions(props),
     )
 

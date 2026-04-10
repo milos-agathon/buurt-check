@@ -2,6 +2,18 @@ import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import useFocusTrap from '../hooks/useFocusTrap';
 import type { LivabilityAvailableResponse } from '../types/api';
+import {
+  describeLivabilityDeviation,
+  formatLivabilityClass,
+  getLivabilityClassBarPercent,
+  getLivabilityClassLabel,
+  getLivabilityClassValue,
+  getLivabilityComparisonClassValue,
+  getLivabilityDeviationVisual,
+  getLivabilityDimensionClassValue,
+  getLivabilityTrendClassValue,
+  livabilityLegendKey,
+} from '../utils/livabilitySemantics';
 import './LivabilityDetailView.css';
 
 interface Props {
@@ -9,21 +21,8 @@ interface Props {
   onClose: () => void;
 }
 
-function scoreSeverity(normalized: number): string {
-  if (normalized >= 70) return 'good';
-  if (normalized >= 40) return 'moderate';
-  if (normalized >= 20) return 'poor';
-  return 'critical';
-}
-
-function levelToColorKey(level: string): 'address' | 'city' | 'nl' {
-  if (level === 'buurt') return 'address';
-  if (level === 'wijk') return 'city';
-  return 'nl';
-}
-
 export default function LivabilityDetailView({ data, onClose }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useFocusTrap({
@@ -33,7 +32,19 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
     initialFocusSelector: '.livability-detail__back',
   });
 
-  const severity = scoreSeverity(data.overall_normalized);
+  const language = i18n.resolvedLanguage ?? i18n.language;
+  const overallClass = getLivabilityClassValue(data);
+  const overallClassText = formatLivabilityClass(overallClass, t);
+  const overallClassLabel = getLivabilityClassLabel(
+    overallClass,
+    t,
+    data.overall_class_label,
+  );
+  const overallDeviationText = describeLivabilityDeviation(
+    data.overall_deviation,
+    t,
+    language,
+  );
 
   // Check if any trend point has per-dimension data
   const hasDimensionTrends = data.trend.length > 1 &&
@@ -58,10 +69,11 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
       <div className="livability-detail__content">
         {/* Overall score */}
         <div className="livability-detail__score-section">
-          <div className={`livability-detail__score livability-detail__score--${severity}`}>
-            {data.overall_normalized}
-            <span className="livability-detail__score-scale" aria-hidden="true">{t('score.scale', '/100')}</span>
-          </div>
+          <div className="livability-detail__score">{overallClassText}</div>
+          <p className="livability-detail__score-band">{overallClassLabel}</p>
+          <p className="livability-detail__score-meta">
+            {overallDeviationText ?? t('livability.deviationUnavailable')}
+          </p>
           <p className="livability-detail__score-label">
             {data.buurt_name}, {data.gemeente}
           </p>
@@ -73,19 +85,31 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
           {data.dimensions.length > 0 ? (
             <div className="livability-detail__dimensions">
               {data.dimensions.map((dim) => {
-                const dimSev = scoreSeverity(dim.normalized_score);
+                const classValue = getLivabilityDimensionClassValue(dim);
+                const classText = formatLivabilityClass(classValue, t);
+                const classLabel = getLivabilityClassLabel(classValue, t, dim.class_label);
+                const deviationText = describeLivabilityDeviation(dim.deviation, t, language);
+                const deviationVisual = getLivabilityDeviationVisual(dim.deviation);
                 return (
                   <div className="livability-detail__dim-row" key={dim.name}>
-                    <span className="livability-detail__dim-label">
-                      {t(dim.label_code, dim.name)}
-                    </span>
-                    <div className="livability-detail__dim-track">
-                      <div
-                        className={`livability-detail__dim-fill livability-detail__dim-fill--${dimSev}`}
-                        style={{ width: `${dim.normalized_score}%` }}
-                      />
+                    <div className="livability-detail__dim-copy">
+                      <span className="livability-detail__dim-label">
+                        {t(dim.label_code, dim.name)}
+                      </span>
+                      <span className="livability-detail__dim-meta">
+                        {deviationText ?? classLabel}
+                      </span>
                     </div>
-                    <span className="livability-detail__dim-value">{dim.normalized_score}</span>
+                    <div className="livability-detail__dim-track" aria-hidden="true">
+                      <span className="livability-detail__dim-axis" />
+                      {deviationVisual ? (
+                        <span
+                          className={`livability-detail__dim-fill livability-detail__dim-fill--${deviationVisual.tone}`}
+                          style={{ left: deviationVisual.left, width: deviationVisual.width }}
+                        />
+                      ) : null}
+                    </div>
+                    <span className="livability-detail__dim-value">{classText}</span>
                   </div>
                 );
               })}
@@ -100,16 +124,16 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
           {data.trend.length > 1 ? (
             <div className="livability-detail__trend-chart">
               {data.trend.map((point) => {
-                const barSev = scoreSeverity(point.overall_normalized);
+                const classValue = getLivabilityTrendClassValue(point);
                 return (
                   <div className="livability-detail__trend-col" key={point.year}>
                     <div className="livability-detail__trend-bar-wrapper">
                       <div
-                        className={`livability-detail__trend-bar livability-detail__trend-bar--${barSev}`}
-                        style={{ height: `${Math.max(10, point.overall_normalized)}%` }}
+                        className="livability-detail__trend-bar"
+                        style={{ height: `${getLivabilityClassBarPercent(classValue)}%` }}
                       />
                     </div>
-                    <span className="livability-detail__trend-value">{point.overall_normalized}</span>
+                    <span className="livability-detail__trend-value">{classValue}</span>
                     <span className="livability-detail__trend-year">{point.year}</span>
                   </div>
                 );
@@ -141,14 +165,14 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
                           </div>
                         );
                       }
-                      const barSev = scoreSeverity(dim.normalized_score);
+                      const classValue = getLivabilityDimensionClassValue(dim);
                       return (
                         <div
-                          className={`livability-detail__dim-trend-bar livability-detail__dim-trend-bar--${barSev}`}
-                          style={{ height: `${Math.max(10, dim.normalized_score)}%` }}
+                          className="livability-detail__dim-trend-bar"
+                          style={{ height: `${getLivabilityClassBarPercent(classValue)}%` }}
                           key={point.year}
                           role="img"
-                          aria-label={`${point.year}: ${dim.normalized_score}`}
+                          aria-label={`${point.year}: ${formatLivabilityClass(classValue, t)}`}
                         />
                       );
                     })}
@@ -167,8 +191,8 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
           {data.comparison.length > 0 ? (
             <>
               <div className="livability-detail__legend" data-testid="livability-comparison-legend">
-                {(['address', 'city', 'nl'] as const)
-                  .filter((key) => data.comparison.some((r) => levelToColorKey(r.level) === key))
+                {(['address', 'district', 'municipality', 'national'] as const)
+                  .filter((key) => data.comparison.some((r) => livabilityLegendKey(r.level) === key))
                   .map((key) => (
                     <span key={key} className="livability-detail__legend-item">
                       <span className={`livability-detail__legend-dot livability-detail__legend-dot--${key}`} />
@@ -178,23 +202,26 @@ export default function LivabilityDetailView({ data, onClose }: Props) {
               </div>
               <div className="livability-detail__comparisons">
                 {data.comparison.map((row) => {
-                  const colorKey = levelToColorKey(row.level);
+                  const colorKey = livabilityLegendKey(row.level);
+                  const classValue = getLivabilityComparisonClassValue(row);
                   return (
-                    <div className="livability-detail__cmp-row" key={row.level}>
+                    <div className="livability-detail__cmp-row" key={`${row.level}-${row.name}`}>
                       <span className="livability-detail__cmp-label">{row.name}</span>
                       <div className="livability-detail__cmp-track">
                         <div
                           className={`livability-detail__cmp-fill livability-detail__cmp-fill--${colorKey}`}
-                          style={{ width: `${row.overall_normalized}%` }}
+                          style={{ width: `${getLivabilityClassBarPercent(classValue)}%` }}
                         />
                       </div>
-                      <span className="livability-detail__cmp-value">{row.overall_normalized}</span>
+                      <span className="livability-detail__cmp-value">
+                        {formatLivabilityClass(classValue, t)}
+                      </span>
                     </div>
                   );
                 })}
               </div>
               <p className="livability-detail__directionality" data-testid="livability-comparison-directionality">
-                {t('compare.legend.higher_is_better')}
+                {t('livability.higherClassBetter')}
               </p>
             </>
           ) : (

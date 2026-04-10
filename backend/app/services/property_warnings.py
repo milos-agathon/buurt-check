@@ -14,6 +14,7 @@ from app.models.property_warnings import (
     VvEInfo,
 )
 from app.services import bag, foundation_risk
+from app.services.scoring import severity_from_score
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,6 @@ def build_attention_summary(
     """Build attention summary from all available signals."""
     flags: list[AttentionFlag] = []
 
-    # Risk scores: flag critical (<30) and poor (<50)
     category_labels = {
         "noise": "noise risk",
         "air_quality": "air quality risk",
@@ -37,34 +37,33 @@ def build_attention_summary(
         "climate_stress": "climate stress risk",
         "sunlight": "sunlight risk",
     }
+    severity_labels = {
+        "critical": "Critical",
+        "poor": "Poor",
+        "moderate": "Moderate",
+    }
     assessed = 0
     for cat, score in risk_scores.items():
         if score is None:
             continue
         assessed += 1
-        if score < 30:
-            flags.append(
-                AttentionFlag(
-                    category=cat,
-                    severity="critical",
-                    label=f"Critical {category_labels.get(cat, cat)}",
-                )
+        severity = severity_from_score(score).value
+        if severity == "good":
+            continue
+        flags.append(
+            AttentionFlag(
+                category=cat,
+                severity=severity,
+                label=f"{severity_labels[severity]} {category_labels.get(cat, cat)}",
             )
-        elif score < 50:
-            flags.append(
-                AttentionFlag(
-                    category=cat,
-                    severity="elevated",
-                    label=f"Elevated {category_labels.get(cat, cat)}",
-                )
-            )
+        )
 
     # Foundation risk
     if foundation_level == "high":
         flags.append(
             AttentionFlag(
                 category="foundation",
-                severity="high",
+                severity="poor",
                 label="High foundation risk",
             )
         )
@@ -72,7 +71,7 @@ def build_attention_summary(
         flags.append(
             AttentionFlag(
                 category="foundation",
-                severity="medium",
+                severity="moderate",
                 label="Foundation risk needs verification",
             )
         )
@@ -97,13 +96,13 @@ def build_attention_summary(
             )
         )
 
-    # Asbestos — flagged only for pre-1980 (extensive structural use)
-    if construction_year is not None and construction_year < 1980:
+    # Asbestos awareness follows the same pre-1994 era threshold as the main card.
+    if construction_year is not None and construction_year < 1994:
         flags.append(
             AttentionFlag(
                 category="asbestos",
                 severity="info",
-                label="Pre-1980 building — asbestos risk in structural materials",
+                label="Pre-1994 building — asbestos awareness",
             )
         )
 

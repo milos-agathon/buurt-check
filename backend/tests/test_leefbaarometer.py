@@ -35,11 +35,17 @@ MOCK_BUURT_RESPONSE = {
                 "scale": "buurt",
                 "year": "2024",
                 "kscore": 9,
+                "afw": 1.6,
                 "kfys": 5,
+                "fys": 0.0,
                 "konv": 3,
+                "onv": -1.2,
                 "ksoc": 3,
+                "soc": -0.9,
                 "kvrz": 9,
+                "vrz": 2.1,
                 "kwon": 5,
+                "won": 0.2,
             },
         }
     ],
@@ -68,11 +74,17 @@ MOCK_WIJK_RESPONSE = {
                 "scale": "wijk",
                 "year": "2024",
                 "kscore": 7,
+                "afw": 0.7,
                 "kfys": 4,
+                "fys": -0.2,
                 "konv": 3,
+                "onv": -0.8,
                 "ksoc": 4,
+                "soc": -0.3,
                 "kvrz": 8,
+                "vrz": 1.5,
                 "kwon": 5,
+                "won": 0.1,
             },
         }
     ],
@@ -91,11 +103,17 @@ MOCK_GEMEENTE_RESPONSE = {
                 "scale": "gemeente",
                 "year": "2024",
                 "kscore": 6,
+                "afw": 0.3,
                 "kfys": 5,
+                "fys": 0.1,
                 "konv": 4,
+                "onv": -0.4,
                 "ksoc": 5,
+                "soc": 0.0,
                 "kvrz": 7,
+                "vrz": 0.9,
                 "kwon": 4,
+                "won": -0.2,
             },
         }
     ],
@@ -153,6 +171,26 @@ async def test_livability_field_mapping():
     phys = next((d for d in result.dimensions if d.name == "physical"), None)
     assert phys is not None
     assert phys.raw_score == 5
+
+
+@pytest.mark.asyncio
+async def test_livability_carries_class_labels_and_deviations():
+    """Class integers and deviation-from-average fields are preserved."""
+    mock_resp = _make_mock_response(MOCK_BUURT_RESPONSE)
+    mock_cl = _mock_client(mock_resp)
+
+    with patch("app.services.leefbaarometer._client") as m:
+        m.get.return_value = mock_cl
+        result = await get_livability(121000, 487000)
+
+    assert result is not None
+    assert result.overall_class == 9
+    assert result.overall_class_label == "excellent"
+    assert result.overall_deviation == pytest.approx(1.6)
+
+    physical = next(d for d in result.dimensions if d.name == "physical")
+    assert physical.class_label == "around average"
+    assert physical.deviation == pytest.approx(0.0)
 
 
 @pytest.mark.asyncio

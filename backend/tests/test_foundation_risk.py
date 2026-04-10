@@ -111,6 +111,26 @@ class TestFallbackClassification:
         assert level == "medium"
         assert msg == "FOUNDATION_SOFT_SOIL_CITY"
 
+    def test_pre_1970_utrecht_soft_soil_fallback_high(self):
+        level, msg = _classify_foundation_risk(1955, None, None, "Utrecht")
+        assert level == "high"
+        assert msg == "FOUNDATION_SOFT_SOIL_CITY"
+
+    def test_transition_utrecht_soft_soil_fallback_medium(self):
+        level, msg = _classify_foundation_risk(1980, None, None, "Utrecht")
+        assert level == "medium"
+        assert msg == "FOUNDATION_SOFT_SOIL_CITY"
+
+    def test_pre_1970_den_haag_soft_soil_fallback_high(self):
+        level, msg = _classify_foundation_risk(1955, None, None, "Den Haag")
+        assert level == "high"
+        assert msg == "FOUNDATION_SOFT_SOIL_CITY"
+
+    def test_transition_den_haag_soft_soil_fallback_medium(self):
+        level, msg = _classify_foundation_risk(1980, None, None, "Den Haag")
+        assert level == "medium"
+        assert msg == "FOUNDATION_SOFT_SOIL_CITY"
+
     def test_transition_non_soft_city_low(self):
         level, msg = _classify_foundation_risk(1980, None, None, "Eindhoven")
         assert level == "low"

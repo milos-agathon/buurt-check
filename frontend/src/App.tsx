@@ -3853,7 +3853,7 @@ function App() {
     const sources: Array<{
       key: string;
       status: SourceFetchStatus;
-      date?: string | number | null;
+      date?: string | number | Array<string | number> | null;
     }> = [
       {
         key: 'building',
@@ -3900,7 +3900,9 @@ function App() {
           neighborhoodStatsLoading,
           neighborhoodStatsError,
         ),
-        date: neighborhoodStats?.source_year ?? null,
+        date: neighborhoodStats?.source_years?.length
+          ? neighborhoodStats.source_years
+          : neighborhoodStats?.source_year ?? null,
       },
       {
         key: 'tierB',
@@ -3928,9 +3930,12 @@ function App() {
     const loaded = enabled.filter((source) => source.status === 'success').length;
     const failed = enabled.filter((source) => source.status === 'error').length;
 
-    const parsedDates = enabled
-      .map((source) => parseSourceDateValue(source.date))
-      .filter((value): value is ParsedSourceDate => value != null);
+    const parsedDates = enabled.flatMap((source) => {
+      const dates = Array.isArray(source.date) ? source.date : [source.date];
+      return dates
+        .map((date) => parseSourceDateValue(date))
+        .filter((value): value is ParsedSourceDate => value != null);
+    });
 
     let newest: ParsedSourceDate | null = null;
     let oldest: ParsedSourceDate | null = null;

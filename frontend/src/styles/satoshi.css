@@ -1,12 +1,11 @@
 /* Satoshi Variable font — locally served from /public/fonts
    Variable font supports full weight range 300-900 in a single file.
-   WOFF2 primary (Brotli compressed), WOFF fallback for legacy browsers. */
+   WOFF2-only to keep the shipped app bundle within the runtime budget. */
 
 @font-face {
   font-family: 'Satoshi';
   src: local('Satoshi Variable'),
-       url('/fonts/Satoshi-Variable.woff2') format('woff2'),
-       url('/fonts/Satoshi-Variable.woff') format('woff');
+       url('/fonts/Satoshi-Variable.woff2') format('woff2');
   font-weight: 300 900;
   font-style: normal;
   font-display: swap;

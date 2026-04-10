@@ -13,11 +13,11 @@ beforeEach(async () => {
 
 function makeDimensions(): LivabilityDimension[] {
   return [
-    { name: 'physical', raw_score: 5, normalized_score: 50, label_code: 'livability.dimension.physical' },
-    { name: 'safety', raw_score: 3, normalized_score: 25, label_code: 'livability.dimension.safety' },
-    { name: 'social', raw_score: 7, normalized_score: 75, label_code: 'livability.dimension.social' },
-    { name: 'amenities', raw_score: 9, normalized_score: 100, label_code: 'livability.dimension.amenities' },
-    { name: 'housing', raw_score: 5, normalized_score: 50, label_code: 'livability.dimension.housing' },
+    { name: 'physical', raw_score: 5, normalized_score: 50, class_label: 'around average', deviation: 0.0, label_code: 'livability.dimension.physical' },
+    { name: 'safety', raw_score: 3, normalized_score: 25, class_label: 'fairly low', deviation: -1.1, label_code: 'livability.dimension.safety' },
+    { name: 'social', raw_score: 7, normalized_score: 75, class_label: 'good', deviation: 0.8, label_code: 'livability.dimension.social' },
+    { name: 'amenities', raw_score: 9, normalized_score: 100, class_label: 'excellent', deviation: 2.1, label_code: 'livability.dimension.amenities' },
+    { name: 'housing', raw_score: 5, normalized_score: 50, class_label: 'around average', deviation: 0.1, label_code: 'livability.dimension.housing' },
   ];
 }
 
@@ -30,6 +30,9 @@ function makeLivabilityResponse(overrides: Partial<LivabilityAvailableResponse> 
     year: '2024',
     overall_score: 7,
     overall_normalized: 75,
+    overall_class: 7,
+    overall_class_label: 'good',
+    overall_deviation: 0.8,
     dimensions: makeDimensions(),
     trend: [],
     comparison: [],
@@ -68,19 +71,27 @@ describe('LivabilityCard', () => {
 
   it('renders trend and comparison sections when data is present', () => {
     const trend = [
-      { year: '2020', overall_score: 6, overall_normalized: 63, dimensions: [] },
-      { year: '2022', overall_score: 7, overall_normalized: 75, dimensions: [] },
-      { year: '2024', overall_score: 8, overall_normalized: 88, dimensions: [] },
+      { year: '2020', overall_score: 6, overall_normalized: 63, overall_class: 6, dimensions: [] },
+      { year: '2022', overall_score: 7, overall_normalized: 75, overall_class: 7, dimensions: [] },
+      { year: '2024', overall_score: 8, overall_normalized: 88, overall_class: 8, dimensions: [] },
     ];
     const comparison = [
-      { level: 'wijk' as const, name: 'Centrum-West', overall_score: 6, overall_normalized: 63, dimensions: [] },
-      { level: 'gemeente' as const, name: 'Amsterdam', overall_score: 5, overall_normalized: 50, dimensions: [] },
+      { level: 'wijk' as const, name: 'Centrum-West', overall_score: 6, overall_normalized: 63, overall_class: 6, dimensions: [] },
+      { level: 'gemeente' as const, name: 'Amsterdam', overall_score: 5, overall_normalized: 50, overall_class: 5, dimensions: [] },
     ];
     renderCard(makeLivabilityResponse({ trend, comparison }));
 
     expect(screen.getByTestId('livability-trend')).toBeInTheDocument();
     expect(screen.getByTestId('livability-comparison')).toBeInTheDocument();
     expect(screen.getByText('Centrum-West')).toBeInTheDocument();
+  });
+
+  it('renders class and deviation copy instead of 50/100 livability dimensions', () => {
+    renderCard(makeLivabilityResponse());
+
+    expect(screen.getByText('Class 7')).toBeInTheDocument();
+    expect(screen.getByText('Around national average (+0.0)')).toBeInTheDocument();
+    expect(screen.queryByText('50/100')).not.toBeInTheDocument();
   });
 
   it('renders in Dutch', async () => {

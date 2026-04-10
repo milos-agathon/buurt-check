@@ -33,6 +33,10 @@ describe('TierBSignalsCard', () => {
           burglary_per_1000: 1.1,
           violent_per_1000: 0.6,
           monthly_total_per_1000: 1.2,
+          yearly_period: '2025JJ00',
+          population_year: 2024,
+          national_population_year: 2025,
+          national_population_is_estimate: true,
           monthly_period: '2025MM12',
           source: 'CBS OData 47018NED/47022NED',
           source_date: '2025JJ00',
@@ -42,8 +46,11 @@ describe('TierBSignalsCard', () => {
 
     expect(screen.getByText('Crime (registered)')).toBeInTheDocument();
     expect(screen.getAllByText('12.5').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/Source \+ date: CBS OData/)).toBeInTheDocument();
-    expect(screen.getByText(/2025\)/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Source + date: CBS OData 47018NED/47022NED (crime period 2025; local population 2024; national population estimate 2025)',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText('Latest month: Dec 2025')).toBeInTheDocument();
   });
 

@@ -60,7 +60,7 @@ def test_attention_summary_with_flags():
         flag_count=2,
         flags=[
             AttentionFlag(
-                category="foundation", severity="high", label="High foundation risk"
+                category="foundation", severity="poor", label="High foundation risk"
             ),
             AttentionFlag(
                 category="erfpacht", severity="info", label="Erfpacht detected"

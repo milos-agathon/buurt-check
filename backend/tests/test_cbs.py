@@ -501,7 +501,18 @@ async def test_get_neighborhood_stats_backfills_housing_access_from_2023():
 
     assert result.stats is not None
     assert result.stats.owner_occupied_pct.value == 84.0
+    assert result.stats.owner_occupied_pct.source_year == 2023
     assert result.stats.avg_property_value.value == 428000.0
+    assert result.stats.avg_property_value.source_year == 2023
     assert result.stats.distance_to_train_km.value == 5.2
+    assert result.stats.distance_to_train_km.source_year == 2023
     assert result.stats.distance_to_supermarket_km.value == 1.0
+    assert result.stats.distance_to_supermarket_km.source_year == 2023
     assert result.source == "CBS (Statistics Netherlands)"
+    assert result.source_year == 2024
+    assert result.source_years == [2024, 2023]
+    assert result.mixed_source_years is True
+    assert (
+        "2023 backfill for owner-occupied share, property value, train distance, "
+        "and supermarket distance"
+    ) in result.source_notes

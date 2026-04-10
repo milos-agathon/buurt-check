@@ -10,6 +10,15 @@ export interface AttentionSummaryState {
   total: number;
 }
 
+type AttentionSeverity = AttentionFlag['severity'];
+
+function severityFromScore(score: number): AttentionSeverity | null {
+  if (score >= 70) return null;
+  if (score >= 40) return 'moderate';
+  if (score >= 20) return 'poor';
+  return 'critical';
+}
+
 function uniqueFlags(flags: AttentionFlag[]): AttentionFlag[] {
   const seen = new Set<string>();
   const deduped: AttentionFlag[] = [];
@@ -32,12 +41,16 @@ export function buildAttentionSummary(
   let assessed = 0;
   let total = 0;
 
-  const environmentalScores: Array<{ category: string; score?: number }> = riskCards
+  const environmentalScores: Array<{
+    category: string;
+    score?: number;
+    severity?: RiskCardsResponse['noise']['severity'];
+  }> = riskCards
     ? [
-        { category: 'noise', score: riskCards.noise.score },
-        { category: 'air_quality', score: riskCards.air_quality.score },
-        { category: 'climate', score: riskCards.climate_stress.score },
-        { category: 'sunlight', score: riskCards.sunlight?.score },
+        { category: 'noise', score: riskCards.noise.score, severity: riskCards.noise.severity },
+        { category: 'air_quality', score: riskCards.air_quality.score, severity: riskCards.air_quality.severity },
+        { category: 'climate', score: riskCards.climate_stress.score, severity: riskCards.climate_stress.severity },
+        { category: 'sunlight', score: riskCards.sunlight?.score, severity: riskCards.sunlight?.severity },
       ]
     : [];
 
@@ -48,19 +61,16 @@ export function buildAttentionSummary(
   for (const item of environmentalScores) {
     if (item.score == null) continue;
     assessed += 1;
-    if (item.score < 30) {
-      flags.push({
-        category: item.category,
-        severity: 'critical',
-        label: item.category,
-      });
-    } else if (item.score < 50) {
-      flags.push({
-        category: item.category,
-        severity: 'elevated',
-        label: item.category,
-      });
-    }
+    const severity: AttentionSeverity | null =
+      item.severity === 'critical' || item.severity === 'poor' || item.severity === 'moderate'
+        ? item.severity
+        : severityFromScore(item.score);
+    if (!severity) continue;
+    flags.push({
+      category: item.category,
+      severity,
+      label: item.category,
+    });
   }
 
   if (propertyWarnings?.attention_summary.flags?.length) {

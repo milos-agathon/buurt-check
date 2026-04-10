@@ -231,6 +231,49 @@ def _crime_source_date_label(crime: Any, *, is_nl: bool) -> str | None:
     )
 
 
+def _crime_provenance_fragments(crime: Any, *, is_nl: bool) -> list[str]:
+    fragments: list[str] = []
+    period_label = _crime_source_date_label(crime, is_nl=is_nl)
+    if period_label:
+        fragments.append(
+            f"{'criminaliteitsperiode' if is_nl else 'crime period'} {period_label}"
+        )
+
+    population_year = getattr(crime, "population_year", None)
+    if population_year is not None:
+        population_is_estimate = bool(getattr(crime, "population_is_estimate", False))
+        fragments.append(
+            (
+                f"lokale bevolkingsschatting {population_year}"
+                if is_nl and population_is_estimate
+                else f"lokale bevolking {population_year}"
+                if is_nl
+                else f"local population estimate {population_year}"
+                if population_is_estimate
+                else f"local population {population_year}"
+            )
+        )
+
+    national_population_year = getattr(crime, "national_population_year", None)
+    if national_population_year is not None:
+        national_population_is_estimate = bool(
+            getattr(crime, "national_population_is_estimate", False)
+        )
+        fragments.append(
+            (
+                f"landelijke bevolkingsschatting {national_population_year}"
+                if is_nl and national_population_is_estimate
+                else f"landelijke bevolking {national_population_year}"
+                if is_nl
+                else f"national population estimate {national_population_year}"
+                if national_population_is_estimate
+                else f"national population {national_population_year}"
+            )
+        )
+
+    return fragments
+
+
 def _score_value(score: int | float | None) -> str:
     if score is None:
         return "\u2014"
@@ -347,6 +390,147 @@ def _severity_label(score: int | None, is_nl: bool = False) -> str:
     if score >= 20:
         return "Slecht" if is_nl else "Poor"
     return "Kritiek" if is_nl else "Critical"
+
+
+def _livability_class_value(item: Any) -> int | None:
+    value = getattr(item, "overall_class", None)
+    if value is None:
+        value = getattr(item, "overall_score", None)
+    return int(value) if value is not None else None
+
+
+def _livability_dimension_class_value(item: Any) -> int | None:
+    value = getattr(item, "raw_score", None)
+    return int(value) if value is not None else None
+
+
+def _livability_class_label(
+    class_value: int | None,
+    *,
+    is_nl: bool,
+    fallback: str | None = None,
+) -> str | None:
+    if class_value is None:
+        return None
+
+    labels_en = {
+        1: "very low",
+        2: "low",
+        3: "fairly low",
+        4: "below average",
+        5: "around average",
+        6: "above average",
+        7: "good",
+        8: "very good",
+        9: "excellent",
+    }
+    labels_nl = {
+        1: "zeer laag",
+        2: "laag",
+        3: "vrij laag",
+        4: "onder gemiddeld",
+        5: "rond gemiddeld",
+        6: "boven gemiddeld",
+        7: "goed",
+        8: "zeer goed",
+        9: "uitstekend",
+    }
+
+    if fallback and not is_nl:
+        return fallback
+    return (labels_nl if is_nl else labels_en).get(class_value)
+
+
+def _livability_class_text(class_value: int | None, *, is_nl: bool) -> str:
+    if class_value is None:
+        return "N.v.t." if is_nl else "N/A"
+    return f"Klasse {class_value}" if is_nl else f"Class {class_value}"
+
+
+def _livability_deviation_text(
+    deviation: float | None,
+    *,
+    is_nl: bool,
+) -> str | None:
+    if deviation is None:
+        return None
+
+    absolute = abs(deviation)
+    if absolute < 0.15:
+        description = (
+            "rond landelijk gemiddelde"
+            if is_nl
+            else "around national average"
+        )
+    elif deviation > 0:
+        if absolute < 0.75:
+            description = (
+                "licht boven landelijk gemiddelde"
+                if is_nl
+                else "slightly above national average"
+            )
+        elif absolute < 1.5:
+            description = (
+                "boven landelijk gemiddelde"
+                if is_nl
+                else "above national average"
+            )
+        else:
+            description = (
+                "ruim boven landelijk gemiddelde"
+                if is_nl
+                else "well above national average"
+            )
+    else:
+        if absolute < 0.75:
+            description = (
+                "licht onder landelijk gemiddelde"
+                if is_nl
+                else "slightly below national average"
+            )
+        elif absolute < 1.5:
+            description = (
+                "onder landelijk gemiddelde"
+                if is_nl
+                else "below national average"
+            )
+        else:
+            description = (
+                "ruim onder landelijk gemiddelde"
+                if is_nl
+                else "well below national average"
+            )
+
+    formatted = format_number(abs(deviation), 1, is_nl)
+    if deviation > 0:
+        formatted = f"+{formatted}"
+    elif deviation < 0:
+        formatted = f"-{formatted}"
+    return f"{description} ({formatted})"
+
+
+def _livability_dimension_rank_value(item: Any) -> float:
+    deviation = getattr(item, "deviation", None)
+    if deviation is not None:
+        return float(deviation)
+    class_value = _livability_dimension_class_value(item)
+    return float(class_value or 0)
+
+
+def _livability_dimension_value_text(item: Any, *, is_nl: bool) -> str:
+    class_value = _livability_dimension_class_value(item)
+    parts = [_livability_class_text(class_value, is_nl=is_nl)]
+    deviation_text = _livability_deviation_text(getattr(item, "deviation", None), is_nl=is_nl)
+    class_label = _livability_class_label(
+        class_value,
+        is_nl=is_nl,
+        fallback=getattr(item, "class_label", None),
+    )
+    if deviation_text:
+        parts.append(deviation_text)
+    elif class_label:
+        parts.append(class_label)
+    return " · ".join(parts)
 
 
 def _climate_disclosure_line(
@@ -494,12 +678,17 @@ def _generate_executive_summary(
 
     # --- Sentence 3: neighborhood character (from livability) ---
     sentence3 = ""
-    if livability and livability.available and livability.overall_normalized is not None:
-        liv_sev = _severity_label(livability.overall_normalized, is_nl)
+    if livability and livability.available:
+        livability_class = _livability_class_value(livability)
+        livability_label = _livability_class_label(
+            livability_class,
+            is_nl=is_nl,
+            fallback=getattr(livability, "overall_class_label", None),
+        )
         # Find best dimension
         best_dim = None
         if livability.dimensions:
-            best_dim = max(livability.dimensions, key=lambda d: d.normalized_score)
+            best_dim = max(livability.dimensions, key=_livability_dimension_rank_value)
 
         dim_names_nl = {
             "physical": "fysieke omgeving",
@@ -518,16 +707,20 @@ def _generate_executive_summary(
 
         if is_nl:
             sentence3 = (
-                f"De buurt heeft een {liv_sev.lower()} leefbaarheid"
+                f"De buurt heeft leefbaarheidsklasse {livability_class}"
             )
+            if livability_label:
+                sentence3 += f" ({livability_label})"
             if best_dim:
                 dim_label = dim_names_nl.get(best_dim.name, best_dim.name)
-                sentence3 += f" met sterke {dim_label}"
+                sentence3 += f" met een sterke {dim_label}"
             sentence3 += "."
         else:
             sentence3 = (
-                f"The neighborhood has {liv_sev.lower()} livability"
+                f"The neighborhood is livability class {livability_class}"
             )
+            if livability_label:
+                sentence3 += f" ({livability_label})"
             if best_dim:
                 dim_label = dim_names_en.get(best_dim.name, best_dim.name)
                 sentence3 += f" with strong {dim_label}"
@@ -4746,6 +4939,54 @@ def _property_check_boxes(
         ]
 
     fr = property_warnings.foundation_risk
+    foundation_messages = set(fr.messages or [])
+    foundation_basis = None
+    foundation_source = (
+        "BRO + Klimaateffectatlas"
+        if not is_nl
+        else "BRO + Klimaateffectatlas"
+    )
+    if "FOUNDATION_SOFT_SOIL_CITY" in foundation_messages:
+        foundation_basis = (
+            (
+                "Gemeentelijke fallback: perceelbodemdata ontbrak, dus een "
+                "gedocumenteerde lijst van slappe-grondgemeenten is gebruikt."
+            )
+            if is_nl
+            else (
+                "Municipality fallback: parcel soil data was unavailable, so a "
+                "documented soft-soil municipality list was used."
+            )
+        )
+        foundation_source = (
+            "Gedocumenteerde slappe-grondgemeentenlijst + BAG-bouwjaar"
+            if is_nl
+            else "Documented soft-soil municipality list + BAG construction year"
+        )
+    elif "FOUNDATION_YEAR_ONLY" in foundation_messages:
+        foundation_basis = (
+            (
+                "Bouwjaar-fallback: perceelbodemdata ontbrak, dus deze "
+                "indicatie is alleen op bouwjaar gebaseerd."
+            )
+            if is_nl
+            else (
+                "Year-only fallback: parcel soil data was unavailable, so this "
+                "signal is based on construction year only."
+            )
+        )
+        foundation_source = (
+            "BAG-bouwjaar fallback"
+            if is_nl
+            else "BAG construction year fallback"
+        )
+    elif fr.soil_type is not None:
+        foundation_basis = (
+            "Bodemdata-gestuurd resultaat op basis van BRO-perceelgrond en regionale bodemdaling."
+            if is_nl
+            else "Soil-data-backed result using BRO parcel soil type and regional subsidence data."
+        )
+
     foundation_body = (
         "Hoog risico; funderingsinspectie plannen."
         if fr.level == "high"
@@ -4767,6 +5008,8 @@ def _property_check_boxes(
         )
     if fr.soil_type:
         foundation_body += f" {'Grondsoort' if is_nl else 'Soil'}: {fr.soil_type}."
+    if foundation_basis:
+        foundation_body += f" {foundation_basis}"
 
     ep = property_warnings.erfpacht
     ground_lease_body = (
@@ -4817,7 +5060,7 @@ def _property_check_boxes(
         (
             "Fundering" if is_nl else "Foundation",
             foundation_body,
-            "BRO + Klimaateffectatlas",
+            foundation_source,
             (
                 "flagged"
                 if fr.level == "high"
@@ -5008,21 +5251,39 @@ def _livability_evidence_text(
     *,
     is_nl: bool,
 ) -> tuple[str, str]:
-    if livability is None or not livability.available or livability.overall_normalized is None:
+    if livability is None or not livability.available:
         return (
             "Leefbaarheidsdata niet beschikbaar." if is_nl else "Livability data unavailable.",
             "Leefbaarometer",
         )
 
-    score_text = _score_text(int(round(livability.overall_normalized)), is_nl=is_nl)
-    severity_text = _severity_label(int(round(livability.overall_normalized)), is_nl=is_nl)
-    sentence = (
-        f"Leefbaarheid {score_text} ({severity_text})."
-        if is_nl
-        else f"Livability {score_text} ({severity_text})."
+    livability_class = _livability_class_value(livability)
+    class_text = _livability_class_text(livability_class, is_nl=is_nl)
+    class_label = _livability_class_label(
+        livability_class,
+        is_nl=is_nl,
+        fallback=getattr(livability, "overall_class_label", None),
     )
+    deviation_text = _livability_deviation_text(
+        getattr(livability, "overall_deviation", None),
+        is_nl=is_nl,
+    )
+    sentence = (
+        f"Leefbaarheid {class_text}"
+        if is_nl
+        else f"Livability {class_text}"
+    )
+    if class_label:
+        sentence += f" ({class_label})"
+    sentence += "."
+    if deviation_text:
+        sentence += (
+            f" Afwijking t.o.v. landelijk gemiddelde: {deviation_text}."
+            if is_nl
+            else f" Deviation vs national average: {deviation_text}."
+        )
     if livability.dimensions:
-        best_dim = max(livability.dimensions, key=lambda item: item.normalized_score)
+        best_dim = max(livability.dimensions, key=_livability_dimension_rank_value)
         dim_name = best_dim.label_code.split(".")[-1].replace("_", " ")
         sentence += (
             f" Sterkste dimensie: {dim_name}."
@@ -5110,13 +5371,85 @@ def _crime_evidence_text(
         if is_nl
         else " Rates shown per 1,000 residents."
     )
-    source_text = f"CBS {_crime_source_date_label(crime, is_nl=is_nl) or ''}".strip()
+    source_fragments = _crime_provenance_fragments(crime, is_nl=is_nl)
+    source_text = "CBS"
+    if source_fragments:
+        source_text += f" · {' · '.join(source_fragments)}"
     source_text += (
         " · Getoond per 1.000 inwoners"
         if is_nl
         else " · Rates shown per 1,000 residents"
     )
     return summary, source_text
+
+
+def _join_localized_labels(labels: list[str], *, is_nl: bool) -> str:
+    if not labels:
+        return ""
+    conjunction = "en" if is_nl else "and"
+    if len(labels) == 1:
+        return labels[0]
+    if len(labels) == 2:
+        return f"{labels[0]} {conjunction} {labels[1]}"
+    return f"{', '.join(labels[:-1])}, {conjunction} {labels[-1]}"
+
+
+def _iter_neighborhood_source_fields(stats: NeighborhoodStats):
+    yield (
+        "owner_occupied_pct",
+        ("koopwoningen", "owner-occupied share"),
+        stats.owner_occupied_pct,
+    )
+    yield (
+        "avg_property_value",
+        ("woningwaarde", "property value"),
+        stats.avg_property_value,
+    )
+    yield (
+        "distance_to_train_km",
+        ("afstand tot station", "train distance"),
+        stats.distance_to_train_km,
+    )
+    yield (
+        "distance_to_supermarket_km",
+        ("afstand tot supermarkt", "supermarket distance"),
+        stats.distance_to_supermarket_km,
+    )
+
+
+def _neighborhood_source_caption(stats: NeighborhoodStats | None, *, is_nl: bool) -> str:
+    default_year = 2024
+    if stats is None:
+        return f"CBS Wijken & Buurten {default_year}"
+
+    years: set[int] = set()
+    fallback_fields_by_year: dict[int, list[str]] = {}
+
+    for _, labels, indicator in _iter_neighborhood_source_fields(stats):
+        if not indicator.available or indicator.value is None:
+            continue
+        source_year = getattr(indicator, "source_year", None) or default_year
+        years.add(source_year)
+        if source_year != default_year:
+            fallback_fields_by_year.setdefault(source_year, []).append(
+                labels[0] if is_nl else labels[1]
+            )
+
+    newest_year = max(years) if years else default_year
+    base = f"CBS Wijken & Buurten {newest_year}"
+    if len(years) <= 1:
+        return base
+
+    notes = [
+        (
+            f"{year}-terugvulling voor {_join_localized_labels(fields, is_nl=is_nl)}"
+            if is_nl
+            else f"{year} backfill for {_join_localized_labels(fields, is_nl=is_nl)}"
+        )
+        for year, fields in sorted(fallback_fields_by_year.items(), reverse=True)
+        if fields
+    ]
+    return f"{base} · {' · '.join(notes)}" if notes else base
 
 
 def _cbs_snapshot_text(
@@ -5181,7 +5514,7 @@ def _cbs_snapshot_text(
         selected_lines.append(age_note)
     else:
         selected_lines = lines[:4]
-    return " \u00b7 ".join(selected_lines), "CBS Wijken & Buurten 2024"
+    return " \u00b7 ".join(selected_lines), _neighborhood_source_caption(stats, is_nl=is_nl)
 
 
 def _draw_neighborhood_evidence_page(
@@ -5806,9 +6139,7 @@ def _draw_risk_details_page(
             scope=crime.scope,
         )
         source_parts = [crime.source]
-        source_date_label = _crime_source_date_label(crime, is_nl=is_nl)
-        if source_date_label:
-            source_parts.append(source_date_label)
+        source_parts.extend(_crime_provenance_fragments(crime, is_nl=is_nl))
         pdf.draw_h3("Source" if not is_nl else "Bron")
         pdf.set_font("Satoshi", "", 8)
         pdf.set_text_color(*SECONDARY)
@@ -5821,9 +6152,16 @@ def _draw_risk_details_page(
             new_y="NEXT",
         )
         disclaimer = (
-            "Crime data is municipality-level context, not street-level incidents."
+            (
+                "Crime rates are per 1,000 residents. The score uses fixed risk "
+                "bands, while comparison rows use CBS period data."
+            )
             if not is_nl
-            else "Criminaliteitsdata geeft gemeentelijke context, geen incidenten per straat."
+            else (
+                "Criminaliteitscijfers zijn per 1.000 inwoners. De score "
+                "gebruikt vaste risicobanden, terwijl de vergelijkingsrijen "
+                "CBS-periodes gebruiken."
+            )
         )
         pdf.multi_cell(0, 4, disclaimer, align="L", new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*SLATE)
@@ -7028,9 +7366,11 @@ def _draw_neighborhood_page(
                 pdf.multi_cell(0, 4, interp, align="L", new_x="LMARGIN", new_y="NEXT")
                 pdf.set_text_color(*SLATE)
         pdf.draw_h3(
-            "Source: CBS Wijken & Buurten 2024"
-            if not is_nl
-            else "Bron: CBS Wijken & Buurten 2024"
+            (
+                f"Bron: {_neighborhood_source_caption(stats, is_nl=True)}"
+                if is_nl
+                else f"Source: {_neighborhood_source_caption(stats, is_nl=False)}"
+            )
         )
     else:
         pdf.set_font("Satoshi", "", 10)
@@ -7086,13 +7426,13 @@ def _draw_sparkline(
 
     # Gather data
     years = [int(tp.year) for tp in trend]
-    scores = [tp.overall_normalized for tp in trend]
+    scores = [_livability_class_value(tp) or tp.overall_score for tp in trend]
     min_year, max_year = min(years), max(years)
     year_span = max_year - min_year
     if year_span == 0:
         return y
 
-    # Vertical range: use 0-100 for consistent scale, but add padding
+    # Vertical range: use the discrete Leefbaarometer class scale (1-9).
     v_pad = 1.0  # mm padding top/bottom within the chart area
     chart_h = height - 2 * v_pad
 
@@ -7100,11 +7440,11 @@ def _draw_sparkline(
     points: list[tuple[float, float]] = []
     for yr, sc in zip(years, scores):
         px = x + (yr - min_year) / year_span * width
-        # Invert y: higher score = higher on page = lower y value
-        py = y + v_pad + chart_h * (1.0 - sc / 100.0)
+        normalized = (sc - 1) / 8
+        py = y + v_pad + chart_h * (1.0 - normalized)
         points.append((px, py))
 
-    # Draw subtle reference line at score 50 (midpoint)
+    # Draw subtle reference line at class 5 (the midpoint band).
     mid_y = y + v_pad + chart_h * 0.5
     pdf.set_draw_color(*BORDER)
     pdf.set_line_width(0.15)
@@ -7239,33 +7579,30 @@ def _draw_radar_chart(
 def _has_meaningful_livability_comparison(
     livability: LivabilityResponse,
 ) -> bool:
-    values = {livability.overall_normalized}
+    values = {_livability_class_value(livability)}
     for row in livability.comparison:
-        if row.overall_normalized is not None:
-            values.add(row.overall_normalized)
+        values.add(_livability_class_value(row))
     return len(values) > 1
 
 
 def _livability_comparison_note(is_nl: bool) -> str:
     return (
-        "Beschikbare buurt- en gemeentevergelijkingen geven dezelfde genormaliseerde"
-        " score terug; daarom is de vergelijking hier samengevat in tekst."
+        "Beschikbare buurt-, wijk- en gemeentevergelijkingen vallen in dezelfde"
+        " leefbaarheidsklasse; daarom is de vergelijking hier samengevat in tekst."
         if is_nl
-        else "Available neighborhood and municipality comparisons return the same"
-        " normalized score, so the comparison is summarized in text instead of a chart."
+        else "Available neighborhood, district, and municipality comparisons fall in"
+        " the same livability class, so the comparison is summarized in text."
     )
 
 
 def _estimate_livability_section_height(livability: LivabilityResponse) -> float:
-    required = 34.0
-    if chart_renderer is not None:
-        required += 24.0
-    if len(livability.dimensions) >= 3:
-        required += 58.0
+    required = 28.0
+    if livability.dimensions:
+        required += max(24.0, len(livability.dimensions) * 7.0)
     if livability.trend and len(livability.trend) >= 2:
         required += 24.0
     if livability.comparison:
-        required += 26.0 if _has_meaningful_livability_comparison(livability) else 14.0
+        required += 16.0 if _has_meaningful_livability_comparison(livability) else 10.0
     return required
 
 
@@ -7274,17 +7611,24 @@ def _draw_livability_section(
     livability: LivabilityResponse | None,
     is_nl: bool,
 ) -> None:
-    """Render livability section: overall score, radar chart, sparkline, comparison."""
+    """Render livability section with Leefbaarometer class/deviation semantics."""
     if livability is None or not livability.available:
         return
 
     pdf.draw_premium_badge()
     pdf.draw_h1("Leefbaarheid" if is_nl else "Livability")
 
-    # Overall score with severity
-    score = livability.overall_normalized
-    color = _severity_color(score)
-    sev_label = _severity_label(score, is_nl)
+    class_value = _livability_class_value(livability)
+    class_text = _livability_class_text(class_value, is_nl=is_nl)
+    class_label = _livability_class_label(
+        class_value,
+        is_nl=is_nl,
+        fallback=getattr(livability, "overall_class_label", None),
+    )
+    deviation_text = _livability_deviation_text(
+        getattr(livability, "overall_deviation", None),
+        is_nl=is_nl,
+    )
 
     cy = pdf.get_y()
     pdf.set_fill_color(*TEAL)
@@ -7293,75 +7637,60 @@ def _draw_livability_section(
     pdf.set_x(pdf.l_margin + 4)
     pdf.set_font("Satoshi", "B", 12)
     pdf.set_text_color(*SLATE)
-    title = "Leefbaarheidsscore" if is_nl else "Livability Score"
+    title = "Leefbaarheidsklasse" if is_nl else "Livability Class"
     pdf.cell(100, 8, title)
 
     pdf.set_font("SatoshiBlack", "", 14)
-    pdf.set_text_color(*color)
-    pdf.cell(0, 8, _score_text(score, is_nl=is_nl), align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*ACCENT_TEXT)
+    pdf.cell(0, 8, class_text, align="R", new_x="LMARGIN", new_y="NEXT")
 
-    # Severity label — render BEFORE score bar to avoid overlap
     pdf.set_font("SatoshiMedium", "", 9)
-    pdf.set_text_color(*color)
-    pdf.cell(0, 5, sev_label, new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(1)
-
-    # Score bar
-    bar_w = pdf.w - pdf.l_margin - pdf.r_margin
-    pdf.draw_score_bar(pdf.l_margin, pdf.get_y(), bar_w, score, height=5.0)
-    pdf.ln(7)
+    pdf.set_text_color(*SLATE)
+    if class_label:
+        pdf.cell(0, 5, class_label.title(), new_x="LMARGIN", new_y="NEXT")
+    if deviation_text:
+        pdf.set_font("Satoshi", "", 9)
+        pdf.set_text_color(*SECONDARY)
+        prefix = (
+            "Afwijking t.o.v. landelijk gemiddelde"
+            if is_nl
+            else "Deviation vs national average"
+        )
+        pdf.multi_cell(0, 4.5, f"{prefix}: {deviation_text}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(1.5)
     pdf.set_text_color(*SLATE)
 
     content_w = pdf.w - pdf.l_margin - pdf.r_margin
 
-    if chart_renderer is not None:
-        try:
-            livability_chart = chart_renderer.render_livability_score(
-                livability=chart_renderer.LivabilityData(
-                    score=score,
-                    label="Leefbaarheid" if is_nl else "Livability",
-                ),
-                crime=chart_renderer.CrimeData(
-                    score=None,
-                    label="Criminaliteit" if is_nl else "Crime",
-                ),
-                output_format="png",
+    if livability.dimensions:
+        _ensure_page_space(pdf, 16 + len(livability.dimensions) * 6)
+        pdf.draw_h2("Dimensies" if is_nl else "Dimensions")
+        label_map = {
+            "physical": "Fysieke omgeving" if is_nl else "Physical environment",
+            "safety": "Veiligheid" if is_nl else "Safety",
+            "social": "Sociale samenhang" if is_nl else "Social cohesion",
+            "amenities": "Voorzieningen" if is_nl else "Amenities",
+            "housing": "Woningkwaliteit" if is_nl else "Housing quality",
+        }
+        for dim in livability.dimensions:
+            pdf.set_font("SatoshiMedium", "", 9)
+            pdf.set_text_color(*SLATE)
+            pdf.cell(48, 5, label_map.get(dim.name, dim.name), new_x="RIGHT", new_y="TOP")
+            pdf.set_font("Satoshi", "", 9)
+            pdf.set_text_color(*SECONDARY)
+            pdf.multi_cell(
+                content_w - 48,
+                5,
+                _livability_dimension_value_text(dim, is_nl=is_nl),
+                new_x="LMARGIN",
+                new_y="NEXT",
             )
-            chart_end_y = _embed_chart_png(
-                pdf,
-                livability_chart,
-                x=pdf.l_margin,
-                y=pdf.get_y(),
-                width=content_w,
-                source_width_mm=chart_renderer.CHART_WIDTH_MM,
-                source_height_mm=chart_renderer.LIVABILITY_HEIGHT_MM,
-            )
-            pdf.set_y(chart_end_y + 2)
-        except Exception:
-            logger.exception(
-                "chart_renderer livability chart failed; using score-bar-only fallback"
-            )
-
-    # --- 5-dimension radar chart ---
-    if len(livability.dimensions) >= 3:
-        _ensure_page_space(pdf, 62)
-        radar_title = "Dimensies" if is_nl else "Dimensions"
-        pdf.draw_h2(radar_title)
-
-        radar_radius = 20.0
-        radar_cx = pdf.l_margin + content_w / 2
-        radar_cy = pdf.get_y() + radar_radius + 5  # center with top padding
-        radar_end_y = _draw_radar_chart(
-            pdf, livability.dimensions, is_nl,
-            cx=radar_cx, cy=radar_cy, radius=radar_radius,
-        )
-        pdf.set_y(radar_end_y + 2)
 
     pdf.ln(2)
 
-    # --- Trend sparkline + text summary ---
     if livability.trend and len(livability.trend) >= 2:
         _ensure_page_space(pdf, 28)
+        pdf.draw_h2("Trend" if is_nl else "Trend")
         trend_text = _livability_trend_summary(livability.trend, is_nl)
         if trend_text:
             pdf.set_font("Satoshi", "", 10)
@@ -7373,30 +7702,32 @@ def _draw_livability_section(
             pdf.set_text_color(*SLATE)
             pdf.ln(1)
 
-        # Sparkline chart for trend visualization
         sparkline_end_y = _draw_sparkline(
             pdf, livability.trend,
             x=pdf.l_margin, y=pdf.get_y(),
-            width=content_w * 0.6,  # ~60% of content width
+            width=content_w * 0.6,
             height=12.0,
         )
         pdf.set_y(sparkline_end_y + 2)
     else:
-        pdf.draw_h3("Trend data unavailable" if not is_nl else "Trendgegevens niet beschikbaar")
+        pdf.draw_h3("Trendgegevens niet beschikbaar" if is_nl else "Trend data unavailable")
 
-    # --- Comparison table: buurt vs wijk vs gemeente ---
     if livability.comparison:
-        _ensure_page_space(pdf, 36)
+        _ensure_page_space(pdf, 20 + len(livability.comparison) * 6)
+        pdf.draw_h2("Vergelijking" if is_nl else "Comparison")
         if _has_meaningful_livability_comparison(livability):
-            comp_title = (
-                "Vergelijking" if is_nl else "Comparison"
-            )
-            comp_rows: list[tuple[str, int, tuple[int, int, int], bool]] = []
-
-            # Address row first (buurt-level = this neighborhood)
+            comparison_rows: list[tuple[str, str]] = []
             buurt_name = livability.buurt_name or ("Buurt" if is_nl else "Neighborhood")
-            comp_rows.append((
-                buurt_name, livability.overall_normalized, TEAL, False,
+            comparison_rows.append((
+                buurt_name,
+                " · ".join(
+                    part
+                    for part in (
+                        _livability_class_text(class_value, is_nl=is_nl),
+                        deviation_text or class_label,
+                    )
+                    if part
+                ),
             ))
 
             seen_comp_names: set[str] = {buurt_name}
@@ -7405,24 +7736,45 @@ def _draw_livability_section(
                     label = row.name or ("Wijk" if is_nl else "District")
                 elif row.level == "gemeente":
                     label = row.name or ("Gemeente" if is_nl else "Municipality")
+                elif row.level == "national":
+                    label = "Nederland" if is_nl else "Netherlands"
                 else:
                     continue
                 if label in seen_comp_names:
                     continue
                 seen_comp_names.add(label)
-                color = MUTED if row.level == "wijk" else NATIONAL
-                comp_rows.append((label, row.overall_normalized, color, False))
-
-            if len(comp_rows) > 1:
-                chart_end_y = pdf.draw_comparison_chart(
-                    x=pdf.l_margin, y=pdf.get_y(),
-                    width=content_w,
-                    rows=comp_rows,
-                    chart_title=comp_title,
-                    is_nl=is_nl,
+                row_class = _livability_class_value(row)
+                row_text = " · ".join(
+                    part
+                    for part in (
+                        _livability_class_text(row_class, is_nl=is_nl),
+                        _livability_deviation_text(
+                            getattr(row, "overall_deviation", None),
+                            is_nl=is_nl,
+                        )
+                        or _livability_class_label(
+                            row_class,
+                            is_nl=is_nl,
+                            fallback=getattr(row, "overall_class_label", None),
+                        ),
+                    )
+                    if part
                 )
-                pdf.set_y(chart_end_y + 2)
-                _draw_score_scale_caption(pdf, is_nl)
+                comparison_rows.append((label, row_text))
+
+            for label, row_text in comparison_rows:
+                pdf.set_font("SatoshiMedium", "", 9)
+                pdf.set_text_color(*SLATE)
+                pdf.cell(48, 5, label, new_x="RIGHT", new_y="TOP")
+                pdf.set_font("Satoshi", "", 9)
+                pdf.set_text_color(*SECONDARY)
+                pdf.multi_cell(
+                    content_w - 48,
+                    5,
+                    row_text,
+                    new_x="LMARGIN",
+                    new_y="NEXT",
+                )
         else:
             pdf.set_font("Satoshi", "", 8)
             pdf.set_text_color(*SECONDARY)
@@ -7462,11 +7814,11 @@ def _livability_trend_summary(
         return None
 
     # Compare last two points for current direction
-    latest = trend[-1]
-    earliest = trend[0]
-    diff = latest.overall_normalized - earliest.overall_normalized
+    latest = _livability_class_value(trend[-1]) or trend[-1].overall_score
+    earliest = _livability_class_value(trend[0]) or trend[0].overall_score
+    diff = latest - earliest
 
-    if abs(diff) < 5:
+    if diff == 0:
         return "Stabiel" if is_nl else "Stable"
 
     # Find inflection point: where did current direction start?
@@ -7475,7 +7827,9 @@ def _livability_trend_summary(
         # data point if the series is monotonically improving.
         inflection_year = trend[0].year
         for i in range(len(trend) - 1, 0, -1):
-            if trend[i].overall_normalized <= trend[i - 1].overall_normalized:
+            current = _livability_class_value(trend[i]) or trend[i].overall_score
+            previous = _livability_class_value(trend[i - 1]) or trend[i - 1].overall_score
+            if current <= previous:
                 inflection_year = trend[i].year
                 break
         if is_nl:
@@ -7485,7 +7839,9 @@ def _livability_trend_summary(
         # Currently declining
         inflection_year = trend[0].year
         for i in range(len(trend) - 1, 0, -1):
-            if trend[i].overall_normalized >= trend[i - 1].overall_normalized:
+            current = _livability_class_value(trend[i]) or trend[i].overall_score
+            previous = _livability_class_value(trend[i - 1]) or trend[i - 1].overall_score
+            if current >= previous:
                 inflection_year = trend[i].year
                 break
         if is_nl:
@@ -7639,6 +7995,58 @@ def _draw_property_checks_page(
     # 2) Foundation Risk
     if property_warnings:
         fr = property_warnings.foundation_risk
+        foundation_messages = set(fr.messages or [])
+        foundation_basis = None
+        foundation_source = (
+            "Bron: BRO-bodemdata + Klimaateffectatlas bodemdaling"
+            if is_nl
+            else "Source: BRO soil data + Klimaateffectatlas subsidence"
+        )
+        if "FOUNDATION_SOFT_SOIL_CITY" in foundation_messages:
+            foundation_basis = (
+                (
+                    "Gemeentelijke fallback gebruikt omdat perceelbodemdata "
+                    "voor dit adres ontbrak. De classificatie leunt op een "
+                    "gedocumenteerde lijst van slappe-grondgemeenten."
+                )
+                if is_nl
+                else (
+                    "Municipality fallback used because parcel soil data was "
+                    "unavailable for this address. The classification relies on "
+                    "a documented soft-soil municipality list."
+                )
+            )
+            foundation_source = (
+                "Bron: gedocumenteerde slappe-grondgemeentenlijst + BAG-bouwjaar"
+                if is_nl
+                else "Source: documented soft-soil municipality list + BAG construction year"
+            )
+        elif "FOUNDATION_YEAR_ONLY" in foundation_messages:
+            foundation_basis = (
+                (
+                    "Bouwjaar-fallback gebruikt omdat perceelbodemdata "
+                    "ontbrak. Deze classificatie is daarom alleen een eerste "
+                    "indicatie op basis van bouwjaar."
+                )
+                if is_nl
+                else (
+                    "Year-only fallback used because parcel soil data was "
+                    "unavailable. This classification is therefore only a "
+                    "first-pass signal from construction year."
+                )
+            )
+            foundation_source = (
+                "Bron: BAG-bouwjaar fallback"
+                if is_nl
+                else "Source: BAG construction year fallback"
+            )
+        elif fr.soil_type is not None:
+            foundation_basis = (
+                "Resultaat op basis van BRO-perceelgrond en regionale bodemdaling."
+                if is_nl
+                else "Result based on BRO parcel soil type and regional subsidence data."
+            )
+
         if fr.level == "unavailable":
             foundation_text = (
                 "Funderingsrisico kon niet worden beoordeeld "
@@ -7696,6 +8104,8 @@ def _draw_property_checks_page(
                 else "No foundation risk signal detected "
                 "from available data."
             )
+        if foundation_basis:
+            foundation_text += f" {foundation_basis}"
     else:
         foundation_text = (
             "Funderingsrisico niet beschikbaar "
@@ -7711,7 +8121,7 @@ def _draw_property_checks_page(
             else "Foundation Risk"
         ),
         body=foundation_text,
-        source=(
+        source=foundation_source if property_warnings else (
             "Bron: BRO bodemdata + Klimaateffectatlas "
             "bodemdaling"
             if is_nl

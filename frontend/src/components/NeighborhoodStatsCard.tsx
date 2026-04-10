@@ -39,6 +39,64 @@ function formatIndicatorValue(
   return unit ? `${formatted} ${unit}` : formatted;
 }
 
+function formatFieldList(fields: string[], language: string): string {
+  if (fields.length === 0) return '';
+  const locale = language === 'nl' ? 'nl-NL' : 'en-US';
+  return new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(fields);
+}
+
+function sourceFieldLabel(
+  fieldName: string,
+  t: ReturnType<typeof useTranslation>['t'],
+): string | null {
+  const labels: Record<string, string> = {
+    owner_occupied_pct: t('neighborhood.sourceField.ownerOccupiedPct'),
+    avg_property_value: t('neighborhood.sourceField.avgPropertyValue'),
+    distance_to_train_km: t('neighborhood.sourceField.distanceToTrain'),
+    distance_to_supermarket_km: t('neighborhood.sourceField.distanceToSupermarket'),
+  };
+  return labels[fieldName] ?? null;
+}
+
+function buildNeighborhoodSourceText(
+  response: NeighborhoodStatsResponse,
+  language: string,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  const base = t('neighborhood.source', { source: response.source, year: response.source_year });
+  if (!response.mixed_source_years || !response.stats) {
+    return base;
+  }
+
+  const newestYear = response.source_year;
+  const fallbackFieldsByYear = new Map<number, string[]>();
+  const sourceFields = [
+    ['owner_occupied_pct', response.stats.owner_occupied_pct],
+    ['avg_property_value', response.stats.avg_property_value],
+    ['distance_to_train_km', response.stats.distance_to_train_km],
+    ['distance_to_supermarket_km', response.stats.distance_to_supermarket_km],
+  ] as const;
+
+  for (const [fieldName, indicator] of sourceFields) {
+    if (!indicator.available || indicator.value == null || indicator.source_year == null) continue;
+    if (indicator.source_year === newestYear) continue;
+    const label = sourceFieldLabel(fieldName, t);
+    if (!label) continue;
+    const labels = fallbackFieldsByYear.get(indicator.source_year) ?? [];
+    labels.push(label);
+    fallbackFieldsByYear.set(indicator.source_year, labels);
+  }
+
+  const notes = Array.from(fallbackFieldsByYear.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, fields]) => t('neighborhood.sourceBackfill', {
+      year,
+      fields: formatFieldList(fields, language),
+    }));
+
+  return notes.length > 0 ? `${base} · ${notes.join(' · ')}` : base;
+}
+
 function Indicator({
   label,
   indicator,
@@ -168,7 +226,7 @@ function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
         <h2 className="neighborhood-card__title">{t('neighborhood.title')}</h2>
         <p className="neighborhood-card__unavailable">{messageCopy(stats.message, t)}</p>
         <p className="neighborhood-card__source">
-          {t('neighborhood.source', { source: stats.source, year: stats.source_year })}
+          {buildNeighborhoodSourceText(stats, language, t)}
         </p>
       </section>
     );
@@ -237,7 +295,7 @@ function NeighborhoodStatsCard({ stats, loading, error, onRetry }: Props) {
       <p className="neighborhood-card__question">{t('neighborhood.viewingTip')}</p>
 
       <p className="neighborhood-card__source">
-        {t('neighborhood.source', { source: stats.source, year: stats.source_year })}
+        {buildNeighborhoodSourceText(stats, language, t)}
       </p>
     </section>
   );

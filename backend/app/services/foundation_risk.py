@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 
 import httpx
 
@@ -11,15 +12,115 @@ from app.models.property_warnings import FoundationRisk
 
 logger = logging.getLogger(__name__)
 
-# Municipalities with predominantly soft soil (clay/peat), from Rijksdienst voor
-# het Cultureel Erfgoed foundation risk mapping.  Normalized to casefold.
-SOFT_SOIL_MUNICIPALITIES: frozenset[str] = frozenset(
-    m.casefold()
-    for m in (
-        "Amsterdam", "Rotterdam", "Gouda", "Zaanstad", "Dordrecht",
-        "Schiedam", "Delft", "Haarlem", "Leiden", "Alkmaar",
-        "Hoorn", "Purmerend", "Wormerland", "Edam-Volendam",
+
+@dataclass(frozen=True)
+class SoftSoilFallbackMunicipality:
+    """Documented municipality fallback entry used when parcel soil data is missing."""
+
+    name: str
+    source: str
+    source_date: str
+    review_date: str
+    rationale: str
+
+
+_SOFT_SOIL_FALLBACK_SOURCE = (
+    "RCE foundation risk mapping + municipal subsidence guidance"
+)
+_SOFT_SOIL_FALLBACK_SOURCE_DATE = "2025-01"
+_SOFT_SOIL_FALLBACK_REVIEW_DATE = "2026-10-01"
+
+
+def _soft_soil_fallback(
+    name: str,
+    rationale: str,
+) -> SoftSoilFallbackMunicipality:
+    return SoftSoilFallbackMunicipality(
+        name=name,
+        source=_SOFT_SOIL_FALLBACK_SOURCE,
+        source_date=_SOFT_SOIL_FALLBACK_SOURCE_DATE,
+        review_date=_SOFT_SOIL_FALLBACK_REVIEW_DATE,
+        rationale=rationale,
     )
+
+
+# Municipality fallback list used only when BRO parcel soil data is unavailable.
+# Source basis: Dutch soft-soil / historic foundation-risk mapping used by RCE and
+# municipal subsidence guidance. Review regularly because municipality boundaries
+# and local foundation programs can change.
+SOFT_SOIL_FALLBACKS: tuple[SoftSoilFallbackMunicipality, ...] = (
+    _soft_soil_fallback(
+        "Amsterdam",
+        "Historic clay/peat foundations and widespread subsidence exposure.",
+    ),
+    _soft_soil_fallback(
+        "Rotterdam",
+        "Historic soft-soil districts and documented subsidence exposure.",
+    ),
+    _soft_soil_fallback(
+        "Gouda",
+        "Historic peat/clay setting with known foundation sensitivity.",
+    ),
+    _soft_soil_fallback(
+        "Zaanstad",
+        "Large peat/clay areas with historic timber-pile foundations.",
+    ),
+    _soft_soil_fallback(
+        "Dordrecht",
+        "River delta soft soils and historic foundation exposure.",
+    ),
+    _soft_soil_fallback(
+        "Schiedam",
+        "Historic urban fabric on soft delta soils.",
+    ),
+    _soft_soil_fallback(
+        "Delft",
+        "Canal-area foundations and soft clay/peat conditions.",
+    ),
+    _soft_soil_fallback(
+        "Haarlem",
+        "Historic center and adjacent soft-soil neighborhoods.",
+    ),
+    _soft_soil_fallback(
+        "Leiden",
+        "Historic foundations in a soft-soil setting.",
+    ),
+    _soft_soil_fallback(
+        "Alkmaar",
+        "Historic center with soft-soil foundation exposure.",
+    ),
+    _soft_soil_fallback(
+        "Hoorn",
+        "Historic urban area on soft marine and peat soils.",
+    ),
+    _soft_soil_fallback(
+        "Purmerend",
+        "Peat meadow context with subsidence-sensitive foundations.",
+    ),
+    _soft_soil_fallback(
+        "Wormerland",
+        "Peat-rich municipality with soft-soil settlement risk.",
+    ),
+    _soft_soil_fallback(
+        "Edam-Volendam",
+        "Historic soft-soil built environment around peat/clay zones.",
+    ),
+    _soft_soil_fallback(
+        "Utrecht",
+        "Historic urban core and canal areas with soft-soil foundation exposure.",
+    ),
+    _soft_soil_fallback(
+        "'s-Gravenhage",
+        "Historic Hague districts include soft-soil foundation risk areas.",
+    ),
+    _soft_soil_fallback(
+        "Den Haag",
+        "Common municipality name used in product copy and address data.",
+    ),
+)
+
+SOFT_SOIL_MUNICIPALITIES: frozenset[str] = frozenset(
+    entry.name.casefold() for entry in SOFT_SOIL_FALLBACKS
 )
 
 _client: httpx.AsyncClient | None = None

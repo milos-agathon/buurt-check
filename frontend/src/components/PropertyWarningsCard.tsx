@@ -14,6 +14,8 @@ interface Props {
 }
 
 const ERFPACHT_NOTE_MUNICIPALITY_ONLY = 'ERFPACHT_NOTE_MUNICIPALITY_ONLY';
+const FOUNDATION_SOFT_SOIL_CITY = 'FOUNDATION_SOFT_SOIL_CITY';
+const FOUNDATION_YEAR_ONLY = 'FOUNDATION_YEAR_ONLY';
 
 function mapFoundationLevel(level: PropertyWarningsResponse['foundation_risk']['level']): SeverityLevel {
   if (level === 'high') return 'poor';
@@ -57,7 +59,14 @@ function PropertyWarningsCard({ data, loading, error, onRetry, showAsbestos = tr
   if (!data) return null;
 
   const { foundation_risk, erfpacht, vve, asbestos } = data;
-  const hasFoundation = foundation_risk.level !== 'low' || foundation_risk.soil_type;
+  const foundationMessages = new Set(foundation_risk.messages);
+  const foundationUsesMunicipalityFallback = foundationMessages.has(FOUNDATION_SOFT_SOIL_CITY);
+  const foundationUsesYearOnlyFallback = foundationMessages.has(FOUNDATION_YEAR_ONLY);
+  const hasFoundation =
+    foundation_risk.level !== 'low'
+    || Boolean(foundation_risk.soil_type)
+    || foundationUsesMunicipalityFallback
+    || foundationUsesYearOnlyFallback;
   const hasErfpacht = erfpacht.detected;
   const hasVve = vve.is_apartment;
   const hasAsbestos = showAsbestos && asbestos.flagged;
@@ -68,6 +77,18 @@ function PropertyWarningsCard({ data, loading, error, onRetry, showAsbestos = tr
   const showMunicipalityOnlyNote = erfpacht.messages.includes(
     ERFPACHT_NOTE_MUNICIPALITY_ONLY,
   );
+  const foundationDescriptionKey = foundationUsesMunicipalityFallback
+    ? `warnings.foundation.${foundation_risk.level}_municipalityFallback`
+    : foundationUsesYearOnlyFallback
+      ? `warnings.foundation.${foundation_risk.level}_yearOnly`
+      : `warnings.foundation.${foundation_risk.level}`;
+  const foundationBasisKey = foundationUsesMunicipalityFallback
+    ? 'warnings.foundation.basis.municipalityFallback'
+    : foundationUsesYearOnlyFallback
+      ? 'warnings.foundation.basis.yearOnly'
+      : foundation_risk.soil_type
+        ? 'warnings.foundation.basis.soilData'
+        : null;
 
   return (
     <section className="property-warnings" data-testid="property-warnings">
@@ -77,11 +98,17 @@ function PropertyWarningsCard({ data, loading, error, onRetry, showAsbestos = tr
           <h4 className="property-warnings__card-title">{t('warnings.foundation.title')}</h4>
           <SeverityBadge severity={mapFoundationLevel(foundation_risk.level)} size="sm" />
           <p className="property-warnings__description">
-            {t(`warnings.foundation.${foundation_risk.level}`, {
+            {t(foundationDescriptionKey, {
               soil: foundation_risk.soil_type ?? '?',
               rate: foundation_risk.subsidence_rate_mm_per_year ?? '?',
             })}
           </p>
+          {foundationBasisKey && (
+            <p className="property-warnings__note">
+              <strong>{t('warnings.foundation.basisLabel')}:</strong>{' '}
+              {t(foundationBasisKey)}
+            </p>
+          )}
           <details className="property-warnings__questions">
             <summary>{t('warnings.foundation.title')} — {t('warnings.foundation.question_1').split('.')[0]}...</summary>
             <ul>

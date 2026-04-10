@@ -41,7 +41,7 @@ class LeadPipeWarning(BaseModel):
 
 class AttentionFlag(BaseModel):
     category: str
-    severity: str
+    severity: Literal["critical", "poor", "moderate", "info"]
     label: str
 
 

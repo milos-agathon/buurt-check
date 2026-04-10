@@ -76,7 +76,7 @@ describe('AttentionSummary', () => {
       address_id: 'vbo-123',
       attention_summary: {
         flag_count: 1,
-        flags: [{ category: 'lead_pipe', severity: 'elevated', label: 'Lead pipe risk' }],
+        flags: [{ category: 'lead_pipe', severity: 'info', label: 'Lead pipe risk' }],
         risk_categories_assessed: 4,
         risk_categories_total: 4,
       },
@@ -113,11 +113,41 @@ describe('AttentionSummary', () => {
     const nlI18n = await setupTestI18n('nl');
     render(
       <I18nextProvider i18n={nlI18n}>
-        <AttentionSummary summary={{ flags: [{ category: 'noise', severity: 'elevated', label: 'Noise risk' }], assessed: 4, total: 4 }} />
+        <AttentionSummary summary={{ flags: [{ category: 'noise', severity: 'moderate', label: 'Noise risk' }], assessed: 4, total: 4 }} />
       </I18nextProvider>,
     );
 
     expect(screen.getByText(/punt(en)? verdienen aandacht|1 punt verdient aandacht/i)).toBeInTheDocument();
     expect(screen.getByText('Geluidrisico')).toBeInTheDocument();
+  });
+
+  it('uses canonical poor and moderate severities for borderline scores', () => {
+    const riskCards = {
+      address_id: 'vbo-123',
+      noise: { level: 'medium', source: 'RIVM', sampled_at: '2026-02-05', score: 28 },
+      air_quality: {
+        level: 'medium',
+        pm25_level: 'medium',
+        no2_level: 'medium',
+        source: 'RIVM',
+        sampled_at: '2026-02-05',
+        score: 45,
+      },
+      climate_stress: {
+        level: 'low',
+        heat_level: 'low',
+        water_level: 'low',
+        source: 'KEA',
+        sampled_at: '2026-02-05',
+        score: 78,
+      },
+    } as RiskCardsResponse;
+
+    const summary = buildSummary(riskCards, null);
+
+    expect(summary?.flags).toEqual([
+      { category: 'noise', severity: 'poor', label: 'noise' },
+      { category: 'air_quality', severity: 'moderate', label: 'air_quality' },
+    ]);
   });
 });

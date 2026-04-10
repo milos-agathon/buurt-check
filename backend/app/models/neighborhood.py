@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class UrbanizationLevel(str, Enum):
@@ -27,6 +27,8 @@ class NeighborhoodIndicator(BaseModel):
     quartile_direction: Literal["higher_value", "lower_value"] | None = None
     favorable_quartile: int | None = None  # 1-4, where 4 is always more favorable
     precision: int | None = None
+    source_year: int | None = None
+    source_note: str | None = None
 
 
 class NeighborhoodStats(BaseModel):
@@ -49,4 +51,7 @@ class NeighborhoodStatsResponse(BaseModel):
     stats: NeighborhoodStats | None = None
     source: str = "CBS (Statistics Netherlands)"
     source_year: int = 2024
+    source_years: list[int] = Field(default_factory=list)
+    mixed_source_years: bool = False
+    source_notes: list[str] = Field(default_factory=list)
     message: str | None = None

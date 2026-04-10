@@ -48,6 +48,49 @@ function formatCrimeSourceDate(
   return parsed ? formatCoverageDate(parsed, language) : fallback;
 }
 
+function buildCrimeSourceText(
+  crime: TierBResponse['crime'],
+  language: string,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  const fallbackDate = t('risk.dateUnknown');
+  const detailParts: string[] = [];
+  const crimePeriod = formatCrimeSourceDate(
+    crime.source_date,
+    crime.yearly_period,
+    undefined,
+    language,
+    fallbackDate,
+  );
+
+  if (crimePeriod !== fallbackDate) {
+    detailParts.push(t('tierB.source.crimePeriod', { period: crimePeriod }));
+  }
+  if (crime.population_year != null) {
+    detailParts.push(
+      t(
+        crime.population_is_estimate
+          ? 'tierB.source.localPopulationEstimate'
+          : 'tierB.source.localPopulation',
+        { year: crime.population_year },
+      ),
+    );
+  }
+  if (crime.national_population_year != null) {
+    detailParts.push(
+      t(
+        crime.national_population_is_estimate
+          ? 'tierB.source.nationalPopulationEstimate'
+          : 'tierB.source.nationalPopulation',
+        { year: crime.national_population_year },
+      ),
+    );
+  }
+
+  const detail = detailParts.length > 0 ? detailParts.join('; ') : crimePeriod;
+  return t('tierB.source.crime', { source: crime.source, detail });
+}
+
 function comparisonWidth(values: Array<number | undefined>): (value: number | undefined) => string {
   const valid = values.filter((entry): entry is number => entry != null && Number.isFinite(entry));
   const domainMax = valid.length > 0 ? Math.max(100, ...valid) : 100;
@@ -130,13 +173,6 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
   if (!data) return null;
 
   const unavailable = t('tierB.unavailable');
-  const crimeSourceDate = formatCrimeSourceDate(
-    data.crime.source_date,
-    data.crime.yearly_period,
-    data.crime.monthly_period,
-    language,
-    t('risk.dateUnknown'),
-  );
   const per1000Suffix = t('tierB.crime.per_1000_suffix');
   const rawSuffix = ` ${t('tierB.crime.rawSuffix')}`;
   const hasRates = data.crime.total_per_1000 != null;
@@ -248,7 +284,7 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
           <p className="tier-b-card__note">{fallback.note}</p>
         )}
         <p className="tier-b-card__source-line">
-          {t('tierB.source.crime', { source: data.crime.source, date: crimeSourceDate })}
+          {buildCrimeSourceText(data.crime, language, t)}
         </p>
         {data.crime.monthly_period && (
           <p className="tier-b-card__period">

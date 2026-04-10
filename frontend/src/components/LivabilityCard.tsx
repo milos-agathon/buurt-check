@@ -1,7 +1,18 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LivabilityResponse, SeverityLevel } from '../types/api';
-import AnimatedScore from './ui/AnimatedScore';
+import type { LivabilityResponse } from '../types/api';
+import {
+  describeLivabilityDeviation,
+  formatLivabilityClass,
+  getLivabilityClassBarPercent,
+  getLivabilityClassLabel,
+  getLivabilityClassValue,
+  getLivabilityComparisonClassValue,
+  getLivabilityDeviationVisual,
+  getLivabilityDimensionClassValue,
+  getLivabilityTrendClassValue,
+  livabilityLegendKey,
+} from '../utils/livabilitySemantics';
 import SectionSkeleton from './ui/SectionSkeleton';
 import './LivabilityCard.css';
 
@@ -13,15 +24,8 @@ interface Props {
   onRetry?: () => void;
 }
 
-function scoreSeverity(normalized: number): SeverityLevel {
-  if (normalized >= 70) return 'good';
-  if (normalized >= 40) return 'moderate';
-  if (normalized >= 20) return 'poor';
-  return 'critical';
-}
-
 function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   if (loading) {
     return (
@@ -58,10 +62,22 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
     );
   }
 
-  const severity = scoreSeverity(data.overall_normalized);
   const hasDimensions = data.dimensions.length > 0;
   const hasTrend = data.trend.length > 1;
   const hasComparison = data.comparison.length > 0;
+  const language = i18n.resolvedLanguage ?? i18n.language;
+  const overallClass = getLivabilityClassValue(data);
+  const overallClassText = formatLivabilityClass(overallClass, t);
+  const overallClassLabel = getLivabilityClassLabel(
+    overallClass,
+    t,
+    data.overall_class_label,
+  );
+  const overallDeviationText = describeLivabilityDeviation(
+    data.overall_deviation,
+    t,
+    language,
+  );
 
   return (
     <section
@@ -72,14 +88,18 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
       tabIndex={onTap ? 0 : undefined}
       onKeyDown={onTap ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap(); } } : undefined}
     >
-      {/* Score badge + buurt name */}
       <div className="livability-card__header">
-        <div className={`livability-card__score-badge livability-card__score-badge--${severity}`}>
-          <AnimatedScore value={data.overall_normalized} className="livability-card__score-value" showScale />
+        <div className="livability-card__score-badge">
+          <span className="livability-card__class-value">{overallClass}</span>
+          <span className="livability-card__class-scale">{t('livability.classBadge')}</span>
         </div>
         <div className="livability-card__header-text">
           <p className="livability-card__buurt-name">{data.buurt_name}</p>
           <p className="livability-card__gemeente">{data.gemeente} — {data.year}</p>
+          <p className="livability-card__class-label">{overallClassLabel}</p>
+          <p className="livability-card__class-meta">
+            {overallDeviationText ?? overallClassText}
+          </p>
         </div>
         {onTap && (
           <svg className="livability-card__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -90,19 +110,31 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
 
       <div className="livability-card__dimensions" data-testid="livability-dimensions">
         {hasDimensions ? data.dimensions.map((dim) => {
-          const dimSeverity = scoreSeverity(dim.normalized_score);
+          const classValue = getLivabilityDimensionClassValue(dim);
+          const classText = formatLivabilityClass(classValue, t);
+          const classLabel = getLivabilityClassLabel(classValue, t, dim.class_label);
+          const deviationText = describeLivabilityDeviation(dim.deviation, t, language);
+          const deviationVisual = getLivabilityDeviationVisual(dim.deviation);
           return (
             <div className="livability-card__dimension" key={dim.name}>
-              <span className="livability-card__dimension-label">
-                {t(dim.label_code, dim.name)}
-              </span>
-              <div className="livability-card__dimension-track">
-                <div
-                  className={`livability-card__dimension-fill livability-card__dimension-fill--${dimSeverity}`}
-                  style={{ width: `${dim.normalized_score}%` }}
-                />
+              <div className="livability-card__dimension-copy">
+                <span className="livability-card__dimension-label">
+                  {t(dim.label_code, dim.name)}
+                </span>
+                <span className="livability-card__dimension-meta">
+                  {deviationText ?? classLabel}
+                </span>
               </div>
-              <span className="livability-card__dimension-value">{dim.normalized_score}</span>
+              <div className="livability-card__dimension-track" aria-hidden="true">
+                <span className="livability-card__dimension-axis" />
+                {deviationVisual ? (
+                  <span
+                    className={`livability-card__dimension-fill livability-card__dimension-fill--${deviationVisual.tone}`}
+                    style={{ left: deviationVisual.left, width: deviationVisual.width }}
+                  />
+                ) : null}
+              </div>
+              <span className="livability-card__dimension-value">{classText}</span>
             </div>
           );
         }) : (
@@ -116,15 +148,15 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
           <>
             <div className="livability-card__sparkline">
               {data.trend.map((point) => {
-                const pctHeight = Math.max(10, point.overall_normalized);
-                const barSeverity = scoreSeverity(point.overall_normalized);
+                const classValue = getLivabilityTrendClassValue(point);
+                const pctHeight = getLivabilityClassBarPercent(classValue);
                 return (
                   <div
                     key={point.year}
-                    className={`livability-card__spark-bar livability-card__spark-bar--${barSeverity}`}
+                    className="livability-card__spark-bar"
                     style={{ height: `${pctHeight}%` }}
                     role="img"
-                    aria-label={`${point.year}: ${point.overall_normalized}/100`}
+                    aria-label={`${point.year}: ${formatLivabilityClass(classValue, t)}`}
                   />
                 );
               })}
@@ -145,17 +177,19 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
       <div className="livability-card__comparison" data-testid="livability-comparison">
         <span className="livability-card__comparison-label">{t('livability.comparison')}</span>
         {hasComparison ? data.comparison.map((row) => (
-          <div className="livability-card__comparison-row" key={row.level}>
+          <div className="livability-card__comparison-row" key={`${row.level}-${row.name}`}>
             <span className="livability-card__comparison-name">
               {row.name}
             </span>
             <div className="livability-card__comparison-track">
               <div
-                className="livability-card__comparison-fill"
-                style={{ width: `${row.overall_normalized}%` }}
+                className={`livability-card__comparison-fill livability-card__comparison-fill--${livabilityLegendKey(row.level)}`}
+                style={{ width: `${getLivabilityClassBarPercent(getLivabilityComparisonClassValue(row))}%` }}
               />
             </div>
-            <span className="livability-card__comparison-value">{row.overall_normalized}</span>
+            <span className="livability-card__comparison-value">
+              {formatLivabilityClass(getLivabilityComparisonClassValue(row), t)}
+            </span>
           </div>
         )) : (
           <p className="livability-card__unavailable">{t('livability.comparisonUnavailable')}</p>

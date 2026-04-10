@@ -47,40 +47,23 @@
   justify-content: center;
   flex-shrink: 0;
   padding: 4px 0;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
 }
 
-.livability-card__score-badge--good {
-  background: var(--color-badge-positive-bg);
-  color: var(--color-badge-positive-text);
-}
-
-.livability-card__score-badge--moderate {
-  background: var(--color-badge-caution-bg);
-  color: var(--color-badge-caution-text);
-}
-
-.livability-card__score-badge--poor {
-  background: var(--color-badge-negative-bg);
-  color: var(--color-badge-negative-text);
-}
-
-.livability-card__score-badge--critical {
-  background: var(--color-badge-negative-bg);
-  color: var(--color-badge-negative-text);
-}
-
-.livability-card__score-value {
+.livability-card__class-value {
   font: var(--type-data);
   font-weight: 700;
   line-height: 1;
 }
 
-.livability-card__score-value .animated-score__scale {
+.livability-card__class-scale {
   font: var(--type-micro);
   font-weight: 500;
   line-height: 1;
-  color: var(--color-text-secondary);
   margin-top: 2px;
+  color: var(--color-text-secondary);
 }
 
 .livability-card__header-text {
@@ -101,6 +84,17 @@
   color: var(--color-text-secondary);
 }
 
+.livability-card__class-label {
+  font: var(--type-small);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.livability-card__class-meta {
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+}
+
 .livability-card__dimensions {
   display: flex;
   flex-direction: column;
@@ -109,16 +103,26 @@
 
 .livability-card__dimension {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-sm);
+}
+
+.livability-card__dimension-copy {
+  width: 120px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .livability-card__dimension-label {
   font: var(--type-small);
+  color: var(--color-text);
+}
+
+.livability-card__dimension-meta {
+  font: var(--type-micro);
   color: var(--color-text-secondary);
-  width: 80px;
-  flex-shrink: 0;
-  text-transform: capitalize;
 }
 
 .livability-card__dimension-track {
@@ -127,35 +131,46 @@
   background: var(--color-surface-alt);
   border-radius: 4px;
   overflow: hidden;
+  position: relative;
+  margin-top: 7px;
+}
+
+.livability-card__dimension-axis {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background: var(--color-border);
 }
 
 .livability-card__dimension-fill {
-  height: 100%;
+  position: absolute;
+  top: 0;
+  bottom: 0;
   border-radius: 4px;
-  transition: width var(--duration-slow) var(--ease-out-expo);
+  transition:
+    width var(--duration-slow) var(--ease-out-expo),
+    left var(--duration-slow) var(--ease-out-expo);
 }
 
-.livability-card__dimension-fill--good {
-  background: var(--color-risk-good);
+.livability-card__dimension-fill--positive {
+  background: var(--color-accent);
 }
 
-.livability-card__dimension-fill--moderate {
-  background: var(--color-risk-moderate);
+.livability-card__dimension-fill--negative {
+  background: var(--color-text-tertiary);
 }
 
-.livability-card__dimension-fill--poor {
-  background: var(--color-risk-poor);
-}
-
-.livability-card__dimension-fill--critical {
-  background: var(--color-risk-critical);
+.livability-card__dimension-fill--neutral {
+  background: var(--color-accent-text);
 }
 
 .livability-card__dimension-value {
   font: var(--type-small);
   font-weight: 500;
   color: var(--color-text);
-  width: 32px;
+  width: 58px;
   text-align: right;
   flex-shrink: 0;
 }
@@ -184,6 +199,7 @@
   flex: 1;
   border-radius: 2px 2px 0 0;
   min-height: 4px;
+  background: linear-gradient(180deg, var(--color-accent) 0%, var(--color-accent-text) 100%);
   transform-origin: bottom;
   animation: spark-bar-grow var(--duration-moderate) var(--ease-out-expo) both;
 }
@@ -191,22 +207,6 @@
 @keyframes spark-bar-grow {
   from { transform: scaleY(0); }
   to { transform: scaleY(1); }
-}
-
-.livability-card__spark-bar--good {
-  background: var(--color-risk-good);
-}
-
-.livability-card__spark-bar--moderate {
-  background: var(--color-risk-moderate);
-}
-
-.livability-card__spark-bar--poor {
-  background: var(--color-risk-poor);
-}
-
-.livability-card__spark-bar--critical {
-  background: var(--color-risk-critical);
 }
 
 .livability-card__spark-years {
@@ -261,15 +261,30 @@
 .livability-card__comparison-fill {
   height: 100%;
   border-radius: 3px;
+}
+
+.livability-card__comparison-fill--address {
+  background: var(--color-accent-text);
+}
+
+.livability-card__comparison-fill--district {
   background: var(--color-accent);
-  opacity: 0.6;
+  opacity: 0.75;
+}
+
+.livability-card__comparison-fill--municipality {
+  background: var(--color-text-tertiary);
+}
+
+.livability-card__comparison-fill--national {
+  background: var(--color-text-secondary);
 }
 
 .livability-card__comparison-value {
   font: var(--type-small);
   font-weight: 500;
   color: var(--color-text);
-  width: 32px;
+  width: 58px;
   text-align: right;
   flex-shrink: 0;
 }

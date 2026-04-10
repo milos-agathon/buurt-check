@@ -221,7 +221,8 @@ def climate_summary(
 def normalize_crime_score(total_per_1000: float | None) -> int | None:
     """Linear inverse mapping: 20/1000 = 100 (very safe), 100/1000 = 0 (high crime).
 
-    Dutch national average ~52/1000. Clamps to 0-100.
+    This is a fixed buurt-check risk-band model, not a live national-average anchor.
+    Clamps to 0-100.
     """
     if total_per_1000 is None:
         return None
@@ -230,22 +231,49 @@ def normalize_crime_score(total_per_1000: float | None) -> int | None:
 
 
 def crime_summary(
-    score: int | None, total_per_1000: float | None
+    score: int | None,
+    total_per_1000: float | None,
+    national_per_1000: float | None = None,
 ) -> tuple[str, str]:
     """Return (en, nl) one-liner summaries for crime based on score."""
     if score is None or total_per_1000 is None:
         return ("Crime data unavailable", "Criminaliteitsgegevens niet beschikbaar")
     sev = severity_from_score(score)
     rate = f"{total_per_1000:.1f}"
+    has_national = national_per_1000 is not None
+    below_national = has_national and total_per_1000 < national_per_1000
+    near_national = has_national and abs(total_per_1000 - national_per_1000) <= 5.0
     if sev == SeverityLevel.good:
+        if below_national:
+            return (
+                (
+                    f"Low crime area ({rate}/1,000 residents) — below the "
+                    "current national comparison"
+                ),
+                (
+                    f"Weinig criminaliteit ({rate}/1.000 inwoners) — onder de "
+                    "huidige landelijke vergelijking"
+                ),
+            )
         return (
-            f"Low crime area ({rate}/1,000 residents) — well below national average",
-            f"Weinig criminaliteit ({rate}/1.000 inwoners) — ruim onder landelijk gemiddelde",
+            f"Low crime area ({rate}/1,000 residents)",
+            f"Weinig criminaliteit ({rate}/1.000 inwoners)",
         )
     if sev == SeverityLevel.moderate:
+        if near_national:
+            return (
+                (
+                    f"Average crime rate ({rate}/1,000 residents) — near the "
+                    "current national comparison"
+                ),
+                (
+                    f"Gemiddelde criminaliteit ({rate}/1.000 inwoners) — nabij "
+                    "de huidige landelijke vergelijking"
+                ),
+            )
         return (
-            f"Average crime rate ({rate}/1,000 residents) — near national average",
-            f"Gemiddelde criminaliteit ({rate}/1.000 inwoners) — nabij landelijk gemiddelde",
+            f"Average crime rate ({rate}/1,000 residents)",
+            f"Gemiddelde criminaliteit ({rate}/1.000 inwoners)",
         )
     if sev == SeverityLevel.poor:
         return (

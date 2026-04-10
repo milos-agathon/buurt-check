@@ -108,13 +108,16 @@
 }
 
 .attention-summary__flag--critical,
-.attention-summary__flag--high {
+.attention-summary__flag--poor {
   color: var(--color-risk-poor);
 }
 
-.attention-summary__flag--elevated,
-.attention-summary__flag--medium {
+.attention-summary__flag--moderate {
   color: var(--color-risk-moderate);
+}
+
+.attention-summary__flag--info {
+  color: var(--color-text-secondary);
 }
 
 .attention-summary__detail {

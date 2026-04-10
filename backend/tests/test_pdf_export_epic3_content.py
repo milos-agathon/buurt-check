@@ -135,7 +135,8 @@ def test_epic3_livability_section_renders_when_data_present():
         livability=_make_livability(),
     )
     text = _pdf_text(result)
-    assert "Livability Score" in text
+    assert "Livability Class" in text
+    assert "Class 6" in text
     assert "Dimensions" in text
     assert "Comparison" in text
 

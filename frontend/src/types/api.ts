@@ -336,6 +336,8 @@ export interface NeighborhoodIndicator {
   quartile_direction?: 'higher_value' | 'lower_value' | null;
   favorable_quartile?: number | null;
   precision?: number | null;
+  source_year?: number | null;
+  source_note?: string | null;
 }
 
 export interface NeighborhoodStats {
@@ -358,6 +360,9 @@ export interface NeighborhoodStatsResponse {
   stats?: NeighborhoodStats;
   source: string;
   source_year: number;
+  source_years?: number[];
+  mixed_source_years?: boolean;
+  source_notes?: string[];
   message?: string;
 }
 
@@ -383,9 +388,14 @@ export interface CrimeStatsCard {
   area_code?: string;
   area_name?: string;
   population?: number;
+  population_source?: string;
   population_year?: number;
+  population_is_estimate?: boolean;
   total_per_1000?: number;
   national_per_1000?: number;
+  national_population_source?: string;
+  national_population_year?: number;
+  national_population_is_estimate?: boolean;
   burglary_per_1000?: number;
   violent_per_1000?: number;
   yearly_period?: string;
@@ -439,7 +449,7 @@ export interface AsbestosWarning {
 
 export interface AttentionFlag {
   category: string;
-  severity: string;
+  severity: 'critical' | 'poor' | 'moderate' | 'info';
   label: string;
 }
 
@@ -478,6 +488,8 @@ export interface LivabilityDimension {
   name: LivabilityDimensionName;
   raw_score: number;
   normalized_score: number;
+  class_label?: string;
+  deviation?: number | null;
   label_code: string;
 }
 
@@ -485,14 +497,20 @@ export interface LivabilityTrendPoint {
   year: string;
   overall_score: number;
   overall_normalized: number;
+  overall_class?: number;
+  overall_class_label?: string;
+  overall_deviation?: number | null;
   dimensions: LivabilityDimension[];
 }
 
 export interface LivabilityComparisonRow {
-  level: 'buurt' | 'wijk' | 'gemeente';
+  level: 'buurt' | 'wijk' | 'gemeente' | 'national';
   name: string;
   overall_score: number;
   overall_normalized: number;
+  overall_class?: number;
+  overall_class_label?: string;
+  overall_deviation?: number | null;
   dimensions: LivabilityDimension[];
 }
 
@@ -504,6 +522,9 @@ export interface LivabilityAvailableResponse {
   year: string;
   overall_score: number;
   overall_normalized: number;
+  overall_class?: number;
+  overall_class_label?: string;
+  overall_deviation?: number | null;
   dimensions: LivabilityDimension[];
   trend: LivabilityTrendPoint[];
   comparison: LivabilityComparisonRow[];

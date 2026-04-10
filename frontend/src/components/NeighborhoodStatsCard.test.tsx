@@ -83,6 +83,33 @@ describe('NeighborhoodStatsCard', () => {
     expect(screen.getByText('Source + date: CBS Wijken & Buurten 2024 (2024)')).toBeInTheDocument();
   });
 
+  it('renders mixed-source backfill copy when neighborhood indicators come from multiple years', () => {
+    const base = makeNeighborhoodStatsResponse();
+    const response = makeNeighborhoodStatsResponse({
+      source_years: [2024, 2023],
+      mixed_source_years: true,
+      stats: {
+        ...base.stats!,
+        distance_to_train_km: {
+          ...base.stats!.distance_to_train_km,
+          source_year: 2023,
+        },
+        avg_property_value: {
+          ...base.stats!.avg_property_value,
+          source_year: 2023,
+        },
+      },
+    });
+
+    renderCard({ stats: response });
+
+    expect(
+      screen.getByText(
+        'Source + date: CBS Wijken & Buurten 2024 (2024) · 2023 backfill for property value and train distance',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('renders correctly in Dutch', () => {
     renderCard({ stats: makeNeighborhoodStatsResponse() }, 'nl');
     expect(screen.getByText('Buurtprofiel')).toBeInTheDocument();
