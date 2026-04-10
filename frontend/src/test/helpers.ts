@@ -419,7 +419,12 @@ export function makePropertyWarningsResponse(
       soil_type: 'zand',
       messages: [],
     },
-    erfpacht: { detected: false, messages: [] },
+    erfpacht: {
+      detected: false,
+      scope: 'municipality',
+      verified_property_level: false,
+      messages: [],
+    },
     vve: { is_apartment: false, messages: [] },
     asbestos: { flagged: false, messages: [] },
     lead_pipe: { flagged: false, messages: [] },

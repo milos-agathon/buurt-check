@@ -29,6 +29,8 @@ class TestErfpachtDetection:
         assert result.erfpacht.detected is True
         assert result.erfpacht.confidence == "municipality_based"
         assert result.erfpacht.municipality == "Amsterdam"
+        assert result.erfpacht.scope == "municipality"
+        assert result.erfpacht.verified_property_level is False
 
     @pytest.mark.asyncio
     async def test_haarlem_flags_erfpacht(self):
@@ -65,6 +67,8 @@ class TestErfpachtDetection:
             )
         assert result.erfpacht.detected is True
         assert result.erfpacht.confidence == "municipality_based"
+        assert result.erfpacht.scope == "municipality"
+        assert result.erfpacht.verified_property_level is False
 
     @pytest.mark.asyncio
     async def test_amsterdam_whitespace_flags_erfpacht(self):
@@ -120,6 +124,8 @@ class TestErfpachtDetection:
             )
         assert result.erfpacht.detected is True
         assert result.erfpacht.confidence == "municipality_based"
+        assert result.erfpacht.scope == "municipality"
+        assert result.erfpacht.verified_property_level is False
 
     @pytest.mark.asyncio
     async def test_erfpacht_municipality_only_message(self):
@@ -155,6 +161,8 @@ class TestErfpachtDetection:
                 municipality="Maastricht",
             )
         assert result.erfpacht.detected is False
+        assert result.erfpacht.scope == "municipality"
+        assert result.erfpacht.verified_property_level is False
 
 
 # --- VvE detection ---
@@ -323,6 +331,7 @@ class TestAttentionSummary:
         )
         assert summary.flag_count == 1
         assert summary.flags[0].category == "erfpacht"
+        assert summary.flags[0].label == "Erfpacht common in this municipality - verify status"
 
     def test_vve_flagged_for_apartment(self):
         summary = build_attention_summary(

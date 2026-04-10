@@ -26,6 +26,8 @@ def test_foundation_risk_unavailable():
 def test_erfpacht_warning():
     w = ErfpachtWarning(detected=True, confidence="municipality_based", municipality="Amsterdam")
     assert w.detected is True
+    assert w.scope == "municipality"
+    assert w.verified_property_level is False
     assert w.messages == []
 
 
@@ -33,6 +35,8 @@ def test_erfpacht_not_detected():
     w = ErfpachtWarning(detected=False)
     assert w.confidence is None
     assert w.municipality is None
+    assert w.scope == "municipality"
+    assert w.verified_property_level is False
 
 
 def test_vve_info():
@@ -63,7 +67,9 @@ def test_attention_summary_with_flags():
                 category="foundation", severity="poor", label="High foundation risk"
             ),
             AttentionFlag(
-                category="erfpacht", severity="info", label="Erfpacht detected"
+                category="erfpacht",
+                severity="info",
+                label="Erfpacht common in this municipality - verify status",
             ),
         ],
         risk_categories_assessed=3,
@@ -91,6 +97,8 @@ def test_property_warnings_response_serialization():
     assert data["address_id"] == "0363200000000001"
     assert data["foundation_risk"]["level"] == "low"
     assert data["erfpacht"]["detected"] is False
+    assert data["erfpacht"]["scope"] == "municipality"
+    assert data["erfpacht"]["verified_property_level"] is False
     # Round-trip
     resp2 = PropertyWarningsResponse(**data)
     assert resp2.attention_summary.flag_count == 0

@@ -43,6 +43,11 @@ CLAUDE.local.md
 # Tasks
 tasks/
 docs/
+!docs/
+docs/*
+!docs/data/
+docs/data/*
+!docs/data/risk-benchmarks.md
 
 # Chrome debug profiles
 .chrome-debug-profile/

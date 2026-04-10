@@ -1005,6 +1005,15 @@ async def test_full_dossier_export_forwards_request_municipality_to_property_war
             return_value=True,
         ),
         patch(
+            "app.services.reports.get_report",
+            new_callable=AsyncMock,
+            return_value=type(
+                "ReportStub",
+                (),
+                {"created_at": "2027-02-03T12:34:56Z"},
+            )(),
+        ),
+        patch(
             "app.api.address._fetch_building_for_export",
             new_callable=AsyncMock,
             return_value=building_resp,
@@ -1371,6 +1380,15 @@ async def test_full_dossier_export_passes_footprint_geojson_to_generator():
             return_value=True,
         ),
         patch(
+            "app.services.reports.get_report",
+            new_callable=AsyncMock,
+            return_value=type(
+                "ReportStub",
+                (),
+                {"created_at": "2027-02-03T12:34:56Z"},
+            )(),
+        ),
+        patch(
             "app.api.address._fetch_building_for_export",
             new_callable=AsyncMock,
             return_value=building_resp,
@@ -1661,6 +1679,15 @@ async def test_full_dossier_export_maps_forge3d_seasonal_facades_to_generator():
             return_value=True,
         ),
         patch(
+            "app.services.reports.get_report",
+            new_callable=AsyncMock,
+            return_value=type(
+                "ReportStub",
+                (),
+                {"created_at": "2027-02-03T12:34:56Z"},
+            )(),
+        ),
+        patch(
             "app.api.address._fetch_building_for_export",
             new_callable=AsyncMock,
             return_value=building_resp,
@@ -1731,6 +1758,7 @@ async def test_full_dossier_export_maps_forge3d_seasonal_facades_to_generator():
         rd_y=487296.0,
         lat=52.372,
         lng=4.892,
+        reference_year=2027,
     )
 
     shadow_images = mock_generate_full_dossier.call_args.kwargs["shadow_images"]
@@ -1762,6 +1790,7 @@ async def test_full_dossier_export_maps_forge3d_seasonal_facades_to_generator():
     assert mock_generate_full_dossier.call_args.kwargs["shadow_image_b64"] == "winter-top"
     assert mock_generate_full_dossier.call_args.kwargs["shadow_equinox_b64"] == "equinox-top"
     assert mock_generate_full_dossier.call_args.kwargs["shadow_summer_b64"] == "summer-top"
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_reference_year"] == 2027
 
 
 @pytest.mark.asyncio
@@ -1837,6 +1866,15 @@ async def test_full_dossier_export_falls_back_when_shared_shadow_helper_raises()
             return_value=True,
         ),
         patch(
+            "app.services.reports.get_report",
+            new_callable=AsyncMock,
+            return_value=type(
+                "ReportStub",
+                (),
+                {"created_at": "2027-02-03T12:34:56Z"},
+            )(),
+        ),
+        patch(
             "app.api.address._fetch_building_for_export",
             new_callable=AsyncMock,
             return_value=building_resp,
@@ -1902,6 +1940,7 @@ async def test_full_dossier_export_falls_back_when_shared_shadow_helper_raises()
     assert mock_generate_full_dossier.call_args.kwargs["shadow_image_b64"] == "client-winter-top"
     assert mock_generate_full_dossier.call_args.kwargs["shadow_equinox_b64"] == "client-equinox-top"
     assert mock_generate_full_dossier.call_args.kwargs["shadow_summer_b64"] == "client-summer-top"
+    assert mock_generate_full_dossier.call_args.kwargs["shadow_reference_year"] == 2027
     assert mock_generate_full_dossier.call_args.kwargs["shadow_images"] == [
         {
             "hour": 12,
@@ -1936,6 +1975,15 @@ async def test_shadow_prewarm_ready(client):
         patch(
             "app.api.address.get_render_service",
             return_value=mock_render_service,
+        ),
+        patch(
+            "app.services.reports.get_report",
+            new_callable=AsyncMock,
+            return_value=type(
+                "ReportStub",
+                (),
+                {"created_at": "2027-02-03T12:34:56Z"},
+            )(),
         ),
         patch(
             "app.api.address._fetch_building_for_export",
@@ -1979,6 +2027,7 @@ async def test_shadow_prewarm_ready(client):
         rd_y=487296.0,
         lat=52.372,
         lng=4.892,
+        reference_year=2027,
     )
 
 

@@ -2,17 +2,21 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from app.services import three_d_bag
 from app.services.forge3d_geometry import building_blocks_to_forge3d_scene
 from app.services.forge3d_renderer import Forge3DRenderService
 
-_SEASONAL_RENDER_SPECS: tuple[tuple[str, str], ...] = (
-    ("equinox", "2026-03-20"),
-    ("summer", "2026-06-21"),
-    ("winter", "2026-12-21"),
-)
+
+def seasonal_shadow_dates(year: int) -> tuple[tuple[str, str], ...]:
+    """Return seasonal reference dates for a given evidence year."""
+    return (
+        ("equinox", f"{year:04d}-03-20"),
+        ("summer", f"{year:04d}-06-21"),
+        ("winter", f"{year:04d}-12-21"),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +36,7 @@ async def build_seasonal_shadow_evidence(
     rd_y: float,
     lat: float,
     lng: float,
+    reference_year: int | None = None,
 ) -> SeasonalShadowEvidence | None:
     """Render and normalize Forge3D seasonal shadow evidence for export/prewarm.
 
@@ -70,7 +75,9 @@ async def build_seasonal_shadow_evidence(
     facade_images: list[dict[str, Any]] = []
     top_images: dict[str, str] = {}
 
-    for season_label, date_iso in _SEASONAL_RENDER_SPECS:
+    seasonal_render_specs = seasonal_shadow_dates(reference_year or date.today().year)
+
+    for season_label, date_iso in seasonal_render_specs:
         rendered_images = await render_service.render_shadow_snapshots(
             pand_id=pand_id,
             dates=[date_iso],

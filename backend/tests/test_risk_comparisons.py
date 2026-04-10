@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -18,6 +19,7 @@ from app.models.risk import (
     SeverityLevel,
     SunlightRiskCard,
 )
+from app.services import risk_comparisons
 from app.services.risk_comparisons import build_risk_comparisons
 
 
@@ -103,6 +105,302 @@ def test_build_risk_comparisons_sunlight_falls_back_to_winter_hours():
     )
     assert result.sunlight[-1].label_code == "address"
     assert result.sunlight[-1].value == 50
+
+
+def test_risk_benchmark_artifact_schema_snapshot():
+    raw = json.loads(
+        risk_comparisons._RISK_BENCHMARK_ARTIFACT_PATH.read_text(encoding="utf-8")
+    )
+    assert set(raw) == {"version", "categories"}
+    assert raw["version"] == "2026-04-10"
+    assert set(raw["categories"]) == {
+        "noise",
+        "air_quality",
+        "climate_stress",
+        "sunlight",
+    }
+    for category_name, category in raw["categories"].items():
+        assert category["category"] == category_name
+        assert set(category) == {"category", "peer", "national", "reference"}
+        assert set(category["peer"]) == {
+            "role",
+            "benchmark_family",
+            "label_code",
+            "label_key",
+            "scope",
+            "pattern",
+            "source",
+            "source_date",
+            "derivation_summary",
+            "owner",
+            "review_due_date",
+            "scores",
+        }
+        assert set(category["national"]) == {
+            "role",
+            "benchmark_family",
+            "label_code",
+            "label_key",
+            "scope",
+            "pattern",
+            "score",
+            "source",
+            "source_date",
+            "derivation_summary",
+            "owner",
+            "review_due_date",
+        }
+        assert set(category["reference"]) == set(category["national"])
+
+
+def test_risk_benchmark_artifact_rows_include_source_date_and_family():
+    for category in risk_comparisons._RISK_BENCHMARK_ARTIFACT.categories.values():
+        assert category.peer.source
+        assert category.peer.source_date is not None
+        assert category.peer.benchmark_family
+        assert category.national.source
+        assert category.national.source_date is not None
+        assert category.national.benchmark_family
+        assert category.reference.source
+        assert category.reference.source_date is not None
+        assert category.reference.benchmark_family
+
+
+def test_load_risk_benchmark_artifact_rejects_incomplete_rows(tmp_path):
+    invalid_artifact = {
+        "version": "test",
+        "categories": {
+            "noise": {
+                "category": "noise",
+                "peer": {
+                    "role": "peer",
+                    "benchmark_family": "",
+                    "label_code": "city_avg",
+                    "label_key": "risk.detail.peerUrbanization",
+                    "scope": "urbanization_peer",
+                    "pattern": "solid",
+                    "source": "CBS urbanization profile + Buurt-Check benchmark model",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                    "scores": {
+                        "very_urban": 54,
+                        "urban": 59,
+                        "moderate": 64,
+                        "rural": 71,
+                        "very_rural": 76,
+                        "unknown": 58,
+                    },
+                },
+                "national": {
+                    "role": "national",
+                    "benchmark_family": "national_model",
+                    "label_code": "nl_avg",
+                    "label_key": "risk.detail.nationalBaseline",
+                    "scope": "national",
+                    "pattern": "solid",
+                    "score": 66,
+                    "source": "Buurt-Check nationwide baseline model",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                },
+                "reference": {
+                    "role": "reference",
+                    "benchmark_family": "who_noise_lden",
+                    "label_code": "who_limit",
+                    "label_key": "risk.detail.whoNoiseGuideline",
+                    "scope": "reference",
+                    "pattern": "dashed",
+                    "score": 74,
+                    "source": "WHO Environmental Noise Guidelines + Buurt-Check target mapping",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                },
+            },
+            "air_quality": {
+                "category": "air_quality",
+                "peer": {
+                    "role": "peer",
+                    "benchmark_family": "urbanization_peer",
+                    "label_code": "city_avg",
+                    "label_key": "risk.detail.peerUrbanization",
+                    "scope": "urbanization_peer",
+                    "pattern": "solid",
+                    "source": "source",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                    "scores": {
+                        "very_urban": 57,
+                        "urban": 62,
+                        "moderate": 67,
+                        "rural": 73,
+                        "very_rural": 78,
+                        "unknown": 60,
+                    },
+                },
+                "national": {
+                    "role": "national",
+                    "benchmark_family": "national_model",
+                    "label_code": "nl_avg",
+                    "label_key": "risk.detail.nationalBaseline",
+                    "scope": "national",
+                    "pattern": "solid",
+                    "score": 68,
+                    "source": "source",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                },
+                "reference": {
+                    "role": "reference",
+                    "benchmark_family": "air_interim_target",
+                    "label_code": "air_interim_target",
+                    "label_key": "risk.detail.airQualityTarget",
+                    "scope": "reference",
+                    "pattern": "dashed",
+                    "score": 75,
+                    "source": "source",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                },
+            },
+            "climate_stress": {
+                "category": "climate_stress",
+                "peer": {
+                    "role": "peer",
+                    "benchmark_family": "urbanization_peer",
+                    "label_code": "city_avg",
+                    "label_key": "risk.detail.peerUrbanization",
+                    "scope": "urbanization_peer",
+                    "pattern": "solid",
+                    "source": "source",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                    "scores": {
+                        "very_urban": 49,
+                        "urban": 53,
+                        "moderate": 58,
+                        "rural": 63,
+                        "very_rural": 67,
+                        "unknown": 52,
+                    },
+                },
+                "national": {
+                    "role": "national",
+                    "benchmark_family": "national_model",
+                    "label_code": "nl_avg",
+                    "label_key": "risk.detail.nationalBaseline",
+                    "scope": "national",
+                    "pattern": "solid",
+                    "score": 61,
+                    "source": "source",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                },
+                "reference": {
+                    "role": "reference",
+                    "benchmark_family": "climate_adaptation_target",
+                    "label_code": "adaptation_target",
+                    "label_key": "risk.detail.climateAdaptationTarget",
+                    "scope": "reference",
+                    "pattern": "dashed",
+                    "score": 70,
+                    "source": "source",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                },
+            },
+            "sunlight": {
+                "category": "sunlight",
+                "peer": {
+                    "role": "peer",
+                    "benchmark_family": "urbanization_peer",
+                    "label_code": "city_avg",
+                    "label_key": "risk.detail.peerUrbanization",
+                    "scope": "urbanization_peer",
+                    "pattern": "solid",
+                    "source": "source",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                    "scores": {
+                        "very_urban": 52,
+                        "urban": 56,
+                        "moderate": 60,
+                        "rural": 64,
+                        "very_rural": 68,
+                        "unknown": 57,
+                    },
+                },
+                "national": {
+                    "role": "national",
+                    "benchmark_family": "national_model",
+                    "label_code": "nl_avg",
+                    "label_key": "risk.detail.nationalBaseline",
+                    "scope": "national",
+                    "pattern": "solid",
+                    "score": 63,
+                    "source": "source",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                },
+                "reference": {
+                    "role": "reference",
+                    "benchmark_family": "daylight_target",
+                    "label_code": "daylight_target",
+                    "label_key": "risk.detail.daylightTarget",
+                    "scope": "reference",
+                    "pattern": "dashed",
+                    "score": 67,
+                    "source": "source",
+                    "source_date": "2026-02-10",
+                    "derivation_summary": "test",
+                    "owner": "Buurt-Check",
+                    "review_due_date": "2026-08-01",
+                },
+            },
+        },
+    }
+    artifact_path = tmp_path / "risk_benchmarks.json"
+    artifact_path.write_text(json.dumps(invalid_artifact), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="invalid"):
+        risk_comparisons.load_risk_benchmark_artifact(artifact_path)
+
+
+def test_build_risk_comparisons_uses_artifact_rows(monkeypatch):
+    custom_artifact = risk_comparisons._RISK_BENCHMARK_ARTIFACT.model_copy(deep=True)
+    custom_artifact.categories["noise"].peer.scores[UrbanizationLevel.very_urban] = 12
+    custom_artifact.categories["noise"].peer.source = "Custom peer benchmark provenance"
+    monkeypatch.setattr(risk_comparisons, "_RISK_BENCHMARK_ARTIFACT", custom_artifact)
+
+    result = build_risk_comparisons(
+        vbo_id="0363010000696734",
+        cards=_sample_risk_cards(),
+        urbanization=UrbanizationLevel.very_urban,
+    )
+
+    assert result.noise[0].value == 12
+    assert result.noise[0].source == "Custom peer benchmark provenance"
 
 
 @pytest.mark.asyncio

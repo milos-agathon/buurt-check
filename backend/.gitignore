@@ -1,5 +1,8 @@
 # Offline raster data (downloaded by scripts/ingest_rivm.py)
 data/
+!app/data/
+app/data/*
+!app/data/risk_benchmarks.json
 env.txt
 build/
 dist/

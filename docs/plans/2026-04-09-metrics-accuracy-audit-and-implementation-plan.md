@@ -3,7 +3,7 @@
 Date: 2026-04-09
 Consolidated: 2026-04-10
 Owner: Milos / Codex
-Status: Ready for implementation
+Status: Complete
 Scope: Customer-visible metric computation, normalization, comparison semantics, source/date provenance, and rendering across backend, frontend, and PDF/export surfaces.
 
 ## Objective
@@ -67,9 +67,9 @@ Phase 2 fixes high-impact provenance, display, and source semantics:
 
 Phase 3 completes narrower product semantics and regression hardening:
 
-1. A05 benchmark provenance artifact
-2. A16 erfpacht heuristic wording
-3. A18 seasonal shadow date reference
+1. ~~A05 benchmark provenance artifact~~
+2. ~~A16 erfpacht heuristic wording~~
+3. ~~A18 seasonal shadow date reference~~
 4. ~~A19 semantic regression gate~~
 
 ## Implementation Tasks
@@ -233,7 +233,7 @@ Done when:
 - A buyer cannot interpret score `75` as raw WHO AQG compliance.
 - WHO threshold values remain visible as measurement context.
 
-### A05. Move Hardcoded Risk Benchmarks Into a Versioned Provenance Artifact
+### ~~A05. Move Hardcoded Risk Benchmarks Into a Versioned Provenance Artifact~~
 
 Criticality: Medium
 Covers: F5
@@ -645,7 +645,7 @@ Done when:
 - Attention flags cannot disagree with risk-card severity because of duplicated thresholds.
 - Asbestos attention behavior is intentionally aligned or intentionally split with visible semantics.
 
-### A16. Relabel Erfpacht Heuristics as Municipality-Based Verification Prompts
+### ~~A16. Relabel Erfpacht Heuristics as Municipality-Based Verification Prompts~~
 
 Criticality: Medium
 Covers: F11
@@ -717,7 +717,7 @@ Done when:
 - Common soft-soil municipalities are not silently downgraded by omission.
 - Fallback confidence is visible to the buyer.
 
-### A18. Remove Literal 2026 Coupling From Seasonal Shadow Evidence
+### ~~A18. Remove Literal 2026 Coupling From Seasonal Shadow Evidence~~
 
 Criticality: Low
 Covers: F14
@@ -796,7 +796,7 @@ Done when:
 | ~~A02. Carry mixed-year CBS provenance through the neighborhood contract~~ | High |
 | ~~A03. Replace risk comparison label heuristics with an explicit semantic contract~~ | Critical |
 | ~~A04. Rename or revalue the air comparison reference row~~ | Critical |
-| A05. Move hardcoded risk benchmarks into a versioned provenance artifact | Medium |
+| ~~A05. Move hardcoded risk benchmarks into a versioned provenance artifact~~ | Medium |
 | ~~A06. Surface risk-card warning states end to end~~ | Critical |
 | ~~A07. Make WHO-linked summary copy depend on raw thresholds, not generic severity~~ | Critical |
 | ~~A08. Replace climate WFS heuristics with layer-specific classifiers~~ | Critical |
@@ -807,7 +807,7 @@ Done when:
 | ~~A13. Align crime national baseline, score narrative, and denominator provenance~~ | High |
 | ~~A14. Rework livability class, deviation, and legend semantics~~ | High |
 | ~~A15. Canonicalize attention severity and asbestos thresholds~~ | High |
-| A16. Relabel erfpacht heuristics as municipality-based verification prompts | Medium |
+| ~~A16. Relabel erfpacht heuristics as municipality-based verification prompts~~ | Medium |
 | ~~A17. Expand and document foundation soft-soil fallback coverage~~ | High |
-| A18. Remove literal 2026 coupling from seasonal shadow evidence | Low |
+| ~~A18. Remove literal 2026 coupling from seasonal shadow evidence~~ | Low |
 | ~~A19. Add a cross-surface semantic regression gate~~ | High |

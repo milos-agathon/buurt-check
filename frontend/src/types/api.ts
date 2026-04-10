@@ -432,6 +432,8 @@ export interface ErfpachtWarning {
   detected: boolean;
   confidence?: 'confirmed' | 'municipality_based';
   municipality?: string;
+  scope: 'municipality' | 'property';
+  verified_property_level: boolean;
   messages: string[];
 }
 

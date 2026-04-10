@@ -593,6 +593,7 @@
   "warnings.foundation.disclaimer": "Dit is een indicatieve beoordeling op basis van bouwjaar, bodemtype en regionale bodemdalingsdata. Alleen een professioneel funderingsonderzoek kan de werkelijke conditie bepalen.",
 
   "warnings.erfpacht.title": "Erfpacht",
+  "warnings.erfpacht.confirmed": "Erfpacht lijkt voor dit pand bevestigd. Controleer akte, canon en voorwaarden met de verkoper of notaris.",
   "warnings.erfpacht.likely": "{{municipality}} geeft voor veel woningen erfpacht uit. Controleer de eigendomsstatus bij de verkoper of via het Kadaster.",
   "warnings.erfpacht.badge.confirmed": "Bevestigd",
   "warnings.erfpacht.badge.likely": "Waarschijnlijk",
@@ -602,8 +603,8 @@
   "warnings.erfpacht.question_3": "Wat is de huidige jaarlijkse canon? Wanneer is de volgende canonherziening?",
   "warnings.erfpacht.question_4": "Bij tijdelijk: wanneer loopt de erfpacht af? Wat zijn de voorwaarden voor verlenging?",
   "warnings.erfpacht.question_5": "Is de canon onlangs omgezet naar eeuwigdurend? Tegen welk tarief?",
-  "warnings.erfpacht.municipality_only_note": "Detectie is gebaseerd op gemeentelijk grondbeleid, niet bevestigd via het Kadaster voor dit specifieke pand.",
-  "warnings.erfpacht.source": "Gemeente: PDOK (Publieke Dienstverlening Op de Kaart) Locatieserver. Erfpacht op basis van gemeentelijk grondbeleid.",
+  "warnings.erfpacht.municipality_only_note": "Dit signaal is gebaseerd op een gemeentelijke erfpacht-prevalentielijst en niet bevestigd via het Kadaster voor dit specifieke pand.",
+  "warnings.erfpacht.source": "Gemeente: PDOK (Publieke Dienstverlening Op de Kaart) Locatieserver. Gemeentelijke erfpacht-prevalentielijst op basis van lokaal grondbeleid.",
   "warnings.erfpacht.disclaimer": "Erfpachtstatus moet worden bevestigd via het Kadaster of de leveringsakte van de verkoper.",
 
   "warnings.vve.title": "VvE (Vereniging van Eigenaren)",

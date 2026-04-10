@@ -18,6 +18,8 @@ class ErfpachtWarning(BaseModel):
     detected: bool
     confidence: Literal["confirmed", "municipality_based"] | None = None
     municipality: str | None = None
+    scope: Literal["municipality", "property"] = "municipality"
+    verified_property_level: bool = False
     messages: list[str] = Field(default_factory=list)
 
 

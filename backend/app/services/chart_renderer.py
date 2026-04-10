@@ -152,9 +152,9 @@ SHADOW_LABELS: MappingProxyType[str, str] = MappingProxyType(
         "front": "Front facade",
         "rear": "Rear facade",
         "back": "Rear facade",
-        "winter": "Winter Solstice - Dec 21",
-        "equinox": "Spring Equinox - Mar 20",
-        "summer": "Summer Solstice - Jun 21",
+        "winter": "Winter reference date - Dec 21",
+        "equinox": "Spring reference date - Mar 20",
+        "summer": "Summer reference date - Jun 21",
     }
 )
 DEFAULT_SUN_POSITIONS: MappingProxyType[str, tuple[float, float]] = MappingProxyType(
@@ -1093,7 +1093,7 @@ def _panel_annotation(
     panel_key = _normalize_shadow_label(shadow_key)
     panel_label = SHADOW_LABELS.get(panel_key, shadow_key.title())
     if panel_key in VIEW_ORDER:
-        panel_label = f"{panel_label} · Summer solstice · {panel.time_label}"
+        panel_label = f"{panel_label} · Summer reference date · {panel.time_label}"
     ax.text(
         0.02,
         0.95,
@@ -1166,7 +1166,7 @@ def _panel_annotation(
 def _shadow_legend_text() -> str:
     return (
         "Legend: teal outline = target building · shadow = no direct sun · "
-        "Summer solstice (June 21) · 12:00 local · Source: 3DBAG / TU Delft + SunCalc"
+        "Summer reference date (June 21) · 12:00 local · Source: 3DBAG / TU Delft + SunCalc"
     )
 
 

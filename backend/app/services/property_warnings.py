@@ -82,7 +82,7 @@ def build_attention_summary(
             AttentionFlag(
                 category="erfpacht",
                 severity="info",
-                label="Erfpacht (ground lease) detected",
+                label="Erfpacht common in this municipality - verify status",
             )
         )
 
@@ -153,6 +153,8 @@ async def get_property_warnings(
         detected=erfpacht_detected,
         confidence="municipality_based" if erfpacht_detected else None,
         municipality=municipality.strip() if erfpacht_detected and municipality else None,
+        scope="municipality",
+        verified_property_level=False,
         messages=["ERFPACHT_NOTE_MUNICIPALITY_ONLY"] if erfpacht_detected else [],
     )
 

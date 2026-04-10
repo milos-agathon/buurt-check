@@ -81,7 +81,12 @@ describe('AttentionSummary', () => {
         risk_categories_total: 4,
       },
       foundation_risk: { level: 'low', messages: [] },
-      erfpacht: { detected: false, messages: [] },
+      erfpacht: {
+        detected: false,
+        scope: 'municipality',
+        verified_property_level: false,
+        messages: [],
+      },
       vve: { is_apartment: false, messages: [] },
       asbestos: { flagged: false, messages: [] },
       lead_pipe: { flagged: true, messages: [] },

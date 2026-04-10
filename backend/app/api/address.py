@@ -3,6 +3,7 @@ import base64
 import logging
 import re
 import time
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
@@ -147,6 +148,39 @@ def _property_warnings_cache_key(
         f"property_warnings:v2:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
         f":{_cy}:{_nu}:{_mu}"
     )
+
+
+def _year_from_timestamp(value: str | None) -> int | None:
+    if not value:
+        return None
+    match = re.match(r"^\s*(\d{4})", value)
+    if not match:
+        return None
+    year = int(match.group(1))
+    if 1900 <= year <= 3000:
+        return year
+    return None
+
+
+async def _resolve_shadow_reference_year(report_id: str | None) -> int:
+    fallback_year = date.today().year
+    if not report_id:
+        return fallback_year
+
+    try:
+        from app.services.reports import get_report
+
+        report = await get_report(report_id)
+    except Exception:
+        logger.warning(
+            "shadow reference year fallback report lookup failed report_id=%s",
+            report_id,
+            exc_info=True,
+        )
+        return fallback_year
+
+    report_year = _year_from_timestamp(report.created_at if report else None)
+    return report_year or fallback_year
 
 
 router = APIRouter(prefix="/address", tags=["address"])
@@ -1478,6 +1512,7 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
         pand_id: str | None = None
         if building_resp and building_resp.building:
             pand_id = building_resp.building.pand_id
+        shadow_reference_year = await _resolve_shadow_reference_year(body.report_id)
 
         provenance_buurt = body.buurt_code
         provenance_gemeente = body.municipality
@@ -1541,6 +1576,7 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
                     rd_y=body.rd_y,
                     lat=body.lat,
                     lng=body.lng,
+                    reference_year=shadow_reference_year,
                 )
                 if evidence is not None:
                     body.shadow_images = [
@@ -1630,6 +1666,7 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
             shadow_images=shadow_images_dicts,
             shadow_equinox_b64=body.shadow_equinox_b64,
             shadow_summer_b64=body.shadow_summer_b64,
+            shadow_reference_year=shadow_reference_year,
             postcode=body.postcode,
             footprint_geojson=footprint_geojson,
             map_lat=body.lat,
@@ -1740,6 +1777,7 @@ async def shadow_prewarm(
         )
 
     try:
+        shadow_reference_year = await _resolve_shadow_reference_year(report_id)
         evidence = await build_seasonal_shadow_evidence(
             render_service=render_service,
             vbo_id=vbo_id,
@@ -1748,6 +1786,7 @@ async def shadow_prewarm(
             rd_y=body.rd_y,
             lat=body.lat,
             lng=body.lng,
+            reference_year=shadow_reference_year,
         )
     except Exception as exc:
         logger.warning(

@@ -1,0 +1,213 @@
+{
+  "version": "2026-04-10",
+  "categories": {
+    "noise": {
+      "category": "noise",
+      "peer": {
+        "role": "peer",
+        "benchmark_family": "urbanization_peer",
+        "label_code": "city_avg",
+        "label_key": "risk.detail.peerUrbanization",
+        "scope": "urbanization_peer",
+        "pattern": "solid",
+        "source": "CBS urbanization profile + Buurt-Check benchmark model",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Modeled peer baselines aligned to the CBS urbanization profile for noise.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01",
+        "scores": {
+          "very_urban": 54,
+          "urban": 59,
+          "moderate": 64,
+          "rural": 71,
+          "very_rural": 76,
+          "unknown": 58
+        }
+      },
+      "national": {
+        "role": "national",
+        "benchmark_family": "national_model",
+        "label_code": "nl_avg",
+        "label_key": "risk.detail.nationalBaseline",
+        "scope": "national",
+        "pattern": "solid",
+        "score": 66,
+        "source": "Buurt-Check nationwide baseline model",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Nationwide modeled baseline for the noise comparison chart.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01"
+      },
+      "reference": {
+        "role": "reference",
+        "benchmark_family": "who_noise_lden",
+        "label_code": "who_limit",
+        "label_key": "risk.detail.whoNoiseGuideline",
+        "scope": "reference",
+        "pattern": "dashed",
+        "score": 74,
+        "source": "WHO Environmental Noise Guidelines + Buurt-Check target mapping",
+        "source_date": "2026-02-10",
+        "derivation_summary": "WHO road-traffic noise guideline mapped into the product score scale.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01"
+      }
+    },
+    "air_quality": {
+      "category": "air_quality",
+      "peer": {
+        "role": "peer",
+        "benchmark_family": "urbanization_peer",
+        "label_code": "city_avg",
+        "label_key": "risk.detail.peerUrbanization",
+        "scope": "urbanization_peer",
+        "pattern": "solid",
+        "source": "CBS urbanization profile + Buurt-Check benchmark model",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Modeled peer baselines aligned to the CBS urbanization profile for air quality.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01",
+        "scores": {
+          "very_urban": 57,
+          "urban": 62,
+          "moderate": 67,
+          "rural": 73,
+          "very_rural": 78,
+          "unknown": 60
+        }
+      },
+      "national": {
+        "role": "national",
+        "benchmark_family": "national_model",
+        "label_code": "nl_avg",
+        "label_key": "risk.detail.nationalBaseline",
+        "scope": "national",
+        "pattern": "solid",
+        "score": 68,
+        "source": "Buurt-Check nationwide baseline model",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Nationwide modeled baseline for the air-quality comparison chart.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01"
+      },
+      "reference": {
+        "role": "reference",
+        "benchmark_family": "air_interim_target",
+        "label_code": "air_interim_target",
+        "label_key": "risk.detail.airQualityTarget",
+        "scope": "reference",
+        "pattern": "dashed",
+        "score": 75,
+        "source": "WHO AQG / EU policy + Buurt-Check interim target mapping",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Interim air-quality target used in the score chart without implying raw WHO AQG compliance.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01"
+      }
+    },
+    "climate_stress": {
+      "category": "climate_stress",
+      "peer": {
+        "role": "peer",
+        "benchmark_family": "urbanization_peer",
+        "label_code": "city_avg",
+        "label_key": "risk.detail.peerUrbanization",
+        "scope": "urbanization_peer",
+        "pattern": "solid",
+        "source": "CBS urbanization profile + Buurt-Check benchmark model",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Modeled peer baselines aligned to the CBS urbanization profile for climate stress.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01",
+        "scores": {
+          "very_urban": 49,
+          "urban": 53,
+          "moderate": 58,
+          "rural": 63,
+          "very_rural": 67,
+          "unknown": 52
+        }
+      },
+      "national": {
+        "role": "national",
+        "benchmark_family": "national_model",
+        "label_code": "nl_avg",
+        "label_key": "risk.detail.nationalBaseline",
+        "scope": "national",
+        "pattern": "solid",
+        "score": 61,
+        "source": "Buurt-Check nationwide baseline model",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Nationwide modeled baseline for the climate-stress comparison chart.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01"
+      },
+      "reference": {
+        "role": "reference",
+        "benchmark_family": "climate_adaptation_target",
+        "label_code": "adaptation_target",
+        "label_key": "risk.detail.climateAdaptationTarget",
+        "scope": "reference",
+        "pattern": "dashed",
+        "score": 70,
+        "source": "Klimaateffectatlas adaptation framing + Buurt-Check target mapping",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Climate adaptation target used as the comparison reference line.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01"
+      }
+    },
+    "sunlight": {
+      "category": "sunlight",
+      "peer": {
+        "role": "peer",
+        "benchmark_family": "urbanization_peer",
+        "label_code": "city_avg",
+        "label_key": "risk.detail.peerUrbanization",
+        "scope": "urbanization_peer",
+        "pattern": "solid",
+        "source": "CBS urbanization profile + Buurt-Check benchmark model",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Modeled peer baselines aligned to the CBS urbanization profile for winter roof exposure.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01",
+        "scores": {
+          "very_urban": 52,
+          "urban": 56,
+          "moderate": 60,
+          "rural": 64,
+          "very_rural": 68,
+          "unknown": 57
+        }
+      },
+      "national": {
+        "role": "national",
+        "benchmark_family": "national_model",
+        "label_code": "nl_avg",
+        "label_key": "risk.detail.nationalBaseline",
+        "scope": "national",
+        "pattern": "solid",
+        "score": 63,
+        "source": "Buurt-Check nationwide baseline model",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Nationwide modeled baseline for the sunlight comparison chart.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01"
+      },
+      "reference": {
+        "role": "reference",
+        "benchmark_family": "daylight_target",
+        "label_code": "daylight_target",
+        "label_key": "risk.detail.daylightTarget",
+        "scope": "reference",
+        "pattern": "dashed",
+        "score": 67,
+        "source": "Buurt-Check winter roof exposure heuristic",
+        "source_date": "2026-02-10",
+        "derivation_summary": "Indicative winter roof exposure target used as the chart reference line.",
+        "owner": "Buurt-Check",
+        "review_due_date": "2026-08-01"
+      }
+    }
+  }
+}

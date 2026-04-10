@@ -15,7 +15,7 @@ from PIL import Image
 
 from app.models.livability import LivabilityResponse, LivabilityTrendPoint
 from app.models.neighborhood import AgeProfile, NeighborhoodStats, UrbanizationLevel
-from app.models.property_warnings import PropertyWarningsResponse
+from app.models.property_warnings import ErfpachtWarning, PropertyWarningsResponse
 from app.models.report import ProvenanceData
 from app.models.risk import (
     ClimateStressRiskCard,
@@ -852,6 +852,7 @@ def _collect_cover_sources(
     include_crime: bool = False,
     livability: LivabilityResponse | None = None,
     include_shadow: bool = False,
+    shadow_reference_year: int | None = None,
 ) -> str:
     items: list[str] = []
 
@@ -863,6 +864,18 @@ def _collect_cover_sources(
             item = f"{item} {source_date}"
         if item not in items:
             items.append(item)
+
+    def _shadow_cover_source_label() -> str:
+        reference_year = shadow_reference_year or date.today().year
+        if is_nl:
+            return (
+                "3DBAG / TU Delft + SunCalc "
+                f"(seizoensreferentiedata {reference_year})"
+            )
+        return (
+            "3DBAG / TU Delft + SunCalc "
+            f"(seasonal reference dates {reference_year})"
+        )
 
     if risks:
         _append(risks.noise.source, risks.noise.source_date)
@@ -883,7 +896,7 @@ def _collect_cover_sources(
     if include_crime:
         _append("CBS")
     if include_shadow:
-        _append("3DBAG / TU Delft + SunCalc", "2026-06-21")
+        _append(_shadow_cover_source_label())
 
     prefix = "Bronnen" if is_nl else "Sources"
     return f"{prefix}: {', '.join(items)}" if items else f"{prefix}: \u2014"
@@ -1956,9 +1969,9 @@ _SHADOW_VIEW_LABELS: dict[str, dict[str, str]] = {
     "front": {"en": "Front facade", "nl": "Voorgevel"},
     "rear": {"en": "Rear facade", "nl": "Achtergevel"},
     "back": {"en": "Rear facade", "nl": "Achtergevel"},
-    "winter": {"en": "Winter solstice", "nl": "Winterzonnewende"},
-    "equinox": {"en": "Spring equinox", "nl": "Lentepunt"},
-    "summer": {"en": "Summer solstice", "nl": "Zomerzonnewende"},
+    "winter": {"en": "Winter reference date", "nl": "Winterreferentiedatum"},
+    "equinox": {"en": "Spring reference date", "nl": "Lentereferentiedatum"},
+    "summer": {"en": "Summer reference date", "nl": "Zomerreferentiedatum"},
 }
 _SHADOW_TIME_LABELS: dict[str, dict[str, str]] = {
     "morning": {"en": "Morning (09:00)", "nl": "Ochtend (09:00)"},
@@ -2106,9 +2119,9 @@ def _shadow_overlay_label(
         return f"{view_text} \u00b7 {sun_text}"
     if label in {"top", "front", "rear"}:
         return (
-            f"{view_text} \u00b7 Zomerzonnewende \u00b7 12:00"
+            f"{view_text} \u00b7 Zomerreferentiedatum \u00b7 12:00"
             if is_nl
-            else f"{view_text} \u00b7 Summer solstice \u00b7 12:00"
+            else f"{view_text} \u00b7 Summer reference date \u00b7 12:00"
         )
     return (
         f"{view_text} \u00b7 12:00"
@@ -2145,12 +2158,13 @@ def _shadow_legend_line(is_nl: bool, *, context_mode: str = "default") -> str:
         if is_nl:
             return (
                 "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
-                "\u00b7 21 juni (zomerzonnewende) \u00b7 topbeelden om 09:00, 12:00 en 15:00 "
+                "\u00b7 21 juni als zomerreferentiedatum "
+                "\u00b7 topbeelden om 09:00, 12:00 en 15:00 "
                 "\u00b7 Bron: 3DBAG / TU Delft + SunCalc"
             )
         return (
             "Legend: teal outline = target building \u00b7 shadow = no direct sun "
-            "\u00b7 June 21 (summer solstice) "
+            "\u00b7 June 21 summer reference date "
             "\u00b7 top-view snapshots at 09:00, 12:00, and 15:00 "
             "\u00b7 Source: 3DBAG / TU Delft + SunCalc"
         )
@@ -2158,25 +2172,26 @@ def _shadow_legend_line(is_nl: bool, *, context_mode: str = "default") -> str:
         if is_nl:
             return (
                 "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
-                "\u00b7 21 juni (zomerzonnewende) \u00b7 ochtend- en middagbeelden "
+                "\u00b7 21 juni als zomerreferentiedatum "
+                "\u00b7 ochtend- en middagbeelden "
                 "\u00b7 Bron: 3DBAG / TU Delft + SunCalc"
             )
         return (
             "Legend: teal outline = target building \u00b7 shadow = no direct sun "
-            "\u00b7 June 21 (summer solstice) \u00b7 morning and afternoon snapshots "
+            "\u00b7 June 21 summer reference date \u00b7 morning and afternoon snapshots "
             "\u00b7 Source: 3DBAG / TU Delft + SunCalc"
         )
     if context_mode == "summer_noon_views":
         if is_nl:
             return (
                 "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
-                "\u00b7 21 juni (zomerzonnewende) om 12:00 lokale tijd "
+                "\u00b7 21 juni als zomerreferentiedatum om 12:00 lokale tijd "
                 "\u00b7 top-, voor- en achteraanzicht "
                 "\u00b7 Bron: 3DBAG / TU Delft + SunCalc"
             )
         return (
             "Legend: teal outline = target building \u00b7 shadow = no direct sun "
-            "\u00b7 June 21 (summer solstice) at 12:00 local time "
+            "\u00b7 June 21 summer reference date at 12:00 local time "
             "\u00b7 top, front, and rear views "
             "\u00b7 Source: 3DBAG / TU Delft + SunCalc"
         )
@@ -2184,36 +2199,36 @@ def _shadow_legend_line(is_nl: bool, *, context_mode: str = "default") -> str:
         if is_nl:
             return (
                 "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
-                "\u00b7 21 december / 20 maart / 21 juni om 12:00 lokale tijd \u00b7 Bron: 3DBAG / "
-                "TU Delft + SunCalc"
+                "\u00b7 21 december / 20 maart / 21 juni als seizoensreferentiedata om 12:00 "
+                "lokale tijd \u00b7 Bron: 3DBAG / TU Delft + SunCalc"
             )
         return (
             "Legend: teal outline = target building \u00b7 shadow = no direct sun "
-            "\u00b7 December 21 / March 20 / June 21 at 12:00 local time \u00b7 Source: 3DBAG / "
-            "TU Delft + SunCalc"
+            "\u00b7 December 21 / March 20 / June 21 seasonal reference dates at 12:00 local "
+            "time \u00b7 Source: 3DBAG / TU Delft + SunCalc"
         )
     if context_mode == "seasonal_facades":
         if is_nl:
             return (
                 "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
-                "\u00b7 lentepunt / zomerzonnewende / winterzonnewende om 12:00 lokale tijd "
+                "\u00b7 lente- / zomer- / winterreferentiedata om 12:00 lokale tijd "
                 "\u00b7 voor- en achtergevel \u00b7 Bron: 3DBAG / TU Delft + SunCalc"
             )
         return (
             "Legend: teal outline = target building \u00b7 shadow = no direct sun "
-            "\u00b7 spring equinox / summer solstice / winter solstice at 12:00 local time "
+            "\u00b7 spring / summer / winter reference dates at 12:00 local time "
             "\u00b7 front and rear facades \u00b7 Source: 3DBAG / TU Delft + SunCalc"
         )
     if is_nl:
         return (
             "Legenda: teal omlijning = doelgebouw \u00b7 schaduw = geen directe zon "
-            "\u00b7 21 december / 20 maart / 21 juni om 12:00 lokale tijd \u00b7 Bron: 3DBAG / "
-            "TU Delft + SunCalc"
+            "\u00b7 21 december / 20 maart / 21 juni als seizoensreferentiedata om 12:00 "
+            "lokale tijd \u00b7 Bron: 3DBAG / TU Delft + SunCalc"
         )
     return (
         "Legend: teal outline = target building \u00b7 shadow = no direct sun "
-        "\u00b7 December 21 / March 20 / June 21 at 12:00 local time \u00b7 Source: 3DBAG / "
-        "TU Delft + SunCalc"
+        "\u00b7 December 21 / March 20 / June 21 seasonal reference dates at 12:00 local time "
+        "\u00b7 Source: 3DBAG / TU Delft + SunCalc"
     )
 
 
@@ -3485,10 +3500,11 @@ def _generate_full_dossier_latex(
                 )
             elif shadow_image_paths:
                 shadow_caption_text = (
-                    "Seizoensopnamen op 12:00 lokale tijd. Bron: 3DBAG / TU Delft + SunCalc."
+                    "Seizoensreferentiebeelden op 12:00 lokale tijd. Bron: 3DBAG / TU Delft + "
+                    "SunCalc."
                     if is_nl
-                    else "Seasonal snapshots at 12:00 local time. Source: 3DBAG / TU Delft +"
-                    " SunCalc."
+                    else "Seasonal reference snapshots at 12:00 local time. Source: 3DBAG / "
+                    "TU Delft + SunCalc."
                 )
 
             if chart_renderer is not None:
@@ -3852,6 +3868,7 @@ def _generate_full_dossier_fpdf(
     shadow_images: list[dict] | None = None,
     shadow_equinox_b64: str | None = None,
     shadow_summer_b64: str | None = None,
+    shadow_reference_year: int | None = None,
     postcode: str | None = None,
     footprint_geojson: dict[str, Any] | None = None,
     map_lat: float | None = None,
@@ -3898,6 +3915,7 @@ def _generate_full_dossier_fpdf(
         is_nl,
         location_map_b64=location_map_b64,
         shadow_images=dossier_shadow_images,
+        shadow_reference_year=shadow_reference_year,
         livability=livability,
         crime_score=crime_score,
         crime_summary=(
@@ -4043,6 +4061,7 @@ def generate_full_dossier(
     shadow_images: list[dict] | None = None,
     shadow_equinox_b64: str | None = None,
     shadow_summer_b64: str | None = None,
+    shadow_reference_year: int | None = None,
     postcode: str | None = None,
     footprint_geojson: dict[str, Any] | None = None,
     map_lat: float | None = None,
@@ -4069,6 +4088,7 @@ def generate_full_dossier(
         shadow_images=shadow_images,
         shadow_equinox_b64=shadow_equinox_b64,
         shadow_summer_b64=shadow_summer_b64,
+        shadow_reference_year=shadow_reference_year,
         postcode=postcode,
         footprint_geojson=footprint_geojson,
         map_lat=map_lat,
@@ -4277,6 +4297,7 @@ def _draw_cover_page(
     is_nl: bool,
     location_map_b64: str | None = None,
     shadow_images: list[dict] | None = None,
+    shadow_reference_year: int | None = None,
     livability: LivabilityResponse | None = None,
     crime_score: int | None = None,
     crime_summary: str | None = None,
@@ -4352,6 +4373,7 @@ def _draw_cover_page(
             include_crime=crime_score is not None,
             livability=livability,
             include_shadow=bool(shadow_image_b64 or shadow_images),
+            shadow_reference_year=shadow_reference_year,
         )
     )
 
@@ -4577,10 +4599,11 @@ def _draw_cover_shadow_hero(
         0,
         3.5,
         (
-            "Zomerzonnewende, 21 juni om 12:00 lokale tijd. Bron: 3DBAG / TU Delft + SunCalc."
+            "Zomerreferentiedatum, 21 juni om 12:00 lokale tijd. Bron: 3DBAG / TU Delft + "
+            "SunCalc."
             if is_nl
             else (
-                "Summer solstice reference, June 21 at 12:00 local time. "
+                "Summer reference date, June 21 at 12:00 local time. "
                 "Source: 3DBAG / TU Delft + SunCalc."
             )
         ),
@@ -4605,6 +4628,7 @@ def _draw_full_dossier_cover_page(
     livability: LivabilityResponse | None,
     shadow_image_b64: str | None,
     shadow_images: list[dict[str, Any]] | None,
+    shadow_reference_year: int | None,
     crime_score: int | None,
     crime_summary: str | None,
 ) -> None:
@@ -4738,6 +4762,7 @@ def _draw_full_dossier_cover_page(
             include_crime=False,
             livability=livability,
             include_shadow=bool(shadow_image_b64 or shadow_images),
+            shadow_reference_year=shadow_reference_year,
         ),
         align="L",
         new_x="LMARGIN",
@@ -5012,19 +5037,7 @@ def _property_check_boxes(
         foundation_body += f" {foundation_basis}"
 
     ep = property_warnings.erfpacht
-    ground_lease_body = (
-        "Erfpacht gedetecteerd; canon en einddatum controleren."
-        if ep.detected
-        else "Geen erfpachtsignaal uit de gemeentelijke check."
-    )
-    if not is_nl:
-        ground_lease_body = (
-            "Ground lease detected; verify canon and expiry date."
-            if ep.detected
-            else "No ground-lease signal in the municipal check."
-        )
-    if ep.detected and ep.municipality:
-        ground_lease_body += f" {'Gemeente' if is_nl else 'Municipality'}: {ep.municipality}."
+    ground_lease_body = _ground_lease_summary_text(ep, is_nl=is_nl)
 
     vve = property_warnings.vve
     vve_body = (
@@ -5072,7 +5085,7 @@ def _property_check_boxes(
         (
             "Erfpacht" if is_nl else "Ground lease",
             ground_lease_body,
-            "Gemeentelijke erfpachtlijst" if is_nl else "Municipal ground-lease registry",
+            _ground_lease_source_label(is_nl=is_nl),
             "attention" if ep.detected else "clear",
         ),
         (
@@ -5088,6 +5101,102 @@ def _property_check_boxes(
             "attention" if asbestos or lead else "clear",
         ),
     ]
+
+
+def _erfpacht_is_property_level(erfpacht: ErfpachtWarning) -> bool:
+    return bool(
+        getattr(erfpacht, "verified_property_level", False)
+        or getattr(erfpacht, "scope", None) == "property"
+        or erfpacht.confidence == "confirmed"
+    )
+
+
+def _ground_lease_source_label(*, is_nl: bool) -> str:
+    return (
+        "Gemeentelijke erfpacht-prevalentielijst"
+        if is_nl
+        else "Municipal ground-lease prevalence list"
+    )
+
+
+def _ground_lease_summary_text(erfpacht: ErfpachtWarning, *, is_nl: bool) -> str:
+    if erfpacht.detected:
+        body = (
+            "Erfpacht voor dit pand bevestigd; controleer canon en einddatum."
+            if _erfpacht_is_property_level(erfpacht)
+            else "Erfpacht komt vaak voor in deze gemeente; controleer of dit pand erfpacht heeft."
+        )
+        if not is_nl:
+            body = (
+                "Ground lease confirmed for this property; verify canon and expiry date."
+                if _erfpacht_is_property_level(erfpacht)
+                else (
+                    "Ground lease is common in this municipality; "
+                    "verify whether this property is leasehold."
+                )
+            )
+        if erfpacht.municipality:
+            body += f" {'Gemeente' if is_nl else 'Municipality'}: {erfpacht.municipality}."
+        return body
+
+    return (
+        "Geen erfpachtsignaal uit de gemeentelijke prevalentielijst."
+        if is_nl
+        else "No ground-lease signal in the municipal prevalence check."
+    )
+
+
+def _ground_lease_detail_text(
+    erfpacht: ErfpachtWarning | None,
+    *,
+    is_nl: bool,
+) -> str:
+    if erfpacht is None:
+        return (
+            "Erfpachtstatus niet beschikbaar in de exportketen."
+            if is_nl
+            else "Ground lease status unavailable in export pipeline."
+        )
+
+    if erfpacht.detected:
+        if _erfpacht_is_property_level(erfpacht):
+            municipality_part = (
+                f" Gemeente: {erfpacht.municipality}."
+                if erfpacht.municipality
+                else ""
+            )
+            return (
+                "Erfpacht voor dit pand bevestigd."
+                f"{municipality_part} Controleer canon, voorwaarden en einddatum bij de notaris."
+                if is_nl
+                else "Ground lease confirmed for this property."
+                f"{municipality_part} Verify canon, lease terms, and expiry date with the notary."
+            )
+
+        municipality_part = (
+            f" Gemeente: {erfpacht.municipality}."
+            if erfpacht.municipality
+            else ""
+        )
+        return (
+            "Erfpacht komt vaak voor in deze gemeente."
+            f"{municipality_part} Controleer of dit pand erfpacht heeft "
+            "en vraag canon en voorwaarden op."
+            if is_nl
+            else "Ground lease is common in this municipality."
+            f"{municipality_part} Verify whether this property is leasehold "
+            "and request the canon and lease terms."
+        )
+
+    return (
+        "Geen erfpachtsignaal uit de gemeentelijke prevalentielijst. "
+        "Bevestig de eigendomsstatus alsnog met de verkoper of akte."
+        if is_nl
+        else (
+            "No ground-lease signal in the municipal prevalence check. "
+            "Still confirm the ownership status with the seller or deed."
+        )
+    )
 
 
 def _draw_house_analysis_page(
@@ -8141,48 +8250,10 @@ def _draw_property_checks_page(
     )
 
     # 3) Erfpacht (Ground Lease)
-    if property_warnings:
-        ep = property_warnings.erfpacht
-        if ep.detected:
-            conf_part = (
-                " (bevestigd)"
-                if ep.confidence == "confirmed"
-                else " (op basis van gemeente)"
-                if ep.confidence == "municipality_based"
-                else ""
-            )
-            mu_part = (
-                f" Gemeente: {ep.municipality}."
-                if ep.municipality else ""
-            )
-            erfpacht_text = (
-                f"Erfpacht gedetecteerd{conf_part}."
-                f"{mu_part} Controleer de "
-                "erfpachtvoorwaarden, canon en einddatum "
-                "bij de notaris."
-                if is_nl
-                else "Ground lease (erfpacht) detected"
-                f"{conf_part}.{mu_part} "
-                "Verify lease terms, canon amount, and "
-                "expiry date with the notary."
-            )
-        else:
-            erfpacht_text = (
-                "Geen erfpachtsignaal gedetecteerd. "
-                "Dit pand lijkt op eigen grond te staan."
-                if is_nl
-                else "No ground lease signal detected. "
-                "This property appears to be on "
-                "freehold land."
-            )
-    else:
-        erfpacht_text = (
-            "Erfpachtstatus niet beschikbaar "
-            "in de exportketen."
-            if is_nl
-            else "Ground lease status unavailable "
-            "in export pipeline."
-        )
+    erfpacht_text = _ground_lease_detail_text(
+        property_warnings.erfpacht if property_warnings else None,
+        is_nl=is_nl,
+    )
     _draw_checks_subsection(
         pdf,
         title=(
@@ -8190,11 +8261,7 @@ def _draw_property_checks_page(
             else "Ground Lease (Erfpacht)"
         ),
         body=erfpacht_text,
-        source=(
-            "Bron: Gemeentelijke erfpachtlijst"
-            if is_nl
-            else "Source: Municipal ground lease registry"
-        ),
+        source=f"{'Bron' if is_nl else 'Source'}: {_ground_lease_source_label(is_nl=is_nl)}",
         severity=(
             "attention"
             if property_warnings and property_warnings.erfpacht.detected

@@ -4,7 +4,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.models.neighborhood3d import BuildingBlock, Neighborhood3DCenter, Neighborhood3DResponse
-from app.services.shadow_prewarm import build_seasonal_shadow_evidence
+from app.services.shadow_prewarm import (
+    build_seasonal_shadow_evidence,
+    seasonal_shadow_dates,
+)
 
 
 def _make_neighborhood_3d() -> Neighborhood3DResponse:
@@ -70,6 +73,14 @@ def _triptych_payload(
             "sun_altitude": sun_altitude,
         },
     ]
+
+
+def test_seasonal_shadow_dates_uses_requested_year():
+    assert seasonal_shadow_dates(2027) == (
+        ("equinox", "2027-03-20"),
+        ("summer", "2027-06-21"),
+        ("winter", "2027-12-21"),
+    )
 
 
 @pytest.mark.asyncio
@@ -156,6 +167,7 @@ async def test_build_seasonal_shadow_evidence_normalizes_complete_seasonal_paylo
             rd_y=487296.0,
             lat=52.372,
             lng=4.892,
+            reference_year=2027,
         )
 
     assert result is not None
@@ -186,6 +198,10 @@ async def test_build_seasonal_shadow_evidence_normalizes_complete_seasonal_paylo
     assert result.winter_top_b64 == base64.b64encode(winter_top).decode("ascii")
     assert result.equinox_top_b64 == base64.b64encode(equinox_top).decode("ascii")
     assert result.summer_top_b64 == base64.b64encode(summer_top).decode("ascii")
+    assert [
+        call.kwargs["dates"][0]
+        for call in mock_render_service.render_shadow_snapshots.await_args_list
+    ] == ["2027-03-20", "2027-06-21", "2027-12-21"]
 
 
 @pytest.mark.asyncio

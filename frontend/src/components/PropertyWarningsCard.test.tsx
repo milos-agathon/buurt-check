@@ -87,11 +87,14 @@ describe('PropertyWarningsCard', () => {
         detected: true,
         confidence: 'municipality_based',
         municipality: 'Amsterdam',
+        scope: 'municipality',
+        verified_property_level: false,
         messages: [],
       },
     });
     renderCard(data);
     expect(screen.getByRole('heading', { name: /erfpacht/i })).toBeInTheDocument();
+    expect(screen.queryByText(/detected/i)).not.toBeInTheDocument();
   });
 
   it('renders erfpacht municipality-only confidence note when backend provides note code', () => {
@@ -100,6 +103,8 @@ describe('PropertyWarningsCard', () => {
         detected: true,
         confidence: 'municipality_based',
         municipality: 'Amsterdam',
+        scope: 'municipality',
+        verified_property_level: false,
         messages: ['ERFPACHT_NOTE_MUNICIPALITY_ONLY'],
       },
     });

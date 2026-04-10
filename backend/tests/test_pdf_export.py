@@ -2206,7 +2206,7 @@ class TestPropertyWarningsPdfSections:
         assert "BAG construction year fallback" in text
 
     def test_erfpacht_detected(self):
-        """Erfpacht detected renders municipality."""
+        """Municipality-level erfpacht warning stays heuristic."""
         warnings = PropertyWarningsResponse(
             address_id="0363010012345678",
             attention_summary=AttentionSummary(
@@ -2240,11 +2240,12 @@ class TestPropertyWarningsPdfSections:
             )
         )
         assert "Ground lease" in text
-        assert "detected" in text.lower()
+        assert "common in this municipality" in text.lower()
+        assert "ground lease detected" not in text.lower()
         assert "Amsterdam" in text
 
     def test_erfpacht_not_detected(self):
-        """No erfpacht shows freehold message."""
+        """No erfpacht signal does not imply confirmed freehold."""
         warnings = PropertyWarningsResponse(
             address_id="0363010012345678",
             attention_summary=AttentionSummary(
@@ -2273,8 +2274,8 @@ class TestPropertyWarningsPdfSections:
                 p.extract_text() or "" for p in reader.pages
             )
         )
-        assert "No ground lease signal detected" in text
-        assert "freehold land" in text
+        assert "No ground-lease signal in the municipal prevalence check" in text
+        assert "freehold land" not in text
 
     def test_vve_apartment(self):
         """VvE apartment renders advice."""
@@ -2456,7 +2457,7 @@ class TestPropertyWarningsPdfSections:
         assert "Asbestos Awareness" in text
         assert "Lead Pipe Risk" in text
         assert "BRO soil data + Klimaateffectatlas" in text
-        assert "Municipal ground lease registry" in text
+        assert "Municipal ground-lease prevalence list" in text
         assert "BAG dwelling unit count" in text
 
     def test_all_warnings_active_nl(self):
@@ -2507,7 +2508,7 @@ class TestPropertyWarningsPdfSections:
         assert "Asbestbewustzijn" in text
         assert "Loden leidingen" in text
         assert "BRO-bodemdata + Klimaateffectatlas bodemdaling" in text
-        assert "Gemeentelijke erfpachtlijst" in text
+        assert "Gemeentelijke erfpacht-prevalentielijst" in text
         assert "BAG verblijfsobjecten" in text
 
     def test_none_warnings_shows_unavailable(self):
@@ -5775,8 +5776,8 @@ class TestShadowTriptych:
         assert "Front facade" in text
         assert "Rear facade" in text
 
-    def test_triptych_clarifies_seasonal_noon_snapshots(self):
-        """Seasonal shadow snapshots must state the correct season labels and noon timing."""
+    def test_triptych_clarifies_seasonal_reference_snapshots(self):
+        """Seasonal shadow snapshots must state the reference-date labels and noon timing."""
         images = self._make_seasonal_shadow_images()
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
@@ -5784,13 +5785,15 @@ class TestShadowTriptych:
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "Winter solstice" in text
-        assert "Spring equinox" in text
-        assert "Summer solstice" in text
+        assert "Winter reference date" in text
+        assert "Spring reference date" in text
+        assert "Summer reference date" in text
         assert "12:00" in text
         assert "December 21" in text
         assert "March 20" in text
         assert "June 21" in text
+        assert "solstice" not in text.lower()
+        assert "equinox" not in text.lower()
         assert text.count("Legend:") == 1
 
     def test_seasonal_triptych_renders_takeaway(self):
@@ -5817,9 +5820,9 @@ class TestShadowTriptych:
             p.extract_text() or "" for p in PdfReader(io.BytesIO(bytes(pdf.output()))).pages
         )
 
-        spring_pos = text.find("Spring equinox")
-        summer_pos = text.find("Summer solstice")
-        winter_pos = text.find("Winter solstice")
+        spring_pos = text.find("Spring reference date")
+        summer_pos = text.find("Summer reference date")
+        winter_pos = text.find("Winter reference date")
         assert spring_pos >= 0
         assert summer_pos > spring_pos
         assert winter_pos > summer_pos
@@ -6108,6 +6111,26 @@ class TestShadowTriptych:
         assert "shadow analysis" in text.lower()
         assert "shadow snapshot" in text.lower()
         assert "Source: 3DBAG / TU Delft + SunCalc" in text
+
+    def test_full_dossier_shadow_source_uses_reference_year_not_literal_2026(self):
+        b64 = _tiny_png()
+        result = generate_full_dossier(
+            address="Damrak 1, Amsterdam",
+            building_year=1900,
+            building_use="Residential",
+            risks=_make_risks(),
+            sunlight_score=80,
+            viewing_questions=_make_viewing_questions(),
+            language="en",
+            shadow_image_b64=b64,
+            shadow_reference_year=2027,
+            property_warnings_data=_make_property_warnings(),
+        )
+
+        reader = PdfReader(io.BytesIO(result))
+        text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
+        assert "seasonal reference dates 2027" in text.lower()
+        assert "2026-06-21" not in text
 
     def test_full_dossier_no_shadow_at_all(self):
         """Full dossier generates without any shadow images."""

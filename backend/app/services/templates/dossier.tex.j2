@@ -296,20 +296,24 @@ Score: << tier_b.crime.score if tier_b.crime.score is not none else "Unavailable
 \noindent\fcolorbox{sev-mod}{white}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{
 \textbf{\textcolor{sev-mod}{- <% if language == "nl" %>Erfpacht (grondhuur)<% else %>Ground Lease (Erfpacht)<% endif %>}}\\
 <% if language == "nl" %>Erfpachtstatus niet beschikbaar in de exportketen.<% else %>Ground lease status unavailable in export pipeline.<% endif %>\\
-{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: Gemeentelijke erfpachtlijst<% else %>Source: Municipal ground lease registry<% endif %>}}
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: Gemeentelijke erfpacht-prevalentielijst<% else %>Source: Municipal ground-lease prevalence list<% endif %>}}
 }}
 <% elif property_warnings.erfpacht.detected %>
 \noindent\fcolorbox{sev-mod}{white}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{
 \textbf{\textcolor{sev-mod}{- <% if language == "nl" %>Erfpacht (grondhuur)<% else %>Ground Lease (Erfpacht)<% endif %>}}\\
 \textbf{\textcolor{sev-mod}{<% if language == "nl" %>Aandacht nodig - voorwaarden controleren<% else %>Attention needed - verify lease terms<% endif %>}}\\
-<% if language == "nl" %>Erfpacht gedetecteerd. Controleer voorwaarden, canon en einddatum bij de notaris.<% else %>Ground lease detected. Verify lease terms, canon amount, and expiry date with the notary.<% endif %>\\
-{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: Gemeentelijke erfpachtlijst<% else %>Source: Municipal ground lease registry<% endif %>}}
+<% if (property_warnings.erfpacht.verified_property_level|default(false)) or (property_warnings.erfpacht.scope|default("municipality")) == "property" or property_warnings.erfpacht.confidence == "confirmed" %>
+<% if language == "nl" %>Erfpacht voor dit pand bevestigd. Controleer canon, voorwaarden en einddatum bij de notaris.<% else %>Ground lease confirmed for this property. Verify canon, lease terms, and expiry date with the notary.<% endif %>\\
+<% else %>
+<% if language == "nl" %>Erfpacht komt vaak voor in deze gemeente. Controleer of dit pand erfpacht heeft en vraag canon en voorwaarden op.<% else %>Ground lease is common in this municipality. Verify whether this property is leasehold and request the canon and lease terms.<% endif %>\\
+<% endif %>
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: Gemeentelijke erfpacht-prevalentielijst<% else %>Source: Municipal ground-lease prevalence list<% endif %>}}
 }}
 <% else %>
 \noindent\fcolorbox{sev-good}{white}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{
 \textbf{\textcolor{sev-good}{✓ <% if language == "nl" %>Erfpacht (grondhuur)<% else %>Ground Lease (Erfpacht)<% endif %>}}\\
-<% if language == "nl" %>Geen erfpachtsignaal gedetecteerd. Dit pand lijkt op eigen grond te staan.<% else %>No ground lease signal detected. This property appears to be on freehold land.<% endif %>\\
-{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: Gemeentelijke erfpachtlijst<% else %>Source: Municipal ground lease registry<% endif %>}}
+<% if language == "nl" %>Geen erfpachtsignaal uit de gemeentelijke prevalentielijst. Bevestig de eigendomsstatus alsnog met de verkoper of akte.<% else %>No ground-lease signal in the municipal prevalence check. Still confirm the ownership status with the seller or deed.<% endif %>\\
+{\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: Gemeentelijke erfpacht-prevalentielijst<% else %>Source: Municipal ground-lease prevalence list<% endif %>}}
 }}
 <% endif %>
 \vspace{4pt}

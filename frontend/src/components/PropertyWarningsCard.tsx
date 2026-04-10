@@ -70,13 +70,17 @@ function PropertyWarningsCard({ data, loading, error, onRetry, showAsbestos = tr
   const hasErfpacht = erfpacht.detected;
   const hasVve = vve.is_apartment;
   const hasAsbestos = showAsbestos && asbestos.flagged;
+  const erfpachtIsPropertyLevel =
+    erfpacht.verified_property_level
+    || erfpacht.scope === 'property'
+    || erfpacht.confidence === 'confirmed';
   const erfpachtBadge =
-    erfpacht.confidence === 'confirmed'
+    erfpachtIsPropertyLevel
       ? t('warnings.erfpacht.badge.confirmed')
       : t('warnings.erfpacht.badge.likely');
   const showMunicipalityOnlyNote = erfpacht.messages.includes(
     ERFPACHT_NOTE_MUNICIPALITY_ONLY,
-  );
+  ) || !erfpachtIsPropertyLevel;
   const foundationDescriptionKey = foundationUsesMunicipalityFallback
     ? `warnings.foundation.${foundation_risk.level}_municipalityFallback`
     : foundationUsesYearOnlyFallback
@@ -131,7 +135,12 @@ function PropertyWarningsCard({ data, loading, error, onRetry, showAsbestos = tr
             {erfpachtBadge}
           </span>
           <p className="property-warnings__description">
-            {t('warnings.erfpacht.likely', { municipality: erfpacht.municipality ?? '' })}
+            {t(
+              erfpachtIsPropertyLevel
+                ? 'warnings.erfpacht.confirmed'
+                : 'warnings.erfpacht.likely',
+              { municipality: erfpacht.municipality ?? '' },
+            )}
           </p>
           {showMunicipalityOnlyNote && (
             <p className="property-warnings__note">

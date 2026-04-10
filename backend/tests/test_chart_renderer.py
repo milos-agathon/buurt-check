@@ -573,7 +573,7 @@ def test_shadow_triptych_three_images():
     assert "Top view" in text
     assert "Front facade" in text
     assert "Rear facade" in text
-    assert "Summer solstice" in text
+    assert "Summer reference date" in text
     assert "Legend: teal outline = target building" in text
     assert "12:00" in text
 
