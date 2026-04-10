@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { analyzeSunlight, getSampleMinutesForDay } from './sunlightAnalysis';
+import { analyzeSunlight, getSampleIntervalsForDay } from './sunlightAnalysis';
 import { getDaylightRange, getSunDirection } from './sunPosition';
 
 vi.mock('./sunPosition', () => ({
@@ -24,13 +24,23 @@ vi.mock('./roofSampling', () => ({
   ]),
 }));
 
-describe('getSampleMinutesForDay', () => {
-  it('uses 30-minute samples clamped to daylight window', () => {
-    expect(getSampleMinutesForDay(8.1, 9.9, 30)).toEqual([510, 540, 570]);
+describe('getSampleIntervalsForDay', () => {
+  it('uses clipped 30-minute intervals within the daylight window', () => {
+    expect(getSampleIntervalsForDay(8.1, 9.9, 30)).toEqual([
+      { startMinute: 486, endMinute: 510, midpointMinute: 498, durationHours: 0.4 },
+      { startMinute: 510, endMinute: 540, midpointMinute: 525, durationHours: 0.5 },
+      { startMinute: 540, endMinute: 570, midpointMinute: 555, durationHours: 0.5 },
+      { startMinute: 570, endMinute: 594, midpointMinute: 582, durationHours: 0.4 },
+    ]);
   });
 
-  it('returns empty when rounded sunset is before rounded sunrise', () => {
-    expect(getSampleMinutesForDay(8.76, 8.77, 30)).toEqual([]);
+  it('keeps a short non-aligned daylight window as clipped duration', () => {
+    const intervals = getSampleIntervalsForDay(8.76, 8.77, 30);
+    expect(intervals).toHaveLength(1);
+    expect(intervals[0].startMinute).toBeCloseTo(525.6);
+    expect(intervals[0].endMinute).toBeCloseTo(526.2);
+    expect(intervals[0].midpointMinute).toBeCloseTo(525.9);
+    expect(intervals[0].durationHours).toBeCloseTo(0.01);
   });
 });
 
@@ -57,11 +67,13 @@ describe('analyzeSunlight', () => {
     });
 
     expect(result).not.toBeNull();
-    expect(result!.winter).toBe(1.5);
-    expect(result!.equinox).toBe(1.5);
-    expect(result!.summer).toBe(1.5);
-    expect(result!.annualAverage).toBe(1.5);
-    expect(result!.perPointAnnual).toEqual([1.5, 1.5]);
+    expect(result!.winter).toBe(1);
+    expect(result!.equinox).toBe(1);
+    expect(result!.summer).toBe(1);
+    expect(result!.annualAverage).toBe(1);
+    expect(result!.perPointAnnual).toEqual([1, 1]);
+    expect(result!.methodVersion).toBe('sunlight-v2-interval-dayweighted');
+    expect(result!.targetPlane).toBe('roof');
     expect(result!.roofGridPoints).toEqual([
       [0, 10, 0],
       [2, 10, -2],
@@ -113,7 +125,7 @@ describe('analyzeSunlight', () => {
   it('keeps timestep metadata and visibility aligned when sun direction is unavailable', async () => {
     const sunDirectionMock = vi.mocked(getSunDirection);
     sunDirectionMock.mockImplementation((date: Date) => {
-      if (date.getMinutes() === 30) {
+      if (date.getMinutes() === 45) {
         return null;
       }
       return { x: 1, y: 1, z: 1 } as any;
@@ -231,8 +243,8 @@ describe('analyzeSunlight', () => {
     });
 
     expect(result).not.toBeNull();
-    expect(result!.annualAverage).toBe(1.5);
-    expect(result!.perPointAnnual).toEqual([1.5, 1.5]);
+    expect(result!.annualAverage).toBe(1);
+    expect(result!.perPointAnnual).toEqual([1, 1]);
   });
 
   it('counts distant self-hits as real self-shadowing', async () => {
@@ -276,7 +288,7 @@ describe('analyzeSunlight', () => {
     expect(result).toBeNull();
   });
 
-  it('computes annual averages using daylight-weighted monthly means', async () => {
+  it('computes annual averages using calendar-day-weighted monthly means', async () => {
     const daylightRangeMock = vi.mocked(getDaylightRange);
     daylightRangeMock.mockImplementation((date: Date) => {
       return date.getMonth() < 6
@@ -304,8 +316,8 @@ describe('analyzeSunlight', () => {
       });
 
       expect(result).not.toBeNull();
-      expect(result!.annualAverage).toBe(3.3);
-      expect(result!.perPointAnnual).toEqual([3.3, 3.3]);
+      expect(result!.annualAverage).toBe(2);
+      expect(result!.perPointAnnual).toEqual([2, 2]);
     } finally {
       daylightRangeMock.mockImplementation(() => ({ sunrise: 8, sunset: 9 }));
     }
@@ -342,17 +354,17 @@ describe('analyzeSunlight', () => {
     });
 
     expect(result).not.toBeNull();
-    expect(result!.perPointAnnual).toEqual([1.5, 1.5]);
+    expect(result!.perPointAnnual).toEqual([1, 1]);
     expect(result!.facadeResults).toEqual([
       {
         orientation: 'south',
         heightLabel: '1.5m',
-        winterHours: 1.5,
-        summerHours: 1.5,
-        annualAverage: 1.5,
+        winterHours: 1,
+        summerHours: 1,
+        annualAverage: 1,
       },
     ]);
-    expect(result!.groundAnnualAverage).toBe(1.5);
+    expect(result!.groundAnnualAverage).toBe(1);
     expect(result!.samplingBreakdown).toEqual({
       roof: 2,
       facade: 1,
@@ -386,7 +398,7 @@ describe('analyzeSunlight', () => {
     });
 
     expect(result).not.toBeNull();
-    expect(result!.winter).toBe(1.5);
+    expect(result!.winter).toBe(1);
     expect(result!.facadeResults).toEqual([
       {
         orientation: 'south',

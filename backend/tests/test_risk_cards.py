@@ -79,6 +79,7 @@ def test_classify_heat_from_raster_index():
 def test_classify_water_from_begaanbaar_text():
     level, value, signal = _classify_water_from_properties(
         {"Begaanbaar": "Onbegaanbaar"},
+        "mra_klimaatatlas:1826_mra_begaanbaarheid_wegen_70mm",
     )
     assert level == RiskLevel.high
     assert value is None
@@ -86,21 +87,40 @@ def test_classify_water_from_begaanbaar_text():
 
 
 def test_classify_water_from_gridcode():
-    level, value, signal = _classify_water_from_properties({"GRIDCODE": 2})
+    level, value, signal = _classify_water_from_properties(
+        {"GRIDCODE": 2},
+        "wpn:s0149_wateroverlast_wpn",
+    )
     assert level == RiskLevel.medium
     assert value == 2
     assert signal == "GRIDCODE"
 
 
 def test_classify_water_from_gridcode_sentinel_is_unavailable():
-    level, value, signal = _classify_water_from_properties({"GRIDCODE": float("nan")})
+    level, value, signal = _classify_water_from_properties(
+        {"GRIDCODE": float("nan")},
+        "wpn:s0149_wateroverlast_wpn",
+    )
+    assert level == RiskLevel.unavailable
+    assert value is None
+    assert signal is None
+
+
+def test_classify_water_ignores_unknown_numeric_fields():
+    level, value, signal = _classify_water_from_properties(
+        {"mystery_score": 999},
+        "wpn:s0149_wateroverlast_wpn",
+    )
     assert level == RiskLevel.unavailable
     assert value is None
     assert signal is None
 
 
 def test_classify_water_from_klasse_20():
-    level, value, signal = _classify_water_from_properties({"klasse_20": 3})
+    level, value, signal = _classify_water_from_properties(
+        {"klasse_20": 3},
+        "mra_klimaatatlas:1826_mra_overstromingskans_20cm",
+    )
     assert level == RiskLevel.high
     assert value == 3
     assert signal == "klasse_20"
@@ -376,6 +396,21 @@ async def test_climate_source_date_uses_publication_year_fallback(mock_layers, m
     assert card.heat_layer == "wpn:s0149_hittestress_warme_nachten_huidig"
     assert card.source_date == "2024"
     assert card.sampled_at == "2026-02-05"
+
+
+@pytest.mark.asyncio
+@patch("app.services.risk_cards._sample_climate_layer", new_callable=AsyncMock)
+@patch("app.services.risk_cards._get_climate_layer_names", new_callable=AsyncMock)
+async def test_climate_card_warns_on_unmapped_layer_schema(mock_layers, mock_sample):
+    """Schema drift produces a warning instead of classifying arbitrary numbers."""
+    mock_layers.return_value = {"wpn:s0149_wateroverlast_wpn"}
+    mock_sample.return_value = {"mystery_score": 999}
+
+    card = await _build_climate_card(121000.0, 487000.0, "2026-02-05")
+
+    assert card.water_level == RiskLevel.unavailable
+    assert card.water_layer is None
+    assert "CLIMATE_LAYER_UNMAPPED" in card.warnings
 
 
 def test_extract_layer_date_returns_none_for_undated_names():

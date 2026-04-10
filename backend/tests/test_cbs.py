@@ -180,6 +180,11 @@ def test_parse_stats_full():
     assert stats.avg_property_value.value == 520000.0
     assert stats.avg_property_value.unit == "€"
     assert stats.distance_to_train_km.value == 0.8
+    assert stats.distance_to_train_km.quartile == 1
+    assert stats.distance_to_train_km.favorable_quartile == 4
+    assert stats.distance_to_train_km.quartile_direction == "lower_value"
+    assert stats.distance_to_train_km.precision == 1
+    assert stats.avg_household_size.precision == 1
     assert stats.distance_to_supermarket_km.value == 0.3
     assert stats.urbanization == UrbanizationLevel.very_urban
     assert stats.age_profile.age_0_24 == 18.0  # 8.0 + 10.0

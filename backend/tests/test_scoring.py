@@ -223,7 +223,16 @@ class TestNoiseSummary:
         en, nl = noise_summary(80, 45.0)
         assert "Quiet" in en
         assert "45" in en
+        assert "WHO" in en
         assert "Rustig" in nl
+
+    def test_good_relative_noise_above_who_does_not_claim_guideline(self):
+        score = normalize_noise_score(55.0)
+        en, nl = noise_summary(score, 55.0)
+        assert score is not None
+        assert "Relatively low" in en
+        assert "WHO" not in en
+        assert "WHO" not in nl
 
     def test_moderate_summary(self):
         en, nl = noise_summary(55, 60.0)
@@ -258,6 +267,24 @@ class TestAirSummary:
         assert "Good" in en
         assert "WHO" in en
         assert "Goede" in nl
+
+    def test_good_relative_air_above_pm25_who_aqg_is_explicit(self):
+        score = normalize_air_score(6.0, None)
+        en, nl = air_summary(score, 6.0, None)
+        assert score is not None
+        assert "Good relative air quality" in en
+        assert "above WHO AQG for PM2.5" in en
+        assert "measured pollutants meet WHO AQG" not in en
+        assert "boven WHO-AQG voor PM2.5" in nl
+
+    def test_good_relative_air_above_no2_who_aqg_is_explicit(self):
+        score = normalize_air_score(None, 12.0)
+        en, nl = air_summary(score, None, 12.0)
+        assert score is not None
+        assert "Good relative air quality" in en
+        assert "above WHO AQG for NO2" in en
+        assert "measured pollutants meet WHO AQG" not in en
+        assert "boven WHO-AQG voor NO2" in nl
 
     def test_moderate_summary(self):
         en, nl = air_summary(55, 12.0, 18.0)
@@ -343,8 +370,8 @@ class TestSunlightSummary:
 
     def test_good_summary(self):
         en, nl = sunlight_summary(85, 5.0)
-        assert "Good sunlight" in en
-        assert "Goed zonlicht" in nl
+        assert "Good clear-sky sun on the roof" in en
+        assert "Goede heldere-weerzon op het dak" in nl
 
     def test_moderate_summary(self):
         en, nl = sunlight_summary(55, 3.5)
@@ -353,8 +380,8 @@ class TestSunlightSummary:
 
     def test_poor_summary(self):
         en, nl = sunlight_summary(30, 1.8)
-        assert "Poor sunlight" in en
-        assert "Weinig zonlicht" in nl
+        assert "Poor roof sun exposure" in en
+        assert "Weinig zon op het dak" in nl
 
     def test_critical_summary(self):
         en, nl = sunlight_summary(10, 0.5)

@@ -4,8 +4,9 @@ import math
 import re
 import time
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
@@ -40,27 +41,136 @@ _gcn_layers_cache: tuple[float, list[str]] | None = None
 _climate_layers_cache: tuple[float, set[str]] | None = None
 
 _LAYER_CACHE_TTL_SECONDS = 24 * 60 * 60
+SUNLIGHT_METHOD_VERSION = "sunlight-v2-interval-dayweighted"
+
+
+@dataclass(frozen=True)
+class ClimateLayerSpec:
+    """Curated Klimaateffectatlas layer contract.
+
+    Each layer below is intentionally classified only through documented keys
+    for that layer family. Unknown numeric fields are treated as schema drift,
+    not as generic risk scores.
+    """
+
+    name: str
+    sample_type: Literal["raster", "vector"]
+    expected_property_keys: tuple[str, ...]
+    unit_scale: str
+    thresholds: tuple[float, float] | None
+    source: str
+    rationale: str
+
+    def __iter__(self):
+        # Backward-compatible unpacking for older tests/utilities.
+        yield self.name
+        yield self.sample_type
+
 
 # Klimaateffectatlas is highly regional; keep this to 10 curated layers only (PRD guidance).
-_CLIMATE_HEAT_LAYERS: list[tuple[str, str]] = [
-    # National raster coverage
-    ("wpn:s0149_hittestress_warme_nachten_huidig", "raster"),
-    # Regional enrichments
-    ("zh:1821_pzh_ouderenenhitte", "vector"),
-    ("twn_klimaatatlas:1830_twn_hitte_percentage_ouderen", "vector"),
-    ("maastricht_klimaatatlas:1811_maastricht_hitte_urgentiekaart", "vector"),
-    ("haarlemmermeer_klimaatatlas:1815_haarlemmermeer_risico_hitte", "vector"),
+_CLIMATE_HEAT_LAYERS: list[ClimateLayerSpec] = [
+    ClimateLayerSpec(
+        name="wpn:s0149_hittestress_warme_nachten_huidig",
+        sample_type="raster",
+        expected_property_keys=("GRAY_INDEX",),
+        unit_scale="0-1 heat-stress index",
+        thresholds=(0.65, 0.8),
+        source="Klimaateffectatlas WPN heat stress layer",
+        rationale="National warm-night heat-stress index; higher values mean more heat stress.",
+    ),
+    ClimateLayerSpec(
+        name="zh:1821_pzh_ouderenenhitte",
+        sample_type="vector",
+        expected_property_keys=("urgentie", "klasse", "risico", "hitte"),
+        unit_scale="Dutch qualitative urgency class",
+        thresholds=None,
+        source="Klimaateffectatlas Zuid-Holland elderly heat layer",
+        rationale="Text classes encode heat urgency for elderly residents.",
+    ),
+    ClimateLayerSpec(
+        name="twn_klimaatatlas:1830_twn_hitte_percentage_ouderen",
+        sample_type="vector",
+        expected_property_keys=("percentage", "percentage_ouderen", "ouderen", "perc_ouder"),
+        unit_scale="percent elderly heat exposure",
+        thresholds=(15.0, 25.0),
+        source="Klimaateffectatlas Twente elderly heat layer",
+        rationale="Higher percentage of exposed older residents increases heat vulnerability.",
+    ),
+    ClimateLayerSpec(
+        name="maastricht_klimaatatlas:1811_maastricht_hitte_urgentiekaart",
+        sample_type="vector",
+        expected_property_keys=("urgentie", "klasse", "hitte"),
+        unit_scale="Dutch qualitative urgency class",
+        thresholds=None,
+        source="Klimaateffectatlas Maastricht heat urgency layer",
+        rationale="Text classes encode heat urgency.",
+    ),
+    ClimateLayerSpec(
+        name="haarlemmermeer_klimaatatlas:1815_haarlemmermeer_risico_hitte",
+        sample_type="vector",
+        expected_property_keys=("risico", "klasse", "hitte"),
+        unit_scale="Dutch qualitative risk class",
+        thresholds=None,
+        source="Klimaateffectatlas Haarlemmermeer heat risk layer",
+        rationale="Text classes encode local heat risk.",
+    ),
 ]
 
-_CLIMATE_WATER_LAYERS: list[tuple[str, str]] = [
-    # National-ish polygon layer with broad NL coverage
-    ("mra_klimaatatlas:1826_mra_overstromingskans_20cm", "vector"),
-    # National `wpn:` fallback for compatibility with existing atlas namespace
-    ("wpn:s0149_wateroverlast_wpn", "vector"),
-    # Regional enrichments
-    ("etten:gr1_t100", "vector"),
-    ("mra_klimaatatlas:1826_mra_begaanbaarheid_wegen_70mm", "vector"),
-    ("rotterdam_klimaatatlas:1842_rotterdam_begaanbaarheid_wegen", "vector"),
+_CLIMATE_WATER_LAYERS: list[ClimateLayerSpec] = [
+    ClimateLayerSpec(
+        name="mra_klimaatatlas:1826_mra_overstromingskans_20cm",
+        sample_type="vector",
+        expected_property_keys=(
+            "klasse_20",
+            "klasse_50",
+            "klasse_200",
+            "klasse_0",
+            "overstromi",
+            "overstro_1",
+            "overstro_2",
+            "overstro_3",
+        ),
+        unit_scale="flood probability/impact class",
+        thresholds=(1.0, 2.0),
+        source="Klimaateffectatlas MRA flood probability layer",
+        rationale="Class values encode increasing flood probability or impact.",
+    ),
+    ClimateLayerSpec(
+        name="wpn:s0149_wateroverlast_wpn",
+        sample_type="vector",
+        expected_property_keys=("GRIDCODE", "gridcode", "ror"),
+        unit_scale="water-nuisance class",
+        thresholds=(1.0, 2.0),
+        source="Klimaateffectatlas WPN water nuisance layer",
+        rationale="Grid classes encode increasing water nuisance.",
+    ),
+    ClimateLayerSpec(
+        name="etten:gr1_t100",
+        sample_type="vector",
+        expected_property_keys=("GRIDCODE", "gridcode", "diepte"),
+        unit_scale="rainfall depth/class",
+        thresholds=(0.1, 0.3),
+        source="Klimaateffectatlas Etten T100 rainfall layer",
+        rationale="Depth classes encode modeled pluvial flooding.",
+    ),
+    ClimateLayerSpec(
+        name="mra_klimaatatlas:1826_mra_begaanbaarheid_wegen_70mm",
+        sample_type="vector",
+        expected_property_keys=("Begaanbaar", "begaanbaar", "begaanbaarheid"),
+        unit_scale="road passability class",
+        thresholds=None,
+        source="Klimaateffectatlas MRA road passability layer",
+        rationale="Text classes encode passability during 70 mm rainfall.",
+    ),
+    ClimateLayerSpec(
+        name="rotterdam_klimaatatlas:1842_rotterdam_begaanbaarheid_wegen",
+        sample_type="vector",
+        expected_property_keys=("Begaanbaar", "begaanbaar", "begaanbaarheid"),
+        unit_scale="road passability class",
+        thresholds=None,
+        source="Klimaateffectatlas Rotterdam road passability layer",
+        rationale="Text classes encode road passability.",
+    ),
 ]
 
 # GeoServer metadata for curated Klimaateffectatlas layers is inconsistent:
@@ -141,6 +251,14 @@ def _max_level(levels: list[RiskLevel]) -> RiskLevel:
     if not levels:
         return RiskLevel.unavailable
     return max(levels, key=_level_rank)
+
+
+def _normalize_card_warnings(card: Any) -> None:
+    warnings = list(getattr(card, "warnings", []) or [])
+    message = getattr(card, "message", None)
+    if message and message not in warnings:
+        warnings.append(message)
+    card.warnings = warnings
 
 
 def _parse_wms_layer_names(xml_text: str) -> list[str]:
@@ -315,6 +433,42 @@ def _extract_numeric(
     return None, None
 
 
+def _spec_by_name(layer: str | None) -> ClimateLayerSpec | None:
+    if layer is None:
+        return None
+    for spec in (*_CLIMATE_HEAT_LAYERS, *_CLIMATE_WATER_LAYERS):
+        if spec.name == layer:
+            return spec
+    return None
+
+
+def _property_value_for_keys(
+    props: dict[str, Any],
+    keys: tuple[str, ...],
+) -> tuple[Any, str | None]:
+    lower_to_key = {key.lower(): key for key in props}
+    for expected in keys:
+        actual = lower_to_key.get(expected.lower())
+        if actual is not None:
+            return props.get(actual), actual
+    return None, None
+
+
+def _qualitative_level_from_text(value: Any) -> tuple[RiskLevel, str | None]:
+    if not isinstance(value, str):
+        return RiskLevel.unavailable, None
+    text = value.lower()
+    if "zeer hoog" in text or "hoge urgentie" in text or "onbegaan" in text:
+        return RiskLevel.high, value
+    if "hoog" in text:
+        return RiskLevel.high, value
+    if "beperkt" in text or "kwetsbaar" in text or "matig" in text or "middel" in text:
+        return RiskLevel.medium, value
+    if "begaanbaar" in text or "laag" in text:
+        return RiskLevel.low, value
+    return RiskLevel.unavailable, None
+
+
 def _sanitize_raster_value(
     value: float | None,
     *,
@@ -426,126 +580,76 @@ def _classify_heat_from_properties(
     if not props:
         return RiskLevel.unavailable, None, None
 
-    layer_lower = layer.lower()
-    text_values = " ".join(
-        str(v).lower() for v in props.values() if isinstance(v, str)
-    )
-
-    if "hittestress_warme_nachten_huidig" in layer_lower:
-        value = props.get("GRAY_INDEX")
-        if isinstance(value, (int, float)):
-            number = _sanitize_raster_value(float(value), min_value=0.0)
-            if number is None:
-                return RiskLevel.unavailable, None, None
-            return _risk_from_threshold(number, 0.65, 0.8), round(number, 3), "heat index"
-
-    if "zeer hoog" in text_values or "hoge urgentie" in text_values:
-        return RiskLevel.high, None, "very high"
-    if "hoog" in text_values:
-        return RiskLevel.high, None, "high"
-    if "matig" in text_values or "middel" in text_values:
-        return RiskLevel.medium, None, "moderate"
-    if "laag" in text_values:
-        return RiskLevel.low, None, "low"
-
-    value, key = _extract_numeric(props)
-    if value is None:
+    spec = _spec_by_name(layer)
+    if spec is None:
         return RiskLevel.unavailable, None, None
 
-    key_l = (key or "").lower()
-    if "score" in key_l or "broos" in key_l or "ouder" in key_l:
-        level = _risk_from_threshold(value, 15.0, 25.0)
-        return level, round(value, 2), key
+    if spec.name == "wpn:s0149_hittestress_warme_nachten_huidig":
+        value, key = _property_value_for_keys(props, spec.expected_property_keys)
+        if not isinstance(value, (int, float)):
+            return RiskLevel.unavailable, None, None
+        number = _sanitize_raster_value(float(value), min_value=0.0)
+        if number is None or spec.thresholds is None:
+            return RiskLevel.unavailable, None, None
+        low_max, medium_max = spec.thresholds
+        return _risk_from_threshold(number, low_max, medium_max), round(number, 3), "heat index"
 
-    if 0.0 <= value <= 1.0:
-        level = _risk_from_threshold(value, 0.65, 0.8)
-        return level, round(value, 3), key
+    value, key = _property_value_for_keys(props, spec.expected_property_keys)
+    level, signal = _qualitative_level_from_text(value)
+    if level != RiskLevel.unavailable:
+        return level, None, signal
 
-    level = _risk_from_threshold(value, 10.0, 20.0)
-    return level, round(value, 2), key
+    if isinstance(value, (int, float)) and spec.thresholds is not None:
+        number = _sanitize_raster_value(float(value), min_value=0.0)
+        if number is None:
+            return RiskLevel.unavailable, None, None
+        low_max, medium_max = spec.thresholds
+        return _risk_from_threshold(number, low_max, medium_max), round(number, 2), key
+
+    return RiskLevel.unavailable, None, None
 
 
 def _classify_water_from_properties(
     props: dict[str, Any],
+    layer: str | None = None,
 ) -> tuple[RiskLevel, float | None, str | None]:
     if not props:
         return RiskLevel.unavailable, None, None
 
-    for key, value in props.items():
-        if "begaan" not in key.lower() or not isinstance(value, str):
-            continue
-        text = value.lower()
-        if "onbegaan" in text:
-            return RiskLevel.high, None, value
-        if "beperkt" in text or "kwetsbaar" in text:
-            return RiskLevel.medium, None, value
-        if "begaanbaar" in text:
-            return RiskLevel.low, None, value
+    spec = _spec_by_name(layer)
+    if spec is None:
+        return RiskLevel.unavailable, None, None
 
-    for key in ("klasse_20", "klasse_50", "klasse_200", "klasse_0"):
-        value = props.get(key)
-        if not isinstance(value, (int, float)):
-            continue
-        klasse = _sanitize_raster_value(float(value), min_value=0.0)
-        if klasse is None:
-            continue
-        if klasse <= 1:
-            return RiskLevel.low, klasse, key
-        if klasse <= 2:
-            return RiskLevel.medium, klasse, key
-        return RiskLevel.high, klasse, key
+    value, key = _property_value_for_keys(props, spec.expected_property_keys)
+    level, signal = _qualitative_level_from_text(value)
+    if level != RiskLevel.unavailable:
+        return level, None, signal
 
-    for key in ("overstromi", "overstro_1", "overstro_2", "overstro_3"):
-        value = props.get(key)
-        if not isinstance(value, (int, float)):
-            continue
-        numeric = _sanitize_raster_value(float(value), min_value=0.0)
-        if numeric is None:
-            continue
+    if not isinstance(value, (int, float)):
+        return RiskLevel.unavailable, None, None
+    numeric = _sanitize_raster_value(float(value), min_value=0.0)
+    if numeric is None:
+        return RiskLevel.unavailable, None, None
+
+    key_l = (key or "").lower()
+    if "diepte" in key_l:
+        return _risk_from_threshold(numeric, 0.1, 0.3), round(numeric, 3), key
+    if key_l == "ror":
+        if numeric <= 2:
+            return RiskLevel.low, numeric, key
+        if numeric <= 4:
+            return RiskLevel.medium, numeric, key
+        return RiskLevel.high, numeric, key
+    if key_l.startswith("overstro") or key_l == "overstromi":
         if numeric <= 0:
             return RiskLevel.low, numeric, key
         if numeric <= 1:
             return RiskLevel.medium, numeric, key
         return RiskLevel.high, numeric, key
-
-    label_text = " ".join(
-        str(v).lower() for v in props.values() if isinstance(v, str)
-    )
-    if "<" in label_text and "100 duizend" in label_text:
-        return RiskLevel.low, None, "low impact label"
-    if "1 miljoen" in label_text or "zeer hoog" in label_text:
-        return RiskLevel.high, None, "high impact label"
-    if "100 duizend" in label_text or "hoog" in label_text:
-        return RiskLevel.medium, None, "medium impact label"
-
-    if isinstance(props.get("GRIDCODE"), (int, float)):
-        grid = _sanitize_raster_value(float(props["GRIDCODE"]), min_value=0.0)
-        if grid is not None:
-            if grid <= 1:
-                return RiskLevel.low, grid, "GRIDCODE"
-            if grid == 2:
-                return RiskLevel.medium, grid, "GRIDCODE"
-            return RiskLevel.high, grid, "GRIDCODE"
-
-    if isinstance(props.get("ror"), (int, float)):
-        ror = _sanitize_raster_value(float(props["ror"]), min_value=0.0)
-        if ror is not None:
-            if ror <= 2:
-                return RiskLevel.low, ror, "ror"
-            if ror <= 4:
-                return RiskLevel.medium, ror, "ror"
-            return RiskLevel.high, ror, "ror"
-
-    value, key = _extract_numeric(props)
-    if value is None:
+    if spec.thresholds is None:
         return RiskLevel.unavailable, None, None
-
-    if "diepte" in (key or "").lower():
-        level = _risk_from_threshold(value, 0.1, 0.3)
-        return level, round(value, 3), key
-
-    level = _risk_from_threshold(value, 1.0, 2.0)
-    return level, round(value, 2), key
+    low_max, medium_max = spec.thresholds
+    return _risk_from_threshold(numeric, low_max, medium_max), numeric, key
 
 
 async def _build_noise_card(rd_x: float, rd_y: float, sampled_at: str) -> NoiseRiskCard:
@@ -684,41 +788,59 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
         heat_value: float | None = None
         heat_signal: str | None = None
         heat_layer_used: str | None = None
-        for layer, layer_type in _CLIMATE_HEAT_LAYERS:
-            if layer not in available_layers:
+        warnings: list[str] = []
+        for spec in _CLIMATE_HEAT_LAYERS:
+            if spec.name not in available_layers:
                 continue
             try:
-                props = await _sample_climate_layer(layer, layer_type, rd_x, rd_y)
+                props = await _sample_climate_layer(
+                    spec.name,
+                    spec.sample_type,
+                    rd_x,
+                    rd_y,
+                )
             except Exception:
                 continue
-            level, value, signal = _classify_heat_from_properties(props or {}, layer)
+            level, value, signal = _classify_heat_from_properties(props or {}, spec.name)
             if level == RiskLevel.unavailable:
+                if props and "CLIMATE_LAYER_UNMAPPED" not in warnings:
+                    warnings.append("CLIMATE_LAYER_UNMAPPED")
                 continue
             if _level_rank(level) > _level_rank(heat_level):
                 heat_level = level
                 heat_value = value
                 heat_signal = signal
-                heat_layer_used = layer
+                heat_layer_used = spec.name
 
         water_level = RiskLevel.unavailable
         water_value: float | None = None
         water_signal: str | None = None
         water_layer_used: str | None = None
-        for layer, layer_type in _CLIMATE_WATER_LAYERS:
-            if layer not in available_layers:
+        for spec in _CLIMATE_WATER_LAYERS:
+            if spec.name not in available_layers:
                 continue
             try:
-                props = await _sample_climate_layer(layer, layer_type, rd_x, rd_y)
+                props = await _sample_climate_layer(
+                    spec.name,
+                    spec.sample_type,
+                    rd_x,
+                    rd_y,
+                )
             except Exception:
                 continue
-            level, value, signal = _classify_water_from_properties(props or {})
+            level, value, signal = _classify_water_from_properties(
+                props or {},
+                spec.name,
+            )
             if level == RiskLevel.unavailable:
+                if props and "CLIMATE_LAYER_UNMAPPED" not in warnings:
+                    warnings.append("CLIMATE_LAYER_UNMAPPED")
                 continue
             if _level_rank(level) > _level_rank(water_level):
                 water_level = level
                 water_value = value
                 water_signal = signal
-                water_layer_used = layer
+                water_layer_used = spec.name
 
         overall = _max_level([heat_level, water_level])
 
@@ -746,6 +868,7 @@ async def _build_climate_card(rd_x: float, rd_y: float, sampled_at: str) -> Clim
             heat_signal=heat_signal,
             water_signal=water_signal,
             message=message,
+            warnings=warnings,
         )
     except Exception:
         return ClimateStressRiskCard(
@@ -893,11 +1016,17 @@ async def get_risk_cards(
     climate_card.summary = climate_en
     climate_card.summary_nl = climate_nl
 
+    _normalize_card_warnings(noise_card)
+    _normalize_card_warnings(air_card)
+    _normalize_card_warnings(climate_card)
+
     sunlight_card: SunlightRiskCard | None = None
     cached_sunlight = await cache_get(f"sunlight:{vbo_id}")
     if isinstance(cached_sunlight, dict):
         try:
             sunlight_card = SunlightRiskCard(**cached_sunlight)
+            if sunlight_card.method_version != SUNLIGHT_METHOD_VERSION:
+                sunlight_card = None
         except Exception:
             sunlight_card = None
 

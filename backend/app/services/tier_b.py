@@ -99,12 +99,20 @@ async def _fetch_typed_rows(
     return (resp.json() or {}).get("value") or []
 
 
-async def _fetch_population(buurt_code: str) -> float | None:
+_POPULATION_YEAR = 2024
+
+
+async def _fetch_population_for_area(
+    area_code: str,
+    scope: str,
+) -> tuple[float | None, str | None]:
     client = _client.get()
+    collection = "buurten" if scope == "buurt" else "gemeenten"
+    code_param = "buurtcode" if scope == "buurt" else "gemeentecode"
     resp = await client.get(
-        f"{settings.cbs_wijken_buurten_base}/collections/buurten/items",
+        f"{settings.cbs_wijken_buurten_base}/collections/{collection}/items",
         params={
-            "buurtcode": buurt_code,
+            code_param: area_code,
             "f": "json",
             "limit": "1",
         },
@@ -112,12 +120,13 @@ async def _fetch_population(buurt_code: str) -> float | None:
     resp.raise_for_status()
     features = (resp.json() or {}).get("features") or []
     if not features:
-        return None
+        return None, None
     props = (features[0] or {}).get("properties") or {}
     inhabitants = props.get("aantal_inwoners")
+    area_name = props.get("buurtnaam") if scope == "buurt" else props.get("gemeentenaam")
     if not isinstance(inhabitants, (int, float)) or inhabitants <= 0 or inhabitants <= -99990:
-        return None
-    return float(inhabitants)
+        return None, area_name if isinstance(area_name, str) else None
+    return float(inhabitants), area_name if isinstance(area_name, str) else None
 
 
 def _buurt_to_gemeente(buurt_code: str) -> str:
@@ -192,10 +201,9 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     if not cleaned_buurt:
         return CrimeStatsCard(message="CRIME_NO_BUURT_CODE")
 
-    # Phase 1: Population + period lookups in parallel.
-    # Population failure is non-fatal; period failures are fatal.
-    pop_task = asyncio.create_task(_fetch_population(cleaned_buurt))
-
+    # Phase 1: period lookups. Population is intentionally fetched only after
+    # the numerator scope is known so municipality rows cannot be divided by a
+    # neighborhood denominator.
     try:
         try:
             latest_year, latest_month = await asyncio.gather(
@@ -203,45 +211,33 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
                 _fetch_latest_period(settings.cbs_crime_monthly_base),
             )
             if not latest_year or not latest_month:
-                pop_task.cancel()
                 return CrimeStatsCard(message="CRIME_PERIOD_LOOKUP_FAILED")
         except Exception:
-            pop_task.cancel()
             logger.exception("Crime lookup failed for buurt=%s", cleaned_buurt)
             return CrimeStatsCard(message="CRIME_LOOKUP_FAILED")
-
-        # Collect population (non-fatal)
-        try:
-            population = await pop_task
-        except Exception:
-            logger.exception("Population lookup failed for buurt=%s", cleaned_buurt)
-            population = None
-    finally:
-        # Guard against CancelledError (BaseException) leaking pop_task
-        if not pop_task.done():
-            pop_task.cancel()
-            try:
-                await pop_task
-            except BaseException:
-                pass
+    except Exception:
+        logger.exception("Crime period lookup failed for buurt=%s", cleaned_buurt)
+        return CrimeStatsCard(message="CRIME_LOOKUP_FAILED")
 
     # Phase 2: Crime rows + national baseline (depends on period results)
     nl_crime_task = asyncio.create_task(_fetch_national_crime_total(latest_year))
     try:
         # Try buurt-level first
+        area_code = cleaned_buurt
+        scope = "buurt"
         yearly_rows, monthly_rows = await _fetch_crime_rows(
             cleaned_buurt, latest_year, latest_month,
         )
 
         # Fall back to municipality-level if buurt has no data
-        used_gemeente_fallback = False
         if not yearly_rows:
             gm_code = _buurt_to_gemeente(cleaned_buurt)
             yearly_rows, monthly_rows = await _fetch_crime_rows(
                 gm_code, latest_year, latest_month,
             )
             if yearly_rows:
-                used_gemeente_fallback = True
+                area_code = gm_code
+                scope = "gemeente"
     except Exception:
         logger.exception("Crime lookup failed for buurt=%s", cleaned_buurt)
         nl_crime_task.cancel()
@@ -260,6 +256,20 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
                 await nl_crime_task
             except BaseException:
                 pass
+
+    population: float | None = None
+    area_name: str | None = None
+    if yearly_rows:
+        try:
+            population, area_name = await _fetch_population_for_area(area_code, scope)
+        except Exception:
+            logger.exception(
+                "Population lookup failed for scope=%s area=%s",
+                scope,
+                area_code,
+            )
+            population = None
+            area_name = None
 
     code_to_count: dict[str, float | None] = {}
     for row in yearly_rows:
@@ -287,7 +297,7 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
         monthly_count = _to_float(monthly_rows[0].get("GeregistreerdeMisdrijven_1"))
 
     message: str | None = None
-    if used_gemeente_fallback:
+    if scope == "gemeente" and population is not None:
         message = "CRIME_MUNICIPALITY_LEVEL"
     elif population is None:
         message = "CRIME_NO_POPULATION"
@@ -303,6 +313,11 @@ async def _get_crime_stats(buurt_code: str | None) -> CrimeStatsCard:
     national_rate = _per_1000(nl_total_count, _NL_POPULATION_ESTIMATE)
 
     return CrimeStatsCard(
+        scope=scope,
+        area_code=area_code,
+        area_name=area_name,
+        population=population,
+        population_year=_POPULATION_YEAR if population is not None else None,
         total_per_1000=total_rate,
         national_per_1000=national_rate,
         burglary_per_1000=_per_1000(burglary_count, population),

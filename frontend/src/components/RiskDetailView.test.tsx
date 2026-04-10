@@ -45,6 +45,7 @@ function renderDetail(props: Partial<Parameters<typeof RiskDetailView>[0]> = {})
         questions={props.questions}
         source={props.source}
         sourceDate={props.sourceDate}
+        warnings={props.warnings}
       />
     </I18nextProvider>,
   );
@@ -99,7 +100,7 @@ describe('RiskDetailView', () => {
     const { container } = renderDetail({
       comparisons: [
         { label: 'This address', value: 59, colorKey: 'address' },
-        { label: 'City avg', value: 45, colorKey: 'city' },
+        { label: 'Peer baseline (urbanization)', value: 45, colorKey: 'peer' },
         { label: 'WHO limit', value: 70, pattern: 'dashed', colorKey: 'who' },
       ],
     });
@@ -121,14 +122,14 @@ describe('RiskDetailView', () => {
     const { container } = renderDetail({
       comparisons: [
         { label: 'This address', value: 59, colorKey: 'address' },
-        { label: 'City avg', value: 45, colorKey: 'city' },
-        { label: 'NL avg', value: 50, colorKey: 'nl' },
+        { label: 'Peer baseline (urbanization)', value: 45, colorKey: 'peer' },
+        { label: 'National baseline', value: 50, colorKey: 'national' },
         { label: 'WHO limit', value: 70, pattern: 'dashed', colorKey: 'who' },
       ],
     });
     expect(container.querySelector('.risk-detail__comparison-bar-fill--address')).toBeInTheDocument();
-    expect(container.querySelector('.risk-detail__comparison-bar-fill--city')).toBeInTheDocument();
-    expect(container.querySelector('.risk-detail__comparison-bar-fill--nl')).toBeInTheDocument();
+    expect(container.querySelector('.risk-detail__comparison-bar-fill--peer')).toBeInTheDocument();
+    expect(container.querySelector('.risk-detail__comparison-bar-fill--national')).toBeInTheDocument();
     expect(container.querySelector('.risk-detail__comparison-bar-fill--who')).toBeInTheDocument();
   });
 
@@ -136,15 +137,42 @@ describe('RiskDetailView', () => {
     renderDetail({
       comparisons: [
         { label: 'This address', value: 59, colorKey: 'address' },
-        { label: 'City avg', value: 45, colorKey: 'city' },
+        { label: 'Peer baseline (urbanization)', value: 45, colorKey: 'peer' },
       ],
     });
     const legend = screen.getByTestId('comparison-legend');
     expect(legend).toBeInTheDocument();
     expect(legend.querySelectorAll('.risk-detail__legend-item')).toHaveLength(2);
     expect(legend.querySelector('.risk-detail__legend-dot--address')).toBeInTheDocument();
-    expect(legend.querySelector('.risk-detail__legend-dot--city')).toBeInTheDocument();
+    expect(legend.querySelector('.risk-detail__legend-dot--peer')).toBeInTheDocument();
     expect(legend.querySelector('.risk-detail__legend-dot--who')).not.toBeInTheDocument();
+  });
+
+  it('does not group climate and daylight targets under the WHO legend', () => {
+    renderDetail({
+      comparisons: [
+        { label: 'Climate adaptation target', value: 70, pattern: 'dashed', colorKey: 'climate_target' },
+        { label: 'Daylight target', value: 67, pattern: 'dashed', colorKey: 'daylight_target' },
+      ],
+    });
+    const legend = screen.getByTestId('comparison-legend');
+    expect(legend).toHaveTextContent('Climate adaptation target');
+    expect(legend).toHaveTextContent('Daylight target');
+    expect(legend).not.toHaveTextContent('WHO guideline');
+  });
+
+  it('renders warning limitations when warning codes are present', () => {
+    renderDetail({ warnings: ['AIR_PARTIAL'] });
+    expect(screen.getByTestId('risk-detail-warnings')).toHaveTextContent(
+      'Only partial air quality data is available.',
+    );
+  });
+
+  it('renders climate warning limitations when climate data is partial', () => {
+    renderDetail({ warnings: ['CLIMATE_PARTIAL'] });
+    expect(screen.getByTestId('risk-detail-warnings')).toHaveTextContent(
+      'Only partial climate stress data is available.',
+    );
   });
 
   it('renders directionality label', () => {

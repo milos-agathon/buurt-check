@@ -62,10 +62,30 @@ describe('TierBSignalsCard', () => {
     });
 
     expect(screen.getByText('How it compares (per 1,000 residents)')).toBeInTheDocument();
-    expect(screen.getByText('This area')).toBeInTheDocument();
+    expect(screen.getByText('This neighborhood')).toBeInTheDocument();
     expect(screen.getByText('National avg.')).toBeInTheDocument();
     expect(screen.getByText('52')).toBeInTheDocument();
     expect(screen.getAllByText('25.3').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('labels municipality fallback comparisons explicitly', () => {
+    renderCard({
+      data: {
+        address_id: 'vbo-1',
+        crime: {
+          scope: 'gemeente',
+          total_per_1000: 25.3,
+          national_per_1000: 52.0,
+          source: 'CBS',
+          score: 72,
+          severity: 'good',
+          message: 'CRIME_MUNICIPALITY_LEVEL',
+        },
+      },
+    });
+
+    expect(screen.getByText('Municipality context')).toBeInTheDocument();
+    expect(screen.queryByText('This area')).not.toBeInTheDocument();
   });
 
   it('does not render national comparison row when national rate is unavailable', () => {

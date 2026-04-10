@@ -140,6 +140,8 @@ export interface SunlightResult {
   equinox: number;
   summer: number;
   annualAverage: number;
+  methodVersion?: string;
+  targetPlane?: 'roof' | 'facade' | 'ground' | 'interior_proxy';
   analysisYear?: number;
   svf?: number;
   svfAnisotropic?: number;
@@ -192,6 +194,7 @@ export interface NoiseRiskCard {
   sampled_at: string;
   layer?: string;
   message?: string;
+  warnings?: string[];
   score?: number;
   severity?: SeverityLevel;
   summary?: string;
@@ -210,6 +213,7 @@ export interface AirQualityRiskCard {
   pm25_layer?: string;
   no2_layer?: string;
   message?: string;
+  warnings?: string[];
   score?: number;
   severity?: SeverityLevel;
   summary?: string;
@@ -230,6 +234,7 @@ export interface ClimateStressRiskCard {
   heat_signal?: string;
   water_signal?: string;
   message?: string;
+  warnings?: string[];
   score?: number;
   severity?: SeverityLevel;
   summary?: string;
@@ -263,6 +268,8 @@ export interface SunlightRiskCard {
   ground_annual_average?: number;
   svf_anisotropic?: number;
   irradiance_kwh_m2?: number;
+  method_version?: string;
+  target_plane?: 'roof' | 'facade' | 'ground' | 'interior_proxy';
 }
 
 export interface RiskCardsResponse {
@@ -277,11 +284,14 @@ export type ComparisonLabelCode =
   | 'city_avg'
   | 'nl_avg'
   | 'who_limit'
+  | 'air_interim_target'
   | 'adaptation_target'
   | 'daylight_target'
   | 'address';
 
 export type ComparisonPattern = 'solid' | 'dashed';
+export type ComparisonRole = 'address' | 'peer' | 'national' | 'reference';
+export type ComparisonScope = 'address' | 'urbanization_peer' | 'national' | 'reference';
 
 export interface RiskComparisonRow {
   label_code: ComparisonLabelCode;
@@ -289,6 +299,10 @@ export interface RiskComparisonRow {
   pattern?: ComparisonPattern;
   source?: string;
   source_date?: string;
+  role?: ComparisonRole;
+  benchmark_family?: string;
+  label_key?: string;
+  scope?: ComparisonScope;
 }
 
 export interface RiskComparisonsResponse {
@@ -319,6 +333,9 @@ export interface NeighborhoodIndicator {
   unit?: string;
   available: boolean;
   quartile?: number | null; // 1-4, national quartile position
+  quartile_direction?: 'higher_value' | 'lower_value' | null;
+  favorable_quartile?: number | null;
+  precision?: number | null;
 }
 
 export interface NeighborhoodStats {
@@ -362,6 +379,11 @@ export interface ViewingQuestionsResponse {
 }
 
 export interface CrimeStatsCard {
+  scope?: 'buurt' | 'gemeente';
+  area_code?: string;
+  area_name?: string;
+  population?: number;
+  population_year?: number;
   total_per_1000?: number;
   national_per_1000?: number;
   burglary_per_1000?: number;

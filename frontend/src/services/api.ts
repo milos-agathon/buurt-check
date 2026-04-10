@@ -924,6 +924,8 @@ export interface SunlightSubmissionPayload {
   ground_annual_average?: number;
   svf_anisotropic?: number;
   irradiance_kwh_m2?: number;
+  method_version?: string;
+  target_plane?: 'roof' | 'facade' | 'ground' | 'interior_proxy';
 }
 
 export interface SunlightSubmissionResponse {
@@ -937,7 +939,11 @@ export function toSunlightSubmissionPayload(
   data: SunlightSubmissionPayload | SunlightResult,
 ): SunlightSubmissionPayload {
   if ('winter_hours' in data) {
-    return data;
+    return {
+      ...data,
+      method_version: data.method_version ?? 'sunlight-v2-interval-dayweighted',
+      target_plane: data.target_plane ?? 'roof',
+    };
   }
 
   return {
@@ -957,6 +963,8 @@ export function toSunlightSubmissionPayload(
     ground_annual_average: data.groundAnnualAverage,
     svf_anisotropic: data.svfAnisotropic,
     irradiance_kwh_m2: data.irradianceKwhM2,
+    method_version: data.methodVersion ?? 'sunlight-v2-interval-dayweighted',
+    target_plane: data.targetPlane ?? 'roof',
   };
 }
 

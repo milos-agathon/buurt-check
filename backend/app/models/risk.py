@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -30,6 +31,7 @@ class NoiseRiskCard(BaseModel):
     sampled_at: str
     layer: str | None = None
     message: str | None = None
+    warnings: list[str] = Field(default_factory=list)
     score: int | None = None
     severity: SeverityLevel | None = None
     summary: str | None = None
@@ -48,6 +50,7 @@ class AirQualityRiskCard(BaseModel):
     pm25_layer: str | None = None
     no2_layer: str | None = None
     message: str | None = None
+    warnings: list[str] = Field(default_factory=list)
     score: int | None = None
     severity: SeverityLevel | None = None
     summary: str | None = None
@@ -68,6 +71,7 @@ class ClimateStressRiskCard(BaseModel):
     heat_signal: str | None = None
     water_signal: str | None = None
     message: str | None = None
+    warnings: list[str] = Field(default_factory=list)
     score: int | None = None
     severity: SeverityLevel | None = None
     summary: str | None = None
@@ -101,6 +105,8 @@ class SunlightRiskCard(BaseModel):
     ground_annual_average: float | None = Field(default=None)
     svf_anisotropic: float | None = Field(default=None)
     irradiance_kwh_m2: float | None = Field(default=None)
+    method_version: str | None = None
+    target_plane: Literal["roof", "facade", "ground", "interior_proxy"] = "roof"
 
 
 class RiskCardsResponse(BaseModel):
@@ -122,6 +128,10 @@ class RiskComparisonRow(BaseModel):
     pattern: ComparisonPattern = ComparisonPattern.solid
     source: str | None = None
     source_date: str | None = None
+    role: Literal["address", "peer", "national", "reference"] | None = None
+    benchmark_family: str = ""
+    label_key: str = ""
+    scope: Literal["address", "urbanization_peer", "national", "reference"] | None = None
 
 
 class RiskComparisonsResponse(BaseModel):

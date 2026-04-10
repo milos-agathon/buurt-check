@@ -96,9 +96,14 @@
 
   /* ── Colors: Comparison Series ── */
   --color-compare-address: #00897B;   /* This address (Teal) */
-  --color-compare-city: #9AA0A6;      /* City average (Silver) */
-  --color-compare-nl: #D1D5DB;        /* NL average (Light gray) */
-  --color-compare-who: #E8913A;       /* WHO/EU limit (Amber) */
+  --color-compare-city: #9AA0A6;      /* Legacy peer baseline */
+  --color-compare-nl: #D1D5DB;        /* Legacy national baseline */
+  --color-compare-peer: #9AA0A6;      /* Urbanization peer baseline */
+  --color-compare-national: #D1D5DB;  /* National baseline */
+  --color-compare-who: #E8913A;       /* WHO guideline */
+  --color-compare-air-target: #7C8DA0;
+  --color-compare-climate-target: #E8913A;
+  --color-compare-daylight-target: #5E8C88;
 
   /* ── Colors: Thumb Badge ── */
   --color-thumb-badge-bg: rgba(28, 45, 63, 0.86); /* Year badge on thumbnail */
@@ -291,7 +296,12 @@
   --color-compare-address: #4DB6AC;
   --color-compare-city: #B0B7BF;
   --color-compare-nl: #8A9BB0;
+  --color-compare-peer: #B0B7BF;
+  --color-compare-national: #8A9BB0;
   --color-compare-who: #FFA726;
+  --color-compare-air-target: #A8B5C2;
+  --color-compare-climate-target: #FFA726;
+  --color-compare-daylight-target: #7FB8B2;
 
   /* Skeleton */
   --color-skeleton: rgba(255, 255, 255, 0.08);

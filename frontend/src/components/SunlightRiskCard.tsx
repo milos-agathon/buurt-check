@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import SeverityBadge from './ui/SeverityBadge';
 import type { SunlightResult } from '../types/api';
 import type { SeverityLevel } from '../types/api';
-import { getEN17037Level, getTNOBenchmark } from '../utils/standardsBenchmark';
+import { getEN17037Level, getWinterExposureRatioLevel } from '../utils/standardsBenchmark';
 import './SunlightRiskCard.css';
 
 interface Props {
@@ -23,7 +23,7 @@ const AXIS_LABELS: [number, string][] = [
   [157.5, 'senw'],
   [180.1, 'ns'],
 ];
-const TNO_WINTER_REFERENCE_POSSIBLE_HOURS = 7.5;
+const WINTER_ROOF_REFERENCE_POSSIBLE_HOURS = 7.5;
 
 export function getAxisLabel(deg: number): string {
   const normalized = ((deg % 180) + 180) % 180;
@@ -109,14 +109,14 @@ export default function SunlightRiskCard({
   const hasIrradiance = sunlight.irradianceKwhM2 != null;
   const hasBenchmarks = Number.isFinite(sunlight.equinox) && Number.isFinite(sunlight.winter);
   const en17037Level = hasBenchmarks ? getEN17037Level(sunlight.equinox) : null;
-  const tnoLevel = hasBenchmarks
-    ? getTNOBenchmark(sunlight.winter, TNO_WINTER_REFERENCE_POSSIBLE_HOURS)
+  const winterExposureLevel = hasBenchmarks
+    ? getWinterExposureRatioLevel(sunlight.winter, WINTER_ROOF_REFERENCE_POSSIBLE_HOURS)
     : null;
-  const tnoPercent = hasBenchmarks
+  const winterExposurePercent = hasBenchmarks
     ? Math.round(
       Math.max(
         0,
-        Math.min(100, (sunlight.winter / TNO_WINTER_REFERENCE_POSSIBLE_HOURS) * 100),
+        Math.min(100, (sunlight.winter / WINTER_ROOF_REFERENCE_POSSIBLE_HOURS) * 100),
       ),
     )
     : null;
@@ -190,7 +190,7 @@ export default function SunlightRiskCard({
         </div>
       )}
 
-      {hasBenchmarks && en17037Level && tnoLevel && tnoPercent != null && (
+      {hasBenchmarks && en17037Level && winterExposureLevel && winterExposurePercent != null && (
         <section className="sunlight-card__benchmark">
           <h3 className="sunlight-card__benchmark-title">{t('sunlight.benchmark_title')}</h3>
           <p className="sunlight-card__benchmark-item">
@@ -200,9 +200,9 @@ export default function SunlightRiskCard({
             })}
           </p>
           <p className="sunlight-card__benchmark-item">
-            {t('sunlight.benchmark_tno', {
-              level: t(`sunlight.tno_${tnoLevel}`),
-              percent: tnoPercent,
+            {t('sunlight.benchmark_winter_roof_exposure', {
+              level: t(`sunlight.winter_roof_exposure_${winterExposureLevel}`),
+              percent: winterExposurePercent,
             })}
           </p>
           <p className="sunlight-card__benchmark-note">

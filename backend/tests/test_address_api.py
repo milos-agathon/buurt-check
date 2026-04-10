@@ -737,6 +737,8 @@ async def test_submit_sunlight_analysis_caches_result(mock_cache_set_v, client):
     assert cached_value["score"] == 50
     assert cached_value["level"] == "moderate"
     assert cached_value["svf_score"] == 52
+    assert cached_value["method_version"] == "sunlight-v2-interval-dayweighted"
+    assert cached_value["target_plane"] == "roof"
 
 
 @pytest.mark.asyncio
@@ -787,6 +789,7 @@ async def test_submit_sunlight_extended_fields_persisted(mock_cache_set_v, clien
     assert cached_value["facade_results"][0]["orientation"] == "south"
     assert cached_value["facade_results"][0]["annual_average"] == 7.0
     assert cached_value["facade_results"][1]["orientation"] == "north"
+    assert cached_value["method_version"] == "sunlight-v2-interval-dayweighted"
 
 
 @pytest.mark.asyncio
@@ -2223,6 +2226,7 @@ async def test_risk_cards_merges_cached_sunlight_when_base_cache_has_no_sunlight
         source="3DBAG + SunCalc",
         score=50,
         severity="moderate",
+        method_version="sunlight-v2-interval-dayweighted",
     ).model_dump(mode="json")
     mock_cache_get.side_effect = [cached_risks, cached_sunlight]
     mock_risk_cards.get_risk_cards = AsyncMock()
@@ -2240,6 +2244,71 @@ async def test_risk_cards_merges_cached_sunlight_when_base_cache_has_no_sunlight
     data = resp.json()
     assert data["sunlight"]["score"] == 50
     assert data["sunlight"]["level"] == "moderate"
+    mock_risk_cards.get_risk_cards.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("app.api.address.cache_get", new_callable=AsyncMock)
+@patch("app.api.address.risk_cards")
+async def test_risk_cards_ignores_stale_cached_sunlight_method_version(
+    mock_risk_cards,
+    mock_cache_get,
+    client,
+):
+    cached_risks = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(
+            level=RiskLevel.medium,
+            source="RIVM",
+            sampled_at="2026-02-10",
+            score=55,
+            severity="moderate",
+        ),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM",
+            sampled_at="2026-02-10",
+            score=75,
+            severity="good",
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas",
+            sampled_at="2026-02-10",
+            score=85,
+            severity="good",
+        ),
+        sunlight=None,
+    ).model_dump(mode="json")
+    stale_sunlight = SunlightRiskCard(
+        level=SeverityLevel.moderate,
+        winter_hours=3.0,
+        summer_hours=11.0,
+        equinox_hours=7.0,
+        source="3DBAG + SunCalc",
+        score=50,
+        severity="moderate",
+        method_version="sunlight-v1-hour-samples",
+    ).model_dump(mode="json")
+    mock_cache_get.side_effect = [cached_risks, stale_sunlight]
+    mock_risk_cards.get_risk_cards = AsyncMock()
+
+    resp = await client.get(
+        "/api/address/0363010000696734/risks",
+        params={
+            "rd_x": "121286.0",
+            "rd_y": "487296.0",
+            "lat": "52.372",
+            "lng": "4.892",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["sunlight"] is None
     mock_risk_cards.get_risk_cards.assert_not_called()
 
 

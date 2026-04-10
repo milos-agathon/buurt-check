@@ -338,16 +338,30 @@ class TestQuartileIndicators:
         assert "top 25%" in text
 
     def test_quartile_with_distance(self):
-        """Distance indicators use the same plain-language quartile labels."""
+        """Distance indicators invert quartile meaning into access quality."""
         pdf = BuurtCheckPDF(language="en")
         pdf.add_page()
-        indicator = NeighborhoodIndicator(value=0.8, unit="km", quartile=1)
+        indicator = NeighborhoodIndicator(
+            value=0.8,
+            unit="km",
+            quartile=1,
+            quartile_direction="lower_value",
+            favorable_quartile=4,
+            precision=1,
+        )
         _draw_indicator(pdf, "Train station", indicator)
         result = bytes(pdf.output())
         reader = PdfReader(io.BytesIO(result))
         text = "\n".join(p.extract_text() or "" for p in reader.pages)
         assert "0.8 km" in text
-        assert "bottom 25%" in text
+        assert "best access quartile" in text
+        assert "bottom 25%" not in text
+
+    def test_indicator_precision_preserves_household_decimal(self):
+        """CBS decimal indicators are not rounded to whole numbers."""
+        indicator = NeighborhoodIndicator(value=1.8, precision=1)
+        assert pe._format_indicator_text(indicator, is_nl=False) == "1.8"
+        assert pe._format_indicator_text(indicator, is_nl=True) == "1,8"
 
 
 # --- Unit tests: Number formatting locale (E10-S5) ---
@@ -1385,11 +1399,40 @@ class TestGenerateFullDossier:
         )
 
         rows = captured["rows"]
-        assert rows[0][0] == "This address"
+        assert rows[0][0] == "This neighborhood"
         assert rows[0][1] == 42
         assert rows[1][0] == "Netherlands"
         assert rows[1][1] == pe.normalize_crime_score(52.1)
         assert rows[1][1] != 34
+
+    def test_crime_comparison_labels_municipality_scope(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        pdf = BuurtCheckPDF(language="en")
+        pdf.add_page()
+        captured: dict[str, list[tuple[str, int, tuple[int, int, int], bool]]] = {}
+
+        def _fake_draw_comparison_chart(*, rows, **kwargs):  # type: ignore[no-untyped-def]
+            captured["rows"] = rows
+            return 80.0
+
+        monkeypatch.setattr(pdf, "draw_comparison_chart", _fake_draw_comparison_chart)
+
+        pe._draw_rate_comparison_chart(
+            pdf,
+            title="Crime comparison",
+            address_rate=65.3,
+            national_rate=52.1,
+            is_nl=False,
+            score=42,
+            scope="gemeente",
+        )
+
+        reader = PdfReader(io.BytesIO(bytes(pdf.output())))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        assert captured["rows"][0][0] == "Municipality context"
+        assert "Municipality context: 65.3" in text
 
     def test_crime_scored_risk_card_nl(self):
         """Crime section renders NL meaning + labels."""
@@ -1424,7 +1467,7 @@ class TestGenerateFullDossier:
         # NL meaning
         assert "boven het landelijk gemiddelde" in all_text
         # NL comparison labels
-        assert "Dit adres" in all_text
+        assert "Deze buurt" in all_text
         assert "Nederland" in all_text
         # NL source
         assert "Bron" in all_text
@@ -1709,16 +1752,16 @@ class TestComparisonChartScaleDeclaration:
         assert "Hoger = beter" in text
 
     def test_who_label_en_short(self):
-        """WHO label in EN uses short 'WHO target' form."""
+        """WHO label in EN names the noise guideline explicitly."""
         text = " ".join(self._extract_full_text("en").split())
-        assert "WHO target" in text
+        assert "WHO noise guideline" in text
         # Old verbose label must not appear
         assert "mapped to score" not in text
 
     def test_who_label_nl_short(self):
-        """WHO label in NL uses short 'WHO-doel' form."""
+        """WHO label in NL names the noise guideline explicitly."""
         text = " ".join(self._extract_full_text("nl").split())
-        assert "WHO-doel" in text
+        assert "WHO-geluidsrichtlijn" in text
         # Old verbose label must not appear
         assert "op scoreschaal" not in text
 
@@ -1796,11 +1839,30 @@ class TestRiskFactsheetGuidelines:
         )
 
         by_metric = {metric: reference for metric, _value, reference, _color in rows}
-        assert "TNO mild" in by_metric["Winter"]
+        assert "Winter roof ratio" in by_metric["Winter"]
+        assert "TNO" not in by_metric["Winter"]
         assert "EN 17037" in by_metric["Equinox"]
         assert "higher = brighter" in by_metric["Annual average"]
         assert "60%" in by_metric["SVF"]
         assert "moderate" in by_metric["SVF"]
+
+    def test_risk_detail_summary_includes_warning_limitations(self):
+        from app.services.pdf_export import _build_risk_detail_data
+
+        risks = _make_risks()
+        risks.air_quality.message = "AIR_PARTIAL"
+        risks.air_quality.warnings = ["AIR_PARTIAL"]
+
+        data = _build_risk_detail_data(
+            risks=risks,
+            sunlight_score=80,
+            comparisons=_make_risk_comparisons(),
+            is_nl=False,
+        )
+
+        air_summary = data[1][2]
+        assert "Limitation:" in air_summary
+        assert "Only partial air quality data is available." in air_summary
 
 
 class TestComparisonChartScaleCaptionCallsites:
@@ -3540,7 +3602,7 @@ class TestDifferentiatedBarColors:
             comparisons=_make_risk_comparisons(), is_nl=False,
         )
         noise_rows = data[0][4]
-        reference_rows = [r for r in noise_rows if "WHO target" in r[0]]
+        reference_rows = [r for r in noise_rows if "WHO noise guideline" in r[0]]
         assert reference_rows, "No benchmark row found in noise comparisons"
         for label, _val, color, dashed in reference_rows:
             assert color == COMPARISON_REFERENCE, (
@@ -5224,9 +5286,9 @@ class TestExpandedSunlightMeasurements:
         )
         reader = PdfReader(io.BytesIO(result))
         text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
-        assert "Direct sun (clear-sky visibility)" in text
+        assert "Roof direct sun (clear-sky visibility)" in text
         assert (
-            "Estimated direct sunlight: winter 5.0h/day, equinox 7.5h/day, "
+            "Estimated roof direct sun: winter 5.0h/day, equinox 7.5h/day, "
             "summer 10.0h/day."
         ) in text
         assert "Annual average: 6.3 h/day" in text
@@ -5257,9 +5319,9 @@ class TestExpandedSunlightMeasurements:
         )
         reader = PdfReader(io.BytesIO(result))
         text = _norm("\n".join(p.extract_text() or "" for p in reader.pages))
-        assert "Direct zonlicht (helderheidsschatting)" in text
+        assert "Directe zon op dak (helderheidsschatting)" in text
         assert (
-            "Geschat direct zonlicht: winter 5,0h/dag, equinox 7,5h/dag, "
+            "Geschatte directe zon op het dak: winter 5,0h/dag, equinox 7,5h/dag, "
             "zomer 10,0h/dag."
         ) in text
         assert "Jaargemiddelde: 6,3 u/dag" in text
@@ -6101,7 +6163,8 @@ class TestExecutiveSummary:
         # Should mention noise and climate and sunlight viewing actions
         assert "noise" in result.lower()
         assert "water damage" in result
-        assert "natural light" in result
+        assert "room daylight" in result
+        assert "roof clear-sky exposure" in result
 
     def test_no_risks_only_sunlight(self):
         """Summary works with no risk data, only sunlight score."""

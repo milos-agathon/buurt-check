@@ -12,6 +12,7 @@ interface RiskTileProps {
   score?: number;
   severity: SeverityLevel;
   summary?: string;
+  warnings?: string[];
   unavailable?: boolean;
   onTap?: () => void;
 }
@@ -21,6 +22,7 @@ function RiskTile({
   labelKey,
   score,
   severity,
+  warnings = [],
   unavailable = false,
   onTap,
 }: RiskTileProps) {
@@ -50,6 +52,11 @@ function RiskTile({
       <div className="risk-tile__header">
         <span className="risk-tile__label">{t(labelKey)}</span>
         {!unavailable && <SeverityBadge severity={severity} size="sm" />}
+        {warnings.length > 0 && (
+          <p className="risk-tile__warning" data-testid={`risk-tile-warning-${category}`}>
+            {t(`risk.warning.${warnings[0]}`, warnings[0])}
+          </p>
+        )}
       </div>
       {interactive && (
         <svg className="risk-tile__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

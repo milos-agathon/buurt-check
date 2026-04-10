@@ -534,6 +534,8 @@ describe('submitSunlightAnalysis', () => {
       analysis_year: 2026,
       svf: 0.55,
       annual_average: 6.7,
+      method_version: 'sunlight-v2-interval-dayweighted',
+      target_plane: 'roof',
     });
   });
 
@@ -576,6 +578,8 @@ describe('submitSunlightAnalysis', () => {
     expect(body.ground_annual_average).toBe(4.2);
     expect(body.svf_anisotropic).toBe(0.55);
     expect(body.irradiance_kwh_m2).toBe(920.5);
+    expect(body.method_version).toBe('sunlight-v2-interval-dayweighted');
+    expect(body.target_plane).toBe('roof');
     expect(body.facade_results).toEqual([
       { orientation: 'south', height_label: '3m', winter_hours: 3.0, summer_hours: 11.0, annual_average: 7.0 },
       { orientation: 'north', height_label: '3m', winter_hours: 0.5, summer_hours: 4.0, annual_average: 2.0 },

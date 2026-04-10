@@ -95,9 +95,14 @@ def noise_summary(score: int | None, lden_db: float | None) -> tuple[str, str]:
     sev = severity_from_score(score)
     db_str = f"{lden_db:.0f}"
     if sev == SeverityLevel.good:
+        if lden_db <= 53.0:
+            return (
+                f"Quiet area ({db_str} dB) — meets the WHO road-noise guideline",
+                f"Rustige omgeving ({db_str} dB) — voldoet aan de WHO-richtlijn voor wegverkeer",
+            )
         return (
-            f"Quiet area ({db_str} dB) — well below WHO noise guidelines",
-            f"Rustige omgeving ({db_str} dB) — ruim onder WHO-richtlijnen",
+            f"Relatively low road noise for an urban setting ({db_str} dB)",
+            f"Relatief laag wegverkeersgeluid voor een stedelijke omgeving ({db_str} dB)",
         )
     if sev == SeverityLevel.moderate:
         return (
@@ -132,9 +137,22 @@ def air_summary(
         parts.append(f"NO2: {no2:.1f}")
     values = ", ".join(parts) + " ug/m3" if parts else ""
     if sev == SeverityLevel.good:
+        above: list[str] = []
+        if pm25 is not None and pm25 > 5.0:
+            above.append("PM2.5")
+        if no2 is not None and no2 > 10.0:
+            above.append("NO2")
+        if above:
+            pollutants = " and ".join(above)
+            pollutants_nl = " en ".join(above)
+            return (
+                f"Good relative air quality ({values}), but above WHO AQG for {pollutants}",
+                f"Goede relatieve luchtkwaliteit ({values}), maar boven WHO-AQG "
+                f"voor {pollutants_nl}",
+            )
         return (
-            f"Good air quality ({values}) — meets WHO guidelines",
-            f"Goede luchtkwaliteit ({values}) — voldoet aan WHO-richtlijnen",
+            f"Good air quality ({values}) — measured pollutants meet WHO AQG",
+            f"Goede luchtkwaliteit ({values}) — gemeten stoffen voldoen aan WHO-AQG",
         )
     if sev == SeverityLevel.moderate:
         return (
@@ -241,7 +259,9 @@ def crime_summary(
 
 
 def sunlight_summary(
-    score: int | None, winter_hours: float | None
+    score: int | None,
+    winter_hours: float | None,
+    target_plane: str = "roof",
 ) -> tuple[str, str]:
     """Return (en, nl) one-liner summaries for sunlight."""
     if score is None or winter_hours is None:
@@ -251,22 +271,25 @@ def sunlight_summary(
         )
     sev = severity_from_score(score)
     hrs = f"{winter_hours:.1f}"
+    plane_en = "roof" if target_plane == "roof" else target_plane.replace("_", " ")
+    plane_nl = "dak" if target_plane == "roof" else target_plane.replace("_", " ")
     if sev == SeverityLevel.good:
         return (
-            f"Good sunlight ({hrs}h winter) — adequate direct sun year-round",
-            f"Goed zonlicht ({hrs}h winter) — voldoende direct zonlicht het hele jaar",
+            f"Good clear-sky sun on the {plane_en} ({hrs}h winter)",
+            f"Goede heldere-weerzon op het {plane_nl} ({hrs}u winter)",
         )
     if sev == SeverityLevel.moderate:
         return (
-            f"Limited winter sunlight ({hrs}h) — check window orientation at viewing",
-            f"Beperkt winterzonlicht ({hrs}h) — controleer raamoriëntatie bij bezichtiging",
+            f"Limited winter sun on the {plane_en} ({hrs}h) — verify room daylight at viewing",
+            f"Beperkte winterzon op het {plane_nl} ({hrs}u) — controleer daglicht "
+            "in kamers bij bezichtiging",
         )
     if sev == SeverityLevel.poor:
         return (
-            f"Poor sunlight ({hrs}h winter) — significant shadow from surroundings",
-            f"Weinig zonlicht ({hrs}h winter) — veel schaduw van omgeving",
+            f"Poor {plane_en} sun exposure ({hrs}h winter) — significant shadow from surroundings",
+            f"Weinig zon op het {plane_nl} ({hrs}u winter) — veel schaduw van omgeving",
         )
     return (
-        f"Very little sunlight ({hrs}h winter) — heavily shadowed location",
-        f"Zeer weinig zonlicht ({hrs}h winter) — zwaar beschaduwd",
+        f"Very little {plane_en} sun ({hrs}h winter) — heavily shadowed location",
+        f"Zeer weinig zon op het {plane_nl} ({hrs}u winter) — zwaar beschaduwd",
     )

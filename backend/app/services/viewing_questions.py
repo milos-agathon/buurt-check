@@ -49,6 +49,35 @@ def _fmt_float(value: float | None, digits: int = 1) -> str | None:
     return f"{value:.{digits}f}"
 
 
+def _warning_codes(card: object) -> list[str]:
+    warnings = list(getattr(card, "warnings", []) or [])
+    message = getattr(card, "message", None)
+    if message and message not in warnings:
+        warnings.append(message)
+    return warnings
+
+
+def _with_data_caveat(
+    questions: list[ViewingQuestion],
+    warnings: list[str],
+) -> list[ViewingQuestion]:
+    if not questions or not warnings:
+        return questions
+    caveat_en = "Because this metric uses partial or unavailable source data, verify on site: "
+    caveat_nl = (
+        "Omdat deze metriek op gedeeltelijke of ontbrekende brondata is gebaseerd, "
+        "verifieer ter plekke: "
+    )
+    first = questions[0]
+    return [
+        ViewingQuestion(
+            text_en=caveat_en + first.text_en[0].lower() + first.text_en[1:],
+            text_nl=caveat_nl + first.text_nl[0].lower() + first.text_nl[1:],
+        ),
+        *questions[1:],
+    ]
+
+
 def _noise_questions(
     score: int | None,
     lden_db: float | None,
@@ -227,23 +256,23 @@ def _sunlight_questions(
     return [
         ViewingQuestion(
             text_en=(
-                f"With the current sunlight signal {location_en}{score_en}, visit around 15:00 in"
-                " winter and confirm daylight in the living room."
+                f"With the current roof/facade proxy sunlight signal {location_en}{score_en},"
+                " visit around 15:00 in winter and verify daylight in the main rooms."
                 f"{winter_en}"
             ),
             text_nl=(
-                f"Met het huidige zonlichtsignaal {location_nl}{score_nl}, bezoek rond 15:00 in de"
-                " winter en controleer daglicht in de woonkamer."
+                f"Met het huidige dak/gevelproxy-zonlichtsignaal {location_nl}{score_nl},"
+                " bezoek rond 15:00 in de winter en controleer daglicht in de belangrijkste kamers."
                 f"{winter_nl}"
             ),
         ),
         ViewingQuestion(
             text_en=(
-                "Ask which facade has the main living spaces and whether nearby buildings or trees"
+                "Ask which facade has the main rooms and whether nearby buildings or trees"
                 " block winter sun."
             ),
             text_nl=(
-                "Vraag welke gevel de belangrijkste leefruimtes heeft en of omliggende gebouwen of"
+                "Vraag aan welke gevel de belangrijkste kamers liggen en of omliggende gebouwen of"
                 " bomen de winterzon blokkeren."
             ),
         ),
@@ -474,11 +503,14 @@ def build_viewing_questions(
                 name="Noise",
                 name_nl="Geluid",
                 severity=_flagged_severity(risk_cards.noise.score, risk_cards.noise.severity),
-                questions=_noise_questions(
-                    risk_cards.noise.score,
-                    risk_cards.noise.lden_db,
-                    street,
-                    city,
+                questions=_with_data_caveat(
+                    _noise_questions(
+                        risk_cards.noise.score,
+                        risk_cards.noise.lden_db,
+                        street,
+                        city,
+                    ),
+                    _warning_codes(risk_cards.noise),
                 ),
             )
         )
@@ -488,8 +520,11 @@ def build_viewing_questions(
                 name="Noise",
                 name_nl="Geluid",
                 severity=risk_cards.noise.severity or "good",
-                questions=_noise_good_questions(
-                    risk_cards.noise.score, street, city,
+                questions=_with_data_caveat(
+                    _noise_good_questions(
+                        risk_cards.noise.score, street, city,
+                    ),
+                    _warning_codes(risk_cards.noise),
                 ),
             )
         )
@@ -504,12 +539,15 @@ def build_viewing_questions(
                     risk_cards.air_quality.score,
                     risk_cards.air_quality.severity,
                 ),
-                questions=_air_questions(
-                    risk_cards.air_quality.score,
-                    risk_cards.air_quality.pm25_ug_m3,
-                    risk_cards.air_quality.no2_ug_m3,
-                    street,
-                    city,
+                questions=_with_data_caveat(
+                    _air_questions(
+                        risk_cards.air_quality.score,
+                        risk_cards.air_quality.pm25_ug_m3,
+                        risk_cards.air_quality.no2_ug_m3,
+                        street,
+                        city,
+                    ),
+                    _warning_codes(risk_cards.air_quality),
                 ),
             )
         )
@@ -519,8 +557,11 @@ def build_viewing_questions(
                 name="Air Quality",
                 name_nl="Luchtkwaliteit",
                 severity=risk_cards.air_quality.severity or "good",
-                questions=_air_good_questions(
-                    risk_cards.air_quality.score, street, city,
+                questions=_with_data_caveat(
+                    _air_good_questions(
+                        risk_cards.air_quality.score, street, city,
+                    ),
+                    _warning_codes(risk_cards.air_quality),
                 ),
             )
         )
@@ -535,12 +576,15 @@ def build_viewing_questions(
                     risk_cards.climate_stress.score,
                     risk_cards.climate_stress.severity,
                 ),
-                questions=_climate_questions(
-                    risk_cards.climate_stress.score,
-                    risk_cards.climate_stress.heat_level.value,
-                    risk_cards.climate_stress.water_level.value,
-                    street,
-                    city,
+                questions=_with_data_caveat(
+                    _climate_questions(
+                        risk_cards.climate_stress.score,
+                        risk_cards.climate_stress.heat_level.value,
+                        risk_cards.climate_stress.water_level.value,
+                        street,
+                        city,
+                    ),
+                    _warning_codes(risk_cards.climate_stress),
                 ),
             )
         )
@@ -550,8 +594,11 @@ def build_viewing_questions(
                 name="Climate Stress",
                 name_nl="Klimaatstress",
                 severity=risk_cards.climate_stress.severity or "good",
-                questions=_climate_good_questions(
-                    risk_cards.climate_stress.score, street, city,
+                questions=_with_data_caveat(
+                    _climate_good_questions(
+                        risk_cards.climate_stress.score, street, city,
+                    ),
+                    _warning_codes(risk_cards.climate_stress),
                 ),
             )
         )

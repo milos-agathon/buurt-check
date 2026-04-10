@@ -51,11 +51,31 @@ _URBAN_BASELINES: dict[str, dict[UrbanizationLevel, int]] = {
     },
 }
 
-_REFERENCE_ROW_BY_CATEGORY: dict[str, tuple[str, int]] = {
-    "noise": ("who_limit", 74),
-    "air_quality": ("who_limit", 75),
-    "climate_stress": ("adaptation_target", 70),
-    "sunlight": ("daylight_target", 67),
+_REFERENCE_ROW_BY_CATEGORY: dict[str, dict[str, str | int]] = {
+    "noise": {
+        "label_code": "who_limit",
+        "value": 74,
+        "benchmark_family": "who_noise_lden",
+        "label_key": "risk.detail.whoNoiseGuideline",
+    },
+    "air_quality": {
+        "label_code": "air_interim_target",
+        "value": 75,
+        "benchmark_family": "air_interim_target",
+        "label_key": "risk.detail.airQualityTarget",
+    },
+    "climate_stress": {
+        "label_code": "adaptation_target",
+        "value": 70,
+        "benchmark_family": "climate_adaptation_target",
+        "label_key": "risk.detail.climateAdaptationTarget",
+    },
+    "sunlight": {
+        "label_code": "daylight_target",
+        "value": 67,
+        "benchmark_family": "daylight_target",
+        "label_key": "risk.detail.daylightTarget",
+    },
 }
 
 _SOURCE_CITY = "CBS urbanization profile + Buurt-Check benchmark model"
@@ -88,7 +108,7 @@ def _build_rows(
     cards: RiskCardsResponse,
     urbanization: UrbanizationLevel,
 ) -> list[RiskComparisonRow]:
-    reference_label, reference_value = _REFERENCE_ROW_BY_CATEGORY[category]
+    reference = _REFERENCE_ROW_BY_CATEGORY[category]
     city_value = _URBAN_BASELINES[category][urbanization]
     nl_value = _NL_BASELINES[category]
     rows = [
@@ -97,19 +117,31 @@ def _build_rows(
             value=_clamp_score(city_value),
             source=_SOURCE_CITY,
             source_date=_SOURCE_DATE,
+            role="peer",
+            benchmark_family="urbanization_peer",
+            label_key="risk.detail.peerUrbanization",
+            scope="urbanization_peer",
         ),
         RiskComparisonRow(
             label_code="nl_avg",
             value=_clamp_score(nl_value),
             source=_SOURCE_NL,
             source_date=_SOURCE_DATE,
+            role="national",
+            benchmark_family="national_model",
+            label_key="risk.detail.nationalBaseline",
+            scope="national",
         ),
         RiskComparisonRow(
-            label_code=reference_label,
-            value=_clamp_score(reference_value),
+            label_code=str(reference["label_code"]),
+            value=_clamp_score(int(reference["value"])),
             pattern=ComparisonPattern.dashed,
             source=_SOURCE_THRESHOLD,
             source_date=_SOURCE_DATE,
+            role="reference",
+            benchmark_family=str(reference["benchmark_family"]),
+            label_key=str(reference["label_key"]),
+            scope="reference",
         ),
     ]
     address_value = _address_score(cards, category)
@@ -118,6 +150,10 @@ def _build_rows(
             RiskComparisonRow(
                 label_code="address",
                 value=_clamp_score(address_value),
+                role="address",
+                benchmark_family="address_score",
+                label_key="risk.detail.address",
+                scope="address",
             )
         )
     return rows

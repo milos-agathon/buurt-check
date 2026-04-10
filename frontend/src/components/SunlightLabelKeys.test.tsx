@@ -23,6 +23,6 @@ describe('Sunlight translation key separation', () => {
   it('uses sunlight.title_full for the sunlight analysis card title', () => {
     renderWithI18n(<SunlightRiskCard sunlight={makeSunlightResult()} />);
 
-    expect(screen.getByText('Direct sun (clear-sky visibility)')).toBeInTheDocument();
+    expect(screen.getByText('Roof direct sun (clear-sky visibility)')).toBeInTheDocument();
   });
 });

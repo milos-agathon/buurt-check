@@ -131,6 +131,11 @@ import {
 } from './utils/dataCoverage';
 import { buildAttentionSummary } from './utils/attentionSummary';
 import { localizeViewer3DMessage } from './utils/viewer3dMessages';
+import {
+  getRiskComparisonColorKey,
+  getRiskComparisonLabel,
+  type ComparisonColorKey,
+} from './utils/riskComparisonPresentation';
 import './App.css';
 
 const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMap'));
@@ -139,7 +144,6 @@ const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
 type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
-type ComparisonColorKey = 'address' | 'city' | 'nl' | 'who';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
 interface DossierSeedState {
@@ -3693,14 +3697,17 @@ function App() {
     };
   }, [activatePurchasedEntitlement, androidBillingAvailable, isEntitled, reportId, resumePurchasedExport, showToast, t]);
 
-  const comparisonLabel = useCallback((code: string): string => {
-    if (code === 'city_avg') return t('risk.detail.cityAvg');
-    if (code === 'nl_avg') return t('risk.detail.nlAvg');
-    if (code === 'who_limit') return t('risk.detail.whoLimit');
-    if (code === 'adaptation_target') return t('risk.detail.adaptationTarget');
-    if (code === 'daylight_target') return t('risk.detail.daylightTarget');
-    return t('risk.detail.address');
+  const comparisonLabel = useCallback((row: { label_code: string; label_key?: string }): string => {
+    return getRiskComparisonLabel(row, t);
   }, [t]);
+
+  const comparisonColorKey = useCallback((row: {
+    label_code: string;
+    role?: string;
+    benchmark_family?: string;
+  }): ComparisonColorKey => {
+    return getRiskComparisonColorKey(row);
+  }, []);
 
   const buildComparisons = useCallback((category: string): ComparisonRow[] => {
     if (!riskComparisons) return [];
@@ -3714,17 +3721,12 @@ function App() {
             ? riskComparisons.sunlight
           : [];
     return rows.map((row) => ({
-      label: comparisonLabel(row.label_code),
+      label: comparisonLabel(row),
       value: row.value,
       pattern: row.pattern === 'dashed' ? 'dashed' : undefined,
-      colorKey: (
-        row.label_code === 'city_avg' ? 'city'
-        : row.label_code === 'nl_avg' ? 'nl'
-        : row.label_code === 'who_limit' || row.label_code === 'adaptation_target' || row.label_code === 'daylight_target' ? 'who'
-        : 'address'
-      ) as ComparisonColorKey,
+      colorKey: comparisonColorKey(row),
     }));
-  }, [comparisonLabel, riskComparisons]);
+  }, [comparisonColorKey, comparisonLabel, riskComparisons]);
 
   // Get risk detail data for active category
   const getDetailProps = (category: string) => {
@@ -3739,6 +3741,9 @@ function App() {
           currentRiskCards?.noise.score,
         ),
         meaning: isNl ? currentRiskCards?.noise.summary_nl : currentRiskCards?.noise.summary,
+        warnings: currentRiskCards?.noise.warnings ?? (
+          currentRiskCards?.noise.message ? [currentRiskCards.noise.message] : []
+        ),
         comparisons: buildComparisons('noise'),
         source: currentRiskCards?.noise.source,
         sourceDate: currentRiskCards?.noise.source_date,
@@ -3753,6 +3758,9 @@ function App() {
         meaning: isNl
           ? currentRiskCards?.air_quality.summary_nl
           : currentRiskCards?.air_quality.summary,
+        warnings: currentRiskCards?.air_quality.warnings ?? (
+          currentRiskCards?.air_quality.message ? [currentRiskCards.air_quality.message] : []
+        ),
         comparisons: buildComparisons('air'),
         source: currentRiskCards?.air_quality.source,
         sourceDate: currentRiskCards?.air_quality.source_date,
@@ -3767,6 +3775,9 @@ function App() {
         meaning: isNl
           ? currentRiskCards?.climate_stress.summary_nl
           : currentRiskCards?.climate_stress.summary,
+        warnings: currentRiskCards?.climate_stress.warnings ?? (
+          currentRiskCards?.climate_stress.message ? [currentRiskCards.climate_stress.message] : []
+        ),
         comparisons: buildComparisons('climate'),
         source: currentRiskCards?.climate_stress.source,
         sourceDate: currentRiskCards?.climate_stress.source_date,
@@ -3776,6 +3787,7 @@ function App() {
         score: sunlightTile.score,
         severity: sunlightTile.severity,
         meaning: sunlightTile.summary,
+        warnings: [],
         comparisons: buildComparisons('sunlight'),
         source: sunlightTile.source,
         sourceDate: sunlightTile.sourceDate,
@@ -4233,6 +4245,7 @@ function App() {
                                   score={detail.score}
                                   severity={detail.severity}
                                   meaning={detail.meaning}
+                                  warnings={detail.warnings}
                                   comparisons={detail.comparisons}
                                   comparisonsError={riskComparisonsError}
                                   onRetryComparisons={riskComparisonsError ? handleRetryRiskComparisons : undefined}

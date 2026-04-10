@@ -110,9 +110,9 @@ _MONTH_NAMES_NL = (
     "november",
     "december",
 )
-_TNO_WINTER_POSSIBLE_HOURS = 7.5
-_TNO_WINTER_MILD_HOURS = round(_TNO_WINTER_POSSIBLE_HOURS * 0.5, 1)
-_TNO_WINTER_STRICT_HOURS = round(_TNO_WINTER_POSSIBLE_HOURS * 0.8, 1)
+_WINTER_ROOF_POSSIBLE_HOURS = 7.5
+_WINTER_ROOF_MEDIUM_HOURS = round(_WINTER_ROOF_POSSIBLE_HOURS * 0.5, 1)
+_WINTER_ROOF_HIGH_HOURS = round(_WINTER_ROOF_POSSIBLE_HOURS * 0.8, 1)
 _EN17037_MIN_HOURS = 1.5
 _EN17037_MEDIUM_HOURS = 3.0
 _EN17037_HIGH_HOURS = 4.0
@@ -267,6 +267,29 @@ def _quartile_label(quartile: int | None, *, is_nl: bool) -> str | None:
         4: "hoogste 25%",
     }
     return (labels_nl if is_nl else labels_en).get(quartile)
+
+
+def _indicator_quartile_label(indicator: Any, *, is_nl: bool) -> str | None:
+    quartile = getattr(indicator, "quartile", None)
+    direction = getattr(indicator, "quartile_direction", None)
+    favorable = getattr(indicator, "favorable_quartile", None)
+    if quartile is None:
+        return None
+    if direction == "lower_value" and favorable is not None:
+        labels_en = {
+            1: "least favorable access quartile",
+            2: "below-average access",
+            3: "above-average access",
+            4: "best access quartile",
+        }
+        labels_nl = {
+            1: "minst gunstig bereikbaarheidskwartiel",
+            2: "ondergemiddelde bereikbaarheid",
+            3: "bovengemiddelde bereikbaarheid",
+            4: "beste bereikbaarheidskwartiel",
+        }
+        return (labels_nl if is_nl else labels_en).get(favorable)
+    return _quartile_label(quartile, is_nl=is_nl)
 
 
 def _primary_footprint_ring(footprint_geojson: dict[str, Any] | None) -> list[list[float]]:
@@ -519,7 +542,7 @@ def _generate_executive_summary(
         "noise": "measure ambient noise at different times of day",
         "air quality": "check proximity to busy roads and industrial zones",
         "climate stress": "inspect for signs of water damage and ask about flood history",
-        "sunlight": "visit at midday to assess natural light in living spaces",
+        "sunlight": "verify room daylight on site; modeled score is roof clear-sky exposure",
     }
     viewing_actions_nl = {
         "geluid": "meet het omgevingsgeluid op verschillende momenten van de dag",
@@ -5046,11 +5069,15 @@ def _crime_evidence_text(
         if crime.national_per_1000 is not None
         else None
     )
-    summary = (
-        f"{meaning} Dit adres: {total} {unit}."
-        if is_nl
-        else f"{meaning} This address: {total} {unit}."
-    )
+    if is_nl:
+        scope_label = (
+            "Gemeentelijke context" if crime.scope == "gemeente" else "Deze buurt"
+        )
+    else:
+        scope_label = (
+            "Municipality context" if crime.scope == "gemeente" else "This neighborhood"
+        )
+    summary = f"{meaning} {scope_label}: {total} {unit}."
     if crime.score is None:
         summary = f"{_score_text(None, is_nl=is_nl)}. {summary}".strip()
     if national is not None:
@@ -5442,12 +5469,17 @@ def _draw_rate_comparison_chart(
     national_rate: float | None,
     is_nl: bool,
     score: int | None,
+    scope: str = "buurt",
 ) -> None:
     rows: list[tuple[str, int, tuple[int, int, int], bool]] = []
     address_score = score if score is not None else normalize_crime_score(address_rate)
+    if scope == "gemeente":
+        scope_label = "Gemeentelijke context" if is_nl else "Municipality context"
+    else:
+        scope_label = "Deze buurt" if is_nl else "This neighborhood"
     rows.append(
         (
-            "Dit adres" if is_nl else "This address",
+            scope_label,
             address_score if address_score is not None else 0,
             _severity_color(address_score),
             False,
@@ -5476,10 +5508,10 @@ def _draw_rate_comparison_chart(
     pdf.set_font("Satoshi", "", 8)
     pdf.set_text_color(*SECONDARY)
     scale_note = (
-        f"Rates shown per 1,000 residents. This address: {format_number(address_rate, 1, is_nl)}"
+        f"Rates shown per 1,000 residents. {scope_label}: {format_number(address_rate, 1, is_nl)}"
         if not is_nl
         else (
-            "Getoond als aantal per 1.000 inwoners. Dit adres: "
+            f"Getoond als aantal per 1.000 inwoners. {scope_label}: "
             f"{format_number(address_rate, 1, is_nl)}"
         )
     )
@@ -5771,6 +5803,7 @@ def _draw_risk_details_page(
             national_rate=crime.national_per_1000,
             is_nl=is_nl,
             score=crime.score,
+            scope=crime.scope,
         )
         source_parts = [crime.source]
         source_date_label = _crime_source_date_label(crime, is_nl=is_nl)
@@ -6260,8 +6293,13 @@ def _build_risk_detail_data(
             COMPARISON_NATIONAL, False,
         ),
         "who_limit": (
-            "WHO-doel" if is_nl
-            else "WHO target",
+            "WHO-geluidsrichtlijn" if is_nl
+            else "WHO noise guideline",
+            COMPARISON_REFERENCE, True,
+        ),
+        "air_interim_target": (
+            "Luchtkwaliteitsdoel" if is_nl
+            else "Air quality target",
             COMPARISON_REFERENCE, True,
         ),
         "adaptation_target": (
@@ -6275,6 +6313,67 @@ def _build_risk_detail_data(
         ),
     }
 
+    _LABEL_KEY_LABELS = {
+        "risk.detail.address": "Dit adres" if is_nl else "This address",
+        "risk.detail.peerUrbanization": (
+            "Vergelijkingswaarde (stedelijkheid)" if is_nl
+            else "Peer baseline (urbanization)"
+        ),
+        "risk.detail.nationalBaseline": "Nederland" if is_nl else "Netherlands",
+        "risk.detail.whoNoiseGuideline": (
+            "WHO-geluidsrichtlijn" if is_nl else "WHO noise guideline"
+        ),
+        "risk.detail.airQualityTarget": (
+            "Luchtkwaliteitsdoel" if is_nl else "Air quality target"
+        ),
+        "risk.detail.climateAdaptationTarget": (
+            "Klimaatadaptatiedoel" if is_nl else "Climate adaptation target"
+        ),
+        "risk.detail.daylightTarget": "Daglichtdoel" if is_nl else "Daylight target",
+    }
+
+    def _comparison_label_info(row) -> tuple[str, tuple[int, int, int] | None, bool]:
+        label_key = getattr(row, "label_key", None)
+        label = _LABEL_KEY_LABELS.get(label_key) if label_key else None
+        family = getattr(row, "benchmark_family", None)
+        role = getattr(row, "role", None)
+        if role == "peer":
+            return (
+                label or (
+                    "Vergelijkingswaarde (stedelijkheid)" if is_nl
+                    else "Peer baseline (urbanization)"
+                ),
+                COMPARISON_PEER,
+                False,
+            )
+        if role == "national":
+            return (
+                label or ("Nederland" if is_nl else "Netherlands"),
+                COMPARISON_NATIONAL,
+                False,
+            )
+        if role == "reference":
+            return (
+                label or _COMPARISON_LABELS.get(
+                    row.label_code,
+                    (row.label_code, COMPARISON_REFERENCE, True),
+                )[0],
+                COMPARISON_REFERENCE,
+                True,
+            )
+        if role == "address":
+            return (label or ("Dit adres" if is_nl else "This address"), None, False)
+        if family == "air_interim_target":
+            return (
+                "Luchtkwaliteitsdoel" if is_nl else "Air quality target",
+                COMPARISON_REFERENCE,
+                True,
+            )
+        return _COMPARISON_LABELS.get(
+            row.label_code,
+            (row.label_code, COMPARISON_PEER, False),
+        )
+
     def _comp_rows(category_rows: list | None, score: int | None) -> list:
         if not category_rows:
             return []
@@ -6283,9 +6382,7 @@ def _build_risk_detail_data(
             # Skip address rows with no value to prevent label overlap
             if row.label_code == "address" and row.value is None:
                 continue
-            label_info = _COMPARISON_LABELS.get(
-                row.label_code, (row.label_code, COMPARISON_PEER, False)
-            )
+            label_info = _comparison_label_info(row)
             is_dashed = (
                 row.pattern == ComparisonPattern.dashed
                 or label_info[2]
@@ -6353,6 +6450,74 @@ def _build_risk_detail_data(
         else "Dataset date unknown"
     )
 
+    def _warning_copy(code: str) -> str:
+        labels = {
+            "NOISE_LAYER_UNAVAILABLE": (
+                "Geluidsdatalaag tijdelijk niet beschikbaar."
+                if is_nl else "Noise data layer is temporarily unavailable."
+            ),
+            "NOISE_NO_VALUE": (
+                "Geen geluidsmeting op deze exacte locatie."
+                if is_nl else "No noise measurement at this exact location."
+            ),
+            "NOISE_LOOKUP_FAILED": (
+                "Geluidsdata kon niet worden opgehaald."
+                if is_nl else "Noise data could not be retrieved."
+            ),
+            "NOISE_TIMEOUT": (
+                "Geluidsbron reageerde te traag."
+                if is_nl else "Noise source timed out."
+            ),
+            "AIR_NO_VALUE": (
+                "Geen luchtkwaliteitsmeting op deze locatie."
+                if is_nl else "No air quality measurement at this location."
+            ),
+            "AIR_PARTIAL": (
+                "Slechts gedeeltelijke luchtkwaliteitsdata beschikbaar."
+                if is_nl else "Only partial air quality data is available."
+            ),
+            "AIR_LOOKUP_FAILED": (
+                "Luchtkwaliteitsdata kon niet worden opgehaald."
+                if is_nl else "Air quality data could not be retrieved."
+            ),
+            "AIR_TIMEOUT": (
+                "Luchtkwaliteitsbron reageerde te traag."
+                if is_nl else "Air quality source timed out."
+            ),
+            "CLIMATE_NO_DATA": (
+                "Geen klimaatstressdata beschikbaar voor deze locatie."
+                if is_nl else "No climate stress data is available for this location."
+            ),
+            "CLIMATE_PARTIAL": (
+                "Slechts gedeeltelijke klimaatstressdata beschikbaar."
+                if is_nl else "Only partial climate stress data is available."
+            ),
+            "CLIMATE_LAYER_UNMAPPED": (
+                "Een klimaatlaag had een onbekend schema en is niet gebruikt."
+                if is_nl else "A climate layer had an unknown schema and was not used."
+            ),
+            "CLIMATE_LOOKUP_FAILED": (
+                "Klimaatstressdata kon niet worden opgehaald."
+                if is_nl else "Climate stress data could not be retrieved."
+            ),
+            "CLIMATE_TIMEOUT": (
+                "Klimaatbron reageerde te traag."
+                if is_nl else "Climate source timed out."
+            ),
+        }
+        return labels.get(code, code)
+
+    def _append_warning_summary(summary: str, card: Any) -> str:
+        warnings = list(getattr(card, "warnings", []) or [])
+        message = getattr(card, "message", None)
+        if message and message not in warnings:
+            warnings.append(message)
+        if not warnings:
+            return summary
+        label = "Beperking" if is_nl else "Limitation"
+        warning_text = "; ".join(_warning_copy(code) for code in warnings)
+        return f"{summary} {label}: {warning_text}".strip()
+
     if risks:
         for attr, name_en, name_nl, comp_attr in [
             ("noise", "Noise", "Geluid", "noise"),
@@ -6369,6 +6534,7 @@ def _build_risk_detail_data(
             summary = (
                 (card.summary_nl if is_nl else card.summary) or ""
             )
+            summary = _append_warning_summary(summary, card)
             src_label = "Bron" if is_nl else "Source"
             source = f"{src_label}: {card.source}"
             if card.source_date:
@@ -6530,13 +6696,13 @@ def _measurement_table_rows(
 
     def _sunlight_reference(metric: str) -> str:
         if metric == "Winter":
-            mild = format_number(_TNO_WINTER_MILD_HOURS, 1, is_nl)
-            strict = format_number(_TNO_WINTER_STRICT_HOURS, 1, is_nl)
+            medium = format_number(_WINTER_ROOF_MEDIUM_HOURS, 1, is_nl)
+            high = format_number(_WINTER_ROOF_HIGH_HOURS, 1, is_nl)
             unit = "u/dag" if is_nl else "h/day"
             return (
-                f"TNO licht \u2248 {mild} {unit}; streng \u2248 {strict} {unit}"
+                f"Winter-dakratio: gemiddeld \u2248 {medium} {unit}; hoog \u2248 {high} {unit}"
                 if is_nl
-                else f"TNO mild \u2248 {mild} {unit}; strict \u2248 {strict} {unit}"
+                else f"Winter roof ratio: medium \u2248 {medium} {unit}; high \u2248 {high} {unit}"
             )
         if metric == "Equinox":
             min_h = format_number(_EN17037_MIN_HOURS, 1, is_nl)
@@ -7787,7 +7953,7 @@ def _draw_property_checks_page(
         severity="attention",
     )
 
-    # 7) Direct sun (clear-sky visibility)
+    # 7) Roof direct sun (clear-sky visibility)
     sun = risks.sunlight if risks else None
     if sun and (
         sun.winter_hours is not None
@@ -7800,10 +7966,10 @@ def _draw_property_checks_page(
         s = f"{_fn(sun.summer_hours, 1, is_nl)}h" if sun.summer_hours is not None else "\u2014"
         score_text = _score_text(sunlight_score, is_nl=is_nl)
         sun_text = (
-            f"Geschat direct zonlicht: winter {w}/dag, equinox {e}/dag, zomer {s}/dag. "
+            f"Geschatte directe zon op het dak: winter {w}/dag, equinox {e}/dag, zomer {s}/dag. "
             f"{score_text}."
             if is_nl
-            else f"Estimated direct sunlight: winter {w}/day, equinox {e}/day, summer {s}/day. "
+            else f"Estimated roof direct sun: winter {w}/day, equinox {e}/day, summer {s}/day. "
             f"{score_text}."
         )
         # Append extended sunlight metrics if available
@@ -7830,15 +7996,15 @@ def _draw_property_checks_page(
             sun_text += " " + " | ".join(extra_lines) + "."
     else:
         sun_text = (
-            "Schatting van direct zonlicht niet beschikbaar voor deze export."
+            "Schatting van directe zon op het dak niet beschikbaar voor deze export."
             if is_nl
-            else "Direct sun estimate unavailable for this export."
+            else "Roof direct sun estimate unavailable for this export."
         )
     _draw_checks_subsection(
         pdf,
         title=(
-            "Direct zonlicht (helderheidsschatting)" if is_nl
-            else "Direct sun (clear-sky visibility)"
+            "Directe zon op dak (helderheidsschatting)" if is_nl
+            else "Roof direct sun (clear-sky visibility)"
         ),
         body=sun_text,
         source=(
@@ -7868,24 +8034,29 @@ def _format_indicator_text(indicator, is_nl: bool) -> str:
 
     val = indicator.value
     unit = indicator.unit or ""
+    precision = getattr(indicator, "precision", None)
     if isinstance(val, float):
+        decimals = precision if isinstance(precision, int) and precision >= 0 else None
+        default_decimals = decimals if decimals is not None else 0
         if unit == "%":
-            text = f"{val:.0f}%"
+            text = f"{format_number(val, default_decimals, is_nl)}%"
         elif unit == "\u20ac":
             eur_prefix = "\u20ac " if is_nl else "\u20ac"
-            text = f"{eur_prefix}{format_number(val, 0, is_nl)}"
+            text = f"{eur_prefix}{format_number(val, default_decimals, is_nl)}"
         elif unit == "km":
-            text = f"{format_number(val, 1, is_nl)} km"
+            text = f"{format_number(val, decimals if decimals is not None else 1, is_nl)} km"
         elif unit == "/km\u00b2":
-            text = f"{format_number(val, 0, is_nl)}/km\u00b2"
+            text = f"{format_number(val, default_decimals, is_nl)}/km\u00b2"
+        elif unit == "per km\u00b2":
+            text = f"{format_number(val, default_decimals, is_nl)} per km\u00b2"
         else:
-            text = f"{format_number(val, 0, is_nl)} {unit}".strip()
+            text = f"{format_number(val, default_decimals, is_nl)} {unit}".strip()
     elif val is not None:
         text = f"{val} {unit}".strip()
     else:
         text = "\u2014"
 
-    quartile_label = _quartile_label(getattr(indicator, "quartile", None), is_nl=is_nl)
+    quartile_label = _indicator_quartile_label(indicator, is_nl=is_nl)
     if quartile_label:
         text += f" \u00b7 {quartile_label}"
     return text
@@ -8186,7 +8357,7 @@ def _draw_methodology_page(
         ),
         (
             "Zonlicht" if is_nl else "Sunlight",
-            "Winter direct zonlicht" if is_nl else "Winter direct sun",
+            "Winter directe zon op dak" if is_nl else "Winter roof direct sun",
             "uren / 6 \u00d7 100",
             "Cap 100" if is_nl else "Cap at 100",
         ),

@@ -60,7 +60,8 @@ describe('NeighborhoodStatsCard', () => {
   it('renders localized indicator values with units', () => {
     renderCard({ stats: makeNeighborhoodStatsResponse() });
     expect(screen.getByText('15,000 per km²')).toBeInTheDocument();
-    expect(screen.getByText('55 %')).toBeInTheDocument();
+    expect(screen.getByText('1.8')).toBeInTheDocument();
+    expect(screen.getByText('55.0 %')).toBeInTheDocument();
     expect(screen.getByText('0.8 km')).toBeInTheDocument();
     expect(screen.getByText('€520,000')).toBeInTheDocument();
   });

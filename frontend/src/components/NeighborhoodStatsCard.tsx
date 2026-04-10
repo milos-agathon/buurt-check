@@ -25,15 +25,16 @@ function formatIndicatorValue(
   value: number | string,
   unit: string | undefined,
   language: string,
+  precision?: number | null,
 ): string {
   if (typeof value === 'string') {
     return unit ? `${value} ${unit}` : value;
   }
 
-  const maximumFractionDigits = unit === 'km' || unit === '%' ? 1 : 0;
+  const maximumFractionDigits = precision ?? (unit === 'km' || unit === '%' ? 1 : 0);
   const formatted = formatNumber(value, language, {
     maximumFractionDigits,
-    minimumFractionDigits: Number.isInteger(value) ? 0 : Math.min(1, maximumFractionDigits),
+    minimumFractionDigits: precision ?? (Number.isInteger(value) ? 0 : Math.min(1, maximumFractionDigits)),
   });
   return unit ? `${formatted} ${unit}` : formatted;
 }
@@ -63,14 +64,20 @@ function Indicator({
 
   const display = formatValue
     ? formatValue(indicator.value)
-    : formatIndicatorValue(indicator.value, indicator.unit, language);
+    : formatIndicatorValue(indicator.value, indicator.unit, language, indicator.precision);
 
   return (
     <div className="neighborhood-card__indicator">
       <span className="neighborhood-card__indicator-label">{label}</span>
       <div className="neighborhood-card__indicator-right">
         <span className="neighborhood-card__indicator-value">{display}</span>
-        {indicator.quartile != null && <QuartileDots quartile={indicator.quartile} />}
+        {indicator.quartile != null && (
+          <QuartileDots
+            quartile={indicator.quartile}
+            favorableQuartile={indicator.favorable_quartile}
+            mode={indicator.favorable_quartile != null ? 'favorability' : 'distribution'}
+          />
+        )}
       </div>
     </div>
   );

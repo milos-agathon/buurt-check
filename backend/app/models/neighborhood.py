@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -23,6 +24,9 @@ class NeighborhoodIndicator(BaseModel):
     unit: str | None = None
     available: bool = True
     quartile: int | None = None  # 1-4, national quartile position
+    quartile_direction: Literal["higher_value", "lower_value"] | None = None
+    favorable_quartile: int | None = None  # 1-4, where 4 is always more favorable
+    precision: int | None = None
 
 
 class NeighborhoodStats(BaseModel):

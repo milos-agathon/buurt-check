@@ -201,7 +201,7 @@ SunCalc + 3DBAG \\
 <% if tier_b and tier_b.crime and tier_b.crime.total_per_1000 is not none %>
 \subsection*{<% if language == "nl" %>Criminaliteit<% else %>Crime Rate<% endif %>}
 <% if language == "nl" %>
-Dit adres: << ("%.1f"|format(tier_b.crime.total_per_1000)).replace(".", ",") >> per 1.000\\
+<% if (tier_b.crime.scope|default("buurt")) == "gemeente" %>Gemeentelijke context<% else %>Deze buurt<% endif %>: << ("%.1f"|format(tier_b.crime.total_per_1000)).replace(".", ",") >> per 1.000\\
 <% if tier_b.crime.national_per_1000 is not none %>Landelijk: << ("%.1f"|format(tier_b.crime.national_per_1000)).replace(".", ",") >> per 1.000\\<% endif %>
 <% if tier_b.crime.burglary_per_1000 is not none %>Inbraak: << ("%.1f"|format(tier_b.crime.burglary_per_1000)).replace(".", ",") >>\\<% endif %>
 <% if tier_b.crime.violent_per_1000 is not none %>Geweld: << ("%.1f"|format(tier_b.crime.violent_per_1000)).replace(".", ",") >>\\<% endif %>
@@ -209,7 +209,7 @@ Score: << tier_b.crime.score if tier_b.crime.score is not none else "Niet beschi
 <% if tier_b.crime.meaning_nl %><< tier_b.crime.meaning_nl >><% endif %>
 <% if tier_b.crime.source_date or tier_b.crime.yearly_period %>\\{\footnotesize\textcolor{MutedText}{Bron: CBS · << tier_b.crime.source_date if tier_b.crime.source_date else tier_b.crime.yearly_period >>}}<% endif %>
 <% else %>
-This address: << "%.1f"|format(tier_b.crime.total_per_1000) >> per 1,000\\
+<% if (tier_b.crime.scope|default("buurt")) == "gemeente" %>Municipality context<% else %>This neighborhood<% endif %>: << "%.1f"|format(tier_b.crime.total_per_1000) >> per 1,000\\
 <% if tier_b.crime.national_per_1000 is not none %>National avg: << "%.1f"|format(tier_b.crime.national_per_1000) >> per 1,000\\<% endif %>
 <% if tier_b.crime.burglary_per_1000 is not none %>Burglary: << "%.1f"|format(tier_b.crime.burglary_per_1000) >>\\<% endif %>
 <% if tier_b.crime.violent_per_1000 is not none %>Violent: << "%.1f"|format(tier_b.crime.violent_per_1000) >>\\<% endif %>
@@ -367,7 +367,7 @@ Score: << tier_b.crime.score if tier_b.crime.score is not none else "Unavailable
 }}
 \vspace{4pt}
 
-% 7) Direct sunlight estimate
+% 7) Roof direct sun estimate
 <% if sunlight_score is not none %>
 <% set winter_hours = risks.sunlight.winter_hours|default(none) if risks and risks.sunlight else none %>
 <% set equinox_hours = risks.sunlight.equinox_hours|default(none) if risks and risks.sunlight else none %>
@@ -377,21 +377,21 @@ Score: << tier_b.crime.score if tier_b.crime.score is not none else "Unavailable
 <% set svf_percent = risks.sunlight.svf_percent|default(none) if risks and risks.sunlight else none %>
 <% set irradiance_kwh_m2 = risks.sunlight.irradiance_kwh_m2|default(none) if risks and risks.sunlight else none %>
 \noindent\fcolorbox{<% if sunlight_score >= 70 %>sev-good<% elif sunlight_score >= 40 %>sev-mod<% elif sunlight_score >= 20 %>sev-poor<% else %>sev-crit<% endif %>}{white}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{
-\textbf{\textcolor{<% if sunlight_score >= 70 %>sev-good<% elif sunlight_score >= 40 %>sev-mod<% elif sunlight_score >= 20 %>sev-poor<% else %>sev-crit<% endif %>}{<% if sunlight_score >= 70 %>✓<% elif sunlight_score >= 40 %>-<% else %>▲<% endif %> <% if language == "nl" %>Direct zonlicht (helderheidsschatting)<% else %>Direct sun (clear-sky visibility)<% endif %>}}\\
+\textbf{\textcolor{<% if sunlight_score >= 70 %>sev-good<% elif sunlight_score >= 40 %>sev-mod<% elif sunlight_score >= 20 %>sev-poor<% else %>sev-crit<% endif %>}{<% if sunlight_score >= 70 %>✓<% elif sunlight_score >= 40 %>-<% else %>▲<% endif %> <% if language == "nl" %>Directe zon op dak (helderheidsschatting)<% else %>Roof direct sun (clear-sky visibility)<% endif %>}}\\
 <% if winter_hours is not none or equinox_hours is not none or summer_hours is not none %>
-<% if language == "nl" %>Geschat direct zonlicht: winter << ("%.1f"|format(winter_hours)).replace(".", ",") if winter_hours is not none else "—" >>h/dag, equinox << ("%.1f"|format(equinox_hours)).replace(".", ",") if equinox_hours is not none else "—" >>h/dag, zomer << ("%.1f"|format(summer_hours)).replace(".", ",") if summer_hours is not none else "—" >>h/dag. Score: << sunlight_score >>/100.<% else %>Estimated direct sunlight: winter << "%.1f"|format(winter_hours) if winter_hours is not none else "—" >>h/day, equinox << "%.1f"|format(equinox_hours) if equinox_hours is not none else "—" >>h/day, summer << "%.1f"|format(summer_hours) if summer_hours is not none else "—" >>h/day. Score: << sunlight_score >>/100.<% endif %><%
+<% if language == "nl" %>Geschatte directe zon op het dak: winter << ("%.1f"|format(winter_hours)).replace(".", ",") if winter_hours is not none else "—" >>h/dag, equinox << ("%.1f"|format(equinox_hours)).replace(".", ",") if equinox_hours is not none else "—" >>h/dag, zomer << ("%.1f"|format(summer_hours)).replace(".", ",") if summer_hours is not none else "—" >>h/dag. Score: << sunlight_score >>/100.<% else %>Estimated roof direct sun: winter << "%.1f"|format(winter_hours) if winter_hours is not none else "—" >>h/day, equinox << "%.1f"|format(equinox_hours) if equinox_hours is not none else "—" >>h/day, summer << "%.1f"|format(summer_hours) if summer_hours is not none else "—" >>h/day. Score: << sunlight_score >>/100.<% endif %><%
 if annual_average is not none
 or (svf_anisotropic is not none and svf_anisotropic != svf_percent)
 or irradiance_kwh_m2 is not none
 %> <% if annual_average is not none %><% if language == "nl" %>Jaargemiddelde: << ("%.1f"|format(annual_average)).replace(".", ",") >> u/dag<% else %>Annual average: << "%.1f"|format(annual_average) >> h/day<% endif %><% endif %><% if svf_anisotropic is not none and svf_anisotropic != svf_percent %><% if annual_average is not none %> | <% endif %><% if language == "nl" %>SVF (anisotropisch): << "%.0f"|format(svf_anisotropic) >>\%<% else %>SVF (anisotropic): << "%.0f"|format(svf_anisotropic) >>\%<% endif %><% endif %><% if irradiance_kwh_m2 is not none %><% if annual_average is not none or (svf_anisotropic is not none and svf_anisotropic != svf_percent) %> | <% endif %><% if language == "nl" %>Zonnestraling: << "%.0f"|format(irradiance_kwh_m2) >> kWh/m²/jaar<% else %>Solar irradiance: << "%.0f"|format(irradiance_kwh_m2) >> kWh/m²/year<% endif %>.<% endif %><% endif %>
 <% else %>
-<% if language == "nl" %>Geschatte zonlichtscore: << sunlight_score >>/100.<% else %>Estimated direct sunlight score: << sunlight_score >>/100.<% endif %>
+<% if language == "nl" %>Geschatte dak-zonlichtscore: << sunlight_score >>/100.<% else %>Estimated roof direct sun score: << sunlight_score >>/100.<% endif %>
 <% endif %>\\
 {\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: SunCalc + 3DBAG<% else %>Source: SunCalc + 3DBAG<% endif %>}}
 }}
 <% else %>
 \noindent\fcolorbox{sev-mod}{white}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{
-\textbf{\textcolor{sev-mod}{- <% if language == "nl" %>Direct zonlicht (helderheidsschatting)<% else %>Direct sun (clear-sky visibility)<% endif %>}}\\
+\textbf{\textcolor{sev-mod}{- <% if language == "nl" %>Directe zon op dak (helderheidsschatting)<% else %>Roof direct sun (clear-sky visibility)<% endif %>}}\\
 <% if language == "nl" %>Zonlichtanalyse was niet afgerond voor export. Exporteer opnieuw nadat je het 3D-model hebt bekeken.<% else %>Sunlight analysis was not completed before export. Re-export after viewing the 3D model.<% endif %>\\
 {\footnotesize\textcolor{MutedText}{<% if language == "nl" %>Bron: SunCalc + 3DBAG<% else %>Source: SunCalc + 3DBAG<% endif %>}}
 }}

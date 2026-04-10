@@ -99,6 +99,17 @@
   color: var(--color-text);
 }
 
+.risk-detail__warnings {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--color-text-secondary);
+  font: var(--type-small);
+}
+
+.risk-detail__warning + .risk-detail__warning {
+  margin-top: var(--space-xs);
+}
+
 .risk-detail__comparisons {
   background: var(--color-surface-alt);
   border-radius: var(--radius-card);
@@ -172,16 +183,30 @@
   background: var(--color-compare-address);
 }
 
-.risk-detail__comparison-bar-fill--city {
-  background: var(--color-compare-city);
+.risk-detail__comparison-bar-fill--city,
+.risk-detail__comparison-bar-fill--peer {
+  background: var(--color-compare-peer);
 }
 
-.risk-detail__comparison-bar-fill--nl {
-  background: var(--color-compare-nl);
+.risk-detail__comparison-bar-fill--nl,
+.risk-detail__comparison-bar-fill--national {
+  background: var(--color-compare-national);
 }
 
 .risk-detail__comparison-bar-fill--who {
   background: var(--color-compare-who);
+}
+
+.risk-detail__comparison-bar-fill--air_target {
+  background: var(--color-compare-air-target);
+}
+
+.risk-detail__comparison-bar-fill--climate_target {
+  background: var(--color-compare-climate-target);
+}
+
+.risk-detail__comparison-bar-fill--daylight_target {
+  background: var(--color-compare-daylight-target);
 }
 
 .risk-detail__comparison-bar-fill--dashed {
@@ -223,16 +248,30 @@
   background: var(--color-compare-address);
 }
 
-.risk-detail__legend-dot--city {
-  background: var(--color-compare-city);
+.risk-detail__legend-dot--city,
+.risk-detail__legend-dot--peer {
+  background: var(--color-compare-peer);
 }
 
-.risk-detail__legend-dot--nl {
-  background: var(--color-compare-nl);
+.risk-detail__legend-dot--nl,
+.risk-detail__legend-dot--national {
+  background: var(--color-compare-national);
 }
 
 .risk-detail__legend-dot--who {
   background: var(--color-compare-who);
+}
+
+.risk-detail__legend-dot--air_target {
+  background: var(--color-compare-air-target);
+}
+
+.risk-detail__legend-dot--climate_target {
+  background: var(--color-compare-climate-target);
+}
+
+.risk-detail__legend-dot--daylight_target {
+  background: var(--color-compare-daylight-target);
 }
 
 .risk-detail__directionality {

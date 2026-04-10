@@ -177,7 +177,7 @@ def test_epic3_soil_section_honesty_and_postcode_injection():
     assert "Soil Contamination" in text
 
     soil_start = text.find("Soil Contamination")
-    sun_start = text.find("Direct sun (clear-sky visibility)")
+    sun_start = text.find("Roof direct sun (clear-sky visibility)")
     assert soil_start != -1
     assert sun_start != -1 and sun_start > soil_start
 

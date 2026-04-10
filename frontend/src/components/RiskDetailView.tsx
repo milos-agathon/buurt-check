@@ -9,7 +9,7 @@ import useFocusTrap from '../hooks/useFocusTrap';
 import type { SeverityLevel, ViewingQuestion } from '../types/api';
 import './RiskDetailView.css';
 
-type ComparisonColorKey = 'address' | 'city' | 'nl' | 'who';
+type ComparisonColorKey = 'address' | 'peer' | 'national' | 'who' | 'air_target' | 'climate_target' | 'daylight_target';
 
 interface ComparisonRow {
   label: string;
@@ -25,6 +25,7 @@ interface RiskDetailViewProps {
   severity: SeverityLevel;
   useSharedElement?: boolean;
   meaning?: string;
+  warnings?: string[];
   comparisons?: ComparisonRow[];
   comparisonsError?: string | null;
   onRetryComparisons?: () => void;
@@ -43,6 +44,7 @@ export default function RiskDetailView({
   severity,
   useSharedElement = true,
   meaning,
+  warnings = [],
   comparisons,
   comparisonsError,
   onRetryComparisons,
@@ -105,12 +107,25 @@ export default function RiskDetailView({
           </section>
         )}
 
+        {warnings.length > 0 && (
+          <section className="risk-detail__section" data-testid="risk-detail-warnings">
+            <h3 className="risk-detail__section-title">{t('risk.detail.limitations', 'Limitations')}</h3>
+            <ul className="risk-detail__warnings">
+              {warnings.map((code) => (
+                <li key={code} className="risk-detail__warning">
+                  {t(`risk.warning.${code}`, code)}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <section className="risk-detail__section">
           <h3 className="risk-detail__section-title">{t('risk.detail.howItCompares', 'How it compares')}</h3>
           {comparisons && comparisons.length > 0 ? (
             <>
               <div className="risk-detail__legend" data-testid="comparison-legend">
-                {(['address', 'city', 'nl', 'who'] as const)
+                {(['address', 'peer', 'national', 'who', 'air_target', 'climate_target', 'daylight_target'] as const)
                   .filter((key) => comparisons.some((r) => r.colorKey === key))
                   .map((key) => (
                     <span key={key} className="risk-detail__legend-item">

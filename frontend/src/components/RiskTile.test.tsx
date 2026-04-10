@@ -17,6 +17,7 @@ function renderTile(props: {
   score?: number;
   severity?: SeverityLevel;
   summary?: string;
+  warnings?: string[];
   onTap?: () => void;
 }) {
   return render(
@@ -27,6 +28,7 @@ function renderTile(props: {
         score={props.score}
         severity={props.severity ?? 'moderate'}
         summary={props.summary}
+        warnings={props.warnings}
         onTap={props.onTap}
       />
     </I18nextProvider>,
@@ -84,6 +86,20 @@ describe('RiskTile', () => {
   it('does not render summary when not provided', () => {
     const { container } = renderTile({});
     expect(container.querySelector('.risk-tile__summary')).not.toBeInTheDocument();
+  });
+
+  it('renders first warning code as limitation copy', () => {
+    const { getByTestId } = renderTile({ category: 'air', warnings: ['AIR_PARTIAL'] });
+    expect(getByTestId('risk-tile-warning-air')).toHaveTextContent(
+      'Only partial air quality data is available.',
+    );
+  });
+
+  it('renders climate limitation copy when climate data is partial', () => {
+    const { getByTestId } = renderTile({ category: 'climate', warnings: ['CLIMATE_PARTIAL'] });
+    expect(getByTestId('risk-tile-warning-climate')).toHaveTextContent(
+      'Only partial climate stress data is available.',
+    );
   });
 
   it('renders chevron icon', () => {

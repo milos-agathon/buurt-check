@@ -57,6 +57,16 @@
   white-space: nowrap;
 }
 
+.risk-tile__warning {
+  margin: 0;
+  max-width: 100%;
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .risk-tile__score-area {
   display: flex;
   align-items: center;

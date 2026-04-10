@@ -1,5 +1,5 @@
 export type EN17037Level = 'high' | 'medium' | 'minimum' | 'below';
-export type TNOLevel = 'streng' | 'licht' | 'below';
+export type WinterExposureRatioLevel = 'high' | 'medium' | 'below';
 
 /**
  * EN 17037 daylight exposure bands for March 21 (informational only).
@@ -13,18 +13,18 @@ export function getEN17037Level(equinoxHours: number): EN17037Level {
 }
 
 /**
- * Dutch TNO bezonningsnorm-style benchmark using actual vs possible sun hours.
- * Never present these as compliance claims.
+ * Internal winter roof exposure ratio using actual vs possible clear-sky roof sun hours.
+ * This is an indicative ratio, not a compliance assessment.
  */
-export function getTNOBenchmark(
+export function getWinterExposureRatioLevel(
   actualHours: number,
   possibleHours: number,
-): TNOLevel {
+): WinterExposureRatioLevel {
   if (possibleHours <= 0) return 'below';
 
   const fraction = actualHours / possibleHours;
-  if (fraction >= 0.8) return 'streng';
-  if (fraction >= 0.5) return 'licht';
+  if (fraction >= 0.8) return 'high';
+  if (fraction >= 0.5) return 'medium';
   return 'below';
 }
 

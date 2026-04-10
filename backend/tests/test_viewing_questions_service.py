@@ -181,6 +181,85 @@ def test_build_viewing_questions_omits_unavailable_climate_levels_and_derives_se
     assert "unavailable" not in by_name["Climate Stress"].questions[0].text_nl.lower()
 
 
+def test_build_viewing_questions_adds_data_caveat_for_partial_cards():
+    risk_cards = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(level=RiskLevel.low, source="RIVM", sampled_at="2026-02-10", score=75),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.unavailable,
+            source="RIVM",
+            sampled_at="2026-02-10",
+            score=74,
+            severity="good",
+            warnings=["AIR_PARTIAL"],
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.medium,
+            heat_level=RiskLevel.medium,
+            water_level=RiskLevel.unavailable,
+            source="Klimaateffectatlas",
+            sampled_at="2026-02-10",
+            score=52,
+            severity="moderate",
+            warnings=["CLIMATE_PARTIAL"],
+        ),
+    )
+
+    result = build_viewing_questions("0363010000696734", risk_cards)
+    by_name = {category.name: category for category in result.categories}
+
+    assert by_name["Air Quality"].questions[0].text_en.startswith(
+        "Because this metric uses partial or unavailable source data, verify on site: "
+    )
+    assert by_name["Climate Stress"].questions[0].text_en.startswith(
+        "Because this metric uses partial or unavailable source data, verify on site: "
+    )
+
+
+def test_build_viewing_questions_uses_proxy_wording_for_sunlight():
+    risk_cards = RiskCardsResponse(
+        address_id="0363010000696734",
+        noise=NoiseRiskCard(level=RiskLevel.low, source="RIVM", sampled_at="2026-02-10", score=75),
+        air_quality=AirQualityRiskCard(
+            level=RiskLevel.low,
+            pm25_level=RiskLevel.low,
+            no2_level=RiskLevel.low,
+            source="RIVM",
+            sampled_at="2026-02-10",
+            score=75,
+        ),
+        climate_stress=ClimateStressRiskCard(
+            level=RiskLevel.low,
+            heat_level=RiskLevel.low,
+            water_level=RiskLevel.low,
+            source="Klimaateffectatlas",
+            sampled_at="2026-02-10",
+            score=75,
+        ),
+        sunlight=SunlightRiskCard(
+            level=SeverityLevel.moderate,
+            winter_hours=2.1,
+            source="3DBAG + SunCalc",
+            score=45,
+            severity="moderate",
+        ),
+    )
+
+    result = build_viewing_questions(
+        "0363010000696734",
+        risk_cards,
+        street="Kalverstraat",
+        city="Amsterdam",
+    )
+
+    sunlight_questions = next(c for c in result.categories if c.name == "Sunlight").questions
+    assert "roof/facade proxy sunlight signal" in sunlight_questions[0].text_en
+    assert "main rooms" in sunlight_questions[0].text_en
+    assert "living room daylight was measured" not in sunlight_questions[0].text_en
+
+
 def test_with_crime_viewing_questions_adds_crime_category_when_entitled():
     risk_cards = RiskCardsResponse(
         address_id="0363010000696734",

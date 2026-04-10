@@ -100,6 +100,8 @@ _RISK_FAILURE_MESSAGES: frozenset[str] = frozenset({
     "CLIMATE_TIMEOUT",
 })
 
+SUNLIGHT_METHOD_VERSION = "sunlight-v2-interval-dayweighted"
+
 
 def _location_map_cache_key(rd_x: float, rd_y: float) -> str:
     return f"location_map:v3:{rd_x:.0f}:{rd_y:.0f}"
@@ -170,6 +172,8 @@ class SunlightSubmission(BaseModel):
     ground_annual_average: float | None = Field(default=None, ge=0, le=24)
     svf_anisotropic: float | None = Field(default=None, ge=0, le=1)
     irradiance_kwh_m2: float | None = Field(default=None, ge=0)
+    method_version: str = SUNLIGHT_METHOD_VERSION
+    target_plane: Literal["roof", "facade", "ground", "interior_proxy"] = "roof"
 
 
 def _sunlight_card_from_submission(body: SunlightSubmission) -> SunlightRiskCard:
@@ -180,7 +184,11 @@ def _sunlight_card_from_submission(body: SunlightSubmission) -> SunlightRiskCard
         if sunlight_score is not None
         else SeverityLevel.unavailable
     )
-    summary_en, summary_nl = sunlight_summary(sunlight_score, body.winter_hours)
+    summary_en, summary_nl = sunlight_summary(
+        sunlight_score,
+        body.winter_hours,
+        body.target_plane,
+    )
 
     facade_results = [
         FacadeResult(
@@ -223,6 +231,8 @@ def _sunlight_card_from_submission(body: SunlightSubmission) -> SunlightRiskCard
             if body.irradiance_kwh_m2 is not None
             else None
         ),
+        method_version=body.method_version,
+        target_plane=body.target_plane,
     )
 
 
@@ -231,9 +241,12 @@ async def _get_cached_sunlight_card(vbo_id: str) -> SunlightRiskCard | None:
     if not isinstance(cached, dict):
         return None
     try:
-        return SunlightRiskCard(**cached)
+        card = SunlightRiskCard(**cached)
     except Exception:
         return None
+    if card.method_version != SUNLIGHT_METHOD_VERSION:
+        return None
+    return card
 
 
 def _resolve_sunlight_score(card: SunlightRiskCard | None) -> int | None:

@@ -43,8 +43,8 @@ function renderCard(
 describe('SunlightRiskCard', () => {
   it('shows loading state', () => {
     renderCard(undefined, true);
-    expect(screen.getByText('Direct sun (clear-sky visibility)')).toBeInTheDocument();
-    expect(screen.getByText(/Counts time when the sun is above the horizon/i)).toBeInTheDocument();
+    expect(screen.getByText('Roof direct sun (clear-sky visibility)')).toBeInTheDocument();
+    expect(screen.getByText(/Counts roof-surface time/i)).toBeInTheDocument();
     expect(screen.getByText('Analyzing sunlight...')).toBeInTheDocument();
   });
 
@@ -56,7 +56,7 @@ describe('SunlightRiskCard', () => {
   it('shows good severity for score >= 70 (>= 4.2h winter sunlight)', () => {
     renderCard(makeSunlightResult({ winter: 6, equinox: 10, summer: 14 }));
     expect(screen.getByText('Good')).toBeInTheDocument();
-    expect(screen.getByText(/Adequate direct sunlight year-round/i)).toBeInTheDocument();
+    expect(screen.getByText(/Good roof-surface clear-sky sun exposure/i)).toBeInTheDocument();
   });
 
   it('shows moderate severity for score 40-69 (~2.4-4.1h winter sunlight)', () => {
@@ -87,7 +87,7 @@ describe('SunlightRiskCard', () => {
 
   it('shows viewing tip', () => {
     renderCard(makeSunlightResult());
-    expect(screen.getByText(/Ask the seller/)).toBeInTheDocument();
+    expect(screen.getByText(/roof\/facade proxy/i)).toBeInTheDocument();
   });
 
   it('renders all three PRD-mandated disclaimers', () => {
@@ -139,7 +139,7 @@ describe('SunlightRiskCard', () => {
 
   it('renders in Dutch', () => {
     renderCard(makeSunlightResult({ winter: 1 }), false, 'nl');
-    expect(screen.getByText('Directe zon (helder weer)')).toBeInTheDocument();
+    expect(screen.getByText('Directe zon op dak (helder weer)')).toBeInTheDocument();
     expect(screen.getByText('Kritiek')).toBeInTheDocument();
     expect(screen.getByText(/Vraag de verkoper/)).toBeInTheDocument();
   });
@@ -181,19 +181,20 @@ describe('SunlightRiskCard', () => {
     expect(screen.queryByText(/Weighted sky openness/i)).not.toBeInTheDocument();
   });
 
-  it('shows EN 17037 and TNO benchmarks when equinox data is available', () => {
+  it('shows EN 17037 and winter roof exposure benchmarks when equinox data is available', () => {
     renderCard(makeSunlightResult({ equinox: 3.5, winter: 6.2 }));
 
     expect(screen.getByText(/How does this compare\?/i)).toBeInTheDocument();
     expect(screen.getByText(/EN 17037 "medium"/i)).toBeInTheDocument();
-    expect(screen.getByText(/TNO bezonningsnorm "strict \(streng\)"/i)).toBeInTheDocument();
+    expect(screen.getByText(/Winter roof exposure ratio: high/i)).toBeInTheDocument();
+    expect(screen.queryByText(/TNO/i)).not.toBeInTheDocument();
   });
 
   it('includes benchmark non-compliance disclaimer', () => {
     renderCard(makeSunlightResult({ equinox: 3.5 }));
 
     expect(
-      screen.getByText(/informational comparisons to recognized standards, not compliance claims/i),
+      screen.getByText(/informational comparisons, not compliance claims/i),
     ).toBeInTheDocument();
   });
 
@@ -270,10 +271,10 @@ describe('SunlightRiskCard', () => {
 
   it('shows full unavailable card structure when no 3D context', () => {
     const { container } = renderCard(undefined, false, 'en', true);
-    expect(screen.getByText('Direct sun (clear-sky visibility)')).toBeInTheDocument();
+    expect(screen.getByText('Roof direct sun (clear-sky visibility)')).toBeInTheDocument();
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
     expect(screen.getByText(/No 3D building context available/)).toBeInTheDocument();
-    expect(screen.getByText(/Ask the seller/)).toBeInTheDocument();
+    expect(screen.getByText(/roof\/facade proxy/i)).toBeInTheDocument();
     expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
     expect(container.querySelector('.sunlight-card')).toHaveAttribute('data-state', 'unavailable');
   });
@@ -288,10 +289,10 @@ describe('SunlightRiskCard', () => {
 
   it('shows full unavailable card structure in Dutch', () => {
     renderCard(undefined, false, 'nl', true);
-    expect(screen.getByText('Directe zon (helder weer)')).toBeInTheDocument();
+    expect(screen.getByText('Directe zon op dak (helder weer)')).toBeInTheDocument();
     expect(screen.getByText('Niet beschikbaar')).toBeInTheDocument();
     expect(screen.getByText(/Geen 3D-gebouwcontext beschikbaar/)).toBeInTheDocument();
-    expect(screen.getByText(/Vraag de verkoper/)).toBeInTheDocument();
+    expect(screen.getByText(/dak\/gevelproxy/i)).toBeInTheDocument();
     expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
   });
 });

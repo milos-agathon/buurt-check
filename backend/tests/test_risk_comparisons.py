@@ -65,12 +65,27 @@ def test_build_risk_comparisons_uses_urbanization_profile():
     assert result.address_id == "0363010000696734"
     assert result.noise[0].label_code == "city_avg"
     assert result.noise[0].value == 54
+    assert result.noise[0].role == "peer"
+    assert result.noise[0].benchmark_family == "urbanization_peer"
+    assert result.noise[0].label_key == "risk.detail.peerUrbanization"
+    assert result.noise[0].scope == "urbanization_peer"
     assert result.noise[1].label_code == "nl_avg"
+    assert result.noise[1].role == "national"
+    assert result.noise[1].benchmark_family == "national_model"
     assert result.noise[2].label_code == "who_limit"
+    assert result.noise[2].role == "reference"
+    assert result.noise[2].benchmark_family == "who_noise_lden"
     assert result.noise[-1].label_code == "address"
+    assert result.noise[-1].role == "address"
     assert result.noise[-1].value == 56
+    assert result.air_quality[2].label_code == "air_interim_target"
+    assert result.air_quality[2].value == 75
+    assert result.air_quality[2].benchmark_family == "air_interim_target"
+    assert "who" not in result.air_quality[2].label_key.lower()
     assert result.climate_stress[2].label_code == "adaptation_target"
+    assert result.climate_stress[2].benchmark_family == "climate_adaptation_target"
     assert result.sunlight[2].label_code == "daylight_target"
+    assert result.sunlight[2].benchmark_family == "daylight_target"
 
 
 def test_build_risk_comparisons_sunlight_falls_back_to_winter_hours():
@@ -137,6 +152,10 @@ async def test_risk_comparisons_endpoint(
     data = resp.json()
     assert data["noise"][0]["label_code"] == "city_avg"
     assert data["noise"][0]["value"] == 54
+    assert data["noise"][0]["role"] == "peer"
+    assert data["noise"][0]["label_key"] == "risk.detail.peerUrbanization"
+    assert data["air_quality"][2]["label_code"] == "air_interim_target"
+    assert data["air_quality"][2]["benchmark_family"] == "air_interim_target"
     assert data["air_quality"][-1]["label_code"] == "address"
     assert data["air_quality"][-1]["value"] == 74
     assert data["climate_stress"][2]["label_code"] == "adaptation_target"

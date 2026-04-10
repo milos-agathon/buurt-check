@@ -1,7 +1,14 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
 class CrimeStatsCard(BaseModel):
+    scope: Literal["buurt", "gemeente"] = "buurt"
+    area_code: str | None = None
+    area_name: str | None = None
+    population: float | None = None
+    population_year: int | None = None
     total_per_1000: float | None = None
     national_per_1000: float | None = None
     burglary_per_1000: float | None = None

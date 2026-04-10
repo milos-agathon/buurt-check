@@ -69,6 +69,7 @@ export interface SunlightAnalysisOptions {
 const DEFAULT_INTERVAL_MINUTES = 30;
 const DEFAULT_CHUNK_RAYCASTS = 200;
 const SELF_HIT_EPSILON_METERS = 0.15;
+export const SUNLIGHT_METHOD_VERSION = 'sunlight-v2-interval-dayweighted';
 const ORIENTATION_ORDER: Record<FacadeSunlightResult['orientation'], number> = {
   north: 0,
   east: 1,
@@ -97,22 +98,51 @@ function weightedAverage(values: number[], weights: number[]): number {
   return weightedSum / totalWeight;
 }
 
+export interface SunlightSampleInterval {
+  startMinute: number;
+  endMinute: number;
+  midpointMinute: number;
+  durationHours: number;
+}
+
+function daysInMonth(year: number, monthIdx: number): number {
+  return new Date(year, monthIdx + 1, 0).getDate();
+}
+
+export function getSampleIntervalsForDay(
+  sunriseHour: number,
+  sunsetHour: number,
+  intervalMinutes: number,
+): SunlightSampleInterval[] {
+  const safeInterval = Math.max(1, Math.floor(intervalMinutes));
+  const sunriseMinute = sunriseHour * 60;
+  const sunsetMinute = sunsetHour * 60;
+  if (!Number.isFinite(sunriseMinute) || !Number.isFinite(sunsetMinute)) return [];
+  if (sunsetMinute <= sunriseMinute) return [];
+
+  const firstBoundary = Math.floor(sunriseMinute / safeInterval) * safeInterval;
+  const intervals: SunlightSampleInterval[] = [];
+  for (let boundary = firstBoundary; boundary < sunsetMinute; boundary += safeInterval) {
+    const startMinute = Math.max(boundary, sunriseMinute);
+    const endMinute = Math.min(boundary + safeInterval, sunsetMinute);
+    if (endMinute <= startMinute) continue;
+    intervals.push({
+      startMinute,
+      endMinute,
+      midpointMinute: (startMinute + endMinute) / 2,
+      durationHours: (endMinute - startMinute) / 60,
+    });
+  }
+  return intervals;
+}
+
 export function getSampleMinutesForDay(
   sunriseHour: number,
   sunsetHour: number,
   intervalMinutes: number,
 ): number[] {
-  const safeInterval = Math.max(1, Math.floor(intervalMinutes));
-  const startMinutes = Math.ceil((sunriseHour * 60) / safeInterval) * safeInterval;
-  const endMinutes = Math.floor((sunsetHour * 60) / safeInterval) * safeInterval;
-
-  if (endMinutes < startMinutes) return [];
-
-  const samples: number[] = [];
-  for (let minutes = startMinutes; minutes <= endMinutes; minutes += safeInterval) {
-    samples.push(minutes);
-  }
-  return samples;
+  return getSampleIntervalsForDay(sunriseHour, sunsetHour, intervalMinutes)
+    .map((interval) => Math.round(interval.midpointMinute));
 }
 
 export function yieldToMainThread(): Promise<void> {
@@ -185,6 +215,8 @@ function buildDefaultResult(
     equinox: 0,
     summer: 0,
     annualAverage: 0,
+    methodVersion: SUNLIGHT_METHOD_VERSION,
+    targetPlane: 'roof',
     analysisYear: year,
     roofGridPoints,
     facadeProxyPoints,
@@ -287,19 +319,19 @@ export async function analyzeSunlight(
   const timestepMeta = emitPerTimestep
     ? [] as { date: string; minuteOfDay: number }[]
     : undefined;
-  const monthlySampleWeights: number[] = [];
-  const hoursPerSample = intervalMinutes / 60;
+  const monthlyDayWeights: number[] = [];
   const maxChunk = Math.max(1, Math.floor(chunkRaycasts));
   let raycastsSinceYield = 0;
 
   for (let monthIdx = 0; monthIdx < monthlyDates.length; monthIdx++) {
     const date = monthlyDates[monthIdx];
     const { sunrise, sunset } = getDaylightRange(date, lat, lng);
-    const sampleMinutes = getSampleMinutesForDay(sunrise, sunset, intervalMinutes);
-    monthlySampleWeights.push(sampleMinutes.length);
+    const sampleIntervals = getSampleIntervalsForDay(sunrise, sunset, intervalMinutes);
+    monthlyDayWeights.push(daysInMonth(year, monthIdx));
 
     if (emitPerTimestep && timestepMeta) {
-      for (const minuteOfDay of sampleMinutes) {
+      for (const interval of sampleIntervals) {
+        const minuteOfDay = Math.round(interval.midpointMinute);
         const sampleDate = setTimeInTimeZone(date, minuteOfDay);
         timestepMeta.push({
           date: sampleDate.toISOString(),
@@ -313,9 +345,10 @@ export async function analyzeSunlight(
       const origin = new Vector3(x, y, z);
       let sunlitHours = 0;
 
-      for (const minuteOfDay of sampleMinutes) {
+      for (const interval of sampleIntervals) {
         if (abortSignal?.aborted) return null;
 
+        const minuteOfDay = Math.round(interval.midpointMinute);
         const sampleDate = setTimeInTimeZone(date, minuteOfDay);
         const sunDir = getSunDirection(sampleDate, lat, lng);
         if (!sunDir) {
@@ -346,7 +379,7 @@ export async function analyzeSunlight(
 
         const lit: 0 | 1 = blocked ? 0 : 1;
         if (lit === 1) {
-          sunlitHours += hoursPerSample;
+          sunlitHours += interval.durationHours;
         }
         if (
           emitPerTimestep
@@ -381,10 +414,10 @@ export async function analyzeSunlight(
   });
 
   const perPointAnnualByEvalPoint = perPointMonthly.map((pointMonths) =>
-    round1(weightedAverage(pointMonths, monthlySampleWeights))
+    round1(weightedAverage(pointMonths, monthlyDayWeights))
   );
   const perPointAnnual = perPointAnnualByEvalPoint.slice(0, roofPointCount);
-  const annualAverage = round1(weightedAverage(roofMeanMonthly, monthlySampleWeights));
+  const annualAverage = round1(weightedAverage(roofMeanMonthly, monthlyDayWeights));
 
   const facadeProxyPoints: [number, number, number][] = [...legacyFacadeProxyPoints];
   const groundProxyPoints: [number, number, number][] = [...legacyGroundProxyPoints];
@@ -469,6 +502,8 @@ export async function analyzeSunlight(
     equinox: roofMeanMonthly[2],
     summer: roofMeanMonthly[5],
     annualAverage,
+    methodVersion: SUNLIGHT_METHOD_VERSION,
+    targetPlane: 'roof',
     analysisYear: year,
     roofGridPoints,
     facadeProxyPoints,

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import httpx
 
@@ -70,14 +70,32 @@ def _make_indicator(
     key: str,
     unit: str | None = None,
     transform: Callable[[float], float] | None = None,
+    quartile_direction: Literal["higher_value", "lower_value"] | None = None,
+    precision: int | None = None,
 ) -> NeighborhoodIndicator:
     value = _safe_float(props, key)
     if value is None:
-        return NeighborhoodIndicator(available=False)
+        return NeighborhoodIndicator(
+            available=False,
+            quartile_direction=quartile_direction,
+            precision=precision,
+        )
     if transform is not None:
         value = transform(value)
     quartile = _compute_quartile(key, value)
-    return NeighborhoodIndicator(value=value, unit=unit, quartile=quartile)
+    favorable_quartile = None
+    if quartile is not None:
+        favorable_quartile = (
+            5 - quartile if quartile_direction == "lower_value" else quartile
+        )
+    return NeighborhoodIndicator(
+        value=value,
+        unit=unit,
+        quartile=quartile,
+        quartile_direction=quartile_direction,
+        favorable_quartile=favorable_quartile,
+        precision=precision,
+    )
 
 
 def _parse_urbanization(props: dict[str, Any]) -> UrbanizationLevel:
@@ -128,26 +146,49 @@ def _parse_stats(feature: dict[str, Any]) -> NeighborhoodStats | None:
         buurt_name=props.get("buurtnaam"),
         gemeente_name=props.get("gemeentenaam"),
         population_density=_make_indicator(
-            props, "bevolkingsdichtheid_inwoners_per_km2", "per km\u00b2"
+            props,
+            "bevolkingsdichtheid_inwoners_per_km2",
+            "per km\u00b2",
+            precision=0,
         ),
         avg_household_size=_make_indicator(
-            props, "gemiddelde_huishoudsgrootte"
+            props,
+            "gemiddelde_huishoudsgrootte",
+            precision=1,
         ),
         single_person_pct=_make_indicator(
-            props, "percentage_eenpersoonshuishoudens", "%"
+            props,
+            "percentage_eenpersoonshuishoudens",
+            "%",
+            precision=1,
         ),
         age_profile=_parse_age_profile(props),
         owner_occupied_pct=_make_indicator(
-            props, "percentage_koopwoningen", "%"
+            props,
+            "percentage_koopwoningen",
+            "%",
+            precision=1,
         ),
         avg_property_value=_make_indicator(
-            props, "gemiddelde_woningwaarde", "\u20ac", transform=_normalize_property_value
+            props,
+            "gemiddelde_woningwaarde",
+            "\u20ac",
+            transform=_normalize_property_value,
+            precision=0,
         ),
         distance_to_train_km=_make_indicator(
-            props, "treinstation_gemiddelde_afstand_in_km", "km"
+            props,
+            "treinstation_gemiddelde_afstand_in_km",
+            "km",
+            quartile_direction="lower_value",
+            precision=1,
         ),
         distance_to_supermarket_km=_make_indicator(
-            props, "grote_supermarkt_gemiddelde_afstand_in_km", "km"
+            props,
+            "grote_supermarkt_gemiddelde_afstand_in_km",
+            "km",
+            quartile_direction="lower_value",
+            precision=1,
         ),
         urbanization=_parse_urbanization(props),
     )

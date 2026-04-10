@@ -61,4 +61,26 @@ describe('RiskTilesGrid', () => {
     expect(screen.queryByText('Good air quality')).not.toBeInTheDocument();
     expect(screen.queryByText('Critical climate exposure')).not.toBeInTheDocument();
   });
+
+  it('surfaces partial-data warnings on affected tiles', () => {
+    const base = makeRiskCardsResponse();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <RiskTilesGrid
+          risks={makeRiskCardsResponse({
+            air_quality: {
+              ...base.air_quality,
+              score: 84,
+              level: 'low',
+              warnings: ['AIR_PARTIAL'],
+            },
+          })}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByTestId('risk-tile-warning-air')).toHaveTextContent(
+      'Only partial air quality data is available.',
+    );
+  });
 });

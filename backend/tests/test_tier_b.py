@@ -78,6 +78,11 @@ def _build_side_effect(
     yearly_rows: list[dict],
     monthly_rows: list[dict] | None = None,
     population: float = 5000.0,
+    municipality_yearly_rows: list[dict] | None = None,
+    municipality_monthly_rows: list[dict] | None = None,
+    municipality_population: float | None = 100000.0,
+    municipality_name: str = "Delft",
+    national_total: float = 930000.0,
 ):
     """Build a side_effect function that routes CBS API calls correctly."""
     call_urls: list[str] = []
@@ -89,22 +94,49 @@ def _build_side_effect(
         if "collections/buurten/items" in url:
             return _mock_response({
                 "features": [
-                    {"properties": {"aantal_inwoners": population}},
+                    {
+                        "properties": {
+                            "aantal_inwoners": population,
+                            "buurtnaam": "Testbuurt",
+                        },
+                    },
                 ],
             })
+        if "collections/gemeenten/items" in url:
+            features = []
+            if municipality_population is not None:
+                features.append({
+                    "properties": {
+                        "aantal_inwoners": municipality_population,
+                        "gemeentenaam": municipality_name,
+                    },
+                })
+            return _mock_response({"features": features})
 
         # Period lookups
         if url.endswith("/Perioden"):
-            params = kwargs.get("params", {})
+            if "47022NED" in url:
+                return _mock_response(MOCK_MONTHLY_PERIOD_RESPONSE)
             return _mock_response(MOCK_PERIOD_RESPONSE)
 
         # TypedDataSet (crime rows)
         if url.endswith("/TypedDataSet"):
             params = kwargs.get("params", {})
             filter_expr = params.get("$filter", "")
+            if "NL01" in filter_expr:
+                return _mock_response({
+                    "value": [{
+                        "SoortMisdrijf": "0.0.0 ",
+                        "GeregistreerdeMisdrijven_1": national_total,
+                    }],
+                })
             # Monthly if filter contains "SoortMisdrijf eq"
             if "SoortMisdrijf eq" in filter_expr:
+                if "GM" in filter_expr and municipality_monthly_rows is not None:
+                    return _mock_response({"value": municipality_monthly_rows})
                 return _mock_response({"value": monthly_rows or []})
+            if "GM" in filter_expr and municipality_yearly_rows is not None:
+                return _mock_response({"value": municipality_yearly_rows})
             return _mock_response({"value": yearly_rows})
 
         return _mock_response({})
@@ -242,6 +274,76 @@ async def test_yearly_period_source_date_is_human_readable():
     assert isinstance(result, CrimeStatsCard)
     assert result.yearly_period == "2025JJ00"
     assert result.source_date == "2025"
+
+
+@pytest.mark.asyncio
+async def test_buurt_scope_uses_buurt_population_denominator():
+    yearly_rows = _make_yearly_rows(total=50.0, burglary=5.0)
+    side_effect = _build_side_effect(yearly_rows, population=5000.0)
+    mock_cl = _mock_client_with_side_effect(side_effect)
+
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
+        result = await _get_crime_stats("BU0363AD07")
+
+    assert isinstance(result, CrimeStatsCard)
+    assert result.scope == "buurt"
+    assert result.area_code == "BU0363AD07"
+    assert result.area_name == "Testbuurt"
+    assert result.population == 5000.0
+    assert result.population_year == 2024
+    assert result.total_count == 50.0
+    assert result.total_per_1000 == 10.0
+
+
+@pytest.mark.asyncio
+async def test_municipality_fallback_uses_municipality_population_denominator():
+    municipality_rows = _make_yearly_rows(total=100.0, burglary=10.0)
+    side_effect = _build_side_effect(
+        yearly_rows=[],
+        population=5000.0,
+        municipality_yearly_rows=municipality_rows,
+        municipality_population=100000.0,
+        municipality_name="Delft",
+    )
+    mock_cl = _mock_client_with_side_effect(side_effect)
+
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
+        result = await _get_crime_stats("BU05370606")
+
+    assert isinstance(result, CrimeStatsCard)
+    assert result.scope == "gemeente"
+    assert result.area_code == "GM0537"
+    assert result.area_name == "Delft"
+    assert result.population == 100000.0
+    assert result.population_year == 2024
+    assert result.total_count == 100.0
+    assert result.total_per_1000 == 1.0
+    assert result.total_per_1000 != 20.0
+    assert result.message == "CRIME_MUNICIPALITY_LEVEL"
+
+
+@pytest.mark.asyncio
+async def test_municipality_fallback_without_population_keeps_counts_unscored():
+    municipality_rows = _make_yearly_rows(total=100.0, burglary=10.0)
+    side_effect = _build_side_effect(
+        yearly_rows=[],
+        municipality_yearly_rows=municipality_rows,
+        municipality_population=None,
+    )
+    mock_cl = _mock_client_with_side_effect(side_effect)
+
+    with patch("app.services.tier_b._client.get", return_value=mock_cl):
+        result = await _get_crime_stats("BU05370606")
+
+    assert isinstance(result, CrimeStatsCard)
+    assert result.scope == "gemeente"
+    assert result.area_code == "GM0537"
+    assert result.population is None
+    assert result.population_year is None
+    assert result.total_count == 100.0
+    assert result.total_per_1000 is None
+    assert result.score is None
+    assert result.message == "CRIME_NO_POPULATION"
 
 
 # ═══════ buurt_code validation (#48) ═══════

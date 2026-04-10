@@ -42,6 +42,7 @@ function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
       summary: risks
         ? (isNl ? risks.noise.summary_nl : risks.noise.summary)
         : unavailableSummary,
+      warnings: risks?.noise.warnings ?? (risks?.noise.message ? [risks.noise.message] : []),
       unavailable: !risks || risks.noise.level === 'unavailable' || risks.noise.score == null,
     },
     {
@@ -52,6 +53,7 @@ function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
       summary: risks
         ? (isNl ? risks.air_quality.summary_nl : risks.air_quality.summary)
         : unavailableSummary,
+      warnings: risks?.air_quality.warnings ?? (risks?.air_quality.message ? [risks.air_quality.message] : []),
       unavailable: !risks || risks.air_quality.level === 'unavailable' || risks.air_quality.score == null,
     },
     {
@@ -62,6 +64,7 @@ function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
       summary: risks
         ? (isNl ? risks.climate_stress.summary_nl : risks.climate_stress.summary)
         : unavailableSummary,
+      warnings: risks?.climate_stress.warnings ?? (risks?.climate_stress.message ? [risks.climate_stress.message] : []),
       unavailable: !risks || risks.climate_stress.level === 'unavailable' || risks.climate_stress.score == null,
     },
   ] as const;
@@ -76,6 +79,7 @@ function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
           score={card.score}
           severity={card.severity}
           summary={card.unavailable ? unavailableSummary : card.summary}
+          warnings={card.warnings}
           unavailable={card.unavailable}
           onTap={card.unavailable ? undefined : () => onTileTap?.(card.category)}
         />

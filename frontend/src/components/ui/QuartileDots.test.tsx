@@ -10,10 +10,13 @@ beforeAll(async () => {
   i18n = await setupTestI18n('en');
 });
 
-function renderDots(quartile: number) {
+function renderDots(
+  quartile: number,
+  props: Partial<Parameters<typeof QuartileDots>[0]> = {},
+) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <QuartileDots quartile={quartile} />
+      <QuartileDots quartile={quartile} {...props} />
     </I18nextProvider>,
   );
 }
@@ -45,5 +48,13 @@ describe('QuartileDots', () => {
     const container = screen.getByLabelText('Quartile 4 of 4');
     const filled = container.querySelectorAll('.quartile-dots__dot--filled');
     expect(filled).toHaveLength(4);
+  });
+
+  it('uses favorable quartile when lower raw values are better', () => {
+    renderDots(1, { favorableQuartile: 4, mode: 'favorability' });
+    const container = screen.getByLabelText('Favorable quartile 4 of 4 (raw quartile 1)');
+    const filled = container.querySelectorAll('.quartile-dots__dot--filled');
+    expect(filled).toHaveLength(4);
+    expect(container).toHaveAttribute('data-mode', 'favorability');
   });
 });

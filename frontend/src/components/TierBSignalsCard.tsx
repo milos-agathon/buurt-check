@@ -177,6 +177,9 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
   );
   const meaning = i18n.language === 'nl' ? data.crime.meaning_nl : data.crime.meaning_en;
   const fallback = fallbackCopy(data.crime.message, t);
+  const comparisonScopeLabel = data.crime.scope === 'gemeente'
+    ? t('tierB.crime.comparison.municipality')
+    : t('tierB.crime.comparison.neighborhood');
 
   return (
     <section className="tier-b-card" data-testid="tier-b-card">
@@ -198,7 +201,7 @@ function TierBSignalsCard({ data, loading, error, onRetry }: Props) {
           <div className="tier-b-card__comparison">
             <span className="tier-b-card__cmp-title">{t('tierB.crime.comparison.title')}</span>
             <div className="tier-b-card__cmp-row">
-              <span className="tier-b-card__cmp-label">{t('tierB.crime.comparison.thisArea')}</span>
+              <span className="tier-b-card__cmp-label">{comparisonScopeLabel}</span>
               <div className="tier-b-card__cmp-track">
                 <div
                   className="tier-b-card__cmp-fill"
