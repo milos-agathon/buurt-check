@@ -1,5 +1,7 @@
 # Buurt-check Sunlight v1 Spec
 
+> Alignment note (2026-04-12): For any guidance affecting `https://buurt-check.nl/`, its associated legal pages, or `https://app.buurt-check.nl/#/search` and adjacent app UI states, `docs/plans/2026-04-12-website-and-app-design-10-10-spec.md` is the governing document. If this file conflicts with that spec on layout, hierarchy, spacing, visual system, bilingual asset handling, desktop adaptation, loading-state clarity, export recovery UX, or legal-page consistency, the 2026-04-12 spec controls.
+
 This spec defines **what buurt-check computes**, **how it computes it client-side in Three.js**, **how it is sampled**, **what you show users**, and **how you validate**—while explicitly separating *geometry-only visibility* from *irradiance/energy* so you don’t over-claim.
 
 ---

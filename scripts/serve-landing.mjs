@@ -9,7 +9,9 @@ const PUBLIC_DIR = resolve(ROOT_DIR, process.env.LANDING_PUBLIC_DIR ?? 'frontend
 const HOST = '127.0.0.1';
 const PORT = Number.parseInt(process.env.LANDING_PORT ?? '4174', 10);
 const LANDING_GA_MEASUREMENT_ID = (process.env.BUURTCHECK_GA_MEASUREMENT_ID ?? '').trim();
+const LANDING_APP_URL = (process.env.BUURTCHECK_LANDING_APP_URL ?? 'http://127.0.0.1:5173/#/search').trim();
 const GA_MEASUREMENT_PLACEHOLDER = '__BUURTCHECK_GA_MEASUREMENT_ID__';
+const APP_URL_PLACEHOLDER = '__BUURTCHECK_APP_URL__';
 
 const CONTENT_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -127,10 +129,15 @@ const server = createServer((request, response) => {
   }
 
   if (fileExtension === '.html') {
-    const html = readFileSync(asset.filePath, 'utf8').replaceAll(
-      GA_MEASUREMENT_PLACEHOLDER,
-      escapeHtmlAttribute(LANDING_GA_MEASUREMENT_ID),
-    );
+    const html = readFileSync(asset.filePath, 'utf8')
+      .replaceAll(
+        GA_MEASUREMENT_PLACEHOLDER,
+        escapeHtmlAttribute(LANDING_GA_MEASUREMENT_ID),
+      )
+      .replaceAll(
+        APP_URL_PLACEHOLDER,
+        escapeHtmlAttribute(LANDING_APP_URL),
+      );
     response.end(html);
     return;
   }

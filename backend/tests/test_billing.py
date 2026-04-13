@@ -227,7 +227,7 @@ async def test_checkout_stores_provider_session_id(db_path):
             client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             await client.post(
                 "/api/billing/checkout-session",
-                json={"report_id": rid},
+                json={"report_id": rid, "lookup_id": "adr-abc123"},
             )
 
     report = await get_report(rid, db_path=db_path)
@@ -260,7 +260,7 @@ async def test_checkout_stripe_call_args(db_path):
             client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
             await client.post(
                 "/api/billing/checkout-session",
-                json={"report_id": rid},
+                json={"report_id": rid, "lookup_id": "adr-abc123"},
             )
 
         # Verify Stripe was called with correct args
@@ -273,15 +273,17 @@ async def test_checkout_stripe_call_args(db_path):
         assert item["quantity"] == 1
         assert call_kwargs.kwargs["metadata"]["report_id"] == rid
         assert call_kwargs.kwargs["metadata"]["vbo_id"] == "0363010012345678"
+        assert call_kwargs.kwargs["metadata"]["lookup_id"] == "adr-abc123"
         assert "success_url" in call_kwargs.kwargs
         assert "cancel_url" in call_kwargs.kwargs
         success_url = urlsplit(call_kwargs.kwargs["success_url"])
-        assert success_url.fragment == "#/address/0363010012345678".lstrip("#")
+        assert success_url.fragment == "#/address/0363010012345678?lookup=adr-abc123".lstrip("#")
         assert "session_id={CHECKOUT_SESSION_ID}" in call_kwargs.kwargs["success_url"]
         success_query = success_url.query
         success_params = parse_qs(success_query)
         assert success_params["report"] == [rid]
         assert success_params["session_id"] == ["{CHECKOUT_SESSION_ID}"]
+        assert success_params["lookup"] == ["adr-abc123"]
         assert "buyer_resume" in success_params
 
 
@@ -332,6 +334,59 @@ async def test_checkout_uses_request_origin_when_base_url_is_localhost_default(d
     assert call_kwargs.kwargs["cancel_url"] == (
         "https://app.buurt-check.nl/#/address/0363010012345678"
     )
+
+
+@pytest.mark.asyncio
+async def test_checkout_prefers_configured_base_url_over_other_hosted_request_origins(
+    db_path,
+):
+    """Checkout redirects must stay on the configured app origin for post-payment resume."""
+    from app.services.reports import create_report
+
+    rid = await create_report(
+        "0363010012345678",
+        "Damrak 1",
+        "long",
+        buyer_key="buyer-123",
+        db_path=db_path,
+    )
+
+    mock_session = MagicMock()
+    mock_session.id = "cs_test_marketing_origin"
+    mock_session.url = "https://checkout.stripe.com/pay/cs_test_marketing_origin"
+
+    stack, mock_stripe = _billing_patches(
+        db_path,
+        extra_settings={"base_url": "https://app.buurt-check.nl"},
+    )
+    with stack:
+        mock_stripe.checkout.Session.create.return_value = mock_session
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="https://buurt-check.nl",
+        ) as client:
+            client.cookies.set(BUYER_COOKIE_NAME, "buyer-123")
+            response = await client.post(
+                "/api/billing/checkout-session",
+                json={"report_id": rid, "lookup_id": "adr-abc123"},
+            )
+
+    assert response.status_code == 200
+    call_kwargs = mock_stripe.checkout.Session.create.call_args
+    assert call_kwargs.kwargs["success_url"].startswith(
+        "https://app.buurt-check.nl/?"
+    )
+    assert call_kwargs.kwargs["cancel_url"] == (
+        "https://app.buurt-check.nl/#/address/0363010012345678?lookup=adr-abc123"
+    )
+    success_url = urlsplit(call_kwargs.kwargs["success_url"])
+    assert success_url.fragment == "#/address/0363010012345678?lookup=adr-abc123".lstrip("#")
+    success_params = parse_qs(success_url.query)
+    assert success_params["report"] == [rid]
+    assert success_params["session_id"] == ["{CHECKOUT_SESSION_ID}"]
+    assert success_params["lookup"] == ["adr-abc123"]
+    assert "buyer_resume" in success_params
 
 
 @pytest.mark.asyncio
@@ -443,6 +498,9 @@ async def test_confirm_checkout_session_unlocks_paid_report(db_path):
         "report_id": rid,
         "entitled": True,
         "report_type": "long",
+        "vbo_id": "0363010012345678",
+        "address_key": "Damrak 1",
+        "lookup_id": None,
     }
 
     report = await get_report(rid, db_path=db_path)
@@ -495,6 +553,9 @@ async def test_confirm_checkout_session_restores_buyer_cookie_from_resume_token(
         "report_id": rid,
         "entitled": True,
         "report_type": "long",
+        "vbo_id": "0363010012345678",
+        "address_key": "Damrak 1",
+        "lookup_id": None,
     }
     set_cookie = response.headers.get("set-cookie", "")
     assert BUYER_COOKIE_NAME in set_cookie
@@ -543,6 +604,9 @@ async def test_confirm_checkout_session_accepts_stripe_metadata_objects(db_path)
         "report_id": rid,
         "entitled": True,
         "report_type": "long",
+        "vbo_id": "0363010012345678",
+        "address_key": "Damrak 1",
+        "lookup_id": None,
     }
 
     report = await get_report(rid, db_path=db_path)
@@ -601,6 +665,9 @@ async def test_confirm_checkout_session_falls_back_to_legacy_unlock_when_atomic_
         "report_id": rid,
         "entitled": True,
         "report_type": "long",
+        "vbo_id": "0363010012345678",
+        "address_key": "Damrak 1",
+        "lookup_id": None,
     }
     mock_unlock.assert_awaited_once()
 

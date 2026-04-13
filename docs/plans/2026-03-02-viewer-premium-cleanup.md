@@ -1,5 +1,7 @@
 # Viewer Premium Content Cleanup — Implementation Plan
 
+> Alignment note (2026-04-12): For any guidance affecting `https://buurt-check.nl/`, its associated legal pages, or `https://app.buurt-check.nl/#/search` and adjacent app UI states, `docs/plans/2026-04-12-website-and-app-design-10-10-spec.md` is the governing document. If this file conflicts with that spec on layout, hierarchy, spacing, visual system, bilingual asset handling, desktop adaptation, loading-state clarity, export recovery UX, or legal-page consistency, the 2026-04-12 spec controls.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Remove premium-only content (Property Warnings, Sunlight, Asbestos, Soil, Shadow Snapshots) from the frontend viewer while keeping it in the Full Dossier PDF. Remove duplicate buy CTA from LockedSection.

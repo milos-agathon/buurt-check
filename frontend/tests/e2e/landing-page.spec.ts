@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { expect, test, type Page } from '@playwright/test';
 
-const APP_URL = 'https://app.buurt-check.nl/#/search';
+const APP_URL = process.env.BUURTCHECK_LANDING_APP_URL ?? 'http://127.0.0.1:5173/#/search';
 const LANDING_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'landing');
 const require = createRequire(import.meta.url);
 const AXE_SOURCE_PATH = require.resolve('axe-core/axe.min.js');
@@ -124,7 +124,6 @@ test('renders the PRD section order and preserves CTA/legal routes', async ({ pa
     'showcase',
     'pricing',
     'trust',
-    'features',
     'faq',
     'final-cta',
   ]);
@@ -134,7 +133,7 @@ test('renders the PRD section order and preserves CTA/legal routes', async ({ pa
   );
   expect(ctaHrefs).toEqual([APP_URL, APP_URL, APP_URL, APP_URL]);
 
-  await expect(page.locator('.nav__brand img[alt="Buurt Check"]')).toBeVisible();
+  await expect(page.locator('.nav__brand')).toBeVisible();
   await expect(page.locator('footer a[href="/privacy.html"]')).toBeVisible();
   await expect(page.locator('footer a[href="/terms.html"]')).toBeVisible();
   await expect(page.locator('footer a[href*="mailto:"]')).toBeVisible();
@@ -176,6 +175,9 @@ test('persists language selection and swaps visible content in place', async ({ 
   await expect(page.locator('html')).toHaveAttribute('lang', 'nl');
   await expect(page.locator('.hero__title [data-lang="nl"]')).toBeVisible();
   await expect(page.locator('.hero__title [data-lang="en"]')).toBeHidden();
+  await expect(page.locator('.hero__preview img[data-lang="nl"]')).toBeVisible();
+  await expect(page.locator('.hero__preview img[data-lang="en"]')).toBeHidden();
+  await expect(page.locator('.hero__preview img[data-lang="nl"]')).toHaveAttribute('src', 'og-image.svg');
 
   await page.locator('button[data-language-choice="en"]').click();
 
@@ -187,11 +189,15 @@ test('persists language selection and swaps visible content in place', async ({ 
   await expect(page.locator('.hero__subtitle [data-lang="nl"]')).toBeHidden();
   await expect(page.locator('.pricing-card__price [data-lang="en"]')).toContainText('€3.99');
   await expect(page.locator('.pricing-card__price [data-lang="nl"]')).toBeHidden();
+  await expect(page.locator('.hero__preview img[data-lang="en"]')).toBeVisible();
+  await expect(page.locator('.hero__preview img[data-lang="nl"]')).toBeHidden();
+  await expect(page.locator('.hero__preview img[data-lang="en"]')).toHaveAttribute('src', 'og-image-en.svg');
 
   await page.reload();
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.locator('.hero__title [data-lang="en"]')).toBeVisible();
+  await expect(page.locator('.hero__preview img[data-lang="en"]')).toBeVisible();
 
   const storedLanguage = await page.evaluate(() => localStorage.getItem('buurtcheck_lang'));
   expect(storedLanguage).toBe('en');
@@ -369,7 +375,10 @@ test('keeps the mobile CTA visible in the fixed header row and exposes the hero 
   });
   expect(navLinksStyle.flexWrap).toBe('nowrap');
   expect(['auto', 'scroll']).toContain(navLinksStyle.overflowX);
-  await expect(page.locator('.nav__links .nav__cta')).toHaveCount(0);
+  await expect(page.locator('.nav__links .nav__cta')).toHaveCount(1);
+  expect(
+    after.nav_link_rects.every((rect) => after.nav_cta_top_px !== null && Math.abs(rect.top - after.nav_cta_top_px) <= 4),
+  ).toBe(true);
 
   const languageButtonHeights = await page.locator('button[data-language-choice]').evaluateAll((nodes) =>
     nodes.map((node) => Math.round(node.getBoundingClientRect().height)),
@@ -480,7 +489,7 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   await page.goto('/privacy.html');
   await expect(page).toHaveTitle(/Privacy Policy/);
   await expect(page.getByRole('heading', { level: 1, name: 'Buurt Check Privacy Policy' })).toBeVisible();
-  await expect(page.locator('a[href="https://app.buurt-check.nl/#/search"]').first()).toBeVisible();
+  await expect(page.locator(`a[href="${APP_URL}"]`).first()).toBeVisible();
   await expect(page.getByText('Milos Popovic')).toBeVisible();
   await expect(page.getByText('Milos GIS')).toBeVisible();
   await expect(page.getByText('Duinzicht 23')).toBeVisible();
@@ -489,7 +498,7 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   await page.goto('/terms.html');
   await expect(page).toHaveTitle(/Terms of Use/);
   await expect(page.getByRole('heading', { level: 1, name: 'Buurt Check Terms of Use' })).toBeVisible();
-  await expect(page.locator('a[href="https://app.buurt-check.nl/#/search"]').first()).toBeVisible();
+  await expect(page.locator(`a[href="${APP_URL}"]`).first()).toBeVisible();
   await expect(page.locator('a[href="mailto:support@buurt-check.nl"]').first()).toBeVisible();
   await expect(page.locator('a[href="/privacy.html"]')).toBeVisible();
   await expect(page.getByText('Milos Popovic')).toHaveCount(0);

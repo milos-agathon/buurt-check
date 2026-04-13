@@ -102,6 +102,7 @@ import { useViewportBottomOffset } from './hooks/useViewportBottomOffset';
 import type { Geometry, Position } from 'geojson';
 import type {
   AddressSuggestion,
+  CheckoutConfirmationResponse,
   ResolvedAddress,
   BuildingFactsResponse,
   LivabilityResponse,
@@ -443,6 +444,17 @@ interface ParsedHashRoute {
   buyerResume?: string;
 }
 
+function readCheckoutRouteParams(params: URLSearchParams): Pick<
+  ParsedHashRoute,
+  'reportId' | 'sessionId' | 'buyerResume'
+> {
+  return {
+    reportId: params.get('report') ?? undefined,
+    sessionId: params.get('session_id') ?? undefined,
+    buyerResume: params.get('buyer_resume') ?? undefined,
+  };
+}
+
 function settleWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<'done' | 'timeout'> {
   return new Promise((resolve) => {
     const timeoutId = window.setTimeout(() => resolve('timeout'), timeoutMs);
@@ -465,6 +477,8 @@ function parseHashRoute(hash: string): ParsedHashRoute {
 function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   const params = new URLSearchParams(queryPart);
   const normalizedPath = path === '/index.html' ? '/' : path;
+  const lookupId = params.get('lookup') ?? undefined;
+  const checkoutParams = readCheckoutRouteParams(params);
 
   if (normalizedPath === '/saved') return { route: 'shortlist' };
   if (normalizedPath === '/compare') return { route: 'compare' };
@@ -476,17 +490,30 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
       return {
         route: 'dossier',
         vboId: decodeURIComponent(dossierMatch[1]),
-        lookupId: params.get('lookup') ?? undefined,
-        reportId: params.get('report') ?? undefined,
-        sessionId: params.get('session_id') ?? undefined,
-        buyerResume: params.get('buyer_resume') ?? undefined,
+        lookupId,
+        ...checkoutParams,
       };
     } catch {
       return { route: 'search' };
     }
   }
 
-  if (normalizedPath === '/briefing') return { route: 'dossier' };
+  if (normalizedPath === '/briefing') {
+    return {
+      route: 'dossier',
+      lookupId,
+      ...checkoutParams,
+    };
+  }
+
+  if (normalizedPath === '/' && checkoutParams.reportId && checkoutParams.sessionId) {
+    return {
+      route: 'dossier',
+      lookupId,
+      ...checkoutParams,
+    };
+  }
+
   return { route: 'search' };
 }
 
@@ -518,8 +545,6 @@ function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.route === 'settings') return '#/settings';
   if (parsed.route !== 'dossier') return '#/search';
 
-  if (!parsed.vboId) return '#/briefing';
-
   const params = new URLSearchParams();
   if (parsed.lookupId) params.set('lookup', parsed.lookupId);
   if (parsed.reportId) params.set('report', parsed.reportId);
@@ -527,6 +552,7 @@ function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.buyerResume) params.set('buyer_resume', parsed.buyerResume);
 
   const query = params.toString();
+  if (!parsed.vboId) return `#/briefing${query ? `?${query}` : ''}`;
   return `#/address/${encodeURIComponent(parsed.vboId)}${query ? `?${query}` : ''}`;
 }
 
@@ -827,6 +853,7 @@ function App() {
   const [pendingDisplayName, setPendingDisplayName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const neighborhood3DRequestId = useRef(0);
+  const addressRef = useRef<ResolvedAddress | null>(dossierSeed?.address ?? null);
   const activeScreenRef = useRef<Screen>(initialHasDossier ? 'dossier' : 'search');
   const screenScrollPositionsRef = useRef(new Map<Screen, number>());
   const previousScreenForScrollRef = useRef<Screen>(initialHasDossier ? 'dossier' : 'search');
@@ -839,6 +866,9 @@ function App() {
   >(null);
   const resumePurchasedExportRef = useRef<
     ((reportId: string, provider: 'stripe' | 'google_play' | 'apple_app_store') => void) | null
+  >(null);
+  const recoverCheckoutAddressRef = useRef<
+    ((details: CheckoutConfirmationResponse) => Promise<boolean>) | null
   >(null);
   const latestEntitlementRef = useRef<{ reportId: string | null; isEntitled: boolean }>({
     reportId: null,
@@ -937,6 +967,10 @@ function App() {
       document.documentElement.scrollTop = clampedTop;
     }
   }, []);
+
+  useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
 
   useEffect(() => {
     activeScreenRef.current = activeScreen;
@@ -1120,10 +1154,16 @@ function App() {
     unlockedReportId: string,
     details?: Record<string, string | number | boolean>,
   ) => {
-    const pendingIntent = consumePostCheckoutExportIntent(unlockedReportId, uiLanguage);
-    if (!pendingIntent) {
-      logCheckoutResumeCheckpoint('resume_intent_missing');
-      return false;
+    const storedIntent = consumePostCheckoutExportIntent(unlockedReportId, uiLanguage);
+    const pendingIntent = storedIntent ?? {
+      reportId: unlockedReportId,
+      template: 'full_dossier' as const,
+      language: uiLanguage,
+    };
+    if (!storedIntent) {
+      logCheckoutResumeCheckpoint('resume_intent_missing', {
+        fallback_template: 'full_dossier',
+      });
     }
 
     setExportInitialTemplate(pendingIntent.template);
@@ -1444,7 +1484,7 @@ function App() {
         }
       }
 
-      const session = await createCheckoutSession(reportId);
+      const session = await createCheckoutSession(reportId, activeLookupId);
       navigateToExternal(session.checkout_url);
     } catch (error) {
       const checkoutUnavailable = error instanceof ApiError
@@ -3236,6 +3276,80 @@ function App() {
     trigger3DFetch,
   ]);
 
+  const recoverCheckoutAddress = useCallback(async (
+    confirmation: CheckoutConfirmationResponse,
+  ): Promise<boolean> => {
+    const targetVboId = confirmation.vbo_id ?? undefined;
+    if (
+      activeScreenRef.current === 'dossier'
+      && addressRef.current?.adresseerbaar_object_id
+      && (!targetVboId || addressRef.current.adresseerbaar_object_id === targetVboId)
+    ) {
+      return true;
+    }
+
+    const directLookupId = confirmation.lookup_id
+      ?? getReportLookup(confirmation.report_id)
+      ?? undefined;
+    let recoverySuggestion: AddressSuggestion | null = null;
+    let recoveryVia: 'lookup_id' | 'address_key' | null = null;
+
+    if (directLookupId) {
+      recoverySuggestion = {
+        id: directLookupId,
+        display_name: confirmation.address_key ?? directLookupId,
+        type: 'adres',
+        score: 1,
+      };
+      recoveryVia = 'lookup_id';
+    } else if (confirmation.address_key) {
+      try {
+        const candidates = await suggestAddresses(confirmation.address_key, 5);
+        for (const candidate of candidates.suggestions) {
+          if (!targetVboId) {
+            recoverySuggestion = candidate;
+            recoveryVia = 'address_key';
+            break;
+          }
+          try {
+            const resolved = await lookupAddress(candidate.id);
+            if (resolved.adresseerbaar_object_id === targetVboId) {
+              recoverySuggestion = candidate;
+              recoveryVia = 'address_key';
+              break;
+            }
+          } catch {
+            // Ignore candidate-level lookup failures and continue searching.
+          }
+        }
+      } catch {
+        // Fallback handled below.
+      }
+    }
+
+    if (!recoverySuggestion || !recoveryVia) {
+      logCheckoutResumeCheckpoint('route_recovery_missing', {
+        has_lookup_id: Boolean(directLookupId),
+        has_address_key: Boolean(confirmation.address_key),
+        has_vbo_id: Boolean(targetVboId),
+      });
+      return false;
+    }
+
+    logCheckoutResumeCheckpoint('route_recovery_started', {
+      via: recoveryVia,
+    });
+    await handleAddressSelect(recoverySuggestion, {
+      forcedReportId: confirmation.report_id,
+      recoveryMode: 'checkout_return',
+    });
+    logCheckoutResumeCheckpoint('route_recovery_completed', {
+      via: recoveryVia,
+    });
+    return true;
+  }, [handleAddressSelect, logCheckoutResumeCheckpoint]);
+  recoverCheckoutAddressRef.current = recoverCheckoutAddress;
+
   const handleSelectShortlistAddress = useCallback(async (vboId: string) => {
     const shortlistItem = shortlistItems.find((item) => item.vboId === vboId);
     if (!shortlistItem) return;
@@ -3397,8 +3511,9 @@ function App() {
 
     const hasDirectRoutePath = window.location.pathname !== '/'
       && window.location.pathname !== '/index.html';
+    const parsedInitialRoute = parseLocationRoute(window.location);
 
-    if (!window.location.hash && !hasDirectRoutePath) {
+    if (!window.location.hash && !hasDirectRoutePath && parsedInitialRoute.route === 'search') {
       setHashRoute(
         initialHasDossier
           ? dossierHash(address?.adresseerbaar_object_id, activeLookupId)
@@ -3478,8 +3593,22 @@ function App() {
         has_session_id: Boolean(checkoutVerification.sessionId),
       });
 
-      const finishSuccessfulVerification = (resolvedReportId: string) => {
+      const finishSuccessfulVerification = async (confirmation: CheckoutConfirmationResponse) => {
+        const resolvedReportId = confirmation.report_id;
         clearCheckoutReturnContext();
+        const needsRouteRecovery = activeScreenRef.current !== 'dossier'
+          || !addressRef.current?.adresseerbaar_object_id
+          || (
+            Boolean(confirmation.vbo_id)
+            && addressRef.current.adresseerbaar_object_id !== confirmation.vbo_id
+          );
+        if (needsRouteRecovery) {
+          try {
+            await recoverCheckoutAddressRef.current?.(confirmation);
+          } catch {
+            logCheckoutResumeCheckpoint('route_recovery_failed');
+          }
+        }
         activatePurchasedEntitlementRef.current?.(resolvedReportId, 'stripe');
         resumePurchasedExportRef.current?.(resolvedReportId, 'stripe');
         if (checkoutVerification.sessionId) {
@@ -3503,7 +3632,7 @@ function App() {
           if (cancelled) return 'failed';
 
           if (entitlement.entitled) {
-            finishSuccessfulVerification(entitlement.report_id);
+            await finishSuccessfulVerification(entitlement);
             return 'resolved';
           }
           return 'pending';
@@ -3528,7 +3657,12 @@ function App() {
             if (cancelled) return 'failed';
 
             if (entitlement.entitled) {
-              finishSuccessfulVerification(entitlement.report_id);
+              await finishSuccessfulVerification({
+                ...entitlement,
+                vbo_id: undefined,
+                address_key: undefined,
+                lookup_id: undefined,
+              });
               return 'resolved';
             }
           } catch {
@@ -4041,7 +4175,7 @@ function App() {
   );
 
   return (
-    <div className="app">
+    <div className="app" data-screen={activeScreen}>
       <a href="#main-content" className="sr-only sr-only--focusable" inert={isOverlayModalOpen || undefined}>{t('a11y.skip_to_content')}</a>
       <TopBar
         title={topBarTitle}
@@ -4330,12 +4464,14 @@ function App() {
                         {!viewer3DTriggered && !neighborhood3D && (
                           <div className="viewer-3d-status">
                             <p>{t('viewer3d.loading')}</p>
+                            <p>{t('viewer3d.loadingLong')}</p>
                           </div>
                         )}
 
                         {neighborhood3DLoading && (
                           <div className="viewer-3d-status">
                             <p>{t('viewer3d.loading')}</p>
+                            <p>{t('viewer3d.loadingLong')}</p>
                           </div>
                         )}
 

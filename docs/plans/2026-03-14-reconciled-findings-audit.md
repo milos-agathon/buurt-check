@@ -1,5 +1,7 @@
 # Buurt Check - Reconciled Findings Audit
 
+> Alignment note (2026-04-12): For any guidance affecting `https://buurt-check.nl/`, its associated legal pages, or `https://app.buurt-check.nl/#/search` and adjacent app UI states, `docs/plans/2026-04-12-website-and-app-design-10-10-spec.md` is the governing document. If this file conflicts with that spec on layout, hierarchy, spacing, visual system, bilingual asset handling, desktop adaptation, loading-state clarity, export recovery UX, or legal-page consistency, the 2026-04-12 spec controls.
+
 **Date:** 2026-03-14
 **Method:** Source verification against the current workspace
 **Scope:** Backend PDF/chart rendering, property warnings, viewing questions, 3D/sunlight flows, frontend dossier section composition, mounted-card localization, and sentinel validation

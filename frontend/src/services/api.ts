@@ -300,11 +300,17 @@ export async function checkEntitlement(reportId: string): Promise<EntitlementRes
   return resp.json();
 }
 
-export async function createCheckoutSession(reportId: string): Promise<CheckoutSessionResponse> {
+export async function createCheckoutSession(
+  reportId: string,
+  lookupId?: string | null,
+): Promise<CheckoutSessionResponse> {
   const resp = await fetchPrimaryApi(primaryApiUrl('/billing/checkout-session'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ report_id: reportId }),
+    body: JSON.stringify({
+      report_id: reportId,
+      ...(lookupId ? { lookup_id: lookupId } : {}),
+    }),
   });
   if (!resp.ok) {
     const detail = await readErrorDetail(resp);

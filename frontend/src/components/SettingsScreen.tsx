@@ -56,6 +56,9 @@ export default function SettingsScreen({
 
   return (
     <div className="settings-screen" data-testid="settings-screen">
+      <div className="settings-screen__group-block">
+        <p className="settings-screen__group-label">{t('settings.preferences.title', 'Language and appearance')}</p>
+      </div>
       <div className="settings-screen__group">
         <div className="settings-screen__row settings-screen__row--toggle">
           <span className="settings-screen__label">{t('settings.language')}</span>
@@ -157,6 +160,9 @@ export default function SettingsScreen({
         </div>
       )}
 
+      <div className="settings-screen__group-block">
+        <p className="settings-screen__group-label">{t('settings.storage.title', 'Saved data')}</p>
+      </div>
       <div className="settings-screen__group">
         <button
           className="settings-screen__action settings-screen__action--danger"

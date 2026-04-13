@@ -60,6 +60,8 @@ backend/tests/baselines/
 backend/tmp/
 .tmp/
 .pytest-basetemp-local/
+tmp/
+assets/google-stitch
 
 # Android / Bubblewrap
 android/.generated/

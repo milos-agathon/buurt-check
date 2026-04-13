@@ -1,5 +1,7 @@
 # Risk Benchmarks
 
+> Alignment note (2026-04-12): For any guidance affecting `https://buurt-check.nl/`, its associated legal pages, or `https://app.buurt-check.nl/#/search` and adjacent app UI states, `docs/plans/2026-04-12-website-and-app-design-10-10-spec.md` is the governing document. If this file conflicts with that spec on layout, hierarchy, spacing, visual system, bilingual asset handling, desktop adaptation, loading-state clarity, export recovery UX, or legal-page consistency, the 2026-04-12 spec controls.
+
 `backend/app/services/risk_comparisons.py` now loads customer-visible comparison benchmarks from [backend/app/data/risk_benchmarks.json](/c:/Users/milos/buurt-check/backend/app/data/risk_benchmarks.json).
 
 The artifact is versioned and carries benchmark provenance instead of hiding it in service literals. Each category block contains:

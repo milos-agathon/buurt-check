@@ -102,9 +102,12 @@ function LivabilityCard({ data, loading, error, onTap, onRetry }: Props) {
           </p>
         </div>
         {onTap && (
-          <svg className="livability-card__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
+          <div className="livability-card__cta" aria-hidden="true">
+            <span className="livability-card__cta-label">{t('livability.openDetails', 'Open details')}</span>
+            <svg className="livability-card__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
         )}
       </div>
 

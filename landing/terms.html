@@ -9,9 +9,32 @@
       content="Terms of use for Buurt Check web, Android, and iPhone app experiences."
     />
     <meta name="buurtcheck-ga-measurement-id" content="__BUURTCHECK_GA_MEASUREMENT_ID__" />
+    <meta name="buurtcheck-app-url" content="__BUURTCHECK_APP_URL__" />
     <link rel="icon" type="image/svg+xml" href="/logos/buurt-check-favicon.svg" />
     <link rel="stylesheet" href="/legal.css" />
     <link rel="stylesheet" href="/analytics-consent.css" />
+    <script>
+      (function () {
+        const APP_URL_PLACEHOLDER = '__BUURTCHECK' + '_APP_URL__';
+        const DEFAULT_APP_URL = 'https://app.buurt-check.nl/#/search';
+        const DEFAULT_LOCAL_APP_URL = 'http://127.0.0.1:5173/#/search';
+        const configuredAppUrl = document
+          .querySelector('meta[name="buurtcheck-app-url"]')
+          ?.getAttribute('content')
+          ?.trim() || '';
+        const isLocalHostname = /^(127\.0\.0\.1|localhost|::1|\[::1\])$/i.test(window.location.hostname);
+        const resolvedAppUrl = configuredAppUrl && configuredAppUrl !== APP_URL_PLACEHOLDER
+          ? configuredAppUrl
+          : (isLocalHostname ? DEFAULT_LOCAL_APP_URL : DEFAULT_APP_URL);
+
+        window.BUURTCHECK_LANDING_APP_URL = resolvedAppUrl;
+        window.addEventListener('DOMContentLoaded', () => {
+          document.querySelectorAll('[data-app-link]').forEach((node) => {
+            node.setAttribute('href', resolvedAppUrl);
+          });
+        });
+      }());
+    </script>
     <script>
       (function () {
         const GA_PLACEHOLDER = '__BUURTCHECK' + '_GA_MEASUREMENT_ID__';
@@ -97,11 +120,11 @@
   <body>
     <main class="legal-page">
       <div class="legal-page__topbar">
-        <a class="legal-page__brand" href="https://app.buurt-check.nl/#/search">
+        <a class="legal-page__brand" href="https://app.buurt-check.nl/#/search" data-app-link>
           <img src="/logos/buurt-check-lockup-horizontal.svg" alt="Buurt Check" />
           <span>Buurt Check</span>
         </a>
-        <a class="legal-page__back" href="https://app.buurt-check.nl/#/search">Back to the app</a>
+        <a class="legal-page__back" href="https://app.buurt-check.nl/#/search" data-app-link>Back to the app</a>
       </div>
 
       <section class="legal-page__hero">

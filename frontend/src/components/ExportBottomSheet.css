@@ -1,25 +1,56 @@
 .export-sheet {
-  padding: var(--space-md) 0;
+  padding: var(--space-md) 0 var(--space-sm);
 }
 
 .export-sheet__title {
   font: var(--type-h2);
   color: var(--color-text);
-  margin: 0 0 var(--space-lg);
+  margin: 0;
+}
+
+.export-sheet__intro {
+  margin: var(--space-sm) 0 var(--space-lg);
+  font: var(--type-small);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.export-sheet__durability {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 58%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-alt) 84%, transparent), var(--color-surface));
+}
+
+.export-sheet__durability-title {
+  margin: 0 0 var(--space-xs);
+  font: var(--type-caption);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.export-sheet__durability-copy {
+  margin: 0;
+  font: var(--type-small);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
 }
 
 .export-sheet__section {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  padding: var(--space-sm) 0 var(--space-md);
+  padding: var(--space-md) 0 var(--space-lg);
   border-bottom: 1px solid var(--color-border);
 }
 
 .export-sheet__templates {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-xs);
+  gap: var(--space-sm);
 }
 
 .export-sheet__template-card {
@@ -27,16 +58,21 @@
   width: 100%;
   text-align: left;
   border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
   color: var(--color-text);
-  border-radius: var(--radius-md);
-  padding: var(--space-sm);
+  border-radius: 18px;
+  padding: var(--space-md);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-height: 112px;
+  gap: var(--space-xs);
+  min-height: 124px;
   cursor: pointer;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.export-sheet__template-card:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
+  transform: translateY(-1px);
 }
 
 .export-sheet__template-card:focus-visible {
@@ -46,9 +82,9 @@
 }
 
 .export-sheet__template-card--active {
-  background: var(--color-accent-light);
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 16%, transparent);
 }
 
 .export-sheet__template-illus {
@@ -61,7 +97,7 @@
 
 .export-sheet__template-title {
   font: var(--type-body);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .export-sheet__template-meta {
@@ -71,7 +107,7 @@
 
 .export-sheet__label {
   font: var(--type-caption);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text-secondary);
 }
 
@@ -79,7 +115,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  width: 160px;
+  width: 172px;
   padding: 4px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
@@ -89,9 +125,9 @@
 .export-sheet__language-btn {
   border: 0;
   border-radius: var(--radius-pill);
-  padding: 8px 0;
+  padding: 10px 0;
   font: var(--type-micro);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text-secondary);
   background: transparent;
   cursor: pointer;
@@ -104,8 +140,8 @@
 }
 
 .export-sheet__language-btn--active {
-  background: var(--color-accent);
-  color: var(--color-overlay-text);
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+  color: var(--color-text);
 }
 
 .export-sheet__language-warning,
@@ -113,12 +149,14 @@
 .export-sheet__checkout-warning {
   margin: var(--space-xs) 0 0;
   font: var(--type-micro);
+  line-height: 1.6;
   color: var(--color-badge-caution-text);
 }
 
 .export-sheet__sunlight-status {
   margin: var(--space-xs) 0 0;
   font: var(--type-micro);
+  line-height: 1.6;
   color: var(--color-text-secondary);
 }
 
@@ -126,7 +164,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-md) 0;
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
   font: var(--type-body);
   color: var(--color-text);
   cursor: pointer;
@@ -141,7 +183,7 @@
 .export-sheet__toggle:focus-within {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: 16px;
 }
 
 .export-sheet__error {
@@ -166,11 +208,12 @@
 
 .export-sheet__resume-note {
   margin: var(--space-sm) 0 0;
-  padding: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface-alt));
   font: var(--type-micro);
+  line-height: 1.6;
   color: var(--color-text);
 }
 
@@ -183,24 +226,28 @@
 }
 
 .export-sheet__progress {
-  margin-top: var(--space-sm);
+  margin-top: var(--space-lg);
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   align-items: center;
+  padding: var(--space-lg) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-surface-alt) 70%, var(--color-surface));
 }
 
 .export-sheet__progress-ring {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   display: grid;
   place-items: center;
 }
 
 .export-sheet__progress-svg {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   transform: rotate(-90deg);
 }
 
@@ -242,9 +289,9 @@
   .export-sheet__progress-svg--indeterminate {
     animation: none;
   }
+
   .export-sheet__progress-value--indeterminate {
     animation: none;
-    /* Show a static partial arc instead of animating */
     stroke-dashoffset: 50;
   }
 }
@@ -266,17 +313,19 @@
 }
 
 .export-sheet__progress-text {
-  font: var(--type-micro);
+  font: var(--type-small);
+  line-height: 1.6;
   color: var(--color-text-secondary);
   text-align: center;
+  margin: 0;
 }
 
 .export-sheet__ready {
-  margin-top: var(--space-sm);
-  padding: var(--space-sm);
-  background: var(--color-surface-alt);
+  margin-top: var(--space-lg);
+  padding: var(--space-md);
+  background: color-mix(in srgb, var(--color-surface-alt) 76%, var(--color-surface));
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: 20px;
 }
 
 .export-sheet__ready-header {
@@ -286,8 +335,8 @@
 .export-sheet__actions {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
-  margin-top: var(--space-xs);
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
 }
 
 .export-sheet__actions .export-sheet__btn {
@@ -297,15 +346,16 @@
 .export-sheet__btn {
   width: 100%;
   margin-top: var(--space-lg);
+  min-height: 52px;
   padding: var(--space-md) var(--space-lg);
   background: var(--color-accent);
   color: var(--color-overlay-text);
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   font: var(--type-body);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: opacity var(--duration-fast) var(--ease-out-subtle);
+  transition: opacity var(--duration-fast) var(--ease-out-subtle), transform var(--duration-fast) var(--ease-out-subtle);
 }
 
 .export-sheet__btn:focus-visible {
@@ -315,7 +365,8 @@
 }
 
 .export-sheet__btn:hover:not(:disabled) {
-  opacity: 0.9;
+  opacity: 0.92;
+  transform: translateY(-1px);
 }
 
 .export-sheet__btn:disabled {
@@ -326,6 +377,6 @@
 .export-sheet__btn--secondary {
   margin-top: 0;
   background: var(--color-surface);
-  color: var(--color-accent-text);
-  border: 1px solid var(--color-accent);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
 }

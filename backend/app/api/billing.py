@@ -88,18 +88,33 @@ def _request_origin(request: Request) -> str:
     return f"{proto}://{host}".rstrip("/")
 
 
+def _public_request_origin(request: Request) -> str | None:
+    """Return a non-local public origin inferred from the request when available."""
+    request_origin = _request_origin(request)
+    parsed = urlsplit(request_origin)
+    hostname = parsed.hostname
+
+    if parsed.scheme not in {"http", "https"} or not hostname:
+        return None
+    if hostname in {"localhost", "127.0.0.1"}:
+        return None
+    if "." not in hostname:
+        return None
+
+    return urlunsplit((parsed.scheme, parsed.netloc, "", "", "")).rstrip("/")
+
+
 def _public_base_url(request: Request) -> str:
-    """Prefer a configured public origin, but never emit localhost in production."""
+    """Prefer the configured app origin, falling back to a public request origin."""
     configured = normalized_base_url(settings.base_url)
     if configured and configured not in LOCAL_BASE_URLS:
         return configured
 
-    request_origin = _request_origin(request)
-    parsed = urlsplit(request_origin)
-    if parsed.scheme in {"http", "https"} and parsed.hostname not in {"localhost", "127.0.0.1"}:
-        return urlunsplit((parsed.scheme, parsed.netloc, "", "", "")).rstrip("/")
+    request_origin = _public_request_origin(request)
+    if request_origin:
+        return request_origin
 
-    return configured or request_origin
+    return configured or _request_origin(request)
 
 
 @public_router.get("/pricing", response_model=PricingResponse)
@@ -122,6 +137,7 @@ class CheckoutRequest(BaseModel):
         ...,
         pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     )
+    lookup_id: str | None = Field(default=None, min_length=1, max_length=512)
 
 
 class CheckoutResponse(BaseModel):
@@ -132,6 +148,9 @@ class CheckoutConfirmationResponse(BaseModel):
     report_id: str
     entitled: bool
     report_type: Literal["short", "long"]
+    vbo_id: str | None = None
+    address_key: str | None = None
+    lookup_id: str | None = None
 
 
 class GooglePlayVerifyRequest(BaseModel):
@@ -225,8 +244,16 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
             "report": body.report_id,
             "session_id": "{CHECKOUT_SESSION_ID}",
         }
+        fragment_params = {}
         if buyer_resume:
             success_params["buyer_resume"] = buyer_resume
+        if body.lookup_id:
+            success_params["lookup"] = body.lookup_id
+            fragment_params["lookup"] = body.lookup_id
+        fragment_query = urlencode(fragment_params)
+        dossier_fragment = f"#/address/{report.vbo_id}"
+        if fragment_query:
+            dossier_fragment = f"{dossier_fragment}?{fragment_query}"
         session = await asyncio.to_thread(
             stripe.checkout.Session.create,
             mode="payment",
@@ -245,12 +272,13 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
             ],
             success_url=(
                 f"{public_base_url}/?{urlencode(success_params, safe='{}')}"
-                f"#/address/{report.vbo_id}"
+                f"{dossier_fragment}"
             ),
-            cancel_url=f"{public_base_url}/#/address/{report.vbo_id}",
+            cancel_url=f"{public_base_url}/{dossier_fragment}",
             metadata={
                 "report_id": body.report_id,
                 "vbo_id": report.vbo_id,
+                **({"lookup_id": body.lookup_id} if body.lookup_id else {}),
             },
         )
     except stripe.AuthenticationError as exc:
@@ -336,6 +364,8 @@ async def confirm_checkout_session(
             report_id=report_id,
             entitled=True,
             report_type=report.report_type,
+            vbo_id=report.vbo_id,
+            address_key=report.address_key,
         )
 
     readiness = get_stripe_web_checkout_readiness()
@@ -360,6 +390,7 @@ async def confirm_checkout_session(
     metadata = _stripe_field(session, "metadata")
     metadata_report_id = _stripe_field(metadata, "report_id")
     metadata_vbo_id = _stripe_field(metadata, "vbo_id")
+    metadata_lookup_id = _stripe_field(metadata, "lookup_id")
     if metadata_report_id != report_id or metadata_vbo_id != report.vbo_id:
         raise HTTPException(status_code=409, detail="Checkout session does not match report")
 
@@ -368,6 +399,9 @@ async def confirm_checkout_session(
             report_id=report_id,
             entitled=False,
             report_type=report.report_type,
+            vbo_id=report.vbo_id,
+            address_key=report.address_key,
+            lookup_id=metadata_lookup_id if isinstance(metadata_lookup_id, str) else None,
         )
 
     payment_intent = _stripe_field(session, "payment_intent")
@@ -421,6 +455,9 @@ async def confirm_checkout_session(
         report_id=report_id,
         entitled=True,
         report_type=report.report_type,
+        vbo_id=report.vbo_id,
+        address_key=report.address_key,
+        lookup_id=metadata_lookup_id if isinstance(metadata_lookup_id, str) else None,
     )
 
 

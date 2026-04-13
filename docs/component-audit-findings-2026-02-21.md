@@ -1,5 +1,7 @@
 # Frontend Component Audit Findings (2026-02-21, Updated 2026-02-22)
 
+> Alignment note (2026-04-12): For any guidance affecting `https://buurt-check.nl/`, its associated legal pages, or `https://app.buurt-check.nl/#/search` and adjacent app UI states, `docs/plans/2026-04-12-website-and-app-design-10-10-spec.md` is the governing document. If this file conflicts with that spec on layout, hierarchy, spacing, visual system, bilingual asset handling, desktop adaptation, loading-state clarity, export recovery UX, or legal-page consistency, the 2026-04-12 spec controls.
+
 ## Scope
 Audit of implemented React components in `frontend/src` against the reconciled component contracts in `docs/design-spec.md` (canonical visual implementation source per `docs/design-prd.md:6`), supplemented by a senior design assessment identifying UX gaps not covered by spec-vs-implementation drift.
 

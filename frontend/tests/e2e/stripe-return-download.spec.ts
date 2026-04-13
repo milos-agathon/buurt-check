@@ -38,6 +38,11 @@ const DOSSIER_SEED = {
     summer: 9.7,
     annualAverage: 6.1,
   },
+  shadowSnapshots: [
+    { label: 'winter', hour: 12, dataUrl: 'data:image/png;base64,AAA', viewpoint: 'top' },
+    { label: 'equinox', hour: 12, dataUrl: 'data:image/png;base64,BBB', viewpoint: 'top' },
+    { label: 'summer', hour: 12, dataUrl: 'data:image/png;base64,CCC', viewpoint: 'top' },
+  ],
 };
 
 const PDF_BYTES = Buffer.from(

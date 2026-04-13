@@ -539,6 +539,27 @@ export default function ExportBottomSheet({
     <BottomSheet isOpen={isOpen} onClose={handleCloseRequest} height="45vh" ariaLabel={sheetTitle}>
       <div className="export-sheet" data-testid="export-sheet">
         <h3 className="export-sheet__title">{sheetTitle}</h3>
+        {!isPostCheckoutRecovery && (
+          <>
+            <p className="export-sheet__intro">
+              {t(
+                'export.intro',
+                'Choose the format and language. The quick brief is free. The full dossier is paid once per address.',
+              )}
+            </p>
+            <div className="export-sheet__durability" data-testid="export-durability-note">
+              <p className="export-sheet__durability-title">
+                {t('export.durabilityTitle', 'Access and recovery')}
+              </p>
+              <p className="export-sheet__durability-copy">
+                {t(
+                  'export.durabilityBeforePurchase',
+                  'After payment, the full dossier stays tied to this address in this browser session so you can reopen export from the dossier if needed.',
+                )}
+              </p>
+            </div>
+          </>
+        )}
 
         {isPostCheckoutRecovery ? (
           <>
@@ -612,6 +633,12 @@ export default function ExportBottomSheet({
                 <div className="export-sheet__ready-header">
                   <p className="export-sheet__progress-text">
                     {t('export.progress.ready', 'PDF is ready. Share it or download a copy.')}
+                  </p>
+                  <p className="export-sheet__resume-note export-sheet__resume-note--ready">
+                    {t(
+                      'export.downloadReadyNote',
+                      'If you are not ready to save it now, reopen export from this dossier in the same browser session.',
+                    )}
                   </p>
                   {exportTooltipVisible && (
                     <ContextualTooltip
@@ -828,6 +855,12 @@ export default function ExportBottomSheet({
                 <div className="export-sheet__ready-header">
                   <p className="export-sheet__progress-text">
                     {t('export.progress.ready', 'PDF is ready. Share it or download a copy.')}
+                  </p>
+                  <p className="export-sheet__resume-note export-sheet__resume-note--ready">
+                    {t(
+                      'export.downloadReadyNote',
+                      'If you are not ready to save it now, reopen export from this dossier in the same browser session.',
+                    )}
                   </p>
                   {exportTooltipVisible && (
                     <ContextualTooltip

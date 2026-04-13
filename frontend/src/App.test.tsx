@@ -1358,7 +1358,7 @@ describe('3D viewer integration', () => {
     });
 
     await waitFor(() => {
-      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123');
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123', 'adr-abc123');
     });
   });
 
@@ -1427,7 +1427,7 @@ describe('3D viewer integration', () => {
     });
 
     await waitFor(() => {
-      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123');
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123', 'adr-abc123');
     });
     expect(mockNavigateToExternal).toHaveBeenCalledWith(
       'https://checkout.stripe.com/c/pay/cs_test_123',
@@ -1464,7 +1464,7 @@ describe('3D viewer integration', () => {
     });
 
     await waitFor(() => {
-      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123');
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123', 'adr-abc123');
     });
     expect(sessionStorage.getItem('buurt-check:post-checkout-export')).toBe(
       JSON.stringify({
@@ -1503,7 +1503,7 @@ describe('3D viewer integration', () => {
     });
 
     await waitFor(() => {
-      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123');
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123', 'adr-abc123');
     });
     await waitFor(() => {
       expect(mockBuilding3D).toHaveBeenCalled();
@@ -1791,6 +1791,164 @@ describe('3D viewer integration', () => {
     });
     expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
     expect(sessionStorage.getItem('buurt-check:post-checkout-export')).toBeNull();
+  });
+
+  it('recovers a Stripe return that lands without the address hash', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token',
+    );
+    sessionStorage.setItem(
+      'buurt-check:report-lookup:report-123',
+      'adr-abc123',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+    mockConfirmStripeCheckoutSession.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: true,
+      report_type: 'short',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith(
+        'report-123',
+        'cs_test_123',
+        'signed-buyer-token',
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
+    });
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/address/vbo-123?lookup=adr-abc123');
+    });
+    expect(screen.queryByText('Payment could not be completed. Please try again.')).not.toBeInTheDocument();
+  });
+
+  it('replaces a seeded old dossier with the paid checkout address before resuming export', async () => {
+    localStorage.setItem('buurt-check-e2e-dossier-seed', JSON.stringify({
+      address: makeResolvedAddress({
+        id: 'adr-old123',
+        adresseerbaar_object_id: 'vbo-old',
+        display_name: 'Oudezijds 1, 1012AA Amsterdam',
+      }),
+      buildingResponse: makeBuildingResponse({
+        address_id: 'vbo-old',
+        building: makeBuildingResponse().building,
+      }),
+    }));
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token',
+    );
+    sessionStorage.setItem(
+      'buurt-check:post-checkout-export',
+      JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockConfirmStripeCheckoutSession.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: true,
+      report_type: 'short',
+      vbo_id: 'vbo-123',
+      address_key: 'Keizersgracht 100, 1015AA Amsterdam',
+      lookup_id: 'adr-abc123',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith(
+        'report-123',
+        'cs_test_123',
+        'signed-buyer-token',
+      );
+    });
+    await waitFor(() => {
+      expect(mockLookup).toHaveBeenCalledWith('adr-abc123', expect.any(AbortSignal));
+    });
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/address/vbo-123?lookup=adr-abc123');
+    });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
+    });
+    expect(screen.queryByText('Payment could not be completed. Please try again.')).not.toBeInTheDocument();
+  });
+
+  it('recovers a legacy Stripe return with no lookup cache and no stored export intent', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?report=report-123&session_id=cs_test_123&buyer_resume=signed-buyer-token#/address/vbo-123',
+    );
+    mockSuggest.mockResolvedValue({
+      suggestions: [makeSuggestion()],
+    });
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCheckEntitlement.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: false,
+      report_type: 'short',
+    });
+    mockConfirmStripeCheckoutSession.mockResolvedValue({
+      report_id: 'report-123',
+      entitled: true,
+      report_type: 'short',
+      vbo_id: 'vbo-123',
+      address_key: 'Keizersgracht 100, 1015AA Amsterdam',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockConfirmStripeCheckoutSession).toHaveBeenCalledWith(
+        'report-123',
+        'cs_test_123',
+        'signed-buyer-token',
+      );
+    });
+    await waitFor(() => {
+      expect(mockSuggest).toHaveBeenCalledWith('Keizersgracht 100, 1015AA Amsterdam', 5);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(mockExportBriefing).toHaveBeenCalledWith(expect.objectContaining({
+        reportId: 'report-123',
+        template: 'full_dossier',
+      }));
+    });
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/address/vbo-123?lookup=adr-abc123');
+    });
+    expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
   });
 
   it('retries transient Stripe confirmation errors and still resumes the export', async () => {

@@ -10,6 +10,7 @@ interface TopBarProps {
 }
 
 const LOGO_TITLE = 'buurt-check';
+const SETTINGS_GEAR_ROTATIONS = [0, 45, 90, 135, 180, 225, 270, 315];
 
 export default function TopBar({ title, onSettingsClick, inert, activeScreen }: TopBarProps) {
   const { t, i18n } = useTranslation();
@@ -77,9 +78,22 @@ export default function TopBar({ title, onSettingsClick, inert, activeScreen }: 
         </div>
         {onSettingsClick && (
           <button type="button" className="top-bar__settings" onClick={onSettingsClick} aria-label={t('aria.settings')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <g fill="currentColor">
+                {SETTINGS_GEAR_ROTATIONS.map((rotation) => (
+                  <rect
+                    key={rotation}
+                    x="10.55"
+                    y="1.85"
+                    width="2.9"
+                    height="5.05"
+                    rx="1.25"
+                    transform={`rotate(${rotation} 12 12)`}
+                  />
+                ))}
+              </g>
+              <circle cx="12" cy="12" r="6.35" fill="none" stroke="currentColor" strokeWidth="2.65" />
+              <circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" strokeWidth="2.2" />
             </svg>
           </button>
         )}

@@ -1,5 +1,7 @@
 # buurt-check — Complete Visual Design Specification
 
+> Alignment note (2026-04-12): For any guidance affecting `https://buurt-check.nl/`, its associated legal pages, or `https://app.buurt-check.nl/#/search` and adjacent app UI states, `docs/plans/2026-04-12-website-and-app-design-10-10-spec.md` is the governing document. If this file conflicts with that spec on layout, hierarchy, spacing, visual system, bilingual asset handling, desktop adaptation, loading-state clarity, export recovery UX, or legal-page consistency, the 2026-04-12 spec controls.
+
 > **Version:** 3.0 | **Last updated:** 2026-02-16
 > **Design direction:** "Polar Frost" (Phase 1 authority)
 > **Brand personality:** Confident, clear, empowering

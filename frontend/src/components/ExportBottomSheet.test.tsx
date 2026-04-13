@@ -56,6 +56,7 @@ describe('ExportBottomSheet', () => {
     expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     expect(screen.getByText('Download viewing checklist')).toBeInTheDocument();
     expect(screen.getByText(/Quick checklist/i)).toBeInTheDocument();
+    expect(screen.getByTestId('export-durability-note')).toBeInTheDocument();
   });
 
   it('shows updated Full Dossier page metadata', () => {
@@ -192,6 +193,10 @@ describe('ExportBottomSheet', () => {
     expect(screen.getByTestId('export-post-checkout-waiting')).toHaveTextContent(
       'Your full dossier is unlocked. We will prepare it automatically. This can take a moment.',
     );
+    expect(screen.queryByText(
+      'Choose the format and language. The quick brief is free. The full dossier is paid once per address.',
+    )).not.toBeInTheDocument();
+    expect(screen.queryByTestId('export-durability-note')).not.toBeInTheDocument();
     expect(screen.getByTestId('export-progress')).toBeInTheDocument();
     expect(screen.getByText('Preparing dossier...')).toBeInTheDocument();
     expect(api.exportBriefing).not.toHaveBeenCalled();

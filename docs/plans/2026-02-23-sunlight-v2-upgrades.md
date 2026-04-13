@@ -1,5 +1,7 @@
 # Sunlight v2 Upgrades Implementation Plan
 
+> Alignment note (2026-04-12): For any guidance affecting `https://buurt-check.nl/`, its associated legal pages, or `https://app.buurt-check.nl/#/search` and adjacent app UI states, `docs/plans/2026-04-12-website-and-app-design-10-10-spec.md` is the governing document. If this file conflicts with that spec on layout, hierarchy, spacing, visual system, bilingual asset handling, desktop adaptation, loading-state clarity, export recovery UX, or legal-page consistency, the 2026-04-12 spec controls.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Revision 3** — Incorporates adversarial review feedback: fixed async test syntax (C1), persistent Worker reuse (C2), matrixWorld bake into serialization (C3), Worker progress emission (C4), per-timestep loop structure fix (C5), facade self-shadow exclusion (D1), PVGIS URL in config.py (D2).

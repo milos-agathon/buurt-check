@@ -1,5 +1,7 @@
 # Buurt Check — UX Epic Backlog
 
+> Alignment note (2026-04-12): For any guidance affecting `https://buurt-check.nl/`, its associated legal pages, or `https://app.buurt-check.nl/#/search` and adjacent app UI states, `docs/plans/2026-04-12-website-and-app-design-10-10-spec.md` is the governing document. If this file conflicts with that spec on layout, hierarchy, spacing, visual system, bilingual asset handling, desktop adaptation, loading-state clarity, export recovery UX, or legal-page consistency, the 2026-04-12 spec controls.
+
 > **Source:** Deduplicated from `docs/plans/2026-02-23-ux-appraisal.md` (4 auditors, 130+ findings, verified against HEAD `6cac7dd`)
 > **Date:** 2026-02-24
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

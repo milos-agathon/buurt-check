@@ -2,25 +2,29 @@
   padding: var(--space-base);
   display: flex;
   flex-direction: column;
-  gap: var(--space-base);
+  gap: var(--space-lg);
 }
 
 .compare-screen__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
 }
 
 .compare-screen__back {
-  border: none;
-  background: none;
-  font: var(--type-body);
-  color: var(--color-accent-text);
-  cursor: pointer;
-  padding: var(--space-xs);
   min-height: 44px;
+  padding: 0 var(--space-base);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
+  font: var(--type-body-medium);
+  color: var(--color-text);
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
+  gap: var(--space-xs);
 }
 
 .compare-screen__back:focus-visible {
@@ -30,12 +34,13 @@
 }
 
 .compare-screen__filter {
-  padding: var(--space-xs) var(--space-sm);
+  padding: 0 var(--space-base);
   min-height: 44px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  font: var(--type-micro);
+  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
+  font: var(--type-small);
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -47,24 +52,27 @@
 }
 
 .compare-screen__filter--active {
-  background: var(--color-accent);
-  color: var(--color-overlay-text);
-  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+  color: var(--color-text);
+  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
 }
 
 .compare-screen__filter-hint {
-  font: var(--type-micro);
+  font: var(--type-small);
   color: var(--color-text-secondary);
   margin: 0;
+  padding: 0 var(--space-xs);
 }
 
 .compare-screen__summary {
-  background: var(--color-surface-alt);
-  border-radius: var(--radius-base);
-  padding: var(--space-base);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius-card) + 2px);
+  padding: var(--space-lg);
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  box-shadow: var(--elevation-1);
 }
 
 .compare-screen__summary-title {
@@ -80,12 +88,14 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
 }
 
 .compare-screen__summary-row--leader {
-  border-left: 3px solid var(--color-risk-good);
+  border-color: color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-accent) 70%, transparent);
 }
 
 .compare-screen__summary-address {
@@ -110,7 +120,9 @@
   font-size: 13px;
   color: var(--color-text-secondary);
   text-align: center;
-  padding: var(--space-xs) 0;
+  padding: var(--space-sm);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
 }
 
 .compare-screen__summary-caveat {
@@ -131,18 +143,19 @@
   margin: 0 auto;
   min-height: 44px;
   padding: 0 var(--space-xl);
-  border: 2px solid var(--color-accent-text);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
   border-radius: var(--radius-pill);
-  background: none;
-  color: var(--color-accent-text);
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-surface));
+  color: var(--color-text);
   font: var(--type-body-medium);
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .compare-screen__cta:hover {
-  background: var(--color-accent-text);
-  color: var(--color-overlay-text);
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  transform: translateY(-1px);
 }
 
 .compare-screen__cta:active {
@@ -172,7 +185,7 @@
 .compare-screen__snap-column {
   flex: 0 0 calc(50vw - var(--space-base));
   min-width: 140px;
-  max-width: 220px;
+  max-width: 240px;
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
@@ -184,9 +197,11 @@
   flex-direction: column;
   gap: 2px;
   padding: var(--space-sm);
-  background: var(--color-surface);
-  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
   min-height: 56px;
+  box-shadow: var(--elevation-1);
 }
 
 .compare-screen__col-address {
@@ -212,6 +227,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius-card) + 2px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
+  box-shadow: var(--elevation-1);
 }
 
 .compare-screen__chart-title {
@@ -233,8 +253,9 @@
   flex-direction: column;
   gap: var(--space-xs);
   padding: var(--space-sm);
-  background: var(--color-surface);
-  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-alt) 76%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: 16px;
   border-left: 3px solid transparent;
 }
 
@@ -254,4 +275,18 @@
   height: 8px;
   border-radius: 999px;
   background: var(--color-border);
+}
+
+@media (min-width: 960px) {
+  .compare-screen {
+    padding: var(--space-xl);
+  }
+
+  .compare-screen__snap-columns {
+    gap: var(--space-base);
+  }
+
+  .compare-screen__snap-column {
+    flex-basis: min(240px, calc(33.333% - var(--space-base)));
+  }
 }

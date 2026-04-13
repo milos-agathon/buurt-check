@@ -2041,6 +2041,8 @@ export default function NeighborhoodViewer3D({
     sunlightRetryToken,
   ]);
 
+  const loadingNarrative = statusMessage ?? t('viewer3d.loadingLong', 'We are loading the target building and the surrounding context. First load can take 15-20 seconds.');
+
   return (
     <div className="viewer-3d" data-testid="viewer-3d">
       <h2 className="viewer-3d__title">{t('viewer3d.title')}</h2>
@@ -2048,6 +2050,7 @@ export default function NeighborhoodViewer3D({
         className="viewer-3d__canvas"
         ref={containerRef}
         data-testid="viewer-3d-canvas"
+        data-state={loading ? 'loading' : error ? 'error' : 'ready'}
         tabIndex={0}
         role="application"
         aria-label={t('viewer3d.canvasAria')}
@@ -2055,7 +2058,15 @@ export default function NeighborhoodViewer3D({
         onKeyDown={handleKeyDown}
       >
         {loading ? (
-          <div className="viewer-3d__skeleton" aria-label={t('viewer3d.loading')} aria-busy="true" />
+          <div className="viewer-3d__loading" role="status" aria-live="polite" aria-label={t('viewer3d.loading')} aria-busy="true">
+            <p className="viewer-3d__loading-eyebrow">{t('viewer3d.loadingLabel', '3D analysis')}</p>
+            <h3 className="viewer-3d__loading-title">{t('viewer3d.loading')}</h3>
+            <p className="viewer-3d__loading-copy">{loadingNarrative}</p>
+            <div className="viewer-3d__loading-stages" aria-hidden="true">
+              <span className="viewer-3d__loading-stage viewer-3d__loading-stage--active">{t('viewer3d.loadingStageTarget', 'Target building')}</span>
+              <span className="viewer-3d__loading-stage">{t('viewer3d.loadingStageContext', 'Surrounding context')}</span>
+            </div>
+          </div>
         ) : (
           <button
             className="viewer-3d__reset-btn"
@@ -2102,7 +2113,7 @@ export default function NeighborhoodViewer3D({
       <p id={sceneSummaryId} className="viewer-3d__summary">
         {staticSceneSummary} {interactionHint}
       </p>
-      {statusMessage && !error && (
+      {statusMessage && !error && !loading && (
         <p className="viewer-3d__status-message">{statusMessage}</p>
       )}
       <p className="viewer-3d__source">{t('viewer3d.source')}</p>

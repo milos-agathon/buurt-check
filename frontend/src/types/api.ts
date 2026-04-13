@@ -31,6 +31,9 @@ export interface CheckoutConfirmationResponse {
   report_id: string;
   entitled: boolean;
   report_type: 'short' | 'long';
+  vbo_id?: string | null;
+  address_key?: string | null;
+  lookup_id?: string | null;
 }
 
 export interface GooglePlayPurchaseVerificationResponse {

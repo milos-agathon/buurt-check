@@ -6,7 +6,9 @@ const ROOT_DIR = process.cwd();
 const LANDING_DIR = resolve(ROOT_DIR, 'landing');
 const OUTPUT_DIR = resolve(ROOT_DIR, process.env.LANDING_BUILD_DIR ?? 'dist-landing');
 const LANDING_GA_MEASUREMENT_ID = (process.env.BUURTCHECK_GA_MEASUREMENT_ID ?? '').trim();
+const LANDING_APP_URL = (process.env.BUURTCHECK_LANDING_APP_URL ?? 'https://app.buurt-check.nl/#/search').trim();
 const GA_MEASUREMENT_PLACEHOLDER = '__BUURTCHECK_GA_MEASUREMENT_ID__';
+const APP_URL_PLACEHOLDER = '__BUURTCHECK_APP_URL__';
 
 function escapeHtmlAttribute(value) {
   return value
@@ -34,10 +36,15 @@ function copyTree(sourceDir, targetDir) {
     }
 
     if (sourcePath.endsWith('.html')) {
-      const html = readFileSync(sourcePath, 'utf8').replaceAll(
-        GA_MEASUREMENT_PLACEHOLDER,
-        escapeHtmlAttribute(LANDING_GA_MEASUREMENT_ID),
-      );
+      const html = readFileSync(sourcePath, 'utf8')
+        .replaceAll(
+          GA_MEASUREMENT_PLACEHOLDER,
+          escapeHtmlAttribute(LANDING_GA_MEASUREMENT_ID),
+        )
+        .replaceAll(
+          APP_URL_PLACEHOLDER,
+          escapeHtmlAttribute(LANDING_APP_URL),
+        );
       writeFileSync(targetPath, html, 'utf8');
       continue;
     }

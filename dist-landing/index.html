@@ -30,7 +30,7 @@
   <meta name="twitter:image:alt"
     content="Buurt Check preview with Dutch property risk insights and viewing guidance.">
   <link rel="canonical" href="https://buurt-check.nl">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#0f1818">
   <link rel="stylesheet" href="analytics-consent.css">
 
   <script>
@@ -44,26 +44,10 @@
         }
       })();
 
-      const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length > 0
-        ? navigator.languages
-        : [navigator.language];
-
       let initialLanguage = 'nl';
 
       if (storedLang === 'nl' || storedLang === 'en') {
         initialLanguage = storedLang;
-      } else {
-        for (const language of browserLanguages) {
-          const normalized = String(language || '').toLowerCase();
-          if (normalized.startsWith('nl')) {
-            initialLanguage = 'nl';
-            break;
-          }
-          if (normalized.startsWith('en')) {
-            initialLanguage = 'en';
-            break;
-          }
-        }
       }
 
       document.documentElement.lang = initialLanguage;
@@ -165,35 +149,35 @@
 
     :root {
       color-scheme: dark;
-      --landing-bg: #000000;
-      --landing-bg-top: #142131;
-      --landing-bg-mid: #0D1620;
-      --landing-surface: rgba(13, 22, 32, 0.94);
-      --landing-surface-strong: rgba(28, 45, 63, 0.92);
-      --landing-surface-soft: rgba(255, 255, 255, 0.06);
-      --landing-border: #2E4459;
+      --landing-bg: #0c1516;
+      --landing-bg-top: #132123;
+      --landing-bg-mid: #10191b;
+      --landing-surface: rgba(16, 24, 27, 0.92);
+      --landing-surface-strong: rgba(22, 34, 38, 0.94);
+      --landing-surface-soft: rgba(255, 255, 255, 0.04);
+      --landing-border: #294048;
       --landing-border-soft: rgba(255, 255, 255, 0.08);
       --landing-text: #E2E7ED;
       --landing-text-secondary: #B4C0CE;
       --landing-text-muted: #637892;
-      --landing-nav-bg: rgba(13, 22, 32, 0.88);
-      --landing-nav-control: rgba(255, 255, 255, 0.08);
-      --landing-nav-control-hover: rgba(255, 255, 255, 0.14);
-      --landing-preview-bg: #0F1923;
-      --landing-footer-bg: #09111A;
+      --landing-nav-bg: rgba(15, 24, 26, 0.88);
+      --landing-nav-control: rgba(255, 255, 255, 0.06);
+      --landing-nav-control-hover: rgba(255, 255, 255, 0.1);
+      --landing-preview-bg: #0f1819;
+      --landing-footer-bg: #091112;
       --landing-accent: #2EC4B6;
       --landing-accent-hover: #57D4C8;
       --landing-accent-soft: rgba(46, 196, 182, 0.15);
       --landing-accent-text: #57D4C8;
       --landing-button-text: #08141E;
-      --landing-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
-      --landing-shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.2);
+      --landing-shadow: 0 24px 54px rgba(3, 7, 8, 0.24);
+      --landing-shadow-soft: 0 16px 36px rgba(3, 7, 8, 0.16);
       --landing-radius-lg: 28px;
       --landing-radius-md: 20px;
       --landing-radius-sm: 16px;
       --landing-max-width: 1180px;
       --landing-focus: 0 0 0 3px rgba(87, 212, 200, 0.38);
-      --landing-nav-height: 128px;
+      --landing-nav-height: 108px;
     }
 
     *,
@@ -216,8 +200,9 @@
       font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       color: var(--landing-text);
       background:
-        radial-gradient(circle at top, rgba(46, 196, 182, 0.18) 0%, rgba(46, 196, 182, 0.08) 18%, transparent 42%),
-        linear-gradient(180deg, var(--landing-bg-top) 0%, var(--landing-bg-mid) 24%, var(--landing-bg) 100%);
+        radial-gradient(circle at top left, rgba(46, 196, 182, 0.12) 0%, transparent 34%),
+        radial-gradient(circle at top right, rgba(87, 212, 200, 0.08) 0%, transparent 30%),
+        linear-gradient(180deg, var(--landing-bg-top) 0%, var(--landing-bg-mid) 32%, var(--landing-bg) 100%);
       line-height: 1.6;
       min-height: 100vh;
     }
@@ -288,7 +273,7 @@
     .section,
     .hero {
       position: relative;
-      padding: 64px 0;
+      padding: 72px 0;
       scroll-margin-top: calc(var(--landing-nav-height) + 20px);
     }
 
@@ -350,7 +335,7 @@
     .button--primary {
       background: var(--landing-accent);
       color: var(--landing-button-text);
-      box-shadow: 0 12px 32px rgba(46, 196, 182, 0.18);
+      box-shadow: 0 14px 28px rgba(46, 196, 182, 0.16);
     }
 
     .button--primary:hover {
@@ -379,34 +364,43 @@
       position: sticky;
       top: 0;
       z-index: 50;
-      background: linear-gradient(180deg, rgba(20, 33, 49, 0.96) 0%, var(--landing-nav-bg) 100%);
+      background: linear-gradient(180deg, rgba(15, 24, 26, 0.96) 0%, var(--landing-nav-bg) 100%);
       border-bottom: 1px solid var(--landing-border-soft);
       backdrop-filter: blur(18px);
     }
 
     .nav__shell {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 8px 10px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: 'brand links controls';
+      gap: 10px;
       align-items: center;
-      padding: 8px 0 10px;
+      padding: 8px 0;
     }
 
     .nav__brand {
+      grid-area: brand;
       display: inline-flex;
       align-items: center;
       min-width: 0;
-      max-width: 156px;
+      max-width: 148px;
       text-decoration: none;
     }
 
-    .nav__brand img {
+    .nav__brand-lockup {
       display: block;
       width: 100%;
       height: auto;
     }
 
+    .nav__brand-mark {
+      display: none;
+      width: 24px;
+      height: 24px;
+    }
+
     .nav__controls {
+      grid-area: controls;
       display: inline-flex;
       align-items: center;
       justify-self: end;
@@ -453,18 +447,19 @@
     }
 
     .nav__links {
-      grid-column: 1 / -1;
+      grid-area: links;
       display: flex;
       align-items: center;
       gap: 8px;
       min-width: 0;
+      width: 100%;
       flex-wrap: nowrap;
       overflow-x: auto;
       overflow-y: hidden;
-      padding-top: 2px;
-      padding-bottom: 2px;
+      padding: 2px 0;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
+      justify-self: stretch;
     }
 
     .nav__links::-webkit-scrollbar {
@@ -476,6 +471,10 @@
       white-space: nowrap;
     }
 
+    .nav__label--compact {
+      display: none;
+    }
+
     .nav__link {
       display: inline-flex;
       align-items: center;
@@ -483,41 +482,132 @@
       min-height: 44px;
       padding: 0 14px;
       border-radius: 999px;
-      border: 1px solid transparent;
+      border: 1px solid var(--landing-border-soft);
       color: var(--landing-text-secondary);
       text-decoration: none;
-      background: transparent;
+      background: var(--landing-nav-control);
       font-size: 13px;
       font-weight: 600;
     }
 
     .nav__link:hover {
       color: var(--landing-text);
-      background: rgba(255, 255, 255, 0.04);
-      border-color: var(--landing-border-soft);
+      background: var(--landing-nav-control-hover);
+      border-color: rgba(87, 212, 200, 0.18);
     }
 
     .nav__cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       min-height: 44px;
       padding: 0 14px;
       font-size: 13px;
       white-space: nowrap;
+      flex: 0 0 auto;
+    }
+
+    @media (max-width: 560px) {
+      .nav .container {
+        width: min(var(--landing-max-width), calc(100vw - 20px));
+      }
+
+      .nav__shell {
+        gap: 6px;
+      }
+
+      .nav__brand {
+        width: 24px;
+        max-width: 24px;
+        overflow: hidden;
+      }
+
+      .nav__brand .nav__brand-lockup {
+        display: none;
+      }
+
+      .nav__brand .nav__brand-mark {
+        display: block;
+      }
+
+      .nav__links {
+        gap: 6px;
+      }
+
+      .nav__lang {
+        gap: 2px;
+        padding: 1px;
+      }
+
+      .nav__lang-option {
+        min-width: 38px;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+
+      .nav__link,
+      .nav__cta {
+        padding: 0 10px;
+        font-size: 12px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .nav .container {
+        width: min(var(--landing-max-width), calc(100vw - 12px));
+      }
+
+      .nav__shell {
+        gap: 4px;
+      }
+
+      .nav__links {
+        gap: 4px;
+      }
+
+      .nav__lang-option {
+        min-width: 34px;
+        padding: 0 8px;
+        font-size: 11px;
+      }
+
+      .nav__link,
+      .nav__cta {
+        min-height: 44px;
+        padding: 0 4px;
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        font-size: 11px;
+      }
+
+      .nav__cta {
+        font-weight: 800;
+      }
+
+      .nav__label--full {
+        display: none;
+      }
+
+      .nav__label--compact {
+        display: inline;
+      }
     }
 
     .hero {
-      padding-top: 24px;
-      padding-bottom: 44px;
+      padding-top: 18px;
+      padding-bottom: 52px;
     }
 
     .hero__layout {
       display: grid;
-      gap: 22px;
+      gap: 24px;
       align-items: center;
     }
 
     .hero__content {
       display: grid;
-      gap: 14px;
+      gap: 16px;
       align-content: start;
     }
 
@@ -537,12 +627,11 @@
       max-width: 34rem;
       font-size: 16px;
       color: var(--landing-text-secondary);
-      line-height: 1.58;
+      line-height: 1.66;
     }
 
     .hero__actions {
-      display: flex;
-      flex-direction: column;
+      display: grid;
       align-items: flex-start;
       gap: 12px;
     }
@@ -551,33 +640,40 @@
       padding: 0 24px;
     }
 
+    .hero__trust-line,
     .hero__badge {
       display: inline-flex;
       align-items: center;
-      min-height: 36px;
       width: fit-content;
       max-width: 100%;
-      padding: 7px 14px;
+      min-height: 40px;
+      padding: 0 14px;
       border-radius: 999px;
-      background: var(--landing-accent-soft);
-      color: var(--landing-accent-hover);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-
-    .hero__note {
+      border: 1px solid rgba(87, 212, 200, 0.16);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--landing-text-secondary);
       font-size: 13px;
-      color: var(--landing-text-muted);
-      line-height: 1.55;
+      font-weight: 600;
+      line-height: 1.4;
     }
 
     .hero__preview {
-      padding: 10px;
+      padding: 12px;
       border-radius: var(--landing-radius-lg);
-      background: linear-gradient(180deg, rgba(28, 45, 63, 0.96) 0%, rgba(13, 22, 32, 0.98) 100%);
+      background: linear-gradient(145deg, rgba(19, 31, 35, 0.98) 0%, rgba(14, 22, 24, 0.96) 100%);
       border: 1px solid var(--landing-border);
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32);
+      box-shadow: 0 24px 64px rgba(3, 7, 8, 0.24);
+    }
+
+    .hero__preview > [data-lang] {
+      display: none;
+    }
+
+    html[data-language="nl"] .hero__preview[data-lang-group]:not([data-active-lang]) > [data-lang="nl"],
+    html[data-language="en"] .hero__preview[data-lang-group]:not([data-active-lang]) > [data-lang="en"],
+    .hero__preview[data-lang-group][data-active-lang="nl"] > [data-lang="nl"],
+    .hero__preview[data-lang-group][data-active-lang="en"] > [data-lang="en"] {
+      display: block;
     }
 
     .hero__preview img {
@@ -607,13 +703,6 @@
 
     .feature-card--primary {
       padding: 30px 28px;
-    }
-
-    .feature-card--supporting {
-      gap: 14px;
-      padding: 22px 20px;
-      background: linear-gradient(180deg, rgba(28, 45, 63, 0.84) 0%, rgba(13, 22, 32, 0.9) 100%);
-      box-shadow: var(--landing-shadow-soft);
     }
 
     .feature-card__icon {
@@ -658,21 +747,21 @@
       padding: 22px 20px;
       border: 1px solid var(--landing-border);
       border-radius: var(--landing-radius-sm);
-      background: linear-gradient(180deg, rgba(28, 45, 63, 0.74) 0%, rgba(13, 22, 32, 0.86) 100%);
+      background: linear-gradient(180deg, rgba(22, 34, 38, 0.88) 0%, rgba(16, 24, 27, 0.92) 100%);
       box-shadow: var(--landing-shadow-soft);
     }
 
     .step--1 {
-      opacity: 0.84;
+      opacity: 1;
     }
 
     .step--2 {
-      opacity: 0.94;
+      opacity: 1;
     }
 
     .step--3 {
-      border-color: rgba(46, 196, 182, 0.4);
-      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+      border-color: var(--landing-border);
+      box-shadow: var(--landing-shadow-soft);
     }
 
     .step__number {
@@ -687,11 +776,6 @@
       color: var(--landing-accent-hover);
       font-size: 15px;
       font-weight: 800;
-    }
-
-    .step--3 .step__number {
-      background: var(--landing-accent-soft);
-      border-color: rgba(46, 196, 182, 0.36);
     }
 
     .step__title {
@@ -716,8 +800,8 @@
     .pricing-card {
       display: grid;
       gap: 28px;
-      padding: 32px 24px;
-      border: 2px solid var(--landing-accent);
+      padding: 34px 24px;
+      border: 1px solid color-mix(in srgb, var(--landing-accent) 28%, var(--landing-border));
     }
 
     .pricing-card__summary {
@@ -796,23 +880,25 @@
       gap: 18px;
       padding: 20px;
       border-radius: 24px;
-      background: linear-gradient(180deg, rgba(28, 45, 63, 0.9) 0%, rgba(13, 22, 32, 0.96) 100%);
+      background: linear-gradient(180deg, rgba(22, 34, 38, 0.94) 0%, rgba(16, 24, 27, 0.96) 100%);
       border: 1px solid var(--landing-border);
       box-shadow: var(--landing-shadow);
     }
 
     .showcase-card__media {
       padding: 10px;
+      aspect-ratio: 5 / 6;
       border-radius: 18px;
       border: 1px solid rgba(87, 212, 200, 0.16);
-      background: linear-gradient(180deg, rgba(11, 18, 26, 0.98) 0%, rgba(18, 32, 46, 0.96) 100%);
+      background: linear-gradient(180deg, rgba(11, 18, 20, 0.98) 0%, rgba(16, 27, 30, 0.96) 100%);
       overflow: hidden;
     }
 
     .showcase-card__media img {
       display: block;
       width: 100%;
-      height: auto;
+      height: 100%;
+      object-fit: cover;
       border-radius: 12px;
       background: #ffffff;
     }
@@ -846,6 +932,7 @@
 
     .trust__card {
       padding: 28px 24px;
+      background: linear-gradient(180deg, rgba(22, 34, 38, 0.9) 0%, rgba(16, 24, 27, 0.94) 100%);
     }
 
     .sources__title {
@@ -875,11 +962,6 @@
       line-height: 1.4;
     }
 
-    .supporting-features__grid {
-      display: grid;
-      gap: 14px;
-    }
-
     .faq__list {
       display: grid;
       gap: 10px;
@@ -888,7 +970,7 @@
     .faq-item {
       border: 1px solid var(--landing-border);
       border-radius: var(--landing-radius-sm);
-      background: linear-gradient(180deg, rgba(28, 45, 63, 0.74) 0%, rgba(13, 22, 32, 0.86) 100%);
+      background: linear-gradient(180deg, rgba(22, 34, 38, 0.88) 0%, rgba(16, 24, 27, 0.92) 100%);
       box-shadow: var(--landing-shadow-soft);
     }
 
@@ -966,15 +1048,34 @@
       padding: 36px 24px;
       border-radius: var(--landing-radius-lg);
       border: 1px solid rgba(46, 196, 182, 0.22);
-      background: linear-gradient(180deg, rgba(28, 45, 63, 0.92) 0%, rgba(13, 22, 32, 0.96) 100%);
+      background: linear-gradient(145deg, rgba(20, 32, 36, 0.94) 0%, rgba(15, 24, 26, 0.98) 100%);
       box-shadow: var(--landing-shadow);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: grid;
+      gap: 18px;
+      justify-items: start;
     }
 
     .final-cta__button {
       padding: 0 28px;
+    }
+
+    .final-cta__text {
+      max-width: 32rem;
+      display: grid;
+      gap: 10px;
+    }
+
+    .final-cta__title {
+      font-size: clamp(28px, 6vw, 40px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.06;
+    }
+
+    .final-cta__desc {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--landing-text-secondary);
     }
 
     .footer {
@@ -1036,14 +1137,15 @@
 
     @media (min-width: 720px) {
       :root {
-        --landing-nav-height: 92px;
+        --landing-nav-height: 84px;
       }
 
       .nav__shell {
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas: 'brand links controls';
         align-items: center;
-        gap: 24px;
-        padding: 14px 0;
+        gap: 16px;
+        padding: 12px 0;
       }
 
       .nav__brand {
@@ -1051,12 +1153,13 @@
       }
 
       .nav__controls {
+        grid-area: controls;
+        justify-self: end;
         gap: 10px;
       }
 
       .nav__links {
-        grid-column: 2;
-        justify-content: center;
+        justify-content: flex-end;
         gap: 12px;
         min-width: 0;
         flex-wrap: nowrap;
@@ -1070,13 +1173,13 @@
       }
 
       .hero {
-        padding-top: 48px;
+        padding-top: 36px;
         padding-bottom: 72px;
       }
 
       .hero__layout {
         grid-template-columns: minmax(0, 1fr) minmax(360px, 0.92fr);
-        gap: 40px;
+        gap: 48px;
       }
 
       .hero__preview {
@@ -1156,11 +1259,6 @@
         padding: 32px 28px;
       }
 
-      .supporting-features__grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 16px;
-      }
-
       .final-cta {
         padding-top: 80px;
         padding-bottom: 80px;
@@ -1168,6 +1266,8 @@
 
       .final-cta__wrap {
         padding: 48px 40px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
       }
 
       .footer {
@@ -1210,8 +1310,9 @@
   </a>
   <nav class="nav" aria-label="Primary">
       <div class="container nav__shell">
-        <a href="/" class="nav__brand">
-          <img src="logos/buurt-check-lockup-horizontal-reverse.svg" alt="Buurt Check" width="360" height="72">
+        <a href="/" class="nav__brand" aria-label="Buurt Check">
+          <img class="nav__brand-lockup" src="logos/buurt-check-lockup-horizontal-reverse.svg" alt="Buurt Check" width="360" height="72">
+          <img class="nav__brand-mark" src="logos/buurt-check-favicon.svg" alt="" aria-hidden="true" width="24" height="24">
         </a>
 
         <div class="nav__controls">
@@ -1226,27 +1327,32 @@
               EN
             </button>
           </div>
-
-          <a href="https://app.buurt-check.nl/#/search" class="button button--ghost nav__cta" data-cta-placement="nav">
-            <span data-lang-group>
-              <span data-lang="nl" lang="nl">Open de webapp</span>
-              <span data-lang="en" lang="en">Open the web app</span>
-            </span>
-          </a>
         </div>
 
         <div class="nav__links">
+          <a href="https://app.buurt-check.nl/#/search" class="button button--ghost nav__cta" data-cta-placement="nav">
+            <span data-lang-group>
+              <span data-lang="nl" lang="nl">
+                <span class="nav__label--full">Open de webapp</span>
+                <span class="nav__label--compact">Webapp</span>
+              </span>
+              <span data-lang="en" lang="en">
+                <span class="nav__label--full">Open the web app</span>
+                <span class="nav__label--compact">Web app</span>
+              </span>
+            </span>
+          </a>
           <a href="#how-it-works" class="nav__link" data-nav-target="how-it-works">
             <span data-lang-group>
               <span data-lang="nl" lang="nl">Hoe het werkt</span>
-            <span data-lang="en" lang="en">How it works</span>
-          </span>
-        </a>
-        <a href="#pricing" class="nav__link" data-nav-target="pricing">
-          <span data-lang-group>
-            <span data-lang="nl" lang="nl">Prijzen</span>
-            <span data-lang="en" lang="en">Pricing</span>
-          </span>
+              <span data-lang="en" lang="en">How it works</span>
+            </span>
+          </a>
+          <a href="#pricing" class="nav__link" data-nav-target="pricing">
+            <span data-lang-group>
+              <span data-lang="nl" lang="nl">Prijzen</span>
+              <span data-lang="en" lang="en">Pricing</span>
+            </span>
           </a>
           <a href="#faq" class="nav__link" data-nav-target="faq">FAQ</a>
         </div>
@@ -1279,22 +1385,16 @@
               </span>
             </a>
 
-            <p class="hero__badge" data-lang-group>
-              <span data-lang="nl" lang="nl">100% onafhankelijk &middot; open overheidsdata</span>
-              <span data-lang="en" lang="en">100% independent &middot; open government data</span>
-            </p>
-
-            <p class="hero__note" data-lang-group>
-              <span data-lang="nl" lang="nl">Gratis interactieve viewer en gratis quick brief. Betaal alleen voor het
-                volledige dossier.</span>
-              <span data-lang="en" lang="en">Free interactive viewer and free quick brief. Pay only for the full
-                dossier.</span>
+            <p class="hero__trust-line hero__badge" data-lang-group>
+              <span data-lang="nl" lang="nl">Onafhankelijke analyse &middot; 10+ Nederlandse overheidsbronnen &middot; gratis viewer, betaal alleen voor het volledige dossier</span>
+              <span data-lang="en" lang="en">Independent analysis &middot; 10+ Dutch government sources &middot; free viewer, pay only for the full dossier</span>
             </p>
           </div>
         </div>
 
-        <div class="hero__preview">
-          <img src="og-image.svg" alt="Buurt Check skyline preview" width="1024" height="500">
+        <div class="hero__preview" data-lang-group>
+          <img data-lang="nl" src="og-image.svg" alt="Buurt Check hero preview in Dutch with the motto Je huis onder de duim" width="1024" height="500">
+          <img data-lang="en" src="og-image-en.svg" alt="Buurt Check hero preview in English with the motto Your house at your hand" width="1024" height="500">
         </div>
       </div>
     </header>
@@ -1310,10 +1410,8 @@
           <span data-lang="en" lang="en">Everything estate agents don't tell you</span>
         </h2>
         <p class="section-desc" data-lang-group>
-          <span data-lang="nl" lang="nl">Elk dossier combineert data van 10+ overheidsbronnen tot een helder,
-            actiegericht rapport.</span>
-          <span data-lang="en" lang="en">Each dossier combines data from 10+ government sources into a clear,
-            action-oriented report.</span>
+          <span data-lang="nl" lang="nl">Per adres vertalen we publieke data naar wat het betekent voor jou tijdens de bezichtiging en aankoop.</span>
+          <span data-lang="en" lang="en">For each address, we translate public data into what it means for your viewing and buying decision.</span>
         </p>
 
         <div class="differentiators__grid">
@@ -1463,10 +1561,8 @@
           <span data-lang="en" lang="en">See exactly what you get before you pay</span>
         </h2>
         <p class="section-desc" data-lang-group>
-          <span data-lang="nl" lang="nl">Geen abstracte belofte, maar echte dossierpagina's uit de premium export:
-            risicovergelijkingen, schaduwanalyse en buurtcontext in één flow.</span>
-          <span data-lang="en" lang="en">Not a vague promise but real dossier pages from the premium export:
-            risk comparisons, shadow analysis and neighborhood context in one flow.</span>
+          <span data-lang="nl" lang="nl">Dit is het echte product: dezelfde risicovergelijkingen, 3D-context, buurtinzichten en bezichtigingsvragen die je in het dossier terugziet.</span>
+          <span data-lang="en" lang="en">This is the real product: the same risk comparisons, 3D context, neighborhood evidence, and viewing questions you see in the dossier.</span>
         </p>
 
         <div class="showcase__grid">
@@ -1480,7 +1576,10 @@
                 <span data-lang="nl" lang="nl">Vergelijkingen</span>
                 <span data-lang="en" lang="en">Comparisons</span>
               </p>
-              <h3 class="showcase-card__title">Risk detail comparisons</h3>
+              <h3 class="showcase-card__title" data-lang-group>
+                <span data-lang="nl" lang="nl">Risicovergelijkingen</span>
+                <span data-lang="en" lang="en">Risk comparisons</span>
+              </h3>
               <p class="showcase-card__desc" data-lang-group>
                 <span data-lang="nl" lang="nl">Vergelijk per onderwerp jouw adres met richtlijnen, referenties en
                   landelijke context.</span>
@@ -1500,12 +1599,13 @@
                 <span data-lang="nl" lang="nl">Schaduw</span>
                 <span data-lang="en" lang="en">Shadow</span>
               </p>
-              <h3 class="showcase-card__title">Shadow analysis</h3>
+              <h3 class="showcase-card__title" data-lang-group>
+                <span data-lang="nl" lang="nl">3D-context en schaduw</span>
+                <span data-lang="en" lang="en">3D context and shadow</span>
+              </h3>
               <p class="showcase-card__desc" data-lang-group>
-                <span data-lang="nl" lang="nl">Bekijk winter-, lente- en zomerschaduwen rondom het pand op één
-                  pagina.</span>
-                <span data-lang="en" lang="en">See winter, spring, and summer shadow conditions around the home on one
-                  page.</span>
+                <span data-lang="nl" lang="nl">Bekijk het gebouw in context, begrijp de schaduwsituatie en neem gerichtere bezichtigingsvragen mee.</span>
+                <span data-lang="en" lang="en">See the building in context, understand the shadow pattern, and bring better questions to the viewing.</span>
               </p>
             </div>
           </article>
@@ -1520,12 +1620,13 @@
                 <span data-lang="nl" lang="nl">Buurtcontext</span>
                 <span data-lang="en" lang="en">Neighborhood</span>
               </p>
-              <h3 class="showcase-card__title">Neighborhood context</h3>
+              <h3 class="showcase-card__title" data-lang-group>
+                <span data-lang="nl" lang="nl">Buurtbewijs</span>
+                <span data-lang="en" lang="en">Neighborhood evidence</span>
+              </h3>
               <p class="showcase-card__desc" data-lang-group>
-                <span data-lang="nl" lang="nl">Krijg buurtcontext, leefbaarheid en bereikbaarheid in dezelfde
-                  dossierflow.</span>
-                <span data-lang="en" lang="en">Get neighborhood context, livability and access in the same dossier
-                  flow.</span>
+                <span data-lang="nl" lang="nl">Lees buurtcontext, leefbaarheid en bereikbaarheid in dezelfde rustige dossierflow.</span>
+                <span data-lang="en" lang="en">Read neighborhood context, livability, and access in the same calm dossier flow.</span>
               </p>
             </div>
           </article>
@@ -1570,8 +1671,7 @@
             </a>
 
             <p class="pricing-card__note" data-lang-group>
-              <span data-lang="nl" lang="nl">Interactive viewer en quick brief zijn gratis. Betaling via Stripe alleen
-                voor het volledige dossier.</span>
+              <span data-lang="nl" lang="nl">De interactieve viewer en quick brief zijn gratis. Betaling via Stripe is alleen nodig voor het volledige dossier.</span>
               <span data-lang="en" lang="en">The interactive viewer and quick brief are free. Stripe payment is only for
                 the full dossier.</span>
             </p>
@@ -1639,80 +1739,6 @@
             <span class="source-pill">PDOK</span>
             <span class="source-pill">PVGIS (EU JRC)</span>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="features">
-      <div class="container">
-        <h2 class="sr-only" data-lang-group>
-          <span data-lang="nl" lang="nl">Wat zit erin</span>
-          <span data-lang="en" lang="en">What you get</span>
-        </h2>
-
-        <div class="supporting-features__grid">
-          <article class="card feature-card feature-card--supporting">
-            <div class="feature-card__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
-                <path d="M15.536 8.464a5 5 0 010 7.072M12 12v.01" />
-              </svg>
-            </div>
-            <div>
-              <h3 class="feature-card__title" data-lang-group>
-                <span data-lang="nl" lang="nl">Geluidshinder</span>
-                <span data-lang="en" lang="en">Noise pollution</span>
-              </h3>
-            </div>
-            <p class="feature-card__desc" data-lang-group>
-              <span data-lang="nl" lang="nl">Weg-, rail- en vliegverkeer gecombineerd in een 0-100 score met
-                WHO-vergelijking.</span>
-              <span data-lang="en" lang="en">Road, rail and air traffic combined into a 0-100 score with WHO
-                comparison.</span>
-            </p>
-          </article>
-
-          <article class="card feature-card feature-card--supporting">
-            <div class="feature-card__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
-                <path d="M3 15h4l3-8 4 16 3-8h4" />
-              </svg>
-            </div>
-            <div>
-              <h3 class="feature-card__title" data-lang-group>
-                <span data-lang="nl" lang="nl">Luchtkwaliteit</span>
-                <span data-lang="en" lang="en">Air quality</span>
-              </h3>
-            </div>
-            <p class="feature-card__desc" data-lang-group>
-              <span data-lang="nl" lang="nl">NO2, PM2.5 en PM10 getoetst aan EU- en WHO-normen. Inclusief
-                trendanalyse.</span>
-              <span data-lang="en" lang="en">NO2, PM2.5 and PM10 tested against EU and WHO limits. Including trend
-                analysis.</span>
-            </p>
-          </article>
-
-          <article class="card feature-card feature-card--supporting">
-            <div class="feature-card__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
-                <path
-                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
-              </svg>
-            </div>
-            <div>
-              <h3 class="feature-card__title" data-lang-group>
-                <span data-lang="nl" lang="nl">Klimaatrisico</span>
-                <span data-lang="en" lang="en">Climate risk</span>
-              </h3>
-            </div>
-            <p class="feature-card__desc" data-lang-group>
-              <span data-lang="nl" lang="nl">Overstromingsrisico, hittestress, bodemdaling en wateroverlast per
-                adres.</span>
-              <span data-lang="en" lang="en">Flood risk, heat stress, subsidence and waterlogging per address.</span>
-            </p>
-          </article>
         </div>
       </div>
     </section>
@@ -1824,11 +1850,17 @@
 
     <section class="section final-cta" id="final-cta">
       <div class="container">
-        <h2 class="sr-only" data-lang-group>
-          <span data-lang="nl" lang="nl">Start in de webapp</span>
-          <span data-lang="en" lang="en">Start in the web app</span>
-        </h2>
         <div class="final-cta__wrap">
+          <div class="final-cta__text">
+            <h2 class="final-cta__title" data-lang-group>
+              <span data-lang="nl" lang="nl">Controleer het adres voordat je een bod uitbrengt</span>
+              <span data-lang="en" lang="en">Check the address before you make an offer</span>
+            </h2>
+            <p class="final-cta__desc" data-lang-group>
+              <span data-lang="nl" lang="nl">Open gratis de viewer, bekijk de quick brief en betaal alleen als je het volledige dossier wilt meenemen.</span>
+              <span data-lang="en" lang="en">Open the viewer for free, review the quick brief, and only pay if you want the full dossier to take with you.</span>
+            </p>
+          </div>
           <a href="https://app.buurt-check.nl/#/search" class="button button--primary final-cta__button"
             data-cta-placement="final">
             <span data-lang-group>
@@ -1885,24 +1917,6 @@
       observedSections: new Set(),
     };
 
-    function detectBrowserLanguage() {
-      const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length > 0
-        ? navigator.languages
-        : [navigator.language];
-
-      for (const language of browserLanguages) {
-        const normalized = String(language || '').toLowerCase();
-        if (normalized.startsWith('nl')) {
-          return 'nl';
-        }
-        if (normalized.startsWith('en')) {
-          return 'en';
-        }
-      }
-
-      return 'nl';
-    }
-
     function resolveInitialLanguage() {
       try {
         const storedLang = localStorage.getItem(LANDING_LANGUAGE_KEY);
@@ -1910,10 +1924,10 @@
           return storedLang;
         }
       } catch (error) {
-        // Ignore storage failures and fall back to browser language detection.
+        // Ignore storage failures and fall back to Dutch.
       }
 
-      return detectBrowserLanguage();
+      return 'nl';
     }
 
     function persistLanguage(language) {
@@ -1976,8 +1990,9 @@
         const preferredNode = group.querySelector(`:scope > [data-lang="${language}"]`);
         const dutchNode = group.querySelector(':scope > [data-lang="nl"]');
         const fallbackNode = dutchNode || group.querySelector(':scope > [data-lang]');
-        const preferredText = preferredNode ? preferredNode.textContent.trim() : '';
-        const activeLanguage = preferredText ? language : (fallbackNode ? fallbackNode.getAttribute('data-lang') : language);
+        const activeLanguage = preferredNode
+          ? language
+          : (fallbackNode ? fallbackNode.getAttribute('data-lang') : language);
 
         if (activeLanguage) {
           group.dataset.activeLang = activeLanguage;

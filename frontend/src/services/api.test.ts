@@ -1035,6 +1035,20 @@ describe('createCheckoutSession', () => {
     expect(result.checkout_url).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
   });
 
+  it('includes lookup_id when provided', async () => {
+    mockFetch.mockResolvedValue(
+      okResponse({ checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_123' }),
+    );
+
+    await createCheckoutSession('7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de', 'adr-abc123');
+
+    const [, init] = mockFetch.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({
+      report_id: '7b8e8d39-0ad2-4c1e-8f06-b93be11ed9de',
+      lookup_id: 'adr-abc123',
+    });
+  });
+
   it('keeps hosted web checkout creation first-party when VITE_API_BASE is cross-origin', async () => {
     vi.stubEnv('VITE_API_BASE', 'https://buurt-check.onrender.com/api');
     setPrimaryApiBaseTestRuntime({
