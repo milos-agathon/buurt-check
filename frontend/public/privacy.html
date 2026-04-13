@@ -8,17 +8,123 @@
       name="description"
       content="Privacy policy for Buurt Check web, Android, and iPhone app experiences."
     />
+    <meta name="buurtcheck-ga-measurement-id" content="__BUURTCHECK_GA_MEASUREMENT_ID__" />
+    <meta name="buurtcheck-app-url" content="__BUURTCHECK_APP_URL__" />
     <link rel="icon" type="image/svg+xml" href="/logos/buurt-check-favicon.svg" />
     <link rel="stylesheet" href="/legal.css" />
+    <link rel="stylesheet" href="/analytics-consent.css" />
+    <script>
+      (function () {
+        const APP_URL_PLACEHOLDER = '__BUURTCHECK' + '_APP_URL__';
+        const DEFAULT_APP_URL = 'https://app.buurt-check.nl/#/search';
+        const DEFAULT_LOCAL_APP_URL = 'http://127.0.0.1:5173/#/search';
+        const configuredAppUrl = document
+          .querySelector('meta[name="buurtcheck-app-url"]')
+          ?.getAttribute('content')
+          ?.trim() || '';
+        const isLocalHostname = /^(127\.0\.0\.1|localhost|::1|\[::1\])$/i.test(window.location.hostname);
+        const resolvedAppUrl = configuredAppUrl && configuredAppUrl !== APP_URL_PLACEHOLDER
+          ? configuredAppUrl
+          : (isLocalHostname ? DEFAULT_LOCAL_APP_URL : DEFAULT_APP_URL);
+
+        window.BUURTCHECK_LANDING_APP_URL = resolvedAppUrl;
+        window.addEventListener('DOMContentLoaded', () => {
+          document.querySelectorAll('[data-app-link]').forEach((node) => {
+            node.setAttribute('href', resolvedAppUrl);
+          });
+        });
+      }());
+    </script>
+    <script>
+      (function () {
+        const GA_PLACEHOLDER = '__BUURTCHECK' + '_GA_MEASUREMENT_ID__';
+        const CONSENT_KEY = 'buurtcheck_analytics_consent';
+        const readStoredConsent = () => {
+          const cookiePrefix = `${CONSENT_KEY}=`;
+          const cookieValue = document.cookie
+            .split(';')
+            .map((segment) => segment.trim())
+            .find((segment) => segment.startsWith(cookiePrefix));
+          if (cookieValue) {
+            const value = decodeURIComponent(cookieValue.slice(cookiePrefix.length));
+            if (value === 'granted' || value === 'denied') {
+              return value;
+            }
+          }
+
+          try {
+            const storedValue = localStorage.getItem(CONSENT_KEY);
+            if (storedValue === 'granted' || storedValue === 'denied') {
+              return storedValue;
+            }
+          } catch (error) {
+            // Ignore storage failures and keep consent default-denied.
+          }
+
+          return '';
+        };
+        const metaMeasurementId = document
+          .querySelector('meta[name="buurtcheck-ga-measurement-id"]')
+          ?.getAttribute('content')
+          ?.trim() || '';
+        const configuredMeasurementId = (typeof window.BUURTCHECK_GA_MEASUREMENT_ID === 'string'
+          ? window.BUURTCHECK_GA_MEASUREMENT_ID.trim()
+          : '') || metaMeasurementId;
+        const resolvedMeasurementId = configuredMeasurementId === GA_PLACEHOLDER
+          ? ''
+          : configuredMeasurementId.toUpperCase();
+
+        if (!/^G-[A-Z0-9]+$/i.test(resolvedMeasurementId)) {
+          return;
+        }
+
+        window.__landingGaMeasurementId = resolvedMeasurementId;
+        const storedConsent = readStoredConsent();
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = window.gtag || function gtag() {
+          window.dataLayer.push(arguments);
+        };
+
+        const consentDefaults = {
+          analytics_storage: storedConsent === 'granted' ? 'granted' : 'denied',
+          ad_storage: 'denied',
+          ad_user_data: 'denied',
+          ad_personalization: 'denied',
+          functionality_storage: 'granted',
+          security_storage: 'granted',
+        };
+        if (!storedConsent) {
+          consentDefaults.wait_for_update = 500;
+        }
+
+        window.gtag('consent', 'default', consentDefaults);
+        window.gtag('js', new Date());
+        window.gtag('config', resolvedMeasurementId, {
+          anonymize_ip: true,
+          send_page_view: true,
+          linker: {
+            domains: ['buurt-check.nl', 'app.buurt-check.nl'],
+          },
+        });
+
+        const gaScript = document.createElement('script');
+        gaScript.async = true;
+        gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(resolvedMeasurementId)}`;
+        gaScript.dataset.analyticsProvider = 'google-analytics';
+        gaScript.dataset.measurementId = resolvedMeasurementId;
+        document.head.appendChild(gaScript);
+      }());
+    </script>
+    <script defer src="/analytics-consent.js"></script>
   </head>
   <body>
     <main class="legal-page">
       <div class="legal-page__topbar">
-        <a class="legal-page__brand" href="/#/search">
+        <a class="legal-page__brand" href="https://app.buurt-check.nl/#/search" data-app-link>
           <img src="/logos/buurt-check-lockup-horizontal.svg" alt="Buurt Check" />
           <span>Buurt Check</span>
         </a>
-        <a class="legal-page__back" href="/#/search">Back to the app</a>
+        <a class="legal-page__back" href="https://app.buurt-check.nl/#/search" data-app-link>Back to the app</a>
       </div>
 
       <section class="legal-page__hero">
@@ -118,15 +224,18 @@
 
           <h3>Optional web analytics</h3>
           <p>
-            On the web app only, Buurt Check can use Google Analytics 4 to measure page
-            views and product interactions when you allow analytics. We configure this in
-            consent mode with advertising-related storage and personalization disabled. Your
-            analytics choice is stored in a cookie and browser storage so it can be applied
-            consistently across buurt-check.nl and app.buurt-check.nl.
+            On the marketing website and web app, Buurt Check can use Google Analytics 4
+            to measure page views and high-level interaction events, such as CTA clicks,
+            FAQ interaction, language toggles, and product usage flows, when you allow
+            analytics. We configure this in consent mode with advertising-related storage
+            and personalization disabled and IP anonymization enabled where supported.
           </p>
           <p>
-            <strong>Purpose:</strong> product analytics, reliability monitoring, and UX
-            improvement. This analytics setup is not used for targeted advertising.
+            <strong>Purpose:</strong> product analytics, reliability monitoring,
+            conversion understanding, and UX improvement. Your analytics choice is stored
+            in a cookie and browser storage so it can be applied consistently across
+            buurt-check.nl and app.buurt-check.nl. This analytics setup is not used for
+            targeted advertising.
           </p>
 
           <h3>Data we do not intentionally collect</h3>
@@ -180,9 +289,9 @@
                 <td>Property and neighborhood data retrieval</td>
               </tr>
               <tr>
-                <td>Google Analytics 4 (web only, optional)</td>
-                <td>Page views, app interaction events, device/browser metadata, and consent state</td>
-                <td>Product analytics with advertising features disabled</td>
+                <td>Google Analytics 4 (website and web app, optional)</td>
+                <td>Page views, CTA clicks, FAQ interaction, language toggles, app interaction events, device/browser metadata, and consent state</td>
+                <td>Product analytics, conversion monitoring, and UX improvement</td>
               </tr>
             </tbody>
           </table>

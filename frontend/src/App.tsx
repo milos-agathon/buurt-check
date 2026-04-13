@@ -1639,6 +1639,13 @@ function App() {
     setHashRoute('#/saved');
   }, [setHashRoute]);
 
+  const openExportSheet = useCallback((template?: 'quick_brief' | 'full_dossier') => {
+    setExportInitialTemplate(template ?? null);
+    setExportInitialLanguage(null);
+    setExportAutoGenerateToken(null);
+    setExportSheetOpen(true);
+  }, []);
+
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab);
     if (tab === 'home') {
@@ -1705,17 +1712,14 @@ function App() {
 
   const handleRiskTileTap = useCallback((category: string) => {
     if (!isEntitled) {
-      setExportInitialTemplate(null);
-      setExportInitialLanguage(null);
-      setExportAutoGenerateToken(null);
-      setExportSheetOpen(true);
+      openExportSheet('full_dossier');
       return;
     }
     if (isTransitioning) return;
     hapticTap();
     setUseFallbackDetailTransition(animationPerformance.shouldUseFallback());
     setActiveDetailCategory(category);
-  }, [animationPerformance, isEntitled, isTransitioning]);
+  }, [animationPerformance, isEntitled, isTransitioning, openExportSheet]);
 
   const scrollToDossierTarget = useCallback((elementId: string) => {
     const root = getDossierScrollContainer();
@@ -4644,6 +4648,43 @@ function App() {
                         <button
                           type="button"
                           className="app__next-steps-action"
+                          aria-haspopup="dialog"
+                          aria-expanded={exportSheetOpen}
+                          onClick={() => {
+                            hapticTap();
+                            openExportSheet('quick_brief');
+                          }}
+                        >
+                          <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <path d="M10 3v8m0 0L6.5 7.5M10 11l3.5-3.5M4 14.5v1A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          {t('dossier.nextSteps.export')}
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          type="button"
+                          className="app__next-steps-action"
+                          aria-haspopup="dialog"
+                          aria-expanded={exportSheetOpen}
+                          onClick={() => {
+                            hapticTap();
+                            openExportSheet('full_dossier');
+                          }}
+                        >
+                          <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <path d="M5.5 4.5h6.5l2.5 2.5v8a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 4.5 15V6A1.5 1.5 0 0 1 6 4.5h-.5Zm6.5 0V7h2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M7.5 10.5h5m-5 2.5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                          </svg>
+                          {isEntitled
+                            ? t('export.downloadDossier')
+                            : t('premium.upgrade.cta')}
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          type="button"
+                          className="app__next-steps-action"
                           onClick={() => {
                             hapticTap();
                             setActiveScreen('search');
@@ -4669,10 +4710,7 @@ function App() {
                       onAddToShortlist={handleBookmark}
                       onExportBriefing={() => {
                         hapticTap();
-                        setExportInitialTemplate(null);
-                        setExportInitialLanguage(null);
-                        setExportAutoGenerateToken(null);
-                        setExportSheetOpen(true);
+                        openExportSheet('quick_brief');
                       }}
                       showBookmarkTooltip={!!address}
                       bookmarkPending={bookmarkPending}

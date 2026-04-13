@@ -839,7 +839,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -870,6 +870,52 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
     expect(screen.queryByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).not.toBeInTheDocument();
+  });
+
+  it('opens the export sheet from the next-steps viewing checklist action', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Download viewing checklist as PDF/i })).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Download viewing checklist as PDF/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+    expect(
+      within(screen.getByTestId('export-sheet')).getByRole('radio', { name: /Quick checklist/i }),
+    ).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('opens the export sheet with full dossier preselected from the next-steps dossier action', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Download dossier|Unlock full dossier/i })).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Download dossier|Unlock full dossier/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+    expect(
+      within(screen.getByTestId('export-sheet')).getByRole('radio', { name: /Full Dossier/i }),
+    ).toHaveAttribute('aria-checked', 'true');
   });
 
   it('starts shadow prewarm automatically for entitled Forge3D dossier views', async () => {
@@ -1021,7 +1067,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -1086,7 +1132,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -1182,7 +1228,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -1254,7 +1300,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -1292,7 +1338,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -1342,7 +1388,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -1382,7 +1428,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -1416,7 +1462,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -1451,7 +1497,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -1492,7 +1538,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -2377,7 +2423,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });
@@ -2459,7 +2505,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist/i,
+        name: /Download viewing checklist \(FREE\)/i,
         hidden: true,
       }));
     });

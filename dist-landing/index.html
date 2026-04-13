@@ -22,6 +22,7 @@
   <meta property="og:locale" content="nl_NL">
   <meta property="og:locale:alternate" content="en_GB">
   <meta name="buurtcheck-ga-measurement-id" content="">
+  <meta name="buurtcheck-app-url" content="https://app.buurt-check.nl/#/search">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Buurt Check — Weet wat je koopt">
   <meta name="twitter:description"
@@ -52,6 +53,29 @@
 
       document.documentElement.lang = initialLanguage;
       document.documentElement.dataset.language = initialLanguage;
+    }());
+  </script>
+
+  <script>
+    (function () {
+      const APP_URL_PLACEHOLDER = '__BUURTCHECK' + '_APP_URL__';
+      const DEFAULT_APP_URL = 'https://app.buurt-check.nl/#/search';
+      const DEFAULT_LOCAL_APP_URL = 'http://127.0.0.1:5173/#/search';
+      const configuredAppUrl = document
+        .querySelector('meta[name="buurtcheck-app-url"]')
+        ?.getAttribute('content')
+        ?.trim() || '';
+      const isLocalHostname = /^(127\.0\.0\.1|localhost|::1|\[::1\])$/i.test(window.location.hostname);
+      const resolvedAppUrl = configuredAppUrl && configuredAppUrl !== APP_URL_PLACEHOLDER
+        ? configuredAppUrl
+        : (isLocalHostname ? DEFAULT_LOCAL_APP_URL : DEFAULT_APP_URL);
+
+      window.BUURTCHECK_LANDING_APP_URL = resolvedAppUrl;
+      window.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('[data-app-link]').forEach((node) => {
+          node.setAttribute('href', resolvedAppUrl);
+        });
+      });
     }());
   </script>
 
@@ -1330,7 +1354,7 @@
         </div>
 
         <div class="nav__links">
-          <a href="https://app.buurt-check.nl/#/search" class="button button--ghost nav__cta" data-cta-placement="nav">
+          <a href="https://app.buurt-check.nl/#/search" class="button button--ghost nav__cta" data-app-link data-cta-placement="nav">
             <span data-lang-group>
               <span data-lang="nl" lang="nl">
                 <span class="nav__label--full">Open de webapp</span>
@@ -1377,7 +1401,7 @@
           </p>
 
           <div class="hero__actions">
-            <a href="https://app.buurt-check.nl/#/search" class="button button--primary hero__cta"
+            <a href="https://app.buurt-check.nl/#/search" class="button button--primary hero__cta" data-app-link
               data-cta-placement="hero">
               <span data-lang-group>
                 <span data-lang="nl" lang="nl">Open de webapp</span>
@@ -1662,7 +1686,7 @@
               <span data-lang="en" lang="en">Full dossier &middot; one-time payment</span>
             </p>
 
-            <a href="https://app.buurt-check.nl/#/search" class="button button--primary pricing-card__cta"
+            <a href="https://app.buurt-check.nl/#/search" class="button button--primary pricing-card__cta" data-app-link
               data-cta-placement="pricing">
               <span data-lang-group>
                 <span data-lang="nl" lang="nl">Start in de webapp</span>
@@ -1861,7 +1885,7 @@
               <span data-lang="en" lang="en">Open the viewer for free, review the quick brief, and only pay if you want the full dossier to take with you.</span>
             </p>
           </div>
-          <a href="https://app.buurt-check.nl/#/search" class="button button--primary final-cta__button"
+          <a href="https://app.buurt-check.nl/#/search" class="button button--primary final-cta__button" data-app-link
             data-cta-placement="final">
             <span data-lang-group>
               <span data-lang="nl" lang="nl">Start in de webapp</span>
