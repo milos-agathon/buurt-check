@@ -429,30 +429,34 @@ function makeScoredRiskCards() {
  * avoiding conflicts with AnimatedScore observers that also use IntersectionObserver.
  */
 interface MockObserverEntry { callback: IntersectionObserverCallback; targets: Set<Element>; disconnected: boolean }
-async function triggerViewer3DIntersection() {
+async function triggerIntersection(selector: string, isIntersecting = true) {
   // Wait for the sentinel element to be observed
   await waitFor(() => {
     const observers = (globalThis as Record<string, unknown>).__intersectionObservers as MockObserverEntry[];
-    const sentinel = document.querySelector('[data-testid="viewer-3d-sentinel"]');
-    expect(sentinel).not.toBeNull();
-    const match = observers.find(o => !o.disconnected && sentinel && o.targets.has(sentinel));
+    const target = document.querySelector(selector);
+    expect(target).not.toBeNull();
+    const match = observers.find(o => !o.disconnected && target && o.targets.has(target));
     expect(match).toBeDefined();
   });
 
   const observers = (globalThis as Record<string, unknown>).__intersectionObservers as MockObserverEntry[];
-  const sentinel = document.querySelector('[data-testid="viewer-3d-sentinel"]')!;
-  const match = observers.find(o => !o.disconnected && o.targets.has(sentinel))!;
+  const target = document.querySelector(selector)!;
+  const match = observers.find(o => !o.disconnected && o.targets.has(target))!;
   await act(async () => {
     match.callback([{
-      isIntersecting: true,
-      target: sentinel,
+      isIntersecting,
+      target,
       boundingClientRect: {} as DOMRectReadOnly,
-      intersectionRatio: 1,
+      intersectionRatio: isIntersecting ? 1 : 0,
       intersectionRect: {} as DOMRectReadOnly,
       rootBounds: null,
       time: Date.now(),
     }], {} as IntersectionObserver);
   });
+}
+
+async function triggerViewer3DIntersection() {
+  await triggerIntersection('[data-testid="viewer-3d-sentinel"]');
 }
 
 /**

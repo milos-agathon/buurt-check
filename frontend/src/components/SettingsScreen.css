@@ -3,6 +3,7 @@
   padding-bottom: calc(
     var(--space-base) +
     var(--tab-bar-height, 56px) +
+    var(--viewport-bottom-offset, 0px) +
     env(safe-area-inset-bottom, 0px) +
     var(--space-xl)
   );

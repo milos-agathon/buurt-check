@@ -7,7 +7,7 @@
   flex: 1;
   gap: var(--space-lg);
   background: transparent;
-  padding-bottom: calc(var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px) + var(--space-xl));
+  padding-bottom: calc(var(--tab-bar-height, 56px) + var(--viewport-bottom-offset, 0px) + env(safe-area-inset-bottom, 0px) + var(--space-xl));
 }
 
 .address-search__wrapper {

@@ -144,6 +144,7 @@ const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
 type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
+const NEXT_STEPS_ACTION_BAR_HIDE_AHEAD_PX = 136;
 
 interface DossierSeedState {
   address?: ResolvedAddress;
@@ -919,10 +920,13 @@ function App() {
     ? shadowPrewarmKey(address.adresseerbaar_object_id, reportId)
     : null;
 
-  // ActionBar visibility: shown when ViewingChecklist section enters viewport.
-  const [actionBarVisible, setActionBarVisible] = useState(false);
+  // Floating action bar: show near the checklist, but hide before the in-flow
+  // next-steps card reaches the viewport so the card's actions stay readable.
+  const [actionBarSectionVisible, setActionBarSectionVisible] = useState(false);
+  const [nextStepsVisible, setNextStepsVisible] = useState(false);
   const actionBarObserverRef = useRef<IntersectionObserver | null>(null);
-  const actionBarSentinelRef = useRef<HTMLDivElement | null>(null);
+  const nextStepsObserverRef = useRef<IntersectionObserver | null>(null);
+  const floatingActionBarVisible = actionBarSectionVisible && !nextStepsVisible;
 
   // When an overlay modal (e.g. ExportBottomSheet) is open, mark background
   // content as inert so screen readers cannot access it (WCAG best practice).
@@ -2750,29 +2754,22 @@ function App() {
     };
   }, []);
 
-  // ActionBar visibility — IntersectionObserver on ViewingChecklist sentinel.
-  // Shows ActionBar when user scrolls near the checklist section or past 75% of dossier.
+  // Floating action bar visibility — the checklist section enables it.
   const actionBarSentinelRefCallback = useCallback((node: HTMLDivElement | null) => {
     if (actionBarObserverRef.current) {
       actionBarObserverRef.current.disconnect();
       actionBarObserverRef.current = null;
     }
 
-    actionBarSentinelRef.current = node;
-
     if (!node) {
-      // Sentinel removed from DOM — hide ActionBar
-      setActionBarVisible(false);
+      setActionBarSectionVisible(false);
       return;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
-          setActionBarVisible(entry.isIntersecting);
-        }
+        setActionBarSectionVisible(entries.some((entry) => entry.isIntersecting));
       },
-      // rootMargin: trigger when section is within 200px of the viewport bottom
       { rootMargin: '200px 0px' },
     );
 
@@ -2780,12 +2777,38 @@ function App() {
     actionBarObserverRef.current = observer;
   }, []);
 
-  // Clean up ActionBar observer on unmount
+  // Hide the floating action bar before it can cover the in-flow next steps card.
+  const nextStepsRefCallback = useCallback((node: HTMLDivElement | null) => {
+    if (nextStepsObserverRef.current) {
+      nextStepsObserverRef.current.disconnect();
+      nextStepsObserverRef.current = null;
+    }
+
+    if (!node) {
+      setNextStepsVisible(false);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setNextStepsVisible(entries.some((entry) => entry.isIntersecting));
+      },
+      { rootMargin: `0px 0px ${NEXT_STEPS_ACTION_BAR_HIDE_AHEAD_PX}px 0px` },
+    );
+
+    observer.observe(node);
+    nextStepsObserverRef.current = observer;
+  }, []);
+
   useEffect(() => {
     return () => {
       if (actionBarObserverRef.current) {
         actionBarObserverRef.current.disconnect();
         actionBarObserverRef.current = null;
+      }
+      if (nextStepsObserverRef.current) {
+        nextStepsObserverRef.current.disconnect();
+        nextStepsObserverRef.current = null;
       }
     };
   }, []);
@@ -2842,7 +2865,8 @@ function App() {
     setExportInitialTemplate(null);
     setExportInitialLanguage(null);
     setExportAutoGenerateToken(null);
-    setActionBarVisible(false);
+    setActionBarSectionVisible(false);
+    setNextStepsVisible(false);
     setRiskCards(null);
     setRiskComparisons(null);
     setRiskComparisonsError(null);
@@ -4252,7 +4276,7 @@ function App() {
               </div>
             ) : (
               <ErrorBoundary key={address?.adresseerbaar_object_id ?? 'none'} fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
-              <DossierSheet snap={sheetSnap} actionBarVisible={actionBarVisible}>
+              <DossierSheet snap={sheetSnap} actionBarVisible={floatingActionBarVisible}>
                 {address && showDossierJump && (
                   <div className="app__dossier-jump-nav">
                     <div className="app__dossier-jump-header">
@@ -4580,7 +4604,11 @@ function App() {
                 )}
 
                 {address && (
-                  <div className={`app__next-steps${actionBarVisible ? ' app__next-steps--with-action-bar' : ''}`} data-testid="next-steps">
+                  <div
+                    ref={nextStepsRefCallback}
+                    className={`app__next-steps${floatingActionBarVisible ? ' app__next-steps--with-action-bar' : ''}`}
+                    data-testid="next-steps"
+                  >
                     <h3 className="app__next-steps-title">{t('dossier.nextSteps.title')}</h3>
                     <ul className="app__next-steps-list">
                       <li>
@@ -4649,7 +4677,7 @@ function App() {
                       showBookmarkTooltip={!!address}
                       bookmarkPending={bookmarkPending}
                       exportPending={exportGenerating}
-                      visible={actionBarVisible}
+                      visible={floatingActionBarVisible}
                     />
                   </div>
                 )}

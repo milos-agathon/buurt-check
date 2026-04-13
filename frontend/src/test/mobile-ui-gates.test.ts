@@ -36,11 +36,14 @@ describe('Mobile UI quality gates', () => {
     const topBarCss = readCss('components/TopBar.css');
     const tabBarCss = readCss('components/TabBar.css');
     const actionBarCss = readCss('components/ActionBar.css');
+    const compareCss = readCss('components/CompareScreen.css');
 
     expect(ruleBlock(topBarCss, '.top-bar__actions')).toContain('display: flex');
     expect(ruleBlock(topBarCss, '.top-bar__actions')).toContain('gap: var(--space-3xs)');
     expect(ruleBlock(tabBarCss, '.tab-bar')).toContain('display: flex');
     expect(ruleBlock(actionBarCss, '.action-bar')).toContain('display: flex');
+    expect(ruleBlock(tabBarCss, '.tab-bar')).toContain('bottom: calc(var(--viewport-bottom-offset, 0px))');
+    expect(ruleBlock(compareCss, '.compare-screen__snap-column')).not.toMatch(/50vw/);
 
     expect(ruleBlock(tabBarCss, '.tab-bar__tab')).not.toMatch(/position:\s*absolute/);
     expect(ruleBlock(actionBarCss, '.action-bar__btn')).not.toMatch(/position:\s*absolute/);
