@@ -28,8 +28,21 @@ describe('BottomSheet', () => {
         <p>Content</p>
       </BottomSheet>,
     );
-    fireEvent.click(screen.getByTestId('bottom-sheet-overlay'));
+    const overlay = screen.getByTestId('bottom-sheet-overlay');
+    fireEvent.pointerDown(overlay);
+    fireEvent.click(overlay);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores backdrop clicks without a matching backdrop pointerdown', () => {
+    const onClose = vi.fn();
+    render(
+      <BottomSheet isOpen onClose={onClose}>
+        <p>Content</p>
+      </BottomSheet>,
+    );
+    fireEvent.click(screen.getByTestId('bottom-sheet-overlay'));
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('does not call onClose when sheet content clicked', () => {

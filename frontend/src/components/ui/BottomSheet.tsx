@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import useFocusTrap from '../../hooks/useFocusTrap';
 import './BottomSheet.css';
 
@@ -20,6 +20,7 @@ export default function BottomSheet({
   children,
 }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const backdropPointerDownRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -30,16 +31,41 @@ export default function BottomSheet({
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      backdropPointerDownRef.current = false;
+    }
+  }, [isOpen]);
+
   useFocusTrap({
     isOpen,
     containerRef: sheetRef,
     onRequestClose: onClose,
   });
 
+  const handleOverlayPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    backdropPointerDownRef.current = event.target === event.currentTarget;
+  }, []);
+
+  const handleOverlayClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const isBackdropClick = event.target === event.currentTarget;
+    const shouldClose = isBackdropClick && backdropPointerDownRef.current;
+    backdropPointerDownRef.current = false;
+
+    if (shouldClose) {
+      onClose();
+    }
+  }, [onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="bottom-sheet-overlay" onClick={onClose} data-testid="bottom-sheet-overlay">
+    <div
+      className="bottom-sheet-overlay"
+      onPointerDown={handleOverlayPointerDown}
+      onClick={handleOverlayClick}
+      data-testid="bottom-sheet-overlay"
+    >
       <div
         ref={sheetRef}
         className="bottom-sheet"

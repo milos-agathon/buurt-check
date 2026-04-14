@@ -310,6 +310,7 @@ describe('ExportBottomSheet', () => {
       sunlightFailed: false,
     });
 
+    fireEvent.pointerDown(screen.getByTestId('bottom-sheet-overlay'));
     fireEvent.click(screen.getByTestId('bottom-sheet-overlay'));
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(mockClose).not.toHaveBeenCalled();
@@ -344,6 +345,7 @@ describe('ExportBottomSheet', () => {
     await waitFor(() => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
+    fireEvent.pointerDown(screen.getByTestId('bottom-sheet-overlay'));
     fireEvent.click(screen.getByTestId('bottom-sheet-overlay'));
     expect(mockClose).toHaveBeenCalledTimes(1);
   });
