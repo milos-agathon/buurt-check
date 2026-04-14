@@ -27,24 +27,10 @@ describe('DossierSheet', () => {
     expect(screen.queryByTestId('sheet-handle')).not.toBeInTheDocument();
   });
 
-  it('sets action bar offset custom property when actionBarVisible is true', () => {
-    render(<DossierSheet {...defaultProps} actionBarVisible />);
-    const content = document.getElementById('dossier-content');
-    expect(content).toBeTruthy();
-    expect(content!.style.getPropertyValue('--dossier-action-bar-offset')).toBe('var(--action-bar-height, 64px)');
-  });
-
-  it('sets action bar offset to 0px when actionBarVisible is false', () => {
-    render(<DossierSheet {...defaultProps} actionBarVisible={false} />);
-    const content = document.getElementById('dossier-content');
-    expect(content).toBeTruthy();
-    expect(content!.style.getPropertyValue('--dossier-action-bar-offset')).toBe('0px');
-  });
-
-  it('defaults actionBarVisible to false (no extra padding)', () => {
+  it('always reserves action bar offset in dossier content', () => {
     render(<DossierSheet {...defaultProps} />);
     const content = document.getElementById('dossier-content');
     expect(content).toBeTruthy();
-    expect(content!.style.getPropertyValue('--dossier-action-bar-offset')).toBe('0px');
+    expect(content!.style.getPropertyValue('--dossier-action-bar-offset')).toBe('var(--action-bar-height, 64px)');
   });
 });

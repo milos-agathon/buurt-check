@@ -70,43 +70,13 @@ test.describe('mobile root shell clamp', () => {
     expect(clampState?.scrollingElementScrollLeft).toBe(0);
   });
 
-  test('keeps the dossier action bar inside the visible viewport when it becomes active', async ({ page }) => {
+  test('keeps the dossier action bar visible from the top of the dossier viewport', async ({ page }) => {
     await openSeededDossier(page, ACTION_BAR_DOSSIER_SEED);
     await expect(page.getByTestId('viewing-checklist')).toBeVisible();
     await expect(page.getByTestId('next-steps')).toBeVisible();
 
-    const scrollTarget = await page.evaluate(() => {
-      const scrollingElement = document.scrollingElement ?? document.documentElement;
-      const checklistHeading = document.querySelector('#section-viewing-checklist');
-      const nextSteps = document.querySelector('[data-testid="next-steps"]');
-
-      if (
-        !(scrollingElement instanceof HTMLElement)
-        || !(checklistHeading instanceof HTMLElement)
-        || !(nextSteps instanceof HTMLElement)
-      ) {
-        return null;
-      }
-
-      const currentTop = scrollingElement.scrollTop;
-      const checklistHeadingTop = currentTop + checklistHeading.getBoundingClientRect().top;
-      const nextStepsTop = currentTop + nextSteps.getBoundingClientRect().top;
-      const targetTop = Math.max(0, checklistHeadingTop - 120);
-
-      if (typeof scrollingElement.scrollTo === 'function') {
-        scrollingElement.scrollTo({ top: targetTop, behavior: 'auto' });
-      } else {
-        scrollingElement.scrollTop = targetTop;
-      }
-
-      return { checklistHeadingTop, nextStepsTop, targetTop };
-    });
-
-    expect(scrollTarget).not.toBeNull();
-
     const actionBar = page.getByTestId('action-bar');
-    await expect(actionBar).toHaveAttribute('aria-hidden', 'false');
-    await expect(actionBar).toHaveClass(/action-bar--visible/);
+    expect(await actionBar.getAttribute('aria-hidden')).toBeNull();
     await expect(actionBar).toBeInViewport();
 
     const geometry = await page.evaluate(() => {
@@ -134,9 +104,12 @@ test.describe('mobile root shell clamp', () => {
     expect(geometry).not.toBeNull();
     expect(geometry?.left).toBeGreaterThanOrEqual(-1);
     expect(geometry?.right).toBeLessThanOrEqual((geometry?.viewportWidth ?? 0) + 1);
-    expect(geometry?.scrollTop).toBeGreaterThan(0);
+    expect(geometry?.scrollTop).toBeLessThanOrEqual(1);
     expect(geometry?.windowScrollX).toBe(0);
     expect(geometry?.scrollingElementScrollLeft).toBe(0);
+
+    await page.getByTestId('action-bar-primary').click();
+    await expect(page.getByTestId('export-sheet')).toBeVisible();
   });
 
   test('preserves local compare scrolling without moving the page shell laterally', async ({ page }) => {

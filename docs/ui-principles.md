@@ -27,7 +27,7 @@ buurt-check is not a data tool. It's a prepared, trustworthy intelligence briefi
 
 - **White space is the main design material.** Resist the urge to fill every pixel with data. Dense layouts signal "power user tool"; generous spacing signals "someone curated this for you."
 - **Hard cap: 5–8 indicators per section.** CBS, RIVM, Kadaster, and other Dutch open data sources can easily explode a screen with dozens of metrics. The design's job is to select, not to display. If you can't justify why a metric changes a buying decision, cut it.
-- **One dominant action per screen.** Each screen gets a single primary CTA (e.g., "Add to shortlist," "Download Quick Checklist"). Everything else is secondary or tertiary. If two buttons are fighting for attention, the screen has a hierarchy problem.
+- **One dominant action per screen.** Each screen gets a single primary CTA (e.g., "Add to shortlist," "Unlock dossier"). Everything else is secondary or tertiary. If two buttons are fighting for attention, the screen has a hierarchy problem.
 - **No dashboard sprawl.** Avoid side-by-side chart grids, multi-tab analytics panels, or anything that makes the user feel like they're operating software. The user's mental model is "I'm reading a report," not "I'm running queries."
 
 ---
@@ -120,7 +120,7 @@ Mobile is fingers, not cursors. buurt-check has a unique challenge: dossier scro
 - **Resolve gesture conflicts with clear boundaries.** The dossier captures vertical scroll. The 3D viewer card captures orbit/zoom within its bounded viewport. The timeline slider captures horizontal drag. These zones are mutually exclusive — the viewer card boundary is the dividing line.
 - **No hover-dependent interactions.** There is no hover state on mobile. Anything shown via tooltip on desktop must be accessible via tap on mobile.
 - **Provide haptic feedback on key actions.** A subtle vibration on shortlist save, PDF export complete, and tab switches reinforces quality and responsiveness. Use sparingly — only primary actions.
-- **Primary CTA button height: 48px minimum.** Maintain this discipline on "Add to Shortlist," "Download Quick Checklist," and "Compare."
+- **Primary CTA button height: 48px minimum.** Maintain this discipline on "Add to Shortlist," "Unlock dossier," and "Compare."
 
 ---
 

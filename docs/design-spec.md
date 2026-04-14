@@ -533,7 +533,7 @@ The primary content screen. A vertically scrolling intelligence briefing compose
 │  └─────────────────────────────────┘    │
 │                                         │
 │  ┌─────────────────────────────────┐    │
-│  │ [Add to Shortlist][Export Brief] │    │ ← ACTION BAR (fixed bottom)
+│  │ [Add to Shortlist][Unlock Dossier] │   │ ← ACTION BAR (fixed bottom)
 │  └─────────────────────────────────┘    │
 │                                         │
 ├─────────────────────────────────────────┤
@@ -1405,7 +1405,7 @@ Same specification as §6.6 questions, but without the teal card background — 
 | Text (NL) | "Exporteer als PDF om mee te nemen" |
 | Font | Satoshi Medium (500), 13px |
 | Color | `#2EC4B6` (Electric Teal) |
-| Tap behavior | Triggers PDF export flow (same as action bar "Export Briefing" button) |
+| Tap behavior | Opens the PDF export sheet with "Quick checklist" preselected |
 | Tap area | Full row width, 44px height |
 
 ### 8.5 Viewing checklist success criteria
@@ -1414,7 +1414,7 @@ Same specification as §6.6 questions, but without the teal card background — 
 - SC-8b: "Good" risk categories (70-100) do not appear in the checklist
 - SC-8c: All questions from the checklist match the questions shown in individual risk detail views
 - SC-8d: Checkbox states sync between checklist card and risk detail views (checking in one updates the other)
-- SC-8e: Export prompt tap opens the same flow as the action bar "Export Briefing" button
+- SC-8e: Export prompt tap opens the PDF export sheet with the quick checklist template preselected
 
 ---
 
@@ -1682,7 +1682,7 @@ Bottom sheet expands to show progress. Template selector and options replaced by
 
 ### 11.3 PDF export success criteria
 
-- SC-11a: Bottom sheet opens within 200ms of tapping "Export Briefing"
+- SC-11a: Bottom sheet opens within 200ms of tapping an export entry point, including the action-bar dossier CTA
 - SC-11b: Template selection updates visual state within 100ms
 - SC-11c: Generate button is disabled (50% opacity) while no template is selected
 - SC-11d: Progress ring fills proportionally to actual generation progress
@@ -1746,7 +1746,7 @@ Accessed via profile icon (top-right of search screen).
 
 ### 13.1 Primary button
 
-The main call-to-action. Used for: "Export Briefing", "Generate Briefing", "Compare".
+The main call-to-action. Used for: "Unlock dossier", "Generate Briefing", "Compare".
 
 | Property | Default | Pressed | Disabled |
 |----------|---------|---------|----------|
@@ -1839,7 +1839,7 @@ The sticky CTA bar at the bottom of the dossier screen.
 | Padding | 8px 20px |
 | Layout | 2 buttons side by side, 12px gap |
 | Left button | Secondary style: "Add to Shortlist" (or "Saved ✓" if saved) |
-| Right button | Primary style: "Export Briefing" |
+| Right button | Primary style: "Unlock dossier" / "Download Full Dossier" |
 | Button heights | 48px each |
 | Button widths | Each takes 50% of available width (minus gap) |
 

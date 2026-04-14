@@ -2192,31 +2192,29 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 ---
 
-### 9.14 Reduce fixed bar viewport consumption ✅
+### 9.14 Reduce fixed bar viewport consumption (superseded)
 
 **Appraisal IDs:** P1#9
 
-**Decision:** Scroll-triggered ActionBar via IntersectionObserver on ViewingChecklist section.
+**Decision:** Superseded on 2026-04-14. The dossier ActionBar is now always visible across the loaded dossier screen, so the earlier scroll-triggered IntersectionObserver approach is no longer current guidance.
 
-**What was done:**
-- ActionBar gains `visible` prop controlling slide in/out via CSS transform
-- IntersectionObserver in App.tsx watches ViewingChecklist section with `rootMargin: '200px 0px'`
-- When sentinel enters viewport, `actionBarVisible` → true; when it leaves, → false
-- ActionBar slides up/down with `translateY` + `--duration-normal` / `--ease-out-expo` transition
-- `@media (prefers-reduced-motion: reduce)` disables slide animation
-- Hidden state: `pointer-events: none` + `aria-hidden="true"` (accessible)
-- `DossierSheet` gains `actionBarVisible` prop to dynamically adjust bottom padding via `--dossier-action-bar-offset` CSS custom property
-- `actionBarVisible` resets to `false` on new address selection
-- 6 new tests (3 ActionBar visibility tests + 3 DossierSheet padding tests)
-- Total fixed bars when ActionBar hidden: just TabBar 56px (was 104px+)
+**What was superseded:**
+- ActionBar `visible` prop controlling slide in/out via CSS transform
+- IntersectionObserver in App.tsx watching the ViewingChecklist section with `rootMargin: '200px 0px'`
+- Sentinel-driven `actionBarVisible` state transitions
+- Hidden-state accessibility and viewport-savings behavior (`pointer-events: none`, `aria-hidden="true"`, hidden fixed-bar target)
+- Conditional `DossierSheet` bottom padding via `actionBarVisible`
 
-**Deviation from spec:** Spec asked for Phase 1 decision doc. Decision was made inline (scroll-triggered) without a separate document. Viewport measurement on iPhone SE not performed (requires device testing).
+**Current guidance:**
+- ActionBar stays mounted for the full loaded dossier screen whenever an address is loaded
+- ActionBar remains outside transformed `.dossier-section` wrappers to preserve mobile fixed-position behavior
+- `DossierSheet` permanently reserves action-bar clearance; the next-steps card does not add a second offset path
+- Hidden-state viewport-savings criteria no longer apply
 
 **Commit:** `6fe5f56`
 
-**DoD:**
-- [x] ActionBar appears on ViewingChecklist section visibility (IntersectionObserver)
-- [x] Fixed bars ≤ 56px when ActionBar hidden (vs 104px before)
+**DoD (superseded):**
+- [x] Scroll-triggered ActionBar implementation shipped
 - [x] `@media (prefers-reduced-motion: reduce)` respected
 - [x] `npm run build` passes
 
@@ -2467,7 +2465,7 @@ These PRD requirements are NOT met. Stories above address most of them. Remainin
 | PRD Requirement | Status | Addressed By |
 |----------------|--------|--------------|
 | Checklist persists across backgrounding (SC-4.3.4c) | NOT IMPLEMENTED | Story 7.9 |
-| ActionBar appears on scroll to checklist (SC-4.3.5a) | CONFLICTS with spec SC-13e | Story 9.14 (Phase 1 decision, then implementation) |
+| ActionBar appears on scroll to checklist (SC-4.3.5a) | SUPERSEDED by always-visible dossier action bar; SC-13e is canonical | Story 9.14 (rolled back on 2026-04-14) |
 | Summary pills section pulse (SC-4.3.1c) | PARTIAL (scroll works, pulse missing) | Story 4.2 (part of stagger) |
 | Dossier section staggered reveal 80ms (animation table) | NOT IMPLEMENTED | Story 4.2 |
 | 3D deferred until viewport entry | NOT IMPLEMENTED | Story 5.6 (IntersectionObserver gating) |

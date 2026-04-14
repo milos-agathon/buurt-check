@@ -302,7 +302,7 @@ A minimal top bar appears on all screens:
 │       │   ShadowSnapshots, heatmap overlay, clear-sky visibility
 │       ├── ── ACTION ──
 │       ├── Viewing checklist (aggregated questions)
-│       └── Action bar: Add to Shortlist | Download Quick Checklist (fixed bottom)
+│       └── Action bar: Add to Shortlist | Unlock dossier / Download Full Dossier (fixed bottom)
 │
 └── Saved (Tab 3)
     ├── Shortlist (1-3 saved addresses)
@@ -490,20 +490,20 @@ The most actionable section — aggregates all "questions to ask" from all risk 
 
 #### 4.3.5 Action bar
 
-Fixed at the bottom of the dossier screen (above the tab bar), appearing when the user scrolls past the viewing checklist.
+Fixed at the bottom of the loaded dossier screen (above the tab bar), remaining visible across all dossier sections.
 
 **Design:**
 - Background: White, Level 2 elevation shadow (casts upward)
 - Height: 64px + safe area
 - Two buttons, side by side with 12px gap:
   - **Left (secondary):** "Add to Shortlist" — outlined style, `--color-accent` border + text, white background, bookmark icon left. If already saved: "Saved ✓" in `--color-accent` filled style.
-  - **Right (primary):** "Download Quick Checklist" — filled `--color-accent` background, white text, download icon left. This is the free export CTA.
+- **Right (primary):** "Unlock dossier" before purchase, then "Download Full Dossier" after entitlement — filled `--color-accent` background, white text, dossier icon left. This is the premium dossier CTA and opens the `full_dossier` export flow.
 - On phones narrower than 360px: stack vertically (primary on top)
 
 **Success criteria:**
-- SC-4.3.5a: Action bar becomes visible when user scrolls to viewing checklist section
+- SC-4.3.5a: Action bar remains visible and tappable above the tab bar throughout the loaded dossier screen
 - SC-4.3.5b: "Add to Shortlist" updates to "Saved ✓" state within 200ms of tap, with haptic feedback
-- SC-4.3.5c: "Download Quick Checklist" triggers the `quick_brief` PDF generation flow (see §9) within 200ms of tap
+- SC-4.3.5c: "Unlock dossier" / "Download Full Dossier" opens the `full_dossier` PDF export flow (see §9) within 200ms of tap
 - SC-4.3.5d: Shortlisted addresses appear in the Saved tab within 500ms
 
 ---
@@ -955,7 +955,7 @@ Below the chart: A "Differences only" toggle (pill button) that filters the colu
 
 ### 9.1 Export flow
 
-1. **Trigger:** User taps "Download Quick Checklist" (primary CTA in dossier action bar) or opens the export sheet from another dossier action.
+1. **Trigger:** User taps the dossier action bar primary CTA ("Unlock dossier" or "Download Full Dossier") or opens the export sheet from another dossier action.
 2. **Configuration bottom sheet** (Level 2 elevation, 24px top border radius):
    - Slides up from bottom, 45% viewport height
    - **Template selector:** Two tappable cards side by side:
@@ -965,7 +965,7 @@ Below the chart: A "Differences only" toggle (pill button) that filters the colu
    - **Language:** Segmented control (EN | NL). Defaults to app language.
    - **Primary button behavior:** Full-width, `--color-accent`
      - For `quick_brief`: "Download Quick Checklist"
-     - For `full_dossier` without entitlement: "Buy Full Dossier"
+     - For `full_dossier` without entitlement: "Unlock dossier (€3.99)"
      - For `full_dossier` with active entitlement: "Download Full Dossier"
 3. **Generation state:**
    - Bottom sheet expands to show progress

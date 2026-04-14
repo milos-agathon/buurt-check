@@ -12,7 +12,6 @@ interface ActionBarProps {
   showBookmarkTooltip?: boolean;
   bookmarkPending?: boolean;
   primaryPending?: boolean;
-  visible?: boolean;
 }
 
 type BookmarkAnimationState = 'saving' | 'removing' | null;
@@ -35,7 +34,6 @@ export default function ActionBar({
   showBookmarkTooltip = false,
   bookmarkPending = false,
   primaryPending = false,
-  visible = true,
 }: ActionBarProps) {
   const { t } = useTranslation();
   const [bookmarkAnimation, setBookmarkAnimation] = useState<BookmarkAnimationState>(null);
@@ -107,13 +105,8 @@ export default function ActionBar({
     bookmarkAnimation ? `action-bar__bookmark-icon--${bookmarkAnimation}` : '',
   ].filter(Boolean).join(' ');
 
-  const barClass = [
-    'action-bar',
-    visible ? 'action-bar--visible' : 'action-bar--hidden',
-  ].join(' ');
-
   return (
-    <div className={barClass} data-testid="action-bar" aria-hidden={!visible}>
+    <div className="action-bar" data-testid="action-bar">
       <div className="action-bar__btn-wrapper">
         <button
           type="button"

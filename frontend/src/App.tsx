@@ -144,7 +144,6 @@ const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
 type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
-const NEXT_STEPS_ACTION_BAR_HIDE_AHEAD_PX = 136;
 
 interface DossierSeedState {
   address?: ResolvedAddress;
@@ -919,14 +918,6 @@ function App() {
   const currentShadowPrewarmKey = address?.adresseerbaar_object_id && reportId
     ? shadowPrewarmKey(address.adresseerbaar_object_id, reportId)
     : null;
-
-  // Floating action bar: show near the checklist, but hide before the in-flow
-  // next-steps card reaches the viewport so the card's actions stay readable.
-  const [actionBarSectionVisible, setActionBarSectionVisible] = useState(false);
-  const [nextStepsVisible, setNextStepsVisible] = useState(false);
-  const actionBarObserverRef = useRef<IntersectionObserver | null>(null);
-  const nextStepsObserverRef = useRef<IntersectionObserver | null>(null);
-  const floatingActionBarVisible = actionBarSectionVisible && !nextStepsVisible;
 
   // When an overlay modal (e.g. ExportBottomSheet) is open, mark background
   // content as inert so screen readers cannot access it (WCAG best practice).
@@ -2762,65 +2753,6 @@ function App() {
     };
   }, []);
 
-  // Floating action bar visibility — the checklist section enables it.
-  const actionBarSentinelRefCallback = useCallback((node: HTMLDivElement | null) => {
-    if (actionBarObserverRef.current) {
-      actionBarObserverRef.current.disconnect();
-      actionBarObserverRef.current = null;
-    }
-
-    if (!node) {
-      setActionBarSectionVisible(false);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        setActionBarSectionVisible(entries.some((entry) => entry.isIntersecting));
-      },
-      { rootMargin: '200px 0px' },
-    );
-
-    observer.observe(node);
-    actionBarObserverRef.current = observer;
-  }, []);
-
-  // Hide the floating action bar before it can cover the in-flow next steps card.
-  const nextStepsRefCallback = useCallback((node: HTMLDivElement | null) => {
-    if (nextStepsObserverRef.current) {
-      nextStepsObserverRef.current.disconnect();
-      nextStepsObserverRef.current = null;
-    }
-
-    if (!node) {
-      setNextStepsVisible(false);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        setNextStepsVisible(entries.some((entry) => entry.isIntersecting));
-      },
-      { rootMargin: `0px 0px ${NEXT_STEPS_ACTION_BAR_HIDE_AHEAD_PX}px 0px` },
-    );
-
-    observer.observe(node);
-    nextStepsObserverRef.current = observer;
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (actionBarObserverRef.current) {
-        actionBarObserverRef.current.disconnect();
-        actionBarObserverRef.current = null;
-      }
-      if (nextStepsObserverRef.current) {
-        nextStepsObserverRef.current.disconnect();
-        nextStepsObserverRef.current = null;
-      }
-    };
-  }, []);
-
   const handleAddressSelect = useCallback(async (
     suggestion: AddressSuggestion,
     options?: { forcedReportId?: string; recoveryMode?: 'checkout_return' },
@@ -2873,8 +2805,6 @@ function App() {
     setExportInitialTemplate(null);
     setExportInitialLanguage(null);
     setExportAutoGenerateToken(null);
-    setActionBarSectionVisible(false);
-    setNextStepsVisible(false);
     setRiskCards(null);
     setRiskComparisons(null);
     setRiskComparisonsError(null);
@@ -4284,7 +4214,7 @@ function App() {
               </div>
             ) : (
               <ErrorBoundary key={address?.adresseerbaar_object_id ?? 'none'} fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
-              <DossierSheet snap={sheetSnap} actionBarVisible={floatingActionBarVisible}>
+              <DossierSheet snap={sheetSnap}>
                 {address && showDossierJump && (
                   <div className="app__dossier-jump-nav">
                     <div className="app__dossier-jump-header">
@@ -4600,7 +4530,7 @@ function App() {
                     </div>
                     <p className="app__phase-divider-subtitle">{t('dossier.actionSubtitle')}</p>
                   </div>
-                  <div ref={actionBarSentinelRefCallback} className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8}>
+                  <div className="dossier-section" style={dossierSectionStyle(8)} data-section-index={8}>
                     <section role="region" aria-label={t('nav.jumpBriefing')}>
                       <h3 id="section-viewing-checklist" className="app__section-label">{t('dossier.viewingChecklist')}</h3>
                       <ViewingChecklist
@@ -4617,8 +4547,7 @@ function App() {
 
                 {address && (
                   <div
-                    ref={nextStepsRefCallback}
-                    className={`app__next-steps${floatingActionBarVisible ? ' app__next-steps--with-action-bar' : ''}`}
+                    className="app__next-steps"
                     data-testid="next-steps"
                   >
                     <h3 className="app__next-steps-title">{t('dossier.nextSteps.title')}</h3>
@@ -4707,7 +4636,6 @@ function App() {
                     showBookmarkTooltip={!!address}
                     bookmarkPending={bookmarkPending}
                     primaryPending={exportGenerating}
-                    visible={floatingActionBarVisible}
                   />
                 )}
               </DossierSheet>

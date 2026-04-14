@@ -57,6 +57,7 @@ describe('Mobile UI quality gates', () => {
     const topBarCss = readCss('components/TopBar.css');
     const tabBarCss = readCss('components/TabBar.css');
     const actionBarCss = readCss('components/ActionBar.css');
+    const dossierSheetCss = readCss('components/DossierSheet.css');
     const compareCss = readCss('components/CompareScreen.css');
 
     expect(ruleBlock(topBarCss, '.top-bar__actions')).toContain('display: flex');
@@ -65,7 +66,7 @@ describe('Mobile UI quality gates', () => {
     expect(ruleBlock(actionBarCss, '.action-bar')).toContain('display: flex');
     expect(ruleBlock(tabBarCss, '.tab-bar')).toContain('bottom: calc(var(--viewport-bottom-offset, 0px))');
     expect(ruleBlock(actionBarCss, '.action-bar')).toContain('bottom: calc(var(--viewport-bottom-offset, 0px) + var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px))');
-    expect(ruleBlock(actionBarCss, '.action-bar--hidden')).toContain('var(--viewport-bottom-offset, 0px)');
+    expect(ruleBlock(dossierSheetCss, '.dossier-sheet__content')).toContain('var(--dossier-action-bar-offset, 0px)');
     expect(ruleBlock(compareCss, '.compare-screen__snap-column')).not.toMatch(/50vw/);
 
     expect(ruleBlock(tabBarCss, '.tab-bar__tab')).not.toMatch(/position:\s*absolute/);

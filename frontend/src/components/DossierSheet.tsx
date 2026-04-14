@@ -6,16 +6,15 @@ export type SheetSnap = 'hidden' | 'peek' | 'half' | 'full';
 interface DossierSheetProps {
   snap: SheetSnap;
   children: React.ReactNode;
-  actionBarVisible?: boolean;
 }
 
-export default function DossierSheet({ snap, children, actionBarVisible = false }: DossierSheetProps) {
+export default function DossierSheet({ snap, children }: DossierSheetProps) {
   if (snap === 'hidden') {
     return <div data-testid="dossier-sheet" style={{ display: 'none' }} />;
   }
 
   const contentStyle: CSSProperties = {
-    '--dossier-action-bar-offset': actionBarVisible ? 'var(--action-bar-height, 64px)' : '0px',
+    '--dossier-action-bar-offset': 'var(--action-bar-height, 64px)',
   } as CSSProperties;
 
   return (

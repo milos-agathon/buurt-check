@@ -897,7 +897,7 @@ describe('3D viewer integration', () => {
     expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: €3.99');
   });
 
-  it('opens the export sheet with full dossier preselected from the floating dossier CTA', async () => {
+  it('renders the dossier action bar immediately after dossier load', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
 
@@ -908,7 +908,21 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('action-bar-primary')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('action-bar').closest('.dossier-section')).toBeNull();
+    const actionBar = screen.getByTestId('action-bar');
+    expect(actionBar).not.toHaveAttribute('aria-hidden');
+    expect(actionBar.closest('.dossier-section')).toBeNull();
+  });
+
+  it('opens the export sheet with full dossier preselected from the dossier CTA', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('action-bar-primary')).toBeInTheDocument();
+    });
 
     await act(async () => {
       fireEvent.click(screen.getByTestId('action-bar-primary'));
