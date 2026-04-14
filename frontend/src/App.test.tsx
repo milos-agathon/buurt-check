@@ -908,6 +908,8 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('action-bar-primary')).toBeInTheDocument();
     });
 
+    expect(screen.getByTestId('action-bar').closest('.dossier-section')).toBeNull();
+
     await act(async () => {
       fireEvent.click(screen.getByTestId('action-bar-primary'));
     });
@@ -2938,7 +2940,7 @@ describe('dossier section order (v7 canonical)', () => {
     const uniqueIndexes = [...new Set(indexes)];
 
     expect(indexes).toEqual(uniqueIndexes);
-    expect(uniqueIndexes).toEqual([0, 1, 2, 4, 5, 6, 7, 8, 9]);
+    expect(uniqueIndexes).toEqual([0, 1, 2, 4, 5, 6, 7, 8]);
     sections.forEach((section) => {
       const attr = section.getAttribute('data-section-index');
       if (attr == null) return;

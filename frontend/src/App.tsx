@@ -4692,21 +4692,23 @@ function App() {
                 )}
 
                 {address && (
-                  <div className="dossier-section" style={dossierSectionStyle(9)} data-section-index={9}>
-                    <ActionBar
-                      isBookmarked={currentAddressBookmarked}
-                      onAddToShortlist={handleBookmark}
-                      onPrimaryAction={() => {
-                        hapticTap();
-                        openExportSheet('full_dossier');
-                      }}
-                      primaryLabel={actionBarPrimaryLabel}
-                      showBookmarkTooltip={!!address}
-                      bookmarkPending={bookmarkPending}
-                      primaryPending={exportGenerating}
-                      visible={floatingActionBarVisible}
-                    />
-                  </div>
+                  // Keep the fixed action bar outside animated dossier sections.
+                  // A transformed ancestor changes fixed-position containing-block
+                  // behavior on mobile browsers, which can leave the hidden bar
+                  // visually peeking above the tab bar while remaining untappable.
+                  <ActionBar
+                    isBookmarked={currentAddressBookmarked}
+                    onAddToShortlist={handleBookmark}
+                    onPrimaryAction={() => {
+                      hapticTap();
+                      openExportSheet('full_dossier');
+                    }}
+                    primaryLabel={actionBarPrimaryLabel}
+                    showBookmarkTooltip={!!address}
+                    bookmarkPending={bookmarkPending}
+                    primaryPending={exportGenerating}
+                    visible={floatingActionBarVisible}
+                  />
                 )}
               </DossierSheet>
               </ErrorBoundary>
