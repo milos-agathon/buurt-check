@@ -4360,6 +4360,15 @@ function App() {
                           setHashRoute('#/search');
                         }}
                       />
+                    </div>
+                  )}
+
+                  {((loading && !riskCards) || riskLoading || riskCards || riskError || activeDetailCategory) && (
+                    <div
+                      className="dossier-section dossier-section--risk-grid"
+                      style={dossierSectionStyle(1.5)}
+                      data-section-index={1.5}
+                    >
                       {coverageSummary && (
                         <div className="app__coverage-strip">
                           <span>{t('dossier.coverage.loaded', { loaded: coverageSummary.loaded, total: coverageSummary.total })}</span>
@@ -4388,15 +4397,6 @@ function App() {
                           </button>
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {((loading && !riskCards) || riskLoading || riskCards || riskError || activeDetailCategory) && (
-                    <div
-                      className="dossier-section dossier-section--risk-grid"
-                      style={dossierSectionStyle(1.5)}
-                      data-section-index={1.5}
-                    >
                       {loading && !riskCards && <RiskTileSkeleton />}
                       {(riskLoading || riskCards || riskError || activeDetailCategory) && (
                         <LayoutGroup>

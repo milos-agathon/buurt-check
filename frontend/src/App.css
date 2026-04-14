@@ -99,7 +99,7 @@
 }
 
 .app__coverage-strip {
-  margin: var(--space-sm) var(--space-base) 0;
+  margin: 0 var(--space-base);
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--color-border);
   border-radius: 18px;
@@ -122,7 +122,7 @@
 }
 
 .app__failed-banner {
-  margin: var(--space-sm) var(--space-base) 0;
+  margin: 0 var(--space-base);
   padding: var(--space-md);
   border: 1px solid color-mix(in srgb, var(--color-warning) 22%, var(--color-border));
   border-left: 3px solid var(--color-warning);
@@ -322,7 +322,10 @@
 }
 
 .dossier-section--risk-grid {
-  margin-top: calc(var(--space-sm) - var(--dossier-section-gap));
+  --risk-grid-vertical-gap: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--risk-grid-vertical-gap);
 }
 
 @keyframes dossierReveal {

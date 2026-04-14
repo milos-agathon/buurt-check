@@ -1,7 +1,7 @@
 .risk-tiles-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-sm);
+  gap: var(--risk-grid-vertical-gap, var(--space-sm));
   margin: 0;
   contain: content;
   align-items: stretch;

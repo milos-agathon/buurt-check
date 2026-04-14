@@ -94,7 +94,7 @@ async function readLandingGeometry(page: Page): Promise<LandingGeometry> {
       nav_cta_right_px: navCta ? Math.round(navCta.right) : null,
       nav_cta_top_px: navCta ? Math.round(navCta.top) : null,
       nav_cta_bottom_px: navCta ? Math.round(navCta.bottom) : null,
-      nav_link_rects: Array.from(document.querySelectorAll('.nav__links a')).map((node) => {
+      nav_link_rects: Array.from(document.querySelectorAll('.nav__controls .nav__cta')).map((node) => {
         const rect = node.getBoundingClientRect();
         return {
           text: node.textContent?.replace(/\s+/g, ' ').trim() ?? '',
@@ -301,7 +301,7 @@ test('keeps sticky-nav controls keyboard reachable and records landing analytics
   await page.keyboard.press('Tab');
   await expect(page.locator('.nav__cta')).toBeFocused();
 
-  await expect(page.locator('.nav__links a')).toHaveCount(1);
+  await expect(page.locator('.nav__controls .nav__cta')).toHaveCount(1);
 
   await page.locator('#pricing').scrollIntoViewIfNeeded();
   await page.waitForTimeout(250);
@@ -366,13 +366,31 @@ test('keeps the mobile CTA visible in the fixed header row and exposes the hero 
   expect(after.hero_preview_top_px).toBeLessThan(after.viewport_height_px);
   expect(after.hero_preview_visible_height_px).toBeGreaterThanOrEqual(96);
 
-  const navLinksStyle = await page.locator('.nav__links').evaluate((node) => {
+  const controlsStyle = await page.locator('.nav__controls').evaluate((node) => {
     const style = getComputedStyle(node);
-    return { flexWrap: style.flexWrap, overflowX: style.overflowX };
+    return { display: style.display, gap: style.gap };
   });
-  expect(navLinksStyle.flexWrap).toBe('nowrap');
-  expect(['auto', 'scroll']).toContain(navLinksStyle.overflowX);
-  await expect(page.locator('.nav__links .nav__cta')).toHaveCount(1);
+  expect(controlsStyle.display).toContain('flex');
+  const navHeaderLayout = await page.evaluate(() => {
+    const brand = document.querySelector('.nav__brand')?.getBoundingClientRect() ?? null;
+    const controls = document.querySelector('.nav__controls')?.getBoundingClientRect() ?? null;
+    const brandLockup = document.querySelector('.nav__brand-lockup');
+    const brandMark = document.querySelector('.nav__brand-mark');
+
+    return {
+      brandRight: brand ? Math.round(brand.right) : null,
+      controlsLeft: controls ? Math.round(controls.left) : null,
+      lockupDisplay: brandLockup ? getComputedStyle(brandLockup).display : null,
+      markDisplay: brandMark ? getComputedStyle(brandMark).display : null,
+    };
+  });
+  expect(navHeaderLayout.lockupDisplay).not.toBe('none');
+  expect(navHeaderLayout.markDisplay).toBe('none');
+  expect(navHeaderLayout.brandRight).not.toBeNull();
+  expect(navHeaderLayout.controlsLeft).not.toBeNull();
+  expect(navHeaderLayout.brandRight).toBeLessThanOrEqual(navHeaderLayout.controlsLeft!);
+  expect(await getElementHeight(page, '.nav__cta')).toBeGreaterThanOrEqual(44);
+  await expect(page.locator('.nav__controls .nav__cta')).toHaveCount(1);
   expect(
     after.nav_link_rects.every((rect) => after.nav_cta_top_px !== null && Math.abs(rect.top - after.nav_cta_top_px) <= 4),
   ).toBe(true);
@@ -381,7 +399,6 @@ test('keeps the mobile CTA visible in the fixed header row and exposes the hero 
     nodes.map((node) => Math.round(node.getBoundingClientRect().height)),
   );
   expect(languageButtonHeights.every((height) => height >= 44)).toBe(true);
-  expect(await getElementHeight(page, '.nav__cta')).toBeGreaterThanOrEqual(44);
 });
 
 test('places the dossier showcase before pricing and renders all showcase cards', async ({ page }) => {

@@ -43,6 +43,8 @@ describe('Mobile UI quality gates', () => {
     expect(ruleBlock(tabBarCss, '.tab-bar')).toContain('display: flex');
     expect(ruleBlock(actionBarCss, '.action-bar')).toContain('display: flex');
     expect(ruleBlock(tabBarCss, '.tab-bar')).toContain('bottom: calc(var(--viewport-bottom-offset, 0px))');
+    expect(ruleBlock(actionBarCss, '.action-bar')).toContain('bottom: calc(var(--viewport-bottom-offset, 0px) + var(--tab-bar-height, 56px) + env(safe-area-inset-bottom, 0px))');
+    expect(ruleBlock(actionBarCss, '.action-bar--hidden')).toContain('var(--viewport-bottom-offset, 0px)');
     expect(ruleBlock(compareCss, '.compare-screen__snap-column')).not.toMatch(/50vw/);
 
     expect(ruleBlock(tabBarCss, '.tab-bar__tab')).not.toMatch(/position:\s*absolute/);
@@ -63,8 +65,8 @@ describe('Mobile UI quality gates', () => {
     const skeletonMinHeight = pxValue(ruleBlock(riskTileSkeletonCss, '.risk-tile-skeleton-card'), 'min-height');
 
     expect(Math.abs(loadedMinHeight - skeletonMinHeight)).toBeLessThanOrEqual(4);
-    expect(ruleBlock(riskTileSkeletonCss, '.risk-tile-skeleton-grid')).toContain('gap: var(--space-sm)');
-    expect(ruleBlock(riskTilesGridCss, '.risk-tiles-grid')).toContain('gap: var(--space-sm)');
+    expect(ruleBlock(riskTileSkeletonCss, '.risk-tile-skeleton-grid')).toContain('gap: var(--risk-grid-vertical-gap, var(--space-sm))');
+    expect(ruleBlock(riskTilesGridCss, '.risk-tiles-grid')).toContain('gap: var(--risk-grid-vertical-gap, var(--space-sm))');
   });
 
   it('skeleton CSS reserves stable layout slots to prevent transition shifts', () => {
