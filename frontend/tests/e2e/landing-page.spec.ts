@@ -301,10 +301,8 @@ test('keeps sticky-nav controls keyboard reachable and records landing analytics
   await page.keyboard.press('Tab');
   await expect(page.locator('.nav__cta')).toBeFocused();
 
-  await page.keyboard.press('Tab');
-  await expect(page.locator('a[data-nav-target="how-it-works"]')).toBeFocused();
+  await expect(page.locator('.nav__links a')).toHaveCount(1);
 
-  await page.locator('a[data-nav-target="pricing"]').click();
   await page.locator('#pricing').scrollIntoViewIfNeeded();
   await page.waitForTimeout(250);
   await page.locator('#faq').scrollIntoViewIfNeeded();
@@ -321,7 +319,6 @@ test('keeps sticky-nav controls keyboard reachable and records landing analytics
   const eventNames = events.map((event) => event.name);
 
   expect(eventNames).toContain('landing_language_toggle');
-  expect(eventNames).toContain('landing_nav_click');
   expect(eventNames).toContain('landing_section_view');
   expect(eventNames).toContain('landing_cta_click');
 
@@ -480,6 +477,7 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   expect(existsSync(resolve(LANDING_DIR, 'privacy.html'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'terms.html'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'legal.css'))).toBe(true);
+  expect(existsSync(resolve(LANDING_DIR, 'legal.js'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'logos', 'buurt-check-lockup-horizontal.svg'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'logos', 'buurt-check-lockup-horizontal-reverse.svg'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'logos', 'buurt-check-favicon.svg'))).toBe(true);
@@ -487,23 +485,39 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   expect(existsSync(resolve(LANDING_DIR, 'images', 'showcase-sunlight.webp'))).toBe(true);
 
   await page.goto('/privacy.html');
-  await expect(page).toHaveTitle(/Privacy Policy/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Buurt Check Privacy Policy' })).toBeVisible();
-  await expect(page.locator(`a[href="${APP_URL}"]`).first()).toBeVisible();
-  await expect(page.getByText('Milos Popovic')).toBeVisible();
-  await expect(page.getByText('Milos GIS')).toBeVisible();
-  await expect(page.getByText('Duinzicht 23')).toBeVisible();
-  await expect(page.locator('a[href="mailto:support@buurt-check.nl"]').first()).toBeVisible();
+  await expect(page).toHaveTitle('Buurt Check Privacybeleid');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'nl');
+  await expect(page.getByRole('radiogroup', { name: 'Taal' })).toBeVisible();
+  await expect(page.locator('.legal-page__brand-text')).toHaveText('Buurt Check');
+  await expect(page.getByRole('heading', { level: 1, name: 'Hoe Buurt Check met gegevens omgaat' })).toBeVisible();
+  await expect(page.locator(`a[href="${APP_URL}"]:visible`).first()).toBeVisible();
+  await expect(page.getByText('Milos Popovic').first()).toBeVisible();
+  await expect(page.getByText('Milos GIS').first()).toBeVisible();
+  await expect(page.getByText('Duinzicht 23').first()).toBeVisible();
+  await expect(page.locator('a[href="mailto:support@buurt-check.nl"]:visible').first()).toBeVisible();
+  await page.locator('button[data-language-choice="en"]').click();
+  await expect(page).toHaveTitle('Buurt Check Privacy Policy');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.getByRole('radiogroup', { name: 'Language' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'How Buurt Check handles data' })).toBeVisible();
 
   await page.goto('/terms.html');
-  await expect(page).toHaveTitle(/Terms of Use/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Buurt Check Terms of Use' })).toBeVisible();
-  await expect(page.locator(`a[href="${APP_URL}"]`).first()).toBeVisible();
-  await expect(page.locator('a[href="mailto:support@buurt-check.nl"]').first()).toBeVisible();
-  await expect(page.locator('a[href="/privacy.html"]')).toBeVisible();
+  await expect(page).toHaveTitle('Buurt Check Terms of Use');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.getByRole('radiogroup', { name: 'Language' })).toBeVisible();
+  await expect(page.locator('.legal-page__brand-text')).toHaveText('Buurt Check');
+  await expect(page.getByRole('heading', { level: 1, name: 'Terms for using Buurt Check' })).toBeVisible();
+  await expect(page.locator(`a[href="${APP_URL}"]:visible`).first()).toBeVisible();
+  await expect(page.locator('a[href="mailto:support@buurt-check.nl"]:visible').first()).toBeVisible();
+  await expect(page.locator('a[href="/privacy.html"]:visible').first()).toBeVisible();
   await expect(page.getByText('Milos Popovic')).toHaveCount(0);
   await expect(page.getByText('Milos GIS')).toHaveCount(0);
   await expect(page.getByText('Duinzicht 23')).toHaveCount(0);
+  await page.locator('button[data-language-choice="nl"]').click();
+  await expect(page).toHaveTitle('Buurt Check Gebruiksvoorwaarden');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'nl');
+  await expect(page.getByRole('radiogroup', { name: 'Taal' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Voorwaarden voor Buurt Check' })).toBeVisible();
 });
 
 test('keeps the landing footer free of operator identity details while preserving support and legal links', async ({ page }) => {

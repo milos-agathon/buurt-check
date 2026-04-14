@@ -14,6 +14,7 @@
 }
 
 .dossier-sheet__content {
+  --dossier-section-gap: var(--space-lg);
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
@@ -27,6 +28,7 @@
   }
 
   .dossier-sheet__content {
+    --dossier-section-gap: var(--space-xl);
     gap: var(--space-xl);
     padding: var(--space-lg) var(--space-lg) calc(var(--tab-bar-height, 56px) + var(--viewport-bottom-offset, 0px) + var(--dossier-action-bar-offset, 0px) + var(--space-2xl));
   }

@@ -6,6 +6,7 @@ interface BottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
   height?: string;
+  minHeight?: string;
   ariaLabel?: string;
   children: React.ReactNode;
 }
@@ -14,6 +15,7 @@ export default function BottomSheet({
   isOpen,
   onClose,
   height = '50vh',
+  minHeight,
   ariaLabel = 'Dialog',
   children,
 }: BottomSheetProps) {
@@ -41,7 +43,7 @@ export default function BottomSheet({
       <div
         ref={sheetRef}
         className="bottom-sheet"
-        style={{ maxHeight: height }}
+        style={{ maxHeight: height, minHeight }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

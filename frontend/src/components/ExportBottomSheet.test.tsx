@@ -683,9 +683,21 @@ describe('ExportBottomSheet', () => {
       buyPriceLabel: '$4.99',
     });
 
+    expect(screen.getByRole('radio', { name: /Full Dossier/i })).toHaveTextContent('Full Dossier ($4.99)');
+    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: $4.99');
+
     fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
 
     expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: $4.99');
+  });
+
+  it('uses the taller export sheet sizing for the template chooser flow', () => {
+    renderSheet();
+
+    expect(screen.getByRole('dialog')).toHaveStyle({
+      maxHeight: '72vh',
+      minHeight: '72vh',
+    });
   });
 
   it('disables the buy button and shows the checkout-unavailable message', () => {

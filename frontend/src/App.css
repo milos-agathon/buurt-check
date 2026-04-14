@@ -321,6 +321,10 @@
   animation-delay: calc(var(--section-index, 0) * 36ms);
 }
 
+.dossier-section--risk-grid {
+  margin-top: calc(var(--space-sm) - var(--dossier-section-gap));
+}
+
 @keyframes dossierReveal {
   from {
     opacity: 0;

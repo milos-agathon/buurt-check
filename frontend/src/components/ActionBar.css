@@ -35,10 +35,11 @@
 
 .action-bar__btn {
   flex: 1;
-  height: 48px;
+  min-height: 48px;
   border-radius: var(--radius-md);
-  font: 600 14px/1 var(--font-family);
-  white-space: nowrap;
+  padding: 8px 12px;
+  font: 600 13px/1.15 var(--font-family);
+  white-space: normal;
   cursor: pointer;
   border: none;
   display: flex;
@@ -46,6 +47,7 @@
   justify-content: center;
   gap: var(--space-xs);
   transition: background var(--transition-fast), color var(--transition-fast);
+  text-align: center;
 }
 
 .action-bar__btn:disabled {

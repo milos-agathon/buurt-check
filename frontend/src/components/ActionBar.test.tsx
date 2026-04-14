@@ -166,11 +166,10 @@ describe('ActionBar', () => {
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  it('fires onExportBriefing when primary button clicked', () => {
+  it('fires onPrimaryAction when primary button clicked', () => {
     const onClick = vi.fn();
-    const { container } = renderActionBar({ onExportBriefing: onClick });
-    const primary = container.querySelector('.action-bar__btn--primary');
-    fireEvent.click(primary!);
+    renderActionBar({ onPrimaryAction: onClick, primaryLabel: 'Unlock dossier' });
+    fireEvent.click(document.querySelector('[data-testid="action-bar-primary"]')!);
     expect(onClick).toHaveBeenCalledOnce();
   });
 

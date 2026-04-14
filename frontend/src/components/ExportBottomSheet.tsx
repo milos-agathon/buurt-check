@@ -505,7 +505,9 @@ export default function ExportBottomSheet({
   };
 
   const hasShadows = shadowSnapshots && shadowSnapshots.length > 0;
-  const requiresPurchase = activeTemplate === 'full_dossier' && !isEntitled;
+  const fullDossierRequiresPurchase = !isEntitled;
+  const showFullDossierPrice = fullDossierRequiresPurchase && Boolean(buyPriceLabel);
+  const requiresPurchase = activeTemplate === 'full_dossier' && fullDossierRequiresPurchase;
   const manualSunlightPending = !requiresPurchase && template === 'full_dossier' && !sunlightReady;
   const manualShadowSnapshotsPending = !requiresPurchase
     && template === 'full_dossier'
@@ -536,7 +538,13 @@ export default function ExportBottomSheet({
   ].filter((value): value is string => Boolean(value));
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={handleCloseRequest} height="45vh" ariaLabel={sheetTitle}>
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={handleCloseRequest}
+      height="72vh"
+      minHeight="72vh"
+      ariaLabel={sheetTitle}
+    >
       <div className="export-sheet" data-testid="export-sheet">
         <h3 className="export-sheet__title">{sheetTitle}</h3>
         {!isPostCheckoutRecovery && (
@@ -713,7 +721,11 @@ export default function ExportBottomSheet({
                     <rect x="16" y="4" width="18" height="24" rx="2.5" />
                     <rect x="28" y="8" width="18" height="24" rx="2.5" />
                   </svg>
-                  <span className="export-sheet__template-title">{t('export.fullDossier', 'Full Dossier')}</span>
+                  <span className="export-sheet__template-title">
+                    {showFullDossierPrice
+                      ? t('export.fullDossierWithPrice', { price: buyPriceLabel })
+                      : t('export.fullDossier', 'Full Dossier')}
+                  </span>
                   <span className="export-sheet__template-meta">{t('export.fullDossierMeta', '10+ pages')}</span>
                 </button>
               </div>
@@ -742,7 +754,7 @@ export default function ExportBottomSheet({
                 </p>
               )}
 
-              {template === 'full_dossier' && requiresPurchase && buyPriceLabel && (
+              {showFullDossierPrice && (
                 <p className="export-sheet__sunlight-status" data-testid="export-buy-price">
                   {t('export.fullDossierPrice', { price: buyPriceLabel })}
                 </p>

@@ -7,10 +7,11 @@ import './ActionBar.css';
 interface ActionBarProps {
   isBookmarked?: boolean;
   onAddToShortlist?: () => void;
-  onExportBriefing?: () => void;
+  onPrimaryAction?: () => void;
+  primaryLabel?: string;
   showBookmarkTooltip?: boolean;
   bookmarkPending?: boolean;
-  exportPending?: boolean;
+  primaryPending?: boolean;
   visible?: boolean;
 }
 
@@ -29,10 +30,11 @@ function prefersReducedMotion(): boolean {
 export default function ActionBar({
   isBookmarked = false,
   onAddToShortlist,
-  onExportBriefing,
+  onPrimaryAction,
+  primaryLabel,
   showBookmarkTooltip = false,
   bookmarkPending = false,
-  exportPending = false,
+  primaryPending = false,
   visible = true,
 }: ActionBarProps) {
   const { t } = useTranslation();
@@ -140,16 +142,19 @@ export default function ActionBar({
       <button
         type="button"
         className="action-bar__btn action-bar__btn--primary"
-        onClick={onExportBriefing}
-        disabled={exportPending}
-        aria-busy={exportPending || undefined}
+        onClick={onPrimaryAction}
+        disabled={primaryPending}
+        aria-busy={primaryPending || undefined}
+        data-testid="action-bar-primary"
       >
         <svg className="action-bar__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+          <path d="M7 3.75h7l4.25 4.25v11.25a1.5 1.5 0 0 1-1.5 1.5h-9.5a1.5 1.5 0 0 1-1.5-1.5v-14a1.5 1.5 0 0 1 1.5-1.5Z" />
+          <path d="M14 3.75v4.75h4.75" />
+          <path d="M9 12.5h6M9 16h4.5" />
         </svg>
-        {exportPending
+        {primaryPending
           ? t('export.generating', 'Generating...')
-          : t('action.exportBriefing', 'Export Briefing')}
+          : (primaryLabel ?? t('action.exportBriefing', 'Export Briefing'))}
       </button>
     </div>
   );

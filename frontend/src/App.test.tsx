@@ -839,7 +839,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -893,9 +893,11 @@ describe('3D viewer integration', () => {
     expect(
       within(screen.getByTestId('export-sheet')).getByRole('radio', { name: /Quick checklist/i }),
     ).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText('Full Dossier (€3.99)')).toBeInTheDocument();
+    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: €3.99');
   });
 
-  it('opens the export sheet with full dossier preselected from the next-steps dossier action', async () => {
+  it('opens the export sheet with full dossier preselected from the floating dossier CTA', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
 
@@ -903,11 +905,11 @@ describe('3D viewer integration', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Download dossier|Unlock full dossier/i })).toBeInTheDocument();
+      expect(screen.getByTestId('action-bar-primary')).toBeInTheDocument();
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Download dossier|Unlock full dossier/i }));
+      fireEvent.click(screen.getByTestId('action-bar-primary'));
     });
 
     await waitFor(() => {
@@ -1067,7 +1069,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -1132,7 +1134,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -1228,7 +1230,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -1300,7 +1302,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -1338,7 +1340,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -1388,7 +1390,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -1428,7 +1430,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -1462,7 +1464,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -1497,7 +1499,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -1538,7 +1540,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -2423,7 +2425,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });
@@ -2453,6 +2455,45 @@ describe('3D viewer integration', () => {
     });
     expect(mockFinishAppleBillingTransaction).toHaveBeenCalledWith('apple-transaction-123');
     expect(mockCreateCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it('falls back to euro pricing when Apple localized pricing is unavailable', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockResolveBillingProvider.mockResolvedValue({
+      provider: 'apple_app_store',
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        hidden: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', {
+      name: /Unlock dossier \(€3\.99\)/i,
+      hidden: true,
+    })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Buy in App Store/i })).toBeInTheDocument();
+    });
+    expect(screen.getByText('Full Dossier (€3.99)')).toBeInTheDocument();
+    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: €3.99');
   });
 
   it('restores a pending Apple purchase for the current report', async () => {
@@ -2505,7 +2546,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Download viewing checklist \(FREE\)/i,
+        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
         hidden: true,
       }));
     });

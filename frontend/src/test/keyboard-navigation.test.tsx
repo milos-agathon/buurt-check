@@ -61,9 +61,13 @@ describe('Keyboard navigation', () => {
   it('ActionBar primary actions are keyboard operable', async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
-    const onExport = vi.fn();
+    const onPrimary = vi.fn();
     renderWithI18n(
-      <ActionBar onAddToShortlist={onAdd} onExportBriefing={onExport} />,
+      <ActionBar
+        onAddToShortlist={onAdd}
+        onPrimaryAction={onPrimary}
+        primaryLabel="Unlock dossier"
+      />,
     );
 
     await user.tab();
@@ -72,8 +76,8 @@ describe('Keyboard navigation', () => {
     expect(onAdd).toHaveBeenCalledTimes(1);
 
     await user.tab();
-    expect(screen.getByRole('button', { name: /Download viewing checklist|Bezichtigingschecklist downloaden/i })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /Unlock dossier/i })).toHaveFocus();
     await user.keyboard('{Enter}');
-    expect(onExport).toHaveBeenCalledTimes(1);
+    expect(onPrimary).toHaveBeenCalledTimes(1);
   });
 });
