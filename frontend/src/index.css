@@ -4,13 +4,28 @@
   box-sizing: border-box;
 }
 
+html {
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--color-bg);
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
+  width: 100%;
+  min-height: 100dvh;
   font-family: var(--font-family);
   line-height: 1.5;
   color: var(--color-text);
   background-color: var(--color-bg);
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 100dvh;
 }
 
 h1, h2, h3, p {

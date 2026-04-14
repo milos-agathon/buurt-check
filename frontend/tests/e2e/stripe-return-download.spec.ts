@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedDossier } from './helpers/seedState';
 
 test.use({ acceptDownloads: true });
 
@@ -64,13 +65,13 @@ test('auto-starts the full dossier download after Stripe return confirmation', a
     console.log(`[pageerror] ${error.stack ?? error.message}`);
   });
 
-  await page.addInitScript((seed) => {
-    localStorage.setItem('buurt-check-e2e-dossier-seed', JSON.stringify(seed));
+  await seedDossier(page, DOSSIER_SEED);
+  await page.addInitScript(() => {
     sessionStorage.setItem(
       'buurt-check:post-checkout-export',
       JSON.stringify({ reportId: 'report-123', template: 'full_dossier' }),
     );
-  }, DOSSIER_SEED);
+  });
 
   await page.route('**/api/**', async (route) => {
     const request = route.request();

@@ -32,6 +32,27 @@ function pxValue(block: string, property: string): number {
 }
 
 describe('Mobile UI quality gates', () => {
+  it('root shell clamps horizontal overflow without turning #root into a scroll surface', () => {
+    const indexCss = readCss('index.css');
+
+    expect(ruleBlock(indexCss, 'html')).toContain('width: 100%');
+    expect(ruleBlock(indexCss, 'html')).toContain('min-height: 100%');
+    expect(ruleBlock(indexCss, 'html')).toContain('background-color: var(--color-bg)');
+    expect(ruleBlock(indexCss, 'html')).toContain('overflow-x: hidden');
+
+    expect(ruleBlock(indexCss, 'body')).toContain('margin: 0');
+    expect(ruleBlock(indexCss, 'body')).toContain('min-width: 320px');
+    expect(ruleBlock(indexCss, 'body')).toContain('width: 100%');
+    expect(ruleBlock(indexCss, 'body')).toContain('min-height: 100dvh');
+    expect(ruleBlock(indexCss, 'body')).toContain('background-color: var(--color-bg)');
+    expect(ruleBlock(indexCss, 'body')).toContain('overflow-x: hidden');
+
+    expect(ruleBlock(indexCss, '#root')).toContain('width: 100%');
+    expect(ruleBlock(indexCss, '#root')).toContain('min-height: 100dvh');
+    expect(ruleBlock(indexCss, '#root')).not.toMatch(/overflow\s*:/);
+    expect(ruleBlock(indexCss, '#root')).not.toMatch(/overscroll-behavior/);
+  });
+
   it('toolbar rows avoid overlapping hit-area patterns', () => {
     const topBarCss = readCss('components/TopBar.css');
     const tabBarCss = readCss('components/TabBar.css');
