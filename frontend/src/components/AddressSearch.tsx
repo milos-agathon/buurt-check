@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mapApiError, suggestAddresses } from '../services/api';
 import { trackEvent } from '../services/analytics';
-import { getRecent, addRecent, type RecentSearch } from '../services/recentSearches';
+import { getRecent, type RecentSearch } from '../services/recentSearches';
 import { isFirstVisit } from '../services/firstVisit';
 import type { AddressSuggestion } from '../types/api';
 import './AddressSearch.css';
@@ -13,6 +13,9 @@ interface Props {
   onNavigateToSaved?: () => void;
   onNavigateToCompare?: () => void;
 }
+
+const EXAMPLE_ADDRESS_QUERY = 'Keizersgracht 1, Amsterdam';
+const EXAMPLE_ADDRESS_PREFIX = 'keizersgracht 1';
 
 export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigateToSaved, onNavigateToCompare }: Props) {
   const { t, i18n } = useTranslation();
@@ -92,24 +95,19 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
     debounceRef.current = setTimeout(() => fetchSuggestions(value), 300);
   };
 
-  const handleSelect = (
+  const handleSelect = useCallback((
     suggestion: AddressSuggestion,
     source: 'search' | 'recent' | 'example' = 'search',
   ) => {
     setQuery(suggestion.display_name);
     setIsOpen(false);
     setSuggestions([]);
-    addRecent({
-      id: suggestion.id,
-      display_name: suggestion.display_name,
-    });
-    setRecentSearches(getRecent());
     trackEvent('address_search_submitted', {
       lookup_id: suggestion.id,
       source,
     });
     onSelect(suggestion);
-  };
+  }, [onSelect]);
 
   const handleSelectPointerDown = (
     event: React.PointerEvent,
@@ -145,6 +143,46 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
         break;
     }
   };
+
+  const handleExampleClick = useCallback(async () => {
+    cancelActiveSearch();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const requestId = requestSeqRef.current + 1;
+    requestSeqRef.current = requestId;
+
+    setSearching(true);
+    setErrorMessage(null);
+    setHasSettledSuggestions(false);
+
+    try {
+      const data = await suggestAddresses(EXAMPLE_ADDRESS_QUERY, 5, controller.signal);
+      if (requestSeqRef.current !== requestId) return;
+
+      const exampleSuggestion = data.suggestions.find((suggestion) =>
+        suggestion.display_name.toLowerCase().startsWith(EXAMPLE_ADDRESS_PREFIX),
+      );
+
+      if (!exampleSuggestion) {
+        setErrorMessage(t('search.noResults'));
+        setHasSettledSuggestions(true);
+        return;
+      }
+
+      handleSelect(exampleSuggestion, 'example');
+    } catch (err) {
+      const isAbort = err instanceof DOMException && err.name === 'AbortError';
+      if (!isAbort && requestSeqRef.current === requestId) {
+        setErrorMessage(mapApiError(err, t));
+        setHasSettledSuggestions(true);
+      }
+    } finally {
+      if (requestSeqRef.current === requestId) {
+        abortRef.current = null;
+        setSearching(false);
+      }
+    }
+  }, [cancelActiveSearch, handleSelect, t]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -311,12 +349,9 @@ export default function AddressSearch({ onSelect, shortlistCount = 0, onNavigate
             <button
               type="button"
               className="address-search__example-link"
-              onClick={() => handleSelect({
-                id: 'adr-d3836e3ae5e5c07f18109908abba6dab',
-                display_name: 'Keizersgracht 1, 1015CD Amsterdam',
-                type: 'adres',
-                score: 1,
-              }, 'example')}
+              onClick={() => {
+                void handleExampleClick();
+              }}
             >
               {t('search.exampleAddress')}
             </button>

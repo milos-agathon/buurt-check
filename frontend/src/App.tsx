@@ -85,7 +85,7 @@ import {
   clearShortlist,
   upsertShortlistItem,
 } from './services/shortlist';
-import { clearRecent } from './services/recentSearches';
+import { addRecent, clearRecent, removeRecent } from './services/recentSearches';
 import { storeEntitlement, clearEntitlement } from './services/entitlement';
 import { clearVisited, markVisited } from './services/firstVisit';
 import {
@@ -571,6 +571,54 @@ function hashRouteFromUrl(urlString: string): string | null {
   }
 }
 
+const DUTCH_POSTCODE_RE = /\b\d{4}\s?[A-Z]{2}\b/gi;
+
+function normalizeSelectionRecoveryText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(DUTCH_POSTCODE_RE, ' ')
+    .replace(/[^a-z0-9]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildSelectionRecoveryQueries(displayName: string): string[] {
+  const normalizedDisplayName = displayName.replace(/\s+/g, ' ').trim();
+  const withoutPostcode = normalizedDisplayName
+    .replace(DUTCH_POSTCODE_RE, ' ')
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*,/g, ',')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+,/g, ',')
+    .trim()
+    .replace(/,\s*$/, '');
+
+  const queries = [withoutPostcode, normalizedDisplayName]
+    .map((value) => value.trim())
+    .filter((value, index, values) => value.length >= 4 && values.indexOf(value) === index);
+
+  return queries;
+}
+
+function pickRecoveredSuggestion(
+  displayName: string,
+  suggestions: AddressSuggestion[],
+): AddressSuggestion | null {
+  const targetPrefix = normalizeSelectionRecoveryText(displayName.split(',')[0] ?? displayName);
+  if (!targetPrefix) {
+    return null;
+  }
+
+  for (const suggestion of suggestions) {
+    const normalizedCandidate = normalizeSelectionRecoveryText(suggestion.display_name);
+    if (normalizedCandidate.startsWith(targetPrefix)) {
+      return suggestion;
+    }
+  }
+
+  return null;
+}
+
 function checkoutVerificationKey(reportId: string, sessionId?: string): string {
   return `${reportId}:${sessionId ?? ''}`;
 }
@@ -987,10 +1035,11 @@ function App() {
   }, [activeScreen, readScreenScrollPosition, restoreScreenScrollPosition]);
 
   useEffect(() => {
+    const retryControllers = retryControllersRef.current;
     return () => {
       addressRequestAbortRef.current?.abort();
-      retryControllersRef.current.forEach(c => c.abort());
-      retryControllersRef.current.clear();
+      retryControllers.forEach(c => c.abort());
+      retryControllers.clear();
     };
   }, []);
 
@@ -2844,7 +2893,38 @@ function App() {
     setHashRoute('#/briefing');
 
     try {
-      const resolved = await lookupAddress(suggestion.id, requestSignal);
+      let activeSuggestion = suggestion;
+      let resolved: ResolvedAddress;
+
+      try {
+        resolved = await lookupAddress(activeSuggestion.id, requestSignal);
+      } catch (err) {
+        const isLookupMissing = err instanceof ApiError && err.httpStatus === 404;
+        if (!isLookupMissing) {
+          throw err;
+        }
+
+        let refreshedSuggestion: AddressSuggestion | null = null;
+        const recoveryQueries = buildSelectionRecoveryQueries(suggestion.display_name);
+        for (const recoveryQuery of recoveryQueries) {
+          const candidates = await suggestAddresses(recoveryQuery, 5, requestSignal);
+          refreshedSuggestion = pickRecoveredSuggestion(suggestion.display_name, candidates.suggestions);
+          if (refreshedSuggestion) {
+            break;
+          }
+        }
+
+        if (!refreshedSuggestion) {
+          removeRecent(suggestion.id);
+          throw err;
+        }
+
+        activeSuggestion = refreshedSuggestion;
+        setActiveLookupId(activeSuggestion.id);
+        setPendingDisplayName(activeSuggestion.display_name);
+        resolved = await lookupAddress(activeSuggestion.id, requestSignal);
+      }
+
       if (!isActiveDossierRequest(requestId)) return;
 
       setAddress(resolved);
@@ -2897,8 +2977,18 @@ function App() {
       setIsEntitled(effectiveEntitlement);
       if (activeReportId) {
         storeEntitlement(vboId, activeReportId, effectiveEntitlement);
-        storeReportLookup(activeReportId, suggestion.id);
+        storeReportLookup(activeReportId, activeSuggestion.id);
       }
+
+      if (activeSuggestion.id !== suggestion.id) {
+        removeRecent(suggestion.id);
+      }
+      addRecent({
+        id: activeSuggestion.id,
+        display_name: resolved.display_name,
+        postcode: resolved.postcode,
+        city: resolved.city,
+      });
 
       let building: BuildingFactsResponse | null = null;
       const buildingFetchStartedAt = performance.now();
@@ -2930,7 +3020,7 @@ function App() {
       setLoading(false);
       setBuildingLoading(false);
       setSheetSnap('half');
-      setHashRoute(dossierHash(vboId, suggestion.id));
+      setHashRoute(dossierHash(vboId, activeSuggestion.id));
 
       setLoadingStep('loading3D');
       let phase1Promise: Promise<void> | null = null;

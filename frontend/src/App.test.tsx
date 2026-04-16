@@ -619,6 +619,69 @@ describe('address selection flow', () => {
     });
     expect(mockBuilding).toHaveBeenCalledWith('vbo-123', expect.any(AbortSignal));
   });
+
+  it('recovers stale recent lookup ids by re-searching from the saved address text', async () => {
+    localStorage.setItem('buurt-check-recent-searches', JSON.stringify([
+      {
+        id: 'adr-stale-example',
+        display_name: 'Keizersgracht 1, 1015CD Amsterdam',
+        timestamp: Date.now() - 60_000,
+      },
+    ]));
+    mockLookup
+      .mockRejectedValueOnce(new ApiError('error.data_source', 404))
+      .mockResolvedValueOnce(makeResolvedAddress({
+        id: 'adr-live-example',
+        display_name: 'Keizersgracht 1-1, 1015CC Amsterdam',
+      }));
+    mockSuggest.mockResolvedValue({
+      suggestions: [
+        makeSuggestion({
+          id: 'adr-wrong-match',
+          display_name: 'Keizersgracht 25A, 1015CD Amsterdam',
+        }),
+        makeSuggestion({
+          id: 'adr-live-example',
+          display_name: 'Keizersgracht 1-1, 1015CC Amsterdam',
+        }),
+      ],
+    });
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+
+    await act(async () => {
+      fireEvent.pointerDown(screen.getByText('Keizersgracht 1, 1015CD Amsterdam'), {
+        button: 0,
+        isPrimary: true,
+        pointerType: 'touch',
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockLookup).toHaveBeenNthCalledWith(1, 'adr-stale-example', expect.any(AbortSignal));
+    });
+    await waitFor(() => {
+      expect(mockSuggest).toHaveBeenCalledWith('Keizersgracht 1, Amsterdam', 5, expect.any(AbortSignal));
+    });
+    await waitFor(() => {
+      expect(mockLookup).toHaveBeenNthCalledWith(2, 'adr-live-example', expect.any(AbortSignal));
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Building Facts')).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("We couldn't load data from this source right now. Try again in a moment."),
+    ).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem('buurt-check-recent-searches') ?? '[]')).toEqual([
+      expect.objectContaining({
+        id: 'adr-live-example',
+        display_name: 'Keizersgracht 1-1, 1015CC Amsterdam',
+        postcode: '1015AA',
+        city: 'Amsterdam',
+      }),
+    ]);
+  });
 });
 
 describe('error handling', () => {
@@ -3196,7 +3259,9 @@ describe('shortlist score gating', () => {
 
 describe('early 3D fetch from lookup pand_id', () => {
   it('starts 3D fetches from lookup pand_id after building facts resolves', async () => {
-    const buildingDeferred = { resolve: (_v: ReturnType<typeof makeBuildingResponse>) => {} };
+    const buildingDeferred: { resolve: (value: ReturnType<typeof makeBuildingResponse>) => void } = {
+      resolve: () => undefined,
+    };
     mockLookup.mockResolvedValue(makeResolvedAddress({ pand_id: '0363100012253924' }));
     mockBuilding.mockReturnValue(
       new Promise<ReturnType<typeof makeBuildingResponse>>((resolve) => {

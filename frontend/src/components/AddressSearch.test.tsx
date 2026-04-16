@@ -541,6 +541,27 @@ describe('recent searches', () => {
       source: 'recent',
     });
   });
+
+  it('resolves the example button via live suggestions before selecting', async () => {
+    const exampleSuggestion = makeSuggestion({
+      id: 'adr-live-example',
+      display_name: 'Keizersgracht 1-1, 1015CC Amsterdam',
+    });
+    mockSuggest.mockResolvedValue({ suggestions: [exampleSuggestion] });
+    const { onSelect } = renderSearch();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Try it: Keizersgracht 1, Amsterdam' }));
+      await Promise.resolve();
+    });
+
+    expect(mockSuggest).toHaveBeenCalledWith('Keizersgracht 1, Amsterdam', 5, expect.any(AbortSignal));
+    expect(onSelect).toHaveBeenCalledWith(exampleSuggestion);
+    expect(mockTrackEvent).toHaveBeenCalledWith('address_search_submitted', {
+      lookup_id: 'adr-live-example',
+      source: 'example',
+    });
+  });
 });
 
 describe('returning user re-engagement', () => {
