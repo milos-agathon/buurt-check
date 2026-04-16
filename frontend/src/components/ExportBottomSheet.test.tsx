@@ -54,9 +54,12 @@ describe('ExportBottomSheet', () => {
   it('renders when open', () => {
     renderSheet();
     expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
-    expect(screen.getByText('Download viewing checklist')).toBeInTheDocument();
-    expect(screen.getByText(/Quick checklist/i)).toBeInTheDocument();
-    expect(screen.getByTestId('export-durability-note')).toBeInTheDocument();
+    expect(screen.getByText('Download dossier')).toBeInTheDocument();
+    expect(screen.getByText(
+      'Choose format and language. Quick checklist is free. Full dossier is €3.99 once per address. After payment, the full dossier stays tied to this address in this browser session so you can reopen export from the dossier if needed.',
+      { selector: '.export-sheet__intro' },
+    )).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Quick checklist/i })).toBeInTheDocument();
   });
 
   it('shows updated Full Dossier page metadata', () => {
@@ -194,9 +197,9 @@ describe('ExportBottomSheet', () => {
       'Your full dossier is unlocked. We will prepare it automatically. This can take a moment.',
     );
     expect(screen.queryByText(
-      'Choose the format and language. The quick brief is free. The full dossier is paid once per address.',
+      'Choose format and language. Quick checklist is free. Full dossier is €3.99 once per address. After payment, the full dossier stays tied to this address in this browser session so you can reopen export from the dossier if needed.',
+      { selector: '.export-sheet__intro' },
     )).not.toBeInTheDocument();
-    expect(screen.queryByTestId('export-durability-note')).not.toBeInTheDocument();
     expect(screen.getByTestId('export-progress')).toBeInTheDocument();
     expect(screen.getByText('Preparing dossier...')).toBeInTheDocument();
     expect(api.exportBriefing).not.toHaveBeenCalled();
@@ -674,7 +677,7 @@ describe('ExportBottomSheet', () => {
       expect(api.sharePdfBlob).toHaveBeenCalledWith(
         blob,
         'buurt-check-quick-brief-0363010012345678.pdf',
-        'Download viewing checklist',
+        'Download dossier',
       );
     });
   });

@@ -9,31 +9,7 @@
 }
 
 .export-sheet__intro {
-  margin: var(--space-sm) 0 var(--space-lg);
-  font: var(--type-small);
-  line-height: 1.6;
-  color: var(--color-text-secondary);
-}
-
-.export-sheet__durability {
-  margin-bottom: var(--space-lg);
-  padding: var(--space-md);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
-  border-radius: 18px;
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 58%),
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-alt) 84%, transparent), var(--color-surface));
-}
-
-.export-sheet__durability-title {
-  margin: 0 0 var(--space-xs);
-  font: var(--type-caption);
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.export-sheet__durability-copy {
-  margin: 0;
+  margin: var(--space-sm) 0 var(--space-md);
   font: var(--type-small);
   line-height: 1.6;
   color: var(--color-text-secondary);
