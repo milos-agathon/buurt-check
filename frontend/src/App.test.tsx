@@ -3138,7 +3138,7 @@ describe('property warnings param forwarding', () => {
     await selectAddress();
 
     await waitFor(() => {
-      expect(mockPropertyWarnings).toHaveBeenCalled();
+      expect(mockPropertyWarnings).toHaveBeenCalledTimes(1);
     });
     expect(mockPropertyWarnings).toHaveBeenLastCalledWith(
       'vbo-123',
@@ -3152,6 +3152,27 @@ describe('property warnings param forwarding', () => {
       expect.any(AbortSignal),
       'report-123',
     );
+  });
+
+  it('does not duplicate secondary dossier fetches during the initial load', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockCreateShortReport.mockResolvedValue({
+      report_id: 'report-123',
+      report_type: 'short',
+      already_purchased: true,
+    });
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockRiskComparisons).toHaveBeenCalledTimes(1);
+      expect(mockViewingQuestions).toHaveBeenCalledTimes(1);
+      expect(mockLivability).toHaveBeenCalledTimes(1);
+      expect(mockTierBData).toHaveBeenCalledTimes(1);
+      expect(mockPropertyWarnings).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

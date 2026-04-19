@@ -77,6 +77,13 @@ async def test_health(client):
 
 
 @pytest.mark.asyncio
+async def test_api_health_alias(client):
+    resp = await client.get("/api/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
+@pytest.mark.asyncio
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.locatieserver")

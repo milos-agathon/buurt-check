@@ -183,6 +183,42 @@ describe('analytics service', () => {
     ]);
   });
 
+  it('can force a replay of the current pageview after consent changes', async () => {
+    vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-TEST1234');
+    const { initAnalytics, trackPageView } = await loadAnalyticsModule();
+
+    initAnalytics();
+    trackPageView({
+      pageLocation: 'https://app.buurt-check.nl/#/search',
+      pageTitle: 'Buurt Check',
+      signature: 'search',
+      language: 'en',
+    });
+    trackPageView({
+      pageLocation: 'https://app.buurt-check.nl/#/search',
+      pageTitle: 'Buurt Check',
+      signature: 'search',
+      language: 'en',
+      force: true,
+    });
+
+    const pageViews = window.dataLayer?.filter(
+      (entry) => entry[0] === 'event' && entry[1] === 'page_view',
+    ) ?? [];
+
+    expect(pageViews).toHaveLength(2);
+    expect(pageViews[1]).toEqual([
+      'event',
+      'page_view',
+      {
+        page_location: 'https://app.buurt-check.nl/#/search',
+        page_title: 'Buurt Check',
+        page_referrer: 'https://app.buurt-check.nl/#/search',
+        language: 'en',
+      },
+    ]);
+  });
+
   it('does not throw when Sentry breadcrumbs fail', async () => {
     vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-TEST1234');
     vi.mocked(Sentry.addBreadcrumb).mockImplementation(() => {

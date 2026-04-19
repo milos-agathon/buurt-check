@@ -246,17 +246,19 @@ export function trackPageView({
   pageTitle,
   signature,
   language,
+  force = false,
 }: {
   pageLocation: string;
   pageTitle: string;
   signature?: string;
   language?: string;
+  force?: boolean;
 }): void {
   if (!isBrowserRuntime() || typeof window.gtag !== 'function') return;
 
   const resolvedLocation = sanitizeUrlValue(pageLocation);
   const pageSignature = signature ?? resolvedLocation;
-  if (pageSignature === lastPageViewSignature) {
+  if (!force && pageSignature === lastPageViewSignature) {
     return;
   }
 

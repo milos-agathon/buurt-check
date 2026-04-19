@@ -859,6 +859,7 @@ function App() {
     dossierSeed?.riskComparisons ?? null,
   );
   const [riskComparisonsError, setRiskComparisonsError] = useState<string | null>(null);
+  const [riskComparisonsLoading, setRiskComparisonsLoading] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState<string | null>(null);
   const [neighborhoodStats, setNeighborhoodStats] = useState<NeighborhoodStatsResponse | null>(
@@ -890,6 +891,7 @@ function App() {
   const [viewingQuestions, setViewingQuestions] = useState<ViewingQuestionsResponse | null>(
     dossierSeed?.viewingQuestions ?? null,
   );
+  const [viewingQuestionsLoading, setViewingQuestionsLoading] = useState(false);
   const [viewingQuestionsError, setViewingQuestionsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<LoadingProgressStep>('findingBuilding');
@@ -908,6 +910,7 @@ function App() {
   const addressRequestAbortRef = useRef<AbortController | null>(null);
   const retryControllersRef = useRef<Set<AbortController>>(new Set());
   const previousScreenRef = useRef<Screen>('search');
+  const previousAnalyticsConsentRef = useRef<AnalyticsConsentState>(analyticsConsent);
   const handledCheckoutParamsRef = useRef<string | null>(null);
   const activatePurchasedEntitlementRef = useRef<
     ((reportId: string, provider: 'stripe' | 'google_play' | 'apple_app_store') => void) | null
@@ -2226,6 +2229,7 @@ function App() {
     const { adresseerbaar_object_id: vboId, rd_x, rd_y, latitude, longitude } = address;
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
     setRiskComparisonsError(null);
+    setRiskComparisonsLoading(true);
     const controller = new AbortController();
     retryControllersRef.current.add(controller);
     void (async () => {
@@ -2249,6 +2253,9 @@ function App() {
         setRiskComparisonsError(mapApiError(err, t));
       } finally {
         retryControllersRef.current.delete(controller);
+        if (activeScreenRef.current === 'dossier') {
+          setRiskComparisonsLoading(false);
+        }
       }
     })();
   }, [address, reportId, t]);
@@ -2401,6 +2408,7 @@ function App() {
     const { adresseerbaar_object_id: vboId, rd_x, rd_y, latitude, longitude } = address;
     if (rd_x == null || rd_y == null || latitude == null || longitude == null) return;
     setViewingQuestionsError(null);
+    setViewingQuestionsLoading(true);
     const controller = new AbortController();
     retryControllersRef.current.add(controller);
     void (async () => {
@@ -2427,6 +2435,9 @@ function App() {
         setViewingQuestionsError(mapApiError(err, t));
       } finally {
         retryControllersRef.current.delete(controller);
+        if (activeScreenRef.current === 'dossier') {
+          setViewingQuestionsLoading(false);
+        }
       }
     })();
   }, [address, reportId, t]);
@@ -2675,19 +2686,43 @@ function App() {
   useEffect(() => {
     if (!address?.adresseerbaar_object_id) return;
 
-    if (isEntitled && reportId && !propertyWarnings && !propertyWarningsLoading && !propertyWarningsError) {
+    if (
+      isEntitled
+      && reportId
+      && buildingResponse?.building
+      && !propertyWarnings
+      && !propertyWarningsLoading
+      && !propertyWarningsError
+    ) {
       handleRetryPropertyWarnings();
     }
-    if (!riskComparisons && !riskComparisonsError) {
+    if (
+      progressivePhase === 'buurt'
+      && !riskComparisons
+      && !riskComparisonsLoading
+      && !riskComparisonsError
+    ) {
       handleRetryRiskComparisons();
     }
-    if (!viewingQuestions && !viewingQuestionsError) {
+    if (
+      progressivePhase === 'buurt'
+      && !viewingQuestions
+      && !viewingQuestionsLoading
+      && !viewingQuestionsError
+    ) {
       handleRetryViewingQuestions();
     }
-    if (!livability && !livabilityLoading && !livabilityError && address.rd_x != null && address.rd_y != null) {
+    if (
+      progressivePhase === 'buurt'
+      && !livability
+      && !livabilityLoading
+      && !livabilityError
+      && address.rd_x != null
+      && address.rd_y != null
+    ) {
       handleRetryLivability();
     }
-    if (!tierBData && !tierBLoading && !tierBError) {
+    if (progressivePhase === 'buurt' && !tierBData && !tierBLoading && !tierBError) {
       handleRetryTierB();
     }
 
@@ -2746,14 +2781,17 @@ function App() {
     propertyWarnings,
     propertyWarningsError,
     propertyWarningsLoading,
+    progressivePhase,
     reportId,
     riskComparisons,
+    riskComparisonsLoading,
     riskComparisonsError,
     tierBData,
     tierBError,
     tierBLoading,
     trigger3DFetch,
     viewingQuestions,
+    viewingQuestionsLoading,
     viewingQuestionsError,
     isEntitled,
   ]);
@@ -2856,6 +2894,7 @@ function App() {
     setExportAutoGenerateToken(null);
     setRiskCards(null);
     setRiskComparisons(null);
+    setRiskComparisonsLoading(false);
     setRiskComparisonsError(null);
     setRiskLoading(false);
     setRiskError(null);
@@ -2878,6 +2917,7 @@ function App() {
     setShadowSnapshots(null);
     setShadowSnapshotsUnavailable(false);
     setViewingQuestions(null);
+    setViewingQuestionsLoading(false);
     setViewingQuestionsError(null);
     setActiveDetailCategory(null);
     setCheckedQuestions(new Set());
@@ -3071,6 +3111,8 @@ function App() {
       let phase2Promise: Promise<void> | null = null;
       if (rd_x != null && rd_y != null && latitude != null && longitude != null) {
         setRiskLoading(true);
+        setRiskComparisonsLoading(true);
+        setViewingQuestionsLoading(true);
         phase2Promise = (async () => {
           try {
             const risks = await getRiskCards(vboId, rd_x, rd_y, latitude, longitude, requestSignal);
@@ -3119,6 +3161,10 @@ function App() {
               report_id: activeReportId ?? 'none',
               vbo_id: vboId,
             });
+          } finally {
+            if (isActiveDossierRequest(requestId)) {
+              setRiskComparisonsLoading(false);
+            }
           }
         })();
 
@@ -3152,6 +3198,10 @@ function App() {
               report_id: activeReportId ?? 'none',
               vbo_id: vboId,
             });
+          } finally {
+            if (isActiveDossierRequest(requestId)) {
+              setViewingQuestionsLoading(false);
+            }
           }
         })();
       }
@@ -3991,32 +4041,31 @@ function App() {
           : activeScreen === 'dossier'
           ? t('nav.briefing')
           : 'buurt-check';
+  const analyticsPageHash = activeScreen === 'shortlist'
+    ? '#/saved'
+    : activeScreen === 'compare'
+      ? '#/compare'
+      : activeScreen === 'settings'
+        ? '#/settings'
+        : activeScreen === 'dossier'
+          ? '#/address'
+          : '#/search';
+  const analyticsPageTitle = activeScreen === 'search'
+    ? 'Buurt Check'
+    : topBarTitle;
+  const analyticsPageSignature = activeScreen === 'dossier'
+    ? `dossier:${address?.adresseerbaar_object_id ?? activeLookupId ?? 'pending'}`
+    : activeScreen;
 
   useEffect(() => {
     if (!analyticsEnabled || typeof window === 'undefined') {
       return;
     }
 
-    const pageHash = activeScreen === 'shortlist'
-      ? '#/saved'
-      : activeScreen === 'compare'
-        ? '#/compare'
-        : activeScreen === 'settings'
-          ? '#/settings'
-          : activeScreen === 'dossier'
-            ? '#/address'
-            : '#/search';
-    const pageTitle = activeScreen === 'search'
-      ? 'Buurt Check'
-      : topBarTitle;
-    const pageSignature = activeScreen === 'dossier'
-      ? `dossier:${address?.adresseerbaar_object_id ?? activeLookupId ?? 'pending'}`
-      : activeScreen;
-
     trackPageView({
-      pageLocation: `${window.location.origin}/${pageHash}`,
-      pageTitle,
-      signature: pageSignature,
+      pageLocation: `${window.location.origin}/${analyticsPageHash}`,
+      pageTitle: analyticsPageTitle,
+      signature: analyticsPageSignature,
       language: i18n.language,
     });
   }, [
@@ -4024,8 +4073,37 @@ function App() {
     activeScreen,
     address?.adresseerbaar_object_id,
     analyticsEnabled,
+    analyticsPageHash,
+    analyticsPageSignature,
+    analyticsPageTitle,
     i18n.language,
-    topBarTitle,
+  ]);
+
+  useEffect(() => {
+    const previousConsent = previousAnalyticsConsentRef.current;
+    previousAnalyticsConsentRef.current = analyticsConsent;
+
+    if (!analyticsEnabled || typeof window === 'undefined') {
+      return;
+    }
+    if (analyticsConsent !== 'granted' || previousConsent === 'granted') {
+      return;
+    }
+
+    trackPageView({
+      pageLocation: `${window.location.origin}/${analyticsPageHash}`,
+      pageTitle: analyticsPageTitle,
+      signature: analyticsPageSignature,
+      language: i18n.language,
+      force: true,
+    });
+  }, [
+    analyticsConsent,
+    analyticsEnabled,
+    analyticsPageHash,
+    analyticsPageSignature,
+    analyticsPageTitle,
+    i18n.language,
   ]);
 
   const coverageSummary = useMemo(() => {
@@ -4898,3 +4976,4 @@ function App() {
 }
 
 export default App;
+

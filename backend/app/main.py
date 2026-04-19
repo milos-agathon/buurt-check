@@ -84,6 +84,7 @@ async def request_logging_middleware(request: Request, call_next):
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     return {"status": "ok"}
 
