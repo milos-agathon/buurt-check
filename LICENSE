@@ -1,0 +1,50 @@
+Buurt-check Proprietary Software License
+Copyright (c) 2026 Milos Popovic. All rights reserved.
+
+This repository and all software, source code, object code, architecture, user interface elements, design elements, scoring logic, report-generation logic, documentation, images, branding, names, logos, and other materials contained in or distributed with this repository (collectively, the "Software") are proprietary and confidential.
+
+1. No Open Source License Grant
+No part of the Software is licensed under any open source license. No right to use, copy, reproduce, modify, merge, publish, distribute, sublicense, sell, lease, rent, transfer, host, make available, create derivative works from, or commercially exploit the Software is granted except with the prior express written permission of Milos Popovic.
+
+2. Permitted Access
+If you have obtained lawful access to this repository or any copy of the Software, you may view it solely for personal, non-commercial evaluation and reference, and only to the limited extent strictly necessary for that purpose. No other rights are granted, whether expressly, impliedly, by estoppel, or otherwise.
+
+3. Prohibited Uses
+Without prior express written permission of Milos Popovic, you may not:
+(a) copy or reproduce the Software in whole or in part;
+(b) modify, adapt, translate, or create derivative works based on the Software;
+(c) distribute, publish, transmit, sublicense, sell, lease, rent, lend, assign, or otherwise transfer the Software;
+(d) use the Software or any part of it in any commercial product, service, workflow, dataset, model, API, SaaS offering, or competing product;
+(e) remove, alter, or obscure any copyright, attribution, trademark, or proprietary notices;
+(f) reverse engineer, decompile, disassemble, or otherwise attempt to derive source code, underlying ideas, algorithms, structure, or trade secrets from any non-source portions of the Software, except to the extent such restriction is prohibited by applicable law;
+(g) use the Software to benchmark, train, fine-tune, improve, or validate any machine learning, artificial intelligence, or automated system without prior express written permission;
+(h) scrape, extract, or reuse the Software's content, outputs, layout, prompts, report format, or product logic to replicate a substantially similar product or service.
+
+4. Ownership
+The Software is licensed, if at all, not sold. Milos Popovic retains all right, title, and interest in and to the Software, including all intellectual property rights and all derivative works, modifications, and improvements, whether or not authorized.
+
+5. No Trademark Rights
+No rights are granted in the names "Buurt-check," "Buurt Check," or any related product names, brands, logos, or marks. Any use of such marks requires prior express written permission.
+
+6. Third-Party Software and Data
+This repository may reference, include, depend on, or interoperate with third-party software, libraries, services, datasets, or public/open data sources. Those items remain subject to their own applicable license terms, notices, and attribution requirements. This license applies only to the proprietary portions of the Software owned by Milos Popovic and does not replace or override third-party license obligations.
+
+7. Feedback
+If you provide suggestions, ideas, or feedback relating to the Software, you grant Milos Popovic a perpetual, irrevocable, worldwide, royalty-free right to use and incorporate such feedback without restriction or compensation, unless otherwise agreed in writing.
+
+8. Termination
+Any unauthorized use of the Software automatically terminates any permission granted under this license. Upon termination, you must immediately cease all use of the Software and destroy all copies in your possession or control.
+
+9. No Warranty
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITH ALL FAULTS AND WITHOUT WARRANTIES OF ANY KIND, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, OR RESULTS.
+
+10. Limitation of Liability
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, MILOS POPOVIC SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF DATA, REVENUE, PROFITS, GOODWILL, BUSINESS INTERRUPTION, OR PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, ARISING OUT OF OR RELATING TO THE SOFTWARE OR THIS LICENSE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+11. Governing Law
+This license shall be governed by and construed in accordance with the laws applicable in the Netherlands, excluding conflict of laws principles. Any disputes arising out of or relating to this license shall be subject to the exclusive jurisdiction of the competent courts in the Netherlands.
+
+12. Contact
+For licensing, permissions, or commercial inquiries, contact: Milos Popovic.
+
+By accessing, copying, or using any part of the Software, you acknowledge that you have read, understood, and agree to be bound by this license.
