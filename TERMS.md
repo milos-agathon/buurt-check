@@ -2,18 +2,18 @@
 
 _Last updated: 20 April 2026_
 
-These Terms of Use ("Terms") govern your access to and use of Buurt-check, including the website, mobile applications, reports, exports, maps, scores, and related services (collectively, the "Service"). By using the Service, you agree to these Terms.
+These Terms of Use ("Terms") govern your access to and use of Buurt-check, including the website, web app, Android app, iPhone app, reports, exports, maps, scores, and related services (collectively, the "Service"). By using the Service, you agree to these Terms.
 
 If you do not agree to these Terms, do not use the Service.
 
 ## 1. Scope of the Service
 
-Buurt-check provides address-based and neighborhood-based informational analysis for locations in the Netherlands. The Service may include, among other things:
-- scores and summaries;
-- maps and visualizations;
-- address or area-based dossier outputs;
-- viewing questions and checklists; and
-- exports or other paid digital content.
+Buurt-check provides address-based and neighborhood-based informational analysis for locations in the Netherlands.
+
+Unless Buurt-check clearly states otherwise, the current supported product contract is:
+- the interactive viewer is free;
+- the quick checklist or quick brief export is free; and
+- the full dossier is a paid one-time digital purchase tied to the anonymous buyer and the address-specific report.
 
 The Service is intended to help users assess contextual factors around a location, but it is not a substitute for professional advice or real-world inspection.
 
@@ -57,13 +57,13 @@ You may not:
 
 ## 5. Purchases, Entitlements, and Access
 
-Certain features or outputs may require payment. Prices, taxes, and payment terms are presented at the time of purchase.
+The paid Buurt-check product is the full dossier. Prices, taxes, and payment terms are presented at the time of purchase.
 
-Paid digital outputs may be tied to a specific purchase flow, session, anonymous buyer record, report identifier, or address-based entitlement.
+The full dossier may be tied to a specific purchase flow, anonymous buyer record, report identifier, and address-based entitlement. A report identifier by itself is not a standalone bearer credential.
+
+Web purchases are processed through Stripe Checkout. Android purchases are processed through Google Play Billing. iPhone purchases are processed through Apple In-App Purchase. Additional platform terms may apply.
 
 Access to a paid report, export, or entitlement may be refused, limited, or revoked where payment is canceled, reversed, refunded, charged back, found invalid, or otherwise not successfully completed.
-
-Where purchases are made through app stores or payment processors, additional platform terms may apply.
 
 ## 6. Refunds
 
@@ -71,7 +71,7 @@ Refund rights, if any, are governed by applicable law and, where relevant, the t
 
 Unless otherwise required by law or platform policy, completed digital purchases may be non-refundable once access to the paid content has been granted.
 
-## 7. Intellectual Property
+## 7. Intellectual Property and Repository Materials
 
 The Service, including its software, design, copy, layout, report structure, visualizations, maps, scoring presentation, branding, and related materials, is owned by or licensed to Buurt-check and protected by applicable intellectual property laws.
 
@@ -79,9 +79,11 @@ Except where expressly permitted, no right is granted to copy, reproduce, modify
 
 Use of the Buurt-check name, logo, and brand assets requires prior permission.
 
+Repository access is separate from live-service use. The live Service and its outputs are governed by these Terms. Access to repository materials is separately governed by the repository `LICENSE` file.
+
 ## 8. Third-Party Sources and Platform Terms
 
-The Service may rely on public/open data, third-party software, app stores, payment providers, analytics tools, geospatial services, and other external infrastructure.
+The Service may rely on public or open data, third-party software, app stores, payment providers, analytics tools, geospatial services, and other external infrastructure.
 
 Those third-party components remain subject to their own terms, privacy policies, licenses, and attribution requirements. We are not responsible for the ongoing availability or accuracy of third-party materials.
 
@@ -121,4 +123,4 @@ Any dispute arising out of or relating to these Terms or the Service shall be su
 
 ## 15. Contact
 
-For questions about these Terms, use the contact details or support channel made available through the Service.
+For questions about these Terms, contact `support@buurt-check.nl`.

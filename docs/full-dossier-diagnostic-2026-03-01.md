@@ -5,7 +5,7 @@
 **Senior Data Visualization & Analytics Expert Review**
 **Merged findings from two independent audits (codebase-grounded + methodology-focused)**
 
-**Address tested:** Duinzicht 23, 2235BV Valkenburg
+**Address tested:** Example Street 12, 1234AB Sample City
 **Report date:** 01 March 2026
 **Pages:** 7 | **Images:** 2 (identical) | **Language:** NL
 

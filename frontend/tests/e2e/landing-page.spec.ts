@@ -508,9 +508,6 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   await expect(page.locator('.legal-page__brand-text')).toHaveText('Buurt Check');
   await expect(page.getByRole('heading', { level: 1, name: 'Hoe Buurt Check met gegevens omgaat' })).toBeVisible();
   await expect(page.locator(`a[href="${APP_URL}"]:visible`).first()).toBeVisible();
-  await expect(page.getByText('Milos Popovic').first()).toBeVisible();
-  await expect(page.getByText('Milos GIS').first()).toBeVisible();
-  await expect(page.getByText('Duinzicht 23').first()).toBeVisible();
   await expect(page.locator('a[href="mailto:support@buurt-check.nl"]:visible').first()).toBeVisible();
   await page.locator('button[data-language-choice="en"]').click();
   await expect(page).toHaveTitle('Buurt Check Privacy Policy');
@@ -527,9 +524,6 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   await expect(page.locator(`a[href="${APP_URL}"]:visible`).first()).toBeVisible();
   await expect(page.locator('a[href="mailto:support@buurt-check.nl"]:visible').first()).toBeVisible();
   await expect(page.locator('a[href="/privacy.html"]:visible').first()).toBeVisible();
-  await expect(page.getByText('Milos Popovic')).toHaveCount(0);
-  await expect(page.getByText('Milos GIS')).toHaveCount(0);
-  await expect(page.getByText('Duinzicht 23')).toHaveCount(0);
   await page.locator('button[data-language-choice="nl"]').click();
   await expect(page).toHaveTitle('Buurt Check Gebruiksvoorwaarden');
   await expect(page.locator('html')).toHaveAttribute('lang', 'nl');
@@ -537,15 +531,10 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Voorwaarden voor Buurt Check' })).toBeVisible();
 });
 
-test('keeps the landing footer free of operator identity details while preserving support and legal links', async ({ page }) => {
+test('keeps the landing footer focused on support and legal links', async ({ page }) => {
   await page.goto('/');
 
   const footer = page.locator('footer');
-  await expect(footer.getByText('Milos Popovic')).toHaveCount(0);
-  await expect(footer.getByText('Milos GIS')).toHaveCount(0);
-  await expect(footer.getByText('Duinzicht 23')).toHaveCount(0);
-  await expect(footer.getByText('2235 BV Valkenburg')).toHaveCount(0);
-  await expect(footer.getByText('Netherlands')).toHaveCount(0);
   await expect(footer.locator('a[href="mailto:support@buurt-check.nl"]')).toBeVisible();
   await expect(footer.locator('a[href="/privacy.html"]')).toBeVisible();
   await expect(footer.locator('a[href="/terms.html"]')).toBeVisible();

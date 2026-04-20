@@ -101,7 +101,7 @@ That distinction matters:
 | A3 | Rendered mobile nav problem is real, not just token drift | 2026-04-07 read-only Playwright probe at `390x844` against local `landing/index.html` | Verified current geometry: `nav_height_px=203`, `nav_bottom_px=203`, `visible_hero_real_estate_px=641`, `hero_cta_viewport_clearance_px=303`, `nav_height_token_value=132px`, `.nav__links` `flex-wrap=wrap`, `overflow-x=visible`. |
 | A4 | Approved no-wrap scroller can meet the shrink target only with spacing tuning | 2026-04-07 read-only Playwright style override probe | Verified: applying the Task 2 CSS patch shape produced `nav_height_px=133`, `nav_bottom_px=133`, `visible_hero_real_estate_px=711`, `hero_cta_viewport_clearance_px=373`, `.nav__links` `flex-wrap=nowrap`, `overflow-x=auto`, `44px` language buttons, and `48px` app CTA. |
 | A5 | CTA labels are intentionally split | PRD verified hero label `Open de webapp`; lower-page/final CTA label `Start in de webapp`; status document repeats the split | Verified. |
-| A6 | `C1` is not an external intake blocker because the approved identity already exists in the repo | `landing/index.html`, `landing/privacy.html`, `landing/terms.html` plus founder confirmation in this working session on 2026-04-07 | Verified: `landing/privacy.html` already names `Milos Popovic`, `Milos GIS`, and postal address `Duinzicht 23 / 2235 BV Valkenburg / Netherlands`, and the founder confirmed that this identity is already the approved source of truth for the current audit scope. Any footer/terms consistency work can therefore reuse the existing identity text without a new intake gate. |
+| A6 | `C1` is not an external intake blocker because the approved legal-contact wording already exists in the repo | `landing/index.html`, `landing/privacy.html`, `landing/terms.html` plus founder confirmation in this working session on 2026-04-07 | Verified: `landing/privacy.html` already exposes the approved support-channel and legal-contact wording for the current audit scope, and the founder confirmed that this wording is the source of truth for the follow-up. Any footer/terms consistency work can therefore reuse that wording without a new intake gate. |
 | A7 | Current "How it works" already has layout-only Step 3 emphasis | `.step--1`, `.step--2`, `.step--3` CSS and `.steps` Playwright grid assertion | Verified: Step 3 has stronger border/shadow and highlighted number; desktop is 3 columns, mobile is 1 column. |
 | A8 | Inline search must use first-party backend proxy and app hash route | Backend `/api/address/suggest` and `/api/address/lookup`; app `buildHashRoute` uses `#/address/{encodeURIComponent(vboId)}?lookup=...`; backend README and `.env.example` document `BUURT_CORS_ORIGINS` with `https://buurt-check.nl` | Repo contract verified. Repeated 2026-04-07 probes were inconsistent on latency but consistent on the blocking issue: some suggest and diagnostic `OPTIONS` attempts timed out at `6500ms` and `15000ms`; later GET probes returned valid JSON for suggest and lookup using real suggestion ID `adr-c96efc5a0d655c17b76eaf809c9a92b1`, but the GET responses still omitted `Access-Control-Allow-Origin`. Diagnostic browser-style `OPTIONS` probes returned `400 Bad Request` with body `Disallowed CORS origin`. Task 8 is blocked until production CORS allow-origin behavior is fixed or the deployment contract is amended. |
 | A14 | `H3` has an exact deployment fix path rather than an unknown architecture problem | `backend/app/main.py`, `backend/.env.example`, `backend/README.md`, plus 2026-04-07 production probes | Verified: the repo already applies `CORSMiddleware` using `settings.cors_origins`, and the documented required production env var already includes `https://buurt-check.nl`. The missing piece is deployed backend configuration parity. H3 can therefore be closed as a readiness blocker by documenting the exact deployment fix and the exact post-deploy probe contract. |
@@ -440,37 +440,32 @@ Do not remove the label split. Task 3 ruled that the split is intentional.
 - CTA routing remains unchanged.
 - `landing_cta_click` analytics still distinguishes placements by `data-cta-placement`.
 
-### Task 5. Record the founder ruling that the existing repo identity is already approved
+### Task 5. Record the founder ruling that the existing repo legal-contact wording is already approved
 
 **State: closed no-op.**
 
 **What needs to be done**
 
-Record the ruling that `C1` is not a blocker because the identity already present in the repo is approved for the current audit scope.
+Record the ruling that `C1` is not a blocker because the legal-contact wording already present in the repo is approved for the current audit scope.
 
 **How**
 
-- Treat the current `landing/privacy.html` identity text as the source of truth for this follow-up unless it is explicitly superseded later:
-  - `Milos Popovic`
-  - `Milos GIS`
-  - `Duinzicht 23`
-  - `2235 BV Valkenburg`
-  - `Netherlands`
+- Treat the current `landing/privacy.html` support-channel wording as the source of truth for this follow-up unless it is explicitly superseded later.
 - Record that founder confirmation in this file's `Decision log`, which this revision now does.
 - Do not open a new intake gate for KvK, BTW, or phone data as part of this audit plan. If those identifiers are ever required later, that is a separate legal/product decision, not a hidden readiness dependency for this plan.
 
 **Definition of success**
 
 - `C1` is explicitly documented as **not** being a readiness blocker.
-- Engineers are instructed to reuse the existing repo identity text rather than waiting for a new intake package.
+- Engineers are instructed to reuse the existing repo legal-contact wording rather than waiting for a new intake package.
 
-### Task 6. If desired, add the existing approved identity consistently across the landing bundle
+### Task 6. If desired, keep the approved legal-contact wording consistent across the landing bundle
 
 **State: implement now.**
 
 **What needs to be done**
 
-Publish the existing approved identity information in the landing footer and the bundled legal pages so the site discloses the same business identity everywhere.
+Keep the landing footer and bundled legal pages aligned around the same approved support-contact and legal-link posture.
 
 **How**
 
@@ -479,28 +474,21 @@ Publish the existing approved identity information in the landing footer and the
   - `landing/privacy.html`
   - `landing/terms.html`
 - Keep the current footer link structure intact.
-- Reuse only the identity text already approved in `landing/privacy.html` for this scope:
-  - `Milos Popovic`
-  - `Milos GIS`
-  - `Duinzicht 23`
-  - `2235 BV Valkenburg`
-  - `Netherlands`
+- Reuse only the support-channel wording already approved in `landing/privacy.html` for this scope.
 - Do not invent trust claims, counters, or extra marketing language while implementing the disclosure.
-- Do not introduce new KvK, BTW, or phone fields in this task unless they already exist in the approved source text or a later explicit decision supersedes this ruling.
+- Do not introduce personal operator details, new KvK/BTW fields, or phone numbers in this task unless a later explicit decision supersedes this ruling.
 - Extend Playwright assertions so the landing bundle checks the new disclosure once it is real.
-- In `landing/index.html`, add one compact footer identity block inside `.footer__wrap`, preserving `.footer__links` and existing contact/legal links.
-- In `landing/privacy.html`, update the existing `Who we are` section if needed; do not add a second contradictory identity section.
-- In `landing/terms.html`, add a matching legal-page identity section or compact footer area without marketing claims.
+- In `landing/index.html`, keep `.footer__wrap`, `.footer__links`, and the existing contact/legal links intact without adding personal identity details.
+- In `landing/privacy.html`, update the existing legal-contact section if needed; do not add a second contradictory contact section.
+- In `landing/terms.html`, keep the same support-channel-based contact wording without adding a separate personal-identity block.
 - Add Playwright assertions for:
-  - `Milos Popovic` appears where intended on landing and legal pages
-  - `Milos GIS` appears where intended on landing and legal pages
-  - the postal address appears where intended on landing and legal pages
   - approved email link still works
+  - privacy and terms links still work
 - Run `npm run landing:test:e2e`, `npm run landing:perf:live`, and `npm run landing:build`.
 
 **Definition of success**
 
-- The landing footer and both legal pages expose the existing approved identity fields consistently.
+- The landing footer and both legal pages expose the approved support/contact wording consistently.
 - Existing contact email and legal links still work.
 - Mobile and desktop footer layouts remain intact.
 - Landing smoke coverage passes after the change.

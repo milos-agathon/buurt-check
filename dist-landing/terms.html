@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="nl" data-language="nl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Buurt Check Terms of Use</title>
+    <title>Buurt Check Gebruiksvoorwaarden</title>
     <meta
       name="description"
-      content="Terms of use for Buurt Check web, Android, and iPhone app experiences."
+      content="Gebruiksvoorwaarden voor Buurt Check op web, Android en iPhone."
     />
     <meta name="buurtcheck-ga-measurement-id" content="" />
     <meta name="buurtcheck-app-url" content="https://app.buurt-check.nl/#/search" />
@@ -116,117 +116,237 @@
       }());
     </script>
     <script defer src="/analytics-consent.js"></script>
+    <script defer src="/legal.js"></script>
   </head>
   <body>
-    <main class="legal-page">
+    <main
+      class="legal-page"
+      data-language-root
+      data-page-title-nl="Buurt Check Gebruiksvoorwaarden"
+      data-page-title-en="Buurt Check Terms of Use"
+      data-page-description-nl="Gebruiksvoorwaarden voor Buurt Check op web, Android en iPhone."
+      data-page-description-en="Terms of use for Buurt Check web, Android, and iPhone experiences."
+    >
       <div class="legal-page__topbar">
         <a class="legal-page__brand" href="https://app.buurt-check.nl/#/search" data-app-link>
-          <img src="/logos/buurt-check-lockup-horizontal.svg" alt="Buurt Check" />
-          <span>Buurt Check</span>
+          <img class="legal-page__brand-mark" src="/logos/buurt-check-favicon.svg" alt="" aria-hidden="true" />
+          <span class="legal-page__brand-copy">
+            <span class="legal-page__brand-text">Buurt Check</span>
+            <span class="legal-page__brand-subtitle" data-lang-group>
+              <span data-lang="nl">Voorwaarden & juridische info</span>
+              <span data-lang="en" hidden>Terms & legal</span>
+            </span>
+          </span>
         </a>
-        <a class="legal-page__back" href="https://app.buurt-check.nl/#/search" data-app-link>Back to the app</a>
+
+        <div class="legal-page__controls">
+          <div class="legal-page__lang-toggle" role="radiogroup" aria-label="Taal" data-language-label-nl="Taal" data-language-label-en="Language">
+            <button type="button" class="legal-page__lang-btn" data-language-choice="nl" role="radio" aria-checked="true" tabindex="0">NL</button>
+            <button type="button" class="legal-page__lang-btn" data-language-choice="en" role="radio" aria-checked="false" tabindex="-1">EN</button>
+          </div>
+
+          <a class="legal-page__back" href="https://app.buurt-check.nl/#/search" data-app-link data-lang-group>
+            <span data-lang="nl">Terug naar de app</span>
+            <span data-lang="en" hidden>Back to the app</span>
+          </a>
+        </div>
       </div>
 
-      <section class="legal-page__hero">
-        <span class="legal-page__eyebrow">Terms of use</span>
-        <h1 class="legal-page__title">Buurt Check Terms of Use</h1>
-        <p class="legal-page__lead">
-          These terms govern the free viewer, the free quick brief export, and the paid full
-          dossier export delivered through the web app, the Google Play Android app, and the
-          App Store iPhone app.
-        </p>
-        <p class="legal-page__meta">Last updated: March 23, 2026</p>
+      <section class="legal-page__hero" data-lang-group>
+        <div data-lang="nl">
+          <span class="legal-page__eyebrow">Gebruiksvoorwaarden</span>
+          <h1 class="legal-page__title">Voorwaarden voor Buurt Check</h1>
+          <p class="legal-page__lead">
+            Deze voorwaarden gelden voor de gratis viewer, de gratis korte checklist en het
+            betaalde volledige dossier in de webapp, Android-app en iPhone-app van Buurt Check.
+          </p>
+          <p class="legal-page__meta">Laatst bijgewerkt: 20 april 2026</p>
+        </div>
+
+        <div data-lang="en" hidden>
+          <span class="legal-page__eyebrow">Terms of Use</span>
+          <h1 class="legal-page__title">Terms for using Buurt Check</h1>
+          <p class="legal-page__lead">
+            These terms apply to the free viewer, the free quick checklist, and the paid full
+            dossier in the Buurt Check web app, Android app, and iPhone app.
+          </p>
+          <p class="legal-page__meta">Last updated: April 20, 2026</p>
+        </div>
       </section>
 
-      <div class="legal-page__grid">
-        <section class="legal-page__section">
-          <h2>Service scope</h2>
-          <p>
-            Buurt Check provides indicative, evidence-backed property intelligence for Dutch
-            addresses. The on-screen dossier viewer is free. The quick brief export is free. The
-            full dossier export is a paid digital good linked to the anonymous buyer and the
-            address-specific report record created at the time of purchase.
-          </p>
-        </section>
+      <div class="legal-page__language-root" data-lang-group>
+        <div data-lang="nl">
+          <div class="legal-page__grid">
+            <section class="legal-page__section">
+              <h2>Reikwijdte van de dienst</h2>
+              <p>
+                Buurt Check biedt indicatieve, onderbouwde woninginzichten voor Nederlandse
+                adressen. De viewer in de app is gratis. De korte checklist is gratis. Het
+                volledige dossier is een eenmalige betaalde digitale aankoop die is gekoppeld aan de
+                anonieme koper en het adresgebonden rapport.
+              </p>
+            </section>
 
-        <section class="legal-page__section">
-          <h2>No professional advice</h2>
-          <p>
-            Buurt Check summarizes public datasets and generated analysis. It is not legal, tax,
-            mortgage, structural, surveying, or notarial advice. You remain responsible for
-            carrying out professional inspections, due diligence, and purchase decisions.
-          </p>
-          <div class="legal-page__callout">
-            <h3>Dutch summary</h3>
-            <p>
-              Buurt Check is een informatieve dienst, geen juridisch, bouwkundig of financieel
-              advies. Controleer belangrijke punten altijd met professionele adviseurs.
-            </p>
+            <section class="legal-page__section">
+              <h2>Geen professioneel advies</h2>
+              <p>
+                Buurt Check vat openbare datasets en afgeleide analyses samen. Het is geen
+                juridisch, bouwkundig, notarieel, fiscaal of financieel advies. Je blijft zelf
+                verantwoordelijk voor inspecties, due diligence en aankoopbeslissingen.
+              </p>
+              <div class="legal-page__callout">
+                <h3>Belangrijk</h3>
+                <p>Controleer beslissende punten altijd met professionele adviseurs en eigen onderzoek.</p>
+              </div>
+            </section>
+
+            <section class="legal-page__section">
+              <h2>Betaalkanalen</h2>
+              <ul>
+                <li>Webaankopen lopen via Stripe Checkout.</li>
+                <li>Android-aankopen lopen via Google Play Billing.</li>
+                <li>iPhone-aankopen lopen via Apple In-App Purchase.</li>
+                <li>Ook de voorwaarden en restitutieregels van het betreffende platform zijn van toepassing.</li>
+              </ul>
+              <p>
+                We kunnen een entitlement weigeren of intrekken als een betaling wordt
+                geannuleerd, teruggedraaid, terugbetaald of ongeldig blijkt.
+              </p>
+            </section>
+
+            <section class="legal-page__section">
+              <h2>Beschikbaarheid en wijzigingen</h2>
+              <p>
+                Publieke databronnen kunnen veranderen of tijdelijk uitvallen. Buurt Check is
+                ontworpen om netjes te degraderen, maar we garanderen niet dat elke databron,
+                sectie of export altijd beschikbaar is. We kunnen de app, prijsstelling of deze
+                voorwaarden aanpassen naarmate het product of platformregels veranderen.
+              </p>
+            </section>
+
+            <section class="legal-page__section">
+              <h2>Toegestaan gebruik</h2>
+              <p>
+                Je mag Buurt Check gebruiken voor legale persoonlijke of interne evaluatiedoelen.
+                Het is niet toegestaan de dienst op grote schaal te scrapen, beveiligingsmaatregelen
+                te omzeilen of betaalde exports als eigen product door te verkopen.
+              </p>
+            </section>
+
+            <section class="legal-page__section">
+              <h2>Aansprakelijkheid</h2>
+              <p>
+                Voor zover wettelijk toegestaan wordt Buurt Check geleverd op een as-is basis.
+                We zijn niet aansprakelijk voor indirecte schade of gevolgschade die ontstaat door
+                vertrouwen op indicatieve data, fouten in brondata of serviceonderbrekingen.
+              </p>
+            </section>
+
+            <section class="legal-page__section">
+              <h2>Contact</h2>
+              <p>
+                Product- en supportvragen kun je sturen naar
+                <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>.
+              </p>
+              <p>
+                Privacy- en beheerinformatie vind je ook op het
+                <a href="/privacy.html">privacybeleid</a>.
+              </p>
+            </section>
           </div>
-        </section>
 
-        <section class="legal-page__section">
-          <h2>Payment channels</h2>
-          <ul>
-            <li>Web purchases are processed through Stripe Checkout.</li>
-            <li>Android purchases in the Google Play build are processed through Google Play Billing.</li>
-            <li>iPhone purchases in the App Store build are processed through Apple In-App Purchase.</li>
-            <li>
-              The payment provider terms, refund rules, and platform rights also apply to the
-              relevant channel.
-            </li>
-          </ul>
-          <p>
-            We may refuse, reverse, or revoke an entitlement if a payment is cancelled, refunded,
-            charged back, or determined to be invalid by the relevant payment platform.
+          <p class="legal-page__footer">
+            Als dwingend recht of een platformregel afwijkt van deze voorwaarden, geldt die
+            verplichte regel voor het betreffende kanaal.
           </p>
-        </section>
+        </div>
 
-        <section class="legal-page__section">
-          <h2>Availability and changes</h2>
-          <p>
-            Public data sources can fail, change, or become temporarily unavailable. We aim to
-            degrade gracefully, but we do not guarantee uninterrupted availability of every source,
-            section, or export. We may update the app, pricing, or these terms as the product and
-            platform rules evolve.
-          </p>
-        </section>
+        <div data-lang="en" hidden>
+          <div class="legal-page__grid">
+            <section class="legal-page__section">
+              <h2>Service scope</h2>
+              <p>
+                Buurt Check provides indicative, evidence-backed property insights for Dutch
+                addresses. The in-app viewer is free. The quick checklist is free. The full
+                dossier is a one-time paid digital purchase linked to the anonymous buyer and the
+                address-specific report.
+              </p>
+            </section>
 
-        <section class="legal-page__section">
-          <h2>Allowed use</h2>
-          <p>
-            You may use Buurt Check for lawful personal or internal evaluation purposes. You may
-            not reverse engineer the service, scrape it at scale, interfere with platform security
-            measures, or resell paid exports as your own product.
-          </p>
-        </section>
+            <section class="legal-page__section">
+              <h2>No professional advice</h2>
+              <p>
+                Buurt Check summarizes public datasets and derived analysis. It is not legal,
+                structural, tax, mortgage, notarial, or financial advice. You remain responsible
+                for inspections, due diligence, and purchase decisions.
+              </p>
+              <div class="legal-page__callout">
+                <h3>Important</h3>
+                <p>Always verify decisive issues with professional advisers and your own checks.</p>
+              </div>
+            </section>
 
-        <section class="legal-page__section">
-          <h2>Liability</h2>
-          <p>
-            To the maximum extent permitted by law, Buurt Check is provided on an as-is basis and
-            we are not liable for indirect or consequential losses resulting from your reliance on
-            indicative data, third-party source errors, or service interruptions.
-          </p>
-        </section>
+            <section class="legal-page__section">
+              <h2>Payment channels</h2>
+              <ul>
+                <li>Web purchases are processed through Stripe Checkout.</li>
+                <li>Android purchases are processed through Google Play Billing.</li>
+                <li>iPhone purchases are processed through Apple In-App Purchase.</li>
+                <li>The terms and refund rules of the relevant platform also apply.</li>
+              </ul>
+              <p>
+                We may refuse or revoke an entitlement if a payment is cancelled, reversed,
+                refunded, or otherwise determined to be invalid.
+              </p>
+            </section>
 
-        <section class="legal-page__section">
-          <h2>Contact</h2>
-          <p>
-            Product and support questions can be sent to
-            <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>.
+            <section class="legal-page__section">
+              <h2>Availability and changes</h2>
+              <p>
+                Public data sources can change or fail temporarily. Buurt Check is designed to
+                degrade gracefully, but we do not guarantee that every source, section, or export
+                will always be available. We may update the app, pricing, or these terms as the
+                product or platform rules evolve.
+              </p>
+            </section>
+
+            <section class="legal-page__section">
+              <h2>Allowed use</h2>
+              <p>
+                You may use Buurt Check for lawful personal or internal evaluation. You may not
+                scrape the service at scale, bypass security controls, or resell paid exports as
+                your own product.
+              </p>
+            </section>
+
+            <section class="legal-page__section">
+              <h2>Liability</h2>
+              <p>
+                To the maximum extent permitted by law, Buurt Check is provided on an as-is basis.
+                We are not liable for indirect or consequential losses arising from reliance on
+                indicative data, source-data errors, or service interruptions.
+              </p>
+            </section>
+
+            <section class="legal-page__section">
+              <h2>Contact</h2>
+              <p>
+                Product and support questions can be sent to
+                <a href="mailto:support@buurt-check.nl">support@buurt-check.nl</a>.
+              </p>
+              <p>
+                Privacy and operator information is also available in the
+                <a href="/privacy.html">Privacy Policy</a>.
+              </p>
+            </section>
+          </div>
+
+          <p class="legal-page__footer">
+            If mandatory law or a platform rule conflicts with these terms, that mandatory rule
+            controls for the relevant channel.
           </p>
-          <p>
-            Privacy and operator details for the current publishing entity are listed on the
-            <a href="/privacy.html">Privacy Policy</a>.
-          </p>
-        </section>
+        </div>
       </div>
-
-      <p class="legal-page__footer">
-        If a specific platform rule or mandatory local law conflicts with these terms, the mandatory
-        rule controls for that channel.
-      </p>
     </main>
   </body>
 </html>

@@ -165,7 +165,7 @@ def test_epic3_all_five_warning_categories_render():
 
 def test_epic3_soil_section_honesty_and_postcode_injection():
     result = generate_full_dossier(
-        address="Dorpstraat 10, 2235BV Valkenburg",
+        address="Example Street 12, 1234AB Sample City",
         building_year=1970,
         building_use="Residential",
         risks=None,

@@ -1,7 +1,7 @@
 # buurt-check — Frontend UI Assessment & Component Architecture
 
 > **Date:** 2026-02-16
-> **Based on:** 10 screenshots of live frontend (Duinzicht 23, 2235BV Valkenburg)
+> **Based on:** 10 screenshots of live frontend (Example Street 12, 1234AB Sample City)
 > **Assessed against:** design-prd.md v2.0, design-spec.md v3.0, ui-principles-v2.md
 
 ---
@@ -16,7 +16,7 @@ Based on all 10 screenshots, the current dossier scroll order is:
 1. Top bar (fixed): Buurt-Check wordmark + EN|NL toggle + dark mode icon
 2. Address input bar (pill-style, looks editable)
 3. Building Footprint map (2D polygon on grid, full-width card)
-4. Address header: "Duinzicht 23 / 2235BV Valkenburg / Built 1983 · Residential"
+4. Address header: "Example Street 12 / 1234AB Sample City / Built 1983 · Residential"
 5. Summary pills: [🔊 50] [🌿 84] [❄️ 15] [☀️ 100]
 6. Building Facts section
 7. Risk tiles (2×2 grid): Noise 50, Air 84, Climate 15, Sunlight 100
@@ -66,7 +66,7 @@ Based on all 10 screenshots, the current dossier scroll order is:
 
 **Spec:** PRD §4.3.1 specifies the address on the dossier screen as display typography (28px Black) — a content headline, not an input field. The input-field style should only appear on the Search tab. On the dossier, the address is confirmed information.
 
-**Fix:** Two changes: (1) Replace the input-pill style with display typography: "Duinzicht 23" in Satoshi Black 28px, "2235BV Valkenburg" in 15px Regular secondary color, as a standard content header. (2) Add proper spacing — the PRD specifies the top bar has 44px content height, and the first content element should have adequate top margin (16–24px below the top bar boundary). This creates clear separation between chrome and content.
+**Fix:** Two changes: (1) Replace the input-pill style with display typography: "Example Street 12" in Satoshi Black 28px, "1234AB Sample City" in 15px Regular secondary color, as a standard content header. (2) Add proper spacing — the PRD specifies the top bar has 44px content height, and the first content element should have adequate top margin (16–24px below the top bar boundary). This creates clear separation between chrome and content.
 
 **Severity:** High — creates a confused interaction model (is this editable?) and visual cramping.
 

@@ -395,8 +395,8 @@
 
     .nav__shell {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      grid-template-areas: 'brand links controls';
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'brand controls';
       gap: 10px;
       align-items: center;
       padding: 8px 0;
@@ -407,6 +407,7 @@
       display: inline-flex;
       align-items: center;
       min-width: 0;
+      width: min(148px, 100%);
       max-width: 148px;
       text-decoration: none;
     }
@@ -428,6 +429,7 @@
       display: inline-flex;
       align-items: center;
       justify-self: end;
+      flex-wrap: nowrap;
       gap: 8px;
     }
 
@@ -541,17 +543,8 @@
       }
 
       .nav__brand {
-        width: 24px;
-        max-width: 24px;
-        overflow: hidden;
-      }
-
-      .nav__brand .nav__brand-lockup {
-        display: none;
-      }
-
-      .nav__brand .nav__brand-mark {
-        display: block;
+        width: min(132px, 38vw);
+        max-width: 132px;
       }
 
       .nav__links {
@@ -585,6 +578,11 @@
         gap: 4px;
       }
 
+      .nav__brand {
+        width: min(112px, 34vw);
+        max-width: 112px;
+      }
+
       .nav__links {
         gap: 4px;
       }
@@ -598,10 +596,7 @@
       .nav__link,
       .nav__cta {
         min-height: 44px;
-        padding: 0 4px;
-        border: none;
-        border-radius: 0;
-        background: transparent;
+        padding: 0 8px;
         font-size: 11px;
       }
 
@@ -1165,14 +1160,15 @@
       }
 
       .nav__shell {
-        grid-template-columns: auto minmax(0, 1fr) auto;
-        grid-template-areas: 'brand links controls';
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: 'brand controls';
         align-items: center;
         gap: 16px;
         padding: 12px 0;
       }
 
       .nav__brand {
+        width: min(188px, 100%);
         max-width: 188px;
       }
 
@@ -1351,9 +1347,6 @@
               EN
             </button>
           </div>
-        </div>
-
-        <div class="nav__links">
           <a href="https://app.buurt-check.nl/#/search" class="button button--ghost nav__cta" data-app-link data-cta-placement="nav">
             <span data-lang-group>
               <span data-lang="nl" lang="nl">
@@ -1366,19 +1359,6 @@
               </span>
             </span>
           </a>
-          <a href="#how-it-works" class="nav__link" data-nav-target="how-it-works">
-            <span data-lang-group>
-              <span data-lang="nl" lang="nl">Hoe het werkt</span>
-              <span data-lang="en" lang="en">How it works</span>
-            </span>
-          </a>
-          <a href="#pricing" class="nav__link" data-nav-target="pricing">
-            <span data-lang-group>
-              <span data-lang="nl" lang="nl">Prijzen</span>
-              <span data-lang="en" lang="en">Pricing</span>
-            </span>
-          </a>
-          <a href="#faq" class="nav__link" data-nav-target="faq">FAQ</a>
         </div>
       </div>
     </nav>

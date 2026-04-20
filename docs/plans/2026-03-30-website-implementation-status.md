@@ -218,8 +218,8 @@ Verification run for the landing refresh:
 * Sticky-nav CTA, pricing CTA, and final CTA all route to `https://app.buurt-check.nl/#/search`
 * Lower-page CTA label remains **“Start in de webapp”** in pricing and is reused in the dedicated final CTA block
 * Footer contains `Contact`, `/privacy.html`, and `/terms.html`; the legal pages plus supporting `legal.css` and required logo assets now exist inside `landing/` itself, so a landing-only deploy resolves them correctly
-* The landing footer now publishes the approved operator identity: `Milos Popovic`, `Milos GIS`, `Duinzicht 23`, `2235 BV Valkenburg`, `Netherlands`
-* `landing/terms.html` now exposes the same approved operator identity already used by `landing/privacy.html`
+* The landing footer now stays limited to support and legal links, without publishing personal operator details
+* `landing/terms.html` and `landing/privacy.html` now use the same support-channel-based legal contact language
 * Landing section order matches the PRD and all required stable IDs are present
 * The landing section order now includes `#showcase` immediately before `#pricing`
 * The sticky header now uses the real Buurt Check lockup instead of the text-only brand
