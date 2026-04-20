@@ -2,141 +2,123 @@
 
 _Last updated: 20 April 2026_
 
-These Terms of Use ("Terms") govern your access to and use of Buurt-check, including the website, application, reports, scores, visualizations, dossier outputs, APIs, content, and related services (collectively, the "Service"). By accessing or using the Service, you agree to these Terms.
+These Terms of Use ("Terms") govern your access to and use of Buurt-check, including the website, mobile applications, reports, exports, maps, scores, and related services (collectively, the "Service"). By using the Service, you agree to these Terms.
 
 If you do not agree to these Terms, do not use the Service.
 
-## 1. Operator
+## 1. Scope of the Service
 
-Buurt-check is operated by Milos Popovic ("we," "us," or "our").
+Buurt-check provides address-based and neighborhood-based informational analysis for locations in the Netherlands. The Service may include, among other things:
+- scores and summaries;
+- maps and visualizations;
+- address or area-based dossier outputs;
+- viewing questions and checklists; and
+- exports or other paid digital content.
 
-## 2. Nature of the Service
+The Service is intended to help users assess contextual factors around a location, but it is not a substitute for professional advice or real-world inspection.
 
-Buurt-check provides informational analyses relating to Dutch addresses, neighborhoods, and place-based factors such as environmental conditions, climate-related indicators, sunlight, livability, noise, air quality, and related contextual signals.
+## 2. Informational Purposes Only
 
-The Service may include derived scores, summaries, maps, visualizations, questions to ask during home viewings, and other interpretive outputs.
-
-## 3. Informational Use Only
-
-The Service is provided for general informational and educational purposes only.
+The Service is provided for general informational and evaluation purposes only.
 
 The Service does **not** constitute:
 - legal advice;
-- financial advice;
-- mortgage advice;
+- structural, engineering, or building advice;
 - tax advice;
-- investment advice;
-- engineering advice;
+- mortgage or financial advice;
+- notarial advice;
 - surveying advice;
-- construction advice;
-- environmental consultancy advice;
-- insurance advice;
-- real-estate brokerage advice; or
-- a guarantee of present or future property conditions, value, habitability, safety, or suitability.
+- environmental consultancy advice; or
+- a guarantee regarding current or future property condition, value, safety, suitability, insurability, or livability.
 
-You remain solely responsible for your own decisions, due diligence, inspections, professional consultations, and risk assessment.
+You remain responsible for your own due diligence, inspections, expert consultation, and decision-making.
 
-## 4. No Guarantee of Accuracy or Completeness
+## 3. Accuracy and Availability
 
-We aim to make the Service useful and reliable, but we do not guarantee that any output is complete, current, accurate, error-free, uninterrupted, or fit for your particular purpose.
+Buurt-check uses public, open, third-party, and derived data sources. Outputs may depend on source availability, source quality, model assumptions, derived calculations, and the timing of updates.
 
-Place-based data may be delayed, incomplete, generalized, modeled, interpolated, estimated, simplified, aggregated, outdated, subject to source errors, or unavailable for certain areas. Conditions on the ground may differ materially from Service outputs.
+As a result, the Service may contain delays, omissions, approximations, estimation error, source error, missing areas, or outdated information. Real-world conditions may differ materially from Service outputs.
 
-## 5. Your Use of the Service
+We do not guarantee that the Service or any output is complete, current, accurate, uninterrupted, or fit for a particular purpose.
 
-You agree to use the Service lawfully and responsibly.
+## 4. Permitted Use
+
+You may use the Service only for lawful personal use or legitimate internal evaluation purposes.
 
 You may not:
-- use the Service to violate any law or regulation;
-- copy, scrape, harvest, extract, or systematically collect content, outputs, or metadata from the Service except as expressly permitted;
-- interfere with, disrupt, probe, or attempt unauthorized access to the Service or its infrastructure;
-- reverse engineer, decompile, or attempt to derive source code, models, prompts, scoring logic, weighting, or internal methodologies, except to the extent such restriction is prohibited by law;
-- use the Service to build or help build a competing product or service;
-- resell, sublicense, white-label, redistribute, or commercially exploit the Service or its outputs without prior written permission;
-- use automated tools, bots, or scripts to access the Service in a manner that imposes unreasonable load or bypasses intended access controls;
-- remove or alter copyright, trademark, attribution, or proprietary notices; or
-- use the Service or its outputs for unlawful discrimination, profiling, or decisions that violate applicable law.
+- use the Service in violation of any law or regulation;
+- scrape, harvest, bulk-download, or systematically extract content or outputs from the Service;
+- bypass, disable, or interfere with security, payment, entitlement, rate limiting, or access controls;
+- use automated means to overload, probe, or abuse the Service;
+- copy, repackage, resell, sublicense, or redistribute paid reports, exports, or other outputs as your own product or service;
+- use the Service or its outputs to build a substantially similar or competing product;
+- remove copyright, trademark, attribution, or proprietary notices; or
+- misrepresent the source, ownership, or meaning of Buurt-check outputs.
 
-## 6. Accounts and Access
+## 5. Purchases, Entitlements, and Access
 
-If the Service requires an account, you are responsible for maintaining the confidentiality of your login credentials and for all activity under your account.
+Certain features or outputs may require payment. Prices, taxes, and payment terms are presented at the time of purchase.
 
-You must provide accurate information and keep it up to date.
+Paid digital outputs may be tied to a specific purchase flow, session, anonymous buyer record, report identifier, or address-based entitlement.
 
-We may suspend or terminate access if we reasonably suspect misuse, unlawful activity, security risk, non-payment, or breach of these Terms.
+Access to a paid report, export, or entitlement may be refused, limited, or revoked where payment is canceled, reversed, refunded, charged back, found invalid, or otherwise not successfully completed.
 
-## 7. Payments, Subscriptions, and Refunds
+Where purchases are made through app stores or payment processors, additional platform terms may apply.
 
-If any paid features, one-time purchases, subscriptions, or upgrades are offered:
-- prices are shown as presented at the time of purchase;
-- you authorize the applicable payment processor to charge the stated amount, including any applicable taxes or fees;
-- subscriptions renew automatically if stated at checkout, unless canceled in accordance with the applicable billing flow;
-- unless required by law, fees already paid are non-refundable;
-- promotional pricing may be temporary and may change prospectively.
+## 6. Refunds
 
-Additional commercial terms may be presented during checkout and will apply alongside these Terms.
+Refund rights, if any, are governed by applicable law and, where relevant, the terms of the payment platform or app store used for the purchase.
 
-## 8. Intellectual Property
+Unless otherwise required by law or platform policy, completed digital purchases may be non-refundable once access to the paid content has been granted.
 
-The Service, including its software, design, text, maps, layout, branding, report structure, scoring presentation, visualizations, graphics, and related materials, is owned by or licensed to us and is protected by intellectual property laws.
+## 7. Intellectual Property
 
-Except where expressly allowed, no rights are granted to copy, reproduce, modify, distribute, publish, sell, sublicense, or create derivative works from the Service or its outputs.
+The Service, including its software, design, copy, layout, report structure, visualizations, maps, scoring presentation, branding, and related materials, is owned by or licensed to Buurt-check and protected by applicable intellectual property laws.
 
-Use of the Buurt-check name, logo, and brand elements requires our prior written permission.
+Except where expressly permitted, no right is granted to copy, reproduce, modify, distribute, publish, sell, license, or create derivative works from the Service or its outputs.
 
-## 9. Third-Party Data and Services
+Use of the Buurt-check name, logo, and brand assets requires prior permission.
 
-The Service may use or reference third-party software, open-source components, public datasets, maps, geospatial layers, APIs, and external content.
+## 8. Third-Party Sources and Platform Terms
 
-Such third-party materials remain subject to their own terms, licenses, notices, and attribution requirements. We are not responsible for third-party materials and do not guarantee their availability, legality, accuracy, or continued supply.
+The Service may rely on public/open data, third-party software, app stores, payment providers, analytics tools, geospatial services, and other external infrastructure.
 
-## 10. User Inputs and Feedback
+Those third-party components remain subject to their own terms, privacy policies, licenses, and attribution requirements. We are not responsible for the ongoing availability or accuracy of third-party materials.
 
-If you provide addresses, search queries, comments, suggestions, messages, or feedback through the Service:
-- you confirm that you have the right to provide that information;
-- you grant us a non-exclusive right to process such inputs as necessary to operate, secure, improve, and support the Service; and
-- if you provide feedback or suggestions, you grant us the right to use them without restriction or compensation unless otherwise agreed in writing.
+## 9. Privacy
 
-## 11. Privacy
+Use of the Service is also subject to the Buurt-check Privacy Policy.
 
-Your use of the Service is also subject to our Privacy Policy.
+## 10. Suspension and Termination
 
-## 12. Availability and Changes
+We may suspend, restrict, or terminate access to the Service if we reasonably believe there has been misuse, unlawful activity, payment failure, security abuse, breach of these Terms, or other risk to the Service or its users.
 
-We may modify, suspend, restrict, or discontinue any part of the Service at any time, with or without notice.
+## 11. Disclaimer of Warranties
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KIND, EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, OR RESULTS.
+
+## 12. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, BUURT-CHECK SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, DATA, GOODWILL, BUSINESS OPPORTUNITY, OR PROPERTY-RELATED EXPECTATION, ARISING OUT OF OR RELATING TO THE SERVICE OR THESE TERMS.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE TOTAL AGGREGATE LIABILITY ARISING OUT OF OR RELATING TO THE SERVICE OR THESE TERMS SHALL NOT EXCEED THE GREATER OF:
+1. THE AMOUNT PAID FOR THE RELEVANT SERVICE OR PURCHASE IN THE 12 MONTHS PRECEDING THE EVENT GIVING RISE TO THE CLAIM; OR
+2. EUR 100.
+
+Nothing in these Terms excludes liability that cannot lawfully be excluded.
+
+## 13. Changes to the Service or These Terms
+
+We may modify, suspend, or discontinue all or part of the Service at any time.
 
 We may also update these Terms from time to time. Continued use of the Service after updated Terms become effective constitutes acceptance of the updated Terms.
 
-## 13. Disclaimer of Warranties
-
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, AVAILABILITY, OR RESULTS.
-
-## 14. Limitation of Liability
-
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, WE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, DATA, GOODWILL, BUSINESS OPPORTUNITY, PROPERTY VALUE EXPECTATION, OR BUSINESS INTERRUPTION, ARISING OUT OF OR RELATING TO THE SERVICE OR THESE TERMS.
-
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, OUR TOTAL AGGREGATE LIABILITY ARISING OUT OF OR RELATING TO THE SERVICE OR THESE TERMS SHALL NOT EXCEED THE GREATER OF:
-1. THE AMOUNT YOU PAID TO US FOR THE SERVICE IN THE 12 MONTHS PRECEDING THE EVENT GIVING RISE TO THE CLAIM; OR
-2. EUR 100.
-
-Nothing in these Terms excludes liability that cannot lawfully be excluded under applicable law.
-
-## 15. Indemnity
-
-You agree to indemnify and hold harmless Milos Popovic from and against claims, liabilities, damages, losses, and expenses arising out of or related to your misuse of the Service, your breach of these Terms, or your violation of applicable law or third-party rights.
-
-## 16. Termination
-
-We may suspend or terminate your access to the Service at any time if you breach these Terms, create risk for the Service, or where required for security, legal, or operational reasons.
-
-Sections that by their nature should survive termination will survive, including those relating to intellectual property, disclaimers, liability limitations, indemnity, and governing law.
-
-## 17. Governing Law and Jurisdiction
+## 14. Governing Law
 
 These Terms are governed by the laws of the Netherlands, excluding conflict of laws principles.
 
-Any dispute arising out of or relating to these Terms or the Service shall be submitted to the competent courts in the Netherlands, unless applicable consumer law requires otherwise.
+Any dispute arising out of or relating to these Terms or the Service shall be submitted to the competent courts in the Netherlands, unless mandatory consumer law provides otherwise.
 
-## 18. Contact
+## 15. Contact
 
-For legal, commercial, or support inquiries relating to these Terms, contact: Milos Popovic.
+For questions about these Terms, use the contact details or support channel made available through the Service.
