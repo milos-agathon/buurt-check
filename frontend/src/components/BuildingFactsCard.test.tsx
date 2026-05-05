@@ -83,6 +83,16 @@ describe('data rendering', () => {
     renderCard(makeBuildingFacts({ floor_area_m2: 85 }), false);
     expect(screen.getByText('85 m²')).toBeInTheDocument();
   });
+
+  it('explains that multi-unit BAG geometry covers the whole building', () => {
+    renderCard(makeBuildingFacts({ num_units: 2, floor_area_m2: 400 }), false);
+
+    expect(
+      screen.getByText(
+        'This BAG building contains 2 addressable units. Floor area is for the selected address; footprint, 3D, and sunlight use the whole BAG building.',
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('bilingual rendering', () => {

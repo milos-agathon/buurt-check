@@ -446,6 +446,12 @@ export interface VvEInfo {
   messages: string[];
 }
 
+export interface SharedBuildingInfo {
+  detected: boolean;
+  num_addressable_units?: number;
+  messages: string[];
+}
+
 export interface AsbestosWarning {
   flagged: boolean;
   construction_year?: number;
@@ -477,6 +483,7 @@ export interface PropertyWarningsResponse {
   foundation_risk: FoundationRisk;
   erfpacht: ErfpachtWarning;
   vve: VvEInfo;
+  shared_building: SharedBuildingInfo;
   asbestos: AsbestosWarning;
   lead_pipe: LeadPipeWarning;
 }

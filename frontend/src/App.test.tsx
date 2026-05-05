@@ -355,6 +355,7 @@ beforeEach(async () => {
       messages: [],
     },
     vve: { is_apartment: false, messages: [] },
+    shared_building: { detected: false, messages: [] },
     asbestos: { flagged: false, messages: [] },
     lead_pipe: { flagged: false, messages: [] },
   });

@@ -29,6 +29,12 @@ class VvEInfo(BaseModel):
     messages: list[str] = Field(default_factory=list)
 
 
+class SharedBuildingInfo(BaseModel):
+    detected: bool
+    num_addressable_units: int | None = None
+    messages: list[str] = Field(default_factory=list)
+
+
 class AsbestosWarning(BaseModel):
     flagged: bool
     construction_year: int | None = None
@@ -60,6 +66,9 @@ class PropertyWarningsResponse(BaseModel):
     foundation_risk: FoundationRisk
     erfpacht: ErfpachtWarning
     vve: VvEInfo
+    shared_building: SharedBuildingInfo = Field(
+        default_factory=lambda: SharedBuildingInfo(detected=False)
+    )
     asbestos: AsbestosWarning
     lead_pipe: LeadPipeWarning = Field(
         default_factory=lambda: LeadPipeWarning(flagged=False)

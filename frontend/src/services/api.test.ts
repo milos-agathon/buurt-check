@@ -1293,6 +1293,7 @@ describe('getPropertyWarnings', () => {
           messages: [],
         },
         vve: { is_apartment: false, messages: [] },
+        shared_building: { detected: false, messages: [] },
         asbestos: { flagged: false, messages: [] },
         attention_summary: {
           flag_count: 0,

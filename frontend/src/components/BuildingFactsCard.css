@@ -69,6 +69,16 @@
   margin-top: 2px;
 }
 
+.building-card__notice {
+  margin: var(--space-base) 0 0;
+  padding: var(--space-sm) var(--space-base);
+  border-left: 3px solid var(--color-info);
+  border-radius: var(--radius-sm);
+  background: var(--color-badge-neutral-bg);
+  color: var(--color-text-primary);
+  font: var(--type-small);
+}
+
 .building-card__source {
   margin: var(--space-base) 0 0;
   font: var(--type-micro);

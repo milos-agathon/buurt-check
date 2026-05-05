@@ -11,6 +11,7 @@ from app.models.property_warnings import (
     ErfpachtWarning,
     LeadPipeWarning,
     PropertyWarningsResponse,
+    SharedBuildingInfo,
     VvEInfo,
 )
 from app.services import bag, foundation_risk
@@ -25,6 +26,7 @@ def build_attention_summary(
     foundation_level: str,
     erfpacht_detected: bool,
     is_apartment: bool,
+    shared_building_detected: bool = False,
     construction_year: int | None,
 ) -> AttentionSummary:
     """Build attention summary from all available signals."""
@@ -106,6 +108,17 @@ def build_attention_summary(
             )
         )
 
+    # Multiple addressable units in one BAG pand can be apartments, split houses,
+    # or semi-detached homes. Treat it as a boundary/geometry note, not VvE proof.
+    if shared_building_detected and not is_apartment:
+        flags.append(
+            AttentionFlag(
+                category="shared_building",
+                severity="info",
+                label="BAG building contains multiple address units - verify property scope",
+            )
+        )
+
     return AttentionSummary(
         flag_count=len(flags),
         flags=flags,
@@ -158,11 +171,19 @@ async def get_property_warnings(
         messages=["ERFPACHT_NOTE_MUNICIPALITY_ONLY"] if erfpacht_detected else [],
     )
 
-    # VvE detection (sync — unit count from BAG)
-    is_apartment = num_units is not None and num_units > 1
+    # VvE detection requires stronger evidence than BAG's addressable-unit count.
+    # A multi-VBO pand may be a semi-detached house or split farmhouse, so keep
+    # the VvE signal off until a property-type source is available.
+    is_apartment = False
     vve = VvEInfo(
         is_apartment=is_apartment,
         num_units=num_units if is_apartment else None,
+    )
+    shared_building_detected = num_units is not None and num_units > 1
+    shared_building = SharedBuildingInfo(
+        detected=shared_building_detected,
+        num_addressable_units=num_units if shared_building_detected else None,
+        messages=["BAG_MULTI_UNIT_BUILDING"] if shared_building_detected else [],
     )
 
     # Asbestos flag (sync — construction year threshold)
@@ -186,6 +207,7 @@ async def get_property_warnings(
         foundation_level=fr.level,
         erfpacht_detected=erfpacht_detected,
         is_apartment=is_apartment,
+        shared_building_detected=shared_building_detected,
         construction_year=construction_year,
     )
     if lead_pipe_flagged:
@@ -204,6 +226,7 @@ async def get_property_warnings(
         foundation_risk=fr,
         erfpacht=erfpacht,
         vve=vve,
+        shared_building=shared_building,
         asbestos=asbestos,
         lead_pipe=lead_pipe,
     )

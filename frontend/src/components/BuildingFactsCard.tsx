@@ -52,6 +52,7 @@ function BuildingFactsCard({ building, loading, error, onRetry }: Props) {
 
   const status = isNl ? building.status : (building.status_en || building.status);
   const use = isNl ? building.intended_use : building.intended_use_en;
+  const hasMultipleAddressUnits = building.num_units != null && building.num_units > 1;
 
   return (
     <div className="building-card">
@@ -93,6 +94,11 @@ function BuildingFactsCard({ building, loading, error, onRetry }: Props) {
           <span className="building-card__field-note">{t('building.pandIdNote')}</span>
         </dd>
       </dl>
+      {hasMultipleAddressUnits && (
+        <p className="building-card__notice">
+          {t('building.multipleUnitsNotice', { count: building.num_units })}
+        </p>
+      )}
       <p className="building-card__source">{t('building.source')}</p>
     </div>
   );
