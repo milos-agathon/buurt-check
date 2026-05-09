@@ -17,6 +17,15 @@ KPI_EVENTS = {
     "export_completed",
     "shortlist_added",
     "compare_viewed",
+    "prebid_address_confirmed",
+    "prebid_briefing_requested",
+    "prebid_briefing_loaded",
+    "prebid_result_state_seen",
+    "prebid_pack_cta_clicked",
+    "prebid_pack_loaded",
+    "prebid_pack_queued_for_review",
+    "prebid_share_created",
+    "prebid_delete_requested",
 }
 
 

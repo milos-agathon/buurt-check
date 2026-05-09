@@ -47,7 +47,6 @@ Items to remove from viewer (keep in PDF):
 
 - Remove `t('premium.locked.upgradePrompt')` from `LockedSection.tsx`
 - "Buy Full Dossier" button stays exclusively in ExportBottomSheet
-- Remaining LockedSections (livability, 3D, crime, viewing questions) show title + subtitle only
 
 ## Order 3: Single viewing checklist CTA
 

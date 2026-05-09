@@ -7,9 +7,9 @@
   flex-direction: column;
   min-height: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: color-mix(in srgb, var(--color-nav-bg) 96%, transparent);
-  border-top: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-nav-border));
-  box-shadow: 0 -10px 28px rgba(4, 8, 10, 0.28);
+  background: var(--landing-nav-bg);
+  border-top: 1px solid var(--landing-border-soft);
+  box-shadow: none;
   backdrop-filter: blur(18px);
   z-index: 50;
 }
@@ -36,18 +36,26 @@
   border: none;
   cursor: pointer;
   color: var(--color-nav-text-dimmed);
-  transition: color var(--transition-fast);
+  border-radius: 10px;
+  transition: color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
   -webkit-tap-highlight-color: transparent;
 }
 
+.tab-bar__tab:hover {
+  background: var(--color-nav-control-bg);
+  color: var(--color-text);
+}
+
 .tab-bar__tab:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
   border-radius: var(--radius-sm);
 }
 
 .tab-bar__tab--active {
-  color: var(--color-overlay-text);
+  color: var(--color-accent-text);
+  background: var(--landing-accent-soft);
+  font-weight: 700;
 }
 
 .tab-bar__icon-wrapper {
@@ -71,6 +79,7 @@
   line-height: 16px;
   text-align: center;
   border-radius: 8px;
+  box-shadow: 0 0 0 2px var(--color-nav-bg);
 }
 
 .tab-bar__label {
@@ -81,18 +90,40 @@
 
 @media (min-width: 960px) {
   .tab-bar {
-    left: 50%;
-    right: auto;
-    bottom: 18px;
-    width: min(420px, calc(100vw - 40px));
-    transform: translateX(-50%);
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: calc(var(--viewport-bottom-offset, 0px));
+    width: 100vw;
+    max-width: none;
+    transform: none;
     min-height: var(--tab-bar-height);
     padding-bottom: 0;
-    border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-nav-border));
-    border-radius: 24px;
+    border: 0;
+    border-top: 1px solid var(--landing-border-soft);
+    border-radius: 0;
   }
 
   .tab-bar__inner {
-    padding: 0 var(--space-sm);
+    width: min(var(--landing-max-width), calc(100vw - 40px));
+    margin-inline: auto;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .tab-bar__tab {
+    min-width: 136px;
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--space-xs);
+    padding-inline: var(--space-base);
+  }
+
+  .tab-bar__label {
+    font-size: 12px;
+    font-weight: 700;
   }
 }

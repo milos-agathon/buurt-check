@@ -386,40 +386,175 @@ export interface ViewingQuestionsResponse {
   categories: QuestionCategory[];
 }
 
-export interface CrimeStatsCard {
-  scope?: 'buurt' | 'gemeente';
-  area_code?: string;
-  area_name?: string;
-  population?: number;
-  population_source?: string;
-  population_year?: number;
-  population_is_estimate?: boolean;
-  total_per_1000?: number;
-  national_per_1000?: number;
-  national_population_source?: string;
-  national_population_year?: number;
-  national_population_is_estimate?: boolean;
-  burglary_per_1000?: number;
-  violent_per_1000?: number;
-  yearly_period?: string;
-  monthly_total_per_1000?: number;
-  monthly_period?: string;
-  total_count?: number;
-  burglary_count?: number;
-  violent_count?: number;
-  monthly_total_count?: number;
-  score?: number;
-  severity?: SeverityLevel;
-  meaning_en?: string;
-  meaning_nl?: string;
-  source: string;
+export type NonEmptyArray<T> = [T, ...T[]];
+
+export type PrebidCoverageStatus =
+  | 'checked'
+  | 'failed'
+  | 'unavailable'
+  | 'not_supported'
+  | 'manual_review'
+  | 'skipped'
+  | 'review';
+
+export type PrebidResultState =
+  | 'ready'
+  | 'signals_found'
+  | 'no_major_signal_found'
+  | 'data_incomplete'
+  | 'needs_human_review'
+  | 'outside_coverage'
+  | 'queued_for_review'
+  | 'review_required'
+  | 'source_incomplete';
+
+export type PrebidPackStatus =
+  | 'ready'
+  | 'queued_for_review'
+  | 'pack_under_review'
+  | 'review_required'
+  | 'data_incomplete'
+  | 'not_entitled'
+  | 'deleted'
+  | 'expired'
+  | 'error';
+
+export type PrebidConfidence =
+  | 'high'
+  | 'medium'
+  | 'low'
+  | 'needs_review'
+  | 'data_incomplete';
+
+export interface PrebidSourceReference {
+  id?: string;
+  name: string;
   source_date?: string;
-  message?: string;
+  checked_at?: string;
+  url?: string;
+  reference?: string;
+  method?: string;
+  version?: string;
+  coverage_status: PrebidCoverageStatus;
+  limitation: string;
+  limitation_nl?: string;
 }
 
-export interface TierBResponse {
+export interface PrebidCoverageRow {
+  id: string;
+  authority: string;
+  label: string;
+  status: PrebidCoverageStatus;
+  basis?: string;
+  radius_m?: number;
+  method?: string;
+  version?: string;
+  duration_ms?: number;
+  checked_at?: string;
+  source_date?: string;
+  error_code?: string;
+  limitation: string;
+  limitation_nl?: string;
+}
+
+export interface PrebidQuestionText {
+  en: string;
+  nl?: string;
+}
+
+export interface PrebidVerificationAction {
+  id: string;
+  category: string;
+  priority: number;
+  severity: SeverityLevel;
+  finding: string;
+  finding_nl?: string;
+  why_it_matters: string;
+  why_it_matters_nl?: string;
+  ask_this: PrebidQuestionText;
+  request_this: string;
+  request_this_nl?: string;
+  who_to_ask: NonEmptyArray<string>;
+  confidence: PrebidConfidence;
+  limitation: string;
+  limitation_nl?: string;
+  source_refs: NonEmptyArray<PrebidSourceReference>;
+  states?: {
+    needs_human_review?: boolean;
+    queued_for_review?: boolean;
+    data_incomplete?: boolean;
+    source_incomplete?: boolean;
+  };
+}
+
+export interface PrebidBriefingResponse {
+  briefing_id: string;
   address_id: string;
-  crime: CrimeStatsCard;
+  report_id?: string;
+  address_label: string;
+  checked_at: string;
+  result_state: PrebidResultState;
+  disclaimer: string;
+  disclaimer_nl?: string;
+  coverage: PrebidCoverageRow[];
+  top_actions: PrebidVerificationAction[];
+  source_quality: {
+    unknown_source_date_count: number;
+    generic_confidence_count: number;
+    generic_limitation_count: number;
+    missing_source_ref_count: number;
+    missing_recipient_count: number;
+    caps: string[];
+  };
+}
+
+export interface PrebidPackQuestionGroup {
+  recipient: string;
+  questions: PrebidQuestionText[];
+  requests: string[];
+}
+
+export interface PrebidPackResponse {
+  pack_id: string;
+  address_id: string;
+  report_id: string;
+  address_label: string;
+  checked_at: string;
+  status: PrebidPackStatus;
+  disclaimer: string;
+  disclaimer_nl?: string;
+  actions: PrebidVerificationAction[];
+  question_groups: PrebidPackQuestionGroup[];
+  coverage: PrebidCoverageRow[];
+  share_url?: string;
+  download_url?: string;
+  error_code?: string;
+}
+
+export interface PrebidShareResponse {
+  share_token: string;
+  share_url: string;
+  expires_at?: string;
+  mode?: 'briefing' | 'pack';
+  scope?: 'briefing' | 'pack';
+  email_sent?: boolean;
+  error_code?: 'email_provider_unavailable';
+}
+
+export type SharedPrebidState =
+  | 'valid'
+  | 'expired'
+  | 'revoked'
+  | 'deleted'
+  | 'forbidden'
+  | 'not_found';
+
+export interface SharedPrebidResponse {
+  state: SharedPrebidState;
+  mode: 'briefing' | 'pack';
+  briefing?: PrebidBriefingResponse;
+  pack?: PrebidPackResponse;
+  support_email?: string;
 }
 
 // Property Warnings
@@ -564,6 +699,12 @@ export interface ShortlistItem {
     air?: number;
     climate?: number;
     sunlight?: number;
+  };
+  verificationWork?: {
+    openActions: number;
+    incompleteSources: number;
+    needsReview: number;
+    packStatus?: PrebidPackStatus;
   };
   savedAt: number; // timestamp
 }

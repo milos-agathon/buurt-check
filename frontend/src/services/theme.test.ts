@@ -28,8 +28,8 @@ describe('theme service', () => {
     vi.useRealTimers();
   });
 
-  it('returns system as default theme', () => {
-    expect(getTheme()).toBe('system');
+  it('returns light as default theme', () => {
+    expect(getTheme()).toBe('light');
   });
 
   it('stores theme preference in localStorage', () => {
@@ -56,9 +56,32 @@ describe('theme service', () => {
     expect(getEffectiveTheme('dark')).toBe('dark');
   });
 
-  it('getEffectiveTheme uses system preference for system mode', () => {
-    // jsdom defaults to light (no match for prefers-color-scheme: dark)
+  it('getEffectiveTheme resolves system mode to light', () => {
     expect(getEffectiveTheme('system')).toBe('light');
+  });
+
+  it('keeps system mode light even when the OS prefers dark', () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: (query: string) => ({
+        matches: query === '(prefers-color-scheme: dark)',
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+
+    expect(getEffectiveTheme('system')).toBe('light');
+
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: originalMatchMedia,
+    });
   });
 
   it('applyTheme sets data-theme attribute on document element', () => {
@@ -75,14 +98,14 @@ describe('theme service', () => {
 
   it('ignores invalid localStorage values', () => {
     localStorage.setItem('buurt-check-theme', 'purple');
-    expect(getTheme()).toBe('system');
+    expect(getTheme()).toBe('light');
   });
 
-  it('returns system when localStorage.getItem throws', () => {
+  it('returns light when localStorage.getItem throws', () => {
     const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new DOMException('The operation is insecure.');
     });
-    expect(getTheme()).toBe('system');
+    expect(getTheme()).toBe('light');
     spy.mockRestore();
   });
 

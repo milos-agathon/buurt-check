@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 # Material constants — "Polar Frost" palette mapped to PBR
 # ---------------------------------------------------------------------------
 
-# Arctic Teal (target building) — #2EC4B6 = (0.18, 0.77, 0.71)
+# Stitch Teal (target building) — #0D9488 = (0.05, 0.58, 0.53)
 TARGET_MATERIAL = {
-    "albedo": (0.18, 0.77, 0.71),
+    "albedo": (0.05, 0.58, 0.53),
     "roughness": 0.5,
     "metallic": 0.06,
     "emissive": 0.55,

@@ -4,7 +4,7 @@ import BottomSheet from './ui/BottomSheet';
 import ContextualTooltip from './ui/ContextualTooltip';
 import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import { downloadPdfBlob, exportBriefing, sharePdfBlob } from '../services/api';
-import { trackEvent } from '../services/analytics';
+import { trackEvent } from '../services/clientEvents';
 import { isServerRenderAvailable } from '../config/pricing';
 import type { ShadowSnapshot } from '../types/api';
 import type { SunlightSubmissionPayload } from '../services/api';
@@ -122,28 +122,28 @@ export default function ExportBottomSheet({
     || shadowSnapshotsFailed;
   const postCheckoutPrerequisitesReady = sunlightResolved && shadowSnapshotsResolved;
   const sheetTitle = isPostCheckoutRecovery
-    ? t('export.downloadDossier', 'Download dossier')
-    : t('export.title', 'Download dossier');
+    ? t('export.downloadDossier', 'Download Full dossier')
+    : t('export.title', 'Download evidence');
   const shouldBlockRecoveryClose = isPostCheckoutRecovery
     && (recoveryPhase === 'waiting_prerequisites' || recoveryPhase === 'generating');
   const recoveryStateLabel = recoveryPhase === 'generating'
-    ? t('export.postCheckoutStateGenerating', 'Generating dossier')
+    ? t('export.postCheckoutStateGenerating', 'Building Full dossier')
     : recoveryPhase === 'ready'
-      ? t('export.postCheckoutStateReady', 'Dossier ready')
+      ? t('export.postCheckoutStateReady', 'Full dossier ready')
       : t('export.postCheckoutStateConfirmed', 'Payment confirmed');
   const recoveryMessage = recoveryPhase === 'generating'
     ? t(
       'export.postCheckoutGenerating',
-      'We are generating your dossier now. This can take a moment. The download button will appear below when it is ready.',
+      'We are building your Full dossier now. This can take a moment. The download button will appear below when it is ready.',
     )
     : recoveryPhase === 'ready'
       ? t(
         'export.postCheckoutReady',
-        'Your dossier is ready. Tap Download dossier to save it.',
+        'Your Full dossier is ready. Tap Download to save it.',
       )
       : t(
         'export.postCheckoutUnlocked',
-        'Your full dossier is unlocked. We will prepare it automatically. This can take a moment.',
+        'Your Full dossier is unlocked. We will prepare it automatically. This can take a moment.',
       );
 
   const logPostCheckoutCheckpoint = useCallback((
@@ -551,7 +551,7 @@ export default function ExportBottomSheet({
           <p className="export-sheet__intro">
             {t(
               'export.intro',
-              'Choose format and language. Quick checklist is free. Full dossier is €3.99 once per address. After payment, the full dossier stays tied to this address in this browser session so you can reopen export from the dossier if needed.',
+              'Choose format and language. Quick checklist is free; full dossier is paid per address.',
             )}
           </p>
         )}
@@ -632,7 +632,7 @@ export default function ExportBottomSheet({
                   <p className="export-sheet__resume-note export-sheet__resume-note--ready">
                     {t(
                       'export.downloadReadyNote',
-                      'If you are not ready to save it now, reopen export from this dossier in the same browser session.',
+                      'If you are not ready to save it now, reopen export from this briefing in the same browser session.',
                     )}
                   </p>
                   {exportTooltipVisible && (
@@ -645,7 +645,7 @@ export default function ExportBottomSheet({
                 </div>
                 <div className="export-sheet__actions">
                   <button type="button" className="export-sheet__btn" onClick={handleDownload}>
-                    {t('export.downloadDossier', 'Download dossier')}
+                    {t('export.downloadDossier', 'Download Full dossier')}
                   </button>
                   <button type="button" className="export-sheet__btn export-sheet__btn--secondary" onClick={handleShare}>
                     {t('export.share', 'Share PDF')}
@@ -711,9 +711,9 @@ export default function ExportBottomSheet({
                   <span className="export-sheet__template-title">
                     {showFullDossierPrice
                       ? t('export.fullDossierWithPrice', { price: buyPriceLabel })
-                      : t('export.fullDossier', 'Full Dossier')}
+                      : t('export.fullDossier', 'Full dossier')}
                   </span>
-                  <span className="export-sheet__template-meta">{t('export.fullDossierMeta', '10+ pages')}</span>
+                  <span className="export-sheet__template-meta">{t('export.fullDossierMeta', 'Questions, requests, sources')}</span>
                 </button>
               </div>
 
@@ -725,7 +725,7 @@ export default function ExportBottomSheet({
 
               {template === 'full_dossier' && sunlightReady && sunlightFailed && (
                 <p id="sunlight-warning-msg" role="status" className="export-sheet__sunlight-warning" data-testid="export-sunlight-warning">
-                  {t('export.sunlightUnavailableWarning', 'Sunlight data unavailable — dossier will show N/A')}
+                  {t('export.sunlightUnavailableWarning', 'Sunlight data unavailable — pack will show N/A')}
                 </p>
               )}
 
@@ -737,13 +737,7 @@ export default function ExportBottomSheet({
 
               {manualShadowSnapshotsFailed && (
                 <p id="shadow-warning-msg" role="status" className="export-sheet__sunlight-warning" data-testid="export-shadow-warning">
-                  {t('export.shadowUnavailableWarning', 'Shadow analysis was not completed before export — dossier will show N/A')}
-                </p>
-              )}
-
-              {showFullDossierPrice && (
-                <p className="export-sheet__sunlight-status" data-testid="export-buy-price">
-                  {t('export.fullDossierPrice', { price: buyPriceLabel })}
+                  {t('export.shadowUnavailableWarning', 'Shadow analysis was not completed before export — pack will show N/A')}
                 </p>
               )}
 
@@ -764,22 +758,23 @@ export default function ExportBottomSheet({
                 <button
                   type="button"
                   role="radio"
-                  aria-checked={exportLanguage === 'en'}
-                  className={`export-sheet__language-btn${exportLanguage === 'en' ? ' export-sheet__language-btn--active' : ''}`}
-                  onClick={() => setExportLanguage('en')}
-                  disabled={generating}
-                >
-                  {t('export.languageEn', 'EN')}
-                </button>
-                <button
-                  type="button"
-                  role="radio"
                   aria-checked={exportLanguage === 'nl'}
                   className={`export-sheet__language-btn${exportLanguage === 'nl' ? ' export-sheet__language-btn--active' : ''}`}
                   onClick={() => setExportLanguage('nl')}
                   disabled={generating}
                 >
                   {t('export.languageNl', 'NL')}
+                </button>
+                <span className="export-sheet__language-separator" aria-hidden="true">/</span>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={exportLanguage === 'en'}
+                  className={`export-sheet__language-btn${exportLanguage === 'en' ? ' export-sheet__language-btn--active' : ''}`}
+                  onClick={() => setExportLanguage('en')}
+                  disabled={generating}
+                >
+                  {t('export.languageEn', 'EN')}
                 </button>
               </div>
               {exportLanguage !== uiLanguage && (
@@ -842,8 +837,8 @@ export default function ExportBottomSheet({
                   )}
                 </div>
                 <p className="export-sheet__progress-text">
-                  {progressStage === 'collecting' && t('export.progress.collecting', 'Collecting data...')}
-                  {progressStage === 'rendering' && t('export.progress.rendering', 'Rendering PDF...')}
+                  {progressStage === 'collecting' && t('export.progress.collecting', 'Building buyer questions...')}
+                  {progressStage === 'rendering' && t('export.progress.rendering', 'Rendering source appendix...')}
                   {progressStage === 'downloading' && t('export.progress.downloading', 'Preparing download...')}
                 </p>
               </div>
@@ -858,7 +853,7 @@ export default function ExportBottomSheet({
                   <p className="export-sheet__resume-note export-sheet__resume-note--ready">
                     {t(
                       'export.downloadReadyNote',
-                      'If you are not ready to save it now, reopen export from this dossier in the same browser session.',
+                      'If you are not ready to save it now, reopen export from this briefing in the same browser session.',
                     )}
                   </p>
                   {exportTooltipVisible && (
@@ -900,7 +895,7 @@ export default function ExportBottomSheet({
                 data-testid="export-generate-btn"
               >
                 {requiresPurchase
-                  ? (buyLabel ?? t('export.buyFullDossier', 'Buy Full Dossier'))
+                  ? (buyLabel ?? t('export.buyFullDossier', 'Buy Full dossier'))
                   : generating
                     ? t('export.generating', 'Generating...')
                     : t('export.generate', 'Generate PDF')}

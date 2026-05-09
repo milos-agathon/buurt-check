@@ -2,7 +2,6 @@ import { render } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import type { ReactNode } from 'react';
 import CompareScreen from '../components/CompareScreen';
-import TierBSignalsCard from '../components/TierBSignalsCard';
 import { setupTestI18n } from './helpers';
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
@@ -63,30 +62,4 @@ describe('Performance budgets (unit-level)', () => {
     expect(elapsed).toBeLessThan(2000);
   });
 
-  it('renders Tier-B card 100x under budget', () => {
-    const start = performance.now();
-
-    for (let i = 0; i < 100; i += 1) {
-      const { unmount } = renderWithI18n(
-        <TierBSignalsCard
-          data={{
-            address_id: `vbo-${i}`,
-            crime: {
-              total_per_1000: 12.5,
-              burglary_per_1000: 1.1,
-              violent_per_1000: 0.7,
-              monthly_total_per_1000: 1.2,
-              monthly_period: '2025MM12',
-              source: 'CBS OData 47018NED/47022NED',
-              source_date: '2025JJ00',
-            },
-          }}
-        />,
-      );
-      unmount();
-    }
-
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(1200);
-  });
 });

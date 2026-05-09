@@ -88,13 +88,12 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 - Use split implementation slices (5-10 components each), not a single mega-PR:
   - Slice A (navigation/search): `TopBar.css`, `TabBar.css`, `AddressSearch.css`, `DossierScrollNav` styles, `ActionBar.css`
   - Slice B (risk and decision cards): `RiskTile.css`, `RiskDetailView.css`, `SummaryStrip.css`, `AttentionSummary.css`, `PropertyWarningsCard.css`
-  - Slice C (dossier content cards): `BuildingFactsCard.css`, `SoilInfoCard.css`, `NeighborhoodStatsCard.css`, `TierBSignalsCard.css`, `LivabilityCard.css`, `ViewingChecklist.css`
   - Slice D (secondary flows): `CompareScreen.css`, `ExportBottomSheet.css`, `SettingsScreen.css`, `DossierSheet.css`
 - Base pattern: `outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: inherit`
 
 **Why:** WCAG 2.1 SC 2.4.7 requires visible keyboard focus indicators. Only 10% of CSS files have them. Every keyboard user navigating this app has no visual indication of which element is focused.
 
-**10/10:** Every button, link, input, checkbox, and interactive card in the app shows a visible, consistent Arctic Teal focus ring when navigated via keyboard. Focus rings never appear on mouse click (`:focus-visible` not `:focus`). Dark mode focus ring is equally visible.
+**10/10:** Every button, link, input, checkbox, and interactive card in the app shows a visible, consistent Stitch Teal focus ring when navigated via keyboard. Focus rings never appear on mouse click (`:focus-visible` not `:focus`). Dark mode focus ring is equally visible.
 
 **DoD:**
 - [ ] Slice A merged and validated before Slice B starts
@@ -431,21 +430,17 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 > **Theme:** Risk card explanations speak like a trusted advisor. Error messages speak like a server log. Source citations speak like a government report. Navigation speaks like a developer's TODO. Extend the risk explanation voice to every piece of text.
 
-### 3.1 Rename "Tier-B Signals" to user-facing language
 
 **Appraisal IDs:** C3
 
 **What:**
-- All `tier_b.*` i18n keys — section header visible to users says "Tier-B Signals"
 - Rename to "Additional property checks" (EN) / "Aanvullende woningcontroles" (NL)
 - Remove all "tier" language from user-facing copy (code comments can keep it)
 
-**Why:** "Tier B" is an internal data-priority classification. Users see it and wonder "what's Tier A? Am I missing something?"
 
 **10/10:** Zero internal taxonomy leaks into the UI. Every section header answers "what is this?" from the user's perspective, not the developer's.
 
 **DoD:**
-- [ ] `tier_b.title` key updated in both `en.json` and `nl.json`
 - [ ] Grep for `[Tt]ier.?[Bb]` in i18n files returns zero user-facing matches
 - [ ] `npm run build` passes
 
@@ -633,23 +628,15 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 
 ---
 
-### 3.10 Contextualize crime stats with severity interpretation
 
 **Appraisal IDs:** P3#19
 
 **What:**
-- Crime stats present raw tabular numbers without severity interpretation
-- Unlike noise (which gets a comparison chart + meaning paragraph), crime data gets no "what does this mean for me"
-- Add backend severity normalization in `backend/app/services/scoring.py` (and related response models) for crime indicators
 - Frontend consumes normalized backend fields and renders plain-language meaning, consistent with the risk card pattern
 
-**Why:** Product principle #1: "Consequences over data." Raw crime numbers violate this principle.
 
-**10/10:** Crime stats follow the risk card pattern: severity badge + "what this means" paragraph + comparison to city/NL average.
 
 **DoD:**
-- [ ] Backend crime indicators expose normalized score + severity (good/moderate/poor/critical)
-- [ ] Plain-language meaning text added to crime display
 - [ ] Comparison context (vs city average) included
 - [ ] i18n keys for all new copy in both locales
 - [ ] `pytest -x -q -m "not live"` passes for backend changes
@@ -820,7 +807,7 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 - In `frontend/src/services/theme.ts`: add `theme-transitioning` class before toggling `data-theme`, remove after 250ms timeout
 - `prefers-reduced-motion`: skip the class entirely
 
-**Why:** Dark/light toggle is an instant flash — especially jarring on OLED where `#000000` ↔ `#FAFBFC` contrast is extreme. A 200ms crossfade transforms a jarring flash into a polished transition.
+**Why:** Dark/light toggle is an instant flash — especially jarring on OLED where `#000000` ↔ `#F9FAFB` contrast is extreme. A 200ms crossfade transforms a jarring flash into a polished transition.
 
 **10/10:** Theme switch feels like dimming/raising the lights. Surfaces, text, and borders all transition smoothly. No individual element "pops" ahead of or behind the transition.
 
@@ -939,7 +926,6 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 **What:**
 - Zero of 87 `.tsx` components use `React.memo()`
 - 47 `useState` hooks in `App.tsx` means every state update re-renders the entire tree
-- Add `React.memo` to the 14 most re-rendered leaf components: `RiskTile`, `RiskTilesGrid`, `SeverityBadge`, `BuildingFactsCard`, `SoilInfoCard`, `NeighborhoodStatsCard`, `TierBSignalsCard`, `LivabilityCard`, `PropertyWarningsCard`, `SummaryStrip`, `AttentionSummary`, `ViewingChecklist`, `AddressHeader`, `ShadowSnapshots`
 - Stabilize callback references in `App.tsx` with proper `useCallback` dependency arrays
 
 **Why:** Every interaction (checkbox toggle, detail open, scroll) re-renders the entire dossier tree. On mid-range Android, this costs 50-150ms per interaction — the difference between "snappy" and "sluggish."
@@ -986,7 +972,6 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 **What:**
 - Zero instances of `contain`, `content-visibility`, or `will-change` across all CSS
 - Add `contain: content` to each dossier section wrapper
-- Add `content-visibility: auto` to below-fold sections (NeighborhoodStats, TierB, ViewingChecklist)
 - Add `will-change: transform` to fixed elements (TabBar, ActionBar)
 
 **Why:** Layout changes in one section trigger reflow across all 14 sections. CSS containment isolates layout/paint per section — 30-40% reduction in reflow time.
@@ -2064,7 +2049,6 @@ Stories are ordered by priority within each epic. Epics are ordered by impact.
 - `RiskTile.css` `.risk-tile__score`: `font-family/font-size:28px/line-height:1/font-weight:900` → `font: var(--type-display); line-height: 1;`
 - `LivabilityCard.css` `.livability-card__score-value`: `font: 700 24px/1` → `font: var(--type-data); font-weight: 700; line-height: 1;`
 - `LivabilityCard.css` `.animated-score__scale`: `font-family/font-size:11px/font-weight:500` → `font: var(--type-micro); font-weight: 500; line-height: 1;`
-- `TierBSignalsCard.css` `.tier-b-card__metric-suffix`: `font-weight:400/font-size:11px` → `font: var(--type-micro);`
 
 **Deviation from spec:** Spec suggested `--type-score-tile` (40px) for the risk tile score, but actual score was 28px. Used `--type-display` (900 28px/34px) instead to preserve visual output. Spec suggested `--type-caption` or `--type-label` for tile label; used `--type-small` (13px) + weight override for exact match. Also fixed one additional hardcoded 11px in LivabilityCard's `.animated-score__scale` that the spec didn't mention.
 
@@ -2483,7 +2467,7 @@ These are qualitative observations from the Codex review. They inform design dir
 
 - **Typography weight distribution is narrow.** 64% of `font-weight` declarations are 600. Consider: 900 for headings, 300 for metadata, 500 for body.
 - **Light mode feels flat.** White cards on nearly-white background with thin borders. Needs more surface depth: shadows, subtle gradients, or varied background tones.
-- **Color usage is conservative.** Arctic Teal appears on buttons and target building but the dossier body is almost entirely monochrome. Consider using color more boldly for visual landmarks.
+- **Color usage is conservative.** Stitch Teal appears on buttons and target building but the dossier body is almost entirely monochrome. Consider using color more boldly for visual landmarks.
 - **Dark mode is better than light mode.** OLED black with teal accents creates genuine atmosphere. Light theme needs more personality.
 
 ---

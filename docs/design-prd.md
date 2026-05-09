@@ -75,52 +75,59 @@ This direction synthesizes three proven design traditions:
 
 ## 2. Design system foundation
 
-### 2.1 Color palette — Light mode
+### 2.1 Color Palette
 
-The palette is built on cool charcoal and warm whites, with electric teal as the sole accent. Risk communication uses a four-step severity scale that works for colorblind users when combined with text labels and icons.
+The full Polar Frost palette is canonicalized in `docs/palette.md`. This section summarizes the roles most often used in product writing; do not introduce additional one-off colors in specs, prompts, plans, screenshots, or QA notes.
 
-#### Primary colors
+#### Core roles
 
-| Token | Name | Hex | RGB | Usage | WCAG on white |
-|-------|------|-----|-----|-------|---------------|
-| `--color-primary` | Polar Slate | `#1C2D3F` | 28, 45, 63 | Headers, primary text, nav backgrounds | 12.6:1 ✅ AAA |
-| `--color-accent` | Arctic Teal | `#2EC4B6` | 46, 196, 182 | CTAs, active states, target building highlight | 2.17:1 ⚠️ (bg only) |
-| `--color-accent-text` | Teal 600 | `#1C8C83` | 28, 140, 131 | WCAG-safe teal for text/icons on light bg | 4.52:1 ✅ AA |
-| `--color-accent-light` | Teal Tint | `#E6F9F7` | 230, 249, 247 | Selected states, backgrounds | N/A (bg only) |
+| Role | Hex | Usage |
+|---|---:|---|
+| Background | `#F9FAFB` | App and landing canvas |
+| Surface | `#FFFFFF` | Cards, sheets, legal document surfaces |
+| Frost block | `#F0F4F8` | Grouped evidence areas and product previews |
+| Surface recessed | `#F0F5F2` | Recessed rows and inactive grouped controls |
+| Border | `#E2E8F0` | Low-contrast dividers and card borders |
+| Outline | `#6D7A77` | Tertiary text, placeholders, disabled hints |
+| Primary text | `#171D1C` | Headings, body text, wordmark |
+| Secondary text | `#3D4947` | Metadata, explanations, secondary labels |
 
-**WCAG rule:** `--color-accent` (#2EC4B6) has 2.17:1 contrast on white — **never use as text on light backgrounds**. Use `--color-accent-text` (#1C8C83, 4.52:1) for text and icons on light surfaces. `--color-accent` is valid on dark backgrounds (nav bar, dark mode surfaces) and as decorative fills behind dark text.
+#### Teal action roles
+
+| Role | Hex | Usage |
+|---|---:|---|
+| Primary action | `#0D9488` | Primary button fills, active controls, selected states |
+| Primary text/hover | `#00685F` | Teal text/icons on light backgrounds and hover states |
+| Primary fixed | `#89F5E7` | Light teal emphasis |
+| Primary fixed dim | `#6BD8CB` | Dark-mode accent and lower-emphasis teal |
+| Sage tint | `#ECFDF5` | Soft selected-state backgrounds |
+
+**WCAG rule:** use `#00685F` for teal text and icons on light backgrounds. Reserve `#0D9488` for filled controls, active states, large non-text marks, and 3D target highlighting.
+
+#### Tertiary warm roles
+
+| Role | Hex | Usage |
+|---|---:|---|
+| Tertiary | `#924628` | Deep warm tertiary ink |
+| Tertiary mid | `#C36D4B` | Warm evidence/caution swatch for writing, charts, and benchmarks |
+| Tertiary container | `#B05E3D` | Strong warm container and benchmark color |
+| Tertiary fixed | `#FFDBCE` | Pale warm background |
+| Tertiary fixed dim | `#FFB59A` | Dark-mode warm accent and soft warm emphasis |
+| Tertiary text | `#773215` | Warm text variant |
+
+The tertiary palette is not a risk severity scale. Use it for evidence/caution framing, chart benchmarks, source callouts, and non-scoring warm emphasis.
 
 #### Risk severity colors
 
-| Token | Name | Hex | Text label | Icon | Usage |
-|-------|------|-----|------------|------|-------|
-| `--color-risk-good` | Clear Green | `#22C55E` | Good | ✓ circle | Safe indicators, positive scores (70-100) |
-| `--color-risk-moderate` | Warm Amber | `#EAB308` | Moderate | — dash | Moderate risk, attention needed (40-69) |
-| `--color-risk-poor` | Coral | `#EF4444` | Poor | ▲ triangle | High risk, significant concern (20-39) |
-| `--color-risk-critical` | Crimson | `#B91C1C` | Critical | ✕ cross | Extreme risk, deal-breaker potential (0-19) |
+| Token | Hex | Score range | Usage |
+|---|---:|---:|---|
+| `--color-risk-good` | `#22C55E` | 70-100 | Positive scores |
+| `--color-risk-moderate` | `#EAB308` | 40-69 | Moderate risk |
+| `--color-risk-poor` | `#EF4444` | 20-39 | Poor risk |
+| `--color-risk-critical` | `#B91C1C` | 0-19 | Critical risk |
+| `--color-risk-unavailable` | `#6D7A77` | N/A | Missing or unavailable data |
 
-All risk colors achieve ≥4.5:1 contrast on white and on `--color-surface`. The severity scale uses four channels simultaneously — color, text label, icon shape, and numeric score — ensuring no single channel is essential for comprehension.
-
-#### Surface and background colors
-
-| Token | Name | Hex | Usage |
-|-------|------|-----|-------|
-| `--color-bg` | Snow | `#FAFBFC` | Page background |
-| `--color-surface` | White | `#FFFFFF` | Cards, elevated surfaces |
-| `--color-surface-recessed` | Cool Gray | `#F0F3F6` | Recessed areas, inactive states, code blocks |
-| `--color-border` | Light Fog | `#E2E7ED` | Card borders (1px), dividers, 3D viewer edge lines |
-| `--color-shadow` | Shadow Ink | `rgba(28, 45, 63, 0.06)` | Card elevation shadow |
-
-#### Text colors
-
-| Token | Name | Hex | Usage | WCAG on white |
-|-------|------|-----|-------|---------------|
-| `--color-text` | Polar Slate | `#1C2D3F` | Body text, headings | 12.6:1 ✅ AAA |
-| `--color-text-secondary` | Slate 400 | `#637892` | Labels, metadata, secondary info | 4.74:1 ✅ AA |
-| `--color-text-tertiary` | Slate 300 | `#8A9BB0` | Timestamps, source attributions, disabled text | 2.75:1 ⚠️ (decorative only) |
-
-Implementation note: `--color-text-tertiary` falls below WCAG AA for body text. It is permitted only for non-essential decorative text (source attributions, timestamps) that is also conveyed through other channels. If any tertiary text carries essential information, use `--color-text-secondary` instead.
-
+Risk colors must always be paired with labels, icons, and numeric scores so color is never the only source of meaning.
 ### 2.2 Typography
 
 #### Font selection: Satoshi
@@ -176,7 +183,7 @@ Built on an **8pt base grid** with 4pt half-steps for fine adjustments.
 |-----------|----------|-------|
 | Card | Border radius | 16px |
 | Card | Shadow | `0 2px 8px rgba(28, 45, 63, 0.06)` |
-| Card | Border | `1px solid #E2E7ED` |
+| Card | Border | `1px solid #E2E8F0` |
 | Card | Internal padding | 24px (all sides) |
 | Button (primary) | Border radius | 12px |
 | Button (primary) | Height | 48px |
@@ -192,7 +199,7 @@ Built on an **8pt base grid** with 4pt half-steps for fine adjustments.
 
 ### 2.4 Iconography
 
-**Style: Outlined, geometric, 24×24px default, 1.5px stroke weight.** Icons are drawn in `--color-primary` (Charcoal) at full opacity for primary actions, at 50% opacity for secondary elements. Active/selected icons use `--color-accent` (Electric Teal).
+**Style: Outlined, geometric, 24×24px default, 1.5px stroke weight.** Icons are drawn in `--color-primary` (Charcoal) at full opacity for primary actions, at 50% opacity for secondary elements. Active/selected icons use `--color-accent` (Stitch Teal).
 
 #### Required icon set
 
@@ -206,7 +213,6 @@ Built on an **8pt base grid** with 4pt half-steps for fine adjustments.
 | Risk: Air | Leaf/wind | 32px / 20px | Air quality risk card |
 | Risk: Climate | Water drop + heat lines | 32px / 20px | Climate stress risk card |
 | Risk: Sunlight | Sun with radiating lines | 32px / 20px | Sunlight risk card |
-| Risk: Crime | Shield | 32px / 20px | Crime risk card (Tier B) |
 | Severity: Good | Checkmark in circle | 16px | Inline severity indicator |
 | Severity: Moderate | Horizontal dash in circle | 16px | Inline severity indicator |
 | Severity: Poor | Triangle (exclamation) | 16px | Inline severity indicator |
@@ -228,8 +234,8 @@ Elevation communicates hierarchy without heavy borders. Three levels:
 
 | Level | Shadow | Border | Usage |
 |-------|--------|--------|-------|
-| Level 0 (flat) | None | `1px solid #E2E7ED` | Inline elements, dividers |
-| Level 1 (card) | `0 2px 8px rgba(28, 45, 63, 0.06)` | `1px solid #E2E7ED` | Standard cards, risk tiles |
+| Level 0 (flat) | None | `1px solid #E2E8F0` | Inline elements, dividers |
+| Level 1 (card) | `0 2px 8px rgba(28, 45, 63, 0.06)` | `1px solid #E2E8F0` | Standard cards, risk tiles |
 | Level 2 (elevated) | `0 8px 24px rgba(28, 45, 63, 0.10)` | None | Bottom sheets, modals, expanded cards |
 | Level 3 (overlay) | `0 16px 48px rgba(28, 45, 63, 0.15)` | None | Full-screen overlays, image lightboxes |
 
@@ -251,9 +257,9 @@ Elevation communicates hierarchy without heavy borders. Three levels:
 
 **Tab bar styling:**
 - Background: White (`#FFFFFF`) with `backdrop-filter: blur(20px)` and 80% opacity
-- Top border: `1px solid #E2E7ED`
-- Active tab: Icon in `--color-accent` (Electric Teal) with label in `--color-accent`
-- Inactive tab: Icon in `--color-text-secondary` (Mid Gray) with label in `--color-text-secondary`
+- Top border: `1px solid #E2E8F0`
+- Active tab: Icon in `--color-accent` (Stitch Teal) with label in `--color-accent`
+- Inactive tab: Icon in `--color-text-secondary` (On-surface Variant) with label in `--color-text-secondary`
 - Label font: `--type-micro` (11px Medium)
 - Tab height: 56px + device safe area inset
 
@@ -330,17 +336,17 @@ The entry point. Must communicate the app's value proposition in under 3 seconds
 
 **Address input field:**
 - Height: 56px (slightly oversized — this is the app's primary action)
-- Border: `2px solid #E2E7ED`, transitions to `2px solid #2EC4B6` on focus
+- Border: `2px solid #E2E8F0`, transitions to `2px solid #0D9488` on focus
 - Border radius: 12px
 - Background: White
-- Left icon: Map pin (20px, Mid Gray, transitions to Teal on focus)
+- Left icon: Map pin (20px, On-surface Variant, transitions to Teal on focus)
 - Placeholder text: "Postcode + house number" / "Postcode + huisnummer" in `--type-body`, `--color-text-tertiary`
 - Auto-format: As user types, separate postcode (4 digits + 2 letters) from house number. Accept formats: "1012AB 1", "1012 AB 1", "1012AB1"
 - On submit: Map pin icon transitions to a loading spinner (teal, 20px)
 - Keyboard: `inputmode="text"` (not `numeric` — postcodes have letters)
 
 **Recent searches:**
-- List items: 48px height, left-aligned map pin icon (16px, Silver), address text in `--type-body`, timestamp in `--type-caption` `--color-text-tertiary` right-aligned
+- List items: 48px height, left-aligned map pin icon (16px, Outline), address text in `--type-body`, timestamp in `--type-caption` `--color-text-tertiary` right-aligned
 - Max 10 items, swipe-to-delete
 - Section label: "RECENT" in `--type-label`, `--color-text-tertiary`
 
@@ -406,7 +412,7 @@ Each pill:
 - Width: auto (content-dependent), min 80px
 - Height: 36px
 - Border radius: 18px (pill shape)
-- Background: `--color-surface-recessed` (#F0F3F6)
+- Background: `--color-surface-recessed` (#F0F4F8)
 - Left: 16px risk category icon (colored by severity)
 - Right: Score number in `--type-h2` (16px SemiBold), colored by severity
 - Gap between pills: 8px
@@ -433,19 +439,19 @@ See [§5 — 3D Viewer Design](#5-3d-viewer-design) for complete specification. 
 - Camera framing: tight/isometric — buildings and ground plane only, **no blue sky visible**. The viewer should feel like a technical aerial view, not a landscape. Background color matches ground plane.
 - On scroll past: collapses to a **sticky mini-bar** (48px height) pinned below the global top bar. Mini-bar shows: simplified building silhouette (left), current sun time display (center), expand icon (right). Tap to re-expand with spring animation (300ms).
 
-#### 4.3.3 Risk tiles (2×2 grid)
+#### 4.3.3 Risk tiles
 
 See [§6 — Risk Card System](#6-risk-card-system) for complete specification. In the dossier layout:
 
 - Section label: "RISK ASSESSMENT" in `--type-label`, `--color-text-secondary`, 48px top margin from previous section
-- 2×2 grid: 2 columns, each tile is a square-ish card (min-height 160px)
+- 3-card grid: noise, air quality, and climate stress are the free interactive frontend risk cards
 - Grid gap: 12px
 - Tile order (default):
   1. Noise (top-left)
   2. Air quality (top-right)
   3. Climate stress (bottom-left)
-  4. Sunlight (bottom-right)
 - Tiles are tappable — each opens a full-screen detail view (see §6.3)
+- Sunlight analysis is paid-report-only. The 3D viewer may compute and submit sunlight evidence for export, but the app frontend must not render a sunlight risk tile or sunlight risk detail view.
 
 #### 4.3.4 Viewing checklist
 
@@ -527,8 +533,8 @@ The 3D viewer is buurt-check's signature differentiator. It renders the actual n
 | Surrounding building roofs | Vertex-colored from orthophoto sampling | PRD §9.5 |
 | Surrounding building walls | Solid period-appropriate colors | PRD §9.5 |
 | Ground plane | Orthophoto (25cm PDOK, 2048×2048) with shadow receiving | PRD §9.6 |
-| Target building highlight | Teal outline effect: `--color-accent` (`#2EC4B6`) at 2px screen-space edge, rendered via post-processing outline pass or stencil buffer | Design system |
-| Sky | Solid `#FAFBFC` (matches app background) — no skybox | Design system |
+| Target building highlight | Teal outline effect: `--color-accent` (`#0D9488`) at 2px screen-space edge, rendered via post-processing outline pass or stencil buffer | Design system |
+| Sky | Solid `#F9FAFB` (matches app background) — no skybox | Design system |
 | Ambient lighting | `THREE.AmbientLight` at `#B8C4D0`, intensity 0.4 | Custom |
 | Sun lighting | `THREE.DirectionalLight` at `#FFFAF0`, intensity 0.8, positioned via SunCalc | PRD §9.9 |
 | Shadows | `PCFSoftShadowMap`, 2048×2048, `rgba(28, 45, 63, 0.25)` on ground | PRD §9.9 |
@@ -586,7 +592,7 @@ This is the primary interactive element in the 3D viewer. Design merges Directio
 
 **Time slider:**
 - Horizontal slider from 06:00 to 21:00
-- Track: 2px line in `--color-border` (#E2E7ED)
+- Track: 2px line in `--color-border` (#E2E8F0)
 - Filled track (left of thumb): 2px line in `--color-accent`
 - Thumb: 16px circle in `--color-accent` with 4px white border (Level 2 shadow)
 - Current time label below thumb: `--type-h2` (16px SemiBold)
@@ -608,7 +614,7 @@ Matches PRD §9.7, translated to visual states:
 | Time | Action | Visual state in viewer |
 |------|--------|----------------------|
 | 0s | Viewer card appears with loading placeholder | Light gray card with centered teal spinner |
-| 0–1s | Three.js scene initializes, ambient light on | Empty scene, Snow-colored background |
+| 0–1s | Three.js scene initializes, ambient light on | Empty scene, Polar Canvas-colored background |
 | 1–3s | CityJSON geometry + ground orthophoto fetched in parallel | — |
 | 3s | First render: semantic solid colors | **Buildings visible** — orange-red roofs, light gray walls. Ground orthophoto visible. User can orbit. **Season buttons and time slider become active.** |
 | 3–4s | Shadow map enabled, SunCalc positions computed | **Shadows visible** on ground plane. Interactive timeline functional. |
@@ -677,7 +683,7 @@ Each tile in the dossier's 2×2 grid is a compact summary card designed for quic
 - Border radius: 16px
 - Background: White
 - Shadow: Level 1
-- Border: `1px solid #E2E7ED`
+- Border: `1px solid #E2E8F0`
 
 **Score thresholds (normalized 0–100 scale):**
 All raw data sources are normalized to a 0–100 score where 100 = best possible, 0 = worst. This normalization is essential for consistent visual communication and cross-category comparison.
@@ -788,12 +794,13 @@ Tapping a risk tile opens a **full-screen detail view** with a shared element tr
 | Official thresholds | Klimaateffectatlas severity classes / National Delta Programme standards |
 | Questions generated | Basement/souterrain flooding history, VvE climate adaptation plans, ground-floor water damage history, green space or water features nearby |
 
-#### Sunlight card (F3 — computed from F2c)
+#### Sunlight report section (F3 — computed from F2c, paid report only)
 
 | Property | Specification |
 |----------|--------------|
 | Raw data | Direct sunlight hours per day from Three.js GPU-accelerated raycast analysis (8 sample dates × 15-min intervals) |
 | Score normalization | Based on December sunlight hours: ≥4h = 100, 0h = 0, linear interpolation. December is worst-case and most decision-relevant. |
+| Frontend visibility | Do not render as an app risk tile or risk detail view. Keep this analysis in the paid report/export surfaces only. |
 | Seasonal breakdown | Show hours for each season: "Dec: 2.1h / Mar: 4.8h / Jun: 8.4h / Sep: 5.2h" |
 | Relatable comparisons | "In winter, this home gets about [X] hours of direct sunlight — roughly [comparison: 'enough for a short lunch on the balcony' / 'barely enough to notice' / 'significant daylight']" |
 | Questions generated | Window orientation, balcony sun exposure at specific times, neighboring building plans (could block more light), light well or atrium access |
@@ -936,7 +943,7 @@ On tablets / desktop (≥ 768px): All 2–3 columns visible simultaneously. Each
 
 **Summary section (bottom of compare view):**
 
-A **parallel coordinates chart** spans the full width below the columns. Vertical axes for each metric (Noise, Air, Climate, Sunlight, plus optionally CBS indicators). A colored line per address connects the scores across all axes. Line colors: Address 1 = `--color-accent` (teal), Address 2 = `--color-risk-moderate` (amber), Address 3 = `#7C4DFF` (a distinguishable purple, not in the main palette).
+A **parallel coordinates chart** spans the full width below the columns. Vertical axes for each metric (Noise, Air, Climate, Sunlight, plus optionally CBS indicators). A colored line per address connects the scores across all axes. Line colors: Address 1 = `--color-accent` (teal), Address 2 = `--color-risk-moderate` (amber), Address 3 = `#C36D4B` (the warm tertiary benchmark from the canonical palette).
 
 Below the chart: A "Differences only" toggle (pill button) that filters the column view to show only metrics where properties differ by >15 points.
 
@@ -1148,9 +1155,9 @@ Note: Two empty checkbox lines at the bottom allow the user to add their own que
 
 | Requirement | Standard | Implementation |
 |---|---|---|
-| Text contrast (primary) | ≥4.5:1 on background | Charcoal (#1C2D3F) on White = 15.5:1 ✅ |
-| Text contrast (secondary) | ≥4.5:1 on background | Mid Gray (#637892) on White = 7.0:1 ✅ |
-| Text contrast (tertiary) | ≥3.0:1 on background (decorative only) | Silver (#8A9BB0) on White = 3.0:1 ⚠️ — restricted use |
+| Text contrast (primary) | ≥4.5:1 on background | Charcoal (#171D1C) on White = 15.5:1 ✅ |
+| Text contrast (secondary) | ≥4.5:1 on background | On-surface Variant (#3D4947) on White = 7.0:1 ✅ |
+| Text contrast (tertiary) | ≥3.0:1 on background (decorative only) | Outline (#6D7A77) on White = 3.0:1 ⚠️ — restricted use |
 | Large text contrast (≥18px bold / ≥24px) | ≥3.0:1 | All large text exceeds this ✅ |
 | Non-text contrast (icons, borders) | ≥3.0:1 | All icons at full opacity ✅ |
 | Risk severity communication | Not color-alone | Quadruple redundancy: color + icon shape + text label + numeric score |
@@ -1199,25 +1206,25 @@ Note: Two empty checkbox lines at the bottom allow the user to add their own que
 
 ### 13.1 Activation
 
-- Follows system setting by default
-- Manual toggle available in Settings
+- Defaults to the light theme on first launch and after cleared storage, regardless of OS color scheme
+- Manual theme control available in Settings: Light, Dark, and System; System resolves to the same light theme
 - Persists user preference across sessions
 
 ### 13.2 Dark mode color mapping
 
 | Light token | Light value | Dark value | Notes |
 |---|---|---|---|
-| `--color-bg` | `#FAFBFC` | `#0F1117` | Near-black with blue undertone |
+| `--color-bg` | `#F9FAFB` | `#171D1C` | Near-black with blue undertone |
 | `--color-surface` | `#FFFFFF` | `#1A1D27` | Dark blue-gray |
-| `--color-surface-recessed` | `#F0F3F6` | `#141720` | Darker than surface |
-| `--color-border` | `#E2E7ED` | `#2A2D37` | Subtle borders, 1px |
+| `--color-surface-recessed` | `#F0F4F8` | `#232827` | Darker than surface |
+| `--color-border` | `#E2E8F0` | `#6D7A77` | Subtle borders, 1px |
 | `--color-shadow` | `rgba(26,26,46,0.06)` | `rgba(0,0,0,0.3)` | Stronger shadows needed in dark mode |
-| `--color-primary` | `#1C2D3F` | `#EAEDF0` | Inverted for text |
-| `--color-accent` | `#2EC4B6` | `#26A69A` | Brighter teal for contrast |
+| `--color-primary` | `#171D1C` | `#EDF2F0` | Inverted for text |
+| `--color-accent` | `#0D9488` | `#6BD8CB` | Brighter teal for contrast |
 | `--color-accent-light` | `#E6F9F7` | `#1A2E2C` | Dark teal tint |
-| `--color-text-primary` | `#1C2D3F` | `#EAEDF0` | Light on dark |
-| `--color-text-secondary` | `#637892` | `#8A9BB0` | Lighter gray |
-| `--color-text-tertiary` | `#8A9BB0` | `#637892` | Swapped with secondary (lighter on dark bg) |
+| `--color-text-primary` | `#171D1C` | `#EDF2F0` | Light on dark |
+| `--color-text-secondary` | `#3D4947` | `#6D7A77` | Lighter gray |
+| `--color-text-tertiary` | `#6D7A77` | `#3D4947` | Swapped with secondary (lighter on dark bg) |
 | `--color-risk-good` | `#22C55E` | `#4CAF8B` | Brighter for dark bg |
 | `--color-risk-moderate` | `#EAB308` | `#FFB74D` | Brighter |
 | `--color-risk-poor` | `#EF4444` | `#FF7043` | Brighter |
@@ -1225,7 +1232,7 @@ Note: Two empty checkbox lines at the bottom allow the user to add their own que
 
 ### 13.3 Dark mode for 3D viewer
 
-The 3D viewer's sky/background color shifts to `#0F1117` (matching app background). Ambient light intensity increases from 0.4 to 0.5 to compensate. Building colors remain realistic (no dark mode tinting on orthophoto textures or procedural facades). The teal building outline becomes `#26A69A` (brighter dark mode teal) for visibility against darker surroundings.
+The 3D viewer's sky/background color shifts to `#171D1C` (matching app background). Ambient light intensity increases from 0.4 to 0.5 to compensate. Building colors remain realistic (no dark mode tinting on orthophoto textures or procedural facades). The teal building outline becomes `#6BD8CB` (brighter dark mode teal) for visibility against darker surroundings.
 
 ### 13.4 Dark mode elevation
 
@@ -1233,8 +1240,8 @@ In dark mode, elevation is communicated through **progressively lighter surfaces
 
 | Level | Dark mode surface | Border |
 |-------|------------------|--------|
-| 0 | `#0F1117` | `1px solid #2A2D37` |
-| 1 | `#1A1D27` | `1px solid #2A2D37` |
+| 0 | `#171D1C` | `1px solid #6D7A77` |
+| 1 | `#1A1D27` | `1px solid #6D7A77` |
 | 2 | `#232735` | None (elevated enough to distinguish) |
 | 3 | `#2C3142` | None |
 
@@ -1328,16 +1335,16 @@ Theme values are applied on `:root` and `[data-theme="dark"]`:
 
 ```css
 :root {
-  --color-bg: #FAFBFC;
+  --color-bg: #F9FAFB;
   --color-surface: #FFFFFF;
-  --color-accent: #2EC4B6;
+  --color-accent: #0D9488;
   /* ... all tokens from §2 */
 }
 
 [data-theme="dark"] {
-  --color-bg: #0F1117;
+  --color-bg: #171D1C;
   --color-surface: #1A1D27;
-  --color-accent: #26A69A;
+  --color-accent: #6BD8CB;
   /* ... all dark mode overrides from §13 */
 }
 ```
@@ -1437,14 +1444,14 @@ All success criteria from individual sections, consolidated and numbered for tra
 |---|---|---|---|
 | Satoshi font not available/loading fails | Low | Medium — typography falls back to system fonts, losing editorial quality | Specify robust fallback stack. Font is variable (single file, ~45 KB). Subset to Latin Extended only. Preload via `<link rel="preload">`. |
 | Teal accent color insufficient for all interactive states | Medium | Low — some elements may be hard to distinguish as interactive | Combine teal color with other affordances: underlines for links, shadows for buttons, borders for inputs. Never rely on color alone. |
-| 2×2 risk grid too dense on small phones (320px) | Medium | Medium — tiles become too small to read | At 320px, degrade to single-column stacked tiles. Each tile becomes a horizontal bar (full width, 72px height) showing icon + category + score + severity badge. |
+| Risk grid too dense on small phones (320px) | Medium | Medium — tiles become too small to read | At 320px, degrade to single-column stacked tiles. Each tile becomes a horizontal bar (full width, 72px height) showing icon + category + score + severity badge. |
 | 3D viewer performance varies wildly across devices | High | High — poor 3D experience undermines core differentiator | Three-tier fallback: (1) Full interactive viewer, (2) Simplified viewer (LoD1.3, no textures, no shadows), (3) Static Three.js snapshots with season toggle. Device capability detected via WebGL `MAX_TEXTURE_SIZE` and initial FPS measurement. |
 | Dark mode introduces unforeseen contrast issues | Medium | Medium — accessibility violations in dark theme | Automated visual regression tests for both themes. Contrast checker integrated into component Storybook. All dark mode tokens tested against WCAG AA at design system level. |
 | PDF design diverges from app design over time | Medium | Low — inconsistent brand experience | PDF template uses the same design tokens (exported to CSS/HTML for WeasyPrint). Shared `tokens.json` file consumed by both React app and PDF template. |
 | Animation overhead impacts performance on mid-range devices | Medium | Medium — janky animations worse than no animations | Performance budget: no animation causes frame drop below 50fps. Monitor via `PerformanceObserver` long task API. Disable non-essential animations on devices with `navigator.hardwareConcurrency < 4`. |
 | Dutch text expansion breaks layouts | Medium | Medium — truncated text, overflow, broken cards | All text containers tested at maximum Dutch string length. Use `text-overflow: ellipsis` as safety net. QA checklist includes full NL-language pass on every screen. |
 | Expat users confused by unfamiliar Dutch reference points (e.g., CBS buurt names, Lden measurement) | High | Medium — data feels foreign and unhelpful | Every Dutch-specific term explained on first use. Comparison charts use international references (WHO limits, not just Dutch standards). "Learn more" expandable on technical terms. |
-| Monochromatic palette feels too cold/clinical for anxious buyers | Medium | Medium — users don't form emotional connection with the app | Mitigated by: (1) conversational copy in risk explanations and viewing questions, (2) warm whites (#FAFBFC not pure white), (3) teal accent adds warmth to monochrome, (4) generous spacing and line heights create breathing room. Monitor via user testing — if NPS <40 on "friendliness" dimension, introduce subtle warm accent (e.g., amber for positive scores). |
+| Monochromatic palette feels too cold/clinical for anxious buyers | Medium | Medium — users don't form emotional connection with the app | Mitigated by: (1) conversational copy in risk explanations and viewing questions, (2) warm whites (#F9FAFB not pure white), (3) teal accent adds warmth to monochrome, (4) generous spacing and line heights create breathing room. Monitor via user testing — if NPS <40 on "friendliness" dimension, introduce subtle warm accent (e.g., amber for positive scores). |
 
 ---
 
@@ -1455,16 +1462,16 @@ For implementation convenience, all tokens consolidated in a single exportable f
 ```json
 {
   "color": {
-    "bg": { "light": "#FAFBFC", "dark": "#0F1117" },
+    "bg": { "light": "#F9FAFB", "dark": "#171D1C" },
     "surface": { "light": "#FFFFFF", "dark": "#1A1D27" },
-    "surfaceRecessed": { "light": "#F0F3F6", "dark": "#141720" },
-    "border": { "light": "#E2E7ED", "dark": "#2A2D37" },
-    "primary": { "light": "#1C2D3F", "dark": "#EAEDF0" },
-    "accent": { "light": "#2EC4B6", "dark": "#26A69A" },
+    "surfaceRecessed": { "light": "#F0F4F8", "dark": "#232827" },
+    "border": { "light": "#E2E8F0", "dark": "#6D7A77" },
+    "primary": { "light": "#171D1C", "dark": "#EDF2F0" },
+    "accent": { "light": "#0D9488", "dark": "#6BD8CB" },
     "accentLight": { "light": "#E6F9F7", "dark": "#1A2E2C" },
-    "textPrimary": { "light": "#1C2D3F", "dark": "#EAEDF0" },
-    "textSecondary": { "light": "#637892", "dark": "#8A9BB0" },
-    "textTertiary": { "light": "#8A9BB0", "dark": "#637892" },
+    "textPrimary": { "light": "#171D1C", "dark": "#EDF2F0" },
+    "textSecondary": { "light": "#3D4947", "dark": "#6D7A77" },
+    "textTertiary": { "light": "#6D7A77", "dark": "#3D4947" },
     "riskGood": { "light": "#22C55E", "dark": "#4CAF8B" },
     "riskModerate": { "light": "#EAB308", "dark": "#FFB74D" },
     "riskPoor": { "light": "#EF4444", "dark": "#FF7043" },

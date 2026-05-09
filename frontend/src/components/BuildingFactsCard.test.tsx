@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import BuildingFactsCard from './BuildingFactsCard';
-import { setupTestI18n, makeBuildingFacts } from '../test/helpers';
+import { setupTestI18n, makeBuildingFacts, makeResolvedAddress } from '../test/helpers';
 import type { BuildingFacts } from '../types/api';
 
 let enI18n: Awaited<ReturnType<typeof setupTestI18n>>;
@@ -46,6 +46,42 @@ describe('empty state', () => {
 });
 
 describe('data rendering', () => {
+  it('can render the address summary and facts inside one card', () => {
+    const address = makeResolvedAddress({
+      street: 'Torenvalk',
+      house_number: '27',
+      postcode: '2235DK',
+      city: 'Valkenburg',
+    });
+    const building = makeBuildingFacts({
+      construction_year: 2006,
+      intended_use_en: ['Residential'],
+      num_units: 1,
+      floor_area_m2: 231,
+    });
+
+    render(
+      <I18nextProvider i18n={enI18n}>
+        <BuildingFactsCard
+          address={address}
+          building={building}
+          loading={false}
+          onChangeAddress={() => undefined}
+        />
+      </I18nextProvider>,
+    );
+
+    const card = screen.getByText('Building Facts').closest('.building-card');
+    const addressHeader = screen.getByTestId('address-header');
+
+    expect(card).toContainElement(addressHeader);
+    expect(card).toHaveTextContent('Torenvalk 27');
+    expect(card).toHaveTextContent('2235DK Valkenburg');
+    expect(card).toHaveTextContent('2006');
+    expect(card).toHaveTextContent('231 m²');
+    expect(screen.getByRole('button', { name: 'Change address' })).toBeInTheDocument();
+  });
+
   it('renders all facts when all fields present', () => {
     const building = makeBuildingFacts();
     renderCard(building, false);

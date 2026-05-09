@@ -2,7 +2,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
-  padding: var(--space-base);
+  padding: var(--space-base) 0;
+  padding-inline: 0;
   padding-bottom: calc(
     var(--space-base) +
     var(--tab-bar-height, 56px) +
@@ -21,11 +22,15 @@
   text-align: center;
   padding: var(--space-5xl) var(--space-lg);
   color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--landing-surface-strong);
+  box-shadow: var(--landing-shadow-soft);
 }
 
 .shortlist-screen__empty svg {
   margin-bottom: var(--space-base);
-  color: var(--color-text-tertiary);
+  color: var(--color-accent-text);
 }
 
 .shortlist-screen__empty-title {
@@ -42,20 +47,21 @@
 
 .shortlist-screen__cta {
   margin-top: var(--space-lg);
-  min-height: 44px;
+  min-height: 48px;
   padding: 0 var(--space-xl);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
-  color: var(--color-text);
+  border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
   font: var(--type-body-medium);
+  font-weight: 700;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+  box-shadow: var(--color-cta-shadow);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .shortlist-screen__cta:hover {
-  background: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface));
-  border-color: color-mix(in srgb, var(--color-accent) 28%, var(--color-border));
+  background: var(--color-cta-bg-hover);
   transform: translateY(-1px);
 }
 
@@ -64,7 +70,7 @@
 }
 
 .shortlist-screen__cta:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
 }
 
@@ -78,10 +84,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
-  border: 1px solid var(--color-border);
-  border-radius: calc(var(--radius-card) + 2px);
-  box-shadow: var(--elevation-1);
+  background: var(--landing-surface-strong);
+  border: 1px solid var(--landing-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--landing-shadow-soft);
   padding: var(--space-base);
   cursor: pointer;
   transition: box-shadow var(--transition-fast), transform var(--transition-fast), border-color var(--transition-fast);
@@ -89,24 +95,24 @@
 }
 
 .shortlist-screen__card:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
 }
 
 .shortlist-screen__card:hover {
   transform: translateY(-1px);
-  box-shadow: var(--elevation-2);
-  border-color: color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
+  box-shadow: var(--landing-shadow);
+  border-color: var(--color-border);
 }
 
 .shortlist-screen__thumb {
   width: 56px;
   height: 56px;
-  border-radius: 12px;
+  border-radius: var(--radius-button);
   overflow: hidden;
   position: relative;
   flex-shrink: 0;
-  background: linear-gradient(160deg, var(--color-surface) 0%, var(--color-surface-alt) 100%);
+  background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
 }
 
@@ -129,7 +135,7 @@
   position: absolute;
   right: 4px;
   bottom: 4px;
-  border-radius: 10px;
+  border-radius: var(--radius-badge);
   padding: 0 4px;
   background: var(--color-thumb-badge-bg);
   color: var(--color-overlay-text);
@@ -147,6 +153,7 @@
 
 .shortlist-screen__card-address {
   font: var(--type-body-medium);
+  color: var(--landing-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -154,7 +161,7 @@
 
 .shortlist-screen__card-city {
   font: var(--type-small);
-  color: var(--color-text-secondary);
+  color: var(--landing-text-secondary);
 }
 
 .shortlist-screen__card-cta {
@@ -164,13 +171,29 @@
   margin-top: var(--space-2xs);
   font: var(--type-micro);
   font-weight: 700;
-  letter-spacing: 0.02em;
   color: var(--color-accent-text);
+}
+
+.shortlist-screen__verification {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-2xs);
+  font: var(--type-micro);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.shortlist-screen__verification span {
+  padding: 3px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-badge);
+  background: var(--color-surface-alt);
 }
 
 .shortlist-screen__dots {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 10px);
   gap: 4px;
   flex-shrink: 0;
 }
@@ -190,18 +213,18 @@
 .shortlist-screen__remove {
   width: 44px;
   height: 44px;
-  border: 1px solid transparent;
-  background: color-mix(in srgb, var(--color-surface-alt) 76%, var(--color-surface));
-  color: var(--color-text-tertiary);
+  border: 1px solid var(--color-nav-border);
+  background: var(--color-nav-control-bg);
+  color: var(--color-text-secondary);
   font-size: 20px;
   cursor: pointer;
-  border-radius: 14px;
+  border-radius: var(--radius-button);
   flex-shrink: 0;
   transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .shortlist-screen__remove:hover {
-  background: color-mix(in srgb, var(--color-danger-light) 72%, var(--color-surface));
+  background: var(--color-surface-hover);
   border-color: color-mix(in srgb, var(--color-risk-poor) 26%, var(--color-border));
   color: var(--color-text);
 }
@@ -213,13 +236,14 @@
 .shortlist-screen__compare-btn {
   width: 100%;
   min-height: 52px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+  border: 1px solid transparent;
   border-radius: var(--radius-button);
-  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
-  color: var(--color-text);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
   font: var(--type-body-medium);
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--color-cta-shadow);
   transition: opacity var(--transition-fast), transform var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
 }
 
@@ -229,14 +253,14 @@
 }
 
 .shortlist-screen__compare-btn:not(:disabled):hover {
-  background: color-mix(in srgb, var(--color-accent) 24%, var(--color-surface));
-  border-color: color-mix(in srgb, var(--color-accent) 34%, var(--color-border));
+  background: var(--color-cta-bg-hover);
   transform: translateY(-1px);
 }
 
 @media (min-width: 960px) {
   .shortlist-screen {
-    padding: var(--space-xl);
+    padding: var(--space-xl) 0;
+    padding-inline: 0;
   }
 
   .shortlist-screen__list {

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 describe('Dossier spacing contract', () => {
-  it('keeps the coverage strip inside the risk section and ties that stack to the shared risk-grid gap token', () => {
+  it('ties the risk section stack to the shared risk-grid gap token', () => {
     const appCss = readFileSync('src/App.css', 'utf-8');
 
     expect(appCss).toMatch(

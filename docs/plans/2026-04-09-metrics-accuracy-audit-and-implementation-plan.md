@@ -24,8 +24,6 @@ The following facts were checked against the current repository state during con
 - Risk-card warning codes exist in backend payloads and i18n (`risk.warning.*`) but are not consistently surfaced in risk tiles, detail views, PDF sections, or viewing questions.
 - `sunlightAnalysis.ts` still counts each sampled timestamp as a full interval and weights annual averages by daylight sample count, not days per month.
 - Sunlight methodology in the PDF now discloses the target plane as roof surface, but primary app/PDF copy and viewing questions still include living-space claims that the roof metric does not prove.
-- Crime municipality fallback still fetches buurt population before fallback and reuses that denominator for municipality crime counts.
-- Crime periods can be newer than the fixed CBS Wijken & Buurten 2024 population denominator.
 - Foundation fallback omissions do not always drop pre-1970 buildings to `low`; current behavior downgrades omitted soft-soil municipalities from `high` to `medium` for pre-1970 construction and from `medium` to `low` for 1970-1990 construction.
 
 ## Criticality Scale
@@ -48,7 +46,6 @@ The following facts were checked against the current repository state during con
 
 Phase 1 fixes the most dangerous customer-facing falsehoods and arithmetic bugs:
 
-1. ~~A12 crime fallback denominator and scope~~
 2. ~~A09 sunlight integration and annual weighting~~
 3. ~~A07 WHO summary boundary truthfulness~~
 4. ~~A04 air benchmark honesty~~
@@ -62,7 +59,6 @@ Phase 2 fixes high-impact provenance, display, and source semantics:
 
 1. ~~A01 neighborhood direction and precision~~
 2. ~~A02 neighborhood mixed-year provenance~~
-3. ~~A13 crime baseline and denominator provenance~~
 4. ~~A14 livability class/deviation semantics~~
 5. ~~A15 attention and asbestos threshold alignment~~
 6. ~~A17 foundation fallback list provenance~~
@@ -493,7 +489,6 @@ Done when:
 
 - The named TNO norm is no longer attached to a non-TNO algorithm.
 
-### ~~A12. Fix Municipality Crime Fallback Denominators and Scope Labels Together~~
 
 Criticality: Critical
 Covers: F17, F19
@@ -501,13 +496,10 @@ Depends on: None
 
 Problem:
 
-- `tier_b.py` fetches buurt population before determining whether crime rows fall back to municipality scope.
-- When fallback uses `GMxxxx` crime rows, rates still divide by buurt population.
 - UI/PDF labels can still say `This area` or `This address` for municipality-wide values.
 
 Required implementation:
 
-1. Add explicit crime scope fields to `CrimeStatsCard`:
    - `scope: Literal["buurt", "gemeente"]`
    - `area_code: str | None`
    - `area_name: str | None`
@@ -518,14 +510,11 @@ Required implementation:
    - gemeente scope: `/collections/gemeenten/items` with `gemeentecode` or another verified CBS Wijken & Buurten municipality source
 3. Compute all rates only when numerator scope and denominator scope match:
    - `total_per_1000`
-   - `burglary_per_1000`
-   - `violent_per_1000`
    - `monthly_total_per_1000`
 4. If municipality population cannot be fetched, emit counts plus warning; do not emit per-1,000 rates or score.
 5. Update frontend and PDF labels based on `scope`:
    - buurt: `This neighborhood`
    - gemeente: `Municipality context`
-6. Update `backend/app/services/templates/dossier.tex.j2` if it renders crime labels independently.
 
 Required tests:
 
@@ -537,10 +526,8 @@ Required tests:
 
 Done when:
 
-- Municipality crime counts are never divided by buurt population.
 - The primary scope label is truthful without relying on a footnote.
 
-### ~~A13. Align Crime National Baseline, Score Narrative, and Denominator Provenance~~
 
 Criticality: High
 Covers: F6, F13, F26
@@ -548,13 +535,9 @@ Depends on: A12
 
 Problem:
 
-- `national_per_1000` uses live CBS national crime count divided by fixed `_NL_POPULATION_ESTIMATE = 17_900_000`.
-- `normalize_crime_score()` docstring references a national average anchor that is independent of the displayed national comparison bar.
-- Local crime rates can show 2025 crime periods while using 2024 population denominators.
 
 Required implementation:
 
-1. Add denominator provenance to `CrimeStatsCard`:
    - `population_source`
    - `population_year`
    - `population_is_estimate`
@@ -562,19 +545,15 @@ Required implementation:
    - `national_population_year`
    - `national_population_is_estimate`
 2. Either fetch period-matched CBS population denominators or explicitly label them as fixed/latest-available estimates.
-3. Update `crime_summary()` so it does not claim `below national average` unless passed a current `national_per_1000` for comparison.
 4. If the score anchor remains fixed at 20/1000 to 100/1000, document it as a risk-band model, not as the national average.
 5. Update frontend/PDF source lines to disclose numerator period and denominator year.
 
 Required tests:
 
-- Backend test with `2025JJ00` crime and 2024 population asserts denominator-year metadata is present.
 - Summary test proving national-average language depends on supplied national comparison, not a stale docstring constant.
-- Frontend/PDF tests assert denominator-year disclosure when crime period and population year differ.
 
 Done when:
 
-- Crime score, comparison bar, and source line no longer imply a false period-matched national/local denominator.
 
 ### ~~A14. Rework Livability Class, Deviation, and Legend Semantics~~
 
@@ -767,7 +746,6 @@ Required implementation:
    - peer baseline versus city average
    - WHO boundary values
    - partial risk cards
-   - municipality crime fallback
    - sunlight 1-hour interval
    - livability class 5/deviation near zero
 4. Keep focused test commands documented in the PR or task branch.
@@ -775,8 +753,6 @@ Required implementation:
 Required verification commands:
 
 ```bash
-cd backend && pytest -q tests/test_scoring.py tests/test_cbs.py tests/test_risk_comparisons.py tests/test_tier_b.py tests/test_property_warnings.py tests/test_foundation_risk.py tests/test_leefbaarometer.py tests/test_pdf_export.py
-cd frontend && npm exec vitest run src/components/NeighborhoodStatsCard.test.tsx src/components/ui/QuartileDots.test.tsx src/components/RiskDetailView.test.tsx src/components/RiskTilesGrid.test.tsx src/components/SunlightRiskCard.test.tsx src/components/TierBSignalsCard.test.tsx src/components/LivabilityDetailView.test.tsx src/components/AttentionSummary.test.tsx src/utils/sunlightAnalysis.test.ts src/utils/standardsBenchmark.test.ts
 ```
 
 Before commit, still run the project gates:
@@ -805,8 +781,6 @@ Done when:
 | ~~A09. Correct sunlight time integration and annual weighting~~ | Critical |
 | ~~A10. Make sunlight target-plane semantics visible at the first claim~~ | Critical |
 | ~~A11. Remove the TNO label from the current winter roof-hours heuristic~~ | Critical |
-| ~~A12. Fix municipality crime fallback denominators and scope labels together~~ | Critical |
-| ~~A13. Align crime national baseline, score narrative, and denominator provenance~~ | High |
 | ~~A14. Rework livability class, deviation, and legend semantics~~ | High |
 | ~~A15. Canonicalize attention severity and asbestos thresholds~~ | High |
 | ~~A16. Relabel erfpacht heuristics as municipality-based verification prompts~~ | Medium |

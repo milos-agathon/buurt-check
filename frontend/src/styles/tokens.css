@@ -2,70 +2,119 @@
 /* "Polar Frost" Design Direction */
 
 :root {
+  color-scheme: light;
+
+  /* ── Landing Parity: source values from landing/index.html ── */
+  --landing-bg: #F9FAFB;
+  --landing-bg-top: #FFFFFF;
+  --landing-bg-mid: #F0F4F8;
+  --landing-surface: rgba(245, 250, 248, 0.94);
+  --landing-surface-strong: #FFFFFF;
+  --landing-surface-soft: rgba(240, 244, 248, 0.72);
+  --landing-border: #E2E8F0;
+  --landing-border-soft: rgba(188, 201, 198, 0.72);
+  --landing-text: #171D1C;
+  --landing-text-secondary: #3D4947;
+  --landing-text-muted: #5F6B68;
+  --landing-nav-bg: rgba(255, 255, 255, 0.88);
+  --landing-nav-control: rgba(240, 245, 242, 0.86);
+  --landing-nav-control-hover: #EAEEED;
+  --landing-preview-bg: #F0F4F8;
+  --landing-footer-bg: #F0F5F2;
+  --landing-accent: #00685F;
+  --landing-accent-hover: #00584F;
+  --landing-accent-soft: #ECFDF5;
+  --landing-accent-text: #00685F;
+  --landing-tertiary: #C36D4B;
+  --landing-tertiary-text: #924628;
+  --landing-tertiary-soft: rgba(195, 109, 75, 0.14);
+  --landing-button-text: #FFFFFF;
+  --landing-shadow: 0 24px 54px rgba(23, 29, 28, 0.08);
+  --landing-shadow-soft: 0 16px 36px rgba(23, 29, 28, 0.05);
+  --landing-radius-lg: 28px;
+  --landing-radius-md: 20px;
+  --landing-radius-sm: 16px;
+  --landing-max-width: 1180px;
+  --landing-focus: 0 0 0 3px rgba(0, 104, 95, 0.22);
+  --app-page-bg:
+    radial-gradient(circle at top left, rgba(13, 148, 136, 0.08) 0%, transparent 34%),
+    radial-gradient(circle at top right, rgba(188, 201, 198, 0.2) 0%, transparent 30%),
+    linear-gradient(180deg, var(--landing-bg-top) 0%, var(--landing-bg-mid) 32%, var(--landing-bg) 100%);
+
   /* ── Colors: Primary ── */
-  --color-primary: #1C2D3F;        /* Polar Slate - primary text, wordmark */
-  --color-accent: #2EC4B6;         /* Arctic Teal - primary action color */
-  --color-accent-light: #E6F9F7;   /* Teal tint - selected states, backgrounds */
-  --color-accent-hover: #25A89C;   /* Teal darker - hover states */
-  --color-accent-text: #1C8C83;    /* Teal 600 - WCAG-safe accent text on light bg (4.52:1) */
+  --color-primary: var(--landing-text);        /* Landing ink - primary text, wordmark */
+  --color-accent: var(--landing-accent);       /* Landing action fill */
+  --color-accent-light: var(--landing-accent-soft); /* Sage tint - selected states, backgrounds */
+  --color-accent-hover: var(--landing-accent-hover); /* Landing primary hover */
+  --color-accent-text: var(--landing-accent-text); /* WCAG-safe accent text on light bg */
+  --color-cta-bg: var(--landing-accent);
+  --color-cta-bg-hover: var(--landing-accent-hover);
+  --color-cta-text: var(--landing-button-text);
+  --color-cta-shadow: 0 14px 28px rgba(13, 148, 136, 0.16);
+  --color-tertiary: var(--landing-tertiary);   /* Landing warm evidence benchmark */
+  --color-tertiary-dark: var(--landing-tertiary-text); /* Landing tertiary text */
+  --color-tertiary-container: #B05E3D; /* Stitch tertiary container */
+  --color-tertiary-light: #FFDBCE; /* Stitch tertiary fixed - pale warm bg */
+  --color-tertiary-soft: #FFB59A;  /* Stitch tertiary fixed dim */
+  --color-tertiary-text: var(--landing-tertiary-text); /* Landing tertiary text */
 
   /* ── Colors: Risk Severity ── */
   --color-risk-good: #22C55E;      /* Good (70-100) */
   --color-risk-moderate: #EAB308;  /* Moderate (40-69) */
   --color-risk-poor: #EF4444;      /* Poor (20-39) */
   --color-risk-critical: #B91C1C;  /* Critical (0-19) */
-  --color-risk-unavailable: #8A9BB0; /* Data unavailable */
+  --color-risk-unavailable: #6D7A77; /* Data unavailable */
 
   /* ── Colors: Surfaces ── */
-  --color-bg: #F3F5F2;             /* Page background */
-  --color-surface: #FFFFFF;        /* White - card surfaces */
-  --color-surface-alt: #EEF2EE;    /* Recessed cards, comparison sections */
-  --color-surface-recessed: #E8EDE9; /* Recessed backgrounds */
-  --color-surface-hover: #E8EDE9;  /* Hover/press state */
-  --color-border: #D7E0DB;         /* Borders, dividers */
+  --color-bg: var(--landing-bg);   /* Landing level 0 page background */
+  --color-surface: var(--landing-surface-strong); /* Card surfaces */
+  --color-surface-alt: var(--landing-preview-bg); /* Frost - grouped content areas */
+  --color-surface-recessed: var(--landing-footer-bg); /* Surface-container-low */
+  --color-surface-hover: var(--landing-nav-control-hover); /* Surface hover/press state */
+  --color-border: var(--landing-border); /* Low-contrast borders, dividers */
 
   /* ── Colors: Text ── */
-  --color-text: #1C2D3F;           /* Polar Slate - primary text */
-  --color-text-secondary: #5E7282; /* Slate 400 - secondary text */
-  --color-text-tertiary: #7D90A1;  /* Slate 300 - placeholder, hints */
-  --color-text-inverse: #FFFFFF;   /* White - text on dark backgrounds */
+  --color-text: var(--landing-text);
+  --color-text-secondary: var(--landing-text-secondary);
+  --color-text-tertiary: var(--landing-text-muted);
+  --color-text-inverse: var(--landing-button-text);
 
   /* ── Colors: Feedback ── */
   --color-danger: #EF4444;         /* Error - errors, destructive actions */
   --color-danger-light: rgba(239, 68, 68, 0.12); /* Error focus ring */
   --color-success: #22C55E;        /* Green - success states */
   --color-warning: #EAB308;        /* Yellow - warning states */
-  --color-info: #3B82F6;           /* Blue - informational */
+  --color-info: #5A5F62;           /* Stitch secondary - informational */
 
   /* ── Colors: Badge Semantic ── */
   --color-badge-coral: #EF4444;    /* Saved count badge */
-  --color-badge-positive-bg: #E6F9F7;
-  --color-badge-positive-text: #0B4F4A;
-  --color-badge-caution-bg: #FEF3C7;
-  --color-badge-caution-text: #92400E;
-  --color-badge-negative-bg: #FEE2E2;
-  --color-badge-negative-text: #991B1B;
-  --color-badge-neutral-bg: #D8DFE7;
-  --color-badge-neutral-text: #2E4459;
+  --color-badge-positive-bg: #E8F8EF;
+  --color-badge-positive-text: #166534;
+  --color-badge-caution-bg: #FBF3DB;
+  --color-badge-caution-text: #956400;
+  --color-badge-negative-bg: #FDEBEC;
+  --color-badge-negative-text: #9F2F2D;
+  --color-badge-neutral-bg: #DCE0E4;
+  --color-badge-neutral-text: #5E6367;
 
   /* ── Colors: Slate Scale (intermediates) ── */
-  --slate-100: #D8DFE7;
-  --slate-200: #B4C0CE;
-  --slate-500: #445B74;
-  --slate-600: #2E4459;
+  --slate-100: #DEE4E1;
+  --slate-200: #BCC9C6;
+  --slate-500: #6D7A77;
+  --slate-600: #3D4947;
 
   /* ── Colors: Teal Scale (intermediates) ── */
-  --teal-100: #B3EDE8;
-  --teal-200: #80E1D9;
-  --teal-300: #57D4C8;
-  --teal-700: #13706A;
-  --teal-900: #063330;
+  --teal-100: #89F5E7;
+  --teal-200: #6BD8CB;
+  --teal-300: #0D9488;
+  --teal-700: #00685F;
+  --teal-900: #005049;
 
   /* ── Colors: Nav/Overlay Utility ── */
-  --color-nav-text-dimmed: rgba(226, 231, 237, 0.68);
-  --color-nav-border: rgba(255, 255, 255, 0.08);
-  --color-nav-control-bg: rgba(255, 255, 255, 0.08);
-  --color-nav-icon: rgba(226, 231, 237, 0.78);
+  --color-nav-text-dimmed: var(--landing-text-muted);
+  --color-nav-border: var(--landing-border-soft);
+  --color-nav-control-bg: var(--landing-nav-control);
+  --color-nav-icon: var(--landing-text-muted);
   --color-overlay-light: rgba(255, 255, 255, 0.9);
   --color-overlay-dark: rgba(0, 0, 0, 0.7);
   --color-overlay-text: #FFFFFF;
@@ -77,46 +126,46 @@
   --color-text-muted: var(--color-text-tertiary);
 
   /* ── Colors: Choropleth Sequential (teal ramp, 7 stops) ── */
-  --ramp-seq-1: #E6F9F7;
-  --ramp-seq-2: #B3EDE8;
-  --ramp-seq-3: #80E1D9;
-  --ramp-seq-4: #57D4C8;
-  --ramp-seq-5: #2EC4B6;
-  --ramp-seq-6: #1C8C83;
-  --ramp-seq-7: #0B4F4A;
+  --ramp-seq-1: #F4FFFC;
+  --ramp-seq-2: #89F5E7;
+  --ramp-seq-3: #6BD8CB;
+  --ramp-seq-4: #0D9488;
+  --ramp-seq-5: #008378;
+  --ramp-seq-6: #00685F;
+  --ramp-seq-7: #005049;
 
   /* ── Colors: Choropleth Diverging (red → neutral → teal, 7 stops) ── */
   --ramp-div-1: #EF4444;
   --ramp-div-2: #F5A0A0;
   --ramp-div-3: #FAD0D0;
-  --ramp-div-4: #F0F3F6;
-  --ramp-div-5: #B3EDE8;
-  --ramp-div-6: #57D4C8;
-  --ramp-div-7: #1C8C83;
+  --ramp-div-4: #F0F4F8;
+  --ramp-div-5: #89F5E7;
+  --ramp-div-6: #0D9488;
+  --ramp-div-7: #00685F;
 
   /* ── Colors: Comparison Series ── */
-  --color-compare-address: #00897B;   /* This address (Teal) */
-  --color-compare-city: #9AA0A6;      /* Legacy peer baseline */
-  --color-compare-nl: #D1D5DB;        /* Legacy national baseline */
-  --color-compare-peer: #9AA0A6;      /* Urbanization peer baseline */
-  --color-compare-national: #D1D5DB;  /* National baseline */
-  --color-compare-who: #E8913A;       /* WHO guideline */
-  --color-compare-air-target: #7C8DA0;
-  --color-compare-climate-target: #E8913A;
-  --color-compare-daylight-target: #5E8C88;
+  --color-compare-address: #0D9488;   /* This address (Teal) */
+  --color-compare-city: #5A5F62;      /* City baseline */
+  --color-compare-nl: #6D7A77;        /* National baseline */
+  --color-compare-peer: #5A5F62;      /* Urbanization peer baseline */
+  --color-compare-national: #6D7A77;  /* National baseline */
+  --color-compare-who: #C36D4B;       /* WHO guideline / tertiary benchmark */
+  --color-compare-air-target: #5A5F62;
+  --color-compare-climate-target: #C36D4B;
+  --color-compare-daylight-target: #00685F;
 
   /* ── Colors: Thumb Badge ── */
-  --color-thumb-badge-bg: rgba(28, 45, 63, 0.86); /* Year badge on thumbnail */
+  --color-thumb-badge-bg: rgba(23, 29, 28, 0.86); /* Year badge on thumbnail */
 
   /* ── Colors: Misc ── */
-  --color-backdrop: rgba(28, 45, 63, 0.48); /* Bottom sheet/modal backdrop */
-  --color-toast-bg: #1C2D3F;       /* Toast background */
+  --color-backdrop: rgba(23, 29, 28, 0.48); /* Bottom sheet/modal backdrop */
+  --color-toast-bg: #171D1C;       /* Toast background */
 
   /* ── Colors: Navigation ── */
-  --color-nav-bg: #1C2D3F;         /* Dark slate nav - non-flipping in dark mode */
+  --color-nav-bg: var(--landing-nav-bg); /* Light dossier navigation surface */
 
   /* ── Typography: Font Family ── */
-  --font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   /* ── Typography: Type Scale ── */
   --type-display: 900 28px/34px var(--font-family);     /* Wordmark, large headings */
@@ -124,9 +173,9 @@
   --type-h2: 700 20px/26px var(--font-family);           /* Section headings */
   --type-h3: 700 17px/24px var(--font-family);           /* Card titles */
   --type-h4: 600 15px/22px var(--font-family);           /* Sub-headings, warning card titles */
-  --type-body: 400 15px/22px var(--font-family);         /* Body text */
-  --type-body-friendly: 400 15px/26px var(--font-family); /* Risk explanations — generous line-height */
-  --type-body-medium: 500 15px/22px var(--font-family);  /* Input text, emphasis */
+  --type-body: 400 16px/26px var(--font-family);         /* Body text */
+  --type-body-friendly: 400 16px/27px var(--font-family); /* Risk explanations — generous line-height */
+  --type-body-medium: 500 16px/24px var(--font-family);  /* Input text, emphasis */
   --type-data: 500 24px/28px var(--font-family);         /* Score numbers, data values */
   --type-caption: 500 14px/20px var(--font-family);      /* Value prop rows, indicators */
   --type-small: 400 13px/18px var(--font-family);        /* Secondary info, timestamps */
@@ -140,6 +189,7 @@
 
   /* ── Spacing: 8pt Grid ── */
   --space-3xs: 2px;
+  --space-2xs: 3px;
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 12px;
@@ -152,26 +202,26 @@
   --space-5xl: 64px;
 
   /* ── Colors: Shadow Ink ── */
-  --color-shadow: rgba(16, 34, 31, 0.08);
+  --color-shadow: rgba(23, 29, 28, 0.08);
 
   /* ── Elevation: Shadows ── */
   --elevation-0: none;
-  --elevation-1: 0 2px 8px var(--color-shadow);
-  --elevation-2: 0 8px 24px rgba(28, 45, 63, 0.10);
-  --elevation-3: 0 16px 48px rgba(28, 45, 63, 0.15);
+  --elevation-1: var(--landing-shadow-soft);
+  --elevation-2: var(--landing-shadow);
+  --elevation-3: 0 28px 64px rgba(23, 29, 28, 0.1);
 
   /* ── Radii ── */
-  --radius-card: 16px;
-  --radius-lg: 16px;
-  --radius-button: 12px;
-  --radius-md: 12px;
-  --radius-pill: 24px;
-  --radius-input: 12px;
-  --radius-badge: 8px;
-  --radius-sm: 6px;
+  --radius-card: var(--landing-radius-md);
+  --radius-lg: var(--landing-radius-lg);
+  --radius-button: 14px;
+  --radius-md: var(--landing-radius-sm);
+  --radius-pill: 999px;
+  --radius-input: var(--landing-radius-sm);
+  --radius-badge: var(--landing-radius-sm);
+  --radius-sm: 12px;
 
   /* ── Layout ── */
-  --max-width: 1180px;
+  --max-width: var(--landing-max-width);
   --tab-bar-height: 62px;
   --top-bar-height: 64px;
   --action-bar-height: 64px;
@@ -200,7 +250,7 @@
   --transition-slow: var(--duration-moderate) var(--ease-out-subtle);
 
   /* ── Focus Ring ── */
-  --focus-ring-accent: 0 0 0 4px rgba(46, 196, 182, 0.12);
+  --focus-ring-accent: var(--landing-focus);
   --focus-ring-danger: 0 0 0 4px rgba(239, 68, 68, 0.12);
 
   /* ── Skeleton ── */
@@ -209,7 +259,7 @@
   --skeleton-duration: 1.5s;
 
   /* ── Press State ── */
-  --color-surface-pressed: rgba(28, 45, 63, 0.06);
+  --color-surface-pressed: rgba(23, 29, 28, 0.06);
 
   /* ── Frosted Glass ── */
   --glass-bg: rgba(255, 255, 255, 0.92);
@@ -219,89 +269,105 @@
 
 /* ── Dark Mode ── */
 [data-theme="dark"] {
+  color-scheme: dark;
+
   /* Primary */
-  --color-primary: #E2E7ED;
-  --color-accent: #2EC4B6;
-  --color-accent-light: rgba(46, 196, 182, 0.15);
-  --color-accent-hover: #57D4C8;
-  --color-accent-text: #57D4C8;
+  --color-primary: #EDF2F0;
+  --color-accent: #6BD8CB;
+  --color-accent-light: #005049;
+  --color-accent-hover: #89F5E7;
+  --color-accent-text: #89F5E7;
+  --color-tertiary: #FFB59A;
+  --color-tertiary-dark: #FFDBCE;
+  --color-tertiary-container: #773215;
+  --color-tertiary-light: #370E00;
+  --color-tertiary-soft: rgba(255, 181, 154, 0.18);
+  --color-tertiary-text: #FFDBCE;
 
   /* Risk Severity — brighter for dark backgrounds */
-  --color-risk-good: #4ADE80;
-  --color-risk-moderate: #FACC15;
-  --color-risk-poor: #F87171;
-  --color-risk-critical: #EF4444;
-  --color-risk-unavailable: #637892;
+  --color-risk-good: #4CAF8B;
+  --color-risk-moderate: #FFB74D;
+  --color-risk-poor: #FF7043;
+  --color-risk-critical: #EF5350;
+  --color-risk-unavailable: #6D7A77;
 
-  /* Surfaces — pure black base for OLED battery savings */
-  --color-bg: #091317;
-  --color-surface: #122027;
-  --color-surface-alt: #182831;
-  --color-surface-recessed: #0F1B21;
-  --color-surface-hover: #1D313A;
-  --color-border: #27414A;
+  /* Surfaces */
+  --color-bg: #171D1C;
+  --app-page-bg: var(--color-bg);
+  --color-surface: #2C3130;
+  --color-surface-alt: #3D4947;
+  --color-surface-recessed: #232827;
+  --color-surface-hover: #3D4947;
+  --color-border: #6D7A77;
 
   /* Text */
-  --color-text: #E2E7ED;
-  --color-text-secondary: #B9C7D0;
-  --color-text-tertiary: #7E95A5;
-  --color-text-inverse: #1C2D3F;
+  --color-text: #EDF2F0;
+  --color-text-secondary: #BCC9C6;
+  --color-text-tertiary: #D6DBD9;
+  --color-text-inverse: #171D1C;
 
   /* Feedback */
   --color-danger: #EF4444;
   --color-danger-light: rgba(239, 68, 68, 0.15);
-  --color-success: #4ADE80;
-  --color-warning: #FACC15;
+  --color-success: #4CAF8B;
+  --color-warning: #FFB74D;
 
   /* Badge Semantic */
-  --color-badge-coral: #F87171;
-  --color-badge-positive-bg: rgba(46, 196, 182, 0.15);
-  --color-badge-positive-text: #57D4C8;
+  --color-badge-coral: #EF5350;
+  --color-badge-positive-bg: rgba(76, 175, 139, 0.18);
+  --color-badge-positive-text: #A7E4C8;
   --color-badge-caution-bg: rgba(234, 179, 8, 0.15);
-  --color-badge-caution-text: #FACC15;
+  --color-badge-caution-text: #FFB74D;
   --color-badge-negative-bg: rgba(239, 68, 68, 0.15);
-  --color-badge-negative-text: #F87171;
-  --color-badge-neutral-bg: #1D313A;
-  --color-badge-neutral-text: #B4C0CE;
+  --color-badge-negative-text: #EF5350;
+  --color-badge-neutral-bg: #3D4947;
+  --color-badge-neutral-text: #D6DBD9;
 
   /* Slate/Teal Scale Overrides */
-  --slate-100: #27414A;
-  --slate-200: #637C8B;
-  --teal-300: #57D4C8;
-  --color-overlay-light: rgba(18, 32, 39, 0.92);
+  --slate-100: #3D4947;
+  --slate-200: #BCC9C6;
+  --teal-300: #6BD8CB;
+  --color-overlay-light: rgba(44, 49, 48, 0.92);
   --color-overlay-dark: rgba(4, 8, 10, 0.72);
   --color-overlay-text: #FFFFFF;
   --color-border-strong: var(--slate-200);
+  --color-nav-bg: #2C3130;
+  --color-nav-text-dimmed: #BCC9C6;
+  --color-nav-border: rgba(255, 255, 255, 0.1);
+  --color-nav-control-bg: rgba(255, 255, 255, 0.08);
+  --color-nav-icon: #BCC9C6;
 
   /* Thumb Badge — solid for OLED (semi-transparent on #000 is invisible) */
-  --color-thumb-badge-bg: #27414A;
+  --color-thumb-badge-bg: #3D4947;
 
   /* Misc */
   --color-backdrop: rgba(4, 8, 10, 0.62);
-  --color-toast-bg: #142131;
+  --color-toast-bg: #2C3130;
 
   /* Shadow Ink */
-  --color-shadow: rgba(0, 0, 0, 0.3);
+  --color-shadow: rgba(0, 0, 0, 0.04);
+  --landing-shadow: 0 20px 48px rgba(0, 0, 0, 0.2);
+  --landing-shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.16);
 
   /* Elevation */
-  --elevation-1: 0 2px 8px var(--color-shadow);
-  --elevation-2: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --elevation-3: 0 16px 48px rgba(0, 0, 0, 0.5);
+  --elevation-1: 0 1px 2px var(--color-shadow);
+  --elevation-2: 0 8px 24px rgba(0, 0, 0, 0.05);
+  --elevation-3: 0 16px 48px rgba(0, 0, 0, 0.07);
 
   /* Focus Ring */
-  --focus-ring-accent: 0 0 0 4px rgba(46, 196, 182, 0.2);
+  --focus-ring-accent: 0 0 0 4px rgba(107, 216, 203, 0.2);
   --focus-ring-danger: 0 0 0 4px rgba(239, 68, 68, 0.2);
 
   /* Comparison Series — brighter for dark backgrounds */
-  --color-compare-address: #4DB6AC;
-  --color-compare-city: #B0B7BF;
-  --color-compare-nl: #8A9BB0;
-  --color-compare-peer: #B0B7BF;
-  --color-compare-national: #8A9BB0;
-  --color-compare-who: #FFA726;
-  --color-compare-air-target: #A8B5C2;
-  --color-compare-climate-target: #FFA726;
-  --color-compare-daylight-target: #7FB8B2;
+  --color-compare-address: #6BD8CB;
+  --color-compare-city: #BCC9C6;
+  --color-compare-nl: #D6DBD9;
+  --color-compare-peer: #BCC9C6;
+  --color-compare-national: #D6DBD9;
+  --color-compare-who: #FFB59A;
+  --color-compare-air-target: #BCC9C6;
+  --color-compare-climate-target: #FFB59A;
+  --color-compare-daylight-target: #89F5E7;
 
   /* Skeleton */
   --color-skeleton: rgba(255, 255, 255, 0.08);
@@ -311,8 +377,8 @@
   --color-surface-pressed: rgba(255, 255, 255, 0.06);
 
   /* Frosted Glass */
-  --glass-bg: rgba(13, 22, 32, 0.92);
-  --glass-bg-fallback: rgba(13, 22, 32, 0.95);
+  --glass-bg: rgba(44, 49, 48, 0.92);
+  --glass-bg-fallback: rgba(44, 49, 48, 0.95);
 }
 
 /* ── Accessibility: Screen-reader-only ── */

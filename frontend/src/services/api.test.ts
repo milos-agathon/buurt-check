@@ -15,11 +15,15 @@ import {
   checkEntitlement,
   confirmStripeCheckoutSession,
   verifyAppleAppStorePurchase,
+  createPrebidBriefing,
   createCheckoutSession,
   createShortReport,
   downloadPdfBlob,
   exportBriefing,
   fetchWeatherTmy,
+  fetchPrebidPack,
+  fetchSharedPrebidBriefing,
+  fetchSharedPrebidPack,
   getBuildingFacts,
   getLivability,
   getNeighborhood3D,
@@ -28,10 +32,12 @@ import {
   getPropertyWarnings,
   getRiskComparisons,
   getRiskCards,
-  getTierBData,
   lookupAddress,
   mapApiError,
   prewarmAddressApi,
+  sharePrebidPack,
+  emailPrebidPack,
+  deletePrebidBriefing,
   submitSunlightAnalysis,
   suggestAddresses,
   verifyGooglePlayPurchase,
@@ -731,21 +737,6 @@ describe('getRiskComparisons', () => {
   });
 });
 
-// ─── getTierBData ─────────────────────────────────────────────────────────────
-
-describe('getTierBData', () => {
-  it('sends GET with tier-b query params', async () => {
-    mockFetch.mockResolvedValue(okResponse({ address_id: 'vbo-1', crime: {} }));
-    await getTierBData('vbo-1', {
-      buurtCode: 'BU0363AD07',
-    });
-
-    const [url] = mockFetch.mock.calls[0];
-    expect(url).toContain('/api/address/vbo-1/tier-b?');
-    expect(url).toContain('buurt_code=BU0363AD07');
-  });
-});
-
 // ─── exportBriefing ───────────────────────────────────────────────────────────
 
 describe('exportBriefing', () => {
@@ -1442,5 +1433,82 @@ describe('fetchWeatherTmy', () => {
     const result = await fetchWeatherTmy('0363010000696734', 52.37, 4.9);
 
     expect(result).toBeNull();
+  });
+});
+
+describe('prebid API contracts', () => {
+  const address = {
+    id: 'adr-1',
+    display_name: 'Keizersgracht 100, Amsterdam',
+    adresseerbaar_object_id: '0363010000696734',
+    postcode: '1015AA',
+    city: 'Amsterdam',
+  };
+
+  it('creates buyer-bound prebid briefings with credentials and confirmed address payload', async () => {
+    mockFetch.mockResolvedValue(okResponse({
+      briefing_id: 'brief-1',
+      address_id: '0363010000696734',
+      address_label: address.display_name,
+      checked_at: '2026-05-06',
+      result_state: 'ready',
+      disclaimer: 'No advice.',
+      coverage: [],
+      top_actions: [],
+      source_quality: {
+        unknown_source_date_count: 0,
+        generic_confidence_count: 0,
+        generic_limitation_count: 0,
+        missing_source_ref_count: 0,
+        missing_recipient_count: 0,
+        caps: [],
+      },
+    }));
+
+    await createPrebidBriefing('0363010000696734', { address, report_id: 'report-1' });
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/address/0363010000696734/prebid/briefing');
+    expect(init.credentials).toBe('include');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      report_id: 'report-1',
+      address: {
+        adresseerbaar_object_id: '0363010000696734',
+      },
+    });
+  });
+
+  it('fetches pack share/email/delete through buyer-bound routes without treating report_id as a share token', async () => {
+    mockFetch.mockResolvedValue(okResponse({ ok: true, share_url: 'https://app.buurt-check.nl/#/shared/demo' }));
+
+    await fetchPrebidPack('0363010000696734', 'report-1');
+    await sharePrebidPack('0363010000696734', 'report-1', { consent_to_share: true });
+    await emailPrebidPack('0363010000696734', 'report-1', { email: 'buyer@example.com', consent_to_email: true });
+    await deletePrebidBriefing('0363010000696734', 'brief-1');
+
+    const urls = mockFetch.mock.calls.map(([url]) => String(url));
+    expect(urls).toEqual(expect.arrayContaining([
+      expect.stringContaining('/prebid/pack/report-1'),
+      expect.stringContaining('/prebid/pack/report-1/share'),
+      expect.stringContaining('/prebid/pack/report-1/email'),
+      expect.stringContaining('/prebid/briefing/brief-1'),
+    ]));
+    for (const [, init] of mockFetch.mock.calls) {
+      expect(init.credentials).toBe('include');
+    }
+  });
+
+  it('fetches scoped shared routes by token and never sends report_id', async () => {
+    mockFetch.mockResolvedValue(okResponse({ state: 'expired', mode: 'briefing' }));
+
+    await fetchSharedPrebidBriefing('shared-token-1');
+    await fetchSharedPrebidPack('pack-token-1');
+
+    const urls = mockFetch.mock.calls.map(([url]) => String(url));
+    expect(urls[0]).toContain('/api/shared/prebid/shared-token-1');
+    expect(urls[1]).toContain('/api/shared/prebid-pack/pack-token-1');
+    expect(urls.join('\n')).not.toContain('report_id');
+    expect(urls.join('\n')).not.toContain('report=');
   });
 });

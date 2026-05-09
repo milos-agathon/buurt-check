@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AnalyticsConsentState } from '../services/analytics';
+import type { AnalyticsConsentState } from '../services/clientEvents';
 import type { ThemePreference } from '../services/theme';
 import ConfirmSheet from './ui/ConfirmSheet';
 import './SettingsScreen.css';
@@ -36,7 +36,7 @@ interface Props {
 export default function SettingsScreen({
   onClearRecent,
   onClearShortlist,
-  theme = 'system',
+  theme = 'light',
   onThemeChange,
   analyticsEnabled = false,
   analyticsConsent = 'unknown',

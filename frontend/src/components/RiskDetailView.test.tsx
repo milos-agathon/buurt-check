@@ -45,6 +45,8 @@ function renderDetail(props: Partial<Parameters<typeof RiskDetailView>[0]> = {})
         questions={props.questions}
         source={props.source}
         sourceDate={props.sourceDate}
+        confidence={props.confidence}
+        limitation={props.limitation}
         warnings={props.warnings}
       />
     </I18nextProvider>,
@@ -203,22 +205,36 @@ describe('RiskDetailView', () => {
     expect(onRetryComparisons).toHaveBeenCalledOnce();
   });
 
-  it('renders checklist callout instead of inline questions', () => {
+  it('renders the actual viewing questions in the evidence detail', () => {
     const { container } = renderDetail({
       questions: [
         { text_en: 'Can you hear traffic?', text_nl: 'Hoort u verkeer?' },
         { text_en: 'Check ventilation', text_nl: 'Controleer ventilatie' },
       ],
     });
-    const callout = container.querySelector('.risk-detail__checklist-callout');
-    expect(callout).toBeInTheDocument();
-    expect(container.querySelectorAll('.risk-detail__question-item').length).toBe(0);
+    expect(container.querySelectorAll('.risk-detail__question-item').length).toBe(2);
+    expect(screen.getByText('Can you hear traffic?')).toBeInTheDocument();
+    expect(screen.getByText('Check ventilation')).toBeInTheDocument();
   });
 
   it('renders source and disclaimer', () => {
     const { container } = renderDetail({ source: 'RIVM', sourceDate: '2024' });
     expect(container.querySelector('.risk-detail__source')).toBeInTheDocument();
     expect(container.querySelector('.risk-detail__disclaimer')).toBeInTheDocument();
+  });
+
+  it('renders source date, confidence, and source-specific limitation', () => {
+    renderDetail({
+      source: 'RIVM geluidkaart',
+      sourceDate: '2025-03',
+      confidence: 'Indicative',
+      limitation: 'Noise contours are modelled and should be checked during the viewing.',
+    });
+
+    expect(screen.getAllByText(/RIVM geluidkaart/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/2025-03/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Indicative/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Noise contours are modelled/i)).toBeInTheDocument();
   });
 
   it('has correct test id', () => {

@@ -162,7 +162,7 @@
             we verwerken, waarom we dat doen, met wie gegevens worden gedeeld en hoe je je
             rechten kunt uitoefenen.
           </p>
-          <p class="legal-page__meta">Laatst bijgewerkt: 20 april 2026</p>
+          <p class="legal-page__meta">Laatst bijgewerkt: 7 mei 2026</p>
         </div>
 
         <div data-lang="en" hidden>
@@ -173,7 +173,7 @@
             and exportable dossiers. This page explains what data we process, why we process
             it, who receives it, and how you can exercise your rights.
           </p>
-          <p class="legal-page__meta">Last updated: April 20, 2026</p>
+          <p class="legal-page__meta">Last updated: May 7, 2026</p>
         </div>
       </section>
 
@@ -219,6 +219,16 @@
                 <li>Een kortlevende herstel-token voor een betaalreturn als de browsercontext tijdens een redirect is onderbroken.</li>
               </ul>
               <p><strong>Doel:</strong> een betaalde aankoop veilig koppelen aan hetzelfde rapport zonder naamgebonden account.</p>
+
+              <h3>Pre-bid bronbriefings en deellinks</h3>
+              <p>
+                Na adresbevestiging verwerken we geminimaliseerde bronrunrecords,
+                dekkingsstatussen, bronverwijzingen, gegenereerde controlevragen,
+                anonieme kopersleutels, scoped deellinkmetadata en verwijderingsstatus.
+                E-maildelen vereist expliciete toestemming; fallbackflows bewaren geen
+                rauw e-mailadres en eventuele contactopslag gebruikt een keyed HMAC-hash.
+              </p>
+              <p><strong>Doel:</strong> bronbriefing, betaalde vragenpack, delen, verwijderen, review en operationele audit.</p>
 
               <h3>Gegevens die alleen op jouw apparaat blijven</h3>
               <ul>
@@ -291,6 +301,11 @@
                     <td>Woning- en buurtdata ophalen</td>
                   </tr>
                   <tr>
+                    <td>Pre-bid bronnen (KOOP, Amsterdam, DSO indien ingesteld, PDOK/Kadaster, RCE, EP-Online indien ingesteld, RDW/NPR)</td>
+                    <td>Bevestigd adres, coördinaten of woning-ID's die nodig zijn voor bronchecks</td>
+                    <td>Brondekking, bekendmakingen, vergunningen, planning, perceel-, WKPB-, erfgoed-, energielabel- en parkeercontext</td>
+                  </tr>
+                  <tr>
                     <td>Google Analytics 4 (optioneel)</td>
                     <td>Paginaweergaven, CTA-klikken, taalwissels, appinteracties en toestemmingsstatus</td>
                     <td>Productanalyse en UX-verbetering</td>
@@ -302,7 +317,7 @@
                   </tr>
                 </tbody>
               </table>
-              <p>We verkopen geen persoonsgegevens en gebruiken je data niet voor gerichte advertenties.</p>
+              <p>We verkopen geen persoonsgegevens en gebruiken je data niet voor gerichte advertenties of advertentiepixels in de pre-bidflow.</p>
             </section>
 
             <section class="legal-page__section">
@@ -326,7 +341,10 @@
               <p>
                 Rapport- en betalingsreferenties bewaren we zolang dat redelijk nodig is om
                 aangekochte exports te leveren, terugbetalingen of geschillen te behandelen,
-                misbruik te voorkomen en aan wettelijke verplichtingen te voldoen.
+                misbruik te voorkomen en aan wettelijke verplichtingen te voldoen. Voorlopige
+                standaardtermijnen zijn 90 dagen voor pre-bid briefings, packs, deellinks,
+                contacthashes en bron-evidence snapshots, en 180 dagen voor operationele audits.
+                Verwijderen trekt deellinks in en maakt gedeelde toegang ongeldig.
               </p>
 
               <h3>Verwijderingsverzoek</h3>
@@ -423,6 +441,16 @@
               </ul>
               <p><strong>Purpose:</strong> safely reconnect a paid purchase to the same report without requiring named accounts.</p>
 
+              <h3>Pre-bid source briefings and share links</h3>
+              <p>
+                After address confirmation, we process minimized source-run records, coverage
+                states, source references, generated verification questions, anonymous buyer
+                keys, scoped share-link metadata, and deletion state. Email sharing requires
+                explicit consent; fallback flows do not store raw email addresses, and any
+                stored contact uses a keyed HMAC-style hash.
+              </p>
+              <p><strong>Purpose:</strong> source briefing, paid questions pack, sharing, deletion, review, and operational audit.</p>
+
               <h3>Data stored only on your device</h3>
               <ul>
                 <li>Recent searches and saved addresses.</li>
@@ -494,6 +522,11 @@
                     <td>Property and neighbourhood data retrieval</td>
                   </tr>
                   <tr>
+                    <td>Pre-bid sources (KOOP, Amsterdam, DSO when configured, PDOK/Kadaster, RCE, EP-Online when configured, RDW/NPR)</td>
+                    <td>Confirmed address, coordinates, or property identifiers needed for source checks</td>
+                    <td>Source coverage, notices, permit, planning, parcel, restriction, heritage, energy-label, and parking context</td>
+                  </tr>
+                  <tr>
                     <td>Google Analytics 4 (optional)</td>
                     <td>Page views, CTA clicks, language toggles, app interactions, and consent state</td>
                     <td>Product analytics and UX improvement</td>
@@ -505,7 +538,7 @@
                   </tr>
                 </tbody>
               </table>
-              <p>We do not sell personal data and we do not use your data for targeted advertising.</p>
+              <p>We do not sell personal data and we do not use your data for targeted advertising or advertising pixels in the pre-bid flow.</p>
             </section>
 
             <section class="legal-page__section">
@@ -529,7 +562,9 @@
               <p>
                 We retain report and payment references for as long as reasonably needed to
                 deliver purchased exports, handle refunds or disputes, prevent abuse, and comply
-                with legal obligations.
+                with legal obligations. Provisional defaults are 90 days for pre-bid briefings,
+                packs, share links, contact hashes, and source-evidence snapshots, and 180 days
+                for operational audits. Deletion revokes share links and invalidates shared access.
               </p>
 
               <h3>Deletion requests</h3>

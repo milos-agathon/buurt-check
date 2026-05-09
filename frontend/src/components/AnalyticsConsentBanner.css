@@ -72,12 +72,12 @@
 
 .analytics-consent-banner__button--primary {
   border: 1px solid transparent;
-  background: var(--color-accent);
-  color: var(--color-overlay-text);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
 }
 
 .analytics-consent-banner__button--primary:hover {
-  background: var(--color-accent-hover, var(--color-accent));
+  background: var(--color-cta-bg-hover);
 }
 
 @media (min-width: 768px) {

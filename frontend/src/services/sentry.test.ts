@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/react';
 
 vi.mock('@sentry/react', () => ({
   init: vi.fn(),
+  addBreadcrumb: vi.fn(),
 }));
 
 describe('initSentry', () => {
@@ -31,23 +32,39 @@ describe('initSentry', () => {
     vi.stubEnv('VITE_SENTRY_ENVIRONMENT', 'test');
     const { initSentry } = await import('./sentry');
     initSentry();
-    expect(Sentry.init).toHaveBeenCalledWith(
+    await vi.waitFor(() => expect(Sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({
         dsn: 'https://example@sentry.io/1',
         environment: 'test',
         tracesSampleRate: 0.1,
       }),
-    );
+    ));
   });
 
   it('defaults environment to dev when VITE_SENTRY_ENVIRONMENT is not set', async () => {
     vi.stubEnv('VITE_SENTRY_DSN', 'https://example@sentry.io/1');
     const { initSentry } = await import('./sentry');
     initSentry();
-    expect(Sentry.init).toHaveBeenCalledWith(
+    await vi.waitFor(() => expect(Sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({
         environment: 'dev',
       }),
-    );
+    ));
+  });
+
+  it('records breadcrumbs without throwing', async () => {
+    const { addTelemetryBreadcrumb } = await import('./sentry');
+
+    addTelemetryBreadcrumb({
+      category: 'analytics',
+      message: 'checkout_started',
+      level: 'info',
+    });
+
+    await vi.waitFor(() => expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'analytics',
+      message: 'checkout_started',
+      level: 'info',
+    }));
   });
 });

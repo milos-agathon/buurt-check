@@ -20,27 +20,20 @@ Severity mapping in this revision: P1 findings are #1-6, #25, #28-31, #35, and #
 
 Primary themes:
 
-- Crime data is still under-threaded in PDF output.
 - `AttentionSummary` duplicates summary logic locally and has drifted from the rest of the product.
-- The viewer and PDF checklist flows are not fully aligned for crime-related guidance.
 - Shortlist items snapshot dossier scores too early and can carry stale or permanently missing comparison data.
 - Graceful degradation is incomplete in several components that treat missing data as zero or hide sections silently.
 - Chart legend/label colors don't always match the data they represent (age profile, risk grid).
-- Raw API values used directly as CSS widths without normalization (TierBSignalsCard crime bars).
 - 3D heatmap has an unguarded array access that can produce black patches from NaN vertex colors.
 - Sunlight comparison data is computed by the backend but never displayed in the frontend viewer.
-- CBS and crime aggregation code can silently underreport partial sub-category data.
 - Non-finite raster values can bypass numeric sanitization, be misclassified as real high risk, and even break JSON serialization in risk-card responses.
 - Some backend responses intentionally return `message` without full data, but the frontend still drops those states instead of rendering muted fallback cards.
-- Tier B crime fallback copy still collapses distinct backend failure and no-data states into the same raw-count explanation.
 - Degraded-state contracts exist in backend payloads and design specs, but the 3D viewer and risk tiles do not consistently surface them.
-- LaTeX primary rendering path omits crime viewing question augmentation that the fpdf2 fallback includes.
 - 3D snapshot capture uses a different emissive color than the interactive viewer for the target building.
 - Water risk classification bypasses sentinel validation that heat stress and other WMS-based categories enforce.
 - Several dossier sections are still fetched, translated, and tested in isolation, but never mounted in the interactive viewer.
 - The app computes sunlight analysis and coverage metadata that are surfaced in export flows or counters, but not shown as buyer-facing dossier content.
 - Locale-aware number formatting and bilingual checklist affordances are still incomplete in active dossier and viewer components.
-- Crime source dates still leak opaque CBS yearly period codes (`YYYYJJ00`) in active viewer and PDF surfaces.
 - The viewer still renders grayscale BRT ground tiles instead of the documented orthophoto imagery.
 - The live risk grid still omits the sunlight card and never renders the documented four-card `2x2` layout.
 - Export requests still substitute postal `city` for `municipality`, which can change municipality-sensitive property warnings in the PDF only.
@@ -50,7 +43,6 @@ Primary themes:
 
 ## P1 - High Severity Findings
 
-### 1. Crime summary chart in the PDF does not communicate crime severity correctly
 
 **Affected code**
 
@@ -58,22 +50,15 @@ Primary themes:
 
 **Why this is a bug**
 
-The livability row uses severity-aware color mapping and body-size typography. The crime row immediately below it is hard-coded to `C_MUTE_1` gray and uses `TYPE_CAPTION_PT`, which makes a critical crime score look visually similar to a good one and makes the row appear secondary.
 
 This is one issue, not two separate bugs: the wrong color and smaller typography both contribute to the same misleading chart output.
 
 **How to solve it**
 
-1. Compute crime severity from the score with the same helper path used elsewhere in the chart.
 2. Replace the hard-coded gray bar fill with `_severity_color(...)`.
-3. Promote the crime score and label typography to match the livability row unless there is an explicit product decision to rank it lower.
-4. Add a regression test or visual fixture for at least one good crime score and one critical crime score.
 
 **Definition of done**
 
-- A critical crime score renders with the critical severity color.
-- A good crime score renders with the good severity color.
-- Crime label and score typography match the livability row in the same chart.
 - Visual regression coverage exists for the chart output.
 
 ---
@@ -136,7 +121,6 @@ That leaks internal state directly into the checklist instead of presenting a cl
 
 ---
 
-### 4. PDF cover-page key concern box drops the crime summary text
 
 **Affected code**
 
@@ -146,20 +130,15 @@ That leaks internal state directly into the checklist instead of presenting a cl
 
 **Why this is a bug**
 
-`_risk_concerns()` already accepts `crime_summary`, but the cover-page flow only passes `crime_score`. As a result, crime can appear as a key concern with an empty summary while noise, air quality, and climate concerns include explanatory text.
 
-This makes crime look half-implemented on the most visible PDF page.
 
 **How to solve it**
 
-1. Extract localized crime meaning text from `tier_b.crime.meaning_en` / `meaning_nl` at the cover-page call site.
 2. Thread that value through `_draw_cover_page(...)` into `_risk_concerns(...)`.
-3. Add PDF-generation coverage for a poor or critical crime case.
 4. Confirm the correct language variant is used for EN and NL exports.
 
 **Definition of done**
 
-- Poor or critical crime can appear in the cover-page key concern box with non-empty summary text.
 - English exports use `meaning_en`; Dutch exports use `meaning_nl`.
 - Existing concern rendering for noise, air quality, climate, and sunlight remains unchanged.
 
@@ -300,7 +279,6 @@ That breaks the product principle of graceful degradation.
 
 ---
 
-### 9. Viewer checklist omits crime questions that the `fpdf2` PDF fallback includes
 
 **Affected code**
 
@@ -311,22 +289,15 @@ That breaks the product principle of graceful degradation.
 
 **Why this is a bug**
 
-The live viewer checklist only renders categories returned by `build_viewing_questions(...)`, which are based on risk cards. The fpdf2 PDF fallback path augments those questions with a crime category via `_with_crime_viewing_questions(...)` at line 6079 before rendering.
 
-That means the viewer omits crime viewing questions. **Note:** Finding #25 (fifth-pass) further reveals that the LaTeX primary rendering path also omits this augmentation, so crime viewing questions currently only appear in fpdf2-generated PDFs — not in the viewer or the primary LaTeX PDFs.
 
 **How to solve it**
 
 1. Decide one canonical checklist composition rule for both viewer and PDF.
-2. If crime belongs in the viewing checklist, inject the crime category into the viewer flow the same way it is injected for the PDF.
-3. If crime should not belong in the viewer, remove the PDF-only augmentation and document that decision explicitly.
-4. Add integration coverage that compares viewer and PDF checklist category composition for entitled users with crime data.
 
 **Definition of done**
 
 - Viewer and PDF checklist category sets are aligned for the same entitled dossier.
-- Crime questions either appear in both places or in neither place, by explicit product decision.
-- Tests cover the entitled-crime case and prevent viewer/PDF drift.
 
 ---
 
@@ -411,19 +382,14 @@ This is a graceful-degradation failure in one of the most visible parts of the d
 
 The following findings were identified in a second-pass deep audit of chart rendering, LaTeX templates, frontend comparison components, and the 3D viewer. Each was cross-verified against source code to eliminate false positives.
 
-### 13. TierBSignalsCard crime comparison bars use raw per-1,000 rate as a percentage width
 
 **Affected code**
 
-- `frontend/src/components/TierBSignalsCard.tsx:108`
-- `frontend/src/components/TierBSignalsCard.tsx:119`
 
 **Why this is a bug**
 
-The crime comparison bar widths are set to `Math.min(100, data.crime.total_per_1000!)` percent. The value `total_per_1000` is a crime rate (e.g., 52 incidents per 1,000 residents), not a percentage or 0–100 score. The bar accidentally looks plausible for typical Dutch values (20–100 range) but:
 
 - A very safe area at 18/1,000 renders an 18% bar, which looks disproportionately tiny next to the national average bar at 52%.
-- A high-crime area at 120/1,000 is clamped to 100%, making it visually identical to 100/1,000.
 - The relative proportions between the area bar and the national bar are distorted because the implicit 0–100 scale doesn't match the actual data range (~20–120).
 - No `Math.max(0, ...)` lower bound exists, so a negative value (data corruption) would produce negative CSS width.
 
@@ -431,16 +397,12 @@ This is the only chart in the product that uses raw API values directly as perce
 
 **How to solve it**
 
-1. Normalize both `total_per_1000` and `nationalRate` to 0–100% relative to a sensible domain (e.g., 0–max(local, national, 100) or the same scoring formula used in `normalize_crime_score()`).
 2. Add `Math.max(0, ...)` to prevent negative widths.
-3. Add a test for edge-case crime rates (very low, very high, equal to national).
 
 **Definition of done**
 
-- Crime bar widths are proportional to a well-defined scale, not raw per-1,000 rates.
 - A rate of 120/1,000 is visually distinguishable from 100/1,000.
 - No negative CSS width is possible.
-- Test coverage exists for extreme crime rate values.
 
 ---
 
@@ -498,19 +460,19 @@ When an age band value is `None`, the code at line 864 converts it to `0.0` and 
 
 **Affected code**
 
-- `backend/app/services/chart_renderer.py:876` (bars use `C_ACCENT` = `#2EC4B6`)
+- `backend/app/services/chart_renderer.py:876` (bars use `C_ACCENT` = `#0D9488`)
 - `backend/app/services/chart_renderer.py:906` (legend uses `C_ACCENT_DARK` = `#187E76`)
 
 **Why this is a bug**
 
-The "This neighborhood" bars are rendered in Arctic Teal (`C_ACCENT`, #2EC4B6), but the legend text for "This neighborhood" / "Deze buurt" is colored `C_ACCENT_DARK` (#187E76). Users cannot visually match the legend to the bars because the colors are noticeably different — one is a bright teal, the other a darker forest teal.
+The "This neighborhood" bars are rendered in Stitch Teal (`C_ACCENT`, #0D9488), but the legend text for "This neighborhood" / "Deze buurt" is colored `C_ACCENT_DARK` (#187E76). Users cannot visually match the legend to the bars because the colors are noticeably different — one is a filled action teal, the other a darker teal text color.
 
 In contrast, the "Netherlands" legend correctly matches its bars: both use `C_MUTE_2` / `C_REFERENCE` gray tones.
 
 **How to solve it**
 
 1. Change the legend text color at line 906 from `C_ACCENT_DARK` to `C_ACCENT` to match the bar fill.
-2. If `C_ACCENT` fails WCAG contrast on the chart background, use `C_ACCENT_TEXT` (#1C8C83) for both the bar and legend, per the design rules.
+2. If `C_ACCENT` fails WCAG contrast on the chart background, use `C_ACCENT_TEXT` (#00685F) for both the bar and legend, per the design rules.
 
 **Definition of done**
 
@@ -531,8 +493,8 @@ Category labels (e.g., "NOISE", "AIR QUALITY") are rendered in `C_MUTE_1` (#B4C0
 
 **How to solve it**
 
-1. Change the category label color to `C_REFERENCE` (#637892) which provides adequate contrast on #F8F9FA.
-2. Alternatively use `C_PRIMARY` (#1C2D3F) for maximum legibility.
+1. Change the category label color to `C_REFERENCE` (#3D4947) which provides adequate contrast on #F8F9FA.
+2. Alternatively use `C_PRIMARY` (#171D1C) for maximum legibility.
 3. Add a contrast ratio check to chart renderer tests.
 
 **Definition of done**
@@ -763,33 +725,23 @@ That conflicts with the current design contract, which requires unavailable tile
 
 ## Fifth-Pass Findings
 
-### 25. LaTeX full dossier viewing questions lack crime augmentation (primary path gap)
 
 **Affected code**
 
 - `backend/app/services/pdf_export.py:2941` (LaTeX path passes raw `viewing_questions`)
-- `backend/app/services/pdf_export.py:6079` (fpdf2 path calls `_with_crime_viewing_questions`)
-- `backend/app/services/pdf_export.py:3761-3778` (`_with_crime_viewing_questions` definition)
 
 **Why this is a bug**
 
-The fpdf2 fallback path calls `_with_crime_viewing_questions(viewing_questions, tier_b_data)` at line 6079 before rendering the checklist page. This injects crime-specific viewing questions (e.g., "Ask about break-in history") when tier_b crime data is available.
 
-The LaTeX primary rendering path at line 2941 passes `viewing_questions=_model_to_dict(viewing_questions)` to `render_dossier()` **without** calling `_with_crime_viewing_questions()` first. The dossier.tex.j2 template renders whatever categories it receives, so crime viewing questions never appear in LaTeX-generated PDFs.
 
-Since LaTeX is the primary rendering path (fpdf2 is the fallback), the majority of PDF dossiers lack crime viewing questions. This means the mismatch described in Finding #9 is narrower than it first appears: the augmentation exists only in `fpdf2` output, not in LaTeX.
 
 **How to solve it**
 
-1. Call `_with_crime_viewing_questions(viewing_questions, tier_b)` in `_generate_full_dossier_latex()` before passing viewing_questions to `render_dossier()`.
 2. Verify the augmented questions render correctly in the LaTeX template's viewing checklist section.
-3. Add a test that generates a LaTeX dossier with crime data and asserts the crime category appears in the rendered viewing questions.
 
 **Definition of done**
 
-- LaTeX-generated dossiers include crime viewing questions when tier_b crime data is available.
 - Both rendering paths produce equivalent checklist content for the same input data.
-- Test coverage exists for the LaTeX crime-augmented checklist.
 
 ---
 
@@ -1033,16 +985,12 @@ That breaks the product's bilingual-by-default promise and fails the documented 
 
 ---
 
-### 33. Mounted neighborhood and crime cards format numbers with the wrong locale
 
 **Affected code**
 
 - `frontend/src/components/NeighborhoodStatsCard.tsx:35-39`
 - `frontend/src/components/NeighborhoodStatsCard.tsx:69-80`
 - `frontend/src/components/NeighborhoodStatsCard.test.tsx:80-91`
-- `frontend/src/components/TierBSignalsCard.tsx:14-22`
-- `frontend/src/components/TierBSignalsCard.tsx:111-142`
-- `frontend/src/components/TierBSignalsCard.test.tsx:27-67`
 
 **Why this is a bug**
 
@@ -1050,51 +998,38 @@ The app is explicitly bilingual, but two mounted dossier cards ignore the active
 
 - `NeighborhoodStatsCard` hard-codes `nl-NL` for euro values, so English UI still shows Dutch punctuation such as `€520.000` instead of `€520,000`.
 - The same card renders other indicator values and age percentages via raw string interpolation, so Dutch UI keeps English-style decimals like `0.8 km` instead of `0,8 km`.
-- `TierBSignalsCard` uses `toFixed(1)` for per-1,000 crime rates and comparison values, so Dutch users see `12.5` rather than `12,5`.
 
 The existing neighborhood test suite even locks in the Dutch thousands separator while running under English. This is user-facing formatting drift in active dossier content, not just a cosmetic test issue.
 
 **How to solve it**
 
 1. Centralize locale-aware number formatting with `Intl.NumberFormat` keyed off the current i18n language.
-2. Use that helper for currency, percentages, distances, and crime-rate decimals in mounted cards.
 3. Update the English and Dutch component tests to assert locale-appropriate separators.
 4. Audit nearby mounted components for similar raw-number rendering before closing the issue.
 
 **Definition of done**
 
 - English and Dutch dossier cards display different separators when the locale requires it.
-- Currency, percentage, distance, and crime-rate values all follow the active language.
 - The stale English test expectation for Dutch currency formatting is removed.
 - Tests cover both locales for the affected mounted cards.
 
 ---
 
-### 34. Violent crime aggregation silently converts `None` sub-categories to `0.0`
 
 **Affected code**
 
-- `backend/app/services/tier_b.py:258-263`
-- `frontend/src/components/TierBSignalsCard.tsx:127-143`
 
 **Why this is a bug**
 
-The violent-crime total is built with `sum(v or 0.0 for v in violent_entries)`. That silently converts suppressed or missing CBS sub-categories from `None` to `0.0`.
 
-If one violent-crime component is present and another is suppressed, the total is underreported but still presented as complete data. For example, `5.0 + None` becomes `5.0` instead of surfacing that the violent-crime total is partial or unavailable.
 
 This is the same failure mode already confirmed for CBS age-band aggregation in Finding #20: partial data is silently turned into a complete-looking total.
 
 **How to solve it**
 
-1. Treat any `None` entry in `violent_entries` as partial data instead of summing it as zero.
-2. Either return `None` for the aggregate or add an explicit `partial` flag to the crime model and UI.
-3. Add a unit test where one violent-crime sub-category is present and another is suppressed.
-4. Ensure the frontend copy distinguishes partial or unavailable violent-crime totals from true zero values.
 
 **Definition of done**
 
-- Violent-crime totals built from partial CBS data are not displayed as complete values.
 - Missing sub-categories no longer default to `0.0` in the aggregate.
 - Tests cover the mixed `float` + `None` case.
 
@@ -1270,36 +1205,18 @@ This is separate from Finding #7. Finding #7 covers how Compare visually misrend
 
 ---
 
-### 40. Tier B crime fallback copy mislabels lookup failures and no-data states as raw-count fallbacks
 
 **Affected code**
 
-- `backend/app/services/tier_b.py:177-195`
-- `backend/app/services/tier_b.py:271-275`
-- `frontend/src/components/TierBSignalsCard.tsx:68-71`
-- `frontend/src/components/TierBSignalsCard.tsx:145-149`
-- `frontend/src/components/TierBSignalsCard.test.tsx:96-110`
 
 **Why this is a bug**
 
-The backend distinguishes several materially different crime states:
 
-- `CRIME_NO_BUURT_CODE`
-- `CRIME_PERIOD_LOOKUP_FAILED`
-- `CRIME_LOOKUP_FAILED`
-- `CRIME_MUNICIPALITY_LEVEL`
-- `CRIME_NO_POPULATION`
-- `CRIME_NO_DATA`
 
-The frontend only special-cases `CRIME_MUNICIPALITY_LEVEL`. For every other state where `total_per_1000` is missing, it renders the same raw-count note and the same population-based disclaimer.
 
 That is incorrect for at least four real paths:
 
-- `CRIME_LOOKUP_FAILED` and `CRIME_PERIOD_LOOKUP_FAILED`: data retrieval failed, but the UI says raw registered totals are being shown.
-- `CRIME_NO_DATA`: CBS returned no crime data, but the UI says the issue is missing population.
-- `CRIME_NO_BUURT_CODE`: no valid buurt lookup exists, but the UI again implies raw counts are present.
 
-The existing component test locks in this misclassification by asserting that `CRIME_NO_DATA` should show the raw-count fallback copy.
 
 **How to solve it**
 
@@ -1311,19 +1228,12 @@ The existing component test locks in this misclassification by asserting that `C
 **Definition of done**
 
 - Lookup failures no longer masquerade as successful raw-count fallbacks.
-- `CRIME_NO_DATA` renders as a no-data state, not a population-data warning.
-- The component test suite covers all backend Tier B message codes with distinct expectations.
 
 ---
 
-### 41. Crime source dates leak raw CBS yearly period codes in the viewer and PDFs
 
 **Affected code**
 
-- `backend/app/services/tier_b.py:290-301`
-- `frontend/src/components/TierBSignalsCard.tsx:27-33`
-- `frontend/src/components/TierBSignalsCard.tsx:68`
-- `frontend/src/components/TierBSignalsCard.tsx:152-156`
 - `backend/app/services/pdf_export.py:3925-3937`
 - `backend/app/services/templates/dossier.tex.j2:207`
 - `backend/app/services/templates/dossier.tex.j2:215`
@@ -1331,25 +1241,19 @@ The existing component test locks in this misclassification by asserting that `C
 
 **Why this is a bug**
 
-Tier B crime data stores yearly CBS periods as codes like `2025JJ00`. The viewer component has a formatter for monthly codes like `2025MM12`, but it does not format yearly `JJ00` codes. It prints `source_date` or `yearly_period` directly in the crime source line.
 
 The same raw value is then printed directly in both PDF rendering paths:
 
-- `fpdf2` appends `crime.source_date` / `crime.yearly_period` verbatim.
 - the LaTeX template emits the same raw string.
 
 So users can see opaque internal CBS period codes such as `2025JJ00` in active dossier surfaces instead of a readable year. This is inconsistent with the rest of the product: the coverage strip already has a parser that understands `YYYYJJ00` and formats it as a normal date/year.
 
 **How to solve it**
 
-1. Normalize CBS yearly period codes before rendering crime source metadata, either in the backend response or via a shared formatter.
-2. Reuse one formatting path across the interactive crime card, the `fpdf2` PDF path, and the LaTeX template.
 3. Add regression coverage for both `YYYYJJ00` and `YYYYMM##` CBS period strings.
 
 **Definition of done**
 
-- Crime source lines never display raw `YYYYJJ00` codes in the viewer or exported PDFs.
-- Yearly crime periods render as a readable localized year.
 - Monthly periods continue to render in localized month-year form.
 
 ---
@@ -1522,7 +1426,6 @@ These findings from the seventh-pass audit were investigated and rejected:
 - `pdf_export.py division by zero in _scaled_chart_height`: Not reachable. The `width` parameter comes from `_usable_width()` which computes `page_width - 2 * margin`, both of which are positive constants. The result is always > 0.
 - `Missing loading state check in retry effect (line 1602)`: The effect at 1602 has an additional guard via `riskComparisonsError` — it only fires when BOTH comparisons and error are null, meaning neither a successful fetch nor a failed fetch has completed. This correctly represents "initial state before any fetch" and the retry is appropriate.
 - `Material backup null safety (line 1277)`: The backup Map is populated by the same loop that iterates materials, and only populated with non-null clones. The backup can never be null.
-- `Quick brief missing tier_b in LaTeX path`: By design. Quick briefs are Tier A only. The quick brief product intentionally excludes crime data.
 - `3D viewer crashes on empty buildings array`: Overstated in the current product flow. `App.tsx` only mounts `NeighborhoodViewer3D` when `buildings.length > 0`.
 - `3D viewer basemap tiles reference retired PDOK BRT endpoint`: Not retained without current official-source verification because this is a temporal external claim. The confirmed issue kept in the main list is narrower: the viewer still uses grayscale BRT tiles instead of the documented orthophoto ground imagery.
 - `Viewing question severity fallback labels can misrepresent actual score severity`: Duplicate of confirmed Finding #6.
@@ -1530,7 +1433,6 @@ These findings from the seventh-pass audit were investigated and rejected:
 - `_classify_water_from_properties sentinel -999 path`: Duplicate of confirmed Finding #27.
 - `PropertyWarningsCard empty clean-property section`: Real follow-on risk, but not retained as a standalone current-product finding because the card is not mounted in the interactive dossier today. The current user-facing bug is already captured by Finding #28.
 - `LivabilityResponse` discriminated-union mismatch`: Better described as a type-hardening issue than an active user-visible bug.
-- `CrimeStatsCard.severity typed as plain string`: Better described as a backend/frontend type-hardening issue than an active runtime defect.
 - `_extract_numeric()` skips -998 sentinels`: Hardening concern, not a confirmed bug under the documented sentinel contracts.
 
 ---
@@ -1556,9 +1458,7 @@ These findings from the fifth-pass audit were investigated and rejected:
 - `neighborhood3d cache key missing lat/lng`: Same reasoning as above. The key includes `rd_x:.0f` and `rd_y:.0f`, and lat/lng are WGS84 equivalents of the same coordinates.
 - `RiskTilesGrid crash on null risks.noise`: Very unlikely. TypeScript `RiskCardsResponse` requires noise/air_quality/climate_stress as mandatory fields. If `risks` is defined, these nested objects will be present. Only malformed API responses could trigger this, and that's a transport error, not a component bug.
 - `Backend hardcoded bilingual strings in pdf_export.py and viewing_questions.py`: By design. The PDF is generated server-side and cannot use the frontend i18n system. Backend bilingual strings are the intended architecture for server-rendered content.
-- `Quick brief omits crime from risk summary table`: Likely by design. The quick brief function signature does not accept `tier_b` data, and the brief is scoped to Tier A environmental risk categories. Crime is a Tier B feature not included in the brief product.
 - `fpdf2 vs LaTeX livability chart rendering gap`: False positive. The dossier.tex.j2 template at line 166 correctly renders `livability_chart` with a full livability section including dimensions, trend, comparison, and chart image. Both paths render livability equivalently.
-- `fpdf2 vs LaTeX crime detail rendering asymmetry`: Overstated. The dossier.tex.j2 template at lines 198-204 renders a dedicated crime section with total, national, burglary, and violent breakdowns. Both paths have crime detail rendering, just with different visual layouts (LaTeX uses structured text; fpdf2 uses card-style rendering).
 - `Frontend i18n parity violations`: False positive. All 627 keys in en.json have matching keys in nl.json. No parity violations found.
 - `Suggest endpoint caching old empty responses`: Not an active bug. The code at lines 296-299 has a safeguard that correctly rejects cached empty lists. This is historical defense code that works correctly.
 
@@ -1568,7 +1468,6 @@ These findings from the fifth-pass audit were investigated and rejected:
 
 These items were intentionally removed from the revised bug list because they are overstated, unreachable under the current contracts, or better described as hardening work:
 
-- `AttentionSummary ignores crime`: misframed as a direct bug. The component only receives `riskCards` today; crime lives in `tierBData`. This is better treated as part of the broader summary-architecture issue in Finding 5.
 - `AttentionSummary thresholds are a frontend-only bug`: not accurate. The same `30/50` logic exists in `backend/app/services/property_warnings.py`, so this is a product inconsistency and source-of-truth issue, not a frontend-only defect.
 - `LivabilityCard` needs a null guard for `normalized_score`: weak claim. `normalized_score` is required by both the frontend type contract and backend Pydantic model.
 - `render_risk_comparison()` crashes if all bar values are `None`: effectively unreachable in current usage because the function requires `address_score: int` and seeds `bar_rows` with it.

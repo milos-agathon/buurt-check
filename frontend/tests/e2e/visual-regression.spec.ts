@@ -2,15 +2,17 @@ import { expect, test } from '@playwright/test';
 import { installMockAddressFlow } from './helpers/mockApi';
 import { openSeededDossier, seedShortlist, SHORTLIST_SEED_VISUAL_REGRESSION } from './helpers/seedState';
 
+const APP_ENTRY = '/';
+
 test.describe('Phase 5 Visual Regression - Mobile Light', () => {
   test.use({
     viewport: { width: 390, height: 844 },
     colorScheme: 'light',
   });
 
-  test('search screen baseline', async ({ page }) => {
+  test('[search] empty 390x844 en light', async ({ page }) => {
     await installMockAddressFlow(page);
-    await page.goto('/');
+    await page.goto(APP_ENTRY);
     await expect(page).toHaveScreenshot('search-screen.png', {
       fullPage: true,
       animations: 'disabled',
@@ -18,9 +20,9 @@ test.describe('Phase 5 Visual Regression - Mobile Light', () => {
     });
   });
 
-  test('saved screen baseline', async ({ page }) => {
+  test('[saved] populated 390x844 en light', async ({ page }) => {
     await seedShortlist(page, SHORTLIST_SEED_VISUAL_REGRESSION, 'light');
-    await page.goto('/');
+    await page.goto(APP_ENTRY);
     await page.getByRole('tab', { name: /Saved|Opgeslagen/ }).click();
     await expect(page.getByTestId('shortlist-screen')).toBeVisible();
 
@@ -31,9 +33,9 @@ test.describe('Phase 5 Visual Regression - Mobile Light', () => {
     });
   });
 
-  test('compare screen baseline', async ({ page }) => {
+  test('[compare] three-home 390x844 en light', async ({ page }) => {
     await seedShortlist(page, SHORTLIST_SEED_VISUAL_REGRESSION, 'light');
-    await page.goto('/');
+    await page.goto(APP_ENTRY);
     await page.getByRole('tab', { name: /Saved|Opgeslagen/ }).click();
     await expect(page.getByRole('button', { name: /Compare|Vergelijk/ })).toBeVisible();
     await page.getByRole('button', { name: /Compare|Vergelijk/ }).click();
@@ -46,18 +48,18 @@ test.describe('Phase 5 Visual Regression - Mobile Light', () => {
     });
   });
 
-  test('dossier screen baseline', async ({ page }) => {
+  test('[dossier] loaded 390x844 en light', async ({ page }) => {
     await openSeededDossier(page, undefined, 'light');
     await expect(page).toHaveScreenshot('dossier-screen-mobile-light.png', {
-      fullPage: true,
+      fullPage: false,
       animations: 'disabled',
       maxDiffPixelRatio: 0.02,
     });
   });
 
-  test('settings screen baseline', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Settings' }).click();
+  test('[settings] main 390x844 en light', async ({ page }) => {
+    await page.goto(APP_ENTRY);
+    await page.getByRole('button', { name: /Settings|Instellingen/ }).click();
     await expect(page.getByTestId('settings-screen')).toBeVisible();
 
     await expect(page).toHaveScreenshot('settings-screen-mobile-light.png', {
@@ -74,9 +76,9 @@ test.describe('Phase 5 Visual Regression - Mobile Dark', () => {
     colorScheme: 'dark',
   });
 
-  test('saved screen dark baseline', async ({ page }) => {
+  test('[saved] populated 390x844 en dark', async ({ page }) => {
     await seedShortlist(page, SHORTLIST_SEED_VISUAL_REGRESSION, 'dark');
-    await page.goto('/');
+    await page.goto(APP_ENTRY);
     await page.getByRole('tab', { name: /Saved|Opgeslagen/ }).click();
     await expect(page.getByTestId('shortlist-screen')).toBeVisible();
 
@@ -87,21 +89,21 @@ test.describe('Phase 5 Visual Regression - Mobile Dark', () => {
     });
   });
 
-  test('dossier screen dark baseline', async ({ page }) => {
+  test('[dossier] loaded 390x844 en dark', async ({ page }) => {
     await openSeededDossier(page, undefined, 'dark');
     await expect(page).toHaveScreenshot('dossier-screen-mobile-dark.png', {
-      fullPage: true,
+      fullPage: false,
       animations: 'disabled',
       maxDiffPixelRatio: 0.02,
     });
   });
 
-  test('search screen dark baseline', async ({ page }) => {
+  test('[search] empty 390x844 en dark', async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem('buurt-check-theme', 'dark');
     });
     await installMockAddressFlow(page);
-    await page.goto('/');
+    await page.goto(APP_ENTRY);
     await expect(page).toHaveScreenshot('search-screen-mobile-dark.png', {
       fullPage: true,
       animations: 'disabled',
@@ -109,9 +111,9 @@ test.describe('Phase 5 Visual Regression - Mobile Dark', () => {
     });
   });
 
-  test('compare screen dark baseline', async ({ page }) => {
+  test('[compare] three-home 390x844 en dark', async ({ page }) => {
     await seedShortlist(page, SHORTLIST_SEED_VISUAL_REGRESSION, 'dark');
-    await page.goto('/');
+    await page.goto(APP_ENTRY);
     await page.getByRole('tab', { name: /Saved|Opgeslagen/ }).click();
     await expect(page.getByRole('button', { name: /Compare|Vergelijk/ })).toBeVisible();
     await page.getByRole('button', { name: /Compare|Vergelijk/ }).click();
@@ -131,9 +133,9 @@ test.describe('Phase 5 Visual Regression - Desktop Light', () => {
     colorScheme: 'light',
   });
 
-  test('search screen desktop baseline', async ({ page }) => {
+  test('[search] empty 1366x900 en light', async ({ page }) => {
     await installMockAddressFlow(page);
-    await page.goto('/');
+    await page.goto(APP_ENTRY);
     await expect(page).toHaveScreenshot('search-screen-desktop-light.png', {
       fullPage: true,
       animations: 'disabled',

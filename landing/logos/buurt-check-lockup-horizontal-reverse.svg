@@ -25,7 +25,7 @@
     <g id="mark" fill="none">
       <path class="anim-house" d="M80,52 L80,80 L20,80 L20,20 L38,5 L64,20 L80,30"
             stroke="#FFFFFF" stroke-width="7" stroke-linejoin="round" stroke-linecap="butt"/>
-      <path class="anim-check" d="M29.5 54 C31 56, 34 68, 42 78 C48 85, 53 84, 58 78 C65 68, 80 40, 94 18 C95 16, 96 15, 95 14 C93 13, 91 14, 88 18 C78 35, 58 64, 52 70 C47 75, 45 74, 40 68 C34 58, 31 52, 28 50 C26.5 49, 28 52, 29.5 54 Z" fill="#2EC4B6"/>
+      <path class="anim-check" d="M29.5 54 C31 56, 34 68, 42 78 C48 85, 53 84, 58 78 C65 68, 80 40, 94 18 C95 16, 96 15, 95 14 C93 13, 91 14, 88 18 C78 35, 58 64, 52 70 C47 75, 45 74, 40 68 C34 58, 31 52, 28 50 C26.5 49, 28 52, 29.5 54 Z" fill="#0D9488"/>
     </g>
   </defs>
   <g transform="translate(2, 6) scale(0.62)">

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page not found | Buurt Check</title>
+    <link rel="icon" href="/logos/buurt-check-favicon.svg" />
+    <link rel="stylesheet" href="/legal.css" />
+    <link rel="stylesheet" href="/analytics-consent.css" />
+    <style>
+      body { min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
+      .not-found-static { width: min(100%, 680px); border: 1px solid var(--color-border, #E2E8F0); border-radius: 8px; background: var(--color-surface, #fff); padding: 24px; display: grid; gap: 16px; }
+      .not-found-static__logo { width: 180px; max-width: 70vw; }
+      .not-found-static h1, .not-found-static p { margin: 0; }
+      .not-found-static h1 { font-size: 28px; line-height: 1.15; }
+      .not-found-static p { color: var(--color-text-secondary, #3D4947); line-height: 1.55; }
+      .not-found-static__actions { display: grid; gap: 10px; }
+      .not-found-static__actions a { min-height: 44px; border: 1px solid var(--color-border, #E2E8F0); border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; padding: 0 16px; color: inherit; text-decoration: none; }
+      .not-found-static__actions a:first-child { background: #0D9488; border-color: #0D9488; color: #FFFFFF; }
+      .not-found-static__nl { border-top: 1px solid var(--color-border, #E2E8F0); padding-top: 16px; }
+      @media (min-width: 640px) { .not-found-static__actions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      @media (forced-colors: active) { .not-found-static, .not-found-static__actions a { border: 1px solid CanvasText; } }
+    </style>
+  </head>
+  <body>
+    <main class="not-found-static">
+      <img class="not-found-static__logo" src="/logos/buurt-check-lockup-horizontal.svg" alt="Buurt Check" />
+      <section>
+        <h1>We could not find that page</h1>
+        <p>The link may be expired, moved, or unavailable. Start a new address search or use the legal/support links below.</p>
+      </section>
+      <section class="not-found-static__nl" lang="nl">
+        <h1>We kunnen die pagina niet vinden</h1>
+        <p>De link is mogelijk verlopen, verplaatst of niet beschikbaar. Start een nieuwe adreszoekopdracht of gebruik de links hieronder.</p>
+      </section>
+      <nav class="not-found-static__actions" aria-label="Recovery links">
+        <a href="/#/search">Search an address</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="mailto:support@buurt-check.nl">Contact support</a>
+      </nav>
+    </main>
+    <script src="/analytics-consent.js"></script>
+  </body>
+</html>

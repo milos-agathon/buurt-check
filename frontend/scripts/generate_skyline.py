@@ -874,8 +874,8 @@ def build_svg() -> str:
       <stop offset="100%" stop-color="#162536"/>
     </linearGradient>
     <radialGradient id="glow" cx="50%" cy="38%" r="35%">
-      <stop offset="0%" stop-color="#2EC4B6" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#2EC4B6" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#0D9488" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#0D9488" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="haze" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#8BA4BF" stop-opacity="0"/>
@@ -906,12 +906,12 @@ def build_svg() -> str:
   {mid_layer}
   {foreground_layer}
 
-  <rect x="0" y="497" width="1024" height="3" fill="#2EC4B6" opacity="0.3"/>
+  <rect x="0" y="497" width="1024" height="3" fill="#0D9488" opacity="0.3"/>
 
   <g transform="translate(467, 118) scale(0.8)">
     <path d="M80,52 L80,80 L20,80 L20,20 L38,5 L64,20 L80,30"
           stroke="#FFFFFF" stroke-width="7" stroke-linejoin="round" stroke-linecap="butt" fill="none"/>
-    <path d="M29.5 54 C31 56, 34 68, 42 78 C48 85, 53 84, 58 78 C65 68, 80 40, 94 18 C95 16, 96 15, 95 14 C93 13, 91 14, 88 18 C78 35, 58 64, 52 70 C47 75, 45 74, 40 68 C34 58, 31 52, 28 50 C26.5 49, 28 52, 29.5 54 Z" fill="#2EC4B6"/>
+    <path d="M29.5 54 C31 56, 34 68, 42 78 C48 85, 53 84, 58 78 C65 68, 80 40, 94 18 C95 16, 96 15, 95 14 C93 13, 91 14, 88 18 C78 35, 58 64, 52 70 C47 75, 45 74, 40 68 C34 58, 31 52, 28 50 C26.5 49, 28 52, 29.5 54 Z" fill="#0D9488"/>
   </g>
 
   <g transform="translate(363, 170) scale(1.4)">
@@ -920,7 +920,7 @@ def build_svg() -> str:
 
   <text x="512" y="266" text-anchor="middle"
         font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
-        font-weight="400" font-size="15" fill="#637892" letter-spacing="2.5">
+        font-weight="400" font-size="15" fill="#3D4947" letter-spacing="2.5">
     Je huis onder de duim
   </text>
 </svg>

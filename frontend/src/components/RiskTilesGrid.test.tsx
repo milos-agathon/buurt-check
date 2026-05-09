@@ -45,7 +45,7 @@ function renderGrid() {
 }
 
 describe('RiskTilesGrid', () => {
-  it('renders only the three primary risk tiles', () => {
+  it('renders only the free frontend risk cards and omits sunlight', () => {
     renderGrid();
 
     expect(screen.getByTestId('risk-tile-noise')).toBeInTheDocument();
@@ -54,12 +54,12 @@ describe('RiskTilesGrid', () => {
     expect(screen.queryByTestId('risk-tile-sunlight')).not.toBeInTheDocument();
   });
 
-  it('shows no extra summary text inside the tiles', () => {
+  it('shows consequence summaries inside the tiles', () => {
     renderGrid();
 
-    expect(screen.queryByText('Moderate traffic noise')).not.toBeInTheDocument();
-    expect(screen.queryByText('Good air quality')).not.toBeInTheDocument();
-    expect(screen.queryByText('Critical climate exposure')).not.toBeInTheDocument();
+    expect(screen.getByText('Moderate traffic noise')).toBeInTheDocument();
+    expect(screen.getByText('Good air quality')).toBeInTheDocument();
+    expect(screen.getByText('Critical climate exposure')).toBeInTheDocument();
   });
 
   it('surfaces partial-data warnings on affected tiles', () => {
@@ -82,5 +82,26 @@ describe('RiskTilesGrid', () => {
     expect(screen.getByTestId('risk-tile-warning-air')).toHaveTextContent(
       'Only partial air quality data is available.',
     );
+  });
+
+  it('does not render a sunlight placeholder when sunlight data is unavailable', () => {
+    const base = makeRiskCardsResponse();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <RiskTilesGrid
+          risks={makeRiskCardsResponse({
+            noise: base.noise,
+            air_quality: base.air_quality,
+            climate_stress: base.climate_stress,
+            sunlight: undefined,
+          })}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.queryByTestId('risk-tile-sunlight')).not.toBeInTheDocument();
+    expect(screen.getByTestId('risk-tile-noise')).toBeInTheDocument();
+    expect(screen.getByTestId('risk-tile-air')).toBeInTheDocument();
+    expect(screen.getByTestId('risk-tile-climate')).toBeInTheDocument();
   });
 });

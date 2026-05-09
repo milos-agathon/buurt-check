@@ -7,9 +7,10 @@ interface AddressHeaderProps {
   address: ResolvedAddress;
   building?: BuildingFacts;
   onChangeAddress?: () => void;
+  variant?: 'card' | 'embedded';
 }
 
-function AddressHeader({ address, building, onChangeAddress }: AddressHeaderProps) {
+function AddressHeader({ address, building, onChangeAddress, variant = 'card' }: AddressHeaderProps) {
   const { t, i18n } = useTranslation();
 
   const street = address.street || '';
@@ -32,7 +33,10 @@ function AddressHeader({ address, building, onChangeAddress }: AddressHeaderProp
   }
 
   return (
-    <div className="address-header" data-testid="address-header">
+    <div
+      className={`address-header${variant === 'embedded' ? ' address-header--embedded' : ''}`}
+      data-testid="address-header"
+    >
       <div className="address-header__info">
         <h2 className="address-header__street">{mainLine || address.display_name}</h2>
         {subLine && <p className="address-header__postcode">{subLine}</p>}

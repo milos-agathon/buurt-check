@@ -4,7 +4,6 @@ import { I18nextProvider } from 'react-i18next';
 import App from '../App';
 import CompareScreen from '../components/CompareScreen';
 import ExportBottomSheet from '../components/ExportBottomSheet';
-import TierBSignalsCard from '../components/TierBSignalsCard';
 import type { ShortlistItem } from '../types/api';
 import { setupTestI18n } from './helpers';
 
@@ -18,7 +17,6 @@ vi.mock('../services/api', () => ({
   getRiskComparisons: vi.fn(),
   getNeighborhoodStats: vi.fn(),
   getViewingQuestions: vi.fn(),
-  getTierBData: vi.fn(),
   getPropertyWarnings: vi.fn(),
   getLivability: vi.fn(),
   submitSunlightAnalysis: vi.fn(),
@@ -93,26 +91,6 @@ describe('Accessibility audits', () => {
   it('Compare screen has no serious/critical violations', async () => {
     const { container } = renderWithI18n(
       <CompareScreen items={makeCompareItems()} onBack={() => {}} onSearchAddress={() => {}} />,
-    );
-    await expectNoSeriousA11yViolations(container);
-  });
-
-  it('Tier-B card has no serious/critical violations', async () => {
-    const { container } = renderWithI18n(
-      <TierBSignalsCard
-        data={{
-          address_id: 'vbo-1',
-          crime: {
-            total_per_1000: 12.5,
-            burglary_per_1000: 1.1,
-            violent_per_1000: 0.7,
-            monthly_total_per_1000: 1.2,
-            monthly_period: '2025MM12',
-            source: 'CBS OData 47018NED/47022NED',
-            source_date: '2025JJ00',
-          },
-        }}
-      />,
     );
     await expectNoSeriousA11yViolations(container);
   });

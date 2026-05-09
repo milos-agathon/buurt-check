@@ -59,7 +59,6 @@ These are the ones where you can make a *real market contribution* fast:
 4. **Climate-stress flags that buyers *actually misunderstand***
    Water nuisance / flooding vulnerability / heat stress / drought sensitivity presented as *"what it means for you"* + mitigation questions for the seller/VvE. Klimaateffectatlas is explicitly open + WMS friendly. ([klimaateffectatlas.nl][4])
 
-### Tier B — feasible, but differentiation depends on execution
 
 5. **Neighborhood "fit" cards (CBS Wijken & Buurten)**
    Demographics, density, etc. This exists in various places, but rarely packaged for *buyers* with "so what?" explanations. ([pdok.nl][5])
@@ -120,7 +119,6 @@ Feature delivery labels for this PRD:
 | F3 | Implemented now | Risk cards with score/meaning/actions/source. |
 | F4 | Implemented now | Neighborhood snapshot indicators. |
 | F5 | Implemented now | Shortlist + compare + dual-template PDF export. |
-| F6 | Implemented now | Crime signal card. |
 | P1 | Post-MVP | Web rendering migration away from Three.js. |
 | P2 | Post-MVP | Full architecture migration (Zustand/Tailwind/Framer). |
 
@@ -194,13 +192,9 @@ Cards in MVP:
 * Export PDF with two templates: `quick_brief` (1 page, free) and `full_dossier` (3-4 pages, paid before first download), including forge3-rendered shadow snapshots (F2b)
 * The on-screen viewer remains free. Payment applies to the downloadable `full_dossier` artifact, not to unlocking the interactive dossier.
 
-### Tier B — included in current scope after F1-F5
 
-#### F6 — Crime level card (Tier B)
 
 * Sources: CBS OData 47018NED (yearly) and 47022NED (monthly)
-* Present as crimes per 1,000 residents; sub-cards: burglary, violent crime
-* Mandatory disclaimers about registered vs. total crime
 
 
 * Useful for running costs and "upgrade reality" scenarios
@@ -264,7 +258,6 @@ Define these before launch. Track outcomes, not outputs.
 | Road traffic noise (Lden) | **RIVM / Atlas Leefomgeving noise** | NL | WMS + ZIP | WMS: `https://data.rivm.nl/geo/alo/wms?request=GetCapabilities` + ZIPs on data.overheid ([data.overheid.nl][3]) | Periodic | Indicative; show disclaimer |
 | Air quality PM2.5 / NO2 | **RIVM GCN** | NL | WMS/WCS + ZIP | WMS: `https://data.rivm.nl/geo/gcn/wms?request=GetCapabilities` WCS: `…/wcs?request=GetCapabilities` ([data.overheid.nl][9]) | Annual + scenarios | Public domain |
 | Climate stress layers | **Klimaateffectatlas** | NL | WMS/WFS (GeoServer) | WMS/WFS: `https://maps1.klimaatatlas.net/geoserver/ows` ([klimaateffectatlas.nl][4]) | Periodic | CC BY 4.0 attribution required |
-| Crime statistics | **CBS OData** | NL | OData API | `https://dataderden.cbs.nl/ODataApi/OData/47018NED` ([data.overheid.nl][13]) | Annual (yearly table), monthly | Official CBS; privacy suppression applies |
 
 ### Integration details per source
 
@@ -331,7 +324,6 @@ Recommended for MVP: 3DBAG API for geometry + attributes. Kadaster 3D Basisvoorz
 
 * Requires API key; cache and rate-limit.
 
-#### I) Crime statistics (Tier B)
 
 * **User value**: Expats and first-time buyers routinely ask "is this area safe?" The app provides a consistent, sourced, comparable view per address.
 * **Yearly data**: `https://dataderden.cbs.nl/ODataApi/OData/47018NED` (table 47018NED) ([data.overheid.nl][13])
@@ -340,14 +332,10 @@ Recommended for MVP: 3DBAG API for geometry + attributes. Kadaster 3D Basisvoorz
 
 **Presentation rules:**
 
-* Show a single "Crime level (last 12 months)" card
-* Primary indicator: total registered crimes per 1,000 residents (computed using CBS `aantal_inwoners` from F4 neighborhood snapshot)
-* Two sub-cards only: burglary/break-ins (property-relevant), violent crime (perceived safety)
 * Optional later: nuisance incidents — only if data is reliable and does not overwhelm
 
 **Mandatory disclaimers:**
 
-* "Registered crimes ≠ total crime; reporting and registration vary."
 * "Use as screening context, not a prediction."
 * "Small-area data may be suppressed for privacy for some categories."
 
@@ -618,7 +606,6 @@ These require additional engineering effort and are explicitly out of scope for 
   - Klimaateffectatlas: CC BY 4.0 attribution required
   - PDOK Luchtfoto: CC BY 4.0 attribution required
   - CBS, BAG, RIVM: public services, attribution as good practice
-* **Disclaimers:** All environmental, noise, air quality, and crime data is presented as indicative. The app does not provide professional advice. Disclaimer text shown on every dossier and PDF.
 
 ---
 

@@ -52,7 +52,7 @@ def test_wcag_contrast_all_pairs(language: str) -> None:
     assert pairs, "No contrast pairs were extracted"
 
     failures: list[str] = []
-    accent_hex = "#2EC4B6"
+    accent_hex = "#0D9488"
 
     for pair in pairs:
         cratio = _contrast_ratio(pair.fg_hex, pair.bg_hex)
@@ -67,15 +67,15 @@ def test_wcag_contrast_all_pairs(language: str) -> None:
     # Accent teal is fill-only, never body text on light backgrounds.
     bad_accent = [
         p for p in pairs
-        if p.fg_hex == accent_hex and p.bg_hex in {"#FFFFFF", "#FAFBFC"}
+        if p.fg_hex == accent_hex and p.bg_hex in {"#FFFFFF", "#F9FAFB"}
     ]
-    assert not bad_accent, "Accent teal (#2EC4B6) must never be used as light-background text"
+    assert not bad_accent, "Accent teal (#0D9488) must never be used as light-background text"
 
     # Severity palette must be checked against white and dark backgrounds.
     severity_hexes = ["#22C55E", "#EAB308", "#EF4444", "#B91C1C"]
     for sev_hex in severity_hexes:
         on_white = _contrast_ratio(sev_hex, "#FFFFFF")
-        on_dark = _contrast_ratio(sev_hex, "#1C2D3F")
+        on_dark = _contrast_ratio(sev_hex, "#171D1C")
         assert max(on_white, on_dark) >= 3.0, (
             f"Severity {sev_hex} is below graphical 3:1 on both white and dark backgrounds"
         )

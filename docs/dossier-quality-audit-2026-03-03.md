@@ -130,13 +130,11 @@ Of the original 14 diagnostic findings: **7 fixed, 4 partially fixed, 3 not fixe
 
 ### Task 8 — Fix Livability Chart Label Cropping
 
-**Problem:** The livability dot chart on page 4 shows "rability" (cropped from "Livability") on the left y-axis, and the Crime score at the right edge is cropped to "1" (should be "100").
 
 **Root cause:** `chart_renderer.py` uses `savefig.bbox="tight"` in the SchererTheme rcParams, which clips the figure to visible data bounds and removes axis label margins. The y-axis label "Livability" extends into the left margin area that `tight` bbox removes.
 
 **Definition of Done:**
 
-- [ ] "Livability" and "Crime" labels fully visible on left y-axis
 - [ ] All score values fully visible (no cropping at edges)
 - [ ] Fix via one of: `fig.subplots_adjust(left=0.18, right=0.92)`, or remove `savefig.bbox="tight"` for this chart, or use `\includegraphics[width=0.92\linewidth]` in template
 - [ ] Visual regression test verifies no label cropping

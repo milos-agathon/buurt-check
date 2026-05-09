@@ -61,23 +61,23 @@ _HEADER_LOGO_PATH = _LOGOS_DIR / "buurt-check-lockup-horizontal.png"
 
 # --- Polar Frost color palette (RGB tuples) ---
 # Contrast ratios are vs white (#FFFFFF) unless noted.
-TEAL = (46, 196, 182)  # #2EC4B6 — Arctic Teal accent (2.17:1 — fill only, never text)
-SLATE = (28, 45, 63)  # #1C2D3F — Polar Slate primary text (12.6:1)
-MUTED = (120, 140, 165)  # #788CA5 — peer/comparison bar fill (3.44:1, >= 3:1 graphical AA)
-BORDER = (226, 231, 237)  # #E2E7ED — borders, dividers, score track (1.3:1, non-data)
+TEAL = (13, 148, 136)  # #0D9488 — Stitch Teal accent fill
+SLATE = (23, 29, 28)  # #171D1C — primary text
+MUTED = (109, 122, 119)  # #6D7A77 — peer/comparison bar fill
+BORDER = (226, 232, 240)  # #E2E8F0 — borders, dividers, score track
 WHITE = (255, 255, 255)
 AMBER_WARN = (234, 179, 8)  # #EAB308 — amber for warnings (1.87:1 — fill/dashed only)
-SECONDARY = (99, 120, 146)  # #637892 — essential info text (4.52:1 — WCAG AA pass)
-NATIONAL = (110, 130, 155)  # #6E829B — "Nederland" bar fill (3.94:1, >= 3:1 graphical)
+SECONDARY = (61, 73, 71)  # #3D4947 — essential info text
+NATIONAL = (109, 122, 119)  # #6D7A77 — "Nederland" bar fill
 GRIDLINE = (240, 242, 245)  # Very light gray for chart gridlines (decorative)
-TEAL_LIGHT = (232, 248, 246)  # #E8F8F6 — light teal for section bands, premium badges
-ACCENT_TEXT = (28, 140, 131)  # #1C8C83 — accent text color with AA contrast
+TEAL_LIGHT = (236, 253, 245)  # #ECFDF5 — light teal for section bands, premium badges
+ACCENT_TEXT = (0, 104, 95)  # #00685F — accent text color with AA contrast
 FROST_BG = (240, 244, 248)  # #F0F4F8 — executive summary panel
-TILE_BG = (248, 249, 250)  # #F8F9FA — subtle tile/card background
+TILE_BG = (249, 250, 251)  # #F9FAFB — subtle tile/card background
 CALL_OUT_CRITICAL_BG = (254, 242, 242)  # #FEF2F2
 CALL_OUT_POOR_BG = (255, 247, 237)  # #FFF7ED
-PEER_BAR = (209, 213, 219)  # #D1D5DB — recessive comparison gray
-COMPARISON_PEER = SECONDARY  # #637892 — peer / city baseline
+PEER_BAR = (220, 224, 228)  # #DCE0E4 — recessive comparison gray
+COMPARISON_PEER = (99, 120, 146)  # #637892 — peer / city baseline
 COMPARISON_NATIONAL = (138, 155, 176)  # #8A9BB0 — national baseline
 COMPARISON_REFERENCE = AMBER_WARN  # #EAB308 — benchmark / target
 COMPARISON_GUIDES = (20, 40, 70)
@@ -3072,8 +3072,7 @@ def _methodology_payload(*, is_nl: bool) -> dict[str, Any]:
         ]
         limitations = (
             "Alle gegevens zijn indicatief en vervangen geen professionele bouwinspectie. "
-            "Criminaliteitscijfers zijn per gemeente, niet per straat. Milieumetingen "
-            "geven mogelijk geen micro-lokale omstandigheden weer."
+            "Milieumetingen geven mogelijk geen micro-lokale omstandigheden weer."
         )
         peer_disclosure = (
             "Waar 'vergelijkingswaarde' wordt getoond, zijn waarden gemodelleerd op basis "
@@ -3143,8 +3142,7 @@ def _methodology_payload(*, is_nl: bool) -> dict[str, Any]:
         ]
         limitations = (
             "All data is indicative and should not replace professional building inspection. "
-            "Crime data is municipality-level, not street-level. Environmental measurements "
-            "may not reflect micro-local conditions."
+            "Environmental measurements may not reflect micro-local conditions."
         )
         peer_disclosure = (
             "Where 'peer baseline' is shown, values are modeled from the address urbanization "
@@ -3186,11 +3184,6 @@ def _methodology_payload(*, is_nl: bool) -> dict[str, Any]:
                 "source": "CBS",
                 "data_type": "Buurtstatistieken" if is_nl else "Neighborhood stats",
                 "protocol": "OGC API Features",
-            },
-            {
-                "source": "CBS",
-                "data_type": "Criminaliteit" if is_nl else "Crime",
-                "protocol": "OData v4 (47018NED)",
             },
             {
                 "source": "Leefbaarometer",
@@ -3355,6 +3348,7 @@ def _generate_full_dossier_latex(
 ) -> bytes:
     """Generate full dossier via LaTeX with fpdf2 fallback."""
     is_nl = language == "nl"
+    tier_b = None
 
     # Fallback: recover sunlight score from risks card when the explicit
     # parameter is None (e.g. SVF computation finished after the API
@@ -3372,7 +3366,7 @@ def _generate_full_dossier_latex(
     state, pending_msg, unavailable_msg = _sunlight_state(
         risks, sunlight_score, is_nl=is_nl, has_shadow_inputs=has_shadow_inputs,
     )
-    crime_score = tier_b.crime.score if tier_b and tier_b.crime else None
+    crime_score = None
     executive_summary_text = _generate_executive_summary(
         risks,
         sunlight_score,
@@ -3381,7 +3375,6 @@ def _generate_full_dossier_latex(
         crime_score=crime_score,
     )
     methodology_payload = _methodology_payload(is_nl=is_nl)
-    viewing_questions = _with_crime_viewing_questions(viewing_questions, tier_b)
 
     try:
 
@@ -3506,9 +3499,7 @@ def _generate_full_dossier_latex(
 
             if chart_renderer is not None:
                 chart_jobs: dict[str, Any] = {}
-                risk_cells = _build_risk_cells(
-                    risks, sunlight_score, is_nl, crime_score=crime_score,
-                )
+                risk_cells = _build_risk_cells(risks, sunlight_score, is_nl, crime_score=None)
                 chart_jobs["risk_grid_chart"] = lambda cells=risk_cells: (
                     chart_renderer.render_risk_summary_grid(
                         cells=[
@@ -3593,24 +3584,21 @@ def _generate_full_dossier_latex(
                         is_nl,
                     )
 
-                crime_score = None
-                if tier_b and tier_b.crime:
-                    crime_score = tier_b.crime.score
                 liv_score = (
                     livability.overall_normalized
                     if livability is not None and livability.available
                     else None
                 )
-                if liv_score is not None or crime_score is not None:
+                if liv_score is not None:
                     chart_jobs["livability_chart"] = (
-                        lambda ls=liv_score, cs=crime_score: (
+                        lambda ls=liv_score: (
                             chart_renderer.render_livability_score(
                                 livability=chart_renderer.LivabilityData(
                                     score=ls,
                                     label="Leefbaarheid" if is_nl else "Livability",
                                 ),
                                 crime=chart_renderer.CrimeData(
-                                    score=cs,
+                                    score=None,
                                     label="Criminaliteit" if is_nl else "Crime",
                                 ),
                                 output_format="pdf",
@@ -3677,16 +3665,7 @@ def _generate_full_dossier_latex(
                     deduped.append(comp_row)
                 livability_dict["comparison"] = deduped
 
-            tier_b_dict = _model_to_dict(tier_b)
-            if (
-                tier_b_dict
-                and isinstance(tier_b_dict.get("crime"), dict)
-                and tier_b
-                and tier_b.crime
-            ):
-                source_date_label = _crime_source_date_label(tier_b.crime, is_nl=is_nl)
-                if source_date_label:
-                    tier_b_dict["crime"]["source_date"] = source_date_label
+            tier_b_dict = None
 
             tex = render_dossier(
                 address=escape_latex(address),
@@ -3899,7 +3878,6 @@ def _generate_full_dossier_fpdf(
     # Page 1: Cover + summary
     pdf.section_title = "VOLLEDIG DOSSIER" if is_nl else "PROPERTY INTELLIGENCE DOSSIER"
     pdf.add_page()
-    crime_score = tier_b.crime.score if tier_b and tier_b.crime else None
     _draw_cover_page(
         pdf,
         address,
@@ -3914,10 +3892,8 @@ def _generate_full_dossier_fpdf(
         shadow_images=dossier_shadow_images,
         shadow_reference_year=shadow_reference_year,
         livability=livability,
-        crime_score=crime_score,
-        crime_summary=(
-            tier_b.crime.meaning_nl if is_nl else tier_b.crime.meaning_en
-        ) if tier_b and tier_b.crime else None,
+        crime_score=None,
+        crime_summary=None,
     )
 
     # Page 2: Detailed risk evidence
@@ -3930,7 +3906,7 @@ def _generate_full_dossier_fpdf(
         sunlight_score,
         risk_comparisons,
         is_nl,
-        tier_b_data=tier_b,
+        tier_b_data=None,
     )
 
     # Additional property checks + viewing questions
@@ -3954,8 +3930,8 @@ def _generate_full_dossier_fpdf(
         sunlight_score,
         viewing_questions,
         is_nl,
-        crime_score=crime_score,
-        tier_b_data=tier_b,
+        crime_score=None,
+        tier_b_data=None,
     )
 
     # Seasonal shadow evidence
@@ -3983,13 +3959,13 @@ def _generate_full_dossier_fpdf(
             line_height=4.2,
         )
 
-    # Neighborhood context, livability, and crime evidence
+    # Neighborhood context and livability evidence
     pdf.section_title = "BUURT" if is_nl else "NEIGHBORHOOD"
     pdf.add_page()
     _draw_neighborhood_page(
         pdf=pdf,
         stats=neighborhood_stats,
-        tier_b_data=tier_b,
+        tier_b_data=None,
         is_nl=is_nl,
         livability=livability,
         location_map_b64=location_map_b64,
@@ -5637,7 +5613,7 @@ def _draw_neighborhood_evidence_page(
     if shadow_images:
         _draw_shadow_triptych(pdf, shadow_images, is_nl)
     else:
-        pdf.draw_h1("Buurtbewijs" if is_nl else "Neighborhood Evidence", add_divider=False)
+        pdf.draw_h1("Bronnenoverzicht" if is_nl else "Neighborhood Evidence", add_divider=False)
         pdf.draw_tinted_box(
             text=(
                 "Zomer-schaduwbeelden niet beschikbaar voor deze export."
@@ -5663,7 +5639,6 @@ def _draw_neighborhood_evidence_page(
 
     sunlight_text, sunlight_source = _sunlight_evidence_text(risks, is_nl=is_nl)
     livability_text, livability_source = _livability_evidence_text(livability, is_nl=is_nl)
-    crime_text, crime_source = _crime_evidence_text(tier_b_data, is_nl=is_nl)
     cbs_text, cbs_source = _cbs_snapshot_text(neighborhood_stats, is_nl=is_nl)
 
     boxes = [
@@ -5682,12 +5657,6 @@ def _draw_neighborhood_evidence_page(
             livability_text,
             livability_source,
             "clear" if livability and livability.available else "attention",
-        ),
-        (
-            "Criminaliteit" if is_nl else "Crime Rate",
-            crime_text,
-            crime_source,
-            "attention",
         ),
         (
             "CBS-buurtsnapshot" if is_nl else "CBS Snapshot",
@@ -8936,11 +8905,6 @@ def _draw_methodology_page(
             "OGC API Features",
         ),
         (
-            "CBS",
-            "Criminaliteit" if is_nl else "Crime",
-            "OData v4 (47018NED)",
-        ),
-        (
             "Leefbaarometer",
             "Leefbaarheid" if is_nl else "Livability",
             "WFS 2.0",
@@ -9065,11 +9029,11 @@ def _draw_methodology_page(
     pdf.set_font("Satoshi", "", 10)
     limitations = (
         "Alle gegevens zijn indicatief en vervangen geen professionele "
-        "bouwinspectie. Criminaliteitscijfers zijn per gemeente, niet per straat. "
+        "bouwinspectie. "
         "Milieumetingen geven mogelijk geen micro-lokale omstandigheden weer."
         if is_nl
         else "All data is indicative and should not replace professional building "
-        "inspection. Crime data is per municipality, not per street. "
+        "inspection. "
         "Environmental measurements may not reflect micro-local conditions."
     )
     pdf.multi_cell(0, 5, limitations, align="L", new_x="LMARGIN", new_y="NEXT")

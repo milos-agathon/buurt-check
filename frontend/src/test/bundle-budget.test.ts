@@ -31,14 +31,28 @@ function isStandaloneRuntimeAsset(filePath: string): boolean {
   if (normalized.startsWith('__pycache__/') || normalized.endsWith('.py') || normalized.endsWith('.pyc')) {
     return true;
   }
+  if (normalized.startsWith('assets/vendor-sentry')) {
+    return true;
+  }
+  if (normalized.startsWith('images/showcase-') && normalized.endsWith('.webp')) {
+    return true;
+  }
   return normalized === 'privacy.html'
     || normalized === 'terms.html'
+    || normalized === 'landing.html'
+    || normalized === '404.html'
     || normalized === 'offline.html'
     || normalized === 'legal.css'
     || normalized === 'og-image.svg'
+    || normalized === 'og-image-en.svg'
     || normalized === 'og-image.png'
     || normalized === '.well-known/apple-app-site-association'
     || normalized === '.well-known/assetlinks.json';
+}
+
+function mainIndexChunkName(): string | undefined {
+  const html = readFileSync(resolve(distRoot, 'index.html'), 'utf-8');
+  return html.match(/src="\/assets\/(index-[^"]+\.js)"/)?.[1];
 }
 
 describe.skipIf(!hasDistDir)('Bundle budget', () => {
@@ -88,8 +102,7 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
   });
 
   it('main index chunk under 360KB', () => {
-    const files = readdirSync(distDir);
-    const indexChunk = files.find((f) => f.startsWith('index-') && f.endsWith('.js'));
+    const indexChunk = mainIndexChunkName();
     expect(indexChunk).toBeDefined();
     const size = statSync(resolve(distDir, indexChunk!)).size;
     expect(size).toBeLessThan(360 * 1024);

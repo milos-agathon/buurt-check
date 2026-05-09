@@ -105,7 +105,7 @@ export async function beginPlayBillingPurchase(reportId: string): Promise<PlayBi
     }],
     {
       total: {
-        label: details.title || 'Buurt Check Full Dossier',
+        label: details.title || 'Buurt Check Questions Pack',
         amount: {
           currency: details.price.currency,
           value: details.price.value,

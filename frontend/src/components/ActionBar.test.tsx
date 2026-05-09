@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import ActionBar from './ActionBar';
 import { setupTestI18n } from '../test/helpers';
@@ -183,5 +183,10 @@ describe('ActionBar', () => {
     const bar = getByTestId('action-bar');
     expect(bar.className).toBe('action-bar');
     expect(bar).not.toHaveAttribute('aria-hidden');
+  });
+
+  it('does not auto-open the bookmark tooltip over dossier content', () => {
+    renderActionBar({ showBookmarkTooltip: true });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });

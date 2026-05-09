@@ -60,7 +60,10 @@ describe('ShadowTimeSlider', () => {
   it('renders date preset buttons', () => {
     renderSlider(onChange);
     expect(screen.getByRole('button', { name: /winter/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Spring' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Spring \(/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /summer/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /today/i })).toBeInTheDocument();
   });
 
   it('renders time slider', () => {
@@ -84,7 +87,7 @@ describe('ShadowTimeSlider', () => {
     expect(parts.month).toBe(12);
   });
 
-  it('emits the equinox preset date (Mar 21)', () => {
+  it('emits the spring equinox preset date', () => {
     renderSlider(onChange);
     fireEvent.click(screen.getByRole('button', { name: /spring/i }));
 
@@ -162,7 +165,8 @@ describe('ShadowTimeSlider', () => {
 
   it('renders Dutch preset and control labels', () => {
     renderSlider(onChange, 'nl');
-    expect(screen.getByRole('button', { name: 'Lente (21 mrt)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lente' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Lente \(/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Vandaag' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Afspelen' })).toBeInTheDocument();
     expect(screen.getByRole('slider', { name: 'Schaduwtijd' })).toBeInTheDocument();

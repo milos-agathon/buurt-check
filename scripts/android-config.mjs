@@ -118,8 +118,8 @@ export function resolveAndroidConfig() {
     || 'nl.buurtcheck.app'
   ).trim()
   const serviceAccountJsonFile = (env.BUURT_GOOGLE_PLAY_SERVICE_ACCOUNT_FILE || '').trim()
-  const themeColor = manifest.theme_color || '#FAFBFC'
-  const backgroundColor = manifest.background_color || '#FAFBFC'
+  const themeColor = manifest.theme_color || '#F9FAFB'
+  const backgroundColor = manifest.background_color || '#F9FAFB'
 
   return {
     assetOrigin: assetOrigin.toString().replace(/\/$/, ''),
@@ -129,7 +129,7 @@ export function resolveAndroidConfig() {
     launcherName,
     packageId,
     versionCode,
-    versionName: (env.BUURT_ANDROID_VERSION_NAME || '1.0.0').trim(),
+    versionName: (env.BUURT_ANDROID_VERSION_NAME || '1.1.0').trim(),
     themeColor,
     backgroundColor,
     startUrl,

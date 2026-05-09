@@ -7,16 +7,16 @@
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(188, 201, 198, 0.72);
   border-radius: 18px;
-  background: rgba(9, 17, 26, 0.96);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 48px rgba(23, 29, 28, 0.12);
   backdrop-filter: blur(18px);
 }
 
 .landing-consent-banner__title {
   margin: 0;
-  color: #E2E7ED;
+  color: #171D1C;
   font-size: 16px;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -25,7 +25,7 @@
 .landing-consent-banner__body,
 .landing-consent-banner__note {
   margin: 0;
-  color: #B4C0CE;
+  color: #3D4947;
 }
 
 .landing-consent-banner__body {
@@ -55,27 +55,28 @@
 }
 
 .landing-consent-banner__button:focus-visible {
-  outline: 2px solid rgba(87, 212, 200, 0.48);
+  outline: 2px solid rgba(13, 148, 136, 0.42);
   outline-offset: 2px;
 }
 
 .landing-consent-banner__button--ghost {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.08);
-  color: #E2E7ED;
+  background: #F0F4F8;
+  border-color: #E2E8F0;
+  color: #171D1C;
 }
 
 .landing-consent-banner__button--ghost:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: #ECFDF5;
+  border-color: rgba(13, 148, 136, 0.24);
 }
 
 .landing-consent-banner__button--primary {
-  background: #2EC4B6;
-  color: #08141E;
+  background: #0D9488;
+  color: #FFFFFF;
 }
 
 .landing-consent-banner__button--primary:hover {
-  background: #57D4C8;
+  background: #00685F;
 }
 
 @media (min-width: 768px) {

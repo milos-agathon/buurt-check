@@ -42,9 +42,18 @@ CLAUDE.local.md
 
 # Tasks
 tasks/
+!specs/**/tasks/
+!specs/**/tasks/**
 docs/
 !docs/
 docs/*
+!docs/README.md
+!docs/plans/
+docs/plans/*
+!docs/plans/ui-scorecard-9-5-evidence.md
+!docs/work/
+!docs/work/**
+!docs/palette.md
 !docs/data/
 docs/data/*
 !docs/data/risk-benchmarks.md

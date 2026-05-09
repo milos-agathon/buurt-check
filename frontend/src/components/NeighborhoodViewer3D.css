@@ -1,11 +1,11 @@
 .viewer-3d {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
-  border-radius: calc(var(--radius-card) + 4px);
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
   padding: var(--space-lg);
   margin: var(--space-sm) 0;
   border: 1px solid var(--color-border);
   contain: content;
-  box-shadow: var(--elevation-1);
+  box-shadow: none;
 }
 
 .viewer-3d__title {
@@ -16,16 +16,13 @@
 .viewer-3d__canvas {
   position: relative;
   width: 100%;
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   overflow: hidden;
   margin-bottom: var(--space-md);
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 58%),
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-recessed) 88%, transparent), var(--color-surface-recessed));
-  height: 42vh;
-  min-height: 260px;
-  max-height: 420px;
-  border: 1px solid color-mix(in srgb, var(--color-border) 78%, transparent);
+  background: var(--color-surface-recessed);
+  min-height: 240px;
+  height: clamp(240px, 40vh, 360px);
+  border: 1px solid var(--color-border);
 }
 
 .viewer-3d__canvas:focus-visible {
@@ -35,15 +32,15 @@
 
 .viewer-3d__canvas canvas {
   display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .viewer-3d__canvas[data-state='loading']::before {
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.06) 38%, transparent 76%),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 60%);
+  background: rgba(255, 255, 255, 0.04);
   animation: viewer3d-sheen 2.4s linear infinite;
   z-index: 4;
 }
@@ -57,8 +54,7 @@
   justify-content: flex-end;
   gap: var(--space-xs);
   padding: var(--space-lg);
-  background:
-    linear-gradient(180deg, rgba(9, 19, 23, 0.12) 0%, rgba(9, 19, 23, 0.72) 100%);
+  background: rgba(9, 19, 23, 0.72);
 }
 
 .viewer-3d__loading-eyebrow {
@@ -94,7 +90,7 @@
   align-items: center;
   min-height: 30px;
   padding: 0 var(--space-sm);
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.76);
   font: var(--type-micro);
@@ -119,7 +115,7 @@
   min-height: 44px;
   width: 44px;
   height: 44px;
-  border-radius: 14px;
+  border-radius: var(--radius-button);
   border: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 88%, transparent);
   cursor: pointer;
@@ -153,16 +149,6 @@
   margin-top: var(--space-sm);
 }
 
-.viewer-3d__status-message {
-  margin: var(--space-sm) 0 0;
-  padding: var(--space-sm) var(--space-md);
-  font: var(--type-small);
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
-}
-
 .viewer-3d__error {
   position: absolute;
   left: var(--space-sm);
@@ -173,7 +159,7 @@
   flex-direction: column;
   gap: var(--space-xs);
   padding: var(--space-sm);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   border: 1px solid color-mix(in srgb, var(--color-warning) 22%, var(--color-border));
   border-left: 3px solid var(--color-warning);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
@@ -184,6 +170,11 @@
   margin: 0;
   font: var(--type-small);
   color: var(--color-badge-caution-text);
+}
+
+.viewer-3d__error-title {
+  font: var(--type-small);
+  color: var(--color-text);
 }
 
 .viewer-3d__retry {
@@ -230,10 +221,5 @@
 @media (min-width: 960px) {
   .viewer-3d {
     padding: var(--space-xl);
-  }
-
-  .viewer-3d__canvas {
-    height: 46vh;
-    max-height: 520px;
   }
 }

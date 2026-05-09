@@ -26,13 +26,13 @@ def twaManifest = [
     launchUrl: '/#/search', // The start path for the TWA. Must be relative to the domain.
     name: 'Buurt Check', // The application name.
     launcherName: 'Buurt Check', // The name shown on the Android Launcher.
-    themeColor: '#FAFBFC', // The color used for the status bar.
-    themeColorDark: '#FAFBFC', // The color used for the dark status bar.
-    navigationColor: '#FAFBFC', // The color used for the navigation bar.
-    navigationColorDark: '#FAFBFC', // The color used for the dark navbar.
+    themeColor: '#F9FAFB', // The color used for the status bar.
+    themeColorDark: '#F9FAFB', // The color used for the dark status bar.
+    navigationColor: '#F9FAFB', // The color used for the navigation bar.
+    navigationColorDark: '#F9FAFB', // The color used for the dark navbar.
     navigationDividerColor: '#000000', // The navbar divider color.
     navigationDividerColorDark: '#000000', // The dark navbar divider color.
-    backgroundColor: '#FAFBFC', // The color used for the splash screen background.
+    backgroundColor: '#F9FAFB', // The color used for the splash screen background.
     enableNotifications: true, // Set to true to enable notification delegation.
     // Every shortcut must include the following fields:
     // - name: String that will show up in the shortcut.
@@ -58,7 +58,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 35
         versionCode 1
-        versionName "1.0.0"
+        versionName "1.1.0"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name

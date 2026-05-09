@@ -43,7 +43,6 @@ After removing section 4, shift all `data-section-index` and `dossierSectionStyl
 - Section 5 (Livability) → 4
 - Section 6 (3D Viewer) → 5
 - Section 7 (NeighborhoodStats) → 6
-- Section 8 (TierB) → 7
 - Section 9 (ViewingChecklist) → 8
 - Section 10 (ActionBar) → 9
 
@@ -261,7 +260,6 @@ New expected order:
 const expected = [
   'attention', 'address-header', 'building', 'risk',
   'livability', 'viewer-3d',
-  'stats', 'tierb', 'checklist', 'actionbar',
 ];
 ```
 

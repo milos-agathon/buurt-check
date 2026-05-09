@@ -93,7 +93,7 @@ describe('CompareScreen', () => {
     expect(screen.getAllByText('C').length).toBeGreaterThan(0);
   });
 
-  it('renders 4 metric rows', () => {
+  it('renders compare metric rows without sunlight', () => {
     renderCompare([
       makeItem({ vboId: 'a' }),
       makeItem({ vboId: 'b' }),
@@ -101,7 +101,7 @@ describe('CompareScreen', () => {
     expect(screen.getAllByText('Noise').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Air').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Climate').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Sun').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Sun')).not.toBeInTheDocument();
   });
 
   it('renders a placeholder instead of a 0% score bar when a score is unavailable', () => {
@@ -110,7 +110,7 @@ describe('CompareScreen', () => {
       makeItem({ vboId: 'b', riskScores: { noise: 72, air: 60, climate: 70, sunlight: 50 } }),
     ]);
 
-    expect(screen.getAllByTestId('score-bar')).toHaveLength(7);
+    expect(screen.getAllByTestId('score-bar')).toHaveLength(5);
     expect(document.querySelector('.compare-screen__scorebar-placeholder')).toBeInTheDocument();
   });
 
@@ -120,6 +120,39 @@ describe('CompareScreen', () => {
       makeItem({ vboId: 'b', address: 'Address B' }),
     ]);
     expect(screen.getByTestId('parallel-coordinates')).toBeInTheDocument();
+  });
+
+  it('uses unresolved verification work for the summary when prebid snapshots are available', () => {
+    renderCompare([
+      makeItem({
+        vboId: 'a',
+        address: 'Address A',
+        riskScores: { noise: 90, air: 90, climate: 90, sunlight: 90 },
+        verificationWork: {
+          openActions: 4,
+          incompleteSources: 1,
+          needsReview: 0,
+          packStatus: 'data_incomplete',
+        },
+      }),
+      makeItem({
+        vboId: 'b',
+        address: 'Address B',
+        riskScores: { noise: 30, air: 30, climate: 30, sunlight: 30 },
+        verificationWork: {
+          openActions: 1,
+          incompleteSources: 0,
+          needsReview: 0,
+          packStatus: 'ready',
+        },
+      }),
+    ]);
+
+    expect(screen.getAllByText('Address A').length).toBeGreaterThan(0);
+    expect(screen.getByText('6 unresolved checks')).toBeInTheDocument();
+    expect(screen.getByText('1 unresolved check')).toBeInTheDocument();
+    const rows = screen.getByTestId('compare-summary').querySelectorAll('.compare-screen__summary-row');
+    expect(rows[1].classList.contains('compare-screen__summary-row--leader')).toBe(true);
   });
 
   it('highlights best/worst when spread > 15', () => {
@@ -180,8 +213,10 @@ describe('CompareScreen', () => {
     fireEvent.click(screen.getByText('Differences only'));
     // Climate has 30-point spread (visible), others are 0 (hidden)
     expect(screen.getAllByText('Climate').length).toBeGreaterThan(0);
-    // Noise, Air, Sun should be filtered out
+    // Noise and Air should be filtered out; Sun is not part of compare.
     expect(screen.queryByText('Noise')).not.toBeInTheDocument();
+    expect(screen.queryByText('Air')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sun')).not.toBeInTheDocument();
   });
 
   it('shows filter hint when differences-only is active', () => {
@@ -234,9 +269,9 @@ describe('CompareScreen', () => {
         makeItem({ vboId: 'a', address: 'Address A', riskScores: { noise: 80, air: 70, climate: 90, sunlight: 50 } }),
         makeItem({ vboId: 'b', address: 'Address B', riskScores: { noise: 40, air: 60, climate: 50, sunlight: 60 } }),
       ]);
-      // Address A wins noise, air, climate (3). Address B wins sunlight (1).
+      // Address A wins noise, air, and climate. Sunlight is not part of compare.
       expect(screen.getByText('3 category wins')).toBeInTheDocument();
-      expect(screen.getByText('1 category win')).toBeInTheDocument();
+      expect(screen.queryByText('1 category win')).not.toBeInTheDocument();
     });
 
     it('highlights the leader row with leader class', () => {
@@ -267,7 +302,18 @@ describe('CompareScreen', () => {
         makeItem({ vboId: 'a', address: 'Address A', riskScores: { noise: 80, air: 40, climate: 70, sunlight: 30 } }),
         makeItem({ vboId: 'b', address: 'Address B', riskScores: { noise: 40, air: 80, climate: 30, sunlight: 70 } }),
       ]);
-      // Each address wins 2 categories — tied overall
+      // Address A wins noise and climate; Address B wins air. Sunlight is not part of compare.
+      expect(screen.queryByText('Tied overall')).not.toBeInTheDocument();
+      expect(screen.getByText('2 category wins')).toBeInTheDocument();
+      expect(screen.getByText('1 category win')).toBeInTheDocument();
+    });
+
+    it('shows tie message when compare win counts are equal without sunlight', () => {
+      renderCompare([
+        makeItem({ vboId: 'a', address: 'Address A', riskScores: { noise: 80, air: 40, climate: 50, sunlight: 30 } }),
+        makeItem({ vboId: 'b', address: 'Address B', riskScores: { noise: 40, air: 80, climate: 50, sunlight: 70 } }),
+      ]);
+      // Each address wins one compare category; sunlight is ignored.
       expect(screen.getByText('Tied overall')).toBeInTheDocument();
     });
 
@@ -277,13 +323,10 @@ describe('CompareScreen', () => {
         makeItem({ vboId: 'b', address: 'Address B', riskScores: { noise: 30, air: 90, climate: 30, sunlight: 30 } }),
         makeItem({ vboId: 'c', address: 'Address C', riskScores: { noise: 30, air: 30, climate: 90, sunlight: 90 } }),
       ]);
-      // A wins noise (1), B wins air (1), C wins climate + sunlight (2). C leads.
+      // A wins noise, B wins air, C wins climate. Sunlight is not part of compare, so this ties.
+      expect(screen.getByText('Tied overall')).toBeInTheDocument();
       const rows = screen.getByTestId('compare-summary').querySelectorAll('.compare-screen__summary-row');
-      expect(rows).toHaveLength(3);
-      // C (index 2) should be the leader
-      expect(rows[2].classList.contains('compare-screen__summary-row--leader')).toBe(true);
-      expect(rows[0].classList.contains('compare-screen__summary-row--leader')).toBe(false);
-      expect(rows[1].classList.contains('compare-screen__summary-row--leader')).toBe(false);
+      expect(rows).toHaveLength(0);
     });
 
     it('does not count a metric win if scores are tied on that metric', () => {

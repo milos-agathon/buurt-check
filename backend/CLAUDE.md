@@ -33,7 +33,6 @@ ruff check . && ruff format .               # MUST pass before commit
 | `GET /{vbo_id}/wms-tile?source=&rd_x=&rd_y=&radius=` | WMS tile proxy (PNG) |
 | `GET /{vbo_id}/viewing-questions` | Bilingual viewing questions |
 | `GET /{vbo_id}/risk-comparisons` | Urbanization-stratified baselines |
-| `GET /{vbo_id}/tier-b?buurt_code=` | Crime context |
 | `GET /{vbo_id}/property-warnings` | Foundation, erfpacht, VvE, asbestos |
 | `GET /{vbo_id}/livability?rd_x=&rd_y=` | Leefbaarometer scores + trend |
 | `POST /{vbo_id}/export` | PDF export (`quick_brief` free, `full_dossier` paid) |
@@ -42,7 +41,6 @@ ruff check . && ruff format .               # MUST pass before commit
 ## Conventions
 
 - **Service pattern**: Cache check → external API call → parse → cache on success → return. Never cache empty/error
-- **Cache TTLs**: BAG 24h, risks 7d (conditional), CBS/livability/warnings 30d, WMS tiles 24h, tier-B 7d
 - **Config**: All URLs in `config.py` as pydantic-settings fields. Env prefix: `BUURT_`
 - **Coordinates**: EPSG:28992 everywhere. BAG IDs: 16 digits (`^[0-9]{16}$`)
 - **Error handling**: Log + return graceful degradation. Warning codes (`NOISE_NO_VALUE`, `AIR_PARTIAL`, etc.)
@@ -50,7 +48,6 @@ ruff check . && ruff format .               # MUST pass before commit
 - **httpx mock in tests**: `AsyncMock` for client, `MagicMock` for response (`.json()` is sync)
 - **Pydantic v2**: Use `Field(default_factory=list)` for list defaults, never bare `= []`
 - **Feature flags**: `BUURT_ENABLE_LOD22_ROOFS` etc. Toggle requires cache invalidation
-- **CBS crime normalization**: per-1,000 residents (`raw / population * 1000`). Population can be suppressed (`-99995`) → `CRIME_NO_POPULATION`
 - **SQLite access**: use `aiosqlite` via `get_db()` context manager; DB runs in WAL mode for concurrent reads
 - **Entitlement scope**: document and implement purchases as `buyer_key + vbo_id`, issued via server-managed httpOnly cookie. `report_id` may reference the export snapshot, but must not be treated as a bearer token by itself
 - **Server-side gating**: the current product contract requires entitlement checks for `full_dossier` export/download. Do not add new viewer paywalls as a product default
@@ -99,7 +96,6 @@ ruff check . && ruff format .               # MUST pass before commit
 - **HTTPException outside aiosqlite.Error try blocks**: broadening except clauses later would silently convert 404->503. Structure: separate try/except per DB call with logic between them
 - **Severity delegates to canonical function**: PDF export _severity_for_score delegates to scoring.py severity_from_score. Never re-implement the 70/40/20 thresholds
 - **Duplicated code extracted**: _RISK_FAILURE_MESSAGES (frozenset), _property_warnings_cache_key() (helper), both extracted from two inline copies in address.py
-- **CancelledError handling**: catch BaseException, not just Exception, for asyncio.CancelledError in gather callbacks (e.g., crime stats pop_task)
 - **SlowAPI decorator order depends on response: Response param**: @limiter.limit as outer when no Response param, inner when Response is present. Two valid patterns exist -- do not blindly standardize
 - **limiter.reset() in test fixtures**: prevents cross-test rate limit pollution for rate-limited endpoints
 - **patch.object(settings, field, value) is sufficient** for pydantic-settings singleton patching -- no ExitStack needed
@@ -108,7 +104,7 @@ ruff check . && ruff format .               # MUST pass before commit
 ## Session Learnings (2026-03-03)
 
 - **Silent PDF section omission violates graceful degradation**: PDF sections guarded with `if data is not None and data.available` silently disappear. Every section must have an explicit "unavailable" fallback (bilingual message)
-- **WCAG contrast for chart accent dark**: `C_ACCENT_DARK` was `#1C8C83` (4.09:1 on white, fails AA). Changed to `#187E76` (4.90:1, passes). Always verify chart text colors against actual backgrounds
+- **WCAG contrast for chart accent dark**: `C_ACCENT_DARK` follows the canonical `#00685F` teal text role. Always verify chart text colors against actual backgrounds.
 - **`skipif` must test actual capability**: `shutil.which('lualatex')` passes when binary exists but can't compile (missing fonts). Use robust probe that compiles a minimal document
 - **`hasattr()` guard before attribute-based `skipif`**: `@pytest.mark.skipif(mod.attr is None, ...)` causes collection-time `AttributeError`. Use `not hasattr(mod, 'attr') or mod.attr is None`
 - **Monkeypatch target must match import site**: Patching `pdf_export.render_chart_assets_parallel` when function lives in `latex_env.py` silently does nothing
@@ -146,11 +142,8 @@ ruff check . && ruff format .               # MUST pass before commit
 ## Session Learnings (2026-03-06) — P2 Dossier Audit Fixes
 
 - **PDOK BRT to Luchtfoto migration**: `_fetch_location_map()` now uses `settings.luchtfoto_wms_base` with layer `Actueel_orthoHR` (JPEG). BRT `standaard` layer endpoint retired. Attribution: "PDOK Luchtfoto (CC BY 4.0)"
-- **Crime score threading pattern**: `crime_score = tier_b.crime.score if tier_b and tier_b.crime else None` — extract once at top of generator, pass to all downstream functions (`_generate_executive_summary`, `_build_risk_cells`, `_draw_cover_page`, `_draw_checklist_page`, livability chart). Prevents silent omission
 - **Viewing questions bifurcation**: `_should_include(score)` for flagged categories (score < 70), `_is_good(score)` for confirmation questions (score >= 70). Both generate `QuestionCategory` entries with appropriate severity
-- **Risk grid dynamic columns**: `grid_cols = 5 if len(cells) == 5 else 4` — accommodates variable crime data presence in risk summary strip
 - **None-safe bar chart rendering**: `min(value or 0, 100)` for `fill_w` + `str(value) if value is not None else "—"` for score display. Missing guards cause TypeError on None values
-- **Crime-only lollipop chart as graceful degradation**: When livability data unavailable but crime data exists, render crime-only chart (livability=None, crime=score) instead of nothing
 
 ## Session Learnings (2026-03-07) — P2 Dossier Implementation (PR #20)
 

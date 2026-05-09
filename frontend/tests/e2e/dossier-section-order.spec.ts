@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { installMockAddressFlow } from './helpers/mockApi';
 
 /**
  * E2E integration test: dossier section order (v7 canonical).
@@ -7,9 +8,8 @@ import { expect, test } from '@playwright/test';
  * This test uses real rendered components against the live backend.
  *
  * v7 canonical order:
- *   AttentionSummary → AddressHeader → RiskTiles → BuildingFacts →
- *   Livability → 3D Viewer → NeighborhoodStats → TierB →
- *   ViewingChecklist → ActionBar
+ *   AttentionSummary → combined AddressHeader/BuildingFacts → RiskTiles →
+ *   Livability → 3D Viewer → NeighborhoodStats → ViewingChecklist → ActionBar
  *
  * Not all sections may render (3D/sunlight depend on 3DBAG availability).
  * The test verifies that whichever sections DO appear maintain correct
@@ -22,18 +22,22 @@ import { expect, test } from '@playwright/test';
 // Map from selector to canonical position index
 const CANONICAL_ORDER: { selector: string; name: string }[] = [
   { selector: '[data-testid="attention-summary"]', name: 'AttentionSummary' },
-  { selector: '[data-testid="address-header"]', name: 'AddressHeader' },
-  { selector: '.risk-tiles-grid', name: 'RiskTiles' },
   { selector: '.building-card', name: 'BuildingFacts' },
+  { selector: '.risk-tiles-grid', name: 'RiskTiles' },
   { selector: '[data-testid="livability-card"]', name: 'LivabilityCard' },
   { selector: '.viewer-3d', name: '3DViewer' },
   { selector: '.neighborhood-card', name: 'NeighborhoodStats' },
-  { selector: '[data-testid="tier-b-card"]', name: 'TierBSignals' },
   { selector: '[data-testid="viewing-checklist"]', name: 'ViewingChecklist' },
   { selector: '[data-testid="action-bar"]', name: 'ActionBar' },
 ];
 
-test('dossier sections render in v7 canonical order with real components', async ({ page }) => {
+test.use({
+  viewport: { width: 390, height: 844 },
+  colorScheme: 'light',
+});
+
+test('[dossier] canonical-order 390x844 en light', async ({ page }) => {
+  await installMockAddressFlow(page);
   await page.goto('/');
 
   // Select an address
@@ -45,7 +49,7 @@ test('dossier sections render in v7 canonical order with real components', async
   await expect(page.locator('.building-card').first()).toBeVisible({ timeout: 30000 });
 
   // Give additional time for async sections to stream in
-  // (risk cards, neighborhood stats, tier-b, property warnings, livability)
+  // (risk cards, neighborhood stats, property warnings, livability)
   await page.waitForTimeout(5000);
 
   // Find the dossier sheet container
@@ -65,7 +69,7 @@ test('dossier sections render in v7 canonical order with real components', async
   }
 
   // Must have at least 5 sections rendered to make a meaningful order assertion
-  // (AddressHeader, BuildingFacts, and a few async sections)
+  // (combined AddressHeader/BuildingFacts, and a few async sections)
   expect(presentSections.length).toBeGreaterThanOrEqual(5);
 
   // Verify sections are in canonical order by checking DOM tree order

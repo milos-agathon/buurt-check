@@ -47,9 +47,15 @@ export default function TopBar({ title, onSettingsClick, inert, activeScreen }: 
       {isLogo ? (
         <a className="top-bar__logo" href="/" aria-label={t('aria.home')}>
           <img
-            src="/logos/buurt-check-lockup-horizontal-reverse.svg"
+            src="/logos/buurt-check-lockup-horizontal.svg"
             alt="Buurt Check"
-            className="top-bar__logo-img"
+            className="top-bar__logo-img top-bar__logo-img--light"
+          />
+          <img
+            src="/logos/buurt-check-lockup-horizontal-reverse.svg"
+            alt=""
+            aria-hidden="true"
+            className="top-bar__logo-img top-bar__logo-img--dark"
           />
         </a>
       ) : (
@@ -66,6 +72,7 @@ export default function TopBar({ title, onSettingsClick, inert, activeScreen }: 
           >
             NL
           </button>
+          <span className="top-bar__lang-separator" aria-hidden="true">/</span>
           <button
             type="button"
             role="radio"

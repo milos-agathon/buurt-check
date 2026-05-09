@@ -12,7 +12,7 @@ interface Props {
   onSearchAddress: () => void;
 }
 
-type MetricKey = 'noise' | 'air' | 'climate' | 'sunlight';
+type MetricKey = 'noise' | 'air' | 'climate';
 
 const DIFFERENCE_THRESHOLD = 15;
 
@@ -20,7 +20,6 @@ const METRICS: { key: MetricKey; labelKey: string }[] = [
   { key: 'noise', labelKey: 'risk.noise.tileLabel' },
   { key: 'air', labelKey: 'risk.air.tileLabel' },
   { key: 'climate', labelKey: 'risk.climate.tileLabel' },
-  { key: 'sunlight', labelKey: 'risk.sunlight.tileLabel' },
 ];
 
 function severityFromScore(score: number | undefined): SeverityLevel {
@@ -31,6 +30,19 @@ function severityFromScore(score: number | undefined): SeverityLevel {
   return 'critical';
 }
 
+function unresolvedWorkCount(item: ShortlistItem): number {
+  const work = item.verificationWork;
+  if (!work) return 0;
+  const packPenalty = work.packStatus === 'queued_for_review' || work.packStatus === 'review_required'
+    ? 2
+    : 0;
+  return work.openActions + (work.incompleteSources * 2) + (work.needsReview * 3) + packPenalty;
+}
+
+function formatUnresolvedWork(count: number): string {
+  return `${count} ${count === 1 ? 'unresolved check' : 'unresolved checks'}`;
+}
+
 export default function CompareScreen({ items, onBack, onSearchAddress }: Props) {
   const { t } = useTranslation();
   const [differencesOnly, setDifferencesOnly] = useState(false);
@@ -38,18 +50,30 @@ export default function CompareScreen({ items, onBack, onSearchAddress }: Props)
   const columnsRef = useRef<HTMLDivElement>(null);
 
   // Compute category wins for each address
+  const hasVerificationWork = items.some((item) => item.verificationWork);
   const winCounts = items.map(() => 0);
-  for (const metric of METRICS) {
-    const scores = items.map(i => i.riskScores[metric.key]);
-    const valid = scores.filter((s): s is number => s != null);
-    if (valid.length < 2) continue;
-    const best = Math.max(...valid);
-    // Only count a win if exactly one address has the best score (no ties on this metric)
-    const bestIndices = scores
-      .map((s, i) => (s === best ? i : -1))
-      .filter(i => i >= 0);
+  const unresolvedCounts = items.map(unresolvedWorkCount);
+  if (hasVerificationWork) {
+    const best = Math.min(...unresolvedCounts);
+    const bestIndices = unresolvedCounts
+      .map((count, index) => (count === best ? index : -1))
+      .filter(index => index >= 0);
     if (bestIndices.length === 1) {
-      winCounts[bestIndices[0]]++;
+      winCounts[bestIndices[0]] = 1;
+    }
+  } else {
+    for (const metric of METRICS) {
+      const scores = items.map(i => i.riskScores[metric.key]);
+      const valid = scores.filter((s): s is number => s != null);
+      if (valid.length < 2) continue;
+      const best = Math.max(...valid);
+      // Only count a win if exactly one address has the best score (no ties on this metric)
+      const bestIndices = scores
+        .map((s, i) => (s === best ? i : -1))
+        .filter(i => i >= 0);
+      if (bestIndices.length === 1) {
+        winCounts[bestIndices[0]]++;
+      }
     }
   }
 
@@ -203,12 +227,18 @@ export default function CompareScreen({ items, onBack, onSearchAddress }: Props)
             >
               <span className="compare-screen__summary-address">{item.address}</span>
               <span className="compare-screen__summary-wins">
-                {t('compare.summary.wins', { count: winCounts[idx] })}
+                {hasVerificationWork
+                  ? formatUnresolvedWork(unresolvedCounts[idx])
+                  : t('compare.summary.wins', { count: winCounts[idx] })}
               </span>
             </div>
           ))
         )}
-        <p className="compare-screen__summary-caveat">{t('compare.summary.caveat')}</p>
+        <p className="compare-screen__summary-caveat">
+          {hasVerificationWork
+            ? 'Based on unresolved verification work. Lower is easier to clear before viewing or bidding.'
+            : t('compare.summary.caveat')}
+        </p>
       </section>
 
       {chartAxes.length >= 2 && (

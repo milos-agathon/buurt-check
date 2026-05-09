@@ -44,7 +44,6 @@ Authority order applied:
 
 7. Dossier section ordering — "house first, buurt second" (2026-02-22)
 - Source conflict: spec places 3D viewer immediately after summary strip; implementation places it at position 9 of 14. Both result in two maps on screen at once or the 3D viewer being buried.
-- Decision (A-8): New ordering principle. House-level sections (building facts, risk tiles, property warnings, soil) precede neighborhood sections (livability, 3D viewer, sunlight, stats, tier B). ViewingChecklist and ActionBar close the dossier.
 - Applied updates: `docs/design-spec.md` section 3.1, `docs/design-prd.md` sections 3.3 + 4.3.2, `docs/ui-principles.md` section 2, `docs/alignment-decisions.md` A-8.
 
 8. 3D viewer sizing and camera framing (2026-02-22)

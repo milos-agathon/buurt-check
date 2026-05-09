@@ -29,7 +29,7 @@
   height: 44px;
   background: none;
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-button);
   cursor: pointer;
   color: var(--color-text);
 }
@@ -68,6 +68,7 @@
 .livability-detail__score {
   font: var(--type-score-large);
   color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .livability-detail__score-band {
@@ -110,6 +111,7 @@
 /* Dimension bars */
 .livability-detail__dimensions {
   background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: var(--space-base);
 }
@@ -186,6 +188,7 @@
   font: var(--type-small);
   font-weight: 600;
   color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Trend chart */
@@ -195,6 +198,7 @@
   gap: var(--space-xs);
   height: 160px;
   background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: var(--space-base);
 }
@@ -218,7 +222,7 @@
   width: 100%;
   border-radius: 4px 4px 0 0;
   min-height: 4px;
-  background: linear-gradient(180deg, var(--color-accent) 0%, var(--color-accent-text) 100%);
+  background: var(--color-accent-text);
   transform-origin: bottom;
   animation: livability-bar-grow var(--duration-emphasis) var(--ease-out-expo) both;
 }
@@ -293,12 +297,13 @@
   flex: 1;
   border-radius: 2px 2px 0 0;
   min-height: 2px;
-  background: linear-gradient(180deg, var(--color-accent) 0%, var(--color-accent-text) 100%);
+  background: var(--color-accent-text);
 }
 
 /* Comparison bars */
 .livability-detail__comparisons {
   background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: var(--space-base);
 }
@@ -362,6 +367,7 @@
   font: var(--type-small);
   font-weight: 600;
   color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .livability-detail__legend {

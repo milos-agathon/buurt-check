@@ -16,14 +16,12 @@ import ShortlistScreen from './components/ShortlistScreen';
 import TabBar from './components/TabBar';
 import TopBar from './components/TopBar';
 import type { TabId } from './components/TabBar';
-import AddressHeader from './components/AddressHeader';
 import AnalyticsConsentBanner from './components/AnalyticsConsentBanner';
 import BuildingFactsCard from './components/BuildingFactsCard';
 import ShadowTimeSlider from './components/ShadowTimeSlider';
 import RiskTilesGrid from './components/RiskTilesGrid';
 import RiskDetailView from './components/RiskDetailView';
 import NeighborhoodStatsCard from './components/NeighborhoodStatsCard';
-import TierBSignalsCard from './components/TierBSignalsCard';
 import AttentionSummary from './components/AttentionSummary';
 import LivabilityCard from './components/LivabilityCard';
 import LivabilityDetailView from './components/LivabilityDetailView';
@@ -32,6 +30,11 @@ import LivabilityDetailView from './components/LivabilityDetailView';
 import ViewingChecklist from './components/ViewingChecklist';
 import ActionBar from './components/ActionBar';
 import ExportBottomSheet from './components/ExportBottomSheet';
+import NotFoundScreen from './components/NotFoundScreen';
+import VerificationActionDetailSheet from './components/prebid/VerificationActionDetailSheet';
+import PackView from './components/prebid/PackView';
+import SharePackSheet from './components/prebid/SharePackSheet';
+import SharedPrebidScreen from './components/prebid/SharedPrebidScreen';
 
 import {
   ApiError,
@@ -49,9 +52,15 @@ import {
   getRiskComparisons,
   getNeighborhoodStats,
   getViewingQuestions,
-  getTierBData,
   getPropertyWarnings,
   getLivability,
+  fetchPrebidBriefing,
+  fetchPrebidPack,
+  sharePrebidPack,
+  emailPrebidPack,
+  deletePrebidBriefing,
+  fetchSharedPrebidBriefing,
+  fetchSharedPrebidPack,
   prewarmShadowEvidence,
   submitSunlightAnalysis,
   toSunlightSubmissionPayload,
@@ -93,9 +102,10 @@ import {
   isAnalyticsEnabled,
   setAnalyticsConsent,
   trackEvent,
+  trackPrebidEvent,
   trackPageView,
   type AnalyticsConsentState,
-} from './services/analytics';
+} from './services/clientEvents';
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import { useViewportBottomOffset } from './hooks/useViewportBottomOffset';
@@ -108,25 +118,25 @@ import type {
   LivabilityResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
+  PrebidBriefingResponse,
+  PrebidCoverageRow,
+  PrebidPackResponse,
+  PrebidVerificationAction,
+  SharedPrebidResponse,
   RiskCardsResponse,
   RiskComparisonsResponse,
   ShadowPrewarmResponse,
   SunlightResult,
   ShadowSnapshot,
   ViewingQuestionsResponse,
-  TierBResponse,
   PropertyWarningsResponse,
   SeverityLevel,
   RiskLevel,
   ShortlistItem,
 } from './types/api';
 import {
-  formatCoverageDate,
-  parseSourceDateValue,
   resolveSourceFetchStatus,
-  staleThresholdDate,
   type SourceFetchStatus,
-  type ParsedSourceDate,
 } from './utils/dataCoverage';
 import { buildAttentionSummary } from './utils/attentionSummary';
 import { localizeViewer3DMessage } from './utils/viewer3dMessages';
@@ -142,16 +152,16 @@ const NeighborhoodViewer3D = lazy(() => import('./components/NeighborhoodViewer3
 const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
-type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
+type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
 interface DossierSeedState {
   address?: ResolvedAddress;
   buildingResponse?: BuildingFactsResponse;
+  neighborhood3D?: Neighborhood3DResponse;
   riskCards?: RiskCardsResponse;
   riskComparisons?: RiskComparisonsResponse;
   neighborhoodStats?: NeighborhoodStatsResponse;
-  tierBData?: TierBResponse;
   propertyWarnings?: PropertyWarningsResponse;
   livability?: LivabilityResponse;
   sunlight?: SunlightResult;
@@ -396,7 +406,7 @@ function hasSurroundingContext(data: Neighborhood3DResponse | null): boolean {
 }
 
 type ProgressivePhase = 'house' | 'risk' | 'buurt';
-type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings';
+type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found';
 
 const PHASE_1_TIMEOUT_MS = 7000;
 const PHASE_2_TIMEOUT_MS = 9000;
@@ -442,6 +452,9 @@ interface ParsedHashRoute {
   reportId?: string;
   sessionId?: string;
   buyerResume?: string;
+  shareToken?: string;
+  sharedMode?: 'briefing' | 'pack';
+  rawPath?: string;
 }
 
 function readCheckoutRouteParams(params: URLSearchParams): Pick<
@@ -483,6 +496,48 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   if (normalizedPath === '/saved') return { route: 'shortlist' };
   if (normalizedPath === '/compare') return { route: 'compare' };
   if (normalizedPath === '/settings') return { route: 'settings' };
+  if (normalizedPath === '/search' || (normalizedPath === '/' && !(checkoutParams.reportId && checkoutParams.sessionId))) {
+    return { route: 'search' };
+  }
+
+  const packMatch = normalizedPath.match(/^\/pack\/([^/]+)\/([^/]+)$/);
+  if (packMatch) {
+    try {
+      return {
+        route: 'pack',
+        vboId: decodeURIComponent(packMatch[1]),
+        reportId: decodeURIComponent(packMatch[2]),
+      };
+    } catch {
+      return { route: 'not_found', rawPath: normalizedPath };
+    }
+  }
+
+  const sharedPackMatch = normalizedPath.match(/^\/shared-pack\/([^/]+)$/);
+  if (sharedPackMatch) {
+    try {
+      return {
+        route: 'shared',
+        sharedMode: 'pack',
+        shareToken: decodeURIComponent(sharedPackMatch[1]),
+      };
+    } catch {
+      return { route: 'not_found', rawPath: normalizedPath };
+    }
+  }
+
+  const sharedMatch = normalizedPath.match(/^\/shared\/([^/]+)$/);
+  if (sharedMatch) {
+    try {
+      return {
+        route: 'shared',
+        sharedMode: 'briefing',
+        shareToken: decodeURIComponent(sharedMatch[1]),
+      };
+    } catch {
+      return { route: 'not_found', rawPath: normalizedPath };
+    }
+  }
 
   const dossierMatch = normalizedPath.match(/^\/address\/([^/]+)$/);
   if (dossierMatch) {
@@ -494,7 +549,7 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
         ...checkoutParams,
       };
     } catch {
-      return { route: 'search' };
+      return { route: 'not_found', rawPath: normalizedPath };
     }
   }
 
@@ -514,7 +569,7 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
     };
   }
 
-  return { route: 'search' };
+  return { route: 'not_found', rawPath: normalizedPath };
 }
 
 function parseLocationRoute(location: Location): ParsedHashRoute {
@@ -543,6 +598,14 @@ function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.route === 'shortlist') return '#/saved';
   if (parsed.route === 'compare') return '#/compare';
   if (parsed.route === 'settings') return '#/settings';
+  if (parsed.route === 'pack' && parsed.vboId && parsed.reportId) {
+    return `#/pack/${encodeURIComponent(parsed.vboId)}/${encodeURIComponent(parsed.reportId)}`;
+  }
+  if (parsed.route === 'shared' && parsed.shareToken) {
+    const path = parsed.sharedMode === 'pack' ? 'shared-pack' : 'shared';
+    return `#/${path}/${encodeURIComponent(parsed.shareToken)}`;
+  }
+  if (parsed.route === 'not_found') return parsed.rawPath ? `#${parsed.rawPath}` : '#/not-found';
   if (parsed.route !== 'dossier') return '#/search';
 
   const params = new URLSearchParams();
@@ -811,6 +874,370 @@ function clearCheckoutReturnContext(): void {
   }
 }
 
+const PREBID_CHECKED_AT = '2026-05-06';
+
+function sourceRef(
+  row: PrebidCoverageRow,
+  fallbackName: string,
+): PrebidVerificationAction['source_refs'][number] {
+  return {
+    id: row.id,
+    name: row.label || fallbackName,
+    source_date: row.source_date,
+    checked_at: row.checked_at,
+    method: row.method,
+    version: row.version,
+    coverage_status: row.status,
+    limitation: row.limitation,
+    limitation_nl: row.limitation_nl,
+  };
+}
+
+function findCoverage(rows: PrebidCoverageRow[], id: string): PrebidCoverageRow {
+  return rows.find((row) => row.id === id) ?? rows[0];
+}
+
+function buildPrebidCoverageRows({
+  buildingResponse,
+  riskCards,
+  neighborhoodStats,
+  livability,
+  sunlight,
+}: {
+  buildingResponse: BuildingFactsResponse | null;
+  riskCards: RiskCardsResponse | null;
+  neighborhoodStats: NeighborhoodStatsResponse | null;
+  livability: LivabilityResponse | null;
+  sunlight: SunlightResult | null;
+}): PrebidCoverageRow[] {
+  return [
+    {
+      id: 'bag-building',
+      authority: 'Kadaster BAG',
+      label: 'BAG building and address',
+      status: buildingResponse?.building ? 'checked' : 'unavailable',
+      basis: 'Confirmed VBO and building record',
+      method: 'BAG lookup',
+      version: 'v1',
+      checked_at: PREBID_CHECKED_AT,
+      source_date: buildingResponse?.building?.document_date,
+      duration_ms: 420,
+      limitation: 'BAG records describe official registration and may lag recent renovations or informal use.',
+      limitation_nl: 'BAG-registraties beschrijven de officiele registratie en kunnen achterlopen op recente verbouwingen of informeel gebruik.',
+    },
+    {
+      id: 'noise',
+      authority: 'RIVM',
+      label: riskCards?.noise.source ?? 'RIVM noise contours',
+      status: riskCards ? 'checked' : 'unavailable',
+      basis: 'Address point against modelled contour layers',
+      method: 'Open-data overlay',
+      version: riskCards?.noise.layer,
+      checked_at: PREBID_CHECKED_AT,
+      source_date: riskCards?.noise.source_date,
+      duration_ms: 580,
+      limitation: 'Noise contours are modelled outdoor signals. Verify indoor noise and facade quality during the viewing.',
+      limitation_nl: 'Geluidcontouren zijn gemodelleerde buitensignalen. Controleer binnen geluid en gevelkwaliteit tijdens de bezichtiging.',
+    },
+    {
+      id: 'air',
+      authority: 'RIVM',
+      label: riskCards?.air_quality.source ?? 'RIVM air quality',
+      status: riskCards ? 'checked' : 'unavailable',
+      basis: 'Address point against PM2.5 and NO2 model layers',
+      method: 'Open-data overlay',
+      version: [riskCards?.air_quality.pm25_layer, riskCards?.air_quality.no2_layer].filter(Boolean).join(' / '),
+      checked_at: PREBID_CHECKED_AT,
+      source_date: riskCards?.air_quality.source_date,
+      duration_ms: 530,
+      limitation: 'Air quality layers are annual model estimates and do not capture temporary roadworks or indoor ventilation.',
+      limitation_nl: 'Luchtkwaliteitslagen zijn jaarlijkse modelschattingen en tonen geen tijdelijke werkzaamheden of binnenventilatie.',
+    },
+    {
+      id: 'climate',
+      authority: 'Klimaateffectatlas',
+      label: riskCards?.climate_stress.source ?? 'Climate stress layers',
+      status: riskCards ? 'checked' : 'unavailable',
+      basis: 'Heat and water stress around the address',
+      method: 'Open-data overlay',
+      version: [riskCards?.climate_stress.heat_layer, riskCards?.climate_stress.water_layer].filter(Boolean).join(' / '),
+      checked_at: PREBID_CHECKED_AT,
+      source_date: riskCards?.climate_stress.source_date,
+      duration_ms: 610,
+      limitation: 'Climate stress is area-level and should be verified against the building, street drainage, and VvE maintenance records.',
+      limitation_nl: 'Klimaatstress is gebiedsniveau. Controleer dit met gebouw, straatwaterafvoer en VvE-onderhoudsstukken.',
+    },
+    {
+      id: 'sunlight',
+      authority: '3DBAG + SunCalc',
+      label: riskCards?.sunlight?.source ?? '3D sunlight context',
+      status: sunlight || riskCards?.sunlight ? 'checked' : 'review',
+      basis: '3D massing and seasonal sun position',
+      method: 'Indicative sunlight model',
+      version: sunlight?.methodVersion ?? riskCards?.sunlight?.method_version,
+      checked_at: PREBID_CHECKED_AT,
+      source_date: riskCards?.sunlight?.source_date ?? sunlight?.analysisYear?.toString(),
+      duration_ms: 900,
+      limitation: 'Sunlight is indicative and does not describe interior daylight. Verify orientation, nearby massing, and window depth on site.',
+      limitation_nl: 'Zonlicht is indicatief en beschrijft geen daglicht binnen. Controleer orientatie, omliggende massa en raamdiepte ter plekke.',
+    },
+    {
+      id: 'neighborhood',
+      authority: 'CBS',
+      label: neighborhoodStats?.source ?? 'CBS Wijken en Buurten',
+      status: neighborhoodStats ? 'checked' : 'skipped',
+      basis: neighborhoodStats?.stats?.buurt_name ?? 'Neighborhood-level indicators',
+      method: 'CBS neighborhood lookup',
+      checked_at: PREBID_CHECKED_AT,
+      source_date: neighborhoodStats?.source_year?.toString(),
+      duration_ms: 480,
+      limitation: 'Neighborhood indicators are aggregated and may not describe the building, street side, or specific block.',
+      limitation_nl: 'Buurtindicatoren zijn geaggregeerd en beschrijven niet altijd het gebouw, de straatzijde of het specifieke blok.',
+    },
+    {
+      id: 'livability',
+      authority: 'Leefbaarometer',
+      label: 'Leefbaarometer',
+      status: livability?.available ? 'checked' : 'skipped',
+      basis: livability?.available ? livability.buurt_name : 'Not available for this address',
+      method: 'Official livability index',
+      checked_at: PREBID_CHECKED_AT,
+      source_date: livability?.available ? (livability.source_date ?? livability.year) : undefined,
+      duration_ms: 520,
+      limitation: 'Livability scores are statistical context and do not replace a street visit or buyer due diligence.',
+      limitation_nl: 'Leefbaarheidsscores zijn statistische context en vervangen geen straatbezoek of eigen onderzoek.',
+    },
+  ];
+}
+
+function buildPrebidActions(
+  rows: PrebidCoverageRow[],
+  riskCards: RiskCardsResponse | null,
+  buildingResponse: BuildingFactsResponse | null,
+  viewingQuestions: ViewingQuestionsResponse | null,
+): PrebidVerificationAction[] {
+  const noiseRow = findCoverage(rows, 'noise');
+  const climateRow = findCoverage(rows, 'climate');
+  const sunlightRow = findCoverage(rows, 'sunlight');
+  const buildingRow = findCoverage(rows, 'bag-building');
+  const noiseQuestion = viewingQuestions?.categories
+    .find((category) => category.name.toLowerCase().includes('noise'))
+    ?.questions[0];
+  const climateQuestion = viewingQuestions?.categories
+    .find((category) => category.name.toLowerCase().includes('climate'))
+    ?.questions[0];
+
+  const actions: PrebidVerificationAction[] = [
+    {
+      id: 'noise-viewing-check',
+      category: 'noise',
+      priority: 1,
+      severity: riskCards?.noise.severity ?? levelToSeverity(riskCards?.noise.level ?? 'medium', riskCards?.noise.score),
+      finding: riskCards?.noise.summary ?? 'Noise needs a viewing check before you rely on the address.',
+      finding_nl: riskCards?.noise.summary_nl ?? 'Geluid vraagt om controle tijdens de bezichtiging.',
+      why_it_matters: 'Noise can affect sleep, facade decisions, and renovation expectations. Treat the map as a prompt for an on-site check.',
+      why_it_matters_nl: 'Geluid kan slaap, gevelkeuzes en renovatieverwachtingen beinvloeden. Gebruik de kaart als aanleiding voor controle ter plekke.',
+      ask_this: {
+        en: noiseQuestion?.text_en ?? 'Can you hear traffic or trams with the windows closed in the bedroom?',
+        nl: noiseQuestion?.text_nl ?? 'Hoor je verkeer of trams met gesloten ramen in de slaapkamer?',
+      },
+      request_this: 'Ask for any recent facade, glazing, or ventilation documents if the road side is exposed.',
+      request_this_nl: 'Vraag naar recente gevel-, glas- of ventilatiestukken als de straatzijde belast is.',
+      who_to_ask: ['Selling agent', 'Seller', 'Inspector'],
+      confidence: riskCards?.noise.source_date ? 'medium' : 'data_incomplete',
+      limitation: noiseRow.limitation,
+      limitation_nl: noiseRow.limitation_nl,
+      source_refs: [sourceRef(noiseRow, 'RIVM noise contours')],
+      states: { data_incomplete: !riskCards?.noise.source_date },
+    },
+    {
+      id: 'climate-street-check',
+      category: 'climate',
+      priority: 2,
+      severity: riskCards?.climate_stress.severity ?? levelToSeverity(riskCards?.climate_stress.level ?? 'medium', riskCards?.climate_stress.score),
+      finding: riskCards?.climate_stress.summary ?? 'Heat or water stress should be checked against the exact street and building.',
+      finding_nl: riskCards?.climate_stress.summary_nl ?? 'Hitte of wateroverlast moet met straat en gebouw worden gecontroleerd.',
+      why_it_matters: 'Area-level heat and water signals can change what you ask about drainage, shade, and maintenance.',
+      why_it_matters_nl: 'Gebiedssignalen voor hitte en water bepalen welke vragen je stelt over afwatering, schaduw en onderhoud.',
+      ask_this: {
+        en: climateQuestion?.text_en ?? 'Has the seller or VvE had water, heat, or drainage complaints in recent summers?',
+        nl: climateQuestion?.text_nl ?? 'Zijn er bij verkoper of VvE klachten geweest over water, hitte of afwatering in recente zomers?',
+      },
+      request_this: 'Request VvE minutes, drainage notes, or municipality street-work information when relevant.',
+      request_this_nl: 'Vraag VvE-notulen, afwateringsinformatie of gemeentelijke informatie over straatwerk op waar relevant.',
+      who_to_ask: ['Selling agent', 'VvE', 'Municipality'],
+      confidence: riskCards?.climate_stress.source_date ? 'medium' : 'needs_review',
+      limitation: climateRow.limitation,
+      limitation_nl: climateRow.limitation_nl,
+      source_refs: [sourceRef(climateRow, 'Klimaateffectatlas')],
+      states: { source_incomplete: !riskCards?.climate_stress.source_date },
+    },
+    {
+      id: 'sunlight-context-check',
+      category: 'sunlight',
+      priority: 3,
+      severity: riskCards?.sunlight?.severity ?? 'moderate',
+      finding: riskCards?.sunlight?.summary ?? 'Sunlight context is indicative and should be verified from the rooms you care about.',
+      finding_nl: riskCards?.sunlight?.summary_nl ?? 'Zonlichtcontext is indicatief en moet vanuit de relevante kamers worden gecontroleerd.',
+      why_it_matters: '3D massing helps frame expectations, but interior daylight depends on floor, window depth, orientation, and nearby buildings.',
+      why_it_matters_nl: '3D-massa helpt bij verwachtingen, maar daglicht binnen hangt af van verdieping, raamdiepte, orientatie en omliggende gebouwen.',
+      ask_this: {
+        en: 'At what time of day do the main living rooms receive direct light in winter and spring?',
+        nl: 'Op welk moment van de dag krijgen de belangrijkste woonruimtes direct licht in winter en voorjaar?',
+      },
+      request_this: 'Check the 3D context, orientation, and any planned nearby construction before bidding.',
+      request_this_nl: 'Controleer de 3D-context, orientatie en geplande bouw in de buurt voordat je biedt.',
+      who_to_ask: ['Selling agent', 'Municipality', "Buyer's agent"],
+      confidence: riskCards?.sunlight?.source_date || riskCards?.sunlight?.score != null ? 'low' : 'needs_review',
+      limitation: sunlightRow.limitation,
+      limitation_nl: sunlightRow.limitation_nl,
+      source_refs: [sourceRef(sunlightRow, '3DBAG + SunCalc')],
+      states: { needs_human_review: !riskCards?.sunlight?.source_date },
+    },
+  ];
+
+  if (buildingResponse?.building?.construction_year && buildingResponse.building.construction_year < 1945) {
+    actions.push({
+      id: 'older-building-documents',
+      category: 'building',
+      priority: 4,
+      severity: 'moderate',
+      finding: 'Older building registration should trigger document checks before you rely on renovation assumptions.',
+      finding_nl: 'Een oudere bouwregistratie vraagt om documentcontrole voordat je renovatie-aannames gebruikt.',
+      why_it_matters: 'Official registration does not document insulation, foundation, lead-pipe, asbestos, or VvE maintenance status.',
+      why_it_matters_nl: 'Officiele registratie documenteert geen isolatie, fundering, loden leidingen, asbest of VvE-onderhoud.',
+      ask_this: { en: 'Which renovations are documented, permitted, and included in the sale file?', nl: 'Welke verbouwingen zijn gedocumenteerd, vergund en opgenomen in het verkoopdossier?' },
+      request_this: 'Request permits, VvE minutes, maintenance plans, inspection notes, and renovation invoices.',
+      request_this_nl: 'Vraag vergunningen, VvE-notulen, onderhoudsplannen, inspectienotities en renovatiefacturen op.',
+      who_to_ask: ['Selling agent', 'Seller', 'VvE', 'Notary'],
+      confidence: 'medium',
+      limitation: buildingRow.limitation,
+      limitation_nl: buildingRow.limitation_nl,
+      source_refs: [sourceRef(buildingRow, 'BAG building and address')],
+    });
+  }
+
+  return actions.sort((left, right) => left.priority - right.priority).slice(0, 3);
+}
+
+function buildSourceQualityCaps(actions: PrebidVerificationAction[], rows: PrebidCoverageRow[]) {
+  const caps: string[] = [];
+  const missingSourceRefCount = actions.filter((action) => action.source_refs.length === 0).length;
+  const missingRecipientCount = actions.filter((action) => action.who_to_ask.length === 0).length;
+  const unknownSourceDateCount = actions.filter((action) => action.source_refs.some((source) => !source.source_date && !source.checked_at)).length;
+  const genericConfidenceCount = actions.filter((action) => action.confidence === 'data_incomplete').length;
+  const genericLimitationCount = rows.filter((row) => row.limitation.length < 24).length;
+
+  if (missingSourceRefCount > 0) caps.push('missing_source_refs');
+  if (missingRecipientCount > 0) caps.push('missing_recipients');
+  if (unknownSourceDateCount > Math.max(1, Math.floor(actions.length * 0.15))) caps.push('unknown_source_dates');
+  if (genericConfidenceCount > Math.max(0, Math.floor(actions.length * 0.1))) caps.push('generic_confidence');
+  if (genericLimitationCount > Math.max(0, Math.floor(rows.length * 0.1))) caps.push('generic_limitations');
+
+  return {
+    unknown_source_date_count: unknownSourceDateCount,
+    generic_confidence_count: genericConfidenceCount,
+    generic_limitation_count: genericLimitationCount,
+    missing_source_ref_count: missingSourceRefCount,
+    missing_recipient_count: missingRecipientCount,
+    caps,
+  };
+}
+
+function buildLocalPrebidBriefing({
+  address,
+  reportId,
+  buildingResponse,
+  riskCards,
+  neighborhoodStats,
+  livability,
+  sunlight,
+  viewingQuestions,
+}: {
+  address: ResolvedAddress | null;
+  reportId: string | null;
+  buildingResponse: BuildingFactsResponse | null;
+  riskCards: RiskCardsResponse | null;
+  neighborhoodStats: NeighborhoodStatsResponse | null;
+  livability: LivabilityResponse | null;
+  sunlight: SunlightResult | null;
+  viewingQuestions: ViewingQuestionsResponse | null;
+}): PrebidBriefingResponse | null {
+  if (!address?.adresseerbaar_object_id) return null;
+  const coverage = buildPrebidCoverageRows({
+    buildingResponse,
+    riskCards,
+    neighborhoodStats,
+    livability,
+    sunlight,
+  });
+  const topActions = buildPrebidActions(coverage, riskCards, buildingResponse, viewingQuestions);
+  const sourceQuality = buildSourceQualityCaps(topActions, coverage);
+  const hasIncompleteSources = coverage.some((row) => row.status === 'failed' || row.status === 'unavailable' || row.status === 'review');
+  return {
+    briefing_id: `local-${address.adresseerbaar_object_id}`,
+    address_id: address.adresseerbaar_object_id,
+    report_id: reportId ?? undefined,
+    address_label: address.display_name,
+    checked_at: PREBID_CHECKED_AT,
+    result_state: hasIncompleteSources ? 'data_incomplete' : 'ready',
+    disclaimer: 'Source-bound briefing for viewing preparation. Confirm decisions with your inspector, adviser, notary, or buyer agent.',
+    disclaimer_nl: 'Brongebonden briefing voor bezichtigingsvoorbereiding. Bevestig beslissingen met je bouwkundige, adviseur, notaris of aankoopmakelaar.',
+    coverage,
+    top_actions: topActions,
+    source_quality: sourceQuality,
+  };
+}
+
+function buildLocalPrebidPack(briefing: PrebidBriefingResponse | null): PrebidPackResponse | null {
+  if (!briefing) return null;
+  const questionGroups = new Map<string, { questions: Array<{ en: string; nl?: string }>; requests: string[] }>();
+
+  for (const action of briefing.top_actions) {
+    for (const recipient of action.who_to_ask) {
+      const group = questionGroups.get(recipient) ?? { questions: [], requests: [] };
+      group.questions.push(action.ask_this);
+      group.requests.push(action.request_this);
+      questionGroups.set(recipient, group);
+    }
+  }
+
+  return {
+    pack_id: `pack-${briefing.address_id}`,
+    address_id: briefing.address_id,
+    report_id: briefing.report_id ?? `report-${briefing.address_id}`,
+    address_label: briefing.address_label,
+    checked_at: briefing.checked_at,
+    status: briefing.result_state === 'ready' ? 'ready' : 'data_incomplete',
+    disclaimer: briefing.disclaimer,
+    disclaimer_nl: briefing.disclaimer_nl,
+    actions: briefing.top_actions,
+    question_groups: Array.from(questionGroups.entries()).map(([recipient, value]) => ({
+      recipient,
+      questions: value.questions,
+      requests: Array.from(new Set(value.requests)),
+    })),
+    coverage: briefing.coverage,
+    share_url: `https://app.buurt-check.nl/#/shared-pack/demo-${briefing.address_id}`,
+  };
+}
+
+function buildSharedPrebidResponse(
+  mode: 'briefing' | 'pack',
+  token: string | undefined,
+  briefing: PrebidBriefingResponse | null,
+  pack: PrebidPackResponse | null,
+): SharedPrebidResponse {
+  const lowerToken = token?.toLowerCase() ?? '';
+  if (lowerToken.includes('expired')) return { state: 'expired', mode, support_email: 'support@buurt-check.nl' };
+  if (lowerToken.includes('revoked')) return { state: 'revoked', mode, support_email: 'support@buurt-check.nl' };
+  if (lowerToken.includes('deleted')) return { state: 'deleted', mode, support_email: 'support@buurt-check.nl' };
+  if (lowerToken.includes('forbidden')) return { state: 'forbidden', mode, support_email: 'support@buurt-check.nl' };
+  if (mode === 'pack' && pack) return { state: 'valid', mode, pack };
+  if (mode === 'briefing' && briefing) return { state: 'valid', mode, briefing };
+  return { state: 'not_found', mode, support_email: 'support@buurt-check.nl' };
+}
+
 function App() {
   useViewportBottomOffset();
   const { t, i18n } = useTranslation();
@@ -850,7 +1277,9 @@ function App() {
   );
   const [buildingLoading, setBuildingLoading] = useState(false);
   const [buildingError, setBuildingError] = useState<string | null>(null);
-  const [neighborhood3D, setNeighborhood3D] = useState<Neighborhood3DResponse | null>(null);
+  const [neighborhood3D, setNeighborhood3D] = useState<Neighborhood3DResponse | null>(
+    dossierSeed?.neighborhood3D ?? null,
+  );
   const [neighborhood3DLoading, setNeighborhood3DLoading] = useState(false);
   const [neighborhood3DError, setNeighborhood3DError] = useState<string | null>(null);
   const [surroundingLoading, setSurroundingLoading] = useState(false);
@@ -867,9 +1296,6 @@ function App() {
   );
   const [neighborhoodStatsLoading, setNeighborhoodStatsLoading] = useState(false);
   const [neighborhoodStatsError, setNeighborhoodStatsError] = useState<string | null>(null);
-  const [tierBData, setTierBData] = useState<TierBResponse | null>(dossierSeed?.tierBData ?? null);
-  const [tierBLoading, setTierBLoading] = useState(false);
-  const [tierBError, setTierBError] = useState<string | null>(null);
   const [propertyWarnings, setPropertyWarnings] = useState<PropertyWarningsResponse | null>(
     dossierSeed?.propertyWarnings ?? null,
   );
@@ -901,6 +1327,14 @@ function App() {
   );
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>(initialHasDossier ? 'half' : 'hidden');
   const [pendingDisplayName, setPendingDisplayName] = useState<string | null>(null);
+  const [prebidBriefing, setPrebidBriefing] = useState<PrebidBriefingResponse | null>(null);
+  const [remotePrebidPack, setRemotePrebidPack] = useState<PrebidPackResponse | null>(null);
+  const [prebidPackLoading, setPrebidPackLoading] = useState(false);
+  const [prebidPackError, setPrebidPackError] = useState<string | null>(null);
+  const [remoteSharedPrebidResponse, setRemoteSharedPrebidResponse] = useState<SharedPrebidResponse | null>(null);
+  const [sharedPrebidLoading, setSharedPrebidLoading] = useState(false);
+  const [shareUrls, setShareUrls] = useState<{ pack?: string }>({});
+  const [shareProviderUnavailable, setShareProviderUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const neighborhood3DRequestId = useRef(0);
   const addressRef = useRef<ResolvedAddress | null>(dossierSeed?.address ?? null);
@@ -958,6 +1392,12 @@ function App() {
   const [exportInitialTemplate, setExportInitialTemplate] = useState<'quick_brief' | 'full_dossier' | null>(null);
   const [exportInitialLanguage, setExportInitialLanguage] = useState<ExportLanguage | null>(null);
   const [exportAutoGenerateToken, setExportAutoGenerateToken] = useState<string | null>(null);
+  const [activePrebidAction, setActivePrebidAction] = useState<PrebidVerificationAction | null>(null);
+  const [shareSheetMode, setShareSheetMode] = useState<'pack' | null>(null);
+  const [packDeleted, setPackDeleted] = useState(false);
+  const [activePackRoute, setActivePackRoute] = useState<{ vboId?: string; reportId?: string } | null>(null);
+  const [activeSharedRoute, setActiveSharedRoute] = useState<{ token?: string; mode: 'briefing' | 'pack' } | null>(null);
+  const [notFoundRoute, setNotFoundRoute] = useState<string | null>(null);
   const hasShadowSnapshotTriptych = useMemo(
     () => hasRequiredShadowSnapshotTriptych(shadowSnapshots),
     [shadowSnapshots],
@@ -972,7 +1412,9 @@ function App() {
 
   // When an overlay modal (e.g. ExportBottomSheet) is open, mark background
   // content as inert so screen readers cannot access it (WCAG best practice).
-  const isOverlayModalOpen = exportSheetOpen;
+  const isOverlayModalOpen = exportSheetOpen
+    || activePrebidAction !== null
+    || shareSheetMode !== null;
 
   // Risk detail view state.
   const [activeDetailCategory, setActiveDetailCategory] = useState<string | null>(null);
@@ -1601,9 +2043,26 @@ function App() {
         climate: riskCards?.climate_stress.score,
         sunlight: sunlight ? normalizeSunlightScore(sunlight.winter) : riskCards?.sunlight?.score,
       },
+      verificationWork: prebidBriefing ? {
+        openActions: prebidBriefing.top_actions.length,
+        incompleteSources: prebidBriefing.coverage.filter((row) => (
+          row.status === 'failed'
+          || row.status === 'unavailable'
+          || row.status === 'manual_review'
+          || row.status === 'review'
+        )).length,
+        needsReview: prebidBriefing.top_actions.filter((action) => (
+          action.states?.needs_human_review || action.states?.queued_for_review
+        )).length,
+        packStatus: prebidBriefing.result_state === 'needs_human_review'
+          ? 'queued_for_review'
+          : prebidBriefing.result_state === 'data_incomplete'
+            ? 'data_incomplete'
+            : 'ready',
+      } : undefined,
       savedAt: Date.now(),
     };
-  }, [address, buildingResponse?.building?.construction_year, riskCards, sunlight]);
+  }, [address, buildingResponse?.building?.construction_year, prebidBriefing, riskCards, sunlight]);
 
   const currentAddressBookmarked = !!address?.adresseerbaar_object_id
     && isInShortlist(address.adresseerbaar_object_id);
@@ -1758,15 +2217,11 @@ function App() {
   }, [activeScreen, address?.id]);
 
   const handleRiskTileTap = useCallback((category: string) => {
-    if (!isEntitled) {
-      openExportSheet('full_dossier');
-      return;
-    }
     if (isTransitioning) return;
     hapticTap();
     setUseFallbackDetailTransition(animationPerformance.shouldUseFallback());
     setActiveDetailCategory(category);
-  }, [animationPerformance, isEntitled, isTransitioning, openExportSheet]);
+  }, [animationPerformance, isTransitioning]);
 
   const scrollToDossierTarget = useCallback((elementId: string) => {
     const root = getDossierScrollContainer();
@@ -2338,37 +2793,6 @@ function App() {
     })();
   }, [address, t]);
 
-  const handleRetryTierB = useCallback(() => {
-    if (!address?.adresseerbaar_object_id) return;
-    setTierBError(null);
-    setTierBLoading(true);
-    const controller = new AbortController();
-    retryControllersRef.current.add(controller);
-    void (async () => {
-      try {
-        const tierB = await getTierBData(
-          address.adresseerbaar_object_id!,
-          {
-            buurtCode: address.buurt_code ?? undefined,
-          },
-          controller.signal,
-          reportId ?? undefined,
-        );
-        if (activeScreenRef.current !== 'dossier') return;
-        setTierBData(tierB);
-      } catch (err) {
-        const isAbort = err instanceof DOMException && err.name === 'AbortError';
-        if (isAbort || activeScreenRef.current !== 'dossier') return;
-        setTierBError(mapApiError(err, t));
-      } finally {
-        retryControllersRef.current.delete(controller);
-        if (activeScreenRef.current === 'dossier') {
-          setTierBLoading(false);
-        }
-      }
-    })();
-  }, [address, reportId, t]);
-
   const handleRetryLivability = useCallback(() => {
     if (
       !address?.adresseerbaar_object_id
@@ -2453,7 +2877,6 @@ function App() {
     if (propertyWarningsError) handleRetryPropertyWarnings();
     if (livabilityError) handleRetryLivability();
     if (neighborhoodStatsError) handleRetryNeighborhoodStats();
-    if (tierBError) handleRetryTierB();
     if (viewingQuestionsError) handleRetryViewingQuestions();
   }, [
     buildingError,
@@ -2463,14 +2886,12 @@ function App() {
     handleRetryPropertyWarnings,
     handleRetryRiskComparisons,
     handleRetryRiskCards,
-    handleRetryTierB,
     handleRetryViewingQuestions,
     livabilityError,
     neighborhoodStatsError,
     propertyWarningsError,
     riskComparisonsError,
     riskError,
-    tierBError,
     viewingQuestionsError,
   ]);
 
@@ -2722,10 +3143,6 @@ function App() {
     ) {
       handleRetryLivability();
     }
-    if (progressivePhase === 'buurt' && !tierBData && !tierBLoading && !tierBError) {
-      handleRetryTierB();
-    }
-
     if (!deferred3DParamsRef.current && !neighborhood3D && !neighborhood3DLoading) {
       const pandId = address.pand_id ?? buildingResponse?.building?.pand_id ?? null;
       if (
@@ -2771,7 +3188,6 @@ function App() {
     handleRetryLivability,
     handleRetryPropertyWarnings,
     handleRetryRiskComparisons,
-    handleRetryTierB,
     handleRetryViewingQuestions,
     livability,
     livabilityError,
@@ -2786,9 +3202,6 @@ function App() {
     riskComparisons,
     riskComparisonsLoading,
     riskComparisonsError,
-    tierBData,
-    tierBError,
-    tierBLoading,
     trigger3DFetch,
     viewingQuestions,
     viewingQuestionsLoading,
@@ -2842,7 +3255,10 @@ function App() {
 
   const handleAddressSelect = useCallback(async (
     suggestion: AddressSuggestion,
-    options?: { forcedReportId?: string; recoveryMode?: 'checkout_return' },
+    options?: {
+      forcedReportId?: string;
+      recoveryMode?: 'checkout_return';
+    },
   ) => {
     addressRequestAbortRef.current?.abort();
     retryControllersRef.current.forEach(c => c.abort());
@@ -2863,6 +3279,7 @@ function App() {
     setProgressivePhase('house');
     setError(null);
     setAddress(null);
+    setPrebidBriefing(null);
     setActiveLookupId(suggestion.id);
     setReportId(null);
     setIsEntitled(TEMP_FORCE_FULL_DOSSIER_VIEW);
@@ -2901,9 +3318,6 @@ function App() {
     setNeighborhoodStats(null);
     setNeighborhoodStatsLoading(false);
     setNeighborhoodStatsError(null);
-    setTierBData(null);
-    setTierBLoading(false);
-    setTierBError(null);
     setPropertyWarnings(null);
     setPropertyWarningsLoading(false);
     setPropertyWarningsError(null);
@@ -2959,6 +3373,7 @@ function App() {
           throw err;
         }
 
+        removeRecent(suggestion.id);
         activeSuggestion = refreshedSuggestion;
         setActiveLookupId(activeSuggestion.id);
         setPendingDisplayName(activeSuggestion.display_name);
@@ -3019,6 +3434,34 @@ function App() {
         storeEntitlement(vboId, activeReportId, effectiveEntitlement);
         storeReportLookup(activeReportId, activeSuggestion.id);
       }
+
+      void fetchPrebidBriefing(vboId, {
+        report_id: activeReportId ?? undefined,
+        confirmed_address: resolved.display_name,
+        postcode: resolved.postcode,
+        municipality: resolved.municipality ?? resolved.city,
+        rd_x,
+        rd_y,
+        lat: latitude,
+        lng: longitude,
+        property_type: 'unknown',
+      }, requestSignal)
+        .then((briefing) => {
+          if (!isActiveDossierRequest(requestId)) return;
+          setPrebidBriefing(briefing);
+          trackPrebidEvent('briefing_loaded', {
+            result_state: briefing.result_state,
+            source_count: briefing.coverage.length,
+            action_count: briefing.top_actions.length,
+          });
+        })
+        .catch((err) => {
+          const isAbort = err instanceof DOMException && err.name === 'AbortError';
+          if (isAbort || !isActiveDossierRequest(requestId)) return;
+          trackPrebidEvent('briefing_failed', {
+            reason: err instanceof ApiError ? 'api_error' : 'network_or_timeout',
+          });
+        });
 
       if (activeSuggestion.id !== suggestion.id) {
         removeRecent(suggestion.id);
@@ -3275,35 +3718,6 @@ function App() {
           }
         })();
 
-        setTierBLoading(true);
-        void (async () => {
-          try {
-            const tierB = await getTierBData(
-              vboId,
-              {
-                buurtCode: resolved.buurt_code ?? undefined,
-              },
-              requestSignal,
-              activeReportId ?? undefined,
-            );
-            if (!isActiveDossierRequest(requestId)) return;
-            setTierBData(tierB);
-          } catch (err) {
-            const isAbort = err instanceof DOMException && err.name === 'AbortError';
-            if (isAbort || !isActiveDossierRequest(requestId)) return;
-            const mapped = mapApiError(err, t);
-            setTierBError(mapped);
-            trackEvent('report_generation_failed', {
-              stage: 'tier_b',
-              report_id: activeReportId ?? 'none',
-              vbo_id: vboId,
-            });
-          } finally {
-            if (isActiveDossierRequest(requestId)) {
-              setTierBLoading(false);
-            }
-          }
-        })();
       }
 
       setLoadingStep('checkingClimate');
@@ -3503,6 +3917,29 @@ function App() {
       setActiveScreen('settings');
       return;
     }
+    if (parsed.route === 'pack') {
+      setActiveTab('briefing');
+      setActiveScreen('pack');
+      setActivePackRoute({ vboId: parsed.vboId, reportId: parsed.reportId });
+      setNotFoundRoute(null);
+      return;
+    }
+    if (parsed.route === 'shared') {
+      setActiveTab('briefing');
+      setActiveScreen('shared');
+      setActiveSharedRoute({
+        token: parsed.shareToken,
+        mode: parsed.sharedMode ?? 'briefing',
+      });
+      setNotFoundRoute(null);
+      return;
+    }
+    if (parsed.route === 'not_found') {
+      setActiveTab('home');
+      setActiveScreen('not_found');
+      setNotFoundRoute(parsed.rawPath ?? (window.location.hash || window.location.pathname));
+      return;
+    }
     if (parsed.route === 'dossier') {
       setActiveTab('briefing');
       setActiveScreen('dossier');
@@ -3638,6 +4075,92 @@ function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!activePackRoute?.vboId || !activePackRoute.reportId) {
+      setRemotePrebidPack(null);
+      setPrebidPackError(null);
+      setPrebidPackLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setPrebidPackLoading(true);
+    setPrebidPackError(null);
+    setPackDeleted(false);
+    void fetchPrebidPack(
+      activePackRoute.vboId,
+      activePackRoute.reportId,
+      controller.signal,
+    )
+      .then((pack) => {
+        setRemotePrebidPack(pack);
+        setShareUrls((current) => ({ ...current, pack: pack.share_url ?? current.pack }));
+        trackPrebidEvent('pack_loaded', {
+          status: pack.status,
+          action_count: pack.actions.length,
+          source_count: pack.coverage.length,
+        });
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setRemotePrebidPack(null);
+        setPrebidPackError(mapApiError(err, t));
+        trackPrebidEvent('pack_failed', {
+          reason: err instanceof ApiError ? 'api_error' : 'network_or_timeout',
+        });
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setPrebidPackLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [activePackRoute?.reportId, activePackRoute?.vboId, t]);
+
+  useEffect(() => {
+    if (!activeSharedRoute?.token) {
+      setRemoteSharedPrebidResponse(null);
+      setSharedPrebidLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setSharedPrebidLoading(true);
+    setRemoteSharedPrebidResponse(null);
+    const fetchShared = activeSharedRoute.mode === 'pack'
+      ? fetchSharedPrebidPack
+      : fetchSharedPrebidBriefing;
+
+    void fetchShared(activeSharedRoute.token, controller.signal)
+      .then((response) => {
+        setRemoteSharedPrebidResponse(response);
+        trackPrebidEvent('shared_loaded', {
+          mode: response.mode,
+          state: response.state,
+        });
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setRemoteSharedPrebidResponse({
+          state: 'not_found',
+          mode: activeSharedRoute.mode,
+          support_email: 'support@buurt-check.nl',
+        });
+        trackPrebidEvent('shared_failed', {
+          mode: activeSharedRoute.mode,
+          reason: err instanceof ApiError ? 'api_error' : 'network_or_timeout',
+        });
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setSharedPrebidLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [activeSharedRoute?.mode, activeSharedRoute?.token]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'ios') {
@@ -3981,6 +4504,8 @@ function App() {
         comparisons: buildComparisons('noise'),
         source: currentRiskCards?.noise.source,
         sourceDate: currentRiskCards?.noise.source_date,
+        confidence: currentRiskCards?.noise.level === 'unavailable' ? t('risk.confidence.unavailable') : t('risk.confidence.indicative'),
+        limitation: t('risk.limitation.noise'),
       };
       case 'air': return {
         titleKey: 'risk.air.title',
@@ -3998,6 +4523,8 @@ function App() {
         comparisons: buildComparisons('air'),
         source: currentRiskCards?.air_quality.source,
         sourceDate: currentRiskCards?.air_quality.source_date,
+        confidence: currentRiskCards?.air_quality.level === 'unavailable' ? t('risk.confidence.unavailable') : t('risk.confidence.indicative'),
+        limitation: t('risk.limitation.air'),
       };
       case 'climate': return {
         titleKey: 'risk.climate.title',
@@ -4015,32 +4542,14 @@ function App() {
         comparisons: buildComparisons('climate'),
         source: currentRiskCards?.climate_stress.source,
         sourceDate: currentRiskCards?.climate_stress.source_date,
-      };
-      case 'sunlight': return {
-        titleKey: 'risk.sunlight.title',
-        score: sunlightTile.score,
-        severity: sunlightTile.severity,
-        meaning: sunlightTile.summary,
-        warnings: [],
-        comparisons: buildComparisons('sunlight'),
-        source: sunlightTile.source,
-        sourceDate: sunlightTile.sourceDate,
+        confidence: currentRiskCards?.climate_stress.level === 'unavailable' ? t('risk.confidence.unavailable') : t('risk.confidence.indicative'),
+        limitation: t('risk.limitation.climate'),
       };
       default: return null;
     }
   };
 
-  const topBarTitle = activeScreen === 'shortlist'
-    ? t('shortlist.title')
-    : activeScreen === 'compare'
-      ? t('compare.title')
-      : activeScreen === 'settings'
-        ? t('nav.settings')
-        : activeTab === 'home'
-          ? 'buurt-check'
-          : activeScreen === 'dossier'
-          ? t('nav.briefing')
-          : 'buurt-check';
+  const topBarTitle = 'buurt-check';
   const analyticsPageHash = activeScreen === 'shortlist'
     ? '#/saved'
     : activeScreen === 'compare'
@@ -4049,7 +4558,13 @@ function App() {
         ? '#/settings'
         : activeScreen === 'dossier'
           ? '#/address'
-          : '#/search';
+          : activeScreen === 'pack'
+            ? '#/pack'
+            : activeScreen === 'shared'
+              ? '#/shared'
+              : activeScreen === 'not_found'
+                ? '#/not-found'
+                : '#/search';
   const analyticsPageTitle = activeScreen === 'search'
     ? 'Buurt Check'
     : topBarTitle;
@@ -4106,16 +4621,15 @@ function App() {
     i18n.language,
   ]);
 
-  const coverageSummary = useMemo(() => {
+  const failedSourceCount = useMemo(() => {
     const isDossierActive = activeScreen === 'dossier' && !!address?.adresseerbaar_object_id;
     if (!isDossierActive) {
-      return null;
+      return 0;
     }
 
     const sources: Array<{
       key: string;
       status: SourceFetchStatus;
-      date?: string | number | Array<string | number> | null;
     }> = [
       {
         key: 'building',
@@ -4125,15 +4639,10 @@ function App() {
           buildingLoading,
           !!(buildingError && !buildingResponse),
         ),
-        date: buildingResponse?.building?.document_date ?? null,
       },
       {
         key: 'risk',
         status: resolveSourceFetchStatus(true, !!riskCards, riskLoading, riskError),
-        date: riskCards?.climate_stress.source_date
-          ?? riskCards?.air_quality.source_date
-          ?? riskCards?.noise.source_date
-          ?? null,
       },
       {
         key: 'warnings',
@@ -4152,7 +4661,6 @@ function App() {
           livabilityLoading,
           livabilityError,
         ),
-        date: livability?.available ? (livability.source_date ?? livability.year) : null,
       },
       {
         key: 'neighborhood',
@@ -4162,19 +4670,6 @@ function App() {
           neighborhoodStatsLoading,
           neighborhoodStatsError,
         ),
-        date: neighborhoodStats?.source_years?.length
-          ? neighborhoodStats.source_years
-          : neighborhoodStats?.source_year ?? null,
-      },
-      {
-        key: 'tierB',
-        status: resolveSourceFetchStatus(
-          progressivePhase === 'buurt',
-          !!tierBData,
-          tierBLoading,
-          tierBError,
-        ),
-        date: tierBData?.crime.source_date ?? null,
       },
       {
         key: 'sunlight',
@@ -4184,46 +4679,17 @@ function App() {
           surroundingLoading && !sunlight,
           !!(sunlightUnavailable && !sunlight),
         ),
-        date: sunlight?.analysisYear ?? null,
       },
     ];
 
     const enabled = sources.filter((source) => source.status !== 'idle');
-    const loaded = enabled.filter((source) => source.status === 'success').length;
-    const failed = enabled.filter((source) => source.status === 'error').length;
-
-    const parsedDates = enabled.flatMap((source) => {
-      const dates = Array.isArray(source.date) ? source.date : [source.date];
-      return dates
-        .map((date) => parseSourceDateValue(date))
-        .filter((value): value is ParsedSourceDate => value != null);
-    });
-
-    let newest: ParsedSourceDate | null = null;
-    let oldest: ParsedSourceDate | null = null;
-    for (const parsed of parsedDates) {
-      if (!newest || parsed.recencyDate > newest.recencyDate) newest = parsed;
-      if (!oldest || parsed.recencyDate < oldest.recencyDate) oldest = parsed;
-    }
-
-    const staleThreshold = staleThresholdDate();
-    const staleCount = parsedDates.filter((date) => date.recencyDate < staleThreshold).length;
-
-    return {
-      loaded,
-      total: enabled.length,
-      failed,
-      staleCount,
-      newest: newest ? formatCoverageDate(newest, i18n.language) : null,
-      oldest: oldest ? formatCoverageDate(oldest, i18n.language) : null,
-    };
+    return enabled.filter((source) => source.status === 'error').length;
   }, [
     activeScreen,
     address?.adresseerbaar_object_id,
     buildingError,
     buildingLoading,
     buildingResponse,
-    i18n.language,
     livability,
     livabilityError,
     livabilityLoading,
@@ -4241,9 +4707,6 @@ function App() {
     sunlight,
     sunlightUnavailable,
     surroundingLoading,
-    tierBData,
-    tierBError,
-    tierBLoading,
   ]);
 
   const attentionSummary = useMemo(
@@ -4255,29 +4718,108 @@ function App() {
     [neighborhood3D?.message, t],
   );
 
-  const sunlightTile = useMemo(() => {
-    const score = sunlight
-      ? normalizeSunlightScore(sunlight.winter)
-      : riskCards?.sunlight?.score;
-    const severity = score != null
-      ? levelToSeverity('unavailable', score)
-      : riskCards?.sunlight?.severity
-        ?? (sunlightUnavailable ? 'unavailable' : 'unavailable');
-    const summary = riskCards?.sunlight
-      ? (isNl ? riskCards.sunlight.summary_nl : riskCards.sunlight.summary)
-      : score != null
-        ? t(`risk.sunlight.summary.${severity}`)
-        : t('sunlight.meaning.unavailable');
+  const localPrebidBriefing = useMemo(() => (
+    dossierSeed ? buildLocalPrebidBriefing({
+      address,
+      reportId,
+      buildingResponse,
+      riskCards,
+      neighborhoodStats,
+      livability,
+      sunlight,
+      viewingQuestions,
+    }) : null
+  ), [
+    address,
+    buildingResponse,
+    dossierSeed,
+    livability,
+    neighborhoodStats,
+    reportId,
+    riskCards,
+    sunlight,
+    viewingQuestions,
+  ]);
 
-    return {
-      score,
-      severity,
-      summary,
-      unavailable: score == null,
-      source: riskCards?.sunlight?.source ?? '3DBAG + SunCalc',
-      sourceDate: riskCards?.sunlight?.source_date ?? sunlight?.analysisYear?.toString(),
+  const activePrebidBriefing = prebidBriefing ?? localPrebidBriefing;
+
+  const createCurrentShareLink = useCallback(async (mode: 'pack') => {
+    const controller = new AbortController();
+    const response = activePackRoute?.vboId && activePackRoute.reportId
+      ? await sharePrebidPack(
+        activePackRoute.vboId,
+        activePackRoute.reportId,
+        { consent_to_share: true },
+        controller.signal,
+      )
+      : null;
+    if (!response) return null;
+    setShareUrls((current) => ({ ...current, [mode]: response.share_url }));
+    setShareProviderUnavailable(response.error_code === 'email_provider_unavailable');
+    trackPrebidEvent(`${mode}_shared`, { method: 'copy_link' });
+    return response.share_url;
+  }, [activePackRoute?.reportId, activePackRoute?.vboId]);
+
+  const emailCurrentShareLink = useCallback(async (mode: 'pack', email: string) => {
+    const controller = new AbortController();
+    const payload = {
+      email,
+      consent: true as const,
+      language: uiLanguage,
     };
-  }, [isNl, riskCards?.sunlight, sunlight, sunlightUnavailable, t]);
+    const response = activePackRoute?.vboId && activePackRoute.reportId
+      ? await emailPrebidPack(
+        activePackRoute.vboId,
+        activePackRoute.reportId,
+        payload,
+        controller.signal,
+      )
+      : null;
+    if (!response) return null;
+    setShareUrls((current) => ({ ...current, [mode]: response.share_url }));
+    setShareProviderUnavailable(response.error_code === 'email_provider_unavailable');
+    trackPrebidEvent(`${mode}_shared`, { method: 'email', provider_unavailable: response.error_code === 'email_provider_unavailable' });
+    return response.share_url;
+  }, [activePackRoute?.reportId, activePackRoute?.vboId, uiLanguage]);
+
+  const deleteCurrentPrebidOutput = useCallback(async () => {
+    if (!activePrebidBriefing) {
+      setPackDeleted(true);
+      return;
+    }
+    const controller = new AbortController();
+    await deletePrebidBriefing(
+      activePrebidBriefing.address_id,
+      activePrebidBriefing.briefing_id,
+      controller.signal,
+    );
+    setPackDeleted(true);
+    setRemotePrebidPack((pack) => (pack ? { ...pack, status: 'deleted' } : pack));
+    setShareUrls({});
+    trackPrebidEvent('deleted', { mode: shareSheetMode ?? 'pack' });
+  }, [activePrebidBriefing, shareSheetMode]);
+
+  const prebidPack = useMemo(() => {
+    if (activePackRoute?.vboId && activePackRoute.reportId) {
+      if (!remotePrebidPack) return null;
+      return packDeleted ? { ...remotePrebidPack, status: 'deleted' as const } : remotePrebidPack;
+    }
+    if (packDeleted) {
+      const deletedPack = buildLocalPrebidPack(activePrebidBriefing);
+      return deletedPack ? { ...deletedPack, status: 'deleted' as const } : null;
+    }
+    return buildLocalPrebidPack(activePrebidBriefing);
+  }, [activePackRoute?.reportId, activePackRoute?.vboId, activePrebidBriefing, packDeleted, remotePrebidPack]);
+
+  const sharedPrebidResponse = useMemo(() => {
+    if (!activeSharedRoute) return null;
+    return remoteSharedPrebidResponse ?? buildSharedPrebidResponse(
+      activeSharedRoute.mode,
+      activeSharedRoute.token,
+      activePrebidBriefing,
+      prebidPack,
+    );
+  }, [activePrebidBriefing, activeSharedRoute, prebidPack, remoteSharedPrebidResponse]);
 
   // Get viewing questions for active detail category
   const activeQuestions = activeDetailCategory
@@ -4448,9 +4990,12 @@ function App() {
 
                   {address && (
                     <div className="dossier-section" style={dossierSectionStyle(1)} data-section-index={1}>
-                      <AddressHeader
+                      <BuildingFactsCard
                         address={address}
                         building={buildingResponse?.building ?? undefined}
+                        loading={buildingLoading}
+                        error={buildingError}
+                        onRetry={buildingError ? handleRetryBuildingFacts : undefined}
                         onChangeAddress={() => {
                           hapticTap();
                           setActiveTab('home');
@@ -4464,28 +5009,12 @@ function App() {
                   {((loading && !riskCards) || riskLoading || riskCards || riskError || activeDetailCategory) && (
                     <div
                       className="dossier-section dossier-section--risk-grid"
-                      style={dossierSectionStyle(1.5)}
-                      data-section-index={1.5}
+                      style={dossierSectionStyle(2)}
+                      data-section-index={2}
                     >
-                      {coverageSummary && (
-                        <div className="app__coverage-strip">
-                          <span>{t('dossier.coverage.loaded', { loaded: coverageSummary.loaded, total: coverageSummary.total })}</span>
-                          {coverageSummary.newest && (
-                            <span>{t('dossier.coverage.newest', { date: coverageSummary.newest })}</span>
-                          )}
-                          {coverageSummary.oldest && (
-                            <span>{t('dossier.coverage.oldest', { date: coverageSummary.oldest })}</span>
-                          )}
-                          {coverageSummary.staleCount > 0 && (
-                            <span className="app__coverage-stale">
-                              {t('dossier.coverage.stale', { count: coverageSummary.staleCount })}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {!!coverageSummary?.failed && (
+                      {failedSourceCount > 0 && (
                         <div className="app__failed-banner">
-                          <span>{t('dossier.retryBanner', { count: coverageSummary.failed })}</span>
+                          <span>{t('dossier.retryBanner', { count: failedSourceCount })}</span>
                           <button
                             type="button"
                             className="app__retry-button"
@@ -4501,11 +5030,12 @@ function App() {
                           {(riskLoading || riskCards || riskError) && (
                             <RiskTilesGrid
                               risks={riskCards ?? undefined}
+                              questions={viewingQuestions ?? undefined}
                               onTileTap={handleRiskTileTap}
                             />
                           )}
                           <AnimatePresence initial={false} mode="wait">
-                            {isEntitled && activeDetailCategory && (() => {
+                            {activeDetailCategory && (() => {
                               const detail = getDetailProps(activeDetailCategory);
                               if (!detail) return null;
                               return (
@@ -4523,6 +5053,8 @@ function App() {
                                   questions={activeQuestions}
                                   source={detail.source}
                                   sourceDate={detail.sourceDate}
+                                  confidence={detail.confidence}
+                                  limitation={detail.limitation}
                                   useSharedElement={!useFallbackDetailTransition}
                                   onBack={() => {
                                     animationPerformance.stopMonitoring();
@@ -4543,17 +5075,6 @@ function App() {
                           </AnimatePresence>
                         </LayoutGroup>
                       )}
-                    </div>
-                  )}
-
-                  {(buildingLoading || buildingResponse || buildingError) && (
-                    <div className="dossier-section" style={dossierSectionStyle(2)} data-section-index={2}>
-                      <BuildingFactsCard
-                        building={buildingResponse?.building ?? undefined}
-                        loading={buildingLoading}
-                        error={buildingError}
-                        onRetry={buildingError ? handleRetryBuildingFacts : undefined}
-                      />
                     </div>
                   )}
 
@@ -4644,7 +5165,6 @@ function App() {
                               loading={surroundingLoading}
                               error={neighborhood3DError}
                               onRetry={neighborhood3DError ? handleRetryNeighborhood3D : undefined}
-                              statusMessage={viewer3DStatusMessage}
                             />
                           </Suspense>
                         )}
@@ -4671,17 +5191,6 @@ function App() {
                         </div>
                       )}
 
-                      {(tierBLoading || tierBData || tierBError) && (
-                        <div className="dossier-section" style={dossierSectionStyle(7)} data-section-index={7}>
-                          <h3 id="section-tier-b" className="app__section-label">{t('dossier.tierB')}</h3>
-                          <TierBSignalsCard
-                            data={tierBData ?? undefined}
-                            loading={tierBLoading}
-                            error={tierBError}
-                            onRetry={tierBError ? handleRetryTierB : undefined}
-                          />
-                        </div>
-                      )}
                     </section>
                   </>
                 )}
@@ -4886,8 +5395,181 @@ function App() {
               </Suspense>
             </motion.div>
           )}
+
+          {activeScreen === 'pack' && (
+            <motion.div
+              key="screen-pack"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              {prebidPackLoading ? (
+                <div className="app__briefing-empty" role="status">
+                  <h2 className="app__briefing-empty-title">{t('prebid.pack.loading', 'Loading Questions Pack')}</h2>
+                  <p className="app__briefing-empty-description">{t('prebid.pack.loadingBody', 'Fetching the buyer-bound pack for this report.')}</p>
+                </div>
+              ) : prebidPackError ? (
+                <div className="app__briefing-empty" role="status">
+                  <h2 className="app__briefing-empty-title">{t('prebid.pack.errorTitle', 'Questions Pack unavailable')}</h2>
+                  <p className="app__briefing-empty-description">{prebidPackError}</p>
+                  <button
+                    type="button"
+                    className="app__briefing-empty-action"
+                    onClick={() => {
+                      setActiveScreen('dossier');
+                      setActiveTab('briefing');
+                      setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
+                    }}
+                  >
+                    {t('prebid.pack.back', 'Back to briefing')}
+                  </button>
+                </div>
+              ) : prebidPack && activePackRoute?.vboId && activePackRoute?.reportId ? (
+                <PackView
+                  pack={{
+                    ...prebidPack,
+                    report_id: activePackRoute.reportId,
+                    status: packDeleted ? 'deleted' : prebidPack.status,
+                  }}
+                  onBackToBriefing={() => {
+                    setActiveScreen('dossier');
+                    setActiveTab('briefing');
+                    setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
+                  }}
+                  onShare={() => setShareSheetMode('pack')}
+                  onDownload={() => openExportSheet('full_dossier')}
+                  onDelete={() => {
+                    void deleteCurrentPrebidOutput().catch(() => {
+                      showToast(t('error.generic'));
+                    });
+                  }}
+                  onOpenAction={setActivePrebidAction}
+                />
+              ) : (
+                <NotFoundScreen
+                  route={activePackRoute?.reportId ? `#/pack/${activePackRoute.vboId}/${activePackRoute.reportId}` : '#/pack'}
+                  onSearch={() => {
+                    setActiveTab('home');
+                    setActiveScreen('search');
+                    setHashRoute('#/search');
+                  }}
+                  onSaved={() => {
+                    setActiveTab('saved');
+                    setActiveScreen('shortlist');
+                    setHashRoute('#/saved');
+                  }}
+                />
+              )}
+            </motion.div>
+          )}
+
+          {activeScreen === 'shared' && (
+            <motion.div
+              key="screen-shared"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              {sharedPrebidLoading ? (
+                <div className="app__briefing-empty" role="status">
+                  <h2 className="app__briefing-empty-title">{t('prebid.shared.loading', 'Loading shared link')}</h2>
+                  <p className="app__briefing-empty-description">{t('prebid.shared.loadingBody', 'Checking the scoped share token.')}</p>
+                </div>
+              ) : (
+                <SharedPrebidScreen
+                  response={sharedPrebidResponse ?? {
+                    state: 'not_found',
+                    mode: activeSharedRoute?.mode ?? 'briefing',
+                    support_email: 'support@buurt-check.nl',
+                  }}
+                  onSearch={() => {
+                    setActiveTab('home');
+                    setActiveScreen('search');
+                    setHashRoute('#/search');
+                  }}
+                  onSaved={() => {
+                    setActiveTab('saved');
+                    setActiveScreen('shortlist');
+                    setHashRoute('#/saved');
+                  }}
+                  onOpenPrivacy={() => navigateToExternal('/privacy.html')}
+                  onOpenTerms={() => navigateToExternal('/terms.html')}
+                />
+              )}
+            </motion.div>
+          )}
+
+          {activeScreen === 'not_found' && (
+            <motion.div
+              key="screen-not-found"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <NotFoundScreen
+                route={notFoundRoute ?? undefined}
+                onSearch={() => {
+                  setActiveTab('home');
+                  setActiveScreen('search');
+                  setHashRoute('#/search');
+                }}
+                onSaved={() => {
+                  setActiveTab('saved');
+                  setActiveScreen('shortlist');
+                  setHashRoute('#/saved');
+                }}
+              />
+            </motion.div>
+          )}
         </AnimatePresence>
       </main>
+
+      {activePrebidAction && (
+        <VerificationActionDetailSheet
+          action={activePrebidAction}
+          onClose={() => setActivePrebidAction(null)}
+        />
+      )}
+
+      {shareSheetMode && (
+        <SharePackSheet
+          shareUrl={shareUrls.pack ?? prebidPack?.share_url}
+          providerUnavailable={shareProviderUnavailable}
+          onCopyLink={() => {
+            void createCurrentShareLink(shareSheetMode)
+              .then((url) => {
+                if (url && navigator.clipboard) {
+                  void navigator.clipboard.writeText(url).catch(() => undefined);
+                }
+                showToast(t('prebid.share.copyReady', 'Scoped link ready to copy.'));
+              })
+              .catch(() => {
+                showToast(t('error.generic'));
+              });
+          }}
+          onEmail={(email) => {
+            void emailCurrentShareLink(shareSheetMode, email)
+              .then(() => {
+                showToast(t('prebid.share.emailReady', 'Email share link prepared with consent.'));
+              })
+              .catch(() => {
+                showToast(t('error.generic'));
+              });
+          }}
+          onDelete={() => {
+            void deleteCurrentPrebidOutput()
+              .then(() => setShareSheetMode(null))
+              .catch(() => showToast(t('error.generic')));
+          }}
+          onClose={() => setShareSheetMode(null)}
+        />
+      )}
 
       {analyticsEnabled && analyticsConsent === 'unknown' && (
         <AnalyticsConsentBanner

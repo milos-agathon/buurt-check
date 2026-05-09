@@ -154,10 +154,10 @@ async def test_full_dossier_rejects_nonexistent_report(db_path):
 @patch("app.api.address.bag")
 @patch("app.api.address.risk_cards")
 @patch("app.api.address.property_warnings")
-async def test_full_dossier_allowed_with_entitled_report(
+async def test_full_dossier_entitlement_uses_legacy_pdf_route(
     mock_property_warnings, mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, db_path
 ):
-    """full_dossier template succeeds when report has active entitlement."""
+    """full_dossier requires payment, then uses the rich legacy PDF generator."""
     from app.services.reports import activate_entitlement, create_report
 
     rid = await create_report(
@@ -176,6 +176,29 @@ async def test_full_dossier_allowed_with_entitled_report(
     with (
         patch.object(settings, "database_path", db_path),
         patch.object(settings, "rate_limit_enabled", False),
+        patch.object(settings, "pdf_export_sunlight_wait_seconds", 0),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address._fetch_location_map", new_callable=AsyncMock, return_value=None),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.generate_full_dossier", return_value=b"%PDF-legacy") as full_pdf,
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -189,7 +212,8 @@ async def test_full_dossier_allowed_with_entitled_report(
                 },
             )
     assert response.status_code == 200
-    assert response.content[:5] == b"%PDF-"
+    assert response.content == b"%PDF-legacy"
+    full_pdf.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -198,10 +222,10 @@ async def test_full_dossier_allowed_with_entitled_report(
 @patch("app.api.address.bag")
 @patch("app.api.address.risk_cards")
 @patch("app.api.address.property_warnings")
-async def test_full_dossier_get_allowed_with_entitled_report(
+async def test_full_dossier_get_entitlement_uses_legacy_pdf_route(
     mock_property_warnings, mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, db_path
 ):
-    """GET full_dossier succeeds when report has active entitlement."""
+    """GET full_dossier requires payment, then uses the rich legacy PDF generator."""
     from app.services.reports import activate_entitlement, create_report
 
     rid = await create_report(
@@ -220,6 +244,29 @@ async def test_full_dossier_get_allowed_with_entitled_report(
     with (
         patch.object(settings, "database_path", db_path),
         patch.object(settings, "rate_limit_enabled", False),
+        patch.object(settings, "pdf_export_sunlight_wait_seconds", 0),
+        patch(
+            "app.api.address._fetch_neighborhood_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_tier_b_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.api.address._fetch_property_warnings_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address._fetch_location_map", new_callable=AsyncMock, return_value=None),
+        patch(
+            "app.api.address._fetch_livability_for_export",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("app.api.address.generate_full_dossier", return_value=b"%PDF-legacy") as full_pdf,
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -229,7 +276,8 @@ async def test_full_dossier_get_allowed_with_entitled_report(
                 params={**_BASE_BODY, "template": "full_dossier", "report_id": rid},
             )
     assert response.status_code == 200
-    assert response.content[:5] == b"%PDF-"
+    assert response.content == b"%PDF-legacy"
+    full_pdf.assert_called_once()
 
 
 @pytest.mark.asyncio

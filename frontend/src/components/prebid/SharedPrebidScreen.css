@@ -1,0 +1,107 @@
+.shared-prebid {
+  width: min(100%, 58rem);
+  margin: 0 auto;
+  padding: var(--space-base) var(--space-base) calc(var(--tab-bar-height, 76px) + var(--space-xl));
+  color: var(--landing-text);
+}
+
+.shared-prebid--recovery {
+  min-height: calc(100dvh - var(--top-bar-height, 64px));
+  display: grid;
+  align-items: center;
+}
+
+.shared-prebid__panel {
+  border: 1px solid var(--landing-border);
+  border-radius: var(--radius-card);
+  background: var(--landing-surface-strong);
+  padding: var(--space-lg);
+  display: grid;
+  gap: var(--space-base);
+  box-shadow: var(--landing-shadow-soft);
+}
+
+.shared-prebid__eyebrow {
+  margin: 0;
+  font: var(--type-micro);
+  color: var(--landing-accent-text);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.shared-prebid h1,
+.shared-prebid p {
+  margin: 0;
+}
+
+.shared-prebid h1 {
+  font: var(--type-h1);
+  color: var(--landing-text);
+}
+
+.shared-prebid p {
+  font: var(--type-small);
+  color: var(--landing-text-secondary);
+}
+
+.shared-prebid__actions {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.shared-prebid__actions button,
+.shared-prebid__actions a {
+  min-height: 44px;
+  border: 1px solid var(--landing-border-soft);
+  border-radius: var(--radius-button);
+  background: var(--landing-nav-control);
+  color: var(--landing-text);
+  font: var(--type-body-medium);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-base);
+  text-decoration: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-out-subtle),
+    border-color var(--duration-fast) var(--ease-out-subtle),
+    color var(--duration-fast) var(--ease-out-subtle);
+}
+
+.shared-prebid__actions button:hover,
+.shared-prebid__actions a:hover {
+  background: var(--landing-nav-control-hover);
+  border-color: var(--landing-border);
+}
+
+.shared-prebid__actions button:first-child {
+  border-color: var(--color-cta-bg);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
+}
+
+.shared-prebid__actions button:first-child:hover {
+  border-color: var(--color-cta-bg-hover);
+  background: var(--color-cta-bg-hover);
+  color: var(--color-cta-text);
+}
+
+.shared-prebid button:focus-visible,
+.shared-prebid a:focus-visible {
+  outline: 2px solid var(--landing-accent-text);
+  outline-offset: 3px;
+}
+
+@media (min-width: 48rem) {
+  .shared-prebid__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (forced-colors: active) {
+  .shared-prebid__panel,
+  .shared-prebid__actions button,
+  .shared-prebid__actions a {
+    border: 1px solid CanvasText;
+  }
+}

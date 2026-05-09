@@ -6,12 +6,20 @@ const MAX_ITEMS = 3;
 function isValidItem(item: unknown): item is ShortlistItem {
   if (!item || typeof item !== 'object') return false;
   const obj = item as Record<string, unknown>;
+  const verificationWork = obj.verificationWork as Record<string, unknown> | undefined;
+  const hasValidVerificationWork = verificationWork == null || (
+    typeof verificationWork === 'object'
+    && typeof verificationWork.openActions === 'number'
+    && typeof verificationWork.incompleteSources === 'number'
+    && typeof verificationWork.needsReview === 'number'
+  );
   return (
     typeof obj.vboId === 'string' &&
     typeof obj.address === 'string' &&
     typeof obj.savedAt === 'number' &&
     obj.riskScores != null &&
-    typeof obj.riskScores === 'object'
+    typeof obj.riskScores === 'object' &&
+    hasValidVerificationWork
   );
 }
 

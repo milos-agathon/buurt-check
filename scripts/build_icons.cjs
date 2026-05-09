@@ -29,11 +29,11 @@ const tasks = [
     // 3A: Native App Icon badges
     {
         name: 'AppIcon_Dark.png',
-        svg: generateSvg('#FFFFFF', '#2EC4B6', '#1C2D3F')
+        svg: generateSvg('#FFFFFF', '#0D9488', '#171D1C')
     },
     {
         name: 'AppIcon_Light.png',
-        svg: generateSvg('#1C2D3F', '#24A097', '#FFFFFF')
+        svg: generateSvg('#171D1C', '#0D9488', '#FFFFFF')
     },
     {
         name: 'AppIcon_Mono.png',
@@ -42,22 +42,22 @@ const tasks = [
     // 3B: PWA manifest icons
     {
         name: 'pwa-512x512.png',
-        svg: generateSvg('#1C2D3F', '#24A097', null), // transparent bg
+        svg: generateSvg('#171D1C', '#0D9488', null), // transparent bg
         size: 512
     },
     {
         name: 'pwa-192x192.png',
-        svg: generateSvg('#1C2D3F', '#24A097', null), // transparent bg
+        svg: generateSvg('#171D1C', '#0D9488', null), // transparent bg
         size: 192
     },
     {
         name: 'pwa-512x512-maskable.png',
-        svg: generateSvg('#1C2D3F', '#24A097', '#F0F4F8'), // light tile bg for maskable
+        svg: generateSvg('#171D1C', '#0D9488', '#F0F4F8'), // light tile bg for maskable
         size: 512
     },
     {
         name: 'pwa-192x192-maskable.png',
-        svg: generateSvg('#1C2D3F', '#24A097', '#F0F4F8'),
+        svg: generateSvg('#171D1C', '#0D9488', '#F0F4F8'),
         size: 192
     }
 ];

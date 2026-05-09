@@ -664,8 +664,6 @@ Geen 3D-gebouwgegevens beschikbaar.
 
 Er zijn geen 3D-gebouwgegevens beschikbaar voor dit gebied.
 
-De 3D-context is gedeeltelijk omdat sommige omliggende gebouwen niet konden worden geladen.
-
 Het doelgebouw kon niet worden gekoppeld in de 3D-dataset.
 
 Tijd

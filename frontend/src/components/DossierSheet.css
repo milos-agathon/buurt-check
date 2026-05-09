@@ -2,15 +2,15 @@
   position: relative;
   width: 100%;
   margin: 0;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
-  border: 1px solid var(--color-border);
-  border-radius: 32px;
-  box-shadow: 0 18px 44px color-mix(in srgb, var(--color-primary) 10%, transparent);
-  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
 }
 
 [data-theme="dark"] .dossier-sheet {
-  box-shadow: 0 18px 44px color-mix(in srgb, var(--color-primary) 24%, transparent);
+  box-shadow: none;
 }
 
 .dossier-sheet__content {
@@ -19,17 +19,17 @@
   flex-direction: column;
   gap: var(--space-lg);
   overflow: visible;
-  padding: var(--space-base) var(--space-base) calc(var(--tab-bar-height, 56px) + var(--viewport-bottom-offset, 0px) + var(--dossier-action-bar-offset, 0px) + env(safe-area-inset-bottom, 0px) + var(--space-xl));
+  padding: 0 0 calc(var(--tab-bar-height, 56px) + var(--viewport-bottom-offset, 0px) + var(--dossier-action-bar-offset, 0px) + env(safe-area-inset-bottom, 0px) + var(--space-xl));
 }
 
 @media (min-width: 960px) {
   .dossier-sheet {
-    border-radius: 36px;
+    border-radius: 0;
   }
 
   .dossier-sheet__content {
     --dossier-section-gap: var(--space-xl);
     gap: var(--space-xl);
-    padding: var(--space-lg) var(--space-lg) calc(var(--tab-bar-height, 56px) + var(--viewport-bottom-offset, 0px) + var(--dossier-action-bar-offset, 0px) + var(--space-2xl));
+    padding: 0 0 calc(var(--tab-bar-height, 56px) + var(--viewport-bottom-offset, 0px) + var(--dossier-action-bar-offset, 0px) + var(--space-2xl));
   }
 }
