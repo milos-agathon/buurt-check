@@ -1,10 +1,15 @@
 import { buildPrimaryApiUrl } from '../config/apiBase';
 import type {
   MatchLocale,
+  MatchComparePayload,
+  MatchCompareResponse,
+  MatchMapResponse,
   MatchQuizPayload,
   MatchQuizResponse,
   MatchReportCreatePayload,
   MatchReportResponse,
+  MatchSimilarPayload,
+  MatchSimilarResponse,
 } from '../types/match';
 import { recordMatchEvent } from './matchAnalytics';
 
@@ -72,4 +77,58 @@ export async function fetchMatchReport(
   }
 
   return await response.json() as MatchReportResponse;
+}
+
+export async function compareMatchNeighborhoods(
+  payload: MatchComparePayload,
+): Promise<MatchCompareResponse> {
+  const response = await fetch(buildPrimaryApiUrl('/match/compare'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.compare_failed');
+  }
+
+  return await response.json() as MatchCompareResponse;
+}
+
+export async function findSimilarMatchNeighborhoods(
+  payload: MatchSimilarPayload,
+): Promise<MatchSimilarResponse> {
+  const response = await fetch(buildPrimaryApiUrl('/match/similar'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.similar_failed');
+  }
+
+  return await response.json() as MatchSimilarResponse;
+}
+
+export async function fetchMatchMap(params: {
+  category?: string;
+  min_score?: number;
+} = {}): Promise<MatchMapResponse> {
+  const query = new URLSearchParams();
+  if (params.category) query.set('category', params.category);
+  if (params.min_score != null) query.set('min_score', String(params.min_score));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  const response = await fetch(buildPrimaryApiUrl(`/match/map${suffix}`), {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.map_failed');
+  }
+
+  return await response.json() as MatchMapResponse;
 }

@@ -381,6 +381,104 @@ class SimilarNeighborhoodResult(BaseModel):
     source_refs: list[str] = Field(default_factory=list)
 
 
+class MatchSimilarRequest(BaseModel):
+    source_neighborhood_id: str = Field(min_length=1)
+    preference_vector_id: str | None = None
+    filters: dict[Literal["cheaper", "greener", "calmer"], bool] = Field(default_factory=dict)
+    limit: int = Field(default=8, ge=1, le=20)
+
+
+class MatchSimilarResponse(BaseModel):
+    source_neighborhood_id: str = Field(min_length=1)
+    results: list[SimilarNeighborhoodResult] = Field(default_factory=list)
+    unsupported_regions: list[str] = Field(default_factory=list)
+    empty_state_code: str | None = None
+
+
+class MatchCompareRequest(BaseModel):
+    preference_vector_id: str | None = None
+    neighborhood_ids: list[str] = Field(default_factory=list, max_length=8)
+    locale: Literal["en", "nl"] = "en"
+
+
+class ComparisonCell(BaseModel):
+    value: float | None = None
+    display_value: str
+    state: Literal["available", "missing", "stale", "mock"]
+    confidence: int = Field(ge=0, le=100)
+    freshness_status: DataFreshnessStatus
+    source_refs: list[str] = Field(default_factory=list)
+    sources: list[MetricSource] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class ComparisonIndicatorRow(BaseModel):
+    indicator_key: str = Field(min_length=1)
+    label_code: str = Field(pattern=r"^match\.comparison\.indicator\.")
+    cells: dict[str, ComparisonCell]
+
+
+class ComparisonNeighborhoodSummary(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    municipality: str = Field(min_length=1)
+    score: int = Field(ge=0, le=100)
+    dimension_scores: dict[str, int | None] = Field(default_factory=dict)
+    evidence: list[RecommendationExplanation] = Field(default_factory=list)
+    tradeoffs: list[RecommendationExplanation] = Field(default_factory=list)
+    confidence: ConfidenceScore
+    freshness_status: DataFreshnessStatus
+    missing_data: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+
+
+class MatchCompareResponse(BaseModel):
+    preference_vector_id: str | None = None
+    locale: Literal["en", "nl"]
+    neighborhoods: list[ComparisonNeighborhoodSummary] = Field(min_length=3)
+    indicators: list[ComparisonIndicatorRow] = Field(min_length=5, max_length=8)
+    source_coverage: list[str] = Field(default_factory=list)
+    missing_data_states: list[str] = Field(default_factory=list)
+
+
+class MapMissingCoordinate(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    reason_code: Literal["match.map.missingCoordinates"] = "match.map.missingCoordinates"
+
+
+class MatchMapFeatureGeometry(BaseModel):
+    type: Literal["Point"] = "Point"
+    coordinates: tuple[float, float]
+
+
+class MatchMapFeatureProperties(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    municipality: str = Field(min_length=1)
+    match_score: int = Field(ge=0, le=100)
+    category: Literal["top", "surprising", "stretch", "avoid_or_reconsider"]
+    confidence: ConfidenceScore
+    freshness_status: DataFreshnessStatus
+    source_refs: list[str] = Field(default_factory=list)
+    missing_data: list[str] = Field(default_factory=list)
+
+
+class MatchMapFeature(BaseModel):
+    type: Literal["Feature"] = "Feature"
+    geometry: MatchMapFeatureGeometry
+    properties: MatchMapFeatureProperties
+
+
+class MatchMapResponse(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    bounds: list[float] = Field(min_length=4, max_length=4)
+    features: list[MatchMapFeature] = Field(default_factory=list)
+    unsupported_regions: list[str] = Field(default_factory=list)
+    missing_coordinates: list[MapMissingCoordinate] = Field(default_factory=list)
+    empty_state_code: str | None = None
+
+
 ReportSectionType = Literal[
     "profile_summary",
     "top_neighborhood_matches",

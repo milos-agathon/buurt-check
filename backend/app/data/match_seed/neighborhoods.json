@@ -78,6 +78,33 @@
           "limitations": ["MOCK DATA: representative green-access score."]
         },
         {
+          "metric_key": "mobility",
+          "raw_value": { "value": 72, "unit": "score_0_100" },
+          "normalized_value": 72,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 70,
+          "limitations": ["MOCK DATA: representative public transport access score."]
+        },
+        {
+          "metric_key": "calmness",
+          "raw_value": { "value": 76, "unit": "score_0_100" },
+          "normalized_value": 76,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 70,
+          "limitations": ["MOCK DATA: representative low-noise calmness score."]
+        },
+        {
+          "metric_key": "affordability_buy",
+          "raw_value": { "value": 62, "unit": "score_0_100" },
+          "normalized_value": 62,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 69,
+          "limitations": ["MOCK DATA: representative buy affordability score."]
+        },
+        {
           "metric_key": "affordability_rent",
           "raw_value": { "value": null, "unit": "score_0_100" },
           "normalized_value": null,

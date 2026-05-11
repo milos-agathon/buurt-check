@@ -37,6 +37,9 @@ import SharePackSheet from './components/prebid/SharePackSheet';
 import SharedPrebidScreen from './components/prebid/SharedPrebidScreen';
 import MatchLanding from './components/match/MatchLanding';
 import MatchQuiz from './components/match/MatchQuiz';
+import MatchComparison from './components/match/MatchComparison';
+import MatchMap from './components/match/MatchMap';
+import MatchSimilarSearch from './components/match/MatchSimilarSearch';
 
 import {
   ApiError,
@@ -109,7 +112,12 @@ import {
   type AnalyticsConsentState,
 } from './services/clientEvents';
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
-import { submitMatchQuiz } from './services/matchApi';
+import {
+  compareMatchNeighborhoods,
+  fetchMatchMap,
+  findSimilarMatchNeighborhoods,
+  submitMatchQuiz,
+} from './services/matchApi';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import { useViewportBottomOffset } from './hooks/useViewportBottomOffset';
 import type { Geometry, Position } from 'geojson';
@@ -137,7 +145,13 @@ import type {
   RiskLevel,
   ShortlistItem,
 } from './types/api';
-import type { MatchQuizPayload, MatchQuizResponse } from './types/match';
+import type {
+  MatchCompareResponse,
+  MatchMapResponse,
+  MatchQuizPayload,
+  MatchQuizResponse,
+  MatchSimilarResponse,
+} from './types/match';
 import {
   resolveSourceFetchStatus,
   type SourceFetchStatus,
@@ -156,7 +170,7 @@ const NeighborhoodViewer3D = lazy(() => import('./components/NeighborhoodViewer3
 const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
-type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz';
+type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchComparison' | 'matchSimilar' | 'matchMap';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
 interface DossierSeedState {
@@ -410,7 +424,19 @@ function hasSurroundingContext(data: Neighborhood3DResponse | null): boolean {
 }
 
 type ProgressivePhase = 'house' | 'risk' | 'buurt';
-type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz';
+type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchComparison' | 'matchSimilar' | 'matchMap';
+
+const DEFAULT_MATCH_COMPARE_IDS = [
+  'nh_amsterdam_ijburg',
+  'nh_utrecht_leidsche_rijn',
+  'nh_rotterdam_katendrecht',
+];
+
+const DEFAULT_MATCH_KNOWN_NEIGHBORHOODS = [
+  { id: 'nh_amsterdam_ijburg', name: 'IJburg' },
+  { id: 'nh_utrecht_leidsche_rijn', name: 'Leidsche Rijn' },
+  { id: 'nh_rotterdam_katendrecht', name: 'Katendrecht' },
+];
 
 const PHASE_1_TIMEOUT_MS = 7000;
 const PHASE_2_TIMEOUT_MS = 9000;
@@ -502,6 +528,9 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   if (normalizedPath === '/settings') return { route: 'settings' };
   if (normalizedPath === '/match') return { route: 'matchLanding' };
   if (normalizedPath === '/match/quiz') return { route: 'matchQuiz' };
+  if (normalizedPath === '/match/compare') return { route: 'matchComparison' };
+  if (normalizedPath === '/match/similar') return { route: 'matchSimilar' };
+  if (normalizedPath === '/match/map') return { route: 'matchMap' };
   if (normalizedPath === '/search' || (normalizedPath === '/' && !(checkoutParams.reportId && checkoutParams.sessionId))) {
     return { route: 'search' };
   }
@@ -606,6 +635,9 @@ function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.route === 'settings') return '#/settings';
   if (parsed.route === 'matchLanding') return '#/match';
   if (parsed.route === 'matchQuiz') return '#/match/quiz';
+  if (parsed.route === 'matchComparison') return '#/match/compare';
+  if (parsed.route === 'matchSimilar') return '#/match/similar';
+  if (parsed.route === 'matchMap') return '#/match/map';
   if (parsed.route === 'pack' && parsed.vboId && parsed.reportId) {
     return `#/pack/${encodeURIComponent(parsed.vboId)}/${encodeURIComponent(parsed.reportId)}`;
   }
@@ -1263,6 +1295,15 @@ function App() {
   const [matchQuizResponse, setMatchQuizResponse] = useState<MatchQuizResponse | null>(null);
   const [matchQuizSubmitting, setMatchQuizSubmitting] = useState(false);
   const [matchQuizErrorCode, setMatchQuizErrorCode] = useState<string | null>(null);
+  const [matchComparisonResponse, setMatchComparisonResponse] = useState<MatchCompareResponse | null>(null);
+  const [matchComparisonLoading, setMatchComparisonLoading] = useState(false);
+  const [matchComparisonErrorCode, setMatchComparisonErrorCode] = useState<string | null>(null);
+  const [matchSimilarResponse, setMatchSimilarResponse] = useState<MatchSimilarResponse | null>(null);
+  const [matchSimilarLoading, setMatchSimilarLoading] = useState(false);
+  const [matchSimilarErrorCode, setMatchSimilarErrorCode] = useState<string | null>(null);
+  const [matchMapResponse, setMatchMapResponse] = useState<MatchMapResponse | null>(null);
+  const [matchMapLoading, setMatchMapLoading] = useState(false);
+  const [matchMapErrorCode, setMatchMapErrorCode] = useState<string | null>(null);
   const [themePreference, setThemePreference] = useState<ThemePreference>(getTheme());
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsentState>(() =>
     analyticsEnabled ? getAnalyticsConsent() : 'unknown',
@@ -2051,6 +2092,72 @@ function App() {
       setMatchQuizSubmitting(false);
     }
   }, []);
+
+  const loadMatchComparison = useCallback(async () => {
+    setMatchComparisonLoading(true);
+    setMatchComparisonErrorCode(null);
+    try {
+      const response = await compareMatchNeighborhoods({
+        neighborhood_ids: DEFAULT_MATCH_COMPARE_IDS,
+        locale: normalizeUiLanguage(i18n.language),
+      });
+      setMatchComparisonResponse(response);
+    } catch {
+      setMatchComparisonErrorCode('match.warning.compare_failed');
+    } finally {
+      setMatchComparisonLoading(false);
+    }
+  }, [i18n.language]);
+
+  const handleMatchSimilarSearch = useCallback(async (
+    sourceId: string,
+    filters: { cheaper: boolean; greener: boolean; calmer: boolean },
+  ) => {
+    setMatchSimilarLoading(true);
+    setMatchSimilarErrorCode(null);
+    try {
+      const response = await findSimilarMatchNeighborhoods({
+        source_neighborhood_id: sourceId,
+        filters,
+        limit: 8,
+      });
+      setMatchSimilarResponse(response);
+    } catch {
+      setMatchSimilarErrorCode('match.warning.similar_failed');
+    } finally {
+      setMatchSimilarLoading(false);
+    }
+  }, []);
+
+  const loadMatchMap = useCallback(async () => {
+    setMatchMapLoading(true);
+    setMatchMapErrorCode(null);
+    try {
+      const response = await fetchMatchMap({ min_score: 0 });
+      setMatchMapResponse(response);
+    } catch {
+      setMatchMapErrorCode('match.warning.map_failed');
+    } finally {
+      setMatchMapLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeScreen === 'matchComparison' && !matchComparisonResponse && !matchComparisonLoading) {
+      void loadMatchComparison();
+    }
+    if (activeScreen === 'matchMap' && !matchMapResponse && !matchMapLoading) {
+      void loadMatchMap();
+    }
+  }, [
+    activeScreen,
+    loadMatchComparison,
+    loadMatchMap,
+    matchComparisonLoading,
+    matchComparisonResponse,
+    matchMapLoading,
+    matchMapResponse,
+  ]);
 
   const buildShortlistItem = useCallback((): ShortlistItem | null => {
     if (!address?.adresseerbaar_object_id) return null;
@@ -3951,6 +4058,21 @@ function App() {
       setActiveScreen('matchQuiz');
       return;
     }
+    if (parsed.route === 'matchComparison') {
+      setActiveTab('home');
+      setActiveScreen('matchComparison');
+      return;
+    }
+    if (parsed.route === 'matchSimilar') {
+      setActiveTab('home');
+      setActiveScreen('matchSimilar');
+      return;
+    }
+    if (parsed.route === 'matchMap') {
+      setActiveTab('home');
+      setActiveScreen('matchMap');
+      return;
+    }
     if (parsed.route === 'pack') {
       setActiveTab('briefing');
       setActiveScreen('pack');
@@ -4592,9 +4714,15 @@ function App() {
         ? '#/settings'
         : activeScreen === 'matchLanding'
           ? '#/match'
-          : activeScreen === 'matchQuiz'
-            ? '#/match/quiz'
-            : activeScreen === 'dossier'
+        : activeScreen === 'matchQuiz'
+          ? '#/match/quiz'
+          : activeScreen === 'matchComparison'
+            ? '#/match/compare'
+            : activeScreen === 'matchSimilar'
+              ? '#/match/similar'
+              : activeScreen === 'matchMap'
+                ? '#/match/map'
+                : activeScreen === 'dossier'
               ? '#/address'
               : activeScreen === 'pack'
                 ? '#/pack'
@@ -4923,7 +5051,10 @@ function App() {
                   setActiveScreen('matchQuiz');
                   setHashRoute('#/match/quiz');
                 }}
-                onCompareKnown={handleNavigateToCompare}
+                onCompareKnown={() => {
+                  setActiveScreen('matchSimilar');
+                  setHashRoute('#/match/similar');
+                }}
               />
             </motion.div>
           )}
@@ -4951,6 +5082,59 @@ function App() {
                   })}</p>
                 </section>
               )}
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchComparison' && (
+            <motion.div
+              key="screen-match-comparison"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <MatchComparison
+                comparison={matchComparisonResponse}
+                loading={matchComparisonLoading}
+                errorCode={matchComparisonErrorCode}
+              />
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchSimilar' && (
+            <motion.div
+              key="screen-match-similar"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <MatchSimilarSearch
+                knownNeighborhoods={DEFAULT_MATCH_KNOWN_NEIGHBORHOODS}
+                response={matchSimilarResponse}
+                loading={matchSimilarLoading}
+                errorCode={matchSimilarErrorCode}
+                onSearch={handleMatchSimilarSearch}
+              />
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchMap' && (
+            <motion.div
+              key="screen-match-map"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <MatchMap
+                map={matchMapResponse}
+                loading={matchMapLoading}
+                errorCode={matchMapErrorCode}
+              />
             </motion.div>
           )}
 

@@ -1,0 +1,86 @@
+.match-comparison {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.match-comparison__header,
+.match-comparison__card {
+  display: grid;
+  gap: 8px;
+}
+
+.match-comparison__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.match-comparison__card {
+  border: 1px solid var(--color-border, #d8e2ea);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--color-surface, #fff);
+}
+
+.match-comparison__card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.match-comparison__card dt,
+.match-comparison__table small {
+  color: var(--color-text-muted, #5d6b78);
+  font-size: 0.78rem;
+}
+
+.match-comparison__card dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.match-comparison__missing {
+  color: var(--color-warning-text, #8a4b00);
+}
+
+.match-comparison__table-wrap {
+  overflow-x: auto;
+}
+
+.match-comparison__table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.match-comparison__table th,
+.match-comparison__table td {
+  border-bottom: 1px solid var(--color-border, #d8e2ea);
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.match-comparison__table td {
+  min-width: 160px;
+}
+
+.match-comparison__table td > * {
+  display: block;
+}
+
+.match-comparison__table td[data-state="missing"] strong {
+  color: var(--color-text-muted, #5d6b78);
+}
+
+@media (max-width: 720px) {
+  .match-comparison {
+    padding: 16px;
+  }
+
+  .match-comparison__card dl {
+    grid-template-columns: 1fr;
+  }
+}

@@ -117,6 +117,136 @@ export interface ConfidenceScore {
   reasons: string[];
 }
 
+export interface MetricSource {
+  source_id: string;
+  source_name: string;
+  source_type: 'official' | 'commercial' | 'derived' | 'mock' | 'user_provided' | 'missing';
+  metric_name: string;
+  license_status: 'open' | 'licensed' | 'mock' | 'unknown' | 'unavailable';
+  measurement_date?: string | null;
+  retrieved_at?: string | null;
+  geography_level: 'neighborhood' | 'district' | 'municipality' | 'custom_seed';
+  method_version: string;
+  limitations: string[];
+  confidence: number;
+  freshness_status: DataFreshnessStatus;
+}
+
+export interface RecommendationExplanation {
+  code: string;
+  evidence_refs: string[];
+}
+
+export interface ScoreDriver {
+  feature: string;
+  impact: number;
+  score: number;
+  source_refs: string[];
+}
+
+export interface SimilarNeighborhoodResult {
+  neighborhood_id: string;
+  name: string;
+  municipality: string;
+  similarity_score: number;
+  shared_drivers: ScoreDriver[];
+  meaningful_differences: ScoreDriver[];
+  constraints: RecommendationExplanation[];
+  confidence: ConfidenceScore;
+  source_refs: string[];
+}
+
+export interface MatchSimilarPayload {
+  source_neighborhood_id: string;
+  preference_vector_id?: string | null;
+  filters: Partial<Record<'cheaper' | 'greener' | 'calmer', boolean>>;
+  limit?: number;
+}
+
+export interface MatchSimilarResponse {
+  source_neighborhood_id: string;
+  results: SimilarNeighborhoodResult[];
+  unsupported_regions: string[];
+  empty_state_code?: string | null;
+}
+
+export interface ComparisonCell {
+  value?: number | null;
+  display_value: string;
+  state: 'available' | 'missing' | 'stale' | 'mock';
+  confidence: number;
+  freshness_status: DataFreshnessStatus;
+  source_refs: string[];
+  sources: MetricSource[];
+  limitations: string[];
+}
+
+export interface ComparisonIndicatorRow {
+  indicator_key: string;
+  label_code: string;
+  cells: Record<string, ComparisonCell>;
+}
+
+export interface ComparisonNeighborhoodSummary {
+  neighborhood_id: string;
+  name: string;
+  municipality: string;
+  score: number;
+  dimension_scores: Record<string, number | null>;
+  evidence: RecommendationExplanation[];
+  tradeoffs: RecommendationExplanation[];
+  confidence: ConfidenceScore;
+  freshness_status: DataFreshnessStatus;
+  missing_data: string[];
+  source_refs: string[];
+}
+
+export interface MatchComparePayload {
+  preference_vector_id?: string | null;
+  neighborhood_ids: string[];
+  locale: MatchLocale;
+}
+
+export interface MatchCompareResponse {
+  preference_vector_id?: string | null;
+  locale: MatchLocale;
+  neighborhoods: ComparisonNeighborhoodSummary[];
+  indicators: ComparisonIndicatorRow[];
+  source_coverage: string[];
+  missing_data_states: string[];
+}
+
+export interface MatchMapFeature {
+  type: 'Feature';
+  geometry: { type: 'Point'; coordinates: [number, number] };
+  properties: {
+    neighborhood_id: string;
+    name: string;
+    municipality: string;
+    match_score: number;
+    category: 'top' | 'surprising' | 'stretch' | 'avoid_or_reconsider';
+    confidence: ConfidenceScore;
+    freshness_status: DataFreshnessStatus;
+    source_refs: string[];
+    missing_data: string[];
+  };
+}
+
+export interface MapMissingCoordinate {
+  neighborhood_id: string;
+  name: string;
+  reason_code: 'match.map.missingCoordinates';
+}
+
+export interface MatchMapResponse {
+  type: 'FeatureCollection';
+  bounds: number[];
+  features: MatchMapFeature[];
+  unsupported_regions: string[];
+  missing_coordinates: MapMissingCoordinate[];
+  empty_state_code?: string | null;
+}
+
 export interface RecommendationEvidence {
   evidence_id: string;
   claim_code: string;
