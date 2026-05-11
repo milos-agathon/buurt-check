@@ -813,5 +813,20 @@
   "match.warning.anchor_missing": "Add a city or anchor so commute checks have context.",
   "match.warning.commute_or_radius_missing": "Add commute time or radius for mobility fit.",
   "match.warning.too_many_hard_filters": "Several must-haves may narrow results too much.",
-  "match.warning.quiz_submit_failed": "We could not create your preference profile. Try again."
+  "match.warning.quiz_submit_failed": "We could not create your preference profile. Try again.",
+  "match.warning.report_create_failed": "We could not create your neighborhood report. Try again.",
+  "match.warning.report_fetch_failed": "We could not load this neighborhood report. Try again.",
+  "match.report.eyebrow": "Evidence-backed match",
+  "match.report.title": "Neighborhood report",
+  "match.report.loading": "Preparing report...",
+  "match.report.empty": "No report content is available yet.",
+  "match.report.status.ai": "AI checked",
+  "match.report.status.fallback": "Deterministic fallback used",
+  "match.report.guardrailEvents": "{{count}} guardrail event recorded",
+  "match.report.guardrailEvents_plural": "{{count}} guardrail events recorded",
+  "match.report.claimMetadata": "Claim metadata",
+  "match.report.confidence": "Confidence",
+  "match.report.freshness": "Freshness",
+  "match.report.sources": "Sources",
+  "match.report.limitations": "Limitations"
 }

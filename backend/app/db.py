@@ -322,6 +322,32 @@ _MATCH_SCHEMA_STATEMENTS = (
         freshness_status TEXT NOT NULL,
         limitations_json TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS match_reports (
+        report_id TEXT NOT NULL PRIMARY KEY,
+        session_id TEXT,
+        preference_vector_id TEXT NOT NULL,
+        locale TEXT NOT NULL,
+        report_status TEXT NOT NULL,
+        title TEXT NOT NULL,
+        profile_summary_json TEXT NOT NULL,
+        recommendation_ids_json TEXT NOT NULL,
+        report_input_json TEXT NOT NULL,
+        report_output_json TEXT NOT NULL,
+        validation_status TEXT NOT NULL,
+        limitations_json TEXT NOT NULL,
+        source_refs_json TEXT NOT NULL,
+        generated_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_guardrail_events (
+        guardrail_event_id TEXT NOT NULL PRIMARY KEY,
+        report_id TEXT,
+        event_type TEXT NOT NULL,
+        action_taken TEXT NOT NULL,
+        details_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS match_listings (
         listing_id TEXT NOT NULL PRIMARY KEY,
         provider_listing_id TEXT,
@@ -380,6 +406,14 @@ _MATCH_SCHEMA_STATEMENTS = (
     (
         "CREATE INDEX IF NOT EXISTS idx_match_listings_neighborhood "
         "ON match_listings(neighborhood_id)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_reports_preference "
+        "ON match_reports(preference_vector_id, created_at DESC)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_guardrail_events_report "
+        "ON match_guardrail_events(report_id, created_at DESC)"
     ),
 )
 

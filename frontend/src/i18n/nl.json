@@ -823,5 +823,20 @@
   "match.warning.anchor_missing": "Voeg een stad of anker toe zodat reistijd context krijgt.",
   "match.warning.commute_or_radius_missing": "Voeg reistijd of radius toe voor bereikbaarheidsfit.",
   "match.warning.too_many_hard_filters": "Meerdere must-haves kunnen resultaten sterk beperken.",
-  "match.warning.quiz_submit_failed": "We konden je voorkeurenprofiel niet maken. Probeer opnieuw."
+  "match.warning.quiz_submit_failed": "We konden je voorkeurenprofiel niet maken. Probeer opnieuw.",
+  "match.warning.report_create_failed": "We konden je buurrapport niet maken. Probeer opnieuw.",
+  "match.warning.report_fetch_failed": "We konden dit buurrapport niet laden. Probeer opnieuw.",
+  "match.report.eyebrow": "Match met bewijs",
+  "match.report.title": "Buurrapport",
+  "match.report.loading": "Rapport wordt voorbereid...",
+  "match.report.empty": "Er is nog geen rapportinhoud beschikbaar.",
+  "match.report.status.ai": "AI gecontroleerd",
+  "match.report.status.fallback": "Deterministische fallback gebruikt",
+  "match.report.guardrailEvents": "{{count}} guardrail-event vastgelegd",
+  "match.report.guardrailEvents_plural": "{{count}} guardrail-events vastgelegd",
+  "match.report.claimMetadata": "Claimmetadata",
+  "match.report.confidence": "Confidence",
+  "match.report.freshness": "Versheid",
+  "match.report.sources": "Bronnen",
+  "match.report.limitations": "Beperkingen"
 }

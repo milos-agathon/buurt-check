@@ -21,9 +21,46 @@ async def test_init_db_creates_match_foundation_tables(tmp_path):
         "match_listings",
         "match_preference_vectors",
         "match_recommendation_evidence",
+        "match_reports",
+        "match_guardrail_events",
         "match_data_import_runs",
         "match_source_health_snapshots",
     } <= table_names
+
+
+@pytest.mark.asyncio
+async def test_match_report_tables_preserve_structured_snapshot_and_guardrail_metadata(tmp_path):
+    db_path = str(tmp_path / "match.db")
+
+    await init_db(db_path)
+
+    async with get_db(db_path) as db:
+        cursor = await db.execute("PRAGMA table_info(match_reports)")
+        report_columns = {row["name"] for row in await cursor.fetchall()}
+        cursor = await db.execute("PRAGMA table_info(match_guardrail_events)")
+        guardrail_columns = {row["name"] for row in await cursor.fetchall()}
+
+    assert {
+        "report_id",
+        "session_id",
+        "preference_vector_id",
+        "locale",
+        "report_status",
+        "report_input_json",
+        "report_output_json",
+        "validation_status",
+        "source_refs_json",
+        "generated_by",
+        "created_at",
+    } <= report_columns
+    assert {
+        "guardrail_event_id",
+        "report_id",
+        "event_type",
+        "action_taken",
+        "details_json",
+        "created_at",
+    } <= guardrail_columns
 
 
 @pytest.mark.asyncio

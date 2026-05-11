@@ -95,3 +95,97 @@ export interface MatchQuizResponse {
   validation_warnings: MatchValidationWarning[];
   analytics_event: 'match_quiz_completed';
 }
+
+export type DataFreshnessStatus = 'current' | 'aging' | 'stale' | 'unavailable' | 'mock' | 'conflict';
+export type ConfidenceLabel = 'high' | 'medium' | 'low';
+export type MatchReportStatus = 'generated' | 'fallback' | 'invalid';
+export type ReportGeneratedBy = 'ai' | 'deterministic_fallback';
+export type ReportValidationStatus = 'passed' | 'fallback_used' | 'blocked';
+export type ReportSectionType =
+  | 'profile_summary'
+  | 'top_neighborhood_matches'
+  | 'why_these_neighborhoods_fit'
+  | 'tradeoffs_and_watchouts'
+  | 'similar_neighborhoods'
+  | 'live_homes_available_now'
+  | 'suggested_alerts'
+  | 'next_steps';
+
+export interface ConfidenceScore {
+  score: number;
+  label?: ConfidenceLabel | null;
+  reasons: string[];
+}
+
+export interface RecommendationEvidence {
+  evidence_id: string;
+  claim_code: string;
+  metric_keys: string[];
+  source_refs: string[];
+  confidence: ConfidenceScore;
+  freshness_status: DataFreshnessStatus;
+  limitations: string[];
+}
+
+export interface ReportClaim {
+  text: string;
+  evidence_refs: string[];
+  source_refs: string[];
+  freshness_status: DataFreshnessStatus;
+  confidence: ConfidenceScore;
+  score_driver_refs: string[];
+}
+
+export interface ReportSection {
+  section_type: ReportSectionType;
+  title: string;
+  body: string;
+  neighborhood_id?: string | null;
+  claims: ReportClaim[];
+}
+
+export interface GuardrailEvent {
+  guardrail_event_id?: string;
+  report_id?: string | null;
+  event_type: string;
+  action_taken: 'blocked' | 'rewritten' | 'fallback_used' | 'logged';
+  details: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface ReportInput {
+  locale: MatchLocale;
+  profile_summary: Record<string, unknown>;
+  preference_vector: PreferenceVector;
+  recommendations: Array<Record<string, unknown>>;
+  comparisons: Array<Record<string, unknown>>;
+  similar_neighborhoods: Array<Record<string, unknown>>;
+  listing_context: Record<string, unknown>;
+  evidence_items: RecommendationEvidence[];
+  approved_limitations: string[];
+  source_refs: string[];
+  generated_at: string;
+}
+
+export interface MatchReportCreatePayload {
+  session_id?: string | null;
+  preference_vector_id?: string | null;
+  recommendation_ids?: string[];
+  locale: MatchLocale;
+  generation_mode: 'ai_with_fallback' | 'fallback_only';
+  report_input: ReportInput;
+}
+
+export interface MatchReportResponse {
+  report_id: string;
+  status: MatchReportStatus;
+  generated_by: ReportGeneratedBy;
+  validation_status: ReportValidationStatus;
+  locale: MatchLocale;
+  sections: ReportSection[];
+  limitations: string[];
+  source_refs: string[];
+  guardrail_events: GuardrailEvent[];
+  report_input: ReportInput;
+  generated_at: string;
+}

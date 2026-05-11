@@ -208,7 +208,13 @@ def test_ai_report_data_contract_requires_grounded_evidence_and_limitations():
         locale="en",
         profile_summary={"household_type": "family"},
         preference_vector=preference,
-        recommendations=[{"neighborhood_id": "nh_amsterdam_ijburg", "fit_score": 82}],
+        recommendations=[
+            {
+                "neighborhood_id": "nh_amsterdam_ijburg",
+                "fit_score": 82,
+                "evidence_refs": [evidence.evidence_id],
+            }
+        ],
         evidence_items=[evidence],
         approved_limitations=["This report uses clearly labelled mock seed data."],
     )

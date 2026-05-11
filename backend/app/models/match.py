@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
@@ -380,21 +381,115 @@ class SimilarNeighborhoodResult(BaseModel):
     source_refs: list[str] = Field(default_factory=list)
 
 
+ReportSectionType = Literal[
+    "profile_summary",
+    "top_neighborhood_matches",
+    "why_these_neighborhoods_fit",
+    "tradeoffs_and_watchouts",
+    "similar_neighborhoods",
+    "live_homes_available_now",
+    "suggested_alerts",
+    "next_steps",
+]
+
+
+def _guardrail_event_id() -> str:
+    return f"gr_{uuid4().hex}"
+
+
+class GuardrailEvent(BaseModel):
+    guardrail_event_id: str = Field(default_factory=_guardrail_event_id)
+    report_id: str | None = None
+    event_type: Literal[
+        "missing_citation",
+        "unsupported_claim",
+        "unsupported_safety_claim",
+        "protected_trait_claim",
+        "certainty_language",
+        "schema_invalid",
+        "score_driver_mismatch",
+        "provider_unavailable",
+    ]
+    action_taken: Literal["blocked", "rewritten", "fallback_used", "logged"]
+    details: dict[str, object] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class ReportClaim(BaseModel):
+    text: str = Field(min_length=1)
+    evidence_refs: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+    freshness_status: DataFreshnessStatus
+    confidence: ConfidenceScore
+    score_driver_refs: list[str] = Field(default_factory=list)
+
+
+class ReportSection(BaseModel):
+    section_type: ReportSectionType
+    title: str = Field(min_length=1)
+    body: str = Field(min_length=1)
+    neighborhood_id: str | None = None
+    claims: list[ReportClaim] = Field(default_factory=list)
+
+
 class ReportInput(BaseModel):
     locale: Literal["en", "nl"]
     profile_summary: dict[str, object]
     preference_vector: PreferenceVector
     recommendations: list[dict[str, object]]
+    comparisons: list[dict[str, object]] = Field(default_factory=list)
+    similar_neighborhoods: list[dict[str, object]] = Field(default_factory=list)
+    listing_context: dict[str, object] = Field(default_factory=dict)
     evidence_items: list[RecommendationEvidence] = Field(min_length=1)
     approved_limitations: list[str] = Field(min_length=1)
+    source_refs: list[str] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def validate_evidence_refs(self) -> ReportInput:
+        evidence_ids = {item.evidence_id for item in self.evidence_items}
+        for recommendation in self.recommendations:
+            refs = recommendation.get("evidence_refs", [])
+            if not isinstance(refs, list) or not refs:
+                raise ValueError("recommendation requires evidence coverage")
+            unknown = sorted(str(ref) for ref in refs if str(ref) not in evidence_ids)
+            if unknown:
+                refs_text = ", ".join(unknown)
+                raise ValueError(f"recommendation references unknown evidence: {refs_text}")
+        return self
 
 
 class ReportOutput(BaseModel):
     locale: Literal["en", "nl"]
     validation_status: Literal["passed", "fallback_used", "blocked"]
-    profile_narrative: str
+    generated_by: Literal["ai", "deterministic_fallback"] = "deterministic_fallback"
+    sections: list[ReportSection] = Field(default_factory=list)
+    profile_narrative: str = ""
     recommendation_sections: list[dict[str, object]] = Field(default_factory=list)
     limitations: list[str] = Field(min_length=1)
+
+
+class MatchReportCreateRequest(BaseModel):
+    session_id: str | None = None
+    preference_vector_id: str | None = None
+    recommendation_ids: list[str] = Field(default_factory=list)
+    locale: Literal["en", "nl"]
+    generation_mode: Literal["ai_with_fallback", "fallback_only"] = "ai_with_fallback"
+    report_input: ReportInput
+
+
+class MatchReportResponse(BaseModel):
+    report_id: str = Field(min_length=1)
+    status: Literal["generated", "fallback", "invalid"]
+    generated_by: Literal["ai", "deterministic_fallback"]
+    validation_status: Literal["passed", "fallback_used", "blocked"]
+    locale: Literal["en", "nl"]
+    sections: list[ReportSection] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+    guardrail_events: list[GuardrailEvent] = Field(default_factory=list)
+    report_input: ReportInput
+    generated_at: datetime = Field(default_factory=utc_now)
 
 
 class ProviderStatus(BaseModel):

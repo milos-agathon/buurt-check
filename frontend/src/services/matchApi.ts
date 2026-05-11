@@ -1,5 +1,11 @@
 import { buildPrimaryApiUrl } from '../config/apiBase';
-import type { MatchQuizPayload, MatchQuizResponse } from '../types/match';
+import type {
+  MatchLocale,
+  MatchQuizPayload,
+  MatchQuizResponse,
+  MatchReportCreatePayload,
+  MatchReportResponse,
+} from '../types/match';
 import { recordMatchEvent } from './matchAnalytics';
 
 export class MatchApiError extends Error {
@@ -32,4 +38,38 @@ export async function submitMatchQuiz(payload: MatchQuizPayload): Promise<MatchQ
     journey_intent: body.preference_vector.journey_intent,
   });
   return body;
+}
+
+export async function createMatchReport(
+  payload: MatchReportCreatePayload,
+): Promise<MatchReportResponse> {
+  const response = await fetch(buildPrimaryApiUrl('/match/reports'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.report_create_failed');
+  }
+
+  return await response.json() as MatchReportResponse;
+}
+
+export async function fetchMatchReport(
+  reportId: string,
+  locale?: MatchLocale,
+): Promise<MatchReportResponse> {
+  const query = locale ? `?locale=${encodeURIComponent(locale)}` : '';
+  const response = await fetch(buildPrimaryApiUrl(`/match/reports/${encodeURIComponent(reportId)}${query}`), {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.report_fetch_failed');
+  }
+
+  return await response.json() as MatchReportResponse;
 }
