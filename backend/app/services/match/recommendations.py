@@ -1,6 +1,18 @@
 from __future__ import annotations
 
-from app.models.match import NeighborhoodMatchScore, RecommendationSet
+from app.models.match import (
+    SUPPORTED_FEATURE_KEYS,
+    ConfidenceScore,
+    DataFreshnessStatus,
+    MatchRecommendationsResponse,
+    Neighborhood,
+    NeighborhoodFeatureVector,
+    NeighborhoodMatchScore,
+    PreferenceVector,
+    RecommendationEvidence,
+    RecommendationSet,
+)
+from app.services.match.scoring import score_neighborhoods
 
 
 def _with_category(
@@ -115,4 +127,77 @@ def build_recommendation_set(
         avoid_or_reconsider=avoid,
         empty_result_relaxations=[] if top else _relaxations(scored_neighborhoods),
         source_coverage=_source_coverage(scored_neighborhoods),
+    )
+
+
+def _all_recommendations(recommendations: RecommendationSet) -> list[NeighborhoodMatchScore]:
+    return [
+        *recommendations.top,
+        *recommendations.surprising,
+        *recommendations.stretch,
+        *recommendations.avoid_or_reconsider,
+    ]
+
+
+def _evidence_items(items: list[NeighborhoodMatchScore]) -> list[RecommendationEvidence]:
+    evidence: dict[str, RecommendationEvidence] = {}
+    feature_keys = sorted(SUPPORTED_FEATURE_KEYS, key=len, reverse=True)
+    for item in items:
+        for ref in item.evidence_refs:
+            suffix = ref.removeprefix("ev_")
+            metric_key = next(
+                (feature for feature in feature_keys if suffix.startswith(f"{feature}_")),
+                "match_score",
+            )
+            source_ref = (
+                suffix.removeprefix(f"{metric_key}_")
+                if metric_key != "match_score"
+                else ref
+            )
+            evidence[ref] = RecommendationEvidence(
+                evidence_id=ref,
+                claim_code=f"match.recommendations.evidence.{metric_key}",
+                metric_keys=[metric_key],
+                source_refs=[source_ref],
+                confidence=ConfidenceScore(
+                    score=item.confidence.score,
+                    reasons=item.confidence.reasons or ["Recommendation evidence coverage."],
+                ),
+                freshness_status=item.freshness_status,
+                limitations=[
+                    "Seed/mock recommendation evidence is not live production data.",
+                ],
+            )
+    if not evidence and items:
+        first = items[0]
+        evidence["ev_match_seed"] = RecommendationEvidence(
+            evidence_id="ev_match_seed",
+            claim_code="match.recommendations.evidence.seed",
+            metric_keys=["match_score"],
+            source_refs=first.source_refs or ["seed"],
+            confidence=first.confidence,
+            freshness_status=DataFreshnessStatus.mock,
+            limitations=["Seed/mock recommendation evidence is not live production data."],
+        )
+    return sorted(evidence.values(), key=lambda item: item.evidence_id)
+
+
+def build_match_recommendations(
+    preference: PreferenceVector,
+    *,
+    neighborhoods: list[Neighborhood],
+    feature_vectors: list[NeighborhoodFeatureVector],
+    limit: int = 10,
+    locale: str = "en",
+) -> MatchRecommendationsResponse:
+    scored = score_neighborhoods(preference, neighborhoods, feature_vectors)
+    recommendations = build_recommendation_set(scored, limit=limit)
+    items = _all_recommendations(recommendations)
+    return MatchRecommendationsResponse(
+        preference_vector_id=preference.preference_vector_id,
+        locale=locale,  # type: ignore[arg-type]
+        recommendations=recommendations,
+        evidence_items=_evidence_items(items),
+        source_coverage=recommendations.source_coverage,
+        empty_state_code=None if recommendations.top else "match.recommendations.empty",
     )

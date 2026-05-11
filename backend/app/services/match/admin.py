@@ -17,7 +17,7 @@ from app.models.match import (
     SeedImportResult,
     SourceFailureIndicator,
 )
-from app.services.match.instrumentation import summarize_success_metrics
+from app.services.match.instrumentation import log_match_observation, summarize_success_metrics
 
 
 def summarize_guardrail_events(events: list[GuardrailEvent]) -> dict[str, object]:
@@ -156,6 +156,31 @@ def build_admin_health_dashboard(
         overall_status = "degraded"
     elif any(health.health_status == "mock_only" for health in seed_result.source_health):
         overall_status = "mock_only"
+
+    for failure in source_failures:
+        log_match_observation(
+            "provider_failure",
+            provider_name=failure.provider_name,
+            region_config_id=seed_result.region_config_id,
+            status=failure.status,
+            context={"error_code": failure.error_code},
+        )
+    for anomaly in anomalies:
+        log_match_observation(
+            "scoring_anomaly",
+            provider_name="match_scoring",
+            region_config_id=seed_result.region_config_id,
+            status=anomaly.severity,
+            context={"anomaly_type": anomaly.anomaly_type, "count": anomaly.count},
+        )
+    for failure in alert_status.failures:
+        log_match_observation(
+            "alert_dispatch_failure",
+            provider_name=alert_status.provider_name,
+            region_config_id=seed_result.region_config_id,
+            status="failed",
+            context={"alert_id": failure.alert_id, "error_code": failure.error_code},
+        )
 
     return MatchAdminHealthResponse(
         overall_status=overall_status,  # type: ignore[arg-type]

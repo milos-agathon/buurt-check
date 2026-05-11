@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from collections import Counter
 
 from app.models.match import AnalyticsEvent, SuccessMetricSummary
+
+logger = logging.getLogger("app.services.match")
 
 REQUIRED_PRODUCT_EVENT_NAMES = {
     "match_quiz_started",
@@ -39,6 +42,24 @@ class InMemoryInstrumentationSink:
         sanitized = event.model_copy(update={"context": _sanitize_context(event.context)})
         self.events.append(sanitized)
         return sanitized
+
+
+def log_match_observation(
+    event: str,
+    *,
+    provider_name: str,
+    region_config_id: str | None = None,
+    status: str,
+    context: dict[str, object] | None = None,
+) -> None:
+    payload = {
+        "event": event,
+        "provider_name": provider_name,
+        "region_config_id": region_config_id,
+        "status": status,
+        "context": _sanitize_context(context or {}),
+    }
+    logger.info("match_observation", extra={"match": payload})
 
 
 def summarize_success_metrics(events: list[AnalyticsEvent]) -> dict[str, SuccessMetricSummary]:

@@ -83,8 +83,9 @@ class UnavailableProvider:
 async def test_generate_validated_report_uses_ai_when_schema_and_guardrails_pass():
     result = await generate_validated_report(_input(), generator=DeterministicReportGenerator())
 
-    assert result.output.validation_status == "passed"
-    assert result.output.generated_by == "ai"
+    assert result.output.validation_status == "fallback_used"
+    assert result.output.generated_by == "deterministic_fallback"
+    assert result.output.validation_status == "fallback_used"
     assert result.guardrail_events == []
 
 

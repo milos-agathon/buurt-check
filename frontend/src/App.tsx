@@ -35,12 +35,6 @@ import VerificationActionDetailSheet from './components/prebid/VerificationActio
 import PackView from './components/prebid/PackView';
 import SharePackSheet from './components/prebid/SharePackSheet';
 import SharedPrebidScreen from './components/prebid/SharedPrebidScreen';
-import MatchLanding from './components/match/MatchLanding';
-import MatchQuiz from './components/match/MatchQuiz';
-import MatchComparison from './components/match/MatchComparison';
-import MatchMap from './components/match/MatchMap';
-import MatchSimilarSearch from './components/match/MatchSimilarSearch';
-
 import {
   ApiError,
   checkEntitlement,
@@ -114,9 +108,24 @@ import {
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
 import {
   compareMatchNeighborhoods,
+  createMatchAlert,
+  createMatchReport,
+  deleteMatchAlert,
+  deleteSavedMatchNeighborhood,
+  exportMatchReport,
+  fetchMatchAdminHealth,
+  fetchMatchAlerts,
+  fetchMatchListings,
   fetchMatchMap,
+  fetchMatchRecommendations,
+  fetchSavedMatchNeighborhoods,
   findSimilarMatchNeighborhoods,
+  saveMatchNeighborhood,
+  saveMatchReport,
+  shareMatchReport,
   submitMatchQuiz,
+  submitMatchFeedback,
+  updateMatchAlertStatus,
 } from './services/matchApi';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import { useViewportBottomOffset } from './hooks/useViewportBottomOffset';
@@ -148,8 +157,17 @@ import type {
 import type {
   MatchCompareResponse,
   MatchMapResponse,
+  MatchAdminHealthResponse,
+  MatchAlertCreatePayload,
+  MatchAlertRule,
+  MatchListing,
+  MatchListingProviderResult,
   MatchQuizPayload,
   MatchQuizResponse,
+  MatchRecommendationsResponse,
+  MatchReportResponse,
+  ReportShareResponse,
+  SavedNeighborhood,
   MatchSimilarResponse,
 } from './types/match';
 import {
@@ -169,8 +187,19 @@ const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMa
 const NeighborhoodViewer3D = lazy(() => import('./components/NeighborhoodViewer3D'));
 const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
+const MatchLanding = lazy(() => import('./components/match/MatchLanding'));
+const MatchQuiz = lazy(() => import('./components/match/MatchQuiz'));
+const MatchComparison = lazy(() => import('./components/match/MatchComparison'));
+const MatchMap = lazy(() => import('./components/match/MatchMap'));
+const MatchSimilarSearch = lazy(() => import('./components/match/MatchSimilarSearch'));
+const MatchReport = lazy(() => import('./components/match/MatchReport'));
+const MatchListings = lazy(() => import('./components/match/MatchListings'));
+const MatchAlerts = lazy(() => import('./components/match/MatchAlerts'));
+const MatchSaved = lazy(() => import('./components/match/MatchSaved'));
+const MatchAdminDashboard = lazy(() => import('./components/match/MatchAdminDashboard'));
+const MatchFeedbackControls = lazy(() => import('./components/match/MatchFeedbackControls'));
 
-type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchComparison' | 'matchSimilar' | 'matchMap';
+type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
 interface DossierSeedState {
@@ -424,7 +453,7 @@ function hasSurroundingContext(data: Neighborhood3DResponse | null): boolean {
 }
 
 type ProgressivePhase = 'house' | 'risk' | 'buurt';
-type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchComparison' | 'matchSimilar' | 'matchMap';
+type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin';
 
 const DEFAULT_MATCH_COMPARE_IDS = [
   'nh_amsterdam_ijburg',
@@ -528,9 +557,14 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   if (normalizedPath === '/settings') return { route: 'settings' };
   if (normalizedPath === '/match') return { route: 'matchLanding' };
   if (normalizedPath === '/match/quiz') return { route: 'matchQuiz' };
+  if (normalizedPath === '/match/report') return { route: 'matchReport' };
   if (normalizedPath === '/match/compare') return { route: 'matchComparison' };
   if (normalizedPath === '/match/similar') return { route: 'matchSimilar' };
   if (normalizedPath === '/match/map') return { route: 'matchMap' };
+  if (normalizedPath === '/match/listings') return { route: 'matchListings' };
+  if (normalizedPath === '/match/alerts') return { route: 'matchAlerts' };
+  if (normalizedPath === '/match/saved') return { route: 'matchSaved' };
+  if (normalizedPath === '/match/admin') return { route: 'matchAdmin' };
   if (normalizedPath === '/search' || (normalizedPath === '/' && !(checkoutParams.reportId && checkoutParams.sessionId))) {
     return { route: 'search' };
   }
@@ -635,9 +669,14 @@ function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.route === 'settings') return '#/settings';
   if (parsed.route === 'matchLanding') return '#/match';
   if (parsed.route === 'matchQuiz') return '#/match/quiz';
+  if (parsed.route === 'matchReport') return '#/match/report';
   if (parsed.route === 'matchComparison') return '#/match/compare';
   if (parsed.route === 'matchSimilar') return '#/match/similar';
   if (parsed.route === 'matchMap') return '#/match/map';
+  if (parsed.route === 'matchListings') return '#/match/listings';
+  if (parsed.route === 'matchAlerts') return '#/match/alerts';
+  if (parsed.route === 'matchSaved') return '#/match/saved';
+  if (parsed.route === 'matchAdmin') return '#/match/admin';
   if (parsed.route === 'pack' && parsed.vboId && parsed.reportId) {
     return `#/pack/${encodeURIComponent(parsed.vboId)}/${encodeURIComponent(parsed.reportId)}`;
   }
@@ -1295,6 +1334,28 @@ function App() {
   const [matchQuizResponse, setMatchQuizResponse] = useState<MatchQuizResponse | null>(null);
   const [matchQuizSubmitting, setMatchQuizSubmitting] = useState(false);
   const [matchQuizErrorCode, setMatchQuizErrorCode] = useState<string | null>(null);
+  const [matchRecommendations, setMatchRecommendations] = useState<MatchRecommendationsResponse | null>(null);
+  const [matchRecommendationsLoading, setMatchRecommendationsLoading] = useState(false);
+  const [matchRecommendationsErrorCode, setMatchRecommendationsErrorCode] = useState<string | null>(null);
+  const [matchReport, setMatchReport] = useState<MatchReportResponse | null>(null);
+  const [matchReportLoading, setMatchReportLoading] = useState(false);
+  const [matchReportErrorCode, setMatchReportErrorCode] = useState<string | null>(null);
+  const [matchListings, setMatchListings] = useState<MatchListingProviderResult | null>(null);
+  const [matchListingsLoading, setMatchListingsLoading] = useState(false);
+  const [matchListingsErrorCode, setMatchListingsErrorCode] = useState<string | null>(null);
+  const [matchAlerts, setMatchAlerts] = useState<MatchAlertRule[]>([]);
+  const [matchAlertsLoading, setMatchAlertsLoading] = useState(false);
+  const [matchAlertsLoaded, setMatchAlertsLoaded] = useState(false);
+  const [matchAlertsErrorCode, setMatchAlertsErrorCode] = useState<string | null>(null);
+  const [matchSavedNeighborhoods, setMatchSavedNeighborhoods] = useState<SavedNeighborhood[]>([]);
+  const [matchSavedLoading, setMatchSavedLoading] = useState(false);
+  const [matchSavedLoaded, setMatchSavedLoaded] = useState(false);
+  const [matchSavedErrorCode, setMatchSavedErrorCode] = useState<string | null>(null);
+  const [matchShare, setMatchShare] = useState<ReportShareResponse | null>(null);
+  const [matchExportReady, setMatchExportReady] = useState(false);
+  const [matchAdminHealth, setMatchAdminHealth] = useState<MatchAdminHealthResponse | null>(null);
+  const [matchAdminLoading, setMatchAdminLoading] = useState(false);
+  const [matchAdminErrorCode, setMatchAdminErrorCode] = useState<string | null>(null);
   const [matchComparisonResponse, setMatchComparisonResponse] = useState<MatchCompareResponse | null>(null);
   const [matchComparisonLoading, setMatchComparisonLoading] = useState(false);
   const [matchComparisonErrorCode, setMatchComparisonErrorCode] = useState<string | null>(null);
@@ -2081,17 +2142,76 @@ function App() {
   }, [setHashRoute]);
 
   const handleMatchQuizSubmit = useCallback(async (payload: MatchQuizPayload) => {
+    let quizSucceeded = false;
     setMatchQuizSubmitting(true);
+    setMatchRecommendationsLoading(true);
+    setMatchReportLoading(true);
     setMatchQuizErrorCode(null);
+    setMatchRecommendationsErrorCode(null);
+    setMatchReportErrorCode(null);
     try {
       const response = await submitMatchQuiz(payload);
+      quizSucceeded = true;
       setMatchQuizResponse(response);
+      setMatchQuizSubmitting(false);
+      const recommendations = await fetchMatchRecommendations({
+        preference_vector: response.preference_vector,
+        locale: response.preference_vector.locale,
+        limit: 10,
+      });
+      setMatchRecommendations(recommendations);
+      setMatchRecommendationsLoading(false);
+      setActiveScreen('matchReport');
+      setHashRoute('#/match/report');
+      const flatRecommendations = [
+        ...recommendations.recommendations.top,
+        ...recommendations.recommendations.surprising,
+        ...recommendations.recommendations.stretch,
+        ...recommendations.recommendations.avoid_or_reconsider,
+      ];
+      try {
+        const report = await createMatchReport({
+          session_id: response.preference_vector.session_id ?? null,
+          preference_vector_id: response.preference_vector.preference_vector_id,
+          recommendation_ids: flatRecommendations.map((item) => item.recommendation_id),
+          locale: response.preference_vector.locale,
+          generation_mode: 'fallback_only',
+          report_input: {
+            locale: response.preference_vector.locale,
+            profile_summary: {
+              household_type: response.profile.household_type,
+              journey_intent: response.preference_vector.journey_intent,
+              persona_overlays: response.persona_overlays.map((overlay) => overlay.type),
+            },
+            preference_vector: response.preference_vector,
+            recommendations: flatRecommendations.map((item) => ({ ...item })),
+            comparisons: [],
+            similar_neighborhoods: [],
+            listing_context: { provider_mode: 'mock', listing_count: 0 },
+            evidence_items: recommendations.evidence_items,
+            approved_limitations: [
+              'This report is informational and source-limited; verify important decisions with primary sources and qualified advisors.',
+              'Mock or placeholder listing states are not live housing supply.',
+            ],
+            source_refs: recommendations.source_coverage,
+            generated_at: new Date().toISOString(),
+          },
+        });
+        setMatchReport(report);
+      } catch {
+        setMatchReportErrorCode('match.warning.report_create_failed');
+      }
     } catch {
-      setMatchQuizErrorCode('match.warning.quiz_submit_failed');
+      if (!quizSucceeded) {
+        setMatchQuizErrorCode('match.warning.quiz_submit_failed');
+      }
+      setMatchRecommendationsErrorCode('match.warning.recommendations_failed');
     } finally {
       setMatchQuizSubmitting(false);
+      setMatchRecommendationsLoading(false);
+      setMatchReportLoading(false);
     }
-  }, []);
+  }, [setHashRoute]);
 
   const loadMatchComparison = useCallback(async () => {
     setMatchComparisonLoading(true);
@@ -2142,6 +2262,75 @@ function App() {
     }
   }, []);
 
+  const primaryMatchNeighborhood = useMemo(() => (
+    matchRecommendations?.recommendations.top[0]
+    ?? matchRecommendations?.recommendations.surprising[0]
+    ?? matchRecommendations?.recommendations.stretch[0]
+    ?? matchRecommendations?.recommendations.avoid_or_reconsider[0]
+    ?? null
+  ), [matchRecommendations]);
+
+  const loadMatchListings = useCallback(async () => {
+    const neighborhoodId = primaryMatchNeighborhood?.neighborhood_id ?? DEFAULT_MATCH_COMPARE_IDS[0];
+    setMatchListingsLoading(true);
+    setMatchListingsErrorCode(null);
+    try {
+      const response = await fetchMatchListings({
+        neighborhood_id: neighborhoodId,
+        journey_intent: matchQuizResponse?.preference_vector.journey_intent ?? 'both',
+        budget_max_cents: matchQuizResponse?.preference_vector.budget_max_cents ?? 62500000,
+        rent_max_cents: matchQuizResponse?.preference_vector.monthly_rent_max_cents ?? 250000,
+        property_type: matchQuizResponse?.preference_vector.property_types[0] ?? 'apartment',
+      });
+      setMatchListings(response);
+    } catch {
+      setMatchListingsErrorCode('match.warning.listings_failed');
+    } finally {
+      setMatchListingsLoading(false);
+    }
+  }, [matchQuizResponse, primaryMatchNeighborhood]);
+
+  const loadMatchAlerts = useCallback(async () => {
+    setMatchAlertsLoading(true);
+    setMatchAlertsErrorCode(null);
+    try {
+      const response = await fetchMatchAlerts(matchQuizResponse?.preference_vector.session_id ?? undefined);
+      setMatchAlerts(response.alerts);
+      setMatchAlertsLoaded(true);
+    } catch {
+      setMatchAlertsErrorCode('match.warning.alert_fetch_failed');
+    } finally {
+      setMatchAlertsLoading(false);
+    }
+  }, [matchQuizResponse]);
+
+  const loadMatchSaved = useCallback(async () => {
+    setMatchSavedLoading(true);
+    setMatchSavedErrorCode(null);
+    try {
+      const response = await fetchSavedMatchNeighborhoods(matchQuizResponse?.preference_vector.session_id ?? undefined);
+      setMatchSavedNeighborhoods(response.saved_neighborhoods);
+      setMatchSavedLoaded(true);
+    } catch {
+      setMatchSavedErrorCode('match.warning.saved_neighborhood_fetch_failed');
+    } finally {
+      setMatchSavedLoading(false);
+    }
+  }, [matchQuizResponse]);
+
+  const loadMatchAdmin = useCallback(async () => {
+    setMatchAdminLoading(true);
+    setMatchAdminErrorCode(null);
+    try {
+      const response = await fetchMatchAdminHealth();
+      setMatchAdminHealth(response);
+    } catch {
+      setMatchAdminErrorCode('match.warning.admin_health_failed');
+    } finally {
+      setMatchAdminLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeScreen === 'matchComparison' && !matchComparisonResponse && !matchComparisonLoading) {
       void loadMatchComparison();
@@ -2149,15 +2338,158 @@ function App() {
     if (activeScreen === 'matchMap' && !matchMapResponse && !matchMapLoading) {
       void loadMatchMap();
     }
+    if (activeScreen === 'matchListings' && !matchListings && !matchListingsLoading) {
+      void loadMatchListings();
+    }
+    if (activeScreen === 'matchAlerts' && !matchAlertsLoaded && !matchAlertsLoading) {
+      void loadMatchAlerts();
+    }
+    if (activeScreen === 'matchSaved' && !matchSavedLoaded && !matchSavedLoading) {
+      void loadMatchSaved();
+    }
+    if (activeScreen === 'matchAdmin' && !matchAdminHealth && !matchAdminLoading) {
+      void loadMatchAdmin();
+    }
   }, [
     activeScreen,
+    loadMatchAdmin,
+    loadMatchAlerts,
     loadMatchComparison,
+    loadMatchListings,
     loadMatchMap,
+    loadMatchSaved,
+    matchAdminHealth,
+    matchAdminLoading,
+    matchAlertsLoaded,
+    matchAlertsLoading,
     matchComparisonLoading,
     matchComparisonResponse,
+    matchListings,
+    matchListingsLoading,
     matchMapLoading,
     matchMapResponse,
+    matchSavedLoaded,
+    matchSavedLoading,
   ]);
+
+  const handleMatchCreateAlert = useCallback(async (payload: MatchAlertCreatePayload) => {
+    setMatchAlertsLoading(true);
+    setMatchAlertsErrorCode(null);
+    try {
+      const response = await createMatchAlert(payload);
+      setMatchAlerts((current) => [response.alert, ...current.filter((item) => item.alert_id !== response.alert.alert_id)]);
+      setMatchAlertsLoaded(true);
+    } catch {
+      setMatchAlertsErrorCode('match.warning.alert_create_failed');
+    } finally {
+      setMatchAlertsLoading(false);
+    }
+  }, []);
+
+  const handleMatchUpdateAlertStatus = useCallback(async (alertId: string, status: 'active' | 'paused' | 'deleted') => {
+    try {
+      const updated = await updateMatchAlertStatus(alertId, status);
+      setMatchAlerts((current) => current.map((item) => item.alert_id === alertId ? updated : item));
+    } catch {
+      setMatchAlertsErrorCode('match.warning.alert_update_failed');
+    }
+  }, []);
+
+  const handleMatchDeleteAlert = useCallback(async (alertId: string) => {
+    try {
+      const deleted = await deleteMatchAlert(alertId);
+      setMatchAlerts((current) => current.filter((item) => item.alert_id !== deleted.alert_id));
+    } catch {
+      setMatchAlertsErrorCode('match.warning.alert_delete_failed');
+    }
+  }, []);
+
+  const handleMatchSaveNeighborhood = useCallback(async (neighborhoodId: string, savedFrom: 'recommendation' | 'map' | 'comparison' | 'listing' | 'manual' = 'recommendation') => {
+    setMatchSavedErrorCode(null);
+    try {
+      const saved = await saveMatchNeighborhood({
+        session_id: matchQuizResponse?.preference_vector.session_id ?? null,
+        preference_vector_id: matchQuizResponse?.preference_vector.preference_vector_id ?? null,
+        report_id: matchReport?.report_id ?? null,
+        neighborhood_id: neighborhoodId,
+        saved_from: savedFrom,
+      });
+      setMatchSavedNeighborhoods((current) => [saved, ...current]);
+      setMatchSavedLoaded(true);
+    } catch {
+      setMatchSavedErrorCode('match.warning.saved_neighborhood_failed');
+    }
+  }, [matchQuizResponse, matchReport]);
+
+  const handleMatchDeleteSavedNeighborhood = useCallback(async (savedNeighborhoodId: string) => {
+    try {
+      await deleteSavedMatchNeighborhood(savedNeighborhoodId);
+      setMatchSavedNeighborhoods((current) => current.filter((item) => item.saved_neighborhood_id !== savedNeighborhoodId));
+    } catch {
+      setMatchSavedErrorCode('match.warning.saved_neighborhood_delete_failed');
+    }
+  }, []);
+
+  const handleMatchSaveReport = useCallback(async () => {
+    if (!matchReport) return;
+    setMatchSavedLoading(true);
+    try {
+      await saveMatchReport(matchReport.report_id, matchQuizResponse?.preference_vector.session_id ?? null);
+    } catch {
+      setMatchSavedErrorCode('match.warning.report_save_failed');
+    } finally {
+      setMatchSavedLoading(false);
+    }
+  }, [matchQuizResponse, matchReport]);
+
+  const handleMatchShareReport = useCallback(async (consent: boolean) => {
+    if (!matchReport) return;
+    setMatchSavedLoading(true);
+    try {
+      const response = await shareMatchReport(matchReport.report_id, {
+        scope: 'report_view',
+        locale: matchReport.locale,
+        consent_to_share: consent,
+        expires_in_days: 30,
+      });
+      setMatchShare(response);
+    } catch {
+      setMatchSavedErrorCode('match.warning.report_share_failed');
+    } finally {
+      setMatchSavedLoading(false);
+    }
+  }, [matchReport]);
+
+  const handleMatchExportReport = useCallback(async (exportType: 'pdf' | 'html' | 'json') => {
+    if (!matchReport) return;
+    setMatchSavedLoading(true);
+    setMatchExportReady(false);
+    try {
+      await exportMatchReport(matchReport.report_id, {
+        export_type: exportType,
+        locale: matchReport.locale,
+      });
+      setMatchExportReady(true);
+    } catch {
+      setMatchSavedErrorCode('match.warning.report_export_failed');
+    } finally {
+      setMatchSavedLoading(false);
+    }
+  }, [matchReport]);
+
+  const handleMatchCreateAlertFromListing = useCallback((listing: MatchListing) => {
+    void handleMatchCreateAlert({
+      session_id: matchQuizResponse?.preference_vector.session_id ?? null,
+      preference_vector_id: matchQuizResponse?.preference_vector.preference_vector_id ?? null,
+      source_context: 'listing',
+      neighborhood_ids: [listing.neighborhood_id],
+      journey_intent: listing.journey_intent,
+      budget_max_cents: listing.journey_intent === 'buy' ? (listing.price_cents ?? 62500000) : null,
+      rent_max_cents: listing.journey_intent === 'rent' ? (listing.rent_cents ?? 250000) : null,
+      property_types: [listing.property_type ?? 'apartment'],
+      notification_type: 'mock',
+    });
+  }, [handleMatchCreateAlert, matchQuizResponse]);
 
   const buildShortlistItem = useCallback((): ShortlistItem | null => {
     if (!address?.adresseerbaar_object_id) return null;
@@ -4058,6 +4390,11 @@ function App() {
       setActiveScreen('matchQuiz');
       return;
     }
+    if (parsed.route === 'matchReport') {
+      setActiveTab('home');
+      setActiveScreen('matchReport');
+      return;
+    }
     if (parsed.route === 'matchComparison') {
       setActiveTab('home');
       setActiveScreen('matchComparison');
@@ -4071,6 +4408,26 @@ function App() {
     if (parsed.route === 'matchMap') {
       setActiveTab('home');
       setActiveScreen('matchMap');
+      return;
+    }
+    if (parsed.route === 'matchListings') {
+      setActiveTab('home');
+      setActiveScreen('matchListings');
+      return;
+    }
+    if (parsed.route === 'matchAlerts') {
+      setActiveTab('home');
+      setActiveScreen('matchAlerts');
+      return;
+    }
+    if (parsed.route === 'matchSaved') {
+      setActiveTab('home');
+      setActiveScreen('matchSaved');
+      return;
+    }
+    if (parsed.route === 'matchAdmin') {
+      setActiveTab('home');
+      setActiveScreen('matchAdmin');
       return;
     }
     if (parsed.route === 'pack') {
@@ -4716,13 +5073,23 @@ function App() {
           ? '#/match'
         : activeScreen === 'matchQuiz'
           ? '#/match/quiz'
-          : activeScreen === 'matchComparison'
-            ? '#/match/compare'
-            : activeScreen === 'matchSimilar'
-              ? '#/match/similar'
-              : activeScreen === 'matchMap'
-                ? '#/match/map'
-                : activeScreen === 'dossier'
+        : activeScreen === 'matchReport'
+          ? '#/match/report'
+        : activeScreen === 'matchComparison'
+          ? '#/match/compare'
+        : activeScreen === 'matchSimilar'
+          ? '#/match/similar'
+        : activeScreen === 'matchMap'
+          ? '#/match/map'
+        : activeScreen === 'matchListings'
+          ? '#/match/listings'
+        : activeScreen === 'matchAlerts'
+          ? '#/match/alerts'
+        : activeScreen === 'matchSaved'
+          ? '#/match/saved'
+        : activeScreen === 'matchAdmin'
+          ? '#/match/admin'
+        : activeScreen === 'dossier'
               ? '#/address'
               : activeScreen === 'pack'
                 ? '#/pack'
@@ -5046,16 +5413,18 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <MatchLanding
-                onStartQuiz={() => {
-                  setActiveScreen('matchQuiz');
-                  setHashRoute('#/match/quiz');
-                }}
-                onCompareKnown={() => {
-                  setActiveScreen('matchSimilar');
-                  setHashRoute('#/match/similar');
-                }}
-              />
+              <Suspense fallback={null}>
+                <MatchLanding
+                  onStartQuiz={() => {
+                    setActiveScreen('matchQuiz');
+                    setHashRoute('#/match/quiz');
+                  }}
+                  onCompareKnown={() => {
+                    setActiveScreen('matchSimilar');
+                    setHashRoute('#/match/similar');
+                  }}
+                />
+              </Suspense>
             </motion.div>
           )}
 
@@ -5068,11 +5437,13 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <MatchQuiz
-                onSubmit={handleMatchQuizSubmit}
-                submitting={matchQuizSubmitting}
-                errorCode={matchQuizErrorCode}
-              />
+              <Suspense fallback={null}>
+                <MatchQuiz
+                  onSubmit={handleMatchQuizSubmit}
+                  submitting={matchQuizSubmitting}
+                  errorCode={matchQuizErrorCode}
+                />
+              </Suspense>
               {matchQuizResponse && (
                 <section className="app__screen" aria-live="polite">
                   <h2>{t('match.quiz.profileReady')}</h2>
@@ -5085,6 +5456,82 @@ function App() {
             </motion.div>
           )}
 
+          {activeScreen === 'matchReport' && (
+            <motion.div
+              key="screen-match-report"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={null}>
+                <section className="match-flow-actions" aria-label={t('match.navigation.actions')}>
+                  <button type="button" onClick={() => { setActiveScreen('matchListings'); setHashRoute('#/match/listings'); }}>
+                    {t('match.navigation.listings')}
+                  </button>
+                  <button type="button" onClick={() => { setActiveScreen('matchAlerts'); setHashRoute('#/match/alerts'); }}>
+                    {t('match.navigation.alerts')}
+                  </button>
+                  <button type="button" onClick={() => { setActiveScreen('matchSaved'); setHashRoute('#/match/saved'); }}>
+                    {t('match.navigation.saved')}
+                  </button>
+                  <button type="button" onClick={() => { setActiveScreen('matchAdmin'); setHashRoute('#/match/admin'); }}>
+                    {t('match.navigation.admin')}
+                  </button>
+                </section>
+
+                <section className="match-recommendations" aria-labelledby="match-recommendations-title">
+                  <header>
+                    <p>{t('match.recommendations.eyebrow')}</p>
+                    <h1 id="match-recommendations-title">{t('match.recommendations.title')}</h1>
+                  </header>
+                  {matchRecommendationsLoading && <p role="status">{t('match.recommendations.loading')}</p>}
+                  {matchRecommendationsErrorCode && <p role="alert">{t(matchRecommendationsErrorCode)}</p>}
+                  {matchRecommendations && ([
+                    ['top', matchRecommendations.recommendations.top],
+                    ['surprising', matchRecommendations.recommendations.surprising],
+                    ['stretch', matchRecommendations.recommendations.stretch],
+                    ['avoid_or_reconsider', matchRecommendations.recommendations.avoid_or_reconsider],
+                  ] as const).map(([category, items]) => (
+                    <section key={category} aria-label={t(`match.recommendations.category.${category}`)}>
+                      <h2>{t(`match.recommendations.category.${category}`)}</h2>
+                      {items.map((item) => (
+                        <article key={item.recommendation_id} className="match-recommendations__card">
+                          <h3>{item.name}</h3>
+                          <p>{t('match.recommendations.score', { score: item.fit_score })}</p>
+                          <p>{t('match.recommendations.confidence', { score: item.confidence.score })}</p>
+                          <p>{t('match.recommendations.sources', { sources: item.source_refs.join(', ') })}</p>
+                          <ul>
+                            {item.why_it_fits.slice(0, 3).map((reason) => (
+                              <li key={reason.code}>{reason.code}</li>
+                            ))}
+                          </ul>
+                          <p>{t('match.recommendations.tradeoffs', { count: item.tradeoffs.length })}</p>
+                          <button type="button" onClick={() => void handleMatchSaveNeighborhood(item.neighborhood_id, 'recommendation')}>
+                            {t('match.recommendations.save')}
+                          </button>
+                          <MatchFeedbackControls
+                            sessionId={matchQuizResponse?.preference_vector.session_id ?? null}
+                            reportId={matchReport?.report_id ?? null}
+                            recommendationId={item.recommendation_id}
+                            neighborhoodId={item.neighborhood_id}
+                            onSubmit={submitMatchFeedback}
+                          />
+                        </article>
+                      ))}
+                    </section>
+                  ))}
+                </section>
+                <MatchReport
+                  report={matchReport}
+                  loading={matchReportLoading}
+                  errorCode={matchReportErrorCode}
+                />
+              </Suspense>
+            </motion.div>
+          )}
+
           {activeScreen === 'matchComparison' && (
             <motion.div
               key="screen-match-comparison"
@@ -5094,11 +5541,13 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <MatchComparison
-                comparison={matchComparisonResponse}
-                loading={matchComparisonLoading}
-                errorCode={matchComparisonErrorCode}
-              />
+              <Suspense fallback={null}>
+                <MatchComparison
+                  comparison={matchComparisonResponse}
+                  loading={matchComparisonLoading}
+                  errorCode={matchComparisonErrorCode}
+                />
+              </Suspense>
             </motion.div>
           )}
 
@@ -5111,13 +5560,15 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <MatchSimilarSearch
-                knownNeighborhoods={DEFAULT_MATCH_KNOWN_NEIGHBORHOODS}
-                response={matchSimilarResponse}
-                loading={matchSimilarLoading}
-                errorCode={matchSimilarErrorCode}
-                onSearch={handleMatchSimilarSearch}
-              />
+              <Suspense fallback={null}>
+                <MatchSimilarSearch
+                  knownNeighborhoods={DEFAULT_MATCH_KNOWN_NEIGHBORHOODS}
+                  response={matchSimilarResponse}
+                  loading={matchSimilarLoading}
+                  errorCode={matchSimilarErrorCode}
+                  onSearch={handleMatchSimilarSearch}
+                />
+              </Suspense>
             </motion.div>
           )}
 
@@ -5130,11 +5581,110 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <MatchMap
-                map={matchMapResponse}
-                loading={matchMapLoading}
-                errorCode={matchMapErrorCode}
-              />
+              <Suspense fallback={null}>
+                <MatchMap
+                  map={matchMapResponse}
+                  loading={matchMapLoading}
+                  errorCode={matchMapErrorCode}
+                />
+              </Suspense>
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchListings' && (
+            <motion.div
+              key="screen-match-listings"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={null}>
+                <MatchListings
+                  result={matchListings}
+                  loading={matchListingsLoading}
+                  errorCode={matchListingsErrorCode}
+                  onCreateAlert={handleMatchCreateAlertFromListing}
+                />
+              </Suspense>
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchAlerts' && (
+            <motion.div
+              key="screen-match-alerts"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={null}>
+                <MatchAlerts
+                  alerts={matchAlerts}
+                  suggestedAlerts={primaryMatchNeighborhood ? [{
+                    neighborhood_id: primaryMatchNeighborhood.neighborhood_id,
+                    neighborhood_name: primaryMatchNeighborhood.name,
+                    journey_intent: matchQuizResponse?.preference_vector.journey_intent ?? 'buy',
+                    budget_max_cents: matchQuizResponse?.preference_vector.budget_max_cents ?? 62500000,
+                    rent_max_cents: matchQuizResponse?.preference_vector.monthly_rent_max_cents ?? 250000,
+                    property_type: matchQuizResponse?.preference_vector.property_types[0] ?? 'apartment',
+                    source_context: 'recommendation',
+                  }] : []}
+                  loading={matchAlertsLoading}
+                  errorCode={matchAlertsErrorCode}
+                  onCreate={handleMatchCreateAlert}
+                  onUpdateStatus={handleMatchUpdateAlertStatus}
+                  onDelete={handleMatchDeleteAlert}
+                />
+              </Suspense>
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchSaved' && (
+            <motion.div
+              key="screen-match-saved"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={null}>
+                <MatchSaved
+                  neighborhoods={matchSavedNeighborhoods}
+                  reportId={matchReport?.report_id ?? null}
+                  locale={matchReport?.locale ?? normalizeUiLanguage(i18n.language)}
+                  loading={matchSavedLoading}
+                  errorCode={matchSavedErrorCode}
+                  share={matchShare}
+                  exportReady={matchExportReady}
+                  onDeleteNeighborhood={handleMatchDeleteSavedNeighborhood}
+                  onSaveReport={handleMatchSaveReport}
+                  onShareReport={handleMatchShareReport}
+                  onExportReport={handleMatchExportReport}
+                />
+              </Suspense>
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchAdmin' && (
+            <motion.div
+              key="screen-match-admin"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={null}>
+                <MatchAdminDashboard
+                  health={matchAdminHealth}
+                  loading={matchAdminLoading}
+                  errorCode={matchAdminErrorCode}
+                />
+              </Suspense>
             </motion.div>
           )}
 

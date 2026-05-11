@@ -1,5 +1,7 @@
 import en from '../i18n/en.json';
 import nl from '../i18n/nl.json';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 function getPath(obj: Record<string, unknown>, path: string): unknown {
   if (path in obj) return obj[path];
@@ -38,6 +40,9 @@ const requiredMatchKeys = [
   'match.saved.title',
   'match.share.title',
   'match.share.exportPdf',
+  'match.recommendations.title',
+  'match.admin.title',
+  'match.admin.dataFreshness',
 ];
 
 it('defines Dutch and English copy for the Phase 2 match landing and quiz', () => {
@@ -45,4 +50,15 @@ it('defines Dutch and English copy for the Phase 2 match landing and quiz', () =
     expect(getPath(en, key), `Missing EN key ${key}`).toEqual(expect.any(String));
     expect(getPath(nl, key), `Missing NL key ${key}`).toEqual(expect.any(String));
   }
+});
+
+it('keeps admin dashboard user-facing copy in i18n resources', async () => {
+  const source = await readFile(
+    join(process.cwd(), 'src/components/match/MatchAdminDashboard.tsx'),
+    'utf8',
+  );
+
+  expect(source).not.toContain('defaultValue');
+  expect(getPath(en, 'match.admin.title')).toEqual(expect.any(String));
+  expect(getPath(nl, 'match.admin.title')).toEqual(expect.any(String));
 });

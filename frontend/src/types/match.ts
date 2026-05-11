@@ -144,6 +144,52 @@ export interface ScoreDriver {
   source_refs: string[];
 }
 
+export interface NeighborhoodMatchScore {
+  recommendation_id: string;
+  neighborhood_id: string;
+  name: string;
+  municipality: string;
+  rank: number;
+  category: 'top' | 'surprising' | 'stretch' | 'avoid_or_reconsider' | null;
+  fit_score: number;
+  eligibility_status: 'eligible' | 'stretch' | 'failed_hard_filter' | 'insufficient_data';
+  component_scores: Record<string, number>;
+  why_it_fits: RecommendationExplanation[];
+  tradeoffs: RecommendationExplanation[];
+  score_drivers: ScoreDriver[];
+  failed_filters: string[];
+  confidence: ConfidenceScore;
+  freshness_status: DataFreshnessStatus;
+  data_freshness_indicator: string;
+  source_refs: string[];
+  evidence_refs: string[];
+  missing_features: string[];
+}
+
+export interface RecommendationSet {
+  top: NeighborhoodMatchScore[];
+  surprising: NeighborhoodMatchScore[];
+  stretch: NeighborhoodMatchScore[];
+  avoid_or_reconsider: NeighborhoodMatchScore[];
+  empty_result_relaxations: string[];
+  source_coverage: string[];
+}
+
+export interface MatchRecommendationsPayload {
+  preference_vector: PreferenceVector;
+  limit?: number;
+  locale: MatchLocale;
+}
+
+export interface MatchRecommendationsResponse {
+  preference_vector_id: string;
+  locale: MatchLocale;
+  recommendations: RecommendationSet;
+  evidence_items: RecommendationEvidence[];
+  source_coverage: string[];
+  empty_state_code?: string | null;
+}
+
 export interface SimilarNeighborhoodResult {
   neighborhood_id: string;
   name: string;

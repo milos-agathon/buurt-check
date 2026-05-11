@@ -469,10 +469,7 @@ def build_deterministic_fallback_report(report_input: ReportInput) -> ReportOutp
 
 class DeterministicReportGenerator:
     async def generate(self, report_input: ReportInput) -> ReportOutput:
-        output = build_deterministic_fallback_report(report_input).model_copy(
-            update={"validation_status": "passed", "generated_by": "ai"}
-        )
-        return output
+        return build_deterministic_fallback_report(report_input)
 
 
 async def generate_validated_report(

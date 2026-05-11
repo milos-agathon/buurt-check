@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from app.config import settings
 from app.models.match import (
     DataFreshnessStatus,
     Listing,
@@ -17,6 +18,37 @@ ALLOWED_LISTING_PROVIDER_MODES = {
     "outbound_placeholder",
     "unavailable",
 }
+
+
+def configured_listing_provider_status() -> ProviderStatus:
+    mode = settings.match_listing_provider_mode
+    if mode == "scraping" or mode not in ALLOWED_LISTING_PROVIDER_MODES:
+        mode = "unavailable"
+    configured = bool(
+        settings.match_listing_provider_base_url
+        and settings.match_listing_provider_api_key
+    )
+    if mode == "licensed" and not configured:
+        return ProviderStatus(
+            name="LicensedListingProviderPlaceholder",
+            mode="unavailable",
+            license_status="unavailable",
+            health="unconfigured",
+            limitations=["Licensed listing provider credentials are not configured."],
+        )
+    return ProviderStatus(
+        name="LicensedListingProviderPlaceholder",
+        mode=mode,  # type: ignore[arg-type]
+        license_status="licensed"
+        if mode == "licensed"
+        else "unavailable"
+        if mode == "unavailable"
+        else "mock",
+        health="degraded" if mode == "licensed" else "mock_only",
+        limitations=[
+            "Provider placeholder enforces licensed/mock modes only; scraping is not supported.",
+        ],
+    )
 
 
 class ListingProvider(Protocol):

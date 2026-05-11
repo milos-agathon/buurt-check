@@ -369,6 +369,21 @@ class RecommendationSet(BaseModel):
     source_coverage: list[str] = Field(default_factory=list)
 
 
+class MatchRecommendationsRequest(BaseModel):
+    preference_vector: PreferenceVector
+    limit: int = Field(default=10, ge=1, le=20)
+    locale: Literal["en", "nl"] = "en"
+
+
+class MatchRecommendationsResponse(BaseModel):
+    preference_vector_id: str = Field(min_length=1)
+    locale: Literal["en", "nl"]
+    recommendations: RecommendationSet
+    evidence_items: list[RecommendationEvidence] = Field(default_factory=list)
+    source_coverage: list[str] = Field(default_factory=list)
+    empty_state_code: str | None = None
+
+
 class SimilarNeighborhoodResult(BaseModel):
     neighborhood_id: str = Field(min_length=1)
     name: str = Field(min_length=1)

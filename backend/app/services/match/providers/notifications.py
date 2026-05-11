@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from app.config import settings
 from app.models.match import AlertRule, Listing, NotificationDispatchRecord
 
 
@@ -15,6 +16,21 @@ class NotificationProvider(Protocol):
         matches: list[Listing],
     ) -> NotificationDispatchRecord:
         ...
+
+
+def notification_provider_placeholder_status() -> dict[str, str | list[str]]:
+    mode = settings.match_notification_provider_mode
+    configured = bool(settings.match_notification_provider_api_key)
+    if mode not in {"mock", "email", "push"}:
+        mode = "mock"
+    return {
+        "provider_name": "NotificationProviderPlaceholder",
+        "provider_mode": mode,
+        "health": "unconfigured" if mode != "mock" and not configured else "mock_only",
+        "limitations": [
+            "Real notification providers are optional; mock dispatch records remain the default.",
+        ],
+    }
 
 
 class MockNotificationProvider:

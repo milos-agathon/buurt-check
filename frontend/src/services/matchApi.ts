@@ -12,6 +12,8 @@ import type {
   MatchListingCriteria,
   MatchListingProviderResult,
   MatchMapResponse,
+  MatchRecommendationsPayload,
+  MatchRecommendationsResponse,
   MatchQuizPayload,
   MatchQuizResponse,
   ReportExportPayload,
@@ -78,6 +80,23 @@ export async function createMatchReport(
   }
 
   return await response.json() as MatchReportResponse;
+}
+
+export async function fetchMatchRecommendations(
+  payload: MatchRecommendationsPayload,
+): Promise<MatchRecommendationsResponse> {
+  const response = await fetch(buildPrimaryApiUrl('/match/recommendations'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.recommendations_failed');
+  }
+
+  return await response.json() as MatchRecommendationsResponse;
 }
 
 export async function fetchMatchReport(

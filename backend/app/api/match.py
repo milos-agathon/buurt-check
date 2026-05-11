@@ -16,6 +16,8 @@ from app.models.match import (
     MatchMapResponse,
     MatchQuizRequest,
     MatchQuizResponse,
+    MatchRecommendationsRequest,
+    MatchRecommendationsResponse,
     MatchReportCreateRequest,
     MatchReportResponse,
     MatchSimilarRequest,
@@ -37,6 +39,7 @@ from app.services.match.listings import fetch_listing_matches
 from app.services.match.map_view import build_match_map
 from app.services.match.providers.seed import MVP_REGION_CONFIG_ID, SeedMockImporter
 from app.services.match.quiz import process_match_quiz
+from app.services.match.recommendations import build_match_recommendations
 from app.services.match.reports import (
     create_report_export,
     create_report_pdf,
@@ -65,6 +68,20 @@ async def submit_match_quiz(payload: MatchQuizRequest) -> MatchQuizResponse:
 
 async def _load_seed_context():
     return await SeedMockImporter().load_seed_data(MVP_REGION_CONFIG_ID)
+
+
+@router.post("/recommendations", response_model=MatchRecommendationsResponse)
+async def create_match_recommendations(
+    payload: MatchRecommendationsRequest,
+) -> MatchRecommendationsResponse:
+    seed = await _load_seed_context()
+    return build_match_recommendations(
+        payload.preference_vector,
+        neighborhoods=seed.neighborhoods,
+        feature_vectors=seed.feature_vectors,
+        limit=payload.limit,
+        locale=payload.locale,
+    )
 
 
 @router.post("/similar", response_model=MatchSimilarResponse)

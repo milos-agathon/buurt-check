@@ -65,6 +65,16 @@ class Settings(BaseSettings):
     enable_lod22_context_enrichment: bool = False
     three_d_conservative_mode: bool = False
 
+    # Buurt Match provider placeholders. These are intentionally optional for
+    # the seeded/mock MVP and must not enable scraping.
+    match_official_data_provider_base_url: str = ""
+    match_official_data_provider_api_key: str = ""
+    match_listing_provider_mode: str = "mock"
+    match_listing_provider_base_url: str = ""
+    match_listing_provider_api_key: str = ""
+    match_notification_provider_mode: str = "mock"
+    match_notification_provider_api_key: str = ""
+
     # Pre-bid source stack
     prebid_enabled: bool = True
     prebid_default_radius_m: int = 250
