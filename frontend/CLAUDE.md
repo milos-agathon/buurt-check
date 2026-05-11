@@ -24,8 +24,8 @@ npx vitest --watch   # Watch mode
 - Plain CSS + tokens from `styles/tokens.css` (~195 tokens). NO Tailwind
 - BEM-like naming: `component-name__element--modifier`
 - All colors/spacing/typography via `var(--token-name)`
-- Dark mode: `[data-theme="dark"]` overrides in `tokens.css`
-- WCAG: use `--color-accent-text` (#1C8C83) for text, not `--color-accent` (#2EC4B6)
+- Theme policy: light is the first-launch default and the effective System theme; dark mode is explicit opt-in via `[data-theme="dark"]` overrides in `tokens.css`
+- WCAG: use `--color-accent-text` / `--color-accent-hover` (#00685F) for teal text on light backgrounds, not `--color-accent` (#0D9488). Use `--color-tertiary` (#C36D4B) for warm evidence/caution benchmarks. Full palette: `docs/palette.md`
 - Touch targets: 44px minimum (Apple HIG)
 
 ### i18n
@@ -55,7 +55,7 @@ npx vitest --watch   # Watch mode
 - Plain Three.js only — NOT react-three-fiber
 - Static context card: summer noon lighting, orbit controls, reset button
 - `THREE.DoubleSide` on all materials (3DBAG winding inconsistent)
-- Target building: Arctic Teal `0x2EC4B6`, emissive `0x57D4C8` (light 0.40, dark 0.20). Neighbors: `0x556E85` at 90% opacity (light), `0x8A9BB0` at 65% (dark)
+- Target building: Polar Frost teal `0x0D9488`, emissive `0x6BD8CB` (light 0.40, dark 0.20). Neighbors: `0x5A5F62` at 90% opacity (light), `0xBCC9C6` at 65% (dark)
 - Dispose all geometries/materials/textures on cleanup
 - `mergeGeometries` for non-target buildings (single draw call)
 - WebGL `linewidth` > 1 unsupported — use geometry-based outlines for highlights
@@ -64,8 +64,8 @@ npx vitest --watch   # Watch mode
 ### Components
 - Functional components, named exports, co-located CSS + tests
 - Dossier canonical order (viewer sections only):
-  AttentionSummary → AddressHeader → RiskTiles → BuildingFacts →
-  Livability → 3DViewer → NeighborhoodStats → TierB → ViewingChecklist → ActionBar
+  AttentionSummary → combined AddressHeader/BuildingFacts → RiskTiles →
+  Livability → 3DViewer → NeighborhoodStats → ViewingChecklist → ActionBar
 - Premium-only sections (PDF only, NOT in viewer):
   PropertyWarnings, SoilInfo, shadow snapshots, sunlight evidence, heatmap overlay
 - RiskTilesGrid appears ONCE at the top (after AddressHeader), not duplicated lower

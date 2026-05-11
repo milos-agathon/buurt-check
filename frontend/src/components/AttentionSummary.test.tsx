@@ -88,6 +88,7 @@ describe('AttentionSummary', () => {
         messages: [],
       },
       vve: { is_apartment: false, messages: [] },
+      shared_building: { detected: false, messages: [] },
       asbestos: { flagged: false, messages: [] },
       lead_pipe: { flagged: true, messages: [] },
     } as PropertyWarningsResponse;
@@ -124,6 +125,19 @@ describe('AttentionSummary', () => {
 
     expect(screen.getByText(/punt(en)? verdienen aandacht|1 punt verdient aandacht/i)).toBeInTheDocument();
     expect(screen.getByText('Geluidrisico')).toBeInTheDocument();
+  });
+
+  it('localizes shared BAG building flags instead of falling back to backend copy', () => {
+    renderSummary({
+      summary: {
+        flags: [{ category: 'shared_building', severity: 'info', label: 'backend shared building label' }],
+        assessed: 4,
+        total: 4,
+      },
+    });
+
+    expect(screen.getByText('Shared BAG building')).toBeInTheDocument();
+    expect(screen.queryByText('backend shared building label')).not.toBeInTheDocument();
   });
 
   it('uses canonical poor and moderate severities for borderline scores', () => {

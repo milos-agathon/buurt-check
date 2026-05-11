@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="buurt-check API",
-    version="1.0.0",
+    version="1.1.0",
     description="Pre-viewing intelligence for property buyers in the Netherlands",
     lifespan=lifespan,
 )
@@ -56,7 +56,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_resolved_cors_origins(),
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)

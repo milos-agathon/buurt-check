@@ -21,7 +21,7 @@ export function resolveIosConfig() {
   const env = loadEnv()
   const baseUrl = new URL(env.BUURT_BASE_URL || 'https://app.buurt-check.nl')
   const buildNumber = parsePositiveInt(env.BUURT_IOS_BUILD_NUMBER, 1, 'BUURT_IOS_BUILD_NUMBER')
-  const versionName = (env.BUURT_IOS_VERSION_NAME || '1.0.0').trim()
+  const versionName = (env.BUURT_IOS_VERSION_NAME || '1.1.0').trim()
   const bundleId = (env.BUURT_IOS_BUNDLE_ID || 'nl.buurtcheck.app.ios').trim()
   const teamId = (env.BUURT_IOS_TEAM_ID || '').trim()
 

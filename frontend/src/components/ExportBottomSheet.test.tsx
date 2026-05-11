@@ -11,14 +11,16 @@ vi.mock('../services/api', () => ({
   sharePdfBlob: vi.fn(),
 }));
 
-vi.mock('../services/analytics', () => ({
+vi.mock('../services/clientEvents', () => ({
   trackEvent: vi.fn(),
 }));
 
-import { trackEvent } from '../services/analytics';
+import { trackEvent } from '../services/clientEvents';
 const mockTrackEvent = vi.mocked(trackEvent);
 
 describe('ExportBottomSheet', () => {
+  const fullDossierRadio = /Full dossier/i;
+  const fullDossierRadioNl = /Volledig dossier/i;
   let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
   const mockClose = vi.fn();
   const defaultProps = {
@@ -54,17 +56,17 @@ describe('ExportBottomSheet', () => {
   it('renders when open', () => {
     renderSheet();
     expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
-    expect(screen.getByText('Download dossier')).toBeInTheDocument();
+    expect(screen.getByText('Download evidence')).toBeInTheDocument();
     expect(screen.getByText(
-      'Choose format and language. Quick checklist is free. Full dossier is €3.99 once per address. After payment, the full dossier stays tied to this address in this browser session so you can reopen export from the dossier if needed.',
+      'Choose format and language. Quick checklist is free; full dossier is paid per address.',
       { selector: '.export-sheet__intro' },
     )).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Quick checklist/i })).toBeInTheDocument();
   });
 
-  it('shows updated Full Dossier page metadata', () => {
+  it('shows updated full dossier metadata', () => {
     renderSheet();
-    expect(screen.getByText('10+ pages')).toBeInTheDocument();
+    expect(screen.getByText('Questions, requests, sources')).toBeInTheDocument();
   });
 
   it('does not render when closed', () => {
@@ -75,7 +77,7 @@ describe('ExportBottomSheet', () => {
   it('calls exportBriefing and closes on generate', async () => {
     vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
     renderSheet();
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
@@ -130,7 +132,7 @@ describe('ExportBottomSheet', () => {
     await waitFor(() => {
       expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'generating');
     });
-    expect(screen.getByText('Generating dossier')).toBeInTheDocument();
+    expect(screen.getByText('Building Full dossier')).toBeInTheDocument();
     expect(mockTrackEvent).toHaveBeenCalledWith(
       'post_checkout_export_checkpoint',
       expect.objectContaining({
@@ -153,14 +155,14 @@ describe('ExportBottomSheet', () => {
     await waitFor(() => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
-    expect(screen.getByText('Dossier ready')).toBeInTheDocument();
+    expect(screen.getByText('Full dossier ready')).toBeInTheDocument();
     expect(screen.getByTestId('export-post-checkout-ready')).toHaveTextContent(
-      'Your dossier is ready. Tap Download dossier to save it.',
+      'Your Full dossier is ready. Tap Download to save it.',
     );
-    expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Generate Full dossier/i })).not.toBeInTheDocument();
     expect(api.downloadPdfBlob).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: /Download dossier/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Download Full dossier/i }));
 
     await waitFor(() => {
       expect(api.downloadPdfBlob).toHaveBeenCalledWith(
@@ -194,14 +196,14 @@ describe('ExportBottomSheet', () => {
     });
     expect(screen.getByText('Payment confirmed')).toBeInTheDocument();
     expect(screen.getByTestId('export-post-checkout-waiting')).toHaveTextContent(
-      'Your full dossier is unlocked. We will prepare it automatically. This can take a moment.',
+      'Your Full dossier is unlocked. We will prepare it automatically. This can take a moment.',
     );
     expect(screen.queryByText(
-      'Choose format and language. Quick checklist is free. Full dossier is €3.99 once per address. After payment, the full dossier stays tied to this address in this browser session so you can reopen export from the dossier if needed.',
+      'Choose format and language. Quick checklist is free; full dossier is paid per address.',
       { selector: '.export-sheet__intro' },
     )).not.toBeInTheDocument();
     expect(screen.getByTestId('export-progress')).toBeInTheDocument();
-    expect(screen.getByText('Preparing dossier...')).toBeInTheDocument();
+    expect(screen.getByText('Preparing Full dossier...')).toBeInTheDocument();
     expect(api.exportBriefing).not.toHaveBeenCalled();
     expect(screen.queryByRole('radio', { name: /Quick checklist/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: 'EN' })).not.toBeInTheDocument();
@@ -250,7 +252,7 @@ describe('ExportBottomSheet', () => {
     });
     expect(api.exportBriefing).not.toHaveBeenCalled();
     expect(screen.getByTestId('export-post-checkout-waiting')).toHaveTextContent(
-      'Your full dossier is unlocked. We will prepare it automatically. This can take a moment.',
+      'Your Full dossier is unlocked. We will prepare it automatically. This can take a moment.',
     );
 
     view.rerender(
@@ -288,7 +290,7 @@ describe('ExportBottomSheet', () => {
       });
 
       expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'waiting_prerequisites');
-      expect(screen.getByText('Preparing dossier...')).toBeInTheDocument();
+      expect(screen.getByText('Preparing Full dossier...')).toBeInTheDocument();
       expect(api.exportBriefing).not.toHaveBeenCalled();
 
       await act(async () => {
@@ -297,7 +299,7 @@ describe('ExportBottomSheet', () => {
 
       expect(api.exportBriefing).not.toHaveBeenCalled();
       expect(screen.getByTestId('export-post-checkout-state')).toHaveAttribute('data-phase', 'waiting_prerequisites');
-      expect(screen.getByText('Preparing dossier...')).toBeInTheDocument();
+      expect(screen.getByText('Preparing Full dossier...')).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -367,7 +369,7 @@ describe('ExportBottomSheet', () => {
     await waitFor(() => {
       expect(screen.getByTestId('export-retry-btn')).toBeInTheDocument();
     });
-    expect(screen.getByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).toBeInTheDocument();
+    expect(screen.getByText("We couldn't generate the PDF. Try again. Your briefing data is still available.")).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(mockClose).toHaveBeenCalledTimes(1);
@@ -405,7 +407,7 @@ describe('ExportBottomSheet', () => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Download dossier/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Download Full dossier/i }));
 
     await waitFor(() => {
       expect(mockTrackEvent).toHaveBeenCalledWith(
@@ -418,12 +420,16 @@ describe('ExportBottomSheet', () => {
       );
     });
     expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Download dossier/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Download Full dossier/i })).toBeInTheDocument();
   });
 
-  it('uses segmented language control independent from app language', async () => {
+  it('uses compact NL slash EN language control independent from app language', async () => {
     vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
     renderSheet();
+
+    const languageControl = screen.getByRole('radiogroup', { name: 'Language' });
+    expect(languageControl).toHaveTextContent('NL/EN');
+    expect(languageControl.querySelector('.export-sheet__language-separator')).toHaveTextContent('/');
 
     fireEvent.click(screen.getByRole('radio', { name: 'NL' }));
     fireEvent.click(screen.getByTestId('export-generate-btn'));
@@ -472,7 +478,7 @@ describe('ExportBottomSheet', () => {
     });
   });
 
-  it('maps seasonal shadow fields for full dossier export', async () => {
+  it('maps seasonal shadow fields for questions pack export', async () => {
     vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
     renderSheet({
       shadowSnapshots: [
@@ -481,7 +487,7 @@ describe('ExportBottomSheet', () => {
         { label: 'summer', hour: 12, dataUrl: 'data:image/png;base64,CCC', viewpoint: 'top' },
       ],
     });
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
     await waitFor(() => {
@@ -502,7 +508,7 @@ describe('ExportBottomSheet', () => {
     );
     vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
     renderSheet({ onBeforeGenerate });
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
@@ -522,12 +528,12 @@ describe('ExportBottomSheet', () => {
   it('shows error and aborts export when onBeforeGenerate fails', async () => {
     const onBeforeGenerate = vi.fn().mockRejectedValue(new Error('sunlight sync failed'));
     renderSheet({ onBeforeGenerate });
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
     await waitFor(() => {
-      expect(screen.getByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).toBeInTheDocument();
+      expect(screen.getByText("We couldn't generate the PDF. Try again. Your briefing data is still available.")).toBeInTheDocument();
     });
     expect(api.exportBriefing).not.toHaveBeenCalled();
   });
@@ -602,16 +608,16 @@ describe('ExportBottomSheet', () => {
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
     await waitFor(() => {
-      expect(screen.getByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).toBeInTheDocument();
+      expect(screen.getByText("We couldn't generate the PDF. Try again. Your briefing data is still available.")).toBeInTheDocument();
     });
     expect(mockClose).not.toHaveBeenCalled();
   });
 
-  it('shows Buy Full Dossier flow for non-entitled users', async () => {
+  it('shows Buy Full dossier flow for non-entitled users', async () => {
     const onBuyFullDossier = vi.fn();
     renderSheet({ isEntitled: false, onBuyFullDossier });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
     expect(onBuyFullDossier).toHaveBeenCalledOnce();
@@ -629,7 +635,7 @@ describe('ExportBottomSheet', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('export-progress')).toBeInTheDocument();
-      expect(screen.getByText('Rendering PDF...')).toBeInTheDocument();
+      expect(screen.getByText('Rendering source appendix...')).toBeInTheDocument();
     });
 
     await act(async () => {
@@ -677,23 +683,24 @@ describe('ExportBottomSheet', () => {
       expect(api.sharePdfBlob).toHaveBeenCalledWith(
         blob,
         'buurt-check-quick-brief-0363010012345678.pdf',
-        'Download dossier',
+        'Download evidence',
       );
     });
   });
 
-  it('shows the localized full dossier price for purchase flows', () => {
+  it('shows the localized full dossier price in the template card only', () => {
     renderSheet({
       isEntitled: false,
       buyPriceLabel: '$4.99',
     });
 
-    expect(screen.getByRole('radio', { name: /Full Dossier/i })).toHaveTextContent('Full Dossier ($4.99)');
-    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: $4.99');
+    expect(screen.getByRole('radio', { name: fullDossierRadio })).toHaveTextContent('Full dossier ($4.99)');
+    expect(screen.queryByTestId('export-buy-price')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
-    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: $4.99');
+    expect(screen.getByRole('radio', { name: fullDossierRadio })).toHaveTextContent('Full dossier ($4.99)');
+    expect(screen.queryByTestId('export-buy-price')).not.toBeInTheDocument();
   });
 
   it('uses the taller export sheet sizing for the template chooser flow', () => {
@@ -712,7 +719,7 @@ describe('ExportBottomSheet', () => {
       buyDisabledMessage: 'Checkout is temporarily unavailable.',
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
     expect(screen.getByTestId('export-generate-btn')).toBeDisabled();
     expect(screen.getByTestId('export-buy-unavailable')).toHaveTextContent(
@@ -723,7 +730,7 @@ describe('ExportBottomSheet', () => {
   describe('sunlight readiness messaging', () => {
     it('keeps Generate enabled for full_dossier when sunlight is still computing', () => {
       renderSheet({ sunlightReady: false });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       const btn = screen.getByTestId('export-generate-btn');
       expect(btn).not.toBeDisabled();
@@ -738,7 +745,7 @@ describe('ExportBottomSheet', () => {
 
     it('enables Generate button for full_dossier when sunlight is ready', () => {
       renderSheet({ sunlightReady: true });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       const btn = screen.getByTestId('export-generate-btn');
       expect(btn).not.toBeDisabled();
@@ -749,21 +756,21 @@ describe('ExportBottomSheet', () => {
       // Status should not show for quick_brief
       expect(screen.queryByTestId('export-sunlight-computing')).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
       expect(screen.getByTestId('export-sunlight-computing')).toBeInTheDocument();
       expect(screen.getByTestId('export-sunlight-computing')).toHaveTextContent('Calculating sunlight analysis...');
     });
 
     it('hides computing status when sunlight is ready', () => {
       renderSheet({ sunlightReady: true });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       expect(screen.queryByTestId('export-sunlight-computing')).not.toBeInTheDocument();
     });
 
     it('shows warning when sunlight failed for full_dossier', () => {
       renderSheet({ sunlightReady: true, sunlightFailed: true });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       expect(screen.getByTestId('export-sunlight-warning')).toBeInTheDocument();
       expect(screen.getByTestId('export-sunlight-warning')).toHaveTextContent(
@@ -773,14 +780,14 @@ describe('ExportBottomSheet', () => {
 
     it('does NOT show warning when sunlight succeeded', () => {
       renderSheet({ sunlightReady: true, sunlightFailed: false });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       expect(screen.queryByTestId('export-sunlight-warning')).not.toBeInTheDocument();
     });
 
     it('allows export when sunlight failed (ready=true, failed=true)', () => {
       renderSheet({ sunlightReady: true, sunlightFailed: true });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       const btn = screen.getByTestId('export-generate-btn');
       expect(btn).not.toBeDisabled();
@@ -789,7 +796,7 @@ describe('ExportBottomSheet', () => {
     it('still allows full_dossier export when sunlight is still computing', async () => {
       vi.mocked(api.exportBriefing).mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
       renderSheet({ sunlightReady: false });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       const btn = screen.getByTestId('export-generate-btn');
       expect(btn).not.toBeDisabled();
@@ -816,7 +823,7 @@ describe('ExportBottomSheet', () => {
           <ExportBottomSheet {...defaultProps} sunlightReady={false} />
         </I18nextProvider>,
       );
-      fireEvent.click(screen.getByRole('radio', { name: /Volledig dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadioNl }));
 
       expect(screen.getByTestId('export-sunlight-computing')).toHaveTextContent(
         'Zonlichtanalyse wordt berekend...',
@@ -830,7 +837,7 @@ describe('ExportBottomSheet', () => {
           <ExportBottomSheet {...defaultProps} sunlightReady={true} sunlightFailed={true} />
         </I18nextProvider>,
       );
-      fireEvent.click(screen.getByRole('radio', { name: /Volledig dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadioNl }));
 
       expect(screen.getByTestId('export-sunlight-warning')).toHaveTextContent(
         'Zonlichtanalyse was niet voltooid voor export',
@@ -843,7 +850,7 @@ describe('ExportBottomSheet', () => {
         shadowSnapshotsReady: false,
         shadowSnapshotsFailed: false,
       });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       expect(screen.getByTestId('export-shadow-computing')).toHaveTextContent('Capturing shadow analysis...');
       expect(screen.getByTestId('export-generate-btn')).not.toBeDisabled();
@@ -856,7 +863,7 @@ describe('ExportBottomSheet', () => {
         shadowSnapshotsReady: false,
         shadowSnapshotsFailed: false,
       });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       fireEvent.click(screen.getByTestId('export-generate-btn'));
 
@@ -876,7 +883,7 @@ describe('ExportBottomSheet', () => {
         shadowSnapshotsReady: true,
         shadowSnapshotsFailed: true,
       });
-      fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+      fireEvent.click(screen.getByRole('radio', { name: fullDossierRadio }));
 
       expect(screen.getByTestId('export-shadow-warning')).toHaveTextContent(
         'Shadow analysis was not completed before export',

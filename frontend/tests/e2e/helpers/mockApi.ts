@@ -10,9 +10,176 @@ type DelayMap = Partial<Record<
   | 'riskComparisons'
   | 'neighborhood'
   | 'viewingQuestions'
-  | 'tierB',
+  | 'prebidBriefing'
+  | 'prebidPack',
   number
 >>;
+
+const PREBID_COVERAGE = [
+  {
+    id: 'noise',
+    authority: 'RIVM',
+    label: 'RIVM noise contours',
+    status: 'checked',
+    basis: 'Address overlay',
+    method: 'Open-data overlay',
+    version: '2025',
+    duration_ms: 420,
+    checked_at: '2026-05-06',
+    source_date: '2025-03',
+    limitation: 'Modelled outdoor contours. Verify indoor noise during the viewing.',
+    limitation_nl: 'Gemodelleerde buitensignalen. Controleer geluid binnen tijdens de bezichtiging.',
+  },
+  {
+    id: 'climate',
+    authority: 'Klimaateffectatlas',
+    label: 'Heat and water stress',
+    status: 'review',
+    basis: 'Street context',
+    method: 'Open-data overlay',
+    checked_at: '2026-05-06',
+    limitation: 'Area-level signal. Check drainage and maintenance records.',
+  },
+  {
+    id: 'cbs',
+    authority: 'CBS',
+    label: 'Neighborhood indicators',
+    status: 'checked',
+    basis: 'Buurt code',
+    method: 'Open-data table lookup',
+    checked_at: '2026-05-06',
+    source_date: '2024',
+    limitation: 'Neighborhood-level figures do not describe this exact home.',
+  },
+  {
+    id: 'bag',
+    authority: 'BAG',
+    label: 'Address and building registration',
+    status: 'checked',
+    basis: 'VBO and pand identifiers',
+    method: 'Government registry lookup',
+    checked_at: '2026-05-06',
+    source_date: '2026-05-06',
+    limitation: 'Registry facts do not replace a building inspection.',
+  },
+];
+
+const PREBID_ACTION = {
+  id: 'noise-viewing-check',
+  category: 'noise',
+  priority: 1,
+  severity: 'moderate',
+  finding: 'Road noise should be checked in the bedroom.',
+  finding_nl: 'Controleer verkeersgeluid in de slaapkamer.',
+  why_it_matters: 'Noise can affect sleep and facade expectations.',
+  why_it_matters_nl: 'Geluid kan slaap en gevelverwachtingen beinvloeden.',
+  ask_this: {
+    en: 'Can you hear traffic with bedroom windows closed?',
+    nl: 'Hoor je verkeer met gesloten slaapkamerramen?',
+  },
+  request_this: 'Ask for glazing and ventilation documentation.',
+  request_this_nl: 'Vraag documentatie over glas en ventilatie.',
+  who_to_ask: ['Selling agent', 'Inspector'],
+  confidence: 'medium',
+  limitation: PREBID_COVERAGE[0].limitation,
+  limitation_nl: PREBID_COVERAGE[0].limitation_nl,
+  source_refs: [
+    {
+      name: 'RIVM noise contours',
+      source_date: '2025-03',
+      checked_at: '2026-05-06',
+      method: 'Open-data overlay',
+      coverage_status: 'checked',
+      limitation: PREBID_COVERAGE[0].limitation,
+      limitation_nl: PREBID_COVERAGE[0].limitation_nl,
+    },
+  ],
+};
+
+const PREBID_BRIEFING = {
+  briefing_id: 'brief-1',
+  address_id: '0363010000696734',
+  report_id: 'report-1',
+  address_label: 'Keizersgracht 100, 1015AA Amsterdam',
+  checked_at: '2026-05-06',
+  result_state: 'data_incomplete',
+  disclaimer: 'Source-bound briefing for viewing preparation. Confirm decisions with your inspector, adviser, notary, or buyer agent.',
+  disclaimer_nl: 'Brongebonden briefing voor bezichtigingsvoorbereiding. Bevestig beslissingen met je bouwkundige, adviseur, notaris of aankoopmakelaar.',
+  coverage: PREBID_COVERAGE,
+  top_actions: [PREBID_ACTION],
+  source_quality: {
+    unknown_source_date_count: 0,
+    generic_confidence_count: 0,
+    generic_limitation_count: 0,
+    missing_source_ref_count: 0,
+    missing_recipient_count: 0,
+    caps: [],
+  },
+};
+
+const PREBID_PACK = {
+  pack_id: 'pack-1',
+  address_id: PREBID_BRIEFING.address_id,
+  report_id: PREBID_BRIEFING.report_id,
+  address_label: PREBID_BRIEFING.address_label,
+  checked_at: PREBID_BRIEFING.checked_at,
+  status: 'ready',
+  disclaimer: PREBID_BRIEFING.disclaimer,
+  disclaimer_nl: PREBID_BRIEFING.disclaimer_nl,
+  actions: [PREBID_ACTION],
+  question_groups: [
+    {
+      recipient: 'Selling agent',
+      questions: [PREBID_ACTION.ask_this],
+      requests: [PREBID_ACTION.request_this],
+    },
+  ],
+  coverage: PREBID_COVERAGE,
+  share_url: 'https://app.buurt-check.nl/#/shared-pack/demo-token',
+};
+
+const NEIGHBORHOOD_3D_READY_FIXTURE = {
+  address_id: '0363010000696734',
+  target_pand_id: '0363100012345678',
+  center: { lat: 52.3676, lng: 4.8846, rd_x: 121000, rd_y: 487000 },
+  buildings: [
+    {
+      pand_id: '0363100012345678',
+      ground_height: 0,
+      building_height: 18,
+      year: 1917,
+      footprint: [[-8, -9], [8, -9], [8, 9], [-8, 9]],
+    },
+    {
+      pand_id: '0363100012345679',
+      ground_height: 0,
+      building_height: 15,
+      year: 1924,
+      footprint: [[18, -10], [32, -10], [32, 8], [18, 8]],
+    },
+    {
+      pand_id: '0363100012345680',
+      ground_height: 0,
+      building_height: 13,
+      year: 1931,
+      footprint: [[-34, -8], [-18, -8], [-18, 10], [-34, 10]],
+    },
+    {
+      pand_id: '0363100012345681',
+      ground_height: 0,
+      building_height: 20,
+      year: 1908,
+      footprint: [[-10, 22], [10, 22], [10, 38], [-10, 38]],
+    },
+    {
+      pand_id: '0363100012345682',
+      ground_height: 0,
+      building_height: 11,
+      year: 1965,
+      footprint: [[-9, -40], [11, -40], [11, -22], [-9, -22]],
+    },
+  ],
+};
 
 async function fulfillJson(route: Route, body: unknown, delayMs: number = 0) {
   if (delayMs > 0) {
@@ -26,6 +193,98 @@ async function fulfillJson(route: Route, body: unknown, delayMs: number = 0) {
 }
 
 export async function installMockAddressFlow(page: Page, delays: DelayMap = {}) {
+  await page.route(/\/api\/address\/[^/]+\/prebid\/briefing$/, async (route) => {
+    await fulfillJson(route, PREBID_BRIEFING, delays.prebidBriefing ?? 0);
+  });
+
+  await page.route(/\/api\/address\/[^/]+\/prebid\/pack\/[^/]+$/, async (route) => {
+    await fulfillJson(route, PREBID_PACK, delays.prebidPack ?? 0);
+  });
+
+  await page.route(/\/api\/address\/[^/]+\/prebid\/briefing\/[^/]+\/share$/, async (route) => {
+    await fulfillJson(route, {
+      share_token: 'briefing-token',
+      share_url: 'https://app.buurt-check.nl/#/shared/briefing-token',
+      mode: 'briefing',
+      scope: 'briefing',
+      expires_at: '2026-06-06T00:00:00Z',
+    });
+  });
+
+  await page.route(/\/api\/address\/[^/]+\/prebid\/pack\/[^/]+\/share$/, async (route) => {
+    await fulfillJson(route, {
+      share_token: 'demo-token',
+      share_url: 'https://app.buurt-check.nl/#/shared-pack/demo-token',
+      mode: 'pack',
+      scope: 'pack',
+      expires_at: '2026-06-06T00:00:00Z',
+    });
+  });
+
+  await page.route(/\/api\/address\/[^/]+\/prebid\/briefing\/[^/]+\/email$/, async (route) => {
+    await fulfillJson(route, {
+      share_token: 'briefing-email-token',
+      share_url: 'https://app.buurt-check.nl/#/shared/briefing-email-token',
+      mode: 'briefing',
+      scope: 'briefing',
+      email_sent: true,
+    });
+  });
+
+  await page.route(/\/api\/address\/[^/]+\/prebid\/pack\/[^/]+\/email$/, async (route) => {
+    await fulfillJson(route, {
+      share_token: 'pack-email-token',
+      share_url: 'https://app.buurt-check.nl/#/shared-pack/pack-email-token',
+      mode: 'pack',
+      scope: 'pack',
+      email_sent: true,
+    });
+  });
+
+  await page.route(/\/api\/address\/[^/]+\/prebid\/briefing\/[^/]+$/, async (route) => {
+    await fulfillJson(route, { deleted: true });
+  });
+
+  await page.route(/\/api\/shared\/prebid-pack\/deleted-token$/, async (route) => {
+    await fulfillJson(route, {
+      state: 'deleted',
+      mode: 'pack',
+      support_email: 'support@buurt-check.nl',
+    });
+  });
+
+  await page.route(/\/api\/shared\/prebid-pack\/demo-token$/, async (route) => {
+    await fulfillJson(route, {
+      state: 'valid',
+      mode: 'pack',
+      pack: PREBID_PACK,
+    });
+  });
+
+  await page.route(/\/api\/shared\/prebid\/revoked-token$/, async (route) => {
+    await fulfillJson(route, {
+      state: 'revoked',
+      mode: 'briefing',
+      support_email: 'support@buurt-check.nl',
+    });
+  });
+
+  await page.route('**/api/reports/short', async (route) => {
+    await fulfillJson(route, {
+      report_id: 'report-1',
+      report_type: 'short',
+      already_purchased: false,
+    });
+  });
+
+  await page.route('**/api/reports/*/entitlement', async (route) => {
+    await fulfillJson(route, {
+      report_id: 'report-1',
+      entitled: false,
+      report_type: 'short',
+    });
+  });
+
   await page.route('**/api/address/suggest**', async (route) => {
     await fulfillJson(route, {
       suggestions: [
@@ -34,6 +293,18 @@ export async function installMockAddressFlow(page: Page, delays: DelayMap = {}) 
           display_name: 'Keizersgracht 100, 1015AA Amsterdam',
           type: 'adres',
           score: 18.7,
+        },
+        {
+          id: 'adr-mock-2',
+          display_name: 'Keizersgracht 102, 1015AA Amsterdam',
+          type: 'adres',
+          score: 17.4,
+        },
+        {
+          id: 'adr-mock-3',
+          display_name: 'Keizersgracht 104, 1015AA Amsterdam',
+          type: 'adres',
+          score: 16.9,
         },
       ],
     }, delays.suggest ?? 0);
@@ -87,13 +358,7 @@ export async function installMockAddressFlow(page: Page, delays: DelayMap = {}) 
   });
 
   await page.route(/\/api\/address\/[^/]+\/neighborhood3d(\?.*)?$/, async (route) => {
-    await fulfillJson(route, {
-      address_id: '0363010000696734',
-      target_pand_id: null,
-      center: { lat: 52.3676, lng: 4.8846, rd_x: 121000, rd_y: 487000 },
-      buildings: [],
-      message: 'No 3D building data available.',
-    }, delays.neighborhood3d ?? 0);
+    await fulfillJson(route, NEIGHBORHOOD_3D_READY_FIXTURE, delays.neighborhood3d ?? 0);
   });
 
   await page.route('**/api/address/*/risks**', async (route) => {
@@ -218,20 +483,5 @@ export async function installMockAddressFlow(page: Page, delays: DelayMap = {}) 
         },
       ],
     }, delays.viewingQuestions ?? 0);
-  });
-
-  await page.route('**/api/address/*/tier-b**', async (route) => {
-    await fulfillJson(route, {
-      address_id: '0363010000696734',
-      crime: {
-        total_per_1000: 12.5,
-        burglary_per_1000: 1.2,
-        violent_per_1000: 0.8,
-        monthly_total_per_1000: 1.1,
-        monthly_period: '2025MM12',
-        source: 'CBS OData 47018NED/47022NED',
-        source_date: '2025JJ00',
-      },
-    }, delays.tierB ?? 0);
   });
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render, fireEvent, waitFor, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import RiskTile from './RiskTile';
 import { setupTestI18n } from '../test/helpers';
@@ -18,6 +18,13 @@ function renderTile(props: {
   severity?: SeverityLevel;
   summary?: string;
   warnings?: string[];
+  unavailable?: boolean;
+  source?: string;
+  sourceDate?: string;
+  confidence?: string;
+  questionCount?: number;
+  firstQuestion?: string;
+  limitation?: string;
   onTap?: () => void;
 }) {
   return render(
@@ -29,6 +36,13 @@ function renderTile(props: {
         severity={props.severity ?? 'moderate'}
         summary={props.summary}
         warnings={props.warnings}
+        unavailable={props.unavailable}
+        source={props.source}
+        sourceDate={props.sourceDate}
+        confidence={props.confidence}
+        questionCount={props.questionCount}
+        firstQuestion={props.firstQuestion}
+        limitation={props.limitation}
         onTap={props.onTap}
       />
     </I18nextProvider>,
@@ -78,9 +92,9 @@ describe('RiskTile', () => {
     expect(container.querySelector('.risk-tile__score--unavailable')?.textContent).toBe('--');
   });
 
-  it('does not render summary text even when provided', () => {
+  it('renders summary text when provided', () => {
     const { container } = renderTile({ summary: 'Moderate noise levels' });
-    expect(container.querySelector('.risk-tile__summary')).not.toBeInTheDocument();
+    expect(container.querySelector('.risk-tile__summary')).toHaveTextContent('Moderate noise levels');
   });
 
   it('does not render summary when not provided', () => {
@@ -118,5 +132,50 @@ describe('RiskTile', () => {
   it('renders with correct test id', () => {
     const { getByTestId } = renderTile({ category: 'climate' });
     expect(getByTestId('risk-tile-climate')).toBeInTheDocument();
+  });
+
+  it('renders a complete risk tile evidence contract', async () => {
+    renderTile({
+      category: 'noise',
+      labelKey: 'risk.noise.tileLabel',
+      score: 72,
+      severity: 'moderate',
+      summary: 'Some road noise noticeable, especially with windows open.',
+      source: 'RIVM geluidkaart',
+      sourceDate: '2025-03',
+      confidence: 'Indicative',
+      questionCount: 2,
+      limitation: 'Indicative open-data signal. Verify during viewing.',
+    });
+
+    expect(screen.getByText('Noise')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('72')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Moderate/i)).toBeInTheDocument();
+    expect(screen.getByText(/Some road noise/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 viewing questions/i)).toBeInTheDocument();
+    expect(screen.getByText(/RIVM geluidkaart/i)).toBeInTheDocument();
+    expect(screen.getByText(/2025-03/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Indicative/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders unavailable risk data as a local degraded state', () => {
+    renderTile({
+      category: 'air',
+      labelKey: 'risk.air.tileLabel',
+      severity: 'unavailable',
+      unavailable: true,
+      source: 'RIVM luchtkwaliteit',
+      sourceDate: undefined,
+      confidence: 'Unavailable',
+      limitation: 'Air quality data is temporarily unavailable for this location.',
+    });
+
+    expect(screen.getByText('Air')).toBeInTheDocument();
+    expect(screen.getByText(/Data temporarily unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/date unknown/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Unavailable/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('/100')).not.toBeInTheDocument();
   });
 });

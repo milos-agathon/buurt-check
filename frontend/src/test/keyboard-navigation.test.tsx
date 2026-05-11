@@ -28,7 +28,7 @@ describe('Keyboard navigation', () => {
     renderWithI18n(<TabBar activeTab="home" onTabChange={onTabChange} savedCount={2} />);
 
     await user.tab();
-    expect(screen.getByRole('tab', { name: 'Home' })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: 'Search' })).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(onTabChange).toHaveBeenCalledWith('home');
 

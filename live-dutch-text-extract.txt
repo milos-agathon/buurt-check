@@ -1,0 +1,1943 @@
+Ga naar hoofdinhoud
+
+Open de webapp Webapp
+
+Weet wat je koopt, voordat je bezichtigt
+
+Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico, zonlicht en leefbaarheid. Ontvang een compleet dossier met risicoscores, 3D-analyse en bezichtigingsvragen.
+
+Open de webapp
+
+Onafhankelijke analyse · 10+ Nederlandse overheidsbronnen · gratis viewer, betaal alleen voor het volledige dossier
+
+Buurt Check hero preview in Dutch with the motto Je huis onder de duim
+
+Wat zit erin
+
+Alles wat makelaars je niet vertellen
+
+Per adres vertalen we publieke data naar wat het betekent voor jou tijdens de bezichtiging en aankoop.
+
+3D buurtmodel
+
+Interactief 3D-model met luchtfoto-daken, gevels en schaduwen. Roteer, zoom, verken.
+
+Zonlichtanalyse
+
+3D schaduwsimulatie op basis van echte gebouwhoogtes. Zomer en winter vergeleken.
+
+Bezichtigingschecklist
+
+Gepersonaliseerde vragen op basis van de gevonden risico's. Neem ze mee naar de bezichtiging.
+
+Hoe het werkt
+
+Van adres naar dossier in seconden
+
+Voer een adres in
+
+Typ een Nederlands adres. Autocomplete helpt je het juiste adres te vinden.
+
+Wij analyseren 10+ bronnen
+
+Buurt Check bevraagt het BAG, RIVM, CBS, Klimaatatlas, 3DBAG en meer. Binnen seconden.
+
+Ontvang je dossier
+
+Risicoscores, 3D-model, vergelijkingen met de stad en landelijk gemiddelde, en een PDF voor bij de bezichtiging.
+
+Volledig dossier
+
+Zie precies wat je krijgt voordat je betaalt
+
+Dit is het echte product: dezelfde risicovergelijkingen, 3D-context, buurtinzichten en bezichtigingsvragen die je in het dossier terugziet.
+
+Vergelijkingen
+
+Risicovergelijkingen
+
+Vergelijk per onderwerp jouw adres met richtlijnen, referenties en landelijke context.
+
+Schaduw
+
+3D-context en schaduw
+
+Bekijk het gebouw in context, begrijp de schaduwsituatie en neem gerichtere bezichtigingsvragen mee.
+
+Buurtcontext
+
+Buurtbewijs
+
+Lees buurtcontext, leefbaarheid en bereikbaarheid in dezelfde rustige dossierflow.
+
+Prijzen
+
+Eenvoudig en eerlijk
+
+Geen abonnement. Geen account. Bekijk gratis en betaal alleen voor de volledige PDF.
+
+€3,99 per adres
+
+Volledig dossier · eenmalige betaling
+
+Start in de webapp
+
+De interactieve viewer en quick brief zijn gratis. Betaling via Stripe is alleen nodig voor het volledige dossier.
+
+Gratis interactieve viewer met risicoscores, 3D en buurtcontext
+
+Gratis quick brief PDF voor je bezichtiging
+
+Volledig dossier met woningwaarschuwingen en verdiepende analyse
+
+Betaal via Stripe wanneer je de uitgebreide PDF wilt downloaden
+
+Geen abonnement of account nodig
+
+Vergelijkingen met buurt, stad en landelijk niveau
+
+Databronnen
+
+Gebouwd op open overheidsdata
+
+Geen meningen, geen schattingen. Alleen officieel gepubliceerde, verifieerbare data van Nederlandse overheidsinstellingen.
+
+Bronnen die we combineren
+
+Veelgestelde vragen
+
+Voor wie is Buurt Check bedoeld?
+
+Voor iedereen die een woning wil kopen in Nederland, met name starters en expats die de lokale markt nog niet kennen. Buurt Check geeft je de context die je normaal pas na jaren in een buurt leert.
+
+Waar komen de data vandaan?
+
+Uitsluitend van officiële Nederlandse overheidsinstellingen: het Kadaster (BAG), RIVM, CBS, Klimaatatlas, TU Delft (3DBAG), en meer. Wij voegen geen meningen of schattingen toe.
+
+Heb ik een account nodig?
+
+Nee. Je voert een adres in, krijgt je dossier, en betaalt alleen als je het volledige rapport wilt. Geen registratie, geen wachtwoord.
+
+Wat krijg ik gratis?
+
+Voor elk adres krijg je gratis de interactieve viewer, risicoscores, 3D-context, buurtinzichten en een quick brief PDF. Het volledige dossier met uitgebreide woningwaarschuwingen en de complete export kost €3,99.
+
+Controleer het adres voordat je een bod uitbrengt
+
+Open gratis de viewer, bekijk de quick brief en betaal alleen als je het volledige dossier wilt meenemen.
+
+Start in de webapp
+
+© 2026 Buurt Check
+
+Contact
+
+Privacy
+
+Terms
+
+Privacy & juridische info
+
+Terug naar de app
+
+Hoe Buurt Check met gegevens omgaat
+
+Buurt Check helpt kopers Nederlandse woningen beter te beoordelen met open data, 3D-context en exporteerbare dossiers. Op deze pagina leggen we uit welke gegevens we verwerken, waarom we dat doen, met wie gegevens worden gedeeld en hoe je je rechten kunt uitoefenen.
+
+Laatst bijgewerkt: 20 april 2026
+
+Hoe je ons bereikt
+
+Buurt Check wordt beheerd via de officiele web-, Android- en iPhone-kanalen van het product.
+
+Voor privacyvragen, verwijderingsverzoeken of andere AVG-gerelateerde verzoeken kun je mailen naar support@buurt-check.nl.
+
+Welke gegevens we verwerken
+
+Adreszoekopdrachten en woninggegevens
+
+Wanneer je een adres invoert, sturen we de zoekopdracht naar onze backend om Nederlandse publieke databronnen te bevragen. Na selectie verwerken we het adres, afgeleide coördinaten, BAG- of VBO-identifiers en de rapport-ID die nodig is om het dossier en eventuele exports op te bouwen.
+
+Doel: adresherkenning, dossieropbouw, exportlevering en servicewerking.
+
+Aankopen en entitlementstatus
+
+Rapport-ID, rapporttype, betaalstatus, entitlementstatus en aankoopmoment.
+
+Verwijzingen van betaalproviders, zoals Stripe-sessie-ID's, purchase tokens of transactie-ID's.
+
+Geen betaalkaart- of bankgegevens: die blijven bij Stripe, Google Play of Apple.
+
+Doel: betaling verwerken, aankoop valideren, misbruik voorkomen en aan administratieve verplichtingen voldoen.
+
+Web-checkoutidentifiers
+
+Een anonieme kopercookie op web om checkout-return en entitlement aan dezelfde browser te koppelen.
+
+Een kortlevende herstel-token voor een betaalreturn als de browsercontext tijdens een redirect is onderbroken.
+
+Doel: een betaalde aankoop veilig koppelen aan hetzelfde rapport zonder naamgebonden account.
+
+Gegevens die alleen op jouw apparaat blijven
+
+Recente zoekopdrachten en opgeslagen adressen.
+
+Thema-instelling, tooltipstatus en checklistvoorkeuren.
+
+Tijdelijke status voor rapportherstel of een onderbroken betaalflow.
+
+Doel: gebruiksgemak en herstel binnen dezelfde browser- of appsessie.
+
+Optionele analytics
+
+Op de website en in de webapp kunnen we, na toestemming, privacyvriendelijke Google Analytics 4 gebruiken voor paginaweergaven, CTA-klikken, taalwissels en algemene productinteracties. Advertentiefuncties blijven uitgeschakeld.
+
+Optionele foutmonitoring
+
+Als foutmonitoring voor een release is ingeschakeld, kunnen technische foutmeldingen, appversie, browser- of apparaatkenmerken en beperkte diagnosegegevens naar onze monitoringprovider worden gestuurd om storingen te onderzoeken en de betrouwbaarheid van de dienst te verbeteren.
+
+Wat we niet bewust verzamelen
+
+Buurt Check gebruikt geen naamgebonden accounts en vraagt geen GPS-locatie, contacten, foto's, berichten of advertentie-ID's op.
+
+Kort samengevat
+
+We verwerken vooral adressen, woning-ID's en aankoopreferenties die nodig zijn om dossiers en exports te leveren. Lokale voorkeuren blijven zoveel mogelijk op jouw apparaat. We verkopen geen persoonsgegevens en gebruiken geen advertentieprofielen.
+
+Derden die gegevens ontvangen
+
+We verkopen geen persoonsgegevens en gebruiken je data niet voor gerichte advertenties.
+
+Beveiliging
+
+Verkeer tussen jouw apparaat en onze systemen loopt via HTTPS. Rapportmetadata, entitlementstatus en betaalreferenties worden alleen bewaard in systemen die nodig zijn om Buurt Check te laten functioneren.
+
+Bewaartermijnen en verwijdering
+
+Op jouw apparaat
+
+Recente zoekopdrachten en opgeslagen adressen kun je vanuit de app wissen. Andere lokale gegevens verdwijnen wanneer je browser- of appdata wist.
+
+Op onze systemen
+
+Rapport- en betalingsreferenties bewaren we zolang dat redelijk nodig is om aangekochte exports te leveren, terugbetalingen of geschillen te behandelen, misbruik te voorkomen en aan wettelijke verplichtingen te voldoen.
+
+Verwijderingsverzoek
+
+Mail naar support@buurt-check.nl met de rapport-ID of het gebruikte adres en een geschatte datum. We reageren normaal binnen 30 dagen.
+
+Rechtsgrond
+
+Uitvoering van een overeenkomst: om het dossier en de export te leveren die je vraagt.
+
+Gerechtvaardigd belang: om de dienst veilig en betrouwbaar te laten werken.
+
+Wettelijke verplichting: voor administratie, belastingen of fraudepreventie waar nodig.
+
+Jouw rechten
+
+Onder de AVG kun je vragen om inzage, correctie, verwijdering, beperking, bezwaar of overdraagbaarheid waar dat van toepassing is. Omdat er geen naamgebonden accounts zijn, kunnen we aanvullende gegevens vragen om het juiste dossier of de juiste aankoop te vinden.
+
+Je kunt ook een klacht indienen bij de Autoriteit Persoonsgegevens via autoriteitpersoonsgegevens.nl.
+
+Wijzigingen
+
+Als onze werkwijze of de wet verandert, kunnen we dit privacybeleid aanpassen. De datum bovenaan de pagina wordt dan bijgewerkt.
+
+Contact
+
+Voor privacyvragen of verzoeken kun je mailen naar support@buurt-check.nl.
+
+Dit beleid geldt voor de webapp, de Android-release via Google Play en de iPhone-release via de App Store van Buurt Check.
+
+Voorwaarden & juridische info
+
+Terug naar de app
+
+Voorwaarden voor Buurt Check
+
+Deze voorwaarden gelden voor de gratis viewer, de gratis korte checklist en het betaalde volledige dossier in de webapp, Android-app en iPhone-app van Buurt Check.
+
+Laatst bijgewerkt: 20 april 2026
+
+Reikwijdte van de dienst
+
+Buurt Check biedt indicatieve, onderbouwde woninginzichten voor Nederlandse adressen. De viewer in de app is gratis. De korte checklist is gratis. Het volledige dossier is een eenmalige betaalde digitale aankoop die is gekoppeld aan de anonieme koper en het adresgebonden rapport.
+
+Geen professioneel advies
+
+Buurt Check vat openbare datasets en afgeleide analyses samen. Het is geen juridisch, bouwkundig, notarieel, fiscaal of financieel advies. Je blijft zelf verantwoordelijk voor inspecties, due diligence en aankoopbeslissingen.
+
+Belangrijk
+
+Controleer beslissende punten altijd met professionele adviseurs en eigen onderzoek.
+
+Betaalkanalen
+
+Webaankopen lopen via Stripe Checkout.
+
+Android-aankopen lopen via Google Play Billing.
+
+iPhone-aankopen lopen via Apple In-App Purchase.
+
+Ook de voorwaarden en restitutieregels van het betreffende platform zijn van toepassing.
+
+We kunnen een entitlement weigeren of intrekken als een betaling wordt geannuleerd, teruggedraaid, terugbetaald of ongeldig blijkt.
+
+Beschikbaarheid en wijzigingen
+
+Publieke databronnen kunnen veranderen of tijdelijk uitvallen. Buurt Check is ontworpen om netjes te degraderen, maar we garanderen niet dat elke databron, sectie of export altijd beschikbaar is. We kunnen de app, prijsstelling of deze voorwaarden aanpassen naarmate het product of platformregels veranderen.
+
+Toegestaan gebruik
+
+Je mag Buurt Check gebruiken voor legale persoonlijke of interne evaluatiedoelen. Het is niet toegestaan de dienst op grote schaal te scrapen, beveiligingsmaatregelen te omzeilen of betaalde exports als eigen product door te verkopen.
+
+Aansprakelijkheid
+
+Voor zover wettelijk toegestaan wordt Buurt Check geleverd op een as-is basis. We zijn niet aansprakelijk voor indirecte schade of gevolgschade die ontstaat door vertrouwen op indicatieve data, fouten in brondata of serviceonderbrekingen.
+
+Contact
+
+Product- en supportvragen kun je sturen naar support@buurt-check.nl.
+
+Privacy- en beheerinformatie vind je ook op het privacybeleid.
+
+Als dwingend recht of een platformregel afwijkt van deze voorwaarden, geldt die verplichte regel voor het betreffende kanaal.
+
+Privacy & juridische info
+
+Terug naar de app
+
+Hoe Buurt Check met gegevens omgaat
+
+Buurt Check helpt kopers Nederlandse woningen beter te beoordelen met open data, 3D-context en exporteerbare dossiers. Op deze pagina leggen we uit welke gegevens we verwerken, waarom we dat doen, met wie gegevens worden gedeeld en hoe je je rechten kunt uitoefenen.
+
+Laatst bijgewerkt: 20 april 2026
+
+Hoe je ons bereikt
+
+Buurt Check wordt beheerd via de officiele web-, Android- en iPhone-kanalen van het product.
+
+Voor privacyvragen, verwijderingsverzoeken of andere AVG-gerelateerde verzoeken kun je mailen naar support@buurt-check.nl.
+
+Welke gegevens we verwerken
+
+Adreszoekopdrachten en woninggegevens
+
+Wanneer je een adres invoert, sturen we de zoekopdracht naar onze backend om Nederlandse publieke databronnen te bevragen. Na selectie verwerken we het adres, afgeleide coördinaten, BAG- of VBO-identifiers en de rapport-ID die nodig is om het dossier en eventuele exports op te bouwen.
+
+Doel: adresherkenning, dossieropbouw, exportlevering en servicewerking.
+
+Aankopen en entitlementstatus
+
+Rapport-ID, rapporttype, betaalstatus, entitlementstatus en aankoopmoment.
+
+Verwijzingen van betaalproviders, zoals Stripe-sessie-ID's, purchase tokens of transactie-ID's.
+
+Geen betaalkaart- of bankgegevens: die blijven bij Stripe, Google Play of Apple.
+
+Doel: betaling verwerken, aankoop valideren, misbruik voorkomen en aan administratieve verplichtingen voldoen.
+
+Web-checkoutidentifiers
+
+Een anonieme kopercookie op web om checkout-return en entitlement aan dezelfde browser te koppelen.
+
+Een kortlevende herstel-token voor een betaalreturn als de browsercontext tijdens een redirect is onderbroken.
+
+Doel: een betaalde aankoop veilig koppelen aan hetzelfde rapport zonder naamgebonden account.
+
+Gegevens die alleen op jouw apparaat blijven
+
+Recente zoekopdrachten en opgeslagen adressen.
+
+Thema-instelling, tooltipstatus en checklistvoorkeuren.
+
+Tijdelijke status voor rapportherstel of een onderbroken betaalflow.
+
+Doel: gebruiksgemak en herstel binnen dezelfde browser- of appsessie.
+
+Optionele analytics
+
+Op de website en in de webapp kunnen we, na toestemming, privacyvriendelijke Google Analytics 4 gebruiken voor paginaweergaven, CTA-klikken, taalwissels en algemene productinteracties. Advertentiefuncties blijven uitgeschakeld.
+
+Optionele foutmonitoring
+
+Als foutmonitoring voor een release is ingeschakeld, kunnen technische foutmeldingen, appversie, browser- of apparaatkenmerken en beperkte diagnosegegevens naar onze monitoringprovider worden gestuurd om storingen te onderzoeken en de betrouwbaarheid van de dienst te verbeteren.
+
+Wat we niet bewust verzamelen
+
+Buurt Check gebruikt geen naamgebonden accounts en vraagt geen GPS-locatie, contacten, foto's, berichten of advertentie-ID's op.
+
+Kort samengevat
+
+We verwerken vooral adressen, woning-ID's en aankoopreferenties die nodig zijn om dossiers en exports te leveren. Lokale voorkeuren blijven zoveel mogelijk op jouw apparaat. We verkopen geen persoonsgegevens en gebruiken geen advertentieprofielen.
+
+Derden die gegevens ontvangen
+
+We verkopen geen persoonsgegevens en gebruiken je data niet voor gerichte advertenties.
+
+Beveiliging
+
+Verkeer tussen jouw apparaat en onze systemen loopt via HTTPS. Rapportmetadata, entitlementstatus en betaalreferenties worden alleen bewaard in systemen die nodig zijn om Buurt Check te laten functioneren.
+
+Bewaartermijnen en verwijdering
+
+Op jouw apparaat
+
+Recente zoekopdrachten en opgeslagen adressen kun je vanuit de app wissen. Andere lokale gegevens verdwijnen wanneer je browser- of appdata wist.
+
+Op onze systemen
+
+Rapport- en betalingsreferenties bewaren we zolang dat redelijk nodig is om aangekochte exports te leveren, terugbetalingen of geschillen te behandelen, misbruik te voorkomen en aan wettelijke verplichtingen te voldoen.
+
+Verwijderingsverzoek
+
+Mail naar support@buurt-check.nl met de rapport-ID of het gebruikte adres en een geschatte datum. We reageren normaal binnen 30 dagen.
+
+Rechtsgrond
+
+Uitvoering van een overeenkomst: om het dossier en de export te leveren die je vraagt.
+
+Gerechtvaardigd belang: om de dienst veilig en betrouwbaar te laten werken.
+
+Wettelijke verplichting: voor administratie, belastingen of fraudepreventie waar nodig.
+
+Jouw rechten
+
+Onder de AVG kun je vragen om inzage, correctie, verwijdering, beperking, bezwaar of overdraagbaarheid waar dat van toepassing is. Omdat er geen naamgebonden accounts zijn, kunnen we aanvullende gegevens vragen om het juiste dossier of de juiste aankoop te vinden.
+
+Je kunt ook een klacht indienen bij de Autoriteit Persoonsgegevens via autoriteitpersoonsgegevens.nl.
+
+Wijzigingen
+
+Als onze werkwijze of de wet verandert, kunnen we dit privacybeleid aanpassen. De datum bovenaan de pagina wordt dan bijgewerkt.
+
+Contact
+
+Voor privacyvragen of verzoeken kun je mailen naar support@buurt-check.nl.
+
+Dit beleid geldt voor de webapp, de Android-release via Google Play en de iPhone-release via de App Store van Buurt Check.
+
+Voorwaarden & juridische info
+
+Terug naar de app
+
+Voorwaarden voor Buurt Check
+
+Deze voorwaarden gelden voor de gratis viewer, de gratis korte checklist en het betaalde volledige dossier in de webapp, Android-app en iPhone-app van Buurt Check.
+
+Laatst bijgewerkt: 20 april 2026
+
+Reikwijdte van de dienst
+
+Buurt Check biedt indicatieve, onderbouwde woninginzichten voor Nederlandse adressen. De viewer in de app is gratis. De korte checklist is gratis. Het volledige dossier is een eenmalige betaalde digitale aankoop die is gekoppeld aan de anonieme koper en het adresgebonden rapport.
+
+Geen professioneel advies
+
+Buurt Check vat openbare datasets en afgeleide analyses samen. Het is geen juridisch, bouwkundig, notarieel, fiscaal of financieel advies. Je blijft zelf verantwoordelijk voor inspecties, due diligence en aankoopbeslissingen.
+
+Belangrijk
+
+Controleer beslissende punten altijd met professionele adviseurs en eigen onderzoek.
+
+Betaalkanalen
+
+Webaankopen lopen via Stripe Checkout.
+
+Android-aankopen lopen via Google Play Billing.
+
+iPhone-aankopen lopen via Apple In-App Purchase.
+
+Ook de voorwaarden en restitutieregels van het betreffende platform zijn van toepassing.
+
+We kunnen een entitlement weigeren of intrekken als een betaling wordt geannuleerd, teruggedraaid, terugbetaald of ongeldig blijkt.
+
+Beschikbaarheid en wijzigingen
+
+Publieke databronnen kunnen veranderen of tijdelijk uitvallen. Buurt Check is ontworpen om netjes te degraderen, maar we garanderen niet dat elke databron, sectie of export altijd beschikbaar is. We kunnen de app, prijsstelling of deze voorwaarden aanpassen naarmate het product of platformregels veranderen.
+
+Toegestaan gebruik
+
+Je mag Buurt Check gebruiken voor legale persoonlijke of interne evaluatiedoelen. Het is niet toegestaan de dienst op grote schaal te scrapen, beveiligingsmaatregelen te omzeilen of betaalde exports als eigen product door te verkopen.
+
+Aansprakelijkheid
+
+Voor zover wettelijk toegestaan wordt Buurt Check geleverd op een as-is basis. We zijn niet aansprakelijk voor indirecte schade of gevolgschade die ontstaat door vertrouwen op indicatieve data, fouten in brondata of serviceonderbrekingen.
+
+Contact
+
+Product- en supportvragen kun je sturen naar support@buurt-check.nl.
+
+Privacy- en beheerinformatie vind je ook op het privacybeleid.
+
+Als dwingend recht of een platformregel afwijkt van deze voorwaarden, geldt die verplichte regel voor het betreffende kanaal.
+
+buurt-check
+
+Voorbereidende informatie voor woningkopers
+
+Bijv. Keizersgracht 1, Amsterdam
+
+Typ minimaal 2 tekens
+
+Zoeken...
+
+Geen adressen gevonden
+
+Probeer een volledig Nederlands adres, bijv. Keizersgracht 1, Amsterdam
+
+We konden nu geen adressen zoeken. Controleer je verbinding en probeer het opnieuw.
+
+Krijgt je appartement genoeg licht?
+
+Is deze buurt veilig?
+
+Wat moet je vragen bij de bezichtiging?
+
+Probeer het: Keizersgracht 1, Amsterdam
+
+Gratis. Geen registratie. 10+ overheidsbronnen.
+
+Recent
+
+zojuist
+
+{{count}}m geleden
+
+{{count}}u geleden
+
+gisteren
+
+{{count}}d geleden
+
+Welkom terug
+
+Je hebt {{count}} opgeslagen adres
+
+Je hebt {{count}} opgeslagen adressen
+
+Bekijk opgeslagen woningen
+
+Vergelijk je opgeslagen adressen
+
+Zoek een nieuw adres
+
+Gebouwgegevens
+
+Bouwjaar {{year}}
+
+Jaar
+
+Status
+
+Gebruiksdoel
+
+Oppervlakte
+
+Eenheden
+
+Kadaster gebouwnummer
+
+Officieel overheidsidentificatienummer (BAG)
+
+Geen gebouwgegevens gevonden voor dit adres.
+
+Bron: BAG (Basisregistratie Adressen en Gebouwen)
+
+Ander adres
+
+Gebouwgegevens laden...
+
+Gebouwcontour
+
+Luchtfoto
+
+Luchtfoto: PDOK (Publieke Dienstverlening Op de Kaart) / Kadaster (CC BY 4.0)
+
+EN
+
+Er ging iets mis aan onze kant. Je gegevens zijn veilig — probeer de pagina te vernieuwen.
+
+Dit duurt langer dan normaal. Controleer je verbinding en probeer het opnieuw.
+
+We konden geen verbinding maken met onze servers. Controleer je internetverbinding en probeer het opnieuw.
+
+We konden deze databron nu niet laden. Probeer het over een moment opnieuw.
+
+Onze server heeft een tijdelijk probleem. Probeer het over een moment opnieuw.
+
+Opnieuw proberen
+
+We konden de dossierweergave niet laden. Probeer de pagina te vernieuwen.
+
+Jouw woning
+
+Buurtcontext
+
+Jouw volgende stappen
+
+{{current}} van {{total}}
+
+Gebouwgegevens, risicobeoordeling en woningwaarschuwingen
+
+Leefbaarheid, 3D-weergave, zonlicht en buurtstatistieken
+
+Bezichtigingschecklist en exportopties
+
+{{loaded}}/{{total}} bronnen geladen
+
+Nieuwste: {{date}}
+
+Oudste: {{date}}
+
+{{count}} verouderde bron(nen) (>12 maanden)
+
+We konden {{count}} sectie(s) niet laden. Tik om opnieuw te proberen.
+
+Woning
+
+Buurt
+
+Buurt
+
+Bezichtigingschecklist
+
+Naar boven
+
+Gebouw zoeken...
+
+3D-model laden...
+
+Geluidsniveaus controleren...
+
+Bezichtigingschecklist voorbereiden...
+
+Luchtkwaliteit meten...
+
+Klimaatstress analyseren...
+
+Zonlicht berekenen...
+
+Je adres opzoeken in de officiële BAG-gebouwenregistratie
+
+Een 3D-model van je straat bouwen op basis van officiële meetgegevens
+
+RIVM-sensoren raadplegen voor verkeers-, trein- en vliegtuiggeluid
+
+Stikstofdioxide- en fijnstofniveaus controleren bij overheidsmeetpunten
+
+Hittestress en wateroverlast controleren in de Klimaateffectatlas
+
+Berekenen hoeveel direct zonlicht je gebouw bereikt
+
+Adres geselecteerd
+
+Dossier wordt voorbereid...
+
+Voortgang dossier laden
+
+Risicodata is vertraagd. We gaan door met beschikbare bronnen...
+
+Geluidsdata tijdelijk niet beschikbaar
+
+Buurtstatistieken zijn vertraagd. We gaan door...
+
+Checklistgeneratie is vertraagd. We gaan door...
+
+Aanvullende criminaliteitsdata is vertraagd. We gaan door...
+
+3D Buurtoverzicht
+
+Bron: 3DBAG (Nationaal 3D Gebouwenbestand) + SunCalc (indicatief). Achtergrondkaart: PDOK (Publieke Dienstverlening Op de Kaart) / Kadaster
+
+3D-gegevens laden...
+
+3D-analyse
+
+We laden het doelgebouw en de omliggende context. Een eerste laadbeurt kan 15-20 seconden duren.
+
+Doelgebouw
+
+Omgeving
+
+Geen 3D-gebouwgegevens beschikbaar.
+
+Er zijn geen 3D-gebouwgegevens beschikbaar voor dit gebied.
+
+Het doelgebouw kon niet worden gekoppeld in de 3D-dataset.
+
+Tijd
+
+Winter
+
+Lente
+
+Zomer
+
+Herfst
+
+Winter
+
+Zomer
+
+Lente (21 mrt)
+
+Vandaag
+
+Camera
+
+Straatniveau
+
+Balkonniveau
+
+Volledig scherm
+
+Volledig scherm sluiten
+
+Vereenvoudigd beeld. Download de bezichtigingschecklist voor volledige 3D-analyse.
+
+Bovenaanzicht
+
+Weergave herstellen
+
+3D buurtscene
+
+3D weergave van {{count}} gebouwen. Doelgebouw is {{height}}m hoog.
+
+3D weergave van {{count}} gebouwen.
+
+Sleep om te draaien, zoom in of uit, en gebruik reset om opnieuw te centreren.
+
+Sleep om te draaien • Knijp om te zoomen • Tik op reset om opnieuw te centreren
+
+Sleep om te draaien • Scroll of +/- om te zoomen • Home om te resetten
+
+Warmtekaart zonuren dak
+
+Winter
+
+Lente (21 mrt)
+
+Zomer
+
+Vandaag
+
+Afspelen
+
+Pauzeren
+
+Schaduwtijd
+
+Zonlichtanalyse
+
+Directe zon op dak (helder weer)
+
+Telt de tijd op het dakoppervlak dat de zon boven de horizon staat en niet geblokkeerd wordt door nabije gebouwen.
+
+Zonlicht analyseren...
+
+Geen 3D-gebouwcontext beschikbaar — zonlichtanalyse vereist omliggende gebouwen.
+
+Goede directe zonblootstelling op het dak bij helder weer. Controleer daglicht in kamers tijdens de bezichtiging.
+
+Enige schaduw in wintermaanden. Controleer raamoriëntatie bij bezichtiging.
+
+Veel schaduw van omliggende gebouwen. Beperkt direct zonlicht in de winter.
+
+Zwaar beschaduwde locatie. Zeer weinig direct zonlicht in wintermaanden.
+
+Geen 3D-gebouwcontext beschikbaar — zonlichtanalyse vereist omliggende gebouwen.
+
+Winterzonnewende
+
+Lente (21 mrt) — dag en nacht even lang, typische schatting voor het midden van het jaar
+
+Zomerzonnewende
+
+Jaargemiddelde (dagelijks)
+
+uur
+
+Toon warmtekaart zonuren op dak
+
+Diffuus licht (luchtopenheid)
+
+Meet hoeveel van de lucht zichtbaar is vanaf deze plek (Sky View Factor).
+
+Goede luchtopenheid — veel diffuus daglicht, ook op bewolkte dagen.
+
+Gemiddelde luchtopenheid — enige afname van diffuus licht door omliggende gebouwen.
+
+Beperkte luchtopenheid — duidelijke afname van diffuus licht. Kan donker aanvoelen bij bewolking.
+
+Luchtopenheid is gemeten vanaf het dak. Voor verticale vlakken (gevels, ramen) liggen waarden meestal lager — een vrije gevel heeft ongeveer 50% luchtzicht.
+
+Gewogen luchtopenheid
+
+Houdt rekening met zonpositie en heldere-luchtverdeling (Perez-model).
+
+Gewogen naar helderheid van elk hemelgedeelte. Hoger nabij de zon en de horizon.
+
+Vergelijkbaar met EN 17037-blootstellingsklassen en een interne winter-dakblootstellingsratio (alleen informatief).
+
+Hoe verhoudt dit zich?
+
+Vergelijkbaar met EN 17037-blootstellingsniveau "{{level}}" ({{hours}}u op 21 maart)
+
+Winter-dakblootstellingsratio: {{level}} ({{percent}}% van mogelijke heldere-weerzon op het dak)
+
+Dit zijn informatieve vergelijkingen, geen nalevingsclaims. Werkelijk daglicht in kamers vereist controle ter plekke.
+
+hoog
+
+gemiddeld
+
+minimum
+
+onder minimum
+
+hoog
+
+gemiddeld
+
+onder doel
+
+Dit is een geometrische schatting op basis van 3D-gebouwmodellen. Wolken, nevel of weer zijn niet meegerekend.
+
+Directe zonuren komen uit 3D-geometriemodellering. Instraling gebruikt daarnaast PVGIS-typisch-weerdata, maar werkelijk weer en microklimaat kunnen afwijken.
+
+Bomen, luifels, tijdelijke objecten en interieurindeling zijn niet opgenomen.
+
+Deze analyse combineert dakmetingen met afgeleide gevelop- en grondproxies. Raam- en tuincondities blijven benaderingen.
+
+Vraag de verkoper welke kamers direct zonlicht krijgen; dit model is een dak/gevelproxy, geen meting van daglicht binnen.
+
+Bron: 3DBAG (Nationaal 3D Gebouwenbestand) + SunCalc (indicatief, dak + afgeleide gevelop-/grondproxies)
+
+Bron + datum: 3DBAG (Nationaal 3D Gebouwenbestand) + SunCalc (datum onbekend, indicatieve proxyanalyse)
+
+Bron + datum: 3DBAG (Nationaal 3D Gebouwenbestand) + SunCalc (analysejaar {{date}}, indicatieve proxyanalyse)
+
+huidig jaar
+
+Geschatte gebouwas
+
+Gebaseerd op de plattegrond van het gebouw. Controleer bij bezichtiging.
+
+N — Z
+
+NO — ZW
+
+O — W
+
+ZO — NW
+
+Zonlicht op raamniveau
+
+Geschatte zonuren op vensterbankhoogte per gevelzijde.
+
+Gevelpunten zijn afgeleid van de gebouwcontour; werkelijke raamposities kunnen afwijken.
+
+Gevel
+
+Winter
+
+Zomer
+
+Jaar
+
+Zonlicht in tuin/erf
+
+Geschatte zonuren op ooghoogte rondom de gebouwomtrek.
+
+Grondpunten vormen een benaderingsring rond de gebouwcontour, geen exacte perceelinrichting.
+
+Geschatte zonne-instraling
+
+Direct: {{value}} kWh/m²/jaar
+
+Diffuus: {{value}} kWh/m²/jaar
+
+Weergecorrigeerde schatting op basis van PVGIS Typical Meteorological Year (TMY)-data.
+
+Noord
+
+Zuid
+
+Oost
+
+West
+
+Milieu-risicokaarten
+
+Risicokaarten laden...
+
+We konden de risicobron niet bereiken. De overheids-API reageert mogelijk traag — probeer het over een moment opnieuw.
+
+Geen meetwaarde beschikbaar voor deze locatie
+
+Laag risico
+
+Gemiddeld risico
+
+Hoog risico
+
+Data niet beschikbaar
+
+Bron + datum: {{source}} ({{date}})
+
+Bron onbekend
+
+datum onbekend
+
+gemeten {{sampled}}, datasetdatum onbekend
+
+Indicatief open-data signaal. Verifieer altijd op locatie en met officiële rapporten.
+
+{{label}}: {{score}} van {{max}}
+
+{{label}}: gegevens niet beschikbaar
+
+Data tijdelijk niet beschikbaar
+
+Wegverkeersgeluid
+
+Geluid
+
+Gemiddeld geluidsniveau: {{value}} dB (Lden)
+
+Lden is de EU-standaard voor het meten van geluid over dag, avond en nacht, gewogen voor wanneer geluid het meest storend is.
+
+Wegverkeersgeluid lijkt beperkt. Het dagelijkse hinder-risico is relatief laag.
+
+Wegverkeersgeluid kan merkbaar zijn in dagelijks gebruik, vooral met open ramen.
+
+Wegverkeersgeluid is waarschijnlijk aanzienlijk en kan slaap, comfort en leefbaarheid beïnvloeden.
+
+We konden voor deze locatie geen geluidsdata ophalen. De databron is mogelijk tijdelijk niet beschikbaar — probeer het over een moment opnieuw.
+
+Vraag/controleer bij bezichtiging: Hoor je verkeer met gesloten ramen? Hoe is het geluid in spitsuren in slaapkamers?
+
+Rustige omgeving met weinig wegverkeersgeluid.
+
+Enig verkeersgeluid hoorbaar, vooral bij open ramen.
+
+Aanzienlijk verkeersgeluid dat dagelijks comfort beïnvloedt.
+
+Zeer hoog wegverkeersgeluid, waarschijnlijk slaap en welzijn beïnvloedend.
+
+Luchtkwaliteit
+
+Lucht
+
+Fijnstofdeeltjes (PM2.5)
+
+Stikstofdioxide (NO₂) — voornamelijk afkomstig van verkeer
+
+Luchtkwaliteitsindicatoren zijn relatief gunstig voor deze locatie.
+
+Luchtkwaliteitsindicatoren wijzen op matige blootstelling. Gevoelige bewoners kunnen effecten merken.
+
+Luchtkwaliteitsindicatoren zijn verhoogd. Het langetermijn-risico op blootstelling is duidelijk hoger.
+
+We konden voor deze locatie geen luchtkwaliteitsdata ophalen. De databron is mogelijk tijdelijk niet beschikbaar — probeer het over een moment opnieuw.
+
+Vraag/controleer bij bezichtiging: Blijven ramen vaak dicht door uitlaatgassen? Is er mechanische ventilatie met goede filtering?
+
+Luchtkwaliteit is gunstig voor deze locatie.
+
+Matige luchtkwaliteit; gevoelige personen kunnen last ondervinden.
+
+Verhoogde luchtvervuiling; ventilatie is belangrijk.
+
+Zeer slechte luchtkwaliteit; aanzienlijk gezondheidsrisico.
+
+Klimaatrisico
+
+Klimaat
+
+Hitte-signaal
+
+Water-signaal
+
+Klimaatstress-signalen lijken beperkt voor deze locatie binnen de gemeten lagen.
+
+Klimaatstress-signalen wijzen op een matige kans op hitte- of wateroverlast.
+
+Klimaatstress-signalen wijzen op een duidelijke kans op hitte en/of wateroverlast.
+
+We konden voor dit adres geen klimaatstressdata ophalen. De geselecteerde atlaslagen hebben mogelijk geen dekking hier — probeer een ander gebied.
+
+Vraag/controleer bij bezichtiging: Was er de afgelopen jaren hitte- of wateroverlast? Welke maatregelen zijn genomen door eigenaar/VvE?
+
+Lage klimaatstress; hitte- en waterrisico lijken beperkt.
+
+Matige kans op hitte- of wateroverlast.
+
+Aanzienlijk risico op hitte- en/of waterstress.
+
+Zeer hoge klimaatstress; hitte- en wateroverlast waarschijnlijk.
+
+Zonlicht
+
+Zon
+
+Goede heldere-weerzon op het dak.
+
+Matig zonlicht; winterschaduwen verminderen directe zon.
+
+Beperkt zonlicht door omliggende gebouwen.
+
+Zeer weinig direct zonlicht, vooral in de winter.
+
+We konden de geluidsdatalaag niet bereiken. Probeer het over een moment opnieuw.
+
+Geen geluidsmeting op deze exacte locatie.
+
+We konden nu geen geluidsdata ophalen. De overheids-API reageert mogelijk traag — probeer opnieuw.
+
+Geluiddata reageerde te traag. Probeer het over een moment opnieuw.
+
+Geen luchtkwaliteitsmetingen op deze locatie.
+
+Slechts gedeeltelijke luchtkwaliteitsdata beschikbaar.
+
+We konden nu geen luchtkwaliteitsdata ophalen. De overheids-API reageert mogelijk traag — probeer opnieuw.
+
+Luchtkwaliteitsdata reageerde te traag. Probeer het over een moment opnieuw.
+
+Geen klimaatstressdata beschikbaar voor deze locatie.
+
+Slechts gedeeltelijke klimaatstressdata beschikbaar.
+
+We konden nu geen klimaatstressdata ophalen. De overheids-API reageert mogelijk traag — probeer opnieuw.
+
+Klimaatstressdata reageerde te traag. Probeer het over een moment opnieuw.
+
+Een klimaatatlaslaag gaf data terug in een onbekend formaat en is daarom niet meegeteld in de score.
+
+Geluidrisico
+
+Luchtkwaliteitsrisico
+
+Klimaatrisico
+
+Zonlichtrisico
+
+Funderingsrisico
+
+Erfpacht
+
+VvE (Vereniging van Eigenaren)
+
+Asbestrisico
+
+Loden leidingrisico
+
+Geluid
+
+Lucht
+
+Klimaat
+
+Zon
+
+Bron: {{source}}
+
+Data is indicatief. Verifieer op locatie vóór aankoop.
+
+Score
+
+Adres
+
+/ 100
+
+Stadsgemiddelde
+
+NL-gemiddelde
+
+WHO-richtlijn
+
+Adaptatiedoel
+
+Vergelijkingswaarde (stedelijkheid)
+
+Nationale referentie
+
+WHO-geluidsrichtlijn
+
+Luchtkwaliteitsdoel
+
+Klimaatadaptatiedoel
+
+Daglichtdoel
+
+Vergelijkingswaarden zijn tijdelijk niet beschikbaar voor dit adres.
+
+Schaduwbeelden
+
+Zomerzonnewende (21 juni) — ochtend-, middag- en namiddagbewijs rond het doelgebouw
+
+Schaduwbeelden vastleggen...
+
+Bovenaanzicht
+
+Voorgevel
+
+Achtergevel
+
+Bekijk op volledig formaat
+
+Sluit volledige weergave
+
+Bron: 3DBAG (Nationaal 3D Gebouwenbestand) + SunCalc (indicatief)
+
+Lagen
+
+Transparantie
+
+Data-overlays
+
+Geluid
+
+Luchtkwaliteit
+
+Klimaatstress
+
+Overlay laden...
+
+We konden de overlaydata niet laden. Probeer de laag uit en opnieuw aan te zetten.
+
+Buurtprofiel
+
+Buurtgegevens laden...
+
+We konden de buurtgegevens niet laden. De statistiekendienst is mogelijk tijdelijk traag — probeer opnieuw.
+
+Geen buurtstatistieken beschikbaar voor deze locatie.
+
+Mensen
+
+Wonen
+
+Bereikbaarheid
+
+Karakter
+
+Bevolkingsdichtheid
+
+Gem. huishoudgrootte
+
+Eenpersoonshuishoudens
+
+Leeftijdsverdeling
+
+Koopwoningen
+
+Gem. woningwaarde
+
+Afstand tot treinstation
+
+Afstand tot supermarkt
+
+Stedelijkheidsgraad
+
+0–24
+
+25–64
+
+65+
+
+Zeer sterk stedelijk
+
+Sterk stedelijk
+
+Matig stedelijk
+
+Weinig stedelijk
+
+Niet stedelijk
+
+Onbekend
+
+Data niet beschikbaar
+
+CBS kon dit adres niet koppelen aan een buurt. Statistieken zijn voor deze locatie niet beschikbaar.
+
+CBS gaf wel een buurtreactie terug, maar we konden die niet omzetten naar dossierstatistieken.
+
+CBS-buurtstatistieken zijn tijdelijk niet beschikbaar. Probeer het later opnieuw.
+
+Vraag bij bezichtiging: Hoe omschrijven de buren de buurt? Zijn er bouwplannen of bestemmingswijzigingen gepland?
+
+Bron + datum: {{source}} ({{year}})
+
+{{year}}-terugvulling voor {{fields}}
+
+koopwoningaandeel
+
+woningwaarde
+
+afstand tot station
+
+afstand tot supermarkt
+
+Zoeken
+
+Briefing
+
+Geen adres geselecteerd
+
+Zoek een adres op het Home-tabblad om je woningbriefing te genereren.
+
+Naar zoeken
+
+Opgeslagen
+
+Hoofdnavigatie
+
+Home
+
+Taal
+
+Instellingen
+
+Startpagina Buurt Check
+
+Taal
+
+Instellingen
+
+Woning opslaan
+
+Woning verwijderen uit opgeslagen
+
+Paneel veerafstelling
+
+Goed
+
+Matig
+
+Slecht
+
+Kritiek
+
+Niet beschikbaar
+
+Risicobeoordeling
+
+Buurt
+
+Aanvullende woningcontroles
+
+Uw bezichtigingschecklist
+
+Er zijn nog geen bezichtigingsvragen beschikbaar voor dit adres.
+
+Toon in het Nederlands
+
+Verberg Nederlands
+
+Toon in het Engels
+
+Verberg Engels
+
+Wat dit betekent
+
+Hoe het zich verhoudt
+
+Vraag bij uw bezichtiging
+
+{{count}} bezichtigingsvragen opgeslagen in uw checklist
+
+Opslaan
+
+Opgeslagen
+
+Dossier ontgrendelen ({{price}})
+
+Bezichtigingschecklist downloaden (GRATIS)
+
+Opgeslagen
+
+Nog geen woningen opgeslagen
+
+Sla woningen op om ze naast elkaar te vergelijken.
+
+Zoek een adres
+
+Vergelijken
+
+Open dossier
+
+Verwijderen
+
+Maximaal 3 adressen. Verwijder er een om een ander toe te voegen.
+
+We konden dit adres niet opnieuw openen. Probeer het opnieuw te zoeken.
+
+Vergelijken
+
+Alleen verschillen
+
+Beter
+
+Slechter
+
+Risicoprofiel-lijnen
+
+Zoek een adres
+
+Selecteer 2-3 opgeslagen woningen om te vergelijken.
+
+Vergelijkingskolommen
+
+Huidige kolom: {{address}}
+
+Vergelijkingsgrafiek voor {{addresses}} over {{categories}}
+
+Vergelijkingsgrafiek van {{addresses}} over {{categories}}.
+
+Dit adres
+
+Wijk
+
+Gemeente
+
+Stadsgemiddelde
+
+NL-gemiddelde
+
+WHO-richtlijn
+
+Vergelijkingswaarde
+
+Nationale referentie
+
+Luchtkwaliteitsdoel
+
+Klimaatadaptatiedoel
+
+Daglichtdoel
+
+Categorieën met meer dan {{threshold}} punten verschil worden getoond
+
+↑ Hogere score is beter
+
+Totaaloverzicht
+
+{{count}} categorie gewonnen
+
+{{count}} categorieën gewonnen
+
+Geen categorieën gewonnen
+
+Gelijkspel
+
+Gebaseerd op beschikbare risicoscores. Uw persoonlijke prioriteiten kunnen afwijken.
+
+Analytics
+
+Sta privacyvriendelijke Google Analytics toe zodat we kunnen zien hoe de webapp wordt gebruikt en het product kunnen verbeteren.
+
+Advertentiefuncties blijven uitgeschakeld. Je kunt dit later wijzigen in Instellingen.
+
+Analytics toestaan
+
+Alleen essentieel
+
+Instellingen
+
+Taal
+
+Weergave
+
+Taal en weergave
+
+Bepaal of privacyvriendelijke Google Analytics appgebruik op dit apparaat mag meten. Advertentiefuncties blijven uitgeschakeld.
+
+Systeem
+
+Licht
+
+Donker
+
+Opgeslagen gegevens
+
+Recente zoekopdrachten wissen
+
+Alle opgeslagen woningen verwijderen
+
+Weet u het zeker?
+
+Wissen bevestigen
+
+Hiermee verwijder je je recente adresgeschiedenis van dit apparaat.
+
+Hiermee verwijder je alle opgeslagen woningen van dit apparaat.
+
+Nu wissen
+
+Annuleren
+
+Versie
+
+Databronnen & licenties
+
+Over Buurt Check
+
+Buurt Check helpt je bij het nemen van weloverwogen woningbeslissingen in Nederland. Plak een willekeurig Nederlands adres om een onderbouwde risicobeoordeling, 3D-buurtweergave en gepersonaliseerde bezichtigingschecklist te krijgen — op basis van 10+ overheidsbronnen.
+
+Databronnen
+
+BAG — Officiële gebouw- en adresgegevens (bouwjaar, oppervlakte, status).
+
+3DBAG — 3D-gebouwmodellen voor buurtcontext en schaduwanalyse.
+
+RIVM — Geluidsniveaus en luchtkwaliteitsmetingen van het nationale gezondheidsinstituut.
+
+Klimaateffectatlas — Hittestress, overstromingsrisico en bodemdaling.
+
+CBS — Buurtdemografie, bevolking en geregistreerde criminaliteitsstatistieken.
+
+Leefbaarometer — Leefbaarheidsscores over vijf dimensies van levenskwaliteit.
+
+SunCalc — Zonlichtberekeningen voor schaduwanalyse.
+
+PDOK — Adres opzoeken, geocodering en luchtfoto's.
+
+Hoe scores werken
+
+Alle risico's worden genormaliseerd naar een schaal van 0–100. Hoger is beter. Goed (70–100): laag risico. Matig (40–69): nader onderzoek waard. Slecht (20–39): aanzienlijk punt van zorg. Kritiek (0–19): ernstige risicofactor. Scores combineren officiële gegevens van meerdere overheidsbronnen.
+
+Juridisch
+
+Bekijk het privacybeleid en de productvoorwaarden voor de webapp en de Android-app.
+
+Privacybeleid
+
+Gebruiksvoorwaarden
+
+Feedback sturen
+
+Meld een probleem op GitHub
+
+Woning opgeslagen
+
+Woning opgeslagen — klaar om te vergelijken!
+
+Vergelijk
+
+Woning verwijderd uit opgeslagen
+
+Risicoscores laden nog. Sla dit adres zo opnieuw op.
+
+Recente zoekopdrachten gewist
+
+Alle opgeslagen woningen verwijderd
+
+Bezichtigingschecklist wordt gegenereerd...
+
+Bezichtigingschecklist is gereed
+
+Ongedaan maken
+
+Dossier downloaden
+
+Kies formaat en taal. De korte checklist is gratis. Het volledige dossier kost eenmalig €3,99 per adres. Na betaling blijft het volledige dossier in deze browsersessie gekoppeld aan dit adres, zodat je export vanuit het dossier opnieuw kunt openen als dat nodig is.
+
+Sjabloon
+
+Korte checklist (GRATIS)
+
+1 pagina
+
+Volledig dossier
+
+Volledig dossier ({{price}})
+
+10+ pagina's
+
+Volledig dossier kopen
+
+Kopen via Google Play
+
+Kopen via App Store
+
+Volledig dossier: {{price}}
+
+Taal
+
+EN
+
+NL
+
+Schaduwfoto bijvoegen
+
+PDF genereren
+
+Genereren...
+
+Data verzamelen...
+
+PDF renderen...
+
+Download voorbereiden...
+
+PDF is gereed. Deel hem of download een kopie.
+
+Toegang en herstel
+
+Na betaling blijft het volledige dossier in deze browsersessie gekoppeld aan dit adres, zodat je export vanuit het dossier opnieuw kunt openen als dat nodig is.
+
+De betaling is bevestigd voor dit adres in deze browsersessie. Als je dit venster sluit, open export dan opnieuw vanuit het dossier om verder te gaan.
+
+Ben je nog niet klaar om op te slaan, open export dan opnieuw vanuit dit dossier in dezelfde browsersessie.
+
+Betaling bevestigd
+
+Dossier wordt gegenereerd
+
+Dossier gereed
+
+Je volledige dossier is ontgrendeld. We bereiden het automatisch voor. Dit kan even duren.
+
+Dossier wordt voorbereid...
+
+We genereren je dossier nu. Dit kan even duren. De downloadknop verschijnt hieronder zodra het klaar is.
+
+Je dossier is gereed. Tik op Dossier downloaden om het op te slaan.
+
+Dossier genereren
+
+PDF delen
+
+Dossier downloaden
+
+PDF downloaden
+
+We konden de PDF niet delen — je apparaat ondersteunt dit mogelijk niet. Download de PDF als alternatief.
+
+We konden de PDF niet aanmaken. Probeer het opnieuw. Je dossiergegevens zijn nog steeds beschikbaar.
+
+PDF wordt gegenereerd in het {{language}}
+
+Zonlichtanalyse wordt berekend...
+
+Zonlichtanalyse was niet voltooid voor export — exporteer opnieuw na het bekijken van het 3D-model.
+
+Schaduwanalyse wordt vastgelegd...
+
+Schaduwanalyse was niet voltooid voor export — het dossier toont N/B.
+
+Aanvullende woningcontroles
+
+Aanvullende woninggegevens laden...
+
+We konden de aanvullende woninggegevens niet laden. De dienst is mogelijk tijdelijk traag — probeer opnieuw.
+
+Niet beschikbaar
+
+Criminaliteitswaarden zijn geregistreerde incidenten per 1.000 inwoners, niet alle incidenten. De score gebruikt vaste buurt-check-risicobanden; de landelijke rij is een aparte CBS-vergelijking.
+
+Bevolkingsgegevens niet beschikbaar voor deze buurt. Alleen ruwe geregistreerde aantallen worden getoond; er is geen score of per-capitavergelijking.
+
+Criminaliteitscontext is niet beschikbaar voor deze export. Er kon geen betrouwbare score of ruwe fallback worden getoond.
+
+Criminaliteit (geregistreerd)
+
+Totaal
+
+Inbraak
+
+Geweld
+
+Laatste maand
+
+totaal
+
+Cijfers per inwoner niet beschikbaar — totaal geregistreerde incidenten getoond.
+
+Buurtgegevens niet beschikbaar — gemeentecijfers worden getoond.
+
+Buurtcijfers zijn hier niet beschikbaar, daarom tonen we context op gemeentelijk niveau.
+
+Bevolkingsdata ontbreekt voor deze buurt, daarom kunnen we alleen ruwe aantallen geregistreerde incidenten tonen.
+
+CBS gaf geen criminaliteitsdata terug voor deze buurt.
+
+Criminaliteitscontext is niet beschikbaar omdat er geen geldige buurtcode voor dit adres is gevonden.
+
+Criminaliteitscontext is tijdelijk niet beschikbaar omdat de CBS-periodelookup mislukte.
+
+Criminaliteitscontext is tijdelijk niet beschikbaar omdat de CBS-crime-lookup mislukte.
+
+Laatste maand: {{period}}
+
+Vergelijking (per 1.000 inwoners)
+
+Dit gebied
+
+Deze buurt
+
+Gemeentelijke context
+
+Landelijk gem.
+
+/100
+
+Bron + datum: {{source}} ({{detail}})
+
+criminaliteitsperiode {{period}}
+
+lokale bevolking {{year}}
+
+lokale bevolkingsschatting {{year}}
+
+landelijke bevolking {{year}}
+
+landelijke bevolkingsschatting {{year}}
+
+Waarschuwingen woning
+
+Woningwaarschuwingen worden geanalyseerd...
+
+We konden de woningwaarschuwingen niet laden. De analyseservice is mogelijk tijdelijk traag — probeer opnieuw.
+
+Geen aandachtspunten
+
+Alle beoordeelde risicocategorieen vallen binnen normale ranges.
+
+1 punt verdient aandacht
+
+{{count}} punten verdienen aandacht
+
+Op basis van {{assessed}} van {{total}} risicocategorieen + woninganalyse.
+
+We konden {{missing}} van {{total}} risicocategorieën niet beoordelen. Sommige overheidsdatabronnen zijn mogelijk niet beschikbaar voor dit adres.
+
+Dit overzicht combineert meerdere databronnen. Het is geen professioneel woningadvies. Laat altijd professionele inspecties uitvoeren voor aankoop.
+
+Loden leidingrisico (voor 1960)
+
+Geluidrisico
+
+Luchtkwaliteitsrisico
+
+Klimaatrisico
+
+Zonlichtrisico
+
+Funderingsrisico
+
+Erfpacht
+
+VvE (Vereniging van Eigenaren)
+
+Asbestrisico
+
+Loden leidingrisico
+
+Funderingsrisico
+
+Bouw van voor 1970 op {{soil}}-grond met {{rate}} mm/jaar bodemdaling. Woningen uit dit tijdperk op slappe grond lopen het meeste risico. Herstelkosten liggen doorgaans tussen EUR 60.000 en EUR 100.000+.
+
+Bouw van voor 1970 in een gemeente met gedocumenteerde funderingsrisico's op slappe grond. Perceelgebonden bodemdata ontbrak voor dit adres, dus dit hoge risico is gebaseerd op de gemeentelijke fallbacklijst.
+
+Bouw uit een overgangsperiode op {{soil}}-grond. Funderingspraktijken uit deze periode variëren. De slappe grond in dit gebied verdient verificatie.
+
+Bouw uit een overgangsperiode in een gemeente met gedocumenteerde funderingsrisico's op slappe grond. Perceelgebonden bodemdata ontbrak voor dit adres, dus dit matige risico is gebaseerd op de gemeentelijke fallbacklijst.
+
+Oudere bouw zonder perceelgebonden bodemdata. Dit matige risico is alleen gebaseerd op bouwjaar, dus controleer funderingsdocumentatie voor aankoop.
+
+Moderne fundering op {{soil}}-grond. Stabiele bodemcondities wijzen op laag funderingsrisico.
+
+Perceelgebonden bodemdata ontbrak voor dit adres, dus dit lage risico is alleen gebaseerd op bouwjaar en moet als een beperkte eerste indicatie worden gelezen.
+
+We konden het funderingsrisico niet volledig beoordelen — bodemtype-data is niet beschikbaar voor deze locatie.
+
+Beoordelingsbasis
+
+Bodemdata-gestuurd resultaat op basis van BRO-perceelgrond en regionale bodemdaling.
+
+Gemeentelijke fallback met een gedocumenteerde lijst van slappe-grondgemeenten omdat perceelbodemdata ontbrak.
+
+Bouwjaar-fallback omdat perceelbodemdata voor dit adres ontbrak.
+
+Is er een funderingsonderzoek uitgevoerd? Vraag het rapport op.
+
+Let op zichtbare tekenen: scheuren bij ramen en deuren, scheve muren, klemmende deuren, ongelijke vloeren.
+
+Bij appartement: heeft de VvE funderingsherstel besproken of begroot?
+
+Vraag buren: zijn er panden in de straat waar funderingswerk is uitgevoerd?
+
+Bodem: PDOK (Publieke Dienstverlening Op de Kaart) BRO. Bodemdaling: Klimaateffectatlas. Bouwjaar: BAG (Basisregistratie Adressen en Gebouwen).
+
+Dit is een indicatieve beoordeling op basis van bouwjaar, bodemtype en regionale bodemdalingsdata. Alleen een professioneel funderingsonderzoek kan de werkelijke conditie bepalen.
+
+Erfpacht
+
+Erfpacht lijkt voor dit pand bevestigd. Controleer akte, canon en voorwaarden met de verkoper of notaris.
+
+{{municipality}} geeft voor veel woningen erfpacht uit. Controleer de eigendomsstatus bij de verkoper of via het Kadaster.
+
+Bevestigd
+
+Waarschijnlijk
+
+Notitie databetrouwbaarheid
+
+Is dit eigendom (vol eigendom) of erfpacht?
+
+Bij erfpacht: is het eeuwigdurend of tijdelijk?
+
+Wat is de huidige jaarlijkse canon? Wanneer is de volgende canonherziening?
+
+Bij tijdelijk: wanneer loopt de erfpacht af? Wat zijn de voorwaarden voor verlenging?
+
+Is de canon onlangs omgezet naar eeuwigdurend? Tegen welk tarief?
+
+Dit signaal is gebaseerd op een gemeentelijke erfpacht-prevalentielijst en niet bevestigd via het Kadaster voor dit specifieke pand.
+
+Gemeente: PDOK (Publieke Dienstverlening Op de Kaart) Locatieserver. Gemeentelijke erfpacht-prevalentielijst op basis van lokaal grondbeleid.
+
+Erfpachtstatus moet worden bevestigd via het Kadaster of de leveringsakte van de verkoper.
+
+VvE (Vereniging van Eigenaren)
+
+Dit is een appartement ({{units}} eenheden) met verplicht VvE-lidmaatschap. Alle eigenaren delen verantwoordelijkheid voor onderhoud, verzekering en gemeenschappelijke ruimten.
+
+Vraag de VvE-jaarrekening op — is het reservefonds gezond?
+
+Vraag het MJOP (meerjarenonderhoudsplan) op — welke grote kosten zijn gepland?
+
+Vraag de notulen van de laatste 3 VvE-vergaderingen op.
+
+Wat is de maandelijkse VvE-bijdrage?
+
+Hoeveel eenheden telt de VvE? (Minder eenheden = hogere kosten per eenheid)
+
+Is het gebouw verzekerd via de VvE? Wat dekt de polis?
+
+Gebouwtype: BAG (Basisregistratie Adressen en Gebouwen).
+
+Asbest
+
+Gebouwd in {{year}}, voor het asbestverbod van 1993. Asbesthoudende materialen kunnen aanwezig zijn. Professionele verwijdering is wettelijk verplicht bij renovatie.
+
+Is er een asbestinventarisatie uitgevoerd?
+
+Zijn er golfplaten dakpanelen, vinylvloertegels of zichtbare buisisolatie?
+
+Bij geplande renovatie: heeft de verkoper mogelijke asbesthoudende materialen gemeld?
+
+Is er een asbestvrij verklaring voor eerder uitgevoerd renovatiewerk?
+
+Bouwjaar: BAG (Basisregistratie Adressen en Gebouwen). Asbestverbod: Asbestverwijderingsbesluit 2005.
+
+De aanwezigheid van asbest kan alleen worden vastgesteld door professioneel onderzoek.
+
+Leefbaarheid
+
+Leefbaarheidsgegevens laden...
+
+We konden de leefbaarheidsgegevens niet laden. De Leefbaarometer-service is mogelijk tijdelijk traag — probeer opnieuw.
+
+We konden voor deze locatie geen leefbaarheidsgegevens vinden. Niet alle gebieden hebben Leefbaarometer-dekking.
+
+Dimensiescores zijn niet beschikbaar voor deze locatie.
+
+Trenddata is niet beschikbaar voor deze locatie.
+
+Vergelijkingsdata is niet beschikbaar voor deze locatie.
+
+Trenddata per dimensie is niet beschikbaar voor deze locatie.
+
+Leefbaarheidsscore
+
+KLASSE
+
+Klasse {{value}}
+
+Zeer laag
+
+Laag
+
+Vrij laag
+
+Onder gemiddeld
+
+Rond gemiddeld
+
+Boven gemiddeld
+
+Goed
+
+Zeer goed
+
+Uitstekend
+
+Trend over tijd
+
+Vergeleken met omgeving
+
+↑ Hogere klasse is beter
+
+Afwijking ten opzichte van het landelijke gemiddelde is voor deze rij niet beschikbaar.
+
+Rond landelijk gemiddelde
+
+Licht boven landelijk gemiddelde
+
+Boven landelijk gemiddelde
+
+Ruim boven landelijk gemiddelde
+
+Licht onder landelijk gemiddelde
+
+Onder landelijk gemiddelde
+
+Ruim onder landelijk gemiddelde
+
+{{description}} ({{value}})
+
+{{source}} ({{date}})
+
+Fysieke omgeving
+
+Veiligheid
+
+Sociale samenhang
+
+Voorzieningen
+
+Woningkwaliteit
+
+Leefbaarheidsanalyse
+
+Dimensies
+
+Dimensietrends
+
+Bekijk details
+
+Bodem & Leidingen
+
+Bodemverontreiniging Controle
+
+De Nederlandse wet verplicht kopers om bodemverontreiniging te onderzoeken (onderzoeksplicht). Bodemsanering kan EUR 25.000-100.000+ kosten.
+
+Bekijk op Bodemloket.nl
+
+Bezichtigingsvragen
+
+Is er een bodemonderzoek uitgevoerd voor dit pand?
+
+Zijn er ondergrondse opslagtanks die niet zijn verwijderd?
+
+Als er een verbouwing gepland is: zal deze verontreinigde bodemlagen verstoren?
+
+Het ontbreken van een registratie garandeert geen schone bodem. Alleen een professioneel bodemonderzoek kan de bodemtoestand bevestigen.
+
+Bodemloket (Nationaal Bodemregistratie Systeem)
+
+Loden Leidingen Risico
+
+Gebouwd in {{constructionYear}}, voor 1960. Oorspronkelijke waterleidingen kunnen lood bevatten. Als het pand een tuin heeft die door jonge kinderen wordt gebruikt, of originele waterleidingen van voor 1960, vraag dan een loodtest aan.
+
+Heeft dit pand originele waterleidingen (van voor 1960)? Is er een loodtest uitgevoerd op bodem of drinkwater?
+
+Bouwjaar: BAG (Basisregistratie Adressen en Gebouwen). Loden leidingen risico-indicatie op basis van richtlijnen Nederlandse waterbedrijven.
+
+Wat nu?
+
+Sla dit adres op om later te vergelijken
+
+Adres opgeslagen — zoek een ander om te vergelijken
+
+Download bezichtigingschecklist als PDF
+
+Zoek een ander adres om te vergelijken
+
+Ga naar hoofdinhoud
+
+Terug
+
+/100
+
+Kwartiel {{quartile}} van {{total}}
+
+Sla dit adres op om het later met andere te vergelijken
+
+Tik op Vergelijken om adressen naast elkaar te zien
+
+Neem dit mee naar je bezichtiging
+
+Sluiten
+
+Kwartiel {{quartile}} van {{total}}
+
+Gunstig kwartiel {{quartile}} van {{total}} (bronkwartiel {{rawQuartile}})
+
+/ 1.000
+
+/100
+
+Deze sectie hoort bij het volledige dossier
+
+Ontgrendel {{section}} met een volledig dossier
+
+Ontgrendel voor EUR {{price}}
+
+Vergrendelde sectie: {{section}}
+
+Koop een volledig dossier om deze functie te gebruiken
+
+Ontgrendel het volledige dossier
+
+Eenmalige betaling voor dit adres
+
+EUR {{price}}
+
+Volledig dossier ontgrendelen
+
+Geen account nodig. Direct toegang.
+
+Gedetailleerde waarschuwingskaarten
+
+Persoonlijke bezichtigingsvragen
+
+3D-gebouwanalyse en zonlicht
+
+PDF-export voor je administratie
+
+Adresvergelijking naast elkaar
+
+Betaling wordt verwerkt...
+
+Dossier ontgrendeld!
+
+Betaling ontvangen — je dossier wordt zo ontgrendeld.
+
+Het ontgrendelen duurt langer dan verwacht. Probeer opnieuw om je dossier opnieuw te controleren.
+
+Betaling kon niet worden afgerond. Probeer het opnieuw.
+
+Checkout kon niet worden gestart. Probeer het opnieuw.
+
+Checkout voor het volledige dossier is tijdelijk niet beschikbaar. Probeer het later opnieuw.
+
+woningwaarschuwingen
+
+bodeminformatie
+
+leefbaarheidsanalyse
+
+3D-gebouwanalyse
+
+zonlichtanalyse
+
+criminaliteitsdata
+
+bezichtigingsvragen

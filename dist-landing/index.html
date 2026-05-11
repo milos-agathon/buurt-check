@@ -6,10 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Buurt Check — Weet wat je koopt</title>
   <meta name="description"
-    content="Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico, zonlicht en meer. Ontvang een volledig dossier voordat je een woning bezichtigt.">
+    content="Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit, klimaatrisico, zonlicht en meer. Bekijk de gratis viewer en neem een Vragenpack mee naar je bezichtiging.">
   <meta property="og:title" content="Buurt Check — Weet wat je koopt">
   <meta property="og:description"
-    content="Onafhankelijke woninganalyse op basis van open overheidsdata. Risicoscores, 3D-analyse, bezichtigingsvragen en PDF-export.">
+    content="Onafhankelijke woninganalyse op basis van open overheidsdata. Risicoscores, 3D-analyse, bezichtigingsvragen en een brongebonden Vragenpack.">
   <meta property="og:url" content="https://buurt-check.nl">
   <meta property="og:site_name" content="Buurt Check">
   <meta property="og:image" content="https://buurt-check.nl/og-image.png">
@@ -26,12 +26,12 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Buurt Check — Weet wat je koopt">
   <meta name="twitter:description"
-    content="Onafhankelijke woninganalyse op basis van open overheidsdata. Risicoscores, 3D-analyse, bezichtigingsvragen en PDF-export.">
+    content="Onafhankelijke woninganalyse op basis van open overheidsdata. Risicoscores, 3D-analyse, bezichtigingsvragen en een brongebonden Vragenpack.">
   <meta name="twitter:image" content="https://buurt-check.nl/og-image.png">
   <meta name="twitter:image:alt"
     content="Buurt Check preview with Dutch property risk insights and viewing guidance.">
   <link rel="canonical" href="https://buurt-check.nl">
-  <meta name="theme-color" content="#0f1818">
+  <meta name="theme-color" content="#F9FAFB">
   <link rel="stylesheet" href="analytics-consent.css">
 
   <script>
@@ -172,35 +172,38 @@
     }
 
     :root {
-      color-scheme: dark;
-      --landing-bg: #0c1516;
-      --landing-bg-top: #132123;
-      --landing-bg-mid: #10191b;
-      --landing-surface: rgba(16, 24, 27, 0.92);
-      --landing-surface-strong: rgba(22, 34, 38, 0.94);
-      --landing-surface-soft: rgba(255, 255, 255, 0.04);
-      --landing-border: #294048;
-      --landing-border-soft: rgba(255, 255, 255, 0.08);
-      --landing-text: #E2E7ED;
-      --landing-text-secondary: #B4C0CE;
-      --landing-text-muted: #637892;
-      --landing-nav-bg: rgba(15, 24, 26, 0.88);
-      --landing-nav-control: rgba(255, 255, 255, 0.06);
-      --landing-nav-control-hover: rgba(255, 255, 255, 0.1);
-      --landing-preview-bg: #0f1819;
-      --landing-footer-bg: #091112;
-      --landing-accent: #2EC4B6;
-      --landing-accent-hover: #57D4C8;
-      --landing-accent-soft: rgba(46, 196, 182, 0.15);
-      --landing-accent-text: #57D4C8;
-      --landing-button-text: #08141E;
-      --landing-shadow: 0 24px 54px rgba(3, 7, 8, 0.24);
-      --landing-shadow-soft: 0 16px 36px rgba(3, 7, 8, 0.16);
+      color-scheme: light;
+      --landing-bg: #F9FAFB;
+      --landing-bg-top: #FFFFFF;
+      --landing-bg-mid: #F0F4F8;
+      --landing-surface: rgba(245, 250, 248, 0.94);
+      --landing-surface-strong: #FFFFFF;
+      --landing-surface-soft: rgba(240, 244, 248, 0.72);
+      --landing-border: #E2E8F0;
+      --landing-border-soft: rgba(188, 201, 198, 0.72);
+      --landing-text: #171D1C;
+      --landing-text-secondary: #3D4947;
+      --landing-text-muted: #5F6B68;
+      --landing-nav-bg: rgba(255, 255, 255, 0.88);
+      --landing-nav-control: rgba(240, 245, 242, 0.86);
+      --landing-nav-control-hover: #EAEEED;
+      --landing-preview-bg: #F0F4F8;
+      --landing-footer-bg: #F0F5F2;
+      --landing-accent: #00685F;
+      --landing-accent-hover: #00584F;
+      --landing-accent-soft: #ECFDF5;
+      --landing-accent-text: #00685F;
+      --landing-tertiary: #C36D4B;
+      --landing-tertiary-text: #924628;
+      --landing-tertiary-soft: rgba(195, 109, 75, 0.14);
+      --landing-button-text: #FFFFFF;
+      --landing-shadow: 0 24px 54px rgba(23, 29, 28, 0.08);
+      --landing-shadow-soft: 0 16px 36px rgba(23, 29, 28, 0.05);
       --landing-radius-lg: 28px;
       --landing-radius-md: 20px;
       --landing-radius-sm: 16px;
       --landing-max-width: 1180px;
-      --landing-focus: 0 0 0 3px rgba(87, 212, 200, 0.38);
+      --landing-focus: 0 0 0 3px rgba(0, 104, 95, 0.22);
       --landing-nav-height: 108px;
     }
 
@@ -224,8 +227,8 @@
       font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       color: var(--landing-text);
       background:
-        radial-gradient(circle at top left, rgba(46, 196, 182, 0.12) 0%, transparent 34%),
-        radial-gradient(circle at top right, rgba(87, 212, 200, 0.08) 0%, transparent 30%),
+        radial-gradient(circle at top left, rgba(13, 148, 136, 0.08) 0%, transparent 34%),
+        radial-gradient(circle at top right, rgba(188, 201, 198, 0.2) 0%, transparent 30%),
         linear-gradient(180deg, var(--landing-bg-top) 0%, var(--landing-bg-mid) 32%, var(--landing-bg) 100%);
       line-height: 1.6;
       min-height: 100vh;
@@ -274,9 +277,12 @@
       align-items: center;
       min-height: 48px;
       padding: 0 16px;
+      border: 0;
       border-radius: 14px;
       background: var(--landing-accent);
       color: var(--landing-button-text);
+      cursor: pointer;
+      font: inherit;
       font-size: 15px;
       font-weight: 800;
       text-decoration: none;
@@ -359,7 +365,7 @@
     .button--primary {
       background: var(--landing-accent);
       color: var(--landing-button-text);
-      box-shadow: 0 14px 28px rgba(46, 196, 182, 0.16);
+      box-shadow: 0 14px 28px rgba(13, 148, 136, 0.16);
     }
 
     .button--primary:hover {
@@ -374,11 +380,11 @@
 
     .button--ghost:hover {
       background: var(--landing-nav-control-hover);
-      border-color: rgba(87, 212, 200, 0.2);
+      border-color: rgba(13, 148, 136, 0.24);
     }
 
     .card {
-      background: linear-gradient(180deg, var(--landing-surface-strong) 0%, var(--landing-surface) 100%);
+      background: var(--landing-surface-strong);
       border: 1px solid var(--landing-border);
       border-radius: var(--landing-radius-md);
       box-shadow: var(--landing-shadow);
@@ -388,7 +394,7 @@
       position: sticky;
       top: 0;
       z-index: 50;
-      background: linear-gradient(180deg, rgba(15, 24, 26, 0.96) 0%, var(--landing-nav-bg) 100%);
+      background: var(--landing-nav-bg);
       border-bottom: 1px solid var(--landing-border-soft);
       backdrop-filter: blur(18px);
     }
@@ -463,7 +469,7 @@
 
     .nav__lang-option[data-active="true"] {
       background: var(--landing-accent-soft);
-      color: var(--landing-accent-hover);
+      color: var(--landing-accent-text);
     }
 
     .nav__lang-separator {
@@ -519,7 +525,7 @@
     .nav__link:hover {
       color: var(--landing-text);
       background: var(--landing-nav-control-hover);
-      border-color: rgba(87, 212, 200, 0.18);
+      border-color: rgba(13, 148, 136, 0.24);
     }
 
     .nav__cta {
@@ -639,7 +645,7 @@
 
     .hero__title em {
       font-style: normal;
-      color: var(--landing-accent-hover);
+      color: var(--landing-accent-text);
     }
 
     .hero__subtitle {
@@ -668,9 +674,9 @@
       min-height: 40px;
       padding: 0 14px;
       border-radius: 999px;
-      border: 1px solid rgba(87, 212, 200, 0.16);
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--landing-text-secondary);
+      border: 1px solid rgba(195, 109, 75, 0.38);
+      background: var(--landing-tertiary-soft);
+      color: var(--landing-tertiary-text);
       font-size: 13px;
       font-weight: 600;
       line-height: 1.4;
@@ -679,9 +685,9 @@
     .hero__preview {
       padding: 12px;
       border-radius: var(--landing-radius-lg);
-      background: linear-gradient(145deg, rgba(19, 31, 35, 0.98) 0%, rgba(14, 22, 24, 0.96) 100%);
+      background: linear-gradient(145deg, #FFFFFF 0%, #F0F4F8 100%);
       border: 1px solid var(--landing-border);
-      box-shadow: 0 24px 64px rgba(3, 7, 8, 0.24);
+      box-shadow: var(--landing-shadow);
     }
 
     .hero__preview > [data-lang] {
@@ -732,7 +738,7 @@
       justify-content: center;
       border-radius: 12px;
       background: var(--landing-accent-soft);
-      color: var(--landing-accent-hover);
+      color: var(--landing-accent-text);
     }
 
     .feature-card__icon svg {
@@ -766,7 +772,7 @@
       padding: 22px 20px;
       border: 1px solid var(--landing-border);
       border-radius: var(--landing-radius-sm);
-      background: linear-gradient(180deg, rgba(22, 34, 38, 0.88) 0%, rgba(16, 24, 27, 0.92) 100%);
+      background: var(--landing-surface-strong);
       box-shadow: var(--landing-shadow-soft);
     }
 
@@ -792,7 +798,7 @@
       border-radius: 50%;
       background: var(--landing-surface-strong);
       border: 1px solid var(--landing-border);
-      color: var(--landing-accent-hover);
+      color: var(--landing-accent-text);
       font-size: 15px;
       font-weight: 800;
     }
@@ -886,7 +892,7 @@
       margin-top: 2px;
       border-radius: 50%;
       background: var(--landing-accent-soft);
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 10l3 3 5-5' stroke='%231C8C83' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 10l3 3 5-5' stroke='%2300685F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     }
 
     .showcase__grid {
@@ -899,7 +905,7 @@
       gap: 18px;
       padding: 20px;
       border-radius: 24px;
-      background: linear-gradient(180deg, rgba(22, 34, 38, 0.94) 0%, rgba(16, 24, 27, 0.96) 100%);
+      background: var(--landing-surface-strong);
       border: 1px solid var(--landing-border);
       box-shadow: var(--landing-shadow);
     }
@@ -908,8 +914,8 @@
       padding: 10px;
       aspect-ratio: 5 / 6;
       border-radius: 18px;
-      border: 1px solid rgba(87, 212, 200, 0.16);
-      background: linear-gradient(180deg, rgba(11, 18, 20, 0.98) 0%, rgba(16, 27, 30, 0.96) 100%);
+      border: 1px solid rgba(13, 148, 136, 0.18);
+      background: var(--landing-preview-bg);
       overflow: hidden;
     }
 
@@ -951,7 +957,7 @@
 
     .trust__card {
       padding: 28px 24px;
-      background: linear-gradient(180deg, rgba(22, 34, 38, 0.9) 0%, rgba(16, 24, 27, 0.94) 100%);
+      background: var(--landing-surface-strong);
     }
 
     .sources__title {
@@ -989,8 +995,15 @@
     .faq-item {
       border: 1px solid var(--landing-border);
       border-radius: var(--landing-radius-sm);
-      background: linear-gradient(180deg, rgba(22, 34, 38, 0.88) 0%, rgba(16, 24, 27, 0.92) 100%);
+      background: var(--landing-surface-strong);
       box-shadow: var(--landing-shadow-soft);
+    }
+
+    .source-pill:nth-child(5),
+    .source-pill:nth-child(9) {
+      border-color: rgba(195, 109, 75, 0.38);
+      background: var(--landing-tertiary-soft);
+      color: var(--landing-tertiary-text);
     }
 
     .faq-item__trigger {
@@ -1030,7 +1043,7 @@
       left: 50%;
       width: 12px;
       height: 2px;
-      background: var(--landing-accent-hover);
+      background: var(--landing-accent-text);
       border-radius: 999px;
       transform: translate(-50%, -50%);
       transition: transform 0.2s ease-out, opacity 0.2s ease-out;
@@ -1066,8 +1079,8 @@
     .final-cta__wrap {
       padding: 36px 24px;
       border-radius: var(--landing-radius-lg);
-      border: 1px solid rgba(46, 196, 182, 0.22);
-      background: linear-gradient(145deg, rgba(20, 32, 36, 0.94) 0%, rgba(15, 24, 26, 0.98) 100%);
+      border: 1px solid rgba(13, 148, 136, 0.22);
+      background: linear-gradient(145deg, #FFFFFF 0%, #ECFDF5 100%);
       box-shadow: var(--landing-shadow);
       display: grid;
       gap: 18px;
@@ -1118,7 +1131,7 @@
     }
 
     .footer__brand span {
-      color: var(--landing-accent);
+      color: var(--landing-accent-text);
     }
 
     .footer__meta {
@@ -1322,16 +1335,16 @@
     document.body.lang = document.documentElement.lang;
     document.body.dataset.language = document.documentElement.dataset.language || document.documentElement.lang;
   </script>
-  <a href="#main-content" class="skip-link" data-skip-link>
+  <button type="button" class="skip-link" data-skip-link>
     <span data-lang-group>
       <span data-lang="nl" lang="nl">Ga naar hoofdinhoud</span>
       <span data-lang="en" lang="en">Skip to main content</span>
     </span>
-  </a>
+  </button>
   <nav class="nav" aria-label="Primary">
       <div class="container nav__shell">
         <a href="/" class="nav__brand" aria-label="Buurt Check">
-          <img class="nav__brand-lockup" src="logos/buurt-check-lockup-horizontal-reverse.svg" alt="Buurt Check" width="360" height="72">
+          <img class="nav__brand-lockup" src="logos/buurt-check-lockup-horizontal.svg" alt="Buurt Check" width="360" height="72">
           <img class="nav__brand-mark" src="logos/buurt-check-favicon.svg" alt="" aria-hidden="true" width="24" height="24">
         </a>
 
@@ -1374,10 +1387,10 @@
 
           <p class="hero__subtitle" data-lang-group>
             <span data-lang="nl" lang="nl">Buurt Check analyseert elk Nederlands adres op geluid, luchtkwaliteit,
-              klimaatrisico, zonlicht en leefbaarheid. Ontvang een compleet dossier met risicoscores, 3D-analyse en
+              klimaatrisico, zonlicht en leefbaarheid. Ontvang een brongebonden briefing met risicoscores, 3D-analyse en
               bezichtigingsvragen.</span>
             <span data-lang="en" lang="en">Buurt Check analyzes any Dutch address for noise, air quality, climate risk,
-              sunlight and livability. Get a complete dossier with risk scores, 3D analysis and viewing questions.</span>
+              sunlight and livability. Get a source-bound briefing with risk scores, 3D analysis and viewing questions.</span>
           </p>
 
           <div class="hero__actions">
@@ -1390,8 +1403,8 @@
             </a>
 
             <p class="hero__trust-line hero__badge" data-lang-group>
-              <span data-lang="nl" lang="nl">Onafhankelijke analyse &middot; 10+ Nederlandse overheidsbronnen &middot; gratis viewer, betaal alleen voor het volledige dossier</span>
-              <span data-lang="en" lang="en">Independent analysis &middot; 10+ Dutch government sources &middot; free viewer, pay only for the full dossier</span>
+              <span data-lang="nl" lang="nl">Onafhankelijke analyse &middot; gecontroleerde publieke bronnen &middot; gratis viewer, betaal alleen voor het Vragenpack</span>
+              <span data-lang="en" lang="en">Independent analysis &middot; checked public sources &middot; free viewer, pay only for the Questions Pack</span>
             </p>
           </div>
         </div>
@@ -1557,8 +1570,8 @@
     <section class="section" id="showcase">
       <div class="container">
         <p class="section-label" data-lang-group>
-          <span data-lang="nl" lang="nl">Volledig dossier</span>
-          <span data-lang="en" lang="en">Full dossier</span>
+          <span data-lang="nl" lang="nl">Vragenpack</span>
+          <span data-lang="en" lang="en">Questions Pack</span>
         </p>
         <h2 class="section-title" data-lang-group>
           <span data-lang="nl" lang="nl">Zie precies wat je krijgt voordat je betaalt</span>
@@ -1566,7 +1579,7 @@
         </h2>
         <p class="section-desc" data-lang-group>
           <span data-lang="nl" lang="nl">Dit is het echte product: dezelfde risicovergelijkingen, 3D-context, buurtinzichten en bezichtigingsvragen die je in het dossier terugziet.</span>
-          <span data-lang="en" lang="en">This is the real product: the same risk comparisons, 3D context, neighborhood evidence, and viewing questions you see in the dossier.</span>
+          <span data-lang="en" lang="en">This is the real product: the same risk comparisons, 3D context, neighborhood evidence, and viewing questions you see in the pack.</span>
         </p>
 
         <div class="showcase__grid">
@@ -1629,8 +1642,8 @@
                 <span data-lang="en" lang="en">Neighborhood evidence</span>
               </h3>
               <p class="showcase-card__desc" data-lang-group>
-                <span data-lang="nl" lang="nl">Lees buurtcontext, leefbaarheid en bereikbaarheid in dezelfde rustige dossierflow.</span>
-                <span data-lang="en" lang="en">Read neighborhood context, livability, and access in the same calm dossier flow.</span>
+                <span data-lang="nl" lang="nl">Lees buurtcontext, leefbaarheid en bereikbaarheid in dezelfde rustige briefingflow.</span>
+                <span data-lang="en" lang="en">Read neighborhood context, livability, and access in the same calm briefing flow.</span>
               </p>
             </div>
           </article>
@@ -1650,8 +1663,8 @@
         </h2>
         <p class="section-desc pricing__intro" data-lang-group>
           <span data-lang="nl" lang="nl">Geen abonnement. Geen account. Bekijk gratis en betaal alleen voor de
-            volledige PDF.</span>
-          <span data-lang="en" lang="en">No subscription. No account. View for free and only pay for the full PDF.</span>
+            Vragenpack-export.</span>
+          <span data-lang="en" lang="en">No subscription. No account. View for free and only pay for the Questions Pack export.</span>
         </p>
 
         <div class="card pricing-card">
@@ -1662,8 +1675,8 @@
             </p>
 
             <p class="pricing-card__label" data-lang-group>
-              <span data-lang="nl" lang="nl">Volledig dossier &middot; eenmalige betaling</span>
-              <span data-lang="en" lang="en">Full dossier &middot; one-time payment</span>
+              <span data-lang="nl" lang="nl">Vragenpack &middot; eenmalige betaling</span>
+              <span data-lang="en" lang="en">Questions Pack &middot; one-time payment</span>
             </p>
 
             <a href="https://app.buurt-check.nl/#/search" class="button button--primary pricing-card__cta" data-app-link
@@ -1675,9 +1688,9 @@
             </a>
 
             <p class="pricing-card__note" data-lang-group>
-              <span data-lang="nl" lang="nl">De interactieve viewer en quick brief zijn gratis. Betaling via Stripe is alleen nodig voor het volledige dossier.</span>
+              <span data-lang="nl" lang="nl">De interactieve viewer en quick brief zijn gratis. Betaling via Stripe is alleen nodig voor het Vragenpack.</span>
               <span data-lang="en" lang="en">The interactive viewer and quick brief are free. Stripe payment is only for
-                the full dossier.</span>
+                the Questions Pack.</span>
             </p>
           </div>
 
@@ -1691,8 +1704,8 @@
               <span data-lang="en" lang="en">Free quick brief PDF for your viewing</span>
             </li>
             <li data-lang-group>
-              <span data-lang="nl" lang="nl">Volledig dossier met woningwaarschuwingen en verdiepende analyse</span>
-              <span data-lang="en" lang="en">Full dossier with property warnings and deeper analysis</span>
+              <span data-lang="nl" lang="nl">Vragenpack met woningwaarschuwingen, bronbijlage en documentverzoeken</span>
+              <span data-lang="en" lang="en">Questions Pack with property warnings, source appendix and document requests</span>
             </li>
             <li data-lang-group>
               <span data-lang="nl" lang="nl">Betaal via Stripe wanneer je de uitgebreide PDF wilt downloaden</span>
@@ -1840,11 +1853,11 @@
               aria-hidden="true">
               <div class="faq-item__content" data-lang-group>
                 <span data-lang="nl" lang="nl">Voor elk adres krijg je gratis de interactieve viewer, risicoscores,
-                  3D-context, buurtinzichten en een quick brief PDF. Het volledige dossier met uitgebreide
-                  woningwaarschuwingen en de complete export kost &euro;3,99.</span>
+                  3D-context, buurtinzichten en een quick brief PDF. Het Vragenpack met uitgebreide
+                  woningwaarschuwingen, vragen en bronbijlage kost &euro;3,99.</span>
                 <span data-lang="en" lang="en">For every address you get the interactive viewer, risk scores, 3D context,
-                  neighborhood insights and a quick brief PDF for free. The full dossier with detailed property warnings
-                  and the complete export costs &euro;3.99.</span>
+                  neighborhood insights and a quick brief PDF for free. The Questions Pack with detailed property warnings,
+                  questions and source appendix costs &euro;3.99.</span>
               </div>
             </div>
           </article>
@@ -1861,8 +1874,8 @@
               <span data-lang="en" lang="en">Check the address before you make an offer</span>
             </h2>
             <p class="final-cta__desc" data-lang-group>
-              <span data-lang="nl" lang="nl">Open gratis de viewer, bekijk de quick brief en betaal alleen als je het volledige dossier wilt meenemen.</span>
-              <span data-lang="en" lang="en">Open the viewer for free, review the quick brief, and only pay if you want the full dossier to take with you.</span>
+              <span data-lang="nl" lang="nl">Open gratis de viewer, bekijk de quick brief en betaal alleen als je het Vragenpack wilt meenemen.</span>
+              <span data-lang="en" lang="en">Open the viewer for free, review the quick brief, and only pay if you want the Questions Pack to take with you.</span>
             </p>
           </div>
           <a href="https://app.buurt-check.nl/#/search" class="button button--primary final-cta__button" data-app-link
@@ -2194,6 +2207,8 @@
     function initLanguageController() {
       const initialLanguage = resolveInitialLanguage();
       applyLanguage(initialLanguage, 'init');
+      const navBrand = document.querySelector('.nav__brand');
+      const navCta = document.querySelector('.nav__cta');
 
       getLanguageButtons().forEach((button, buttonIndex, buttons) => {
         button.addEventListener('click', () => {
@@ -2201,6 +2216,15 @@
         });
 
         button.addEventListener('keydown', (event) => {
+          if (event.key === 'Tab') {
+            const nextFocusTarget = event.shiftKey ? navBrand : navCta;
+            if (nextFocusTarget) {
+              event.preventDefault();
+              nextFocusTarget.focus();
+            }
+            return;
+          }
+
           if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
             event.preventDefault();
             moveLanguageSelection(button, 1);
@@ -2301,6 +2325,7 @@
     function initSkipLink() {
       const skipLink = document.querySelector('[data-skip-link]');
       const mainContent = document.getElementById('main-content');
+      const navBrand = document.querySelector('.nav__brand');
 
       if (!skipLink || !mainContent) {
         return;
@@ -2314,6 +2339,53 @@
             mainContent.focus();
           }
         });
+      });
+
+      skipLink.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab' || event.shiftKey || !navBrand) {
+          return;
+        }
+
+        event.preventDefault();
+        navBrand.focus();
+      });
+
+      navBrand?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab') {
+          return;
+        }
+
+        if (event.shiftKey) {
+          event.preventDefault();
+          skipLink.focus();
+          return;
+        }
+
+        const activeLanguageButton = document.querySelector('[data-language-choice][tabindex="0"]');
+        if (!activeLanguageButton) {
+          return;
+        }
+
+        event.preventDefault();
+        activeLanguageButton.focus();
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab' || event.shiftKey || event.defaultPrevented) {
+          return;
+        }
+
+        const activeElement = document.activeElement;
+        const pageHasNoFocusedControl = !activeElement
+          || activeElement === document.body
+          || activeElement === document.documentElement;
+
+        if (!pageHasNoFocusedControl) {
+          return;
+        }
+
+        event.preventDefault();
+        skipLink.focus();
       });
     }
 

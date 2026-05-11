@@ -73,6 +73,48 @@ export const DOSSIER_SEED = {
       },
     },
   },
+  neighborhood3D: {
+    address_id: '0363010000696734',
+    target_pand_id: '0363100012345678',
+    center: { lat: 52.3676, lng: 4.8846, rd_x: 121000, rd_y: 487000 },
+    buildings: [
+      {
+        pand_id: '0363100012345678',
+        ground_height: 0,
+        building_height: 18,
+        year: 1917,
+        footprint: [[-8, -9], [8, -9], [8, 9], [-8, 9]],
+      },
+      {
+        pand_id: '0363100012345679',
+        ground_height: 0,
+        building_height: 15,
+        year: 1924,
+        footprint: [[18, -10], [32, -10], [32, 8], [18, 8]],
+      },
+      {
+        pand_id: '0363100012345680',
+        ground_height: 0,
+        building_height: 13,
+        year: 1931,
+        footprint: [[-34, -8], [-18, -8], [-18, 10], [-34, 10]],
+      },
+      {
+        pand_id: '0363100012345681',
+        ground_height: 0,
+        building_height: 20,
+        year: 1908,
+        footprint: [[-10, 22], [10, 22], [10, 38], [-10, 38]],
+      },
+      {
+        pand_id: '0363100012345682',
+        ground_height: 0,
+        building_height: 11,
+        year: 1965,
+        footprint: [[-9, -40], [11, -40], [11, -22], [-9, -22]],
+      },
+    ],
+  },
   riskCards: {
     address_id: '0363010000696734',
     noise: {
@@ -139,18 +181,6 @@ export const DOSSIER_SEED = {
       distance_to_train_km: { value: 0.8, unit: 'km', available: true, quartile: 1 },
       distance_to_supermarket_km: { value: 0.3, unit: 'km', available: true, quartile: 1 },
       urbanization: 'very_urban',
-    },
-  },
-  tierBData: {
-    address_id: '0363010000696734',
-    crime: {
-      total_per_1000: 12.5,
-      burglary_per_1000: 1.2,
-      violent_per_1000: 0.8,
-      monthly_total_per_1000: 1.1,
-      monthly_period: '2025MM12',
-      source: 'CBS OData 47018NED/47022NED',
-      source_date: '2025JJ00',
     },
   },
   sunlight: {

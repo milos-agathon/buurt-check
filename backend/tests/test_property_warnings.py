@@ -170,7 +170,7 @@ class TestErfpachtDetection:
 
 class TestVvEDetection:
     @pytest.mark.asyncio
-    async def test_multi_unit_is_apartment(self):
+    async def test_multi_unit_bag_pand_is_shared_building_not_apartment(self):
         with patch(
             "app.services.property_warnings.foundation_risk.get_foundation_risk",
             new_callable=AsyncMock,
@@ -181,11 +181,17 @@ class TestVvEDetection:
                 rd_x=121000.0,
                 rd_y=487000.0,
                 construction_year=2000,
-                num_units=8,
+                num_units=2,
                 municipality="Eindhoven",
             )
-        assert result.vve.is_apartment is True
-        assert result.vve.num_units == 8
+        assert result.vve.is_apartment is False
+        assert result.vve.num_units is None
+        assert result.shared_building.detected is True
+        assert result.shared_building.num_addressable_units == 2
+        assert "BAG_MULTI_UNIT_BUILDING" in result.shared_building.messages
+        categories = {f.category for f in result.attention_summary.flags}
+        assert "shared_building" in categories
+        assert "vve" not in categories
 
     @pytest.mark.asyncio
     async def test_single_unit_not_apartment(self):
@@ -203,6 +209,7 @@ class TestVvEDetection:
                 municipality="Eindhoven",
             )
         assert result.vve.is_apartment is False
+        assert result.shared_building.detected is False
 
 
 # --- Asbestos detection ---
@@ -339,10 +346,25 @@ class TestAttentionSummary:
             foundation_level="low",
             erfpacht_detected=False,
             is_apartment=True,
+            shared_building_detected=False,
             construction_year=2005,
         )
         assert summary.flag_count == 1
         assert summary.flags[0].category == "vve"
+
+    def test_shared_building_flagged_without_vve(self):
+        summary = build_attention_summary(
+            risk_scores={"noise": 75, "air_quality": 80, "climate": 85, "sunlight": 70},
+            foundation_level="low",
+            erfpacht_detected=False,
+            is_apartment=False,
+            shared_building_detected=True,
+            construction_year=2005,
+        )
+        categories = {f.category for f in summary.flags}
+        assert summary.flag_count == 1
+        assert "shared_building" in categories
+        assert "vve" not in categories
 
     def test_asbestos_flagged_pre_1994(self):
         summary = build_attention_summary(
@@ -404,6 +426,7 @@ class TestAttentionSummary:
             foundation_level="high",
             erfpacht_detected=True,
             is_apartment=True,
+            shared_building_detected=False,
             construction_year=1965,
         )
         categories = {f.category for f in summary.flags}
@@ -551,7 +574,8 @@ class TestLeadPipeWarning:
         categories = {f.category for f in result.attention_summary.flags}
         assert "foundation" in categories
         assert "erfpacht" in categories
-        assert "vve" in categories
+        assert "shared_building" in categories
+        assert "vve" not in categories
         assert "asbestos" in categories
         assert "lead_pipe" in categories
         assert result.attention_summary.risk_categories_assessed == 0
@@ -593,9 +617,11 @@ class TestBAGFallback:
         # BAG-supplied year used for lead pipe detection
         assert result.lead_pipe.flagged is True
         assert result.lead_pipe.construction_year == 1955
-        # BAG-supplied num_units used for VvE detection
-        assert result.vve.is_apartment is True
-        assert result.vve.num_units == 4
+        # BAG-supplied unit count is not enough to infer apartment/VvE status.
+        assert result.vve.is_apartment is False
+        assert result.vve.num_units is None
+        assert result.shared_building.detected is True
+        assert result.shared_building.num_addressable_units == 4
 
     @pytest.mark.asyncio
     async def test_bag_fallback_failure_graceful(self):
@@ -622,6 +648,7 @@ class TestBAGFallback:
             )
         assert result.lead_pipe.flagged is False
         assert result.vve.is_apartment is False
+        assert result.shared_building.detected is False
 
     @pytest.mark.asyncio
     async def test_no_bag_call_when_params_present(self):

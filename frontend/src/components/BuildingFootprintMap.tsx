@@ -148,6 +148,14 @@ export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint, re
   }, [ring]);
 
   const showAerial = aerialUrl && !imgError;
+  const sourceText = showAerial
+    ? t(
+        'map.aerialSourceWithFootprint',
+        'Aerial photo: PDOK / Kadaster (CC BY 4.0). Footprint: BAG building outline.',
+      )
+    : ring
+      ? t('map.footprintSource', 'Footprint: BAG building outline.')
+      : `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
   return (
     <div className="footprint-map" data-testid="map">
@@ -196,9 +204,7 @@ export default function BuildingFootprintMap({ lat, lng, rdX, rdY, footprint, re
         )}
       </div>
       <p className="footprint-map__source">
-        {showAerial
-          ? t('map.aerialSource', 'Luchtfoto: PDOK / Kadaster (CC BY 4.0)')
-          : `${lat.toFixed(5)}, ${lng.toFixed(5)}`}
+        {sourceText}
       </p>
     </div>
   );

@@ -1,0 +1,98 @@
+.not-found {
+  min-height: calc(100dvh - var(--top-bar-height, 64px));
+  display: grid;
+  align-items: center;
+  padding: var(--space-base) var(--space-base) calc(var(--tab-bar-height, 76px) + var(--space-xl));
+}
+
+.not-found__panel {
+  width: min(100%, 42rem);
+  margin: 0 auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  padding: var(--space-lg);
+  display: grid;
+  gap: var(--space-base);
+}
+
+.not-found__eyebrow {
+  margin: 0;
+  font: var(--type-micro);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.not-found h1,
+.not-found p {
+  margin: 0;
+}
+
+.not-found h1 {
+  font: var(--type-h1);
+  color: var(--color-text);
+}
+
+.not-found p {
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+}
+
+.not-found code {
+  display: block;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-alt);
+  font: var(--type-small);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.not-found__actions {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.not-found__actions button,
+.not-found__actions a {
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: var(--type-body-medium);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-base);
+  text-decoration: none;
+}
+
+.not-found__actions button:first-child {
+  border-color: var(--color-cta-bg);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
+}
+
+.not-found button:focus-visible,
+.not-found a:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 3px;
+}
+
+@media (min-width: 48rem) {
+  .not-found__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (forced-colors: active) {
+  .not-found__panel,
+  .not-found code,
+  .not-found__actions button,
+  .not-found__actions a {
+    border: 1px solid CanvasText;
+  }
+}

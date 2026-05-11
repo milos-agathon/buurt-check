@@ -29,7 +29,7 @@ The Full Dossier PDF is **structurally incomplete**, **visually underpowered**, 
 **Data visualization failures (every chart is broken as an information graphic):**
 8. Score bars are 1.0mm hairlines — 8 pixels at 200 DPI, invisible at arm's length on printed A4
 9. Comparison charts have no x-axis, no scale declaration, no legend — violating every foundational chart design rule
-10. Two comparison bar colors (MUTED #8A9BB0 and BORDER #E2E7ED) are indistinguishable in grayscale print; BORDER has only 1.3:1 contrast against white — effectively invisible
+10. Two comparison bar colors (MUTED #6D7A77 and BORDER #E2E8F0) are indistinguishable in grayscale print; BORDER has only 1.3:1 contrast against white — effectively invisible
 11. "Dit adres" (the hero data point) is buried as the LAST row in every chart — wrong reading order
 12. Data-ink ratio is critically low — text numbers carry 90%+ of information, bars are decorative hairlines
 13. Zero chart type variety across 7 pages — every visualization is a horizontal bar
@@ -43,10 +43,9 @@ The Full Dossier PDF is **structurally incomplete**, **visually underpowered**, 
 19. Pages 1, 3, 4, 6 are 40-85% empty — a 7-page report with ~3.5 pages of actual content
 20. Page 3 is an orphaned spillover (~15% utilized) from page 2's auto page break
 21. Shadow image at 427x265px displayed at 170mm = ~64 effective DPI — far below 150 DPI print minimum
-22. MUTED text (#8A9BB0, 2.75:1) fails WCAG AA 4.5:1 for source/provenance lines carrying essential info
+22. MUTED text (#6D7A77, 2.75:1) fails WCAG AA 4.5:1 for source/provenance lines carrying essential info
 23. Only branded element: 6mm teal stripe + 9pt text. No logo, no section bands, no visual identity
 
-**Dominant architectural insight:** The gap is **not missing data** — it's **missing rendering code**. The pipeline computes livability, property warnings, crime scores, CBS quartiles, facade analysis, and SVF — all of which are available as structured data but dropped at the PDF rendering boundary. The visual design gap is equally fundamental — the PDF uses `fpdf2` drawing primitives at their simplest defaults (1mm bars, no axes, no legends) rather than constructing proper data visualizations.
 
 ---
 
@@ -59,7 +58,6 @@ The Full Dossier PDF is **structurally incomplete**, **visually underpowered**, 
 | E3 | Missing Premium Content | 3 stories | P0 | Content gap |
 | E4 | Comparison Semantics & Trust | 4 stories | P0 + P2 | Trust risk |
 | E5 | Report Provenance & Auditability | 4 stories | P0 + P2 | Trust risk |
-| E6 | Neighborhood & Crime Data Enrichment | 5 stories | P1 | Quality gap |
 | E7 | Spatial Context & Cartography | 1 story | P1 | Quality gap |
 | E8 | Information Architecture & Polish | 4 stories | P2/P3 | Polish |
 | E9 | Data Visualization Quality | 6 stories | P0/P1 | Design — charts |
@@ -511,33 +509,23 @@ Klimaateffectatlas  Flood risk               [specific layer ID] 2023       2026
 
 ---
 
-## E6 — Neighborhood & Crime Data Enrichment
 
-**Epic goal:** Upgrade raw numbers to interpreted, contextualized data points — transforming the neighborhood and crime sections from data tables into analytical content.
 
-**Current state:** Crime shows only raw rate (12.0/1000) with no score, severity, or national comparison. CBS indicators lack quartile context. Age distribution has no interpretation. Climate section omits scenario and time horizon.
 
 ---
 
-### E6-S1: Render crime as scored risk card
 
-**Description:** Replace the raw crime rate display with a full risk card: score badge, severity, meaning text, national comparison, and data year.
 
-**Why:** "12.0 per 1,000" is meaningless without context. The free viewer shows score + severity + comparison chart + meaning text. The paid PDF shows only the raw rate — a downgrade from the free product. All the needed fields exist in `TierBResponse.crime` (`score`, `severity`, `meaning_en`/`meaning_nl`, `national_per_1000`, `source_date`).
 
 **How to fix:**
-- Add crime score badge (0-100) colored by severity
 - Show severity label + meaning sentence
 - Add comparison row: this address vs national average
 - Show source + year: "Bron: CBS OData Misdrijven, 2023"
-- Keep burglary/violent breakdown as secondary detail
 
 **Definition of done:**
-- [ ] Crime section shows score (0-100) with severity badge
 - [ ] Meaning sentence rendered in both NL and EN
 - [ ] National average comparison visible
 - [ ] Source includes data year
-- [ ] Burglary and violence sub-rates still shown as detail lines
 
 ---
 
@@ -685,12 +673,12 @@ Klimaateffectatlas  Flood risk               [specific layer ID] 2023       2026
 
 ### E8-S3: Promote provenance text to WCAG-passing contrast
 
-**Description:** Upgrade source and disclaimer lines from MUTED color (#8A9BB0, 2.75:1 contrast) and 7-8pt font to a WCAG-AA-passing style.
+**Description:** Upgrade source and disclaimer lines from MUTED color (#6D7A77, 2.75:1 contrast) and 7-8pt font to a WCAG-AA-passing style.
 
 **Why:** Source lines contain critical information (data origin, publication date, limitations) but are visually invisible. The design system's own rules state `--color-text-tertiary` is "decorative only, never essential info." WCAG 2.2 requires 4.5:1 for normal text. 2.75:1 fails both thresholds.
 
 **How to fix:**
-- Use `--color-text-secondary` (#637892, ~4.5:1) instead of MUTED
+- Use `--color-text-secondary` (#3D4947, ~4.5:1) instead of MUTED
 - Increase to 9-10pt minimum
 - Remove italic at small sizes (reduces readability)
 
@@ -720,7 +708,7 @@ Klimaateffectatlas  Flood risk               [specific layer ID] 2023       2026
 
 **Current state (evidence from visual inspection of all 7 pages rendered at 200 DPI + code audit of every drawing primitive in `pdf_export.py`):**
 
-The dossier contains exactly three visual element types: (1) score bars in risk grid tiles, (2) horizontal bar comparison charts, and (3) age distribution bars. All use identical 3.0mm bar height (or smaller: 1.0-1.2mm for score bars). No chart has an x-axis, scale label, gridline, or legend. The comparison charts use four bar types differentiated only by fill color, two of which (MUTED #8A9BB0 at ~0.38 luminance and BORDER #E2E7ED at ~0.80 luminance) merge in grayscale. The "Dit adres" row — the hero data point — is placed LAST (bottom) in every chart. Data-ink ratio is critically low: numeric text carries 90%+ of informational weight; bars are decorative hairlines. The only image is a dark 427x265px shadow snapshot. Zero sparklines, gauges, bullet charts, radar charts, dot plots, or icons appear anywhere.
+The dossier contains exactly three visual element types: (1) score bars in risk grid tiles, (2) horizontal bar comparison charts, and (3) age distribution bars. All use identical 3.0mm bar height (or smaller: 1.0-1.2mm for score bars). No chart has an x-axis, scale label, gridline, or legend. The comparison charts use four bar types differentiated only by fill color, two of which (MUTED #6D7A77 at ~0.38 luminance and BORDER #E2E8F0 at ~0.80 luminance) merge in grayscale. The "Dit adres" row — the hero data point — is placed LAST (bottom) in every chart. Data-ink ratio is critically low: numeric text carries 90%+ of informational weight; bars are decorative hairlines. The only image is a dark 427x265px shadow snapshot. Zero sparklines, gauges, bullet charts, radar charts, dot plots, or icons appear anywhere.
 
 ---
 
@@ -734,7 +722,7 @@ The dossier contains exactly three visual element types: (1) score bars in risk 
 - `pdf_export.py:247`: risk grid bars use default 1.0, inset with 10% margin
 - At 200 DPI rendering, 1.0mm = ~8 pixels — thinner than a standard underline
 - At arm's length (~60cm) on printed A4, 1mm is below the visual acuity threshold for reading color-fill proportion
-- The bar FILL (severity color) and the TRACK (BORDER #E2E7ED) are the same height — making fill-vs-track contrast impossible to perceive at any score value
+- The bar FILL (severity color) and the TRACK (BORDER #E2E8F0) are the same height — making fill-vs-track contrast impossible to perceive at any score value
 - **Visible on Page 1:** "Geluid 50" shows a 1mm amber stripe; "Klimaat 15" shows a 1mm dark-red stripe barely distinguishable from the gray track. "Zonlicht —" shows a 1mm gray stripe with no fill — identical to BORDER.
 
 **How to fix:**
@@ -783,11 +771,11 @@ The dossier contains exactly three visual element types: (1) score bars in risk 
 
 ### E9-S3: Comparison bar colors are indistinguishable
 
-**Description:** The four comparison bar types use TEAL (#2EC4B6 solid), MUTED (#8A9BB0 solid), BORDER (#E2E7ED solid), and AMBER (#EAB308 dashed). The two gray fills merge in grayscale print, and BORDER is invisible against the white page.
+**Description:** The four comparison bar types use TEAL (#0D9488 solid), MUTED (#6D7A77 solid), BORDER (#E2E8F0 solid), and AMBER (#EAB308 dashed). The two gray fills merge in grayscale print, and BORDER is invisible against the white page.
 
 **Why (contrast measurements):**
-- MUTED (#8A9BB0): luminance ~0.38, contrast vs white ~2.5:1
-- BORDER (#E2E7ED): luminance ~0.80, contrast vs white ~1.3:1 — **effectively invisible**
+- MUTED (#6D7A77): luminance ~0.38, contrast vs white ~2.5:1
+- BORDER (#E2E8F0): luminance ~0.80, contrast vs white ~1.3:1 — **effectively invisible**
 - MUTED vs BORDER: luminance ratio ~2.1:1 — distinguishable on screen in isolation but NOT at 8pt label distance when scanning a printed page
 - The "Nederland" bar (BORDER fill) disappears into the white page background. The track BEHIND the bar is also BORDER-colored (line 191: `set_fill_color(*BORDER)` for the track). So the "Nederland" bar is BORDER fill on a BORDER track — literally zero contrast.
 - AMBER dashing is rendered via `set_line_width(bar_h)` + individual line segments (line 196-203) — a crude blocky pattern, not a proper dash. Each dash is 1.5mm long with 1mm gaps at 3mm "bar" height. The result is a row of thick yellow squares, not an elegant dashed bar.
@@ -803,7 +791,7 @@ The dossier contains exactly three visual element types: (1) score bars in risk 
 **Definition of done:**
 - [ ] All 4 bar types are distinguishable in 300 DPI grayscale laser print
 - [ ] No two adjacent bars share the same visual pattern
-- [ ] "Nederland" bar (currently BORDER #E2E7ED) replaced with a fill having >= 3:1 contrast vs white
+- [ ] "Nederland" bar (currently BORDER #E2E8F0) replaced with a fill having >= 3:1 contrast vs white
 - [ ] Dashed bars render with clean dash spacing (not the current `set_line_width(bar_h)` hack)
 
 ---
@@ -842,7 +830,6 @@ The dossier contains exactly three visual element types: (1) score bars in risk 
 - **Risk grid tiles (Pages 1, 6):** The 24pt SatoshiBlack score number IS the data. The 1mm bar below it adds zero information a reader couldn't get from the number alone. Remove the bar entirely and the tile loses nothing. But remove the number and keep only the bar — the tile becomes unreadable.
 - **Comparison charts (Pages 2-3):** The right-aligned score numbers (e.g., "64", "66", "74", "50") carry all information. A reader could black out all bars and still read the chart from numbers alone. But black out the numbers and keep only the bars — the chart becomes uninterpretable because there are no axes, no gridlines, and two of four bar colors are near-invisible.
 - **Age distribution (Page 4):** "33%", "52%", "16%" in bold carry the information. The teal bars provide visual reinforcement but no independent data (no national average overlay, no comparison context).
-- **Crime section (Page 4):** Pure text — "12.0 per 1.000 inwoners", "Inbraak: 0.0", "Geweld: 0.5". Zero graphical elements.
 - **Neighborhood indicators (Page 4):** Pure text — "8,351 per km2", "€428,000", "5.2 km". Zero graphical elements.
 - The design pattern is: "number first, bar as optional decorative accent." For a paid data visualization report, this is backwards. The graphic should BE the primary data carrier, with numbers as precision annotations.
 
@@ -866,7 +853,6 @@ The dossier contains exactly three visual element types: (1) score bars in risk 
 **Description:** The entire 7-page dossier uses exactly one chart type: horizontal bar. Every comparison chart (x4 categories), every age distribution bar (x3 bands), every score bar (x8 in grid tiles + x4 in detail) — all horizontal bars at 1.0-3.0mm height. No sparklines, gauges, bullet charts, radar charts, dot plots, small multiples, or icon badges appear anywhere.
 
 **Why (visual variety and cognitive engagement):**
-- Cairo's "The Functional Art": variety in chart type signals variety in data type. All data types rendered the same way implies all data is the same type — but risk scores, age distributions, crime rates, and sunlight hours are fundamentally different measures.
 - The reader habituates to repeated patterns. By the 3rd comparison chart (Climate, page 2), the layout is entirely predictable and the reader skims. By page 4's age bars, no visual element surprises.
 - The backend computes 6+ distinct data types suitable for different chart forms:
   - Risk scores (0-100): bullet chart or gauge
@@ -917,7 +903,6 @@ The dossier uses **17 distinct type styles** (weight x size x color combinations
 | 5 | Satoshi Bold | 16pt | SLATE | Buurt name (page 4) | line 802 |
 | 6 | Satoshi Bold | 14pt | SLATE | Risk category name | line 670 |
 | 7 | Satoshi Bold | 12pt | SLATE/AMBER | Section headers | lines 989, 1194, 1236, 1260 |
-| 8 | Satoshi Bold | 11pt | SLATE | Subsection headers, crime | lines 382, 911, 969, 1122 |
 | 9 | Satoshi Bold | 10pt | MUTED | Address context (page 2) | line 653 |
 | 10 | Satoshi Bold | 9pt | SLATE | Indicator values, age %s | lines 290, 322 |
 | 11 | Satoshi Bold | 8pt | SLATE | Comparison chart scores | line 209 |
@@ -1011,7 +996,6 @@ The dossier uses **17 distinct type styles** (weight x size x color combinations
 
 **Why (affected text + intent):**
 - `line 438`: Shadow caption `set_font("Satoshi", "I", 7)` — "Winterzonnewende, 12:00" — intended as caption/supplementary style but renders identical to body text
-- `line 937`: Crime disclaimer `set_font("Satoshi", "I", 8)` — "Criminaliteitscijfers zijn per gemeente..." — intended to signal editorial/qualifying text
 - `line 522`: "See Full Dossier" note `set_font("Satoshi", "I", 7)` — same issue
 - If italic signals "this is supplementary/editorial/caption" and it renders as regular, the reader loses the typographic cue that distinguishes fact from commentary
 - MuPDF font rendering warnings confirm compatibility issues with all 5 Satoshi variants
@@ -1034,7 +1018,6 @@ The dossier uses **17 distinct type styles** (weight x size x color combinations
 **Description:** The dossier language is Dutch ("nl") but number formatting uses Python's default period as decimal separator. This creates ambiguous mixed formatting within the same sentence.
 
 **Why (specific examples from rendered pages):**
-- **Page 4 crime section:** "12.0 per 1.000 inwoners" — "12.0" uses English decimal (period), "1.000" uses Dutch thousands separator (period). The sentence mixes conventions, and "1.000" could be misread as one-point-zero.
 - **Page 4 indicators:** `f"{val:,.0f}/km2"` at line 1148 produces "8,351/km2" — in Dutch, this reads as "8 decimal 351" (the comma is the Dutch decimal separator). The intended reading is "8 thousand 351."
 - **Page 4 WOZ value:** `f"EUR{val:,.0f}"` at line 1144 produces "EUR428,000" — in Dutch, "428,000" reads as "428 decimal zero zero zero" = 428.
 - **Page 2 summary text:** "PM2.5: 8.1, NO2: 12.7 ug/m3" — period-decimal in Dutch text
@@ -1045,7 +1028,6 @@ The dossier uses **17 distinct type styles** (weight x size x color combinations
 - Create a `format_number(value: float, unit: str, locale: str) -> str` helper:
   - Dutch: `12,0 per 1.000 inwoners`, `EUR 428.000`, `8.351/km2`
   - English: `12.0 per 1,000 residents`, `EUR428,000`, `8,351/km2`
-- Apply to all numeric output: `_draw_indicator()`, crime section, risk summaries, age percentages
 - Use Python's `locale` module or manual string replacement
 
 **Definition of done:**
@@ -1068,7 +1050,6 @@ The dossier uses **17 distinct type styles** (weight x size x color combinations
 | 1 (Cover) | ~45% | ~55% | Address + shadow image + risk grid + date line. Bottom 55% completely blank. |
 | 2 (Risk Details) | ~95% | ~5% | Dense: 3 risk categories with comparison charts. Good density. |
 | 3 (Risk Details overflow) | ~15% | ~85% | Orphaned: only Zonlicht section spillover from page 2. Worst page. |
-| 4 (Neighborhood) | ~55% | ~45% | Indicators + age bars + crime. Bottom 45% blank after crime section. |
 | 5 (Property Checks) | ~65% | ~35% | 4 subsections + shadow image. Reasonable but improvable. |
 | 6 (Checklist) | ~40% | ~60% | Risk grid + 6 questions. Only 2 of 3+ categories shown. Bottom 60% blank. |
 | 7 (Methodology) | ~50% | ~50% | Methodology + sources + limitations + 12 ruled note lines. Half is dead space. |
@@ -1084,14 +1065,12 @@ The dossier uses **17 distinct type styles** (weight x size x color combinations
 **Why (page-by-page, visible in rendered PNGs):**
 - **Page 1 (Cover):** After the risk grid (~135mm from top), only "Opgesteld: 01 March 2026" appears. The bottom ~130mm (55%) is completely blank white — no summary, no map, no narrative.
 - **Page 3 (Risk Details overflow):** Only the Zonlicht section (~40mm of content) occupies the page. The remaining ~220mm (85%) is blank. This is an auto page break issue, not a content decision.
-- **Page 4 (Neighborhood):** After the crime section (~145mm from top), the bottom ~115mm (45%) is blank. Space available for livability, additional crime context, or comparison data.
 - **Page 6 (Checklist):** Risk grid + 6 viewing questions occupy ~105mm. The bottom ~155mm (60%) is blank. Only 2 of 3+ question categories are shown (Noise and Climate; Air quality is absent likely because data was available but the viewing questions lacked air quality entries for this address).
 - The only dense page is Page 2 (risk details) at ~95% utilization — proving the layout CAN be dense when content fills it.
 
 **How to fix:**
 - **Page 1:** Fill bottom half with executive summary (E8-S1) and/or location map (E7-S1)
 - **Page 3:** Eliminate by preventing overflow (see E11-S2) or by moving Zonlicht to a dedicated sunlight page with expanded visuals (E2-S3, E2-S4)
-- **Page 4:** Will fill when livability (E3-S1) and scored crime (E6-S1) are added
 - **Page 6:** Add air quality and sunlight questions (currently absent). Consider merging checklist into property checks page
 - **Page 7:** Reduce 12 note lines (96mm) to 3-4 lines (E8-S2), use reclaimed space for methodology depth (E5-S2, E5-S3)
 - Target: <= 7 pages, every page >= 70% utilized
@@ -1160,17 +1139,17 @@ The dossier uses **17 distinct type styles** (weight x size x color combinations
 
 | Color | Hex | Contrast vs white | Usage | Threshold |
 |-------|-----|-------------------|-------|-----------|
-| MUTED | #8A9BB0 | ~2.75:1 | Source lines, section labels, grid labels, footer, captions (7-8pt) | WCAG AA: 4.5:1 (normal text) |
-| BORDER | #E2E7ED | ~1.3:1 | "Nederland" comparison bar fill, score bar track | WCAG: 3:1 (non-text graphical elements) |
+| MUTED | #6D7A77 | ~2.75:1 | Source lines, section labels, grid labels, footer, captions (7-8pt) | WCAG AA: 4.5:1 (normal text) |
+| BORDER | #E2E8F0 | ~1.3:1 | "Nederland" comparison bar fill, score bar track | WCAG: 3:1 (non-text graphical elements) |
 
 **Why (specific violations):**
-- **MUTED as text:** Source lines like "Bron: RIVM (Dutch National Health Institute) - 2025-01-01" carry essential provenance information. At 8pt in #8A9BB0 on white, they fail WCAG AA (4.5:1) and even WCAG AAA large text (3:1 for >= 18pt). The design system's own rules state: `--color-text-tertiary (#8A9BB0, 2.75:1) — decorative only, never essential info.` But in the PDF, MUTED carries provenance data that is legally and professionally essential.
-- **BORDER as bar fill:** The "Nederland" comparison bar uses BORDER (#E2E7ED) as fill color (line 727: `"nl_avg": (..., BORDER, False)`). The track behind it is ALSO BORDER (line 191: `set_fill_color(*BORDER)`). So the "Nederland" bar is BORDER on BORDER — zero contrast. The bar is invisible.
+- **MUTED as text:** Source lines like "Bron: RIVM (Dutch National Health Institute) - 2025-01-01" carry essential provenance information. At 8pt in #6D7A77 on white, they fail WCAG AA (4.5:1) and even WCAG AAA large text (3:1 for >= 18pt). The design system's own rules state: `--color-text-tertiary (#6D7A77, 2.75:1) — decorative only, never essential info.` But in the PDF, MUTED carries provenance data that is legally and professionally essential.
+- **BORDER as bar fill:** The "Nederland" comparison bar uses BORDER (#E2E8F0) as fill color (line 727: `"nl_avg": (..., BORDER, False)`). The track behind it is ALSO BORDER (line 191: `set_fill_color(*BORDER)`). So the "Nederland" bar is BORDER on BORDER — zero contrast. The bar is invisible.
 - **MUTED as grid label:** Risk grid category labels ("GELUID", "LUCHT") are SatoshiMedium 7pt in MUTED — the lightest text on the page. At this size and contrast, they may be illegible to readers with moderate vision impairment.
 - On grayscale laser printers (common in offices/banks), BORDER will print as white and MUTED will print as a barely-visible light gray.
 
 **How to fix:**
-- Replace MUTED text usage with `--color-text-secondary` (#637892, ~4.5:1 contrast) for all essential information (source lines, section labels, indicator labels)
+- Replace MUTED text usage with `--color-text-secondary` (#3D4947, ~4.5:1 contrast) for all essential information (source lines, section labels, indicator labels)
 - Keep MUTED only for truly decorative elements (footer disclaimer text, if even that)
 - Replace BORDER comparison bar fill with a visibly darker neutral (e.g., #8AA0B4, ~3.5:1)
 - Keep BORDER for actual borders/dividers (where high contrast isn't needed)
@@ -1179,7 +1158,7 @@ The dossier uses **17 distinct type styles** (weight x size x color combinations
 **Definition of done:**
 - [ ] All text carrying essential information has >= 4.5:1 contrast against white (WCAG AA)
 - [ ] All graphical data elements (bars, fills) have >= 3:1 contrast against background (WCAG non-text)
-- [ ] BORDER (#E2E7ED) is NEVER used as a data-carrying fill — only as decorative borders/dividers
+- [ ] BORDER (#E2E8F0) is NEVER used as a data-carrying fill — only as decorative borders/dividers
 - [ ] Contrast ratios documented in code comments for each color constant
 - [ ] Print test: all text and chart elements legible in 300 DPI grayscale laser output
 
@@ -1228,7 +1207,6 @@ The dossier uses **17 distinct type styles** (weight x size x color combinations
 | 9 | E4 | S2: Relabel city average | P0 | High | Low | N/A |
 | 10 | E5 | S1: Add provenance block | P0 | High | Low-Med | Yes |
 | 11 | E9 | S2: Add axis, scale, legend to comparison charts | P0 | Critical | Low | N/A (rendering) |
-| 12 | E6 | S1: Render crime as risk card | P1 | High | Low | Yes |
 | 13 | E6 | S2: Add CBS quartile indicators | P1 | High | Low | Yes |
 | 14 | E4 | S3: Add raw measurement rows | P1 | Medium | Low | Yes |
 | 15 | E7 | S1: Add static location map | P1 | High | Medium | Can generate |
@@ -1289,7 +1267,6 @@ Key deliverables:
 **Goal:** Every data point is contextualized, charts are readable and distinct, typography is clean, pages are dense, and contrast meets WCAG AA.
 
 Key deliverables:
-- Crime scored + interpreted as risk card
 - CBS quartiles shown on every indicator
 - Raw measurements + unit definitions on risk detail page
 - Static location map
@@ -1343,7 +1320,6 @@ Key deliverables:
   - All `multi_cell()` calls across file: audit for justified text, add `align="L"`
   - Color constants lines 28-33: replace MUTED with WCAG-passing color for text usage, add darker neutral for bar fills
   - `_draw_indicator()` line 1133: add locale-aware number formatting
-  - Crime section lines 907-962: add locale-aware number formatting
   - Page break logic: add Y-space checks before risk categories
 - `frontend/src/components/NeighborhoodViewer3D.tsx` — increase export canvas resolution to 1600x1000+
 - `frontend/src/components/ExportBottomSheet.tsx` — deduplicate shadow image (send once, not twice)
@@ -1356,7 +1332,6 @@ Key deliverables:
 
 **Backend models that already have the data (no new data pipelines needed):**
 - `PropertyWarningsResponse` — all 5 sub-objects exist (asbestos, foundation, erfpacht, vve, lead_pipe)
-- `TierBResponse.crime` — score, severity, meaning, national_per_1000 all computed
 - `NeighborhoodStats` — quartile on every indicator
 - `SunlightRiskCard` — svf_percent, svf_score stored but not rendered
 - `LivabilityResponse` — 5 dimensions, trend, comparison all available

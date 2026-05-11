@@ -36,7 +36,6 @@ buurt-check is not a data tool. It's a prepared, trustworthy intelligence briefi
 
 buurt-check delivers a curated report, not a spatial browsing experience. The dossier scroll is the primary container, organized by the **"house first, buurt second"** principle: all property-specific details appear before neighborhood context.
 
-- **The dossier follows a two-phase narrative.** Phase one is the house: address, building facts, risk scores at this address, property warnings, soil. Phase two is the buurt: livability, 3D neighborhood viewer, sunlight analysis, CBS stats, tier B signals. This matches how buyers think — "What am I buying?" before "Where am I buying?" — and ensures the 2D footprint map (house-level) and 3D viewer (buurt-level) are never on screen simultaneously.
 - **The 3D viewer is the spatial anchor of the neighborhood section, not hidden behind a button.** It's buurt-check's signature differentiator — hiding it reduces discovery and first-impression impact. But it belongs in the neighborhood section, not at the very top of the dossier. Performance concerns are addressed through progressive loading and device-tier fallback (see §7), not by gating access.
 - **The 3D viewer card has a clear boundary.** It's a defined viewport (40vh, min 240px, max 360px) within the dossier scroll, not a full-page background. Camera framing is tight/isometric — buildings and ground plane only, no blue sky. The viewer should feel like a technical aerial diagram, not a landscape.
 - **Risk tiles live in the house section.** Even though noise, air, and climate data come from area-level sources, they are measured at this specific address and directly affect this property's livability. They answer "what is it like HERE?" not "what is this neighborhood like?"
@@ -53,7 +52,6 @@ Users don't want "PM2.5 = 11.2." They want "what does this mean for me, and what
   2. **What it means** — one plain-language sentence ("This area floods roughly once every 8 years during heavy rainfall")
   3. **What to ask or check at the viewing** — the actionable output ("Ask the seller about flood damage history. Check the ground floor for watermarks or damp patches.")
   4. **Source + date** — credibility anchor ("Data: Klimaateffectatlas, updated March 2025")
-- **Raw metrics live behind "Details."** If a user wants the actual PM2.5 number, the dB(A) reading, or the CBS crime count, they can tap into it. But the default view is always the interpreted, decision-ready version.
 - **The "what to ask at the viewing" layer is the differentiator.** No competitor turns risk data into viewing preparation. This is buurt-check's highest-value UX feature — protect it, refine it, and never let it get buried.
 
 ---
@@ -85,8 +83,6 @@ On mobile, you can't dump everything at once. The risk tiles pattern (2×2 grid 
 Users are making six-figure purchase decisions partly based on this app's data. Trust isn't a nice-to-have; it's structural.
 
 - **Every risk card shows source and recency by default** — even if it's tertiary text. "Data: CBS 2024" or "Last updated: March 2025" should be visible without tapping.
-- **Show data freshness prominently.** Stale data erodes trust fast, especially for flood risk or crime statistics. If a dataset is more than 12 months old, flag it.
-- **Disclaimers must be one tap away, not buried.** "Indicative only," "registered vs. total crime," methodology notes — these should be accessible from each risk card via a small info icon, not hidden in a settings page.
 - **Be transparent about gaps.** If a risk category has incomplete data for a given buurt, show "Data unavailable for this area" per-card with a muted gray degraded state. Never break the dossier or show a misleadingly clean score. Partial data is better than false confidence.
 - **Professional, restrained visual design.** The aesthetic should communicate competence and reliability — closer to a banking app than a social app. The Polar Frost palette (cool charcoal + warm whites + single teal accent) achieves this. Avoid playful animations or overly casual UI on the risk assessment screens.
 
@@ -184,8 +180,8 @@ Condensing geospatial and statistical data onto a ~375px-wide screen requires di
 
 - **Support dark mode from day one.** The Polar Frost palette naturally lends itself to a cold-tone dark theme. Dark backgrounds make 3D terrain visualizations pop with more depth and atmosphere.
 - **Adapt risk severity colors for both modes.** The PRD specifies distinct dark-mode risk colors (softer, slightly lighter variants) that maintain the same perceptual severity ordering.
-- **Respect system preference.** Follow the device's light/dark mode setting by default, with an in-app override in Settings.
-- **The top bar and bottom tab bar are non-flipping.** The dark slate nav (`#1C2D3F`) remains consistent in both light and dark themes, providing brand anchoring and eliminating a class of theming edge cases.
+- **Default to light, with System resolving to light.** First launch, cleared local storage, and the System option all resolve to the Polar Frost light theme, regardless of OS color scheme. Dark mode is an explicit user choice.
+- **The top bar and bottom tab bar are non-flipping.** The dark slate nav (`#171D1C`) remains consistent in both light and dark themes, providing brand anchoring and eliminating a class of theming edge cases.
 
 ---
 

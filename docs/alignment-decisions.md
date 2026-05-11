@@ -60,7 +60,7 @@ When documents conflict, the higher-authority document governs:
 
 **The conflict:**
 - `design-prd.md` §3.2 specifies "transparent at scroll position 0; transitions to white with bottom border on scroll."
-- `ui-redesign-plan.md` notes the implementation uses a fixed dark slate nav (`--color-nav-bg: #1C2D3F`) and calls it a "deliberate design decision."
+- `ui-redesign-plan.md` notes the implementation uses a fixed dark slate nav (`--color-nav-bg: #171D1C`) and calls it a "deliberate design decision."
 - The redesign plan's "What's Excellent" table lists "Nav non-flipping: Dark slate in both themes" as a positive.
 
 **Resolution: Fixed dark slate nav governs.** Reasons:
@@ -70,7 +70,7 @@ When documents conflict, the higher-authority document governs:
 4. The dark nav creates a clear boundary between system chrome and app content.
 
 **Action:**
-- `design-prd.md` §3.2: Update to specify fixed dark slate background (`#1C2D3F`) in both themes. Remove scroll-transparency behavior. Note that the language toggle pill (EN|NL) uses white/light text on this dark surface.
+- `design-prd.md` §3.2: Update to specify fixed dark slate background (`#171D1C`) in both themes. Remove scroll-transparency behavior. Note that the language toggle pill (EN|NL) uses white/light text on this dark surface.
 - `design-spec.md` §17: Verify spec matches implementation (dark slate, not scroll-transparent). If §17 still describes transparency, update it.
 
 ---
@@ -123,8 +123,8 @@ When documents conflict, the higher-authority document governs:
 
 **The conflict:**
 - `design-spec.md` §15 specifies comparison bar chart colors: This address (#00897B teal), City average (#9AA0A6 silver), NL average (#D1D5DB lighter gray), WHO limit (#E8913A amber dashed).
-- `design-prd.md` §8.2 specifies parallel coordinates chart colors: Address 1 (#2EC4B6 accent teal), Address 2 (amber), Address 3 (#7C4DFF purple).
-- `ui-redesign-plan.md` item 8 notes the implementation has hardcoded `['#00897B', '#E8913A', '#7C4DFF']` — mixing both systems.
+- `design-prd.md` §8.2 specifies parallel coordinates chart colors: Address 1 (#0D9488 accent teal), Address 2 (amber), Address 3 (#C36D4B warm tertiary).
+- `ui-redesign-plan.md` item 8 notes the implementation has hardcoded `['#00897B', '#E8913A', '#C36D4B']` — mixing both systems.
 
 **Resolution: Two separate color systems for two separate charts.** These are different visualizations serving different purposes:
 1. **Risk detail comparison bars** (single address vs. benchmarks): Use the 4-row system from the spec — teal for address, grays for averages, amber dashed for threshold.
@@ -138,7 +138,7 @@ When documents conflict, the higher-authority document governs:
   - `--color-chart-threshold: #E8913A` (WHO/EU limit, amber, dashed)
   - `--color-compare-1: #00897B` (compare view, address 1)
   - `--color-compare-2: #E8913A` (compare view, address 2)
-  - `--color-compare-3: #7C4DFF` (compare view, address 3)
+  - `--color-compare-3: #C36D4B` (compare view, address 3)
 - Remove hardcoded values from `ParallelCoordinates` component.
 - Document both systems in both the PRD and spec.
 
@@ -153,7 +153,6 @@ When documents conflict, the higher-authority document governs:
 
 **Resolution: "House first, buurt second" — a new ordering principle.** The dossier is organized in two phases:
 1. **House (this property):** AttentionSummary → AddressHeader (+2D footprint map) → SummaryStrip → BuildingFacts → RiskTiles → PropertyWarnings → SoilInfo
-2. **Buurt (neighborhood):** Livability → 3D Viewer → Sunlight → NeighborhoodStats → TierB
 3. **Action:** ViewingChecklist → ActionBar (fixed bottom)
 
 **Rationale:**
@@ -211,7 +210,7 @@ When documents conflict, the higher-authority document governs:
 
 | # | Issue | Resolution | Effort |
 |---|-------|-----------|--------|
-| T-9 | Address input focus ring uses `#2EC4B6` (accent), spec mentions `#00897B` (teal-700) | **Keep `#2EC4B6` (accent).** The spec's `#00897B` reference appears inconsistent with the broader design system where `--color-accent` is the interactive state color. The focus ring should use the accent color. Update spec to match. | 5 min (spec edit) |
+| T-9 | Address input focus ring uses `#0D9488` (accent), spec mentions `#00897B` (teal-700) | **Keep `#0D9488` (accent).** The spec's `#00897B` reference appears inconsistent with the broader design system where `--color-accent` is the interactive state color. The focus ring should use the accent color. Update spec to match. | 5 min (spec edit) |
 | T-10 | Tab bar glass background — verify `--glass-bg`/`--glass-blur` map to spec values | **Verify and document.** Spec: white + `backdrop-filter: blur(20px)` + 80% opacity. Check that `--glass-bg` = `rgba(255,255,255,0.8)` and `--glass-blur` = `blur(20px)`. | 15 min |
 | T-11 | 3D viewer height — update to 40vh, min 240px, max 360px (per A-9) | **Update `NeighborhoodViewer3D.css`.** Also enforce no-sky camera framing (tight/isometric, ground-only background). | 30 min |
 | T-12 | Language toggle border radius: 4px in implementation, system minimum is 6px (`--radius-sm`) | **Change to 6px.** No component should go below the system minimum radius. | 5 min |
@@ -247,7 +246,7 @@ When documents conflict, the higher-authority document governs:
 |---------|------|
 | §15 comparison chart | Add semantic token names per decision A-7 |
 | §17 global top bar | Verify dark slate spec, remove any scroll-transparency language |
-| §1.5 input focus ring | Change `#00897B` references to `--color-accent` (`#2EC4B6`) |
+| §1.5 input focus ring | Change `#00897B` references to `--color-accent` (`#0D9488`) |
 
 ### Edits to `ui-principles.md`
 
@@ -283,11 +282,11 @@ The `ui-principles.md` §9 advocates skeleton screens ("grey blocks where text a
 
 **Recommendation: Both.** The building animation is the branded loading experience. Skeleton screens appear within the dossier for components still fetching data. This is already implied by the PRD but worth stating explicitly.
 
-### Q-3. Dark mode OLED black (#000000) vs. PRD dark bg (#0F1117)
+### Q-3. Dark mode OLED black (#000000) vs. PRD dark bg (#171D1C)
 
-The redesign plan's "What's Excellent" table mentions "Dark mode (OLED #000000) implemented." The PRD's Appendix A token reference uses `#0F1117` for dark mode background. These are different approaches:
+The redesign plan's "What's Excellent" table mentions "Dark mode (OLED #000000) implemented." The PRD's Appendix A token reference uses `#171D1C` for dark mode background. These are different approaches:
 
 - **OLED black (#000000):** Saves battery on OLED screens, stronger contrast, but can feel like content is floating in a void.
-- **Near-black (#0F1117):** Slightly softer, allows shadow/elevation to remain visible, feels more cohesive.
+- **Near-black (#171D1C):** Slightly softer, allows shadow/elevation to remain visible, feels more cohesive.
 
-**Recommendation: Clarify in both docs.** If the implementation uses `#000000`, update the PRD to match. If it uses `#0F1117`, verify the redesign plan's note is wrong. Either is valid, but they must agree.
+**Recommendation: Clarify in both docs.** If the implementation uses `#000000`, update the PRD to match. If it uses `#171D1C`, verify the redesign plan's note is wrong. Either is valid, but they must agree.

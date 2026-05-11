@@ -16,13 +16,13 @@ vi.mock('../services/firstVisit', () => ({
   isFirstVisit: vi.fn(() => true),
 }));
 
-vi.mock('../services/analytics', () => ({
+vi.mock('../services/clientEvents', () => ({
   trackEvent: vi.fn(),
 }));
 
 import { suggestAddresses } from '../services/api';
 import { isFirstVisit } from '../services/firstVisit';
-import { trackEvent } from '../services/analytics';
+import { trackEvent } from '../services/clientEvents';
 const mockSuggest = vi.mocked(suggestAddresses);
 const mockIsFirstVisit = vi.mocked(isFirstVisit);
 const mockTrackEvent = vi.mocked(trackEvent);
@@ -133,6 +133,14 @@ describe('input behavior', () => {
     expect(screen.getByPlaceholderText('e.g. Keizersgracht 1, Amsterdam')).toBeInTheDocument();
   });
 
+  it('disables browser spell correction for Dutch address fragments', () => {
+    renderSearch();
+    const input = screen.getByRole('combobox');
+    expect(input).toHaveAttribute('spellcheck', 'false');
+    expect(input).toHaveAttribute('autocorrect', 'off');
+    expect(input).toHaveAttribute('autocapitalize', 'off');
+  });
+
   it('does not fetch for queries < 2 chars', async () => {
     renderSearch();
     await typeInto(screen.getByRole('combobox'), 'a');
@@ -193,6 +201,31 @@ describe('suggestions dropdown', () => {
 
     expect(screen.getByRole('listbox')).toBeInTheDocument();
     expect(screen.getAllByRole('option')).toHaveLength(3);
+  });
+
+  it('splits address suggestions into a primary address line and postcode-city metadata', async () => {
+    const displayName = 'Damrak 1, 1012LG Amsterdam';
+    mockSuggest.mockResolvedValue({
+      suggestions: [
+        makeSuggestion({
+          id: 'damrak-1',
+          display_name: displayName,
+        }),
+      ],
+    });
+    renderSearch();
+
+    await typeAndFlush(screen.getByRole('combobox'), 'damrak');
+
+    const option = screen.getByRole('option');
+    expect(option).toHaveTextContent('Damrak 1');
+    expect(option).toHaveTextContent('1012LG Amsterdam');
+    expect(option).toHaveAttribute('aria-label', displayName);
+    expect(option).toHaveClass('address-search__suggestion');
+    expect(option.querySelector('.address-search__item-primary')).toHaveTextContent('Damrak 1');
+    expect(option.querySelector('.address-search__suggestion-primary')).toHaveTextContent('Damrak 1');
+    expect(option.querySelector('.address-search__item-meta')).toHaveTextContent('1012LG Amsterdam');
+    expect(option.querySelector('.address-search__suggestion-secondary')).toHaveTextContent('1012LG Amsterdam');
   });
 
   it('calls onSelect and closes dropdown on suggestion click', async () => {
@@ -551,7 +584,7 @@ describe('recent searches', () => {
     const { onSelect } = renderSearch();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Try it: Keizersgracht 1, Amsterdam' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Run an example address' }));
       await Promise.resolve();
     });
 
@@ -561,6 +594,32 @@ describe('recent searches', () => {
       lookup_id: 'adr-live-example',
       source: 'example',
     });
+  });
+});
+
+describe('pre-bid evidence positioning', () => {
+  it('frames the first-visit search screen around pre-bid evidence without the product scope strip', () => {
+    renderSearch();
+
+    expect(screen.getByRole('heading', { name: "Know what you're buying before you visit" })).toBeInTheDocument();
+    expect(screen.getByText('Checks noise, air, climate and livability before you view.')).toBeInTheDocument();
+    expect(screen.getByText('Top 3 checks')).toBeInTheDocument();
+    expect(screen.getByText('Source coverage')).toBeInTheDocument();
+    expect(screen.getAllByText('Questions pack').length).toBeGreaterThan(0);
+    expect(screen.getByText('Source, date, confidence, limit.')).toBeInTheDocument();
+    expect(screen.queryByRole('term', { name: 'Free' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('term', { name: 'Sources' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('term', { name: 'Pack' })).not.toBeInTheDocument();
+    expect(document.querySelector('.address-search__trust-signal')).not.toBeInTheDocument();
+  });
+
+  it('promotes the search proposition to the page h1', () => {
+    renderSearch();
+
+    expect(screen.getByRole('heading', {
+      level: 1,
+      name: "Know what you're buying before you visit",
+    })).toBeInTheDocument();
   });
 });
 

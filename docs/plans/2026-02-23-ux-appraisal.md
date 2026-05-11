@@ -90,7 +90,6 @@ Additionally, `TopBar.tsx:29` has hardcoded `aria-label="Buurt Check home"` on t
 ## Medium Issues (P2)
 
 ### 10. Inconsistent card visual language — **CONFIRMED**
-Five distinct card formats verified in code. Additionally (from Codex review): crime stats (raw tabular numbers) get no severity interpretation while noise (65 dB) gets a full comparison chart. The severity system (score + badge + color + icon) is well-defined in tokens but inconsistently deployed across card types.
 
 ### 11. Comparison bars lack legend AND color differentiation — **PARTIALLY CONFIRMED** (2026-02-24 correction)
 **Correction:** The `CompareScreen` parallel coordinates chart (`ParallelCoordinates.tsx:125-138`) DOES have a legend with color swatches and address labels. The finding remains CONFIRMED for `RiskDetailView` and `LivabilityDetailView` comparison bars, which use the same `var(--color-accent)` color with only `opacity: 0.7` differentiating reference bars. Neither has a persistent legend or directionality indicators ("higher = better"). **Two separate systems:** CompareScreen (has legend, needs directionality) vs detail view bars (lacks both legend and differentiation).
@@ -138,8 +137,6 @@ Zero dossier card components import Framer Motion for entrance. `SPRING_REVEAL` 
 ### 18. Recent search timestamps are in English — **CONFIRMED**
 `formatRelativeTime` in `AddressSearch.tsx:12-21` returns hardcoded English: `"just now"`, `"3m ago"`, `"yesterday"`, `"3d ago"`. No `t()` call. These display as English strings even when the UI is in Dutch.
 
-### 19. Crime stats raw numbers lack context — **CONFIRMED** (not directly verified but consistent with card audit)
-Unlike risk cards which have comparison bars and severity badges, crime stats present raw numbers without interpretation framework.
 
 ---
 
@@ -152,7 +149,7 @@ Design tokens define 7 weights (300-900) but components only use 5: 400, 500, 60
 Codex claimed "same 16px padding, same 16px gap everywhere." This is **incorrect**. 11 spacing tokens are all used, with 30+ unique padding combinations. 85% use tokens correctly; 15% hardcode pixels for micro-alignments (2px badges, 6px grid gaps, 8px action bar). The spacing system is well-disciplined but pragmatic.
 
 ### Color usage is conservative
-Arctic Teal appears on buttons, score slider accent, and target building — but the dossier body is almost entirely monochrome (dark slate text on white/dark surfaces). Severity colors only appear on small badges. Consider using color more boldly for visual landmarks: phase dividers, section backgrounds, card accent strips.
+Stitch Teal appears on buttons, score slider accent, and target building — but the dossier body is almost entirely monochrome (dark slate text on white/dark surfaces). Severity colors only appear on small badges. Consider using color more boldly for visual landmarks: phase dividers, section backgrounds, card accent strips.
 
 ### Dark mode is better than light mode
 OLED black with teal accents and dark surface cards creates genuine atmosphere. Light mode feels flat — white cards on nearly-white background with thin borders. The light theme needs more surface depth: shadows, subtle gradients, or varied background tones.
@@ -166,7 +163,6 @@ All claims verified against actual design docs (`design-prd.md`, `design-spec.md
 | PRD Promise | Source | Reality | Status |
 |---|---|---|---|
 | "Briefing, not dashboard" | design-prd.md | ~12 screens of unstructured scroll; risk data shown 3x (tile + card + detail) | GAP |
-| "Consequences over data" | design-prd.md | Delivered in risk cards; absent for crime, building facts, neighborhood stats | PARTIAL |
 | ActionBar appears on scroll to checklist | SC-4.3.5a | Always-visible fixed bottom (spec SC-13e contradicts PRD) | CONFLICT |
 | Progressive 3D loading + 3-tier fallback | design-prd.md §4.3.2 | Binary: loading or loaded. No LoD fallback tiers | GAP |
 | 3D deferred until viewport entry | design-prd.md | Fires eagerly at Phase 3, 8 sections before visible | GAP |
@@ -188,7 +184,6 @@ All claims verified against actual design docs (`design-prd.md`, `design-spec.md
 Per-section retry buttons exist but no global "retry all failed" affordance. If multiple sources fail, the user must find and tap each retry button individually.
 
 ### ~~No progressive loading sequence~~ — **REFUTED** (2026-02-24 verification)
-~~Whether card sections use individual loading states or all appear at once needs runtime verification.~~ **Implemented.** `App.tsx:434` defines `progressivePhase` state with `'house'` and `'buurt'` phases. Buurt-phase sections (Livability, TierB, Sunlight, 3D) are conditionally hidden until house phase data loads. Combined with hash routing (`a8fcd19`), the app now has URL-driven progressive loading with route hydration.
 
 ---
 
@@ -246,7 +241,6 @@ The gap between "developer's impressive side project" and "tool I'd trust for a 
 | 17 | Theme toggle cryptic | REFUTED | No sun/moon toggle in TopBar; settings button has aria-label |
 | 18 | Export no loading state | CONFIRMED | — |
 | 19 | Timestamps in English | CONFIRMED | Hardcoded English in `formatRelativeTime` |
-| 20 | Crime stats no context | CONFIRMED | — |
 
 ### PRD Compliance Audit
 
@@ -335,7 +329,6 @@ The audit makes several strategic product observations that are reasonable but n
 - **"No help center / FAQ / methodology docs"** — Valid gap for a consumer product making property claims.
 - **"No event tracking / analytics"** — Valid. No Mixpanel/Amplitude/PostHog.
 - **"No third-party trust signals"** — Valid. No testimonials, press, or partnership logos.
-- **"Tone should be friendly, slightly informal"** — Already largely addressed. Risk detail view translates data into consequences. Some areas (crime stats, building facts) still present raw data.
 
 ### Audit Methodology Concerns
 
@@ -423,7 +416,6 @@ const [loading, setLoading] = useState(false);
 const [error, setError] = useState(null);
 ```
 
-× 5 sources (risk, warnings, livability, stats, tierB) = 15 of the 47 states.
 
 This doesn't directly affect UX but creates maintainability complexity that makes UX changes expensive. The 170-line `handleAddressSelect` callback is a sequential async state machine that's difficult to reason about.
 
@@ -486,7 +478,6 @@ The type system defines 12 named tokens, but 4 hardcoded specs bypass them:
 - `RiskTile.css:51-54` — hardcoded `28px/900` instead of `--type-score-tile`
 - `LivabilityCard.css:63` — hardcoded `700 24px/1` instead of `--type-data`
 - `RiskTile.css:36-38` — hardcoded `13px/600` instead of `--type-caption` or `--type-label`
-- `TierBSignalsCard.css:76` — hardcoded `11px` instead of `--type-micro`
 
 **Simplification:** Replace hardcoded values with tokens. Doesn't change the visual result but enforces the type scale discipline and makes future simplification (reducing the number of type steps) possible.
 
@@ -708,7 +699,7 @@ Each opportunity is assessed against the brand's "calm confidence" personality a
 - The `!important` is necessary here (and justified) — it's a temporary global override that's removed after animation completes. Without it, component-level transitions would fight the global crossfade.
 - `prefers-reduced-motion`: skip the class entirely — instant toggle (current behavior).
 
-**Impact:** MEDIUM — transforms a jarring flash into a polished transition. Especially valuable on OLED where the contrast between `#000000` and `#FAFBFC` is extreme.
+**Impact:** MEDIUM — transforms a jarring flash into a polished transition. Especially valuable on OLED where the contrast between `#000000` and `#F9FAFB` is extreme.
 
 **Effort:** LOW — ~10 lines of CSS + ~5 lines in theme toggle function. No component changes.
 
@@ -882,7 +873,6 @@ The `prefers-reduced-motion` gap (A7) is non-negotiable — ship it before any n
 
 **Compounding factor:** Many `useCallback` hooks reference frequently-changing state, defeating memoization. Inline arrow functions in JSX (`onTap={() => onTileTap?.('noise')}`) recreate on every render.
 
-**Fix:** Add `React.memo` to the 20 most-rendered leaf components: `RiskTile`, `RiskTilesGrid`, `SeverityBadge`, `BuildingFactsCard`, `SoilInfoCard`, `NeighborhoodStatsCard`, `TierBSignalsCard`, `LivabilityCard`, `PropertyWarningsCard`, `SummaryStrip`, `AttentionSummary`, `ViewingChecklist`, `AddressHeader`, `ShadowSnapshots`. Stabilize callback references with proper dependency arrays.
 
 **Estimated impact:** 30-50% fewer re-renders during dossier interaction (checklist toggling, detail view opening, scroll state changes).
 
@@ -906,7 +896,6 @@ The `prefers-reduced-motion` gap (A7) is non-negotiable — ship it before any n
 
 **Fix:**
 - Add `contain: content` to each dossier section wrapper (isolates layout/paint)
-- Add `content-visibility: auto` to sections below the fold (NeighborhoodStats, TierB, ViewingChecklist) — browser skips rendering until scrolled into view
 - Add `will-change: transform` sparingly to fixed elements (TabBar, ActionBar) for compositor promotion
 
 **Estimated impact:** 30-40% reduction in layout reflow time during dossier interactions. Largest gain on mobile devices with slower CPUs.
@@ -1330,7 +1319,6 @@ These three changes require no new components, no architectural changes, and no 
 Measured expansion ratios:
 - `shortlist.maxReached`: EN 48 chars → NL 65 chars (+35%)
 - `warnings.attention.missing_categories`: EN 95 chars → NL 113 chars (+19%)
-- `dossier.coverage.stale`: EN 38 chars → NL 46 chars (+21%)
 - `export.fullDossierMeta`: EN "5+ pages" → NL "5+ pagina's" (+37%)
 
 These render in constrained contexts (Toast with `white-space: nowrap`, SummaryStrip pills, coverage banner). The Toast overflow is the most visible issue (H1.3).
@@ -1576,10 +1564,6 @@ But that quality is inconsistent. Error messages, loading states, source attribu
 
 #### HIGH — Internal naming / jargon exposed to users
 
-**C3: "Tier-B signals" — internal taxonomy leaked into UI**
-- **Location:** `tier_b.*` keys in en.json, section header visible to users
-- **Problem:** "Tier B" is an internal data-priority classification meaningless to users. Users see "Tier-B Signals" as a section title.
-- **Impact:** Users wonder "what's Tier B? Is Tier A better? Am I missing something?"
 - **Fix:** Rename to "Additional property checks" (EN) / "Aanvullende woningcontroles" (NL). Remove all "tier" language from user-facing copy.
 
 **C4: "Pand ID" shown to users**
@@ -1749,7 +1733,6 @@ But that quality is inconsistent. Error messages, loading states, source attribu
 
 ### The Clarity Thesis
 
-This app has a **split personality**. Risk card explanations speak like a trusted advisor: *"Traffic or rail noise is noticeable, especially with windows open."* But error messages speak like a server log: *"Data could not be loaded."* Source citations speak like a government report: *"Rijksinstituut voor Volksgezondheid en Milieu."* And navigation speaks like a developer's TODO: *"Tier-B signals."*
 
 The fix isn't about rewriting 452 keys. It's about extending the voice that already works — the risk explanation voice — to every piece of text in the app. Three principles:
 

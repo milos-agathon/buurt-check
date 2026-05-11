@@ -30,6 +30,10 @@ const pricingConfigRef = vi.hoisted(
   () => ({ current: { price: '3.99', webCheckoutAvailable: true, serverRenderAvailable: true } }),
 );
 
+const paidPackRadioName = /Full dossier|Volledig dossier/i;
+const paidPackActionName = /Unlock Full Report|Volledig rapport ontgrendelen|Download Full dossier|Volledig dossier downloaden/i;
+const paidPackBuyName = /Buy Full dossier|Volledig dossier kopen/i;
+
 vi.mock('./services/api', async () => {
   const actual = await vi.importActual<typeof import('./services/api')>('./services/api');
   return {
@@ -48,9 +52,15 @@ vi.mock('./services/api', async () => {
     getRiskComparisons: vi.fn(),
     getNeighborhoodStats: vi.fn(),
     getViewingQuestions: vi.fn(),
-    getTierBData: vi.fn(),
     getPropertyWarnings: vi.fn(),
     getLivability: vi.fn(),
+    fetchPrebidBriefing: vi.fn(),
+    fetchPrebidPack: vi.fn(),
+    sharePrebidPack: vi.fn(),
+    emailPrebidPack: vi.fn(),
+    deletePrebidBriefing: vi.fn(),
+    fetchSharedPrebidBriefing: vi.fn(),
+    fetchSharedPrebidPack: vi.fn(),
     prewarmShadowEvidence: vi.fn(),
     submitSunlightAnalysis: vi.fn(),
     exportBriefing: vi.fn(),
@@ -90,11 +100,12 @@ vi.mock('./services/navigation', () => ({
   navigateToExternal: vi.fn(),
 }));
 
-vi.mock('./services/analytics', async () => {
-  const actual = await vi.importActual<typeof import('./services/analytics')>('./services/analytics');
+vi.mock('./services/clientEvents', async () => {
+  const actual = await vi.importActual<typeof import('./services/clientEvents')>('./services/clientEvents');
   return {
     ...actual,
     trackEvent: vi.fn(),
+    trackPrebidEvent: vi.fn(),
     trackPageView: vi.fn(),
   };
 });
@@ -149,9 +160,15 @@ import {
   getRiskComparisons,
   getNeighborhoodStats,
   getViewingQuestions,
-  getTierBData,
   getPropertyWarnings,
   getLivability,
+  fetchPrebidBriefing,
+  fetchPrebidPack,
+  sharePrebidPack,
+  emailPrebidPack,
+  deletePrebidBriefing,
+  fetchSharedPrebidBriefing,
+  fetchSharedPrebidPack,
   prewarmShadowEvidence,
   submitSunlightAnalysis,
   exportBriefing,
@@ -178,7 +195,8 @@ import {
 } from './services/appleBilling';
 import { resolveBillingProvider } from './services/billingProvider';
 import { navigateToExternal } from './services/navigation';
-import { trackEvent } from './services/analytics';
+import { trackEvent, trackPrebidEvent } from './services/clientEvents';
+import { pack as prebidPackFixture } from './components/prebid/testFixtures';
 const mockLookup = vi.mocked(lookupAddress);
 const mockCreateShortReport = vi.mocked(createShortReport);
 const mockCheckEntitlement = vi.mocked(checkEntitlement);
@@ -194,9 +212,15 @@ const mockRiskCards = vi.mocked(getRiskCards);
 const mockRiskComparisons = vi.mocked(getRiskComparisons);
 const mockNeighborhoodStats = vi.mocked(getNeighborhoodStats);
 const mockViewingQuestions = vi.mocked(getViewingQuestions);
-const mockTierBData = vi.mocked(getTierBData);
 const mockPropertyWarnings = vi.mocked(getPropertyWarnings);
 const mockLivability = vi.mocked(getLivability);
+const mockFetchPrebidBriefing = vi.mocked(fetchPrebidBriefing);
+const mockFetchPrebidPack = vi.mocked(fetchPrebidPack);
+const mockSharePrebidPack = vi.mocked(sharePrebidPack);
+const mockEmailPrebidPack = vi.mocked(emailPrebidPack);
+const mockDeletePrebidBriefing = vi.mocked(deletePrebidBriefing);
+const mockFetchSharedPrebidBriefing = vi.mocked(fetchSharedPrebidBriefing);
+const mockFetchSharedPrebidPack = vi.mocked(fetchSharedPrebidPack);
 const mockPrewarmShadowEvidence = vi.mocked(prewarmShadowEvidence);
 const mockSubmitSunlightAnalysis = vi.mocked(submitSunlightAnalysis);
 const mockExportBriefing = vi.mocked(exportBriefing);
@@ -219,6 +243,7 @@ const mockIsAppleBillingPendingError = vi.mocked(isAppleBillingPendingError);
 const mockResolveBillingProvider = vi.mocked(resolveBillingProvider);
 const mockNavigateToExternal = vi.mocked(navigateToExternal);
 const mockTrackEvent = vi.mocked(trackEvent);
+const mockTrackPrebidEvent = vi.mocked(trackPrebidEvent);
 let i18nInstance: Awaited<ReturnType<typeof setupTestI18n>>;
 
 beforeAll(async () => {
@@ -248,9 +273,15 @@ beforeEach(async () => {
   mockRiskComparisons.mockReset();
   mockNeighborhoodStats.mockReset();
   mockViewingQuestions.mockReset();
-  mockTierBData.mockReset();
   mockPropertyWarnings.mockReset();
   mockLivability.mockReset();
+  mockFetchPrebidBriefing.mockReset();
+  mockFetchPrebidPack.mockReset();
+  mockSharePrebidPack.mockReset();
+  mockEmailPrebidPack.mockReset();
+  mockDeletePrebidBriefing.mockReset();
+  mockFetchSharedPrebidBriefing.mockReset();
+  mockFetchSharedPrebidPack.mockReset();
   mockPrewarmShadowEvidence.mockReset();
   mockSubmitSunlightAnalysis.mockReset();
   mockExportBriefing.mockReset();
@@ -272,6 +303,7 @@ beforeEach(async () => {
   mockResolveBillingProvider.mockReset();
   mockNavigateToExternal.mockReset();
   mockTrackEvent.mockReset();
+  mockTrackPrebidEvent.mockReset();
   neighborhoodViewer3DPropsRef.current = null;
   pricingConfigRef.current = {
     price: '3.99',
@@ -340,10 +372,6 @@ beforeEach(async () => {
   mockRiskComparisons.mockResolvedValue(makeRiskComparisonsResponse());
   mockNeighborhoodStats.mockResolvedValue(makeNeighborhoodStatsResponse());
   mockViewingQuestions.mockResolvedValue({ address_id: 'vbo-123', categories: [] });
-  mockTierBData.mockResolvedValue({
-    address_id: 'vbo-123',
-    crime: { source: 'CBS OData 47018NED/47022NED' },
-  });
   mockPropertyWarnings.mockResolvedValue({
     address_id: 'vbo-123',
     attention_summary: { flag_count: 0, flags: [], risk_categories_assessed: 0, risk_categories_total: 4 },
@@ -355,6 +383,7 @@ beforeEach(async () => {
       messages: [],
     },
     vve: { is_apartment: false, messages: [] },
+    shared_building: { detected: false, messages: [] },
     asbestos: { flagged: false, messages: [] },
     lead_pipe: { flagged: false, messages: [] },
   });
@@ -371,6 +400,107 @@ beforeEach(async () => {
     comparison: [],
     source: 'Leefbaarometer 3.0',
     messages: [],
+  });
+  mockFetchPrebidBriefing.mockResolvedValue({
+    briefing_id: 'brief-backend',
+    address_id: 'vbo-123',
+    report_id: 'report-123',
+    address_label: 'Keizersgracht 100, 1015AA Amsterdam',
+    checked_at: '2026-05-07T10:00:00Z',
+    result_state: 'signals_found',
+    disclaimer: 'Source-bound briefing for viewing preparation.',
+    coverage: [
+      {
+        id: 'official_publications',
+        authority: 'KOOP',
+        label: 'Official public notices',
+        status: 'checked',
+        basis: 'address',
+        limitation: 'Backend source limitation.',
+      },
+    ],
+    top_actions: [
+      {
+        id: 'backend-action',
+        category: 'permit',
+        priority: 1,
+        severity: 'moderate',
+        finding: 'Backend permit signal should be checked.',
+        why_it_matters: 'It may affect planning or timing.',
+        ask_this: { en: 'Can you confirm the backend permit status?', nl: 'Kunt u de backendvergunning bevestigen?' },
+        request_this: 'Request the backend source record.',
+        who_to_ask: ['municipality'],
+        confidence: 'medium',
+        limitation: 'Backend source limitation.',
+        source_refs: [
+          {
+            name: 'Official public notices',
+            checked_at: '2026-05-07T10:00:00Z',
+            coverage_status: 'checked',
+            limitation: 'Backend source limitation.',
+          },
+        ],
+      },
+    ],
+    source_quality: {
+      unknown_source_date_count: 0,
+      generic_confidence_count: 0,
+      generic_limitation_count: 0,
+      missing_source_ref_count: 0,
+      missing_recipient_count: 0,
+      caps: [],
+    },
+  });
+  mockFetchPrebidPack.mockResolvedValue({
+    ...prebidPackFixture,
+    address_id: 'vbo-123',
+    report_id: 'report-123',
+    address_label: 'Keizersgracht 100, 1015AA Amsterdam',
+    share_url: 'https://app.buurt-check.nl/#/shared-pack/backend-pack-token',
+  });
+  mockSharePrebidPack.mockResolvedValue({
+    share_url: 'https://app.buurt-check.nl/#/shared-pack/backend-pack-token',
+    share_token: 'backend-pack-token',
+    scope: 'pack',
+    expires_at: '2026-05-14T10:00:00Z',
+  });
+  mockEmailPrebidPack.mockResolvedValue({
+    share_url: 'https://app.buurt-check.nl/#/shared-pack/backend-email-pack-token',
+    share_token: 'backend-email-pack-token',
+    scope: 'pack',
+  });
+  mockDeletePrebidBriefing.mockResolvedValue({ deleted: true });
+  mockFetchSharedPrebidBriefing.mockResolvedValue({
+    state: 'valid',
+    mode: 'briefing',
+    briefing: {
+      briefing_id: 'shared-briefing',
+      address_id: 'vbo-123',
+      address_label: 'Shared address',
+      checked_at: '2026-05-07T10:00:00Z',
+      result_state: 'signals_found',
+      disclaimer: 'Shared briefing disclaimer.',
+      coverage: [],
+      top_actions: [],
+      source_quality: {
+        unknown_source_date_count: 0,
+        generic_confidence_count: 0,
+        generic_limitation_count: 0,
+        missing_source_ref_count: 0,
+        missing_recipient_count: 0,
+        caps: [],
+      },
+    },
+  });
+  mockFetchSharedPrebidPack.mockResolvedValue({
+    state: 'valid',
+    mode: 'pack',
+    pack: {
+      ...prebidPackFixture,
+      address_id: 'vbo-123',
+      report_id: 'report-123',
+      address_label: 'Shared pack address',
+    },
   });
   mockPrewarmShadowEvidence.mockResolvedValue({
     status: 'ready',
@@ -459,21 +589,27 @@ async function triggerViewer3DIntersection() {
   await triggerIntersection('[data-testid="viewer-3d-sentinel"]');
 }
 
+async function waitForDossierLoaded() {
+  await waitFor(() => {
+    expect(screen.getByText('Building Facts')).toBeInTheDocument();
+  });
+}
+
 /**
  * Simulates selecting an address: type query, trigger debounce, click suggestion.
  * Uses fake timers briefly to advance the 300ms debounce, then restores real timers
  * so waitFor can poll normally for async state updates.
  *
  * If the search screen is not visible (e.g. we're on the dossier screen),
- * navigates to the Home tab first so the combobox is rendered.
+ * navigates to the Search tab first so the combobox is rendered.
  */
 async function selectAddress() {
   const suggestion = makeSuggestion();
   mockSuggest.mockResolvedValue({ suggestions: [suggestion] });
 
-  // If on the dossier/briefing screen, navigate to Home tab first
+  // If on the dossier/briefing screen, navigate to Search tab first
   if (!screen.queryByRole('combobox')) {
-    const homeTab = screen.getByRole('tab', { name: 'Home' });
+    const homeTab = screen.getByRole('tab', { name: 'Search' });
     await act(async () => {
       fireEvent.click(homeTab);
     });
@@ -498,6 +634,7 @@ async function selectAddress() {
       pointerType: 'touch',
     });
   });
+
 }
 
 describe('initial render', () => {
@@ -552,6 +689,146 @@ describe('hash route recovery', () => {
 });
 
 describe('address selection flow', () => {
+  it('does not render source coverage age metadata above the risk tiles', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+    await waitForDossierLoaded();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('risk-tile-noise')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/sources loaded/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Newest:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Oldest:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/stale source/i)).not.toBeInTheDocument();
+  });
+
+  it('creates the source run immediately after address selection without rendering the free briefing card', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockFetchPrebidBriefing).toHaveBeenCalledWith(
+        'vbo-123',
+        expect.objectContaining({
+          report_id: 'report-123',
+          confirmed_address: 'Keizersgracht 100, 1015AA Amsterdam',
+          postcode: '1015AA',
+          municipality: 'Amsterdam',
+          rd_x: 121000,
+          rd_y: 487000,
+          lat: 52.3676,
+          lng: 4.8846,
+        }),
+        expect.any(AbortSignal),
+      );
+    });
+    expect(screen.queryByText('Confirm the property')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Start source checks/i })).not.toBeInTheDocument();
+    await waitForDossierLoaded();
+    expect(screen.queryByTestId('prebid-briefing-panel')).not.toBeInTheDocument();
+    expect(screen.queryByText('Backend permit signal should be checked.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Open source coverage/i })).not.toBeInTheDocument();
+  });
+
+  it('fetches the buyer-bound backend pack before rendering the pack route', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+    await act(async () => {
+      window.location.hash = '#/pack/vbo-123/report-123';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+
+    await waitFor(() => {
+      expect(mockFetchPrebidPack).toHaveBeenCalledWith(
+        'vbo-123',
+        'report-123',
+        expect.any(AbortSignal),
+      );
+    });
+    expect(await screen.findByText('Pre-Bid Evidence & Questions Pack')).toBeInTheDocument();
+    expect(screen.getByText('Keizersgracht 100, 1015AA Amsterdam')).toBeInTheDocument();
+  });
+
+  it('creates scoped pack share links through the backend API', async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await selectAddress();
+    await act(async () => {
+      window.location.hash = '#/pack/vbo-123/report-123';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    await screen.findByTestId('pack-view');
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Share pack/i }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Copy scoped link/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockSharePrebidPack).toHaveBeenCalledWith(
+        'vbo-123',
+        'report-123',
+        { consent_to_share: true },
+        expect.any(AbortSignal),
+      );
+    });
+    expect(await screen.findByText('https://app.buurt-check.nl/#/shared-pack/backend-pack-token')).toBeInTheDocument();
+  });
+
+  it('loads shared pack routes from scoped token APIs', async () => {
+    window.location.hash = '#/shared-pack/backend-pack-token';
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(mockFetchSharedPrebidPack).toHaveBeenCalledWith(
+        'backend-pack-token',
+        expect.any(AbortSignal),
+      );
+    });
+    expect(await screen.findByText('Shared pack address')).toBeInTheDocument();
+  });
+
+  it('uses the scrubbed prebid analytics path for briefing failures', async () => {
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    mockFetchPrebidBriefing.mockRejectedValue(new ApiError('error.server', 500));
+
+    renderApp();
+    await selectAddress();
+
+    await waitFor(() => {
+      expect(mockTrackPrebidEvent).toHaveBeenCalledWith(
+        'briefing_failed',
+        expect.objectContaining({ reason: 'api_error' }),
+      );
+    });
+    expect(mockTrackEvent).not.toHaveBeenCalledWith(
+      'prebid_briefing_failed',
+      expect.objectContaining({
+        vbo_id: expect.any(String),
+        report_id: expect.any(String),
+      }),
+    );
+  });
+
   it('calls lookupAddress then getBuildingFacts on selection', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress());
     mockBuilding.mockResolvedValue(makeBuildingResponse());
@@ -630,7 +907,7 @@ describe('address selection flow', () => {
     ]));
     mockLookup
       .mockRejectedValueOnce(new ApiError('error.data_source', 404))
-      .mockResolvedValueOnce(makeResolvedAddress({
+      .mockResolvedValue(makeResolvedAddress({
         id: 'adr-live-example',
         display_name: 'Keizersgracht 1-1, 1015CC Amsterdam',
       }));
@@ -657,7 +934,6 @@ describe('address selection flow', () => {
         pointerType: 'touch',
       });
     });
-
     await waitFor(() => {
       expect(mockLookup).toHaveBeenNthCalledWith(1, 'adr-stale-example', expect.any(AbortSignal));
     });
@@ -667,9 +943,7 @@ describe('address selection flow', () => {
     await waitFor(() => {
       expect(mockLookup).toHaveBeenNthCalledWith(2, 'adr-live-example', expect.any(AbortSignal));
     });
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
     expect(
       screen.queryByText("We couldn't load data from this source right now. Try again in a moment."),
     ).not.toBeInTheDocument();
@@ -724,9 +998,7 @@ describe('error handling', () => {
 
     await selectAddress();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
   });
 
   it('does not crash when getRiskCards fails', async () => {
@@ -738,9 +1010,7 @@ describe('error handling', () => {
     await selectAddress();
 
     // Should still render building facts card without error
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
     expect(screen.getByText('Something went wrong on our end. Your data is safe — try refreshing.')).toBeInTheDocument();
   });
 
@@ -902,7 +1172,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -911,7 +1181,7 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
     fireEvent.click(screen.getByTestId('export-generate-btn'));
 
     await waitFor(() => {
@@ -932,7 +1202,7 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
-    expect(screen.queryByText("We couldn't generate the PDF. Try again. Your dossier data is still available.")).not.toBeInTheDocument();
+    expect(screen.queryByText("We couldn't generate the PDF. Try again. Your briefing data is still available.")).not.toBeInTheDocument();
   });
 
   it('opens the export sheet from the next-steps viewing checklist action', async () => {
@@ -956,8 +1226,8 @@ describe('3D viewer integration', () => {
     expect(
       within(screen.getByTestId('export-sheet')).getByRole('radio', { name: /Quick checklist/i }),
     ).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByText('Full Dossier (€3.99)')).toBeInTheDocument();
-    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: €3.99');
+    expect(screen.getByText('Full dossier (€3.99)')).toBeInTheDocument();
+    expect(screen.queryByTestId('export-buy-price')).not.toBeInTheDocument();
   });
 
   it('renders the dossier action bar immediately after dossier load', async () => {
@@ -995,7 +1265,7 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
     expect(
-      within(screen.getByTestId('export-sheet')).getByRole('radio', { name: /Full Dossier/i }),
+      within(screen.getByTestId('export-sheet')).getByRole('radio', { name: paidPackRadioName }),
     ).toHaveAttribute('aria-checked', 'true');
   });
 
@@ -1033,9 +1303,7 @@ describe('3D viewer integration', () => {
     renderApp();
     await selectAddress();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
     expect(mockPrewarmShadowEvidence).not.toHaveBeenCalled();
   });
 
@@ -1051,9 +1319,7 @@ describe('3D viewer integration', () => {
     renderApp();
     await selectAddress();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
     expect(mockPrewarmShadowEvidence).not.toHaveBeenCalled();
   });
 
@@ -1148,7 +1414,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1156,7 +1422,7 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
     await act(async () => {
       fireEvent.click(screen.getByTestId('export-generate-btn'));
     });
@@ -1213,7 +1479,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1221,7 +1487,7 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
     await waitFor(() => {
       expect(screen.getByTestId('export-sunlight-warning')).toBeInTheDocument();
     });
@@ -1269,6 +1535,20 @@ describe('3D viewer integration', () => {
         adresseerbaar_object_id: 'vbo-123',
       }))
       .mockResolvedValueOnce(makeResolvedAddress({
+        id: 'adr-1',
+        display_name: 'Keizersgracht 100, 1015AA Amsterdam',
+        adresseerbaar_object_id: 'vbo-123',
+      }))
+      .mockResolvedValueOnce(makeResolvedAddress({
+        id: 'adr-2',
+        display_name: 'Damrak 1, 1012LG Amsterdam',
+        adresseerbaar_object_id: 'vbo-456',
+        latitude: 52.374,
+        longitude: 4.893,
+        rd_x: 121300,
+        rd_y: 487320,
+      }))
+      .mockResolvedValueOnce(makeResolvedAddress({
         id: 'adr-2',
         display_name: 'Damrak 1, 1012LG Amsterdam',
         adresseerbaar_object_id: 'vbo-456',
@@ -1309,7 +1589,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1317,7 +1597,7 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
     await act(async () => {
       fireEvent.click(screen.getByTestId('export-generate-btn'));
     });
@@ -1381,7 +1661,7 @@ describe('3D viewer integration', () => {
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1389,7 +1669,7 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
     await act(async () => {
       fireEvent.click(screen.getByTestId('export-generate-btn'));
     });
@@ -1413,13 +1693,11 @@ describe('3D viewer integration', () => {
 
     renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1428,7 +1706,7 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Buy in Google Play/i })).toBeInTheDocument();
@@ -1463,13 +1741,11 @@ describe('3D viewer integration', () => {
 
     renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1478,14 +1754,14 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Buy Full Dossier/i })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: paidPackBuyName })).not.toBeDisabled();
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+      fireEvent.click(screen.getByRole('button', { name: paidPackBuyName }));
     });
 
     await waitFor(() => {
@@ -1503,13 +1779,11 @@ describe('3D viewer integration', () => {
 
     renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1518,9 +1792,9 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+      fireEvent.click(screen.getByRole('button', { name: paidPackBuyName }));
     });
 
     await waitFor(() => {
@@ -1537,13 +1811,11 @@ describe('3D viewer integration', () => {
 
     renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1552,9 +1824,9 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+      fireEvent.click(screen.getByRole('button', { name: paidPackBuyName }));
     });
 
     await waitFor(() => {
@@ -1572,13 +1844,11 @@ describe('3D viewer integration', () => {
 
     renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1587,11 +1857,11 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
     fireEvent.click(within(screen.getByTestId('export-sheet')).getByRole('radio', { name: 'NL' }));
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+      fireEvent.click(screen.getByRole('button', { name: paidPackBuyName }));
     });
 
     await waitFor(() => {
@@ -1613,13 +1883,11 @@ describe('3D viewer integration', () => {
 
     renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -1628,9 +1896,9 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Buy Full Dossier/i }));
+      fireEvent.click(screen.getByRole('button', { name: paidPackBuyName }));
     });
 
     await waitFor(() => {
@@ -1687,7 +1955,7 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-ready-actions')).toBeInTheDocument();
     });
     expect(screen.getByTestId('export-post-checkout-ready')).toHaveTextContent(
-      'Your dossier is ready. Tap Download dossier to save it.',
+      'Your Full dossier is ready. Tap Download to save it.',
     );
     expect(screen.queryByRole('button', { name: /Generate dossier/i })).not.toBeInTheDocument();
     expect(mockDownloadPdfBlob).not.toHaveBeenCalled();
@@ -2206,7 +2474,7 @@ describe('3D viewer integration', () => {
 
     await waitFor(() => {
       expect(
-        screen.getAllByText('Payment received — your dossier will unlock shortly.').length,
+        screen.getAllByText('Payment received — your Full dossier will unlock shortly.').length,
       ).toBeGreaterThan(0);
     }, { timeout: 8_500 });
     await waitFor(() => {
@@ -2261,7 +2529,7 @@ describe('3D viewer integration', () => {
 
     expect(
       screen.getAllByText(
-        'Unlock is taking longer than expected. Retry to check your dossier again.',
+        'Unlock is taking longer than expected. Retry to check your Full dossier again.',
       ).length,
     ).toBeGreaterThan(0);
 
@@ -2312,9 +2580,7 @@ describe('3D viewer integration', () => {
     renderApp();
 
     // Wait for the address to fully load (lookupAddress + building facts resolved).
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     // At this point address state changed, which recreates activatePurchasedEntitlement,
     // which re-triggers the checkout verification effect and cancels the in-flight promise.
@@ -2373,9 +2639,7 @@ describe('3D viewer integration', () => {
         'signed-buyer-token',
       );
     });
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
     expect(mockCreateShortReport).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -2498,13 +2762,11 @@ describe('3D viewer integration', () => {
 
     renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -2513,12 +2775,13 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Buy in App Store/i })).toBeInTheDocument();
     });
-    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: $4.99');
+    expect(screen.getByText('Full dossier ($4.99)')).toBeInTheDocument();
+    expect(screen.queryByTestId('export-buy-price')).not.toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Buy in App Store/i }));
@@ -2546,13 +2809,11 @@ describe('3D viewer integration', () => {
 
     renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -2562,17 +2823,17 @@ describe('3D viewer integration', () => {
     });
 
     expect(screen.getByRole('button', {
-      name: /Unlock dossier \(€3\.99\)/i,
+      name: /Unlock Full Report \(€3\.99\)/i,
       hidden: true,
     })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Buy in App Store/i })).toBeInTheDocument();
     });
-    expect(screen.getByText('Full Dossier (€3.99)')).toBeInTheDocument();
-    expect(screen.getByTestId('export-buy-price')).toHaveTextContent('Full dossier: €3.99');
+    expect(screen.getByText('Full dossier (€3.99)')).toBeInTheDocument();
+    expect(screen.queryByTestId('export-buy-price')).not.toBeInTheDocument();
   });
 
   it('restores a pending Apple purchase for the current report', async () => {
@@ -2592,6 +2853,7 @@ describe('3D viewer integration', () => {
     });
 
     renderApp();
+    await waitForDossierLoaded();
 
     await waitFor(() => {
       expect(mockVerifyAppleAppStorePurchase).toHaveBeenCalledWith(
@@ -2619,13 +2881,11 @@ describe('3D viewer integration', () => {
 
     renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', {
-        name: /Unlock dossier|Unlock full dossier|Download dossier/i,
+        name: paidPackActionName,
         hidden: true,
       }));
     });
@@ -2634,7 +2894,7 @@ describe('3D viewer integration', () => {
       expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /Full Dossier/i }));
+    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Buy in App Store/i }));
@@ -2643,7 +2903,7 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(
         screen.getAllByText(
-          'Payment received — your dossier will unlock shortly.',
+          'Payment received — your Full dossier will unlock shortly.',
         ).length,
       ).toBeGreaterThan(0);
     });
@@ -2659,9 +2919,7 @@ describe('3D viewer integration', () => {
     await triggerViewer3DIntersection();
 
     // Should still render building facts card without error
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
     expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     expect(screen.getByText(/1 buildings/)).toBeInTheDocument();
     // No error shown to user for 3D failure
@@ -2682,7 +2940,7 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
-    // SunlightRiskCard is premium-only (PDF/Full Dossier), not shown in viewer
+    // SunlightRiskCard is paid-export only, not shown in viewer.
     expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
   });
@@ -2762,7 +3020,7 @@ describe('3D viewer integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
     });
-    // SunlightRiskCard is premium-only (PDF/Full Dossier), not shown in viewer
+    // SunlightRiskCard is paid-export only, not shown in viewer.
     expect(screen.queryByText('Sunlight unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('Loading sunlight...')).not.toBeInTheDocument();
   });
@@ -2816,7 +3074,7 @@ describe('neighborhood stats integration', () => {
     });
   });
 
-  it('calls getTierBData with resolved address context', async () => {
+  it('does not render the removed registered-safety section in the app dossier', async () => {
     mockLookup.mockResolvedValue(makeResolvedAddress({
       buurt_code: 'BU0363AD07',
     }));
@@ -2825,11 +3083,9 @@ describe('neighborhood stats integration', () => {
     renderApp();
     await selectAddress();
 
-    await waitFor(() => {
-      expect(mockTierBData).toHaveBeenCalledWith('vbo-123', {
-        buurtCode: 'BU0363AD07',
-      }, expect.any(AbortSignal), 'report-123');
-    });
+    await waitForDossierLoaded();
+    expect(screen.queryByTestId('tier-b-card')).not.toBeInTheDocument();
+    expect(screen.queryByText(/registered safety/i)).not.toBeInTheDocument();
   });
 
   it('passes buurt_code from resolved address', async () => {
@@ -2871,9 +3127,7 @@ describe('neighborhood stats integration', () => {
     renderApp();
     await selectAddress();
 
-    await waitFor(() => {
-      expect(screen.getByText('Building Facts')).toBeInTheDocument();
-    });
+    await waitForDossierLoaded();
     expect(screen.queryByText('Something went wrong on our end. Your data is safe — try refreshing.')).not.toBeInTheDocument();
   });
 
@@ -2937,13 +3191,12 @@ describe('dossier section order (v7 canonical)', () => {
     // Wait for all sections to render in the viewer
     await waitFor(() => {
       expect(screen.getByTestId('attention-summary')).toBeInTheDocument();
-      expect(screen.getByTestId('address-header')).toBeInTheDocument();
       expect(screen.getByText('Building Facts')).toBeInTheDocument();
+      expect(screen.getByTestId('address-header')).toBeInTheDocument();
       expect(document.querySelector('.risk-tiles-grid')).toBeInTheDocument();
       expect(screen.getByTestId('livability-card')).toBeInTheDocument();
       expect(screen.getByTestId('viewer-3d')).toBeInTheDocument();
       expect(screen.getByTestId('neighborhood-stats')).toBeInTheDocument();
-      expect(screen.getByTestId('tier-b-card')).toBeInTheDocument();
       expect(screen.getByTestId('viewing-checklist')).toBeInTheDocument();
       expect(screen.getByTestId('action-bar')).toBeInTheDocument();
     });
@@ -2952,42 +3205,41 @@ describe('dossier section order (v7 canonical)', () => {
     const dossier = screen.getByTestId('dossier-sheet');
     const all = dossier.querySelectorAll(
       '[data-testid="attention-summary"], ' +
-      '[data-testid="address-header"], ' +
       '.building-card, ' +
       '.risk-tiles-grid, ' +
       '[data-testid="livability-card"], ' +
       '[data-testid="viewer-3d"], ' +
       '[data-testid="neighborhood-stats"], ' +
-      '[data-testid="tier-b-card"], ' +
       '[data-testid="viewing-checklist"], ' +
       '[data-testid="action-bar"]'
     );
     const order = Array.from(all).map((el) => {
       const tid = el.getAttribute('data-testid');
       if (tid === 'attention-summary') return 'attention';
-      if (tid === 'address-header') return 'address-header';
       if (el.classList.contains('building-card')) return 'building';
       if (el.classList.contains('risk-tiles-grid')) return 'risk';
       if (tid === 'livability-card') return 'livability';
       if (tid === 'viewer-3d') return 'viewer-3d';
       if (tid === 'neighborhood-stats') return 'stats';
-      if (tid === 'tier-b-card') return 'tierb';
       if (tid === 'viewing-checklist') return 'checklist';
       if (tid === 'action-bar') return 'actionbar';
       return 'unknown';
     });
 
     // Verify canonical dossier order:
-    // AttentionSummary → AddressHeader → RiskTiles → BuildingFacts →
+    // AttentionSummary → combined AddressHeader/BuildingFacts → RiskTiles →
     // Livability → 3D Viewer →
-    // NeighborhoodStats → TierB → ViewingChecklist → ActionBar
+    // NeighborhoodStats → ViewingChecklist → ActionBar
     const expected = [
-      'attention', 'address-header', 'risk', 'building',
+      'attention', 'building', 'risk',
       'livability', 'viewer-3d',
-      'stats', 'tierb', 'checklist', 'actionbar',
+      'stats', 'checklist', 'actionbar',
     ];
     const filtered = order.filter(s => expected.includes(s));
     expect(filtered).toEqual(expected);
+
+    const buildingCard = dossier.querySelector('.building-card');
+    expect(buildingCard).toContainElement(screen.getByTestId('address-header'));
   });
 
   it('applies stagger indexes to dossier sections for reveal animation', async () => {
@@ -3017,7 +3269,7 @@ describe('dossier section order (v7 canonical)', () => {
     const uniqueIndexes = [...new Set(indexes)];
 
     expect(indexes).toEqual(uniqueIndexes);
-    expect(uniqueIndexes).toEqual([0, 1, 2, 4, 5, 6, 7, 8]);
+    expect(uniqueIndexes).toEqual([0, 1, 2, 4, 5, 6, 8]);
     sections.forEach((section) => {
       const attr = section.getAttribute('data-section-index');
       if (attr == null) return;
@@ -3170,7 +3422,6 @@ describe('property warnings param forwarding', () => {
       expect(mockRiskComparisons).toHaveBeenCalledTimes(1);
       expect(mockViewingQuestions).toHaveBeenCalledTimes(1);
       expect(mockLivability).toHaveBeenCalledTimes(1);
-      expect(mockTierBData).toHaveBeenCalledTimes(1);
       expect(mockPropertyWarnings).toHaveBeenCalledTimes(1);
     });
   });

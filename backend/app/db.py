@@ -55,11 +55,172 @@ CREATE TABLE IF NOT EXISTS reports (
     purchased_at TEXT
 );
 """
+_PREBID_SCHEMA_STATEMENTS = (
+    """CREATE TABLE IF NOT EXISTS source_runs (
+        source_run_id TEXT NOT NULL PRIMARY KEY,
+        report_id TEXT,
+        vbo_id TEXT NOT NULL,
+        buyer_key TEXT,
+        confirmed_address TEXT NOT NULL,
+        postcode TEXT,
+        rd_x REAL,
+        rd_y REAL,
+        lat REAL,
+        lng REAL,
+        municipality TEXT,
+        property_type TEXT NOT NULL DEFAULT 'unknown',
+        result_state TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        deleted_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS source_run_coverage (
+        coverage_id TEXT NOT NULL PRIMARY KEY,
+        source_run_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        authority TEXT NOT NULL,
+        label TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        status TEXT NOT NULL,
+        checked_at TEXT,
+        basis TEXT NOT NULL,
+        radius_m INTEGER,
+        method_version TEXT,
+        duration_ms INTEGER,
+        automated INTEGER NOT NULL DEFAULT 1,
+        human_reviewed INTEGER NOT NULL DEFAULT 0,
+        limitation TEXT NOT NULL,
+        error_code TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS source_records (
+        record_id TEXT NOT NULL PRIMARY KEY,
+        source_run_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        authority TEXT NOT NULL,
+        title TEXT NOT NULL,
+        source_url TEXT,
+        source_date TEXT,
+        status_label TEXT,
+        distance_m REAL,
+        evidence_payload_json TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS signals (
+        signal_id TEXT NOT NULL PRIMARY KEY,
+        source_run_id TEXT NOT NULL,
+        signal_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        finding TEXT NOT NULL,
+        status TEXT,
+        proximity_m REAL,
+        buyer_impact_tags_json TEXT NOT NULL,
+        confidence TEXT NOT NULL,
+        limitation TEXT NOT NULL,
+        recommended_action TEXT NOT NULL,
+        materiality INTEGER NOT NULL,
+        source_refs_json TEXT NOT NULL,
+        requires_review INTEGER NOT NULL DEFAULT 0,
+        review_reason TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS action_items (
+        action_id TEXT NOT NULL PRIMARY KEY,
+        source_run_id TEXT NOT NULL,
+        signal_id TEXT NOT NULL,
+        rank INTEGER NOT NULL,
+        rank_score INTEGER NOT NULL,
+        finding TEXT NOT NULL,
+        why_it_matters TEXT NOT NULL,
+        ask_this_en TEXT NOT NULL,
+        ask_this_nl TEXT NOT NULL,
+        request_this_en TEXT NOT NULL,
+        request_this_nl TEXT NOT NULL,
+        who_to_ask_json TEXT NOT NULL,
+        confidence TEXT NOT NULL,
+        limitation TEXT NOT NULL,
+        source_refs_json TEXT NOT NULL,
+        review_state TEXT NOT NULL DEFAULT 'not_required'
+    )""",
+    """CREATE TABLE IF NOT EXISTS briefings (
+        briefing_id TEXT NOT NULL PRIMARY KEY,
+        source_run_id TEXT NOT NULL,
+        report_id TEXT,
+        buyer_key TEXT NOT NULL,
+        vbo_id TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        deleted_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS prebid_packs (
+        pack_id TEXT NOT NULL PRIMARY KEY,
+        briefing_id TEXT NOT NULL,
+        source_run_id TEXT NOT NULL,
+        report_id TEXT NOT NULL,
+        buyer_key TEXT NOT NULL,
+        vbo_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        pack_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        deleted_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS prebid_share_links (
+        share_link_id TEXT NOT NULL PRIMARY KEY,
+        briefing_id TEXT NOT NULL,
+        pack_id TEXT,
+        buyer_key TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        expires_at TEXT,
+        revoked_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS review_tasks (
+        review_task_id TEXT NOT NULL PRIMARY KEY,
+        source_run_id TEXT NOT NULL,
+        action_id TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        reason TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        decided_at TEXT,
+        decision_json TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS user_contacts (
+        contact_id TEXT NOT NULL PRIMARY KEY,
+        briefing_id TEXT NOT NULL,
+        buyer_key TEXT NOT NULL,
+        email_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        deleted_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS payment_events (
+        payment_event_id TEXT NOT NULL PRIMARY KEY,
+        report_id TEXT,
+        buyer_key TEXT,
+        product TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        provider TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    )""",
+    """CREATE TABLE IF NOT EXISTS audit_log (
+        audit_id TEXT NOT NULL PRIMARY KEY,
+        source_run_id TEXT,
+        report_id TEXT,
+        event_type TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    )""",
+    (
+        "CREATE INDEX IF NOT EXISTS idx_source_runs_buyer_vbo "
+        "ON source_runs(buyer_key, vbo_id, created_at DESC)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_briefings_buyer_vbo "
+        "ON briefings(buyer_key, vbo_id, created_at DESC)"
+    ),
+    "CREATE INDEX IF NOT EXISTS idx_prebid_share_token ON prebid_share_links(token_hash, scope)",
+)
 _BOOTSTRAP_SCHEMA_STATEMENTS = (
     _REPORTS_TABLE_SCHEMA.strip(),
     "CREATE INDEX IF NOT EXISTS idx_reports_vbo_id ON reports(vbo_id)",
     "CREATE INDEX IF NOT EXISTS idx_reports_provider_session ON reports(provider_session_id)",
     "CREATE INDEX IF NOT EXISTS idx_reports_provider_payment ON reports(provider_payment_id)",
+    *_PREBID_SCHEMA_STATEMENTS,
 )
 
 
@@ -102,7 +263,7 @@ class TursoCursor:
         return row
 
     async def fetchall(self) -> list[DatabaseRow]:
-        rows = self._rows[self._index:]
+        rows = self._rows[self._index :]
         self._index = len(self._rows)
         return rows
 
@@ -126,10 +287,7 @@ class TursoConnection:
 
         try:
             columns = tuple(description[0] for description in (cursor.description or ()))
-            rows = [
-                DatabaseRow(columns, tuple(row))
-                for row in (cursor.fetchall() or [])
-            ]
+            rows = [DatabaseRow(columns, tuple(row)) for row in (cursor.fetchall() or [])]
             return TursoCursor(rows, cursor.rowcount)
         finally:
             cursor.close()
@@ -158,9 +316,7 @@ DatabaseConnection = aiosqlite.Connection | TursoConnection
 
 def using_turso() -> bool:
     """Return True when Turso credentials are configured."""
-    return bool(
-        settings.turso_database_url.strip() and settings.turso_auth_token.strip()
-    )
+    return bool(settings.turso_database_url.strip() and settings.turso_auth_token.strip())
 
 
 def database_backend_label() -> str:
@@ -201,8 +357,7 @@ async def _migrate_reports_schema(db: DatabaseConnection) -> None:
     if "buyer_key" not in columns:
         await db.execute("ALTER TABLE reports ADD COLUMN buyer_key TEXT")
         await db.execute(
-            "UPDATE reports SET buyer_key = report_id "
-            "WHERE buyer_key IS NULL OR buyer_key = ''"
+            "UPDATE reports SET buyer_key = report_id WHERE buyer_key IS NULL OR buyer_key = ''"
         )
 
     await db.execute(

@@ -82,7 +82,7 @@ cd frontend && npm run test                 # Vitest (867+ baseline)
 - `CQL_FILTER` for BAG WFS (silently ignored) — use OGC XML Filter
 - `requests` library — use `httpx` async
 - CSS `!important` on canvas dimensions — breaks Three.js `renderer.setSize()`
-- `--color-accent` (#2EC4B6) as text on light bg (fails WCAG) — use `--color-accent-text` (#1C8C83)
+- `--color-accent` (#0D9488) as text on light bg — use `--color-accent-text` / `--color-accent-hover` (#00685F); tertiary warm accent is #C36D4B; full palette in `docs/palette.md`
 - `react-three-fiber` or `drei` — plain Three.js only
 - React Query / Zustand / Redux — useState + props
 - Bare `= []` in Pydantic models — use `Field(default_factory=list)`
@@ -116,7 +116,7 @@ These items MUST remain in the Full Dossier/PDF output. They must NOT be rendere
 
 ## Risk card contract
 
-Every risk card must have: (1) score 0-100 + severity, (2) plain-language meaning, (3) viewing questions, (4) source + date. Tiles in 2x2 grid; tap opens detail with comparison chart (address vs city vs NL vs WHO).
+Every frontend risk card must have: (1) score 0-100 + severity, (2) plain-language meaning, (3) viewing questions, (4) source + date. The app frontend renders only Noise, Air, and Climate risk tiles; tap opens detail with comparison chart (address vs city vs NL vs WHO). Sunlight analysis stays paid-report/PDF only and must not be rendered as a frontend risk tile or detail view.
 
 ## Reference docs (don't embed, just read when needed)
 
@@ -170,7 +170,6 @@ Key patterns from 13 sessions implementing Sunlight v2 Phases 3-6, adversarial c
 - **Concurrent sessions modify working tree mid-review**: Another session can fix bugs during a long review, causing stale findings. Always verify findings against HEAD before acting on them.
 - **Untracked files masquerade as missing**: `git diff` only shows tracked file changes. New files (`??` in git status) won't appear — check `git status` not just `git diff`.
 - **Phase scope bleed causes test failures**: Phase 5 work (~60%) leaked into Phase 4 sessions. Keep implementation sessions strictly scoped to one phase.
-- **PDF root cause is rendering, not data**: Backend computes sunlight, livability, property warnings, crime — but drops them at the fpdf2 rendering boundary. The dossier PDF uses minimal primitives (1mm bars, no axes/legends). This is a rendering gap, not a data gap.
 
 ## Session Learnings (2026-03-04) — PDF Dossier Logo Quality
 
@@ -204,10 +203,8 @@ Key patterns from the P2 dossier audit fix session (PDF rendering, viewing quest
 
 - **PDOK BRT Achtergrondkaart WMS retired**: Static map tile endpoint switched from BRT (`standaard` layer, PNG) to Luchtfoto (`Actueel_orthoHR` layer, JPEG, CC BY 4.0). Config key: `luchtfoto_wms_base`.
 - **Viewing questions for ALL risk categories, not just flagged**: Good-scoring categories (score >= 70) now get single confirmation questions. Previously these categories were silently omitted from the viewing checklist.
-- **Crime score must be threaded through all PDF generation paths**: `crime_score` from `tier_b.crime` must be explicitly passed to executive summary, risk grid cells, cover page, checklist page, and livability chart. Forgetting one path = silent data omission in the PDF.
 - **None-safe PDF chart rendering**: Bar chart `fill_w` needs `min(value or 0, 100)` guard. Score display needs `str(value) if value is not None else "—"`. Missing guards cause TypeError on None values.
 - **Climate source attribution uses scenario text, not "date unknown"**: Climate risk data uses RCP/SSP scenarios, not dated observations. "Date unknown" is misleading for scenario projections.
-- **Crime-only lollipop chart when livability unavailable**: Graceful degradation renders crime-only chart when Leefbaarometer data is missing but CBS crime data exists.
 
 ## Session Learnings (2026-03-07) — P2 Dossier Implementation (PR #20)
 
@@ -323,7 +320,7 @@ Key patterns from 4 commits improving PDF dossier chart rendering and seasonal s
 
 ### Comparison Chart Rendering
 - **Segmented bar pattern for comparison charts**: Bars composed of discrete segments (4mm wide, 2mm gap) instead of solid fills. Provides visual differentiation at print resolution where thin continuous bars merge.
-- **Role-based bar coloring**: Address bar = severity-colored, peer = `#637892`, national = `#8A9BB0`, reference/benchmark = `#EAB308` dashed. Assign role via `CompRow.role` field + label-text heuristic fallback.
+- **Role-based bar coloring**: Address bar = severity-colored, peer = `#3D4947`, national = `#6D7A77`, reference/benchmark = `#EAB308` dashed. Assign role via `CompRow.role` field + label-text heuristic fallback.
 - **`_estimate_comparison_chart_height()` before rendering**: Pre-calculate chart height using `multi_cell(dry_run=True)` for text wrapping, then `_ensure_page_space()`. Prevents charts from spilling across page boundaries.
 - **`_estimate_pdf_text_height()` utility**: Wraps fpdf2 `multi_cell(dry_run=True, output="HEIGHT")` for consistent height estimation across all chart types.
 - **Legend text as trailing line, not separate section**: Chart legend below the bars as small-font descriptive text. Avoids orphaned legend sections.

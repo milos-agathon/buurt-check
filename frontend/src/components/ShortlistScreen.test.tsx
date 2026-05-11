@@ -53,7 +53,24 @@ describe('ShortlistScreen', () => {
   it('shows mini risk dots', () => {
     renderScreen([makeItem()]);
     const dots = screen.getByTestId('shortlist-screen').querySelectorAll('.shortlist-screen__dot');
-    expect(dots).toHaveLength(4);
+    expect(dots).toHaveLength(3);
+  });
+
+  it('surfaces unresolved verification work instead of only risk dots', () => {
+    renderScreen([
+      makeItem({
+        verificationWork: {
+          openActions: 3,
+          incompleteSources: 1,
+          needsReview: 1,
+          packStatus: 'queued_for_review',
+        },
+      }),
+    ]);
+
+    expect(screen.getByText('3 open checks')).toBeInTheDocument();
+    expect(screen.getByText('1 source incomplete')).toBeInTheDocument();
+    expect(screen.getByText('Review pending')).toBeInTheDocument();
   });
 
   it('compare button disabled with fewer than 2 items', () => {

@@ -21,7 +21,10 @@ function renderTopBar(props: Partial<Parameters<typeof TopBar>[0]> = {}) {
 describe('TopBar', () => {
   it('renders logo when title is buurt-check', () => {
     renderTopBar();
-    expect(screen.getByAltText('Buurt Check')).toBeInTheDocument();
+    expect(screen.getByAltText('Buurt Check')).toHaveAttribute(
+      'src',
+      '/logos/buurt-check-lockup-horizontal.svg',
+    );
     expect(screen.getByLabelText('Buurt Check home')).toBeInTheDocument();
   });
 

@@ -82,7 +82,7 @@ def test_scherer_theme_applies_rcparams():
     assert rcParams["axes.spines.bottom"] is True
     assert rcParams["axes.grid"] is False
     assert float(rcParams["axes.linewidth"]) == 0.4
-    assert rcParams["axes.edgecolor"] == "#E2E7ED"
+    assert rcParams["axes.edgecolor"] == "#E2E8F0"
     assert float(rcParams["xtick.major.size"]) == 0.0
     assert float(rcParams["ytick.major.size"]) == 0.0
     assert float(rcParams["xtick.labelsize"]) == 7.5

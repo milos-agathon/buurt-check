@@ -85,7 +85,7 @@ describe('ShortlistScreen accessible risk dots', () => {
       </I18nextProvider>,
     );
     const dots = screen.getAllByRole('img');
-    expect(dots.length).toBeGreaterThanOrEqual(4);
+    expect(dots).toHaveLength(3);
     expect(dots[0]).toHaveAttribute('aria-label');
   });
 });

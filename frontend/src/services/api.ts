@@ -9,6 +9,10 @@ import type {
   LivabilityResponse,
   Neighborhood3DResponse,
   NeighborhoodStatsResponse,
+  PrebidBriefingResponse,
+  PrebidPackResponse,
+  PrebidShareResponse,
+  SharedPrebidResponse,
   PropertyWarningsResponse,
   ResolvedAddress,
   RiskCardsResponse,
@@ -17,7 +21,6 @@ import type {
   ShortReportResponse,
   SunlightResult,
   SuggestResponse,
-  TierBResponse,
   ViewingQuestionsResponse,
 } from '../types/api';
 import type { HourlyWeatherRecord } from '../utils/irradianceComputation';
@@ -590,6 +593,203 @@ export async function getViewingQuestions(
   }
 }
 
+export interface CreatePrebidBriefingPayload {
+  address?: ResolvedAddress;
+  report_id?: string;
+  confirmed_address?: string;
+  postcode?: string;
+  municipality?: string;
+  rd_x?: number;
+  rd_y?: number;
+  lat?: number;
+  lng?: number;
+  property_type?: 'apartment' | 'house' | 'mixed_use' | 'unknown';
+}
+
+export type PrebidBriefingRequest = CreatePrebidBriefingPayload;
+
+export interface SharePrebidPayload {
+  consent_to_share: true;
+}
+
+export interface EmailPrebidPayload {
+  email: string;
+  consent_to_email: true;
+}
+
+export interface EmailShareRequest {
+  email: string;
+  consent: true;
+  language?: 'en' | 'nl';
+}
+
+function isAbortSignal(value: unknown): value is AbortSignal {
+  return Boolean(
+    value
+      && typeof value === 'object'
+      && 'aborted' in value
+      && 'addEventListener' in value
+      && typeof (value as AbortSignal).addEventListener === 'function',
+  );
+}
+
+function resolveShareArgs(
+  payloadOrSignal?: SharePrebidPayload | AbortSignal,
+  signal?: AbortSignal,
+): { payload: SharePrebidPayload; signal?: AbortSignal } {
+  if (isAbortSignal(payloadOrSignal)) {
+    return { payload: { consent_to_share: true }, signal: payloadOrSignal };
+  }
+  return { payload: payloadOrSignal ?? { consent_to_share: true }, signal };
+}
+
+export async function createPrebidBriefing(
+  vboId: string,
+  payload: CreatePrebidBriefingPayload,
+  signal?: AbortSignal,
+): Promise<PrebidBriefingResponse> {
+  const timeout = withTimeoutSignal(15000, signal);
+  try {
+    const resp = await fetchPrimaryApi(primaryApiUrl(`/address/${vboId}/prebid/briefing`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: timeout.signal,
+    });
+    if (!resp.ok) throwHttpError(resp.status);
+    return resp.json();
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+export async function fetchPrebidBriefing(
+  vboId: string,
+  payload: PrebidBriefingRequest,
+  signal?: AbortSignal,
+): Promise<PrebidBriefingResponse> {
+  return createPrebidBriefing(vboId, payload, signal);
+}
+
+export async function fetchPrebidPack(
+  vboId: string,
+  reportId: string,
+  signal?: AbortSignal,
+): Promise<PrebidPackResponse> {
+  const timeout = withTimeoutSignal(15000, signal);
+  try {
+    const resp = await fetchPrimaryApi(
+      primaryApiUrl(`/address/${vboId}/prebid/pack/${encodeURIComponent(reportId)}`),
+      { signal: timeout.signal },
+    );
+    if (!resp.ok) throwHttpError(resp.status);
+    return resp.json();
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+export async function sharePrebidPack(
+  vboId: string,
+  reportId: string,
+  payloadOrSignal?: SharePrebidPayload | AbortSignal,
+  signal?: AbortSignal,
+): Promise<PrebidShareResponse> {
+  const args = resolveShareArgs(payloadOrSignal, signal);
+  const timeout = withTimeoutSignal(15000, args.signal);
+  try {
+    const resp = await fetchPrimaryApi(
+      primaryApiUrl(`/address/${vboId}/prebid/pack/${encodeURIComponent(reportId)}/share`),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(args.payload),
+        signal: timeout.signal,
+      },
+    );
+    if (!resp.ok) throwHttpError(resp.status);
+    return resp.json();
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+export async function emailPrebidPack(
+  vboId: string,
+  reportId: string,
+  payload: EmailPrebidPayload | EmailShareRequest,
+  signal?: AbortSignal,
+): Promise<PrebidShareResponse> {
+  const timeout = withTimeoutSignal(15000, signal);
+  try {
+    const resp = await fetchPrimaryApi(
+      primaryApiUrl(`/address/${vboId}/prebid/pack/${encodeURIComponent(reportId)}/email`),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: timeout.signal,
+      },
+    );
+    if (!resp.ok) throwHttpError(resp.status);
+    return resp.json();
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+export async function deletePrebidBriefing(
+  vboId: string,
+  briefingId: string,
+  signal?: AbortSignal,
+): Promise<{ deleted: true }> {
+  const timeout = withTimeoutSignal(15000, signal);
+  try {
+    const resp = await fetchPrimaryApi(
+      primaryApiUrl(`/address/${vboId}/prebid/briefing/${encodeURIComponent(briefingId)}`),
+      { method: 'DELETE', signal: timeout.signal },
+    );
+    if (!resp.ok) throwHttpError(resp.status);
+    return resp.json();
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+export async function fetchSharedPrebidBriefing(
+  shareToken: string,
+  signal?: AbortSignal,
+): Promise<SharedPrebidResponse> {
+  const timeout = withTimeoutSignal(15000, signal);
+  try {
+    const resp = await fetchPrimaryApi(
+      primaryApiUrl(`/shared/prebid/${encodeURIComponent(shareToken)}`),
+      { signal: timeout.signal },
+    );
+    if (!resp.ok) throwHttpError(resp.status);
+    return resp.json();
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+export async function fetchSharedPrebidPack(
+  shareToken: string,
+  signal?: AbortSignal,
+): Promise<SharedPrebidResponse> {
+  const timeout = withTimeoutSignal(15000, signal);
+  try {
+    const resp = await fetchPrimaryApi(
+      primaryApiUrl(`/shared/prebid-pack/${encodeURIComponent(shareToken)}`),
+      { signal: timeout.signal },
+    );
+    if (!resp.ok) throwHttpError(resp.status);
+    return resp.json();
+  } finally {
+    timeout.cleanup();
+  }
+}
+
 export interface ShadowImagePayload {
   hour: number;
   label: string;
@@ -749,30 +949,6 @@ export async function downloadPdfBlob(blob: Blob, filename: string): Promise<voi
   }
   // Delay revocation — Safari iOS starts downloads asynchronously after click
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-export async function getTierBData(
-  vboId: string,
-  options: {
-    buurtCode?: string;
-  },
-  signal?: AbortSignal,
-  reportId?: string,
-): Promise<TierBResponse> {
-  const params = new URLSearchParams();
-  if (options.buurtCode) params.set('buurt_code', options.buurtCode);
-  if (reportId) params.set('report_id', reportId);
-
-  const timeout = withTimeoutSignal(20000, signal);
-  try {
-    const resp = await fetchPrimaryApi(`${primaryApiUrl(`/address/${vboId}/tier-b`)}?${params}`, {
-      signal: timeout.signal,
-    });
-    if (!resp.ok) throwHttpError(resp.status);
-    return resp.json();
-  } finally {
-    timeout.cleanup();
-  }
 }
 
 export async function getLivability(

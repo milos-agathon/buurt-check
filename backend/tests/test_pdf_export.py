@@ -471,7 +471,7 @@ class TestIndicatorLocaleFormatting:
 
 class TestCrimeRateLocaleFormatting:
     def test_crime_rate_en(self):
-        """EN crime rates use period decimal."""
+        """EN crime helper text uses period decimal."""
         tier_b = TierBResponse(
             address_id="0363010012345678",
             crime=CrimeStatsCard(
@@ -485,20 +485,14 @@ class TestCrimeRateLocaleFormatting:
                 source_date="2024",
             ),
         )
-        result = generate_full_dossier(
-            address="Test", building_year=2000, building_use="Office",
-            risks=_make_risks(), sunlight_score=75,
-            viewing_questions=None, language="en", tier_b=tier_b,
-        )
-        reader = PdfReader(io.BytesIO(result))
-        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        text, _source = pe._crime_evidence_text(tier_b, is_nl=False)
         assert "65.3" in text
         assert "52.1" in text
         assert "4.2" in text
         assert "1.8" in text
 
     def test_crime_rate_nl(self):
-        """NL crime rates use comma decimal."""
+        """NL crime helper text uses comma decimal."""
         tier_b = TierBResponse(
             address_id="0363010012345678",
             crime=CrimeStatsCard(
@@ -512,13 +506,7 @@ class TestCrimeRateLocaleFormatting:
                 source_date="2024",
             ),
         )
-        result = generate_full_dossier(
-            address="Test", building_year=2000, building_use="Office",
-            risks=_make_risks(), sunlight_score=75,
-            viewing_questions=None, language="nl", tier_b=tier_b,
-        )
-        reader = PdfReader(io.BytesIO(result))
-        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        text, _source = pe._crime_evidence_text(tier_b, is_nl=True)
         assert "65,3" in text
         assert "52,1" in text
         assert "4,2" in text
@@ -1332,8 +1320,8 @@ class TestGenerateFullDossier:
         assert isinstance(result, bytes)
         assert result[:5] == b"%PDF-"
 
-    def test_crime_scored_risk_card_en(self):
-        """Crime section renders score badge, severity, meaning, comparison, source."""
+    def test_tier_b_crime_is_omitted_from_paid_report(self):
+        """Paid reports no longer render crime data even when Tier-B is supplied."""
         tier_b = TierBResponse(
             address_id="0363010012345678",
             crime=CrimeStatsCard(
@@ -1361,24 +1349,11 @@ class TestGenerateFullDossier:
         )
         reader = PdfReader(io.BytesIO(result))
         all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        # Score badge
-        assert "42" in all_text
-        # Severity label
-        assert "Moderate" in all_text
-        # Meaning sentence
-        assert "Crime rate is somewhat above the national average" in all_text
-        # Raw-rate context is disclosed under the chart
-        assert "52.1" in all_text
-        assert "Netherlands" in all_text
-        assert "Rates shown per 1,000 residents" in all_text
-        # Sub-rates
-        assert "Burglary" in all_text
-        assert "4.2" in all_text
-        assert "Violent" in all_text
-        assert "1.8" in all_text
-        # Source with year
-        assert "CBS" in all_text
-        assert "2024" in all_text
+        assert "Crime" not in all_text
+        assert "Crime rate is somewhat above the national average" not in all_text
+        assert "Burglary" not in all_text
+        assert "Violent" not in all_text
+        assert "Rates shown per 1,000 residents" not in all_text
 
     def test_crime_comparison_uses_normalized_national_score(
         self,
@@ -1439,8 +1414,8 @@ class TestGenerateFullDossier:
         assert captured["rows"][0][0] == "Municipality context"
         assert "Municipality context: 65.3" in text
 
-    def test_crime_scored_risk_card_nl(self):
-        """Crime section renders NL meaning + labels."""
+    def test_full_dossier_omits_crime_card_nl(self):
+        """Paid full dossier omits Tier-B crime data in NL too."""
         tier_b = TierBResponse(
             address_id="0363010012345678",
             crime=CrimeStatsCard(
@@ -1467,21 +1442,13 @@ class TestGenerateFullDossier:
         )
         reader = PdfReader(io.BytesIO(result))
         all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        # NL severity label
-        assert "Matig" in all_text
-        # NL meaning
-        assert "boven het landelijk gemiddelde" in all_text
-        # NL comparison labels
-        assert "Deze buurt" in all_text
-        assert "Nederland" in all_text
-        # NL source
-        assert "Bron" in all_text
-        # Sub-rates with NL labels
-        assert "Inbraak" in all_text
-        assert "Geweld" in all_text
+        assert "Criminaliteitscijfer" not in all_text
+        assert "Inbraak" not in all_text
+        assert "Geweld" not in all_text
+        assert "52,1" not in all_text
 
-    def test_crime_card_without_score(self):
-        """Crime renders gracefully when score is None (legacy data)."""
+    def test_crime_helper_without_score(self):
+        """Crime helper exposes an explicit unavailable score for legacy data."""
         tier_b = TierBResponse(
             address_id="0363010012345678",
             crime=CrimeStatsCard(
@@ -1489,27 +1456,13 @@ class TestGenerateFullDossier:
                 burglary_per_1000=3.0,
             ),
         )
-        result = generate_full_dossier(
-            address="Test",
-            building_year=2000,
-            building_use="Office",
-            risks=_make_risks(),
-            sunlight_score=75,
-            viewing_questions=None,
-            language="en",
-            tier_b=tier_b,
-        )
-        reader = PdfReader(io.BytesIO(result))
-        all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        # No bare placeholders; explicit unavailable state is shown.
-        assert "Crime Rate" in all_text
-        assert "N/A" in all_text
-        # Sub-rates still rendered
-        assert "Burglary" in all_text
-        assert "3.0" in all_text
+        text, _source = pe._crime_evidence_text(tier_b, is_nl=False)
+        assert "N/A" in text
+        assert "Burglary" in text
+        assert "3.0" in text
 
-    def test_crime_card_without_national_average(self):
-        """Comparison section skipped when national average is missing."""
+    def test_crime_helper_without_national_average(self):
+        """Crime helper omits national comparison when the average is missing."""
         tier_b = TierBResponse(
             address_id="0363010012345678",
             crime=CrimeStatsCard(
@@ -1519,26 +1472,12 @@ class TestGenerateFullDossier:
                 meaning_en="Moderate crime rate.",
             ),
         )
-        result = generate_full_dossier(
-            address="Test",
-            building_year=2000,
-            building_use=None,
-            risks=_make_risks(),
-            sunlight_score=75,
-            viewing_questions=None,
-            language="en",
-            tier_b=tier_b,
-        )
-        reader = PdfReader(io.BytesIO(result))
-        all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        # Score and meaning present
-        assert "58" in all_text
-        assert "Moderate crime rate." in all_text
-        # No national comparison
-        assert "National avg" not in all_text
+        text, _source = pe._crime_evidence_text(tier_b, is_nl=False)
+        assert "Moderate crime rate." in text
+        assert "Netherlands:" not in text
 
-    def test_crime_card_source_falls_back_to_yearly_period(self):
-        """Source line uses yearly_period when source_date is absent."""
+    def test_crime_helper_source_falls_back_to_yearly_period(self):
+        """Crime helper source line uses yearly_period when source_date is absent."""
         tier_b = TierBResponse(
             address_id="0363010012345678",
             crime=CrimeStatsCard(
@@ -1548,20 +1487,9 @@ class TestGenerateFullDossier:
                 yearly_period="2023",
             ),
         )
-        result = generate_full_dossier(
-            address="Test",
-            building_year=2000,
-            building_use=None,
-            risks=_make_risks(),
-            sunlight_score=75,
-            viewing_questions=None,
-            language="en",
-            tier_b=tier_b,
-        )
-        reader = PdfReader(io.BytesIO(result))
-        all_text = "\n".join(p.extract_text() or "" for p in reader.pages)
-        assert "2023" in all_text
-        assert "Source" in all_text
+        _text, source = pe._crime_evidence_text(tier_b, is_nl=False)
+        assert "2023" in source
+        assert "CBS" in source
 
     def test_crime_source_discloses_denominator_years(self):
         tier_b = TierBResponse(
@@ -1584,21 +1512,10 @@ class TestGenerateFullDossier:
                 source_date="2025",
             ),
         )
-        result = generate_full_dossier(
-            address="Test",
-            building_year=2000,
-            building_use=None,
-            risks=_make_risks(),
-            sunlight_score=75,
-            viewing_questions=None,
-            language="en",
-            tier_b=tier_b,
-        )
-        reader = PdfReader(io.BytesIO(result))
-        all_text = _normalize_pdf_text("\n".join(p.extract_text() or "" for p in reader.pages))
-        assert "crime period 2025" in all_text
-        assert "local population 2024" in all_text
-        assert "national population estimate 2025" in all_text
+        _text, source = pe._crime_evidence_text(tier_b, is_nl=False)
+        assert "crime period 2025" in source
+        assert "local population 2024" in source
+        assert "national population estimate 2025" in source
 
     def test_unavailable_neighborhood_indicators(self):
         """Stats with unavailable indicators render dash."""
@@ -2659,8 +2576,8 @@ class TestEliminateEmptyPages:
         assert "ADDITIONAL PROPERTY CHECKS" in text
         assert "VIEWING QUESTIONS" in text
 
-    def test_checklist_page_adds_crime_questions_from_tier_b(self):
-        """Crime gets a viewing-questions category even when the API payload omitted it."""
+    def test_checklist_page_omits_crime_questions_from_tier_b(self):
+        """Paid full dossier does not add Tier-B crime questions."""
         result = pe._generate_full_dossier_fpdf(
             address="Kerkstraat 10, Katwijk",
             building_year=1970,
@@ -2680,8 +2597,9 @@ class TestEliminateEmptyPages:
         reader = PdfReader(io.BytesIO(result))
         text = _norm("\n".join(page.extract_text() or "" for page in reader.pages))
 
-        assert _norm("Crime") in text or _norm("Criminaliteit") in text
-        assert _norm("42/100") in text
+        assert _norm("Crime") not in text
+        assert _norm("Criminaliteit") not in text
+        assert _norm("42/100") not in text
 
     def test_shadow_image_not_on_property_checks(self):
         """Shadow analysis text appears outside the property-check page."""
@@ -2950,6 +2868,7 @@ async def test_export_endpoint_invalid_template(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Legacy route-level full_dossier PDF path replaced by prebid pack export")
 @patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
@@ -3180,6 +3099,7 @@ async def test_export_accepts_shadow_image_b64_alias(
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Legacy route-level full_dossier PDF path replaced by prebid pack export")
 @patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
@@ -3237,6 +3157,7 @@ async def test_export_full_dossier_fetches_additional_data(
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Legacy route-level full_dossier PDF path replaced by prebid pack export")
 @patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
@@ -5011,6 +4932,7 @@ async def test_fetch_livability_for_export_no_cache_on_partial():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Legacy route-level full_dossier PDF path replaced by prebid pack export")
 @patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
@@ -6453,8 +6375,8 @@ class TestExecutiveSummary:
         assert "EXECUTIVE SUMMARY" in cover_text
         assert "risk categories" in cover_text
 
-    def test_fpdf_cover_page_includes_crime_in_executive_summary(self):
-        """fpdf2 cover summary counts crime when Tier-B provides a score."""
+    def test_fpdf_cover_page_omits_crime_in_executive_summary(self):
+        """fpdf2 cover summary ignores Tier-B crime in the paid full dossier."""
         result = _generate_full_dossier_fpdf(
             address="Damrak 1, Amsterdam",
             building_year=1900,
@@ -6467,10 +6389,10 @@ class TestExecutiveSummary:
         )
         reader = PdfReader(io.BytesIO(result))
         cover_text = reader.pages[0].extract_text() or ""
-        assert "5 risk categories" in cover_text
-        assert "crime" in cover_text.lower()
+        assert "4 risk categories" in cover_text
+        assert "crime" not in cover_text.lower()
 
-    def test_full_dossier_latex_uses_crime_in_summary_and_risk_grid(
+    def test_full_dossier_latex_omits_crime_in_summary_and_risk_grid(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ):
@@ -6513,16 +6435,15 @@ class TestExecutiveSummary:
         )
 
         assert result == b"%PDF-latex-path"
-        assert captured["grid_cols"] == 5
+        assert captured["grid_cols"] == 4
         grid_cells = captured["grid_cells"]
         assert isinstance(grid_cells, list)
-        assert grid_cells[-1].category == "Crime"
+        assert all(cell.category != "Crime" for cell in grid_cells)
         assert captured["grid_format"] == "pdf"
         tex = captured["tex"]
         assert isinstance(tex, str)
-        assert "5 risk categories" in tex
-        assert "crime" in tex.lower()
-        assert "Crime &" in tex
+        assert "4 risk categories" in tex
+        assert "Crime &" not in tex
 
     def test_full_dossier_latex_shows_location_placeholder_when_map_missing(
         self,

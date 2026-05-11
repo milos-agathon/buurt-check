@@ -1,6 +1,6 @@
 # Buurt-check Terms of Use
 
-_Last updated: 20 April 2026_
+_Last updated: 7 May 2026_
 
 These Terms of Use ("Terms") govern your access to and use of Buurt-check, including the website, web app, Android app, iPhone app, reports, exports, maps, scores, and related services (collectively, the "Service"). By using the Service, you agree to these Terms.
 
@@ -13,9 +13,9 @@ Buurt-check provides address-based and neighborhood-based informational analysis
 Unless Buurt-check clearly states otherwise, the current supported product contract is:
 - the interactive viewer is free;
 - the quick checklist or quick brief export is free; and
-- the full dossier is a paid one-time digital purchase tied to the anonymous buyer and the address-specific report.
+- the paid `full_dossier` entitlement unlocks the buyer-facing Pre-Bid Evidence & Questions Pack, tied to the anonymous buyer and the address-specific report.
 
-The Service is intended to help users assess contextual factors around a location, but it is not a substitute for professional advice or real-world inspection.
+The Service is intended to help users prepare source-linked questions and assess contextual factors around a location, but it is not a substitute for professional advice, public-authority confirmation, notarial checks, or real-world inspection.
 
 ## 2. Informational Purposes Only
 
@@ -39,7 +39,7 @@ Buurt-check uses public, open, third-party, and derived data sources. Outputs ma
 
 As a result, the Service may contain delays, omissions, approximations, estimation error, source error, missing areas, or outdated information. Real-world conditions may differ materially from Service outputs.
 
-We do not guarantee that the Service or any output is complete, current, accurate, uninterrupted, or fit for a particular purpose.
+Pre-bid source checks may show `failed`, `unavailable`, `skipped`, `not_supported`, or human-review states when a source cannot be checked or interpreted automatically. We do not guarantee that the Service or any output is complete, current, accurate, uninterrupted, or fit for a particular purpose.
 
 ## 4. Permitted Use
 
@@ -57,9 +57,11 @@ You may not:
 
 ## 5. Purchases, Entitlements, and Access
 
-The paid Buurt-check product is the full dossier. Prices, taxes, and payment terms are presented at the time of purchase.
+The paid Buurt-check product remains the `full_dossier` entitlement internally. Buyer-facing copy may label that purchase as a Pre-Bid Evidence & Questions Pack. Prices, taxes, and payment terms are presented at the time of purchase.
 
 The full dossier may be tied to a specific purchase flow, anonymous buyer record, report identifier, and address-based entitlement. A report identifier by itself is not a standalone bearer credential.
+
+Scoped share links for briefings or packs are separate from report identifiers. Share links can expire or be revoked, and buyer deletion revokes shared access where supported.
 
 Web purchases are processed through Stripe Checkout. Android purchases are processed through Google Play Billing. iPhone purchases are processed through Apple In-App Purchase. Additional platform terms may apply.
 
@@ -86,6 +88,8 @@ Repository access is separate from live-service use. The live Service and its ou
 The Service may rely on public or open data, third-party software, app stores, payment providers, analytics tools, geospatial services, and other external infrastructure.
 
 Those third-party components remain subject to their own terms, privacy policies, licenses, and attribution requirements. We are not responsible for the ongoing availability or accuracy of third-party materials.
+
+Buurt-check does not scrape, parse, store, or imply affiliation with Funda listings. Public-source providers, municipalities, registries, app stores, and payment platforms do not sponsor, certify, endorse, or approve Buurt-check outputs unless expressly stated in writing.
 
 ## 9. Privacy
 

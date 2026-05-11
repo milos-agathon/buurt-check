@@ -12,7 +12,7 @@ interface TabBarProps {
 }
 
 const TABS: { id: TabId; icon: string; labelKey: string }[] = [
-  { id: 'home', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1', labelKey: 'nav.home' },
+  { id: 'home', icon: 'M10.5 18a7.5 7.5 0 115.303-2.197L21 21 M10.5 5.5a5 5 0 100 10 5 5 0 000-10z', labelKey: 'nav.home' },
   { id: 'briefing', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', labelKey: 'nav.briefing' },
   { id: 'saved', icon: 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z', labelKey: 'nav.saved' },
 ];

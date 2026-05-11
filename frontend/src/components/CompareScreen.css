@@ -24,44 +24,55 @@
 .compare-screen__back {
   min-height: 44px;
   padding: 0 var(--space-base);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
+  border: 1px solid var(--color-nav-border);
+  border-radius: var(--radius-button);
+  background: var(--color-nav-control-bg);
   font: var(--type-body-medium);
   color: var(--color-text);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+.compare-screen__back:hover {
+  background: var(--color-surface-hover);
+  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+  transform: translateY(-1px);
 }
 
 .compare-screen__back:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
 
 .compare-screen__filter {
   padding: 0 var(--space-base);
   min-height: 44px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
+  border: 1px solid var(--color-nav-border);
+  border-radius: var(--radius-button);
+  background: var(--color-nav-control-bg);
   font: var(--type-small);
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+.compare-screen__filter:hover {
+  background: var(--color-surface-hover);
+  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+  transform: translateY(-1px);
 }
 
 .compare-screen__filter:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
-  border-radius: inherit;
 }
 
 .compare-screen__filter--active {
-  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
-  color: var(--color-text);
+  background: var(--color-accent-light);
+  color: var(--color-accent-text);
   border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
 }
 
@@ -73,20 +84,20 @@
 }
 
 .compare-screen__summary {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: calc(var(--radius-card) + 2px);
+  border-radius: var(--radius-card);
   padding: var(--space-lg);
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--landing-shadow-soft);
 }
 
 .compare-screen__summary-title {
   font: var(--type-label);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   color: var(--color-text-secondary);
   margin: 0;
 }
@@ -96,14 +107,15 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-xs) var(--space-sm);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: var(--radius-button);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
 }
 
 .compare-screen__summary-row--leader {
   border-color: color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-accent) 70%, transparent);
+  background: var(--color-accent-light);
+  box-shadow: inset 3px 0 0 var(--color-accent-text);
 }
 
 .compare-screen__summary-address {
@@ -126,11 +138,12 @@
 .compare-screen__summary-tie {
   font: var(--type-body-medium);
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   text-align: center;
   padding: var(--space-sm);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
+  border-radius: var(--radius-button);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
 }
 
 .compare-screen__summary-caveat {
@@ -144,25 +157,30 @@
   color: var(--color-text-secondary);
   text-align: center;
   padding: var(--space-5xl) var(--space-base) var(--space-base);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--landing-shadow-soft);
 }
 
 .compare-screen__cta {
   display: block;
   margin: 0 auto;
-  min-height: 44px;
+  min-height: 48px;
   padding: 0 var(--space-xl);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-surface));
-  color: var(--color-text);
+  border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
   font: var(--type-body-medium);
+  font-weight: 700;
   cursor: pointer;
+  box-shadow: var(--color-cta-shadow);
   transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .compare-screen__cta:hover {
-  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
-  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  background: var(--color-cta-bg-hover);
   transform: translateY(-1px);
 }
 
@@ -171,7 +189,7 @@
 }
 
 .compare-screen__cta:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
 }
 
@@ -186,9 +204,9 @@
 }
 
 .compare-screen__snap-columns:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-button);
 }
 
 .compare-screen__snap-column {
@@ -206,11 +224,11 @@
   flex-direction: column;
   gap: 2px;
   padding: var(--space-sm);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   min-height: 56px;
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--landing-shadow-soft);
 }
 
 .compare-screen__col-address {
@@ -242,22 +260,22 @@
   gap: var(--space-xs);
   padding: var(--space-lg);
   border: 1px solid var(--color-border);
-  border-radius: calc(var(--radius-card) + 2px);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
-  box-shadow: var(--elevation-1);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--landing-shadow-soft);
 }
 
 .compare-screen__chart-title {
   font: var(--type-label);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   color: var(--color-text-secondary);
 }
 
 .compare-screen__metric-label {
   font: var(--type-label);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   color: var(--color-text-secondary);
 }
 
@@ -266,9 +284,9 @@
   flex-direction: column;
   gap: var(--space-xs);
   padding: var(--space-sm);
-  background: color-mix(in srgb, var(--color-surface-alt) 76%, var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
-  border-radius: 16px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
   border-left: 3px solid transparent;
 }
 
@@ -286,7 +304,7 @@
 .compare-screen__scorebar-placeholder {
   width: 100%;
   height: 8px;
-  border-radius: 999px;
+  border-radius: 4px;
   background: var(--color-border);
 }
 

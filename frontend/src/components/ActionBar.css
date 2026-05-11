@@ -9,8 +9,9 @@
   gap: var(--space-xs);
   padding: var(--space-sm) var(--space-base);
   box-sizing: border-box;
-  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
   border-top: 1px solid var(--color-border);
+  backdrop-filter: blur(18px);
   z-index: 55;
 }
 
@@ -33,8 +34,12 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
   text-align: center;
+}
+
+.action-bar__btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .action-bar__btn:disabled {
@@ -99,22 +104,23 @@
 }
 
 .action-bar__btn--primary {
-  background: var(--color-accent);
-  color: var(--color-overlay-text);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
 }
 
 .action-bar__btn--primary:hover {
-  background: var(--color-accent-hover);
+  background: var(--color-cta-bg-hover);
 }
 
 .action-bar__btn--secondary {
   background: var(--color-surface);
   color: var(--color-primary);
-  border: 1px solid var(--color-accent);
+  border: 1px solid var(--color-border);
 }
 
 .action-bar__btn--secondary:hover {
-  background: var(--color-accent-light);
+  background: var(--color-surface-hover);
+  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
 }
 
 .action-bar__btn--saved {

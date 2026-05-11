@@ -7,24 +7,24 @@
 
 .risk-tile-skeleton-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
-  gap: var(--space-sm);
-  min-height: 88px;
+  gap: var(--space-sm) var(--space-md);
+  min-height: 156px;
   height: 100%;
-  padding: var(--space-sm);
+  padding: var(--space-md);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-surface);
-  box-shadow: var(--elevation-1);
+  box-shadow: none;
 }
 
 .risk-tile-skeleton-card__score-area {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   flex-shrink: 0;
-  min-width: 44px;
+  min-width: 64px;
 }
 
 .risk-tile-skeleton-card__header {
@@ -35,7 +35,7 @@
   gap: 4px;
   flex: 1;
   min-width: 0;
-  align-self: center;
+  align-self: start;
 }
 
 .risk-tile-skeleton-card__label {
@@ -53,12 +53,22 @@
 .risk-tile-skeleton-card__chevron {
   border-radius: 2px;
   flex-shrink: 0;
-  align-self: center;
+  align-self: end;
 }
 
-@media (max-width: 340px) {
+@media (max-width: 420px) {
+  .risk-tile-skeleton-card {
+    min-height: 156px;
+  }
+}
+
+@media (max-width: 359px) {
   .risk-tile-skeleton-grid {
     grid-template-columns: 1fr;
+  }
+
+  .risk-tile-skeleton-card {
+    min-height: 132px;
   }
 }
 

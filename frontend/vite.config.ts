@@ -45,6 +45,11 @@ export default defineConfig({
       '/api': devApiProxyTarget,
     },
   },
+  preview: {
+    proxy: {
+      '/api': devApiProxyTarget,
+    },
+  },
   build: {
     minify: 'terser',
     terserOptions: {
@@ -83,6 +88,9 @@ export default defineConfig({
           }
           if (path.includes('/node_modules/three/') || path.includes('/node_modules/suncalc/')) {
             return 'vendor-three';
+          }
+          if (path.includes('/node_modules/@sentry/')) {
+            return 'vendor-sentry';
           }
           if (path.includes('/src/i18n/')) {
             return 'i18n-resources';

@@ -7,18 +7,23 @@
 }
 
 :root {
-  color-scheme: dark;
-  --page-bg: #0c1516;
-  --page-bg-top: #132123;
-  --page-surface: rgba(16, 24, 27, 0.94);
-  --page-surface-strong: rgba(22, 34, 38, 0.96);
-  --page-border: #294048;
-  --page-border-soft: rgba(255, 255, 255, 0.08);
-  --page-text: #e2e7ed;
-  --page-text-secondary: #b4c0ce;
-  --page-accent: #2ec4b6;
-  --page-accent-soft: rgba(46, 196, 182, 0.14);
-  --page-shadow: 0 24px 54px rgba(3, 7, 8, 0.24);
+  color-scheme: light;
+  --page-bg: #F9FAFB;
+  --page-bg-top: #FFFFFF;
+  --page-bg-mid: #F0F4F8;
+  --page-surface: rgba(245, 250, 248, 0.94);
+  --page-surface-strong: #FFFFFF;
+  --page-border: #E2E8F0;
+  --page-border-soft: rgba(188, 201, 198, 0.72);
+  --page-text: #171D1C;
+  --page-text-secondary: #3D4947;
+  --page-text-muted: #6D7A77;
+  --page-accent: #0D9488;
+  --page-accent-text: #00685F;
+  --page-accent-soft: #ECFDF5;
+  --page-shadow: 0 6px 22px rgba(23, 29, 28, 0.04);
+  --page-radius-card: 12px;
+  --page-radius-button: 8px;
 }
 
 * {
@@ -29,13 +34,13 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  overflow-x: hidden;
 }
 
 body {
   font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(46, 196, 182, 0.1), transparent 32%),
-    linear-gradient(180deg, var(--page-bg-top) 0%, var(--page-bg) 100%);
+  min-height: 100dvh;
+  background: var(--page-bg);
   color: var(--page-text);
 }
 
@@ -53,8 +58,8 @@ body {
   margin-bottom: 20px;
   padding: 10px 14px;
   border: 1px solid var(--page-border-soft);
-  border-radius: 22px;
-  background: rgba(15, 24, 26, 0.82);
+  border-radius: var(--page-radius-card);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(18px);
 }
 
@@ -107,15 +112,15 @@ body {
   padding: 4px;
   min-height: 44px;
   border: 1px solid var(--page-border-soft);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  background: rgba(240, 245, 242, 0.86);
 }
 
 .legal-page__lang-btn {
   min-width: 52px;
   min-height: 36px;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--page-radius-button);
   background: transparent;
   color: var(--page-text-secondary);
   font: inherit;
@@ -124,8 +129,8 @@ body {
 }
 
 .legal-page__lang-btn[data-active='true'] {
-  background: rgba(46, 196, 182, 0.18);
-  color: var(--page-text);
+  background: var(--page-accent-soft);
+  color: var(--page-accent-text);
 }
 
 .legal-page__lang-btn:focus-visible,
@@ -140,9 +145,9 @@ body {
   align-items: center;
   min-height: 44px;
   padding: 0 14px;
-  border-radius: 999px;
+  border-radius: var(--page-radius-button);
   border: 1px solid var(--page-border-soft);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(240, 245, 242, 0.86);
   color: var(--page-text);
   text-decoration: none;
   font-weight: 700;
@@ -155,9 +160,9 @@ body {
 
 .legal-page__hero,
 .legal-page__section {
-  background: linear-gradient(180deg, var(--page-surface-strong) 0%, var(--page-surface) 100%);
+  background: var(--page-surface-strong);
   border: 1px solid var(--page-border);
-  border-radius: 28px;
+  border-radius: var(--page-radius-card);
   box-shadow: var(--page-shadow);
 }
 
@@ -171,9 +176,9 @@ body {
   align-items: center;
   min-height: 34px;
   padding: 0 12px;
-  border-radius: 999px;
+  border-radius: var(--page-radius-button);
   background: var(--page-accent-soft);
-  color: var(--page-accent);
+  color: var(--page-accent-text);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -277,7 +282,7 @@ body {
 
 .legal-page__callout {
   padding: 18px 20px;
-  border-radius: 20px;
+  border-radius: var(--page-radius-card);
   background: color-mix(in srgb, var(--page-accent) 10%, var(--page-surface));
   border: 1px solid color-mix(in srgb, var(--page-accent) 18%, var(--page-border));
 }
@@ -294,7 +299,7 @@ body {
 }
 
 a {
-  color: var(--page-text);
+  color: var(--page-accent-text);
 }
 
 @media (max-width: 640px) {
@@ -315,7 +320,7 @@ a {
   .legal-page__hero,
   .legal-page__section {
     padding: 22px;
-    border-radius: 22px;
+    border-radius: var(--page-radius-card);
   }
 
   .legal-page__table {

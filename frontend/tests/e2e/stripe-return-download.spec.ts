@@ -53,7 +53,7 @@ const PDF_BYTES = Buffer.from(
   + 'trailer\n<< /Root 1 0 R >>\n%%EOF',
 );
 
-test('auto-starts the full dossier download after Stripe return confirmation', async ({ page }) => {
+test('[export] stripe-return 390x844 en light', async ({ page }) => {
   const exportBodies: Array<Record<string, unknown>> = [];
   let confirmCalls = 0;
   let sunlightCalls = 0;
@@ -158,7 +158,7 @@ test('auto-starts the full dossier download after Stripe return confirmation', a
   });
 });
 
-test('captures and scrubs a real Stripe return without creating a replacement short report', async ({ page }) => {
+test('[export] stripe-scrub 390x844 en light', async ({ page }) => {
   let confirmCalls = 0;
   let createShortReportCalls = 0;
   let lookupCalls = 0;

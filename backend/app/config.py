@@ -65,6 +65,42 @@ class Settings(BaseSettings):
     enable_lod22_context_enrichment: bool = False
     three_d_conservative_mode: bool = False
 
+    # Pre-bid source stack
+    prebid_enabled: bool = True
+    prebid_default_radius_m: int = 250
+    prebid_publication_days_back: int = 730
+    prebid_paid_pack_review_required: bool = True
+    prebid_official_publications_enabled: bool = True
+    prebid_enable_p1_sources: bool = True
+    prebid_pdok_parcel_enabled: bool = True
+    prebid_wkpb_enabled: bool = True
+    prebid_rce_culture_enabled: bool = True
+    prebid_ep_online_enabled: bool = True
+    prebid_rdw_parking_enabled: bool = True
+    prebid_admin_token: str = ""
+    prebid_briefing_retention_days: int = 90
+    prebid_pack_retention_days: int = 90
+    prebid_share_retention_days: int = 90
+    prebid_contact_hash_retention_days: int = 90
+    prebid_audit_retention_days: int = 180
+    prebid_contact_hash_secret: str = ""
+
+    official_publications_sru_base: str = "https://zoek.officielebekendmakingen.nl/sru/Search"
+    pdok_kadastralekaart_wfs_base: str = (
+        "https://service.pdok.nl/kadaster/kadastralekaart/wfs/v5_0"
+    )
+    pdok_wkpb_wfs_base: str = (
+        "https://service.pdok.nl/kadaster/brk-publiekrechtelijke-beperkingen-wkpb/wfs/v1_0"
+    )
+    rce_culture_wfs_base: str = (
+        "https://service.pdok.nl/rce/beschermde-gebieden-cultuurhistorie/wfs/v1_0"
+    )
+    ep_online_base: str = "https://public.ep-online.nl/api/v5"
+    ep_online_api_key: str = ""
+    rdw_parking_base: str = "https://opendata.rdw.nl"
+    cache_ttl_prebid_source: int = 86400
+    cache_ttl_prebid_static_source: int = 604800
+
     # forge3d server-side rendering (in-process, requires GPU)
     forge3d_enabled: bool = False
     forge3d_shadow_technique: str = "pcss"  # pcss | vsm | evsm | pcf

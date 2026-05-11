@@ -80,12 +80,29 @@ interface Props {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
-  statusMessage?: string | null;
 }
 
 interface HeatmapRange {
   minHours: number;
   maxHours: number;
+}
+
+type ViewerRenderState = 'loading' | 'fallback' | 'partial' | 'scene-rendered';
+type ViewerContextLossState = 'none' | 'lost' | 'restored' | 'fallback';
+
+interface Viewer3DMetrics {
+  renderState: ViewerRenderState;
+  targetRendered: boolean;
+  surroundingCount: number;
+  firstMeaningfulRenderMs: number | null;
+  contextLossState: ViewerContextLossState;
+  lastFrameMs: number | null;
+}
+
+declare global {
+  interface Window {
+    __BUURT_CHECK_3D_METRICS__?: Viewer3DMetrics;
+  }
 }
 
 // Canvas quality controls — feature-flagged for safe rollout.
@@ -97,7 +114,7 @@ const SVF_IDLE_TIMEOUT_MS = Math.max(0, Number(import.meta.env.VITE_SVF_IDLE_TIM
 const USE_SUNLIGHT_WORKER = import.meta.env.VITE_SUNLIGHT_USE_WORKER !== 'false';
 const GROUND_SIZE = 750;
 const FRUSTUM = 300;
-const TARGET_COLOR = 0x2EC4B6;
+const TARGET_COLOR = 0x0D9488;
 const NEIGHBOR_CHUNK_SIZE = 40;
 const NEIGHBOR_FRAME_BUDGET_MS = 10;
 const VIEWER_FALLBACK_ASPECT = 0.75;
@@ -120,7 +137,7 @@ const AMBIENT_INTENSITY_DARK = 0.22;
 const SUNLIGHT_INTENSITY_LIGHT = 1.05;
 const SUNLIGHT_INTENSITY_DARK = 0.98;
 const HEATMAP_ROOF_NORMAL_MIN_Y = 0.25;
-const TARGET_EMISSIVE = 0x57D4C8;
+const TARGET_EMISSIVE = 0x6BD8CB;
 const TARGET_EMISSIVE_INTENSITY_LIGHT = 0.48;
 const TARGET_EMISSIVE_INTENSITY_DARK = 0.28;
 const TARGET_ROUGHNESS = 0.50;
@@ -383,7 +400,6 @@ export default function NeighborhoodViewer3D({
   loading = false,
   error,
   onRetry,
-  statusMessage,
 }: Props) {
   const { t } = useTranslation();
   const sceneSummaryId = useId();
@@ -423,7 +439,17 @@ export default function NeighborhoodViewer3D({
   const dampingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [heatmapRange, setHeatmapRange] = useState<HeatmapRange | null>(null);
   const [showControlsHint, setShowControlsHint] = useState(() => !hasSeenTooltip('3d-controls'));
-  const targetBuilding = buildings.find((building) => building.pand_id === targetPandId) ?? buildings[0];
+  const effectiveTargetPandId = targetPandId ?? buildings[0]?.pand_id;
+  const mountedAtRef = useRef(performance.now());
+  const [viewerMetrics, setViewerMetrics] = useState<Viewer3DMetrics>({
+    renderState: loading ? 'loading' : 'partial',
+    targetRendered: false,
+    surroundingCount: 0,
+    firstMeaningfulRenderMs: null,
+    contextLossState: 'none',
+    lastFrameMs: null,
+  });
+  const targetBuilding = buildings.find((building) => building.pand_id === effectiveTargetPandId) ?? buildings[0];
   const staticSceneSummary = targetBuilding
     ? t(
       'viewer3d.altSummaryWithTarget',
@@ -448,6 +474,37 @@ export default function NeighborhoodViewer3D({
       current.controls.update();
       current.renderer.render(current.scene, current.camera);
       current.renderQueued = false;
+      setViewerMetrics((previous) => ({
+        ...previous,
+        lastFrameMs: Math.round(performance.now() - mountedAtRef.current),
+      }));
+    });
+  }, []);
+
+  const publishRenderMetrics = useCallback((next: Partial<Viewer3DMetrics>) => {
+    setViewerMetrics((previous) => {
+      const merged: Viewer3DMetrics = {
+        ...previous,
+        ...next,
+        firstMeaningfulRenderMs: next.firstMeaningfulRenderMs
+          ?? previous.firstMeaningfulRenderMs
+          ?? (
+            (next.targetRendered || next.renderState === 'scene-rendered')
+              ? Math.round(performance.now() - mountedAtRef.current)
+              : null
+          ),
+      };
+      if (
+        merged.renderState === previous.renderState
+        && merged.targetRendered === previous.targetRendered
+        && merged.surroundingCount === previous.surroundingCount
+        && merged.firstMeaningfulRenderMs === previous.firstMeaningfulRenderMs
+        && merged.contextLossState === previous.contextLossState
+        && merged.lastFrameMs === previous.lastFrameMs
+      ) {
+        return previous;
+      }
+      return merged;
     });
   }, []);
 
@@ -483,6 +540,26 @@ export default function NeighborhoodViewer3D({
     ? t('viewer3d.controlsHint.touch')
     : t('viewer3d.controlsHint.desktop');
 
+  useEffect(() => {
+    if (loading) {
+      publishRenderMetrics({ renderState: 'loading' });
+      return;
+    }
+    if (error) {
+      publishRenderMetrics({ renderState: 'fallback', contextLossState: viewerMetrics.contextLossState === 'lost' ? 'fallback' : viewerMetrics.contextLossState });
+      return;
+    }
+    if (!viewerMetrics.targetRendered) {
+      publishRenderMetrics({ renderState: 'partial' });
+    }
+  }, [error, loading, publishRenderMetrics, viewerMetrics.contextLossState, viewerMetrics.targetRendered]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && import.meta.env.MODE !== 'production') {
+      window.__BUURT_CHECK_3D_METRICS__ = viewerMetrics;
+    }
+  }, [viewerMetrics]);
+
   // Extract camera framing into a callable function
   const frameCamera = useCallback(() => {
     const ctx = sceneRef.current;
@@ -506,7 +583,7 @@ export default function NeighborhoodViewer3D({
     const spanZ = allMaxY - allMinY;
     const maxSpan = Math.max(spanX, spanZ, 1);
 
-    const targetBuilding = targetPandId ? buildings.find((b) => b.pand_id === targetPandId) : null;
+    const targetBuilding = effectiveTargetPandId ? buildings.find((b) => b.pand_id === effectiveTargetPandId) : null;
     const focusBuilding = targetBuilding || buildings[0];
     const fp = focusBuilding.footprint;
     const focusMinX = Math.min(...fp.map((point) => point[0]));
@@ -548,7 +625,7 @@ export default function NeighborhoodViewer3D({
     );
     ctx.camera.updateProjectionMatrix();
     renderOnce();
-  }, [buildings, targetPandId, renderOnce]);
+  }, [buildings, effectiveTargetPandId, renderOnce]);
 
   // Keyboard navigation for accessibility (WCAG 2.1.1)
   const ORBIT_STEP = 0.087; // ~5 degrees in radians
@@ -745,6 +822,16 @@ export default function NeighborhoodViewer3D({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      publishRenderMetrics({ contextLossState: 'lost', renderState: 'fallback' });
+    };
+    const onContextRestored = () => {
+      publishRenderMetrics({ contextLossState: 'restored', renderState: 'partial' });
+      renderOnce();
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', onContextRestored);
 
     // Lights
     const ambient = new HemisphereLight(
@@ -883,6 +970,8 @@ export default function NeighborhoodViewer3D({
       if (onControlStart) controls.removeEventListener('start', onControlStart);
       if (onControlChange) controls.removeEventListener('change', onControlChange);
       if (onControlEnd) controls.removeEventListener('end', onControlEnd);
+      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
       cancelAnimationFrame(sceneRef.current?.animId ?? 0);
       controls.dispose();
       // Dispose all scene resources (geometries, materials, textures, shadow maps)
@@ -1044,7 +1133,7 @@ export default function NeighborhoodViewer3D({
     }
     const targetMesh = targetMeshRef.current;
     for (const mesh of ctx.buildingMeshes) {
-      const isTargetMesh = mesh === targetMesh || mesh.userData.pandId === targetPandId;
+      const isTargetMesh = mesh === targetMesh || mesh.userData.pandId === effectiveTargetPandId;
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const material of materials) {
         if (isTargetMesh) {
@@ -1088,7 +1177,7 @@ export default function NeighborhoodViewer3D({
     ctx.camera.updateProjectionMatrix();
 
     const snapshots: ShadowSnapshot[] = [];
-    const targetBuilding = buildings.find((building) => building.pand_id === targetPandId);
+    const targetBuilding = buildings.find((building) => building.pand_id === effectiveTargetPandId);
     const targetFootprint = targetBuilding?.footprint;
     const focusFootprint = targetFootprint && targetFootprint.length >= 3
       ? targetFootprint
@@ -1176,7 +1265,7 @@ export default function NeighborhoodViewer3D({
           const uiScale = Math.max(0.45, Math.min(1.2, cw / OFFSCREEN_W));
           const px = (value: number) => Math.max(1, Math.round(value * uiScale));
           const uiMargin = px(40);
-          const uiTextColor = 'rgba(28, 45, 63, 0.96)';
+          const uiTextColor = 'rgba(23, 29, 28, 0.96)';
 
           // --- Compass rose (top-right, rotated so N points toward geographic north) ---
           const compassDiameterPx = px(190);
@@ -1327,7 +1416,7 @@ export default function NeighborhoodViewer3D({
         snapshotsCaptured.current = false;
       }
     }
-  }, [buildings, center.lat, center.lng, renderOnce, targetPandId]);
+  }, [buildings, center.lat, center.lng, effectiveTargetPandId, publishRenderMetrics, renderOnce]);
 
   // Add buildings to scene
   useEffect(() => {
@@ -1363,9 +1452,9 @@ export default function NeighborhoodViewer3D({
     ctx.buildingMeshes = [];
 
     // Reset camera flag when selecting a new target address
-    if (targetPandId && targetPandId !== lastFocusedPandId.current) {
+    if (effectiveTargetPandId && effectiveTargetPandId !== lastFocusedPandId.current) {
       cameraSetRef.current = false;
-      lastFocusedPandId.current = targetPandId;
+      lastFocusedPandId.current = effectiveTargetPandId;
     }
 
     const neighborMaterial = new MeshStandardMaterial({
@@ -1387,7 +1476,7 @@ export default function NeighborhoodViewer3D({
     const deferredNeighbors: BuildingBlock[] = [];
 
     for (const building of buildings) {
-      const isTarget = building.pand_id === targetPandId;
+      const isTarget = building.pand_id === effectiveTargetPandId;
 
       if (isTarget) {
         const geom = createBuildingGeometry(building);
@@ -1409,6 +1498,11 @@ export default function NeighborhoodViewer3D({
         targetMeshRef.current = mesh;
         targetMaterialCloneRef.current?.dispose();
         targetMaterialCloneRef.current = mat.clone();
+        publishRenderMetrics({
+          targetRendered: true,
+          renderState: 'partial',
+          surroundingCount: 0,
+        });
         renderOnce();
         continue;
       }
@@ -1480,6 +1574,11 @@ export default function NeighborhoodViewer3D({
           disposeNeighborMaterial();
         }
         allBuildingsReadyRef.current = true;
+        publishRenderMetrics({
+          targetRendered: Boolean(targetMeshRef.current),
+          surroundingCount: deferredNeighbors.length,
+          renderState: targetMeshRef.current ? 'scene-rendered' : 'partial',
+        });
         captureSnapshots();
         void computeSunlight();
       }
@@ -1490,6 +1589,11 @@ export default function NeighborhoodViewer3D({
     } else {
       disposeNeighborMaterial();
       allBuildingsReadyRef.current = true;
+      publishRenderMetrics({
+        targetRendered: Boolean(targetMeshRef.current),
+        surroundingCount: 0,
+        renderState: targetMeshRef.current ? 'scene-rendered' : 'partial',
+      });
       captureSnapshots();
       void computeSunlight();
     }
@@ -1504,7 +1608,7 @@ export default function NeighborhoodViewer3D({
         disposeNeighborMaterial();
       }
     };
-  }, [buildings, targetPandId, frameCamera, renderOnce, captureSnapshots]);
+  }, [buildings, effectiveTargetPandId, frameCamera, renderOnce, captureSnapshots, publishRenderMetrics]);
 
   // Fix sun to summer noon — static lighting for context card
   useEffect(() => {
@@ -1651,12 +1755,12 @@ export default function NeighborhoodViewer3D({
   const computeSunlight = useCallback(async () => {
     const ctx = sceneRef.current;
     const callback = onSunlightAnalysisRef.current;
-    if (!ctx || !callback || buildings.length === 0 || !targetPandId) {
+    if (!ctx || !callback || buildings.length === 0 || !effectiveTargetPandId) {
       console.warn('[sunlight] computeSunlight guard failed', {
         hasCtx: Boolean(ctx),
         hasCallback: Boolean(callback),
         buildingCount: buildings.length,
-        hasTargetPandId: Boolean(targetPandId),
+        hasTargetPandId: Boolean(effectiveTargetPandId),
       });
       return;
     }
@@ -1670,7 +1774,7 @@ export default function NeighborhoodViewer3D({
       return;
     }
 
-    const target = buildings.find((building) => building.pand_id === targetPandId);
+    const target = buildings.find((building) => building.pand_id === effectiveTargetPandId);
     if (!target || target.footprint.length < 3) {
       console.warn('[sunlight] skipped — target not found or footprint too small', {
         hasTarget: Boolean(target),
@@ -1687,7 +1791,7 @@ export default function NeighborhoodViewer3D({
     const startedAt = performance.now();
     if (import.meta.env.DEV) {
       console.info('[3D] Sunlight analysis started', {
-        targetPandId,
+        targetPandId: effectiveTargetPandId,
         buildingCount: buildings.length,
       });
     }
@@ -1730,7 +1834,7 @@ export default function NeighborhoodViewer3D({
         footprint: target.footprint,
         roofY,
         groundY,
-        targetPandId,
+        targetPandId: effectiveTargetPandId,
         lat: center.lat,
         lng: center.lng,
         year,
@@ -1994,7 +2098,7 @@ export default function NeighborhoodViewer3D({
         sunlightAbortRef.current = null;
       }
     }
-  }, [addressId, applyTargetHeatmap, buildings, center.lat, center.lng, renderOnce, reportId, targetPandId]);
+  }, [addressId, applyTargetHeatmap, buildings, center.lat, center.lng, effectiveTargetPandId, renderOnce, reportId]);
 
   useEffect(() => {
     const result = sunlightResultRef.current;
@@ -2041,8 +2145,6 @@ export default function NeighborhoodViewer3D({
     sunlightRetryToken,
   ]);
 
-  const loadingNarrative = statusMessage ?? t('viewer3d.loadingLong', 'We are loading the target building and the surrounding context. First load can take 15-20 seconds.');
-
   return (
     <div className="viewer-3d" data-testid="viewer-3d">
       <h2 className="viewer-3d__title">{t('viewer3d.title')}</h2>
@@ -2051,6 +2153,11 @@ export default function NeighborhoodViewer3D({
         ref={containerRef}
         data-testid="viewer-3d-canvas"
         data-state={loading ? 'loading' : error ? 'error' : 'ready'}
+        data-render-state={viewerMetrics.renderState}
+        data-target-rendered={viewerMetrics.targetRendered ? 'true' : 'false'}
+        data-surrounding-count={viewerMetrics.surroundingCount}
+        data-first-meaningful-render-ms={viewerMetrics.firstMeaningfulRenderMs ?? undefined}
+        data-context-loss-state={viewerMetrics.contextLossState}
         tabIndex={0}
         role="application"
         aria-label={t('viewer3d.canvasAria')}
@@ -2061,7 +2168,7 @@ export default function NeighborhoodViewer3D({
           <div className="viewer-3d__loading" role="status" aria-live="polite" aria-label={t('viewer3d.loading')} aria-busy="true">
             <p className="viewer-3d__loading-eyebrow">{t('viewer3d.loadingLabel', '3D analysis')}</p>
             <h3 className="viewer-3d__loading-title">{t('viewer3d.loading')}</h3>
-            <p className="viewer-3d__loading-copy">{loadingNarrative}</p>
+            <p className="viewer-3d__loading-copy">{t('viewer3d.loadingLong', 'We are loading the target building and the surrounding context. First load can take 15-20 seconds.')}</p>
             <div className="viewer-3d__loading-stages" aria-hidden="true">
               <span className="viewer-3d__loading-stage viewer-3d__loading-stage--active">{t('viewer3d.loadingStageTarget', 'Target building')}</span>
               <span className="viewer-3d__loading-stage">{t('viewer3d.loadingStageContext', 'Surrounding context')}</span>
@@ -2097,7 +2204,11 @@ export default function NeighborhoodViewer3D({
         )}
         {error && !loading && (
           <div className="viewer-3d__error" role="status">
+            <strong className="viewer-3d__error-title">{t('viewer3d.fallbackTitle', '3D context is unavailable')}</strong>
             <p className="viewer-3d__error-text">{error}</p>
+            <p className="viewer-3d__error-text">
+              {t('viewer3d.fallbackBody', 'The address briefing still works. Use the risk cards and viewing questions, and verify sunlight and surrounding buildings during the viewing.')}
+            </p>
             {onRetry && (
               <button
                 type="button"
@@ -2113,9 +2224,6 @@ export default function NeighborhoodViewer3D({
       <p id={sceneSummaryId} className="viewer-3d__summary">
         {staticSceneSummary} {interactionHint}
       </p>
-      {statusMessage && !error && !loading && (
-        <p className="viewer-3d__status-message">{statusMessage}</p>
-      )}
       <p className="viewer-3d__source">{t('viewer3d.source')}</p>
     </div>
   );

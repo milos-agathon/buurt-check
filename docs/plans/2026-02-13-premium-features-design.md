@@ -620,7 +620,6 @@ handleAddressSelect():
   4. setAddress(resolved)
   5. setSheetSnap('half')
   6. Fire parallel IIFEs:
-     +-- Existing: risks, stats, tier-b, building3d, neighborhood3d
      +-- NEW: void (async () => {
            const warnings = await getPropertyWarnings(
              vboId, rdX, rdY, lat, lng,
@@ -642,7 +641,6 @@ DossierSheet:
   +-- PropertyWarningsCard (NEW — foundation + VvE cards)
   +-- 3D Viewer (NeighborhoodViewer3D)
   +-- NeighborhoodStatsCard
-  +-- TierBSignalsCard
   +-- ViewingChecklist
   +-- ActionBar (PDF export, share)
 ```

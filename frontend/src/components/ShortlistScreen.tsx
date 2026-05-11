@@ -22,7 +22,7 @@ function severityFromScore(score: number | undefined): SeverityLevel {
   return 'critical';
 }
 
-const DOT_CATEGORIES = ['noise', 'air', 'climate', 'sunlight'] as const;
+const DOT_CATEGORIES = ['noise', 'air', 'climate'] as const;
 
 export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAddress, onSearchAddress }: Props) {
   const { t } = useTranslation();
@@ -105,6 +105,19 @@ export default function ShortlistScreen({ items, onRemove, onCompare, onSelectAd
                   <path d="m9 6 6 6-6 6" />
                 </svg>
               </span>
+              {item.verificationWork && (
+                <div className="shortlist-screen__verification" aria-label={t('shortlist.verification.label')}>
+                  <span>
+                    {t('shortlist.verification.openChecks', { count: item.verificationWork.openActions })}
+                  </span>
+                  <span>
+                    {t('shortlist.verification.incompleteSources', { count: item.verificationWork.incompleteSources })}
+                  </span>
+                  {item.verificationWork.needsReview > 0 && (
+                    <span>{t('shortlist.verification.reviewPending')}</span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="shortlist-screen__dots">
               {DOT_CATEGORIES.map(cat => {

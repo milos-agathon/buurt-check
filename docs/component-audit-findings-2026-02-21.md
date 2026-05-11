@@ -42,7 +42,6 @@ Audit of implemented React components in `frontend/src` against the reconciled c
 - Implementation uses a different v7 order and places 3D after multiple additional sections (`frontend/src/App.tsx:999`, `frontend/src/App.tsx:1164`).
 - **Resolution (2026-02-22):** Neither spec nor implementation order is correct. New principle: **"house first, buurt second"** — present all property-specific details before transitioning to neighborhood context. The 3D viewer should move forward from its current position but NOT immediately after the summary strip (spec's position), because that would place two maps (2D footprint + 3D viewer) on screen simultaneously. The 3D viewer is the bridge into the neighborhood section, positioned after all house-level cards. New canonical order:
   - **House (this property):** AttentionSummary, AddressHeader (+2D map), SummaryStrip, BuildingFacts, RiskTiles, PropertyWarnings, SoilInfo
-  - **Buurt (neighborhood):** Livability, 3D Viewer, Sunlight, NeighborhoodStats, TierB
   - **Action:** ViewingChecklist, ActionBar
 
 ### 3. 3D viewer sizing contract is not met.

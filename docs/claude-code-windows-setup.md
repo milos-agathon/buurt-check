@@ -298,16 +298,22 @@ paths:
 Scandinavian minimalism ("Clear Signal"). Clean, functional, trust-building.
 
 ## Colors
-- Primary: #2D5F8A (Nordic Blue)
-- Background: #F8FAFB (Frost White)
-- Text: #1A2B3C (Deep Navy)
-- Accent: #4ECDC4 (Arctic Teal)
-- Warning: #FF6B6B
-- Success: #45B7A0
+- Background: #F9FAFB (Polar Frost canvas)
+- Surface: #FFFFFF (cards and document surfaces)
+- Frost block: #F0F4F8 (grouped evidence areas)
+- Text: #171D1C (primary ink)
+- Secondary text: #3D4947 (metadata and explanatory copy)
+- Border: #E2E8F0 (low-contrast dividers)
+- Accent fill: #0D9488 (primary actions)
+- Accent text: #00685F (teal text/icons on light backgrounds)
+- Tertiary: #C36D4B (warm evidence/caution benchmark)
+- Risk: #22C55E good, #EAB308 moderate, #EF4444 poor, #B91C1C critical
+
+Full palette: `docs/palette.md`.
 
 ## Typography
-- Headings: Inter, 600 weight
-- Body: Inter, 400 weight, 16px base
+- Headings: Satoshi, 700-900 weight
+- Body: Satoshi, 400 weight, 15px base
 - Mono: JetBrains Mono (code/data)
 
 ## Component Patterns

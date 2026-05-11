@@ -7,6 +7,8 @@ const createRootMock = vi.fn(() => ({ render: renderRootMock }));
 const updateSWMock = vi.fn();
 const registerSWMock = vi.fn(() => updateSWMock);
 const prewarmAddressApiMock = vi.fn();
+const getRegistrationsMock = vi.fn();
+const unregisterMock = vi.fn();
 
 vi.mock('react-dom/client', () => ({
   createRoot: createRootMock,
@@ -28,16 +30,23 @@ vi.mock('./i18n', () => ({}));
 
 describe('main entry', () => {
   beforeEach(() => {
+    vi.resetModules();
     document.body.innerHTML = '<div id="root"></div>';
     Object.defineProperty(window.navigator, 'serviceWorker', {
       configurable: true,
-      value: {},
+      value: {
+        getRegistrations: getRegistrationsMock,
+        controller: null,
+      },
     });
     renderRootMock.mockReset();
     createRootMock.mockClear();
     registerSWMock.mockReset();
     updateSWMock.mockReset();
     prewarmAddressApiMock.mockReset();
+    getRegistrationsMock.mockReset();
+    unregisterMock.mockReset();
+    getRegistrationsMock.mockResolvedValue([]);
   });
 
   it('wraps App in MotionConfig with reducedMotion=user', async () => {
@@ -52,17 +61,18 @@ describe('main entry', () => {
     expect(screen.getByTestId('motion-config')).toHaveAttribute('data-reduced-motion', 'user');
     expect(screen.getByTestId('app-root')).toBeInTheDocument();
     expect(prewarmAddressApiMock).toHaveBeenCalledTimes(1);
-    const registerArgs = (registerSWMock.mock.calls as unknown as Array<[unknown]>)[0]?.[0] as {
-      immediate?: boolean;
-      onNeedRefresh?: () => void;
-    } | undefined;
-    expect(registerArgs).toEqual(expect.objectContaining({
-      immediate: true,
-      onNeedRefresh: expect.any(Function),
-    }));
+    expect(registerSWMock).not.toHaveBeenCalled();
+    expect(getRegistrationsMock).toHaveBeenCalledTimes(1);
+  }, 15_000);
 
-    registerArgs?.onNeedRefresh?.();
-    expect(updateSWMock).toHaveBeenCalledWith(true);
+  it('unregisters stale service workers in development', async () => {
+    getRegistrationsMock.mockResolvedValue([{ unregister: unregisterMock }]);
+
+    await import('./main.tsx');
+
+    await vi.waitFor(() => {
+      expect(unregisterMock).toHaveBeenCalledTimes(1);
+    });
   }, 15_000);
 });
 

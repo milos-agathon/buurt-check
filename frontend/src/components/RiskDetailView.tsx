@@ -32,6 +32,8 @@ interface RiskDetailViewProps {
   questions?: ViewingQuestion[];
   source?: string;
   sourceDate?: string;
+  confidence?: string;
+  limitation?: string;
   onBack: () => void;
   onAnimationStart?: () => void;
   onAnimationComplete?: () => void;
@@ -51,12 +53,19 @@ export default function RiskDetailView({
   questions,
   source,
   sourceDate,
+  confidence,
+  limitation,
   onBack,
   onAnimationStart,
   onAnimationComplete,
 }: RiskDetailViewProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const isNl = i18n.language.startsWith('nl');
+  const sourceDateLabel = sourceDate ?? t('risk.sourceDateUnknown');
+  const confidenceLabel = confidence ?? (severity === 'unavailable'
+    ? t('risk.confidence.unavailable')
+    : t('risk.confidence.indicative'));
 
   useFocusTrap({
     isOpen: true,
@@ -181,18 +190,44 @@ export default function RiskDetailView({
 
         {questions && questions.length > 0 && (
           <section className="risk-detail__section">
-            <div className="risk-detail__checklist-callout">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M9 11l3 3L22 4" />
-                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-              </svg>
-              <span>
-                {t('risk.detail.checklistCallout', {
-                  count: questions.length,
-                  defaultValue: '{{count}} viewing questions saved to your checklist',
-                })}
-              </span>
-            </div>
+            <h3 className="risk-detail__section-title">{t('risk.detail.askAtViewing', 'Ask at your viewing')}</h3>
+            <ul className="risk-detail__questions">
+              {questions.map((question) => {
+                const text = isNl ? question.text_nl : question.text_en;
+                return (
+                  <li className="risk-detail__question-item" key={`${category}-${text}`}>
+                    {text}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        {(source || confidence || limitation) && (
+          <section className="risk-detail__section risk-detail__section--source">
+            <h3 className="risk-detail__section-title">
+              {t('risk.detail.sourceConfidence', 'Source, date, and confidence')}
+            </h3>
+            <dl className="risk-detail__source-list">
+              {source && (
+                <div>
+                  <dt>{t('risk.detail.sourceLabel', 'Source')}</dt>
+                  <dd>{source}</dd>
+                </div>
+              )}
+              <div>
+                <dt>{t('risk.detail.sourceDateLabel', 'Date')}</dt>
+                <dd>{sourceDateLabel}</dd>
+              </div>
+              <div>
+                <dt>{t('risk.detail.confidenceLabel', 'Confidence')}</dt>
+                <dd>{confidenceLabel}</dd>
+              </div>
+            </dl>
+            {limitation && (
+              <p className="risk-detail__source-limitation">{limitation}</p>
+            )}
           </section>
         )}
 
@@ -201,7 +236,7 @@ export default function RiskDetailView({
             <p className="risk-detail__source">
               {sourceDate
                 ? t('risk.sourceDate', { source, date: sourceDate })
-                : source}
+                : t('risk.sourceDate', { source, date: sourceDateLabel })}
             </p>
             <p className="risk-detail__disclaimer">{t('risk.disclaimer')}</p>
           </footer>

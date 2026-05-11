@@ -25,7 +25,7 @@ describe('playBilling', () => {
 
     getDetails.mockResolvedValue([{
       itemId: 'full_dossier_unlock',
-      title: 'Buurt Check Full Dossier',
+      title: 'Buurt Check Questions Pack',
       price: {
         currency: 'EUR',
         value: '3.99',

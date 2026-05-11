@@ -7,7 +7,7 @@
   align-items: stretch;
 }
 
-@media (max-width: 340px) {
+@media (max-width: 359px) {
   .risk-tiles-grid {
     grid-template-columns: 1fr;
   }

@@ -5,6 +5,7 @@ const THEME_TRANSITION_TIMEOUT_MS = 250;
 let themeTransitionTimeout: number | null = null;
 
 export type ThemePreference = 'light' | 'dark' | 'system';
+const DEFAULT_THEME: ThemePreference = 'light';
 
 interface ApplyThemeOptions {
   withTransition?: boolean;
@@ -15,9 +16,9 @@ export function getTheme(): ThemePreference {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
   } catch {
-    return 'system';
+    return DEFAULT_THEME;
   }
-  return 'system';
+  return DEFAULT_THEME;
 }
 
 export function setTheme(pref: ThemePreference): void {
@@ -32,11 +33,7 @@ export function setTheme(pref: ThemePreference): void {
 export function getEffectiveTheme(pref?: ThemePreference): 'light' | 'dark' {
   const p = pref ?? getTheme();
   if (p === 'light' || p === 'dark') return p;
-  try {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
+  return 'light';
 }
 
 function prefersReducedMotion(): boolean {

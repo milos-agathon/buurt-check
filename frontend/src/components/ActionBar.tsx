@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import ContextualTooltip from './ui/ContextualTooltip';
-import { hasSeenTooltip, markTooltipSeen } from '../services/tooltipTracker';
 import './ActionBar.css';
 
 interface ActionBarProps {
@@ -41,21 +39,7 @@ export default function ActionBar({
   const userTapped = useRef(false);
   const animationTimeout = useRef<number | null>(null);
 
-  // Bookmark tooltip: show once on first dossier load
-  const [tooltipVisible, setTooltipVisible] = useState(false);
-  const tooltipChecked = useRef(false);
-
-  useEffect(() => {
-    if (showBookmarkTooltip && !tooltipChecked.current && !hasSeenTooltip('bookmark')) {
-      tooltipChecked.current = true;
-      setTooltipVisible(true);
-    }
-  }, [showBookmarkTooltip]);
-
-  const dismissBookmarkTooltip = useCallback(() => {
-    setTooltipVisible(false);
-    markTooltipSeen('bookmark');
-  }, []);
+  void showBookmarkTooltip;
 
   const handleBookmarkClick = () => {
     if (bookmarkPending) return;
@@ -124,13 +108,6 @@ export default function ActionBar({
             ? t('action.saved', 'Saved')
             : t('action.addToShortlist', 'Add to Shortlist')}
         </button>
-        {tooltipVisible && (
-          <ContextualTooltip
-            message={t('tooltip.bookmark')}
-            onDismiss={dismissBookmarkTooltip}
-            position="above"
-          />
-        )}
       </div>
       <button
         type="button"

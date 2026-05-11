@@ -1,0 +1,22 @@
+[
+  {"address": "Sextantweg 10-12, Amsterdam", "official_source_ref": "prb-2025-21916", "source_date": "2025-12-29", "context": "Ontwerpbesluit omgevingsvergunning milieu revisie en bouw", "fixture_status": "fixture_backed"},
+  {"address": "Hornweg 10, Amsterdam", "official_source_ref": "prb-2024-18912", "source_date": "2024-12-10", "context": "Vergunning ingetrokken voor plaatsen van schroefpalen", "fixture_status": "fixture_backed"},
+  {"address": "Hettenheuvelweg 50, Amsterdam", "official_source_ref": "gmb-2021-316970", "source_date": "2021-09-15", "context": "Omgevingsvergunning eerste fase en hogere waarden Wet geluidhinder", "fixture_status": "fixture_backed"},
+  {"address": "Bernard Loderstraat 57, Amsterdam", "official_source_ref": "gmb-2021-294373", "source_date": "2021-09-01", "context": "Realiseren van 46 appartementen in afwijking van bestemmingsplan", "fixture_status": "fixture_backed"},
+  {"address": "Tussen Hoekenes 38 en 42, Amsterdam", "official_source_ref": "gmb-2021-288498", "source_date": "2021-08-25", "context": "Aansluiting Hoekenesgracht op Nieuwe Osdorpergracht", "fixture_status": "fixture_backed"},
+  {"address": "Gooise Kant, Amsterdam", "official_source_ref": "gmb-2021-239052", "source_date": "2021-07-21", "context": "Oprichten van 24 woningen en appartementengebouw met 45 appartementen", "fixture_status": "fixture_backed"},
+  {"address": "Centrumeiland IJburg, Amsterdam", "official_source_ref": "gmb-2021-239294", "source_date": "2021-07-21", "context": "Land maken op noordpunt en noordoever Centrumeiland", "fixture_status": "fixture_backed"},
+  {"address": "Fahrenheitstraat 54A-56C, Amsterdam", "official_source_ref": "gmb-2021-227728", "source_date": "2021-07-14", "context": "Indeling naar zes zelfstandige woningen, uitbreidingen en balkon", "fixture_status": "fixture_backed"},
+  {"address": "Noordwesten van Osdorperweg 532, Amsterdam", "official_source_ref": "stcrt-2021-31153", "source_date": "2021-06-16", "context": "Afwijking ruimtelijke ordening voor bouwen van twee woningen", "fixture_status": "fixture_backed"},
+  {"address": "Jan Pieter Heijestraat 84-H, Amsterdam", "official_source_ref": "gmb-2021-186125", "source_date": "2021-06-16", "context": "Verlening omgevingsvergunning horeca categorie 4", "fixture_status": "fixture_backed"},
+  {"address": "In de buurt van Lindenhoevestraat 4, Amsterdam", "official_source_ref": "stcrt-2021-28152", "source_date": "2021-06-02", "context": "Omgevingsvergunning en hogere waarden Wet geluidhinder", "fixture_status": "fixture_backed"},
+  {"address": "Abcouderstraatweg 46, Amsterdam", "official_source_ref": "stcrt-2021-27886", "source_date": "2021-06-02", "context": "Overkapping op driving range", "fixture_status": "fixture_backed"},
+  {"address": "Karspeldreef 14 +16, Amsterdam", "official_source_ref": "stcrt-2021-22899", "source_date": "2021-05-03", "context": "Rectificatie Wooden City Karspeldreef, hogere waarde Wet geluidhinder", "fixture_status": "fixture_backed"},
+  {"address": "Karspeldreef 14 +16, Amsterdam", "official_source_ref": "stcrt-2021-22121", "source_date": "2021-04-28", "context": "Wooden City Karspeldreef, omgevingsvergunning en hogere waarde", "fixture_status": "fixture_backed"},
+  {"address": "Nabij Van Gamerenstraat 2, Amsterdam", "official_source_ref": "stcrt-2021-21988", "source_date": "2021-04-28", "context": "Oprichten van transformatorstation", "fixture_status": "fixture_backed"},
+  {"address": "Nolensstraat 6-154, Amsterdam", "official_source_ref": "stcrt-2021-19979", "source_date": "2021-04-16", "context": "Rectificatie herontwikkeling Nolensstraat Zuid", "fixture_status": "fixture_backed"},
+  {"address": "Sloterweg 842 t/m 848, Amsterdam", "official_source_ref": "stcrt-2021-19362", "source_date": "2021-04-14", "context": "Bouwen van 4 woningen", "fixture_status": "fixture_backed"},
+  {"address": "Tafelbergweg 8, Amsterdam", "official_source_ref": "stcrt-2021-14026", "source_date": "2021-03-17", "context": "Afwijking bestemmingsplan voor 290 woonunits en ondersteunende functies", "fixture_status": "fixture_backed"},
+  {"address": "Hendrik Veldhuishof 2, Amsterdam", "official_source_ref": "gmb-2021-71718", "source_date": "2021-03-09", "context": "Besluit weigering omgevingsvergunning reguliere procedure", "fixture_status": "fixture_backed"},
+  {"address": "Spoorpark nabij station Holendrecht, Amsterdam", "official_source_ref": "stcrt-2021-9904", "source_date": "2021-02-24", "context": "Lichtmast, basketbalveld en steigers in Spoorpark", "fixture_status": "fixture_backed"}
+]

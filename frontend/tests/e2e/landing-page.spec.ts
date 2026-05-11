@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { expect, test, type Page } from '@playwright/test';
 
 const APP_URL = process.env.BUURTCHECK_LANDING_APP_URL ?? 'http://127.0.0.1:5173/#/search';
+const LANDING_ENTRY = '/landing.html';
 const LANDING_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'landing');
 const require = createRequire(import.meta.url);
 const AXE_SOURCE_PATH = require.resolve('axe-core/axe.min.js');
@@ -73,6 +74,10 @@ async function getRect(page: Page, selector: string) {
   });
 }
 
+function isDesktopViewport(page: Page) {
+  return (page.viewportSize()?.width ?? 0) >= 900;
+}
+
 async function readLandingGeometry(page: Page): Promise<LandingGeometry> {
   return page.evaluate(() => {
     const nav = document.querySelector('.nav')?.getBoundingClientRect() ?? null;
@@ -111,8 +116,8 @@ async function readLandingGeometry(page: Page): Promise<LandingGeometry> {
   });
 }
 
-test('renders the PRD section order and preserves CTA/legal routes', async ({ page }) => {
-  await page.goto('/');
+test('[landing] section-order 1440x900 nl light', async ({ page }) => {
+  await page.goto(LANDING_ENTRY);
 
   const sectionOrder = await page.locator('main > [id]').evaluateAll((nodes) =>
     nodes.map((node) => node.id),
@@ -138,16 +143,16 @@ test('renders the PRD section order and preserves CTA/legal routes', async ({ pa
   await expect(page.locator('footer a[href="/terms.html"]')).toBeVisible();
   await expect(page.locator('footer a[href*="mailto:"]')).toBeVisible();
 
-  const isDesktop = test.info().project.name === 'desktop';
+  const isDesktop = isDesktopViewport(page);
   expect(await getGridColumnCount(page, '.hero__layout')).toBe(isDesktop ? 2 : 1);
   expect(await getGridColumnCount(page, '.differentiators__grid')).toBe(isDesktop ? 2 : 1);
   expect(await getGridColumnCount(page, '.steps')).toBe(isDesktop ? 3 : 1);
 });
 
-test('keeps key hierarchy ratios and spacing rules aligned with the PRD', async ({ page }) => {
-  await page.goto('/');
+test('[landing] hierarchy 1440x900 nl light', async ({ page }) => {
+  await page.goto(LANDING_ENTRY);
 
-  const isDesktop = test.info().project.name === 'desktop';
+  const isDesktop = isDesktopViewport(page);
   const differentiatorColumns = await getGridColumnWidths(page, '.differentiators__grid');
   expect(differentiatorColumns).toHaveLength(isDesktop ? 2 : 1);
 
@@ -169,8 +174,8 @@ test('keeps key hierarchy ratios and spacing rules aligned with the PRD', async 
   expect(heroBadgeRect.top).toBeGreaterThanOrEqual(heroCtaRect.bottom);
 });
 
-test('persists language selection and swaps visible content in place', async ({ page }) => {
-  await page.goto('/');
+test('[landing] language 390x844 nl light', async ({ page }) => {
+  await page.goto(LANDING_ENTRY);
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'nl');
   await expect(page.locator('.hero__title [data-lang="nl"]')).toBeVisible();
@@ -203,8 +208,8 @@ test('persists language selection and swaps visible content in place', async ({ 
   expect(storedLanguage).toBe('en');
 });
 
-test('offers a working skip link and keeps smooth scrolling enabled by default', async ({ page }) => {
-  await page.goto('/');
+test('[accessibility] landing-skip 390x844 nl light', async ({ page }) => {
+  await page.goto(LANDING_ENTRY);
 
   const scrollBehavior = await page.locator('html').evaluate((node) => getComputedStyle(node).scrollBehavior);
   expect(scrollBehavior).toBe('smooth');
@@ -217,8 +222,8 @@ test('offers a working skip link and keeps smooth scrolling enabled by default',
   await expect(page.locator('#main-content')).toBeFocused();
 });
 
-test('keeps the FAQ collapsed by default and supports keyboard-only accordion control', async ({ page }) => {
-  await page.goto('/');
+test('[accessibility] landing-faq 390x844 nl light', async ({ page }) => {
+  await page.goto(LANDING_ENTRY);
   await page.locator('#faq').scrollIntoViewIfNeeded();
 
   const faqButtons = page.locator('[data-faq-trigger]');
@@ -258,8 +263,8 @@ test('keeps the FAQ collapsed by default and supports keyboard-only accordion co
   await expect(faqButtons.nth(0)).toBeFocused();
 });
 
-test('keeps sticky-nav controls keyboard reachable and records landing analytics events', async ({ page }) => {
-  await page.goto('/');
+test('[accessibility] landing-nav 390x844 nl light', async ({ page }) => {
+  await page.goto(LANDING_ENTRY);
 
   expect(await getElementHeight(page, 'button[data-language-choice="nl"]')).toBeGreaterThanOrEqual(44);
   expect(await getElementHeight(page, 'button[data-language-choice="en"]')).toBeGreaterThanOrEqual(44);
@@ -338,12 +343,12 @@ test('keeps sticky-nav controls keyboard reachable and records landing analytics
   expect(languageToggle?.payload.from).toBe('nl');
 });
 
-test('keeps the mobile CTA visible in the fixed header row and exposes the hero preview on first load', async (
+test('[landing] mobile-hero 390x844 nl light', async (
   { page },
   testInfo,
 ) => {
   test.skip(testInfo.project.name !== 'mobile', 'mobile first-load geometry is only asserted on the mobile project');
-  await page.goto('/');
+  await page.goto(LANDING_ENTRY);
 
   const after = await readLandingGeometry(page);
 
@@ -401,8 +406,8 @@ test('keeps the mobile CTA visible in the fixed header row and exposes the hero 
   expect(languageButtonHeights.every((height) => height >= 44)).toBe(true);
 });
 
-test('places the dossier showcase before pricing and renders all showcase cards', async ({ page }) => {
-  await page.goto('/');
+test('[landing] showcase 1440x900 nl light', async ({ page }) => {
+  await page.goto(LANDING_ENTRY);
 
   const sectionOrder = await page.locator('main > [id]').evaluateAll((nodes) =>
     nodes.map((node) => node.id),
@@ -418,7 +423,7 @@ test('places the dossier showcase before pricing and renders all showcase cards'
   await expect(showcase.locator('img[alt="Buurt Check neighborhood context dossier page"]')).toBeVisible();
 });
 
-test('bootstraps Google Analytics 4 when a measurement id is configured', async ({ page }) => {
+test('[consent] analytics 390x844 nl light', async ({ page }) => {
   await page.route('https://www.googletagmanager.com/gtag/js*', async (route) => {
     await route.fulfill({
       status: 200,
@@ -435,7 +440,7 @@ test('bootstraps Google Analytics 4 when a measurement id is configured', async 
     ).BUURTCHECK_GA_MEASUREMENT_ID = 'G-TEST1234';
   });
 
-  await page.goto('/');
+  await page.goto(LANDING_ENTRY);
 
   await page.locator('a[data-cta-placement="hero"]').evaluate((node) => {
     node.addEventListener('click', (event) => event.preventDefault(), { once: true });
@@ -490,7 +495,7 @@ test('bootstraps Google Analytics 4 when a measurement id is configured', async 
   });
 });
 
-test('serves legal pages from the landing bundle', async ({ page }) => {
+test('[legal] static-pages 390x844 nl light', async ({ page }) => {
   expect(existsSync(resolve(LANDING_DIR, 'privacy.html'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'terms.html'))).toBe(true);
   expect(existsSync(resolve(LANDING_DIR, 'legal.css'))).toBe(true);
@@ -531,8 +536,8 @@ test('serves legal pages from the landing bundle', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Voorwaarden voor Buurt Check' })).toBeVisible();
 });
 
-test('keeps the landing footer focused on support and legal links', async ({ page }) => {
-  await page.goto('/');
+test('[landing] footer 1440x900 nl light', async ({ page }) => {
+  await page.goto(LANDING_ENTRY);
 
   const footer = page.locator('footer');
   await expect(footer.locator('a[href="mailto:support@buurt-check.nl"]')).toBeVisible();
@@ -540,8 +545,8 @@ test('keeps the landing footer focused on support and legal links', async ({ pag
   await expect(footer.locator('a[href="/terms.html"]')).toBeVisible();
 });
 
-test('has no serious or critical axe violations on the landing page', async ({ page }) => {
-  await page.goto('/');
+test('[accessibility] landing-axe 390x844 nl light', async ({ page }) => {
+  await page.goto(LANDING_ENTRY);
   await page.addScriptTag({ path: AXE_SOURCE_PATH });
 
   const violations = await page.evaluate(async () => {

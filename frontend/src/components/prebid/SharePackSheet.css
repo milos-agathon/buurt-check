@@ -1,0 +1,198 @@
+.share-pack {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: color-mix(in srgb, var(--landing-text) 46%, transparent);
+  display: grid;
+  place-items: end center;
+  padding: var(--space-base);
+}
+
+.share-pack__panel {
+  width: min(100%, 40rem);
+  max-height: min(86dvh, 44rem);
+  overflow: auto;
+  border: 1px solid var(--landing-border);
+  border-radius: var(--radius-card);
+  background: var(--landing-surface-strong);
+  padding: var(--space-base);
+  display: grid;
+  gap: var(--space-base);
+  color: var(--landing-text);
+  box-shadow: var(--landing-shadow);
+}
+
+.share-pack__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-base);
+  align-items: flex-start;
+}
+
+.share-pack__eyebrow {
+  margin: 0 0 var(--space-2xs);
+  font: var(--type-micro);
+  color: var(--landing-accent-text);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.share-pack h2,
+.share-pack p {
+  margin: 0;
+}
+
+.share-pack h2 {
+  font: var(--type-h2);
+  color: var(--landing-text);
+}
+
+.share-pack__body,
+.share-pack__fallback span,
+.share-pack__delete p {
+  font: var(--type-small);
+  color: var(--landing-text-secondary);
+}
+
+.share-pack__close,
+.share-pack button {
+  min-height: 44px;
+  border: 1px solid var(--landing-border-soft);
+  border-radius: var(--radius-button);
+  background: var(--landing-nav-control);
+  color: var(--landing-text);
+  font: var(--type-body-medium);
+  padding: 0 var(--space-base);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out-subtle),
+    border-color var(--duration-fast) var(--ease-out-subtle),
+    color var(--duration-fast) var(--ease-out-subtle);
+}
+
+.share-pack__close:hover,
+.share-pack button:hover {
+  background: var(--landing-nav-control-hover);
+  border-color: var(--landing-border);
+}
+
+.share-pack__copy button,
+.share-pack__email > button {
+  border-color: var(--color-cta-bg);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
+}
+
+.share-pack__copy button:hover,
+.share-pack__email > button:hover {
+  border-color: var(--color-cta-bg-hover);
+  background: var(--color-cta-bg-hover);
+  color: var(--color-cta-text);
+}
+
+.share-pack__fallback,
+.share-pack__copy,
+.share-pack__email,
+.share-pack__delete {
+  border: 1px solid var(--landing-border-soft);
+  border-radius: var(--landing-radius-sm);
+  background: var(--landing-surface-soft);
+  padding: var(--space-sm);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.share-pack__fallback strong {
+  font: var(--type-small);
+  color: var(--landing-text);
+}
+
+.share-pack__copy code {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font: var(--type-small);
+  color: var(--landing-text);
+}
+
+.share-pack__email label {
+  display: grid;
+  gap: var(--space-2xs);
+  font: var(--type-small);
+  color: var(--landing-text-secondary);
+}
+
+.share-pack__email input[type="email"] {
+  min-height: 44px;
+  border: 1px solid var(--landing-border);
+  border-radius: var(--radius-button);
+  background: var(--landing-surface-strong);
+  color: var(--landing-text);
+  padding: 0 var(--space-sm);
+  font: var(--type-body);
+}
+
+.share-pack__consent {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.share-pack__consent input {
+  margin-top: 0.2rem;
+}
+
+.share-pack button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.share-pack button:disabled:hover {
+  border-color: var(--landing-border-soft);
+  background: var(--landing-nav-control);
+}
+
+.share-pack__copy button:disabled:hover,
+.share-pack__email > button:disabled:hover {
+  border-color: var(--color-cta-bg);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
+}
+
+.share-pack__delete button {
+  color: var(--landing-tertiary-text);
+}
+
+.share-pack__delete button:hover {
+  background: var(--landing-tertiary-soft);
+  color: var(--landing-tertiary-text);
+}
+
+.share-pack button:focus-visible,
+.share-pack input:focus-visible {
+  outline: 2px solid var(--landing-accent-text);
+  outline-offset: 3px;
+}
+
+.share-pack__delete div {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+@media (min-width: 48rem) {
+  .share-pack {
+    place-items: center;
+  }
+}
+
+@media (forced-colors: active) {
+  .share-pack__panel,
+  .share-pack__close,
+  .share-pack button,
+  .share-pack__fallback,
+  .share-pack__copy,
+  .share-pack__email,
+  .share-pack__delete,
+  .share-pack__email input[type="email"] {
+    border: 1px solid CanvasText;
+  }
+}

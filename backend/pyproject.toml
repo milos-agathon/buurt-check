@@ -1,6 +1,6 @@
 [project]
 name = "buurt-check-backend"
-version = "1.0.0"
+version = "1.1.0"
 description = "Backend for buurt-check: pre-viewing intelligence for property buyers in the Netherlands"
 requires-python = ">=3.11"
 dependencies = [

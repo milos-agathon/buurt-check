@@ -35,16 +35,16 @@ allSvgs.forEach(svgPath => {
     let content = fs.readFileSync(svgPath, 'utf8');
     let changed = false;
 
-    // 1. Color Rules: #24A097 on white/light, #2EC4B6 on dark
+    // 1. Color Rules: #0D9488 on white/light, #0D9488 on dark
     if (path.basename(svgPath).includes('reverse') || path.basename(svgPath) === 'buurt-check-mark.svg') {
         // Reverse/mark uses Brand Teal on dark
-        if (!content.includes('"#2EC4B6"')) {
+        if (!content.includes('"#0D9488"')) {
             // already Brand Teal, or fix up 
         }
     } else if (!path.basename(svgPath).includes('mono') && !path.basename(svgPath).includes('mark')) {
-        // Standard lockups on white/light use Mark Teal #24A097 for the check
-        if (content.includes('#2EC4B6')) {
-            content = content.replace(/#2EC4B6/g, '#24A097');
+        // Standard lockups on white/light use Mark Teal #0D9488 for the check
+        if (content.includes('#0D9488')) {
+            content = content.replace(/#0D9488/g, '#0D9488');
             changed = true;
         }
     }
@@ -69,7 +69,7 @@ allSvgs.forEach(svgPath => {
     const isStacked = path.basename(svgPath).includes('stacked');
 
     if (isHorizontal || isStacked) {
-        const wmHexColor = path.basename(svgPath).includes('reverse') ? '#FFFFFF' : '#1C2D3F';
+        const wmHexColor = path.basename(svgPath).includes('reverse') ? '#FFFFFF' : '#171D1C';
         let newWordmarkTag = '';
 
         // For horizontal, scale logic

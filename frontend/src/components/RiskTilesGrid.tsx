@@ -5,11 +5,13 @@ import type {
   RiskCardsResponse,
   SeverityLevel,
   RiskLevel,
+  ViewingQuestionsResponse,
 } from '../types/api';
 import './RiskTilesGrid.css';
 
 interface RiskTilesGridProps {
   risks?: RiskCardsResponse;
+  questions?: ViewingQuestionsResponse;
   onTileTap?: (category: string) => void;
 }
 
@@ -28,7 +30,36 @@ function levelToSeverity(level: RiskLevel, score?: number): SeverityLevel {
   }
 }
 
-function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
+function questionCountForCategory(questions: ViewingQuestionsResponse | undefined, category: string): number {
+  if (!questions) return 0;
+  const normalized = category.toLowerCase();
+  const match = questions.categories.find((entry) => {
+    const name = entry.name.toLowerCase();
+    if (normalized === 'air') return name === 'air' || name === 'air quality';
+    if (normalized === 'climate') return name === 'climate' || name === 'climate stress';
+    return name === normalized;
+  });
+  return match?.questions.length ?? 0;
+}
+
+function firstQuestionForCategory(
+  questions: ViewingQuestionsResponse | undefined,
+  category: string,
+  isNl: boolean,
+): string | undefined {
+  if (!questions) return undefined;
+  const normalized = category.toLowerCase();
+  const match = questions.categories.find((entry) => {
+    const name = entry.name.toLowerCase();
+    if (normalized === 'air') return name === 'air' || name === 'air quality';
+    if (normalized === 'climate') return name === 'climate' || name === 'climate stress';
+    return name === normalized;
+  });
+  const question = match?.questions[0];
+  return question ? (isNl ? question.text_nl : question.text_en) : undefined;
+}
+
+function RiskTilesGrid({ risks, questions, onTileTap }: RiskTilesGridProps) {
   const { i18n, t } = useTranslation();
   const isNl = i18n.language === 'nl';
   const unavailableSummary = t('risk.tileUnavailable');
@@ -44,6 +75,12 @@ function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
         : unavailableSummary,
       warnings: risks?.noise.warnings ?? (risks?.noise.message ? [risks.noise.message] : []),
       unavailable: !risks || risks.noise.level === 'unavailable' || risks.noise.score == null,
+      source: risks?.noise.source,
+      sourceDate: risks?.noise.source_date,
+      confidence: risks?.noise.level === 'unavailable' ? t('risk.confidence.unavailable') : t('risk.confidence.indicative'),
+      questionCount: questionCountForCategory(questions, 'noise'),
+      firstQuestion: firstQuestionForCategory(questions, 'noise', isNl),
+      limitation: t('risk.limitation.noise'),
     },
     {
       category: 'air',
@@ -55,6 +92,12 @@ function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
         : unavailableSummary,
       warnings: risks?.air_quality.warnings ?? (risks?.air_quality.message ? [risks.air_quality.message] : []),
       unavailable: !risks || risks.air_quality.level === 'unavailable' || risks.air_quality.score == null,
+      source: risks?.air_quality.source,
+      sourceDate: risks?.air_quality.source_date,
+      confidence: risks?.air_quality.level === 'unavailable' ? t('risk.confidence.unavailable') : t('risk.confidence.indicative'),
+      questionCount: questionCountForCategory(questions, 'air'),
+      firstQuestion: firstQuestionForCategory(questions, 'air', isNl),
+      limitation: t('risk.limitation.air'),
     },
     {
       category: 'climate',
@@ -66,6 +109,12 @@ function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
         : unavailableSummary,
       warnings: risks?.climate_stress.warnings ?? (risks?.climate_stress.message ? [risks.climate_stress.message] : []),
       unavailable: !risks || risks.climate_stress.level === 'unavailable' || risks.climate_stress.score == null,
+      source: risks?.climate_stress.source,
+      sourceDate: risks?.climate_stress.source_date,
+      confidence: risks?.climate_stress.level === 'unavailable' ? t('risk.confidence.unavailable') : t('risk.confidence.indicative'),
+      questionCount: questionCountForCategory(questions, 'climate'),
+      firstQuestion: firstQuestionForCategory(questions, 'climate', isNl),
+      limitation: t('risk.limitation.climate'),
     },
   ] as const;
 
@@ -79,8 +128,14 @@ function RiskTilesGrid({ risks, onTileTap }: RiskTilesGridProps) {
           score={card.score}
           severity={card.severity}
           summary={card.unavailable ? unavailableSummary : card.summary}
-          warnings={card.warnings}
+          warnings={card.warnings ? [...card.warnings] : undefined}
           unavailable={card.unavailable}
+          source={card.source}
+          sourceDate={card.sourceDate}
+          confidence={card.confidence}
+          questionCount={card.questionCount}
+          firstQuestion={card.firstQuestion}
+          limitation={card.limitation}
           onTap={card.unavailable ? undefined : () => onTileTap?.(card.category)}
         />
       ))}

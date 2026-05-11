@@ -326,9 +326,10 @@ describe('NeighborhoodViewer3D', () => {
     expect(screen.getByText(/3DBAG.*SunCalc/)).toBeInTheDocument();
   });
 
-  it('renders a localized degraded-state message when provided', () => {
-    renderViewer({ statusMessage: '3D context is partial because some surrounding buildings could not be loaded.' });
-    expect(screen.getByText('3D context is partial because some surrounding buildings could not be loaded.')).toBeInTheDocument();
+  it('does not render partial 3D context notices in the viewer', () => {
+    renderViewer();
+    expect(screen.queryByText(/3D context is partial/i)).not.toBeInTheDocument();
+    expect(document.querySelector('.viewer-3d__status-message')).not.toBeInTheDocument();
   });
 
   it('snapshot capture restores sun state', () => {
@@ -549,7 +550,7 @@ describe('NeighborhoodViewer3D', () => {
       ({ args }) => args?.emissive !== undefined && !args?.transparent
     );
     expect(targetCall).toBeDefined();
-    expect(targetCall!.args.color).toBe(0x2EC4B6);
+    expect(targetCall!.args.color).toBe(0x0D9488);
     expect(targetCall!.args.emissiveIntensity).toBe(0.48); // light mode (jsdom default)
   });
 

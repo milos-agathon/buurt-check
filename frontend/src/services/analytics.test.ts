@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import * as Sentry from '@sentry/react';
+import { addTelemetryBreadcrumb } from './errorReporting';
 
-vi.mock('@sentry/react', () => ({
-  addBreadcrumb: vi.fn(),
+vi.mock('./errorReporting', () => ({
+  addTelemetryBreadcrumb: vi.fn(),
 }));
 
 async function loadAnalyticsModule() {
@@ -25,7 +25,7 @@ describe('analytics service', () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
-    vi.mocked(Sentry.addBreadcrumb).mockReset();
+    vi.mocked(addTelemetryBreadcrumb).mockReset();
     clearAnalyticsGlobals();
   });
 
@@ -110,7 +110,7 @@ describe('analytics service', () => {
       checkout_url: 'https://app.buurt-check.nl/#/search?report=report-123',
     });
 
-    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+    expect(addTelemetryBreadcrumb).toHaveBeenCalledWith({
       category: 'analytics',
       message: 'checkout_completed',
       data: {
@@ -221,12 +221,64 @@ describe('analytics service', () => {
 
   it('does not throw when Sentry breadcrumbs fail', async () => {
     vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-TEST1234');
-    vi.mocked(Sentry.addBreadcrumb).mockImplementation(() => {
+    vi.mocked(addTelemetryBreadcrumb).mockImplementation(() => {
       throw new Error('Sentry unavailable');
     });
     const { initAnalytics, trackEvent } = await loadAnalyticsModule();
 
     initAnalytics();
     expect(() => trackEvent('checkout_failed')).not.toThrow();
+  });
+
+  it('scrubs prebid analytics payloads before GA and Sentry receive them', async () => {
+    vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-TEST1234');
+    const { initAnalytics, trackPrebidEvent, sanitizePrebidAnalyticsProperties } = await loadAnalyticsModule();
+
+    initAnalytics();
+    const sanitized = sanitizePrebidAnalyticsProperties({
+      state: 'ready',
+      action_count: 3,
+      address: 'Keizersgracht 100',
+      postcode: '1015AA',
+      vbo_id: '0363010000696734',
+      report_id: 'report-1',
+      share_token: 'shared-secret',
+      source_text: 'Generated source text',
+      finding: 'Generated finding',
+      question_text: 'Generated question',
+      limitation: 'Generated caveat',
+      share_url: 'https://app.buurt-check.nl/#/shared/shared-secret?report=report-1',
+    });
+
+    expect(sanitized).toEqual({
+      state: 'ready',
+      action_count: 3,
+    });
+
+    trackPrebidEvent('briefing_opened', {
+      state: 'ready',
+      action_count: 3,
+      address: 'Keizersgracht 100',
+      report_id: 'report-1',
+      source_text: 'Generated source text',
+    });
+
+    expect(addTelemetryBreadcrumb).toHaveBeenCalledWith({
+      category: 'analytics',
+      message: 'prebid_briefing_opened',
+      data: {
+        state: 'ready',
+        action_count: 3,
+      },
+      level: 'info',
+    });
+    expect(window.dataLayer).toContainEqual([
+      'event',
+      'prebid_briefing_opened',
+      {
+        state: 'ready',
+        action_count: 3,
+      },
+    ]);
   });
 });

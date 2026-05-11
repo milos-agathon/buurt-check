@@ -25,7 +25,7 @@ backend/           # FastAPI external-data aggregator + buyer-bound monetization
 frontend/          # React + Vite + TypeScript
   src/components/  # All UI components (dossier cards, navigation, search, shortlist)
   src/styles/      # tokens.css (195 CSS custom properties), satoshi.css (font)
-  src/services/    # api.ts (fetch), shortlist.ts, theme.ts (dark mode)
+  src/services/    # api.ts (fetch), shortlist.ts, theme.ts (light default; dark opt-in)
   src/i18n/        # en.json + nl.json (~380 keys each, parity enforced)
   src/types/       # TypeScript interfaces mirroring backend models
 docs/              # Design specs, plans, palette, UI principles
@@ -84,7 +84,7 @@ cd frontend && npm run test                 # Vitest (705+ baseline)
 - `CQL_FILTER` for BAG WFS (silently ignored) — use OGC XML Filter
 - `requests` library — use `httpx` async
 - CSS `!important` on canvas dimensions — breaks Three.js `renderer.setSize()`
-- `--color-accent` (#2EC4B6) as text on light bg (fails WCAG) — use `--color-accent-text` (#1C8C83)
+- `--color-accent` (#0D9488) as text on light bg — use `--color-accent-text` / `--color-accent-hover` (#00685F); tertiary warm accent is #C36D4B; full palette in `docs/palette.md`
 - `react-three-fiber` or `drei` — plain Three.js only
 - React Query / Zustand / Redux — useState + props
 - Bare `= []` in Pydantic models — use `Field(default_factory=list)`
@@ -92,7 +92,7 @@ cd frontend && npm run test                 # Vitest (705+ baseline)
 
 ## Risk card contract
 
-Every risk card must have: (1) score 0-100 + severity, (2) plain-language meaning, (3) viewing questions, (4) source + date. Tiles in 2x2 grid; tap opens detail with comparison chart (address vs city vs NL vs WHO).
+Every frontend risk card must have: (1) score 0-100 + severity, (2) plain-language meaning, (3) viewing questions, (4) source + date. The app frontend renders only Noise, Air, and Climate risk tiles; tap opens detail with comparison chart (address vs city vs NL vs WHO). Sunlight analysis stays paid-report/PDF only and must not be rendered as a frontend risk tile or detail view.
 
 ## Reference docs (don't embed, just read when needed)
 

@@ -32,10 +32,10 @@ allSvgs.forEach(svgPath => {
     let content = fs.readFileSync(svgPath, 'utf8');
     let changed = false;
 
-    // 3. Update #111827 to #1C2D3F in mono SVGs
+    // 3. Update #111827 to #171D1C in mono SVGs
     if (path.basename(svgPath).includes('mono')) {
         if (content.includes('#111827')) {
-            content = content.replace(/#111827/g, '#1C2D3F');
+            content = content.replace(/#111827/g, '#171D1C');
             changed = true;
         }
     }

@@ -55,6 +55,15 @@ describe('SettingsScreen accessibility semantics', () => {
     expect(darkTheme).toHaveAttribute('aria-checked', 'false');
   });
 
+  it('defaults the appearance selection to light when no theme prop is supplied', () => {
+    renderSettings({ theme: undefined });
+
+    const themeGroup = screen.getByRole('radiogroup', { name: 'Appearance' });
+    expect(within(themeGroup).getByRole('radio', { name: 'System' })).toHaveAttribute('aria-checked', 'false');
+    expect(within(themeGroup).getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(themeGroup).getByRole('radio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'false');
+  });
+
   it('updates checked language and theme selection states', async () => {
     const { onThemeChange } = renderSettings({ theme: 'system' });
 

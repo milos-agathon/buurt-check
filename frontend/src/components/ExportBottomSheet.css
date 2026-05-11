@@ -34,9 +34,9 @@
   width: 100%;
   text-align: left;
   border: 1px solid var(--color-border);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), var(--color-surface));
+  background: var(--color-surface);
   color: var(--color-text);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
@@ -60,7 +60,7 @@
 .export-sheet__template-card--active {
   background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 16%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 14%, transparent);
 }
 
 .export-sheet__template-illus {
@@ -88,36 +88,56 @@
 }
 
 .export-sheet__language-segment {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  width: 172px;
-  padding: 4px;
-  border: 1px solid var(--color-border);
+  width: fit-content;
+  padding: 2px;
+  border: 1px solid var(--color-nav-border);
   border-radius: var(--radius-pill);
-  background: var(--color-surface-alt);
+  background: var(--color-nav-control-bg);
 }
 
 .export-sheet__language-btn {
   border: 0;
   border-radius: var(--radius-pill);
-  padding: 10px 0;
-  font: var(--type-micro);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: var(--font-family);
+  font-size: 13px;
   font-weight: 700;
-  color: var(--color-text-secondary);
+  color: var(--color-nav-text-dimmed);
   background: transparent;
   cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .export-sheet__language-btn:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
   border-radius: inherit;
 }
 
-.export-sheet__language-btn--active {
-  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+.export-sheet__language-btn:hover {
+  background: var(--color-surface-hover);
   color: var(--color-text);
+}
+
+.export-sheet__language-btn:active {
+  transform: scale(0.98);
+}
+
+.export-sheet__language-btn--active {
+  background: var(--landing-accent-soft);
+  color: var(--color-accent-text);
+}
+
+.export-sheet__language-separator {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .export-sheet__language-warning,
@@ -143,8 +163,8 @@
   padding: var(--space-md);
   margin-top: var(--space-md);
   border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--color-surface-alt) 72%, var(--color-surface));
+  border-radius: var(--radius-card);
+  background: var(--color-surface-alt);
   font: var(--type-body);
   color: var(--color-text);
   cursor: pointer;
@@ -186,7 +206,7 @@
   margin: var(--space-sm) 0 0;
   padding: var(--space-sm) var(--space-md);
   border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface-alt));
   font: var(--type-micro);
   line-height: 1.6;
@@ -209,8 +229,8 @@
   align-items: center;
   padding: var(--space-lg) var(--space-md);
   border: 1px solid var(--color-border);
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--color-surface-alt) 70%, var(--color-surface));
+  border-radius: var(--radius-card);
+  background: var(--color-surface-alt);
 }
 
 .export-sheet__progress-ring {
@@ -299,9 +319,9 @@
 .export-sheet__ready {
   margin-top: var(--space-lg);
   padding: var(--space-md);
-  background: color-mix(in srgb, var(--color-surface-alt) 76%, var(--color-surface));
+  background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
-  border-radius: 20px;
+  border-radius: var(--radius-card);
 }
 
 .export-sheet__ready-header {
@@ -324,14 +344,14 @@
   margin-top: var(--space-lg);
   min-height: 52px;
   padding: var(--space-md) var(--space-lg);
-  background: var(--color-accent);
-  color: var(--color-overlay-text);
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
   border: none;
-  border-radius: 16px;
+  border-radius: var(--radius-button);
   font: var(--type-body);
   font-weight: 700;
   cursor: pointer;
-  transition: opacity var(--duration-fast) var(--ease-out-subtle), transform var(--duration-fast) var(--ease-out-subtle);
+  transition: background var(--duration-fast) var(--ease-out-subtle), opacity var(--duration-fast) var(--ease-out-subtle), transform var(--duration-fast) var(--ease-out-subtle);
 }
 
 .export-sheet__btn:focus-visible {
@@ -341,7 +361,7 @@
 }
 
 .export-sheet__btn:hover:not(:disabled) {
-  opacity: 0.92;
+  background: var(--color-cta-bg-hover);
   transform: translateY(-1px);
 }
 

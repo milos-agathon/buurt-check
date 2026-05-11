@@ -6,11 +6,11 @@ import time
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
 from fastapi.responses import Response
 from pydantic import AliasChoices, BaseModel, Field
 
-from app.api.buyer import get_buyer_key
+from app.api.buyer import ensure_buyer_key, get_buyer_key
 from app.api.dependencies import get_render_service, require_entitlement
 from app.cache.redis import cache_get, cache_set, cache_set_verified
 from app.config import settings
@@ -19,6 +19,7 @@ from app.models.building import BuildingFactsResponse
 from app.models.livability import LivabilityComparison, LivabilityResponse
 from app.models.neighborhood import NeighborhoodStatsResponse, UrbanizationLevel
 from app.models.neighborhood3d import Neighborhood3DResponse
+from app.models.prebid import PrebidBriefingRequest, SharedPrebidResponse
 from app.models.property_warnings import PropertyWarningsResponse
 from app.models.report import ProvenanceData
 from app.models.risk import (
@@ -45,6 +46,7 @@ from app.services import (
     wms_tile,
 )
 from app.services.http_client import LoopAwareClient
+from app.services.pack_generator import generate_pack_from_briefing
 from app.services.pdf_export import generate_full_dossier, generate_quick_brief
 from app.services.risk_comparisons import build_risk_comparisons
 from app.services.scoring import (
@@ -54,6 +56,7 @@ from app.services.scoring import (
     sunlight_summary,
 )
 from app.services.shadow_prewarm import build_seasonal_shadow_evidence
+from app.services.share_email import keyed_email_hash, new_share_token, share_url
 from app.services.viewing_questions import (
     build_viewing_questions,
     with_crime_viewing_questions,
@@ -91,15 +94,17 @@ _CACHE_DATA = "public, max-age=3600, stale-while-revalidate=86400"
 _CACHE_REALTIME = "no-cache"
 _CACHE_NO_STORE = "no-store"
 
-_RISK_FAILURE_MESSAGES: frozenset[str] = frozenset({
-    "NOISE_LAYER_UNAVAILABLE",
-    "NOISE_LOOKUP_FAILED",
-    "AIR_LOOKUP_FAILED",
-    "CLIMATE_LOOKUP_FAILED",
-    "NOISE_TIMEOUT",
-    "AIR_TIMEOUT",
-    "CLIMATE_TIMEOUT",
-})
+_RISK_FAILURE_MESSAGES: frozenset[str] = frozenset(
+    {
+        "NOISE_LAYER_UNAVAILABLE",
+        "NOISE_LOOKUP_FAILED",
+        "AIR_LOOKUP_FAILED",
+        "CLIMATE_LOOKUP_FAILED",
+        "NOISE_TIMEOUT",
+        "AIR_TIMEOUT",
+        "CLIMATE_TIMEOUT",
+    }
+)
 
 SUNLIGHT_METHOD_VERSION = "sunlight-v2-interval-dayweighted"
 
@@ -115,10 +120,7 @@ def _location_map_params(
     image_format: str,
 ) -> dict[str, str]:
     bbox_half = 75  # meters — 150m x 150m area (zoomed in to clearly show house)
-    bbox = (
-        f"{rd_x - bbox_half},{rd_y - bbox_half},"
-        f"{rd_x + bbox_half},{rd_y + bbox_half}"
-    )
+    bbox = f"{rd_x - bbox_half},{rd_y - bbox_half},{rd_x + bbox_half},{rd_y + bbox_half}"
     return {
         "SERVICE": "WMS",
         "VERSION": "1.3.0",
@@ -133,6 +135,7 @@ def _location_map_params(
         "TRANSPARENT": "false",
     }
 
+
 def _property_warnings_cache_key(
     vbo_id: str,
     rd_x: float,
@@ -144,10 +147,7 @@ def _property_warnings_cache_key(
     _cy = construction_year if construction_year is not None else ""
     _nu = num_units if num_units is not None else ""
     _mu = (municipality or "").strip().casefold()
-    return (
-        f"property_warnings:v2:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
-        f":{_cy}:{_nu}:{_mu}"
-    )
+    return f"property_warnings:v2:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}:{_cy}:{_nu}:{_mu}"
 
 
 def _year_from_timestamp(value: str | None) -> int | None:
@@ -184,6 +184,484 @@ async def _resolve_shadow_reference_year(report_id: str | None) -> int:
 
 
 router = APIRouter(prefix="/address", tags=["address"])
+
+
+def _require_admin(authorization: str | None = Header(None)) -> None:
+    if not settings.prebid_admin_token:
+        raise HTTPException(status_code=404)
+    if authorization != f"Bearer {settings.prebid_admin_token}":
+        raise HTTPException(status_code=401)
+
+
+@router.get("/admin/source-runs")
+@router.get("/admin/prebid/source-runs")
+async def list_prebid_source_runs_admin(
+    _: None = Depends(_require_admin),
+    limit: int = Query(50, ge=1, le=100),
+):
+    from app.services.briefing_store import list_admin_source_runs
+
+    return {
+        "items": [
+            item.model_dump(mode="json") for item in await list_admin_source_runs(limit=limit)
+        ]
+    }
+
+
+@router.get("/admin/source-runs/{source_run_id}")
+@router.get("/admin/prebid/source-runs/{source_run_id}")
+async def get_prebid_source_run_admin(
+    source_run_id: str,
+    _: None = Depends(_require_admin),
+):
+    from app.services.briefing_store import get_admin_source_run
+
+    source_run = await get_admin_source_run(source_run_id)
+    if source_run is None:
+        raise HTTPException(status_code=404)
+    return source_run.model_dump(mode="json")
+
+
+@router.post("/admin/review-tasks/{review_task_id}/decision")
+@router.post("/admin/prebid/review-tasks/{review_task_id}/decision")
+async def decide_prebid_review_task_admin(
+    review_task_id: str,
+    body: dict,
+    _: None = Depends(_require_admin),
+):
+    from app.services.briefing_store import decide_review_task
+
+    try:
+        task = await decide_review_task(
+            review_task_id,
+            status=str(body.get("status") or ""),
+            reviewer=body.get("reviewer"),
+            note=body.get("note"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if task is None:
+        raise HTTPException(status_code=404)
+    return task.model_dump(mode="json")
+
+
+async def _verify_report_for_buyer(report_id: str, buyer_key: str, vbo_id: str):
+    from app.services.reports import get_report_for_buyer
+
+    report = await get_report_for_buyer(report_id, buyer_key)
+    if report is None or report.vbo_id != vbo_id:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
+
+
+def _coverage_to_legacy(row) -> dict:
+    data = row.model_dump(mode="json") if hasattr(row, "model_dump") else dict(row)
+    data["id"] = data.get("source_id")
+    data["method"] = data.get("method_version")
+    data["version"] = data.get("method_version")
+    if data.get("status") == "manual_review":
+        data["status"] = "review"
+    return data
+
+
+def _action_to_legacy(action) -> dict:
+    data = action.model_dump(mode="json")
+    recipients = data["who_to_ask"]
+    refs = []
+    for ref in data["source_refs"]:
+        refs.append(
+            {
+                "id": ref.get("source_id"),
+                "name": ref.get("name"),
+                "source_date": ref.get("source_date"),
+                "checked_at": ref.get("retrieved_at"),
+                "url": ref.get("url"),
+                "reference": ref.get("record_id"),
+                "method": ref.get("source_id"),
+                "version": ref.get("source_id"),
+                "coverage_status": ref.get("status_label") or "checked",
+                "limitation": data["limitation"],
+            }
+        )
+    return {
+        **data,
+        "id": data["action_id"],
+        "category": data["signal_id"],
+        "priority": data["rank"],
+        "severity": "moderate",
+        "ask_this": {"en": data["ask_this_en"], "nl": data["ask_this_nl"]},
+        "request_this": data["request_this_en"],
+        "request_this_nl": data["request_this_nl"],
+        "who_to_ask": recipients,
+        "source_refs": refs,
+        "states": {
+            "needs_human_review": data["review_state"] == "pending",
+            "data_incomplete": data["confidence"] in {"needs_review", "data_incomplete"},
+            "source_incomplete": "could not be checked" in data["finding"].casefold(),
+        },
+    }
+
+
+def _briefing_public_payload(briefing) -> dict:
+    data = briefing.model_dump(mode="json")
+    return {
+        **data,
+        "address_id": data["vbo_id"],
+        "address_label": data["confirmed_address"],
+        "coverage": [_coverage_to_legacy(row) for row in briefing.coverage],
+        "top_actions": [_action_to_legacy(action) for action in briefing.top_actions],
+    }
+
+
+def _pack_public_payload(pack) -> dict:
+    data = pack.model_dump(mode="json")
+    actions = [_action_to_legacy(action) for action in pack.top_items]
+    groups = []
+    for recipient, questions in pack.questions_en.items():
+        nl_questions = pack.questions_nl.get(recipient, [])
+        groups.append(
+            {
+                "recipient": recipient,
+                "questions": [
+                    {
+                        "en": question,
+                        "nl": (nl_questions[index] if index < len(nl_questions) else None),
+                    }
+                    for index, question in enumerate(questions)
+                ],
+                "requests": pack.document_requests_en,
+            }
+        )
+    return {
+        **data,
+        "address_id": data["vbo_id"],
+        "address_label": data["confirmed_address"],
+        "actions": actions,
+        "question_groups": groups,
+        "coverage": [_coverage_to_legacy(row) for row in pack.source_appendix],
+    }
+
+
+async def _load_buyer_briefing(briefing_id: str, buyer_key: str):
+    from app.services.briefing_store import briefing_response_from_bundle, get_briefing_bundle
+
+    bundle = await get_briefing_bundle(briefing_id, buyer_key=buyer_key)
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="Briefing not found")
+    return briefing_response_from_bundle(bundle)
+
+
+async def _create_prebid_briefing_impl(
+    request: Request,
+    response: Response,
+    vbo_id: str,
+    body: PrebidBriefingRequest,
+):
+    buyer_key = ensure_buyer_key(request, response)
+    if body.report_id:
+        await _verify_report_for_buyer(body.report_id, buyer_key, vbo_id)
+    from app.services.source_orchestrator import run_prebid_source_run
+
+    briefing = await run_prebid_source_run(
+        report_id=body.report_id,
+        buyer_key=buyer_key,
+        vbo_id=vbo_id,
+        confirmed_address=body.confirmed_address or "",
+        postcode=body.postcode,
+        municipality=body.municipality,
+        rd_x=body.rd_x,
+        rd_y=body.rd_y,
+        lat=body.lat,
+        lng=body.lng,
+        property_type=body.property_type.value
+        if hasattr(body.property_type, "value")
+        else str(body.property_type),
+    )
+    return _briefing_public_payload(briefing)
+
+
+@router.post("/{vbo_id}/prebid-briefing")
+async def create_prebid_briefing(
+    request: Request,
+    response: Response,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    body: PrebidBriefingRequest = ...,
+):
+    return await _create_prebid_briefing_impl(request, response, vbo_id, body)
+
+
+@router.post("/{vbo_id}/prebid/briefing")
+async def create_prebid_briefing_legacy(
+    request: Request,
+    response: Response,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    body: PrebidBriefingRequest = ...,
+):
+    return await _create_prebid_briefing_impl(request, response, vbo_id, body)
+
+
+@router.get("/{vbo_id}/prebid-briefing/{briefing_id}")
+async def get_prebid_briefing(
+    request: Request,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    briefing_id: str = Path(...),
+):
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=401)
+    briefing = await _load_buyer_briefing(briefing_id, buyer_key)
+    if briefing.vbo_id != vbo_id:
+        raise HTTPException(status_code=404)
+    return _briefing_public_payload(briefing)
+
+
+async def _fetch_pack_for_report(request: Request, vbo_id: str, report_id: str):
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=401)
+    await _verify_report_for_buyer(report_id, buyer_key, vbo_id)
+    from app.services.reports import check_entitlement
+
+    if not await check_entitlement(report_id, buyer_key=buyer_key, vbo_id=vbo_id):
+        raise HTTPException(status_code=402, detail="Payment required")
+    from app.services.briefing_store import (
+        briefing_response_from_bundle,
+        get_briefing_bundle,
+        get_latest_briefing_for_buyer,
+        get_pack_snapshot,
+        store_pack_snapshot,
+    )
+
+    stored_pack = await get_pack_snapshot(
+        report_id=report_id,
+        buyer_key=buyer_key,
+        vbo_id=vbo_id,
+    )
+    if stored_pack is not None:
+        return _pack_public_payload(stored_pack)
+
+    latest = await get_latest_briefing_for_buyer(vbo_id, buyer_key)
+    if latest is None:
+        raise HTTPException(status_code=404, detail="Briefing not found")
+    bundle = await get_briefing_bundle(latest["briefing_id"], buyer_key=buyer_key)
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="Briefing not found")
+    briefing = briefing_response_from_bundle(bundle)
+    pack = generate_pack_from_briefing(briefing)
+    await store_pack_snapshot(
+        pack,
+        source_run_id=latest["source_run_id"],
+        buyer_key=buyer_key,
+    )
+    payload = _pack_public_payload(pack)
+    if payload["status"] == "ready":
+        payload["share_url"] = None
+    return payload
+
+
+@router.get("/{vbo_id}/prebid-pack")
+async def fetch_prebid_pack(
+    request: Request,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    report_id: str = Query(...),
+):
+    return await _fetch_pack_for_report(request, vbo_id, report_id)
+
+
+@router.get("/{vbo_id}/prebid/pack/{report_id}")
+async def fetch_prebid_pack_legacy(
+    request: Request,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    report_id: str = Path(...),
+):
+    return await _fetch_pack_for_report(request, vbo_id, report_id)
+
+
+@router.post("/{vbo_id}/prebid-briefing/{briefing_id}/share")
+@router.post("/{vbo_id}/prebid/briefing/{briefing_id}/share")
+async def share_prebid_briefing(
+    request: Request,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    briefing_id: str = Path(...),
+):
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=401)
+    briefing = await _load_buyer_briefing(briefing_id, buyer_key)
+    if briefing.vbo_id != vbo_id:
+        raise HTTPException(status_code=404)
+    token, digest = new_share_token()
+    from app.services.briefing_store import create_share_link
+
+    await create_share_link(briefing_id, buyer_key, "briefing", digest)
+    return {
+        "ok": True,
+        "scope": "briefing",
+        "share_token": token,
+        "share_url": share_url("briefing", token),
+    }
+
+
+@router.post("/{vbo_id}/prebid-pack/{pack_id}/share")
+@router.post("/{vbo_id}/prebid/pack/{report_id}/share")
+async def share_prebid_pack(
+    request: Request,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    pack_id: str | None = None,
+    report_id: str | None = None,
+):
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=401)
+    report_or_pack = report_id or pack_id or ""
+    payload = await _fetch_pack_for_report(request, vbo_id, report_or_pack)
+    token, digest = new_share_token()
+    from app.services.briefing_store import create_share_link
+
+    await create_share_link(
+        payload["briefing_id"],
+        buyer_key,
+        "pack",
+        digest,
+        pack_id=payload["pack_id"],
+    )
+    return {
+        "ok": True,
+        "scope": "pack",
+        "share_token": token,
+        "share_url": share_url("pack", token),
+    }
+
+
+@router.post("/{vbo_id}/prebid-briefing/{briefing_id}/email")
+@router.post("/{vbo_id}/prebid/briefing/{briefing_id}/email")
+async def email_prebid_briefing(
+    request: Request,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    briefing_id: str = Path(...),
+    body: dict = ...,
+):
+    if body.get("consent") is not True and body.get("consent_to_email") is not True:
+        raise HTTPException(status_code=422, detail="Email consent required")
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=401)
+    briefing = await _load_buyer_briefing(briefing_id, buyer_key)
+    if briefing.vbo_id != vbo_id:
+        raise HTTPException(status_code=404)
+    token, digest = new_share_token()
+    from app.services.briefing_store import create_share_link, store_contact_hash
+
+    await create_share_link(briefing_id, buyer_key, "briefing", digest)
+    await store_contact_hash(
+        briefing_id,
+        buyer_key,
+        keyed_email_hash(str(body.get("email", ""))),
+    )
+    return {
+        "ok": True,
+        "scope": "briefing",
+        "share_token": token,
+        "share_url": share_url("briefing", token),
+        "email_sent": False,
+        "error_code": "email_provider_unavailable",
+    }
+
+
+@router.post("/{vbo_id}/prebid-pack/{pack_id}/email")
+@router.post("/{vbo_id}/prebid/pack/{report_id}/email")
+async def email_prebid_pack(
+    request: Request,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    pack_id: str | None = None,
+    report_id: str | None = None,
+    body: dict = ...,
+):
+    if body.get("consent") is not True and body.get("consent_to_email") is not True:
+        raise HTTPException(status_code=422, detail="Email consent required")
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=401)
+    payload = await _fetch_pack_for_report(request, vbo_id, report_id or pack_id or "")
+    token, digest = new_share_token()
+    from app.services.briefing_store import create_share_link, store_contact_hash
+
+    await create_share_link(
+        payload["briefing_id"],
+        buyer_key,
+        "pack",
+        digest,
+        pack_id=payload["pack_id"],
+    )
+    await store_contact_hash(
+        payload["briefing_id"],
+        buyer_key,
+        keyed_email_hash(str(body.get("email", ""))),
+    )
+    return {
+        "ok": True,
+        "scope": "pack",
+        "share_token": token,
+        "share_url": share_url("pack", token),
+        "email_sent": False,
+        "error_code": "email_provider_unavailable",
+    }
+
+
+@router.delete("/{vbo_id}/prebid-briefing/{briefing_id}")
+@router.delete("/{vbo_id}/prebid/briefing/{briefing_id}")
+async def delete_prebid_briefing(
+    request: Request,
+    vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
+    briefing_id: str = Path(...),
+):
+    buyer_key = get_buyer_key(request)
+    if not buyer_key:
+        raise HTTPException(status_code=401)
+    briefing = await _load_buyer_briefing(briefing_id, buyer_key)
+    if briefing.vbo_id != vbo_id:
+        raise HTTPException(status_code=404)
+    from app.services.briefing_store import soft_delete_briefing
+
+    deleted = await soft_delete_briefing(briefing_id, buyer_key)
+    if not deleted:
+        raise HTTPException(status_code=404)
+    return {"deleted": True, "briefing_id": briefing_id}
+
+
+@router.get("/shared/{share_token}")
+async def fetch_shared_prebid_briefing(share_token: str):
+    from hashlib import sha256
+
+    from app.services.briefing_store import briefing_response_from_bundle, get_share_link_bundle
+
+    bundle = await get_share_link_bundle(
+        sha256(share_token.encode("utf-8")).hexdigest(), "briefing"
+    )
+    if bundle is None:
+        raise HTTPException(status_code=404)
+    return SharedPrebidResponse(
+        state="valid",
+        mode="briefing",
+        briefing=_briefing_public_payload(briefing_response_from_bundle(bundle)),
+    )
+
+
+@router.get("/shared-pack/{share_token}")
+async def fetch_shared_prebid_pack(share_token: str):
+    from hashlib import sha256
+
+    from app.services.briefing_store import briefing_response_from_bundle, get_share_link_bundle
+
+    bundle = await get_share_link_bundle(sha256(share_token.encode("utf-8")).hexdigest(), "pack")
+    if bundle is None:
+        raise HTTPException(status_code=404)
+    briefing = briefing_response_from_bundle(bundle)
+    return SharedPrebidResponse(
+        state="valid",
+        mode="pack",
+        pack=_pack_public_payload(generate_pack_from_briefing(briefing)),
+    )
 
 
 class FacadeSubmission(BaseModel):
@@ -249,21 +727,13 @@ def _sunlight_card_from_submission(body: SunlightSubmission) -> SunlightRiskCard
         summary=summary_en,
         summary_nl=summary_nl,
         facade_results=facade_results,
-        annual_average=(
-            round(body.annual_average, 1)
-            if body.annual_average is not None
-            else None
-        ),
+        annual_average=(round(body.annual_average, 1) if body.annual_average is not None else None),
         ground_annual_average=(
-            round(body.ground_annual_average, 1)
-            if body.ground_annual_average is not None
-            else None
+            round(body.ground_annual_average, 1) if body.ground_annual_average is not None else None
         ),
         svf_anisotropic=body.svf_anisotropic,
         irradiance_kwh_m2=(
-            round(body.irradiance_kwh_m2, 1)
-            if body.irradiance_kwh_m2 is not None
-            else None
+            round(body.irradiance_kwh_m2, 1) if body.irradiance_kwh_m2 is not None else None
         ),
         method_version=body.method_version,
         target_plane=body.target_plane,
@@ -352,11 +822,7 @@ async def address_suggest(
         cached = None
     if cached is not None:
         response.headers["Cache-Control"] = _CACHE_REALTIME
-        return SuggestResponse(
-            suggestions=[
-                locatieserver.AddressSuggestion(**s) for s in cached
-            ]
-        )
+        return SuggestResponse(suggestions=[locatieserver.AddressSuggestion(**s) for s in cached])
 
     try:
         suggestions = await locatieserver.suggest(q, limit)
@@ -487,9 +953,7 @@ async def building_facts(
         logger.exception("building_facts failed: %s", exc)
         metrics.inc("building.error")
         metrics.record_latency("building", (time.monotonic() - t0) * 1000)
-        raise HTTPException(
-            status_code=502, detail="Building data unavailable"
-        ) from exc
+        raise HTTPException(status_code=502, detail="Building data unavailable") from exc
 
     if facts is None:
         metrics.inc("building.success")
@@ -527,18 +991,22 @@ async def building_3d(
 
     try:
         result = await three_d_bag.get_target_building_3d(
-            pand_id=pand_id, rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng,
+            pand_id=pand_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            lat=lat,
+            lng=lng,
             vbo_id=vbo_id,
         )
     except Exception as exc:
         logger.exception("building_3d failed: %s", exc)
-        raise HTTPException(
-            status_code=502, detail="3D building data unavailable"
-        ) from exc
+        raise HTTPException(status_code=502, detail="3D building data unavailable") from exc
 
     if result.buildings:
         await cache_set(
-            cache_key, result.model_dump(), ttl=settings.cache_ttl_building,
+            cache_key,
+            result.model_dump(),
+            ttl=settings.cache_ttl_building,
         )
         response.headers["Cache-Control"] = _CACHE_IMMUTABLE
     return result
@@ -566,16 +1034,18 @@ async def neighborhood_3d(
 
     try:
         result = await three_d_bag.get_neighborhood_3d(
-            pand_id=pand_id, rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng,
+            pand_id=pand_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            lat=lat,
+            lng=lng,
             vbo_id=vbo_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="3D building data unavailable") from exc
     except Exception as exc:
         logger.exception("neighborhood_3d failed: %s", exc)
-        raise HTTPException(
-            status_code=502, detail="3D building data unavailable"
-        ) from exc
+        raise HTTPException(status_code=502, detail="3D building data unavailable") from exc
 
     is_partial = bool(result.message and result.message.startswith("Partial neighborhood data"))
     cacheable_partial = is_partial and len(result.buildings) >= 10
@@ -585,7 +1055,9 @@ async def neighborhood_3d(
         and (not is_partial or cacheable_partial)
     ):
         await cache_set(
-            cache_key, result.model_dump(), ttl=settings.cache_ttl_neighborhood_3d,
+            cache_key,
+            result.model_dump(),
+            ttl=settings.cache_ttl_neighborhood_3d,
         )
     if result.buildings:
         response.headers["Cache-Control"] = _CACHE_IMMUTABLE
@@ -745,9 +1217,7 @@ async def neighborhood_stats(
 ):
     """Fetch CBS neighborhood statistics for an address."""
     cache_key = (
-        f"neighborhood:v2:{buurt_code}"
-        if buurt_code
-        else f"neighborhood:v2:{lat:.4f}:{lng:.4f}"
+        f"neighborhood:v2:{buurt_code}" if buurt_code else f"neighborhood:v2:{lat:.4f}:{lng:.4f}"
     )
     cached = await cache_get(cache_key)
     if cached is not None:
@@ -763,9 +1233,7 @@ async def neighborhood_stats(
         )
     except Exception as exc:
         logger.exception("neighborhood_stats failed: %s", exc)
-        raise HTTPException(
-            status_code=502, detail="CBS API unavailable"
-        ) from exc
+        raise HTTPException(status_code=502, detail="CBS API unavailable") from exc
 
     if result.stats is not None and result.message is None:
         await cache_set(
@@ -813,9 +1281,7 @@ async def risk_comparisons(
 
     urbanization = UrbanizationLevel.unknown
     cache_key_neighborhood = (
-        f"neighborhood:v2:{buurt_code}"
-        if buurt_code
-        else f"neighborhood:v2:{lat:.4f}:{lng:.4f}"
+        f"neighborhood:v2:{buurt_code}" if buurt_code else f"neighborhood:v2:{lat:.4f}:{lng:.4f}"
     )
     cached_neighborhood = await cache_get(cache_key_neighborhood)
     if cached_neighborhood is not None:
@@ -849,9 +1315,7 @@ async def risk_comparisons(
     )
 
 
-@router.get(
-    "/{vbo_id}/viewing-questions", response_model=ViewingQuestionsResponse
-)
+@router.get("/{vbo_id}/viewing-questions", response_model=ViewingQuestionsResponse)
 async def viewing_questions(
     response: Response,
     vbo_id: str = Path(..., pattern=r"^[0-9]{16}$"),
@@ -931,8 +1395,7 @@ async def tier_b_signals(
         ) from exc
 
     has_any_data = bool(
-        result.crime.total_per_1000 is not None
-        or result.crime.monthly_total_per_1000 is not None
+        result.crime.total_per_1000 is not None or result.crime.monthly_total_per_1000 is not None
     )
     if has_any_data:
         await cache_set(cache_key, result.model_dump(), ttl=settings.cache_ttl_tier_b)
@@ -982,9 +1445,7 @@ async def address_livability(
         return current
     except Exception as exc:
         logger.exception("livability failed vbo=%s: %s", vbo_id, exc)
-        raise HTTPException(
-            status_code=502, detail="Livability data unavailable"
-        ) from exc
+        raise HTTPException(status_code=502, detail="Livability data unavailable") from exc
 
 
 @router.get("/{vbo_id}/property-warnings", response_model=PropertyWarningsResponse)
@@ -1001,7 +1462,12 @@ async def address_property_warnings(
     """Property warnings: foundation risk, erfpacht, VvE, asbestos."""
     t0 = time.monotonic()
     cache_key = _property_warnings_cache_key(
-        vbo_id, rd_x, rd_y, construction_year, num_units, municipality,
+        vbo_id,
+        rd_x,
+        rd_y,
+        construction_year,
+        num_units,
+        municipality,
     )
     cached = await cache_get(cache_key)
     if cached is not None:
@@ -1020,9 +1486,7 @@ async def address_property_warnings(
         )
     except Exception as exc:
         logger.exception("property_warnings failed vbo=%s: %s", vbo_id, exc)
-        raise HTTPException(
-            status_code=502, detail="Property warnings fetch failed"
-        ) from exc
+        raise HTTPException(status_code=502, detail="Property warnings fetch failed") from exc
 
     # Cache if foundation risk has real data
     if result.foundation_risk.level != "unavailable":
@@ -1083,8 +1547,7 @@ class ExportRequest(BaseModel):
     shadow_images: list[ShadowImageItem] | None = Field(
         default=None,
         description=(
-            "Array of shadow snapshots for rich full-dossier layouts "
-            "(seasonal or multi-view)"
+            "Array of shadow snapshots for rich full-dossier layouts (seasonal or multi-view)"
         ),
     )
     sunlight_submission: SunlightSubmission | None = Field(
@@ -1132,8 +1595,7 @@ async def _fetch_building_for_export(vbo_id: str):
     return None
 
 
-async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float,
-                                  lat: float, lng: float):
+async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float, lat: float, lng: float):
     """Cache-first risk cards fetch for export."""
     cache_key = f"risks:{vbo_id}:{rd_x:.0f}:{rd_y:.0f}"
     cached = await cache_get(cache_key)
@@ -1144,7 +1606,11 @@ async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float,
         return cached_result
     try:
         result = await risk_cards.get_risk_cards(
-            vbo_id=vbo_id, rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng,
+            vbo_id=vbo_id,
+            rd_x=rd_x,
+            rd_y=rd_y,
+            lat=lat,
+            lng=lng,
         )
         if result.sunlight is None:
             result.sunlight = await _get_cached_sunlight_card(vbo_id)
@@ -1171,19 +1637,22 @@ async def _fetch_risks_for_export(vbo_id: str, rd_x: float, rd_y: float,
     return None
 
 
-async def _fetch_neighborhood_for_export(vbo_id: str, lat: float, lng: float,
-                                         buurt_code: str | None):
+async def _fetch_neighborhood_for_export(
+    vbo_id: str, lat: float, lng: float, buurt_code: str | None
+):
     """Cache-first CBS neighborhood stats fetch for export."""
     cache_key = (
-        f"neighborhood:v2:{buurt_code}" if buurt_code
-        else f"neighborhood:v2:{lat:.4f}:{lng:.4f}"
+        f"neighborhood:v2:{buurt_code}" if buurt_code else f"neighborhood:v2:{lat:.4f}:{lng:.4f}"
     )
     cached = await cache_get(cache_key)
     if cached is not None:
         return NeighborhoodStatsResponse(**cached).stats
     try:
         resp = await cbs.get_neighborhood_stats(
-            vbo_id=vbo_id, lat=lat, lng=lng, buurt_code=buurt_code,
+            vbo_id=vbo_id,
+            lat=lat,
+            lng=lng,
+            buurt_code=buurt_code,
         )
         if resp.stats:
             await cache_set(cache_key, resp.model_dump(), ttl=settings.cache_ttl_neighborhood)
@@ -1226,7 +1695,12 @@ async def _fetch_property_warnings_for_export(
 ) -> PropertyWarningsResponse | None:
     """Cache-first property warnings fetch for Full Dossier export."""
     cache_key = _property_warnings_cache_key(
-        vbo_id, rd_x, rd_y, construction_year, num_units, municipality,
+        vbo_id,
+        rd_x,
+        rd_y,
+        construction_year,
+        num_units,
+        municipality,
     )
     cached = await cache_get(cache_key)
     if cached is not None:
@@ -1253,7 +1727,8 @@ async def _fetch_property_warnings_for_export(
 
 
 async def _fetch_livability_for_export(
-    rd_x: float, rd_y: float,
+    rd_x: float,
+    rd_y: float,
 ) -> LivabilityResponse | None:
     """Cache-first Leefbaarometer livability fetch for Full Dossier export."""
     cache_key = f"livability_full:{rd_x:.0f}:{rd_y:.0f}"
@@ -1276,7 +1751,8 @@ async def _fetch_livability_for_export(
         current.comparison = comparison.rows if comparison_ok else []
         if trend_ok and comparison_ok:
             await cache_set(
-                cache_key, current.model_dump(),
+                cache_key,
+                current.model_dump(),
                 ttl=settings.cache_ttl_livability,
             )
         return current
@@ -1286,7 +1762,8 @@ async def _fetch_livability_for_export(
 
 
 async def _fetch_location_map(
-    rd_x: float, rd_y: float,
+    rd_x: float,
+    rd_y: float,
 ) -> str | None:
     """Fetch a static aerial photo tile from PDOK Luchtfoto WMS.
 
@@ -1357,6 +1834,7 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
         raise HTTPException(status_code=422, detail="Language must be 'en' or 'nl'")
 
     # --- Entitlement gate: full_dossier requires a paid report ---
+    buyer_key: str | None = None
     if body.template == "full_dossier":
         if not body.report_id:
             raise HTTPException(status_code=402, detail="Payment required")
@@ -1413,10 +1891,7 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
         sunlight_score,
     )
 
-    if (
-        body.template == "full_dossier"
-        and sunlight_score is None
-    ):
+    if body.template == "full_dossier" and sunlight_score is None:
         logger.info(
             (
                 "export awaiting sunlight cache vbo=%s timeout_s=%.2f "
@@ -1448,7 +1923,10 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
     viewing_qs: ViewingQuestionsResponse | None = None
     if risks:
         viewing_qs = build_viewing_questions(
-            vbo_id, risks, street=body.street, city=body.city,
+            vbo_id,
+            risks,
+            street=body.street,
+            city=body.city,
         )
 
     # --- Phase 2 (Full Dossier): Fetch neighborhood + tier-b in parallel ---
@@ -1487,11 +1965,7 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
         )
 
         # If request buurt_code is missing, retry Tier-B with neighborhood code.
-        if (
-            not body.buurt_code
-            and neighborhood_stats
-            and neighborhood_stats.buurt_code
-        ):
+        if not body.buurt_code and neighborhood_stats and neighborhood_stats.buurt_code:
             tier_b_data = await _fetch_tier_b_for_export(
                 vbo_id, neighborhood_stats.buurt_code,
             )
@@ -1503,12 +1977,14 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
             # Build comparisons after optional sunlight wait so chart rows
             # always match the final risk payload passed to PDF rendering.
             risk_comparisons_data = build_risk_comparisons(
-                vbo_id=vbo_id, cards=risks, urbanization=urbanization,
+                vbo_id=vbo_id,
+                cards=risks,
+                urbanization=urbanization,
             )
 
     # --- Generate PDF ---
     if body.template == "full_dossier":
-        # Build provenance metadata for reproducibility
+        # Build provenance metadata for reproducibility.
         pand_id: str | None = None
         if building_resp and building_resp.building:
             pand_id = building_resp.building.pand_id
@@ -1518,9 +1994,7 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
         provenance_gemeente = body.municipality
         if neighborhood_stats:
             provenance_buurt = provenance_buurt or neighborhood_stats.buurt_code
-            provenance_gemeente = (
-                provenance_gemeente or neighborhood_stats.gemeente_name
-            )
+            provenance_gemeente = provenance_gemeente or neighborhood_stats.gemeente_name
 
         provenance = ProvenanceData(
             report_id=body.report_id,
@@ -1626,7 +2100,7 @@ async def _do_export_briefing(request: Request, vbo_id: str, body: ExportRequest
                     exc_info=True,
                 )
 
-        # Convert ShadowImageItem models to dicts for pdf_export
+        # Convert ShadowImageItem models to dicts for pdf_export.
         shadow_images_dicts = None
         if body.shadow_images:
             shadow_images_dicts = [
@@ -1894,13 +2368,23 @@ async def export_briefing_get(
     resolved_shadow_equinox = shadow_equinox_b64 or shadow_equinox
     resolved_shadow_summer = shadow_summer_b64 or shadow_summer
     body = ExportRequest(
-        rd_x=rd_x, rd_y=rd_y, lat=lat, lng=lng, address=address,
-        template=template, language=language, shadow_image_b64=resolved_shadow,
+        rd_x=rd_x,
+        rd_y=rd_y,
+        lat=lat,
+        lng=lng,
+        address=address,
+        template=template,
+        language=language,
+        shadow_image_b64=resolved_shadow,
         shadow_equinox_b64=resolved_shadow_equinox,
         shadow_summer_b64=resolved_shadow_summer,
         report_id=report_id,
-        street=street, city=city, buurt_code=buurt_code, postcode=postcode,
-        house_number=house_number, house_letter=house_letter, addition=addition,
+        street=street,
+        city=city,
+        buurt_code=buurt_code,
+        postcode=postcode,
+        house_number=house_number,
+        house_letter=house_letter,
+        addition=addition,
     )
     return await _do_export_briefing(request, vbo_id, body)
-
