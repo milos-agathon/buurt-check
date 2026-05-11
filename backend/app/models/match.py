@@ -320,6 +320,66 @@ class RecommendationEvidence(BaseModel):
     limitations: list[str] = Field(min_length=1)
 
 
+class RecommendationExplanation(BaseModel):
+    code: str = Field(min_length=1)
+    evidence_refs: list[str] = Field(default_factory=list)
+
+
+class ScoreDriver(BaseModel):
+    feature: str = Field(min_length=1)
+    impact: float
+    score: float = Field(ge=0, le=100)
+    source_refs: list[str] = Field(default_factory=list)
+
+
+class NeighborhoodMatchScore(BaseModel):
+    recommendation_id: str = Field(min_length=1)
+    neighborhood_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    municipality: str = Field(min_length=1)
+    rank: int = Field(ge=0)
+    category: Literal["top", "surprising", "stretch", "avoid_or_reconsider"] | None = None
+    fit_score: int = Field(ge=0, le=100)
+    eligibility_status: Literal[
+        "eligible",
+        "stretch",
+        "failed_hard_filter",
+        "insufficient_data",
+    ]
+    component_scores: dict[str, int] = Field(default_factory=dict)
+    why_it_fits: list[RecommendationExplanation] = Field(default_factory=list)
+    tradeoffs: list[RecommendationExplanation] = Field(default_factory=list)
+    score_drivers: list[ScoreDriver] = Field(default_factory=list)
+    failed_filters: list[str] = Field(default_factory=list)
+    confidence: ConfidenceScore
+    freshness_status: DataFreshnessStatus
+    data_freshness_indicator: str = Field(min_length=1)
+    source_refs: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    missing_features: list[str] = Field(default_factory=list)
+
+
+class RecommendationSet(BaseModel):
+    top: list[NeighborhoodMatchScore] = Field(default_factory=list)
+    surprising: list[NeighborhoodMatchScore] = Field(default_factory=list)
+    stretch: list[NeighborhoodMatchScore] = Field(default_factory=list)
+    avoid_or_reconsider: list[NeighborhoodMatchScore] = Field(default_factory=list)
+    empty_result_relaxations: list[str] = Field(default_factory=list)
+    source_coverage: list[str] = Field(default_factory=list)
+
+
+class SimilarNeighborhoodResult(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    municipality: str = Field(min_length=1)
+    similarity_score: int = Field(ge=0, le=100)
+    shared_drivers: list[ScoreDriver] = Field(default_factory=list)
+    meaningful_differences: list[ScoreDriver] = Field(default_factory=list)
+    constraints: list[RecommendationExplanation] = Field(default_factory=list)
+    confidence: ConfidenceScore
+    source_refs: list[str] = Field(default_factory=list)
+
+
 class ReportInput(BaseModel):
     locale: Literal["en", "nl"]
     profile_summary: dict[str, object]
