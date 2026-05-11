@@ -67,6 +67,24 @@ cd frontend && npm run test                 # Vitest (867+ baseline)
 4. **Disclaimers mandatory** — always cite source, date, and limitations
 5. **Graceful degradation** — if a data source fails, show "unavailable", never crash the dossier
 
+## Buurt Check Revamp constitution
+
+- `docs/prd.md` is the product source of truth for the revamp. Every feature,
+  task, acceptance criterion, and success criterion must map to PRD FR1-FR14.
+- Neighborhood matching, confidence, personas, preference vectors, rankings, and
+  alerts must come from deterministic structured logic. LLM output may explain,
+  summarize, compare, and translate; it must not create score truth.
+- Recommendations must show why they fit, tradeoffs, data confidence, and
+  source/freshness metadata. UI must distinguish official data,
+  commercial/listing data, mock data, derived metrics, and missing data.
+- Do not scrape listing portals. Use listing-provider adapters and clearly
+  labeled mocks/placeholders until licensed listing data is configured.
+- Critical logic needs tests before a phase is complete: scoring, confidence,
+  persona detection, preference vectors, report guardrails, fairness filters,
+  listing fallbacks, provenance labels, and alerts.
+- Admin visibility must cover data freshness, missing data, source failures,
+  mock usage, scoring anomalies, report guardrail blocks, and alert failures.
+
 ## Development conventions
 
 - **Commits**: Conventional (`feat:`, `fix:`, `docs:`, `chore:`)

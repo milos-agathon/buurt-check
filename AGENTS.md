@@ -104,3 +104,9 @@ Every frontend risk card must have: (1) score 0-100 + severity, (2) plain-langua
 - `frontend/CLAUDE.md` — Frontend-specific conventions
 - Data source endpoints + API quirks → already in auto-memory (MEMORY.md)
 - Historical session learnings → already in auto-memory (MEMORY.md)
+
+<!-- SPECKIT START -->
+For additional context about the Buurt Check Revamp technical approach,
+architecture, data model, contracts, testing strategy, and implementation
+phases, read `specs/001-buurt-check-revamp/plan.md`.
+<!-- SPECKIT END -->
