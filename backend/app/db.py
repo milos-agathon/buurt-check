@@ -408,6 +408,17 @@ _MATCH_SCHEMA_STATEMENTS = (
         created_at TEXT NOT NULL,
         deleted_at TEXT
     )""",
+    """CREATE TABLE IF NOT EXISTS match_feedback_events (
+        feedback_event_id TEXT NOT NULL PRIMARY KEY,
+        session_id TEXT,
+        report_id TEXT,
+        recommendation_id TEXT,
+        neighborhood_id TEXT NOT NULL,
+        feedback_type TEXT NOT NULL,
+        reason_code TEXT,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS match_share_tokens (
         share_token_id TEXT NOT NULL PRIMARY KEY,
         report_id TEXT NOT NULL,
@@ -461,6 +472,16 @@ _MATCH_SCHEMA_STATEMENTS = (
         details_json TEXT NOT NULL,
         created_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS match_scoring_anomalies (
+        scoring_anomaly_id TEXT NOT NULL PRIMARY KEY,
+        preference_vector_id TEXT,
+        neighborhood_id TEXT,
+        anomaly_type TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        details_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT
+    )""",
     (
         "CREATE INDEX IF NOT EXISTS idx_match_metrics_neighborhood "
         "ON match_neighborhood_metrics(neighborhood_id)"
@@ -484,6 +505,10 @@ _MATCH_SCHEMA_STATEMENTS = (
     (
         "CREATE INDEX IF NOT EXISTS idx_match_saved_neighborhoods_session "
         "ON match_saved_neighborhoods(session_id, created_at DESC)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_feedback_events_session "
+        "ON match_feedback_events(session_id, created_at DESC)"
     ),
     (
         "CREATE INDEX IF NOT EXISTS idx_match_share_tokens_hash "

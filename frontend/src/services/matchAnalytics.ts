@@ -1,11 +1,6 @@
-export type MatchEventName =
-  | 'match_quiz_started'
-  | 'match_quiz_completed'
-  | 'match_report_viewed'
-  | 'match_neighborhood_saved'
-  | 'match_listing_clicked'
-  | 'match_alert_created'
-  | 'match_feedback_submitted';
+import type { MatchProductEventName } from '../types/match';
+
+export type MatchEventName = MatchProductEventName;
 
 export interface MatchAnalyticsEvent {
   event_name: MatchEventName;

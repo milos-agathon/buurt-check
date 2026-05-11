@@ -496,3 +496,99 @@ export interface ReportPdfExportResponse {
   export_id?: string | null;
   blob: Blob;
 }
+
+export type MatchProductEventName =
+  | 'match_quiz_started'
+  | 'match_quiz_completed'
+  | 'match_report_viewed'
+  | 'match_time_to_first_saved_neighborhood'
+  | 'match_neighborhood_saved'
+  | 'match_listing_clicked'
+  | 'match_alert_created'
+  | 'match_report_helpfulness_submitted'
+  | 'match_follow_up_question_submitted'
+  | 'match_feedback_submitted'
+  | 'match_source_clicked';
+
+export type MatchFeedbackType = 'love' | 'maybe' | 'not_for_me' | 'undo';
+
+export interface MatchFeedbackPayload {
+  session_id?: string | null;
+  report_id?: string | null;
+  recommendation_id?: string | null;
+  neighborhood_id: string;
+  feedback_type: MatchFeedbackType;
+  reason_code?: string | null;
+  payload?: Record<string, unknown>;
+}
+
+export interface FeedbackEvent {
+  feedback_event_id: string;
+  session_id?: string | null;
+  report_id?: string | null;
+  recommendation_id?: string | null;
+  neighborhood_id: string;
+  feedback_type: MatchFeedbackType;
+  reason_code?: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface FeedbackRerankingHint {
+  boost_neighborhood_ids: string[];
+  soften_neighborhood_ids: string[];
+  suppress_neighborhood_ids: string[];
+  adjusted_weight_inputs: Record<string, number>;
+  explanation_code: string;
+  historical_recommendations_mutated: boolean;
+}
+
+export interface MatchFeedbackResponse {
+  feedback_event_id: string;
+  feedback_event: FeedbackEvent;
+  reranking_available: boolean;
+  reranking_hint: FeedbackRerankingHint;
+  explanation_code: string;
+  analytics_event: 'match_feedback_submitted';
+}
+
+export interface SourceHealthSnapshot {
+  source_health_id: string;
+  provider_name: string;
+  region_config_id: string;
+  health_status: 'healthy' | 'degraded' | 'failed' | 'mock_only' | 'unconfigured';
+  last_success_at?: string | null;
+  stale_metric_count: number;
+  missing_metric_count: number;
+  mock_metric_count: number;
+  failed_run_count: number;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SuccessMetricSummary {
+  event_name: MatchProductEventName;
+  count: number;
+  latest_value?: number | null;
+}
+
+export interface MatchAdminHealthResponse {
+  overall_status: 'healthy' | 'degraded' | 'failed' | 'mock_only' | 'unconfigured';
+  regions: Array<{ region_config_id: string; status: string }>;
+  source_health: SourceHealthSnapshot[];
+  data_freshness: Array<{ label: string; status: string; count: number }>;
+  missing_data: Array<{ metric_key: string; count: number; severity: string }>;
+  stale_data: Array<{ metric_key: string; count: number; severity: string }>;
+  source_failures: Array<{ provider_name: string; status: string; error_code: string }>;
+  scoring_anomalies: Array<{ anomaly_type: string; severity: string; count: number }>;
+  listing_provider_status: ProviderStatus[];
+  alert_dispatcher_status: {
+    provider_name: string;
+    health: string;
+    failures: Array<{ alert_id: string; error_code?: string | null }>;
+  };
+  report_generation_failures: Array<Record<string, unknown>>;
+  mock_data_indicators: Array<{ label: string; status: string; count: number }>;
+  live_data_indicators: Array<{ label: string; status: string; count: number }>;
+  success_metrics: SuccessMetricSummary[];
+}

@@ -4,8 +4,11 @@ import type {
   MatchAlertCreatePayload,
   MatchAlertCreateResponse,
   MatchAlertListResponse,
+  MatchAdminHealthResponse,
   MatchComparePayload,
   MatchCompareResponse,
+  MatchFeedbackPayload,
+  MatchFeedbackResponse,
   MatchListingCriteria,
   MatchListingProviderResult,
   MatchMapResponse,
@@ -91,7 +94,12 @@ export async function fetchMatchReport(
     throw new MatchApiError(response.status, 'match.warning.report_fetch_failed');
   }
 
-  return await response.json() as MatchReportResponse;
+  const body = await response.json() as MatchReportResponse;
+  recordMatchEvent('match_report_viewed', {
+    locale: body.locale,
+    report_id: body.report_id,
+  });
+  return body;
 }
 
 export async function compareMatchNeighborhoods(
@@ -168,7 +176,15 @@ export async function fetchMatchListings(
     throw new MatchApiError(response.status, 'match.warning.listings_failed');
   }
 
-  return await response.json() as MatchListingProviderResult;
+  const body = await response.json() as MatchListingProviderResult;
+  if (body.listings.length > 0) {
+    recordMatchEvent('match_listing_clicked', {
+      locale: 'en',
+      provider_mode: body.provider.mode,
+      neighborhood_id: criteria.neighborhood_id,
+    });
+  }
+  return body;
 }
 
 export async function createMatchAlert(
@@ -354,4 +370,40 @@ export async function deleteSavedMatchNeighborhood(savedNeighborhoodId: string):
   }
 
   return await response.json() as { deleted: boolean };
+}
+
+export async function submitMatchFeedback(
+  payload: MatchFeedbackPayload,
+): Promise<MatchFeedbackResponse> {
+  const response = await fetch(buildPrimaryApiUrl('/match/feedback'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.feedback_failed');
+  }
+
+  const body = await response.json() as MatchFeedbackResponse;
+  recordMatchEvent('match_feedback_submitted', {
+    locale: 'en',
+    feedback_type: body.feedback_event.feedback_type,
+    neighborhood_id: body.feedback_event.neighborhood_id,
+  });
+  return body;
+}
+
+export async function fetchMatchAdminHealth(): Promise<MatchAdminHealthResponse> {
+  const response = await fetch(buildPrimaryApiUrl('/admin/match/health'), {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.admin_health_failed');
+  }
+
+  return await response.json() as MatchAdminHealthResponse;
 }

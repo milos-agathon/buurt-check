@@ -11,6 +11,8 @@ from app.models.match import (
     ListingProviderResult,
     MatchCompareRequest,
     MatchCompareResponse,
+    MatchFeedbackRequest,
+    MatchFeedbackResponse,
     MatchMapResponse,
     MatchQuizRequest,
     MatchQuizResponse,
@@ -30,6 +32,7 @@ from app.models.match import (
 )
 from app.services.match.alerts import create_alert, delete_alert, list_alerts, update_alert
 from app.services.match.comparison import build_neighborhood_comparison
+from app.services.match.feedback import record_feedback
 from app.services.match.listings import fetch_listing_matches
 from app.services.match.map_view import build_match_map
 from app.services.match.providers.seed import MVP_REGION_CONFIG_ID, SeedMockImporter
@@ -167,6 +170,14 @@ async def get_match_alerts(session_id: str | None = None) -> AlertListResponse:
 async def create_match_alert(payload: AlertCreateRequest) -> AlertCreateResponse:
     try:
         return await create_alert(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/feedback", response_model=MatchFeedbackResponse)
+async def submit_match_feedback(payload: MatchFeedbackRequest) -> MatchFeedbackResponse:
+    try:
+        return await record_feedback(payload)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

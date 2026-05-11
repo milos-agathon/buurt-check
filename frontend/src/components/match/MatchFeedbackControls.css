@@ -1,0 +1,31 @@
+.match-feedback {
+  display: grid;
+  gap: var(--space-2, 8px);
+}
+
+.match-feedback__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+}
+
+.match-feedback__button {
+  min-height: 2.5rem;
+  border: 1px solid var(--color-border, #d8e2ea);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #17212b);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.match-feedback__button--active {
+  border-color: var(--color-accent-text, #00685f);
+  background: var(--color-accent-muted, #e3f3f1);
+}
+
+.match-feedback__button:focus-visible {
+  outline: 3px solid var(--color-focus, #0d9488);
+  outline-offset: 2px;
+}

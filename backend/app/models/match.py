@@ -801,6 +801,179 @@ class ReportExportResponse(BaseModel):
     created_at: datetime = Field(default_factory=utc_now)
 
 
+AnalyticsEventName = Literal[
+    "match_quiz_started",
+    "match_quiz_completed",
+    "match_report_viewed",
+    "match_time_to_first_saved_neighborhood",
+    "match_neighborhood_saved",
+    "match_listing_clicked",
+    "match_alert_created",
+    "match_report_helpfulness_submitted",
+    "match_follow_up_question_submitted",
+    "match_feedback_submitted",
+    "match_source_clicked",
+]
+
+
+PROTECTED_FEEDBACK_PAYLOAD_KEYS = frozenset(
+    {"nationality", "ethnicity", "religion", "immigration_status", "race"}
+)
+
+
+def _analytics_event_id() -> str:
+    return f"analytics_{uuid4().hex}"
+
+
+def _feedback_event_id() -> str:
+    return f"feedback_{uuid4().hex}"
+
+
+def _payload_contains_protected_key(payload: object) -> bool:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if str(key).lower() in PROTECTED_FEEDBACK_PAYLOAD_KEYS:
+                return True
+            if _payload_contains_protected_key(value):
+                return True
+    if isinstance(payload, list):
+        return any(_payload_contains_protected_key(item) for item in payload)
+    return False
+
+
+class AnalyticsEvent(BaseModel):
+    analytics_event_id: str = Field(default_factory=_analytics_event_id)
+    event_name: AnalyticsEventName
+    session_id: str | None = None
+    locale: Literal["en", "nl"] = "en"
+    journey_intent: Literal["buy", "rent", "both"] | None = None
+    context: dict[str, object] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=utc_now)
+
+    @field_validator("context")
+    @classmethod
+    def validate_privacy_safe_context(cls, value: dict[str, object]) -> dict[str, object]:
+        if _payload_contains_protected_key(value):
+            raise ValueError("analytics context must not include protected traits")
+        return value
+
+
+class SuccessMetricSummary(BaseModel):
+    event_name: AnalyticsEventName
+    count: int = Field(ge=0)
+    latest_value: int | float | None = None
+
+
+class MatchFeedbackRequest(BaseModel):
+    session_id: str | None = None
+    report_id: str | None = None
+    recommendation_id: str | None = None
+    neighborhood_id: str = Field(min_length=1)
+    feedback_type: Literal["love", "maybe", "not_for_me", "undo"]
+    reason_code: str | None = None
+    payload: dict[str, object] = Field(default_factory=dict)
+
+    @field_validator("payload")
+    @classmethod
+    def validate_feedback_payload(cls, value: dict[str, object]) -> dict[str, object]:
+        if _payload_contains_protected_key(value):
+            raise ValueError("feedback payload must not include protected traits")
+        return value
+
+
+class FeedbackEvent(BaseModel):
+    feedback_event_id: str = Field(default_factory=_feedback_event_id)
+    session_id: str | None = None
+    report_id: str | None = None
+    recommendation_id: str | None = None
+    neighborhood_id: str = Field(min_length=1)
+    feedback_type: Literal["love", "maybe", "not_for_me", "undo"]
+    reason_code: str | None = None
+    payload: dict[str, object] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class FeedbackRerankingHint(BaseModel):
+    boost_neighborhood_ids: list[str] = Field(default_factory=list)
+    soften_neighborhood_ids: list[str] = Field(default_factory=list)
+    suppress_neighborhood_ids: list[str] = Field(default_factory=list)
+    adjusted_weight_inputs: dict[str, float] = Field(default_factory=dict)
+    explanation_code: str = "match.feedback.explanation.updatedRanking"
+    historical_recommendations_mutated: bool = False
+
+
+class MatchFeedbackResponse(BaseModel):
+    feedback_event_id: str
+    feedback_event: FeedbackEvent
+    reranking_available: bool
+    reranking_hint: FeedbackRerankingHint
+    explanation_code: str = "match.feedback.explanation.updatedRanking"
+    analytics_event: Literal["match_feedback_submitted"] = "match_feedback_submitted"
+
+
+class AdminRegionStatus(BaseModel):
+    region_config_id: str
+    status: Literal["healthy", "degraded", "failed", "mock_only", "unconfigured"]
+
+
+class DataQualityIndicator(BaseModel):
+    label: str
+    status: Literal["current", "aging", "stale", "unavailable", "mock", "conflict", "failed"]
+    count: int = Field(ge=0)
+
+
+class MissingDataIndicator(BaseModel):
+    metric_key: str
+    count: int = Field(ge=0)
+    severity: Literal["info", "warning", "critical"]
+
+
+class SourceFailureIndicator(BaseModel):
+    provider_name: str
+    status: Literal["degraded", "failed"]
+    error_code: str
+
+
+class ScoringAnomalySummary(BaseModel):
+    anomaly_type: Literal[
+        "score_outlier",
+        "empty_result",
+        "confidence_outlier",
+        "category_distribution",
+        "missing_driver",
+    ]
+    severity: Literal["info", "warning", "critical"]
+    count: int = Field(ge=0)
+
+
+class AlertDispatchFailure(BaseModel):
+    alert_id: str
+    error_code: str | None = None
+
+
+class AlertDispatcherStatus(BaseModel):
+    provider_name: str
+    health: Literal["healthy", "degraded", "failed", "mock_only", "unconfigured"]
+    failures: list[AlertDispatchFailure] = Field(default_factory=list)
+
+
+class MatchAdminHealthResponse(BaseModel):
+    overall_status: Literal["healthy", "degraded", "failed", "mock_only", "unconfigured"]
+    regions: list[AdminRegionStatus] = Field(default_factory=list)
+    source_health: list[SourceHealthSnapshot] = Field(default_factory=list)
+    data_freshness: list[DataQualityIndicator] = Field(default_factory=list)
+    missing_data: list[MissingDataIndicator] = Field(default_factory=list)
+    stale_data: list[MissingDataIndicator] = Field(default_factory=list)
+    source_failures: list[SourceFailureIndicator] = Field(default_factory=list)
+    scoring_anomalies: list[ScoringAnomalySummary] = Field(default_factory=list)
+    listing_provider_status: list[ProviderStatus] = Field(default_factory=list)
+    alert_dispatcher_status: AlertDispatcherStatus
+    report_generation_failures: list[dict[str, object]] = Field(default_factory=list)
+    mock_data_indicators: list[DataQualityIndicator] = Field(default_factory=list)
+    live_data_indicators: list[DataQualityIndicator] = Field(default_factory=list)
+    success_metrics: list[SuccessMetricSummary] = Field(default_factory=list)
+
+
 class SourceRun(BaseModel):
     source_run_id: str = Field(min_length=1)
     provider_name: str = Field(min_length=1)
