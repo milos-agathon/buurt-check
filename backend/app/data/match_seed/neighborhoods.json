@@ -1,0 +1,188 @@
+{
+  "dataset_label": "MOCK DATA - representative Dutch seed neighborhoods for tests only",
+  "region_config_id": "mvp-randstad-eindhoven-seed",
+  "method_version": "match-seed-v1",
+  "retrieved_at": "2026-05-11T08:00:00Z",
+  "neighborhoods": [
+    {
+      "neighborhood_id": "nh_amsterdam_ijburg",
+      "official_code": "BU036307",
+      "name_nl": "IJburg",
+      "municipality": "Amsterdam",
+      "province": "Noord-Holland",
+      "geography_level": "neighborhood",
+      "centroid_rd_x": 126250,
+      "centroid_rd_y": 486800,
+      "centroid_lat": 52.355,
+      "centroid_lng": 5.0,
+      "supported_region": true,
+      "metrics": [
+        {
+          "metric_key": "green_access",
+          "raw_value": { "value": 84, "unit": "score_0_100" },
+          "normalized_value": 84,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 72,
+          "limitations": ["MOCK DATA: representative seed value, not live official data."]
+        },
+        {
+          "metric_key": "mobility",
+          "raw_value": { "value": 76, "unit": "score_0_100" },
+          "normalized_value": 76,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 70,
+          "limitations": ["MOCK DATA: representative public transport access score."]
+        },
+        {
+          "metric_key": "affordability_buy",
+          "raw_value": { "value": 45, "unit": "score_0_100" },
+          "normalized_value": 45,
+          "freshness_status": "stale",
+          "measurement_date": "2022-01-01",
+          "confidence": 50,
+          "limitations": ["MOCK DATA: intentionally stale affordability example for admin tests."]
+        }
+      ]
+    },
+    {
+      "neighborhood_id": "nh_utrecht_leidsche_rijn",
+      "official_code": "BU034406",
+      "name_nl": "Leidsche Rijn",
+      "municipality": "Utrecht",
+      "province": "Utrecht",
+      "geography_level": "neighborhood",
+      "centroid_rd_x": 132900,
+      "centroid_rd_y": 456200,
+      "centroid_lat": 52.1,
+      "centroid_lng": 5.03,
+      "supported_region": true,
+      "metrics": [
+        {
+          "metric_key": "family_fit",
+          "raw_value": { "value": 86, "unit": "score_0_100" },
+          "normalized_value": 86,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 74,
+          "limitations": ["MOCK DATA: representative family-fit score."]
+        },
+        {
+          "metric_key": "green_access",
+          "raw_value": { "value": 78, "unit": "score_0_100" },
+          "normalized_value": 78,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 72,
+          "limitations": ["MOCK DATA: representative green-access score."]
+        },
+        {
+          "metric_key": "affordability_rent",
+          "raw_value": { "value": null, "unit": "score_0_100" },
+          "normalized_value": null,
+          "freshness_status": "unavailable",
+          "measurement_date": null,
+          "confidence": 0,
+          "limitations": ["MOCK DATA: intentionally missing rent affordability value for tests."]
+        }
+      ]
+    },
+    {
+      "neighborhood_id": "nh_rotterdam_katendrecht",
+      "official_code": "BU059915",
+      "name_nl": "Katendrecht",
+      "municipality": "Rotterdam",
+      "province": "Zuid-Holland",
+      "geography_level": "neighborhood",
+      "centroid_rd_x": 92800,
+      "centroid_rd_y": 435100,
+      "centroid_lat": 51.9,
+      "centroid_lng": 4.48,
+      "supported_region": true,
+      "metrics": [
+        {
+          "metric_key": "amenities",
+          "raw_value": { "value": 88, "unit": "score_0_100" },
+          "normalized_value": 88,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 73,
+          "limitations": ["MOCK DATA: representative amenities score."]
+        }
+      ]
+    },
+    {
+      "neighborhood_id": "nh_den_haag_statenkwartier",
+      "official_code": "BU051822",
+      "name_nl": "Statenkwartier",
+      "municipality": "Den Haag",
+      "province": "Zuid-Holland",
+      "geography_level": "neighborhood",
+      "centroid_rd_x": 78500,
+      "centroid_rd_y": 455600,
+      "centroid_lat": 52.09,
+      "centroid_lng": 4.28,
+      "supported_region": true,
+      "metrics": [
+        {
+          "metric_key": "housing_stock",
+          "raw_value": { "value": 69, "unit": "score_0_100" },
+          "normalized_value": 69,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 70,
+          "limitations": ["MOCK DATA: representative housing-stock score."]
+        }
+      ]
+    },
+    {
+      "neighborhood_id": "nh_eindhoven_strijp_s",
+      "official_code": "BU077248",
+      "name_nl": "Strijp-S",
+      "municipality": "Eindhoven",
+      "province": "Noord-Brabant",
+      "geography_level": "neighborhood",
+      "centroid_rd_x": 160200,
+      "centroid_rd_y": 383700,
+      "centroid_lat": 51.45,
+      "centroid_lng": 5.46,
+      "supported_region": true,
+      "metrics": [
+        {
+          "metric_key": "mobility",
+          "raw_value": { "value": 79, "unit": "score_0_100" },
+          "normalized_value": 79,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 72,
+          "limitations": ["MOCK DATA: representative mobility score."]
+        }
+      ]
+    },
+    {
+      "neighborhood_id": "nh_haarlem_spaarndam_commuter",
+      "official_code": null,
+      "name_nl": "Spaarndam commuter seed",
+      "municipality": "Haarlem",
+      "province": "Noord-Holland",
+      "geography_level": "custom_seed",
+      "centroid_rd_x": 105800,
+      "centroid_rd_y": 493400,
+      "centroid_lat": 52.41,
+      "centroid_lng": 4.68,
+      "supported_region": true,
+      "metrics": [
+        {
+          "metric_key": "calmness",
+          "raw_value": { "value": 82, "unit": "score_0_100" },
+          "normalized_value": 82,
+          "freshness_status": "mock",
+          "measurement_date": "2024-01-01",
+          "confidence": 68,
+          "limitations": ["MOCK DATA: commuter-style calmness example."]
+        }
+      ]
+    }
+  ]
+}
