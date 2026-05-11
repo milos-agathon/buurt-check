@@ -370,6 +370,72 @@ _MATCH_SCHEMA_STATEMENTS = (
         limitations_json TEXT NOT NULL,
         retrieved_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS match_alerts (
+        alert_id TEXT NOT NULL PRIMARY KEY,
+        session_id TEXT,
+        preference_vector_id TEXT,
+        neighborhood_ids_json TEXT NOT NULL,
+        journey_intent TEXT NOT NULL,
+        budget_max_cents INTEGER,
+        rent_max_cents INTEGER,
+        property_types_json TEXT NOT NULL,
+        notification_destination_hash TEXT,
+        notification_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        source_context TEXT NOT NULL,
+        last_evaluated_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_notification_dispatch_records (
+        dispatch_id TEXT NOT NULL PRIMARY KEY,
+        alert_id TEXT NOT NULL,
+        provider_name TEXT NOT NULL,
+        provider_mode TEXT NOT NULL,
+        result_status TEXT NOT NULL,
+        listing_ids_json TEXT NOT NULL,
+        error_code TEXT,
+        created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_saved_neighborhoods (
+        saved_neighborhood_id TEXT NOT NULL PRIMARY KEY,
+        session_id TEXT,
+        preference_vector_id TEXT,
+        report_id TEXT,
+        neighborhood_id TEXT NOT NULL,
+        saved_from TEXT NOT NULL,
+        note_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        deleted_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_share_tokens (
+        share_token_id TEXT NOT NULL PRIMARY KEY,
+        report_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        scope TEXT NOT NULL,
+        locale TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT,
+        revoked_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_report_exports (
+        export_id TEXT NOT NULL PRIMARY KEY,
+        report_id TEXT NOT NULL,
+        export_type TEXT NOT NULL,
+        locale TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        error_code TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_analytics_events (
+        analytics_event_id TEXT NOT NULL PRIMARY KEY,
+        event_name TEXT NOT NULL,
+        session_id TEXT,
+        locale TEXT NOT NULL,
+        journey_intent TEXT,
+        context_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS match_data_import_runs (
         data_import_run_id TEXT NOT NULL PRIMARY KEY,
         provider_name TEXT NOT NULL,
@@ -410,6 +476,18 @@ _MATCH_SCHEMA_STATEMENTS = (
     (
         "CREATE INDEX IF NOT EXISTS idx_match_reports_preference "
         "ON match_reports(preference_vector_id, created_at DESC)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_alerts_session "
+        "ON match_alerts(session_id, status, created_at DESC)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_saved_neighborhoods_session "
+        "ON match_saved_neighborhoods(session_id, created_at DESC)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_share_tokens_hash "
+        "ON match_share_tokens(token_hash, scope)"
     ),
     (
         "CREATE INDEX IF NOT EXISTS idx_match_guardrail_events_report "

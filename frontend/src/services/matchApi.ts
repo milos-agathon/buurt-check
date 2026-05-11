@@ -1,15 +1,30 @@
 import { buildPrimaryApiUrl } from '../config/apiBase';
 import type {
   MatchLocale,
+  MatchAlertCreatePayload,
+  MatchAlertCreateResponse,
+  MatchAlertListResponse,
   MatchComparePayload,
   MatchCompareResponse,
+  MatchListingCriteria,
+  MatchListingProviderResult,
   MatchMapResponse,
   MatchQuizPayload,
   MatchQuizResponse,
+  ReportExportPayload,
+  ReportExportResponse,
+  ReportPdfExportResponse,
+  ReportSaveResponse,
+  ReportSharePayload,
+  ReportShareResponse,
   MatchReportCreatePayload,
   MatchReportResponse,
   MatchSimilarPayload,
   MatchSimilarResponse,
+  SavedNeighborhood,
+  SavedNeighborhoodCreatePayload,
+  SavedNeighborhoodListResponse,
+  AlertStatus,
 } from '../types/match';
 import { recordMatchEvent } from './matchAnalytics';
 
@@ -131,4 +146,212 @@ export async function fetchMatchMap(params: {
   }
 
   return await response.json() as MatchMapResponse;
+}
+
+export async function fetchMatchListings(
+  criteria: MatchListingCriteria,
+): Promise<MatchListingProviderResult> {
+  const query = new URLSearchParams({
+    neighborhood_id: criteria.neighborhood_id,
+    journey_intent: criteria.journey_intent,
+  });
+  if (criteria.budget_max_cents != null) query.set('budget_max_cents', String(criteria.budget_max_cents));
+  if (criteria.rent_max_cents != null) query.set('rent_max_cents', String(criteria.rent_max_cents));
+  if (criteria.property_type) query.set('property_type', criteria.property_type);
+
+  const response = await fetch(buildPrimaryApiUrl(`/match/listings?${query.toString()}`), {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.listings_failed');
+  }
+
+  return await response.json() as MatchListingProviderResult;
+}
+
+export async function createMatchAlert(
+  payload: MatchAlertCreatePayload,
+): Promise<MatchAlertCreateResponse> {
+  const response = await fetch(buildPrimaryApiUrl('/match/alerts'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.alert_create_failed');
+  }
+
+  const body = await response.json() as MatchAlertCreateResponse;
+  recordMatchEvent('match_alert_created', {
+    locale: 'en',
+    journey_intent: body.alert.journey_intent,
+    source_context: body.alert.source_context,
+  });
+  return body;
+}
+
+export async function fetchMatchAlerts(sessionId?: string): Promise<MatchAlertListResponse> {
+  const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+  const response = await fetch(buildPrimaryApiUrl(`/match/alerts${query}`), {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.alert_fetch_failed');
+  }
+
+  return await response.json() as MatchAlertListResponse;
+}
+
+export async function updateMatchAlertStatus(
+  alertId: string,
+  status: AlertStatus,
+): Promise<MatchAlertCreateResponse['alert']> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/alerts/${encodeURIComponent(alertId)}`), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.alert_update_failed');
+  }
+
+  return await response.json() as MatchAlertCreateResponse['alert'];
+}
+
+export async function deleteMatchAlert(alertId: string): Promise<MatchAlertCreateResponse['alert']> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/alerts/${encodeURIComponent(alertId)}`), {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.alert_delete_failed');
+  }
+
+  return await response.json() as MatchAlertCreateResponse['alert'];
+}
+
+export async function saveMatchReport(
+  reportId: string,
+  sessionId?: string | null,
+): Promise<ReportSaveResponse> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/reports/${encodeURIComponent(reportId)}/save`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId ?? null }),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.report_save_failed');
+  }
+
+  return await response.json() as ReportSaveResponse;
+}
+
+export async function shareMatchReport(
+  reportId: string,
+  payload: ReportSharePayload,
+): Promise<ReportShareResponse> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/reports/${encodeURIComponent(reportId)}/share`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.report_share_failed');
+  }
+
+  return await response.json() as ReportShareResponse;
+}
+
+export async function exportMatchReport(
+  reportId: string,
+  payload: ReportExportPayload,
+): Promise<ReportExportResponse | ReportPdfExportResponse> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/reports/${encodeURIComponent(reportId)}/export`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.report_export_failed');
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/pdf')) {
+    return {
+      export_id: response.headers.get('x-match-export-id'),
+      blob: await response.blob(),
+    };
+  }
+
+  return await response.json() as ReportExportResponse;
+}
+
+export async function saveMatchNeighborhood(
+  payload: SavedNeighborhoodCreatePayload,
+): Promise<SavedNeighborhood> {
+  const response = await fetch(buildPrimaryApiUrl('/match/saved-neighborhoods'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.saved_neighborhood_failed');
+  }
+
+  const body = await response.json() as SavedNeighborhood;
+  recordMatchEvent('match_neighborhood_saved', {
+    locale: 'en',
+    neighborhood_id: body.neighborhood_id,
+    saved_from: body.saved_from,
+  });
+  return body;
+}
+
+export async function fetchSavedMatchNeighborhoods(
+  sessionId?: string,
+): Promise<SavedNeighborhoodListResponse> {
+  const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+  const response = await fetch(buildPrimaryApiUrl(`/match/saved-neighborhoods${query}`), {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.saved_neighborhood_fetch_failed');
+  }
+
+  return await response.json() as SavedNeighborhoodListResponse;
+}
+
+export async function deleteSavedMatchNeighborhood(savedNeighborhoodId: string): Promise<{ deleted: boolean }> {
+  const response = await fetch(
+    buildPrimaryApiUrl(`/match/saved-neighborhoods/${encodeURIComponent(savedNeighborhoodId)}`),
+    {
+      method: 'DELETE',
+      credentials: 'include',
+    },
+  );
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.saved_neighborhood_delete_failed');
+  }
+
+  return await response.json() as { deleted: boolean };
 }

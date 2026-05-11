@@ -23,6 +23,12 @@ async def test_init_db_creates_match_foundation_tables(tmp_path):
         "match_recommendation_evidence",
         "match_reports",
         "match_guardrail_events",
+        "match_alerts",
+        "match_notification_dispatch_records",
+        "match_saved_neighborhoods",
+        "match_share_tokens",
+        "match_report_exports",
+        "match_analytics_events",
         "match_data_import_runs",
         "match_source_health_snapshots",
     } <= table_names

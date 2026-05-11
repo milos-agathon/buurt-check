@@ -48,6 +48,7 @@ class MockListingProvider:
             return ListingProviderResult(
                 provider=self.status(health="degraded"),
                 listings=[],
+                availability_density=None,
                 unavailable_reason="neighborhood_not_in_mock_seed",
             )
 
@@ -66,6 +67,7 @@ class MockListingProvider:
                     bedrooms=3,
                     floor_area_m2=92,
                     availability_status="available",
+                    days_on_market=18,
                     freshness_status=DataFreshnessStatus.mock,
                     confidence=55,
                     limitations=["MOCK DATA: buy listing is an example, not live supply."],
@@ -85,13 +87,35 @@ class MockListingProvider:
                     bedrooms=2,
                     floor_area_m2=76,
                     availability_status="available",
+                    days_on_market=9,
                     freshness_status=DataFreshnessStatus.mock,
                     confidence=55,
                     limitations=["MOCK DATA: rent listing is an example, not live supply."],
                 )
             )
 
-        return ListingProviderResult(provider=self.status(), listings=listings)
+        filtered = [
+            listing
+            for listing in listings
+            if (
+                listing.journey_intent != "buy"
+                or criteria.budget_max_cents is None
+                or listing.price_cents is None
+                or listing.price_cents <= criteria.budget_max_cents
+            )
+            and (
+                listing.journey_intent != "rent"
+                or criteria.rent_max_cents is None
+                or listing.rent_cents is None
+                or listing.rent_cents <= criteria.rent_max_cents
+            )
+        ]
+
+        return ListingProviderResult(
+            provider=self.status(),
+            listings=filtered,
+            availability_density=min(100, len(filtered) * 35),
+        )
 
 
 class UnavailableListingProvider:
@@ -111,6 +135,7 @@ class UnavailableListingProvider:
         return ListingProviderResult(
             provider=self.status(),
             listings=[],
+            availability_density=None,
             unavailable_reason="listing_provider_unconfigured",
         )
 
@@ -132,5 +157,6 @@ class OutboundPlaceholderListingProvider:
         return ListingProviderResult(
             provider=self.status(),
             listings=[],
+            availability_density=None,
             unavailable_reason="outbound_placeholder_only",
         )

@@ -639,7 +639,166 @@ class Listing(BaseModel):
 class ListingProviderResult(BaseModel):
     provider: ProviderStatus
     listings: list[Listing] = Field(default_factory=list)
+    availability_density: int | None = Field(default=None, ge=0, le=100)
     unavailable_reason: str | None = None
+
+
+class NotificationDispatchRecord(BaseModel):
+    dispatch_id: str = Field(default_factory=lambda: f"dispatch_{uuid4().hex}")
+    alert_id: str = Field(min_length=1)
+    provider_name: str = Field(min_length=1)
+    provider_mode: Literal["mock", "email", "push"]
+    result_status: Literal["recorded", "sent", "failed", "skipped"]
+    listing_ids: list[str] = Field(default_factory=list)
+    error_code: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class AlertRule(BaseModel):
+    alert_id: str = Field(default_factory=lambda: f"alert_{uuid4().hex}")
+    session_id: str | None = None
+    preference_vector_id: str | None = None
+    neighborhood_ids: list[str] = Field(min_length=1)
+    journey_intent: Literal["buy", "rent", "both"]
+    budget_max_cents: int | None = Field(default=None, ge=0)
+    rent_max_cents: int | None = Field(default=None, ge=0)
+    property_types: list[str] = Field(min_length=1)
+    notification_destination_hash: str | None = None
+    notification_type: Literal["mock", "email", "push", "none"] = "mock"
+    status: Literal["active", "paused", "deleted"] = "active"
+    source_context: Literal[
+        "report", "listing", "saved", "map", "manual", "recommendation"
+    ] = "manual"
+    last_evaluated_at: datetime | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def validate_budget_for_intent(self) -> AlertRule:
+        if self.journey_intent in {"buy", "both"} and self.budget_max_cents is None:
+            raise ValueError("buy alerts require budget_max_cents")
+        if self.journey_intent in {"rent", "both"} and self.rent_max_cents is None:
+            raise ValueError("rent alerts require rent_max_cents")
+        return self
+
+
+class AlertCreateRequest(BaseModel):
+    session_id: str | None = None
+    preference_vector_id: str | None = None
+    source_context: Literal[
+        "report", "listing", "saved", "map", "manual", "recommendation"
+    ] = "manual"
+    neighborhood_ids: list[str] = Field(min_length=1)
+    journey_intent: Literal["buy", "rent", "both"]
+    budget_max_cents: int | None = Field(default=None, ge=0)
+    rent_max_cents: int | None = Field(default=None, ge=0)
+    property_types: list[str] = Field(min_length=1)
+    notification_destination: str | None = Field(default=None, exclude=True)
+    notification_destination_hash: str | None = None
+    notification_type: Literal["mock", "email", "push", "none"] = "mock"
+
+    def to_rule(self, *, alert_id: str | None = None) -> AlertRule:
+        return AlertRule(
+            alert_id=alert_id or f"alert_{uuid4().hex}",
+            session_id=self.session_id,
+            preference_vector_id=self.preference_vector_id,
+            neighborhood_ids=self.neighborhood_ids,
+            journey_intent=self.journey_intent,
+            budget_max_cents=self.budget_max_cents,
+            rent_max_cents=self.rent_max_cents,
+            property_types=self.property_types,
+            notification_destination_hash=self.notification_destination_hash,
+            notification_type=self.notification_type,
+            source_context=self.source_context,
+        )
+
+
+class AlertUpdateRequest(BaseModel):
+    status: Literal["active", "paused", "deleted"] | None = None
+    budget_max_cents: int | None = Field(default=None, ge=0)
+    rent_max_cents: int | None = Field(default=None, ge=0)
+    property_types: list[str] | None = None
+    notification_type: Literal["mock", "email", "push", "none"] | None = None
+
+
+class AlertCreateResponse(BaseModel):
+    alert: AlertRule
+    created: bool
+    dispatch: NotificationDispatchRecord
+    matched_listing_ids: list[str] = Field(default_factory=list)
+    analytics_event: Literal["match_alert_created"] = "match_alert_created"
+
+
+class AlertListResponse(BaseModel):
+    alerts: list[AlertRule] = Field(default_factory=list)
+
+
+class SavedNeighborhoodCreateRequest(BaseModel):
+    session_id: str | None = None
+    preference_vector_id: str | None = None
+    report_id: str | None = None
+    neighborhood_id: str = Field(min_length=1)
+    saved_from: Literal["recommendation", "map", "comparison", "listing", "manual"]
+    note: dict[str, object] = Field(default_factory=dict)
+
+
+class SavedNeighborhood(BaseModel):
+    saved_neighborhood_id: str = Field(default_factory=lambda: f"saved_nh_{uuid4().hex}")
+    session_id: str | None = None
+    preference_vector_id: str | None = None
+    report_id: str | None = None
+    neighborhood_id: str = Field(min_length=1)
+    saved_from: Literal["recommendation", "map", "comparison", "listing", "manual"]
+    note: dict[str, object] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=utc_now)
+    deleted_at: datetime | None = None
+    analytics_event: Literal["match_neighborhood_saved"] = "match_neighborhood_saved"
+
+
+class SavedNeighborhoodListResponse(BaseModel):
+    saved_neighborhoods: list[SavedNeighborhood] = Field(default_factory=list)
+
+
+class DeleteResponse(BaseModel):
+    deleted: bool
+
+
+class ReportSaveRequest(BaseModel):
+    session_id: str | None = None
+
+
+class ReportSaveResponse(BaseModel):
+    report_id: str
+    saved: bool
+    status: Literal["saved", "not_found"]
+
+
+class ReportShareRequest(BaseModel):
+    scope: Literal["report_view", "report_export"] = "report_view"
+    locale: Literal["en", "nl"] = "en"
+    expires_in_days: int | None = Field(default=30, ge=1, le=365)
+    consent_to_share: bool
+
+
+class ReportShareResponse(BaseModel):
+    share_url: str
+    expires_at: datetime | None = None
+
+
+class ReportExportRequest(BaseModel):
+    export_type: Literal["pdf", "html", "json"] = "pdf"
+    locale: Literal["en", "nl"] = "en"
+
+
+class ReportExportResponse(BaseModel):
+    export_id: str
+    report_id: str
+    export_type: Literal["html", "json"]
+    locale: Literal["en", "nl"]
+    status: Literal["created", "failed"]
+    payload: dict[str, object]
+    error_code: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class SourceRun(BaseModel):

@@ -1,0 +1,42 @@
+.match-share-export {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.match-share-export__eyebrow,
+.match-share-export__meta dt,
+.match-share-export__link {
+  color: var(--color-text-muted, #5d6b78);
+}
+
+.match-share-export__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.match-share-export__meta dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.match-share-export__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.match-share-export__consent {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .match-share-export {
+    padding: 16px;
+  }
+}

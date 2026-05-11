@@ -319,3 +319,180 @@ export interface MatchReportResponse {
   report_input: ReportInput;
   generated_at: string;
 }
+
+export type ListingProviderMode =
+  | 'licensed'
+  | 'mock'
+  | 'user_provided'
+  | 'outbound_placeholder'
+  | 'unavailable';
+
+export interface ProviderStatus {
+  name: string;
+  mode: ListingProviderMode;
+  license_status: 'open' | 'licensed' | 'mock' | 'unknown' | 'unavailable';
+  health: 'healthy' | 'degraded' | 'failed' | 'unconfigured' | 'mock_only';
+  limitations: string[];
+  last_success_at?: string | null;
+}
+
+export interface MatchListingCriteria {
+  neighborhood_id: string;
+  journey_intent: JourneyIntent;
+  budget_max_cents?: number | null;
+  rent_max_cents?: number | null;
+  property_type?: string | null;
+}
+
+export interface MatchListing {
+  listing_id: string;
+  provider_listing_id?: string | null;
+  provider_name: string;
+  provider_mode: ListingProviderMode;
+  license_status: 'open' | 'licensed' | 'mock' | 'unknown' | 'unavailable';
+  neighborhood_id: string;
+  journey_intent: 'buy' | 'rent';
+  property_type?: string | null;
+  price_cents?: number | null;
+  rent_cents?: number | null;
+  currency: 'EUR';
+  bedrooms?: number | null;
+  floor_area_m2?: number | null;
+  availability_status: 'available' | 'reserved' | 'sold_rented' | 'expired' | 'unknown';
+  days_on_market?: number | null;
+  source_url?: string | null;
+  freshness_status: DataFreshnessStatus;
+  confidence: number;
+  limitations: string[];
+  retrieved_at: string;
+}
+
+export interface MatchListingProviderResult {
+  provider: ProviderStatus;
+  listings: MatchListing[];
+  availability_density?: number | null;
+  unavailable_reason?: string | null;
+}
+
+export type AlertStatus = 'active' | 'paused' | 'deleted';
+export type AlertSourceContext = 'report' | 'listing' | 'saved' | 'map' | 'manual' | 'recommendation';
+
+export interface MatchAlertRule {
+  alert_id: string;
+  session_id?: string | null;
+  preference_vector_id?: string | null;
+  neighborhood_ids: string[];
+  journey_intent: JourneyIntent;
+  budget_max_cents?: number | null;
+  rent_max_cents?: number | null;
+  property_types: string[];
+  notification_destination_hash?: string | null;
+  notification_type: 'mock' | 'email' | 'push' | 'none';
+  status: AlertStatus;
+  source_context: AlertSourceContext;
+  last_evaluated_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationDispatchRecord {
+  dispatch_id: string;
+  alert_id: string;
+  provider_name: string;
+  provider_mode: 'mock' | 'email' | 'push';
+  result_status: 'recorded' | 'sent' | 'failed' | 'skipped';
+  listing_ids: string[];
+  error_code?: string | null;
+  created_at: string;
+}
+
+export interface MatchAlertCreatePayload {
+  session_id?: string | null;
+  preference_vector_id?: string | null;
+  source_context?: AlertSourceContext;
+  neighborhood_ids: string[];
+  journey_intent: JourneyIntent;
+  budget_max_cents?: number | null;
+  rent_max_cents?: number | null;
+  property_types: string[];
+  notification_destination?: string | null;
+  notification_destination_hash?: string | null;
+  notification_type: 'mock' | 'email' | 'push' | 'none';
+}
+
+export interface MatchAlertCreateResponse {
+  alert: MatchAlertRule;
+  created: boolean;
+  dispatch: NotificationDispatchRecord;
+  matched_listing_ids: string[];
+  analytics_event: 'match_alert_created';
+}
+
+export interface MatchAlertListResponse {
+  alerts: MatchAlertRule[];
+}
+
+export interface SavedNeighborhoodCreatePayload {
+  session_id?: string | null;
+  preference_vector_id?: string | null;
+  report_id?: string | null;
+  neighborhood_id: string;
+  saved_from: 'recommendation' | 'map' | 'comparison' | 'listing' | 'manual';
+  note?: Record<string, unknown>;
+}
+
+export interface SavedNeighborhood {
+  saved_neighborhood_id: string;
+  session_id?: string | null;
+  preference_vector_id?: string | null;
+  report_id?: string | null;
+  neighborhood_id: string;
+  saved_from: 'recommendation' | 'map' | 'comparison' | 'listing' | 'manual';
+  note: Record<string, unknown>;
+  created_at: string;
+  deleted_at?: string | null;
+  analytics_event: 'match_neighborhood_saved';
+}
+
+export interface SavedNeighborhoodListResponse {
+  saved_neighborhoods: SavedNeighborhood[];
+}
+
+export interface ReportSaveResponse {
+  report_id: string;
+  saved: boolean;
+  status: 'saved' | 'not_found';
+}
+
+export interface ReportSharePayload {
+  scope: 'report_view' | 'report_export';
+  locale: MatchLocale;
+  expires_in_days?: number | null;
+  consent_to_share: boolean;
+}
+
+export interface ReportShareResponse {
+  share_url: string;
+  expires_at?: string | null;
+}
+
+export interface ReportExportPayload {
+  export_type: 'pdf' | 'html' | 'json';
+  locale: MatchLocale;
+}
+
+export interface ReportExportResponse {
+  export_id: string;
+  report_id: string;
+  export_type: 'html' | 'json';
+  locale: MatchLocale;
+  status: 'created' | 'failed';
+  payload: Record<string, unknown>;
+  error_code?: string | null;
+  created_at: string;
+}
+
+export interface ReportPdfExportResponse {
+  export_id?: string | null;
+  blob: Blob;
+}

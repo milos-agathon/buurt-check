@@ -31,6 +31,13 @@ const requiredMatchKeys = [
   'match.quiz.validation.journey',
   'match.warning.budget_max_missing',
   'match.warning.anchor_missing',
+  'match.listings.title',
+  'match.listings.mockLabel',
+  'match.alerts.title',
+  'match.alerts.create',
+  'match.saved.title',
+  'match.share.title',
+  'match.share.exportPdf',
 ];
 
 it('defines Dutch and English copy for the Phase 2 match landing and quiz', () => {
