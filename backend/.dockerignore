@@ -1,6 +1,10 @@
 __pycache__/
 *.pyc
 *.pyo
+.git/
+Dockerfile
+.dockerignore
+node_modules/
 .pytest_cache/
 .pytest-basetemp/
 .ruff_cache/
@@ -8,9 +12,12 @@ __pycache__/
 .claude/
 .env
 .env.local
+.env.*
 build/
 dist/
+coverage/
 tests/
 *.egg-info/
 *.log
+*.log*
 buurt_check.db

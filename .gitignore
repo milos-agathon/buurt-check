@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 .pytest_cache/
 .ruff_cache/
+.venv/
 venv/
 *.egg-info/
 
@@ -21,9 +22,11 @@ Thumbs.db
 nul
 
 # Build
+build/
 dist/
 /public/
 node_modules/
+coverage/
 
 # Logs
 logs/

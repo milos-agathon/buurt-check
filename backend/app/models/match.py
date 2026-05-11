@@ -127,6 +127,21 @@ SUPPORTED_FEATURE_KEYS = frozenset(
     }
 )
 
+PREFERENCE_CATEGORY_KEYS = frozenset(
+    {
+        "calmness",
+        "green_space",
+        "family_fit",
+        "mobility",
+        "amenities",
+        "affordability",
+        "safety_context",
+        "environmental_quality",
+        "social_lifestyle_fit",
+        "housing_stock",
+    }
+)
+
 
 class NeighborhoodFeatureVector(BaseModel):
     feature_vector_id: str = Field(min_length=1)
@@ -188,11 +203,111 @@ class PreferenceVector(BaseModel):
     @classmethod
     def validate_weights(cls, value: dict[str, float]) -> dict[str, float]:
         for key, weight in value.items():
-            if key not in SUPPORTED_FEATURE_KEYS and key != "affordability":
+            if key not in PREFERENCE_CATEGORY_KEYS and key not in SUPPORTED_FEATURE_KEYS:
                 raise ValueError(f"unsupported lifestyle weight: {key}")
             if not 0 <= weight <= 1:
                 raise ValueError(f"lifestyle weight {key} must be between 0 and 1")
         return value
+
+
+class QuizBudget(BaseModel):
+    buy_min: int | None = Field(default=None, ge=0)
+    buy_max: int | None = Field(default=None, ge=0)
+    rent_max: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_buy_range(self) -> QuizBudget:
+        if (
+            self.buy_min is not None
+            and self.buy_max is not None
+            and self.buy_min > self.buy_max
+        ):
+            raise ValueError("buy_min cannot exceed buy_max")
+        return self
+
+
+class LocationAnchor(BaseModel):
+    label: str = Field(min_length=1)
+    query: str = Field(min_length=1)
+    lat: float | None = None
+    lng: float | None = None
+
+
+class CommuteLimit(BaseModel):
+    mode: Literal["bike", "walk", "car", "public_transport", "mixed", "radius"]
+    max_minutes: int | None = Field(default=None, ge=1, le=180)
+    radius_km: float | None = Field(default=None, ge=0.5, le=150)
+
+    @model_validator(mode="after")
+    def validate_limit(self) -> CommuteLimit:
+        if self.max_minutes is None and self.radius_km is None:
+            raise ValueError("commute limit requires max_minutes or radius_km")
+        return self
+
+
+class MatchQuizRequest(BaseModel):
+    session_id: str | None = None
+    locale: Literal["en", "nl"]
+    journey_intent: Literal["buy", "rent", "both"]
+    budget: QuizBudget = Field(default_factory=QuizBudget)
+    household_type: Literal["starter", "single", "couple", "family", "future_family", "other"]
+    current_city: str | None = None
+    preferred_anchor_location: str | None = None
+    anchor_locations: list[LocationAnchor] = Field(default_factory=list)
+    commute_limits: list[CommuteLimit] = Field(default_factory=list)
+    property_types: list[str] = Field(min_length=1)
+    must_haves: list[str] = Field(default_factory=list)
+    nice_to_haves: list[str] = Field(default_factory=list)
+    avoid_signals: list[str] = Field(default_factory=list)
+    language_preference: Literal["en", "nl"] | None = None
+    lifestyle_priorities: dict[str, int] = Field(default_factory=dict)
+    newcomer_status: Literal["yes", "no", "prefer_not_to_say", "unknown"] = "unknown"
+    nationality: str | None = Field(default=None, exclude=True)
+    immigration_status: str | None = Field(default=None, exclude=True)
+
+    @field_validator("lifestyle_priorities")
+    @classmethod
+    def validate_lifestyle_priorities(cls, value: dict[str, int]) -> dict[str, int]:
+        for key, weight in value.items():
+            if key not in PREFERENCE_CATEGORY_KEYS:
+                raise ValueError(f"unsupported lifestyle priority: {key}")
+            if not 1 <= weight <= 5:
+                raise ValueError(f"lifestyle priority {key} must be between 1 and 5")
+        return value
+
+
+class MatchValidationWarning(BaseModel):
+    code: str = Field(pattern=r"^match\.warning\.")
+    severity: Literal["info", "warning"]
+    field: str | None = None
+
+
+class PersonaOverlay(BaseModel):
+    type: Literal[
+        "family",
+        "newcomer",
+        "city_escape",
+        "single_couple",
+        "buyer",
+        "renter",
+        "starter",
+    ]
+    confidence: int = Field(ge=0, le=100)
+    reasons: list[str] = Field(min_length=1)
+
+
+class PreferenceGenerationResult(BaseModel):
+    profile: UserPreferenceProfile
+    preference_vector: PreferenceVector
+    validation_warnings: list[MatchValidationWarning] = Field(default_factory=list)
+
+
+class MatchQuizResponse(BaseModel):
+    profile: UserPreferenceProfile
+    preference_vector: PreferenceVector
+    persona_overlays: list[PersonaOverlay] = Field(default_factory=list)
+    validation_warnings: list[MatchValidationWarning] = Field(default_factory=list)
+    analytics_event: Literal["match_quiz_completed"] = "match_quiz_completed"
 
 
 class RecommendationEvidence(BaseModel):

@@ -35,6 +35,8 @@ import VerificationActionDetailSheet from './components/prebid/VerificationActio
 import PackView from './components/prebid/PackView';
 import SharePackSheet from './components/prebid/SharePackSheet';
 import SharedPrebidScreen from './components/prebid/SharedPrebidScreen';
+import MatchLanding from './components/match/MatchLanding';
+import MatchQuiz from './components/match/MatchQuiz';
 
 import {
   ApiError,
@@ -107,6 +109,7 @@ import {
   type AnalyticsConsentState,
 } from './services/clientEvents';
 import { getTheme, setTheme, applyTheme, listenForSystemChanges, type ThemePreference } from './services/theme';
+import { submitMatchQuiz } from './services/matchApi';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import { useViewportBottomOffset } from './hooks/useViewportBottomOffset';
 import type { Geometry, Position } from 'geojson';
@@ -134,6 +137,7 @@ import type {
   RiskLevel,
   ShortlistItem,
 } from './types/api';
+import type { MatchQuizPayload, MatchQuizResponse } from './types/match';
 import {
   resolveSourceFetchStatus,
   type SourceFetchStatus,
@@ -152,7 +156,7 @@ const NeighborhoodViewer3D = lazy(() => import('./components/NeighborhoodViewer3
 const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
-type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found';
+type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
 interface DossierSeedState {
@@ -406,7 +410,7 @@ function hasSurroundingContext(data: Neighborhood3DResponse | null): boolean {
 }
 
 type ProgressivePhase = 'house' | 'risk' | 'buurt';
-type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found';
+type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz';
 
 const PHASE_1_TIMEOUT_MS = 7000;
 const PHASE_2_TIMEOUT_MS = 9000;
@@ -496,6 +500,8 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   if (normalizedPath === '/saved') return { route: 'shortlist' };
   if (normalizedPath === '/compare') return { route: 'compare' };
   if (normalizedPath === '/settings') return { route: 'settings' };
+  if (normalizedPath === '/match') return { route: 'matchLanding' };
+  if (normalizedPath === '/match/quiz') return { route: 'matchQuiz' };
   if (normalizedPath === '/search' || (normalizedPath === '/' && !(checkoutParams.reportId && checkoutParams.sessionId))) {
     return { route: 'search' };
   }
@@ -598,6 +604,8 @@ function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.route === 'shortlist') return '#/saved';
   if (parsed.route === 'compare') return '#/compare';
   if (parsed.route === 'settings') return '#/settings';
+  if (parsed.route === 'matchLanding') return '#/match';
+  if (parsed.route === 'matchQuiz') return '#/match/quiz';
   if (parsed.route === 'pack' && parsed.vboId && parsed.reportId) {
     return `#/pack/${encodeURIComponent(parsed.vboId)}/${encodeURIComponent(parsed.reportId)}`;
   }
@@ -1252,6 +1260,9 @@ function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>(
     initialHasDossier ? 'dossier' : 'search',
   );
+  const [matchQuizResponse, setMatchQuizResponse] = useState<MatchQuizResponse | null>(null);
+  const [matchQuizSubmitting, setMatchQuizSubmitting] = useState(false);
+  const [matchQuizErrorCode, setMatchQuizErrorCode] = useState<string | null>(null);
   const [themePreference, setThemePreference] = useState<ThemePreference>(getTheme());
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsentState>(() =>
     analyticsEnabled ? getAnalyticsConsent() : 'unknown',
@@ -2027,6 +2038,19 @@ function App() {
     setActiveScreen('compare');
     setHashRoute('#/compare');
   }, [setHashRoute]);
+
+  const handleMatchQuizSubmit = useCallback(async (payload: MatchQuizPayload) => {
+    setMatchQuizSubmitting(true);
+    setMatchQuizErrorCode(null);
+    try {
+      const response = await submitMatchQuiz(payload);
+      setMatchQuizResponse(response);
+    } catch {
+      setMatchQuizErrorCode('match.warning.quiz_submit_failed');
+    } finally {
+      setMatchQuizSubmitting(false);
+    }
+  }, []);
 
   const buildShortlistItem = useCallback((): ShortlistItem | null => {
     if (!address?.adresseerbaar_object_id) return null;
@@ -3917,6 +3941,16 @@ function App() {
       setActiveScreen('settings');
       return;
     }
+    if (parsed.route === 'matchLanding') {
+      setActiveTab('home');
+      setActiveScreen('matchLanding');
+      return;
+    }
+    if (parsed.route === 'matchQuiz') {
+      setActiveTab('home');
+      setActiveScreen('matchQuiz');
+      return;
+    }
     if (parsed.route === 'pack') {
       setActiveTab('briefing');
       setActiveScreen('pack');
@@ -4556,15 +4590,19 @@ function App() {
       ? '#/compare'
       : activeScreen === 'settings'
         ? '#/settings'
-        : activeScreen === 'dossier'
-          ? '#/address'
-          : activeScreen === 'pack'
-            ? '#/pack'
-            : activeScreen === 'shared'
-              ? '#/shared'
-              : activeScreen === 'not_found'
-                ? '#/not-found'
-                : '#/search';
+        : activeScreen === 'matchLanding'
+          ? '#/match'
+          : activeScreen === 'matchQuiz'
+            ? '#/match/quiz'
+            : activeScreen === 'dossier'
+              ? '#/address'
+              : activeScreen === 'pack'
+                ? '#/pack'
+                : activeScreen === 'shared'
+                  ? '#/shared'
+                  : activeScreen === 'not_found'
+                    ? '#/not-found'
+                    : '#/search';
   const analyticsPageTitle = activeScreen === 'search'
     ? 'Buurt Check'
     : topBarTitle;
@@ -4868,6 +4906,51 @@ function App() {
               transition={SPRING_TAB}
             >
               <AddressSearch onSelect={handleAddressSelect} shortlistCount={shortlistItems.length} onNavigateToSaved={handleNavigateToSaved} onNavigateToCompare={handleNavigateToCompare} />
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchLanding' && (
+            <motion.div
+              key="screen-match-landing"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <MatchLanding
+                onStartQuiz={() => {
+                  setActiveScreen('matchQuiz');
+                  setHashRoute('#/match/quiz');
+                }}
+                onCompareKnown={handleNavigateToCompare}
+              />
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchQuiz' && (
+            <motion.div
+              key="screen-match-quiz"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <MatchQuiz
+                onSubmit={handleMatchQuizSubmit}
+                submitting={matchQuizSubmitting}
+                errorCode={matchQuizErrorCode}
+              />
+              {matchQuizResponse && (
+                <section className="app__screen" aria-live="polite">
+                  <h2>{t('match.quiz.profileReady')}</h2>
+                  <p>{t('match.quiz.profileReadyBody', {
+                    count: matchQuizResponse.persona_overlays.length,
+                    intent: matchQuizResponse.preference_vector.journey_intent,
+                  })}</p>
+                </section>
+              )}
             </motion.div>
           )}
 
