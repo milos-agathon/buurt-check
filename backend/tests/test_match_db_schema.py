@@ -1,0 +1,93 @@
+import pytest
+
+from app.db import get_db, init_db
+
+
+@pytest.mark.asyncio
+async def test_init_db_creates_match_foundation_tables(tmp_path):
+    db_path = str(tmp_path / "match.db")
+
+    await init_db(db_path)
+
+    async with get_db(db_path) as db:
+        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        table_names = {row["name"] for row in await cursor.fetchall()}
+
+    assert {
+        "match_neighborhoods",
+        "match_metric_sources",
+        "match_neighborhood_metrics",
+        "match_feature_vectors",
+        "match_listings",
+        "match_preference_vectors",
+        "match_recommendation_evidence",
+        "match_reports",
+        "match_guardrail_events",
+        "match_alerts",
+        "match_notification_dispatch_records",
+        "match_saved_neighborhoods",
+        "match_share_tokens",
+        "match_report_exports",
+        "match_analytics_events",
+        "match_data_import_runs",
+        "match_source_health_snapshots",
+    } <= table_names
+
+
+@pytest.mark.asyncio
+async def test_match_report_tables_preserve_structured_snapshot_and_guardrail_metadata(tmp_path):
+    db_path = str(tmp_path / "match.db")
+
+    await init_db(db_path)
+
+    async with get_db(db_path) as db:
+        cursor = await db.execute("PRAGMA table_info(match_reports)")
+        report_columns = {row["name"] for row in await cursor.fetchall()}
+        cursor = await db.execute("PRAGMA table_info(match_guardrail_events)")
+        guardrail_columns = {row["name"] for row in await cursor.fetchall()}
+
+    assert {
+        "report_id",
+        "session_id",
+        "preference_vector_id",
+        "locale",
+        "report_status",
+        "report_input_json",
+        "report_output_json",
+        "validation_status",
+        "source_refs_json",
+        "generated_by",
+        "created_at",
+    } <= report_columns
+    assert {
+        "guardrail_event_id",
+        "report_id",
+        "event_type",
+        "action_taken",
+        "details_json",
+        "created_at",
+    } <= guardrail_columns
+
+
+@pytest.mark.asyncio
+async def test_match_metric_tables_include_source_freshness_confidence_columns(tmp_path):
+    db_path = str(tmp_path / "match.db")
+
+    await init_db(db_path)
+
+    async with get_db(db_path) as db:
+        cursor = await db.execute("PRAGMA table_info(match_neighborhood_metrics)")
+        metric_columns = {row["name"] for row in await cursor.fetchall()}
+        cursor = await db.execute("PRAGMA table_info(match_metric_sources)")
+        source_columns = {row["name"] for row in await cursor.fetchall()}
+
+    assert {"source_id", "freshness_status", "confidence", "limitations_json"} <= metric_columns
+    assert {
+        "source_name",
+        "source_type",
+        "retrieved_at",
+        "geography_level",
+        "confidence",
+        "freshness_status",
+        "limitation",
+    } <= source_columns

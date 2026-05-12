@@ -1,0 +1,29 @@
+.match-saved {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.match-saved__eyebrow {
+  color: var(--color-text-muted, #5d6b78);
+}
+
+.match-saved__neighborhoods {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.match-saved__item {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--color-border, #d8e2ea);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+@media (max-width: 720px) {
+  .match-saved {
+    padding: 16px;
+  }
+}

@@ -3,6 +3,8 @@ data/
 !app/data/
 app/data/*
 !app/data/risk_benchmarks.json
+!app/data/match_seed/
+!app/data/match_seed/*.json
 env.txt
 build/
 dist/

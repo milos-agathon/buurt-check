@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 .pytest_cache/
 .ruff_cache/
+.venv/
 venv/
 *.egg-info/
 
@@ -21,9 +22,11 @@ Thumbs.db
 nul
 
 # Build
+build/
 dist/
 /public/
 node_modules/
+coverage/
 
 # Logs
 logs/
@@ -48,6 +51,8 @@ docs/
 !docs/
 docs/*
 !docs/README.md
+!docs/context/
+!docs/context/**
 !docs/plans/
 docs/plans/*
 !docs/plans/ui-scorecard-9-5-evidence.md
@@ -60,6 +65,7 @@ docs/data/*
 
 # Chrome debug profiles
 .chrome-debug-profile/
+.chrome-*/
 
 # Agent memory (subagent-generated)
 backend/.claude/

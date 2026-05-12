@@ -1,653 +1,1831 @@
-# buurt-check — Product Requirements Document
+# PRD: Buurt Check Match-First UI Revamp
 
-> Alignment note (2026-04-12): For any guidance affecting `https://buurt-check.nl/`, its associated legal pages, or `https://app.buurt-check.nl/#/search` and adjacent app UI states, `docs/plans/2026-04-12-website-and-app-design-10-10-spec.md` is the governing document. If this file conflicts with that spec on layout, hierarchy, spacing, visual system, bilingual asset handling, desktop adaptation, loading-state clarity, export recovery UX, or legal-page consistency, the 2026-04-12 spec controls.
-
-> **Version:** 2.0 | **Last updated:** 2026-02-06
-
-> **One-liner:** Paste a Dutch address, get an instant risk-and-reality dossier with 3D context, environmental risk cards, and a printable quick checklist.
-
-## Phase 1 alignment addendum (2026-02-11)
-
-This PRD is aligned to the locked decisions in `docs/spec-baseline.md`.
-
-- Architecture: no migration now (`D1-1`).
-- Visual authority: Polar Frost (`D2-2`).
-- forge3 scope: report rendering only; web rendering remains Three.js (`D3-2R`).
-- PDF: dual-template export remains (`quick_brief`, `full_dossier`) (`D5-1`).
-- Requirement ownership and acceptance tests are tracked in `docs/spec-baseline.md` section 4.
-
-## Table of contents
-
-0. [Phase 1 alignment addendum](#phase-1-alignment-addendum-2026-02-11)
-1. [Market opportunity](#1-market-opportunity)
-2. [Product goal](#2-product-goal)
-3. [Target users](#3-target-users)
-4. [Core user journey (MVP)](#4-core-user-journey-mvp)
-5. [MVP feature set](#5-mvp-feature-set)
-6. [Out of scope](#6-out-of-scope)
-7. [Success metrics](#7-success-metrics)
-8. [Data sources & ingestion](#8-data-sources--ingestion)
-9. [3D visualization pipeline](#9-3d-visualization-pipeline)
-10. [MVP architecture](#10-mvp-architecture)
-11. [Performance & quality requirements](#11-performance--quality-requirements)
-12. [Privacy & legal](#12-privacy--legal)
-13. [Risks & mitigations](#13-risks--mitigations)
-14. [Why this can win](#14-why-this-can-win)
+**Product:** Buurt Check
+**Document:** Product Requirements Document
+**Version:** v2.0 — Match-first UI revamp
+**Date:** 12 May 2026
+**Owner:** Milos GIS / Buurt Check
+**Primary market:** Netherlands
+**Primary languages:** Dutch and English
+**Core decision:** The app starts with neighborhood matching. Address search becomes a downstream action after users discover a matching neighborhood and select a house.
 
 ---
 
-## 1. Market opportunity
+## 1. Executive summary
 
-This section maps which problems have strong open data support and weak coverage in existing Dutch property buyer apps, establishing where buurt-check can differentiate.
+Buurt Check currently contains two competing entry points: a search interface and a match interface. This creates cognitive friction because users are asked to choose a mode before they understand the value of the product.
 
-### Tier A — strong open data + weak coverage in existing buyer apps
+The redesigned Buurt Check should become a **match-first, map-first, guided neighborhood discovery experience**.
 
-These are the ones where you can make a *real market contribution* fast:
+The new flow begins with a simple, emotionally clear landing screen. The user sees a beautiful animated 2D or 3D neighborhood map as the background, one short promise, and one primary CTA:
 
-1. **Address → Risk & Reality Dossier**
-   One link/address becomes a shareable, bilingual (EN/NL) dossier: building facts + neighborhood stats + environmental/climate risks + noise/air quality + 3D context.
-   Why this stands out: most apps show *a map*; you'll show **consequences + questions to ask at the viewing**.
-   Data is there: BAG, CBS, RIVM/Atlas Leefomgeving WMS, Klimaateffectatlas WMS/WFS, 3DBAG/3D Basisvoorziening. ([api.pdok.nl][1])
+> **Find my dream neighborhood**
+> **Vind mijn droombuurt**
 
-2. **3D "micro-neighborhood truth" (sun/shadow + canyon effect + context)**
-   The dual-renderer 3D viewer is the differentiator: Three.js renders the block interactively in-browser while forge3d produces publication-quality server-side snapshots. Answer practical questions: *"Is this ground-floor dark all year?" "Is the balcony boxed in?"*
-   Feasible via 3DBAG API/downloads and/or Kadaster 3D Basisvoorziening (3D Tiles + OGC API). ([docs.3dbag.nl][2])
+When the user clicks the CTA, the app opens a smooth one-question-at-a-time survey. The survey captures preferences, constraints, household context, budget, lifestyle priorities, and tradeoffs. The interface remains calm: one question, one set of choices, one progress indicator, one back button.
 
-3. **Noise & air quality at 10m–50m scale (as "livability risk cards")**
-   This is a huge expat pain point ("I didn't realize it was that loud / polluted"). RIVM provides public WMS + downloadable rasters/zips for noise and GCN air quality. ([data.overheid.nl][3])
+After the final question, the user triggers a matching phase. The backend turns the answers into a structured preference vector, compares it with neighborhood data, runs the matching model, computes fit probabilities or scores, and returns ranked neighborhood recommendations.
 
-4. **Climate-stress flags that buyers *actually misunderstand***
-   Water nuisance / flooding vulnerability / heat stress / drought sensitivity presented as *"what it means for you"* + mitigation questions for the seller/VvE. Klimaateffectatlas is explicitly open + WMS friendly. ([klimaateffectatlas.nl][4])
+While the backend works, the frontend shows a friendly animated progress screen. Once matching is complete, the app confirms success with a large animated Buurt Check checkmark, then opens the results map.
 
+The results map starts centered on the Netherlands. Recommended neighborhoods are shown as map markers and as a clean ranked list. Users can zoom manually or click a recommendation to fly into a neighborhood. At neighborhood level, the map shows the selected neighborhood, relevant amenities, and 3D houses only inside that neighborhood. Clicking a house starts the existing address-level search flow and opens the current Dossier interface.
 
-5. **Neighborhood "fit" cards (CBS Wijken & Buurten)**
-   Demographics, density, etc. This exists in various places, but rarely packaged for *buyers* with "so what?" explanations. ([pdok.nl][5])
+The final product should feel like this:
 
-
-### Tier C — don't attempt in MVP (either not open or you'll get wrecked legally/operationally)
-
-7. **Accurate valuation / "fair price" / winning bid strategy**
-   Without paid transaction data, lender data, and strong models, you'll be wrong and you'll lose trust.
-
-8. **Full "permit/renovation" certainty at address level**
-   Municipal permits are fragmented; doable later per-city, but too messy for MVP if you want nationwide.
-
-9. **Listings replacement / Funda killer**
-   Not with open data. Period.
+> “Tell us how you want to live. We’ll show you where to look. Then you can check the exact house.”
 
 ---
 
-## 2. Product goal
+## 2. Product positioning
 
-Help expats and first-time buyers **avoid bad purchases and choose the right neighborhood/home** by generating an **instant, evidence-backed address dossier** with **3D context** and **risk cards**.
+### 2.1 One-line product definition
 
-## 3. Target users
+**Buurt Check helps people discover where they should live before they inspect the house.**
 
-* **Expats**: limited Dutch knowledge, high uncertainty, high regret risk.
-* **First-time buyers**: overwhelmed by tradeoffs; need structure and confidence.
+Dutch:
 
-### User context & emotional needs
+**Buurt Check helpt mensen ontdekken waar ze het beste kunnen wonen voordat ze een woning controleren.**
 
-Users are navigating high-stakes property decisions (often six-figure) in an unfamiliar market. They are time-pressured (viewing slots are limited), anxious about hidden risks (noise, flooding, subsidence, pollution), and often lack Dutch language skills or local knowledge. They need a trusted source that does the research for them and tells them exactly what to ask at the viewing.
+### 2.2 Core promise
 
-**Brand personality:** Confident, clear, empowering — like a knowledgeable friend who makes you feel in control of a big decision.
+The product should not start with a blank address field. It should start with the user’s life.
 
-**Emotional target:** Calm confidence — *"Someone serious did the work for me. I can trust this and act on it."*
+The redesigned product answers:
 
-## 4. Core user journey (MVP)
+- Where should I search?
+- Which neighborhoods match the way I want to live?
+- Which tradeoffs should I understand before I fall in love with a house?
+- What does this specific house look like in its real neighborhood context?
 
-1. User pastes **address** (or postcode + house number).
-2. App generates a dossier following the **"house first, buurt second"** principle:
-   * **House details:** Building facts (BAG), risk assessment (noise, air, climate, sunlight), property warnings, soil info
-   * **Neighborhood context:** Livability (Leefbaarometer), 3D block view + sunlight & shadow analysis (3DBAG + Three.js + SunCalc), neighborhood snapshot (CBS)
-3. User explores **3D shadow timeline**: drags time slider to see how shadows fall on the property at different times of day and seasons.
-4. User saves to a **Shortlist**, compares up to **3 homes**, downloads a free **Quick checklist** PDF, or buys a **Full Dossier** PDF with forge3d-rendered shadow snapshots.
-5. At viewing: user opens "**Questions to ask**" checklist auto-generated from detected risks.
+### 2.3 Strategic product decision
 
-## 5. MVP feature set (must ship)
+The old split between **Search** and **Match** should disappear from the first screen.
 
-Feature delivery labels for this PRD:
-- `Implemented now`: in current delivery scope (some items may still have implementation gaps).
-- `Post-MVP`: explicitly deferred.
+The app should have one primary journey:
 
-| Feature | Label | Notes |
+1. Match me with neighborhoods.
+2. Show me those neighborhoods on a beautiful interactive map.
+3. Let me inspect houses inside those neighborhoods.
+4. Open the existing Dossier flow for the selected house.
+5. Let me return to the map at any time.
+
+Address search can remain available, but it should no longer compete with matching as the main user journey. It may exist as:
+
+- a secondary link in the footer,
+- a small “Already have an address?” option after onboarding,
+- or a route for returning users.
+
+It should not be visually equal to the match CTA on the landing screen.
+
+---
+
+## 3. Goals and non-goals
+
+### 3.1 Goals
+
+1. Replace the confusing search/match split with one clear match-first journey.
+2. Make the first screen emotionally compelling, visually distinctive, and extremely simple.
+3. Capture user preferences through a smooth one-question-at-a-time survey.
+4. Convert survey answers into a structured preference vector.
+5. Trigger backend model fitting or scoring after the user completes the survey.
+6. Show clear animated progress while the backend computes recommendations.
+7. Present recommended neighborhoods on an interactive map of the Netherlands.
+8. Allow users to zoom into neighborhoods manually or through list interaction.
+9. Show only relevant 3D houses and important amenities inside the selected neighborhood.
+10. Let users click a house and continue into the existing Dossier interface.
+11. Keep an obvious route back from Dossier to the recommendation map.
+12. Support bilingual UI text in Dutch and English from day one.
+13. Keep the UI minimal, calm, and focused at every stage.
+
+### 3.2 Non-goals
+
+1. Do not build a full listing marketplace in this revamp.
+2. Do not replace the existing Dossier interface unless required for routing and navigation consistency.
+3. Do not show all app features on the landing page.
+4. Do not expose the model, data tables, or algorithmic complexity to the user during onboarding.
+5. Do not show multiple questions on the same screen.
+6. Do not make the user choose between “Search” and “Match” on the first screen.
+7. Do not present the model output as objective truth. It is a recommendation based on stated preferences and available data.
+8. Do not make unsupported claims about safety, happiness, future value, or perfect fit.
+
+---
+
+## 4. Target users
+
+### 4.1 Primary user
+
+A home seeker in the Netherlands who wants to buy or rent but does not know exactly where to search.
+
+They may know their budget, preferred lifestyle, commute constraints, and important needs, but they cannot translate those preferences into concrete neighborhoods.
+
+### 4.2 Secondary users
+
+- People relocating within the Netherlands.
+- International newcomers who do not understand Dutch neighborhood context.
+- Families comparing areas before buying.
+- Singles or couples with flexible geography.
+- Urban residents considering smaller towns or villages.
+- Users who already found a house but want to inspect the neighborhood after discovering it in the map flow.
+
+---
+
+## 5. UX principles
+
+### 5.1 One decision per screen
+
+Every screen should ask for only one mental action.
+
+Bad:
+
+> Search bar, match button, report upsell, map, examples, explanation, newsletter, pricing, and feature cards on the same screen.
+
+Good:
+
+> One promise. One button. One next step.
+
+### 5.2 The map is the atmosphere first, the tool second
+
+The hero map is not a dashboard. It is a visual mood-setter. It should make users feel that Buurt Check understands place, neighborhood, streets, houses, and daily life.
+
+The interactive map becomes a tool only after the model has produced results.
+
+### 5.3 Smooth, not flashy
+
+Animations should be calm, useful, and non-intrusive. They should help users understand that they are moving through a guided flow, not watching a marketing effect.
+
+Recommended animation style:
+
+- soft fade,
+- gentle slide,
+- map drift,
+- light zoom,
+- progress motion,
+- animated checkmark at completion.
+
+Avoid:
+
+- aggressive parallax,
+- spinning 3D effects,
+- excessive popups,
+- gamified confetti,
+- motion that makes text difficult to read.
+
+### 5.4 Minimal text, but not empty meaning
+
+The interface should contain very little copy. The copy must be clear, warm, and useful.
+
+The tone should be direct and human:
+
+> “Tell us how you want to live. We’ll show you where to look.”
+
+Not generic SaaS language:
+
+> “Leverage AI-powered geospatial intelligence to optimize your housing discovery journey.”
+
+### 5.5 Bilingual from the beginning
+
+The product must support Dutch and English UI strings through a proper translation system. Hard-coded text is not acceptable.
+
+### 5.6 Trust without visual clutter
+
+Trust indicators should exist, but they should not pollute the survey. Source labels, confidence, and evidence belong in recommendation detail states and the Dossier, not on every onboarding screen.
+
+### 5.7 The user can always go back
+
+At every stage after the CTA, users must be able to go back without losing progress.
+
+This is especially important for the survey. Preferences are personal, and users will change their mind.
+
+---
+
+## 6. Information architecture
+
+### 6.1 New primary route structure
+
+Recommended route structure:
+
+```text
+/                         Landing / hero / match-first entry
+/match                    Survey shell
+/match/:sessionId         Active survey session
+/match/:sessionId/run     Matching progress screen
+/match/:sessionId/results Results map
+/match/:sessionId/neighborhood/:id Neighborhood map detail
+/dossier/:addressId       Existing address-level Dossier
+```
+
+Alternative if the current app already has an app shell:
+
+```text
+/app                      Redirects to match-first landing or dashboard
+/app/match                Primary match journey
+/app/results/:sessionId   Results map
+/app/dossier/:addressId   Existing Dossier
+```
+
+### 6.2 Search route treatment
+
+The current search route should remain technically available but visually demoted.
+
+Acceptable options:
+
+```text
+/search                   Existing address search, secondary route
+```
+
+Landing-page treatment:
+
+- Primary CTA: “Find my dream neighborhood” / “Vind mijn droombuurt”
+- Small secondary text link: “Already have an address?” / “Heb je al een adres?”
+
+The secondary link should not look like a competing button.
+
+---
+
+## 7. End-to-end user flow
+
+### Phase 0 — Landing hero
+
+The user arrives on the app.
+
+The screen shows:
+
+- full-screen or near-full-screen animated map background,
+- short headline,
+- short subheadline,
+- one primary CTA,
+- optional small secondary address link,
+- language switcher.
+
+The screen does not show:
+
+- search form,
+- match form,
+- feature grid,
+- report cards,
+- long explanation,
+- data source list,
+- pricing block.
+
+### Phase 1 — Survey intro
+
+After the CTA click, the hero transitions into the survey intro.
+
+The screen explains, briefly, why questions are needed.
+
+English:
+
+> **First, we need to understand how you want to live.**
+> A few quick choices help us match you with neighborhoods that fit your life, not just your budget.
+
+Dutch:
+
+> **Eerst willen we begrijpen hoe je wilt wonen.**
+> Met een paar snelle keuzes vinden we buurten die passen bij je leven, niet alleen bij je budget.
+
+CTA:
+
+- EN: **Start the match**
+- NL: **Start de match**
+
+### Phase 2 — One-question survey
+
+The survey begins.
+
+Rules:
+
+- Only one question visible at a time.
+- Choices are large, touch-friendly, and easy to scan.
+- Progress bar is always visible.
+- Back button is always visible after question 1.
+- The answer is saved immediately when selected, but the user can modify it.
+- The next question opens with a smooth transition.
+- The screen must not contain sidebars, tips, charts, or unrelated content.
+
+### Phase 3 — Review and run model
+
+After the final question, show a simple review screen.
+
+This is the only screen where a short summary may appear.
+
+English:
+
+> **Ready to find your best neighborhoods?**
+> We’ll compare your preferences with neighborhood data and build your personal match map.
+
+Dutch:
+
+> **Klaar om je beste buurten te vinden?**
+> We vergelijken je voorkeuren met buurtdata en maken je persoonlijke matchkaart.
+
+CTA:
+
+- EN: **Show my matches**
+- NL: **Toon mijn matches**
+
+### Phase 4 — Matching progress
+
+The backend job starts.
+
+The user sees an animated, friendly progress screen.
+
+The screen should include:
+
+- animated map or soft geometric map lines,
+- progress indicator,
+- short rotating status messages,
+- no technical logs,
+- no raw model names,
+- no fake precision.
+
+Example messages:
+
+| State | English | Dutch |
 |---|---|---|
-| F1 | Implemented now | Address + building facts. |
-| F2a | Implemented now | Interactive Three.js viewer and timeline. |
-| F2b | Implemented now | forge3 report renderer for export snapshots (integration gap still to close). |
-| F2c | Implemented now | Sunlight analysis in current risk pipeline. |
-| F3 | Implemented now | Risk cards with score/meaning/actions/source. |
-| F4 | Implemented now | Neighborhood snapshot indicators. |
-| F5 | Implemented now | Shortlist + compare + dual-template PDF export. |
-| P1 | Post-MVP | Web rendering migration away from Three.js. |
-| P2 | Post-MVP | Full architecture migration (Zustand/Tailwind/Framer). |
+| Reading preferences | Reading your living preferences | Je woonwensen lezen |
+| Building profile | Building your neighborhood profile | Je buurtprofiel maken |
+| Comparing neighborhoods | Comparing neighborhoods across the Netherlands | Buurten in Nederland vergelijken |
+| Checking tradeoffs | Checking budget, commute, and daily-life tradeoffs | Budget, reistijd en dagelijkse afwegingen controleren |
+| Preparing results | Preparing your match map | Je matchkaart voorbereiden |
 
-### F1 — Address resolution + building facts
+### Phase 5 — Successful completion
 
-* Input: postcode + house number (optionals: letter/toevoeging)
-* Output: point geometry, building footprint, construction year (if present), building status, etc. (BAG)
+When matching is complete, show a large animated checkmark that clearly corresponds to the Buurt Check brand.
 
-### F2 — 3D neighborhood viewer + sunlight & shadow simulation
+English:
 
-The 3D viewer uses a **dual-renderer architecture**: Three.js (WebGL) handles real-time interaction in the browser; forge3d (Rust/wgpu) handles server-side rendering for publication-quality static exports. Both renderers consume the same 3DBAG geometry and SunCalc sun positions — only the render backend differs.
+> **Your neighborhood matches are ready.**
 
-* Render: surrounding buildings within 250m radius, 3DBAG LoD2.2
-* Camera presets: street level, balcony level, top-down
-* Overlay toggles: noise, air quality, climate layer (WMS tiles composited onto ground plane)
-* Visual enhancements: PDOK orthophoto on roofs + ground, procedural period-appropriate facades (see [§9 — 3D Visualization Pipeline](#9-3d-visualization-pipeline))
+Dutch:
 
-**F2a — Interactive shadow timeline (Three.js, client-side)**
+> **Je buurtmatches zijn klaar.**
 
-* Time-of-day slider: user drags to see how shadows move across the block throughout the day
-* Date picker with presets: winter solstice (worst case), summer solstice (best case), spring/autumn equinox
-* Sun position calculated from geographic coordinates + date/time (SunCalc algorithm — no external API needed)
-* Single `THREE.DirectionalLight` positioned via SunCalc azimuth/altitude; `PCFSoftShadowMap` at 2048×2048 resolution
-* `shadowMap.autoUpdate = false`; only trigger `needsUpdate = true` when sun position changes (avoids per-frame re-render of static geometry — 2× mobile performance gain)
-* Shadow camera frustum covers 500m scene: `left/right/top/bottom = ±300`, `shadow.bias = -0.0005`, `shadow.normalBias = 0.02`
-* Answers: *"Is this ground-floor apartment dark by 3pm?" "Does the balcony get afternoon sun?"*
+Then automatically transition to results after a short delay, or let the user click:
 
-**F2b — Static shadow snapshots (forge3d, server-side)**
+- EN: **Open my map**
+- NL: **Open mijn kaart**
 
-* Pre-rendered shadow views for key moments: morning (9:00), noon (12:00), evening (17:00)
-* Default date: December 21 (winter solstice — worst-case daylight)
-* Rendered by forge3d's Rust/wgpu PBR pipeline with full ambient occlusion, sun shading, and supersampled output (render at 4000×4000, deliver at 2000×2000 for crisp PDF embedding)
-* Three PNG images per address, generated on-demand and cached server-side (Redis, 7-day TTL)
-* Used in the paid `full_dossier` export and as fallback for low-powered mobile devices that cannot run the Three.js viewer
-* Same 3DBAG LoD2.2 geometry and SunCalc sun positions as F2a — visual parity between interactive and export views
+### Phase 6 — Results map
 
-**F2c — Annual sunlight analysis (forge3d, server-side)**
+The results view opens centered on the Netherlands.
 
-* Calculate estimated direct sunlight hours per day/year for the target address point
-* Factor in surrounding building geometry to detect obstruction (canyon effect)
-* forge3d performs GPU-accelerated raycast-based obstruction sampling: cast rays from target point toward sun positions at 15-minute intervals across all daylight hours for representative dates (solstices, equinoxes, and 2 intermediate dates per season = 8 sample dates)
-* Output: sunlight score (e.g., "This balcony gets ~2.1 hours of direct sun in December, ~8.4 hours in June")
-* Present as a risk card: low/med/high sunlight rating with seasonal breakdown
-* Answers: *"Is this home livable in winter or will I need SAD lamps?"*
+The screen shows:
 
-### F3 — Risk cards (the differentiator)
+- map of the Netherlands,
+- ranked list of recommended neighborhoods,
+- markers or highlighted areas on the map,
+- match score or fit label,
+- short reason for each neighborhood,
+- ability to zoom manually,
+- ability to click a list item and fly to the neighborhood,
+- ability to click a marker and highlight the same list item.
 
-Each card shows:
+The results map is the first moment where the interface becomes exploratory.
 
-* **Score/level** (low/med/high)
-* **What it means** (plain EN/NL)
-* **What to ask / check** at viewing
-* **Source + date**
+### Phase 7 — Neighborhood detail map
 
-Cards in MVP:
+When a user selects a neighborhood, the map zooms into it.
 
-* Road traffic noise (Lden) (RIVM/Atlas Leefomgeving WMS + ZIP)
-* PM2.5 / NO2 (GCN) (RIVM WMS/WCS + ZIP)
-* Climate stress (water nuisance / heat) (Klimaateffectatlas WMS/WFS)
-* Sunlight exposure (computed from 3D geometry + SunCalc — see F2c)
+The neighborhood detail state shows:
 
-### F4 — Neighborhood snapshot
+- only the selected neighborhood highlighted,
+- 3D houses inside the selected neighborhood,
+- important amenities as restrained tags or icons,
+- short neighborhood fit explanation,
+- button to inspect individual houses,
+- button to return to the Netherlands results view.
 
-* Pull CBS buurt/wijk stats for the location
-* Present 5–8 indicators max (no dashboard spam)
+The map must not show 3D houses across the whole country. That would be visually noisy and technically heavy. 3D houses should load only for the selected neighborhood or current viewport when zoomed in enough.
 
-### F5 — Shortlist + Compare + Export
+### Phase 8 — House selection and Dossier
 
-* Shortlist items store the resolved address + cached indicators
-* Compare 2–3 homes side by side
-* Export PDF with two templates: `quick_brief` (1 page, free) and `full_dossier` (3-4 pages, paid before first download), including forge3-rendered shadow snapshots (F2b)
-* The on-screen viewer remains free. Payment applies to the downloadable `full_dossier` artifact, not to unlocking the interactive dossier.
+The user clicks a house.
 
+The app opens the existing Dossier interface for that address or parcel.
 
+The Dossier should preserve the match context:
 
-* Sources: CBS OData 47018NED (yearly) and 47022NED (monthly)
+- selected neighborhood,
+- session ID,
+- back-to-map route,
+- current filters or preferences.
 
+The Dossier must include a persistent navigation option:
 
-* Useful for running costs and "upgrade reality" scenarios
+- EN: **Back to match map**
+- NL: **Terug naar matchkaart**
 
-## 6. Out of scope (explicit)
-
-* Listings ingestion/scraping
-* Automated valuation / fair-price estimates / bidding recommendations
-* Permit certainty nationwide
-* Foundation condition certainty (only subsidence/soil proxies later)
-* User accounts or social features in MVP
-* Photorealistic facade texturing from street-level imagery projection in MVP (Phase 2+ — see [§9](#9-3d-visualization-pipeline))
+This is critical. Users must be able to inspect a house, return to the neighborhood map, and choose another house or neighborhood without restarting.
 
 ---
 
-## 7. Success metrics
+## 8. Detailed functional requirements
 
-Define these before launch. Track outcomes, not outputs.
+### 8.1 Landing hero
 
-### Primary metrics
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-L1 | Display a full-screen or near-full-screen animated map hero. | P0 | Hero loads on first visit and remains readable on desktop and mobile. |
+| FR-L2 | Provide one dominant CTA for neighborhood matching. | P0 | CTA is visually dominant and starts the match flow. |
+| FR-L3 | Demote address search to a small secondary link. | P0 | Search is not presented as an equal card or equal CTA. |
+| FR-L4 | Support Dutch/English language switcher. | P0 | Language can be changed before starting the survey. |
+| FR-L5 | Provide reduced-motion fallback. | P0 | Users with reduced-motion preferences see a static map or very subtle background. |
+| FR-L6 | Provide low-bandwidth fallback. | P1 | If animation fails, static hero still renders with CTA. |
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Dossier generation success rate | > 95% of valid NL addresses | % of address inputs that return a complete dossier (all must-ship cards populated) |
-| Time to dossier | < 5 seconds | p95 latency from address submission to usable dossier viewer render (excluding 3D viewer) |
-| PDF export completion | > 80% of shortlisted homes | % of shortlisted addresses where user generates either a free `quick_brief` PDF or a purchased `full_dossier` PDF |
-| Return usage | > 30% within 14 days | % of users who generate a second dossier within 2 weeks |
+### 8.2 Survey shell
 
-### Guardrail metrics
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-S1 | Show only one question at a time. | P0 | No screen contains multiple survey questions. |
+| FR-S2 | Show progress bar throughout survey. | P0 | User sees current step and remaining progress. |
+| FR-S3 | Provide back button after first question. | P0 | User can return to any previous question and change answer. |
+| FR-S4 | Save answers after every step. | P0 | Refreshing page does not lose completed answers within active session. |
+| FR-S5 | Validate required answers before advancing. | P0 | User cannot proceed without required selection. |
+| FR-S6 | Support single-select, multi-select, range, and optional address/anchor input questions. | P0 | Components work consistently in Dutch and English. |
+| FR-S7 | Keep survey visually minimal. | P0 | No unrelated cards, explanations, maps, or metrics appear during questions. |
 
-| Metric | Threshold | Why it matters |
-|--------|-----------|----------------|
-| Data source error rate | < 5% of requests | If external APIs fail too often, dossier quality degrades |
-| 3D viewer load time | < 6 seconds on 4G | Slow 3D kills mobile experience |
-| forge3d snapshot render time | < 8 seconds for 3 snapshots | Blocks PDF export if too slow |
-| Risk card accuracy complaints | < 1% of users report "this seems wrong" | Indicative data must still feel trustworthy |
+### 8.3 Survey content
 
-### Per-feature acceptance signals
+The MVP survey should contain 10–12 questions. It must be short enough to complete, but detailed enough to produce meaningful matches.
 
-- **F1:** Address resolves to correct BAG object for 99%+ of valid postcode+huisnummer inputs
-- **F2a:** Three.js viewer renders surrounding buildings within 250m with orthophoto roofs and procedural facades; shadow timeline responds to slider input with < 200ms latency
-- **F2b:** forge3d produces 3 shadow snapshot PNGs at 2000×2000 in < 8 seconds total; visual parity with interactive viewer (same building geometry, same sun positions)
-- **F3:** Each risk card displays score, explanation, viewing questions, and source. Thresholds match official Dutch guidelines where applicable
-- **F4:** Neighborhood snapshot shows 5–8 CBS indicators with EN/NL labels
-- **F5:** User can save 3 homes, compare side-by-side, download `quick_brief` (1 page, free), or purchase `full_dossier` (3-4 pages) with embedded shadow snapshots
+Recommended question set:
+
+| Step | Question purpose | Input type | Required |
+|---:|---|---|---|
+| 1 | Buy, rent, or both | Single select | Yes |
+| 2 | Budget | Range or preset chips | Yes |
+| 3 | Household type | Single select | Yes |
+| 4 | Preferred anchor location | City/address input | Yes |
+| 5 | Commute or travel tolerance | Slider / presets | Yes |
+| 6 | Lifestyle priority | Multi-select top 3 | Yes |
+| 7 | Must-haves | Multi-select | Yes |
+| 8 | Dealbreakers | Multi-select | Optional but recommended |
+| 9 | Housing type | Multi-select | Yes |
+| 10 | Area character | Single select | Yes |
+| 11 | Language/report preference | Single select | Yes if not already chosen |
+| 12 | Review | Summary + run CTA | Yes |
+
+### 8.4 Preference vector creation
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-P1 | Convert survey answers into a structured preference vector. | P0 | Backend stores weights, hard filters, soft preferences, and exclusions. |
+| FR-P2 | Separate hard constraints from preferences. | P0 | Budget, travel radius, buy/rent intent, and required anchors can be treated as filters. |
+| FR-P3 | Normalize preference weights. | P0 | User priorities become comparable model inputs. |
+| FR-P4 | Preserve raw answers. | P0 | Raw survey answers remain available for explanation and debugging. |
+| FR-P5 | Support bilingual labels independent of stored values. | P0 | Backend stores stable keys, not translated strings. |
+
+Example preference vector:
+
+```json
+{
+  "session_id": "match_123",
+  "language": "en",
+  "intent": "buy",
+  "budget_min": 450000,
+  "budget_max": 625000,
+  "household_type": "family_young_child",
+  "anchor_locations": [
+    {"type": "work", "label": "Amsterdam Zuid", "lat": 52.338, "lon": 4.872}
+  ],
+  "max_commute_minutes": 45,
+  "hard_filters": {
+    "intent": "buy",
+    "budget_required": true,
+    "commute_required": true
+  },
+  "weights": {
+    "green_access": 0.20,
+    "calmness": 0.18,
+    "schools_childcare": 0.18,
+    "public_transport": 0.14,
+    "affordability": 0.14,
+    "amenities": 0.10,
+    "environmental_quality": 0.06
+  },
+  "avoid": ["high_noise", "busy_nightlife", "low_listing_supply"],
+  "housing_preferences": ["row_house", "family_house", "garden"]
+}
+```
+
+### 8.5 Matching backend
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-M1 | Trigger matching only after the final survey CTA. | P0 | Model run does not start before user confirms. |
+| FR-M2 | Start an asynchronous backend job. | P0 | User receives a job/session ID and progress state. |
+| FR-M3 | Compare user preference vector to neighborhood feature matrix. | P0 | Every candidate neighborhood receives eligibility, score, and reason codes. |
+| FR-M4 | Return ranked neighborhood recommendations. | P0 | Results include top matches, scores/probabilities, reasons, tradeoffs, confidence, and geometry IDs. |
+| FR-M5 | Exclude neighborhoods that fail hard constraints unless shown as stretch/near-miss. | P0 | Hard filter failures are not presented as normal top matches. |
+| FR-M6 | Store model run metadata. | P0 | Result includes model version, data version, runtime, and evaluation status. |
+| FR-M7 | Handle model failure gracefully. | P0 | User sees fallback message and deterministic score results if predictive model fails. |
+
+### 8.6 Model selection requirement
+
+The requested backend should fit multiple models and choose the one with the highest predictive power. This is only statistically valid if the system has a target variable or validation data.
+
+Therefore the PRD requires two operating modes.
+
+#### Mode A — MVP without enough historical labels
+
+Use a deterministic or semi-deterministic weighted scoring engine.
+
+Allowed methods:
+
+- weighted normalized utility score,
+- constraint filtering,
+- similarity matching,
+- confidence scoring based on data completeness,
+- transparent reason-code generation.
+
+In this mode, do not claim “highest predictive power.” Instead, say:
+
+> “We are comparing your preferences with neighborhood data.”
+
+#### Mode B — Predictive mode with labels
+
+Use model selection only when there is sufficient training or validation data.
+
+Acceptable labels:
+
+- user saved neighborhood,
+- user liked/disliked recommendation,
+- user clicked a neighborhood,
+- user clicked a house after selecting a neighborhood,
+- user returned to a neighborhood,
+- manually curated expert labels,
+- historical conversion data if available.
+
+Candidate models:
+
+- weighted utility baseline,
+- logistic regression with calibrated probabilities,
+- random forest,
+- gradient boosting,
+- k-nearest-neighbor similarity model,
+- learning-to-rank model when enough data exists.
+
+Evaluation metrics:
+
+- NDCG@10 for ranked recommendations,
+- MAP@10 for saved/liked neighborhoods,
+- ROC-AUC if binary labels exist,
+- calibration error if probabilities are shown,
+- stability checks across repeated runs.
+
+Required rule:
+
+> The app may only claim that the model with the highest predictive power was selected when predictive performance was measured against real validation labels or a documented evaluation dataset.
+
+This is not optional. Without labels, the app can still produce useful recommendations, but they should be presented as data-backed fit scores, not validated predictive probabilities.
+
+### 8.7 Matching output schema
+
+Recommended output:
+
+```json
+{
+  "session_id": "match_123",
+  "status": "completed",
+  "model_mode": "weighted_scoring",
+  "model_version": "match-engine-0.1.0",
+  "data_version": "neighborhood-features-2026-05-01",
+  "results": [
+    {
+      "neighborhood_id": "BU03630102",
+      "name": "Examplebuurt",
+      "municipality": "Exampledam",
+      "rank": 1,
+      "fit_score": 0.89,
+      "fit_label": "Very strong match",
+      "probability": null,
+      "confidence": "medium_high",
+      "reason_codes": [
+        "green_access_high",
+        "commute_feasible",
+        "family_amenities_strong",
+        "budget_realistic"
+      ],
+      "tradeoffs": [
+        "lower_current_supply",
+        "prices_near_upper_budget"
+      ],
+      "geometry_ref": "neighborhood_geom_BU03630102",
+      "map_center": {"lat": 52.1, "lon": 5.1},
+      "bbox": [4.9, 52.0, 5.2, 52.2]
+    }
+  ],
+  "near_misses": [],
+  "stretch_matches": []
+}
+```
+
+### 8.8 Results map
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-R1 | Show results on a map centered on the Netherlands. | P0 | Initial results view shows national context and all recommended neighborhoods. |
+| FR-R2 | Show ranked neighborhood list beside or below map. | P0 | List and map stay synchronized. |
+| FR-R3 | Allow list click to zoom to neighborhood. | P0 | Clicking a list item flies to selected neighborhood and highlights it. |
+| FR-R4 | Allow map marker click to highlight list item. | P0 | Marker selection updates list state. |
+| FR-R5 | Show concise fit reason per neighborhood. | P0 | Each item has max 1–2 short reason lines. |
+| FR-R6 | Show detailed explanation only on expansion or detail view. | P1 | Default list remains visually clean. |
+| FR-R7 | Support mobile map/list switching. | P0 | Mobile users can toggle Map and List without losing state. |
+
+### 8.9 Neighborhood 3D detail
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-N1 | Load 3D houses only inside selected neighborhood. | P0 | 3D buildings are not rendered nationally. |
+| FR-N2 | Highlight neighborhood boundary. | P0 | User clearly sees selected area. |
+| FR-N3 | Show important amenities as minimal tags. | P0 | No more than 5–7 amenity categories visible by default. |
+| FR-N4 | Allow house click to open Dossier. | P0 | Clicking a selectable house routes to existing Dossier. |
+| FR-N5 | Provide fallback for missing 3D data. | P0 | If 3D houses unavailable, show 2D building footprints and message. |
+| FR-N6 | Keep map performant. | P0 | Detail map loads within target performance budget. |
+
+### 8.10 Dossier integration
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-D1 | Reuse existing Dossier interface. | P0 | Existing address-level modules continue to work. |
+| FR-D2 | Preserve match session context. | P0 | Dossier knows which match session and neighborhood led to the address. |
+| FR-D3 | Add persistent back-to-map action. | P0 | User can return to selected neighborhood map from Dossier. |
+| FR-D4 | Avoid forcing survey restart. | P0 | Returning to map preserves all results. |
+| FR-D5 | Allow checking another house. | P0 | User can inspect multiple houses from the same or different matched neighborhoods. |
 
 ---
 
-## 8. Data sources & ingestion
+## 9. Survey UI specification
 
-### Overview matrix
+### 9.1 Screen layout
 
-| Need / Feature | Dataset | Coverage | Access type | Endpoint / File | Update | License / Notes |
-|---|---|---:|---|---|---|---|
-| Address → geometry + building objects | **BAG (Kadaster) OGC API** | NL | OGC API Features | Base: `https://api.pdok.nl/kadaster/bag/ogc/v2` ([api.pdok.nl][1]) | Continuous | Public service; cache aggressively |
-| 3D buildings around address | **3DBAG** | NL | 3D API + downloads | Base: `https://api.3dbag.nl/` ([docs.3dbag.nl][2]) | Periodic releases | Open data; LoD1.2/1.3/2.2; CityJSON + 3D Tiles |
-| 3D tiles alternative / basemap 3D | **Kadaster 3D Basisvoorziening** | NL | OGC API + 3D Tiles | OGC API + 3D Tiles ([Kadaster][7]) | Periodic | Scalable web rendering; compressed GLB |
-| Roof + ground orthophoto | **PDOK Luchtfoto RGB** | NL | WMTS / WMS | WMS: `https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0` | Annual | CC BY 4.0; 25cm summer (`Actueel_ortho25`), 8cm winter (`Actueel_orthoHR`) |
-| Sunlight & shadow simulation | **SunCalc algorithm + 3D geometry** | NL | Computed | Client-side (Three.js) for F2a; server-side (forge3d) for F2b/F2c | Real-time | Public domain algorithm |
-| Neighborhood polygons + stats | **CBS Wijken & Buurten 2024 OGC API** | NL | OGC API Features | Base: `https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1` ([api.pdok.nl][8]) | Annual | Official CBS via PDOK |
-| Road traffic noise (Lden) | **RIVM / Atlas Leefomgeving noise** | NL | WMS + ZIP | WMS: `https://data.rivm.nl/geo/alo/wms?request=GetCapabilities` + ZIPs on data.overheid ([data.overheid.nl][3]) | Periodic | Indicative; show disclaimer |
-| Air quality PM2.5 / NO2 | **RIVM GCN** | NL | WMS/WCS + ZIP | WMS: `https://data.rivm.nl/geo/gcn/wms?request=GetCapabilities` WCS: `…/wcs?request=GetCapabilities` ([data.overheid.nl][9]) | Annual + scenarios | Public domain |
-| Climate stress layers | **Klimaateffectatlas** | NL | WMS/WFS (GeoServer) | WMS/WFS: `https://maps1.klimaatatlas.net/geoserver/ows` ([klimaateffectatlas.nl][4]) | Periodic | CC BY 4.0 attribution required |
+Each survey question screen contains:
 
-### Integration details per source
+1. small top progress bar,
+2. back button where applicable,
+3. question title,
+4. optional one-line helper text,
+5. large answer choices,
+6. next button only where answer type requires explicit confirmation.
 
-#### A) BAG — address + building backbone
+Do not include:
 
-* **Base**: `https://api.pdok.nl/kadaster/bag/ogc/v2` ([api.pdok.nl][1])
-* Key calls:
-  * `GET /collections` (discover collection IDs)
-  * `GET /collections/{collectionId}/items?bbox=…` (fetch surrounding objects)
-  * `GET /collections/{collectionId}/items/{id}` (single object fetch)
-* Response includes `oorspronkelijkbouwjaar` (construction year) and `gebruiksdoel` (building function) — both required for procedural facade generation (see [§9](#9-3d-visualization-pipeline))
+- charts,
+- long copy,
+- extra recommendation snippets,
+- data source explanations,
+- ads,
+- feature cards,
+- unrelated navigation.
 
-#### B) 3D buildings
+### 9.2 Progress bar
 
-Recommended for MVP: 3DBAG API for geometry + attributes. Kadaster 3D Basisvoorziening as scale-friendly fallback.
+Progress format options:
 
-**Path B1 (recommended): 3DBAG API**
+- “Question 3 of 11” / “Vraag 3 van 11”
+- thin horizontal bar with percentage width,
+- optional small label: “8 questions left” / “Nog 8 vragen”.
 
-* **Base**: `https://api.3dbag.nl/` ([docs.3dbag.nl][2])
-* API docs at `/api.html` — use bbox query endpoints to fetch CityJSON geometry around an address
-* **Use LoD2.2** (not LoD1.3): actual roof slopes are essential for orthophoto draping and shadow accuracy. Polygon difference is negligible (~15K vs ~5K triangles for 250m radius — both trivial for any modern GPU)
-* CityJSON response includes semantic surface labels (`RoofSurface`, `WallSurface`, `GroundSurface`) — required for separate material assignment
-* Key attributes consumed by the visualization pipeline: `b3_bouwlagen` (floor count), `b3_dak_type` (roof type), `b3_opp_buitenmuur` (exterior wall area), `b3_kas_warenhuis` (greenhouse flag)
-* Vertices in EPSG:28992 (RD New) — coordinate transform to Three.js scene space required
+Recommended display:
 
-**Path B2 (scale-friendly fallback): Kadaster 3D Basisvoorziening**
+```text
+Vraag 3 van 11
+[██████----------------]
+```
 
-* **3D Tiles** (compressed GLB with `EXT_meshopt_compression`) for rendering + OGC API for selection where needed ([Kadaster][7])
-* Can be consumed via NASA AMMOS `3DTilesRendererJS` in Three.js with custom material callbacks
+On mobile, keep it compact.
 
-#### C) PDOK Luchtfoto RGB — roof + ground texturing
+### 9.3 Back behavior
 
-* **WMS endpoint**: `https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0`
-* **Layers**: `Actueel_ortho25` (25cm summer, smaller download), `Actueel_orthoHR` (8cm winter, sharper roofs, leafless trees)
-* **Request pattern**: For 500m × 500m bbox in EPSG:28992, request 2048×2048 JPEG — typically 200–500 KB
-* **License**: CC BY 4.0, no auth needed, CORS-enabled
-* Used for: roof surface texturing (UV-projected from ortho coordinates) and ground plane base layer (see [§9](#9-3d-visualization-pipeline))
-* For the target building close-up: fetch 8cm ortho at 4096×4096 for a smaller crop — reveals chimneys, solar panels, roof condition
+Back button behavior:
 
-#### D) Noise — road traffic Lden
+- returns to previous question,
+- keeps current answer state,
+- allows user to change answer,
+- recomputes downstream vector when the survey is submitted,
+- does not trigger backend model run until final CTA.
 
-* **WMS**: `https://data.rivm.nl/geo/alo/wms?request=GetCapabilities` ([data.overheid.nl][3])
-* Optional offline ingestion: ZIP from data.overheid listing (2020/2022) ([data.overheid.nl][3])
+### 9.4 Answer controls
 
-#### E) Air quality — GCN (PM2.5, NO2)
+Use large, readable controls:
 
-* **WMS**: `https://data.rivm.nl/geo/gcn/wms?request=GetCapabilities` ([data.overheid.nl][9])
-* **WCS**: `https://data.rivm.nl/geo/gcn/wcs?request=GetCapabilities` ([data.overheid.nl][9])
-* **ZIP** per year/substance from RIVM download page ([RIVM][10])
+- cards for single select,
+- chips for multi-select,
+- sliders for travel time and budget where useful,
+- address autocomplete for anchors,
+- simple text only when necessary.
 
-#### F) Climate stress
+Avoid long forms.
 
-* **WMS**: `https://maps1.klimaatatlas.net/geoserver/ows?request=GetCapabilities&service=WMS&version=1.3.0` ([maps1.klimaatatlas.net][11])
-* **WFS**: `https://maps1.klimaatatlas.net/geoserver/ows?request=GetCapabilities&service=WFS&version=2.0.0` ([maps1.klimaatatlas.net][12])
-* Limit to top 10 buyer-relevant layers only.
+### 9.5 Visual tone
 
-#### G) Neighborhood stats
+The survey should feel like a calm conversation, not a government intake form.
 
-* **Base**: `https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1` ([api.pdok.nl][8])
-* Key calls:
-  * `GET /collections/buurten/items?bbox=…` then point-in-polygon in server, or
-  * `GET /collections/buurten/items/{id}` for cached lookups
-
-
-* Requires API key; cache and rate-limit.
-
-
-* **User value**: Expats and first-time buyers routinely ask "is this area safe?" The app provides a consistent, sourced, comparable view per address.
-* **Yearly data**: `https://dataderden.cbs.nl/ODataApi/OData/47018NED` (table 47018NED) ([data.overheid.nl][13])
-* **Monthly data**: `https://dataderden.cbs.nl/ODataApi/OData/47022NED` (table 47022NED)
-* **Nuisance — optional later**: `https://dataderden.cbs.nl/ODataApi/OData/47024NED` (table 47024NED)
-
-**Presentation rules:**
-
-* Optional later: nuisance incidents — only if data is reliable and does not overwhelm
-
-**Mandatory disclaimers:**
-
-* "Use as screening context, not a prediction."
-* "Small-area data may be suppressed for privacy for some categories."
+Use soft surfaces, large spacing, and clear typography.
 
 ---
 
-## 9. 3D visualization pipeline
+## 10. Recommended bilingual survey copy
 
-This section specifies how 3DBAG buildings are rendered visually in both the Three.js interactive viewer and the forge3d export pipeline. No existing open-source viewer renders 3DBAG with realistic textures — every current project (3DBAG viewer, Netherlands3D, ninja-viewer) uses flat semantic colors. This visual layer is novel for the Dutch 3D building ecosystem.
+### 10.1 Landing
 
-### 9.1 Design principle: same data, two renderers
-
-Both renderers consume identical inputs to ensure visual parity between interactive exploration (Three.js) and PDF exports (forge3d):
-
-| Input | Source | Format |
-|-------|--------|--------|
-| Building geometry | 3DBAG API (LoD2.2) | CityJSON → indexed triangles |
-| Semantic surface labels | 3DBAG CityJSON | `RoofSurface`, `WallSurface`, `GroundSurface` per face |
-| Construction year | BAG `oorspronkelijkbouwjaar` | Integer year |
-| Building function | BAG `gebruiksdoel` | Enum: `woonfunctie`, `winkelfunctie`, `kantoorfunctie`, etc. |
-| Floor count | 3DBAG `b3_bouwlagen` | Integer (1–5+) |
-| Roof type | 3DBAG `b3_dak_type` | `horizontal`, `slanted`, `multiple` |
-| Roof + ground texture | PDOK Luchtfoto RGB WMS | 2048×2048 JPEG per 500m bbox |
-| Sun position | SunCalc(lat, lon, date, time) | Azimuth + altitude in radians |
-
-**Coordinate pipeline:** 3DBAG vertices arrive in EPSG:28992 (RD New, meters). For Three.js, translate all vertices by subtracting the scene center point so the target building sits at origin. The same transform applies to the forge3d pipeline. No reprojection needed — RD New meters map directly to Three.js/wgpu scene units.
-
-Phase 1 scope note: forge3d is report/export rendering only. Interactive web rendering remains Three.js.
-
-### 9.2 Building geometry: CityJSON → render-ready mesh
-
-**Parsing (Three.js):** Use `cityjson-threejs-loader` (Apache-2.0, TU Delft) for CityJSON → Three.js `BufferGeometry` conversion with earcut triangulation and Web Worker support. Replace its default `CityObjectsMaterial` with the custom material pipeline below.
-
-**Semantic surface separation:** During parsing, split each building into three geometry groups by CityJSON semantic surface type:
-- `RoofSurface` → receives orthophoto UV texture
-- `WallSurface` → receives procedural facade shader
-- `GroundSurface` → hidden (replaced by ground plane)
-
-**Parsing (forge3d):** Server-side Python parses CityJSON directly (the `cjio` library or custom parser), converts to indexed triangle buffers, and passes to the Rust/wgpu renderer via PyO3.
-
-### 9.3 Roof texturing: PDOK orthophoto UV projection
-
-The highest-impact visual upgrade. Orthophotos are nadir (straight-down) imagery; roofs face roughly upward — a simple planar UV projection.
-
-**UV generation:** For each `RoofSurface` vertex, compute:
-```
-u = (rdX - bboxMinX) / bboxWidth
-v = (rdY - bboxMinY) / bboxHeight    // may need Y-flip depending on image origin
-```
-
-**Three.js material:**
-```javascript
-new THREE.MeshStandardMaterial({
-  map: orthoTexture,      // 2048×2048 PDOK JPEG
-  roughness: 0.8,
-  metalness: 0.0
-})
-```
-
-**Target building enhancement:** For the specific address building, fetch the 8cm ortho at 4096×4096 for a tighter crop. Reveals chimneys, solar panels, and roof stains — publication-quality close-up.
-
-**forge3d equivalent:** Same UV generation logic in Python/Rust. The PDOK JPEG is loaded as a wgpu texture and bound to the roof surface group with equivalent PBR parameters.
-
-**Performance:** One 2048×2048 JPEG = 200–500 KB transfer, 16 MB GPU texture memory. Negligible impact.
-
-### 9.4 Facade texturing: procedural shaders from BAG attributes
-
-Procedural generation avoids external texture downloads in the critical path. The key attributes map to Dutch architectural periods:
-
-| Construction year | Period | Visual signature |
+| Element | English | Dutch |
 |---|---|---|
-| Pre-1900 | Traditional | Red/brown brick, ornate gables, tall narrow windows |
-| 1900–1940 | Amsterdam School | Warm orange-red brick, expressive patterns, rounded details |
-| 1945–1970 | Post-war reconstruction | Simple concrete or yellow brick, horizontal window bands, utilitarian |
-| 1970–1990 | Prefab/Blokken | Concrete panels, monotone beige/brown, regular grid windows |
-| 1990+ | Contemporary | Mixed materials, more glass, varied forms |
+| Headline | Find your dream neighborhood. | Vind je droombuurt. |
+| Subheadline | Tell us how you want to live. We’ll show you where to look. | Vertel ons hoe je wilt wonen. Wij laten zien waar je moet zoeken. |
+| Primary CTA | Find my dream neighborhood | Vind mijn droombuurt |
+| Secondary link | Already have an address? | Heb je al een adres? |
 
-**Three.js implementation:** Use `MeshStandardMaterial` with `onBeforeCompile` to inject custom GLSL for brick patterns and window grids. This preserves the full Three.js lighting and shadow pipeline. Replace the `#include <map_fragment>` chunk and write to `diffuseColor`. The shader receives `b3_bouwlagen` as a uniform to generate correct floor divisions and window rows.
+### 10.2 Survey intro
 
-**Wall UV generation:** Project each wall polygon onto its own 2D plane using the wall normal vector. Compute tangent/bitangent from cross product of wall normal and world-up, then dot vertex offsets against these axes. Resulting UVs are in meters — `THREE.RepeatWrapping` tiles brick textures at physical dimensions automatically.
-
-**Building function modifies ground floor:** `winkelfunctie` gets a glazed storefront, `kantoorfunctie` gets more glass, `woonfunctie` gets a residential door.
-
-**Texture atlas (progressive enhancement):** After initial render with solid period-appropriate colors, load a 1024×1024 CC0 brick texture atlas (4–6 variants from ambientCG, ~100–200 KB as JPEG) for PBR detail. Applied via `THREE.RepeatWrapping` at physical brick dimensions.
-
-**forge3d implementation:** Equivalent procedural logic in WGSL shaders. The Rust backend has full PBR support — pass construction year, floor count, and function as per-building uniforms.
-
-### 9.5 Surrounding buildings: vertex coloring for performance
-
-For the ~300 surrounding buildings (not the target property), use per-face vertex coloring from orthophoto sampling instead of full UV-mapped textures. This provides 80% of the visual improvement with 20% of the complexity.
-
-**Technique:** Load PDOK orthophoto into an offscreen canvas, sample RGB at each roof face centroid's RD coordinates, assign the color to all three vertices via Three.js `color` BufferAttribute with `vertexColors: true`.
-
-**Advantages:** Eliminates texture management entirely — no UV generation, no texture binding. Colors live in the vertex buffer, enabling geometry merging across all surrounding buildings into a **single draw call**. At neighborhood-overview zoom levels, the difference from UV-mapped textures is subtle.
-
-**Wall colors for surrounding buildings:** Assign solid period-appropriate colors based on construction year (no procedural shader needed for non-target buildings). Red-brown for pre-1940, yellow-grey for post-war, beige for prefab era, white/grey for contemporary.
-
-### 9.6 Ground plane: orthophoto + shadow receiving
-
-A `PlaneGeometry` spanning the 500m × 500m scene bbox with the same PDOK orthophoto used for roofs. Shows actual roads, gardens, parking lots, and waterways.
-
-```javascript
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(bboxWidth, bboxHeight),
-  new THREE.MeshStandardMaterial({ map: orthoTexture, roughness: 0.9 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-```
-
-Coordinate alignment is automatic — the PlaneGeometry spans the same RD bbox as the WMS request. Building shadows fall naturally onto the real aerial imagery.
-
-**WMS overlay compositing:** For risk card layer toggles (noise, air quality, climate), fetch the relevant WMS tile for the same bbox and composite it onto the ground material using `THREE.ShaderMaterial` alpha blending or a second mesh slightly above the ground plane with transparency.
-
-### 9.7 Progressive loading strategy
-
-Maximizes perceived performance to meet the <6 second mobile target:
-
-| Time | Action | Visual state |
+| Element | English | Dutch |
 |---|---|---|
-| 0–1s | HTML/JS loads, init empty Three.js scene with ambient light | Loading spinner |
-| 1–3s | Fetch CityJSON geometry + ground orthophoto tile in parallel | — |
-| 3–4s | First render: semantic solid colors (roofs orange-red, walls light grey) | **Scene is usable** — user can orbit, shadows work |
-| 4–5s | Apply orthophoto roof texture + enable shadow map | **Scene looks good** — real roof colors, real ground |
-| 5–6s | Load facade texture atlas, apply procedural shaders to target building | **Scene looks polished** — period-appropriate facades |
+| Title | First, we need to understand how you want to live. | Eerst willen we begrijpen hoe je wilt wonen. |
+| Body | A few quick choices help us match you with neighborhoods that fit your life, not just your budget. | Met een paar snelle keuzes vinden we buurten die passen bij je leven, niet alleen bij je budget. |
+| CTA | Start the match | Start de match |
 
-### 9.8 Performance budget (250m radius scene)
+### 10.3 Questions
 
-| Resource | Estimate | Budget limit |
-|----------|----------|-------------|
-| Triangle count (~300 LoD2.2 buildings) | ~15,000 | 100,000+ (mobile 60fps) |
-| Geometry transfer (gzipped CityJSON) | 500–800 KB | 10 MB (6s @ 13Mbps 4G) |
-| Orthophoto texture (2048² JPEG) | 200–500 KB | — |
-| Facade atlas (1024² JPEG) | 100–200 KB | — |
-| JS bundle (Three.js tree-shaken) | 150–250 KB | — |
-| **Total transfer** | **~1.5–2.5 MB** | **10 MB** |
-| GPU texture memory | 3–24 MB | 128–256 MB (mobile) |
-| Draw calls (merged geometry) | 3–8 | <20 (mobile target) |
-| Shadow map | 2048×2048 (1 light) | — |
+| Step | English question | Dutch question |
+|---:|---|---|
+| 1 | Are you looking to buy, rent, or both? | Wil je kopen, huren of allebei? |
+| 2 | What is your realistic budget? | Wat is je realistische budget? |
+| 3 | Who are you moving with? | Met wie verhuis je? |
+| 4 | Where do you need to stay connected to? | Waar wil je goed mee verbonden blijven? |
+| 5 | What is your maximum comfortable travel time? | Wat is je maximale comfortabele reistijd? |
+| 6 | What matters most in daily life? | Wat telt het meest in je dagelijks leven? |
+| 7 | What are your must-haves? | Wat zijn je must-haves? |
+| 8 | What would you rather avoid? | Wat wil je liever vermijden? |
+| 9 | What kind of home are you hoping for? | Wat voor woning zoek je? |
+| 10 | What kind of area feels right? | Wat voor omgeving voelt goed? |
+| 11 | How should we explain your results? | Hoe moeten we je resultaten uitleggen? |
+| 12 | Ready to find your best neighborhoods? | Klaar om je beste buurten te vinden? |
 
-### 9.9 Shadow rendering configuration
+### 10.4 Example answer labels
 
-**Three.js (F2a interactive):**
-```javascript
-sunLight.castShadow = true;
-sunLight.shadow.mapSize.set(2048, 2048);
-sunLight.shadow.camera.left = sunLight.shadow.camera.bottom = -300;
-sunLight.shadow.camera.right = sunLight.shadow.camera.top = 300;
-sunLight.shadow.bias = -0.0005;
-sunLight.shadow.normalBias = 0.02;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.shadowMap.autoUpdate = false; // Only re-render when sun moves
+#### Intent
+
+| Key | English | Dutch |
+|---|---|---|
+| buy | Buy | Kopen |
+| rent | Rent | Huren |
+| both | Both | Allebei |
+| exploring | I’m still exploring | Ik ben nog aan het oriënteren |
+
+#### Household
+
+| Key | English | Dutch |
+|---|---|---|
+| solo | Just me | Alleen ik |
+| couple | Couple | Stel |
+| family_young | Family with young children | Gezin met jonge kinderen |
+| family_older | Family with older children | Gezin met oudere kinderen |
+| shared | Shared household | Gedeeld huishouden |
+| other | Something else | Iets anders |
+
+#### Daily-life priorities
+
+| Key | English | Dutch |
+|---|---|---|
+| green | Green space | Groen |
+| calm | Calm streets | Rustige straten |
+| schools | Schools and childcare | Scholen en kinderopvang |
+| transit | Public transport | Openbaar vervoer |
+| affordability | Affordability | Betaalbaarheid |
+| amenities | Daily amenities | Dagelijkse voorzieningen |
+| social | Cafés, culture, social life | Cafés, cultuur en sociaal leven |
+| climate | Climate and environment | Klimaat en leefomgeving |
+
+#### Area character
+
+| Key | English | Dutch |
+|---|---|---|
+| city | City energy | Stadse energie |
+| calm_city | Calm but urban | Rustig maar stedelijk |
+| green_suburb | Green suburb | Groene buitenwijk |
+| village | Village feel | Dorps gevoel |
+| mixed | A bit of everything | Van alles wat |
+
+### 10.5 Matching progress copy
+
+| State | English | Dutch |
+|---|---|---|
+| Starting | Starting your neighborhood match | Je buurtmatch starten |
+| Preferences | Reading your living preferences | Je woonwensen lezen |
+| Profile | Building your neighborhood profile | Je buurtprofiel maken |
+| Data | Comparing neighborhoods with real data | Buurten vergelijken met echte data |
+| Tradeoffs | Checking budget, commute, and daily-life tradeoffs | Budget, reistijd en dagelijkse afwegingen controleren |
+| Map | Preparing your match map | Je matchkaart voorbereiden |
+| Done | Your neighborhood matches are ready | Je buurtmatches zijn klaar |
+
+### 10.6 Results copy
+
+| Element | English | Dutch |
+|---|---|---|
+| Results title | Your best neighborhood matches | Je beste buurtmatches |
+| Results subtitle | These places best match the way you want to live. | Deze plekken passen het beste bij hoe je wilt wonen. |
+| List label | Recommended neighborhoods | Aanbevolen buurten |
+| Map CTA | Explore on map | Bekijk op kaart |
+| Detail CTA | View neighborhood | Bekijk buurt |
+| House CTA | Check this house | Check deze woning |
+| Back CTA | Back to match map | Terug naar matchkaart |
+| Tradeoff label | Watchout | Let op |
+| Fit label | Strong match | Sterke match |
+
+---
+
+## 11. Results map UX specification
+
+### 11.1 Desktop layout
+
+Recommended desktop layout:
+
+```text
+ ---------------------------------------------------------
+| Top bar: Buurt Check | Language | Saved | Back/Reset     |
+ ---------------------------------------------------------
+|                          |                              |
+| Ranked list              | Map of Netherlands           |
+|                          |                              |
+| 1. Neighborhood A        | markers / polygons           |
+|    Strong match          |                              |
+|    Green + commute       |                              |
+|                          |                              |
+| 2. Neighborhood B        |                              |
+|                          |                              |
+ ---------------------------------------------------------
 ```
 
-**Critical gotchas:**
-- Avoid `side: THREE.DoubleSide` on building materials (causes shadow artifacts from back-face contribution — fix winding order instead)
-- Use only **one shadow-casting DirectionalLight** (each additional shadow light re-renders the entire scene)
-- For `VSMShadowMap`, set `shadow.radius = 2` and `shadow.blurSamples = 4` for soft penumbras
+Map should dominate visually, but the list must be easy to use.
 
-**forge3d (F2b/F2c):** Equivalent shadow configuration in the Rust/wgpu pipeline. forge3d's PBR pipeline already supports directional light shadow maps with ambient occlusion — producing higher visual quality than Three.js's `PCFSoftShadowMap` at the cost of server-side rendering time.
+### 11.2 Mobile layout
 
-### 9.10 Phase 2+ visual enhancements (post-MVP)
+Recommended mobile layout:
 
-These require additional engineering effort and are explicitly out of scope for MVP:
+- default to list-first after results,
+- provide sticky segmented control: Map / List,
+- map opens full-screen,
+- selected neighborhood bottom sheet appears over map,
+- bottom sheet contains fit reason and CTA.
 
-1. **BGT vector ground plane:** Replace orthophoto ground with semantically colored BGT polygons (dark grey roads, blue water, green grass) via `https://api.pdok.nl/lv/bgt/ogc/v1`. Cleaner for analytical views but requires GeoJSON triangulation and multiple materials.
+### 11.3 Neighborhood cards
 
-2. **WebGPU migration:** When browser WebGPU support matures (Chrome/Edge have it; Safari/Firefox behind), compile forge3d to WASM for in-browser rendering. A Rust/WebGPU renderer will outperform any JavaScript/WebGL solution on identical hardware. This would unify the dual-renderer into a single codebase.
+Each card should include only:
+
+- rank,
+- neighborhood name,
+- municipality,
+- fit label or score,
+- 1–2 reasons,
+- one CTA.
+
+Example:
+
+English:
+
+> **1. Oegstgeest — Strong match**
+> Green, calm, and well connected to your anchor location.
+> **View neighborhood**
+
+Dutch:
+
+> **1. Oegstgeest — Sterke match**
+> Groen, rustig en goed verbonden met je ankerlocatie.
+> **Bekijk buurt**
+
+### 11.4 Map marker design
+
+Markers should be visually restrained.
+
+Recommended:
+
+- numbered markers matching list rank,
+- color or intensity by fit score,
+- hover/click tooltip with neighborhood name,
+- selected marker uses brand checkmark or highlighted outline.
+
+Avoid:
+
+- too many labels at national zoom,
+- large popups by default,
+- dense icon clutter,
+- showing amenities before neighborhood zoom.
 
 ---
 
-## 10. MVP architecture
+## 12. Neighborhood 3D detail UX specification
 
-### Backend
+### 12.1 Entry animation
 
-* **Framework**: FastAPI (Python), stateless API aggregator (no primary database in MVP).
-* **forge3d render service**: Python process with PyO3 bindings to the Rust/wgpu renderer for report export rendering only. Interactive web rendering remains client-side Three.js.
-* **Caching**: Redis for API response caching and forge3d render output.
-  - BAG results cached 24h
-  - WMS/WCS raster samples cached 7 days
-  - CBS stats cached until next annual release
-  - forge3d shadow snapshots cached 7 days per address (keyed by address + geometry version)
-  - PDOK orthophoto tiles cached 30 days (imagery updates annually)
-* **Error handling**: Graceful degradation — if a data source is unavailable, the dossier still renders with that card showing "Data temporarily unavailable." Never block the entire dossier for one failed source. If forge3d report render fails, fall back to current export snapshot path.
+When a neighborhood is selected:
 
-### Data ingestion
+1. map flies to neighborhood,
+2. boundary appears,
+3. buildings load progressively,
+4. amenity tags fade in,
+5. detail panel opens with concise explanation.
 
-* **On-demand**: WMS/WCS sampling and API aggregation with caching.
+### 12.2 Visual hierarchy
 
-### API serving
+Default visible layers:
 
-* **Vector data**: Custom JSON REST API (FastAPI)
-* **Raster data**: Pre-sampled values stored per-address, or on-the-fly WMS proxy with caching
-* **3D geometry**: API endpoint that fetches 3DBAG CityJSON for a bbox, enriches with BAG attributes (construction year, function), and returns a combined payload. Optionally pre-converts to GLB with meshopt compression for faster Three.js loading.
-* **Render endpoint**: `POST /api/render/shadow-snapshots` accepts `{address, dates[], times[], camera_preset}` and returns forge3d-rendered PNGs (or cache-hit URLs)
+1. selected neighborhood boundary,
+2. 3D houses/buildings inside boundary,
+3. important amenities,
+4. roads/water/green context,
+5. selected/hovered house.
 
-### Client
+Hidden by default:
 
-* **Platform**: Web-first (mobile responsive). React + TypeScript.
-* **Mobile**: React Native wrapper — post-MVP
-* **3D rendering**: Three.js (WebGL) for the interactive neighborhood viewer (F2a)
-  - `cityjson-threejs-loader` for CityJSON parsing + earcut triangulation
-  - `MeshStandardMaterial` with `onBeforeCompile` for procedural facades
-  - `THREE.DirectionalLight` with `PCFSoftShadowMap` for shadow simulation
-  - SunCalc library for sun position calculation
-* **State management**: App-level `useState` in `App.tsx`; no Redux/Zustand in MVP.
-* **Styling**: Plain CSS with design tokens; no Tailwind migration in current scope.
-* **Shadow simulation**: Directional light positioned via SunCalc algorithm. Shadow maps with `autoUpdate = false` for interactive timeline (F2a). forge3d report renderer is used for export snapshots (F2b).
-* **Internationalization**: EN/NL from day one. All user-facing strings in i18n files.
+- every possible amenity,
+- all metrics,
+- all data-source badges,
+- all nearby neighborhoods,
+- all Dossier modules.
 
-### Dual-renderer data flow
+### 12.3 Amenity tags
 
+Show only the most relevant amenities based on the user’s stated preferences.
+
+Examples:
+
+- schools,
+- childcare,
+- supermarket,
+- train station,
+- park,
+- healthcare,
+- sports.
+
+If the user prioritized families, show schools and childcare first.
+If the user prioritized mobility, show stations and transit first.
+If the user prioritized green space, show parks/nature first.
+
+### 12.4 House selection
+
+Clickable houses should have clear hover/active states.
+
+When clicked:
+
+- identify address/building if available,
+- show a compact confirmation card,
+- CTA opens Dossier.
+
+Example:
+
+English:
+
+> **Check this house?**
+> We’ll open the full Buurt Check Dossier for this address.
+
+Dutch:
+
+> **Deze woning checken?**
+> We openen het volledige Buurt Check Dossier voor dit adres.
+
+CTA:
+
+- EN: **Open Dossier**
+- NL: **Open Dossier**
+
+---
+
+## 13. Existing Dossier integration
+
+### 13.1 Required Dossier changes
+
+The existing Dossier should not be redesigned in this PRD, but it must support the new journey.
+
+Required additions:
+
+1. Persistent **Back to match map** button.
+2. Breadcrumb showing selected neighborhood.
+3. Session-aware routing.
+4. Optional “Next matched house” / “Explore another neighborhood” actions.
+
+### 13.2 Dossier entry context
+
+When the user enters Dossier from the map, pass:
+
+```json
+{
+  "session_id": "match_123",
+  "source": "match_map",
+  "neighborhood_id": "BU03630102",
+  "address_id": "ADDR_456",
+  "return_url": "/match/match_123/neighborhood/BU03630102"
+}
 ```
-                    ┌──────────────────────────┐
-                    │     FastAPI Backend       │
-                    │                          │
-  User enters  ──►  │  1. BAG address lookup    │
-  address           │  2. 3DBAG bbox query      │
-                    │  3. Enrich with BAG attrs │
-                    │  4. PDOK ortho tile fetch  │
-                    │  5. Risk card data fetch   │
-                    │                          │
-                    │  ┌──────────────────────┐ │
-                    │  │  forge3d (Rust/wgpu)  │ │
-                    │  │  • F2b snapshots      │ │
-                    │  │  • F2c sunlight calc  │ │
-                    │  │  • PDF shadow PNGs    │ │
-                    │  └──────────────────────┘ │
-                    └───────────┬──────────────┘
-                                │
-                    JSON + ortho tile + render URLs
-                                │
-                    ┌───────────▼──────────────┐
-                    │   React + Three.js        │
-                    │                          │
-                    │  • F2a interactive viewer  │
-                    │  • Shadow timeline slider  │
-                    │  • Risk overlay toggles    │
-                    │  • Shortlist + compare     │
-                    └──────────────────────────┘
+
+### 13.3 Return behavior
+
+When the user clicks **Back to match map**:
+
+- return to the same neighborhood detail view,
+- preserve zoom level where possible,
+- preserve selected neighborhood,
+- preserve recommendation list state,
+- do not restart survey,
+- do not rerun matching unless user changed preferences.
+
+---
+
+## 14. Backend architecture
+
+### 14.1 Recommended architecture
+
+```text
+Frontend
+  ↓
+Survey/session API
+  ↓
+Preference vector builder
+  ↓
+Async match job queue
+  ↓
+Python matching service
+  ↓
+Neighborhood feature store
+  ↓
+Model/scoring engine
+  ↓
+Results API
+  ↓
+Map + Dossier UI
+```
+
+### 14.2 Required services
+
+| Service | Responsibility |
+|---|---|
+| Session service | Create and persist match sessions. |
+| Survey service | Store answers and validation state. |
+| Preference service | Convert answers to hard filters, weights, and feature preferences. |
+| Matching service | Run model/scoring logic in Python. |
+| Feature store | Provide neighborhood-level feature matrix. |
+| Geometry service | Provide neighborhood polygons, centroids, and 3D building layer refs. |
+| Results service | Store and serve recommendation output. |
+| Dossier bridge | Convert selected house/address into existing Dossier route. |
+
+### 14.3 Suggested API endpoints
+
+```text
+POST   /api/match/sessions
+GET    /api/match/sessions/:sessionId
+PATCH  /api/match/sessions/:sessionId/answers
+POST   /api/match/sessions/:sessionId/run
+GET    /api/match/sessions/:sessionId/status
+GET    /api/match/sessions/:sessionId/results
+GET    /api/neighborhoods/:neighborhoodId
+GET    /api/neighborhoods/:neighborhoodId/map-layers
+GET    /api/neighborhoods/:neighborhoodId/buildings
+GET    /api/neighborhoods/:neighborhoodId/amenities
+POST   /api/dossier/from-building
+GET    /api/dossier/:addressId
+```
+
+### 14.4 Progress updates
+
+Use one of:
+
+- Server-Sent Events,
+- WebSocket,
+- polling every 1–2 seconds.
+
+Recommended for simplicity:
+
+- polling for MVP,
+- SSE or WebSocket if matching takes longer or progress states become richer.
+
+Status response example:
+
+```json
+{
+  "session_id": "match_123",
+  "status": "running",
+  "progress": 0.58,
+  "stage": "comparing_neighborhoods",
+  "message_key": "progress.comparing_neighborhoods"
+}
+```
+
+### 14.5 Job states
+
+Required job states:
+
+```text
+created
+queued
+reading_preferences
+building_profile
+loading_neighborhood_data
+applying_filters
+running_models
+scoring_tradeoffs
+preparing_map
+completed
+failed
+completed_with_fallback
+```
+
+### 14.6 Error handling
+
+If the predictive model fails but deterministic scoring succeeds:
+
+- show results,
+- mark run as `completed_with_fallback`,
+- do not expose technical model failure to user,
+- log for developers.
+
+User-facing copy:
+
+English:
+
+> We found your matches using the stable scoring model. Some advanced ranking features were skipped this time.
+
+Dutch:
+
+> We hebben je matches gevonden met het stabiele scoremodel. Enkele geavanceerde rangschikkingsfuncties zijn deze keer overgeslagen.
+
+If all matching fails:
+
+English:
+
+> We couldn’t create your match map yet. Your answers are saved, so you can try again without starting over.
+
+Dutch:
+
+> We konden je matchkaart nog niet maken. Je antwoorden zijn opgeslagen, dus je hoeft niet opnieuw te beginnen.
+
+---
+
+## 15. Data requirements
+
+### 15.1 Neighborhood feature matrix
+
+The matching engine needs a neighborhood-level feature matrix.
+
+Minimum fields:
+
+- neighborhood ID,
+- neighborhood name,
+- municipality,
+- geometry reference,
+- centroid,
+- buy/rent availability proxy,
+- affordability signals,
+- green-space access,
+- calmness/noise indicators,
+- public transport access,
+- amenity proximity,
+- schools/childcare access,
+- environmental quality indicators,
+- housing stock composition,
+- data completeness score,
+- data freshness timestamp.
+
+### 15.2 Geometry data
+
+Required geometry layers:
+
+- national boundary or basemap,
+- neighborhood polygons,
+- building footprints,
+- 3D building data where available,
+- amenity point layers,
+- selected house/address geometry.
+
+### 15.3 Data freshness
+
+Every recommendation should contain data version metadata.
+
+The UI does not need to expose all metadata upfront, but detail panels and Dossier should be able to show:
+
+- source,
+- date loaded,
+- confidence,
+- missing data warnings.
+
+### 15.4 Data minimization
+
+Store only what is needed.
+
+Personal preference data should be stored by anonymous session unless the user creates an account or explicitly saves results.
+
+---
+
+## 16. Map and 3D requirements
+
+### 16.1 Hero background map
+
+The hero background can use one of three approaches:
+
+1. pre-rendered looping map video,
+2. lightweight animated 2D map canvas,
+3. lightweight 3D map scene.
+
+Recommended MVP choice:
+
+> Use a pre-rendered or highly optimized animated hero background first, then upgrade to live 3D if performance remains excellent.
+
+Reason:
+
+The landing page must be fast, stable, and readable. A heavy live 3D scene on the first screen may hurt conversion.
+
+### 16.2 Results map
+
+The results map must be interactive and live.
+
+Requirements:
+
+- fast pan/zoom,
+- clickable markers,
+- neighborhood polygons,
+- list synchronization,
+- mobile support,
+- accessible keyboard alternatives where possible.
+
+### 16.3 3D building map
+
+The 3D building detail should load only after a neighborhood is selected.
+
+Performance rules:
+
+- do not load national 3D building data,
+- load by neighborhood ID or bounding box,
+- simplify geometry where possible,
+- use level-of-detail,
+- lazy-load amenities,
+- show skeleton/loading state,
+- provide 2D fallback.
+
+### 16.4 Amenity layer
+
+The amenity layer must be preference-aware.
+
+Example:
+
+If user selected `schools`, `green`, and `calm`, default visible amenities should be:
+
+- schools,
+- childcare,
+- parks/nature,
+- playgrounds,
+- supermarkets if relevant.
+
+The UI should not show all amenities at once.
+
+---
+
+## 17. Visual design direction
+
+### 17.1 Brand feel
+
+Buurt Check should feel:
+
+- calm,
+- sharp,
+- trustworthy,
+- warm,
+- spatial,
+- modern,
+- slightly magical but not gimmicky.
+
+The experience should feel like a personal guide through the Dutch housing landscape, not like another filter-heavy real estate dashboard.
+
+### 17.2 Typography
+
+Use large, readable headings and generous spacing.
+
+Recommended hierarchy:
+
+- Hero headline: very large, short, emotionally clear.
+- Survey question: large, readable, centered or left-aligned depending on layout.
+- Helper text: one sentence maximum.
+- Buttons: large, obvious, plain language.
+
+### 17.3 Motion
+
+Motion should communicate progress and spatial movement.
+
+Use motion for:
+
+- hero map drift,
+- survey transition,
+- progress updates,
+- map fly-to selected neighborhood,
+- checkmark success state,
+- neighborhood detail reveal.
+
+Do not use motion for decoration alone.
+
+### 17.4 Checkmark animation
+
+The success checkmark should match Buurt Check’s identity.
+
+Requirements:
+
+- large and central,
+- smooth draw animation,
+- short completion moment,
+- accessible reduced-motion variant,
+- no excessive confetti.
+
+### 17.5 Color
+
+Use existing Buurt Check brand colors if already defined. If not, define:
+
+- one primary brand color,
+- one calm background surface,
+- one success/check color,
+- neutral map colors,
+- restrained fit-score accents.
+
+Avoid creating a rainbow score system.
+
+---
+
+## 18. Accessibility requirements
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| A11Y-1 | Keyboard navigation for survey. | P0 | User can complete survey without mouse. |
+| A11Y-2 | Reduced motion support. | P0 | Animations respect `prefers-reduced-motion`. |
+| A11Y-3 | Text contrast. | P0 | Text remains readable over hero background. |
+| A11Y-4 | Screen-reader labels. | P0 | Choices, buttons, progress, and map alternatives have accessible labels. |
+| A11Y-5 | Mobile touch targets. | P0 | Survey controls are large enough for touch. |
+| A11Y-6 | Map alternative list. | P0 | Users can access recommendations without interacting with the map. |
+
+---
+
+## 19. Privacy and compliance requirements
+
+### 19.1 Preference data
+
+The app may collect sensitive life-context preferences, such as household type, budget, commute anchors, and housing needs. Treat this data carefully.
+
+Requirements:
+
+- do not sell user preference data,
+- do not store exact anchors longer than necessary unless user saves a profile,
+- allow session deletion where feasible,
+- avoid collecting names/emails before needed,
+- separate anonymous matching sessions from user accounts,
+- provide clear privacy copy before account creation or saving results.
+
+### 19.2 Address anchors
+
+Work/school anchors may reveal personal routines.
+
+Requirements:
+
+- allow city-level anchors as an alternative to exact addresses,
+- clearly mark exact address fields as optional,
+- store geocoded anchors only if needed,
+- avoid showing exact anchors in shareable outputs unless user chooses.
+
+### 19.3 Scoring fairness
+
+The model must not recommend or exclude neighborhoods based on protected characteristics.
+
+The matching engine should use housing, environment, accessibility, amenities, and livability signals, not sensitive demographic profiling.
+
+---
+
+## 20. Analytics and success metrics
+
+### 20.1 Activation metrics
+
+- Landing CTA click rate.
+- Survey start rate.
+- Survey completion rate.
+- Average time to complete survey.
+- Drop-off by question.
+
+### 20.2 Matching metrics
+
+- Match job success rate.
+- Match job average runtime.
+- Fallback rate.
+- Number of results shown per user.
+- Percentage of results with sufficient confidence.
+
+### 20.3 Results engagement metrics
+
+- Map open rate.
+- Neighborhood list click rate.
+- Marker click rate.
+- Neighborhood detail open rate.
+- 3D map interaction rate.
+- Amenity tag interaction rate.
+
+### 20.4 Dossier conversion metrics
+
+- House click rate from neighborhood map.
+- Dossier open rate.
+- Back-to-map rate.
+- Number of houses checked per session.
+- Return visits to match map.
+
+### 20.5 Quality metrics
+
+- User-rated match usefulness.
+- “I discovered a neighborhood I did not know” response rate.
+- Save/share rate.
+- Complaint rate about inaccurate recommendation.
+- Reported confusion rate.
+
+---
+
+## 21. Empty, edge, and failure states
+
+### 21.1 No strong matches
+
+English:
+
+> We found a few possible matches, but none are perfect. Your strongest constraints are narrowing the search a lot.
+
+Dutch:
+
+> We hebben een paar mogelijke matches gevonden, maar geen perfecte. Je belangrijkste wensen maken de zoekruimte erg klein.
+
+UI should offer:
+
+- loosen budget,
+- increase commute radius,
+- reduce must-haves,
+- show near-matches.
+
+### 21.2 Missing 3D building data
+
+English:
+
+> 3D buildings are not available here yet, so we’re showing the neighborhood in 2D.
+
+Dutch:
+
+> 3D-gebouwen zijn hier nog niet beschikbaar, daarom tonen we de buurt in 2D.
+
+### 21.3 Slow backend
+
+English:
+
+> This is taking longer than usual, but your match is still running.
+
+Dutch:
+
+> Dit duurt iets langer dan normaal, maar je match wordt nog steeds gemaakt.
+
+### 21.4 Failed backend
+
+English:
+
+> We couldn’t create your match map yet. Your answers are saved, so you can try again without starting over.
+
+Dutch:
+
+> We konden je matchkaart nog niet maken. Je antwoorden zijn opgeslagen, dus je hoeft niet opnieuw te beginnen.
+
+### 21.5 No address for selected house
+
+English:
+
+> We found the building, but not a reliable address yet.
+
+Dutch:
+
+> We hebben het gebouw gevonden, maar nog geen betrouwbaar adres.
+
+Options:
+
+- choose nearby address,
+- search manually,
+- return to map.
+
+---
+
+## 22. MVP scope
+
+### 22.1 MVP must include
+
+1. Match-first landing page.
+2. Animated hero background with fallback.
+3. Dutch/English UI translation system.
+4. One-question-at-a-time survey.
+5. Progress bar and back button.
+6. Survey answer persistence.
+7. Preference vector builder.
+8. Python matching service triggered after final CTA.
+9. Async progress screen.
+10. Success checkmark animation.
+11. Results map centered on the Netherlands.
+12. Ranked list of recommended neighborhoods.
+13. List-to-map and map-to-list synchronization.
+14. Neighborhood detail view.
+15. 3D houses for selected neighborhood where data exists.
+16. Amenity tags based on user preferences.
+17. House click to existing Dossier.
+18. Persistent back-to-map action in Dossier.
+19. Basic analytics for funnel and drop-off.
+20. Failure states.
+
+### 22.2 MVP should not include
+
+1. Account system unless already available.
+2. Paid checkout redesign.
+3. Full listing marketplace.
+4. AI chat assistant.
+5. Partner lead handoff.
+6. Full report PDF.
+7. Complex user dashboards.
+8. All possible map layers.
+9. Nationwide 3D preloading.
+10. Model claims that cannot be statistically validated.
+
+---
+
+## 23. Implementation phases
+
+### Phase 1 — UI shell and route cleanup
+
+Build:
+
+- new landing hero,
+- route structure,
+- language switcher,
+- demoted search link,
+- survey shell,
+- progress bar,
+- back behavior.
+
+Exit criteria:
+
+- user can start and complete survey with dummy questions,
+- search no longer competes with match on first screen,
+- bilingual copy works.
+
+### Phase 2 — Survey and preference vector
+
+Build:
+
+- final question set,
+- answer validation,
+- answer persistence,
+- preference vector builder,
+- session storage.
+
+Exit criteria:
+
+- completed survey produces stable JSON preference vector,
+- vector can be sent to backend matching service.
+
+### Phase 3 — Matching backend
+
+Build:
+
+- Python matching service,
+- deterministic scoring baseline,
+- optional predictive model selection if labels exist,
+- async job status,
+- results schema,
+- error/fallback handling.
+
+Exit criteria:
+
+- backend returns ranked neighborhoods with reason codes and confidence.
+
+### Phase 4 — Progress and success states
+
+Build:
+
+- animated progress screen,
+- progress messages,
+- checkmark completion animation,
+- failed and fallback states.
+
+Exit criteria:
+
+- user sees clear progress from final CTA to results.
+
+### Phase 5 — Results map
+
+Build:
+
+- Netherlands map,
+- recommended neighborhood markers/polygons,
+- ranked list,
+- map/list sync,
+- mobile map/list toggle.
+
+Exit criteria:
+
+- user can move from results list to selected neighborhood.
+
+### Phase 6 — Neighborhood 3D detail
+
+Build:
+
+- selected neighborhood detail view,
+- 3D house loading by neighborhood,
+- amenity tags,
+- house selection state,
+- 2D fallback.
+
+Exit criteria:
+
+- user can inspect selected neighborhood and click a house.
+
+### Phase 7 — Dossier bridge
+
+Build:
+
+- house-to-address resolver,
+- route into existing Dossier,
+- persistent back-to-map button,
+- context preservation.
+
+Exit criteria:
+
+- user can move from map to Dossier and back without restarting.
+
+---
+
+## 24. Acceptance criteria
+
+The revamp is successful only if all of the following are true:
+
+1. A first-time user immediately understands the primary action.
+2. The landing screen does not force a choice between search and match.
+3. The CTA starts the match flow.
+4. The survey shows only one question at a time.
+5. The progress bar is always visible during survey.
+6. The user can go back and change previous answers.
+7. The backend match run starts only after the final CTA.
+8. The user sees a friendly progress state while matching runs.
+9. Completion is visually confirmed with a Buurt Check checkmark.
+10. Results open on a Netherlands map with ranked neighborhoods.
+11. Clicking a result zooms to that neighborhood.
+12. The selected neighborhood view shows 3D houses only for that neighborhood.
+13. Amenity tags are relevant to the user’s preferences.
+14. Clicking a house opens the existing Dossier.
+15. The Dossier includes a clear route back to the map.
+16. Dutch and English UI text are supported through translation keys.
+17. Reduced-motion and map fallback states exist.
+18. Model output is accurate about whether it is deterministic scoring or validated predictive probability.
+
+---
+
+## 25. Recommended component inventory
+
+### 25.1 Frontend components
+
+```text
+HeroMapBackground
+LanguageSwitcher
+PrimaryCTA
+SecondaryAddressLink
+SurveyIntro
+SurveyShell
+SurveyProgressBar
+SurveyBackButton
+SingleSelectQuestion
+MultiSelectQuestion
+BudgetRangeQuestion
+CommuteSliderQuestion
+AnchorLocationQuestion
+SurveyReview
+MatchingProgressScreen
+AnimatedCheckmark
+ResultsMap
+RecommendationList
+RecommendationCard
+NeighborhoodMarker
+NeighborhoodDetailMap
+AmenityTags
+BuildingLayer
+HouseSelectionCard
+DossierBackButton
+```
+
+### 25.2 Backend modules
+
+```text
+match_session.py
+survey_answers.py
+preference_vector.py
+neighborhood_features.py
+match_engine.py
+model_selection.py
+reason_codes.py
+match_job.py
+results_serializer.py
+geometry_service.py
+building_service.py
+amenity_service.py
+dossier_bridge.py
 ```
 
 ---
 
-## 11. Performance & quality requirements
+## 26. Translation key examples
 
-| Requirement | Target | Notes |
-|-------------|--------|-------|
-| Address resolution | < 1 second | BAG API response + geocoding |
-| Dossier generation (all cards) | < 5 seconds | Excluding 3D viewer initial load |
-| 3D viewer initial render (usable) | < 4 seconds on 4G | Semantic solid colors, shadows work |
-| 3D viewer full render (polished) | < 6 seconds on 4G | Orthophoto roofs + procedural facades |
-| Scene transfer size | < 2.5 MB | CityJSON + ortho + facade atlas + JS bundle |
-| Shadow timeline interaction | < 200ms per slider step | Client-side DirectionalLight update + shadow map re-render |
-| Draw calls | < 8 | Merged surrounding buildings, target building separate |
-| forge3d snapshot render | < 8 seconds for 3 PNGs | Server-side, 4000×4000 supersampled → 2000×2000 output |
-| forge3d sunlight analysis | < 15 seconds | 8 sample dates × full day raycasting |
-| PDF export | < 12 seconds | Including forge3d snapshot generation (or cache hit) |
-| Concurrent users | 100 simultaneous dossier requests | MVP target; scale forge3d workers later |
-| Uptime | 99% (excl. scheduled maintenance) | External API failures handled via graceful degradation |
+Recommended translation key structure:
 
----
-
-## 12. Privacy & legal
-
-* **No personal data collected in MVP.** The app processes addresses (public data) and generates dossiers. No user accounts, no tracking, no cookies beyond session.
-* **GDPR:** No PII stored server-side in MVP. If user accounts are added later, full GDPR compliance (consent, right to deletion, DPO) is required.
-* **Data attribution:** Required attributions displayed in the dossier footer and PDF export:
-  - Klimaateffectatlas: CC BY 4.0 attribution required
-  - PDOK Luchtfoto: CC BY 4.0 attribution required
-  - CBS, BAG, RIVM: public services, attribution as good practice
-
----
-
-## 13. Risks & mitigations
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| External API downtime (BAG, RIVM, CBS) | Medium | High — dossier incomplete | Graceful degradation per card. Cache responses. Show "data unavailable" not an error screen. |
-| Rate limiting by PDOK/RIVM | Medium | Medium — slow responses | Aggressive caching (Redis). Batch requests where possible. Pre-ingest static datasets. |
-| 3D geometry missing for address | Low | Medium — no 3D view | Fall back to 2D map view with building footprint from BAG. |
-| Inaccurate risk thresholds | Medium | High — user trust | Use official Dutch guidelines for threshold values (e.g., WHO for air quality, EU Lden limits for noise). Document sources. |
-| Data staleness | Low | Medium | Display data date on every card. Scheduled ingestion jobs refresh on source release cycles. |
-| Mobile performance for Three.js viewer | Medium | Medium — poor UX on phones | Progressive loading (§9.7). Static forge3d snapshots as fallback. LoD1.3 geometry fallback if device is underpowered. Vertex colors instead of textured materials for surrounding buildings. |
-| forge3d server GPU availability | Medium | Medium — blocks PDF export | Fall back to Three.js client-side `toDataURL()` capture. Use spot/preemptible GPU instances with queue. Cache renders aggressively (7-day TTL). |
-| forge3d render parity with Three.js | Low | Low — visual inconsistency | Both consume identical geometry + sun positions. Accept minor lighting differences (PBR vs MeshStandardMaterial) as a quality improvement, not a bug. |
-| PDOK orthophoto CORS or availability | Low | Low — no roof textures | Fall back to solid semantic roof colors. Scene remains fully functional. |
-| WebGPU browser support fragmentation | N/A | N/A | Not relevant for MVP (forge3d is server-side only). Monitor for Phase 2 WASM migration. |
-| Google 3D Tiles API blocked for EU | N/A | N/A | Not a dependency. Google stopped serving Photorealistic 3D Tiles to EU/EEA billing addresses (July 2025, DMA compliance). buurt-check uses open 3DBAG data exclusively. |
+```json
+{
+  "landing.headline": {
+    "en": "Find your dream neighborhood.",
+    "nl": "Vind je droombuurt."
+  },
+  "landing.subheadline": {
+    "en": "Tell us how you want to live. We’ll show you where to look.",
+    "nl": "Vertel ons hoe je wilt wonen. Wij laten zien waar je moet zoeken."
+  },
+  "landing.cta": {
+    "en": "Find my dream neighborhood",
+    "nl": "Vind mijn droombuurt"
+  },
+  "survey.back": {
+    "en": "Back",
+    "nl": "Terug"
+  },
+  "progress.comparing_neighborhoods": {
+    "en": "Comparing neighborhoods across the Netherlands",
+    "nl": "Buurten in Nederland vergelijken"
+  },
+  "results.title": {
+    "en": "Your best neighborhood matches",
+    "nl": "Je beste buurtmatches"
+  },
+  "dossier.back_to_map": {
+    "en": "Back to match map",
+    "nl": "Terug naar matchkaart"
+  }
+}
+```
 
 ---
 
-## 14. Why this can win
+## 27. Development notes for accuracy
 
-You win if the product feels like:
+### 27.1 Do not overpromise model intelligence
 
-> "I paste an address and instantly know what could ruin my life there — and what to verify at the viewing."
+The backend can fit multiple models only when there is enough training or validation signal. If the app has no labels yet, begin with a transparent scoring baseline. This is better than pretending to have predictive power.
 
-That's *not* what Funda is built to do.
+### 27.2 Start with a beautiful but lightweight hero
 
-The dual-renderer architecture is a genuine competitive advantage: Three.js delivers instant, responsive exploration in the browser — no one else in the Dutch property market offers interactive shadow simulation. forge3d delivers publication-quality PDF exports with PBR lighting and supersampled resolution — this is the Quick Checklist / Full Dossier export package that buyers print, share with their mortgage advisor, and carry to the open house. No existing Dutch property tool produces anything close to this level of 3D intelligence.
+The animated hero should be impressive, but performance matters more. A pre-rendered loop or optimized canvas can create the right feeling without risking a heavy first load.
+
+### 27.3 The search functionality is not removed
+
+Search remains valuable. It is simply moved to the right moment in the journey: after users understand which neighborhood or house they want to inspect.
+
+### 27.4 The map must not become cluttered
+
+The old app’s informational richness should be preserved in the Dossier, not forced into the discovery map. The match map is for discovery, orientation, and selection.
+
+### 27.5 Preserve user context
+
+The whole flow fails if users lose their recommendation context when opening a Dossier. Route state and session persistence are therefore core requirements, not polish.
 
 ---
 
-[1]: https://api.pdok.nl/kadaster/bag/ogc/v2 "Basisregistratie Adressen en Gebouwen (OGC API)"
-[2]: https://docs.3dbag.nl/en/delivery/webservices/ "Webservices - 3DBAG"
-[3]: https://data.overheid.nl/dataset/5589-geluid-in-nederland-van-wegverkeer--lden- "Geluid van wegverkeer (Lden) | Data overheid"
-[4]: https://www.klimaateffectatlas.nl/nl/faq "FAQ"
-[5]: https://www.pdok.nl/ogc-apis/-/article/cbs-wijken-en-buurten "CBS Wijken en Buurten - (OGC) API's"
-[7]: https://www.kadaster.nl/zakelijk/producten/geo-informatie/3d-producten/3d-basisvoorziening "3D Basisvoorziening | download kosteloos"
-[8]: https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1 "CBS Wijken en Buurten 2024 (OGC API)"
-[9]: https://data.overheid.nl/dataset/65786-fijnstof--pm2-5--grootschalige-concentratiekaarten-nederland--inspire-as-is-dataset- "Fijnstof (PM2.5) Grootschalige concentratiekaarten Nederland (INSPIRE as-is Dataset) | Data overheid"
-[10]: https://www.rivm.nl/gcn-gdn-kaarten/concentratiekaarten/downloaden "GCN concentratiekaarten downloaden | RIVM"
-[11]: https://maps1.klimaatatlas.net/geoserver/ows?request=GetCapabilities&service=wms&version=1.3.0 "Klimaateffectatlas WMS"
-[12]: https://maps1.klimaatatlas.net/geoserver/ows?request=GetCapabilities&service=WFS&version=2.0.0 "Klimaateffectatlas WFS"
-[13]: https://data.overheid.nl/en/dataset/5252-geregistreerde-misdrijven--soort-misdrijf--wijk--buurt--jaarcijfers "Geregistreerde misdrijven per wijk/buurt | Data overheid"
+## 28. Open decisions
+
+1. Should the primary brand phrase be “Find my dream neighborhood” or “Find my best neighborhood”?
+   - “Dream neighborhood” is more emotional.
+   - “Best neighborhood” is more sober and trustworthy.
+
+2. Should the Dutch CTA be “Vind mijn droombuurt” or “Vind mijn beste buurt”?
+   - “Droombuurt” is memorable.
+   - “Beste buurt” is safer and less playful.
+
+3. Should the hero map be a real interactive scene or a pre-rendered loop for MVP?
+
+4. How many survey questions is the ideal balance: 8, 10, or 12?
+
+5. Does the first release support the full Netherlands or a prioritized set of regions with stronger data quality?
+
+6. Which existing Dossier modules must be preserved unchanged, and which need light UI adjustments for the new journey?
+
+7. What exact data source will power 3D houses in the web map?
+
+8. Will match results be free, paid, or partially gated after preview?
+
+---
+
+## 29. Final product statement
+
+The redesigned Buurt Check should feel like a calm, intelligent guide through the Dutch housing landscape.
+
+It should not ask users to start with an address. It should start with the life they want to build.
+
+The new flow is simple:
+
+> **Choose how you want to live. Get matched with neighborhoods. Explore them on a beautiful map. Click a house. Open the full Dossier. Go back anytime.**
+
+Dutch:
+
+> **Kies hoe je wilt wonen. Ontdek passende buurten. Verken ze op een mooie kaart. Klik op een woning. Open het volledige Dossier. Ga altijd terug naar de kaart.**
+
+That is the core of the revamp.
