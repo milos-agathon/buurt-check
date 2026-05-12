@@ -242,6 +242,40 @@
   box-shadow: var(--landing-shadow-soft);
 }
 
+.app__match-return {
+  position: sticky;
+  top: calc(var(--space-sm) + 2px);
+  z-index: 16;
+  margin: 0 var(--space-base) var(--space-sm);
+}
+
+.app__match-return-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0 var(--space-base);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-nav-border));
+  border-radius: var(--radius-button);
+  background: var(--landing-accent-soft);
+  color: var(--color-accent-text);
+  cursor: pointer;
+  font: var(--type-small);
+  font-weight: 800;
+  box-shadow: var(--landing-shadow-soft);
+}
+
+.app__match-return-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
+}
+
+.app__match-return-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
 .app__chunk-error {
   padding: var(--space-lg) var(--space-base);
   text-align: center;

@@ -42,15 +42,15 @@ describe('TopBar', () => {
 
   it('marks current language as active', () => {
     renderTopBar();
-    const enBtn = screen.getByText('EN');
-    expect(enBtn.getAttribute('aria-checked')).toBe('true');
+    const enBtn = screen.getByRole('button', { name: 'English' });
+    expect(enBtn).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('switches language on NL click', () => {
     renderTopBar();
-    fireEvent.click(screen.getByText('NL'));
-    const nlBtn = screen.getByText('NL');
-    expect(nlBtn.getAttribute('aria-checked')).toBe('true');
+    const nlBtn = screen.getByRole('button', { name: 'Dutch' });
+    fireEvent.click(nlBtn);
+    expect(nlBtn).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('renders settings button when handler provided', () => {

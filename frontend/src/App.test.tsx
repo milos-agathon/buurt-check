@@ -609,9 +609,14 @@ async function selectAddress() {
 
   // If on the dossier/briefing screen, navigate to Search tab first
   if (!screen.queryByRole('combobox')) {
-    const homeTab = screen.getByRole('tab', { name: 'Search' });
+    const homeTab = screen.queryByRole('tab', { name: 'Search' });
+    const addressLink = screen.queryByRole('link', { name: 'Already have an address?' });
     await act(async () => {
-      fireEvent.click(homeTab);
+      if (homeTab) {
+        fireEvent.click(homeTab);
+      } else if (addressLink) {
+        fireEvent.click(addressLink);
+      }
     });
   }
 
@@ -639,10 +644,23 @@ async function selectAddress() {
 
 describe('initial render', () => {
   it('renders app title and match-first entry', async () => {
-    renderApp();
+    const { container } = renderApp();
     expect(screen.getByAltText('Buurt Check')).toBeInTheDocument();
+    expect(container.querySelector('.app')).toHaveAttribute('data-screen', 'matchLanding');
     expect(await screen.findByRole('button', { name: 'Find my dream neighborhood' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Already have an address?' })).toHaveAttribute('href', '#/search');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Search' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('group', { name: 'Language' })).toHaveLength(1);
+  });
+
+  it('keeps #/match as a match-first landing without a global Search tab', async () => {
+    window.location.hash = '#/match';
+    const { container } = renderApp();
+
+    expect(container.querySelector('.app')).toHaveAttribute('data-screen', 'matchLanding');
+    expect(await screen.findByRole('button', { name: 'Find my dream neighborhood' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Search' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
@@ -661,6 +679,7 @@ describe('initial render', () => {
 
 describe('tab content transitions', () => {
   it('renders saved content after switching tabs', async () => {
+    window.location.hash = '#/search';
     renderApp();
     fireEvent.click(screen.getByRole('tab', { name: 'Saved' }));
     await waitFor(() => {
@@ -670,6 +689,20 @@ describe('tab content transitions', () => {
 });
 
 describe('hash route recovery', () => {
+  it('shows a Dossier return action when the route carries match-map context', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123&match_return=%23%2Fmatch%2Fmap&match_session=match-123&match_neighborhood=BU0363AA01';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await waitForDossierLoaded();
+
+    const backToMap = screen.getByRole('button', { name: 'Back to match map' });
+    fireEvent.click(backToMap);
+
+    expect(window.location.hash).toBe('#/match/map');
+  });
+
   it('redirects bare dossier hash without lookup to search and shows a toast', async () => {
     window.location.hash = '#/address/0363100012345678';
     renderApp();

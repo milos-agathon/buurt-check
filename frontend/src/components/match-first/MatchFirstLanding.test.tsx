@@ -75,7 +75,25 @@ it('uses bilingual translation keys for the CTA, search link, and language contr
 
   expect(screen.getByRole('button', { name: 'Vind mijn droombuurt' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Heb je al een adres?' })).toBeInTheDocument();
+  expect(screen.getByRole('group', { name: 'Taal' })).toBeInTheDocument();
 
-  await user.click(screen.getByRole('radio', { name: 'EN' }));
+  const englishButton = screen.getByRole('button', { name: 'Engels' });
+  expect(englishButton).toHaveAttribute('aria-pressed', 'false');
+
+  await user.click(englishButton);
   expect(onLanguageChange).toHaveBeenCalledWith('en');
+});
+
+it('language buttons use native keyboard behavior instead of custom radio semantics', async () => {
+  const user = userEvent.setup();
+  const onLanguageChange = vi.fn();
+  renderLanding(i18nEn, { onLanguageChange });
+
+  const dutchButton = screen.getByRole('button', { name: 'Dutch' });
+  dutchButton.focus();
+  await user.keyboard('{Enter}');
+
+  expect(onLanguageChange).toHaveBeenCalledWith('nl');
+  expect(dutchButton).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.queryByRole('radio')).not.toBeInTheDocument();
 });

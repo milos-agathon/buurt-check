@@ -189,6 +189,7 @@ import {
   parseHashRoute,
   parseRoute,
   type HashRoute,
+  type MatchReturnContext,
   type ParsedHashRoute,
 } from './routing/hashRoutes';
 import './App.css';
@@ -198,6 +199,7 @@ const NeighborhoodViewer3D = lazy(() => import('./components/NeighborhoodViewer3
 const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 const MatchLanding = lazy(() => import('./components/match-first/MatchFirstLanding'));
+const MatchSurveyIntro = lazy(() => import('./components/match-first/SurveyIntro'));
 const MatchSurveyShell = lazy(() => import('./components/match-first/SurveyShell'));
 const MatchQuiz = lazy(() => import('./components/match/MatchQuiz'));
 const MatchComparison = lazy(() => import('./components/match/MatchComparison'));
@@ -537,16 +539,54 @@ function parseLocationRoute(location: Location): ParsedHashRoute {
     }
 
     const params = new URLSearchParams(searchQuery);
+    const routeMatchReturn = params.get('match_return') || params.get('match_session') || params.get('match_neighborhood')
+      ? {
+        target: params.get('match_return') || '#/match/map',
+        sessionId: params.get('match_session') ?? undefined,
+        neighborhoodId: params.get('match_neighborhood') ?? undefined,
+      }
+      : undefined;
     return {
       ...parsed,
       lookupId: parsed.lookupId ?? params.get('lookup') ?? undefined,
       reportId: parsed.reportId ?? params.get('report') ?? undefined,
       sessionId: parsed.sessionId ?? params.get('session_id') ?? undefined,
       buyerResume: parsed.buyerResume ?? params.get('buyer_resume') ?? undefined,
+      matchReturn: parsed.matchReturn ?? routeMatchReturn,
     };
   }
 
   return parseRoute(location.pathname || '/', searchQuery);
+}
+
+function initialScreenFromRoute(parsed: ParsedHashRoute, hasDossierSeed: boolean): Screen {
+  if (hasDossierSeed) return 'dossier';
+  return parsed.route;
+}
+
+function tabForScreen(screen: Screen): TabId {
+  if (screen === 'shortlist' || screen === 'compare') return 'saved';
+  if (screen === 'dossier' || screen === 'pack' || screen === 'shared') return 'briefing';
+  return 'home';
+}
+
+const MATCH_RETURN_ROUTES: ReadonlySet<HashRoute> = new Set([
+  'matchLanding',
+  'matchSurveyIntro',
+  'matchSurvey',
+  'matchReport',
+  'matchMap',
+]);
+
+function normalizeMatchReturnTarget(target: string | undefined): { hash: string; screen: Screen } {
+  if (target) {
+    const hash = target.startsWith('#') ? target : `#${target}`;
+    const parsed = parseHashRoute(hash);
+    if (MATCH_RETURN_ROUTES.has(parsed.route)) {
+      return { hash: buildHashRoute(parsed), screen: parsed.route };
+    }
+  }
+  return { hash: '#/match/map', screen: 'matchMap' };
 }
 
 function hashRouteFromUrl(urlString: string): string | null {
@@ -1177,10 +1217,18 @@ function App() {
   const serverRenderAvailable = isServerRenderAvailable();
   const dossierSeed = useMemo(readDossierSeed, []);
   const initialHasDossier = !!(dossierSeed?.address && dossierSeed?.buildingResponse);
+  const initialRoute = useMemo(() => (
+    typeof window === 'undefined' ? parseRoute('/', '') : parseLocationRoute(window.location)
+  ), []);
+  const initialScreen = useMemo(
+    () => initialScreenFromRoute(initialRoute, initialHasDossier),
+    [initialHasDossier, initialRoute],
+  );
   const { toasts, showToast, dismissToast } = useToast();
-  const [activeTab, setActiveTab] = useState<TabId>(initialHasDossier ? 'briefing' : 'home');
-  const [activeScreen, setActiveScreen] = useState<Screen>(
-    initialHasDossier ? 'dossier' : 'search',
+  const [activeTab, setActiveTab] = useState<TabId>(() => tabForScreen(initialScreen));
+  const [activeScreen, setActiveScreen] = useState<Screen>(initialScreen);
+  const [matchReturnContext, setMatchReturnContext] = useState<MatchReturnContext | null>(
+    () => (initialScreen === 'dossier' ? initialRoute.matchReturn ?? null : null),
   );
   const [matchQuizResponse, setMatchQuizResponse] = useState<MatchQuizResponse | null>(null);
   const [matchQuizSubmitting, setMatchQuizSubmitting] = useState(false);
@@ -1306,12 +1354,12 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const neighborhood3DRequestId = useRef(0);
   const addressRef = useRef<ResolvedAddress | null>(dossierSeed?.address ?? null);
-  const activeScreenRef = useRef<Screen>(initialHasDossier ? 'dossier' : 'search');
+  const activeScreenRef = useRef<Screen>(initialScreen);
   const screenScrollPositionsRef = useRef(new Map<Screen, number>());
-  const previousScreenForScrollRef = useRef<Screen>(initialHasDossier ? 'dossier' : 'search');
+  const previousScreenForScrollRef = useRef<Screen>(initialScreen);
   const addressRequestAbortRef = useRef<AbortController | null>(null);
   const retryControllersRef = useRef<Set<AbortController>>(new Set());
-  const previousScreenRef = useRef<Screen>('search');
+  const previousScreenRef = useRef<Screen>(initialScreen);
   const previousAnalyticsConsentRef = useRef<AnalyticsConsentState>(analyticsConsent);
   const handledCheckoutParamsRef = useRef<string | null>(null);
   const activatePurchasedEntitlementRef = useRef<
@@ -1430,6 +1478,12 @@ function App() {
 
   useEffect(() => {
     activeScreenRef.current = activeScreen;
+  }, [activeScreen]);
+
+  useEffect(() => {
+    if (activeScreen === 'search') {
+      setMatchReturnContext(null);
+    }
   }, [activeScreen]);
 
   useEffect(() => {
@@ -1726,11 +1780,23 @@ function App() {
     window.history.replaceState(null, '', `${normalizedBasePath}${normalized}`);
   }, []);
 
-  const dossierHash = useCallback((vboId?: string | null, lookupId?: string | null) => {
+  const dossierHash = useCallback((
+    vboId?: string | null,
+    lookupId?: string | null,
+    matchReturn?: MatchReturnContext | null,
+  ) => {
+    const currentMatchReturn = matchReturn === null
+      ? undefined
+      : matchReturn ?? (
+        typeof window !== 'undefined'
+          ? parseLocationRoute(window.location).matchReturn
+          : undefined
+      );
     return buildHashRoute({
       route: 'dossier',
       vboId: vboId ?? undefined,
       lookupId: lookupId ?? undefined,
+      matchReturn: currentMatchReturn,
     });
   }, []);
 
@@ -1757,7 +1823,7 @@ function App() {
       return;
     }
     if (fallbackScreen === 'dossier') {
-      setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
+      setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId, matchReturnContext));
       return;
     }
     setHashRoute('#/search');
@@ -1767,6 +1833,7 @@ function App() {
     activeTab,
     address?.adresseerbaar_object_id,
     dossierHash,
+    matchReturnContext,
     setHashRoute,
   ]);
 
@@ -2533,6 +2600,13 @@ function App() {
     setExportSheetOpen(true);
   }, []);
 
+  const handleBackToMatchMap = useCallback(() => {
+    const target = normalizeMatchReturnTarget(matchReturnContext?.target);
+    setActiveTab('home');
+    setActiveScreen(target.screen);
+    setHashRoute(target.hash);
+  }, [matchReturnContext?.target, setHashRoute]);
+
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab);
     if (tab === 'home') {
@@ -2545,7 +2619,7 @@ function App() {
       setActiveScreen('dossier');
       if (hasDossier) {
         setSheetSnap('half');
-        setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
+        setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId, matchReturnContext));
       } else {
         setHashRoute('#/briefing');
       }
@@ -2554,7 +2628,7 @@ function App() {
       setActiveScreen('shortlist');
       setHashRoute('#/saved');
     }
-  }, [activeLookupId, address, dossierHash, setHashRoute]);
+  }, [activeLookupId, address, dossierHash, matchReturnContext, setHashRoute]);
 
   useEffect(() => {
     if (activeScreen !== 'dossier') {
@@ -4283,6 +4357,9 @@ function App() {
   const applyRouteRef = useRef<() => void>(() => {});
   applyRouteRef.current = () => {
     const parsed = parseLocationRoute(window.location);
+    if (parsed.route !== 'dossier') {
+      setMatchReturnContext(null);
+    }
     if (parsed.route === 'shortlist') {
       setActiveTab('saved');
       setActiveScreen('shortlist');
@@ -4301,6 +4378,11 @@ function App() {
     if (parsed.route === 'matchLanding') {
       setActiveTab('home');
       setActiveScreen('matchLanding');
+      return;
+    }
+    if (parsed.route === 'matchSurveyIntro') {
+      setActiveTab('home');
+      setActiveScreen('matchSurveyIntro');
       return;
     }
     if (parsed.route === 'matchSurvey') {
@@ -4386,6 +4468,7 @@ function App() {
     if (parsed.route === 'dossier') {
       setActiveTab('briefing');
       setActiveScreen('dossier');
+      setMatchReturnContext(parsed.matchReturn ?? null);
 
       const checkoutKey = parsed.reportId && parsed.sessionId
         ? checkoutVerificationKey(parsed.reportId, parsed.sessionId)
@@ -5001,6 +5084,8 @@ function App() {
         ? '#/settings'
         : activeScreen === 'matchLanding'
           ? '#/match'
+        : activeScreen === 'matchSurveyIntro'
+          ? '#/match/intro'
         : activeScreen === 'matchSurvey'
           ? '#/match/survey'
         : activeScreen === 'matchQuiz'
@@ -5312,6 +5397,12 @@ function App() {
     && !buildingResponse
     && !!pendingDisplayName
   );
+  const hideGlobalTabBar = (
+    activeScreen === 'matchLanding'
+    || activeScreen === 'matchSurveyIntro'
+    || activeScreen === 'matchSurvey'
+  );
+  const hideTopBarLanguageSwitcher = activeScreen === 'matchLanding';
 
   return (
     <div className="app" data-screen={activeScreen}>
@@ -5321,6 +5412,7 @@ function App() {
         onSettingsClick={openSettings}
         inert={isOverlayModalOpen || undefined}
         activeScreen={activeScreen}
+        hideLanguageSwitcher={hideTopBarLanguageSwitcher}
       />
 
       <main className="app__main" id="main-content" inert={isOverlayModalOpen || undefined}>
@@ -5350,12 +5442,36 @@ function App() {
               <Suspense fallback={null}>
                 <MatchLanding
                   onStartMatch={() => {
-                    setActiveScreen('matchSurvey');
-                    setHashRoute('#/match/survey');
+                    setActiveScreen('matchSurveyIntro');
+                    setHashRoute('#/match/intro');
                   }}
                   onSearchAddress={() => {
                     setActiveScreen('search');
                     setHashRoute('#/search');
+                  }}
+                />
+              </Suspense>
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchSurveyIntro' && (
+            <motion.div
+              key="screen-match-survey-intro"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={null}>
+                <MatchSurveyIntro
+                  onStartSurvey={() => {
+                    setActiveScreen('matchSurvey');
+                    setHashRoute('#/match/survey');
+                  }}
+                  onBack={() => {
+                    setActiveScreen('matchLanding');
+                    setHashRoute('#/match');
                   }}
                 />
               </Suspense>
@@ -5372,7 +5488,12 @@ function App() {
               transition={SPRING_TAB}
             >
               <Suspense fallback={null}>
-                <MatchSurveyShell />
+                <MatchSurveyShell
+                  onComplete={() => {
+                    setActiveScreen('matchMap');
+                    setHashRoute('#/match/map');
+                  }}
+                />
               </Suspense>
             </motion.div>
           )}
@@ -5716,6 +5837,21 @@ function App() {
             ) : (
               <ErrorBoundary key={address?.adresseerbaar_object_id ?? 'none'} fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
               <DossierSheet snap={sheetSnap}>
+                {matchReturnContext && (
+                  <div className="app__match-return">
+                    <button
+                      type="button"
+                      className="app__match-return-button"
+                      onClick={handleBackToMatchMap}
+                    >
+                      <svg className="app__match-return-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      {t('dossier.backToMatchMap')}
+                    </button>
+                  </div>
+                )}
+
                 {address && showDossierJump && (
                   <div className="app__dossier-jump-nav">
                     <div className="app__dossier-jump-header">
@@ -6211,7 +6347,7 @@ function App() {
                     onClick={() => {
                       setActiveScreen('dossier');
                       setActiveTab('briefing');
-                      setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
+                      setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId, matchReturnContext));
                     }}
                   >
                     {t('prebid.pack.back', 'Back to briefing')}
@@ -6227,7 +6363,7 @@ function App() {
                   onBackToBriefing={() => {
                     setActiveScreen('dossier');
                     setActiveTab('briefing');
-                    setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId));
+                    setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId, matchReturnContext));
                   }}
                   onShare={() => setShareSheetMode('pack')}
                   onDownload={() => openExportSheet('full_dossier')}
@@ -6437,12 +6573,14 @@ function App() {
         </ErrorBoundary>
       )}
 
-      <TabBar
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        savedCount={shortlistItems.length}
-        inert={isOverlayModalOpen || undefined}
-      />
+      {!hideGlobalTabBar && (
+        <TabBar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          savedCount={shortlistItems.length}
+          inert={isOverlayModalOpen || undefined}
+        />
+      )}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

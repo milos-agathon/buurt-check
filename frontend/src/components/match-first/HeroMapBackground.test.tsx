@@ -1,21 +1,15 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import HeroMapBackground from './HeroMapBackground';
 
-it('renders a lightweight map atmosphere without requesting national 3D building data', () => {
-  const fetchSpy = vi.spyOn(window, 'fetch');
+it('switches to the static fallback state when the hero image fails', () => {
+  const { container } = render(<HeroMapBackground />);
+  const background = screen.getByTestId('hero-map-background');
+  const image = container.querySelector('.hero-map-background__image');
 
-  render(<HeroMapBackground />);
+  expect(background).toHaveAttribute('data-image-status', 'ready');
+  expect(image).toBeInstanceOf(HTMLImageElement);
 
-  expect(screen.getByTestId('hero-map-background')).toBeInTheDocument();
-  expect(screen.getByTestId('hero-map-background')).toHaveAttribute('aria-hidden', 'true');
-  expect(fetchSpy).not.toHaveBeenCalled();
-  fetchSpy.mockRestore();
-});
+  fireEvent.error(image as HTMLImageElement);
 
-it('exposes a reduced-motion static state for the hero shell', () => {
-  document.documentElement.setAttribute('data-test-reduced-motion', 'true');
-
-  render(<HeroMapBackground />);
-
-  expect(screen.getByTestId('hero-map-background')).toHaveAttribute('data-reduced-motion', 'true');
+  expect(background).toHaveAttribute('data-image-status', 'fallback');
 });

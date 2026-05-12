@@ -41,25 +41,24 @@ export default function MatchFirstLanding({
     <section className="match-first-landing" aria-labelledby="match-first-landing-title">
       <HeroMapBackground />
 
-      <div className="match-first-landing__language" role="radiogroup" aria-label={t('matchFirst.landing.language')}>
+      <div className="match-first-landing__language" role="group" aria-label={t('matchFirst.landing.language')}>
         <button
           type="button"
-          role="radio"
-          aria-checked={locale === 'nl'}
+          aria-label={t('language.dutch')}
+          aria-pressed={locale === 'nl'}
           className={`match-first-landing__lang-btn${locale === 'nl' ? ' match-first-landing__lang-btn--active' : ''}`}
           onClick={() => void handleLanguageChange('nl')}
         >
-          NL
+          {t('language.nlShort')}
         </button>
-        <span className="match-first-landing__lang-separator" aria-hidden="true">/</span>
         <button
           type="button"
-          role="radio"
-          aria-checked={locale === 'en'}
+          aria-label={t('language.english')}
+          aria-pressed={locale === 'en'}
           className={`match-first-landing__lang-btn${locale === 'en' ? ' match-first-landing__lang-btn--active' : ''}`}
           onClick={() => void handleLanguageChange('en')}
         >
-          EN
+          {t('language.enShort')}
         </button>
       </div>
 

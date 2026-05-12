@@ -1,4 +1,10 @@
-export type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchSurvey' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin' | 'matchSharedReport';
+export type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchSurveyIntro' | 'matchSurvey' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin' | 'matchSharedReport';
+
+export interface MatchReturnContext {
+  target: string;
+  sessionId?: string;
+  neighborhoodId?: string;
+}
 
 export interface ParsedHashRoute {
   route: HashRoute;
@@ -7,6 +13,7 @@ export interface ParsedHashRoute {
   reportId?: string;
   sessionId?: string;
   buyerResume?: string;
+  matchReturn?: MatchReturnContext;
   shareToken?: string;
   matchShareToken?: string;
   sharedMode?: 'briefing' | 'pack';
@@ -24,6 +31,18 @@ function readCheckoutRouteParams(params: URLSearchParams): Pick<
   };
 }
 
+function readMatchReturnRouteParams(params: URLSearchParams): MatchReturnContext | undefined {
+  const target = params.get('match_return') ?? undefined;
+  const sessionId = params.get('match_session') ?? undefined;
+  const neighborhoodId = params.get('match_neighborhood') ?? undefined;
+  if (!target && !sessionId && !neighborhoodId) return undefined;
+  return {
+    target: target || '#/match/map',
+    sessionId,
+    neighborhoodId,
+  };
+}
+
 export function parseHashRoute(hash: string): ParsedHashRoute {
   const value = hash.startsWith('#') ? hash.slice(1) : hash;
   const [pathPart = '', queryPart = ''] = value.split('?');
@@ -36,11 +55,13 @@ export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   const normalizedPath = path === '/index.html' ? '/' : path;
   const lookupId = params.get('lookup') ?? undefined;
   const checkoutParams = readCheckoutRouteParams(params);
+  const matchReturn = readMatchReturnRouteParams(params);
 
   if (normalizedPath === '/saved') return { route: 'shortlist' };
   if (normalizedPath === '/compare') return { route: 'compare' };
   if (normalizedPath === '/settings') return { route: 'settings' };
   if (normalizedPath === '/match') return { route: 'matchLanding' };
+  if (normalizedPath === '/match/intro') return { route: 'matchSurveyIntro' };
   if (normalizedPath === '/match/survey') return { route: 'matchSurvey' };
   if (normalizedPath === '/match/quiz') return { route: 'matchQuiz' };
   if (normalizedPath === '/match/report') return { route: 'matchReport' };
@@ -111,6 +132,7 @@ export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
         route: 'dossier',
         vboId: decodeURIComponent(dossierMatch[1]),
         lookupId,
+        matchReturn,
         ...checkoutParams,
       };
     } catch {
@@ -122,6 +144,7 @@ export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
     return {
       route: 'dossier',
       lookupId,
+      matchReturn,
       ...checkoutParams,
     };
   }
@@ -144,6 +167,7 @@ export function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.route === 'compare') return '#/compare';
   if (parsed.route === 'settings') return '#/settings';
   if (parsed.route === 'matchLanding') return '#/match';
+  if (parsed.route === 'matchSurveyIntro') return '#/match/intro';
   if (parsed.route === 'matchSurvey') return '#/match/survey';
   if (parsed.route === 'matchQuiz') return '#/match/quiz';
   if (parsed.route === 'matchReport') return '#/match/report';
@@ -172,6 +196,11 @@ export function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.reportId) params.set('report', parsed.reportId);
   if (parsed.sessionId) params.set('session_id', parsed.sessionId);
   if (parsed.buyerResume) params.set('buyer_resume', parsed.buyerResume);
+  if (parsed.matchReturn) {
+    params.set('match_return', parsed.matchReturn.target);
+    if (parsed.matchReturn.sessionId) params.set('match_session', parsed.matchReturn.sessionId);
+    if (parsed.matchReturn.neighborhoodId) params.set('match_neighborhood', parsed.matchReturn.neighborhoodId);
+  }
 
   const query = params.toString();
   if (!parsed.vboId) return `#/briefing${query ? `?${query}` : ''}`;
