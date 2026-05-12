@@ -33,16 +33,18 @@
 
 | Gate | Requirement | Status / Evidence |
 |------|-------------|-------------------|
-| PRD traceability | List the `docs/prd.md` FR1-FR14 IDs this feature implements, changes, or defers. Requirements from `docs/prd.md` override implementation assumptions. | [PASS/FAIL with links] |
-| Deterministic scoring | Identify any scoring, confidence, persona, preference-vector, ranking, or alert logic. Confirm the source of truth is structured logic, not LLM output. | [PASS/FAIL/N/A with links] |
-| Evidence and provenance | Identify official, commercial/listing, mock, derived, and missing data. Define source/freshness/confidence UI and report treatment. | [PASS/FAIL/N/A with links] |
-| Responsible AI/fairness | Confirm no scoring or recommendation uses protected or sensitive traits, and report copy avoids unsupported safety/crime/social-group claims and certainty language. | [PASS/FAIL/N/A with links] |
-| Licensed listings | For FR9/listing work, confirm adapter boundary, licensed-provider configuration, and clearly labeled mock/outbound/unavailable fallback. No scraping. | [PASS/FAIL/N/A with links] |
-| Bilingual/accessibility | Identify new user-facing strings and core-flow interaction states. Confirm Dutch/English support, keyboard access, responsiveness, and non-color-only status cues. | [PASS/FAIL/N/A with links] |
-| Test-first critical logic | List tests required for scoring, confidence, persona detection, preference vectors, report guardrails, listing fallbacks, provenance labels, alerts, and fairness-sensitive filters. | [PASS/FAIL/N/A with links] |
-| Product tone | Confirm warm, personal, slightly playful copy is backed by transparent data explanations, tradeoffs, and confidence context. | [PASS/FAIL/N/A with links] |
-| Operational visibility | Identify admin monitoring/logging/diagnostics for freshness, missing data, source failures, mock-data usage, scoring anomalies, guardrail blocks, and alert failures. | [PASS/FAIL/N/A with links] |
-| No thin AI wrapper | Explain the defensible value in data pipelines, feature engineering, matching logic, explainability, UX, alerts, or listing integration. | [PASS/FAIL with links] |
+| Required inputs read | Confirm `docs/prd.md` and `docs/context/current_architecture.md` were read before planning. | [PASS/FAIL with links] |
+| Product flow | Identify the canonical journey step(s) affected and confirm search does not compete with match on the first screen. | [PASS/FAIL/N/A with links] |
+| Minimal UI | Confirm onboarding keeps one decision per screen and survey screens show exactly one question with progress/back behavior. | [PASS/FAIL/N/A with links] |
+| Bilingual by design | List every new or changed user-facing string surface and confirm Dutch/English translation keys, including validation and fallback messages. | [PASS/FAIL/N/A with links] |
+| Map performance | Confirm no national 3D building loading; 3D houses load/render only after neighborhood selection and only within selected-neighborhood bounds; viewport loading is used only for paging/LOD inside that neighborhood; 2D fallback, reduced-motion fallback, and non-map list alternative exist. | [PASS/FAIL/N/A with links] |
+| Model honesty | Identify scoring/probability/confidence claims and confirm validated predictive claims are absent unless labels and validation data exist. | [PASS/FAIL/N/A with links] |
+| Dossier preservation | Identify any Dossier touchpoints and confirm the smallest safe change, persistent back-to-map action, and regression coverage. | [PASS/FAIL/N/A with links] |
+| Accessibility | Confirm keyboard access, screen-reader labels, touch targets, contrast, reduced motion, focus management, and non-map alternatives. | [PASS/FAIL/N/A with links] |
+| Phase testing | List unit, integration, E2E, accessibility, or map verification required for each affected phase and acceptance criterion. | [PASS/FAIL with links] |
+| Context preservation | Confirm survey answers, session ID, selected neighborhood, map state, language, and Dossier return path survive navigation. | [PASS/FAIL/N/A with links] |
+| Unsupported claims | Confirm copy and explanations avoid perfect fit, safety, happiness, investment certainty, future value, and other unsupported claims. | [PASS/FAIL/N/A with links] |
+| Conflict handling | Document conflicts with the current codebase and propose the smallest safe change. | [PASS/FAIL/N/A with links] |
 
 ## Project Structure
 

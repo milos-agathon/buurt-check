@@ -69,21 +69,41 @@ cd frontend && npm run test                 # Vitest (867+ baseline)
 
 ## Buurt Check Revamp constitution
 
-- `docs/prd.md` is the product source of truth for the revamp. Every feature,
-  task, acceptance criterion, and success criterion must map to PRD FR1-FR14.
-- Neighborhood matching, confidence, personas, preference vectors, rankings, and
-  alerts must come from deterministic structured logic. LLM output may explain,
-  summarize, compare, and translate; it must not create score truth.
-- Recommendations must show why they fit, tradeoffs, data confidence, and
-  source/freshness metadata. UI must distinguish official data,
-  commercial/listing data, mock data, derived metrics, and missing data.
-- Do not scrape listing portals. Use listing-provider adapters and clearly
-  labeled mocks/placeholders until licensed listing data is configured.
-- Critical logic needs tests before a phase is complete: scoring, confidence,
-  persona detection, preference vectors, report guardrails, fairness filters,
-  listing fallbacks, provenance labels, and alerts.
-- Admin visibility must cover data freshness, missing data, source failures,
-  mock usage, scoring anomalies, report guardrail blocks, and alert failures.
+- Primary flow is sacred: landing hero -> survey intro -> one-question survey
+  -> review -> backend matching progress -> animated checkmark success ->
+  Netherlands results map -> neighborhood 3D detail -> house click -> existing
+  Dossier -> back to match map.
+- Search stays secondary on the first screen. It must not compete with match as
+  an equal CTA, card, tab, or mode choice.
+- Onboarding is minimal: one decision per screen, exactly one survey question at
+  a time, no dashboards, charts, feature grids, long explanations, ads, or
+  unrelated content.
+- All user-facing text uses Dutch/English translation keys. Do not hard-code
+  English or Dutch strings in components, services, route labels, progress
+  states, fallbacks, or validation messages.
+- Map performance comes first: never load national 3D buildings. Load and render
+  3D houses only after a neighborhood is selected, and only within that selected
+  neighborhood's bounds. Viewport-based loading may be used only for paging or
+  level-of-detail inside the selected neighborhood, never as an independent
+  trigger outside it. Include 2D, reduced-motion, and non-map list fallbacks.
+- Be honest about models. Without real labels and validation data, present
+  deterministic or semi-deterministic weighted scoring as a data-backed fit
+  score, not predictive probability.
+- Preserve the existing Dossier. Add route context and a persistent "Back to
+  match map" action only as needed; do not casually rewrite Dossier modules.
+- Accessibility is P0: keyboard navigation, screen-reader labels, touch targets,
+  contrast, focus management, reduced motion, and non-map alternatives.
+- Every phase needs tests or verification tied to acceptance criteria. Do not
+  skip tests to move faster.
+- Preserve context across navigation: survey answers, session ID, selected
+  neighborhood, map state, language, selected house, and Dossier return path.
+- Do not promise perfect fit, safety, happiness, investment certainty, future
+  value, or guaranteed outcomes. Ground explanations in data, reason codes,
+  sources, and limitations.
+- Before planning, read `docs/prd.md` and
+  `docs/context/current_architecture.md`. Before implementation, produce tasks
+  with exact file paths and acceptance criteria. If a requirement conflicts with
+  the codebase, document the conflict and propose the smallest safe change.
 
 ## Development conventions
 

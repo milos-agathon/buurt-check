@@ -51,6 +51,8 @@ docs/
 !docs/
 docs/*
 !docs/README.md
+!docs/context/
+!docs/context/**
 !docs/plans/
 docs/plans/*
 !docs/plans/ui-scorecard-9-5-evidence.md

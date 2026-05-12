@@ -1,217 +1,209 @@
 <!--
 Sync Impact Report
-Version change: template/unratified -> 1.0.0
+Version change: 2.0.0 -> 2.0.1
 Modified principles:
-- Template placeholder principles -> I. PRD Traceability
-- Template placeholder principles -> II. Deterministic Scoring Before AI Explanation
-- Template placeholder principles -> III. Evidence-Backed Recommendations
-- Template placeholder principles -> IV. Responsible AI and Fairness
-- Template placeholder principles -> V. Licensed Listing Data Only
-- Template placeholder principles -> VI. Bilingual and Accessible UX
-- Template placeholder principles -> VII. Test-First Critical Logic
-- Template placeholder principles -> VIII. Product Tone
-- Template placeholder principles -> IX. Operational Visibility
-- Template placeholder principles -> X. No Thin AI Wrapper
+- IV. Map Performance First: tightened 3D building loading to require selected-neighborhood scope
 Added sections:
-- PRD Requirement Anchors
-- Delivery Gates
+- None
 Removed sections:
-- Template placeholder Section 2
-- Template placeholder Section 3
+- None
 Templates requiring updates:
 - updated: .specify/templates/plan-template.md
 - updated: .specify/templates/spec-template.md
 - updated: .specify/templates/tasks-template.md
 - updated: .specify/templates/checklist-template.md
-- not present: .specify/templates/commands/*.md
 Runtime guidance requiring updates:
+- updated: AGENTS.md
 - updated: CLAUDE.md
 Follow-up TODOs:
 - None
 -->
-# Buurt Check Revamp Constitution
+# Buurt Check Match-First Revamp Constitution
 
 ## Core Principles
 
-### I. PRD Traceability
-Every feature, user story, task, acceptance criterion, and success criterion MUST
-map to at least one `docs/prd.md` functional requirement from FR1 through FR14.
-Generated specs MUST include a PRD traceability table, plans MUST restate the
-relevant PRD anchors, and tasks MUST carry the mapped PRD IDs in their
-descriptions. Requirements in `docs/prd.md` override implementation assumptions,
-tool defaults, and opportunistic scope changes. When the PRD is ambiguous,
-implementation MUST record the assumption and request or document clarification
-before irreversible design or code decisions.
+### I. Product Flow Is Sacred
+All match-first revamp implementation MUST preserve the primary journey:
+landing hero -> survey intro -> one-question survey -> review -> backend
+matching progress -> animated checkmark success -> Netherlands results map ->
+neighborhood 3D detail -> house click -> existing Dossier -> back to match map.
+Address search MAY remain available as a secondary path, but it MUST NOT compete
+with neighborhood matching on the first screen as an equal CTA, card, tab, or
+mode choice.
 
-Rationale: Buurt Check Revamp is a PRD-led product change. Traceability prevents
-thin feature drift and makes every delivery decision auditable against the
-agreed product requirements.
+Rationale: The revamp exists to remove the search-versus-match split. Any
+implementation that makes users choose a mode before understanding the product
+breaks the central product decision.
 
-### II. Deterministic Scoring Before AI Explanation
-Neighborhood matching, fit ranking, confidence scoring, persona overlays,
-preference-vector generation, avoid/reconsider labels, and alert triggers MUST
-come from structured data and deterministic logic. LLM output MAY summarize,
-explain, compare, translate, rewrite, and answer questions using retrieved
-evidence and scoring outputs. LLM output MUST NOT create, alter, or be treated as
-the source of truth for match scores, confidence values, hard-filter eligibility,
-persona assignment, listing availability, or data freshness.
+### II. Minimal UI, One Decision Per Screen
+Onboarding screens MUST ask for exactly one mental action at a time. The survey
+MUST show exactly one question at a time, with one progress indicator and a back
+path after the first question. Landing, intro, survey, review, progress, and
+success states MUST NOT include dashboards, charts, feature grids, long
+explanations, ads, pricing blocks, unrelated cards, or exploratory map controls.
 
-Rationale: The product promise depends on repeatable ranking logic. AI improves
-comprehension, but the score must be reproducible, testable, and inspectable.
+Rationale: The PRD prioritizes calm guided discovery. Extra UI during onboarding
+creates cognitive load and reintroduces the dashboard pattern the revamp removes.
 
-### III. Evidence-Backed Recommendations
-Every recommendation MUST include why it fits, key tradeoffs, data confidence,
-and source/freshness metadata whenever data is used. The UI and exported reports
-MUST distinguish official public data, commercial/listing data, mock data,
-derived/internal metrics, and missing or unavailable data. Missing data MUST be
-shown as missing; implementations MUST NOT silently omit sections, invent
-metrics, or present stale/mock/commercial data as official data.
+### III. Bilingual By Design
+Every user-facing string introduced or changed by the revamp MUST use
+translation keys with Dutch and English values. Components, services, route
+labels, progress states, fallback states, validation messages, error messages,
+map labels, and Dossier return actions MUST NOT hard-code English or Dutch copy.
+Stored values and API payloads MUST use stable language-independent keys.
 
-Rationale: Users are making high-stakes housing decisions. Trust depends on
-showing both the evidence and the limitations behind each recommendation.
+Rationale: Bilingual support is a product requirement for Dutch users and
+international home seekers. Deferring translations makes the flow harder to test
+and easier to regress.
 
-### IV. Responsible AI and Fairness
-The system MUST NOT score, rank, recommend, personalize, or suppress
-recommendations based on protected or sensitive traits. The system MUST NOT make
-unsupported claims about crime, safety, ethnicity, income, religion, nationality,
-immigration status, or social groups. User-facing copy MUST avoid certainty
-language such as "safe", "perfect", "guaranteed", or equivalent Dutch phrasing
-unless it appears in a clearly marked quotation from a source and is not adopted
-as Buurt Check's claim. Sensitive public-interest indicators MAY be used only
-when they are sourced, relevant to an FR, explained neutrally, and reviewed for
-fairness risk.
+### IV. Map Performance First
+The app MUST NOT load national 3D buildings. 3D houses MUST load and render
+only after a neighborhood is selected, and only within that selected
+neighborhood's bounds. Viewport-based loading MAY be used only as a paging or
+level-of-detail strategy inside the selected neighborhood, never as an
+independent trigger outside it. Results maps MUST provide a 2D fallback,
+missing-3D fallback, reduced-motion fallback, and a non-map list alternative.
+Hero map animation MUST remain lightweight enough that first-screen readability
+and CTA interaction are not delayed by 3D work.
 
-Rationale: Neighborhood discovery can easily become discriminatory or
-overconfident. The product must help users reason about places without making
-unsupported social claims.
+Rationale: The map is central to the experience, but nationwide 3D loading would
+damage performance, accessibility, and mobile usability.
 
-### V. Licensed Listing Data Only
-Listing integrations MUST use adapter interfaces and mocks until a licensed
-provider is configured. The product MUST NOT scrape listing portals or bypass
-listing-site access controls. If no licensed listing provider is configured, the
-listing module MUST show clearly labeled mock data, outbound placeholder links,
-or an unavailable state. Mock or placeholder listing content MUST NOT affect
-live match scores unless the score explicitly identifies it as mock input.
+### V. Model Honesty
+The product MUST NOT claim validated predictive probability, highest predictive
+power, objective best fit, or model superiority unless real labels, validation
+data, and evaluation results exist. Without labels, matching MUST use
+deterministic or semi-deterministic weighted scoring and present the result as a
+data-backed fit score with reason codes, confidence, tradeoffs, and limitations.
+LLM output MAY explain or translate structured results, but it MUST NOT create
+or change match scores, eligibility, confidence, or reason-code truth.
 
-Rationale: Listing access is a strategic dependency and a legal/commercial risk.
-Adapters keep the architecture ready without normalizing scraping.
+Rationale: Users make high-stakes housing decisions. Overstating model certainty
+would create false trust and legal/product risk.
 
-### VI. Bilingual and Accessible UX
-All user-facing strings introduced for the MVP MUST support Dutch and English
-from the first implementation slice. Core flows for the quiz, report, comparison,
-map, listings, save/share, feedback, and alerts MUST be keyboard accessible,
-screen-reader understandable where applicable, and responsive across mobile and
-desktop viewports. New visual states for source, confidence, mock data, missing
-data, and guardrails MUST be perceivable without relying on color alone.
+### VI. Existing Dossier Preservation
+The current Dossier interface MUST remain functional throughout the revamp. The
+revamp MAY add route context, a house-selection bridge, and a persistent
+"Back to match map" action, but it MUST NOT casually rewrite Dossier modules,
+risk cards, entitlement behavior, PDF/export contracts, or premium/free content
+boundaries. Dossier changes MUST be scoped to the smallest change required for
+the match journey and covered by regression tests.
 
-Rationale: The PRD explicitly serves Dutch users, newcomers, and mobile-first
-home seekers. Accessibility and bilingual support are product requirements, not
-polish.
+Rationale: The Dossier is an existing product surface with its own evidence,
+payment, export, and risk-card contracts. Discovery work must not destabilize it.
 
-### VII. Test-First Critical Logic
-Scoring, confidence, persona detection, preference-vector generation, report
-guardrails, fairness-sensitive filters, listing adapter fallbacks, data
-provenance labels, and alerts MUST have tests before implementation is considered
-complete. Relevant tests MUST fail before the new implementation is added when
-practical for the change type. Build, lint, typecheck, and relevant backend,
-frontend, and end-to-end tests MUST pass before any phase is marked complete.
-Skipped tests MUST include an explicit reason and a follow-up condition.
+### VII. Accessibility Is Mandatory
+Keyboard navigation, screen-reader labels, touch targets, text contrast, reduced
+motion, focus management, perceivable status states, and non-map list
+alternatives are P0 requirements. Core match flow screens, map/list
+interactions, progress states, failure states, and the Dossier return action MUST
+be usable without a mouse and MUST remain readable on mobile and desktop.
 
-Rationale: The riskiest parts of the product are logic and trust boundaries.
-They must be verified by executable checks, not only reviewed by reading.
+Rationale: The primary journey cannot depend on pointer-only map interaction,
+motion tolerance, or visual-only cues.
 
-### VIII. Product Tone
-The experience MUST feel warm, personal, and slightly playful while remaining
-transparent and careful. Playful labels, Woonkompas framing, and personality
-language MAY be used only when backed by visible data explanations, tradeoffs,
-and confidence context. Playful copy MUST NOT obscure uncertainty, missing data,
-or source limitations.
+### VIII. Test Every Phase
+Each phase MUST include unit tests, integration tests, or E2E tests appropriate
+to its risk and acceptance criteria. A phase is complete only when the relevant
+acceptance criteria pass under test or verification. Implementers MUST NOT skip
+tests to move faster. Any blocked test gate MUST document the command, blocker,
+residual risk, and follow-up condition before the phase can be reviewed.
 
-Rationale: The PRD calls for an emotionally engaging product, but housing
-decisions require seriousness where evidence or uncertainty matters.
+Rationale: This revamp spans routing, state persistence, matching, maps,
+accessibility, and the Dossier bridge. Visual polish alone is not evidence of
+correct behavior.
 
-### IX. Operational Visibility
-Data freshness, missing data, source failures, provider configuration status,
-mock-data usage, scoring anomalies, confidence outliers, report guardrail
-blocks, and alert delivery failures MUST be monitorable by admins. Admin views,
-logs, metrics, or diagnostics MUST make it possible to identify whether a user
-recommendation relied on stale, missing, failed, mock, or commercial data.
+### IX. Preserve Context
+Survey answers, session ID, selected neighborhood, map state, language,
+matching status, selected house context, and Dossier return path MUST survive
+navigation, refresh where technically feasible, and the Dossier round trip. A
+user MUST NOT be forced to restart the survey after opening a Dossier or moving
+back from Dossier to the match map.
 
-Rationale: Trustworthy recommendations require operational visibility into data
-quality and system behavior after launch.
+Rationale: The product flow fails if users lose their recommendation context
+while inspecting houses.
 
-### X. No Thin AI Wrapper
-The defensible product value MUST sit in curated data pipelines, feature
-engineering, matching logic, confidence logic, explainability, UX, alerts, and
-licensed listing integrations. AI-only features MUST NOT be accepted unless they
-consume structured product outputs or improve a workflow anchored in FR1-FR14.
-Any feature that could be replaced by a generic prompt without losing product
-value MUST be redesigned before implementation.
+### X. No Unsupported Claims
+The app MUST NOT promise perfect fit, safety, happiness, investment certainty,
+future value, guaranteed affordability, or guaranteed lifestyle outcomes.
+Explanations MUST be grounded in available data, deterministic score inputs,
+reason codes, source/freshness metadata, and explicit limitations. Missing,
+mock, stale, or fallback data MUST be labeled rather than hidden or inflated.
 
-Rationale: The PRD identifies LLM commoditization as a core risk. Buurt Check
-must compete through product infrastructure and user trust, not generic chat.
+Rationale: Buurt Check can help users reason about neighborhoods and houses, but
+it cannot guarantee personal outcomes or market performance.
 
-## PRD Requirement Anchors
+## Canonical Match-First Journey
 
-The constitution recognizes these PRD functional requirements as the canonical
-delivery anchors for Buurt Check Revamp:
+The canonical journey for this revamp is:
 
-| PRD ID | Anchor |
-|--------|--------|
-| FR1 | Preference quiz |
-| FR2 | Household/persona detection |
-| FR3 | Neighborhood scoring engine |
-| FR4 | Explainable match output |
-| FR5 | AI-generated report |
-| FR6 | Neighborhood comparison |
-| FR7 | Similar-neighborhood discovery |
-| FR8 | Map view |
-| FR9 | Listing connection |
-| FR10 | Alerts |
-| FR11 | Save/share report |
-| FR12 | Multilingual support |
-| FR13 | Feedback loop |
-| FR14 | Admin data dashboard |
+1. Landing hero with one dominant match CTA and demoted address search.
+2. Survey intro explaining the purpose in brief bilingual copy.
+3. One-question-at-a-time survey with progress, back behavior, and persistence.
+4. Review screen with a single final run CTA.
+5. Backend matching progress backed by real session/job state.
+6. Animated checkmark success with reduced-motion fallback.
+7. Netherlands results map with ranked list and map/list synchronization.
+8. Selected-neighborhood detail with selected-neighborhood-only 3D houses,
+   amenities, and 2D fallback.
+9. House click or selection bridge into the existing Dossier.
+10. Persistent return from Dossier to the match map without losing context.
 
-Specs, plans, tasks, tests, reviews, and release notes MUST reference these IDs
-when they introduce, change, validate, or defer related behavior.
+Plans, specs, tasks, code reviews, and tests MUST explicitly state which step or
+steps they affect. Any deviation from this sequence MUST be documented as a
+conflict and justified under Conflict Handling.
 
-## Delivery Gates
+## Implementation Gates
 
-Before Phase 0 research is accepted, each plan MUST identify the relevant PRD
-FR1-FR14 anchors, data sources, source categories, AI boundaries, listing-data
-mode, accessibility/i18n impact, critical logic tests, and admin visibility
-needs. Before Phase 1 design is accepted, the plan MUST show how those gates are
-implemented or explicitly deferred with rationale.
+Before planning, Codex or any implementer MUST read `docs/prd.md` and
+`docs/context/current_architecture.md`. Plans MUST cite the relevant PRD
+requirements, the affected journey step, the current architecture constraint,
+the smallest safe technical approach, accessibility/i18n impact, map
+performance impact, model-honesty impact, Dossier impact, context-persistence
+impact, and test strategy.
 
-Before implementation tasks are accepted, tasks MUST include exact file paths,
-PRD FR mappings, required tests for critical logic, data provenance work,
-bilingual/accessibility work, licensed listing fallback behavior when relevant,
-and operational visibility work when relevant.
+Before implementation, task generation MUST produce tasks with exact file paths,
+acceptance criteria, PRD traceability, affected journey step, required tests,
+and explicit verification commands. Tasks that touch the Dossier, map loading,
+matching scores, context persistence, route state, or user-facing copy MUST
+include regression coverage.
 
-Before a phase is complete, the responsible implementer MUST run the relevant
-quality gates for the touched areas: backend `ruff check` and pytest,
-frontend TypeScript build and Vitest, Playwright for affected core flows, and any
-feature-specific verification documented in the plan. A phase with blocked or
-skipped gates MUST record the command, reason, residual risk, and follow-up.
+During implementation, tests MUST NOT be skipped to move faster. The responsible
+implementer MUST run the relevant quality gates for touched areas: backend
+`ruff check` and pytest, frontend TypeScript build and Vitest, Playwright or
+manual accessibility/map verification for affected core flows, and any
+feature-specific checks listed in the plan.
+
+## Conflict Handling
+
+If a revamp requirement conflicts with the existing codebase, the implementer
+MUST document the conflict, identify the user-visible risk, and propose the
+smallest safe change that preserves the canonical journey. Broad rewrites,
+dependency additions, Dossier module changes, routing changes, or map-engine
+changes MUST explain why smaller adaptations are insufficient.
+
+If the existing code cannot satisfy a requirement in the current phase, the plan
+or task list MUST mark the gap explicitly with an owner, acceptance criteria for
+closing it, and the behavior users will see until it is closed.
 
 ## Governance
 
 This constitution supersedes conflicting implementation assumptions, generated
-plans, task templates, and informal guidance for the Buurt Check Revamp. The PRD
-in `docs/prd.md` remains the product source of truth; this constitution governs
-how PRD requirements are translated into implementation.
+plans, task templates, runtime guidance, and informal instructions for the Buurt
+Check match-first UI revamp. `docs/prd.md` remains the product source of truth;
+this constitution governs how PRD requirements are translated into
+implementation.
 
 Amendments MUST include a Sync Impact Report, identify affected principles or
 sections, update dependent Spec Kit templates, and state the semantic version
 bump. MAJOR changes remove or redefine governance obligations in a
 backward-incompatible way. MINOR changes add principles, sections, or materially
-expanded requirements. PATCH changes clarify wording without changing compliance
-obligations.
+expanded requirements. PATCH changes clarify wording without changing
+compliance obligations.
 
 All specs, plans, task lists, code reviews, and phase-completion decisions MUST
 verify constitution compliance. Violations MAY proceed only when documented in
 the plan's Complexity Tracking section with a reason, rejected simpler
 alternative, owner, and follow-up review condition.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-11 | **Last Amended**: 2026-05-11
+**Version**: 2.0.1 | **Ratified**: 2026-05-11 | **Last Amended**: 2026-05-12

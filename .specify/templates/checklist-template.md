@@ -29,13 +29,19 @@
 
 ## Constitution Gates
 
-- [ ] CHKXXX Every checked feature, task, and acceptance criterion maps to docs/prd.md FR1-FR14
-- [ ] CHKXXX Critical scoring, confidence, persona, preference-vector, report-guardrail, listing-fallback, and alert logic has tests
-- [ ] CHKXXX Recommendations show fit reasons, tradeoffs, confidence, and source/freshness metadata
-- [ ] CHKXXX UI distinguishes official, commercial/listing, mock, derived, missing, and unavailable data
-- [ ] CHKXXX AI explanations are bounded to retrieved data and deterministic score outputs
-- [ ] CHKXXX Dutch/English strings, keyboard access, responsive behavior, and non-color-only status cues are covered
-- [ ] CHKXXX Admin visibility covers freshness, missing data, source failures, mock usage, scoring anomalies, guardrail blocks, and alert failures
+- [ ] CHKXXX Planning references `docs/prd.md` and `docs/context/current_architecture.md`
+- [ ] CHKXXX Checked feature, task, and acceptance criterion maps to a PRD requirement or section and a canonical journey step
+- [ ] CHKXXX Landing keeps one dominant match CTA and address search remains visually secondary
+- [ ] CHKXXX Survey/onboarding screens show one decision at a time and no dashboards, charts, feature grids, ads, or unrelated content
+- [ ] CHKXXX Every user-facing string has Dutch and English translation keys, including validation, fallback, progress, map, and Dossier return copy
+- [ ] CHKXXX Map work avoids national 3D building loads; loads/renders 3D houses only after neighborhood selection and only within selected-neighborhood bounds; uses viewport paging/LOD only inside that neighborhood; includes 2D fallback, reduced-motion fallback, and non-map list alternative
+- [ ] CHKXXX Model output is framed honestly as deterministic/semi-deterministic fit scoring unless labels and validation data support predictive claims
+- [ ] CHKXXX Existing Dossier behavior is preserved except for scoped route context and persistent back-to-match-map action
+- [ ] CHKXXX Keyboard navigation, screen-reader labels, touch targets, contrast, focus management, reduced motion, and non-map alternatives are covered
+- [ ] CHKXXX Each phase has appropriate tests or verification commands tied to acceptance criteria
+- [ ] CHKXXX Survey answers, session ID, selected neighborhood, map state, language, and Dossier return path survive navigation
+- [ ] CHKXXX Copy avoids unsupported claims about perfect fit, safety, happiness, investment certainty, future value, or guaranteed outcomes
+- [ ] CHKXXX Codebase conflicts are documented with the smallest safe change and follow-up criteria
 
 ## [Category 2]
 

@@ -79,15 +79,35 @@
 
 <!--
   ACTION REQUIRED: Map every user story, acceptance criterion, functional
-  requirement, and success criterion to one or more docs/prd.md anchors FR1-FR14.
-  Requirements from docs/prd.md override assumptions made in this spec.
+  requirement, and success criterion to one or more docs/prd.md requirement IDs
+  or sections. Requirements from docs/prd.md override assumptions made in this
+  spec.
 -->
 
-| Spec Item | PRD FR ID(s) | Traceability Notes |
-|-----------|--------------|--------------------|
-| User Story 1 | [FR#] | [Why this story belongs to the PRD requirement] |
-| Acceptance Scenario 1.1 | [FR#] | [Specific acceptance criterion mapping] |
-| Functional Requirement FR-001 | [FR#] | [Specific capability mapping] |
+| Spec Item | PRD Requirement(s) | Journey Step(s) | Traceability Notes |
+|-----------|--------------------|-----------------|--------------------|
+| User Story 1 | [FR-L#/FR-S#/section] | [landing/survey/results/etc.] | [Why this story belongs to the PRD requirement] |
+| Acceptance Scenario 1.1 | [FR#/section] | [journey step] | [Specific acceptance criterion mapping] |
+| Functional Requirement FR-001 | [FR#/section] | [journey step] | [Specific capability mapping] |
+
+## Match-First Constitution Constraints *(mandatory)*
+
+<!--
+  ACTION REQUIRED: Fill this section for every match-first revamp spec. Mark
+  N/A only when the feature demonstrably does not touch that surface.
+-->
+
+- **Canonical journey step(s)**: [Which of landing hero -> survey intro -> one-question survey -> review -> backend matching progress -> animated checkmark success -> Netherlands results map -> neighborhood 3D detail -> house click -> existing Dossier -> back to match map are affected]
+- **Search treatment**: [How address search stays secondary and does not compete on the first screen]
+- **One-decision UI**: [How the spec avoids dashboards, charts, feature grids, long explanations, ads, and unrelated content during onboarding]
+- **Bilingual copy**: [Translation key namespaces and Dutch/English parity requirements for all user-facing text]
+- **Map performance/fallbacks**: [Confirm 3D houses load/render only after neighborhood selection and only within selected-neighborhood bounds; viewport loading is only paging/LOD inside that neighborhood; include 2D fallback, reduced-motion fallback, non-map list alternative]
+- **Model honesty**: [Whether outputs are deterministic/semi-deterministic scores or validated predictive outputs, with evidence for any predictive claims]
+- **Dossier preservation**: [Dossier touchpoints, smallest safe change, persistent back-to-map action, regression expectations]
+- **Accessibility**: [Keyboard, screen-reader, touch target, contrast, focus, reduced-motion, and non-map alternative requirements]
+- **Context preservation**: [Survey answers, session ID, selected neighborhood, map state, language, and Dossier return path]
+- **Unsupported claims**: [Copy and explanation boundaries; reason codes and data limitations required]
+- **Known codebase conflicts**: [Conflict, smallest safe change, owner/follow-up or N/A]
 
 ## Requirements *(mandatory)*
 
@@ -122,6 +142,7 @@
 - **Fairness guardrails**: [Protected/sensitive traits excluded from scoring and recommendation]
 - **Listing data mode**: [Licensed provider / adapter mock / outbound placeholder / N/A]
 - **Admin visibility**: [Freshness, missing data, source failures, scoring anomalies, guardrail blocks, alert failures]
+- **Reason codes and limitations**: [How explanations stay grounded in data-backed fit scores without unsupported promises]
 
 ## Success Criteria *(mandatory)*
 

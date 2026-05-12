@@ -8,19 +8,21 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: Tests are REQUIRED for constitution-critical logic: scoring,
-confidence, persona detection, preference-vector generation, report guardrails,
-fairness-sensitive filters, listing adapter fallbacks, data provenance labels,
-and alerts. Other tests follow the feature specification and risk level.
+**Tests**: Tests are REQUIRED for every phase touched by the feature. Use unit,
+integration, E2E, accessibility, or map-performance verification according to
+the acceptance criteria and risk. A phase is not complete when it looks good; it
+is complete when its acceptance criteria pass.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
-## Format: `[ID] [P?] [Story] [PRD: FR#] Description`
+## Format: `[ID] [P?] [Story] [PRD: FR#/section] [Journey: step] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
-- **[PRD: FR#]**: Which `docs/prd.md` requirement(s) this task traces to
+- **[PRD: FR#/section]**: Which `docs/prd.md` requirement(s) this task traces to
+- **[Journey: step]**: Which canonical journey step this task changes
 - Include exact file paths in descriptions
+- Include task-level acceptance criteria for implementation and verification tasks
 
 ## Path Conventions
 
@@ -43,7 +45,7 @@ and alerts. Other tests follow the feature specification and risk level.
   - Implemented independently
   - Tested independently
   - Delivered as an MVP increment
-  - Traced to docs/prd.md FR1-FR14
+  - Traced to docs/prd.md requirement IDs or sections
 
   DO NOT keep these sample tasks in the generated tasks.md file.
   ============================================================================
@@ -73,9 +75,9 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T007 Create base models/entities that all stories depend on
 - [ ] T008 Configure error handling and logging infrastructure
 - [ ] T009 Setup environment configuration management
-- [ ] TXXX [P] [PRD: FR4,FR5,FR14] Add data provenance, freshness, confidence, and missing-data observability scaffolding
-- [ ] TXXX [P] [PRD: FR9] Add listing-provider adapter boundary with licensed-provider configuration and mock/outbound fallback
-- [ ] TXXX [P] [PRD: FR12] Add Dutch/English i18n key scaffolding for new user-facing states
+- [ ] TXXX [P] [PRD: Section 7/8] [Journey: cross-flow] Add match session/context persistence scaffolding for survey answers, session ID, selected neighborhood, map state, language, and Dossier return path. Acceptance: refresh/navigation does not clear required context in covered flows.
+- [ ] TXXX [P] [PRD: Section 16] [Journey: results/neighborhood map] Add map fallback scaffolding for selected-neighborhood-only 3D loading, 2D fallback, reduced motion, and non-map recommendation list. Acceptance: 3D houses are not requested or rendered until a neighborhood is selected, and viewport paging/LOD stays inside selected-neighborhood bounds.
+- [ ] TXXX [P] [PRD: FR-L4/FR-S6/Section 26] [Journey: cross-flow] Add Dutch/English i18n key scaffolding for every new user-facing state, validation message, fallback, route label, and Dossier return action. Acceptance: no hard-coded user-facing copy in touched components/services.
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -89,20 +91,20 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 1
 
-> **NOTE: Write constitution-critical tests FIRST and ensure they FAIL before implementation when practical.**
+> **NOTE: Write tests for the story's acceptance criteria before or alongside implementation. Do not mark the phase complete until they pass.**
 
-- [ ] T010 [P] [US1] [PRD: FR#] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] [PRD: FR#] Integration test for [user journey] in tests/integration/test_[name].py
-- [ ] TXXX [P] [US1] [PRD: FR#] Unit test for scoring/confidence/persona/preference/report/alert guardrail in tests/unit/test_[name].py
+- [ ] T010 [P] [US1] [PRD: FR#] [Journey: step] Contract test for [endpoint] in tests/contract/test_[name].py. Acceptance: [specific assertion]
+- [ ] T011 [P] [US1] [PRD: FR#] [Journey: step] Integration/E2E test for [user journey] in tests/integration/test_[name].py. Acceptance: [specific assertion]
+- [ ] TXXX [P] [US1] [PRD: FR#] [Journey: step] Accessibility/i18n/map/model-context regression test in [path]. Acceptance: [specific assertion]
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] [PRD: FR#] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] [PRD: FR#] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] [PRD: FR#] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] [PRD: FR#] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] [PRD: FR#] Add validation, graceful degradation, and error handling
-- [ ] T017 [US1] [PRD: FR#] Add structured logging/admin visibility for user story 1 operations
+- [ ] T012 [P] [US1] [PRD: FR#] [Journey: step] Create [Entity1] model in src/models/[entity1].py. Acceptance: [specific behavior]
+- [ ] T013 [P] [US1] [PRD: FR#] [Journey: step] Create [Entity2] model in src/models/[entity2].py. Acceptance: [specific behavior]
+- [ ] T014 [US1] [PRD: FR#] [Journey: step] Implement [Service] in src/services/[service].py (depends on T012, T013). Acceptance: [specific behavior]
+- [ ] T015 [US1] [PRD: FR#] [Journey: step] Implement [endpoint/feature] in src/[location]/[file].py. Acceptance: [specific behavior]
+- [ ] T016 [US1] [PRD: FR#] [Journey: step] Add validation, graceful degradation, and error handling with translation keys. Acceptance: [specific fallback]
+- [ ] T017 [US1] [PRD: FR#] [Journey: step] Add context persistence, accessibility labels, and regression coverage where this story touches the canonical journey. Acceptance: [specific verification]
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -116,15 +118,15 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] [PRD: FR#] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] [PRD: FR#] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T018 [P] [US2] [PRD: FR#] [Journey: step] Contract test for [endpoint] in tests/contract/test_[name].py. Acceptance: [specific assertion]
+- [ ] T019 [P] [US2] [PRD: FR#] [Journey: step] Integration/E2E test for [user journey] in tests/integration/test_[name].py. Acceptance: [specific assertion]
 
 ### Implementation for User Story 2
 
-- [ ] T020 [P] [US2] [PRD: FR#] Create [Entity] model in src/models/[entity].py
-- [ ] T021 [US2] [PRD: FR#] Implement [Service] in src/services/[service].py
-- [ ] T022 [US2] [PRD: FR#] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T023 [US2] [PRD: FR#] Integrate with User Story 1 components (if needed)
+- [ ] T020 [P] [US2] [PRD: FR#] [Journey: step] Create [Entity] model in src/models/[entity].py. Acceptance: [specific behavior]
+- [ ] T021 [US2] [PRD: FR#] [Journey: step] Implement [Service] in src/services/[service].py. Acceptance: [specific behavior]
+- [ ] T022 [US2] [PRD: FR#] [Journey: step] Implement [endpoint/feature] in src/[location]/[file].py. Acceptance: [specific behavior]
+- [ ] T023 [US2] [PRD: FR#] [Journey: step] Integrate with User Story 1 components (if needed). Acceptance: [specific behavior]
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -138,14 +140,14 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 3
 
-- [ ] T024 [P] [US3] [PRD: FR#] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] [PRD: FR#] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T024 [P] [US3] [PRD: FR#] [Journey: step] Contract test for [endpoint] in tests/contract/test_[name].py. Acceptance: [specific assertion]
+- [ ] T025 [P] [US3] [PRD: FR#] [Journey: step] Integration/E2E test for [user journey] in tests/integration/test_[name].py. Acceptance: [specific assertion]
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] [PRD: FR#] Create [Entity] model in src/models/[entity].py
-- [ ] T027 [US3] [PRD: FR#] Implement [Service] in src/services/[service].py
-- [ ] T028 [US3] [PRD: FR#] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T026 [P] [US3] [PRD: FR#] [Journey: step] Create [Entity] model in src/models/[entity].py. Acceptance: [specific behavior]
+- [ ] T027 [US3] [PRD: FR#] [Journey: step] Implement [Service] in src/services/[service].py. Acceptance: [specific behavior]
+- [ ] T028 [US3] [PRD: FR#] [Journey: step] Implement [endpoint/feature] in src/[location]/[file].py. Acceptance: [specific behavior]
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -162,11 +164,13 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX [P] Documentation updates in docs/
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional tests for constitution-critical logic and regression coverage in tests/
+- [ ] TXXX [P] Additional tests for phase acceptance criteria and regression coverage in tests/
 - [ ] TXXX Security hardening
-- [ ] TXXX [P] Verify Dutch/English i18n parity and keyboard-responsive core flows
-- [ ] TXXX [P] Verify source/freshness/confidence labels and mock/missing-data states
-- [ ] TXXX [P] Verify admin observability for data freshness, source failures, scoring anomalies, and alert failures
+- [ ] TXXX [P] Verify Dutch/English i18n parity and absence of hard-coded user-facing copy in touched files
+- [ ] TXXX [P] Verify keyboard navigation, screen-reader labels, touch targets, contrast, reduced motion, and non-map alternatives
+- [ ] TXXX [P] Verify map performance constraints: no national 3D building requests, selected-neighborhood-only 3D loading/rendering, viewport paging/LOD only inside selected-neighborhood bounds, 2D fallback, reduced-motion fallback
+- [ ] TXXX [P] Verify context preservation across survey, results map, neighborhood detail, Dossier, and back-to-map navigation
+- [ ] TXXX [P] Verify model/copy honesty: no unsupported claims about perfect fit, safety, happiness, investment certainty, or future value
 - [ ] TXXX Run quickstart.md validation
 
 ---
@@ -190,7 +194,7 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Within Each User Story
 
-- Tests for constitution-critical logic MUST be written and FAIL before implementation when practical
+- Tests for phase acceptance criteria MUST be written before or alongside implementation
 - Models before services
 - Services before endpoints
 - Core implementation before integration
@@ -256,9 +260,10 @@ With multiple developers:
 
 - [P] tasks = different files, no dependencies
 - [Story] label maps task to specific user story for traceability
-- [PRD: FR#] label maps task to docs/prd.md FR1-FR14 for constitution traceability
+- [PRD: FR#/section] label maps task to docs/prd.md for constitution traceability
+- [Journey: step] label maps task to the canonical match-first journey
 - Each user story should be independently completable and testable
-- Verify constitution-critical tests fail before implementing when practical
+- Verify phase acceptance criteria with tests or documented commands before completion
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
