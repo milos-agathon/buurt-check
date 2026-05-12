@@ -118,6 +118,7 @@ import {
   fetchMatchListings,
   fetchMatchMap,
   fetchMatchRecommendations,
+  fetchSharedMatchReport,
   fetchSavedMatchNeighborhoods,
   findSimilarMatchNeighborhoods,
   saveMatchNeighborhood,
@@ -166,6 +167,8 @@ import type {
   MatchQuizResponse,
   MatchRecommendationsResponse,
   MatchReportResponse,
+  MatchFeedbackPayload,
+  MatchFeedbackResponse,
   ReportShareResponse,
   SavedNeighborhood,
   MatchSimilarResponse,
@@ -199,7 +202,7 @@ const MatchSaved = lazy(() => import('./components/match/MatchSaved'));
 const MatchAdminDashboard = lazy(() => import('./components/match/MatchAdminDashboard'));
 const MatchFeedbackControls = lazy(() => import('./components/match/MatchFeedbackControls'));
 
-type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin';
+type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin' | 'matchSharedReport';
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
 interface DossierSeedState {
@@ -453,7 +456,7 @@ function hasSurroundingContext(data: Neighborhood3DResponse | null): boolean {
 }
 
 type ProgressivePhase = 'house' | 'risk' | 'buurt';
-type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin';
+type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin' | 'matchSharedReport';
 
 const DEFAULT_MATCH_COMPARE_IDS = [
   'nh_amsterdam_ijburg',
@@ -512,6 +515,7 @@ interface ParsedHashRoute {
   sessionId?: string;
   buyerResume?: string;
   shareToken?: string;
+  matchShareToken?: string;
   sharedMode?: 'briefing' | 'pack';
   rawPath?: string;
 }
@@ -567,6 +571,18 @@ function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   if (normalizedPath === '/match/admin') return { route: 'matchAdmin' };
   if (normalizedPath === '/search' || (normalizedPath === '/' && !(checkoutParams.reportId && checkoutParams.sessionId))) {
     return { route: 'search' };
+  }
+
+  const sharedMatchReport = normalizedPath.match(/^\/shared\/match\/report\/([^/]+)$/);
+  if (sharedMatchReport) {
+    try {
+      return {
+        route: 'matchSharedReport',
+        matchShareToken: decodeURIComponent(sharedMatchReport[1]),
+      };
+    } catch {
+      return { route: 'not_found', rawPath: normalizedPath };
+    }
   }
 
   const packMatch = normalizedPath.match(/^\/pack\/([^/]+)\/([^/]+)$/);
@@ -677,6 +693,9 @@ function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.route === 'matchAlerts') return '#/match/alerts';
   if (parsed.route === 'matchSaved') return '#/match/saved';
   if (parsed.route === 'matchAdmin') return '#/match/admin';
+  if (parsed.route === 'matchSharedReport' && parsed.matchShareToken) {
+    return `#/shared/match/report/${encodeURIComponent(parsed.matchShareToken)}`;
+  }
   if (parsed.route === 'pack' && parsed.vboId && parsed.reportId) {
     return `#/pack/${encodeURIComponent(parsed.vboId)}/${encodeURIComponent(parsed.reportId)}`;
   }
@@ -1340,6 +1359,10 @@ function App() {
   const [matchReport, setMatchReport] = useState<MatchReportResponse | null>(null);
   const [matchReportLoading, setMatchReportLoading] = useState(false);
   const [matchReportErrorCode, setMatchReportErrorCode] = useState<string | null>(null);
+  const [activeMatchShareToken, setActiveMatchShareToken] = useState<string | null>(null);
+  const [sharedMatchReport, setSharedMatchReport] = useState<MatchReportResponse | null>(null);
+  const [sharedMatchReportLoading, setSharedMatchReportLoading] = useState(false);
+  const [sharedMatchReportErrorCode, setSharedMatchReportErrorCode] = useState<string | null>(null);
   const [matchListings, setMatchListings] = useState<MatchListingProviderResult | null>(null);
   const [matchListingsLoading, setMatchListingsLoading] = useState(false);
   const [matchListingsErrorCode, setMatchListingsErrorCode] = useState<string | null>(null);
@@ -2332,6 +2355,38 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (activeScreen !== 'matchSharedReport' || !activeMatchShareToken) {
+      setSharedMatchReportLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSharedMatchReport(null);
+    setSharedMatchReportLoading(true);
+    setSharedMatchReportErrorCode(null);
+    void fetchSharedMatchReport(activeMatchShareToken)
+      .then((response) => {
+        if (!cancelled) {
+          setSharedMatchReport(response);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSharedMatchReportErrorCode('match.warning.report_fetch_failed');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSharedMatchReportLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMatchShareToken, activeScreen]);
+
+  useEffect(() => {
     if (activeScreen === 'matchComparison' && !matchComparisonResponse && !matchComparisonLoading) {
       void loadMatchComparison();
     }
@@ -2384,6 +2439,37 @@ function App() {
     } finally {
       setMatchAlertsLoading(false);
     }
+  }, []);
+
+  const handleMatchFeedbackSubmit = useCallback(async (
+    payload: MatchFeedbackPayload,
+  ): Promise<MatchFeedbackResponse> => {
+    const response = await submitMatchFeedback(payload);
+    if (response.reranking_available) {
+      const boost = new Set(response.reranking_hint.boost_neighborhood_ids);
+      const suppress = new Set(response.reranking_hint.suppress_neighborhood_ids);
+      setMatchRecommendations((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          recommendations: {
+            ...current.recommendations,
+            top: current.recommendations.top
+              .filter((item) => !suppress.has(item.neighborhood_id))
+              .sort((left, right) => Number(boost.has(right.neighborhood_id)) - Number(boost.has(left.neighborhood_id)))
+              .map((item, index) => ({ ...item, rank: index + 1 })),
+            avoid_or_reconsider: current.recommendations.avoid_or_reconsider
+              .map((item, index) => ({ ...item, rank: index + 1 })),
+          },
+          feedback_adjustment: {
+            applied: true,
+            explanation_code: response.reranking_hint.explanation_code,
+            adjusted_weight_inputs: response.reranking_hint.adjusted_weight_inputs,
+          },
+        };
+      });
+    }
+    return response;
   }, []);
 
   const handleMatchUpdateAlertStatus = useCallback(async (alertId: string, status: 'active' | 'paused' | 'deleted') => {
@@ -4430,6 +4516,13 @@ function App() {
       setActiveScreen('matchAdmin');
       return;
     }
+    if (parsed.route === 'matchSharedReport') {
+      setActiveTab('home');
+      setActiveScreen('matchSharedReport');
+      setActiveMatchShareToken(parsed.matchShareToken ?? null);
+      setNotFoundRoute(null);
+      return;
+    }
     if (parsed.route === 'pack') {
       setActiveTab('briefing');
       setActiveScreen('pack');
@@ -5089,6 +5182,8 @@ function App() {
           ? '#/match/saved'
         : activeScreen === 'matchAdmin'
           ? '#/match/admin'
+        : activeScreen === 'matchSharedReport'
+          ? `#/shared/match/report/${activeMatchShareToken ? encodeURIComponent(activeMatchShareToken) : ''}`
         : activeScreen === 'dossier'
               ? '#/address'
               : activeScreen === 'pack'
@@ -5500,8 +5595,14 @@ function App() {
                         <article key={item.recommendation_id} className="match-recommendations__card">
                           <h3>{item.name}</h3>
                           <p>{t('match.recommendations.score', { score: item.fit_score })}</p>
+                          <p>{t('match.recommendations.method')}</p>
                           <p>{t('match.recommendations.confidence', { score: item.confidence.score })}</p>
-                          <p>{t('match.recommendations.sources', { sources: item.source_refs.join(', ') })}</p>
+                          <p>{t('match.recommendations.freshness', {
+                            status: item.data_freshness_indicator || item.freshness_status,
+                          })}</p>
+                          <p>{t('match.recommendations.sources', {
+                            sources: item.source_refs.join(', ') || t('match.common.noSource'),
+                          })}</p>
                           <ul>
                             {item.why_it_fits.slice(0, 3).map((reason) => (
                               <li key={reason.code}>{reason.code}</li>
@@ -5516,7 +5617,7 @@ function App() {
                             reportId={matchReport?.report_id ?? null}
                             recommendationId={item.recommendation_id}
                             neighborhoodId={item.neighborhood_id}
-                            onSubmit={submitMatchFeedback}
+                            onSubmit={handleMatchFeedbackSubmit}
                           />
                         </article>
                       ))}
@@ -5527,6 +5628,25 @@ function App() {
                   report={matchReport}
                   loading={matchReportLoading}
                   errorCode={matchReportErrorCode}
+                />
+              </Suspense>
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchSharedReport' && (
+            <motion.div
+              key="screen-match-shared-report"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={null}>
+                <MatchReport
+                  report={sharedMatchReport}
+                  loading={sharedMatchReportLoading}
+                  errorCode={sharedMatchReportErrorCode}
                 />
               </Suspense>
             </motion.div>

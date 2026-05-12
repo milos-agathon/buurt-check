@@ -69,10 +69,16 @@ class Settings(BaseSettings):
     # the seeded/mock MVP and must not enable scraping.
     match_official_data_provider_base_url: str = ""
     match_official_data_provider_api_key: str = ""
+    match_ai_report_provider_mode: str = "fallback"
+    match_ai_report_openai_base_url: str = "https://api.openai.com/v1"
+    match_ai_report_openai_api_key: str = ""
+    match_ai_report_openai_model: str = "gpt-4o-mini"
+    match_ai_report_timeout_seconds: float = 20.0
     match_listing_provider_mode: str = "mock"
     match_listing_provider_base_url: str = ""
     match_listing_provider_api_key: str = ""
     match_notification_provider_mode: str = "mock"
+    match_notification_provider_base_url: str = ""
     match_notification_provider_api_key: str = ""
 
     # Pre-bid source stack

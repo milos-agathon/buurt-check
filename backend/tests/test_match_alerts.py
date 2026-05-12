@@ -60,6 +60,33 @@ async def test_alert_create_update_delete_and_duplicate_handling():
     assert deleted.status == "deleted"
 
 
+@pytest.mark.asyncio
+async def test_alert_create_uses_configured_http_notification_provider(monkeypatch, httpx_mock):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "match_notification_provider_mode", "email")
+    monkeypatch.setattr(settings, "match_notification_provider_base_url", "https://notify.test")
+    monkeypatch.setattr(settings, "match_notification_provider_api_key", "notify-token")
+    httpx_mock.add_response(method="POST", json={"status": "sent"})
+    store = AlertStore()
+    payload = AlertCreateRequest(
+        session_id="anon_alert",
+        neighborhood_ids=["nh_amsterdam_ijburg"],
+        journey_intent="buy",
+        budget_max_cents=65000000,
+        property_types=["apartment"],
+        notification_type="email",
+        notification_destination_hash="hashed-destination",
+    )
+
+    created = await create_alert(payload, listings=[_listing()], store=store)
+
+    assert created.dispatch.provider_name == "HttpNotificationProvider"
+    assert created.dispatch.provider_mode == "email"
+    assert created.dispatch.result_status == "sent"
+    assert created.matched_listing_ids == ["listing_1"]
+
+
 def test_alert_matching_logic_respects_budget_property_type_and_intent():
     alert = AlertCreateRequest(
         neighborhood_ids=["nh_amsterdam_ijburg"],
@@ -80,4 +107,3 @@ def test_alert_matching_logic_respects_budget_property_type_and_intent():
     )
 
     assert [listing.listing_id for listing in matches] == ["match"]
-

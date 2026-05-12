@@ -47,6 +47,7 @@ from app.services.match.reports import (
     create_report_snapshot,
     delete_saved_neighborhood,
     get_report_snapshot,
+    get_shared_report_snapshot,
     list_saved_neighborhoods,
     save_neighborhood,
     save_report,
@@ -154,6 +155,14 @@ async def get_match_report(report_id: str, locale: str | None = None) -> MatchRe
     report = await get_report_snapshot(report_id, locale=locale)
     if report is None:
         raise HTTPException(status_code=404, detail="report not found")
+    return report
+
+
+@router.get("/shared/{share_token}", response_model=MatchReportResponse)
+async def get_shared_match_report(share_token: str) -> MatchReportResponse:
+    report = await get_shared_report_snapshot(share_token)
+    if report is None:
+        raise HTTPException(status_code=404, detail="shared report not found")
     return report
 
 

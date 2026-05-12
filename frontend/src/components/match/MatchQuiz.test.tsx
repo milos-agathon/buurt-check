@@ -49,6 +49,13 @@ it('validates required controls before submitting', async () => {
   expect(screen.getByText('Add a current city or preferred anchor location.')).toBeInTheDocument();
 });
 
+it('frames the guided quiz as a 3-6 minute curated data flow', () => {
+  renderQuiz();
+
+  expect(screen.getByText('3-6 minute guided quiz')).toBeInTheDocument();
+  expect(screen.getByText('Curated data, deterministic scoring, source-backed report')).toBeInTheDocument();
+});
+
 it('captures required quiz answers as a typed payload', async () => {
   const user = userEvent.setup();
   const { onSubmit } = renderQuiz();

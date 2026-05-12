@@ -63,12 +63,17 @@ it('renders recommendation markers and selected neighborhood details', async () 
   renderMap();
 
   expect(screen.getByRole('img', { name: 'Recommended neighborhood map' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /84IJburg/i })).toBeInTheDocument();
+  const ijburgMarker = screen.getByRole('button', { name: /84IJburg/i });
+  expect(ijburgMarker).toBeInTheDocument();
+  expect(ijburgMarker).toHaveAttribute('data-lng', '5');
+  expect(ijburgMarker).toHaveAttribute('data-lat', '52.35');
+  expect(ijburgMarker).toHaveStyle({ left: '85.7%', top: '10%' });
   await userEvent.click(screen.getByRole('button', { name: /76Leidsche Rijn/i }));
 
   expect(screen.getByRole('complementary', { name: 'Selected neighborhood details' })).toHaveTextContent('Leidsche Rijn');
   expect(screen.getByText('76/100')).toBeInTheDocument();
   expect(screen.getByText('Missing: affordability_rent')).toBeInTheDocument();
+  expect(screen.getByText('src_family')).toHaveClass('match-source-badge');
 });
 
 it('renders missing coordinate behavior and mobile layout', () => {

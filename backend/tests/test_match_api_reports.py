@@ -1,5 +1,8 @@
 import pytest
 
+from app.models.match import ReportInput
+from app.services.match.ai_report import build_deterministic_fallback_report
+
 
 def _report_payload(locale: str = "en"):
     return {
@@ -60,9 +63,66 @@ async def test_create_report_endpoint_returns_validated_fallback_snapshot(client
     assert body["status"] == "fallback"
     assert body["generated_by"] == "deterministic_fallback"
     assert body["validation_status"] == "fallback_used"
+    assert body["generation_metadata"] == {
+        "requested_mode": "fallback_only",
+        "resolved_mode": "deterministic_fallback",
+        "ai_provider": "none",
+        "ai_available": False,
+        "scoring_mutable_by_ai": False,
+        "data_contract": "structured_report_input",
+    }
     assert len(body["sections"]) == 8
     assert body["source_refs"] == ["src_green"]
     assert body["report_id"]
+
+
+@pytest.mark.asyncio
+async def test_create_report_endpoint_uses_configured_openai_provider(
+    client,
+    httpx_mock,
+    monkeypatch,
+):
+    from app.config import settings
+
+    payload = _report_payload()
+    payload["generation_mode"] = "ai_with_fallback"
+    report_input = ReportInput.model_validate(payload["report_input"])
+    ai_output = build_deterministic_fallback_report(report_input).model_copy(
+        update={"generated_by": "ai", "validation_status": "passed"}
+    )
+    monkeypatch.setattr(settings, "match_ai_report_provider_mode", "openai")
+    monkeypatch.setattr(settings, "match_ai_report_openai_api_key", "sk-test")
+    monkeypatch.setattr(settings, "match_ai_report_openai_base_url", "https://api.openai.test/v1")
+    httpx_mock.add_response(
+        method="POST",
+        url="https://api.openai.test/v1/responses",
+        json={
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {"type": "output_text", "text": ai_output.model_dump_json()}
+                    ],
+                }
+            ]
+        },
+    )
+
+    response = await client.post("/api/match/reports", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "generated"
+    assert body["generated_by"] == "ai"
+    assert body["validation_status"] == "passed"
+    assert body["generation_metadata"] == {
+        "requested_mode": "ai_with_fallback",
+        "resolved_mode": "ai",
+        "ai_provider": "openai",
+        "ai_available": True,
+        "scoring_mutable_by_ai": False,
+        "data_contract": "structured_report_input",
+    }
 
 
 @pytest.mark.asyncio

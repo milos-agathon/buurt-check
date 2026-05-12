@@ -9,6 +9,36 @@ interface MatchMapProps {
   errorCode?: string | null;
 }
 
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value));
+}
+
+function formatPercent(value: number): string {
+  return `${Number(value.toFixed(1))}%`;
+}
+
+function projectPoint(coordinates: [number, number], bounds: number[]) {
+  const [lng, lat] = coordinates;
+  const [minLng, minLat, maxLng, maxLat] = bounds;
+  const lngRange = maxLng - minLng || 1;
+  const latRange = maxLat - minLat || 1;
+  return {
+    left: formatPercent(clampPercent(((lng - minLng) / lngRange) * 100)),
+    top: formatPercent(clampPercent(((maxLat - lat) / latRange) * 100)),
+  };
+}
+
+function SourceBadges({ sourceRefs }: { sourceRefs: string[] }) {
+  if (sourceRefs.length === 0) return <span>-</span>;
+  return (
+    <span className="match-map__source-badges">
+      {sourceRefs.map((sourceRef) => (
+        <span className="match-source-badge" key={sourceRef}>{sourceRef}</span>
+      ))}
+    </span>
+  );
+}
+
 function useCompactLayout() {
   const [compact, setCompact] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth <= 720 : false
@@ -72,22 +102,24 @@ export default function MatchMap({ map, loading = false, errorCode = null }: Mat
       </header>
 
       <div className="match-map__canvas" role="img" aria-label={t('match.map.canvasLabel')}>
-        {map.features.map((feature: MatchMapFeature, index) => (
-          <button
-            key={feature.properties.neighborhood_id}
-            type="button"
-            className="match-map__marker"
-            style={{
-              left: `${18 + (index % 4) * 20}%`,
-              top: `${18 + Math.floor(index / 4) * 22}%`,
-            }}
-            aria-pressed={selected?.properties.neighborhood_id === feature.properties.neighborhood_id}
-            onClick={() => setSelectedId(feature.properties.neighborhood_id)}
-          >
-            <span>{feature.properties.match_score}</span>
-            <small>{feature.properties.name}</small>
-          </button>
-        ))}
+        {map.features.map((feature: MatchMapFeature) => {
+          const [lng, lat] = feature.geometry.coordinates;
+          return (
+            <button
+              key={feature.properties.neighborhood_id}
+              type="button"
+              className="match-map__marker"
+              style={projectPoint(feature.geometry.coordinates, map.bounds)}
+              data-lng={String(lng)}
+              data-lat={String(lat)}
+              aria-pressed={selected?.properties.neighborhood_id === feature.properties.neighborhood_id}
+              onClick={() => setSelectedId(feature.properties.neighborhood_id)}
+            >
+              <span>{feature.properties.match_score}</span>
+              <small>{feature.properties.name}</small>
+            </button>
+          );
+        })}
       </div>
 
       {selected && (
@@ -106,6 +138,10 @@ export default function MatchMap({ map, loading = false, errorCode = null }: Mat
             <div>
               <dt>{t('match.map.confidence')}</dt>
               <dd>{selected.properties.confidence.score}/100</dd>
+            </div>
+            <div>
+              <dt>{t('match.map.sources')}</dt>
+              <dd><SourceBadges sourceRefs={selected.properties.source_refs} /></dd>
             </div>
           </dl>
           {selected.properties.missing_data.length > 0 && (

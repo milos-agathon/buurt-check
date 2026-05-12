@@ -8,8 +8,21 @@ interface MatchReportProps {
   errorCode?: string | null;
 }
 
-function formatSourceRefs(sourceRefs: string[]): string {
-  return sourceRefs.length > 0 ? sourceRefs.join(', ') : '-';
+function SourceBadges({ sourceRefs }: { sourceRefs: string[] }) {
+  if (sourceRefs.length === 0) {
+    return <span>{'-'}</span>;
+  }
+  return (
+    <span className="match-source-badges">
+      {sourceRefs.map((sourceRef) => (
+        <span className="match-source-badge" key={sourceRef}>{sourceRef}</span>
+      ))}
+    </span>
+  );
+}
+
+function formatGenerationMode(mode: string): string {
+  return mode.replace(/_/g, ' ');
 }
 
 function ClaimMetadata({ claim }: { claim: ReportClaim }) {
@@ -26,7 +39,7 @@ function ClaimMetadata({ claim }: { claim: ReportClaim }) {
       </div>
       <div>
         <dt>{t('match.report.sources')}</dt>
-        <dd>{formatSourceRefs(claim.source_refs)}</dd>
+        <dd><SourceBadges sourceRefs={claim.source_refs} /></dd>
       </div>
     </dl>
   );
@@ -75,6 +88,10 @@ export default function MatchReport({ report, loading = false, errorCode = null 
             : t('match.report.status.fallback')}
         </p>
       </header>
+      <div className="match-report__generation" aria-label={t('match.report.generationMetadata')}>
+        <p>{t('match.report.aiLayer', { mode: formatGenerationMode(report.generation_metadata.resolved_mode) })}</p>
+        <p>{t('match.report.aiScoringBoundary')}</p>
+      </div>
 
       {report.guardrail_events.length > 0 && (
         <p className="match-report__guardrail">

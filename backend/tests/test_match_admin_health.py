@@ -64,3 +64,36 @@ async def test_admin_health_api_renders_read_only_status_without_user_identifier
     assert "report_generation_failures" in body
     assert "success_metrics" in body
     assert "session_id" not in str(body)
+
+
+@pytest.mark.asyncio
+async def test_admin_health_api_reflects_configured_listing_provider(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "match_listing_provider_mode", "licensed")
+    monkeypatch.setattr(settings, "match_listing_provider_base_url", "https://listings.test")
+    monkeypatch.setattr(settings, "match_listing_provider_api_key", "listing-token")
+
+    response = await client.get("/api/admin/match/health")
+
+    assert response.status_code == 200
+    provider = response.json()["listing_provider_status"][0]
+    assert provider["name"] == "LicensedHttpListingProvider"
+    assert provider["mode"] == "licensed"
+    assert provider["health"] == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_admin_health_api_reflects_configured_notification_provider(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "match_notification_provider_mode", "email")
+    monkeypatch.setattr(settings, "match_notification_provider_base_url", "https://notify.test")
+    monkeypatch.setattr(settings, "match_notification_provider_api_key", "notify-token")
+
+    response = await client.get("/api/admin/match/health")
+
+    assert response.status_code == 200
+    dispatcher = response.json()["alert_dispatcher_status"]
+    assert dispatcher["provider_name"] == "HttpNotificationProvider"
+    assert dispatcher["health"] == "healthy"

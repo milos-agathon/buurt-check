@@ -12,12 +12,30 @@ from app.models.match import (
     MatchAdminHealthResponse,
     MissingDataIndicator,
     NotificationDispatchRecord,
+    PrdTraceabilityItem,
     ProviderStatus,
     ScoringAnomalySummary,
     SeedImportResult,
     SourceFailureIndicator,
 )
 from app.services.match.instrumentation import log_match_observation, summarize_success_metrics
+
+MATCH_PRD_TRACEABILITY = [
+    PrdTraceabilityItem(fr_id="FR1", label="Preference quiz", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR2", label="Household/persona detection", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR3", label="Neighborhood scoring engine", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR4", label="Explainable match output", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR5", label="AI-generated report", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR6", label="Neighborhood comparison", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR7", label="Similar-neighborhood discovery", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR8", label="Map view", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR9", label="Listing connection", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR10", label="Alerts", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR11", label="Save/share report", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR12", label="Multilingual support", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR13", label="Feedback loop", status="implemented"),
+    PrdTraceabilityItem(fr_id="FR14", label="Admin data dashboard", status="implemented"),
+]
 
 
 def summarize_guardrail_events(events: list[GuardrailEvent]) -> dict[str, object]:
@@ -80,12 +98,19 @@ def _source_failures(seed_result: SeedImportResult) -> list[SourceFailureIndicat
 
 def _alert_dispatcher_status(
     dispatch_records: list[NotificationDispatchRecord],
+    provider_status: dict[str, object] | None = None,
 ) -> AlertDispatcherStatus:
     failures = [
         AlertDispatchFailure(alert_id=record.alert_id, error_code=record.error_code)
         for record in dispatch_records
         if record.result_status == "failed"
     ]
+    if not dispatch_records and provider_status:
+        return AlertDispatcherStatus(
+            provider_name=str(provider_status.get("provider_name", "MockNotificationProvider")),
+            health=str(provider_status.get("health", "mock_only")),  # type: ignore[arg-type]
+            failures=[],
+        )
     return AlertDispatcherStatus(
         provider_name=dispatch_records[0].provider_name
         if dispatch_records
@@ -126,6 +151,7 @@ def build_admin_health_dashboard(
     *,
     seed_result: SeedImportResult,
     listing_provider_status: list[ProviderStatus] | None = None,
+    notification_provider_status: dict[str, object] | None = None,
     alert_dispatch_records: list[NotificationDispatchRecord] | None = None,
     report_generation_failures: list[dict[str, object]] | None = None,
     analytics_events: list[AnalyticsEvent] | None = None,
@@ -142,7 +168,10 @@ def build_admin_health_dashboard(
         for status, count in status_counts.items()
         if status not in {DataFreshnessStatus.mock, DataFreshnessStatus.unavailable}
     )
-    alert_status = _alert_dispatcher_status(alert_dispatch_records or [])
+    alert_status = _alert_dispatcher_status(
+        alert_dispatch_records or [],
+        notification_provider_status,
+    )
     source_failures = _source_failures(seed_result)
     anomalies = (
         scoring_anomalies
@@ -212,4 +241,5 @@ def build_admin_health_dashboard(
             )
         ],
         success_metrics=list(success_metric_map.values()),
+        prd_traceability=MATCH_PRD_TRACEABILITY,
     )

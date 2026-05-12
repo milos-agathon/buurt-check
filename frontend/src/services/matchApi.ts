@@ -121,6 +121,27 @@ export async function fetchMatchReport(
   return body;
 }
 
+export async function fetchSharedMatchReport(
+  shareToken: string,
+): Promise<MatchReportResponse> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/shared/${encodeURIComponent(shareToken)}`), {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new MatchApiError(response.status, 'match.warning.report_fetch_failed');
+  }
+
+  const body = await response.json() as MatchReportResponse;
+  recordMatchEvent('match_report_viewed', {
+    locale: body.locale,
+    report_id: body.report_id,
+    share: true,
+  });
+  return body;
+}
+
 export async function compareMatchNeighborhoods(
   payload: MatchComparePayload,
 ): Promise<MatchCompareResponse> {

@@ -20,6 +20,14 @@ const report: MatchReportResponse = {
   source_refs: ['src_green'],
   limitations: ['This report uses labelled seed data.'],
   generated_at: '2026-05-11T08:00:00Z',
+  generation_metadata: {
+    requested_mode: 'ai_with_fallback',
+    resolved_mode: 'deterministic_fallback',
+    ai_provider: 'none',
+    ai_available: false,
+    scoring_mutable_by_ai: false,
+    data_contract: 'structured_report_input',
+  },
   guardrail_events: [],
   report_input: {
     locale: 'en',
@@ -94,6 +102,8 @@ it('renders validated report sections with claim metadata', () => {
 
   expect(screen.getByRole('heading', { name: 'Neighborhood report' })).toBeInTheDocument();
   expect(screen.getByText('Profile summary')).toBeInTheDocument();
+  expect(screen.getByText('AI explanation layer: deterministic fallback')).toBeInTheDocument();
+  expect(screen.getByText('Scores cannot be changed by AI')).toBeInTheDocument();
   const claim = screen.getAllByText('Your preferences are translated into a structured neighborhood profile.')[1].closest('article');
   expect(claim).not.toBeNull();
   expect(within(claim as HTMLElement).getByText('Confidence')).toBeInTheDocument();
@@ -101,7 +111,7 @@ it('renders validated report sections with claim metadata', () => {
   expect(within(claim as HTMLElement).getByText('Freshness')).toBeInTheDocument();
   expect(within(claim as HTMLElement).getByText('mock')).toBeInTheDocument();
   expect(within(claim as HTMLElement).getByText('Sources')).toBeInTheDocument();
-  expect(within(claim as HTMLElement).getByText('src_green')).toBeInTheDocument();
+  expect(within(claim as HTMLElement).getByText('src_green')).toHaveClass('match-source-badge');
 });
 
 it('renders fallback and empty states in the active locale', () => {

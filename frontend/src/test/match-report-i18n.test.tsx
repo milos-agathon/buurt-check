@@ -14,6 +14,14 @@ const baseReport: MatchReportResponse = {
   limitations: [],
   source_refs: [],
   guardrail_events: [],
+  generation_metadata: {
+    requested_mode: 'ai_with_fallback',
+    resolved_mode: 'ai',
+    ai_provider: 'openai',
+    ai_available: true,
+    scoring_mutable_by_ai: false,
+    data_contract: 'structured_report_input',
+  },
   generated_at: '2026-05-11T08:00:00Z',
   report_input: {
     locale: 'nl',
@@ -53,5 +61,5 @@ it('renders Dutch report chrome from i18n while preserving structured report loc
   );
 
   expect(screen.getByRole('heading', { name: 'Buurrapport' })).toBeInTheDocument();
-  expect(screen.getByText('AI gecontroleerd')).toBeInTheDocument();
+  expect(screen.getByText('AI-verhaal; score ongewijzigd')).toBeInTheDocument();
 });

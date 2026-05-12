@@ -58,8 +58,15 @@ class SeedMockImporter:
             missing_features: list[str] = []
             stale_features: list[str] = []
             feature_metric_sources: list[MetricSource] = []
+            seen_metric_keys: set[str] = set()
 
             for metric_row in row["metrics"]:
+                metric_key = metric_row["metric_key"]
+                if metric_key in seen_metric_keys:
+                    raise ValueError(
+                        f"duplicate metric_key {metric_key} for {row['neighborhood_id']}"
+                    )
+                seen_metric_keys.add(metric_key)
                 freshness_status = DataFreshnessStatus(metric_row["freshness_status"])
                 source_type = (
                     "missing"

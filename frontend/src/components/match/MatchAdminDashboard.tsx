@@ -174,6 +174,17 @@ export default function MatchAdminDashboard({
             }}
           />
         </article>
+        <article>
+          <h2>{t('match.admin.prdTraceability')}</h2>
+          <CountList
+            items={health.prd_traceability}
+            empty={t('match.admin.none')}
+            render={(item) => {
+              const trace = item as MatchAdminHealthResponse['prd_traceability'][number];
+              return `${trace.fr_id}: ${trace.label} (${trace.status})`;
+            }}
+          />
+        </article>
       </div>
     </section>
   );

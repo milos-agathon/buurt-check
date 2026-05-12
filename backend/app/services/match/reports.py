@@ -6,6 +6,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from app.config import settings
 from app.db import DatabaseError, get_db
 from app.models.match import (
     GuardrailEvent,
@@ -15,12 +16,13 @@ from app.models.match import (
     PreferenceVector,
     RecommendationEvidence,
     ReportExportResponse,
+    ReportGenerationMetadata,
     ReportInput,
     SavedNeighborhood,
     SavedNeighborhoodCreateRequest,
 )
 from app.services.match.ai_report import (
-    DeterministicReportGenerator,
+    build_configured_report_generator,
     build_deterministic_fallback_report,
     generate_validated_report,
 )
@@ -95,6 +97,23 @@ def assemble_report_input(
 
 def _response_status(generated_by: str) -> str:
     return "generated" if generated_by == "ai" else "fallback"
+
+
+def _generation_metadata(
+    *,
+    requested_mode: str,
+    generated_by: str,
+) -> ReportGenerationMetadata:
+    provider = "none"
+    if requested_mode == "ai_with_fallback" and settings.match_ai_report_provider_mode == "openai":
+        provider = "openai"
+    return ReportGenerationMetadata(
+        requested_mode=requested_mode,  # type: ignore[arg-type]
+        resolved_mode="ai" if generated_by == "ai" else "deterministic_fallback",
+        ai_provider=provider,
+        ai_available=generated_by == "ai",
+        scoring_mutable_by_ai=False,
+    )
 
 
 def _with_report_id(events: list[GuardrailEvent], report_id: str) -> list[GuardrailEvent]:
@@ -205,6 +224,10 @@ async def _load_report_snapshot(report_id: str) -> MatchReportResponse | None:
         source_refs=report_input.source_refs,
         guardrail_events=[],
         report_input=report_input,
+        generation_metadata=_generation_metadata(
+            requested_mode="fallback_only",
+            generated_by=output.generated_by,
+        ),
         generated_at=report_input.generated_at,
     )
 
@@ -217,7 +240,7 @@ async def create_report_snapshot(payload: MatchReportCreateRequest) -> MatchRepo
     else:
         result = await generate_validated_report(
             payload.report_input,
-            generator=DeterministicReportGenerator(),
+            generator=build_configured_report_generator(),
         )
         output = result.output
         guardrail_events = result.guardrail_events
@@ -233,6 +256,10 @@ async def create_report_snapshot(payload: MatchReportCreateRequest) -> MatchRepo
         source_refs=payload.report_input.source_refs,
         guardrail_events=_with_report_id(guardrail_events, report_id),
         report_input=payload.report_input,
+        generation_metadata=_generation_metadata(
+            requested_mode=payload.generation_mode,
+            generated_by=output.generated_by,
+        ),
         generated_at=payload.report_input.generated_at,
     )
     _REPORT_SNAPSHOTS[report_id] = response
@@ -271,6 +298,10 @@ async def get_report_snapshot(
             "sections": output.sections,
             "limitations": output.limitations,
             "report_input": report_input,
+            "generation_metadata": _generation_metadata(
+                requested_mode=response.generation_metadata.requested_mode,
+                generated_by=output.generated_by,
+            ),
         }
     )
 
@@ -331,6 +362,58 @@ async def create_report_share_link(
     except DatabaseError:
         pass
     return f"/shared/match/report/{raw_token}", expires_at
+
+
+async def _share_record_from_db(token_hash: str) -> dict[str, object] | None:
+    try:
+        async with get_db() as db:
+            cursor = await db.execute(
+                """SELECT report_id, scope, locale, expires_at, revoked_at
+                FROM match_share_tokens
+                WHERE token_hash = ?
+                ORDER BY created_at DESC
+                LIMIT 1""",
+                (token_hash,),
+            )
+            row = await cursor.fetchone()
+    except DatabaseError:
+        return None
+    if row is None:
+        return None
+    return {
+        "report_id": row["report_id"],
+        "scope": row["scope"],
+        "locale": row["locale"],
+        "expires_at": row["expires_at"],
+        "revoked_at": row["revoked_at"],
+    }
+
+
+def _share_record_is_active(record: dict[str, object]) -> bool:
+    if record.get("revoked_at"):
+        return False
+    expires_at = record.get("expires_at")
+    if not expires_at:
+        return True
+    try:
+        parsed = datetime.fromisoformat(str(expires_at))
+    except ValueError:
+        return False
+    return parsed > _utc_now()
+
+
+async def get_shared_report_snapshot(raw_token: str) -> MatchReportResponse | None:
+    token_hash = _sha256(raw_token)
+    record = _SHARE_TOKEN_HASHES.get(token_hash)
+    if record is None:
+        record = await _share_record_from_db(token_hash)
+    if record is None or not _share_record_is_active(record):
+        return None
+    if record.get("scope") != "report_view":
+        return None
+    report_id = str(record["report_id"])
+    locale = str(record.get("locale") or "en")
+    return await get_report_snapshot(report_id, locale=locale)
 
 
 def _report_export_payload(response: MatchReportResponse) -> dict[str, object]:

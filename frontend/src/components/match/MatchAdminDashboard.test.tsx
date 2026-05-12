@@ -49,6 +49,10 @@ const health: MatchAdminHealthResponse = {
     { event_name: 'match_quiz_started', count: 10 },
     { event_name: 'match_feedback_submitted', count: 3 },
   ],
+  prd_traceability: [
+    { fr_id: 'FR1', label: 'Preference quiz', status: 'implemented' },
+    { fr_id: 'FR14', label: 'Admin data dashboard', status: 'implemented' },
+  ],
 };
 
 it('renders key data quality, provider, failure, mock/live and metric statuses', () => {
@@ -68,7 +72,9 @@ it('renders key data quality, provider, failure, mock/live and metric statuses',
   expect(screen.getByText('Report generation failures')).toBeInTheDocument();
   expect(screen.getByText('Mock vs live data')).toBeInTheDocument();
   expect(screen.getByText('Product metrics')).toBeInTheDocument();
+  expect(screen.getByText('PRD FR1-FR14 traceability')).toBeInTheDocument();
   expect(screen.getByText(/source_timeout/)).toBeInTheDocument();
+  expect(screen.getByText(/FR1: Preference quiz/)).toBeInTheDocument();
   expect(screen.getByText(/pdf_failed/)).toBeInTheDocument();
   expect(screen.getByText(/match_feedback_submitted/)).toBeInTheDocument();
 });

@@ -93,6 +93,8 @@ export interface MatchQuizResponse {
   preference_vector: PreferenceVector;
   persona_overlays: PersonaOverlay[];
   validation_warnings: MatchValidationWarning[];
+  estimated_completion_minutes: [number, number];
+  prd_traceability: string[];
   analytics_event: 'match_quiz_completed';
 }
 
@@ -188,6 +190,11 @@ export interface MatchRecommendationsResponse {
   evidence_items: RecommendationEvidence[];
   source_coverage: string[];
   empty_state_code?: string | null;
+  feedback_adjustment?: {
+    applied: boolean;
+    explanation_code: string;
+    adjusted_weight_inputs: Record<string, number>;
+  };
 }
 
 export interface SimilarNeighborhoodResult {
@@ -352,6 +359,15 @@ export interface MatchReportCreatePayload {
   report_input: ReportInput;
 }
 
+export interface ReportGenerationMetadata {
+  requested_mode: 'ai_with_fallback' | 'fallback_only';
+  resolved_mode: 'ai' | 'deterministic_fallback';
+  ai_provider: string;
+  ai_available: boolean;
+  scoring_mutable_by_ai: boolean;
+  data_contract: 'structured_report_input';
+}
+
 export interface MatchReportResponse {
   report_id: string;
   status: MatchReportStatus;
@@ -363,6 +379,7 @@ export interface MatchReportResponse {
   source_refs: string[];
   guardrail_events: GuardrailEvent[];
   report_input: ReportInput;
+  generation_metadata: ReportGenerationMetadata;
   generated_at: string;
 }
 
@@ -637,4 +654,5 @@ export interface MatchAdminHealthResponse {
   mock_data_indicators: Array<{ label: string; status: string; count: number }>;
   live_data_indicators: Array<{ label: string; status: string; count: number }>;
   success_metrics: SuccessMetricSummary[];
+  prd_traceability: Array<{ fr_id: string; label: string; status: 'implemented' | 'partial' | 'deferred' }>;
 }

@@ -63,6 +63,7 @@ docs/data/*
 
 # Chrome debug profiles
 .chrome-debug-profile/
+.chrome-*/
 
 # Agent memory (subagent-generated)
 backend/.claude/

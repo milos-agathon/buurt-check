@@ -1,774 +1,1831 @@
-# PRD: Buurt Check Revamp — AI Neighborhood Discovery for Home Seekers
+# PRD: Buurt Check Match-First UI Revamp
 
-**Product:** Buurt Check  
-**Working title:** Buurt Match / Woonkompas  
-**Date:** 9 May 2026  
-**Status:** Draft PRD v1  
-**Primary market:** Netherlands  
-**Primary users:** People who want to buy or rent a home but do not yet know *where* to search.
+**Product:** Buurt Check
+**Document:** Product Requirements Document
+**Version:** v2.0 — Match-first UI revamp
+**Date:** 12 May 2026
+**Owner:** Milos GIS / Buurt Check
+**Primary market:** Netherlands
+**Primary languages:** Dutch and English
+**Core decision:** The app starts with neighborhood matching. Address search becomes a downstream action after users discover a matching neighborhood and select a house.
 
 ---
 
 ## 1. Executive summary
 
-Buurt Check should evolve from a neighborhood information product into a **personalized neighborhood discovery and decision platform** for home seekers.
+Buurt Check currently contains two competing entry points: a search interface and a match interface. This creates cognitive friction because users are asked to choose a mode before they understand the value of the product.
 
-The core insight is that most housing platforms start with a location, budget, and property type. But many users do not actually know which neighborhood, village, town, or municipality fits their life. They may know they want “green, safe, close to schools, affordable, not too far from Amsterdam,” but they cannot translate that into a ranked list of concrete neighborhoods.
+The redesigned Buurt Check should become a **match-first, map-first, guided neighborhood discovery experience**.
 
-Buurt Check will solve this by letting users complete a short preference quiz, then generating a data-backed report that recommends neighborhoods matching their lifestyle, budget, household situation, and practical constraints. The report should feel emotionally engaging, almost like a “woonkompas” or “home destiny report,” while remaining transparent, explainable, and grounded in official datasets.
+The new flow begins with a simple, emotionally clear landing screen. The user sees a beautiful animated 2D or 3D neighborhood map as the background, one short promise, and one primary CTA:
 
-The strongest positioning is:
+> **Find my dream neighborhood**
+> **Vind mijn droombuurt**
 
-> **Find the neighborhood before you find the house.**
+When the user clicks the CTA, the app opens a smooth one-question-at-a-time survey. The survey captures preferences, constraints, household context, budget, lifestyle priorities, and tradeoffs. The interface remains calm: one question, one set of choices, one progress indicator, one back button.
 
-The product should not compete head-on with Funda as a listing portal. It should sit **before and beside Funda**: helping users discover where to search, why those places fit, and when matching listings become available.
+After the final question, the user triggers a matching phase. The backend turns the answers into a structured preference vector, compares it with neighborhood data, runs the matching model, computes fit probabilities or scores, and returns ranked neighborhood recommendations.
 
----
+While the backend works, the frontend shows a friendly animated progress screen. Once matching is complete, the app confirms success with a large animated Buurt Check checkmark, then opens the results map.
 
-## 2. Market signals and priority segments
+The results map starts centered on the Netherlands. Recommended neighborhoods are shown as map markers and as a clean ranked list. Users can zoom manually or click a recommendation to fly into a neighborhood. At neighborhood level, the map shows the selected neighborhood, relevant amenities, and 3D houses only inside that neighborhood. Clicking a house starts the existing address-level search flow and opens the current Dossier interface.
 
-The latest WoON 2024 data shows a large addressable market: **3.6 million households have a moving wish or do not rule out moving, and almost 1.8 million are actively looking for a home**. The largest active groups are people moving from rental homes, starters, and people moving from owner-occupied homes. In 2024, active woningvragers included **668,700 doorstromers from rental homes**, **539,900 starters**, **492,300 doorstromers from owner-occupied homes**, and **87,700 semi-starters**.[^woon24]
+The final product should feel like this:
 
-CBS data from April 2026 also shows that the starter market is not only young Dutch people leaving home. In 2024, there were **518,000 starters on the housing market**, down from 560,000 in 2023. CBS reports that the largest group of starters were people coming to the Netherlands for work or study: **280,222 immigrant starters** in 2024, compared with **189,201 starters leaving a parental home**.[^cbs-starters]
-
-A structural signal is the rise of smaller households. CBS reported that one-person households made up **40% of all households at the beginning of 2024**, with projected growth to 44% by 2070.[^cbs-households]
-
-### Priority segment decision
-
-| Priority | Segment | Why it matters | Product implication |
-|---|---|---|---|
-| P0 | **Current renters who want to move** | Largest active segment in WoON 2024: 668,700 active searchers moving from rental homes. | Need rent + buy pathways, affordability filters, neighborhood alternatives, alerts. |
-| P0 | **Starters and first-time independent households** | 539,900 active starters in WoON 2024; CBS shows 518,000 starters in 2024. | Need guidance, education, and “where can I realistically live?” reports. |
-| P0/P1 | **Single people and couples without children** | One-person households are structurally large and growing. | Need apartment-friendly, commute, amenities, affordability, and social-life signals. |
-| P1 | **Families with children or planning children** | High emotional need and clear preference patterns: schools, safety context, green space, calmness, childcare, family amenities. | Need family-oriented scoring and explainable tradeoffs. |
-| P1 | **Urban-to-village / city escape movers** | Likely to know what they want emotionally but not geographically. | Need “similar lifestyle elsewhere” discovery, commute radius, and village/town comparisons. |
-| P1 | **Expats / internationals / newcomers** | CBS shows immigrants are a large starter source. This is a high-need segment, though not necessarily the broadest buyer segment. | Serve them through multilingual onboarding and newcomer-specific explanations, but do not position the whole product as “for expats only.” |
-| P2 | **Owner-occupier doorstromers** | 492,300 active searchers; often higher budget and purchase-oriented. | Useful for paid reports, premium alerts, and makelaar/mortgage partner leads. |
+> “Tell us how you want to live. We’ll show you where to look. Then you can check the exact house.”
 
 ---
 
-## 3. Problem statement
+## 2. Product positioning
 
-Home seekers in the Netherlands often begin their search with incomplete location knowledge. They can search listings on Funda, speak with makelaars, or ask friends, but these approaches usually assume the user already knows the target city, neighborhood, or village.
+### 2.1 One-line product definition
 
-This creates four problems:
+**Buurt Check helps people discover where they should live before they inspect the house.**
 
-1. **Location uncertainty:** Users do not know which neighborhoods match their lifestyle and constraints.
-2. **Poor comparability:** Neighborhood data is scattered across CBS, Leefbaarometer, Atlas Leefomgeving, municipal sources, listing portals, and makelaars.
-3. **Listing-first bias:** Existing platforms show homes first and neighborhood context second.
-4. **Emotional overload:** Buying or renting is high-stakes, but users receive fragmented information rather than a clear, personal recommendation.
+Dutch:
 
----
+**Buurt Check helpt mensen ontdekken waar ze het beste kunnen wonen voordat ze een woning controleren.**
 
-## 4. Product vision
+### 2.2 Core promise
 
-Buurt Check becomes the **AI-powered neighborhood advisor** for people looking to buy or rent in the Netherlands.
+The product should not start with a blank address field. It should start with the user’s life.
 
-The product should answer:
+The redesigned product answers:
 
-> “Based on who I am, what I value, what I can afford, and where I need to be, where should I actually look?”
+- Where should I search?
+- Which neighborhoods match the way I want to live?
+- Which tradeoffs should I understand before I fall in love with a house?
+- What does this specific house look like in its real neighborhood context?
 
-The user experience should combine:
+### 2.3 Strategic product decision
 
-- **Guided onboarding:** A short, friendly quiz.
-- **Data-backed matching:** Official datasets, normalized neighborhood indicators, and live housing availability.
-- **AI explanation:** Clear reasoning, tradeoffs, and recommendations in plain language.
-- **Action layer:** Relevant homes, bidding opportunities, saved neighborhoods, and alerts.
+The old split between **Search** and **Match** should disappear from the first screen.
 
----
+The app should have one primary journey:
 
-## 5. Goals and non-goals
+1. Match me with neighborhoods.
+2. Show me those neighborhoods on a beautiful interactive map.
+3. Let me inspect houses inside those neighborhoods.
+4. Open the existing Dossier flow for the selected house.
+5. Let me return to the map at any time.
 
-### Goals
+Address search can remain available, but it should no longer compete with matching as the main user journey. It may exist as:
 
-1. Help users discover neighborhoods they would not have found through normal listing search.
-2. Convert vague lifestyle preferences into ranked, explainable neighborhood recommendations.
-3. Provide trustworthy, source-backed reports based on official and curated data.
-4. Connect neighborhood discovery to live housing action: listings, bidding opportunities, rental availability, and alerts.
-5. Create a differentiated consumer experience that does not feel like a spreadsheet, government dashboard, or generic AI chat.
+- a secondary link in the footer,
+- a small “Already have an address?” option after onboarding,
+- or a route for returning users.
 
-### Non-goals for MVP
-
-- Do not become a full listing marketplace.
-- Do not provide formal valuation, mortgage, legal, or tax advice.
-- Do not replace a makelaar.
-- Do not rank neighborhoods using protected or sensitive demographic traits.
-- Do not promise that a neighborhood is “safe,” “perfect,” or “guaranteed” for a household.
-- Do not rely on raw LLM output for scoring without structured data.
+It should not be visually equal to the match CTA on the landing screen.
 
 ---
 
-## 6. Competitive landscape
+## 3. Goals and non-goals
 
-### Funda
+### 3.1 Goals
 
-Funda remains the dominant listing-first journey. It lets users search by location, map, filters, and custom drawn areas. Its neighborhood pages also include housing market data, residents, amenities, makelaars, and current buy/rent supply.[^funda-draw][^funda-neighborhood]
+1. Replace the confusing search/match split with one clear match-first journey.
+2. Make the first screen emotionally compelling, visually distinctive, and extremely simple.
+3. Capture user preferences through a smooth one-question-at-a-time survey.
+4. Convert survey answers into a structured preference vector.
+5. Trigger backend model fitting or scoring after the user completes the survey.
+6. Show clear animated progress while the backend computes recommendations.
+7. Present recommended neighborhoods on an interactive map of the Netherlands.
+8. Allow users to zoom into neighborhoods manually or through list interaction.
+9. Show only relevant 3D houses and important amenities inside the selected neighborhood.
+10. Let users click a house and continue into the existing Dossier interface.
+11. Keep an obvious route back from Dossier to the recommendation map.
+12. Support bilingual UI text in Dutch and English from day one.
+13. Keep the UI minimal, calm, and focused at every stage.
 
-**Gap for Buurt Check:** Funda helps after the user knows where to search. Buurt Check should help users decide *where* to search in the first place.
+### 3.2 Non-goals
 
-### Walter Living
-
-Walter positions itself as a data-driven digital aankoopmakelaar. It offers valuation, Walter Maps, neighborhood insights, AI Superagent, bid advice, and buying guidance. Walter says its AI Superagent is built for house hunting and is backed by market data and neighborhood insights.[^walter]
-
-**Gap for Buurt Check:** Walter is purchase and bidding oriented. Buurt Check should be broader and earlier in the journey: life-fit, neighborhood discovery, rental + buying, and “where should I live?” rather than “what should I bid?”
-
-### Huispedia
-
-Huispedia focuses heavily on property value, home data, comparable homes, and reports. It says its woningwaarde tool uses public sources such as Kadaster and CBS, home characteristics, and machine learning.[^huispedia]
-
-**Gap for Buurt Check:** Huispedia is home/address/value first. Buurt Check should be preference-first and neighborhood-discovery-first.
-
-### Atlas Leefomgeving and Check je plek
-
-Atlas Leefomgeving offers public environmental information, including “Check je plek,” which gives insight into the quality of the living environment around an address, and “Vind je plek,” which lets users weight indicators such as green environment, climate resilience, clean air, safety context, noise, public transport, and amenities.[^atlas-check][^atlas-vind]
-
-**Gap for Buurt Check:** Atlas is official and trustworthy, but not a consumer housing journey with listings, AI explanation, saved searches, or personalized home-search workflows.
-
-### Leefbaarometer
-
-Leefbaarometer provides government-backed livability data for neighborhoods, including physical environment, housing stock, amenities, social cohesion, and nuisance/insecurity dimensions. Its data has been updated with 2024 data.[^leefbaarometer-home][^leefbaarometer-open]
-
-**Gap for Buurt Check:** Leefbaarometer is policy/research-oriented. Buurt Check can translate similar official data into a consumer-facing decision product.
-
-### Buurtvergelijker and similar tools
-
-Buurt comparison tools present neighborhood comparisons across population, amenities, safety, and housing, often using sources such as CBS, Politie, and Rijksoverheid.
-
-**Gap for Buurt Check:** These tools compare places, but they do not yet feel like a full AI-guided home-search advisor connected to personal preferences, listing action, and alerts.
+1. Do not build a full listing marketplace in this revamp.
+2. Do not replace the existing Dossier interface unless required for routing and navigation consistency.
+3. Do not show all app features on the landing page.
+4. Do not expose the model, data tables, or algorithmic complexity to the user during onboarding.
+5. Do not show multiple questions on the same screen.
+6. Do not make the user choose between “Search” and “Match” on the first screen.
+7. Do not present the model output as objective truth. It is a recommendation based on stated preferences and available data.
+8. Do not make unsupported claims about safety, happiness, future value, or perfect fit.
 
 ---
 
-## 7. Differentiation strategy
+## 4. Target users
 
-Buurt Check should not differentiate by becoming more niche. It should differentiate by **packaging the same broad market need in a more guided, emotional, and action-oriented way**.
+### 4.1 Primary user
 
-### Core differentiators
+A home seeker in the Netherlands who wants to buy or rent but does not know exactly where to search.
 
-| Differentiator | Description |
-|---|---|
-| **Neighborhood-first journey** | Start with “where should I live?” instead of “show me homes in this city.” |
-| **Preference-to-place engine** | Convert lifestyle preferences into a structured neighborhood fit score. |
-| **Explainable AI report** | AI writes the narrative, but the score comes from curated data and transparent logic. |
-| **Similar-context discovery** | “You like this neighborhood, but here are five other places with similar calmness, greenery, schools, and affordability.” |
-| **Woonkompas / natal-chart storytelling** | Make the report feel personal and delightful without losing trust. |
-| **Official-data trust layer** | Every major claim should show source, timestamp, and confidence. |
-| **Action bridge to listings** | After neighborhood discovery, users see homes, bidding opportunities, and alerts. |
-| **Multilingual onboarding** | Especially valuable for expats and newcomers, but useful for the broader market. |
-| **Tradeoff transparency** | Do not only say “best match.” Explain what the user gains and sacrifices. |
-| **Non-niche persona system** | Serve families, expats, singles, couples, and city-escape movers through presets, not separate products. |
+They may know their budget, preferred lifestyle, commute constraints, and important needs, but they cannot translate those preferences into concrete neighborhoods.
+
+### 4.2 Secondary users
+
+- People relocating within the Netherlands.
+- International newcomers who do not understand Dutch neighborhood context.
+- Families comparing areas before buying.
+- Singles or couples with flexible geography.
+- Urban residents considering smaller towns or villages.
+- Users who already found a house but want to inspect the neighborhood after discovering it in the map flow.
 
 ---
 
-## 8. User personas
+## 5. UX principles
 
-### Persona 1: The relocating family
+### 5.1 One decision per screen
 
-**Profile:** Couple with one or more children, or planning children.  
-**Needs:** Schools, childcare, parks, safety indicators, low traffic, family-friendly housing stock, commute.  
-**Pain:** They search houses but cannot compare whether different areas would actually fit family life.  
-**Success moment:** “We found three neighborhoods outside our original search area that are safer, greener, and still within commute range.”
+Every screen should ask for only one mental action.
 
-### Persona 2: The international newcomer
+Bad:
 
-**Profile:** Expat, international student transitioning to work, skilled migrant, or international couple.  
-**Needs:** English explanations, public transport, amenities, registration practicality, proximity to work, international schools or community, rental availability.  
-**Pain:** They do not understand Dutch neighborhood names, local reputation, or tradeoffs.  
-**Success moment:** “I understand why these areas fit me and what Dutch terms/data mean.”
+> Search bar, match button, report upsell, map, examples, explanation, newsletter, pricing, and feature cards on the same screen.
 
-### Persona 3: The urban-to-village mover
+Good:
 
-**Profile:** Person or couple leaving Amsterdam, Utrecht, Rotterdam, The Hague, Eindhoven, etc.  
-**Needs:** Calmness, green space, affordability, commute, village/town amenities, future resale confidence.  
-**Pain:** They want “less city” but fear choosing somewhere too isolated.  
-**Success moment:** “I can compare villages and smaller towns through lifestyle fit, not just price.”
+> One promise. One button. One next step.
 
-### Persona 4: The single or couple without children
+### 5.2 The map is the atmosphere first, the tool second
 
-**Profile:** Single professional, couple, remote worker, or young household.  
-**Needs:** Affordability, commute, cafés/restaurants, sport, public transport, safety context, social life, apartment stock.  
-**Pain:** They are flexible geographically but do not know where flexibility gives them the best outcome.  
-**Success moment:** “I found realistic alternatives that match my lifestyle and budget.”
+The hero map is not a dashboard. It is a visual mood-setter. It should make users feel that Buurt Check understands place, neighborhood, streets, houses, and daily life.
 
-### Persona 5: The serious buyer
+The interactive map becomes a tool only after the model has produced results.
 
-**Profile:** Buyer ready to bid or close to ready.  
-**Needs:** Neighborhood confidence, supply alerts, bid timing, nearby alternatives.  
-**Pain:** They fall in love with homes without understanding the area.  
-**Success moment:** “Before bidding, I know the neighborhood context and comparable alternatives.”
+### 5.3 Smooth, not flashy
 
----
+Animations should be calm, useful, and non-intrusive. They should help users understand that they are moving through a guided flow, not watching a marketing effect.
 
-## 9. Core user journey
+Recommended animation style:
 
-### Step 1: Entry
+- soft fade,
+- gentle slide,
+- map drift,
+- light zoom,
+- progress motion,
+- animated checkmark at completion.
 
-User lands on Buurt Check with a clear promise:
+Avoid:
+
+- aggressive parallax,
+- spinning 3D effects,
+- excessive popups,
+- gamified confetti,
+- motion that makes text difficult to read.
+
+### 5.4 Minimal text, but not empty meaning
+
+The interface should contain very little copy. The copy must be clear, warm, and useful.
+
+The tone should be direct and human:
 
 > “Tell us how you want to live. We’ll show you where to look.”
 
-Primary CTA:
+Not generic SaaS language:
 
-> “Find my best neighborhoods”
+> “Leverage AI-powered geospatial intelligence to optimize your housing discovery journey.”
 
-Secondary CTA:
+### 5.5 Bilingual from the beginning
 
-> “Compare a neighborhood I already like”
+The product must support Dutch and English UI strings through a proper translation system. Hard-coded text is not acceptable.
 
----
+### 5.6 Trust without visual clutter
 
-### Step 2: Mini quiz
+Trust indicators should exist, but they should not pollute the survey. Source labels, confidence, and evidence belong in recommendation detail states and the Dossier, not on every onboarding screen.
 
-The quiz should take **3–6 minutes**.
+### 5.7 The user can always go back
 
-Required inputs:
+At every stage after the CTA, users must be able to go back without losing progress.
 
-- Buy, rent, or both.
-- Budget range.
-- Household type.
-- Current city or preferred anchor location.
-- Max commute time or travel radius.
-- Work/school anchor addresses, optional.
-- Must-haves vs nice-to-haves.
-- Property type preference.
-- Language preference.
-- Lifestyle priorities.
-
-Preference categories:
-
-| Category | Example preferences |
-|---|---|
-| Calmness | Quiet streets, low crowding, low nuisance indicators |
-| Green space | Parks, nature, tree cover, outdoor access |
-| Family fit | Schools, childcare, playgrounds, family households |
-| Mobility | Train, bus/tram/metro, cycling, car access |
-| Amenities | Supermarkets, healthcare, gyms, cafés, culture |
-| Affordability | Asking prices, rent levels, price per m², availability |
-| Safety context | Crime/nuisance indicators, Leefbaarometer dimensions |
-| Environmental quality | Noise, air, heat stress, flood/climate indicators |
-| Social/lifestyle fit | Urban, village, mixed, international-friendly, quiet |
-| Housing stock | Apartments, family homes, new build, energy labels |
+This is especially important for the survey. Preferences are personal, and users will change their mind.
 
 ---
 
-### Step 3: Preference vector
+## 6. Information architecture
 
-The app converts quiz answers into a structured user preference vector.
+### 6.1 New primary route structure
+
+Recommended route structure:
+
+```text
+/                         Landing / hero / match-first entry
+/match                    Survey shell
+/match/:sessionId         Active survey session
+/match/:sessionId/run     Matching progress screen
+/match/:sessionId/results Results map
+/match/:sessionId/neighborhood/:id Neighborhood map detail
+/dossier/:addressId       Existing address-level Dossier
+```
+
+Alternative if the current app already has an app shell:
+
+```text
+/app                      Redirects to match-first landing or dashboard
+/app/match                Primary match journey
+/app/results/:sessionId   Results map
+/app/dossier/:addressId   Existing Dossier
+```
+
+### 6.2 Search route treatment
+
+The current search route should remain technically available but visually demoted.
+
+Acceptable options:
+
+```text
+/search                   Existing address search, secondary route
+```
+
+Landing-page treatment:
+
+- Primary CTA: “Find my dream neighborhood” / “Vind mijn droombuurt”
+- Small secondary text link: “Already have an address?” / “Heb je al een adres?”
+
+The secondary link should not look like a competing button.
+
+---
+
+## 7. End-to-end user flow
+
+### Phase 0 — Landing hero
+
+The user arrives on the app.
+
+The screen shows:
+
+- full-screen or near-full-screen animated map background,
+- short headline,
+- short subheadline,
+- one primary CTA,
+- optional small secondary address link,
+- language switcher.
+
+The screen does not show:
+
+- search form,
+- match form,
+- feature grid,
+- report cards,
+- long explanation,
+- data source list,
+- pricing block.
+
+### Phase 1 — Survey intro
+
+After the CTA click, the hero transitions into the survey intro.
+
+The screen explains, briefly, why questions are needed.
+
+English:
+
+> **First, we need to understand how you want to live.**
+> A few quick choices help us match you with neighborhoods that fit your life, not just your budget.
+
+Dutch:
+
+> **Eerst willen we begrijpen hoe je wilt wonen.**
+> Met een paar snelle keuzes vinden we buurten die passen bij je leven, niet alleen bij je budget.
+
+CTA:
+
+- EN: **Start the match**
+- NL: **Start de match**
+
+### Phase 2 — One-question survey
+
+The survey begins.
+
+Rules:
+
+- Only one question visible at a time.
+- Choices are large, touch-friendly, and easy to scan.
+- Progress bar is always visible.
+- Back button is always visible after question 1.
+- The answer is saved immediately when selected, but the user can modify it.
+- The next question opens with a smooth transition.
+- The screen must not contain sidebars, tips, charts, or unrelated content.
+
+### Phase 3 — Review and run model
+
+After the final question, show a simple review screen.
+
+This is the only screen where a short summary may appear.
+
+English:
+
+> **Ready to find your best neighborhoods?**
+> We’ll compare your preferences with neighborhood data and build your personal match map.
+
+Dutch:
+
+> **Klaar om je beste buurten te vinden?**
+> We vergelijken je voorkeuren met buurtdata en maken je persoonlijke matchkaart.
+
+CTA:
+
+- EN: **Show my matches**
+- NL: **Toon mijn matches**
+
+### Phase 4 — Matching progress
+
+The backend job starts.
+
+The user sees an animated, friendly progress screen.
+
+The screen should include:
+
+- animated map or soft geometric map lines,
+- progress indicator,
+- short rotating status messages,
+- no technical logs,
+- no raw model names,
+- no fake precision.
+
+Example messages:
+
+| State | English | Dutch |
+|---|---|---|
+| Reading preferences | Reading your living preferences | Je woonwensen lezen |
+| Building profile | Building your neighborhood profile | Je buurtprofiel maken |
+| Comparing neighborhoods | Comparing neighborhoods across the Netherlands | Buurten in Nederland vergelijken |
+| Checking tradeoffs | Checking budget, commute, and daily-life tradeoffs | Budget, reistijd en dagelijkse afwegingen controleren |
+| Preparing results | Preparing your match map | Je matchkaart voorbereiden |
+
+### Phase 5 — Successful completion
+
+When matching is complete, show a large animated checkmark that clearly corresponds to the Buurt Check brand.
+
+English:
+
+> **Your neighborhood matches are ready.**
+
+Dutch:
+
+> **Je buurtmatches zijn klaar.**
+
+Then automatically transition to results after a short delay, or let the user click:
+
+- EN: **Open my map**
+- NL: **Open mijn kaart**
+
+### Phase 6 — Results map
+
+The results view opens centered on the Netherlands.
+
+The screen shows:
+
+- map of the Netherlands,
+- ranked list of recommended neighborhoods,
+- markers or highlighted areas on the map,
+- match score or fit label,
+- short reason for each neighborhood,
+- ability to zoom manually,
+- ability to click a list item and fly to the neighborhood,
+- ability to click a marker and highlight the same list item.
+
+The results map is the first moment where the interface becomes exploratory.
+
+### Phase 7 — Neighborhood detail map
+
+When a user selects a neighborhood, the map zooms into it.
+
+The neighborhood detail state shows:
+
+- only the selected neighborhood highlighted,
+- 3D houses inside the selected neighborhood,
+- important amenities as restrained tags or icons,
+- short neighborhood fit explanation,
+- button to inspect individual houses,
+- button to return to the Netherlands results view.
+
+The map must not show 3D houses across the whole country. That would be visually noisy and technically heavy. 3D houses should load only for the selected neighborhood or current viewport when zoomed in enough.
+
+### Phase 8 — House selection and Dossier
+
+The user clicks a house.
+
+The app opens the existing Dossier interface for that address or parcel.
+
+The Dossier should preserve the match context:
+
+- selected neighborhood,
+- session ID,
+- back-to-map route,
+- current filters or preferences.
+
+The Dossier must include a persistent navigation option:
+
+- EN: **Back to match map**
+- NL: **Terug naar matchkaart**
+
+This is critical. Users must be able to inspect a house, return to the neighborhood map, and choose another house or neighborhood without restarting.
+
+---
+
+## 8. Detailed functional requirements
+
+### 8.1 Landing hero
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-L1 | Display a full-screen or near-full-screen animated map hero. | P0 | Hero loads on first visit and remains readable on desktop and mobile. |
+| FR-L2 | Provide one dominant CTA for neighborhood matching. | P0 | CTA is visually dominant and starts the match flow. |
+| FR-L3 | Demote address search to a small secondary link. | P0 | Search is not presented as an equal card or equal CTA. |
+| FR-L4 | Support Dutch/English language switcher. | P0 | Language can be changed before starting the survey. |
+| FR-L5 | Provide reduced-motion fallback. | P0 | Users with reduced-motion preferences see a static map or very subtle background. |
+| FR-L6 | Provide low-bandwidth fallback. | P1 | If animation fails, static hero still renders with CTA. |
+
+### 8.2 Survey shell
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-S1 | Show only one question at a time. | P0 | No screen contains multiple survey questions. |
+| FR-S2 | Show progress bar throughout survey. | P0 | User sees current step and remaining progress. |
+| FR-S3 | Provide back button after first question. | P0 | User can return to any previous question and change answer. |
+| FR-S4 | Save answers after every step. | P0 | Refreshing page does not lose completed answers within active session. |
+| FR-S5 | Validate required answers before advancing. | P0 | User cannot proceed without required selection. |
+| FR-S6 | Support single-select, multi-select, range, and optional address/anchor input questions. | P0 | Components work consistently in Dutch and English. |
+| FR-S7 | Keep survey visually minimal. | P0 | No unrelated cards, explanations, maps, or metrics appear during questions. |
+
+### 8.3 Survey content
+
+The MVP survey should contain 10–12 questions. It must be short enough to complete, but detailed enough to produce meaningful matches.
+
+Recommended question set:
+
+| Step | Question purpose | Input type | Required |
+|---:|---|---|---|
+| 1 | Buy, rent, or both | Single select | Yes |
+| 2 | Budget | Range or preset chips | Yes |
+| 3 | Household type | Single select | Yes |
+| 4 | Preferred anchor location | City/address input | Yes |
+| 5 | Commute or travel tolerance | Slider / presets | Yes |
+| 6 | Lifestyle priority | Multi-select top 3 | Yes |
+| 7 | Must-haves | Multi-select | Yes |
+| 8 | Dealbreakers | Multi-select | Optional but recommended |
+| 9 | Housing type | Multi-select | Yes |
+| 10 | Area character | Single select | Yes |
+| 11 | Language/report preference | Single select | Yes if not already chosen |
+| 12 | Review | Summary + run CTA | Yes |
+
+### 8.4 Preference vector creation
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-P1 | Convert survey answers into a structured preference vector. | P0 | Backend stores weights, hard filters, soft preferences, and exclusions. |
+| FR-P2 | Separate hard constraints from preferences. | P0 | Budget, travel radius, buy/rent intent, and required anchors can be treated as filters. |
+| FR-P3 | Normalize preference weights. | P0 | User priorities become comparable model inputs. |
+| FR-P4 | Preserve raw answers. | P0 | Raw survey answers remain available for explanation and debugging. |
+| FR-P5 | Support bilingual labels independent of stored values. | P0 | Backend stores stable keys, not translated strings. |
+
+Example preference vector:
+
+```json
+{
+  "session_id": "match_123",
+  "language": "en",
+  "intent": "buy",
+  "budget_min": 450000,
+  "budget_max": 625000,
+  "household_type": "family_young_child",
+  "anchor_locations": [
+    {"type": "work", "label": "Amsterdam Zuid", "lat": 52.338, "lon": 4.872}
+  ],
+  "max_commute_minutes": 45,
+  "hard_filters": {
+    "intent": "buy",
+    "budget_required": true,
+    "commute_required": true
+  },
+  "weights": {
+    "green_access": 0.20,
+    "calmness": 0.18,
+    "schools_childcare": 0.18,
+    "public_transport": 0.14,
+    "affordability": 0.14,
+    "amenities": 0.10,
+    "environmental_quality": 0.06
+  },
+  "avoid": ["high_noise", "busy_nightlife", "low_listing_supply"],
+  "housing_preferences": ["row_house", "family_house", "garden"]
+}
+```
+
+### 8.5 Matching backend
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-M1 | Trigger matching only after the final survey CTA. | P0 | Model run does not start before user confirms. |
+| FR-M2 | Start an asynchronous backend job. | P0 | User receives a job/session ID and progress state. |
+| FR-M3 | Compare user preference vector to neighborhood feature matrix. | P0 | Every candidate neighborhood receives eligibility, score, and reason codes. |
+| FR-M4 | Return ranked neighborhood recommendations. | P0 | Results include top matches, scores/probabilities, reasons, tradeoffs, confidence, and geometry IDs. |
+| FR-M5 | Exclude neighborhoods that fail hard constraints unless shown as stretch/near-miss. | P0 | Hard filter failures are not presented as normal top matches. |
+| FR-M6 | Store model run metadata. | P0 | Result includes model version, data version, runtime, and evaluation status. |
+| FR-M7 | Handle model failure gracefully. | P0 | User sees fallback message and deterministic score results if predictive model fails. |
+
+### 8.6 Model selection requirement
+
+The requested backend should fit multiple models and choose the one with the highest predictive power. This is only statistically valid if the system has a target variable or validation data.
+
+Therefore the PRD requires two operating modes.
+
+#### Mode A — MVP without enough historical labels
+
+Use a deterministic or semi-deterministic weighted scoring engine.
+
+Allowed methods:
+
+- weighted normalized utility score,
+- constraint filtering,
+- similarity matching,
+- confidence scoring based on data completeness,
+- transparent reason-code generation.
+
+In this mode, do not claim “highest predictive power.” Instead, say:
+
+> “We are comparing your preferences with neighborhood data.”
+
+#### Mode B — Predictive mode with labels
+
+Use model selection only when there is sufficient training or validation data.
+
+Acceptable labels:
+
+- user saved neighborhood,
+- user liked/disliked recommendation,
+- user clicked a neighborhood,
+- user clicked a house after selecting a neighborhood,
+- user returned to a neighborhood,
+- manually curated expert labels,
+- historical conversion data if available.
+
+Candidate models:
+
+- weighted utility baseline,
+- logistic regression with calibrated probabilities,
+- random forest,
+- gradient boosting,
+- k-nearest-neighbor similarity model,
+- learning-to-rank model when enough data exists.
+
+Evaluation metrics:
+
+- NDCG@10 for ranked recommendations,
+- MAP@10 for saved/liked neighborhoods,
+- ROC-AUC if binary labels exist,
+- calibration error if probabilities are shown,
+- stability checks across repeated runs.
+
+Required rule:
+
+> The app may only claim that the model with the highest predictive power was selected when predictive performance was measured against real validation labels or a documented evaluation dataset.
+
+This is not optional. Without labels, the app can still produce useful recommendations, but they should be presented as data-backed fit scores, not validated predictive probabilities.
+
+### 8.7 Matching output schema
+
+Recommended output:
+
+```json
+{
+  "session_id": "match_123",
+  "status": "completed",
+  "model_mode": "weighted_scoring",
+  "model_version": "match-engine-0.1.0",
+  "data_version": "neighborhood-features-2026-05-01",
+  "results": [
+    {
+      "neighborhood_id": "BU03630102",
+      "name": "Examplebuurt",
+      "municipality": "Exampledam",
+      "rank": 1,
+      "fit_score": 0.89,
+      "fit_label": "Very strong match",
+      "probability": null,
+      "confidence": "medium_high",
+      "reason_codes": [
+        "green_access_high",
+        "commute_feasible",
+        "family_amenities_strong",
+        "budget_realistic"
+      ],
+      "tradeoffs": [
+        "lower_current_supply",
+        "prices_near_upper_budget"
+      ],
+      "geometry_ref": "neighborhood_geom_BU03630102",
+      "map_center": {"lat": 52.1, "lon": 5.1},
+      "bbox": [4.9, 52.0, 5.2, 52.2]
+    }
+  ],
+  "near_misses": [],
+  "stretch_matches": []
+}
+```
+
+### 8.8 Results map
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-R1 | Show results on a map centered on the Netherlands. | P0 | Initial results view shows national context and all recommended neighborhoods. |
+| FR-R2 | Show ranked neighborhood list beside or below map. | P0 | List and map stay synchronized. |
+| FR-R3 | Allow list click to zoom to neighborhood. | P0 | Clicking a list item flies to selected neighborhood and highlights it. |
+| FR-R4 | Allow map marker click to highlight list item. | P0 | Marker selection updates list state. |
+| FR-R5 | Show concise fit reason per neighborhood. | P0 | Each item has max 1–2 short reason lines. |
+| FR-R6 | Show detailed explanation only on expansion or detail view. | P1 | Default list remains visually clean. |
+| FR-R7 | Support mobile map/list switching. | P0 | Mobile users can toggle Map and List without losing state. |
+
+### 8.9 Neighborhood 3D detail
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-N1 | Load 3D houses only inside selected neighborhood. | P0 | 3D buildings are not rendered nationally. |
+| FR-N2 | Highlight neighborhood boundary. | P0 | User clearly sees selected area. |
+| FR-N3 | Show important amenities as minimal tags. | P0 | No more than 5–7 amenity categories visible by default. |
+| FR-N4 | Allow house click to open Dossier. | P0 | Clicking a selectable house routes to existing Dossier. |
+| FR-N5 | Provide fallback for missing 3D data. | P0 | If 3D houses unavailable, show 2D building footprints and message. |
+| FR-N6 | Keep map performant. | P0 | Detail map loads within target performance budget. |
+
+### 8.10 Dossier integration
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---:|---|
+| FR-D1 | Reuse existing Dossier interface. | P0 | Existing address-level modules continue to work. |
+| FR-D2 | Preserve match session context. | P0 | Dossier knows which match session and neighborhood led to the address. |
+| FR-D3 | Add persistent back-to-map action. | P0 | User can return to selected neighborhood map from Dossier. |
+| FR-D4 | Avoid forcing survey restart. | P0 | Returning to map preserves all results. |
+| FR-D5 | Allow checking another house. | P0 | User can inspect multiple houses from the same or different matched neighborhoods. |
+
+---
+
+## 9. Survey UI specification
+
+### 9.1 Screen layout
+
+Each survey question screen contains:
+
+1. small top progress bar,
+2. back button where applicable,
+3. question title,
+4. optional one-line helper text,
+5. large answer choices,
+6. next button only where answer type requires explicit confirmation.
+
+Do not include:
+
+- charts,
+- long copy,
+- extra recommendation snippets,
+- data source explanations,
+- ads,
+- feature cards,
+- unrelated navigation.
+
+### 9.2 Progress bar
+
+Progress format options:
+
+- “Question 3 of 11” / “Vraag 3 van 11”
+- thin horizontal bar with percentage width,
+- optional small label: “8 questions left” / “Nog 8 vragen”.
+
+Recommended display:
+
+```text
+Vraag 3 van 11
+[██████----------------]
+```
+
+On mobile, keep it compact.
+
+### 9.3 Back behavior
+
+Back button behavior:
+
+- returns to previous question,
+- keeps current answer state,
+- allows user to change answer,
+- recomputes downstream vector when the survey is submitted,
+- does not trigger backend model run until final CTA.
+
+### 9.4 Answer controls
+
+Use large, readable controls:
+
+- cards for single select,
+- chips for multi-select,
+- sliders for travel time and budget where useful,
+- address autocomplete for anchors,
+- simple text only when necessary.
+
+Avoid long forms.
+
+### 9.5 Visual tone
+
+The survey should feel like a calm conversation, not a government intake form.
+
+Use soft surfaces, large spacing, and clear typography.
+
+---
+
+## 10. Recommended bilingual survey copy
+
+### 10.1 Landing
+
+| Element | English | Dutch |
+|---|---|---|
+| Headline | Find your dream neighborhood. | Vind je droombuurt. |
+| Subheadline | Tell us how you want to live. We’ll show you where to look. | Vertel ons hoe je wilt wonen. Wij laten zien waar je moet zoeken. |
+| Primary CTA | Find my dream neighborhood | Vind mijn droombuurt |
+| Secondary link | Already have an address? | Heb je al een adres? |
+
+### 10.2 Survey intro
+
+| Element | English | Dutch |
+|---|---|---|
+| Title | First, we need to understand how you want to live. | Eerst willen we begrijpen hoe je wilt wonen. |
+| Body | A few quick choices help us match you with neighborhoods that fit your life, not just your budget. | Met een paar snelle keuzes vinden we buurten die passen bij je leven, niet alleen bij je budget. |
+| CTA | Start the match | Start de match |
+
+### 10.3 Questions
+
+| Step | English question | Dutch question |
+|---:|---|---|
+| 1 | Are you looking to buy, rent, or both? | Wil je kopen, huren of allebei? |
+| 2 | What is your realistic budget? | Wat is je realistische budget? |
+| 3 | Who are you moving with? | Met wie verhuis je? |
+| 4 | Where do you need to stay connected to? | Waar wil je goed mee verbonden blijven? |
+| 5 | What is your maximum comfortable travel time? | Wat is je maximale comfortabele reistijd? |
+| 6 | What matters most in daily life? | Wat telt het meest in je dagelijks leven? |
+| 7 | What are your must-haves? | Wat zijn je must-haves? |
+| 8 | What would you rather avoid? | Wat wil je liever vermijden? |
+| 9 | What kind of home are you hoping for? | Wat voor woning zoek je? |
+| 10 | What kind of area feels right? | Wat voor omgeving voelt goed? |
+| 11 | How should we explain your results? | Hoe moeten we je resultaten uitleggen? |
+| 12 | Ready to find your best neighborhoods? | Klaar om je beste buurten te vinden? |
+
+### 10.4 Example answer labels
+
+#### Intent
+
+| Key | English | Dutch |
+|---|---|---|
+| buy | Buy | Kopen |
+| rent | Rent | Huren |
+| both | Both | Allebei |
+| exploring | I’m still exploring | Ik ben nog aan het oriënteren |
+
+#### Household
+
+| Key | English | Dutch |
+|---|---|---|
+| solo | Just me | Alleen ik |
+| couple | Couple | Stel |
+| family_young | Family with young children | Gezin met jonge kinderen |
+| family_older | Family with older children | Gezin met oudere kinderen |
+| shared | Shared household | Gedeeld huishouden |
+| other | Something else | Iets anders |
+
+#### Daily-life priorities
+
+| Key | English | Dutch |
+|---|---|---|
+| green | Green space | Groen |
+| calm | Calm streets | Rustige straten |
+| schools | Schools and childcare | Scholen en kinderopvang |
+| transit | Public transport | Openbaar vervoer |
+| affordability | Affordability | Betaalbaarheid |
+| amenities | Daily amenities | Dagelijkse voorzieningen |
+| social | Cafés, culture, social life | Cafés, cultuur en sociaal leven |
+| climate | Climate and environment | Klimaat en leefomgeving |
+
+#### Area character
+
+| Key | English | Dutch |
+|---|---|---|
+| city | City energy | Stadse energie |
+| calm_city | Calm but urban | Rustig maar stedelijk |
+| green_suburb | Green suburb | Groene buitenwijk |
+| village | Village feel | Dorps gevoel |
+| mixed | A bit of everything | Van alles wat |
+
+### 10.5 Matching progress copy
+
+| State | English | Dutch |
+|---|---|---|
+| Starting | Starting your neighborhood match | Je buurtmatch starten |
+| Preferences | Reading your living preferences | Je woonwensen lezen |
+| Profile | Building your neighborhood profile | Je buurtprofiel maken |
+| Data | Comparing neighborhoods with real data | Buurten vergelijken met echte data |
+| Tradeoffs | Checking budget, commute, and daily-life tradeoffs | Budget, reistijd en dagelijkse afwegingen controleren |
+| Map | Preparing your match map | Je matchkaart voorbereiden |
+| Done | Your neighborhood matches are ready | Je buurtmatches zijn klaar |
+
+### 10.6 Results copy
+
+| Element | English | Dutch |
+|---|---|---|
+| Results title | Your best neighborhood matches | Je beste buurtmatches |
+| Results subtitle | These places best match the way you want to live. | Deze plekken passen het beste bij hoe je wilt wonen. |
+| List label | Recommended neighborhoods | Aanbevolen buurten |
+| Map CTA | Explore on map | Bekijk op kaart |
+| Detail CTA | View neighborhood | Bekijk buurt |
+| House CTA | Check this house | Check deze woning |
+| Back CTA | Back to match map | Terug naar matchkaart |
+| Tradeoff label | Watchout | Let op |
+| Fit label | Strong match | Sterke match |
+
+---
+
+## 11. Results map UX specification
+
+### 11.1 Desktop layout
+
+Recommended desktop layout:
+
+```text
+ ---------------------------------------------------------
+| Top bar: Buurt Check | Language | Saved | Back/Reset     |
+ ---------------------------------------------------------
+|                          |                              |
+| Ranked list              | Map of Netherlands           |
+|                          |                              |
+| 1. Neighborhood A        | markers / polygons           |
+|    Strong match          |                              |
+|    Green + commute       |                              |
+|                          |                              |
+| 2. Neighborhood B        |                              |
+|                          |                              |
+ ---------------------------------------------------------
+```
+
+Map should dominate visually, but the list must be easy to use.
+
+### 11.2 Mobile layout
+
+Recommended mobile layout:
+
+- default to list-first after results,
+- provide sticky segmented control: Map / List,
+- map opens full-screen,
+- selected neighborhood bottom sheet appears over map,
+- bottom sheet contains fit reason and CTA.
+
+### 11.3 Neighborhood cards
+
+Each card should include only:
+
+- rank,
+- neighborhood name,
+- municipality,
+- fit label or score,
+- 1–2 reasons,
+- one CTA.
 
 Example:
 
-```text
-User profile:
-- Household: family with young child
-- Journey: buy
-- Budget: €475k–€625k
-- Anchor: Amsterdam Zuid
-- Commute max: 45 minutes public transport / 35 minutes car
-- Must-haves: schools, green, low noise, family housing stock
-- Nice-to-haves: village feel, supermarket within 1 km, train nearby
-- Avoid: dense nightlife, high traffic, very low supply
+English:
+
+> **1. Oegstgeest — Strong match**
+> Green, calm, and well connected to your anchor location.
+> **View neighborhood**
+
+Dutch:
+
+> **1. Oegstgeest — Sterke match**
+> Groen, rustig en goed verbonden met je ankerlocatie.
+> **Bekijk buurt**
+
+### 11.4 Map marker design
+
+Markers should be visually restrained.
+
+Recommended:
+
+- numbered markers matching list rank,
+- color or intensity by fit score,
+- hover/click tooltip with neighborhood name,
+- selected marker uses brand checkmark or highlighted outline.
+
+Avoid:
+
+- too many labels at national zoom,
+- large popups by default,
+- dense icon clutter,
+- showing amenities before neighborhood zoom.
+
+---
+
+## 12. Neighborhood 3D detail UX specification
+
+### 12.1 Entry animation
+
+When a neighborhood is selected:
+
+1. map flies to neighborhood,
+2. boundary appears,
+3. buildings load progressively,
+4. amenity tags fade in,
+5. detail panel opens with concise explanation.
+
+### 12.2 Visual hierarchy
+
+Default visible layers:
+
+1. selected neighborhood boundary,
+2. 3D houses/buildings inside boundary,
+3. important amenities,
+4. roads/water/green context,
+5. selected/hovered house.
+
+Hidden by default:
+
+- every possible amenity,
+- all metrics,
+- all data-source badges,
+- all nearby neighborhoods,
+- all Dossier modules.
+
+### 12.3 Amenity tags
+
+Show only the most relevant amenities based on the user’s stated preferences.
+
+Examples:
+
+- schools,
+- childcare,
+- supermarket,
+- train station,
+- park,
+- healthcare,
+- sports.
+
+If the user prioritized families, show schools and childcare first.
+If the user prioritized mobility, show stations and transit first.
+If the user prioritized green space, show parks/nature first.
+
+### 12.4 House selection
+
+Clickable houses should have clear hover/active states.
+
+When clicked:
+
+- identify address/building if available,
+- show a compact confirmation card,
+- CTA opens Dossier.
+
+Example:
+
+English:
+
+> **Check this house?**
+> We’ll open the full Buurt Check Dossier for this address.
+
+Dutch:
+
+> **Deze woning checken?**
+> We openen het volledige Buurt Check Dossier voor dit adres.
+
+CTA:
+
+- EN: **Open Dossier**
+- NL: **Open Dossier**
+
+---
+
+## 13. Existing Dossier integration
+
+### 13.1 Required Dossier changes
+
+The existing Dossier should not be redesigned in this PRD, but it must support the new journey.
+
+Required additions:
+
+1. Persistent **Back to match map** button.
+2. Breadcrumb showing selected neighborhood.
+3. Session-aware routing.
+4. Optional “Next matched house” / “Explore another neighborhood” actions.
+
+### 13.2 Dossier entry context
+
+When the user enters Dossier from the map, pass:
+
+```json
+{
+  "session_id": "match_123",
+  "source": "match_map",
+  "neighborhood_id": "BU03630102",
+  "address_id": "ADDR_456",
+  "return_url": "/match/match_123/neighborhood/BU03630102"
+}
 ```
 
----
+### 13.3 Return behavior
 
-### Step 4: Neighborhood matching
+When the user clicks **Back to match map**:
 
-The system compares the user vector against neighborhood vectors.
-
-The matching engine should produce:
-
-- Top 10 neighborhoods.
-- 3–5 surprising alternatives.
-- 3 stretch areas that are excellent fits but may exceed budget or commute.
-- 3 avoid-or-reconsider areas with clear reasons.
-- Confidence score per recommendation.
-- Data freshness indicator.
+- return to the same neighborhood detail view,
+- preserve zoom level where possible,
+- preserve selected neighborhood,
+- preserve recommendation list state,
+- do not restart survey,
+- do not rerun matching unless user changed preferences.
 
 ---
 
-### Step 5: AI-generated report
+## 14. Backend architecture
 
-The user receives a personalized report.
+### 14.1 Recommended architecture
 
-Working report names:
+```text
+Frontend
+  ↓
+Survey/session API
+  ↓
+Preference vector builder
+  ↓
+Async match job queue
+  ↓
+Python matching service
+  ↓
+Neighborhood feature store
+  ↓
+Model/scoring engine
+  ↓
+Results API
+  ↓
+Map + Dossier UI
+```
 
-- Your Woonkompas
-- Your Buurt Match Report
-- Your Home Happiness Map
-- Your Neighborhood Natal Chart
-- Where You Should Live Report
+### 14.2 Required services
 
-Recommended structure:
+| Service | Responsibility |
+|---|---|
+| Session service | Create and persist match sessions. |
+| Survey service | Store answers and validation state. |
+| Preference service | Convert answers to hard filters, weights, and feature preferences. |
+| Matching service | Run model/scoring logic in Python. |
+| Feature store | Provide neighborhood-level feature matrix. |
+| Geometry service | Provide neighborhood polygons, centroids, and 3D building layer refs. |
+| Results service | Store and serve recommendation output. |
+| Dossier bridge | Convert selected house/address into existing Dossier route. |
 
-1. Your profile summary
-2. Top neighborhood matches
-3. Why these neighborhoods fit
-4. Tradeoffs and watchouts
-5. Similar neighborhoods you may not know
-6. Live homes available now
-7. Suggested alerts
-8. Next steps
+### 14.3 Suggested API endpoints
 
-Tone:
+```text
+POST   /api/match/sessions
+GET    /api/match/sessions/:sessionId
+PATCH  /api/match/sessions/:sessionId/answers
+POST   /api/match/sessions/:sessionId/run
+GET    /api/match/sessions/:sessionId/status
+GET    /api/match/sessions/:sessionId/results
+GET    /api/neighborhoods/:neighborhoodId
+GET    /api/neighborhoods/:neighborhoodId/map-layers
+GET    /api/neighborhoods/:neighborhoodId/buildings
+GET    /api/neighborhoods/:neighborhoodId/amenities
+POST   /api/dossier/from-building
+GET    /api/dossier/:addressId
+```
 
-- Warm.
-- Personal.
-- Slightly playful.
-- Never overconfident.
-- Always evidence-backed.
+### 14.4 Progress updates
 
-Example language:
+Use one of:
 
-> “Your strongest pattern is: calm, green, family-ready, but not disconnected. You score highest in neighborhoods that combine lower crowding, nearby schools, and reasonable access to Amsterdam. Your best matches are not the cheapest areas, but they give you the strongest balance between daily peace and practical mobility.”
+- Server-Sent Events,
+- WebSocket,
+- polling every 1–2 seconds.
+
+Recommended for simplicity:
+
+- polling for MVP,
+- SSE or WebSocket if matching takes longer or progress states become richer.
+
+Status response example:
+
+```json
+{
+  "session_id": "match_123",
+  "status": "running",
+  "progress": 0.58,
+  "stage": "comparing_neighborhoods",
+  "message_key": "progress.comparing_neighborhoods"
+}
+```
+
+### 14.5 Job states
+
+Required job states:
+
+```text
+created
+queued
+reading_preferences
+building_profile
+loading_neighborhood_data
+applying_filters
+running_models
+scoring_tradeoffs
+preparing_map
+completed
+failed
+completed_with_fallback
+```
+
+### 14.6 Error handling
+
+If the predictive model fails but deterministic scoring succeeds:
+
+- show results,
+- mark run as `completed_with_fallback`,
+- do not expose technical model failure to user,
+- log for developers.
+
+User-facing copy:
+
+English:
+
+> We found your matches using the stable scoring model. Some advanced ranking features were skipped this time.
+
+Dutch:
+
+> We hebben je matches gevonden met het stabiele scoremodel. Enkele geavanceerde rangschikkingsfuncties zijn deze keer overgeslagen.
+
+If all matching fails:
+
+English:
+
+> We couldn’t create your match map yet. Your answers are saved, so you can try again without starting over.
+
+Dutch:
+
+> We konden je matchkaart nog niet maken. Je antwoorden zijn opgeslagen, dus je hoeft niet opnieuw te beginnen.
 
 ---
 
-### Step 6: Listings and alerts
+## 15. Data requirements
 
-Once the user accepts or saves neighborhoods, Buurt Check shows:
+### 15.1 Neighborhood feature matrix
 
-- Current homes for sale or rent.
-- Price range.
-- Days on market.
-- Availability density.
-- Matching homes by neighborhood score.
-- Alerts for future listings.
-- Optional “notify me when this neighborhood has a home under €X.”
+The matching engine needs a neighborhood-level feature matrix.
 
-Critical dependency: Funda/NVM, Pararius, rental platforms, makelaar feeds, or other licensed listing sources. The PRD should assume **licensed data access**, not scraping.
+Minimum fields:
+
+- neighborhood ID,
+- neighborhood name,
+- municipality,
+- geometry reference,
+- centroid,
+- buy/rent availability proxy,
+- affordability signals,
+- green-space access,
+- calmness/noise indicators,
+- public transport access,
+- amenity proximity,
+- schools/childcare access,
+- environmental quality indicators,
+- housing stock composition,
+- data completeness score,
+- data freshness timestamp.
+
+### 15.2 Geometry data
+
+Required geometry layers:
+
+- national boundary or basemap,
+- neighborhood polygons,
+- building footprints,
+- 3D building data where available,
+- amenity point layers,
+- selected house/address geometry.
+
+### 15.3 Data freshness
+
+Every recommendation should contain data version metadata.
+
+The UI does not need to expose all metadata upfront, but detail panels and Dossier should be able to show:
+
+- source,
+- date loaded,
+- confidence,
+- missing data warnings.
+
+### 15.4 Data minimization
+
+Store only what is needed.
+
+Personal preference data should be stored by anonymous session unless the user creates an account or explicitly saves results.
 
 ---
 
-## 10. Functional requirements
+## 16. Map and 3D requirements
+
+### 16.1 Hero background map
+
+The hero background can use one of three approaches:
+
+1. pre-rendered looping map video,
+2. lightweight animated 2D map canvas,
+3. lightweight 3D map scene.
+
+Recommended MVP choice:
+
+> Use a pre-rendered or highly optimized animated hero background first, then upgrade to live 3D if performance remains excellent.
+
+Reason:
+
+The landing page must be fast, stable, and readable. A heavy live 3D scene on the first screen may hurt conversion.
+
+### 16.2 Results map
+
+The results map must be interactive and live.
+
+Requirements:
+
+- fast pan/zoom,
+- clickable markers,
+- neighborhood polygons,
+- list synchronization,
+- mobile support,
+- accessible keyboard alternatives where possible.
+
+### 16.3 3D building map
+
+The 3D building detail should load only after a neighborhood is selected.
+
+Performance rules:
+
+- do not load national 3D building data,
+- load by neighborhood ID or bounding box,
+- simplify geometry where possible,
+- use level-of-detail,
+- lazy-load amenities,
+- show skeleton/loading state,
+- provide 2D fallback.
+
+### 16.4 Amenity layer
+
+The amenity layer must be preference-aware.
+
+Example:
+
+If user selected `schools`, `green`, and `calm`, default visible amenities should be:
+
+- schools,
+- childcare,
+- parks/nature,
+- playgrounds,
+- supermarkets if relevant.
+
+The UI should not show all amenities at once.
+
+---
+
+## 17. Visual design direction
+
+### 17.1 Brand feel
+
+Buurt Check should feel:
+
+- calm,
+- sharp,
+- trustworthy,
+- warm,
+- spatial,
+- modern,
+- slightly magical but not gimmicky.
+
+The experience should feel like a personal guide through the Dutch housing landscape, not like another filter-heavy real estate dashboard.
+
+### 17.2 Typography
+
+Use large, readable headings and generous spacing.
+
+Recommended hierarchy:
+
+- Hero headline: very large, short, emotionally clear.
+- Survey question: large, readable, centered or left-aligned depending on layout.
+- Helper text: one sentence maximum.
+- Buttons: large, obvious, plain language.
+
+### 17.3 Motion
+
+Motion should communicate progress and spatial movement.
+
+Use motion for:
+
+- hero map drift,
+- survey transition,
+- progress updates,
+- map fly-to selected neighborhood,
+- checkmark success state,
+- neighborhood detail reveal.
+
+Do not use motion for decoration alone.
+
+### 17.4 Checkmark animation
+
+The success checkmark should match Buurt Check’s identity.
+
+Requirements:
+
+- large and central,
+- smooth draw animation,
+- short completion moment,
+- accessible reduced-motion variant,
+- no excessive confetti.
+
+### 17.5 Color
+
+Use existing Buurt Check brand colors if already defined. If not, define:
+
+- one primary brand color,
+- one calm background surface,
+- one success/check color,
+- neutral map colors,
+- restrained fit-score accents.
+
+Avoid creating a rainbow score system.
+
+---
+
+## 18. Accessibility requirements
 
 | ID | Requirement | Priority | Acceptance criteria |
-|---|---|---|---|
-| FR1 | Preference quiz | P0 | User can complete quiz in under 6 minutes; system captures hard filters and weighted preferences. |
-| FR2 | Household/persona detection | P0 | System assigns one or more persona overlays: family, newcomer, city-escape, single/couple, buyer, renter. |
-| FR3 | Neighborhood scoring engine | P0 | System ranks neighborhoods using structured data, not LLM-only reasoning. |
-| FR4 | Explainable match output | P0 | Every recommendation includes “why it fits,” “tradeoffs,” and “data confidence.” |
-| FR5 | AI-generated report | P0 | Report is generated from retrieved data and scoring outputs; no unsupported neighborhood claims. |
-| FR6 | Neighborhood comparison | P0 | User can compare at least 3 neighborhoods side by side. |
-| FR7 | Similar-neighborhood discovery | P0 | User can start from a known neighborhood and find comparable alternatives elsewhere. |
-| FR8 | Map view | P0 | Recommendations can be viewed on a map with match scores. |
-| FR9 | Listing connection | P1 | User can see available buy/rent homes in recommended neighborhoods through licensed data. |
-| FR10 | Alerts | P1 | User can create alerts by neighborhood, budget, property type, and buy/rent intent. |
-| FR11 | Save/share report | P1 | User can save report, export PDF, or share with partner/family. |
-| FR12 | Multilingual support | P1 | MVP supports Dutch and English. |
-| FR13 | Feedback loop | P1 | User can mark recommendations as “love,” “maybe,” or “not for me,” and system updates ranking. |
-| FR14 | Admin data dashboard | P1 | Internal team can monitor data freshness, missing data, source failures, and scoring anomalies. |
+|---|---|---:|---|
+| A11Y-1 | Keyboard navigation for survey. | P0 | User can complete survey without mouse. |
+| A11Y-2 | Reduced motion support. | P0 | Animations respect `prefers-reduced-motion`. |
+| A11Y-3 | Text contrast. | P0 | Text remains readable over hero background. |
+| A11Y-4 | Screen-reader labels. | P0 | Choices, buttons, progress, and map alternatives have accessible labels. |
+| A11Y-5 | Mobile touch targets. | P0 | Survey controls are large enough for touch. |
+| A11Y-6 | Map alternative list. | P0 | Users can access recommendations without interacting with the map. |
 
 ---
 
-## 11. Data requirements
+## 19. Privacy and compliance requirements
 
-The product needs a curated data layer. The AI should not be asked to “figure it out” from memory.
+### 19.1 Preference data
 
-### Recommended data categories
+The app may collect sensitive life-context preferences, such as household type, budget, commute anchors, and housing needs. Treat this data carefully.
 
-| Category | Example source direction |
-|---|---|
-| Population and households | CBS neighborhood and household data |
-| Moving demand | WoON / CBS moving wishes and housing market datasets |
-| Housing stock | CBS, BAG, Kadaster, WOZ, energy labels |
-| Livability | Leefbaarometer |
-| Safety context | Police/open crime indicators, Leefbaarometer nuisance/insecurity dimensions |
-| Schools and childcare | DUO/BRIN, childcare registers, municipal data |
-| Amenities | CBS distance-to-amenities, OpenStreetMap, commercial POI providers |
-| Mobility | GTFS/OV data, travel-time APIs, road/cycling data |
-| Environment | Atlas Leefomgeving, RIVM, noise, air, heat, flood, green-space data |
-| Listings | Funda/NVM or licensed listing feeds; rental portals where legally available |
-| Price and availability | Asking price, rent, price per m², days on market, supply density |
+Requirements:
 
-### Data principles
+- do not sell user preference data,
+- do not store exact anchors longer than necessary unless user saves a profile,
+- allow session deletion where feasible,
+- avoid collecting names/emails before needed,
+- separate anonymous matching sessions from user accounts,
+- provide clear privacy copy before account creation or saving results.
 
-- Show source and timestamp.
-- Separate official data from commercial/listing data.
-- Use confidence levels where data is old, sparse, or incomplete.
-- Avoid sensitive demographic scoring.
-- Never let the LLM invent a metric.
-- Normalize all neighborhood scores so users can compare across municipalities.
+### 19.2 Address anchors
+
+Work/school anchors may reveal personal routines.
+
+Requirements:
+
+- allow city-level anchors as an alternative to exact addresses,
+- clearly mark exact address fields as optional,
+- store geocoded anchors only if needed,
+- avoid showing exact anchors in shareable outputs unless user chooses.
+
+### 19.3 Scoring fairness
+
+The model must not recommend or exclude neighborhoods based on protected characteristics.
+
+The matching engine should use housing, environment, accessibility, amenities, and livability signals, not sensitive demographic profiling.
 
 ---
 
-## 12. Matching model
+## 20. Analytics and success metrics
 
-The product should use a hybrid model:
+### 20.1 Activation metrics
 
-1. **Deterministic scoring layer**  
-   Calculates neighborhood fit using normalized features and user weights.
+- Landing CTA click rate.
+- Survey start rate.
+- Survey completion rate.
+- Average time to complete survey.
+- Drop-off by question.
 
-2. **Retrieval layer**  
-   Pulls relevant neighborhood facts, datasets, and listing information.
+### 20.2 Matching metrics
 
-3. **LLM explanation layer**  
-   Converts the score, evidence, and tradeoffs into a human-readable report.
+- Match job success rate.
+- Match job average runtime.
+- Fallback rate.
+- Number of results shown per user.
+- Percentage of results with sufficient confidence.
 
-The LLM should explain the score. It should not be the score.
+### 20.3 Results engagement metrics
 
-### Simplified score concept
+- Map open rate.
+- Neighborhood list click rate.
+- Marker click rate.
+- Neighborhood detail open rate.
+- 3D map interaction rate.
+- Amenity tag interaction rate.
+
+### 20.4 Dossier conversion metrics
+
+- House click rate from neighborhood map.
+- Dossier open rate.
+- Back-to-map rate.
+- Number of houses checked per session.
+- Return visits to match map.
+
+### 20.5 Quality metrics
+
+- User-rated match usefulness.
+- “I discovered a neighborhood I did not know” response rate.
+- Save/share rate.
+- Complaint rate about inaccurate recommendation.
+- Reported confusion rate.
+
+---
+
+## 21. Empty, edge, and failure states
+
+### 21.1 No strong matches
+
+English:
+
+> We found a few possible matches, but none are perfect. Your strongest constraints are narrowing the search a lot.
+
+Dutch:
+
+> We hebben een paar mogelijke matches gevonden, maar geen perfecte. Je belangrijkste wensen maken de zoekruimte erg klein.
+
+UI should offer:
+
+- loosen budget,
+- increase commute radius,
+- reduce must-haves,
+- show near-matches.
+
+### 21.2 Missing 3D building data
+
+English:
+
+> 3D buildings are not available here yet, so we’re showing the neighborhood in 2D.
+
+Dutch:
+
+> 3D-gebouwen zijn hier nog niet beschikbaar, daarom tonen we de buurt in 2D.
+
+### 21.3 Slow backend
+
+English:
+
+> This is taking longer than usual, but your match is still running.
+
+Dutch:
+
+> Dit duurt iets langer dan normaal, maar je match wordt nog steeds gemaakt.
+
+### 21.4 Failed backend
+
+English:
+
+> We couldn’t create your match map yet. Your answers are saved, so you can try again without starting over.
+
+Dutch:
+
+> We konden je matchkaart nog niet maken. Je antwoorden zijn opgeslagen, dus je hoeft niet opnieuw te beginnen.
+
+### 21.5 No address for selected house
+
+English:
+
+> We found the building, but not a reliable address yet.
+
+Dutch:
+
+> We hebben het gebouw gevonden, maar nog geen betrouwbaar adres.
+
+Options:
+
+- choose nearby address,
+- search manually,
+- return to map.
+
+---
+
+## 22. MVP scope
+
+### 22.1 MVP must include
+
+1. Match-first landing page.
+2. Animated hero background with fallback.
+3. Dutch/English UI translation system.
+4. One-question-at-a-time survey.
+5. Progress bar and back button.
+6. Survey answer persistence.
+7. Preference vector builder.
+8. Python matching service triggered after final CTA.
+9. Async progress screen.
+10. Success checkmark animation.
+11. Results map centered on the Netherlands.
+12. Ranked list of recommended neighborhoods.
+13. List-to-map and map-to-list synchronization.
+14. Neighborhood detail view.
+15. 3D houses for selected neighborhood where data exists.
+16. Amenity tags based on user preferences.
+17. House click to existing Dossier.
+18. Persistent back-to-map action in Dossier.
+19. Basic analytics for funnel and drop-off.
+20. Failure states.
+
+### 22.2 MVP should not include
+
+1. Account system unless already available.
+2. Paid checkout redesign.
+3. Full listing marketplace.
+4. AI chat assistant.
+5. Partner lead handoff.
+6. Full report PDF.
+7. Complex user dashboards.
+8. All possible map layers.
+9. Nationwide 3D preloading.
+10. Model claims that cannot be statistically validated.
+
+---
+
+## 23. Implementation phases
+
+### Phase 1 — UI shell and route cleanup
+
+Build:
+
+- new landing hero,
+- route structure,
+- language switcher,
+- demoted search link,
+- survey shell,
+- progress bar,
+- back behavior.
+
+Exit criteria:
+
+- user can start and complete survey with dummy questions,
+- search no longer competes with match on first screen,
+- bilingual copy works.
+
+### Phase 2 — Survey and preference vector
+
+Build:
+
+- final question set,
+- answer validation,
+- answer persistence,
+- preference vector builder,
+- session storage.
+
+Exit criteria:
+
+- completed survey produces stable JSON preference vector,
+- vector can be sent to backend matching service.
+
+### Phase 3 — Matching backend
+
+Build:
+
+- Python matching service,
+- deterministic scoring baseline,
+- optional predictive model selection if labels exist,
+- async job status,
+- results schema,
+- error/fallback handling.
+
+Exit criteria:
+
+- backend returns ranked neighborhoods with reason codes and confidence.
+
+### Phase 4 — Progress and success states
+
+Build:
+
+- animated progress screen,
+- progress messages,
+- checkmark completion animation,
+- failed and fallback states.
+
+Exit criteria:
+
+- user sees clear progress from final CTA to results.
+
+### Phase 5 — Results map
+
+Build:
+
+- Netherlands map,
+- recommended neighborhood markers/polygons,
+- ranked list,
+- map/list sync,
+- mobile map/list toggle.
+
+Exit criteria:
+
+- user can move from results list to selected neighborhood.
+
+### Phase 6 — Neighborhood 3D detail
+
+Build:
+
+- selected neighborhood detail view,
+- 3D house loading by neighborhood,
+- amenity tags,
+- house selection state,
+- 2D fallback.
+
+Exit criteria:
+
+- user can inspect selected neighborhood and click a house.
+
+### Phase 7 — Dossier bridge
+
+Build:
+
+- house-to-address resolver,
+- route into existing Dossier,
+- persistent back-to-map button,
+- context preservation.
+
+Exit criteria:
+
+- user can move from map to Dossier and back without restarting.
+
+---
+
+## 24. Acceptance criteria
+
+The revamp is successful only if all of the following are true:
+
+1. A first-time user immediately understands the primary action.
+2. The landing screen does not force a choice between search and match.
+3. The CTA starts the match flow.
+4. The survey shows only one question at a time.
+5. The progress bar is always visible during survey.
+6. The user can go back and change previous answers.
+7. The backend match run starts only after the final CTA.
+8. The user sees a friendly progress state while matching runs.
+9. Completion is visually confirmed with a Buurt Check checkmark.
+10. Results open on a Netherlands map with ranked neighborhoods.
+11. Clicking a result zooms to that neighborhood.
+12. The selected neighborhood view shows 3D houses only for that neighborhood.
+13. Amenity tags are relevant to the user’s preferences.
+14. Clicking a house opens the existing Dossier.
+15. The Dossier includes a clear route back to the map.
+16. Dutch and English UI text are supported through translation keys.
+17. Reduced-motion and map fallback states exist.
+18. Model output is accurate about whether it is deterministic scoring or validated predictive probability.
+
+---
+
+## 25. Recommended component inventory
+
+### 25.1 Frontend components
 
 ```text
-Neighborhood Fit Score =
-  Hard filter eligibility
-  × Weighted lifestyle score
-  × Housing availability score
-  × Budget realism score
-  × Commute feasibility score
-  - Tradeoff penalties
+HeroMapBackground
+LanguageSwitcher
+PrimaryCTA
+SecondaryAddressLink
+SurveyIntro
+SurveyShell
+SurveyProgressBar
+SurveyBackButton
+SingleSelectQuestion
+MultiSelectQuestion
+BudgetRangeQuestion
+CommuteSliderQuestion
+AnchorLocationQuestion
+SurveyReview
+MatchingProgressScreen
+AnimatedCheckmark
+ResultsMap
+RecommendationList
+RecommendationCard
+NeighborhoodMarker
+NeighborhoodDetailMap
+AmenityTags
+BuildingLayer
+HouseSelectionCard
+DossierBackButton
 ```
 
-### Example scoring dimensions
+### 25.2 Backend modules
 
-| Dimension | Example signals |
-|---|---|
-| Family fit | Schools nearby, childcare, parks, family housing stock |
-| Calmness | Density, traffic/noise indicators, nuisance indicators |
-| Green access | Park/nature proximity, green surface share |
-| Affordability | Price/rent relative to budget |
-| Commute | Travel time to anchors |
-| Amenities | Supermarkets, healthcare, sports, culture |
-| Housing availability | Current listings and historical supply |
-| Environmental quality | Noise, air, heat, flood/climate indicators |
-| Confidence | Data completeness and freshness |
-
----
-
-## 13. AI requirements
-
-### AI capabilities
-
-The AI should be able to:
-
-- Summarize the user’s lifestyle profile.
-- Explain why neighborhoods fit.
-- Explain tradeoffs.
-- Translate official data into plain language.
-- Answer follow-up questions.
-- Compare neighborhoods conversationally.
-- Generate alert suggestions.
-- Rewrite reports for Dutch or English users.
-
-### AI guardrails
-
-The AI must not:
-
-- Claim certainty about safety or happiness.
-- Make unsupported statements about crime, ethnicity, income, religion, or social groups.
-- Recommend based on protected characteristics.
-- Invent data.
-- Present official-looking numbers without a source.
-- Give legal, mortgage, or bidding advice unless clearly scoped and sourced.
-
-### AI evaluation
-
-Test the AI on:
-
-- Hallucination rate.
-- Source citation accuracy.
-- Consistency across repeated runs.
-- Whether explanations match actual score drivers.
-- Whether recommendations change appropriately when preferences change.
-- Bias and fairness issues.
+```text
+match_session.py
+survey_answers.py
+preference_vector.py
+neighborhood_features.py
+match_engine.py
+model_selection.py
+reason_codes.py
+match_job.py
+results_serializer.py
+geometry_service.py
+building_service.py
+amenity_service.py
+dossier_bridge.py
+```
 
 ---
 
-## 14. MVP scope
+## 26. Translation key examples
 
-### MVP geography
+Recommended translation key structure:
 
-Recommended MVP launch:
-
-- Randstad + surrounding commuter towns, or
-- Amsterdam, Utrecht, Rotterdam, The Hague, Eindhoven and nearby municipalities.
-
-Reason: these areas have high search pressure, many people considering relocation, and strong need for cross-neighborhood comparison.
-
-### MVP features
-
-P0 MVP:
-
-1. Dutch/English landing page.
-2. 3–6 minute preference quiz.
-3. Neighborhood ranking.
-4. Personalized AI report.
-5. Side-by-side comparison.
-6. Map view.
-7. Save neighborhoods.
-8. Basic listing links or listing module, depending on data access.
-9. Email alerts for selected neighborhoods.
-10. Source and confidence labels.
-
-Not in MVP:
-
-- Full makelaar workflow.
-- Mortgage pre-approval.
-- Bid automation.
-- Formal valuation.
-- Deep renovation estimates.
-- Full Netherlands coverage if data quality cannot be maintained.
-
----
-
-## 15. UX and design principles
-
-### Principle 1: Guided, not filtered
-
-Users should not feel like they are filling out a real estate database. The quiz should feel more like:
-
-> “What kind of life are you trying to build?”
-
-### Principle 2: Emotional but evidence-backed
-
-The “natal chart” idea is strong, but it must be grounded in data. Use playful labels, but always show why.
-
-Example cards:
-
-- **Your living style:** Calm Green Connector
-- **Best fit:** Family-friendly towns with strong green access and realistic commute
-- **Hidden risk:** Lower listing supply, so alerts matter
-- **Your watchout:** Some areas fit lifestyle but stretch budget
-
-### Principle 3: Show tradeoffs
-
-Avoid saying “this is the best neighborhood.” Say:
-
-> “This is your strongest match if schools and calmness matter more than nightlife.”
-
-### Principle 4: Serendipity matters
-
-The magic is not showing obvious neighborhoods. It is showing:
-
-> “You searched Haarlem, but you may also like Driebergen, Castricum, Leidsche Rijn, Oegstgeest, or Bussum — here is why.”
-
-### Principle 5: Trust is part of the interface
-
-Every recommendation should have:
-
-- Source badges.
-- Data freshness.
-- Confidence level.
-- Explanation of missing data.
+```json
+{
+  "landing.headline": {
+    "en": "Find your dream neighborhood.",
+    "nl": "Vind je droombuurt."
+  },
+  "landing.subheadline": {
+    "en": "Tell us how you want to live. We’ll show you where to look.",
+    "nl": "Vertel ons hoe je wilt wonen. Wij laten zien waar je moet zoeken."
+  },
+  "landing.cta": {
+    "en": "Find my dream neighborhood",
+    "nl": "Vind mijn droombuurt"
+  },
+  "survey.back": {
+    "en": "Back",
+    "nl": "Terug"
+  },
+  "progress.comparing_neighborhoods": {
+    "en": "Comparing neighborhoods across the Netherlands",
+    "nl": "Buurten in Nederland vergelijken"
+  },
+  "results.title": {
+    "en": "Your best neighborhood matches",
+    "nl": "Je beste buurtmatches"
+  },
+  "dossier.back_to_map": {
+    "en": "Back to match map",
+    "nl": "Terug naar matchkaart"
+  }
+}
+```
 
 ---
 
-## 16. Success metrics
+## 27. Development notes for accuracy
 
-### Activation
+### 27.1 Do not overpromise model intelligence
 
-- Quiz start rate.
-- Quiz completion rate.
-- Percentage of users who view full report.
-- Time to first saved neighborhood.
+The backend can fit multiple models only when there is enough training or validation signal. If the app has no labels yet, begin with a transparent scoring baseline. This is better than pretending to have predictive power.
 
-### Recommendation quality
+### 27.2 Start with a beautiful but lightweight hero
 
-- Percentage of users saving at least 3 neighborhoods.
-- User-rated fit score.
-- “I discovered a neighborhood I did not know” rate.
-- Report helpfulness score.
-- Follow-up question rate.
+The animated hero should be impressive, but performance matters more. A pre-rendered loop or optimized canvas can create the right feeling without risking a heavy first load.
 
-### Conversion
+### 27.3 The search functionality is not removed
 
-- Listing click-through rate.
-- Alert creation rate.
-- Return visits after alert.
-- Saved search activation.
-- Partner lead conversion, if applicable.
+Search remains valuable. It is simply moved to the right moment in the journey: after users understand which neighborhood or house they want to inspect.
 
-### Trust and retention
+### 27.4 The map must not become cluttered
 
-- Percentage of recommendations with full source coverage.
-- Citation/source click rate.
-- Complaint rate about inaccurate data.
-- Repeat report generation.
+The old app’s informational richness should be preserved in the Dossier, not forced into the discovery map. The match map is for discovery, orientation, and selection.
 
-### Business
+### 27.5 Preserve user context
 
-- Free-to-paid conversion, if using paid reports.
-- Subscription conversion, if using alerts/premium.
-- Makelaar/mortgage/insurance partner lead revenue.
-- Cost per report.
-- Data/API cost per active user.
+The whole flow fails if users lose their recommendation context when opening a Dossier. Route state and session persistence are therefore core requirements, not polish.
 
 ---
 
-## 17. Monetization options
+## 28. Open decisions
 
-### Phase 1: Free report + lead capture
+1. Should the primary brand phrase be “Find my dream neighborhood” or “Find my best neighborhood”?
+   - “Dream neighborhood” is more emotional.
+   - “Best neighborhood” is more sober and trustworthy.
 
-- Free basic Woonkompas.
-- Email required to save/export.
-- Alerts require account.
+2. Should the Dutch CTA be “Vind mijn droombuurt” or “Vind mijn beste buurt”?
+   - “Droombuurt” is memorable.
+   - “Beste buurt” is safer and less playful.
 
-### Phase 2: Premium report
+3. Should the hero map be a real interactive scene or a pre-rendered loop for MVP?
 
-Paid upgrade could include:
+4. How many survey questions is the ideal balance: 8, 10, or 12?
 
-- More neighborhoods.
-- Full PDF.
-- Deeper commute analysis.
-- Listing watchlist.
-- Partner comparison mode.
-- “Areas like this but cheaper/calmer/greener” analysis.
+5. Does the first release support the full Netherlands or a prioritized set of regions with stronger data quality?
 
-### Phase 3: Marketplace / partner revenue
+6. Which existing Dossier modules must be preserved unchanged, and which need light UI adjustments for the new journey?
 
-Potential partners:
+7. What exact data source will power 3D houses in the web map?
 
-- Makelaars.
-- Mortgage advisors.
-- Rental agents.
-- Moving services.
-- Energy/home insurance providers.
-- Expat relocation services.
-
-Important: keep partner recommendations clearly separated from neighborhood scoring to preserve trust.
+8. Will match results be free, paid, or partially gated after preview?
 
 ---
 
-## 18. LLM commoditization risk
+## 29. Final product statement
 
-### Can flagship LLMs already do this without Buurt Check data?
+The redesigned Buurt Check should feel like a calm, intelligent guide through the Dutch housing landscape.
 
-Partially, yes.
+It should not ask users to start with an address. It should start with the life they want to build.
 
-Modern LLM products can search the web, produce timely answers with links, and use approximate or precise location when enabled. OpenAI’s ChatGPT Search, for example, can search the web and return sourced, timely answers, and it can optionally use location to improve local results.[^openai-search]
+The new flow is simple:
 
-So a motivated user could ask ChatGPT:
+> **Choose how you want to live. Get matched with neighborhoods. Explore them on a beautiful map. Click a house. Open the full Dossier. Go back anytime.**
 
-> “I’m a family with two kids, budget €600k, working in Amsterdam, want green, quiet, good schools, max 45-minute commute. Which neighborhoods should I consider?”
+Dutch:
 
-The answer may be useful.
+> **Kies hoe je wilt wonen. Ontdek passende buurten. Verken ze op een mooie kaart. Klik op een woning. Open het volledige Dossier. Ga altijd terug naar de kaart.**
 
-### Why Buurt Check still has an edge
-
-A general LLM without your structured product layer will struggle to provide:
-
-- Complete national neighborhood coverage.
-- Consistent scoring across all neighborhoods.
-- Fresh official data.
-- Licensed live listing availability.
-- Repeatable ranking logic.
-- Clear source provenance per metric.
-- Alerts when matching homes appear.
-- Side-by-side map-based comparison.
-- User preference memory and iteration.
-- Trustworthy confidence levels.
-- A polished, consumer-grade journey.
-
-The defensible edge is not “AI can talk about neighborhoods.” The edge is:
-
-> **Curated data + scoring model + delightful UX + source transparency + live listing action.**
-
-### Product requirement from this risk
-
-Buurt Check must not be a thin ChatGPT wrapper. The app should use AI as the explanation and interaction layer, while the proprietary value sits in:
-
-1. Data pipeline.
-2. Neighborhood feature engineering.
-3. Matching model.
-4. Listing integration.
-5. Alerts.
-6. UX and storytelling.
-7. Trust and source design.
-
----
-
-## 19. Key risks
-
-| Risk | Severity | Mitigation |
-|---|---|---|
-| Funda/listing data access is unavailable or expensive | High | Start with neighborhood discovery + outbound listing links; pursue licensed partnerships; support user-pasted listings. |
-| AI hallucination damages trust | High | Use deterministic scoring, retrieval, citations, and strict report templates. |
-| Product feels like a government dashboard | Medium | Use warm storytelling, visual cards, and Woonkompas framing. |
-| Product feels too playful for a serious decision | Medium | Balance delight with evidence, source badges, and confidence scores. |
-| Competitors add similar AI features | High | Differentiate through neighborhood-first UX, official-data depth, and alerts. |
-| Scoring creates fairness or discrimination concerns | High | Avoid protected traits, use transparent public-interest indicators, review sensitive variables. |
-| Data is too stale or inconsistent | Medium | Display freshness, confidence, and “data unavailable” states. |
-| Users only want listings, not reports | Medium | Bridge report quickly into listings and alerts. |
-
----
-
-## 20. Roadmap
-
-### Phase 0 — Validation
-
-- Interview 20–30 home seekers across families, singles/couples, expats, and city-escape movers.
-- Test landing page copy.
-- Prototype quiz and report with manual scoring.
-- Validate whether users save recommended neighborhoods.
-
-### Phase 1 — MVP
-
-- Build data pipeline for selected regions.
-- Build quiz.
-- Build scoring engine.
-- Generate AI reports from structured outputs.
-- Launch map + comparison.
-- Add email alerts.
-- Add basic listing integration or links.
-
-### Phase 2 — Productization
-
-- Expand geographic coverage.
-- Add multilingual reports.
-- Add saved profiles.
-- Add partner/co-buyer sharing.
-- Add listing watchlists.
-- Add “similar neighborhoods” engine.
-- Add confidence and source UI.
-
-### Phase 3 — Commercial scale
-
-- Premium reports.
-- Partner integrations.
-- Makelaar handoff.
-- Mortgage/affordability integrations.
-- Rental-specific workflows.
-- API/data partnerships.
-
----
-
-## 21. Open product decisions
-
-1. Should the first paid product be a **premium report**, **alert subscription**, or **partner lead model**?
-2. Should MVP focus on **buying**, **renting**, or both from day one?
-3. Which geography gives the strongest first validation: Amsterdam region, Randstad, or full Netherlands with lighter data depth?
-4. Should the brand stay “Buurt Check,” or should the new flow be branded separately as “Buurt Match” or “Woonkompas”?
-5. How much of the report should feel playful versus serious?
-6. What listing data partnership is realistic for the first release?
-
----
-
-## 22. One-line product definition
-
-**Buurt Check helps people who do not know where to live discover their best-fit neighborhoods using official data, AI explanation, and live housing availability.**
-
----
-
-## References and source notes
-
-[^woon24]: Ministerie van Volkshuisvesting en Ruimtelijke Ordening, *Tussen wensen en wonen: Resultaten van het WoonOnderzoek Nederland 2024*. https://www.volkshuisvestingnederland.nl/binaries/volkshuisvestingnederland/documenten/publicaties/2025/04/10/kernpublicatie-van-het-woon-24/Tussen%2BWensen%2Ben%2BWonen-KernpublicatieWoOn24.pdf
-
-[^cbs-starters]: CBS, *Minder starters op woningmarkt; 25- tot 35-jarigen wonen vaker thuis*, published 24 April 2026. https://www.cbs.nl/nl-nl/nieuws/2026/17/minder-starters-op-woningmarkt-25-tot-35-jarigen-wonen-vaker-thuis
-
-[^cbs-households]: CBS, *Huishoudensprognose 2024–2070: bijna 10 miljoen huishoudens verwacht in 2070*. https://www.cbs.nl/nl-nl/longread/statistische-trends/2024/huishoudensprognose-2024-2070-bijna-10-miljoen-huishoudens-verwacht-in-2070
-
-[^funda-draw]: Funda, *Makkelijker zoeken in specifieke buurten / Teken je zoekgebied*. https://www.funda.nl/meer-weten/producten-en-diensten/wegwijzers/teken-je-zoekgebied/
-
-[^funda-neighborhood]: Funda, example neighborhood information page: *Electrobuurt, Hilversum*. https://www.funda.nl/informatie/hilversum/electrobuurt
-
-[^walter]: Walter Living, product pages for online buying agent, Walter Maps, AI Superagent, and data-driven buying guidance. https://walterliving.com/nl/en/
-
-[^huispedia]: Huispedia Help, *Hoe berekenen jullie mijn Huispedia woningwaarde?* https://huispedia.nl/help/artikel/377/hoe-worden-de-geschatte-woningwaardes-berekend
-
-[^atlas-check]: Atlas Leefomgeving, *Check je plek*. https://www.atlasleefomgeving.nl/check-je-plek
-
-[^atlas-vind]: Atlas Leefomgeving, *Vind je plek*. https://www.atlasleefomgeving.nl/vind-je-plek
-
-[^leefbaarometer-home]: Leefbaarometer, homepage and 2024 data update. https://www.leefbaarometer.nl/
-
-[^leefbaarometer-open]: Leefbaarometer, open data downloads for scores and dimension scores. https://www.leefbaarometer.nl/page/Opendata
-
-[^openai-search]: OpenAI Help Center, *ChatGPT Search*. https://help.openai.com/en/articles/9237897-chatgpt-search
+That is the core of the revamp.

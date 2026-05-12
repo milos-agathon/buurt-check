@@ -114,6 +114,7 @@ export default function MatchQuiz({ onSubmit, submitting = false, errorCode }: M
       <div className="match-quiz__header">
         <p>{t('match.quiz.eyebrow')}</p>
         <h1 id="match-quiz-title">{t('match.quiz.title')}</h1>
+        <p>{t('match.quiz.dataBoundary')}</p>
       </div>
 
       {submittedOnce && validation.length > 0 && (

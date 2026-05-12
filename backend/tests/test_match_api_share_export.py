@@ -38,6 +38,31 @@ async def test_save_share_and_export_report_paths(client):
 
 
 @pytest.mark.asyncio
+async def test_shared_report_token_opens_scoped_report_without_exposing_hash(client):
+    created = await client.post("/api/match/reports", json=_report_payload())
+    report_id = created.json()["report_id"]
+    shared = await client.post(
+        f"/api/match/reports/{report_id}/share",
+        json={
+            "scope": "report_view",
+            "locale": "en",
+            "expires_in_days": 30,
+            "consent_to_share": True,
+        },
+    )
+    token = shared.json()["share_url"].rstrip("/").split("/")[-1]
+
+    opened = await client.get(f"/api/match/shared/{token}")
+
+    assert opened.status_code == 200
+    body = opened.json()
+    assert body["report_id"] == report_id
+    assert body["source_refs"] == ["src_green"]
+    assert body["limitations"]
+    assert "token_hash" not in body
+
+
+@pytest.mark.asyncio
 async def test_share_requires_consent_and_export_supports_pdf(client):
     created = await client.post("/api/match/reports", json=_report_payload())
     report_id = created.json()["report_id"]

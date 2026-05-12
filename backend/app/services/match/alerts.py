@@ -14,8 +14,8 @@ from app.models.match import (
     NotificationDispatchRecord,
 )
 from app.services.match.providers.notifications import (
-    MockNotificationProvider,
     NotificationProvider,
+    configured_notification_provider,
 )
 
 
@@ -195,7 +195,7 @@ async def create_alert(
         return AlertCreateResponse(alert=duplicate, created=False, dispatch=dispatch)
 
     matches = find_matching_listings(rule, listings or [])
-    provider = notification_provider or MockNotificationProvider()
+    provider = notification_provider or configured_notification_provider(rule.notification_type)
     dispatch = await provider.dispatch(rule, matches)
     rule = rule.model_copy(update={"last_evaluated_at": _now(), "updated_at": _now()})
     selected_store.alerts[rule.alert_id] = rule

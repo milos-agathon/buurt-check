@@ -50,6 +50,9 @@ export default function MatchShareExport({
           <dd>{locale}</dd>
         </div>
       </dl>
+      <p className="match-share-export__metadata-note">
+        {t('match.share.metadataNote')}
+      </p>
 
       <div className="match-share-export__actions">
         <button type="button" disabled={!reportId || loading} onClick={() => void onSaveReport()}>

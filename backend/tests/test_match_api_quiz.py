@@ -40,6 +40,8 @@ async def test_match_quiz_endpoint_returns_profile_vector_personas_and_event(cli
     assert body["preference_vector"]["journey_intent"] == "buy"
     assert body["preference_vector"]["budget_max_cents"] == 62500000
     assert body["preference_vector"]["locale"] == "nl"
+    assert body["estimated_completion_minutes"] == [3, 6]
+    assert body["prd_traceability"] == ["FR1", "FR2", "FR3", "FR12"]
     assert body["analytics_event"] == "match_quiz_completed"
     assert {"family", "newcomer", "buyer"}.issubset(
         {overlay["type"] for overlay in body["persona_overlays"]}

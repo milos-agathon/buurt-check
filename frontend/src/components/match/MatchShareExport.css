@@ -22,6 +22,12 @@
   font-weight: 700;
 }
 
+.match-share-export__metadata-note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font: var(--type-caption);
+}
+
 .match-share-export__actions {
   display: flex;
   flex-wrap: wrap;

@@ -308,6 +308,8 @@ class MatchQuizResponse(BaseModel):
     preference_vector: PreferenceVector
     persona_overlays: list[PersonaOverlay] = Field(default_factory=list)
     validation_warnings: list[MatchValidationWarning] = Field(default_factory=list)
+    estimated_completion_minutes: list[int] = Field(default_factory=lambda: [3, 6])
+    prd_traceability: list[str] = Field(default_factory=lambda: ["FR1", "FR2", "FR3", "FR12"])
     analytics_event: Literal["match_quiz_completed"] = "match_quiz_completed"
 
 
@@ -522,6 +524,10 @@ class GuardrailEvent(BaseModel):
         "schema_invalid",
         "score_driver_mismatch",
         "provider_unavailable",
+        "source_ref_mismatch",
+        "freshness_mismatch",
+        "confidence_mismatch",
+        "forbidden_advice_claim",
     ]
     action_taken: Literal["blocked", "rewritten", "fallback_used", "logged"]
     details: dict[str, object] = Field(default_factory=dict)
@@ -591,6 +597,15 @@ class MatchReportCreateRequest(BaseModel):
     report_input: ReportInput
 
 
+class ReportGenerationMetadata(BaseModel):
+    requested_mode: Literal["ai_with_fallback", "fallback_only"]
+    resolved_mode: Literal["ai", "deterministic_fallback"]
+    ai_provider: str
+    ai_available: bool
+    scoring_mutable_by_ai: bool = False
+    data_contract: Literal["structured_report_input"] = "structured_report_input"
+
+
 class MatchReportResponse(BaseModel):
     report_id: str = Field(min_length=1)
     status: Literal["generated", "fallback", "invalid"]
@@ -602,6 +617,7 @@ class MatchReportResponse(BaseModel):
     source_refs: list[str] = Field(default_factory=list)
     guardrail_events: list[GuardrailEvent] = Field(default_factory=list)
     report_input: ReportInput
+    generation_metadata: ReportGenerationMetadata
     generated_at: datetime = Field(default_factory=utc_now)
 
 
@@ -879,6 +895,12 @@ class SuccessMetricSummary(BaseModel):
     latest_value: int | float | None = None
 
 
+class PrdTraceabilityItem(BaseModel):
+    fr_id: str = Field(pattern=r"^FR([1-9]|1[0-4])$")
+    label: str
+    status: Literal["implemented", "partial", "deferred"]
+
+
 class MatchFeedbackRequest(BaseModel):
     session_id: str | None = None
     report_id: str | None = None
@@ -987,6 +1009,7 @@ class MatchAdminHealthResponse(BaseModel):
     mock_data_indicators: list[DataQualityIndicator] = Field(default_factory=list)
     live_data_indicators: list[DataQualityIndicator] = Field(default_factory=list)
     success_metrics: list[SuccessMetricSummary] = Field(default_factory=list)
+    prd_traceability: list[PrdTraceabilityItem] = Field(default_factory=list)
 
 
 class SourceRun(BaseModel):

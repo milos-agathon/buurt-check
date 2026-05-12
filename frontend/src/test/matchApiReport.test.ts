@@ -14,6 +14,14 @@ const report: MatchReportResponse = {
   limitations: [],
   source_refs: [],
   guardrail_events: [],
+  generation_metadata: {
+    requested_mode: 'fallback_only',
+    resolved_mode: 'deterministic_fallback',
+    ai_provider: 'none',
+    ai_available: false,
+    scoring_mutable_by_ai: false,
+    data_contract: 'structured_report_input',
+  },
   generated_at: '2026-05-11T08:00:00Z',
   report_input: {
     locale: 'en',
