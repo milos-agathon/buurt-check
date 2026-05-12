@@ -638,9 +638,17 @@ async function selectAddress() {
 }
 
 describe('initial render', () => {
-  it('renders app title and search input', () => {
+  it('renders app title and match-first entry', async () => {
     renderApp();
     expect(screen.getByAltText('Buurt Check')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Find my dream neighborhood' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Already have an address?' })).toHaveAttribute('href', '#/search');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('keeps the address search available on #/search', () => {
+    window.location.hash = '#/search';
+    renderApp();
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
@@ -925,6 +933,7 @@ describe('address selection flow', () => {
     });
     mockBuilding.mockResolvedValue(makeBuildingResponse());
 
+    window.location.hash = '#/search';
     renderApp();
 
     await act(async () => {

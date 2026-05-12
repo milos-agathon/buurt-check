@@ -1,0 +1,144 @@
+.hero-map-background {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--landing-bg-mid);
+  pointer-events: none;
+}
+
+.hero-map-background::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.72) 42%, rgba(255, 255, 255, 0.5) 100%),
+    linear-gradient(180deg, rgba(249, 250, 251, 0.04) 0%, rgba(249, 250, 251, 0.82) 100%);
+}
+
+.hero-map-background__image {
+  position: absolute;
+  inset: -6%;
+  width: 112%;
+  height: 112%;
+  object-fit: cover;
+  opacity: 0.34;
+  filter: saturate(0.82) contrast(0.96);
+  transform: translate3d(0, 0, 0) scale(1.02);
+  animation: heroMapDrift 18s var(--ease-out-subtle) infinite alternate;
+}
+
+.hero-map-background__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.34;
+  background:
+    linear-gradient(90deg, rgba(0, 104, 95, 0.12) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(0, 104, 95, 0.10) 1px, transparent 1px);
+  background-size: 84px 84px;
+  transform: rotate(-7deg) scale(1.2);
+}
+
+.hero-map-background__route,
+.hero-map-background__marker {
+  position: absolute;
+  z-index: 1;
+}
+
+.hero-map-background__route {
+  height: 2px;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, rgba(0, 104, 95, 0.52), transparent);
+  transform-origin: left center;
+}
+
+.hero-map-background__route--primary {
+  top: 38%;
+  left: 48%;
+  transform: rotate(-18deg);
+  animation: heroRoutePulse 4.8s var(--ease-out-subtle) infinite;
+}
+
+.hero-map-background__route--secondary {
+  top: 62%;
+  left: 42%;
+  width: 30%;
+  transform: rotate(16deg);
+  animation: heroRoutePulse 5.4s var(--ease-out-subtle) infinite 600ms;
+}
+
+.hero-map-background__marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--landing-accent);
+  box-shadow: 0 0 0 6px rgba(0, 104, 95, 0.12);
+}
+
+.hero-map-background__marker--one {
+  top: 30%;
+  right: 26%;
+}
+
+.hero-map-background__marker--two {
+  top: 56%;
+  right: 38%;
+}
+
+.hero-map-background__marker--three {
+  bottom: 24%;
+  right: 18%;
+}
+
+@keyframes heroMapDrift {
+  from {
+    transform: translate3d(-1.4%, -0.6%, 0) scale(1.02);
+  }
+
+  to {
+    transform: translate3d(1.2%, 0.8%, 0) scale(1.04);
+  }
+}
+
+@keyframes heroRoutePulse {
+  0%,
+  100% {
+    opacity: 0.36;
+    transform: translate3d(0, 0, 0) rotate(var(--route-rotation, 0deg));
+  }
+
+  50% {
+    opacity: 0.76;
+  }
+}
+
+.hero-map-background__route--primary {
+  --route-rotation: -18deg;
+}
+
+.hero-map-background__route--secondary {
+  --route-rotation: 16deg;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-map-background__image,
+  .hero-map-background__route {
+    animation: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .hero-map-background::after {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.76) 52%, rgba(249, 250, 251, 0.94) 100%);
+  }
+
+  .hero-map-background__grid {
+    background-size: 58px 58px;
+  }
+
+  .hero-map-background__route,
+  .hero-map-background__marker {
+    opacity: 0.72;
+  }
+}

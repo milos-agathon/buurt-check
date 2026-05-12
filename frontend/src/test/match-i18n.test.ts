@@ -12,6 +12,15 @@ function getPath(obj: Record<string, unknown>, path: string): unknown {
 }
 
 const requiredMatchKeys = [
+  'matchFirst.landing.language',
+  'matchFirst.landing.eyebrow',
+  'matchFirst.landing.title',
+  'matchFirst.landing.body',
+  'matchFirst.landing.cta',
+  'matchFirst.landing.addressLink',
+  'matchFirst.survey.progressLabel',
+  'matchFirst.survey.placeholderQuestion',
+  'matchFirst.survey.placeholderAnswer',
   'match.landing.title',
   'match.landing.findCta',
   'match.landing.compareCta',

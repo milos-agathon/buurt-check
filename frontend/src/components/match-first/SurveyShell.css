@@ -1,0 +1,91 @@
+.match-survey-shell {
+  min-height: calc(100dvh - var(--top-bar-height) - 18px);
+  display: grid;
+  align-content: center;
+  gap: var(--space-3xl);
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--space-3xl) var(--space-lg);
+}
+
+.match-survey-shell__progress {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.match-survey-shell__progress p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font: var(--type-small);
+  font-weight: 700;
+}
+
+.match-survey-shell__bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+}
+
+.match-survey-shell__bar span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent-text);
+}
+
+.match-survey-shell__question {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.match-survey-shell__eyebrow {
+  margin: 0;
+  color: var(--color-accent-text);
+  font: var(--type-label);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.match-survey-shell h1 {
+  max-width: 16ch;
+  margin: 0;
+  color: var(--color-primary);
+  font: 900 clamp(2rem, 5vw, 4rem)/1.02 var(--font-family);
+  letter-spacing: 0;
+}
+
+.match-survey-shell__choice {
+  justify-self: start;
+  min-height: 52px;
+  padding: 0 var(--space-xl);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: var(--type-body);
+  font-weight: 800;
+  box-shadow: var(--landing-shadow-soft);
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.match-survey-shell__choice:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+}
+
+.match-survey-shell__choice:active {
+  transform: scale(0.98);
+}
+
+.match-survey-shell__choice:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-survey-shell__choice {
+    transition: none;
+  }
+}

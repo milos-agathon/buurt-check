@@ -62,6 +62,10 @@
   overflow: visible;
 }
 
+.app[data-screen='matchLanding'] .app__main {
+  width: min(1280px, calc(100vw - 40px));
+}
+
 .app__error {
   color: var(--color-danger);
   font: var(--type-small);

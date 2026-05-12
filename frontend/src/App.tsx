@@ -184,13 +184,21 @@ import {
   getRiskComparisonLabel,
   type ComparisonColorKey,
 } from './utils/riskComparisonPresentation';
+import {
+  buildHashRoute,
+  parseHashRoute,
+  parseRoute,
+  type HashRoute,
+  type ParsedHashRoute,
+} from './routing/hashRoutes';
 import './App.css';
 
 const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMap'));
 const NeighborhoodViewer3D = lazy(() => import('./components/NeighborhoodViewer3D'));
 const CompareScreen = lazy(() => import('./components/CompareScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
-const MatchLanding = lazy(() => import('./components/match/MatchLanding'));
+const MatchLanding = lazy(() => import('./components/match-first/MatchFirstLanding'));
+const MatchSurveyShell = lazy(() => import('./components/match-first/SurveyShell'));
 const MatchQuiz = lazy(() => import('./components/match/MatchQuiz'));
 const MatchComparison = lazy(() => import('./components/match/MatchComparison'));
 const MatchMap = lazy(() => import('./components/match/MatchMap'));
@@ -202,7 +210,7 @@ const MatchSaved = lazy(() => import('./components/match/MatchSaved'));
 const MatchAdminDashboard = lazy(() => import('./components/match/MatchAdminDashboard'));
 const MatchFeedbackControls = lazy(() => import('./components/match/MatchFeedbackControls'));
 
-type Screen = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin' | 'matchSharedReport';
+type Screen = HashRoute;
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
 interface DossierSeedState {
@@ -456,7 +464,6 @@ function hasSurroundingContext(data: Neighborhood3DResponse | null): boolean {
 }
 
 type ProgressivePhase = 'house' | 'risk' | 'buurt';
-type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin' | 'matchSharedReport';
 
 const DEFAULT_MATCH_COMPARE_IDS = [
   'nh_amsterdam_ijburg',
@@ -507,29 +514,6 @@ function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
 
 const TEMP_DISABLE_PAYMENTS = readBooleanEnv(import.meta.env.VITE_PREVIEW_DISABLE_PAYMENTS, false);
 const TEMP_FORCE_FULL_DOSSIER_VIEW = readBooleanEnv(import.meta.env.VITE_PREVIEW_FORCE_FULL_DOSSIER_VIEW, false);
-interface ParsedHashRoute {
-  route: HashRoute;
-  vboId?: string;
-  lookupId?: string;
-  reportId?: string;
-  sessionId?: string;
-  buyerResume?: string;
-  shareToken?: string;
-  matchShareToken?: string;
-  sharedMode?: 'briefing' | 'pack';
-  rawPath?: string;
-}
-
-function readCheckoutRouteParams(params: URLSearchParams): Pick<
-  ParsedHashRoute,
-  'reportId' | 'sessionId' | 'buyerResume'
-> {
-  return {
-    reportId: params.get('report') ?? undefined,
-    sessionId: params.get('session_id') ?? undefined,
-    buyerResume: params.get('buyer_resume') ?? undefined,
-  };
-}
 
 function settleWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<'done' | 'timeout'> {
   return new Promise((resolve) => {
@@ -541,120 +525,6 @@ function settleWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<'
         resolve('done');
       });
   });
-}
-
-function parseHashRoute(hash: string): ParsedHashRoute {
-  const value = hash.startsWith('#') ? hash.slice(1) : hash;
-  const [pathPart = '', queryPart = ''] = value.split('?');
-  const path = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
-  return parseRoute(path, queryPart);
-}
-
-function parseRoute(path: string, queryPart: string): ParsedHashRoute {
-  const params = new URLSearchParams(queryPart);
-  const normalizedPath = path === '/index.html' ? '/' : path;
-  const lookupId = params.get('lookup') ?? undefined;
-  const checkoutParams = readCheckoutRouteParams(params);
-
-  if (normalizedPath === '/saved') return { route: 'shortlist' };
-  if (normalizedPath === '/compare') return { route: 'compare' };
-  if (normalizedPath === '/settings') return { route: 'settings' };
-  if (normalizedPath === '/match') return { route: 'matchLanding' };
-  if (normalizedPath === '/match/quiz') return { route: 'matchQuiz' };
-  if (normalizedPath === '/match/report') return { route: 'matchReport' };
-  if (normalizedPath === '/match/compare') return { route: 'matchComparison' };
-  if (normalizedPath === '/match/similar') return { route: 'matchSimilar' };
-  if (normalizedPath === '/match/map') return { route: 'matchMap' };
-  if (normalizedPath === '/match/listings') return { route: 'matchListings' };
-  if (normalizedPath === '/match/alerts') return { route: 'matchAlerts' };
-  if (normalizedPath === '/match/saved') return { route: 'matchSaved' };
-  if (normalizedPath === '/match/admin') return { route: 'matchAdmin' };
-  if (normalizedPath === '/search' || (normalizedPath === '/' && !(checkoutParams.reportId && checkoutParams.sessionId))) {
-    return { route: 'search' };
-  }
-
-  const sharedMatchReport = normalizedPath.match(/^\/shared\/match\/report\/([^/]+)$/);
-  if (sharedMatchReport) {
-    try {
-      return {
-        route: 'matchSharedReport',
-        matchShareToken: decodeURIComponent(sharedMatchReport[1]),
-      };
-    } catch {
-      return { route: 'not_found', rawPath: normalizedPath };
-    }
-  }
-
-  const packMatch = normalizedPath.match(/^\/pack\/([^/]+)\/([^/]+)$/);
-  if (packMatch) {
-    try {
-      return {
-        route: 'pack',
-        vboId: decodeURIComponent(packMatch[1]),
-        reportId: decodeURIComponent(packMatch[2]),
-      };
-    } catch {
-      return { route: 'not_found', rawPath: normalizedPath };
-    }
-  }
-
-  const sharedPackMatch = normalizedPath.match(/^\/shared-pack\/([^/]+)$/);
-  if (sharedPackMatch) {
-    try {
-      return {
-        route: 'shared',
-        sharedMode: 'pack',
-        shareToken: decodeURIComponent(sharedPackMatch[1]),
-      };
-    } catch {
-      return { route: 'not_found', rawPath: normalizedPath };
-    }
-  }
-
-  const sharedMatch = normalizedPath.match(/^\/shared\/([^/]+)$/);
-  if (sharedMatch) {
-    try {
-      return {
-        route: 'shared',
-        sharedMode: 'briefing',
-        shareToken: decodeURIComponent(sharedMatch[1]),
-      };
-    } catch {
-      return { route: 'not_found', rawPath: normalizedPath };
-    }
-  }
-
-  const dossierMatch = normalizedPath.match(/^\/address\/([^/]+)$/);
-  if (dossierMatch) {
-    try {
-      return {
-        route: 'dossier',
-        vboId: decodeURIComponent(dossierMatch[1]),
-        lookupId,
-        ...checkoutParams,
-      };
-    } catch {
-      return { route: 'not_found', rawPath: normalizedPath };
-    }
-  }
-
-  if (normalizedPath === '/briefing') {
-    return {
-      route: 'dossier',
-      lookupId,
-      ...checkoutParams,
-    };
-  }
-
-  if (normalizedPath === '/' && checkoutParams.reportId && checkoutParams.sessionId) {
-    return {
-      route: 'dossier',
-      lookupId,
-      ...checkoutParams,
-    };
-  }
-
-  return { route: 'not_found', rawPath: normalizedPath };
 }
 
 function parseLocationRoute(location: Location): ParsedHashRoute {
@@ -677,44 +547,6 @@ function parseLocationRoute(location: Location): ParsedHashRoute {
   }
 
   return parseRoute(location.pathname || '/', searchQuery);
-}
-
-function buildHashRoute(parsed: ParsedHashRoute): string {
-  if (parsed.route === 'shortlist') return '#/saved';
-  if (parsed.route === 'compare') return '#/compare';
-  if (parsed.route === 'settings') return '#/settings';
-  if (parsed.route === 'matchLanding') return '#/match';
-  if (parsed.route === 'matchQuiz') return '#/match/quiz';
-  if (parsed.route === 'matchReport') return '#/match/report';
-  if (parsed.route === 'matchComparison') return '#/match/compare';
-  if (parsed.route === 'matchSimilar') return '#/match/similar';
-  if (parsed.route === 'matchMap') return '#/match/map';
-  if (parsed.route === 'matchListings') return '#/match/listings';
-  if (parsed.route === 'matchAlerts') return '#/match/alerts';
-  if (parsed.route === 'matchSaved') return '#/match/saved';
-  if (parsed.route === 'matchAdmin') return '#/match/admin';
-  if (parsed.route === 'matchSharedReport' && parsed.matchShareToken) {
-    return `#/shared/match/report/${encodeURIComponent(parsed.matchShareToken)}`;
-  }
-  if (parsed.route === 'pack' && parsed.vboId && parsed.reportId) {
-    return `#/pack/${encodeURIComponent(parsed.vboId)}/${encodeURIComponent(parsed.reportId)}`;
-  }
-  if (parsed.route === 'shared' && parsed.shareToken) {
-    const path = parsed.sharedMode === 'pack' ? 'shared-pack' : 'shared';
-    return `#/${path}/${encodeURIComponent(parsed.shareToken)}`;
-  }
-  if (parsed.route === 'not_found') return parsed.rawPath ? `#${parsed.rawPath}` : '#/not-found';
-  if (parsed.route !== 'dossier') return '#/search';
-
-  const params = new URLSearchParams();
-  if (parsed.lookupId) params.set('lookup', parsed.lookupId);
-  if (parsed.reportId) params.set('report', parsed.reportId);
-  if (parsed.sessionId) params.set('session_id', parsed.sessionId);
-  if (parsed.buyerResume) params.set('buyer_resume', parsed.buyerResume);
-
-  const query = params.toString();
-  if (!parsed.vboId) return `#/briefing${query ? `?${query}` : ''}`;
-  return `#/address/${encodeURIComponent(parsed.vboId)}${query ? `?${query}` : ''}`;
 }
 
 function hashRouteFromUrl(urlString: string): string | null {
@@ -4471,6 +4303,11 @@ function App() {
       setActiveScreen('matchLanding');
       return;
     }
+    if (parsed.route === 'matchSurvey') {
+      setActiveTab('home');
+      setActiveScreen('matchSurvey');
+      return;
+    }
     if (parsed.route === 'matchQuiz') {
       setActiveTab('home');
       setActiveScreen('matchQuiz');
@@ -5164,6 +5001,8 @@ function App() {
         ? '#/settings'
         : activeScreen === 'matchLanding'
           ? '#/match'
+        : activeScreen === 'matchSurvey'
+          ? '#/match/survey'
         : activeScreen === 'matchQuiz'
           ? '#/match/quiz'
         : activeScreen === 'matchReport'
@@ -5510,15 +5349,30 @@ function App() {
             >
               <Suspense fallback={null}>
                 <MatchLanding
-                  onStartQuiz={() => {
-                    setActiveScreen('matchQuiz');
-                    setHashRoute('#/match/quiz');
+                  onStartMatch={() => {
+                    setActiveScreen('matchSurvey');
+                    setHashRoute('#/match/survey');
                   }}
-                  onCompareKnown={() => {
-                    setActiveScreen('matchSimilar');
-                    setHashRoute('#/match/similar');
+                  onSearchAddress={() => {
+                    setActiveScreen('search');
+                    setHashRoute('#/search');
                   }}
                 />
+              </Suspense>
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchSurvey' && (
+            <motion.div
+              key="screen-match-survey"
+              className="app__screen"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={SPRING_TAB}
+            >
+              <Suspense fallback={null}>
+                <MatchSurveyShell />
               </Suspense>
             </motion.div>
           )}
