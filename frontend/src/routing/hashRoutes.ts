@@ -68,6 +68,142 @@ const MATCH_SESSION_ROUTE_STEPS: Partial<Record<HashRoute, string>> = {
   matchResults: 'results',
 };
 
+function readFiniteNumber(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readNonNegativeFiniteNumber(value: unknown): number | undefined {
+  const parsed = readFiniteNumber(value);
+  return parsed !== undefined && parsed >= 0 ? parsed : undefined;
+}
+
+function readFiniteMapCenter(value: unknown): [number, number] | undefined {
+  if (!Array.isArray(value) || value.length !== 2) return undefined;
+  const latitude = readFiniteNumber(value[0]);
+  const longitude = readFiniteNumber(value[1]);
+  return latitude === undefined || longitude === undefined ? undefined : [latitude, longitude];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function decodeRouteSegment(value: string): string | undefined {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function readAllowedMatchReturnTarget(target: string | undefined): Pick<MatchReturnContext, 'sessionId' | 'neighborhoodId'> | null {
+  if (!target) return null;
+  const withoutHash = target.startsWith('#') ? target.slice(1) : target;
+  const [pathPart = ''] = withoutHash.split('?');
+  const path = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
+  if (path === '/match/map') return {};
+
+  const resultsMatch = path.match(/^\/match\/session\/([^/]+)\/results$/);
+  if (resultsMatch) {
+    const sessionId = decodeRouteSegment(resultsMatch[1]);
+    return sessionId ? { sessionId } : null;
+  }
+
+  const neighborhoodMatch = path.match(/^\/match\/session\/([^/]+)\/neighborhood\/([^/]+)$/);
+  if (neighborhoodMatch) {
+    const sessionId = decodeRouteSegment(neighborhoodMatch[1]);
+    const neighborhoodId = decodeRouteSegment(neighborhoodMatch[2]);
+    return sessionId && neighborhoodId ? { sessionId, neighborhoodId } : null;
+  }
+
+  return null;
+}
+
+function buildCanonicalMatchReturnContext(
+  value: Partial<MatchReturnContext>,
+): MatchReturnContext | undefined {
+  const targetValue = typeof value.target === 'string' ? value.target : undefined;
+  const allowedTarget = readAllowedMatchReturnTarget(targetValue);
+  const sessionId = typeof value.sessionId === 'string' && value.sessionId.length > 0
+    ? value.sessionId
+    : allowedTarget?.sessionId;
+  const neighborhoodId = typeof value.neighborhoodId === 'string' && value.neighborhoodId.length > 0
+    ? value.neighborhoodId
+    : allowedTarget?.neighborhoodId;
+
+  if (!sessionId && !allowedTarget) return undefined;
+
+  const target = sessionId && neighborhoodId
+    ? `#/match/session/${encodeURIComponent(sessionId)}/neighborhood/${encodeURIComponent(neighborhoodId)}`
+    : sessionId
+      ? `#/match/session/${encodeURIComponent(sessionId)}/results`
+      : '#/match/map';
+
+  return {
+    target,
+    sessionId,
+    neighborhoodId,
+    mapCenter: value.mapCenter,
+    mapZoom: value.mapZoom,
+    listScroll: value.listScroll,
+    language: value.language,
+    selectedHouseId: value.selectedHouseId,
+  };
+}
+
+function parseStructuredMatchReturnContext(encodedContext: string | undefined): {
+  context: Partial<MatchReturnContext>;
+  malformed: boolean;
+} {
+  if (!encodedContext) return { context: {}, malformed: false };
+  try {
+    const parsed = JSON.parse(encodedContext) as unknown;
+    if (!isRecord(parsed)) return { context: {}, malformed: true };
+    const context: Partial<MatchReturnContext> = {};
+
+    if (hasOwn(parsed, 'mapCenter')) {
+      const mapCenter = readFiniteMapCenter(parsed.mapCenter);
+      if (!mapCenter) return { context: {}, malformed: true };
+      context.mapCenter = mapCenter;
+    }
+
+    if (hasOwn(parsed, 'mapZoom')) {
+      const mapZoom = readNonNegativeFiniteNumber(parsed.mapZoom);
+      if (mapZoom === undefined) return { context: {}, malformed: true };
+      context.mapZoom = mapZoom;
+    }
+
+    if (hasOwn(parsed, 'listScroll')) {
+      const listScroll = readNonNegativeFiniteNumber(parsed.listScroll);
+      if (listScroll === undefined) return { context: {}, malformed: true };
+      context.listScroll = listScroll;
+    }
+
+    if (hasOwn(parsed, 'language')) {
+      if (parsed.language !== 'en' && parsed.language !== 'nl') return { context: {}, malformed: true };
+      context.language = parsed.language;
+    }
+
+    if (hasOwn(parsed, 'selectedHouseId')) {
+      if (typeof parsed.selectedHouseId !== 'string') return { context: {}, malformed: true };
+      context.selectedHouseId = parsed.selectedHouseId;
+    }
+
+    return { context, malformed: false };
+  } catch {
+    return { context: {}, malformed: true };
+  }
+}
+
+export function hasMalformedMatchReturnRouteParams(params: URLSearchParams): boolean {
+  return parseStructuredMatchReturnContext(params.get('match_context') ?? undefined).malformed;
+}
+
 function readCheckoutRouteParams(params: URLSearchParams): Pick<
   ParsedHashRoute,
   'reportId' | 'sessionId' | 'buyerResume'
@@ -79,44 +215,22 @@ function readCheckoutRouteParams(params: URLSearchParams): Pick<
   };
 }
 
-function readMatchReturnRouteParams(params: URLSearchParams): MatchReturnContext | undefined {
+export function readMatchReturnRouteParams(params: URLSearchParams): MatchReturnContext | undefined {
   const target = params.get('match_return') ?? undefined;
   const sessionId = params.get('match_session') ?? undefined;
   const neighborhoodId = params.get('match_neighborhood') ?? undefined;
   const encodedContext = params.get('match_context') ?? undefined;
   if (!target && !sessionId && !neighborhoodId && !encodedContext) return undefined;
-  let structuredContext: Partial<MatchReturnContext> = {};
-  if (encodedContext) {
-    try {
-      const parsed = JSON.parse(encodedContext) as Partial<MatchReturnContext>;
-      structuredContext = {
-        mapCenter: Array.isArray(parsed.mapCenter) && parsed.mapCenter.length === 2
-          ? [Number(parsed.mapCenter[0]), Number(parsed.mapCenter[1])]
-          : undefined,
-        mapZoom: typeof parsed.mapZoom === 'number' ? parsed.mapZoom : undefined,
-        listScroll: typeof parsed.listScroll === 'number' ? parsed.listScroll : undefined,
-        language: parsed.language === 'en' || parsed.language === 'nl' ? parsed.language : undefined,
-        selectedHouseId: typeof parsed.selectedHouseId === 'string' ? parsed.selectedHouseId : undefined,
-      };
-    } catch {
-      structuredContext = {};
-    }
-  }
 
-  const canonicalTarget = target && target !== '#/match/map'
-    ? target
-    : sessionId && neighborhoodId
-      ? `#/match/session/${encodeURIComponent(sessionId)}/neighborhood/${encodeURIComponent(neighborhoodId)}`
-      : sessionId
-        ? `#/match/session/${encodeURIComponent(sessionId)}/results`
-        : '#/match/map';
+  const structuredContext = parseStructuredMatchReturnContext(encodedContext);
+  if (structuredContext.malformed) return undefined;
 
-  return {
-    target: canonicalTarget,
+  return buildCanonicalMatchReturnContext({
+    target,
     sessionId,
     neighborhoodId,
-    ...structuredContext,
-  };
+    ...structuredContext.context,
+  });
 }
 
 export function parseHashRoute(hash: string): ParsedHashRoute {
@@ -129,6 +243,9 @@ export function parseHashRoute(hash: string): ParsedHashRoute {
 export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   const params = new URLSearchParams(queryPart);
   const normalizedPath = path === '/index.html' ? '/' : path;
+  if (hasMalformedMatchReturnRouteParams(params)) {
+    return { route: 'not_found', rawPath: normalizedPath };
+  }
   const lookupId = params.get('lookup') ?? undefined;
   const checkoutParams = readCheckoutRouteParams(params);
   const matchReturn = readMatchReturnRouteParams(params);
@@ -157,7 +274,11 @@ export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
       const step = matchSession[2];
       const detail = matchSession[3];
       if (step === 'question' && detail) {
-        return { route: 'matchSurvey', sessionId, questionStep: Number(detail) };
+        const questionStep = Number(detail);
+        if (!Number.isInteger(questionStep) || questionStep < 1) {
+          return { route: 'not_found', rawPath: normalizedPath };
+        }
+        return { route: 'matchSurvey', sessionId, questionStep };
       }
       if (step === 'neighborhood' && detail) {
         return { route: 'matchNeighborhood', sessionId, neighborhoodId: decodeURIComponent(detail) };
@@ -305,15 +426,21 @@ export function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.sessionId) params.set('session_id', parsed.sessionId);
   if (parsed.buyerResume) params.set('buyer_resume', parsed.buyerResume);
   if (parsed.matchReturn) {
-    params.set('match_return', parsed.matchReturn.target);
-    if (parsed.matchReturn.sessionId) params.set('match_session', parsed.matchReturn.sessionId);
-    if (parsed.matchReturn.neighborhoodId) params.set('match_neighborhood', parsed.matchReturn.neighborhoodId);
+    const matchReturn = buildCanonicalMatchReturnContext(parsed.matchReturn);
+    if (!matchReturn) {
+      const query = params.toString();
+      if (!parsed.vboId) return `#/briefing${query ? `?${query}` : ''}`;
+      return `#/address/${encodeURIComponent(parsed.vboId)}${query ? `?${query}` : ''}`;
+    }
+    params.set('match_return', matchReturn.target);
+    if (matchReturn.sessionId) params.set('match_session', matchReturn.sessionId);
+    if (matchReturn.neighborhoodId) params.set('match_neighborhood', matchReturn.neighborhoodId);
     const structuredContext = {
-      ...(parsed.matchReturn.mapCenter ? { mapCenter: parsed.matchReturn.mapCenter } : {}),
-      ...(typeof parsed.matchReturn.mapZoom === 'number' ? { mapZoom: parsed.matchReturn.mapZoom } : {}),
-      ...(typeof parsed.matchReturn.listScroll === 'number' ? { listScroll: parsed.matchReturn.listScroll } : {}),
-      ...(parsed.matchReturn.language ? { language: parsed.matchReturn.language } : {}),
-      ...(parsed.matchReturn.selectedHouseId ? { selectedHouseId: parsed.matchReturn.selectedHouseId } : {}),
+      ...(matchReturn.mapCenter ? { mapCenter: matchReturn.mapCenter } : {}),
+      ...(typeof matchReturn.mapZoom === 'number' ? { mapZoom: matchReturn.mapZoom } : {}),
+      ...(typeof matchReturn.listScroll === 'number' ? { listScroll: matchReturn.listScroll } : {}),
+      ...(matchReturn.language ? { language: matchReturn.language } : {}),
+      ...(matchReturn.selectedHouseId ? { selectedHouseId: matchReturn.selectedHouseId } : {}),
     };
     if (Object.keys(structuredContext).length > 0) {
       params.set('match_context', JSON.stringify(structuredContext));

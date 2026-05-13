@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import MatchFirstLanding from './MatchFirstLanding';
 import { setupTestI18n } from '../../test/helpers';
 import { recordMatchFirstEvent } from '../../services/matchFirstAnalytics';
@@ -96,4 +98,16 @@ it('language buttons use native keyboard behavior instead of custom radio semant
   expect(onLanguageChange).toHaveBeenCalledWith('nl');
   expect(dutchButton).toHaveAttribute('aria-pressed', 'true');
   expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+});
+
+it('styles the landing as a full-width hero instead of a framed card', () => {
+  const css = readFileSync(join(process.cwd(), 'src/components/match-first/MatchFirstLanding.css'), 'utf8');
+  const heroRule = css.match(/\.match-first-landing\s*{(?<body>[^}]+)}/)?.groups?.body ?? '';
+
+  expect(heroRule).toContain('width: 100%');
+  expect(heroRule).toContain('max-width: none');
+  expect(heroRule).toContain('border: 0');
+  expect(heroRule).toContain('border-radius: 0');
+  expect(heroRule).toContain('box-shadow: none');
+  expect(heroRule).not.toContain('1180px');
 });

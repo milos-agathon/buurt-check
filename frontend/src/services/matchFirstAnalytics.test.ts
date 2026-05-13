@@ -33,3 +33,27 @@ it('records stable match-first landing event names without translated labels', (
     },
   ]);
 });
+
+it('returns the analytics event when localStorage writes fail', () => {
+  const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('storage unavailable');
+  });
+  try {
+    const event = recordMatchFirstEvent('match_first_search_link_clicked', {
+      locale: 'en',
+      source: 'landing',
+    });
+
+    expect(event).toMatchObject({
+      event_name: 'match_first_search_link_clicked',
+      locale: 'en',
+      context: {
+        locale: 'en',
+        source: 'landing',
+      },
+    });
+    expect(getStoredMatchFirstEvents()).toEqual([]);
+  } finally {
+    setItemSpy.mockRestore();
+  }
+});

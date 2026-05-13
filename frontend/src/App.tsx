@@ -180,12 +180,15 @@ import {
 } from './utils/riskComparisonPresentation';
 import {
   buildHashRoute,
+  hasMalformedMatchReturnRouteParams,
   parseHashRoute,
   parseRoute,
+  readMatchReturnRouteParams,
   type HashRoute,
   type MatchReturnContext,
   type ParsedHashRoute,
 } from './routing/hashRoutes';
+import type { MatchFirstSurveyAnswers } from './components/match-first/SurveyShell';
 import './App.css';
 
 const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMap'));
@@ -532,22 +535,10 @@ function parseLocationRoute(location: Location): ParsedHashRoute {
     }
 
     const params = new URLSearchParams(searchQuery);
-    const routeMatchSession = params.get('match_session') ?? undefined;
-    const routeMatchNeighborhood = params.get('match_neighborhood') ?? undefined;
-    const routeMatchTarget = params.get('match_return') ?? undefined;
-    const routeMatchReturn = routeMatchTarget || routeMatchSession || routeMatchNeighborhood
-      ? {
-        target: routeMatchTarget || (
-          routeMatchSession && routeMatchNeighborhood
-            ? `#/match/session/${encodeURIComponent(routeMatchSession)}/neighborhood/${encodeURIComponent(routeMatchNeighborhood)}`
-            : routeMatchSession
-              ? `#/match/session/${encodeURIComponent(routeMatchSession)}/results`
-              : '#/match/map'
-        ),
-        sessionId: routeMatchSession,
-        neighborhoodId: routeMatchNeighborhood,
-      }
-      : undefined;
+    if (hasMalformedMatchReturnRouteParams(params)) {
+      return { route: 'not_found', rawPath: location.hash || location.pathname || '/' };
+    }
+    const routeMatchReturn = readMatchReturnRouteParams(params);
     return {
       ...parsed,
       lookupId: parsed.lookupId ?? params.get('lookup') ?? undefined,
@@ -573,22 +564,61 @@ function tabForScreen(screen: Screen): TabId {
 }
 
 const MATCH_RETURN_ROUTES: ReadonlySet<HashRoute> = new Set([
-  'matchLanding',
-  'matchSurveyIntro',
-  'matchSurvey',
-  'matchReview',
-  'matchRun',
-  'matchSuccess',
   'matchResults',
   'matchNeighborhood',
-  'matchReport',
   'matchMap',
 ]);
 
 const MATCH_SESSION_STORAGE_KEY = 'buurt-check-match-first-session-id';
-type MatchJobStatus = 'running' | 'completed' | 'failed';
-const MATCH_JOB_STATUS_KEY_PREFIX = 'buurt-check-match-first-job-status:';
+type MatchJobStatus =
+  | 'run_pending'
+  | 'running'
+  | 'slow'
+  | 'failed'
+  | 'completed_with_fallback'
+  | 'no_results'
+  | 'no_strong_matches';
+const MATCH_JOB_STATUS_STORAGE_KEY_PREFIX = 'buurt-check-match-first-job-status:';
+const MATCH_JOB_STATUSES: ReadonlySet<MatchJobStatus> = new Set([
+  'run_pending',
+  'running',
+  'slow',
+  'failed',
+  'completed_with_fallback',
+  'no_results',
+  'no_strong_matches',
+]);
 const MATCH_RETURN_CONTEXT_KEY_PREFIX = 'buurt-check-match-first-return-context:';
+
+interface MatchNearbyAddressCandidate {
+  id: string;
+  label: string;
+}
+
+function readFiniteNumber(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readNonNegativeFiniteNumber(value: unknown): number | undefined {
+  const parsed = readFiniteNumber(value);
+  return parsed !== undefined && parsed >= 0 ? parsed : undefined;
+}
+
+function readFiniteMapCenter(value: unknown): [number, number] | undefined {
+  if (!Array.isArray(value) || value.length !== 2) return undefined;
+  const latitude = readFiniteNumber(value[0]);
+  const longitude = readFiniteNumber(value[1]);
+  return latitude === undefined || longitude === undefined ? undefined : [latitude, longitude];
+}
+
+function matchJobStatusStorageKey(sessionId: string): string {
+  return `${MATCH_JOB_STATUS_STORAGE_KEY_PREFIX}${sessionId}`;
+}
+
+function normalizeMatchJobStatus(value: string | null | undefined): MatchJobStatus | null {
+  return value && MATCH_JOB_STATUSES.has(value as MatchJobStatus) ? value as MatchJobStatus : null;
+}
 
 function createMatchSessionId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -599,31 +629,39 @@ function createMatchSessionId(): string {
 
 function readStoredMatchSessionId(): string | null {
   if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(MATCH_SESSION_STORAGE_KEY);
+  try {
+    return window.localStorage.getItem(MATCH_SESSION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 function storeMatchSessionId(sessionId: string): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(MATCH_SESSION_STORAGE_KEY, sessionId);
-}
-
-function matchJobStatusStorageKey(sessionId: string): string {
-  return `${MATCH_JOB_STATUS_KEY_PREFIX}${sessionId}`;
-}
-
-function isMatchJobStatus(value: unknown): value is MatchJobStatus {
-  return value === 'running' || value === 'completed' || value === 'failed';
+  try {
+    window.localStorage.setItem(MATCH_SESSION_STORAGE_KEY, sessionId);
+  } catch {
+    // Keep the session in React state when browser storage is unavailable.
+  }
 }
 
 function readStoredMatchJobStatus(sessionId: string | null | undefined): MatchJobStatus | null {
   if (typeof window === 'undefined' || !sessionId) return null;
-  const value = window.localStorage.getItem(matchJobStatusStorageKey(sessionId));
-  return isMatchJobStatus(value) ? value : null;
+  try {
+    return normalizeMatchJobStatus(window.localStorage.getItem(matchJobStatusStorageKey(sessionId)));
+  } catch {
+    return null;
+  }
 }
 
 function storeMatchJobStatus(sessionId: string, status: MatchJobStatus): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(matchJobStatusStorageKey(sessionId), status);
+  if (!MATCH_JOB_STATUSES.has(status)) return;
+  try {
+    window.localStorage.setItem(matchJobStatusStorageKey(sessionId), status);
+  } catch {
+    // The active tab still carries this neutral status in memory.
+  }
 }
 
 function matchReturnContextStorageKey(sessionId: string): string {
@@ -634,23 +672,21 @@ function normalizeStoredMatchReturnContext(value: Partial<MatchReturnContext> | 
   if (!value) return null;
   const sessionId = typeof value.sessionId === 'string' ? value.sessionId : undefined;
   const neighborhoodId = typeof value.neighborhoodId === 'string' ? value.neighborhoodId : undefined;
-  const target = typeof value.target === 'string' && value.target.length > 0
-    ? value.target
-    : sessionId && neighborhoodId
-      ? `#/match/session/${encodeURIComponent(sessionId)}/neighborhood/${encodeURIComponent(neighborhoodId)}`
-      : sessionId
-        ? `#/match/session/${encodeURIComponent(sessionId)}/results`
+  const target = sessionId && neighborhoodId
+    ? `#/match/session/${encodeURIComponent(sessionId)}/neighborhood/${encodeURIComponent(neighborhoodId)}`
+    : sessionId
+      ? `#/match/session/${encodeURIComponent(sessionId)}/results`
+      : value.target === '#/match/map'
+        ? '#/match/map'
         : '#/match';
 
   return {
     target,
     sessionId,
     neighborhoodId,
-    mapCenter: Array.isArray(value.mapCenter) && value.mapCenter.length === 2
-      ? [Number(value.mapCenter[0]), Number(value.mapCenter[1])]
-      : undefined,
-    mapZoom: typeof value.mapZoom === 'number' ? value.mapZoom : undefined,
-    listScroll: typeof value.listScroll === 'number' ? value.listScroll : undefined,
+    mapCenter: readFiniteMapCenter(value.mapCenter),
+    mapZoom: readNonNegativeFiniteNumber(value.mapZoom),
+    listScroll: readNonNegativeFiniteNumber(value.listScroll),
     language: value.language === 'en' || value.language === 'nl' ? value.language : undefined,
     selectedHouseId: typeof value.selectedHouseId === 'string' ? value.selectedHouseId : undefined,
   };
@@ -671,26 +707,14 @@ function storeMatchReturnContext(context: MatchReturnContext | null | undefined)
   if (typeof window === 'undefined' || !context?.sessionId) return;
   const normalized = normalizeStoredMatchReturnContext(context);
   if (!normalized) return;
-  window.localStorage.setItem(matchReturnContextStorageKey(context.sessionId), JSON.stringify(normalized));
+  try {
+    window.localStorage.setItem(matchReturnContextStorageKey(context.sessionId), JSON.stringify(normalized));
+  } catch {
+    // Return context remains available in React state for the current navigation.
+  }
 }
 
 function normalizeMatchReturnTarget(context: MatchReturnContext | null | undefined): { hash: string; screen: Screen } {
-  if (context?.target) {
-    const hash = context.target.startsWith('#') ? context.target : `#${context.target}`;
-    const parsed = parseHashRoute(hash);
-    if (parsed.route === 'matchMap' && context.sessionId) {
-      const route = context.neighborhoodId ? 'matchNeighborhood' : 'matchResults';
-      const normalized = buildHashRoute({
-        route,
-        sessionId: context.sessionId,
-        neighborhoodId: context.neighborhoodId,
-      });
-      return { hash: normalized, screen: route };
-    }
-    if (MATCH_RETURN_ROUTES.has(parsed.route)) {
-      return { hash: buildHashRoute(parsed), screen: parsed.route };
-    }
-  }
   if (context?.sessionId) {
     const route = context.neighborhoodId ? 'matchNeighborhood' : 'matchResults';
     const hash = buildHashRoute({
@@ -700,6 +724,13 @@ function normalizeMatchReturnTarget(context: MatchReturnContext | null | undefin
     });
     return { hash, screen: route };
   }
+  if (context?.target) {
+    const hash = context.target.startsWith('#') ? context.target : `#${context.target}`;
+    const parsed = parseHashRoute(hash);
+    if (MATCH_RETURN_ROUTES.has(parsed.route)) {
+      return { hash: buildHashRoute(parsed), screen: parsed.route };
+    }
+  }
   return { hash: '#/match', screen: 'matchLanding' };
 }
 
@@ -708,7 +739,7 @@ function formatMatchCenterAttribute(center: [number, number] | undefined): strin
 }
 
 function formatNumberAttribute(value: number | undefined): string | undefined {
-  return typeof value === 'number' ? String(value) : undefined;
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : undefined;
 }
 
 function hashRouteFromUrl(urlString: string): string | null {
@@ -1346,9 +1377,24 @@ function App() {
     () => initialScreenFromRoute(initialRoute, initialHasDossier),
     [initialHasDossier, initialRoute],
   );
-  const initialMatchSessionId = useMemo(() => (
-    initialRoute.route.startsWith('match') ? initialRoute.sessionId ?? readStoredMatchSessionId() : initialRoute.matchReturn?.sessionId ?? null
-  ), [initialRoute]);
+  const initialMatchSessionId = useMemo(() => {
+    if (!initialRoute.route.startsWith('match')) {
+      return initialRoute.matchReturn?.sessionId ?? null;
+    }
+    const existing = initialRoute.sessionId ?? readStoredMatchSessionId();
+    if (existing) return existing;
+    if (
+      initialRoute.route === 'matchSurveyIntro'
+      || initialRoute.route === 'matchSurvey'
+      || initialRoute.route === 'matchReview'
+      || initialRoute.route === 'matchRun'
+    ) {
+      const created = createMatchSessionId();
+      storeMatchSessionId(created);
+      return created;
+    }
+    return null;
+  }, [initialRoute]);
   const initialMatchMapReturnContext = useMemo(() => (
     initialRoute.matchReturn
       ?? (initialRoute.route.startsWith('match') ? readStoredMatchReturnContext(initialRoute.sessionId ?? null) : null)
@@ -1371,6 +1417,12 @@ function App() {
   const [activeMatchJobStatus, setActiveMatchJobStatus] = useState<MatchJobStatus | null>(() => (
     readStoredMatchJobStatus(initialMatchSessionId)
   ));
+  const [matchSurveyAnswers, setMatchSurveyAnswers] = useState<{
+    sessionId: string | null;
+    answers: MatchFirstSurveyAnswers;
+  } | null>(null);
+  const [matchNearbyAddressCandidates] = useState<MatchNearbyAddressCandidate[]>([]);
+  const mainContentRef = useRef<HTMLElement | null>(null);
   const [matchQuizResponse] = useState<MatchQuizResponse | null>(null);
   const [matchRecommendations, setMatchRecommendations] = useState<MatchRecommendationsResponse | null>(null);
   const matchRecommendationsLoading = false;
@@ -3786,6 +3838,8 @@ function App() {
     options?: {
       forcedReportId?: string;
       recoveryMode?: 'checkout_return';
+      matchReturnContext?: MatchReturnContext | null;
+      requestedVboId?: string;
     },
   ) => {
     addressRequestAbortRef.current?.abort();
@@ -3865,6 +3919,12 @@ function App() {
     setCheckedQuestions(new Set());
     screenScrollPositionsRef.current.set('dossier', 0);
     const requestId = ++neighborhood3DRequestId.current;
+    const routeMatchReturnContext = typeof window !== 'undefined'
+      ? parseLocationRoute(window.location).matchReturn
+      : undefined;
+    const preservedMatchReturnContext = options?.matchReturnContext
+      ?? routeMatchReturnContext
+      ?? matchReturnContext;
 
     setActiveScreen('dossier');
     // Sync immediately — post-await checks read this ref before useEffect fires
@@ -3872,7 +3932,11 @@ function App() {
     setActiveTab('briefing');
     setSheetSnap('peek');
     setPendingDisplayName(suggestion.display_name);
-    setHashRoute('#/briefing');
+    setHashRoute(
+      preservedMatchReturnContext
+        ? dossierHash(options?.requestedVboId, suggestion.id, preservedMatchReturnContext)
+        : '#/briefing',
+    );
 
     try {
       let activeSuggestion = suggestion;
@@ -4301,19 +4365,40 @@ function App() {
         stage: 'initial_lookup',
         lookup_id: suggestion.id,
       });
-      setError(null);
       setLoading(false);
       setBuildingLoading(false);
       setSheetSnap('hidden');
+      if (preservedMatchReturnContext) {
+        setError(mapped);
+        setAddress(null);
+        setBuildingResponse(null);
+        setBuildingError(null);
+        setMatchReturnContext(preservedMatchReturnContext);
+        setMatchMapReturnContext(preservedMatchReturnContext);
+        storeMatchReturnContext(preservedMatchReturnContext);
+        showToast(mapped);
+        setActiveTab('briefing');
+        setActiveScreen('dossier');
+        setHashRoute(buildHashRoute({
+          route: 'dossier',
+          vboId: options?.requestedVboId,
+          lookupId: suggestion.id,
+          matchReturn: preservedMatchReturnContext,
+        }), { replace: true });
+        return;
+      }
+      setError(null);
       showToast(mapped);
       setActiveTab('home');
       setActiveScreen('search');
       setHashRoute('#/search', { replace: true });
     }
   }, [
+    activeLookupId,
     address?.adresseerbaar_object_id,
     dossierHash,
     isActiveDossierRequest,
+    matchReturnContext,
     setHashRoute,
     showToast,
     t,
@@ -4570,13 +4655,14 @@ function App() {
       return;
     }
     if (parsed.route === 'dossier') {
+      const routeMatchReturnContext = parsed.matchReturn ?? matchReturnContext;
       setActiveTab('briefing');
       setActiveScreen('dossier');
-      setMatchReturnContext(parsed.matchReturn ?? null);
-      if (parsed.matchReturn) {
-        setMatchMapReturnContext(parsed.matchReturn);
-        storeMatchReturnContext(parsed.matchReturn);
-        setActiveMatchJobStatus(readStoredMatchJobStatus(parsed.matchReturn.sessionId));
+      setMatchReturnContext(routeMatchReturnContext ?? null);
+      if (routeMatchReturnContext) {
+        setMatchMapReturnContext(routeMatchReturnContext);
+        storeMatchReturnContext(routeMatchReturnContext);
+        setActiveMatchJobStatus(readStoredMatchJobStatus(routeMatchReturnContext.sessionId));
       }
 
       const checkoutKey = parsed.reportId && parsed.sessionId
@@ -4649,6 +4735,17 @@ function App() {
         return;
       }
       if (!routeLookupId) {
+        if (parsed.vboId && routeMatchReturnContext) {
+          setLoading(false);
+          setBuildingLoading(false);
+          setSheetSnap('hidden');
+          setAddress(null);
+          setActiveLookupId(null);
+          setBuildingResponse(null);
+          setBuildingError(null);
+          setError(null);
+          return;
+        }
         if (parsed.vboId) {
           showToast(t('shortlist.reopenError'));
           setActiveTab('home');
@@ -4673,6 +4770,8 @@ function App() {
       }, {
         forcedReportId: checkoutReturnContext?.reportId ?? parsed.reportId,
         recoveryMode: checkoutReturnContext ? 'checkout_return' : undefined,
+        matchReturnContext: routeMatchReturnContext,
+        requestedVboId: parsed.vboId,
       });
       return;
     }
@@ -5294,6 +5393,11 @@ function App() {
     i18n.language,
   ]);
 
+  useEffect(() => {
+    if (activeScreen === 'not_found') return;
+    mainContentRef.current?.focus({ preventScroll: true });
+  }, [activeScreen]);
+
   const failedSourceCount = useMemo(() => {
     const isDossierActive = activeScreen === 'dossier' && !!address?.adresseerbaar_object_id;
     if (!isDossierActive) {
@@ -5522,14 +5626,38 @@ function App() {
     activeScreen.startsWith('match')
   );
   const hideTopBarLanguageSwitcher = activeScreen === 'matchLanding';
-  const hasStartedMatchJob = activeMatchJobStatus === 'running' || activeMatchJobStatus === 'completed';
-  const hasCompletedMatchJob = activeMatchJobStatus === 'completed';
+  const canShowMatchRunShell = activeMatchJobStatus === 'running'
+    || activeMatchJobStatus === 'run_pending'
+    || activeMatchJobStatus === 'slow'
+    || activeMatchJobStatus === 'failed';
+  const hasCompletedMatchJob = false;
   const restoredMatchMapContext = matchMapReturnContext;
+  const hasStructuredMatchMapReturnContext = Boolean(
+    restoredMatchMapContext?.mapCenter
+    || restoredMatchMapContext?.mapZoom !== undefined
+    || restoredMatchMapContext?.listScroll !== undefined
+    || restoredMatchMapContext?.selectedHouseId,
+  );
+  const canShowMatchNeighborhoodShell = Boolean(
+    restoredMatchMapContext?.sessionId
+    && restoredMatchMapContext.sessionId === activeMatchSessionId
+    && restoredMatchMapContext.neighborhoodId
+    && restoredMatchMapContext.neighborhoodId === activeMatchNeighborhoodId
+    && hasStructuredMatchMapReturnContext,
+  );
+  const hasNearbyAddressCandidates = matchNearbyAddressCandidates.length > 0;
+  const showDossierInlineMatchReturnAction = (
+    activeScreen === 'dossier'
+    && !showLoadingScreen
+    && !address
+    && !!matchReturnContext
+  );
+  const showDossierRouteMatchReturnAction = !!matchReturnContext && !showDossierInlineMatchReturnAction;
 
   const startMatchRun = () => {
     const sessionId = ensureMatchSessionId();
-    storeMatchJobStatus(sessionId, 'running');
-    setActiveMatchJobStatus('running');
+    storeMatchJobStatus(sessionId, 'run_pending');
+    setActiveMatchJobStatus('run_pending');
     setActiveScreen('matchRun');
     setHashRoute(buildHashRoute({ route: 'matchRun', sessionId }));
   };
@@ -5574,6 +5702,117 @@ function App() {
     </section>
   );
 
+  const renderMatchResultsUnavailable = (
+    titleId: string,
+    sectionDataProps: Record<string, string | undefined> = {},
+  ) => (
+    <section
+      {...sectionDataProps}
+      className="match-first-landing match-first-landing--simple"
+      aria-labelledby={titleId}
+    >
+      <div className="match-first-landing__content">
+        <p className="match-first-landing__eyebrow">{t('matchFirst.results.eyebrow')}</p>
+        <h1 id={titleId}>{t('matchFirst.results.unavailableTitle')}</h1>
+        <p className="match-first-landing__body">{t('matchFirst.results.unavailableBody')}</p>
+        <p className="match-first-landing__body">{t('matchFirst.results.runRequired')}</p>
+        <button
+          type="button"
+          className="match-first-landing__cta"
+          onClick={returnToMatchSurvey}
+        >
+          {t('matchFirst.results.backToSurvey')}
+        </button>
+      </div>
+    </section>
+  );
+
+  const renderMatchRunShell = () => {
+    const bodyKey = activeMatchJobStatus === 'slow'
+      ? 'matchFirst.failure.slowBackend'
+      : activeMatchJobStatus === 'failed'
+        ? 'matchFirst.failure.failedBackend'
+        : 'matchFirst.progress.placeholder';
+    const titleKey = activeMatchJobStatus === 'failed'
+      ? 'matchFirst.results.unavailableTitle'
+      : 'matchFirst.progress.title';
+
+    return (
+      <section className="match-first-landing match-first-landing--simple" aria-labelledby="match-run-title">
+        <div className="match-first-landing__content">
+          <p className="match-first-landing__eyebrow">{t('matchFirst.progress.eyebrow')}</p>
+          <h1 id="match-run-title">{t(titleKey)}</h1>
+          <p className="match-first-landing__body" role="status">{t(bodyKey)}</p>
+          {(activeMatchJobStatus === 'running' || activeMatchJobStatus === 'run_pending') && (
+            <p className="match-first-landing__body">{t('matchFirst.progress.honesty')}</p>
+          )}
+          <button
+            type="button"
+            className="match-first-landing__cta"
+            onClick={returnToMatchSurvey}
+          >
+            {t('matchFirst.progress.backToSurvey')}
+          </button>
+        </div>
+      </section>
+    );
+  };
+
+  const renderMatchResultsShell = (
+    titleId: string,
+    sectionDataProps: Record<string, string | undefined> = {},
+  ) => {
+    const bodyKey = activeMatchJobStatus === 'completed_with_fallback'
+      ? 'matchFirst.failure.completedWithFallback'
+      : activeMatchJobStatus === 'no_results'
+        ? 'matchFirst.failure.noResults'
+        : activeMatchJobStatus === 'no_strong_matches'
+          ? 'matchFirst.failure.noStrongMatches'
+          : activeMatchJobStatus === 'failed'
+            ? 'matchFirst.failure.failedBackend'
+            : null;
+
+    if (!bodyKey) return renderMatchResultsUnavailable(titleId, sectionDataProps);
+
+    return (
+      <section
+        {...sectionDataProps}
+        className="match-first-landing match-first-landing--simple"
+        aria-labelledby={titleId}
+      >
+        <div className="match-first-landing__content">
+          <p className="match-first-landing__eyebrow">{t('matchFirst.results.eyebrow')}</p>
+          <h1 id={titleId}>{t('matchFirst.results.unavailableTitle')}</h1>
+          <p className="match-first-landing__body" role="status">{t(bodyKey)}</p>
+          <button
+            type="button"
+            className="match-first-landing__cta"
+            onClick={returnToMatchSurvey}
+          >
+            {t('matchFirst.results.backToSurvey')}
+          </button>
+        </div>
+      </section>
+    );
+  };
+
+  const renderMatchReturnAction = () => (
+    matchReturnContext ? (
+      <div className="app__match-return">
+        <button
+          type="button"
+          className="app__match-return-button"
+          onClick={handleBackToMatchMap}
+        >
+          <svg className="app__match-return-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {t('dossier.backToMatchMap')}
+        </button>
+      </div>
+    ) : null
+  );
+
   return (
     <div className="app" data-screen={activeScreen}>
       <a href="#main-content" className="sr-only sr-only--focusable" inert={isOverlayModalOpen || undefined}>{t('a11y.skip_to_content')}</a>
@@ -5585,7 +5824,7 @@ function App() {
         hideLanguageSwitcher={hideTopBarLanguageSwitcher}
       />
 
-      <main className="app__main" id="main-content" inert={isOverlayModalOpen || undefined}>
+      <main ref={mainContentRef} className="app__main" id="main-content" tabIndex={-1} inert={isOverlayModalOpen || undefined}>
         <AnimatePresence initial={false} mode="wait">
           {activeScreen === 'search' && (
             <motion.div
@@ -5661,13 +5900,15 @@ function App() {
             >
               <Suspense fallback={null}>
                 <MatchSurveyShell
+                  sessionId={activeMatchSessionId}
                   onBack={() => {
                     const sessionId = ensureMatchSessionId();
                     setActiveScreen('matchSurveyIntro');
                     setHashRoute(buildHashRoute({ route: 'matchSurveyIntro', sessionId }));
                   }}
-                  onReview={() => {
+                  onReview={(answers) => {
                     const sessionId = ensureMatchSessionId();
+                    setMatchSurveyAnswers({ sessionId, answers });
                     setActiveScreen('matchReview');
                     setHashRoute(buildHashRoute({ route: 'matchReview', sessionId }));
                   }}
@@ -5687,12 +5928,20 @@ function App() {
             >
               <Suspense fallback={null}>
                 <MatchSurveyReview
+                  sessionId={activeMatchSessionId}
+                  answers={
+                    matchSurveyAnswers?.sessionId === activeMatchSessionId
+                      ? matchSurveyAnswers.answers
+                      : null
+                  }
                   onBack={() => {
                     const sessionId = ensureMatchSessionId();
                     setActiveScreen('matchSurvey');
                     setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: 1 }));
                   }}
-                  onComplete={() => {
+                  onComplete={(answers) => {
+                    const sessionId = ensureMatchSessionId();
+                    setMatchSurveyAnswers({ sessionId, answers });
                     startMatchRun();
                   }}
                 />
@@ -5709,27 +5958,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              {hasStartedMatchJob ? (
-              <section className="match-first-landing match-first-landing--simple" aria-labelledby="match-run-title">
-                <div className="match-first-landing__content">
-                  <p className="match-first-landing__eyebrow">{t('matchFirst.progress.eyebrow')}</p>
-                  <h1 id="match-run-title">{t('matchFirst.progress.title')}</h1>
-                  <p className="match-first-landing__body" role="status">{t('matchFirst.progress.placeholder')}</p>
-                  <p className="match-first-landing__body">{t('matchFirst.progress.honesty')}</p>
-                  <button
-                    type="button"
-                    className="match-first-landing__cta"
-                    onClick={() => {
-                      const sessionId = ensureMatchSessionId();
-                      setActiveScreen('matchSurvey');
-                      setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: 1 }));
-                    }}
-                  >
-                    {t('matchFirst.progress.backToSurvey')}
-                  </button>
-                </div>
-              </section>
-              ) : renderMatchRecovery('match-run-title')}
+              {canShowMatchRunShell ? renderMatchRunShell() : renderMatchRecovery('match-run-title')}
             </motion.div>
           )}
 
@@ -5750,7 +5979,7 @@ function App() {
                   <p className="match-first-landing__body">{t('matchFirst.success.placeholder')}</p>
                 </div>
               </section>
-              ) : renderMatchRecovery('match-success-title')}
+              ) : renderMatchResultsUnavailable('match-success-title')}
             </motion.div>
           )}
 
@@ -5763,7 +5992,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              {hasCompletedMatchJob ? renderMatchMapRecovery() : renderMatchRecovery('match-results-title')}
+              {renderMatchResultsShell('match-results-title')}
             </motion.div>
           )}
 
@@ -5776,8 +6005,8 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              {hasCompletedMatchJob ? (
-              <section
+              {canShowMatchNeighborhoodShell ? (
+                <section
                 className="match-first-landing match-first-landing--simple"
                 aria-labelledby="match-neighborhood-title"
                 data-session-id={activeMatchSessionId ?? undefined}
@@ -5794,7 +6023,14 @@ function App() {
                   <p className="match-first-landing__body">{t('matchFirst.neighborhood.no3dBeforeSelection')}</p>
                 </div>
               </section>
-              ) : renderMatchRecovery('match-neighborhood-title')}
+              ) : renderMatchResultsShell('match-neighborhood-title', {
+                'data-session-id': activeMatchSessionId ?? undefined,
+                'data-neighborhood-id': activeMatchNeighborhoodId ?? undefined,
+                'data-map-center': formatMatchCenterAttribute(restoredMatchMapContext?.mapCenter),
+                'data-map-zoom': formatNumberAttribute(restoredMatchMapContext?.mapZoom),
+                'data-list-scroll': formatNumberAttribute(restoredMatchMapContext?.listScroll),
+                'data-selected-house-id': restoredMatchMapContext?.selectedHouseId,
+              })}
             </motion.div>
           )}
 
@@ -6058,6 +6294,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
+            {showDossierRouteMatchReturnAction && renderMatchReturnAction()}
             {error && <p className="app__error">{error}</p>}
             {checkoutStatusMessage && (
               <div>
@@ -6082,6 +6319,45 @@ function App() {
                 warningKey={loadingWarningKey}
               />
             ) : !address ? (
+              matchReturnContext ? (
+              <div className="app__briefing-empty" role="alert" aria-live="assertive">
+                <svg className="app__briefing-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 9v4 M12 17h.01 M10.29 3.86 1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <h2 className="app__briefing-empty-title">{t('dossier.noReliableAddressTitle')}</h2>
+                <p className="app__briefing-empty-description">{t('dossier.noReliableAddressDescription')}</p>
+                <div className="match-first-landing__actions">
+                  <button
+                    type="button"
+                    className="app__briefing-empty-action"
+                    disabled={!hasNearbyAddressCandidates}
+                  >
+                    {t('dossier.chooseNearbyAddress')}
+                  </button>
+                  {!hasNearbyAddressCandidates && (
+                    <p className="app__briefing-empty-description">{t('dossier.nearbyAddressUnavailable')}</p>
+                  )}
+                  <button
+                    type="button"
+                    className="app__briefing-empty-action"
+                    onClick={() => {
+                      setActiveTab('home');
+                      setActiveScreen('search');
+                      setHashRoute('#/search');
+                    }}
+                  >
+                    {t('dossier.searchManually')}
+                  </button>
+                  <button
+                    type="button"
+                    className="app__briefing-empty-action"
+                    onClick={handleBackToMatchMap}
+                  >
+                    {t('dossier.backToMatchMap')}
+                  </button>
+                </div>
+              </div>
+              ) : (
               <div className="app__briefing-empty">
                 <svg className="app__briefing-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" />
@@ -6100,24 +6376,10 @@ function App() {
                   {t('nav.briefingEmptyAction')}
                 </button>
               </div>
+              )
             ) : (
               <ErrorBoundary key={address?.adresseerbaar_object_id ?? 'none'} fallback={<div className="app__chunk-error"><p>{t('error.dossierLoadFailed')}</p></div>}>
               <DossierSheet snap={sheetSnap}>
-                {matchReturnContext && (
-                  <div className="app__match-return">
-                    <button
-                      type="button"
-                      className="app__match-return-button"
-                      onClick={handleBackToMatchMap}
-                    >
-                      <svg className="app__match-return-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      {t('dossier.backToMatchMap')}
-                    </button>
-                  </div>
-                )}
-
                 {address && showDossierJump && (
                   <div className="app__dossier-jump-nav">
                     <div className="app__dossier-jump-header">

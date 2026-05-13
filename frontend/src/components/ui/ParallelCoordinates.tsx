@@ -7,7 +7,7 @@ export interface ParallelAxis {
   label: string;
 }
 
-export interface ParallelSeries {
+interface ParallelSeries {
   id: string;
   label: string;
   values: Record<string, number | undefined>;

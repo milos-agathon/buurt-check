@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './MatchFirstLanding.css';
 
@@ -9,6 +9,7 @@ export interface MatchFirstSurveyAnswers {
 }
 
 interface SurveyShellProps {
+  sessionId?: string | null;
   onComplete?: (answers: MatchFirstSurveyAnswers) => void;
   onReview?: (answers: MatchFirstSurveyAnswers) => void;
   onBack?: () => void;
@@ -18,17 +19,21 @@ interface StoredSurveyAnswers {
   intent?: MatchFirstSurveyIntent;
 }
 
-const STORAGE_KEY = 'buurt-check-match-first-survey';
+const STORAGE_KEY_PREFIX = 'buurt-check-match-first-survey';
 const INTENT_OPTIONS: { value: MatchFirstSurveyIntent; labelKey: string }[] = [
   { value: 'buy', labelKey: 'matchFirst.survey.intent.buy' },
   { value: 'rent', labelKey: 'matchFirst.survey.intent.rent' },
   { value: 'both', labelKey: 'matchFirst.survey.intent.both' },
 ];
 
-function readStoredSurveyAnswers(): StoredSurveyAnswers {
+function getSurveyStorageKey(sessionId?: string | null): string {
+  return `${STORAGE_KEY_PREFIX}:${sessionId || 'default'}`;
+}
+
+function readStoredSurveyAnswers(sessionId?: string | null): StoredSurveyAnswers {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(getSurveyStorageKey(sessionId));
     if (!raw) return {};
     const parsed = JSON.parse(raw) as StoredSurveyAnswers;
     return INTENT_OPTIONS.some((option) => option.value === parsed.intent) ? parsed : {};
@@ -37,24 +42,33 @@ function readStoredSurveyAnswers(): StoredSurveyAnswers {
   }
 }
 
-function storeSurveyAnswers(answers: StoredSurveyAnswers) {
+function storeSurveyAnswers(answers: StoredSurveyAnswers, sessionId?: string | null) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
+  try {
+    window.localStorage.setItem(getSurveyStorageKey(sessionId), JSON.stringify(answers));
+  } catch {
+    // The in-memory React state remains authoritative for the current session.
+  }
 }
 
-export { STORAGE_KEY as MATCH_FIRST_SURVEY_STORAGE_KEY, readStoredSurveyAnswers };
+export { STORAGE_KEY_PREFIX as MATCH_FIRST_SURVEY_STORAGE_KEY_PREFIX, getSurveyStorageKey, readStoredSurveyAnswers };
 
-export default function SurveyShell({ onComplete, onReview, onBack }: SurveyShellProps) {
+export default function SurveyShell({ sessionId, onComplete, onReview, onBack }: SurveyShellProps) {
   const { t } = useTranslation();
-  const [answers, setAnswers] = useState<StoredSurveyAnswers>(readStoredSurveyAnswers);
+  const [answers, setAnswers] = useState<StoredSurveyAnswers>(() => readStoredSurveyAnswers(sessionId));
   const [showValidation, setShowValidation] = useState(false);
   const progressLabel = t('matchFirst.survey.progressLabel', { current: 1, total: 1 });
   const validationId = 'match-first-survey-intent-validation';
 
+  useEffect(() => {
+    setAnswers(readStoredSurveyAnswers(sessionId));
+    setShowValidation(false);
+  }, [sessionId]);
+
   const handleSelectIntent = (intent: MatchFirstSurveyIntent) => {
     const nextAnswers = { intent };
     setAnswers(nextAnswers);
-    storeSurveyAnswers(nextAnswers);
+    storeSurveyAnswers(nextAnswers, sessionId);
     setShowValidation(false);
   };
 

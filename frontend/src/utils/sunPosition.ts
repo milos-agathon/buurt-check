@@ -1,7 +1,7 @@
 import SunCalc from 'suncalc';
 import { Vector3 } from 'three';
 
-export const NETHERLANDS_TIME_ZONE = 'Europe/Amsterdam';
+const NETHERLANDS_TIME_ZONE = 'Europe/Amsterdam';
 
 interface TimeZoneDateParts {
   year: number;

@@ -2869,7 +2869,7 @@ async def test_export_endpoint_invalid_template(client):
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Legacy route-level full_dossier PDF path replaced by prebid pack export")
-@patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
+@patch("app.services.reports.check_entitlement", new=AsyncMock(return_value=True))
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
@@ -2878,7 +2878,7 @@ async def test_export_endpoint_invalid_template(client):
 @patch("app.api.address.leefbaarometer")
 async def test_export_endpoint_full_dossier_template(
     mock_leefbaarometer, mock_property_warnings, mock_risk_cards, mock_bag,
-    mock_cache_set, mock_cache_get, mock_entitlement, client
+    mock_cache_set, mock_cache_get, client
 ):
     mock_leefbaarometer.get_livability = AsyncMock(return_value=None)
     mock_property_warnings.get_property_warnings = AsyncMock(
@@ -3100,7 +3100,7 @@ async def test_export_accepts_shadow_image_b64_alias(
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Legacy route-level full_dossier PDF path replaced by prebid pack export")
-@patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
+@patch("app.services.reports.check_entitlement", new=AsyncMock(return_value=True))
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
@@ -3111,8 +3111,7 @@ async def test_export_accepts_shadow_image_b64_alias(
 @patch("app.api.address.leefbaarometer")
 async def test_export_full_dossier_fetches_additional_data(
     mock_leefbaarometer, mock_property_warnings, mock_tier_b, mock_cbs,
-    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
-    mock_entitlement, client
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, client
 ):
     """Full Dossier template fetches neighborhood stats and tier-b in parallel."""
     mock_leefbaarometer.get_livability = AsyncMock(return_value=None)
@@ -3158,7 +3157,7 @@ async def test_export_full_dossier_fetches_additional_data(
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Legacy route-level full_dossier PDF path replaced by prebid pack export")
-@patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
+@patch("app.services.reports.check_entitlement", new=AsyncMock(return_value=True))
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
@@ -3169,8 +3168,7 @@ async def test_export_full_dossier_fetches_additional_data(
 @patch("app.api.address.leefbaarometer")
 async def test_export_tier_b_uses_neighborhood_buurt_code_fallback(
     mock_leefbaarometer, mock_property_warnings, mock_tier_b, mock_cbs,
-    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
-    mock_entitlement, client
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, client
 ):
     """Tier-B uses neighborhood-resolved buurt_code when request has none."""
     mock_leefbaarometer.get_livability = AsyncMock(return_value=None)
@@ -4933,7 +4931,7 @@ async def test_fetch_livability_for_export_no_cache_on_partial():
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Legacy route-level full_dossier PDF path replaced by prebid pack export")
-@patch("app.services.reports.check_entitlement", new_callable=AsyncMock, return_value=True)
+@patch("app.services.reports.check_entitlement", new=AsyncMock(return_value=True))
 @patch("app.api.address.cache_get", new_callable=AsyncMock, return_value=None)
 @patch("app.api.address.cache_set", new_callable=AsyncMock)
 @patch("app.api.address.bag")
@@ -4944,8 +4942,7 @@ async def test_fetch_livability_for_export_no_cache_on_partial():
 @patch("app.api.address.leefbaarometer")
 async def test_export_full_dossier_fetches_livability(
     mock_leefbaarometer, mock_property_warnings, mock_tier_b, mock_cbs,
-    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get,
-    mock_entitlement, client
+    mock_risk_cards, mock_bag, mock_cache_set, mock_cache_get, client
 ):
     """Full dossier export calls leefbaarometer in Phase 2 parallel fetch."""
     livability_data = _make_livability(with_trend=False, with_comparison=False)

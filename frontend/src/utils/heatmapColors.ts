@@ -13,9 +13,9 @@ function toCssRgb([r, g, b]: readonly [number, number, number]): string {
 }
 
 // Warm red, daylight yellow, livable green.
-export const HEATMAP_RED: [number, number, number] = [0.88, 0.25, 0.25];
-export const HEATMAP_YELLOW: [number, number, number] = [0.88, 0.77, 0.25];
-export const HEATMAP_GREEN: [number, number, number] = [0.25, 0.69, 0.38];
+const HEATMAP_RED: [number, number, number] = [0.88, 0.25, 0.25];
+const HEATMAP_YELLOW: [number, number, number] = [0.88, 0.77, 0.25];
+const HEATMAP_GREEN: [number, number, number] = [0.25, 0.69, 0.38];
 
 export function getSunHoursGradientCss(): string {
   return `linear-gradient(to right, ${toCssRgb(HEATMAP_RED)}, ${toCssRgb(HEATMAP_YELLOW)}, ${toCssRgb(HEATMAP_GREEN)})`;

@@ -47,14 +47,14 @@ export interface SunlightWorkerRequest {
 }
 
 /** Progress message: sunlight Worker -> main thread. */
-export interface SunlightWorkerProgress {
+interface SunlightWorkerProgress {
   type: 'progress';
   id: number;
   monthsDone: number;
   totalMonths: number;
 }
 
-export interface SunlightWorkerResultData {
+interface SunlightWorkerResultData {
   winter: number;
   equinox: number;
   summer: number;
@@ -79,14 +79,14 @@ export interface SunlightWorkerResultData {
 }
 
 /** Result message: sunlight Worker -> main thread. */
-export interface SunlightWorkerResult {
+interface SunlightWorkerResult {
   type: 'result';
   id: number;
   result: SunlightWorkerResultData | null;
 }
 
 /** Error message: Worker -> main thread. */
-export interface SunlightWorkerError {
+interface SunlightWorkerError {
   type: 'error';
   id: number;
   message: string;
@@ -105,7 +105,7 @@ export interface SvfWorkerRequest {
   maxSamplePoints: number;
 }
 
-export interface SvfWorkerResult {
+interface SvfWorkerResult {
   type: 'svfResult';
   id: number;
   svf: number;

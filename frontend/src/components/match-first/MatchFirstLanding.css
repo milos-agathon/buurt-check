@@ -1,14 +1,17 @@
 .match-first-landing {
   position: relative;
   isolation: isolate;
-  min-height: calc(100dvh - var(--top-bar-height) - 18px);
+  width: 100%;
+  max-width: none;
+  min-height: calc(100dvh - var(--top-bar-height));
+  margin: 0;
   display: grid;
   align-items: center;
   overflow: hidden;
-  border: 1px solid var(--landing-border-soft);
-  border-radius: var(--radius-card);
+  border: 0;
+  border-radius: 0;
   background: var(--landing-bg-top);
-  box-shadow: var(--landing-shadow-soft);
+  box-shadow: none;
   color: var(--color-text);
   padding: clamp(22px, 5vw, 64px);
 }
@@ -170,7 +173,7 @@ button.match-first-landing__address-link {
 
 @media (max-width: 680px) {
   .match-first-landing {
-    min-height: calc(100dvh - var(--top-bar-height) - var(--space-base));
+    min-height: calc(100dvh - var(--top-bar-height));
     padding: var(--space-xl) var(--space-lg);
     align-items: end;
   }

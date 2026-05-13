@@ -38,8 +38,12 @@ export function recordMatchFirstEvent(
   };
 
   if (typeof window !== 'undefined') {
-    const events = readStoredEvents();
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...events, event].slice(-50)));
+    try {
+      const events = readStoredEvents();
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...events, event].slice(-50)));
+    } catch {
+      // Analytics must never block the primary match flow.
+    }
   }
 
   return event;

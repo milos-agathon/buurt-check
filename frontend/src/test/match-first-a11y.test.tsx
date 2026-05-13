@@ -20,6 +20,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   localStorage.clear();
+  document.documentElement.removeAttribute('data-test-reduced-motion');
 });
 
 function MatchFirstKeyboardHarness() {
@@ -106,6 +107,7 @@ it('supports keyboard progress from landing to intro to survey to review', async
 });
 
 it('keeps reduced-motion hero animation disabled in CSS', async () => {
+  document.documentElement.setAttribute('data-test-reduced-motion', 'false');
   render(<HeroMapBackground />);
   const css = await readFile(join(process.cwd(), 'src/components/match-first/HeroMapBackground.css'), 'utf8');
 

@@ -1,5 +1,5 @@
 export type SourceFetchStatus = 'idle' | 'loading' | 'success' | 'error';
-export type SourceDatePrecision = 'year' | 'month' | 'day';
+type SourceDatePrecision = 'year' | 'month' | 'day';
 
 export interface ParsedSourceDate {
   precision: SourceDatePrecision;

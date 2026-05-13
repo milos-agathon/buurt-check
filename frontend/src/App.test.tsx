@@ -609,7 +609,7 @@ async function selectAddress() {
 
   // If on the dossier/briefing screen, navigate through the match-first home.
   if (!screen.queryByRole('combobox')) {
-    const homeTab = screen.queryByRole('tab', { name: 'Search' });
+    const homeTab = screen.queryByRole('tab', { name: 'Match' });
     let addressLink = screen.queryByRole('link', { name: 'Already have an address?' });
     await act(async () => {
       if (addressLink) {
@@ -688,14 +688,33 @@ describe('initial render', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Show my matches' }));
 
     expect(window.location.hash).toMatch(/^#\/match\/session\/match-[^/]+\/run$/);
-    expect(await screen.findByRole('status')).toHaveTextContent('Matching will run after the backend job is connected.');
+    const sessionId = window.location.hash.split('/')[3];
+    expect(localStorage.getItem(`buurt-check-match-first-job-status:${sessionId}`)).toBe('run_pending');
+    expect(await screen.findByRole('status')).toHaveTextContent("We're not ready to show matches yet. Your answers are saved.");
     expect(fetchSpy).not.toHaveBeenCalled();
 
     fetchSpy.mockRestore();
   });
 
+  it.each([
+    ['run_pending', '#/match/session/match-pending/run', "We're not ready to show matches yet. Your answers are saved."],
+    ['slow', '#/match/session/match-slow/run', 'This is taking longer than usual, but your match is still running.'],
+    ['failed', '#/match/session/match-failed/run', "We couldn't create your match map yet. Your answers are saved, so you can try again without starting over."],
+    ['completed_with_fallback', '#/match/session/match-fallback/results', 'We found your matches using the stable scoring model. Some advanced ranking features were skipped this time.'],
+    ['no_results', '#/match/session/match-empty/results', 'No recommendation results are available yet.'],
+    ['no_strong_matches', '#/match/session/match-weak/results', 'We found a few possible matches, but none are perfect. Your strongest constraints are narrowing the search a lot.'],
+  ])('renders the %s match shell from stored Phase 1 job state', async (status, hash, expectedCopy) => {
+    const sessionId = hash.split('/')[3];
+    localStorage.setItem(`buurt-check-match-first-job-status:${sessionId}`, status);
+    window.location.hash = hash;
+    renderApp();
+
+    expect(await screen.findByText(expectedCopy)).toBeInTheDocument();
+    expect(screen.queryByText(/backend|polling|connected/i)).not.toBeInTheDocument();
+  });
+
   it('restores a direct review route from the saved survey answer', async () => {
-    localStorage.setItem('buurt-check-match-first-survey', JSON.stringify({ intent: 'rent' }));
+    localStorage.setItem('buurt-check-match-first-survey:match-review-123', JSON.stringify({ intent: 'rent' }));
     window.location.hash = '#/match/session/match-review-123/review';
     renderApp();
 
@@ -707,16 +726,23 @@ describe('initial render', () => {
   });
 
   it.each([
-    ['success', '#/match/session/match-stale/success'],
-    ['results', '#/match/session/match-stale/results'],
-    ['neighborhood', '#/match/session/match-stale/neighborhood/BU0363AA01'],
-  ])('shows recovery copy for direct %s route without a completed match job', async (_label, hash) => {
+    ['run', '#/match/session/match-stale/run'],
+  ])('shows recovery copy for direct %s route without a started match job', async (_label, hash) => {
     window.location.hash = hash;
     renderApp();
 
-    expect(await screen.findByRole('heading', { name: 'Finish the match first' })).toBeInTheDocument();
-    expect(screen.getByText('Your answers are saved if you already started. We need a completed match run before showing personal results.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Your match map is not ready' })).toBeInTheDocument();
+    expect(screen.getByText("Your answers are saved. We couldn't create your match map yet.")).toBeInTheDocument();
     expect(screen.queryByText('Your neighborhood matches are ready.')).not.toBeInTheDocument();
+  });
+
+  it('gates a direct neighborhood route until completed match results exist', async () => {
+    window.location.hash = '#/match/session/match-stale/neighborhood/BU0363AA01';
+    renderApp();
+
+    expect(await screen.findByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+    expect(screen.getByText("Your answers are saved. We couldn't create your match map yet.")).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Selected neighborhood context' })).not.toBeInTheDocument();
   });
 
   it('keeps legacy #/match/quiz valid but renders the one-question survey shell', async () => {
@@ -725,6 +751,47 @@ describe('initial render', () => {
 
     expect(await screen.findByRole('heading', { name: 'Are you looking to buy, rent, or both?' })).toBeInTheDocument();
     expect(screen.queryByText('Household')).not.toBeInTheDocument();
+  });
+
+  it('does not trust localStorage to unlock the success route', async () => {
+    localStorage.setItem('buurt-check-match-first-job-status:match-123', 'completed');
+    window.location.hash = '#/match/session/match-123/success';
+    renderApp();
+
+    expect(await screen.findByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+    expect(screen.queryByText('Your neighborhood matches are ready.')).not.toBeInTheDocument();
+  });
+
+  it('keeps survey answers in App state when localStorage writes fail', async () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+    try {
+      window.location.hash = '#/match/survey';
+      renderApp();
+
+      fireEvent.click(await screen.findByRole('radio', { name: 'Both' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Review answer' }));
+
+      expect(await screen.findByRole('heading', { name: 'Ready to find your best neighborhoods?' })).toBeInTheDocument();
+      expect(screen.getByText('Both')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show my matches' }));
+      expect(window.location.hash).toMatch(/^#\/match\/session\/match-[^/]+\/run$/);
+      expect(await screen.findByRole('status')).toHaveTextContent("We're not ready to show matches yet. Your answers are saved.");
+    } finally {
+      setItemSpy.mockRestore();
+    }
+  });
+
+  it('renders neutral results shell instead of finish-first recovery for stored completed state', async () => {
+    localStorage.setItem('buurt-check-match-first-job-status:match-123', 'completed');
+    window.location.hash = '#/match/session/match-123/results';
+    renderApp();
+
+    expect(await screen.findByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+    expect(screen.queryByText('Finish the match first')).not.toBeInTheDocument();
+    expect(screen.queryByText('Finish the match first to see your personal map.')).not.toBeInTheDocument();
   });
 
   it('gates direct legacy #/match/map access instead of auto-loading old recommendations', async () => {
@@ -739,6 +806,17 @@ describe('initial render', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
 
     fetchSpy.mockRestore();
+  });
+
+  it('moves focus to main content after match route transitions', async () => {
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
+    expect(await screen.findByRole('heading', { name: 'First, we need to understand how you want to live.' })).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(document.getElementById('main-content')).toHaveFocus();
+    });
   });
 
   it('keeps the address search available on #/search', () => {
@@ -768,7 +846,7 @@ describe('tab content transitions', () => {
     window.location.hash = '#/search';
     renderApp();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Search' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Match' }));
 
     expect(window.location.hash).toBe('#/match');
     expect(await screen.findByRole('button', { name: 'Find my dream neighborhood' })).toBeInTheDocument();
@@ -837,7 +915,29 @@ describe('hash route recovery', () => {
     });
   });
 
-  it('redirects bare dossier hash without lookup to search and shows a toast', async () => {
+  it('keeps a match-return Dossier route without lookup recoverable instead of redirecting to Search', async () => {
+    window.location.hash = '#/address/0363100012345678?match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01';
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: 'Back to match map' }).length).toBeGreaterThan(0);
+    });
+    const unavailableState = screen.getByRole('alert');
+    expect(within(unavailableState).getByRole('heading', { name: 'Address unavailable' })).toBeInTheDocument();
+    expect(within(unavailableState).getByText('We found the building, but not a reliable address yet.')).toBeInTheDocument();
+    expect(within(unavailableState).getByRole('button', { name: 'Choose nearby address' })).toBeDisabled();
+    expect(within(unavailableState).getByText('Nearby address choices will appear here when available.')).toBeInTheDocument();
+    expect(within(unavailableState).getByRole('button', { name: 'Search manually' })).toBeInTheDocument();
+    expect(within(unavailableState).getByRole('button', { name: 'Back to match map' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/address/0363100012345678?match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(mockLookup).not.toHaveBeenCalled();
+
+    fireEvent.click(within(unavailableState).getByRole('button', { name: 'Back to match map' }));
+    expect(window.location.hash).toBe('#/match/session/match-123/neighborhood/BU0363AA01');
+  });
+
+  it('still redirects a bare non-match Dossier hash without lookup to search and shows a toast', async () => {
     window.location.hash = '#/address/0363100012345678';
     renderApp();
 
@@ -850,6 +950,55 @@ describe('hash route recovery', () => {
     expect(mockLookup).not.toHaveBeenCalled();
   });
 
+  it('keeps the match return action visible while a Dossier lookup is still loading', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fresults&match_session=match-123';
+    mockLookup.mockReturnValue(new Promise(() => {}));
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: 'Back to match map' }).length).toBeGreaterThan(0);
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Back to match map' })[0]);
+    expect(window.location.hash).toBe('#/match/session/match-123/results');
+  });
+
+  it('keeps the match return action visible after a Dossier lookup error', async () => {
+    window.location.hash = '#/address/vbo-err?lookup=adr-error&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fresults&match_session=match-123';
+    mockLookup.mockRejectedValue(new Error('Lookup failed'));
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: 'Back to match map' }).length).toBeGreaterThan(0);
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Back to match map' })[0]);
+    expect(window.location.hash).toBe('#/match/session/match-123/results');
+  });
+
+  it('preserves structured match_context from a cold-start URL query when the hash carries the Dossier path', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/?match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22mapCenter%22%3A%5B52.36%2C4.9%5D%2C%22mapZoom%22%3A13%2C%22listScroll%22%3A240%2C%22language%22%3A%22nl%22%2C%22selectedHouseId%22%3A%22house-7%22%7D#/address/vbo-123?lookup=adr-abc123',
+    );
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    const { container } = renderApp();
+    await waitForDossierLoaded();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to match map' }));
+
+    expect(window.location.hash).toBe('#/match/session/match-123/neighborhood/BU0363AA01');
+    await waitFor(() => {
+      const restored = container.querySelector('[data-session-id="match-123"]');
+      expect(restored).toHaveAttribute('data-map-center', '[52.36,4.9]');
+      expect(restored).toHaveAttribute('data-map-zoom', '13');
+      expect(restored).toHaveAttribute('data-list-scroll', '240');
+      expect(restored).toHaveAttribute('data-selected-house-id', 'house-7');
+    });
+  });
+
   it('opens a direct dossier pathname route for a native cold start', async () => {
     window.history.replaceState({}, '', '/address/vbo-123?lookup=adr-abc123');
     mockLookup.mockResolvedValue(makeResolvedAddress());
@@ -860,6 +1009,14 @@ describe('hash route recovery', () => {
     await waitFor(() => {
       expect(mockLookup).toHaveBeenCalledWith('adr-abc123', expect.any(AbortSignal));
     });
+  });
+
+  it('routes invalid match question URLs to recovery and focuses the recovery action', async () => {
+    window.location.hash = '#/match/session/match-123/question/nope';
+    renderApp();
+
+    expect(await screen.findByRole('heading', { name: /could not find that page/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Search an address/i })).toHaveFocus();
   });
 });
 

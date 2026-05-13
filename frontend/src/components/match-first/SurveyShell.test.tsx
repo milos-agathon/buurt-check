@@ -19,7 +19,7 @@ function renderSurvey(props: Partial<React.ComponentProps<typeof SurveyShell>> =
   const onComplete = props.onComplete ?? vi.fn();
   const onReview = vi.fn();
   const onBack = vi.fn();
-  render(
+  const rendered = render(
     <I18nextProvider i18n={i18n}>
       <SurveyShell
         onComplete={onComplete}
@@ -31,7 +31,7 @@ function renderSurvey(props: Partial<React.ComponentProps<typeof SurveyShell>> =
       />
     </I18nextProvider>,
   );
-  return { onComplete, onReview, onBack };
+  return { ...rendered, onComplete, onReview, onBack };
 }
 
 it('renders exactly one question with validation before routing to review', async () => {
@@ -61,7 +61,7 @@ it('persists answers and lets the first question go back to the intro', async ()
   const { onBack, onReview } = renderSurvey();
 
   await user.click(screen.getByRole('radio', { name: 'Both' }));
-  expect(JSON.parse(localStorage.getItem('buurt-check-match-first-survey') ?? '{}')).toMatchObject({
+  expect(JSON.parse(localStorage.getItem('buurt-check-match-first-survey:default') ?? '{}')).toMatchObject({
     intent: 'both',
   });
 
@@ -72,4 +72,44 @@ it('persists answers and lets the first question go back to the intro', async ()
 
   await user.click(screen.getByRole('button', { name: 'Review answer' }));
   expect(onReview).toHaveBeenCalledWith({ intent: 'both' });
+});
+
+it('scopes persisted answers to the active match session', async () => {
+  const user = userEvent.setup();
+  const first = renderSurvey({ sessionId: 'match-one' });
+
+  await user.click(screen.getByRole('radio', { name: 'Buy' }));
+  expect(JSON.parse(localStorage.getItem('buurt-check-match-first-survey:match-one') ?? '{}')).toMatchObject({
+    intent: 'buy',
+  });
+  first.unmount();
+
+  renderSurvey({ sessionId: 'match-two' });
+  expect(screen.getByRole('radio', { name: 'Buy' })).not.toBeChecked();
+
+  await user.click(screen.getByRole('radio', { name: 'Rent' }));
+  expect(JSON.parse(localStorage.getItem('buurt-check-match-first-survey:match-two') ?? '{}')).toMatchObject({
+    intent: 'rent',
+  });
+  expect(JSON.parse(localStorage.getItem('buurt-check-match-first-survey:match-one') ?? '{}')).toMatchObject({
+    intent: 'buy',
+  });
+});
+
+it('keeps the current answer usable when localStorage writes fail', async () => {
+  const user = userEvent.setup();
+  const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('storage unavailable');
+  });
+  try {
+    const { onReview } = renderSurvey({ sessionId: 'match-storage-fail' });
+
+    await user.click(screen.getByRole('radio', { name: 'Rent' }));
+    expect(screen.getByRole('radio', { name: 'Rent' })).toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'Review answer' }));
+    expect(onReview).toHaveBeenCalledWith({ intent: 'rent' });
+  } finally {
+    setItemSpy.mockRestore();
+  }
 });

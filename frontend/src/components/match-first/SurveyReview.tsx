@@ -1,22 +1,24 @@
 import { useTranslation } from 'react-i18next';
 import {
-  MATCH_FIRST_SURVEY_STORAGE_KEY,
+  getSurveyStorageKey,
   type MatchFirstSurveyAnswers,
   type MatchFirstSurveyIntent,
 } from './SurveyShell';
 import './MatchFirstLanding.css';
 
 interface SurveyReviewProps {
+  sessionId?: string | null;
+  answers?: MatchFirstSurveyAnswers | null;
   onBack: () => void;
   onComplete: (answers: MatchFirstSurveyAnswers) => void;
 }
 
 const VALID_INTENTS: MatchFirstSurveyIntent[] = ['buy', 'rent', 'both'];
 
-function readStoredReviewAnswers(): MatchFirstSurveyAnswers | null {
+function readStoredReviewAnswers(sessionId?: string | null): MatchFirstSurveyAnswers | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(MATCH_FIRST_SURVEY_STORAGE_KEY);
+    const raw = window.localStorage.getItem(getSurveyStorageKey(sessionId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<MatchFirstSurveyAnswers>;
     return parsed.intent && VALID_INTENTS.includes(parsed.intent) ? { intent: parsed.intent } : null;
@@ -25,9 +27,9 @@ function readStoredReviewAnswers(): MatchFirstSurveyAnswers | null {
   }
 }
 
-export default function SurveyReview({ onBack, onComplete }: SurveyReviewProps) {
+export default function SurveyReview({ sessionId, answers: providedAnswers, onBack, onComplete }: SurveyReviewProps) {
   const { t } = useTranslation();
-  const answers = readStoredReviewAnswers();
+  const answers = providedAnswers ?? readStoredReviewAnswers(sessionId);
   const progressLabel = t('matchFirst.survey.progressLabel', { current: 1, total: 1 });
 
   if (!answers) {

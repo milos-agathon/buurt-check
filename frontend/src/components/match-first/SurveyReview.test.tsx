@@ -28,8 +28,8 @@ function renderReview(props: Partial<ComponentProps<typeof SurveyReview>> = {}) 
 
 it('restores the saved answer and completes from the review route', async () => {
   const user = userEvent.setup();
-  localStorage.setItem('buurt-check-match-first-survey', JSON.stringify({ intent: 'rent' }));
-  const { onComplete } = renderReview();
+  localStorage.setItem('buurt-check-match-first-survey:match-review', JSON.stringify({ intent: 'rent' }));
+  const { onComplete } = renderReview({ sessionId: 'match-review' });
 
   expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Ready to find your best neighborhoods?');
   expect(screen.getByText('Rent')).toBeInTheDocument();
@@ -48,4 +48,36 @@ it('recovers to the survey when no answer has been saved for the review route', 
   await user.click(screen.getByRole('button', { name: 'Back to survey' }));
   expect(onBack).toHaveBeenCalledTimes(1);
   expect(onComplete).not.toHaveBeenCalled();
+});
+
+it('does not read answers saved for a different match session', async () => {
+  const user = userEvent.setup();
+  localStorage.setItem('buurt-check-match-first-survey:match-one', JSON.stringify({ intent: 'buy' }));
+  const { onBack, onComplete } = renderReview({ sessionId: 'match-two' });
+
+  expect(screen.getByRole('alert')).toHaveTextContent('Answer the survey question before reviewing your match.');
+
+  await user.click(screen.getByRole('button', { name: 'Back to survey' }));
+  expect(onBack).toHaveBeenCalledTimes(1);
+  expect(onComplete).not.toHaveBeenCalled();
+});
+
+it('renders answers passed from App state when storage is unavailable', async () => {
+  const user = userEvent.setup();
+  const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new Error('storage unavailable');
+  });
+  try {
+    const { onComplete } = renderReview({
+      sessionId: 'match-storage-fail',
+      answers: { intent: 'both' },
+    });
+
+    expect(screen.getByText('Both')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Show my matches' }));
+    expect(onComplete).toHaveBeenCalledWith({ intent: 'both' });
+  } finally {
+    getItemSpy.mockRestore();
+  }
 });

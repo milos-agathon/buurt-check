@@ -4,9 +4,6 @@ import { join, relative } from 'node:path';
 const projectRoot = process.cwd();
 const matchFirstRoot = join(projectRoot, 'src/components/match-first');
 const matchSurfaceFiles = [
-  join(projectRoot, 'src/components/match/MatchLanding.tsx'),
-  join(projectRoot, 'src/components/match/MatchQuiz.tsx'),
-  join(projectRoot, 'src/components/match/MatchMap.tsx'),
   join(projectRoot, 'src/App.tsx'),
 ];
 const i18nFiles = [
@@ -24,6 +21,12 @@ function collectFiles(dir: string, predicate: (filePath: string) => boolean): st
 
 function read(filePath: string): string {
   return readFileSync(filePath, 'utf8');
+}
+
+function readTranslationValues(filePath: string): string {
+  return Object.values(JSON.parse(read(filePath)) as Record<string, unknown>)
+    .filter((value): value is string => typeof value === 'string')
+    .join('\n');
 }
 
 describe('match-first copy guard', () => {
@@ -51,27 +54,36 @@ describe('match-first copy guard', () => {
       ...i18nFiles,
     ];
     const forbidden = [
-      'predictive probability',
-      'highest predictive power',
-      'perfect fit',
-      'guaranteed outcome',
-      'guaranteed outcomes',
+      /\bpredictive probabilit(?:y|ies)\b/,
+      /\bhighest predictive power\b/,
+      /\bperfect fit\b/,
+      /\bobjective best\b/,
+      /\bguaranteed outcomes?\b/,
+      /\bguaranteed affordability\b/,
+      /\binvestment certainty\b/,
+      /\bfuture value\b/,
+      /\bguaranteed future\b/,
+      /\bguaranteed safety\b/,
+      /\bperfectly safe\b/,
+      /\bsafest\b/,
+      /\bhappiness\b/,
+      /\bmake you happy\b/,
     ];
 
     const violations = files.flatMap((filePath) => {
       const lower = read(filePath).toLowerCase();
       return forbidden
-        .filter((phrase) => lower.includes(phrase))
-        .map((phrase) => `${relative(projectRoot, filePath)}: ${phrase}`);
+        .filter((pattern) => pattern.test(lower))
+        .map((pattern) => `${relative(projectRoot, filePath)}: ${pattern.source}`);
     });
 
     expect(violations).toEqual([]);
   });
 
   it('does not expose developer placeholder terms in bundled translations', () => {
-    const forbidden = ['survey shell', 'survey-shell'];
+    const forbidden = ['survey shell', 'survey-shell', 'backend', 'polling', 'connected'];
     const violations = i18nFiles.flatMap((filePath) => {
-      const lower = read(filePath).toLowerCase();
+      const lower = readTranslationValues(filePath).toLowerCase();
       return forbidden
         .filter((phrase) => lower.includes(phrase))
         .map((phrase) => `${relative(projectRoot, filePath)}: ${phrase}`);
@@ -80,7 +92,7 @@ describe('match-first copy guard', () => {
     expect(violations).toEqual([]);
   });
 
-  it('keeps legacy match-surface language labels and fallbacks behind translation keys', () => {
+  it('keeps match-surface language labels and fallbacks behind translation keys', () => {
     const forbidden = [
       />\s*English\s*</,
       />\s*Nederlands\s*</,
