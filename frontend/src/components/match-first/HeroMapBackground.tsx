@@ -9,6 +9,7 @@ export default function HeroMapBackground() {
       className="hero-map-background"
       data-testid="hero-map-background"
       data-image-status={imageStatus}
+      data-motion="standard"
       aria-hidden="true"
     >
       {imageStatus === 'ready' && (

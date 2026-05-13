@@ -47,6 +47,7 @@
 
 .match-first-landing__lang-btn:focus-visible,
 .match-first-landing__cta:focus-visible,
+.match-first-landing__radio-choice:has(input:focus-visible),
 .match-first-landing__address-link:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring-accent);
@@ -107,10 +108,28 @@
   font-weight: 850;
 }
 
-.match-first-landing__cta[aria-pressed="true"] {
+.match-first-landing__cta[aria-pressed="true"],
+.match-first-landing__radio-choice--selected {
   border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
   background: var(--landing-accent-soft);
   color: var(--color-accent-text);
+}
+
+.match-first-landing__radio-group {
+  padding: 0;
+  border: 0;
+}
+
+.match-first-landing__radio-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.match-first-landing__radio-choice input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent-text);
 }
 
 .match-first-landing__address-link {

@@ -10,6 +10,8 @@ export interface MatchFirstSurveyAnswers {
 
 interface SurveyShellProps {
   onComplete?: (answers: MatchFirstSurveyAnswers) => void;
+  onReview?: (answers: MatchFirstSurveyAnswers) => void;
+  onBack?: () => void;
 }
 
 interface StoredSurveyAnswers {
@@ -40,12 +42,14 @@ function storeSurveyAnswers(answers: StoredSurveyAnswers) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
 }
 
-export default function SurveyShell({ onComplete }: SurveyShellProps) {
+export { STORAGE_KEY as MATCH_FIRST_SURVEY_STORAGE_KEY, readStoredSurveyAnswers };
+
+export default function SurveyShell({ onComplete, onReview, onBack }: SurveyShellProps) {
   const { t } = useTranslation();
   const [answers, setAnswers] = useState<StoredSurveyAnswers>(readStoredSurveyAnswers);
-  const [stage, setStage] = useState<'question' | 'review'>('question');
   const [showValidation, setShowValidation] = useState(false);
   const progressLabel = t('matchFirst.survey.progressLabel', { current: 1, total: 1 });
+  const validationId = 'match-first-survey-intent-validation';
 
   const handleSelectIntent = (intent: MatchFirstSurveyIntent) => {
     const nextAnswers = { intent };
@@ -59,51 +63,13 @@ export default function SurveyShell({ onComplete }: SurveyShellProps) {
       setShowValidation(true);
       return;
     }
-    setStage('review');
-  };
-
-  const handleComplete = () => {
-    if (!answers.intent) {
-      setStage('question');
-      setShowValidation(true);
+    const completedAnswers = { intent: answers.intent };
+    if (onReview) {
+      onReview(completedAnswers);
       return;
     }
-    onComplete?.({ intent: answers.intent });
+    onComplete?.(completedAnswers);
   };
-
-  if (stage === 'review' && answers.intent) {
-    return (
-      <section className="match-first-landing match-first-landing--simple" aria-labelledby="match-survey-review-title">
-        <div className="match-first-landing__content">
-          <progress
-            role="progressbar"
-            aria-label={progressLabel}
-            max={1}
-            value={1}
-          />
-          <p className="match-first-landing__body">{progressLabel}</p>
-
-          <p className="match-first-landing__eyebrow">{t('matchFirst.review.eyebrow')}</p>
-          <h1 id="match-survey-review-title">{t('matchFirst.review.title')}</h1>
-          <p className="match-first-landing__body">{t('matchFirst.review.body')}</p>
-          <dl className="match-first-landing__review">
-            <div>
-              <dt>{t('matchFirst.review.answerLabel')}</dt>
-              <dd>{t(`matchFirst.survey.intent.${answers.intent}`)}</dd>
-            </div>
-          </dl>
-          <div className="match-first-landing__actions">
-            <button type="button" className="match-first-landing__address-link" onClick={() => setStage('question')}>
-              {t('matchFirst.survey.back')}
-            </button>
-            <button type="button" className="match-first-landing__cta" onClick={handleComplete}>
-              {t('matchFirst.review.showMatches')}
-            </button>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className="match-first-landing match-first-landing--simple" aria-labelledby="match-survey-shell-title">
@@ -118,25 +84,37 @@ export default function SurveyShell({ onComplete }: SurveyShellProps) {
 
         <p className="match-first-landing__eyebrow">{t('matchFirst.survey.questionEyebrow', { current: 1, total: 1 })}</p>
         <h1 id="match-survey-shell-title">{t('matchFirst.survey.intentQuestion')}</h1>
-        <div className="match-first-landing__actions" role="group" aria-label={t('matchFirst.survey.intentQuestion')}>
+        <fieldset
+          className="match-first-landing__actions match-first-landing__radio-group"
+          aria-describedby={showValidation ? validationId : undefined}
+        >
+          <legend className="sr-only">{t('matchFirst.survey.intentQuestion')}</legend>
           {INTENT_OPTIONS.map((option) => (
-            <button
+            <label
               key={option.value}
-              type="button"
-              className="match-first-landing__cta"
-              aria-pressed={answers.intent === option.value}
-              onClick={() => handleSelectIntent(option.value)}
+              className={`match-first-landing__cta match-first-landing__radio-choice${answers.intent === option.value ? ' match-first-landing__radio-choice--selected' : ''}`}
             >
+              <input
+                type="radio"
+                name="match-first-intent"
+                value={option.value}
+                checked={answers.intent === option.value}
+                aria-describedby={showValidation ? validationId : undefined}
+                onChange={() => handleSelectIntent(option.value)}
+              />
               {t(option.labelKey)}
-            </button>
+            </label>
           ))}
-        </div>
+        </fieldset>
         {showValidation && (
-          <p className="match-first-landing__validation" role="alert">
+          <p id={validationId} className="match-first-landing__validation" role="alert">
             {t('matchFirst.survey.validationRequired')}
           </p>
         )}
         <div className="match-first-landing__actions">
+          <button type="button" className="match-first-landing__address-link" onClick={onBack}>
+            {t('matchFirst.survey.back')}
+          </button>
           <button type="button" className="match-first-landing__cta" onClick={handleReview}>
             {t('matchFirst.survey.review')}
           </button>

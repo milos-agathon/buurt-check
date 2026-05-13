@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import MatchMap from './MatchMap';
@@ -62,16 +62,19 @@ function renderMap(props: Partial<React.ComponentProps<typeof MatchMap>> = {}) {
 it('renders recommendation markers and selected neighborhood details', async () => {
   renderMap();
 
-  expect(screen.getByRole('img', { name: 'Recommended neighborhood map' })).toBeInTheDocument();
+  expect(screen.getByRole('group', { name: 'Recommended neighborhood map' })).toBeInTheDocument();
+  expect(screen.getByRole('list', { name: 'Ranked neighborhood matches' })).toBeInTheDocument();
+  expect(screen.getByText('Data-backed fit score from deterministic weighted scoring. Not a prediction or guarantee.')).toBeInTheDocument();
   const ijburgMarker = screen.getByRole('button', { name: /84IJburg/i });
   expect(ijburgMarker).toBeInTheDocument();
   expect(ijburgMarker).toHaveAttribute('data-lng', '5');
   expect(ijburgMarker).toHaveAttribute('data-lat', '52.35');
   expect(ijburgMarker).toHaveStyle({ left: '85.7%', top: '10%' });
-  await userEvent.click(screen.getByRole('button', { name: /76Leidsche Rijn/i }));
+  await userEvent.click(screen.getByRole('button', { name: 'Open Leidsche Rijn from ranked list' }));
 
-  expect(screen.getByRole('complementary', { name: 'Selected neighborhood details' })).toHaveTextContent('Leidsche Rijn');
-  expect(screen.getByText('76/100')).toBeInTheDocument();
+  const details = screen.getByRole('complementary', { name: 'Selected neighborhood details' });
+  expect(details).toHaveTextContent('Leidsche Rijn');
+  expect(within(details).getByText('76/100')).toBeInTheDocument();
   expect(screen.getByText('Missing: affordability_rent')).toBeInTheDocument();
   expect(screen.getByText('src_family')).toHaveClass('match-source-badge');
 });
@@ -96,4 +99,19 @@ it('renders empty state with missing coordinates', () => {
   renderMap({ map: { ...mapResponse, features: [], empty_state_code: 'match.map.empty' } });
   expect(screen.getByText('No map recommendations are available yet.')).toBeInTheDocument();
   expect(screen.getByText('Noord Seed has no usable map coordinates yet.')).toBeInTheDocument();
+});
+
+it('gates no-session access with a finish-first state', () => {
+  renderMap({ map: null });
+  expect(screen.getByText('Finish the match first to see your personal map.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Go to survey' })).toBeInTheDocument();
+});
+
+it('shows a retryable failure state without dropping saved answer context', async () => {
+  const onRetry = vi.fn();
+  renderMap({ map: null, errorCode: 'match.warning.map_failed', onRetry });
+
+  expect(screen.getByRole('alert')).toHaveTextContent("We couldn't load your match map. Your answers are still saved.");
+  await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+  expect(onRetry).toHaveBeenCalledTimes(1);
 });

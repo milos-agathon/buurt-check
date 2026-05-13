@@ -241,8 +241,8 @@ export default function MatchQuiz({ onSubmit, submitting = false, errorCode }: M
       <label>
         {t('match.quiz.fields.language')}
         <select value={language} onChange={(event) => setLanguage(event.target.value as MatchLocale)}>
-          <option value="en">English</option>
-          <option value="nl">Nederlands</option>
+          <option value="en">{t('language.english')}</option>
+          <option value="nl">{t('language.dutch')}</option>
         </select>
       </label>
 

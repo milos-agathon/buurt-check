@@ -1,9 +1,39 @@
-export type HashRoute = 'search' | 'dossier' | 'shortlist' | 'compare' | 'settings' | 'pack' | 'shared' | 'not_found' | 'matchLanding' | 'matchSurveyIntro' | 'matchSurvey' | 'matchQuiz' | 'matchReport' | 'matchComparison' | 'matchSimilar' | 'matchMap' | 'matchListings' | 'matchAlerts' | 'matchSaved' | 'matchAdmin' | 'matchSharedReport';
+export type HashRoute =
+  | 'search'
+  | 'dossier'
+  | 'shortlist'
+  | 'compare'
+  | 'settings'
+  | 'pack'
+  | 'shared'
+  | 'not_found'
+  | 'matchLanding'
+  | 'matchSurveyIntro'
+  | 'matchSurvey'
+  | 'matchReview'
+  | 'matchRun'
+  | 'matchSuccess'
+  | 'matchResults'
+  | 'matchNeighborhood'
+  | 'matchReport'
+  | 'matchComparison'
+  | 'matchSimilar'
+  | 'matchMap'
+  | 'matchListings'
+  | 'matchAlerts'
+  | 'matchSaved'
+  | 'matchAdmin'
+  | 'matchSharedReport';
 
 export interface MatchReturnContext {
   target: string;
   sessionId?: string;
   neighborhoodId?: string;
+  mapCenter?: [number, number];
+  mapZoom?: number;
+  listScroll?: number;
+  language?: 'en' | 'nl';
+  selectedHouseId?: string;
 }
 
 export interface ParsedHashRoute {
@@ -12,6 +42,8 @@ export interface ParsedHashRoute {
   lookupId?: string;
   reportId?: string;
   sessionId?: string;
+  questionStep?: number;
+  neighborhoodId?: string;
   buyerResume?: string;
   matchReturn?: MatchReturnContext;
   shareToken?: string;
@@ -19,6 +51,22 @@ export interface ParsedHashRoute {
   sharedMode?: 'briefing' | 'pack';
   rawPath?: string;
 }
+
+const MATCH_SESSION_STEP_ROUTES: Partial<Record<string, HashRoute>> = {
+  intro: 'matchSurveyIntro',
+  review: 'matchReview',
+  run: 'matchRun',
+  success: 'matchSuccess',
+  results: 'matchResults',
+};
+
+const MATCH_SESSION_ROUTE_STEPS: Partial<Record<HashRoute, string>> = {
+  matchSurveyIntro: 'intro',
+  matchReview: 'review',
+  matchRun: 'run',
+  matchSuccess: 'success',
+  matchResults: 'results',
+};
 
 function readCheckoutRouteParams(params: URLSearchParams): Pick<
   ParsedHashRoute,
@@ -35,11 +83,39 @@ function readMatchReturnRouteParams(params: URLSearchParams): MatchReturnContext
   const target = params.get('match_return') ?? undefined;
   const sessionId = params.get('match_session') ?? undefined;
   const neighborhoodId = params.get('match_neighborhood') ?? undefined;
-  if (!target && !sessionId && !neighborhoodId) return undefined;
+  const encodedContext = params.get('match_context') ?? undefined;
+  if (!target && !sessionId && !neighborhoodId && !encodedContext) return undefined;
+  let structuredContext: Partial<MatchReturnContext> = {};
+  if (encodedContext) {
+    try {
+      const parsed = JSON.parse(encodedContext) as Partial<MatchReturnContext>;
+      structuredContext = {
+        mapCenter: Array.isArray(parsed.mapCenter) && parsed.mapCenter.length === 2
+          ? [Number(parsed.mapCenter[0]), Number(parsed.mapCenter[1])]
+          : undefined,
+        mapZoom: typeof parsed.mapZoom === 'number' ? parsed.mapZoom : undefined,
+        listScroll: typeof parsed.listScroll === 'number' ? parsed.listScroll : undefined,
+        language: parsed.language === 'en' || parsed.language === 'nl' ? parsed.language : undefined,
+        selectedHouseId: typeof parsed.selectedHouseId === 'string' ? parsed.selectedHouseId : undefined,
+      };
+    } catch {
+      structuredContext = {};
+    }
+  }
+
+  const canonicalTarget = target && target !== '#/match/map'
+    ? target
+    : sessionId && neighborhoodId
+      ? `#/match/session/${encodeURIComponent(sessionId)}/neighborhood/${encodeURIComponent(neighborhoodId)}`
+      : sessionId
+        ? `#/match/session/${encodeURIComponent(sessionId)}/results`
+        : '#/match/map';
+
   return {
-    target: target || '#/match/map',
+    target: canonicalTarget,
     sessionId,
     neighborhoodId,
+    ...structuredContext,
   };
 }
 
@@ -63,7 +139,7 @@ export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   if (normalizedPath === '/match') return { route: 'matchLanding' };
   if (normalizedPath === '/match/intro') return { route: 'matchSurveyIntro' };
   if (normalizedPath === '/match/survey') return { route: 'matchSurvey' };
-  if (normalizedPath === '/match/quiz') return { route: 'matchQuiz' };
+  if (normalizedPath === '/match/quiz') return { route: 'matchSurvey' };
   if (normalizedPath === '/match/report') return { route: 'matchReport' };
   if (normalizedPath === '/match/compare') return { route: 'matchComparison' };
   if (normalizedPath === '/match/similar') return { route: 'matchSimilar' };
@@ -73,6 +149,26 @@ export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   if (normalizedPath === '/match/saved') return { route: 'matchSaved' };
   if (normalizedPath === '/match/admin') return { route: 'matchAdmin' };
   if (normalizedPath === '/search') return { route: 'search' };
+
+  const matchSession = normalizedPath.match(/^\/match\/session\/([^/]+)\/([^/]+)(?:\/([^/]+))?$/);
+  if (matchSession) {
+    try {
+      const sessionId = decodeURIComponent(matchSession[1]);
+      const step = matchSession[2];
+      const detail = matchSession[3];
+      if (step === 'question' && detail) {
+        return { route: 'matchSurvey', sessionId, questionStep: Number(detail) };
+      }
+      if (step === 'neighborhood' && detail) {
+        return { route: 'matchNeighborhood', sessionId, neighborhoodId: decodeURIComponent(detail) };
+      }
+      const route = MATCH_SESSION_STEP_ROUTES[step];
+      if (route && !detail) return { route, sessionId };
+    } catch {
+      return { route: 'not_found', rawPath: normalizedPath };
+    }
+    return { route: 'not_found', rawPath: normalizedPath };
+  }
 
   const sharedMatchReport = normalizedPath.match(/^\/shared\/match\/report\/([^/]+)$/);
   if (sharedMatchReport) {
@@ -167,9 +263,21 @@ export function buildHashRoute(parsed: ParsedHashRoute): string {
   if (parsed.route === 'compare') return '#/compare';
   if (parsed.route === 'settings') return '#/settings';
   if (parsed.route === 'matchLanding') return '#/match';
-  if (parsed.route === 'matchSurveyIntro') return '#/match/intro';
-  if (parsed.route === 'matchSurvey') return '#/match/survey';
-  if (parsed.route === 'matchQuiz') return '#/match/quiz';
+  if (parsed.route === 'matchSurveyIntro') {
+    return parsed.sessionId ? `#/match/session/${encodeURIComponent(parsed.sessionId)}/intro` : '#/match/intro';
+  }
+  if (parsed.route === 'matchSurvey') {
+    return parsed.sessionId
+      ? `#/match/session/${encodeURIComponent(parsed.sessionId)}/question/${parsed.questionStep ?? 1}`
+      : '#/match/survey';
+  }
+  const sessionStep = MATCH_SESSION_ROUTE_STEPS[parsed.route];
+  if (sessionStep && parsed.sessionId) {
+    return `#/match/session/${encodeURIComponent(parsed.sessionId)}/${sessionStep}`;
+  }
+  if (parsed.route === 'matchNeighborhood' && parsed.sessionId && parsed.neighborhoodId) {
+    return `#/match/session/${encodeURIComponent(parsed.sessionId)}/neighborhood/${encodeURIComponent(parsed.neighborhoodId)}`;
+  }
   if (parsed.route === 'matchReport') return '#/match/report';
   if (parsed.route === 'matchComparison') return '#/match/compare';
   if (parsed.route === 'matchSimilar') return '#/match/similar';
@@ -200,6 +308,16 @@ export function buildHashRoute(parsed: ParsedHashRoute): string {
     params.set('match_return', parsed.matchReturn.target);
     if (parsed.matchReturn.sessionId) params.set('match_session', parsed.matchReturn.sessionId);
     if (parsed.matchReturn.neighborhoodId) params.set('match_neighborhood', parsed.matchReturn.neighborhoodId);
+    const structuredContext = {
+      ...(parsed.matchReturn.mapCenter ? { mapCenter: parsed.matchReturn.mapCenter } : {}),
+      ...(typeof parsed.matchReturn.mapZoom === 'number' ? { mapZoom: parsed.matchReturn.mapZoom } : {}),
+      ...(typeof parsed.matchReturn.listScroll === 'number' ? { listScroll: parsed.matchReturn.listScroll } : {}),
+      ...(parsed.matchReturn.language ? { language: parsed.matchReturn.language } : {}),
+      ...(parsed.matchReturn.selectedHouseId ? { selectedHouseId: parsed.matchReturn.selectedHouseId } : {}),
+    };
+    if (Object.keys(structuredContext).length > 0) {
+      params.set('match_context', JSON.stringify(structuredContext));
+    }
   }
 
   const query = params.toString();

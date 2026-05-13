@@ -3,6 +3,12 @@ import { join, relative } from 'node:path';
 
 const projectRoot = process.cwd();
 const matchFirstRoot = join(projectRoot, 'src/components/match-first');
+const matchSurfaceFiles = [
+  join(projectRoot, 'src/components/match/MatchLanding.tsx'),
+  join(projectRoot, 'src/components/match/MatchQuiz.tsx'),
+  join(projectRoot, 'src/components/match/MatchMap.tsx'),
+  join(projectRoot, 'src/App.tsx'),
+];
 const i18nFiles = [
   join(projectRoot, 'src/i18n/en.json'),
   join(projectRoot, 'src/i18n/nl.json'),
@@ -41,6 +47,7 @@ describe('match-first copy guard', () => {
   it('blocks unsupported model certainty claims in match-first copy', () => {
     const files = [
       ...collectFiles(matchFirstRoot, (filePath) => filePath.endsWith('.tsx')),
+      ...matchSurfaceFiles,
       ...i18nFiles,
     ];
     const forbidden = [
@@ -68,6 +75,22 @@ describe('match-first copy guard', () => {
       return forbidden
         .filter((phrase) => lower.includes(phrase))
         .map((phrase) => `${relative(projectRoot, filePath)}: ${phrase}`);
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps legacy match-surface language labels and fallbacks behind translation keys', () => {
+    const forbidden = [
+      />\s*English\s*</,
+      />\s*Nederlands\s*</,
+      /Could not reopen this address\. Search for it again\./,
+    ];
+    const violations = matchSurfaceFiles.flatMap((filePath) => {
+      const source = read(filePath);
+      return forbidden
+        .filter((pattern) => pattern.test(source))
+        .map((pattern) => `${relative(projectRoot, filePath)}: ${pattern.source}`);
     });
 
     expect(violations).toEqual([]);

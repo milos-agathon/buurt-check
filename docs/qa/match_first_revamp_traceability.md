@@ -19,5 +19,5 @@ Scope: Phase 1 UI shell and route cleanup for the match-first revamp.
 ## Current Phase 1 Limits
 
 - The survey is intentionally one dummy question for Phase 1 shell completion. Final 10-12 question content and preference-vector generation remain Phase 2 work.
-- The final survey action currently routes to the existing match map surface. Backend async matching progress and checkmark success remain later phases.
+- The final survey action now routes through the session run step with direct-route recovery guards. Backend async matching completion and real result payload hydration remain later phases.
 - Neighborhood-only 3D building loading is not changed in this phase; no national 3D loading path was introduced.

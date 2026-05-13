@@ -24,6 +24,10 @@
   transform: translate3d(0, 0, 0) scale(1.02);
 }
 
+.hero-map-background[data-motion="standard"] .hero-map-background__image {
+  animation: hero-map-image-drift 24s ease-in-out infinite alternate;
+}
+
 .hero-map-background__grid {
   position: absolute;
   inset: 0;
@@ -33,6 +37,31 @@
     linear-gradient(0deg, rgba(0, 104, 95, 0.10) 1px, transparent 1px);
   background-size: 84px 84px;
   transform: rotate(-7deg) scale(1.2);
+}
+
+.hero-map-background[data-motion="reduced"] .hero-map-background__image,
+.hero-map-background[data-motion="reduced"] .hero-map-background__grid {
+  animation: none;
+  transform: none;
+}
+
+@keyframes hero-map-image-drift {
+  from {
+    opacity: 0.3;
+    transform: translate3d(-1.4%, -0.8%, 0) scale(1.02);
+  }
+
+  to {
+    opacity: 0.38;
+    transform: translate3d(1.2%, 0.9%, 0) scale(1.045);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-map-background__image,
+  .hero-map-background__grid {
+    animation: none;
+  }
 }
 
 @media (max-width: 680px) {

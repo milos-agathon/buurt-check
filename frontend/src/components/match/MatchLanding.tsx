@@ -35,8 +35,8 @@ export default function MatchLanding({
           value={locale}
           onChange={(event) => void handleLanguageChange(event.target.value as 'en' | 'nl')}
         >
-          <option value="en">English</option>
-          <option value="nl">Nederlands</option>
+          <option value="en">{t('language.english')}</option>
+          <option value="nl">{t('language.dutch')}</option>
         </select>
       </div>
 

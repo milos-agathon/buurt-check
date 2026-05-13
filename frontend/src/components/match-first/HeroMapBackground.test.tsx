@@ -1,4 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import HeroMapBackground from './HeroMapBackground';
 
 it('switches to the static fallback state when the hero image fails', () => {
@@ -12,4 +14,21 @@ it('switches to the static fallback state when the hero image fails', () => {
   fireEvent.error(image as HTMLImageElement);
 
   expect(background).toHaveAttribute('data-image-status', 'fallback');
+});
+
+it('defines standard-motion drift and disables it for reduced motion', () => {
+  const css = readFileSync(join(process.cwd(), 'src/components/match-first/HeroMapBackground.css'), 'utf8');
+
+  expect(css).toContain('@keyframes hero-map-image-drift');
+  expect(css).toMatch(/\.hero-map-background\[data-motion="standard"\]\s+\.hero-map-background__image\s*{[^}]*animation:/s);
+  expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*{[^}]*\.hero-map-background__image[^}]*animation:\s*none/s);
+});
+
+it('does not import or request live 3D building data for the landing hero', () => {
+  const source = readFileSync(join(process.cwd(), 'src/components/match-first/HeroMapBackground.tsx'), 'utf8');
+
+  expect(source).not.toMatch(/from ['"]three['"]/);
+  expect(source).not.toMatch(/fetch\s*\(/);
+  expect(source).not.toContain('building3d');
+  expect(source).not.toContain('neighborhood3d');
 });

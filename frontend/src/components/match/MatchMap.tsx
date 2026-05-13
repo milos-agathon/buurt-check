@@ -7,6 +7,8 @@ interface MatchMapProps {
   map: MatchMapResponse | null;
   loading?: boolean;
   errorCode?: string | null;
+  onRetry?: () => void;
+  onStartSurvey?: () => void;
 }
 
 function clampPercent(value: number): number {
@@ -56,12 +58,18 @@ function useCompactLayout() {
   return compact;
 }
 
-export default function MatchMap({ map, loading = false, errorCode = null }: MatchMapProps) {
+export default function MatchMap({
+  map,
+  loading = false,
+  errorCode = null,
+  onRetry,
+  onStartSurvey,
+}: MatchMapProps) {
   const { t } = useTranslation();
   const compact = useCompactLayout();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = map?.features.find((feature) => feature.properties.neighborhood_id === selectedId)
-    ?? map?.features[0]
+  const selected = map?.features?.find((feature) => feature.properties.neighborhood_id === selectedId)
+    ?? map?.features?.[0]
     ?? null;
 
   if (loading) {
@@ -77,12 +85,29 @@ export default function MatchMap({ map, loading = false, errorCode = null }: Mat
     return (
       <section className="match-map" role="alert">
         <h1>{t('match.map.title')}</h1>
-        <p>{t(errorCode)}</p>
+        <p>{t(errorCode === 'match.warning.map_failed' ? 'match.map.retryableError' : errorCode)}</p>
+        {onRetry && (
+          <button type="button" className="match-map__action" onClick={onRetry}>
+            {t('match.map.retry')}
+          </button>
+        )}
       </section>
     );
   }
 
-  if (!map || map.features.length === 0) {
+  if (!map) {
+    return (
+      <section className="match-map">
+        <h1>{t('match.map.title')}</h1>
+        <p>{t('match.map.finishFirst')}</p>
+        <button type="button" className="match-map__action" onClick={onStartSurvey}>
+          {t('match.map.goToSurvey')}
+        </button>
+      </section>
+    );
+  }
+
+  if (map.features.length === 0) {
     return (
       <section className="match-map">
         <h1>{t('match.map.title')}</h1>
@@ -99,9 +124,10 @@ export default function MatchMap({ map, loading = false, errorCode = null }: Mat
       <header className="match-map__header">
         <p>{t('match.map.eyebrow')}</p>
         <h1 id="match-map-title">{t('match.map.title')}</h1>
+        <p className="match-map__method-note">{t('match.map.methodNote')}</p>
       </header>
 
-      <div className="match-map__canvas" role="img" aria-label={t('match.map.canvasLabel')}>
+      <div className="match-map__canvas" role="group" aria-label={t('match.map.canvasLabel')}>
         {map.features.map((feature: MatchMapFeature) => {
           const [lng, lat] = feature.geometry.coordinates;
           return (
@@ -121,6 +147,23 @@ export default function MatchMap({ map, loading = false, errorCode = null }: Mat
           );
         })}
       </div>
+
+      <ol className="match-map__ranked-list" aria-label={t('match.map.rankedListLabel')}>
+        {map.features.map((feature) => (
+          <li key={feature.properties.neighborhood_id}>
+            <button
+              type="button"
+              className="match-map__ranked-button"
+              aria-pressed={selected?.properties.neighborhood_id === feature.properties.neighborhood_id}
+              aria-label={t('match.map.openFromList', { name: feature.properties.name })}
+              onClick={() => setSelectedId(feature.properties.neighborhood_id)}
+            >
+              <span>{feature.properties.name}</span>
+              <strong>{feature.properties.match_score}/100</strong>
+            </button>
+          </li>
+        ))}
+      </ol>
 
       {selected && (
         <aside className="match-map__detail" aria-label={t('match.map.selectedDetails')}>

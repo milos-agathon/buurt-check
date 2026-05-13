@@ -17,6 +17,47 @@ it('adds survey intro and survey shell routes without breaking legacy match and 
 
   expect(parseHashRoute('#/match/survey')).toMatchObject({ route: 'matchSurvey' });
   expect(buildHashRoute({ route: 'matchSurvey' })).toBe('#/match/survey');
+  expect(parseHashRoute('#/match/session/match-123/intro')).toMatchObject({
+    route: 'matchSurveyIntro',
+    sessionId: 'match-123',
+  });
+  expect(buildHashRoute({ route: 'matchSurveyIntro', sessionId: 'match-123' })).toBe('#/match/session/match-123/intro');
+  expect(parseHashRoute('#/match/session/match-123/question/1')).toMatchObject({
+    route: 'matchSurvey',
+    sessionId: 'match-123',
+    questionStep: 1,
+  });
+  expect(buildHashRoute({ route: 'matchSurvey', sessionId: 'match-123', questionStep: 1 })).toBe('#/match/session/match-123/question/1');
+  expect(parseHashRoute('#/match/session/match-123/review')).toMatchObject({
+    route: 'matchReview',
+    sessionId: 'match-123',
+  });
+  expect(buildHashRoute({ route: 'matchReview', sessionId: 'match-123' })).toBe('#/match/session/match-123/review');
+  expect(parseHashRoute('#/match/session/match-123/run')).toMatchObject({
+    route: 'matchRun',
+    sessionId: 'match-123',
+  });
+  expect(buildHashRoute({ route: 'matchRun', sessionId: 'match-123' })).toBe('#/match/session/match-123/run');
+  expect(parseHashRoute('#/match/session/match-123/success')).toMatchObject({
+    route: 'matchSuccess',
+    sessionId: 'match-123',
+  });
+  expect(buildHashRoute({ route: 'matchSuccess', sessionId: 'match-123' })).toBe('#/match/session/match-123/success');
+  expect(parseHashRoute('#/match/session/match-123/results')).toMatchObject({
+    route: 'matchResults',
+    sessionId: 'match-123',
+  });
+  expect(buildHashRoute({ route: 'matchResults', sessionId: 'match-123' })).toBe('#/match/session/match-123/results');
+  expect(parseHashRoute('#/match/session/match-123/neighborhood/BU0363AA01')).toMatchObject({
+    route: 'matchNeighborhood',
+    sessionId: 'match-123',
+    neighborhoodId: 'BU0363AA01',
+  });
+  expect(buildHashRoute({
+    route: 'matchNeighborhood',
+    sessionId: 'match-123',
+    neighborhoodId: 'BU0363AA01',
+  })).toBe('#/match/session/match-123/neighborhood/BU0363AA01');
 
   expect(parseHashRoute('#/search')).toMatchObject({ route: 'search' });
   expect(parseHashRoute('#/address/0363010000123456?lookup=adr-123')).toMatchObject({
@@ -43,22 +84,27 @@ it('adds survey intro and survey shell routes without breaking legacy match and 
     vboId: '0363010000123456',
     reportId: 'report-123',
   });
-  expect(parseHashRoute('#/match/quiz')).toMatchObject({ route: 'matchQuiz' });
+  expect(parseHashRoute('#/match/quiz')).toMatchObject({ route: 'matchSurvey' });
   expect(parseHashRoute('#/match/map')).toMatchObject({ route: 'matchMap' });
 });
 
 it('parses match return context separately from checkout session recovery', () => {
   expect(
-    parseHashRoute('#/address/0363010000123456?lookup=adr-123&match_return=%23%2Fmatch%2Fmap&match_session=match-123&match_neighborhood=BU0363AA01'),
+    parseHashRoute('#/address/0363010000123456?lookup=adr-123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22mapCenter%22%3A%5B52.36%2C4.9%5D%2C%22mapZoom%22%3A13%2C%22listScroll%22%3A240%2C%22language%22%3A%22nl%22%2C%22selectedHouseId%22%3A%22house-7%22%7D'),
   ).toMatchObject({
     route: 'dossier',
     vboId: '0363010000123456',
     lookupId: 'adr-123',
     sessionId: undefined,
     matchReturn: {
-      target: '#/match/map',
+      target: '#/match/session/match-123/neighborhood/BU0363AA01',
       sessionId: 'match-123',
       neighborhoodId: 'BU0363AA01',
+      mapCenter: [52.36, 4.9],
+      mapZoom: 13,
+      listScroll: 240,
+      language: 'nl',
+      selectedHouseId: 'house-7',
     },
   });
 
@@ -67,18 +113,23 @@ it('parses match return context separately from checkout session recovery', () =
     vboId: '0363010000123456',
     lookupId: 'adr-123',
     matchReturn: {
-      target: '#/match/map',
+      target: '#/match/session/match-123/neighborhood/BU0363AA01',
       sessionId: 'match-123',
       neighborhoodId: 'BU0363AA01',
+      mapCenter: [52.36, 4.9],
+      mapZoom: 13,
+      listScroll: 240,
+      language: 'nl',
+      selectedHouseId: 'house-7',
     },
-  })).toBe('#/address/0363010000123456?lookup=adr-123&match_return=%23%2Fmatch%2Fmap&match_session=match-123&match_neighborhood=BU0363AA01');
+  })).toBe('#/address/0363010000123456?lookup=adr-123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22mapCenter%22%3A%5B52.36%2C4.9%5D%2C%22mapZoom%22%3A13%2C%22listScroll%22%3A240%2C%22language%22%3A%22nl%22%2C%22selectedHouseId%22%3A%22house-7%22%7D');
 
   expect(parseHashRoute('#/address/0363010000123456?lookup=adr-123&report=report-123&session_id=cs_test_123&match_session=match-123')).toMatchObject({
     route: 'dossier',
     reportId: 'report-123',
     sessionId: 'cs_test_123',
     matchReturn: {
-      target: '#/match/map',
+      target: '#/match/session/match-123/results',
       sessionId: 'match-123',
     },
   });
