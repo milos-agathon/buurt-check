@@ -32,6 +32,9 @@ export interface MatchReturnContext {
   mapCenter?: [number, number];
   mapZoom?: number;
   listScroll?: number;
+  mobileMode?: 'map' | 'list';
+  selectedResultId?: string;
+  selectedResultRank?: number;
   language?: 'en' | 'nl';
   selectedHouseId?: string;
 }
@@ -76,6 +79,11 @@ function readFiniteNumber(value: unknown): number | undefined {
 function readNonNegativeFiniteNumber(value: unknown): number | undefined {
   const parsed = readFiniteNumber(value);
   return parsed !== undefined && parsed >= 0 ? parsed : undefined;
+}
+
+function readPositiveInteger(value: unknown): number | undefined {
+  const parsed = readFiniteNumber(value);
+  return parsed !== undefined && Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function readFiniteMapCenter(value: unknown): [number, number] | undefined {
@@ -151,6 +159,9 @@ function buildCanonicalMatchReturnContext(
     mapCenter: value.mapCenter,
     mapZoom: value.mapZoom,
     listScroll: value.listScroll,
+    mobileMode: value.mobileMode,
+    selectedResultId: value.selectedResultId,
+    selectedResultRank: value.selectedResultRank,
     language: value.language,
     selectedHouseId: value.selectedHouseId,
   };
@@ -182,6 +193,22 @@ function parseStructuredMatchReturnContext(encodedContext: string | undefined): 
       const listScroll = readNonNegativeFiniteNumber(parsed.listScroll);
       if (listScroll === undefined) return { context: {}, malformed: true };
       context.listScroll = listScroll;
+    }
+
+    if (hasOwn(parsed, 'mobileMode')) {
+      if (parsed.mobileMode !== 'map' && parsed.mobileMode !== 'list') return { context: {}, malformed: true };
+      context.mobileMode = parsed.mobileMode;
+    }
+
+    if (hasOwn(parsed, 'selectedResultId')) {
+      if (typeof parsed.selectedResultId !== 'string') return { context: {}, malformed: true };
+      context.selectedResultId = parsed.selectedResultId;
+    }
+
+    if (hasOwn(parsed, 'selectedResultRank')) {
+      const selectedResultRank = readPositiveInteger(parsed.selectedResultRank);
+      if (selectedResultRank === undefined) return { context: {}, malformed: true };
+      context.selectedResultRank = selectedResultRank;
     }
 
     if (hasOwn(parsed, 'language')) {
@@ -265,7 +292,7 @@ export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
   if (normalizedPath === '/match/alerts') return { route: 'matchAlerts' };
   if (normalizedPath === '/match/saved') return { route: 'matchSaved' };
   if (normalizedPath === '/match/admin') return { route: 'matchAdmin' };
-  if (normalizedPath === '/search') return { route: 'search' };
+  if (normalizedPath === '/search') return { route: 'search', matchReturn };
 
   const matchSession = normalizedPath.match(/^\/match\/session\/([^/]+)\/([^/]+)(?:\/([^/]+))?$/);
   if (matchSession) {
@@ -418,6 +445,32 @@ export function buildHashRoute(parsed: ParsedHashRoute): string {
     return `#/${path}/${encodeURIComponent(parsed.shareToken)}`;
   }
   if (parsed.route === 'not_found') return parsed.rawPath ? `#${parsed.rawPath}` : '#/not-found';
+  if (parsed.route === 'search') {
+    const params = new URLSearchParams();
+    if (parsed.matchReturn) {
+      const matchReturn = buildCanonicalMatchReturnContext(parsed.matchReturn);
+      if (matchReturn) {
+        params.set('match_return', matchReturn.target);
+        if (matchReturn.sessionId) params.set('match_session', matchReturn.sessionId);
+        if (matchReturn.neighborhoodId) params.set('match_neighborhood', matchReturn.neighborhoodId);
+        const structuredContext = {
+          ...(matchReturn.mapCenter ? { mapCenter: matchReturn.mapCenter } : {}),
+          ...(typeof matchReturn.mapZoom === 'number' ? { mapZoom: matchReturn.mapZoom } : {}),
+          ...(typeof matchReturn.listScroll === 'number' ? { listScroll: matchReturn.listScroll } : {}),
+          ...(matchReturn.mobileMode ? { mobileMode: matchReturn.mobileMode } : {}),
+          ...(matchReturn.selectedResultId ? { selectedResultId: matchReturn.selectedResultId } : {}),
+          ...(typeof matchReturn.selectedResultRank === 'number' ? { selectedResultRank: matchReturn.selectedResultRank } : {}),
+          ...(matchReturn.language ? { language: matchReturn.language } : {}),
+          ...(matchReturn.selectedHouseId ? { selectedHouseId: matchReturn.selectedHouseId } : {}),
+        };
+        if (Object.keys(structuredContext).length > 0) {
+          params.set('match_context', JSON.stringify(structuredContext));
+        }
+      }
+    }
+    const query = params.toString();
+    return `#/search${query ? `?${query}` : ''}`;
+  }
   if (parsed.route !== 'dossier') return '#/search';
 
   const params = new URLSearchParams();
@@ -439,6 +492,9 @@ export function buildHashRoute(parsed: ParsedHashRoute): string {
       ...(matchReturn.mapCenter ? { mapCenter: matchReturn.mapCenter } : {}),
       ...(typeof matchReturn.mapZoom === 'number' ? { mapZoom: matchReturn.mapZoom } : {}),
       ...(typeof matchReturn.listScroll === 'number' ? { listScroll: matchReturn.listScroll } : {}),
+      ...(matchReturn.mobileMode ? { mobileMode: matchReturn.mobileMode } : {}),
+      ...(matchReturn.selectedResultId ? { selectedResultId: matchReturn.selectedResultId } : {}),
+      ...(typeof matchReturn.selectedResultRank === 'number' ? { selectedResultRank: matchReturn.selectedResultRank } : {}),
       ...(matchReturn.language ? { language: matchReturn.language } : {}),
       ...(matchReturn.selectedHouseId ? { selectedHouseId: matchReturn.selectedHouseId } : {}),
     };

@@ -3,10 +3,9 @@ import './MatchFirstLanding.css';
 
 interface SurveyIntroProps {
   onStartSurvey: () => void;
-  onBack: () => void;
 }
 
-export default function SurveyIntro({ onStartSurvey, onBack }: SurveyIntroProps) {
+export default function SurveyIntro({ onStartSurvey }: SurveyIntroProps) {
   const { t } = useTranslation();
 
   return (
@@ -18,9 +17,6 @@ export default function SurveyIntro({ onStartSurvey, onBack }: SurveyIntroProps)
         <div className="match-first-landing__actions">
           <button type="button" className="match-first-landing__cta" onClick={onStartSurvey}>
             {t('matchFirst.intro.cta')}
-          </button>
-          <button type="button" className="match-first-landing__address-link" onClick={onBack}>
-            {t('matchFirst.survey.back')}
           </button>
         </div>
       </div>

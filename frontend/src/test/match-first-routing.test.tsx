@@ -105,7 +105,7 @@ it('rejects invalid match survey question steps', () => {
 
 it('parses match return context separately from checkout session recovery', () => {
   expect(
-    parseHashRoute('#/address/0363010000123456?lookup=adr-123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22mapCenter%22%3A%5B52.36%2C4.9%5D%2C%22mapZoom%22%3A13%2C%22listScroll%22%3A240%2C%22language%22%3A%22nl%22%2C%22selectedHouseId%22%3A%22house-7%22%7D'),
+    parseHashRoute('#/address/0363010000123456?lookup=adr-123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22mapCenter%22%3A%5B52.36%2C4.9%5D%2C%22mapZoom%22%3A13%2C%22listScroll%22%3A240%2C%22mobileMode%22%3A%22list%22%2C%22selectedResultId%22%3A%22result-2%22%2C%22selectedResultRank%22%3A2%2C%22language%22%3A%22nl%22%2C%22selectedHouseId%22%3A%22house-7%22%7D'),
   ).toMatchObject({
     route: 'dossier',
     vboId: '0363010000123456',
@@ -118,6 +118,9 @@ it('parses match return context separately from checkout session recovery', () =
       mapCenter: [52.36, 4.9],
       mapZoom: 13,
       listScroll: 240,
+      mobileMode: 'list',
+      selectedResultId: 'result-2',
+      selectedResultRank: 2,
       language: 'nl',
       selectedHouseId: 'house-7',
     },
@@ -134,10 +137,13 @@ it('parses match return context separately from checkout session recovery', () =
       mapCenter: [52.36, 4.9],
       mapZoom: 13,
       listScroll: 240,
+      mobileMode: 'list',
+      selectedResultId: 'result-2',
+      selectedResultRank: 2,
       language: 'nl',
       selectedHouseId: 'house-7',
     },
-  })).toBe('#/address/0363010000123456?lookup=adr-123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22mapCenter%22%3A%5B52.36%2C4.9%5D%2C%22mapZoom%22%3A13%2C%22listScroll%22%3A240%2C%22language%22%3A%22nl%22%2C%22selectedHouseId%22%3A%22house-7%22%7D');
+  })).toBe('#/address/0363010000123456?lookup=adr-123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22mapCenter%22%3A%5B52.36%2C4.9%5D%2C%22mapZoom%22%3A13%2C%22listScroll%22%3A240%2C%22mobileMode%22%3A%22list%22%2C%22selectedResultId%22%3A%22result-2%22%2C%22selectedResultRank%22%3A2%2C%22language%22%3A%22nl%22%2C%22selectedHouseId%22%3A%22house-7%22%7D');
 
   expect(parseHashRoute('#/address/0363010000123456?lookup=adr-123&report=report-123&session_id=cs_test_123&match_session=match-123')).toMatchObject({
     route: 'dossier',
@@ -203,6 +209,20 @@ it('routes malformed match return context to not found instead of storing unsafe
 
   expect(parseHashRoute(
     '#/address/0363010000123456?match_session=match-123&match_context=%7B%22listScroll%22%3A-1%7D',
+  )).toMatchObject({
+    route: 'not_found',
+    rawPath: '/address/0363010000123456',
+  });
+
+  expect(parseHashRoute(
+    '#/address/0363010000123456?match_session=match-123&match_context=%7B%22mobileMode%22%3A%22grid%22%7D',
+  )).toMatchObject({
+    route: 'not_found',
+    rawPath: '/address/0363010000123456',
+  });
+
+  expect(parseHashRoute(
+    '#/address/0363010000123456?match_session=match-123&match_context=%7B%22selectedResultRank%22%3A0%7D',
   )).toMatchObject({
     route: 'not_found',
     rawPath: '/address/0363010000123456',

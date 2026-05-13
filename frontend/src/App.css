@@ -283,6 +283,13 @@
   font: var(--type-small);
 }
 
+.app__route-loading {
+  padding: var(--space-lg) var(--space-base);
+  text-align: center;
+  color: var(--color-text-secondary);
+  font: var(--type-small);
+}
+
 .app__dossier-jump-header {
   display: flex;
   align-items: center;

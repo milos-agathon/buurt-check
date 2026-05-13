@@ -107,4 +107,16 @@ describe('match-first copy guard', () => {
 
     expect(violations).toEqual([]);
   });
+
+  it('keeps App route fallbacks and Suspense loading states localized', () => {
+    const source = read(join(projectRoot, 'src/App.tsx'));
+    const violations = [
+      ...[...source.matchAll(/\bt\(\s*['"][^'"]+['"]\s*,\s*['"][^'"]+['"]/g)]
+        .map((match) => `src/App.tsx: ${match[0]}`),
+      ...[...source.matchAll(/<Suspense\s+fallback=\{null\}>/g)]
+        .map((match) => `src/App.tsx: ${match[0]}`),
+    ];
+
+    expect(violations).toEqual([]);
+  });
 });

@@ -5,7 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import AddressSearch from './components/AddressSearch';
 import ErrorBoundary from './components/ErrorBoundary';
 import RiskTileSkeleton from './components/RiskTileSkeleton';
-import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import DossierSheet, { type SheetSnap } from './components/DossierSheet';
 import LoadingScreen, { type LoadingProgressStep } from './components/LoadingScreen';
 import { SPRING_TAB } from './config/springs';
@@ -210,6 +210,22 @@ const MatchFeedbackControls = lazy(() => import('./components/match/MatchFeedbac
 
 type Screen = HashRoute;
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
+
+export function getMatchRouteMotionProps(reducedMotion: boolean) {
+  return reducedMotion
+    ? {
+      initial: false,
+      animate: { opacity: 1, y: 0 },
+      exit: { opacity: 0, y: 0 },
+      transition: { duration: 0 },
+    }
+    : {
+      initial: { opacity: 0, y: 12 },
+      animate: { opacity: 1, y: 0 },
+      exit: { opacity: 0, y: 12 },
+      transition: SPRING_TAB,
+    };
+}
 
 interface DossierSeedState {
   address?: ResolvedAddress;
@@ -579,21 +595,13 @@ type MatchJobStatus =
   | 'no_results'
   | 'no_strong_matches';
 const MATCH_JOB_STATUS_STORAGE_KEY_PREFIX = 'buurt-check-match-first-job-status:';
-const MATCH_JOB_STATUSES: ReadonlySet<MatchJobStatus> = new Set([
+const MATCH_JOB_STORAGE_STATUSES: ReadonlySet<MatchJobStatus> = new Set([
   'run_pending',
   'running',
   'slow',
   'failed',
-  'completed_with_fallback',
-  'no_results',
-  'no_strong_matches',
 ]);
 const MATCH_RETURN_CONTEXT_KEY_PREFIX = 'buurt-check-match-first-return-context:';
-
-interface MatchNearbyAddressCandidate {
-  id: string;
-  label: string;
-}
 
 function readFiniteNumber(value: unknown): number | undefined {
   const parsed = typeof value === 'number' ? value : Number(value);
@@ -603,6 +611,11 @@ function readFiniteNumber(value: unknown): number | undefined {
 function readNonNegativeFiniteNumber(value: unknown): number | undefined {
   const parsed = readFiniteNumber(value);
   return parsed !== undefined && parsed >= 0 ? parsed : undefined;
+}
+
+function readPositiveInteger(value: unknown): number | undefined {
+  const parsed = readFiniteNumber(value);
+  return parsed !== undefined && Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function readFiniteMapCenter(value: unknown): [number, number] | undefined {
@@ -617,7 +630,7 @@ function matchJobStatusStorageKey(sessionId: string): string {
 }
 
 function normalizeMatchJobStatus(value: string | null | undefined): MatchJobStatus | null {
-  return value && MATCH_JOB_STATUSES.has(value as MatchJobStatus) ? value as MatchJobStatus : null;
+  return value && MATCH_JOB_STORAGE_STATUSES.has(value as MatchJobStatus) ? value as MatchJobStatus : null;
 }
 
 function createMatchSessionId(): string {
@@ -656,7 +669,7 @@ function readStoredMatchJobStatus(sessionId: string | null | undefined): MatchJo
 
 function storeMatchJobStatus(sessionId: string, status: MatchJobStatus): void {
   if (typeof window === 'undefined') return;
-  if (!MATCH_JOB_STATUSES.has(status)) return;
+  if (!MATCH_JOB_STORAGE_STATUSES.has(status)) return;
   try {
     window.localStorage.setItem(matchJobStatusStorageKey(sessionId), status);
   } catch {
@@ -687,6 +700,9 @@ function normalizeStoredMatchReturnContext(value: Partial<MatchReturnContext> | 
     mapCenter: readFiniteMapCenter(value.mapCenter),
     mapZoom: readNonNegativeFiniteNumber(value.mapZoom),
     listScroll: readNonNegativeFiniteNumber(value.listScroll),
+    mobileMode: value.mobileMode === 'map' || value.mobileMode === 'list' ? value.mobileMode : undefined,
+    selectedResultId: typeof value.selectedResultId === 'string' ? value.selectedResultId : undefined,
+    selectedResultRank: readPositiveInteger(value.selectedResultRank),
     language: value.language === 'en' || value.language === 'nl' ? value.language : undefined,
     selectedHouseId: typeof value.selectedHouseId === 'string' ? value.selectedHouseId : undefined,
   };
@@ -1353,6 +1369,8 @@ function buildSharedPrebidResponse(
 function App() {
   useViewportBottomOffset();
   const { t, i18n } = useTranslation();
+  const prefersReducedMotion = useReducedMotion();
+  const matchRouteMotionProps = getMatchRouteMotionProps(Boolean(prefersReducedMotion));
   const uiLanguage = normalizeUiLanguage(i18n.resolvedLanguage ?? i18n.language);
   const isNl = uiLanguage === 'nl';
   const analyticsEnabled = isAnalyticsEnabled();
@@ -1388,6 +1406,11 @@ function App() {
     initialRoute.matchReturn ?? null
   ), [initialRoute]);
   const { toasts, showToast, dismissToast } = useToast();
+  const routeLoadingFallback = (
+    <div className="app__route-loading" role="status" aria-live="polite">
+      {t('app.loadingRoute')}
+    </div>
+  );
   const [activeTab, setActiveTab] = useState<TabId>(() => tabForScreen(initialScreen));
   const [activeScreen, setActiveScreen] = useState<Screen>(initialScreen);
   const [activeMatchSessionId, setActiveMatchSessionId] = useState<string | null>(() => (
@@ -1403,6 +1426,7 @@ function App() {
     () => initialMatchMapReturnContext,
   );
   const matchMapReturnContextRef = useRef<MatchReturnContext | null>(initialMatchMapReturnContext);
+  const pendingSearchMatchReturnContextRef = useRef<MatchReturnContext | null>(null);
   const [activeMatchJobStatus, setActiveMatchJobStatus] = useState<MatchJobStatus | null>(() => (
     readStoredMatchJobStatus(initialMatchSessionId)
   ));
@@ -1410,7 +1434,6 @@ function App() {
     sessionId: string | null;
     answers: MatchFirstSurveyAnswers;
   } | null>(null);
-  const [matchNearbyAddressCandidates] = useState<MatchNearbyAddressCandidate[]>([]);
   const mainContentRef = useRef<HTMLElement | null>(null);
   const [matchQuizResponse] = useState<MatchQuizResponse | null>(null);
   const [matchRecommendations, setMatchRecommendations] = useState<MatchRecommendationsResponse | null>(null);
@@ -1662,7 +1685,7 @@ function App() {
   }, [matchMapReturnContext]);
 
   useEffect(() => {
-    if (activeScreen === 'search') {
+    if (activeScreen === 'search' && !pendingSearchMatchReturnContextRef.current) {
       setMatchReturnContext(null);
     }
   }, [activeScreen]);
@@ -3916,8 +3939,11 @@ function App() {
     const routeMatchReturnContext = typeof window !== 'undefined'
       ? parseLocationRoute(window.location).matchReturn
       : undefined;
+    const pendingSearchMatchReturnContext = pendingSearchMatchReturnContextRef.current;
+    pendingSearchMatchReturnContextRef.current = null;
     const preservedMatchReturnContext = options?.matchReturnContext
       ?? routeMatchReturnContext
+      ?? pendingSearchMatchReturnContext
       ?? matchReturnContext;
 
     setActiveScreen('dossier');
@@ -3973,6 +3999,16 @@ function App() {
       const { rd_x, rd_y, latitude, longitude } = resolved;
 
       if (!vboId) {
+        if (preservedMatchReturnContext) {
+          setMatchReturnContext(preservedMatchReturnContext);
+          setMatchMapReturnContext(preservedMatchReturnContext);
+          storeMatchReturnContext(preservedMatchReturnContext);
+          setHashRoute(buildHashRoute({
+            route: 'dossier',
+            lookupId: activeSuggestion.id,
+            matchReturn: preservedMatchReturnContext,
+          }), { replace: true });
+        }
         setLoading(false);
         setBuildingLoading(false);
         setSheetSnap('hidden');
@@ -4089,7 +4125,12 @@ function App() {
       setLoading(false);
       setBuildingLoading(false);
       setSheetSnap('half');
-      setHashRoute(dossierHash(vboId, activeSuggestion.id));
+      if (preservedMatchReturnContext) {
+        setMatchReturnContext(preservedMatchReturnContext);
+        setMatchMapReturnContext(preservedMatchReturnContext);
+        storeMatchReturnContext(preservedMatchReturnContext);
+      }
+      setHashRoute(dossierHash(vboId, activeSuggestion.id, preservedMatchReturnContext ?? null));
 
       setLoadingStep('loading3D');
       let phase1Promise: Promise<void> | null = null;
@@ -4509,7 +4550,12 @@ function App() {
   const applyRouteRef = useRef<() => void>(() => {});
   applyRouteRef.current = () => {
     const parsed = parseLocationRoute(window.location);
-    if (parsed.route !== 'dossier') {
+    if (parsed.route === 'search' && parsed.matchReturn) {
+      pendingSearchMatchReturnContextRef.current = parsed.matchReturn;
+    } else if (parsed.route !== 'dossier') {
+      pendingSearchMatchReturnContextRef.current = null;
+    }
+    if (parsed.route !== 'dossier' && !(parsed.route === 'search' && pendingSearchMatchReturnContextRef.current)) {
       setMatchReturnContext(null);
     }
     if (parsed.route.startsWith('match')) {
@@ -5628,27 +5674,21 @@ function App() {
     activeScreen.startsWith('match')
   );
   const hideTopBarLanguageSwitcher = activeScreen === 'matchLanding';
+  const hideTopBarSettings = activeScreen === 'matchLanding'
+    || activeScreen === 'matchSurveyIntro'
+    || activeScreen === 'matchSurvey'
+    || activeScreen === 'matchReview';
   const canShowMatchRunShell = activeMatchJobStatus === 'running'
     || activeMatchJobStatus === 'run_pending'
     || activeMatchJobStatus === 'slow'
     || activeMatchJobStatus === 'failed';
-  const hasCompletedMatchJob = false;
   const restoredMatchMapContext = matchMapReturnContext;
-  const hasStructuredMatchMapReturnContext = Boolean(
-    restoredMatchMapContext?.mapCenter
-    || restoredMatchMapContext?.mapZoom !== undefined
-    || restoredMatchMapContext?.listScroll !== undefined
-    || restoredMatchMapContext?.selectedHouseId,
-  );
   const canShowMatchNeighborhoodShell = Boolean(
-    hasCompletedMatchJob
-    && restoredMatchMapContext?.sessionId
+    restoredMatchMapContext?.sessionId
     && restoredMatchMapContext.sessionId === activeMatchSessionId
     && restoredMatchMapContext.neighborhoodId
     && restoredMatchMapContext.neighborhoodId === activeMatchNeighborhoodId
-    && hasStructuredMatchMapReturnContext,
   );
-  const hasNearbyAddressCandidates = matchNearbyAddressCandidates.length > 0;
   const showDossierInlineMatchReturnAction = (
     activeScreen === 'dossier'
     && !showLoadingScreen
@@ -5659,6 +5699,14 @@ function App() {
 
   const startMatchRun = () => {
     const sessionId = ensureMatchSessionId();
+    storeMatchJobStatus(sessionId, 'run_pending');
+    setActiveMatchJobStatus('run_pending');
+    setActiveScreen('matchRun');
+    setHashRoute(buildHashRoute({ route: 'matchRun', sessionId }));
+  };
+
+  const retryMatchRun = () => {
+    const sessionId = activeMatchSessionId ?? ensureMatchSessionId();
     storeMatchJobStatus(sessionId, 'run_pending');
     setActiveMatchJobStatus('run_pending');
     setActiveScreen('matchRun');
@@ -5749,13 +5797,24 @@ function App() {
           {(activeMatchJobStatus === 'running' || activeMatchJobStatus === 'run_pending') && (
             <p className="match-first-landing__body">{t('matchFirst.progress.honesty')}</p>
           )}
-          <button
-            type="button"
-            className="match-first-landing__cta"
-            onClick={returnToMatchSurvey}
-          >
-            {t('matchFirst.progress.backToSurvey')}
-          </button>
+          <div className="match-first-landing__actions">
+            {activeMatchJobStatus === 'failed' && (
+              <button
+                type="button"
+                className="match-first-landing__cta"
+                onClick={retryMatchRun}
+              >
+                {t('matchFirst.progress.retry')}
+              </button>
+            )}
+            <button
+              type="button"
+              className={activeMatchJobStatus === 'failed' ? 'match-first-landing__address-link' : 'match-first-landing__cta'}
+              onClick={returnToMatchSurvey}
+            >
+              {t('matchFirst.progress.backToSurvey')}
+            </button>
+          </div>
         </div>
       </section>
     );
@@ -5771,9 +5830,7 @@ function App() {
         ? 'matchFirst.failure.noResults'
         : activeMatchJobStatus === 'no_strong_matches'
           ? 'matchFirst.failure.noStrongMatches'
-          : activeMatchJobStatus === 'failed'
-            ? 'matchFirst.failure.failedBackend'
-            : null;
+          : null;
 
     if (!bodyKey) return renderMatchResultsUnavailable(titleId, sectionDataProps);
 
@@ -5816,12 +5873,25 @@ function App() {
     ) : null
   );
 
+  const handleSearchManuallyFromMatchDossier = useCallback(() => {
+    const currentMatchReturnContext = matchReturnContext
+      ?? (typeof window !== 'undefined' ? parseLocationRoute(window.location).matchReturn : undefined)
+      ?? matchMapReturnContextRef.current;
+    pendingSearchMatchReturnContextRef.current = currentMatchReturnContext;
+    setActiveTab('home');
+    setActiveScreen('search');
+    setHashRoute(buildHashRoute({
+      route: 'search',
+      matchReturn: currentMatchReturnContext ?? undefined,
+    }));
+  }, [matchReturnContext, setHashRoute]);
+
   return (
     <div className="app" data-screen={activeScreen}>
       <a href="#main-content" className="sr-only sr-only--focusable" inert={isOverlayModalOpen || undefined}>{t('a11y.skip_to_content')}</a>
       <TopBar
         title={topBarTitle}
-        onSettingsClick={openSettings}
+        onSettingsClick={hideTopBarSettings ? undefined : openSettings}
         inert={isOverlayModalOpen || undefined}
         activeScreen={activeScreen}
         hideLanguageSwitcher={hideTopBarLanguageSwitcher}
@@ -5846,12 +5916,9 @@ function App() {
             <motion.div
               key="screen-match-landing"
               className="app__screen"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={SPRING_TAB}
+              {...matchRouteMotionProps}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchLanding
                   onStartMatch={() => {
                     const sessionId = ensureMatchSessionId();
@@ -5871,21 +5938,14 @@ function App() {
             <motion.div
               key="screen-match-survey-intro"
               className="app__screen"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={SPRING_TAB}
+              {...matchRouteMotionProps}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchSurveyIntro
                   onStartSurvey={() => {
                     const sessionId = ensureMatchSessionId();
                     setActiveScreen('matchSurvey');
                     setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: 1 }));
-                  }}
-                  onBack={() => {
-                    setActiveScreen('matchLanding');
-                    setHashRoute('#/match');
                   }}
                 />
               </Suspense>
@@ -5896,12 +5956,9 @@ function App() {
             <motion.div
               key="screen-match-survey"
               className="app__screen"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={SPRING_TAB}
+              {...matchRouteMotionProps}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchSurveyShell
                   sessionId={activeMatchSessionId}
                   onBack={() => {
@@ -5924,12 +5981,9 @@ function App() {
             <motion.div
               key="screen-match-review"
               className="app__screen"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={SPRING_TAB}
+              {...matchRouteMotionProps}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchSurveyReview
                   sessionId={activeMatchSessionId}
                   answers={
@@ -5956,10 +6010,7 @@ function App() {
             <motion.div
               key="screen-match-run"
               className="app__screen"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={SPRING_TAB}
+              {...matchRouteMotionProps}
             >
               {canShowMatchRunShell ? renderMatchRunShell() : renderMatchRecovery('match-run-title')}
             </motion.div>
@@ -5969,20 +6020,9 @@ function App() {
             <motion.div
               key="screen-match-success"
               className="app__screen"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={SPRING_TAB}
+              {...matchRouteMotionProps}
             >
-              {hasCompletedMatchJob ? (
-              <section className="match-first-landing match-first-landing--simple" aria-labelledby="match-success-title">
-                <div className="match-first-landing__content">
-                  <p className="match-first-landing__eyebrow">{t('matchFirst.success.eyebrow')}</p>
-                  <h1 id="match-success-title">{t('matchFirst.success.title')}</h1>
-                  <p className="match-first-landing__body">{t('matchFirst.success.placeholder')}</p>
-                </div>
-              </section>
-              ) : renderMatchResultsUnavailable('match-success-title')}
+              {renderMatchResultsUnavailable('match-success-title')}
             </motion.div>
           )}
 
@@ -5990,10 +6030,7 @@ function App() {
             <motion.div
               key="screen-match-results"
               className="app__screen"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={SPRING_TAB}
+              {...matchRouteMotionProps}
             >
               {renderMatchResultsShell('match-results-title')}
             </motion.div>
@@ -6003,10 +6040,7 @@ function App() {
             <motion.div
               key="screen-match-neighborhood"
               className="app__screen"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={SPRING_TAB}
+              {...matchRouteMotionProps}
             >
               {canShowMatchNeighborhoodShell ? (
                 <section
@@ -6017,6 +6051,9 @@ function App() {
                 data-map-center={formatMatchCenterAttribute(restoredMatchMapContext?.mapCenter)}
                 data-map-zoom={formatNumberAttribute(restoredMatchMapContext?.mapZoom)}
                 data-list-scroll={formatNumberAttribute(restoredMatchMapContext?.listScroll)}
+                data-mobile-mode={restoredMatchMapContext?.mobileMode}
+                data-selected-result-id={restoredMatchMapContext?.selectedResultId}
+                data-selected-result-rank={formatNumberAttribute(restoredMatchMapContext?.selectedResultRank)}
                 data-selected-house-id={restoredMatchMapContext?.selectedHouseId}
               >
                 <div className="match-first-landing__content">
@@ -6032,6 +6069,9 @@ function App() {
                 'data-map-center': formatMatchCenterAttribute(restoredMatchMapContext?.mapCenter),
                 'data-map-zoom': formatNumberAttribute(restoredMatchMapContext?.mapZoom),
                 'data-list-scroll': formatNumberAttribute(restoredMatchMapContext?.listScroll),
+                'data-mobile-mode': restoredMatchMapContext?.mobileMode,
+                'data-selected-result-id': restoredMatchMapContext?.selectedResultId,
+                'data-selected-result-rank': formatNumberAttribute(restoredMatchMapContext?.selectedResultRank),
                 'data-selected-house-id': restoredMatchMapContext?.selectedHouseId,
               })}
             </motion.div>
@@ -6046,7 +6086,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <section className="match-flow-actions" aria-label={t('match.navigation.actions')}>
                   <button type="button" onClick={() => { setActiveScreen('matchListings'); setHashRoute('#/match/listings'); }}>
                     {t('match.navigation.listings')}
@@ -6128,7 +6168,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchReport
                   report={sharedMatchReport}
                   loading={sharedMatchReportLoading}
@@ -6147,7 +6187,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchComparison
                   comparison={matchComparisonResponse}
                   loading={matchComparisonLoading}
@@ -6166,7 +6206,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchSimilarSearch
                   knownNeighborhoods={DEFAULT_MATCH_KNOWN_NEIGHBORHOODS}
                   response={matchSimilarResponse}
@@ -6200,7 +6240,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchListings
                   result={matchListings}
                   loading={matchListingsLoading}
@@ -6220,7 +6260,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchAlerts
                   alerts={matchAlerts}
                   suggestedAlerts={primaryMatchNeighborhood ? [{
@@ -6251,7 +6291,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchSaved
                   neighborhoods={matchSavedNeighborhoods}
                   reportId={matchReport?.report_id ?? null}
@@ -6278,7 +6318,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <MatchAdminDashboard
                   health={matchAdminHealth}
                   loading={matchAdminLoading}
@@ -6333,21 +6373,7 @@ function App() {
                   <button
                     type="button"
                     className="app__briefing-empty-action"
-                    disabled={!hasNearbyAddressCandidates}
-                  >
-                    {t('dossier.chooseNearbyAddress')}
-                  </button>
-                  {!hasNearbyAddressCandidates && (
-                    <p className="app__briefing-empty-description">{t('dossier.nearbyAddressUnavailable')}</p>
-                  )}
-                  <button
-                    type="button"
-                    className="app__briefing-empty-action"
-                    onClick={() => {
-                      setActiveTab('home');
-                      setActiveScreen('search');
-                      setHashRoute('#/search');
-                    }}
+                    onClick={handleSearchManuallyFromMatchDossier}
                   >
                     {t('dossier.searchManually')}
                   </button>
@@ -6555,7 +6581,7 @@ function App() {
                     <section role="region" aria-label={t('nav.neighborhood')}>
                       {(livabilityLoading || livability || livabilityError) && (
                         <div className="dossier-section" style={dossierSectionStyle(4)} data-section-index={4}>
-                          <h3 id="section-livability" className="app__section-label">{t('dossier.livability', 'Livability')}</h3>
+                          <h3 id="section-livability" className="app__section-label">{t('dossier.livability')}</h3>
                           <LivabilityCard
                             data={livability ?? undefined}
                             loading={livabilityLoading}
@@ -6814,7 +6840,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <CompareScreen
                   items={shortlistItems}
                   onBack={() => {
@@ -6840,7 +6866,7 @@ function App() {
               exit={{ opacity: 0, y: 12 }}
               transition={SPRING_TAB}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={routeLoadingFallback}>
                 <SettingsScreen
                   onClearRecent={handleClearRecent}
                   onClearShortlist={handleClearShortlist}
@@ -6865,12 +6891,12 @@ function App() {
             >
               {prebidPackLoading ? (
                 <div className="app__briefing-empty" role="status">
-                  <h2 className="app__briefing-empty-title">{t('prebid.pack.loading', 'Loading Questions Pack')}</h2>
-                  <p className="app__briefing-empty-description">{t('prebid.pack.loadingBody', 'Fetching the buyer-bound pack for this report.')}</p>
+                  <h2 className="app__briefing-empty-title">{t('prebid.pack.loading')}</h2>
+                  <p className="app__briefing-empty-description">{t('prebid.pack.loadingBody')}</p>
                 </div>
               ) : prebidPackError ? (
                 <div className="app__briefing-empty" role="status">
-                  <h2 className="app__briefing-empty-title">{t('prebid.pack.errorTitle', 'Questions Pack unavailable')}</h2>
+                  <h2 className="app__briefing-empty-title">{t('prebid.pack.errorTitle')}</h2>
                   <p className="app__briefing-empty-description">{prebidPackError}</p>
                   <button
                     type="button"
@@ -6881,7 +6907,7 @@ function App() {
                       setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId, matchReturnContext));
                     }}
                   >
-                    {t('prebid.pack.back', 'Back to briefing')}
+                    {t('prebid.pack.back')}
                   </button>
                 </div>
               ) : prebidPack && activePackRoute?.vboId && activePackRoute?.reportId ? (
@@ -6934,8 +6960,8 @@ function App() {
             >
               {sharedPrebidLoading ? (
                 <div className="app__briefing-empty" role="status">
-                  <h2 className="app__briefing-empty-title">{t('prebid.shared.loading', 'Loading shared link')}</h2>
-                  <p className="app__briefing-empty-description">{t('prebid.shared.loadingBody', 'Checking the scoped share token.')}</p>
+                  <h2 className="app__briefing-empty-title">{t('prebid.shared.loading')}</h2>
+                  <p className="app__briefing-empty-description">{t('prebid.shared.loadingBody')}</p>
                 </div>
               ) : (
                 <SharedPrebidScreen
@@ -7005,7 +7031,7 @@ function App() {
                 if (url && navigator.clipboard) {
                   void navigator.clipboard.writeText(url).catch(() => undefined);
                 }
-                showToast(t('prebid.share.copyReady', 'Scoped link ready to copy.'));
+                showToast(t('prebid.share.copyReady'));
               })
               .catch(() => {
                 showToast(t('error.generic'));
@@ -7014,7 +7040,7 @@ function App() {
           onEmail={(email) => {
             void emailCurrentShareLink(shareSheetMode, email)
               .then(() => {
-                showToast(t('prebid.share.emailReady', 'Email share link prepared with consent.'));
+                showToast(t('prebid.share.emailReady'));
               })
               .catch(() => {
                 showToast(t('error.generic'));
@@ -7039,7 +7065,7 @@ function App() {
       {/* Export bottom sheet */}
       {address?.adresseerbaar_object_id && address.rd_x != null && address.rd_y != null && address.latitude != null && address.longitude != null && (
         <ErrorBoundary key={`export-${address?.adresseerbaar_object_id ?? 'none'}`} fallback={null}>
-        <Suspense fallback={null}>
+          <Suspense fallback={routeLoadingFallback}>
           <ExportBottomSheet
             isOpen={exportSheetOpen}
             onClose={() => {

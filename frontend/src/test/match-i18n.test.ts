@@ -53,6 +53,7 @@ const requiredMatchKeys = [
   'matchFirst.progress.placeholder',
   'matchFirst.progress.honesty',
   'matchFirst.progress.backToSurvey',
+  'matchFirst.progress.retry',
   'matchFirst.recovery.eyebrow',
   'matchFirst.recovery.title',
   'matchFirst.recovery.body',

@@ -13,11 +13,10 @@ beforeAll(async () => {
 it('introduces the survey before the first question starts', async () => {
   const user = userEvent.setup();
   const onStartSurvey = vi.fn();
-  const onBack = vi.fn();
 
   render(
     <I18nextProvider i18n={i18n}>
-      <SurveyIntro onStartSurvey={onStartSurvey} onBack={onBack} />
+      <SurveyIntro onStartSurvey={onStartSurvey} />
     </I18nextProvider>,
   );
 
@@ -28,7 +27,5 @@ it('introduces the survey before the first question starts', async () => {
 
   await user.click(screen.getByRole('button', { name: 'Start the match' }));
   expect(onStartSurvey).toHaveBeenCalledTimes(1);
-
-  await user.click(screen.getByRole('button', { name: 'Back' }));
-  expect(onBack).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
 });
