@@ -1,4 +1,4 @@
-export const MATCH_FIRST_LANDING_EVENTS = [
+const MATCH_FIRST_LANDING_EVENTS = [
   'match_first_landing_shown',
   'match_first_cta_clicked',
   'match_first_search_link_clicked',
@@ -47,8 +47,4 @@ export function recordMatchFirstEvent(
   }
 
   return event;
-}
-
-export function getStoredMatchFirstEvents(): MatchFirstAnalyticsEvent[] {
-  return readStoredEvents();
 }

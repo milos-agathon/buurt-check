@@ -1,6 +1,5 @@
 import { buildPrimaryApiUrl } from '../config/apiBase';
 import type {
-  MatchLocale,
   MatchAlertCreatePayload,
   MatchAlertCreateResponse,
   MatchAlertListResponse,
@@ -17,7 +16,6 @@ import type {
   ReportSaveResponse,
   ReportSharePayload,
   ReportShareResponse,
-  MatchReportCreatePayload,
   MatchReportResponse,
   MatchSimilarPayload,
   MatchSimilarResponse,
@@ -38,45 +36,6 @@ class MatchApiError extends Error {
     this.status = status;
     this.warningCode = warningCode;
   }
-}
-
-export async function createMatchReport(
-  payload: MatchReportCreatePayload,
-): Promise<MatchReportResponse> {
-  const response = await fetch(buildPrimaryApiUrl('/match/reports'), {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new MatchApiError(response.status, 'match.warning.report_create_failed');
-  }
-
-  return await response.json() as MatchReportResponse;
-}
-
-export async function fetchMatchReport(
-  reportId: string,
-  locale?: MatchLocale,
-): Promise<MatchReportResponse> {
-  const query = locale ? `?locale=${encodeURIComponent(locale)}` : '';
-  const response = await fetch(buildPrimaryApiUrl(`/match/reports/${encodeURIComponent(reportId)}${query}`), {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    throw new MatchApiError(response.status, 'match.warning.report_fetch_failed');
-  }
-
-  const body = await response.json() as MatchReportResponse;
-  recordMatchEvent('match_report_viewed', {
-    locale: body.locale,
-    report_id: body.report_id,
-  });
-  return body;
 }
 
 export async function fetchSharedMatchReport(

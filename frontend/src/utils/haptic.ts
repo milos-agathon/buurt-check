@@ -7,11 +7,3 @@ function vibrate(pattern: number | number[]): void {
 export function hapticTap(): void {
   vibrate(10);
 }
-
-export function hapticSuccess(): void {
-  vibrate([10, 50, 10]);
-}
-
-export function hapticWarning(): void {
-  vibrate([30, 50, 30]);
-}

@@ -27,7 +27,7 @@ const neighborhoodViewer3DPropsRef = vi.hoisted(
   () => ({ current: null as MockNeighborhoodViewer3DProps | null }),
 );
 const pricingConfigRef = vi.hoisted(
-  () => ({ current: { price: '3.99', webCheckoutAvailable: true, serverRenderAvailable: true } }),
+  () => ({ current: { price: '3.99', serverRenderAvailable: true } }),
 );
 
 const paidPackRadioName = /Full dossier|Volledig dossier/i;
@@ -113,7 +113,6 @@ vi.mock('./services/clientEvents', async () => {
 vi.mock('./config/pricing', () => ({
   fetchPrice: vi.fn().mockImplementation(async () => pricingConfigRef.current.price),
   getDossierPrice: vi.fn(() => pricingConfigRef.current.price),
-  isWebCheckoutAvailable: vi.fn(() => pricingConfigRef.current.webCheckoutAvailable),
   isServerRenderAvailable: vi.fn(() => pricingConfigRef.current.serverRenderAvailable),
 }));
 
@@ -307,7 +306,6 @@ beforeEach(async () => {
   neighborhoodViewer3DPropsRef.current = null;
   pricingConfigRef.current = {
     price: '3.99',
-    webCheckoutAvailable: true,
     serverRenderAvailable: true,
   };
   mockCreateShortReport.mockResolvedValue({
@@ -740,7 +738,29 @@ describe('initial render', () => {
     window.location.hash = '#/match/session/match-stale/neighborhood/BU0363AA01';
     renderApp();
 
-    expect(await screen.findByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+    });
+    expect(screen.getByText("Your answers are saved. We couldn't create your match map yet.")).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Selected neighborhood context' })).not.toBeInTheDocument();
+  });
+
+  it('does not let persisted Dossier return context unlock a direct neighborhood route', async () => {
+    localStorage.setItem('buurt-check-match-first-return-context:match-stale', JSON.stringify({
+      target: '#/match/session/match-stale/neighborhood/BU0363AA01',
+      sessionId: 'match-stale',
+      neighborhoodId: 'BU0363AA01',
+      mapCenter: [52.36, 4.9],
+      mapZoom: 13,
+      listScroll: 240,
+      selectedHouseId: 'house-7',
+    }));
+    window.location.hash = '#/match/session/match-stale/neighborhood/BU0363AA01';
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+    });
     expect(screen.getByText("Your answers are saved. We couldn't create your match map yet.")).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Selected neighborhood context' })).not.toBeInTheDocument();
   });
@@ -2064,42 +2084,6 @@ describe('3D viewer integration', () => {
       }),
       'success',
     );
-  });
-
-  it('still attempts Stripe checkout when pricing metadata says unavailable', async () => {
-    pricingConfigRef.current.webCheckoutAvailable = false;
-    window.location.hash = '#/address/vbo-123?lookup=adr-abc123';
-    mockLookup.mockResolvedValue(makeResolvedAddress());
-    mockBuilding.mockResolvedValue(makeBuildingResponse());
-
-    renderApp();
-
-    await waitForDossierLoaded();
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', {
-        name: paidPackActionName,
-        hidden: true,
-      }));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId('export-sheet')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('radio', { name: paidPackRadioName }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: paidPackBuyName })).not.toBeDisabled();
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: paidPackBuyName }));
-    });
-
-    await waitFor(() => {
-      expect(mockCreateCheckoutSession).toHaveBeenCalledWith('report-123', 'adr-abc123');
-    });
   });
 
   it('shows the dedicated unavailable message when checkout-session returns Stripe-config 503', async () => {

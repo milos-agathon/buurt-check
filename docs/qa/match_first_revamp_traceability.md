@@ -24,6 +24,7 @@ Scope: Phase 1 UI shell and route cleanup for the match-first revamp.
 - Match run `completed` / `running` state is no longer trusted from `localStorage`. Until backend run/status/results endpoints are wired, direct success and results routes render neutral localized shells rather than implying that matching has completed.
 - Survey answers are scoped by match session ID, preventing a new session from inheriting stale answers from an earlier one.
 - `App.tsx` reuses the shared route parser for structured `match_context`, preserving selected neighborhood, selected house, map center, zoom, and list scroll on cold-start Dossier URLs.
+- Direct match neighborhood URLs do not trust persisted Dossier return context from `localStorage`; that context is only reused for the active Dossier back action.
 - Failure and unavailable copy now has explicit bilingual keys, enforced by `frontend/src/test/match-i18n.test.ts`, for no strong matches, slow backend, failed backend, completed-with-fallback, no reliable address, no-result states, missing 3D, neutral results placeholders, and Dossier address-unavailable recovery.
 
 ## Current Phase 1 Limits

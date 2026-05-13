@@ -74,10 +74,6 @@ export function isInShortlist(vboId: string): boolean {
   return readStorage().some(i => i.vboId === vboId);
 }
 
-export function getShortlistCount(): number {
-  return readStorage().length;
-}
-
 export function clearShortlist(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);

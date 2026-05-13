@@ -275,15 +275,6 @@ interface ReportInput {
   generated_at: string;
 }
 
-export interface MatchReportCreatePayload {
-  session_id?: string | null;
-  preference_vector_id?: string | null;
-  recommendation_ids?: string[];
-  locale: MatchLocale;
-  generation_mode: 'ai_with_fallback' | 'fallback_only';
-  report_input: ReportInput;
-}
-
 interface ReportGenerationMetadata {
   requested_mode: 'ai_with_fallback' | 'fallback_only';
   resolved_mode: 'ai' | 'deterministic_fallback';

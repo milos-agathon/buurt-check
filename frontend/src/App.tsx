@@ -692,17 +692,6 @@ function normalizeStoredMatchReturnContext(value: Partial<MatchReturnContext> | 
   };
 }
 
-function readStoredMatchReturnContext(sessionId: string | null | undefined): MatchReturnContext | null {
-  if (typeof window === 'undefined' || !sessionId) return null;
-  try {
-    const raw = window.localStorage.getItem(matchReturnContextStorageKey(sessionId));
-    if (!raw) return null;
-    return normalizeStoredMatchReturnContext(JSON.parse(raw) as Partial<MatchReturnContext>);
-  } catch {
-    return null;
-  }
-}
-
 function storeMatchReturnContext(context: MatchReturnContext | null | undefined): void {
   if (typeof window === 'undefined' || !context?.sessionId) return;
   const normalized = normalizeStoredMatchReturnContext(context);
@@ -1396,8 +1385,7 @@ function App() {
     return null;
   }, [initialRoute]);
   const initialMatchMapReturnContext = useMemo(() => (
-    initialRoute.matchReturn
-      ?? (initialRoute.route.startsWith('match') ? readStoredMatchReturnContext(initialRoute.sessionId ?? null) : null)
+    initialRoute.matchReturn ?? null
   ), [initialRoute]);
   const { toasts, showToast, dismissToast } = useToast();
   const [activeTab, setActiveTab] = useState<TabId>(() => tabForScreen(initialScreen));
@@ -1414,6 +1402,7 @@ function App() {
   const [matchMapReturnContext, setMatchMapReturnContext] = useState<MatchReturnContext | null>(
     () => initialMatchMapReturnContext,
   );
+  const matchMapReturnContextRef = useRef<MatchReturnContext | null>(initialMatchMapReturnContext);
   const [activeMatchJobStatus, setActiveMatchJobStatus] = useState<MatchJobStatus | null>(() => (
     readStoredMatchJobStatus(initialMatchSessionId)
   ));
@@ -1667,6 +1656,10 @@ function App() {
   useEffect(() => {
     activeScreenRef.current = activeScreen;
   }, [activeScreen]);
+
+  useEffect(() => {
+    matchMapReturnContextRef.current = matchMapReturnContext;
+  }, [matchMapReturnContext]);
 
   useEffect(() => {
     if (activeScreen === 'search') {
@@ -2721,6 +2714,7 @@ function App() {
       setActiveMatchNeighborhoodId(matchReturnContext.neighborhoodId);
     }
     if (matchReturnContext) {
+      matchMapReturnContextRef.current = matchReturnContext;
       setMatchMapReturnContext(matchReturnContext);
       storeMatchReturnContext(matchReturnContext);
     }
@@ -4523,9 +4517,17 @@ function App() {
         setActiveMatchSessionId(parsed.sessionId);
         storeMatchSessionId(parsed.sessionId);
         setActiveMatchJobStatus(readStoredMatchJobStatus(parsed.sessionId));
-        setMatchMapReturnContext(readStoredMatchReturnContext(parsed.sessionId));
+        const currentReturnContext = matchMapReturnContextRef.current;
+        const routeReturnContext = currentReturnContext
+          && normalizeMatchReturnTarget(currentReturnContext).hash === buildHashRoute(parsed)
+          ? currentReturnContext
+          : null;
+        matchMapReturnContextRef.current = routeReturnContext;
+        setMatchMapReturnContext(routeReturnContext);
       } else {
         setActiveMatchJobStatus(null);
+        matchMapReturnContextRef.current = null;
+        setMatchMapReturnContext(null);
       }
       setActiveMatchNeighborhoodId(parsed.neighborhoodId ?? null);
     }
@@ -5639,7 +5641,8 @@ function App() {
     || restoredMatchMapContext?.selectedHouseId,
   );
   const canShowMatchNeighborhoodShell = Boolean(
-    restoredMatchMapContext?.sessionId
+    hasCompletedMatchJob
+    && restoredMatchMapContext?.sessionId
     && restoredMatchMapContext.sessionId === activeMatchSessionId
     && restoredMatchMapContext.neighborhoodId
     && restoredMatchMapContext.neighborhoodId === activeMatchNeighborhoodId
