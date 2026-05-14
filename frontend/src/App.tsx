@@ -602,6 +602,7 @@ const MATCH_JOB_STORAGE_STATUSES: ReadonlySet<MatchJobStatus> = new Set([
   'failed',
 ]);
 const MATCH_RETURN_CONTEXT_KEY_PREFIX = 'buurt-check-match-first-return-context:';
+const MATCH_RETURN_CONTEXT_ACTIVATED_KEY = 'activatedFromDossierBack';
 
 function readFiniteNumber(value: unknown): number | undefined {
   const parsed = typeof value === 'number' ? value : Number(value);
@@ -708,12 +709,31 @@ function normalizeStoredMatchReturnContext(value: Partial<MatchReturnContext> | 
   };
 }
 
-function storeMatchReturnContext(context: MatchReturnContext | null | undefined): void {
+function readStoredActivatedMatchReturnContext(sessionId: string | null | undefined): MatchReturnContext | null {
+  if (typeof window === 'undefined' || !sessionId) return null;
+  try {
+    const raw = window.localStorage.getItem(matchReturnContextStorageKey(sessionId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<MatchReturnContext> & Record<string, unknown>;
+    if (parsed[MATCH_RETURN_CONTEXT_ACTIVATED_KEY] !== true) return null;
+    return normalizeStoredMatchReturnContext(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function storeMatchReturnContext(
+  context: MatchReturnContext | null | undefined,
+  options: { activatedFromDossierBack?: boolean } = {},
+): void {
   if (typeof window === 'undefined' || !context?.sessionId) return;
   const normalized = normalizeStoredMatchReturnContext(context);
   if (!normalized) return;
   try {
-    window.localStorage.setItem(matchReturnContextStorageKey(context.sessionId), JSON.stringify(normalized));
+    const payload = options.activatedFromDossierBack
+      ? { ...normalized, [MATCH_RETURN_CONTEXT_ACTIVATED_KEY]: true }
+      : normalized;
+    window.localStorage.setItem(matchReturnContextStorageKey(context.sessionId), JSON.stringify(payload));
   } catch {
     // Return context remains available in React state for the current navigation.
   }
@@ -737,6 +757,21 @@ function normalizeMatchReturnTarget(context: MatchReturnContext | null | undefin
     }
   }
   return { hash: '#/match', screen: 'matchLanding' };
+}
+
+function isMatchNotFoundRoute(route: string | null | undefined): boolean {
+  if (!route) return false;
+  return route.startsWith('/match') || route.startsWith('#/match');
+}
+
+function readMatchSessionIdFromNotFoundRoute(route: string | null | undefined): string | null {
+  const match = route?.match(/(?:#)?\/match\/session\/([^/]+)/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1] || null;
+  }
 }
 
 function formatMatchCenterAttribute(center: [number, number] | undefined): string | undefined {
@@ -1403,7 +1438,12 @@ function App() {
     return null;
   }, [initialRoute]);
   const initialMatchMapReturnContext = useMemo(() => (
-    initialRoute.matchReturn ?? null
+    initialRoute.matchReturn
+    ?? (
+      initialRoute.route.startsWith('match')
+        ? readStoredActivatedMatchReturnContext(initialRoute.sessionId)
+        : null
+    )
   ), [initialRoute]);
   const { toasts, showToast, dismissToast } = useToast();
   const routeLoadingFallback = (
@@ -1640,7 +1680,6 @@ function App() {
   const [showDossierJump, setShowDossierJump] = useState(false);
   const [activePhase, setActivePhase] = useState<'house' | 'buurt' | 'action'>('house');
   const animationPerformance = useAnimationPerformance();
-  const ignoreNextHashRef = useRef(false);
 
   const readScreenScrollPosition = useCallback((screen: Screen): number => {
     if (screen === 'dossier') {
@@ -1967,7 +2006,6 @@ function App() {
     if (typeof window === 'undefined') return;
     const normalized = hash.startsWith('#') ? hash : `#${hash}`;
     if (window.location.hash === normalized) return;
-    ignoreNextHashRef.current = true;
     if (options?.replace) {
       window.history.replaceState(null, '', normalized);
     } else {
@@ -2017,6 +2055,23 @@ function App() {
     });
   }, []);
 
+  const searchHash = useCallback((matchReturn?: MatchReturnContext | null) => {
+    const currentMatchReturn = matchReturn === null
+      ? undefined
+      : matchReturn
+        ?? matchReturnContext
+        ?? pendingSearchMatchReturnContextRef.current
+        ?? (
+          typeof window !== 'undefined'
+            ? parseLocationRoute(window.location).matchReturn
+            : undefined
+        );
+    return buildHashRoute({
+      route: 'search',
+      matchReturn: currentMatchReturn,
+    });
+  }, [matchReturnContext]);
+
   const openSettings = useCallback(() => {
     if (activeScreen !== 'settings') {
       previousScreenRef.current = activeScreen;
@@ -2043,7 +2098,7 @@ function App() {
       setHashRoute(dossierHash(address?.adresseerbaar_object_id, activeLookupId, matchReturnContext));
       return;
     }
-    setHashRoute('#/search');
+    setHashRoute(searchHash());
   }, [
     activeLookupId,
     activeScreen,
@@ -2051,6 +2106,7 @@ function App() {
     address?.adresseerbaar_object_id,
     dossierHash,
     matchReturnContext,
+    searchHash,
     setHashRoute,
   ]);
 
@@ -2739,7 +2795,7 @@ function App() {
     if (matchReturnContext) {
       matchMapReturnContextRef.current = matchReturnContext;
       setMatchMapReturnContext(matchReturnContext);
-      storeMatchReturnContext(matchReturnContext);
+      storeMatchReturnContext(matchReturnContext, { activatedFromDossierBack: true });
     }
     if (matchReturnContext?.language) {
       void i18n.changeLanguage(matchReturnContext.language);
@@ -4845,16 +4901,16 @@ function App() {
       applyRouteRef.current();
     }
 
-    const onHashChange = () => {
-      if (ignoreNextHashRef.current) {
-        ignoreNextHashRef.current = false;
-        return;
-      }
+    const onRouteChange = () => {
       applyRouteRef.current();
     };
 
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
+    window.addEventListener('hashchange', onRouteChange);
+    window.addEventListener('popstate', onRouteChange);
+    return () => {
+      window.removeEventListener('hashchange', onRouteChange);
+      window.removeEventListener('popstate', onRouteChange);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -5443,7 +5499,20 @@ function App() {
 
   useEffect(() => {
     if (activeScreen === 'not_found') return;
-    mainContentRef.current?.focus({ preventScroll: true });
+    const frame = window.requestAnimationFrame(() => {
+      const activeHeading = mainContentRef.current?.querySelector<HTMLElement>(
+        '.app__screen h1[id], .app__screen [role="heading"]',
+      );
+
+      if (activeHeading) {
+        activeHeading.setAttribute('tabindex', '-1');
+        activeHeading.focus({ preventScroll: true });
+        return;
+      }
+
+      mainContentRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [activeScreen]);
 
   const failedSourceCount = useMemo(() => {
@@ -5696,6 +5765,7 @@ function App() {
     && !!matchReturnContext
   );
   const showDossierRouteMatchReturnAction = !!matchReturnContext && !showDossierInlineMatchReturnAction;
+  const matchNotFoundRecovery = isMatchNotFoundRoute(notFoundRoute);
 
   const startMatchRun = () => {
     const sessionId = ensureMatchSessionId();
@@ -5715,6 +5785,17 @@ function App() {
 
   const returnToMatchSurvey = () => {
     const sessionId = ensureMatchSessionId();
+    setActiveScreen('matchSurvey');
+    setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: 1 }));
+  };
+
+  const recoverMatchNotFoundRoute = () => {
+    const sessionId = readMatchSessionIdFromNotFoundRoute(notFoundRoute)
+      ?? activeMatchSessionId
+      ?? ensureMatchSessionId();
+    setActiveTab('home');
+    setActiveMatchSessionId(sessionId);
+    storeMatchSessionId(sessionId);
     setActiveScreen('matchSurvey');
     setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: 1 }));
   };
@@ -5773,6 +5854,23 @@ function App() {
           onClick={returnToMatchSurvey}
         >
           {t('matchFirst.results.backToSurvey')}
+        </button>
+      </div>
+    </section>
+  );
+
+  const renderMatchSuccessUnavailable = (titleId: string) => (
+    <section className="match-first-landing match-first-landing--simple" aria-labelledby={titleId}>
+      <div className="match-first-landing__content">
+        <p className="match-first-landing__eyebrow">{t('matchFirst.success.eyebrow')}</p>
+        <h1 id={titleId}>{t('matchFirst.success.title')}</h1>
+        <p className="match-first-landing__body" role="status">{t('matchFirst.success.placeholder')}</p>
+        <button
+          type="button"
+          className="match-first-landing__cta"
+          onClick={returnToMatchSurvey}
+        >
+          {t('matchFirst.success.backToSurvey')}
         </button>
       </div>
     </section>
@@ -6022,7 +6120,7 @@ function App() {
               className="app__screen"
               {...matchRouteMotionProps}
             >
-              {renderMatchResultsUnavailable('match-success-title')}
+              {renderMatchSuccessUnavailable('match-success-title')}
             </motion.div>
           )}
 
@@ -6060,7 +6158,16 @@ function App() {
                   <p className="match-first-landing__eyebrow">{t('matchFirst.neighborhood.eyebrow')}</p>
                   <h1 id="match-neighborhood-title">{t('matchFirst.neighborhood.title')}</h1>
                   <p className="match-first-landing__body">{t('matchFirst.neighborhood.placeholder')}</p>
-                  <p className="match-first-landing__body">{t('matchFirst.neighborhood.no3dBeforeSelection')}</p>
+                  <p className="match-first-landing__body">{t('matchFirst.neighborhood.restoredPlaceholder')}</p>
+                  <div className="match-first-landing__actions">
+                    <button
+                      type="button"
+                      className="match-first-landing__cta"
+                      onClick={returnToMatchSurvey}
+                    >
+                      {t('matchFirst.neighborhood.backToSurvey')}
+                    </button>
+                  </div>
                 </div>
               </section>
               ) : renderMatchResultsShell('match-neighborhood-title', {
@@ -6399,7 +6506,7 @@ function App() {
                   onClick={() => {
                     setActiveTab('home');
                     setActiveScreen('search');
-                    setHashRoute('#/search');
+                    setHashRoute(searchHash());
                   }}
                 >
                   {t('nav.briefingEmptyAction')}
@@ -6484,7 +6591,7 @@ function App() {
                           hapticTap();
                           setActiveTab('home');
                           setActiveScreen('search');
-                          setHashRoute('#/search');
+                          setHashRoute(searchHash());
                         }}
                       />
                     </div>
@@ -6724,7 +6831,7 @@ function App() {
                             if (currentAddressBookmarked) {
                               setActiveScreen('search');
                               setActiveTab('home');
-                              setHashRoute('#/search');
+                              setHashRoute(searchHash());
                             } else {
                               handleBookmark();
                             }
@@ -6767,7 +6874,7 @@ function App() {
                             hapticTap();
                             setActiveScreen('search');
                             setActiveTab('home');
-                            setHashRoute('#/search');
+                            setHashRoute(searchHash());
                           }}
                         >
                           <svg className="app__next-steps-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -6825,7 +6932,7 @@ function App() {
                 onSearchAddress={() => {
                   setActiveScreen('search');
                   setActiveTab('home');
-                  setHashRoute('#/search');
+                  setHashRoute(searchHash());
                 }}
               />
             </motion.div>
@@ -6850,7 +6957,7 @@ function App() {
                   onSearchAddress={() => {
                     setActiveScreen('search');
                     setActiveTab('home');
-                    setHashRoute('#/search');
+                    setHashRoute(searchHash());
                   }}
                 />
               </Suspense>
@@ -6998,6 +7105,8 @@ function App() {
             >
               <NotFoundScreen
                 route={notFoundRoute ?? undefined}
+                matchRecovery={matchNotFoundRecovery}
+                onMatchRecovery={recoverMatchNotFoundRoute}
                 onSearch={() => {
                   setActiveTab('home');
                   setActiveScreen('search');

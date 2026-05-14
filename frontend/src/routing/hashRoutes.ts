@@ -302,7 +302,7 @@ export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
       const detail = matchSession[3];
       if (step === 'question' && detail) {
         const questionStep = Number(detail);
-        if (!Number.isInteger(questionStep) || questionStep < 1) {
+        if (!Number.isInteger(questionStep) || questionStep !== 1) {
           return { route: 'not_found', rawPath: normalizedPath };
         }
         return { route: 'matchSurvey', sessionId, questionStep };

@@ -101,6 +101,10 @@ it('rejects invalid match survey question steps', () => {
     route: 'not_found',
     rawPath: '/match/session/match-123/question/2.5',
   });
+  expect(parseHashRoute('#/match/session/match-123/question/2')).toMatchObject({
+    route: 'not_found',
+    rawPath: '/match/session/match-123/question/2',
+  });
 });
 
 it('parses match return context separately from checkout session recovery', () => {

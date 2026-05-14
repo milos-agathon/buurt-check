@@ -5,6 +5,7 @@ const projectRoot = process.cwd();
 const matchFirstRoot = join(projectRoot, 'src/components/match-first');
 const matchSurfaceFiles = [
   join(projectRoot, 'src/App.tsx'),
+  join(projectRoot, 'src/components/NotFoundScreen.tsx'),
 ];
 const i18nFiles = [
   join(projectRoot, 'src/i18n/en.json'),
@@ -92,6 +93,14 @@ describe('match-first copy guard', () => {
     expect(violations).toEqual([]);
   });
 
+  it('keeps match-first survey review copy out of search-first framing', () => {
+    const en = JSON.parse(read(join(projectRoot, 'src/i18n/en.json'))) as Record<string, string>;
+    const nl = JSON.parse(read(join(projectRoot, 'src/i18n/nl.json'))) as Record<string, string>;
+
+    expect(en['matchFirst.review.answerLabel'].toLowerCase()).not.toContain('search');
+    expect(nl['matchFirst.review.answerLabel'].toLowerCase()).not.toContain('zoek');
+  });
+
   it('keeps match-surface language labels and fallbacks behind translation keys', () => {
     const forbidden = [
       />\s*English\s*</,
@@ -109,13 +118,15 @@ describe('match-first copy guard', () => {
   });
 
   it('keeps App route fallbacks and Suspense loading states localized', () => {
-    const source = read(join(projectRoot, 'src/App.tsx'));
-    const violations = [
-      ...[...source.matchAll(/\bt\(\s*['"][^'"]+['"]\s*,\s*['"][^'"]+['"]/g)]
-        .map((match) => `src/App.tsx: ${match[0]}`),
-      ...[...source.matchAll(/<Suspense\s+fallback=\{null\}>/g)]
-        .map((match) => `src/App.tsx: ${match[0]}`),
-    ];
+    const violations = matchSurfaceFiles.flatMap((filePath) => {
+      const source = read(filePath);
+      return [
+        ...[...source.matchAll(/\bt\(\s*['"][^'"]+['"]\s*,\s*['"][^'"]+['"]/g)]
+          .map((match) => `${relative(projectRoot, filePath)}: ${match[0]}`),
+        ...[...source.matchAll(/<Suspense\s+fallback=\{null\}>/g)]
+          .map((match) => `${relative(projectRoot, filePath)}: ${match[0]}`),
+      ];
+    });
 
     expect(violations).toEqual([]);
   });

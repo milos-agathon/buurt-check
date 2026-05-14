@@ -114,7 +114,9 @@ it('review missing-answer state has no serious accessibility violations', async 
 
 it.each([
   ['run', '#/match/session/match-a11y/run', 'Your match map is not ready'],
+  ['success', '#/match/session/match-a11y/success', 'Match status unavailable'],
   ['results', '#/match/session/match-a11y/results', 'Results unavailable'],
+  ['neighborhood', '#/match/session/match-a11y/neighborhood/BU0363AA01', 'Results unavailable'],
 ])('direct %s unavailable state has no serious accessibility violations', async (_label, hash, heading) => {
   window.location.hash = hash;
   const { container } = renderWithI18n(<App />);

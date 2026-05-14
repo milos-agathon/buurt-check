@@ -56,6 +56,15 @@ it('renders exactly one question with validation before routing to review', asyn
   expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Are you looking to buy, rent, or both?');
 });
 
+it('moves focus to the validation message when required answer validation fails', async () => {
+  const user = userEvent.setup();
+  renderSurvey();
+
+  await user.click(screen.getByRole('button', { name: 'Review answer' }));
+
+  await expect(screen.findByRole('alert')).resolves.toHaveFocus();
+});
+
 it('persists answers and lets the first question go back to the intro', async () => {
   const user = userEvent.setup();
   const { onBack, onReview } = renderSurvey();

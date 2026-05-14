@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './MatchFirstLanding.css';
 
@@ -55,8 +55,11 @@ export { STORAGE_KEY_PREFIX as MATCH_FIRST_SURVEY_STORAGE_KEY_PREFIX, getSurveyS
 
 export default function SurveyShell({ sessionId, onComplete, onReview, onBack }: SurveyShellProps) {
   const { t } = useTranslation();
-  const [answers, setAnswers] = useState<StoredSurveyAnswers>(() => readStoredSurveyAnswers(sessionId));
+  const [answers, setAnswers] = useState<StoredSurveyAnswers>(() => (
+    readStoredSurveyAnswers(sessionId)
+  ));
   const [showValidation, setShowValidation] = useState(false);
+  const validationRef = useRef<HTMLParagraphElement | null>(null);
   const progressLabel = t('matchFirst.survey.progressLabel', { current: 1, total: 1 });
   const validationId = 'match-first-survey-intent-validation';
 
@@ -64,6 +67,12 @@ export default function SurveyShell({ sessionId, onComplete, onReview, onBack }:
     setAnswers(readStoredSurveyAnswers(sessionId));
     setShowValidation(false);
   }, [sessionId]);
+
+  useEffect(() => {
+    if (showValidation) {
+      validationRef.current?.focus({ preventScroll: true });
+    }
+  }, [showValidation]);
 
   const handleSelectIntent = (intent: MatchFirstSurveyIntent) => {
     const nextAnswers = { intent };
@@ -121,7 +130,13 @@ export default function SurveyShell({ sessionId, onComplete, onReview, onBack }:
           ))}
         </fieldset>
         {showValidation && (
-          <p id={validationId} className="match-first-landing__validation" role="alert">
+          <p
+            id={validationId}
+            ref={validationRef}
+            className="match-first-landing__validation"
+            role="alert"
+            tabIndex={-1}
+          >
             {t('matchFirst.survey.validationRequired')}
           </p>
         )}

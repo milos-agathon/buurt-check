@@ -834,12 +834,14 @@ describe('initial render', () => {
     'completed_with_fallback',
     'no_results',
     'no_strong_matches',
-  ])('does not trust %s localStorage to unlock the success route', async (status) => {
+  ])('shows a neutral success-route placeholder even when %s is stored locally', async (status) => {
     localStorage.setItem('buurt-check-match-first-job-status:match-123', status);
     window.location.hash = '#/match/session/match-123/success';
     renderApp();
 
-    expect(await screen.findByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Match status unavailable' })).toBeInTheDocument();
+    expect(screen.getByText('We cannot confirm that matching finished yet. Return to the survey before opening the map.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Results unavailable' })).not.toBeInTheDocument();
     expect(screen.queryByText('Your neighborhood matches are ready.')).not.toBeInTheDocument();
   });
 
@@ -889,15 +891,44 @@ describe('initial render', () => {
     fetchSpy.mockRestore();
   });
 
-  it('moves focus to main content after match route transitions', async () => {
+  it('moves focus to the screen heading after match route transitions', async () => {
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
+    const heading = await screen.findByRole('heading', { name: 'First, we need to understand how you want to live.' });
+
+    await waitFor(() => {
+      expect(heading).toHaveFocus();
+    });
+  });
+
+  it('applies user hash changes after app-driven match navigation', async () => {
     renderApp();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
     expect(await screen.findByRole('heading', { name: 'First, we need to understand how you want to live.' })).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(document.getElementById('main-content')).toHaveFocus();
+    await act(async () => {
+      window.history.pushState(null, '', '#/search');
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
+
+    expect(await screen.findByRole('combobox')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'First, we need to understand how you want to live.' })).not.toBeInTheDocument();
+  });
+
+  it('applies browser back and forward popstate route changes after app-driven navigation', async () => {
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
+    expect(await screen.findByRole('heading', { name: 'First, we need to understand how you want to live.' })).toBeInTheDocument();
+
+    await act(async () => {
+      window.history.pushState(null, '', '#/match/session/match-pop/question/1');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Are you looking to buy, rent, or both?' })).toBeInTheDocument();
   });
 
   it('keeps the address search available on #/search', () => {
@@ -906,8 +937,9 @@ describe('initial render', () => {
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
-  it('does not render building card or map', () => {
+  it('does not render building card or map', async () => {
     renderApp();
+    await screen.findByRole('button', { name: 'Find my dream neighborhood' });
     expect(screen.queryByText('Building Facts')).not.toBeInTheDocument();
     expect(screen.queryByTestId('map')).not.toBeInTheDocument();
   });
@@ -990,6 +1022,38 @@ describe('hash route recovery', () => {
     expect(restored).not.toHaveAttribute('data-map-zoom');
     expect(restored).not.toHaveAttribute('data-list-scroll');
     expect(restored).not.toHaveAttribute('data-selected-house-id');
+  });
+
+  it('restores returned match-map context after refreshing the selected-neighborhood route', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22mapCenter%22%3A%5B52.36%2C4.9%5D%2C%22mapZoom%22%3A13%2C%22listScroll%22%3A240%2C%22mobileMode%22%3A%22list%22%2C%22selectedResultId%22%3A%22result-2%22%2C%22selectedResultRank%22%3A2%2C%22language%22%3A%22en%22%2C%22selectedHouseId%22%3A%22house-7%22%7D';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    const firstRender = renderApp();
+    await waitForDossierLoaded();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to match map' }));
+    await waitFor(() => {
+      expect(firstRender.container.querySelector('[data-selected-house-id="house-7"]')).toBeInTheDocument();
+    });
+
+    firstRender.unmount();
+    window.location.hash = '#/match/session/match-123/neighborhood/BU0363AA01';
+    const refreshed = renderApp();
+
+    await waitFor(() => {
+      const restored = refreshed.container.querySelector('[data-session-id="match-123"]');
+      expect(restored).toHaveAttribute('data-neighborhood-id', 'BU0363AA01');
+      expect(restored).toHaveAttribute('data-map-center', '[52.36,4.9]');
+      expect(restored).toHaveAttribute('data-map-zoom', '13');
+      expect(restored).toHaveAttribute('data-list-scroll', '240');
+      expect(restored).toHaveAttribute('data-mobile-mode', 'list');
+      expect(restored).toHaveAttribute('data-selected-result-id', 'result-2');
+      expect(restored).toHaveAttribute('data-selected-result-rank', '2');
+      expect(restored).toHaveAttribute('data-selected-house-id', 'house-7');
+    });
+    expect(screen.getByText('Your match-map context is restored. Neighborhood details are not available yet.')).toBeInTheDocument();
+    expect(screen.queryByText('3D houses load only after a neighborhood is selected.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to survey' })).toBeInTheDocument();
   });
 
   it('replaces restored Dossier return context when a second house is opened from the match map', async () => {
@@ -1075,6 +1139,25 @@ describe('hash route recovery', () => {
     });
   });
 
+  it('preserves match-return context when changing address from a loaded Dossier', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22mapCenter%22%3A%5B52.36%2C4.9%5D%2C%22mapZoom%22%3A13%2C%22listScroll%22%3A240%2C%22language%22%3A%22en%22%2C%22selectedHouseId%22%3A%22house-7%22%7D';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    renderApp();
+    await waitForDossierLoaded();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change address' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toMatch(/^#\/search\?/);
+    });
+    expect(window.location.hash).toContain('match_return=');
+    expect(window.location.hash).toContain('match_session=match-123');
+    expect(window.location.hash).toContain('match_context=');
+    expect(await screen.findByRole('combobox')).toBeInTheDocument();
+  });
+
   it('still redirects a bare non-match Dossier hash without lookup to search and shows a toast', async () => {
     window.location.hash = '#/address/0363100012345678';
     renderApp();
@@ -1149,12 +1232,21 @@ describe('hash route recovery', () => {
     });
   });
 
-  it('routes invalid match question URLs to recovery and focuses the recovery action', async () => {
+  it('routes invalid match question URLs to match recovery and focuses the match action', async () => {
+    await i18nInstance.changeLanguage('nl');
     window.location.hash = '#/match/session/match-123/question/nope';
     renderApp();
 
-    expect(await screen.findByRole('heading', { name: /could not find that page/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Search an address/i })).toHaveFocus();
+    expect(await screen.findByRole('heading', { name: 'We konden die pagina niet vinden' })).toBeInTheDocument();
+    const matchRecovery = screen.getByRole('button', { name: 'Terug naar vragen' });
+    expect(matchRecovery).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Zoek een adres' })).toBeInTheDocument();
+    expect(screen.queryByText(/could not find that page/i)).not.toBeInTheDocument();
+
+    fireEvent.click(matchRecovery);
+
+    expect(window.location.hash).toBe('#/match/session/match-123/question/1');
+    expect(await screen.findByRole('heading', { name: 'Wil je kopen, huren of allebei?' })).toBeInTheDocument();
   });
 });
 
