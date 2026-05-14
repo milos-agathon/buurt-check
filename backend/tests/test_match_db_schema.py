@@ -20,6 +20,8 @@ async def test_init_db_creates_match_foundation_tables(tmp_path):
         "match_feature_vectors",
         "match_listings",
         "match_preference_vectors",
+        "match_sessions",
+        "match_survey_answers",
         "match_recommendation_evidence",
         "match_reports",
         "match_guardrail_events",
@@ -32,6 +34,58 @@ async def test_init_db_creates_match_foundation_tables(tmp_path):
         "match_data_import_runs",
         "match_source_health_snapshots",
     } <= table_names
+
+
+@pytest.mark.asyncio
+async def test_match_session_tables_store_answers_and_route_state(tmp_path):
+    db_path = str(tmp_path / "match.db")
+
+    await init_db(db_path)
+    await init_db(db_path)
+
+    async with get_db(db_path) as db:
+        cursor = await db.execute("PRAGMA table_info(match_sessions)")
+        session_columns = {row["name"] for row in await cursor.fetchall()}
+        cursor = await db.execute("PRAGMA table_info(match_survey_answers)")
+        answer_columns = {row["name"] for row in await cursor.fetchall()}
+        cursor = await db.execute("PRAGMA table_info(match_preference_vectors)")
+        preference_vector_columns = {row["name"] for row in await cursor.fetchall()}
+
+    assert {
+        "session_id",
+        "locale",
+        "phase",
+        "current_step",
+        "answer_version",
+        "preference_vector_id",
+        "preference_vector_version",
+        "selected_neighborhood_id",
+        "map_state_json",
+        "dossier_return_context_json",
+        "expires_at",
+    } <= session_columns
+    assert {
+        "session_id",
+        "answer_version",
+        "answers_json",
+        "validation_json",
+        "completed_step_count",
+        "is_complete",
+        "updated_at",
+    } <= answer_columns
+    assert {
+        "preference_vector_id",
+        "session_id",
+        "journey_intent",
+        "budget_min_cents",
+        "budget_max_cents",
+        "monthly_rent_max_cents",
+        "source_answer_version",
+        "vector_version",
+        "raw_answer_refs_json",
+        "warnings_json",
+        "created_at",
+    } <= preference_vector_columns
 
 
 @pytest.mark.asyncio

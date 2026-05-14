@@ -20,6 +20,9 @@ from app.models.match import (
     MatchRecommendationsResponse,
     MatchReportCreateRequest,
     MatchReportResponse,
+    MatchSessionCreateRequest,
+    MatchSessionCreateResponse,
+    MatchSessionResponse,
     MatchSimilarRequest,
     MatchSimilarResponse,
     ReportExportRequest,
@@ -31,6 +34,8 @@ from app.models.match import (
     SavedNeighborhood,
     SavedNeighborhoodCreateRequest,
     SavedNeighborhoodListResponse,
+    SurveyAnswerPatchRequest,
+    SurveyAnswerPatchResponse,
 )
 from app.services.match.alerts import create_alert, delete_alert, list_alerts, update_alert
 from app.services.match.comparison import build_neighborhood_comparison
@@ -52,6 +57,11 @@ from app.services.match.reports import (
     save_neighborhood,
     save_report,
 )
+from app.services.match.sessions import (
+    create_match_session,
+    get_match_session,
+    patch_match_session_answers,
+)
 from app.services.match.similarity import find_similar_neighborhoods
 
 router = APIRouter(prefix="/match", tags=["match"])
@@ -65,6 +75,32 @@ async def match_health() -> dict[str, str]:
 @router.post("/quiz", response_model=MatchQuizResponse)
 async def submit_match_quiz(payload: MatchQuizRequest) -> MatchQuizResponse:
     return process_match_quiz(payload)
+
+
+@router.post("/sessions", response_model=MatchSessionCreateResponse, status_code=201)
+async def create_session(payload: MatchSessionCreateRequest) -> MatchSessionCreateResponse:
+    return await create_match_session(payload)
+
+
+@router.get("/sessions/{session_id}", response_model=MatchSessionResponse)
+async def read_session(session_id: str) -> MatchSessionResponse:
+    try:
+        return await get_match_session(session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="match.warning.session_not_found") from exc
+
+
+@router.patch("/sessions/{session_id}/answers", response_model=SurveyAnswerPatchResponse)
+async def patch_session_answers(
+    session_id: str,
+    payload: SurveyAnswerPatchRequest,
+) -> SurveyAnswerPatchResponse:
+    try:
+        return await patch_match_session_answers(session_id, payload)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="match.warning.session_not_found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 async def _load_seed_context():

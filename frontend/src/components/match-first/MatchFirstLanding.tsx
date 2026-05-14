@@ -8,12 +8,14 @@ interface MatchFirstLandingProps {
   onStartMatch: () => void;
   onSearchAddress: () => void;
   onLanguageChange?: (language: 'en' | 'nl') => void;
+  sessionErrorKey?: string | null;
 }
 
 export default function MatchFirstLanding({
   onStartMatch,
   onSearchAddress,
   onLanguageChange,
+  sessionErrorKey,
 }: MatchFirstLandingProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.startsWith('nl') ? 'nl' : 'en';
@@ -66,6 +68,11 @@ export default function MatchFirstLanding({
         <p className="match-first-landing__eyebrow">{t('matchFirst.landing.eyebrow')}</p>
         <h1 id="match-first-landing-title">{t('matchFirst.landing.title')}</h1>
         <p className="match-first-landing__body">{t('matchFirst.landing.body')}</p>
+        {sessionErrorKey && (
+          <p className="match-first-landing__validation" role="alert">
+            {t(sessionErrorKey)}
+          </p>
+        )}
 
         <div className="match-first-landing__actions">
           <button type="button" className="match-first-landing__cta" onClick={handleStartMatch}>

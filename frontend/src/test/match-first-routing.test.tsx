@@ -27,6 +27,11 @@ it('adds survey intro and survey shell routes without breaking legacy match and 
     sessionId: 'match-123',
     questionStep: 1,
   });
+  expect(parseHashRoute('#/match/session/match-123/question/11')).toMatchObject({
+    route: 'matchSurvey',
+    sessionId: 'match-123',
+    questionStep: 11,
+  });
   expect(buildHashRoute({ route: 'matchSurvey', sessionId: 'match-123', questionStep: 1 })).toBe('#/match/session/match-123/question/1');
   expect(parseHashRoute('#/match/session/match-123/review')).toMatchObject({
     route: 'matchReview',
@@ -88,7 +93,7 @@ it('adds survey intro and survey shell routes without breaking legacy match and 
   expect(parseHashRoute('#/match/map')).toMatchObject({ route: 'matchMap' });
 });
 
-it('rejects invalid match survey question steps', () => {
+it('rejects invalid match survey question steps outside the Phase 2 bounds', () => {
   expect(parseHashRoute('#/match/session/match-123/question/nope')).toMatchObject({
     route: 'not_found',
     rawPath: '/match/session/match-123/question/nope',
@@ -101,9 +106,9 @@ it('rejects invalid match survey question steps', () => {
     route: 'not_found',
     rawPath: '/match/session/match-123/question/2.5',
   });
-  expect(parseHashRoute('#/match/session/match-123/question/2')).toMatchObject({
+  expect(parseHashRoute('#/match/session/match-123/question/12')).toMatchObject({
     route: 'not_found',
-    rawPath: '/match/session/match-123/question/2',
+    rawPath: '/match/session/match-123/question/12',
   });
 });
 

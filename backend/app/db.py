@@ -310,7 +310,40 @@ _MATCH_SCHEMA_STATEMENTS = (
         persona_inputs_json TEXT NOT NULL,
         locale TEXT NOT NULL,
         method_version TEXT NOT NULL,
+        source_answer_version INTEGER,
+        vector_version TEXT,
+        raw_answer_refs_json TEXT NOT NULL DEFAULT '{}',
+        warnings_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_sessions (
+        session_id TEXT NOT NULL PRIMARY KEY,
+        anonymous_buyer_key TEXT,
+        locale TEXT NOT NULL,
+        phase TEXT NOT NULL,
+        current_step INTEGER,
+        answer_version INTEGER NOT NULL DEFAULT 0,
+        preference_vector_id TEXT,
+        preference_vector_version TEXT,
+        active_job_id TEXT,
+        selected_neighborhood_id TEXT,
+        selected_recommendation_id TEXT,
+        selected_house_id TEXT,
+        map_state_json TEXT,
+        dossier_return_context_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        deleted_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_survey_answers (
+        session_id TEXT NOT NULL PRIMARY KEY,
+        answer_version INTEGER NOT NULL,
+        answers_json TEXT NOT NULL,
+        validation_json TEXT NOT NULL,
+        completed_step_count INTEGER NOT NULL,
+        is_complete INTEGER NOT NULL,
+        updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS match_recommendation_evidence (
         evidence_id TEXT NOT NULL PRIMARY KEY,
@@ -499,6 +532,14 @@ _MATCH_SCHEMA_STATEMENTS = (
         "ON match_reports(preference_vector_id, created_at DESC)"
     ),
     (
+        "CREATE INDEX IF NOT EXISTS idx_match_sessions_updated "
+        "ON match_sessions(updated_at DESC)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_survey_answers_version "
+        "ON match_survey_answers(session_id, answer_version)"
+    ),
+    (
         "CREATE INDEX IF NOT EXISTS idx_match_alerts_session "
         "ON match_alerts(session_id, status, created_at DESC)"
     ),
@@ -638,8 +679,8 @@ def _create_turso_connection() -> TursoConnection:
     return TursoConnection(connection)
 
 
-async def _reports_column_names(db: DatabaseConnection) -> set[str]:
-    cursor = await db.execute("PRAGMA table_info(reports)")
+async def _table_column_names(db: DatabaseConnection, table_name: str) -> set[str]:
+    cursor = await db.execute(f"PRAGMA table_info({table_name})")
     rows = await cursor.fetchall()
     columns: set[str] = set()
     for row in rows:
@@ -648,6 +689,10 @@ async def _reports_column_names(db: DatabaseConnection) -> set[str]:
         else:
             columns.add(str(row[1]))
     return columns
+
+
+async def _reports_column_names(db: DatabaseConnection) -> set[str]:
+    return await _table_column_names(db, "reports")
 
 
 async def _migrate_reports_schema(db: DatabaseConnection) -> None:
@@ -666,6 +711,29 @@ async def _migrate_reports_schema(db: DatabaseConnection) -> None:
     await db.commit()
 
 
+async def _migrate_match_preference_vector_schema(db: DatabaseConnection) -> None:
+    columns = await _table_column_names(db, "match_preference_vectors")
+    migrations = {
+        "source_answer_version": (
+            "ALTER TABLE match_preference_vectors "
+            "ADD COLUMN source_answer_version INTEGER"
+        ),
+        "vector_version": "ALTER TABLE match_preference_vectors ADD COLUMN vector_version TEXT",
+        "raw_answer_refs_json": (
+            "ALTER TABLE match_preference_vectors "
+            "ADD COLUMN raw_answer_refs_json TEXT NOT NULL DEFAULT '{}'"
+        ),
+        "warnings_json": (
+            "ALTER TABLE match_preference_vectors "
+            "ADD COLUMN warnings_json TEXT NOT NULL DEFAULT '[]'"
+        ),
+    }
+    for column_name, statement in migrations.items():
+        if column_name not in columns:
+            await db.execute(statement)
+    await db.commit()
+
+
 async def init_db(db_path: str | None = None) -> None:
     """Create tables if they don't exist and enable WAL mode.
 
@@ -678,6 +746,7 @@ async def init_db(db_path: str | None = None) -> None:
             for statement in _BOOTSTRAP_SCHEMA_STATEMENTS:
                 await db.execute(statement)
             await _migrate_reports_schema(db)
+            await _migrate_match_preference_vector_schema(db)
             await db.commit()
         finally:
             await db.close()
@@ -690,6 +759,7 @@ async def init_db(db_path: str | None = None) -> None:
         for statement in _BOOTSTRAP_SCHEMA_STATEMENTS:
             await db.execute(statement)
         await _migrate_reports_schema(db)
+        await _migrate_match_preference_vector_schema(db)
         await db.commit()
     logger.info("Database initialized using local SQLite at %s", path)
 

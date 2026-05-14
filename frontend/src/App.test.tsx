@@ -14,6 +14,8 @@ import {
   setupTestI18n,
 } from './test/helpers';
 import { getShortlist } from './services/shortlist';
+import { readMatchSessionSnapshot, saveMatchSessionSnapshot } from './services/matchSessionStorage';
+import type { MatchFirstSurveyAnswers } from './types/matchFirst';
 
 type MockNeighborhoodViewer3DProps = {
   buildings: unknown[];
@@ -34,6 +36,103 @@ const pricingConfigRef = vi.hoisted(
 const paidPackRadioName = /Full dossier|Volledig dossier/i;
 const paidPackActionName = /Unlock Full Report|Volledig rapport ontgrendelen|Download Full dossier|Volledig dossier downloaden/i;
 const paidPackBuyName = /Buy Full dossier|Volledig dossier kopen/i;
+const completeMatchAnswers: MatchFirstSurveyAnswers = {
+  intent: 'both',
+  budget: { buy_min: 45000000, buy_max: 65000000, rent_max: 250000 },
+  household_type: 'family_young_child',
+  anchor_location: { type: 'city', label: 'Utrecht Centraal' },
+  commute: { max_minutes: 45 },
+  lifestyle_priorities: ['green_access', 'calmness', 'public_transport'],
+  must_haves: ['parks_nearby', 'good_transit'],
+  dealbreakers: ['busy_nightlife'],
+  housing_types: ['row_house', 'family_house'],
+  area_character: 'quiet_city',
+  language: 'en',
+};
+
+function completeMatchSessionResponse(sessionId: string, answers: MatchFirstSurveyAnswers = completeMatchAnswers) {
+  return {
+    session_id: sessionId,
+    locale: answers.language ?? 'en',
+    phase: 'review',
+    current_step: 11,
+    answer_version: 11,
+    answers,
+    validation: {},
+    is_complete: true,
+    preference_vector_id: `pv_${sessionId}`,
+    preference_vector_version: `vector_${sessionId}`,
+    preference_vector: {
+      preference_vector_id: `pv_${sessionId}`,
+      session_id: sessionId,
+      journey_intent: answers.intent ?? 'both',
+      budget_min_cents: answers.budget?.buy_min ?? null,
+      budget_max_cents: answers.budget?.buy_max ?? null,
+      monthly_rent_max_cents: answers.budget?.rent_max ?? null,
+      anchor_locations: [{ type: 'city', label: answers.anchor_location?.label ?? 'Utrecht Centraal' }],
+      commute_limits: [{ mode: 'public_transport', max_minutes: answers.commute?.max_minutes ?? 45 }],
+      property_types: answers.housing_types ?? [],
+      hard_filters: ['intent:both', 'budget', 'commute'],
+      nice_to_haves: answers.lifestyle_priorities ?? [],
+      avoid_signals: answers.dealbreakers ?? [],
+      lifestyle_weights: { green_access: 0.5, calmness: 0.5 },
+      persona_inputs: {},
+      locale: answers.language ?? 'en',
+      method_version: 'preference-vector-v2',
+      source_answer_version: 11,
+      vector_version: `vector_${sessionId}`,
+      raw_answer_refs: answers,
+      warnings: [],
+    },
+  };
+}
+
+function mockMatchFirstFetch(options: {
+  sessionId?: string;
+  getSessionBody?: Record<string, unknown>;
+  createStatus?: number;
+} = {}) {
+  const sessionId = options.sessionId ?? 'match_backend_123';
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+    if (url.endsWith('/api/match/sessions') && method === 'POST') {
+      return new Response(JSON.stringify({
+        session_id: sessionId,
+        locale: 'en',
+        phase: 'survey_intro',
+        current_step: null,
+        answer_version: 0,
+        expires_at: '2026-05-15T12:00:00Z',
+      }), {
+        status: options.createStatus ?? 201,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith(`/api/match/sessions/${sessionId}/answers`) && method === 'PATCH') {
+      return new Response(JSON.stringify({
+        session_id: sessionId,
+        answer_version: 1,
+        is_complete: false,
+        validation: {},
+        stale_results: true,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith(`/api/match/sessions/${sessionId}`) && method === 'GET') {
+      return new Response(JSON.stringify(options.getSessionBody ?? completeMatchSessionResponse(sessionId)), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({}), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+}
 
 vi.mock('./services/api', async () => {
   const actual = await vi.importActual<typeof import('./services/api')>('./services/api');
@@ -691,6 +790,7 @@ describe('initial render', () => {
   });
 
   it('keeps settings hidden during match-first onboarding screens', async () => {
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match_backend_settings' });
     window.location.hash = '#/match/intro';
     renderApp();
 
@@ -700,24 +800,233 @@ describe('initial render', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start the match' }));
     expect(await screen.findByRole('heading', { name: 'Are you looking to buy, rent, or both?' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument();
+
+    fetchSpy.mockRestore();
+  });
+
+  it('creates a backend match session before entering the survey flow', async () => {
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match_backend_created' });
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
+
+    expect(await screen.findByRole('heading', { name: 'First, we need to understand how you want to live.' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/match/session/match_backend_created/intro');
+    expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ locale: 'en', source: 'landing' }),
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start the match' }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'Both' }));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions/match_backend_created/answers', expect.objectContaining({
+        method: 'PATCH',
+        body: expect.stringContaining('"intent":"both"'),
+      }));
+    });
+
+    fetchSpy.mockRestore();
+  });
+
+  it('replaces a stale stored backend match session before entering the survey flow', async () => {
+    window.localStorage.setItem('buurt-check-match-first-session-id', 'match_stale');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (url.endsWith('/api/match/sessions/match_stale') && method === 'GET') {
+        return new Response(JSON.stringify({ detail: 'not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.endsWith('/api/match/sessions') && method === 'POST') {
+        return new Response(JSON.stringify({
+          session_id: 'match_fresh',
+          locale: 'en',
+          phase: 'survey_intro',
+          current_step: null,
+          answer_version: 0,
+          expires_at: '2026-05-15T12:00:00Z',
+        }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
+
+    expect(await screen.findByRole('heading', { name: 'First, we need to understand how you want to live.' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/match/session/match_fresh/intro');
+    expect(window.localStorage.getItem('buurt-check-match-first-session-id')).toBe('match_fresh');
+    expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions/match_stale', expect.objectContaining({
+      credentials: 'include',
+    }));
+    expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ locale: 'en', source: 'landing' }),
+    }));
+
+    fetchSpy.mockRestore();
+  });
+
+  it('hydrates stored backend session answers before resuming the survey flow', async () => {
+    window.localStorage.setItem('buurt-check-match-first-session-id', 'match_resume_backend');
+    const fetchSpy = mockMatchFirstFetch({
+      sessionId: 'match_resume_backend',
+      getSessionBody: completeMatchSessionResponse('match_resume_backend'),
+    });
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
+
+    expect(await screen.findByRole('heading', { name: 'First, we need to understand how you want to live.' })).toBeInTheDocument();
+    expect(readMatchSessionSnapshot('match_resume_backend')?.answers).toMatchObject(completeMatchAnswers);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start the match' }));
+
+    expect(await screen.findByRole('heading', { name: 'Ready to find your best neighborhoods?' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/match/session/match_resume_backend/review');
+
+    fetchSpy.mockRestore();
   });
 
   it('routes the final survey CTA to a session run state without loading the legacy map', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } }),
-    );
-    window.location.hash = '#/match/survey';
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match-review-run' });
+    saveMatchSessionSnapshot('match-review-run', {
+      sessionId: 'match-review-run',
+      locale: 'en',
+      step: 11,
+      answerVersion: 11,
+      staleResults: true,
+      answers: completeMatchAnswers,
+    });
+    window.location.hash = '#/match/session/match-review-run/review';
     renderApp();
 
-    fireEvent.click(await screen.findByRole('radio', { name: 'Both' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Review answer' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Show my matches' }));
 
-    expect(window.location.hash).toMatch(/^#\/match\/session\/match-[^/]+\/run$/);
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/match/session/match-review-run/run');
+    });
     const sessionId = window.location.hash.split('/')[3];
     expect(localStorage.getItem(`buurt-check-match-first-job-status:${sessionId}`)).toBe('run_pending');
     expect(await screen.findByRole('status')).toHaveTextContent('Your answers are saved. Results will appear here when matching is available.');
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions/match-review-run', expect.objectContaining({
+      credentials: 'include',
+    }));
+
+    fetchSpy.mockRestore();
+  });
+
+  it('requires backend vector readback before the review CTA can enter run state', async () => {
+    const fetchSpy = mockMatchFirstFetch({
+      sessionId: 'match-review-sync-fail',
+      getSessionBody: {
+        session_id: 'match-review-sync-fail',
+        locale: 'en',
+        phase: 'review',
+        current_step: 11,
+        answer_version: 11,
+        answers: completeMatchAnswers,
+        validation: {},
+        is_complete: false,
+        preference_vector: null,
+      },
+    });
+    saveMatchSessionSnapshot('match-review-sync-fail', {
+      sessionId: 'match-review-sync-fail',
+      locale: 'en',
+      step: 11,
+      answerVersion: 11,
+      staleResults: true,
+      answers: completeMatchAnswers,
+    });
+    window.location.hash = '#/match/session/match-review-sync-fail/review';
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show my matches' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('We could not sync your saved answers yet. Try again before opening your match map.');
+    expect(window.location.hash).toBe('#/match/session/match-review-sync-fail/review');
+    expect(localStorage.getItem('buurt-check-match-first-job-status:match-review-sync-fail')).toBeNull();
+
+    fetchSpy.mockRestore();
+  });
+
+  it('blocks review completion when the backend vector does not match the displayed answers', async () => {
+    const displayedAnswers: MatchFirstSurveyAnswers = {
+      ...completeMatchAnswers,
+      intent: 'rent',
+      budget: { rent_max: 220000 },
+    };
+    const staleBackendAnswers: MatchFirstSurveyAnswers = {
+      ...completeMatchAnswers,
+      intent: 'buy',
+      budget: { buy_min: 45000000, buy_max: 65000000 },
+    };
+    const fetchSpy = mockMatchFirstFetch({
+      sessionId: 'match-review-stale-vector',
+      getSessionBody: completeMatchSessionResponse('match-review-stale-vector', staleBackendAnswers),
+    });
+    saveMatchSessionSnapshot('match-review-stale-vector', {
+      sessionId: 'match-review-stale-vector',
+      locale: 'en',
+      step: 11,
+      answerVersion: 11,
+      staleResults: true,
+      answers: displayedAnswers,
+    });
+    window.location.hash = '#/match/session/match-review-stale-vector/review';
+    renderApp();
+
+    expect(await screen.findByText('Rent')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show my matches' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('We could not sync your saved answers yet. Try again before opening your match map.');
+    expect(window.location.hash).toBe('#/match/session/match-review-stale-vector/review');
+    expect(localStorage.getItem('buurt-check-match-first-job-status:match-review-stale-vector')).toBeNull();
+
+    fetchSpy.mockRestore();
+  });
+
+  it('creates a backend session before rendering a direct legacy survey route', async () => {
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match_direct_created' });
+    window.location.hash = '#/match/survey';
+    renderApp();
+
+    expect(await screen.findByRole('heading', { name: 'Are you looking to buy, rent, or both?' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/match/session/match_direct_created/question/1');
+    });
+    expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ locale: 'en', source: 'resume' }),
+    }));
+
+    fetchSpy.mockRestore();
+  });
+
+  it('creates a backend session before rendering the legacy quiz route', async () => {
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match_quiz_created' });
+    window.location.hash = '#/match/quiz';
+    renderApp();
+
+    expect(await screen.findByRole('heading', { name: 'Are you looking to buy, rent, or both?' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/match/session/match_quiz_created/question/1');
+    });
+    expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ locale: 'en', source: 'resume' }),
+    }));
 
     fetchSpy.mockRestore();
   });
@@ -751,7 +1060,7 @@ describe('initial render', () => {
   it.each([
     ['completed_with_fallback', '#/match/session/match-fallback/results', 'We found your matches using the stable scoring model. Some advanced ranking features were skipped this time.'],
     ['no_results', '#/match/session/match-empty/results', 'No recommendation results are available yet.'],
-    ['no_strong_matches', '#/match/session/match-weak/results', 'We found a few possible matches, but none are perfect. Your strongest constraints are narrowing the search a lot.'],
+    ['no_strong_matches', '#/match/session/match-weak/results', 'We found a few possible matches, but your strongest constraints are narrowing the result set.'],
   ])('ignores unverified terminal %s storage on direct results routes', async (status, hash, forbiddenCopy) => {
     const sessionId = hash.split('/')[3];
     localStorage.setItem(`buurt-check-match-first-job-status:${sessionId}`, status);
@@ -765,7 +1074,19 @@ describe('initial render', () => {
   });
 
   it('restores a direct review route from the saved survey answer', async () => {
-    localStorage.setItem('buurt-check-match-first-survey:match-review-123', JSON.stringify({ intent: 'rent' }));
+    const savedAnswers: MatchFirstSurveyAnswers = { ...completeMatchAnswers, intent: 'rent' };
+    const fetchSpy = mockMatchFirstFetch({
+      sessionId: 'match-review-123',
+      getSessionBody: completeMatchSessionResponse('match-review-123', savedAnswers),
+    });
+    saveMatchSessionSnapshot('match-review-123', {
+      sessionId: 'match-review-123',
+      locale: 'en',
+      step: 11,
+      answerVersion: 11,
+      staleResults: true,
+      answers: savedAnswers,
+    });
     window.location.hash = '#/match/session/match-review-123/review';
     renderApp();
 
@@ -773,7 +1094,11 @@ describe('initial render', () => {
     expect(screen.getByText('Rent')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Show my matches' }));
-    expect(window.location.hash).toBe('#/match/session/match-review-123/run');
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/match/session/match-review-123/run');
+    });
+
+    fetchSpy.mockRestore();
   });
 
   it.each([
@@ -821,12 +1146,32 @@ describe('initial render', () => {
     expect(screen.queryByRole('heading', { name: 'Selected neighborhood context' })).not.toBeInTheDocument();
   });
 
-  it('keeps legacy #/match/quiz valid but renders the one-question survey shell', async () => {
-    window.location.hash = '#/match/quiz';
+  it('redirects direct survey question routes to the first unanswered required step', async () => {
+    window.location.hash = '#/match/session/match-direct/question/8';
     renderApp();
 
     expect(await screen.findByRole('heading', { name: 'Are you looking to buy, rent, or both?' })).toBeInTheDocument();
-    expect(screen.queryByText('Household')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/match/session/match-direct/question/1');
+    });
+  });
+
+  it('redirects direct survey question routes past the saved progress to the next incomplete step', async () => {
+    saveMatchSessionSnapshot('match-direct-progress', {
+      sessionId: 'match-direct-progress',
+      locale: 'en',
+      step: 1,
+      answerVersion: 1,
+      staleResults: true,
+      answers: { intent: 'both' },
+    });
+    window.location.hash = '#/match/session/match-direct-progress/question/8';
+    renderApp();
+
+    expect(await screen.findByRole('heading', { name: 'What budget range should we respect?' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/match/session/match-direct-progress/question/2');
+    });
   });
 
   it.each([
@@ -846,6 +1191,7 @@ describe('initial render', () => {
   });
 
   it('keeps survey answers in App state when localStorage writes fail', async () => {
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match_storage_fail' });
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('storage unavailable');
     });
@@ -854,16 +1200,12 @@ describe('initial render', () => {
       renderApp();
 
       fireEvent.click(await screen.findByRole('radio', { name: 'Both' }));
-      fireEvent.click(screen.getByRole('button', { name: 'Review answer' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
-      expect(await screen.findByRole('heading', { name: 'Ready to find your best neighborhoods?' })).toBeInTheDocument();
-      expect(screen.getByText('Both')).toBeInTheDocument();
-
-      fireEvent.click(screen.getByRole('button', { name: 'Show my matches' }));
-      expect(window.location.hash).toMatch(/^#\/match\/session\/match-[^/]+\/run$/);
-      expect(await screen.findByRole('status')).toHaveTextContent('Your answers are saved. Results will appear here when matching is available.');
+      expect(await screen.findByRole('heading', { name: 'What budget range should we respect?' })).toBeInTheDocument();
     } finally {
       setItemSpy.mockRestore();
+      fetchSpy.mockRestore();
     }
   });
 
@@ -892,6 +1234,7 @@ describe('initial render', () => {
   });
 
   it('moves focus to the screen heading after match route transitions', async () => {
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match_focus' });
     renderApp();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
@@ -900,9 +1243,12 @@ describe('initial render', () => {
     await waitFor(() => {
       expect(heading).toHaveFocus();
     });
+
+    fetchSpy.mockRestore();
   });
 
   it('applies user hash changes after app-driven match navigation', async () => {
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match_hash_change' });
     renderApp();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
@@ -915,9 +1261,12 @@ describe('initial render', () => {
 
     expect(await screen.findByRole('combobox')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'First, we need to understand how you want to live.' })).not.toBeInTheDocument();
+
+    fetchSpy.mockRestore();
   });
 
   it('applies browser back and forward popstate route changes after app-driven navigation', async () => {
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match_popstate' });
     renderApp();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Find my dream neighborhood' }));
@@ -929,6 +1278,8 @@ describe('initial render', () => {
     });
 
     expect(await screen.findByRole('heading', { name: 'Are you looking to buy, rent, or both?' })).toBeInTheDocument();
+
+    fetchSpy.mockRestore();
   });
 
   it('keeps the address search available on #/search', () => {

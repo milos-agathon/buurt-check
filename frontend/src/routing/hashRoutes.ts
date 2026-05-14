@@ -1,3 +1,5 @@
+import { MATCH_FIRST_SURVEY_QUESTION_COUNT } from '../components/match-first/surveyQuestions';
+
 export type HashRoute =
   | 'search'
   | 'dossier'
@@ -302,7 +304,11 @@ export function parseRoute(path: string, queryPart: string): ParsedHashRoute {
       const detail = matchSession[3];
       if (step === 'question' && detail) {
         const questionStep = Number(detail);
-        if (!Number.isInteger(questionStep) || questionStep !== 1) {
+        if (
+          !Number.isInteger(questionStep)
+          || questionStep < 1
+          || questionStep > MATCH_FIRST_SURVEY_QUESTION_COUNT
+        ) {
           return { route: 'not_found', rawPath: normalizedPath };
         }
         return { route: 'matchSurvey', sessionId, questionStep };

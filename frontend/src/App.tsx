@@ -124,6 +124,8 @@ import {
   submitMatchFeedback,
   updateMatchAlertStatus,
 } from './services/matchApi';
+import { createMatchSession, getMatchSession } from './services/matchFirstApi';
+import { readMatchSessionSnapshot, saveMatchSessionSnapshot } from './services/matchSessionStorage';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import { useViewportBottomOffset } from './hooks/useViewportBottomOffset';
 import type { Geometry, Position } from 'geojson';
@@ -188,7 +190,13 @@ import {
   type MatchReturnContext,
   type ParsedHashRoute,
 } from './routing/hashRoutes';
-import type { MatchFirstSurveyAnswers } from './components/match-first/SurveyShell';
+import type {
+  MatchFirstPreferenceVector,
+  MatchSessionResponse,
+  MatchFirstSurveyAnswers,
+} from './types/matchFirst';
+import { MATCH_FIRST_SURVEY_QUESTION_COUNT } from './components/match-first/surveyQuestions';
+import { firstIncompleteSurveyStep, surveyAnswersAreComplete } from './components/match-first/surveyValidation';
 import './App.css';
 
 const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMap'));
@@ -634,13 +642,6 @@ function normalizeMatchJobStatus(value: string | null | undefined): MatchJobStat
   return value && MATCH_JOB_STORAGE_STATUSES.has(value as MatchJobStatus) ? value as MatchJobStatus : null;
 }
 
-function createMatchSessionId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return `match-${crypto.randomUUID()}`;
-  }
-  return `match-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function readStoredMatchSessionId(): string | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -657,6 +658,57 @@ function storeMatchSessionId(sessionId: string): void {
   } catch {
     // Keep the session in React state when browser storage is unavailable.
   }
+}
+
+function resolveMatchSurveyQuestionStep(
+  sessionId: string | null | undefined,
+  requestedStep: number | undefined,
+): number {
+  const boundedStep = Math.min(
+    Math.max(requestedStep ?? 1, 1),
+    MATCH_FIRST_SURVEY_QUESTION_COUNT,
+  );
+  const snapshot = readMatchSessionSnapshot(sessionId);
+  const firstIncompleteStep = firstIncompleteSurveyStep(snapshot?.answers ?? null);
+  return Math.min(boundedStep, firstIncompleteStep);
+}
+
+function hydrateMatchSessionSnapshot(session: MatchSessionResponse): void {
+  const answers = session.answers ?? {};
+  const step = session.is_complete
+    ? MATCH_FIRST_SURVEY_QUESTION_COUNT
+    : firstIncompleteSurveyStep(answers);
+  saveMatchSessionSnapshot(session.session_id, {
+    sessionId: session.session_id,
+    locale: session.locale,
+    step,
+    answerVersion: session.answer_version,
+    staleResults: !session.preference_vector,
+    answers,
+  });
+}
+
+function normalizeMatchAnswerForComparison(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeMatchAnswerForComparison(item));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, entry]) => entry !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, normalizeMatchAnswerForComparison(entry)]),
+    );
+  }
+  return value;
+}
+
+function matchPreferenceVectorMatchesAnswers(
+  vector: MatchFirstPreferenceVector,
+  answers: MatchFirstSurveyAnswers,
+): boolean {
+  return JSON.stringify(normalizeMatchAnswerForComparison(vector.raw_answer_refs))
+    === JSON.stringify(normalizeMatchAnswerForComparison(answers));
 }
 
 function readStoredMatchJobStatus(sessionId: string | null | undefined): MatchJobStatus | null {
@@ -1423,19 +1475,14 @@ function App() {
     if (!initialRoute.route.startsWith('match')) {
       return initialRoute.matchReturn?.sessionId ?? null;
     }
-    const existing = initialRoute.sessionId ?? readStoredMatchSessionId();
-    if (existing) return existing;
     if (
-      initialRoute.route === 'matchSurveyIntro'
-      || initialRoute.route === 'matchSurvey'
-      || initialRoute.route === 'matchReview'
-      || initialRoute.route === 'matchRun'
+      (initialRoute.route === 'matchSurvey' || initialRoute.route === 'matchReview')
+      && !initialRoute.sessionId
     ) {
-      const created = createMatchSessionId();
-      storeMatchSessionId(created);
-      return created;
+      return null;
     }
-    return null;
+    const existing = initialRoute.sessionId ?? readStoredMatchSessionId();
+    return existing ?? null;
   }, [initialRoute]);
   const initialMatchMapReturnContext = useMemo(() => (
     initialRoute.matchReturn
@@ -1456,6 +1503,11 @@ function App() {
   const [activeMatchSessionId, setActiveMatchSessionId] = useState<string | null>(() => (
     initialMatchSessionId
   ));
+  const matchSessionBootstrapInFlightRef = useRef(false);
+  const createdMatchSessionIdsRef = useRef<Set<string>>(new Set());
+  const [activeMatchQuestionStep, setActiveMatchQuestionStep] = useState<number>(() => (
+    resolveMatchSurveyQuestionStep(initialMatchSessionId, initialRoute.questionStep)
+  ));
   const [activeMatchNeighborhoodId, setActiveMatchNeighborhoodId] = useState<string | null>(() => (
     initialRoute.neighborhoodId ?? initialRoute.matchReturn?.neighborhoodId ?? null
   ));
@@ -1470,6 +1522,9 @@ function App() {
   const [activeMatchJobStatus, setActiveMatchJobStatus] = useState<MatchJobStatus | null>(() => (
     readStoredMatchJobStatus(initialMatchSessionId)
   ));
+  const [matchSessionErrorKey, setMatchSessionErrorKey] = useState<string | null>(null);
+  const [matchReviewSyncErrorKey, setMatchReviewSyncErrorKey] = useState<string | null>(null);
+  const [matchReviewSyncing, setMatchReviewSyncing] = useState(false);
   const [matchSurveyAnswers, setMatchSurveyAnswers] = useState<{
     sessionId: string | null;
     answers: MatchFirstSurveyAnswers;
@@ -2013,18 +2068,83 @@ function App() {
     }
   }, []);
 
-  const ensureMatchSessionId = useCallback(() => {
+  const createBackendMatchSession = useCallback(async (source: 'landing' | 'intro' | 'resume') => {
+    const created = await createMatchSession({ locale: uiLanguage, source });
+    createdMatchSessionIdsRef.current.add(created.session_id);
+    setActiveMatchSessionId(created.session_id);
+    storeMatchSessionId(created.session_id);
+    saveMatchSessionSnapshot(created.session_id, {
+      sessionId: created.session_id,
+      locale: created.locale,
+      step: 1,
+      answerVersion: created.answer_version,
+      staleResults: true,
+      answers: {},
+    });
+    setMatchSessionErrorKey(null);
+    return created.session_id;
+  }, [uiLanguage]);
+
+  const ensureBackendMatchSessionId = useCallback(async (source: 'landing' | 'intro' | 'resume') => {
     const existing = activeMatchSessionId ?? readStoredMatchSessionId();
     if (existing) {
-      setActiveMatchSessionId(existing);
-      storeMatchSessionId(existing);
-      return existing;
+      if (createdMatchSessionIdsRef.current.has(existing)) {
+        setActiveMatchSessionId(existing);
+        storeMatchSessionId(existing);
+        setMatchSessionErrorKey(null);
+        return existing;
+      }
+      try {
+        const session = await getMatchSession(existing);
+        hydrateMatchSessionSnapshot(session);
+        setActiveMatchSessionId(existing);
+        storeMatchSessionId(existing);
+        setMatchSessionErrorKey(null);
+        return existing;
+      } catch {
+        setActiveMatchSessionId(null);
+      }
     }
-    const created = createMatchSessionId();
-    setActiveMatchSessionId(created);
-    storeMatchSessionId(created);
-    return created;
-  }, [activeMatchSessionId]);
+    return createBackendMatchSession(source);
+  }, [activeMatchSessionId, createBackendMatchSession]);
+
+  useEffect(() => {
+    const needsSession = (
+      activeScreen === 'matchSurvey'
+      || activeScreen === 'matchReview'
+    ) && !activeMatchSessionId;
+    if (!needsSession || matchSessionBootstrapInFlightRef.current) return undefined;
+
+    let cancelled = false;
+    matchSessionBootstrapInFlightRef.current = true;
+
+    void createBackendMatchSession('resume')
+      .then((sessionId) => {
+        if (cancelled) return;
+        setActiveMatchQuestionStep(1);
+        setMatchReviewSyncErrorKey(null);
+        setMatchSurveyAnswers(null);
+        setActiveScreen('matchSurvey');
+        setHashRoute(buildHashRoute({
+          route: 'matchSurvey',
+          sessionId,
+          questionStep: 1,
+        }), { replace: true });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMatchSessionErrorKey('matchFirst.session.createFailed');
+        setActiveScreen('matchSurveyIntro');
+        setHashRoute(buildHashRoute({ route: 'matchSurveyIntro' }), { replace: true });
+      })
+      .finally(() => {
+        matchSessionBootstrapInFlightRef.current = false;
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMatchSessionId, activeScreen, createBackendMatchSession, setHashRoute]);
 
   const replaceHashRouteAndClearSearch = useCallback((hash: string) => {
     if (typeof window === 'undefined') return;
@@ -4615,6 +4735,11 @@ function App() {
       setMatchReturnContext(null);
     }
     if (parsed.route.startsWith('match')) {
+      const stepSessionId = parsed.sessionId
+        ?? (parsed.route === 'matchSurvey' || parsed.route === 'matchReview' ? null : readStoredMatchSessionId());
+      const resolvedQuestionStep = parsed.route === 'matchSurvey'
+        ? resolveMatchSurveyQuestionStep(stepSessionId, parsed.questionStep)
+        : parsed.questionStep ?? 1;
       if (parsed.sessionId) {
         setActiveMatchSessionId(parsed.sessionId);
         storeMatchSessionId(parsed.sessionId);
@@ -4627,11 +4752,26 @@ function App() {
         matchMapReturnContextRef.current = routeReturnContext;
         setMatchMapReturnContext(routeReturnContext);
       } else {
+        if (parsed.route === 'matchSurvey' || parsed.route === 'matchReview') {
+          setActiveMatchSessionId(null);
+        }
         setActiveMatchJobStatus(null);
         matchMapReturnContextRef.current = null;
         setMatchMapReturnContext(null);
       }
       setActiveMatchNeighborhoodId(parsed.neighborhoodId ?? null);
+      setActiveMatchQuestionStep(resolvedQuestionStep);
+      if (
+        parsed.route === 'matchSurvey'
+        && parsed.questionStep !== undefined
+        && resolvedQuestionStep !== parsed.questionStep
+      ) {
+        setHashRoute(buildHashRoute({
+          route: 'matchSurvey',
+          sessionId: parsed.sessionId,
+          questionStep: resolvedQuestionStep,
+        }), { replace: true });
+      }
     }
     if (parsed.route === 'shortlist') {
       setActiveTab('saved');
@@ -5767,8 +5907,7 @@ function App() {
   const showDossierRouteMatchReturnAction = !!matchReturnContext && !showDossierInlineMatchReturnAction;
   const matchNotFoundRecovery = isMatchNotFoundRoute(notFoundRoute);
 
-  const startMatchRun = () => {
-    const sessionId = ensureMatchSessionId();
+  const startMatchRun = (sessionId: string) => {
     storeMatchJobStatus(sessionId, 'run_pending');
     setActiveMatchJobStatus('run_pending');
     setActiveScreen('matchRun');
@@ -5776,7 +5915,15 @@ function App() {
   };
 
   const retryMatchRun = () => {
-    const sessionId = activeMatchSessionId ?? ensureMatchSessionId();
+    const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+    if (!sessionId) {
+      setActiveMatchQuestionStep(1);
+      setActiveScreen('matchSurvey');
+      setHashRoute(buildHashRoute({ route: 'matchSurvey', questionStep: 1 }));
+      return;
+    }
+    setActiveMatchSessionId(sessionId);
+    storeMatchSessionId(sessionId);
     storeMatchJobStatus(sessionId, 'run_pending');
     setActiveMatchJobStatus('run_pending');
     setActiveScreen('matchRun');
@@ -5784,20 +5931,59 @@ function App() {
   };
 
   const returnToMatchSurvey = () => {
-    const sessionId = ensureMatchSessionId();
+    const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+    if (sessionId) {
+      setActiveMatchSessionId(sessionId);
+      storeMatchSessionId(sessionId);
+    }
+    setActiveMatchQuestionStep(1);
     setActiveScreen('matchSurvey');
-    setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: 1 }));
+    setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId: sessionId ?? undefined, questionStep: 1 }));
   };
 
   const recoverMatchNotFoundRoute = () => {
     const sessionId = readMatchSessionIdFromNotFoundRoute(notFoundRoute)
       ?? activeMatchSessionId
-      ?? ensureMatchSessionId();
+      ?? readStoredMatchSessionId();
     setActiveTab('home');
-    setActiveMatchSessionId(sessionId);
-    storeMatchSessionId(sessionId);
+    if (sessionId) {
+      setActiveMatchSessionId(sessionId);
+      storeMatchSessionId(sessionId);
+    }
     setActiveScreen('matchSurvey');
-    setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: 1 }));
+    setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId: sessionId ?? undefined, questionStep: 1 }));
+  };
+
+  const handleMatchReviewComplete = async (answers: MatchFirstSurveyAnswers) => {
+    const sessionId = activeMatchSessionId
+      ?? matchSurveyAnswers?.sessionId
+      ?? readStoredMatchSessionId();
+    if (!sessionId) {
+      setMatchReviewSyncErrorKey('matchFirst.review.syncFailed');
+      return;
+    }
+
+    setMatchReviewSyncing(true);
+    setMatchReviewSyncErrorKey(null);
+    try {
+      const session = await getMatchSession(sessionId);
+      if (
+        !session.is_complete
+        || !session.preference_vector
+        || !matchPreferenceVectorMatchesAnswers(session.preference_vector, answers)
+      ) {
+        setMatchReviewSyncErrorKey('matchFirst.review.syncFailed');
+        return;
+      }
+      setActiveMatchSessionId(sessionId);
+      storeMatchSessionId(sessionId);
+      setMatchSurveyAnswers({ sessionId, answers });
+      startMatchRun(sessionId);
+    } catch {
+      setMatchReviewSyncErrorKey('matchFirst.review.syncFailed');
+    } finally {
+      setMatchReviewSyncing(false);
+    }
   };
 
   const renderMatchRecovery = (titleId: string) => (
@@ -6018,10 +6204,17 @@ function App() {
             >
               <Suspense fallback={routeLoadingFallback}>
                 <MatchLanding
+                  sessionErrorKey={matchSessionErrorKey}
                   onStartMatch={() => {
-                    const sessionId = ensureMatchSessionId();
-                    setActiveScreen('matchSurveyIntro');
-                    setHashRoute(buildHashRoute({ route: 'matchSurveyIntro', sessionId }));
+                    void (async () => {
+                      try {
+                        const sessionId = await ensureBackendMatchSessionId('landing');
+                        setActiveScreen('matchSurveyIntro');
+                        setHashRoute(buildHashRoute({ route: 'matchSurveyIntro', sessionId }));
+                      } catch {
+                        setMatchSessionErrorKey('matchFirst.session.createFailed');
+                      }
+                    })();
                   }}
                   onSearchAddress={() => {
                     setActiveScreen('search');
@@ -6040,10 +6233,29 @@ function App() {
             >
               <Suspense fallback={routeLoadingFallback}>
                 <MatchSurveyIntro
+                  sessionId={activeMatchSessionId}
+                  sessionErrorKey={matchSessionErrorKey}
                   onStartSurvey={() => {
-                    const sessionId = ensureMatchSessionId();
-                    setActiveScreen('matchSurvey');
-                    setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: 1 }));
+                    void (async () => {
+                      try {
+                        const sessionId = await ensureBackendMatchSessionId('intro');
+                        const snapshot = readMatchSessionSnapshot(sessionId);
+                        const snapshotAnswers = snapshot?.answers ?? null;
+                        if (surveyAnswersAreComplete(snapshotAnswers)) {
+                          setMatchReviewSyncErrorKey(null);
+                          setMatchSurveyAnswers({ sessionId, answers: snapshotAnswers });
+                          setActiveScreen('matchReview');
+                          setHashRoute(buildHashRoute({ route: 'matchReview', sessionId }));
+                          return;
+                        }
+                        const nextStep = firstIncompleteSurveyStep(snapshotAnswers);
+                        setActiveMatchQuestionStep(nextStep);
+                        setActiveScreen('matchSurvey');
+                        setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: nextStep }));
+                      } catch {
+                        setMatchSessionErrorKey('matchFirst.session.createFailed');
+                      }
+                    })();
                   }}
                 />
               </Suspense>
@@ -6057,20 +6269,52 @@ function App() {
               {...matchRouteMotionProps}
             >
               <Suspense fallback={routeLoadingFallback}>
-                <MatchSurveyShell
-                  sessionId={activeMatchSessionId}
-                  onBack={() => {
-                    const sessionId = ensureMatchSessionId();
-                    setActiveScreen('matchSurveyIntro');
-                    setHashRoute(buildHashRoute({ route: 'matchSurveyIntro', sessionId }));
-                  }}
-                  onReview={(answers) => {
-                    const sessionId = ensureMatchSessionId();
-                    setMatchSurveyAnswers({ sessionId, answers });
-                    setActiveScreen('matchReview');
-                    setHashRoute(buildHashRoute({ route: 'matchReview', sessionId }));
-                  }}
-                />
+                {activeMatchSessionId ? (
+                  <MatchSurveyShell
+                    sessionId={activeMatchSessionId}
+                    step={activeMatchQuestionStep}
+                    onStepChange={(nextStep) => {
+                      const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+                      const boundedStep = Math.min(Math.max(nextStep, 1), MATCH_FIRST_SURVEY_QUESTION_COUNT);
+                      if (sessionId) {
+                        setActiveMatchSessionId(sessionId);
+                        storeMatchSessionId(sessionId);
+                      }
+                      setActiveMatchQuestionStep(boundedStep);
+                      setHashRoute(buildHashRoute({
+                        route: 'matchSurvey',
+                        sessionId: sessionId ?? undefined,
+                        questionStep: boundedStep,
+                      }));
+                    }}
+                    onBack={() => {
+                      const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+                      if (sessionId) {
+                        setActiveMatchSessionId(sessionId);
+                        storeMatchSessionId(sessionId);
+                      }
+                      setActiveScreen('matchSurveyIntro');
+                      setHashRoute(buildHashRoute({
+                        route: 'matchSurveyIntro',
+                        sessionId: sessionId ?? undefined,
+                      }));
+                    }}
+                    onReview={(answers) => {
+                      const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+                      if (sessionId) {
+                        setActiveMatchSessionId(sessionId);
+                        storeMatchSessionId(sessionId);
+                      }
+                      setMatchReviewSyncErrorKey(null);
+                      setMatchSurveyAnswers({ sessionId: sessionId ?? null, answers });
+                      setActiveScreen('matchReview');
+                      setHashRoute(buildHashRoute({
+                        route: 'matchReview',
+                        sessionId: sessionId ?? undefined,
+                      }));
+                    }}
+                  />
+                ) : routeLoadingFallback}
               </Suspense>
             </motion.div>
           )}
@@ -6082,24 +6326,36 @@ function App() {
               {...matchRouteMotionProps}
             >
               <Suspense fallback={routeLoadingFallback}>
-                <MatchSurveyReview
-                  sessionId={activeMatchSessionId}
-                  answers={
-                    matchSurveyAnswers?.sessionId === activeMatchSessionId
-                      ? matchSurveyAnswers.answers
-                      : null
-                  }
-                  onBack={() => {
-                    const sessionId = ensureMatchSessionId();
-                    setActiveScreen('matchSurvey');
-                    setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId, questionStep: 1 }));
-                  }}
-                  onComplete={(answers) => {
-                    const sessionId = ensureMatchSessionId();
-                    setMatchSurveyAnswers({ sessionId, answers });
-                    startMatchRun();
-                  }}
-                />
+                {activeMatchSessionId ? (
+                  <MatchSurveyReview
+                    sessionId={activeMatchSessionId}
+                    answers={
+                      matchSurveyAnswers?.sessionId === activeMatchSessionId
+                        ? matchSurveyAnswers.answers
+                        : null
+                    }
+                    syncErrorKey={matchReviewSyncErrorKey}
+                    syncing={matchReviewSyncing}
+                    onBack={() => {
+                      const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+                      if (sessionId) {
+                        setActiveMatchSessionId(sessionId);
+                        storeMatchSessionId(sessionId);
+                      }
+                      setMatchReviewSyncErrorKey(null);
+                      setActiveMatchQuestionStep(MATCH_FIRST_SURVEY_QUESTION_COUNT);
+                      setActiveScreen('matchSurvey');
+                      setHashRoute(buildHashRoute({
+                        route: 'matchSurvey',
+                        sessionId: sessionId ?? undefined,
+                        questionStep: MATCH_FIRST_SURVEY_QUESTION_COUNT,
+                      }));
+                    }}
+                    onComplete={(answers) => {
+                      void handleMatchReviewComplete(answers);
+                    }}
+                  />
+                ) : routeLoadingFallback}
               </Suspense>
             </motion.div>
           )}

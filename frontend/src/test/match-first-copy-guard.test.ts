@@ -101,6 +101,29 @@ describe('match-first copy guard', () => {
     expect(nl['matchFirst.review.answerLabel'].toLowerCase()).not.toContain('zoek');
   });
 
+  it('keeps Phase 2 survey and match-state copy out of search-first and certainty framing', () => {
+    const en = JSON.parse(read(join(projectRoot, 'src/i18n/en.json'))) as Record<string, string>;
+    const nl = JSON.parse(read(join(projectRoot, 'src/i18n/nl.json'))) as Record<string, string>;
+    const keys = [
+      'matchFirst.survey.questions.household.title',
+      'matchFirst.survey.questions.housing.title',
+      'matchFirst.survey.questions.housing.helper',
+      'matchFirst.failure.noStrongMatches',
+    ];
+    const forbiddenByLocale = [
+      [en, /\b(search|perfect|predict|guarantee|safe|safest)\b/i],
+      [nl, /\b(zoek|perfect|voorspel|garantie|veilig|veiligst)\b/i],
+    ] as const;
+
+    const violations = forbiddenByLocale.flatMap(([translations, pattern]) => (
+      keys
+        .filter((key) => pattern.test(translations[key] ?? ''))
+        .map((key) => `${key}: ${translations[key]}`)
+    ));
+
+    expect(violations).toEqual([]);
+  });
+
   it('keeps match-surface language labels and fallbacks behind translation keys', () => {
     const forbidden = [
       />\s*English\s*</,
