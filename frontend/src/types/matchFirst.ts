@@ -185,3 +185,100 @@ export interface SurveyAnswerPatchResponse {
   validation: Record<string, SurveyAnswerValidation>;
   stale_results: boolean;
 }
+
+export type MatchJobPublicStatus =
+  | 'created'
+  | 'queued'
+  | 'running'
+  | 'matching_slow'
+  | 'completed'
+  | 'failed'
+  | 'completed_with_fallback'
+  | 'completed_no_strong_matches'
+  | 'expired'
+  | 'cancelled';
+
+export type MatchJobTerminalSuccessStatus =
+  | 'completed'
+  | 'completed_with_fallback'
+  | 'completed_no_strong_matches';
+
+export type MatchJobStage =
+  | 'created'
+  | 'queued'
+  | 'reading_preferences'
+  | 'building_profile'
+  | 'loading_neighborhood_data'
+  | 'applying_filters'
+  | 'running_models'
+  | 'scoring_tradeoffs'
+  | 'preparing_map'
+  | 'completed'
+  | 'completed_with_fallback'
+  | 'completed_no_strong_matches'
+  | 'failed'
+  | 'expired';
+
+export interface MatchRunResponse {
+  session_id: string;
+  job_id: string;
+  status: MatchJobPublicStatus;
+  stage: MatchJobStage;
+  progress: number;
+  message_key: string;
+  preference_vector_id: string;
+  poll_after_ms: number;
+}
+
+export interface MatchJobStatusResponse {
+  session_id: string;
+  job_id: string;
+  status: MatchJobPublicStatus;
+  stage: MatchJobStage;
+  progress: number;
+  message_key: string;
+  model_mode: 'weighted_scoring' | 'predictive_candidate';
+  model_version: string;
+  scoring_version: string;
+  evaluation_status:
+    | 'not_validated_no_labels'
+    | 'labels_available_not_trained'
+    | 'not_validated_missing_evaluation'
+    | 'validated_labels_available';
+  fallback_used: boolean;
+  fallback_reason_code: string | null;
+  result_set_id: string | null;
+  error_code: string | null;
+  runtime_ms: number;
+  updated_at: string;
+  poll_after_ms?: number;
+}
+
+export interface MatchResultsResponse {
+  session_id: string;
+  job_id: string;
+  result_set_id: string;
+  preference_vector_version: string;
+  status: MatchJobTerminalSuccessStatus;
+  generated_at: string;
+  runtime_ms: number;
+  model_mode: 'weighted_scoring' | 'predictive_candidate';
+  model_version: string;
+  scoring_version: string;
+  data_version: string;
+  evaluation_status: string;
+  predictive_probability_available: boolean;
+  fallback_used: boolean;
+  fallback_reason_code: string | null;
+  normal_recommendation_count: number;
+  candidate_count: number;
+  scored_candidate_count: number;
+  ranked_results: Array<Record<string, unknown>>;
+  recommendations: Array<Record<string, unknown>>;
+  stretch_matches: Array<Record<string, unknown>>;
+  near_misses: Array<Record<string, unknown>>;
+  empty_state_code: string | null;
+  map_center: Record<string, unknown>;
+  bbox: number[];
+  map: Record<string, unknown>;
+}

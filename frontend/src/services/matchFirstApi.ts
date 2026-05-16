@@ -5,6 +5,9 @@ import type {
   MatchSessionResponse,
   SurveyAnswerPatchResponse,
   MatchFirstSurveyAnswers,
+  MatchRunResponse,
+  MatchJobStatusResponse,
+  MatchResultsResponse,
 } from '../types/matchFirst';
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -58,4 +61,34 @@ export async function patchMatchSessionAnswers(
     body: JSON.stringify(payload),
   });
   return readJson<SurveyAnswerPatchResponse>(response);
+}
+
+export async function runMatchSession(
+  sessionId: string,
+  payload: {
+    preference_vector_version: string;
+    source: 'review_final_cta';
+  },
+): Promise<MatchRunResponse> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/sessions/${encodeURIComponent(sessionId)}/run`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  return readJson<MatchRunResponse>(response);
+}
+
+export async function getMatchStatus(sessionId: string): Promise<MatchJobStatusResponse> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/sessions/${encodeURIComponent(sessionId)}/status`), {
+    credentials: 'include',
+  });
+  return readJson<MatchJobStatusResponse>(response);
+}
+
+export async function getMatchResults(sessionId: string): Promise<MatchResultsResponse> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/sessions/${encodeURIComponent(sessionId)}/results`), {
+    credentials: 'include',
+  });
+  return readJson<MatchResultsResponse>(response);
 }

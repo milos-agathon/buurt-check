@@ -6,12 +6,15 @@ Updated: 2026-05-16
 
 The active SpecKit feature is `specs/002-match-first-revamp`; `.specify/feature.json`
 now points at that complete feature directory.
-Phase 1 and Phase 2 are documented as closed in
-`docs/qa/match_first_revamp_traceability.md`. Phase 3 backend matching now has
-the additional 2026-05-16 100% closure repair: race-safe review runs, endpoint
-stale-job retry recovery, source/freshness metadata on every result group, and a
-documented worktree split before Phase 4. Phase 4 progress/success UI and later
-map/3D/Dossier work are still not implemented.
+Phase 1, Phase 2, Phase 3 backend matching, and Phase 4 progress/success UI are
+documented as closed in `docs/qa/match_first_revamp_traceability.md`. Phase 4
+now consumes the Phase 3 run/status/results contract from the review CTA,
+polls backend status, renders friendly localized progress/failure/fallback
+states, shows the large Buurt Check checkmark only after verified terminal
+result payloads that match the terminal session/job/status, shows a distinct
+results-unavailable recovery when result hydration fails or is stale, and routes
+to a results placeholder. Phase 5 results map, Phase 6 selected-neighborhood
+detail/3D, and Phase 7 Dossier bridge work remain unimplemented.
 
 ## Current Next Step
 
@@ -35,13 +38,160 @@ Before any task regeneration or new task slicing, use the audited
 `specs/002-match-first-revamp/plan.md`, `data-model.md`, and
 `contracts/match-first-api.md` from the 2026-05-15 plan audit update below.
 
-The next documented implementation phase is Phase 4: progress and success
-states. Before starting it, keep unrelated governance/template/spec/context
-changes out of the Phase 3 backend closure commit, as documented in
-`docs/qa/open_punchlist.md`. Then start test-first with `T-034` and `T-035`,
-wiring the review CTA and progress UI to the real Phase 3 run/status/results
-endpoints. Do not claim the full feature complete until the verification matrix
-is green for all in-scope criteria.
+The next documented implementation phase is Phase 5: results map. Keep the
+Phase 4 boundary intact: do not treat the current results placeholder as the
+map, and do not implement selected-neighborhood 3D or Dossier bridge behavior
+until their later phases.
+
+## Latest Phase 4 Review Repair Update 2026-05-16
+
+This pass fixed the Phase 4 review blockers before Phase 5. It did not
+implement the Netherlands results map, selected-neighborhood detail/3D, house
+click behavior, or Dossier changes.
+
+Files changed in this Phase 4 repair:
+
+- `frontend/src/components/match-first/MatchingProgressScreen.tsx`
+- `frontend/src/test/match-first-progress.test.tsx`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/services/matchFirstAnalytics.test.ts`
+- `frontend/src/test/match-i18n.test.ts`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `docs/qa/open_punchlist.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/ai/latest_handoff.md`
+
+Completed repair work:
+
+- Terminal success now calls `GET /results` and validates matching
+  `session_id`, `job_id`, terminal `status`, and `result_set_id` before
+  calling completion or showing the checkmark.
+- Failed, stale, or mismatched result hydration now shows a distinct localized
+  Results unavailable state with retry and Back to survey, instead of a generic
+  100% progress state.
+- Added `match_results_unavailable` to the frontend analytics event set with
+  sanitized context only.
+- Strengthened Phase 4 tests for `loading_neighborhood_data`,
+  `applying_filters`, backend `poll_after_ms`, `completed`,
+  `completed_with_fallback`, `completed_no_strong_matches`, failed/expired/
+  cancelled terminal failures, stale/mismatched results, failed result fetch
+  retry, and Phase 4 analytics coverage.
+- Updated `docs/qa/open_punchlist.md` so Phase 4 is no longer listed as
+  unimplemented, and updated traceability with 100% Phase 4 closure for the
+  documented scope.
+
+Red-first evidence:
+
+- `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts` initially failed with 5 failures: missing `match_results_unavailable`, missing `matchFirst.results.retry`, generic terminal results-unavailable UI, and stale/mismatched result payloads incorrectly allowing completion.
+
+Final commands run:
+
+- `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/App.test.tsx src/components/match-first/MatchSuccessCheckmark.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts` passed.
+- `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx` passed.
+- `cd frontend && npx eslint src/components/match-first/MatchingProgressScreen.tsx src/components/match-first/MatchSuccessCheckmark.tsx src/services/matchFirstAnalytics.ts src/services/matchFirstApi.ts src/types/matchFirst.ts` passed.
+- `cd frontend && npm run build` passed. The build emitted the existing placeholder assetlinks/AASA production-release notices.
+
+Blocked / not green:
+
+- No Phase 4 touched-file gate is blocked. Full repo lint remains a known
+  broader cleanup item from pre-existing files outside this Phase 4 surface.
+
+Residual risks / next checks:
+
+- The visible results surface is still a Phase 5 placeholder after verified
+  completion; do not claim Netherlands map implementation from this work.
+- The full `App.test.tsx` run still prints existing unrelated Dossier/3D console
+  output and React act warnings, but the Phase 4 assertions passed.
+
+## Latest Phase 4 Progress/Success UI Update 2026-05-16
+
+This pass implemented only Phase 4 (`T-034` through `T-042`). It did not
+implement the Netherlands results map beyond the verified transition
+placeholder, selected-neighborhood detail/3D, house click behavior, or Dossier
+changes.
+
+Files changed in this Phase 4 pass:
+
+- `frontend/src/App.tsx`
+- `frontend/src/App.test.tsx`
+- `frontend/src/components/match-first/MatchingProgressScreen.tsx`
+- `frontend/src/components/match-first/MatchingProgressScreen.css`
+- `frontend/src/components/match-first/MatchSuccessCheckmark.tsx`
+- `frontend/src/components/match-first/MatchSuccessCheckmark.css`
+- `frontend/src/components/match-first/MatchSuccessCheckmark.test.tsx`
+- `frontend/src/services/matchFirstApi.ts`
+- `frontend/src/services/matchFirstApi.test.ts`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/services/matchFirstAnalytics.test.ts`
+- `frontend/src/test/match-first-progress.test.tsx`
+- `frontend/src/test/match-i18n.test.ts`
+- `frontend/src/types/matchFirst.ts`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `specs/002-match-first-revamp/tasks.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/ai/latest_handoff.md`
+
+Completed Phase 4 work:
+
+- Added typed frontend helpers for `POST /api/match/sessions/{session_id}/run`,
+  `GET /status`, and `GET /results`, including `poll_after_ms` and public job
+  status/result response types.
+- Replaced the old local run placeholder with `MatchingProgressScreen`, which
+  polls backend status, respects backend polling cadence, shows one friendly
+  localized status message at a time, avoids raw job internals, preserves retry
+  and back-to-survey paths, and verifies results before declaring completion.
+- Added explicit UI states for slow backend (`matching_slow`), failed/expired
+  backend states, and `completed_with_fallback` / no-strong-match usable
+  completion states.
+- Added `MatchSuccessCheckmark` with a large branded SVG checkmark, animated
+  draw behavior, reduced-motion static variant, accessible label, and CTA-based
+  transition to the results route.
+- Kept direct/restored success and results routes neutral unless the current
+  tab has verified terminal backend status plus fetched results. The results
+  route remains a Phase 5 placeholder after verified completion.
+- Added bilingual EN/NL progress, success, fallback, and results-placeholder
+  translation keys with i18n parity coverage.
+- Added privacy-safe progress/success analytics for final run CTA, queued,
+  running, slow, completed, failed, fallback, no-strong-match, retry, checkmark,
+  and results-open events without translated labels or raw answers.
+
+Red-first evidence:
+
+- The focused Phase 4 frontend command initially failed before implementation
+  because the progress component, checkmark component, run/status/results
+  helpers, analytics events, and i18n keys did not exist or still reflected the
+  old local placeholder contract.
+
+Final commands run:
+
+- `.\.specify\scripts\powershell\check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` resolved `FEATURE_DIR` to `C:\Users\milos\buurt-check\specs\002-match-first-revamp`.
+- Checklist review found `specs/002-match-first-revamp/checklists/requirements.md` at 76/76 complete.
+- `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/App.test.tsx src/components/match-first/MatchSuccessCheckmark.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts` passed.
+- `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx` passed.
+- `cd frontend && npx eslint src/components/match-first/MatchingProgressScreen.tsx src/components/match-first/MatchSuccessCheckmark.tsx src/services/matchFirstAnalytics.ts src/services/matchFirstApi.ts src/types/matchFirst.ts` passed.
+- `cd frontend && npm run build` passed. The build emitted the existing placeholder assetlinks/AASA production-release notices.
+
+Blocked / not green:
+
+- `cd frontend && npm run lint` still fails on pre-existing repo-wide lint
+  issues outside the Phase 4 touched surface, including `ActionBar.tsx`,
+  `CompareScreen.tsx`, `LoadingScreen.tsx`, `ShadowTimeSlider.tsx`,
+  `ShortlistScreen.tsx`, `SurveyShell.tsx`, `AnimatedScore.tsx`,
+  `useAnimationPerformance.ts`, `useFocusTrap.ts`, test setup files, and
+  `sunlightAnalysis` tests. The two touched files flagged by that lint run were
+  cleaned and verified with targeted ESLint.
+
+Residual risks / next checks:
+
+- Phase 4 uses polling only. No SSE/WebSocket mechanism was added because the
+  existing contract exposes pollable status plus `poll_after_ms`.
+- Results map data is fetched only to verify terminal completion before success;
+  the visible results surface is intentionally a placeholder for Phase 5.
+- The full `App.test.tsx` run prints existing unrelated Dossier/3D console
+  output and React act warnings, but the targeted Phase 4/App/a11y assertions
+  passed.
 
 ## Latest Phase 3 Gate Cleanup Update 2026-05-16
 

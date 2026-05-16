@@ -1,4 +1,4 @@
-const MATCH_FIRST_EVENTS = [
+export const MATCH_FIRST_EVENTS = [
   'match_first_landing_shown',
   'match_first_cta_clicked',
   'match_first_search_link_clicked',
@@ -9,6 +9,18 @@ const MATCH_FIRST_EVENTS = [
   'match_first_survey_abandoned',
   'match_first_survey_completed',
   'match_first_survey_review_shown',
+  'match_final_run_cta_clicked',
+  'match_job_queued',
+  'match_job_running',
+  'match_job_slow',
+  'match_job_completed',
+  'match_job_failed',
+  'match_job_completed_with_fallback',
+  'match_job_completed_no_strong_matches',
+  'match_job_retry_clicked',
+  'match_results_unavailable',
+  'match_success_checkmark_shown',
+  'match_results_map_opened',
 ] as const;
 
 export type MatchFirstEventName = typeof MATCH_FIRST_EVENTS[number];
@@ -35,8 +47,17 @@ const ALLOWED_CONTEXT_KEYS = new Set([
   'to_step',
   'reason',
   'stale_results',
+  'job_id',
+  'status',
+  'stage',
+  'progress',
+  'runtime_ms',
+  'poll_after_ms',
+  'result_set_id',
+  'fallback_reason_code',
+  'error_code',
 ]);
-const SAFE_TOKEN_PATTERN = /^[a-z0-9_:#/-]+$/i;
+const SAFE_TOKEN_PATTERN = /^[a-z0-9_:#/.-]+$/i;
 
 function readStoredEvents(): MatchFirstAnalyticsEvent[] {
   if (typeof window === 'undefined') return [];

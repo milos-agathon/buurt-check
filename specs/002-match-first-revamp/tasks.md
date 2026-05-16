@@ -345,7 +345,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
 
 ## Phase 4: Progress And Success States
 
-- ID: T-034
+- [X] ID: T-034
   Phase: 4
   Requirement covered: PRD Sections 7 Phase 4, 14.4-14.6, 21.3-21.4; Constitution XIII/XV.
   Files likely touched: `frontend/src/test/match-first-progress.test.tsx`, `frontend/src/services/matchFirstApi.ts`, `frontend/src/App.tsx`
@@ -354,7 +354,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability row "progress polling" links to test cases for all job stages.
   Dependencies: T-033.
 
-- ID: T-035
+- [X] ID: T-035
   Phase: 4
   Requirement covered: PRD Section 17.4; A11Y-2; Section 24 AC9.
   Files likely touched: `frontend/src/components/match-first/MatchSuccessCheckmark.test.tsx`, `frontend/src/components/match-first/MatchSuccessCheckmark.tsx`
@@ -363,7 +363,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability row "Buurt Check checkmark" links to animation/reduced-motion tests.
   Dependencies: T-034.
 
-- ID: T-036
+- [X] ID: T-036
   Phase: 4
   Requirement covered: PRD Sections 14.3-14.4; FR-M1.
   Files likely touched: `frontend/src/services/matchFirstApi.ts`, `frontend/src/services/matchFirstApi.test.ts`, `frontend/src/types/matchFirst.ts`
@@ -372,7 +372,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability links API helper tests to run/status/results contract.
   Dependencies: T-031, T-034.
 
-- ID: T-037
+- [X] ID: T-037
   Phase: 4
   Requirement covered: PRD Sections 7 Phase 4 and 10.5; A11Y-4; Constitution III/VII.
   Files likely touched: `frontend/src/components/match-first/MatchingProgressScreen.tsx`, `frontend/src/components/match-first/MatchingProgressScreen.css`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`
@@ -381,7 +381,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability row PRD AC8 links to progress component and i18n tests.
   Dependencies: T-034, T-036.
 
-- ID: T-038
+- [X] ID: T-038
   Phase: 4
   Requirement covered: PRD Section 7 Phase 5 and 17.4; A11Y-2.
   Files likely touched: `frontend/src/components/match-first/MatchSuccessCheckmark.tsx`, `frontend/src/components/match-first/MatchSuccessCheckmark.css`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`
@@ -390,7 +390,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability row PRD AC9 links to success checkmark tests.
   Dependencies: T-035, T-037.
 
-- ID: T-039
+- [X] ID: T-039
   Phase: 4
   Requirement covered: PRD FR-M1; Sections 6.1 and 24 AC7-AC9; Constitution XIII.
   Files likely touched: `frontend/src/App.tsx`, `frontend/src/routing/hashRoutes.ts`, `frontend/src/App.test.tsx`
@@ -399,7 +399,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability records route-state proof that no local placeholder can imply completion.
   Dependencies: T-036, T-037, T-038.
 
-- ID: T-040
+- [X] ID: T-040
   Phase: 4
   Requirement covered: PRD Sections 20.2, 21.1, 21.3, 21.4; Constitution XV.
   Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`
@@ -408,7 +408,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability row "progress analytics" lists stable event names and no translated labels.
   Dependencies: T-037, T-039.
 
-- ID: T-041
+- [X] ID: T-041
   Phase: 4
   Requirement covered: PRD A11Y-1 to A11Y-5; Sections 21.3-21.4.
   Files likely touched: `frontend/src/test/match-first-a11y.test.tsx`, `frontend/src/components/match-first/MatchingProgressScreen.tsx`, `frontend/src/components/match-first/MatchSuccessCheckmark.tsx`
@@ -417,7 +417,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability includes Phase 4 accessibility evidence.
   Dependencies: T-037, T-038, T-039.
 
-- ID: T-042
+- [X] ID: T-042
   Phase: 4
   Requirement covered: PRD Section 23 Phase 4; Constitution VIII/XI.
   Files likely touched: `docs/qa/match_first_revamp_traceability.md`, `docs/ai/latest_handoff.md`

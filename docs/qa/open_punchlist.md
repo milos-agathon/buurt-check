@@ -10,9 +10,14 @@ Updated: 2026-05-16
 - Analytics gate status: Phase 3 job analytics now use the canonical event names `match_final_run_cta_clicked`, `match_job_queued`, `match_job_running`, `match_job_completed`, `match_job_failed`, `match_job_completed_with_fallback`, `match_job_completed_no_strong_matches`, and `match_job_slow`; old job alias events are not in the backend allowlist.
 - SpecKit analyze status: a read-only `/speckit.analyze` equivalent was rerun after the gate cleanup. It resolved `FEATURE_DIR` to `specs/002-match-first-revamp` and found no critical or high Phase 3 gate blockers.
 
+## Phase 4 Progress/Success UI Closure
+
+- Status: closed for documented Phase 4 scope after the 2026-05-16 review repair.
+- Evidence: review CTA starts the backend run, progress polls persisted status with `poll_after_ms`, all required progress stages have friendly bilingual copy, slow/failed/expired/cancelled/fallback/no-strong states have localized recovery, terminal success verifies matching `session_id`, `job_id`, `status`, and `result_set_id` before showing the checkmark, stale/unavailable results show a distinct recovery state, and `match_results_unavailable` analytics is emitted with sanitized context.
+- Commands passed: `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/App.test.tsx src/components/match-first/MatchSuccessCheckmark.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts`; `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx`; `cd frontend && npx eslint src/components/match-first/MatchingProgressScreen.tsx src/components/match-first/MatchSuccessCheckmark.tsx src/services/matchFirstAnalytics.ts src/services/matchFirstApi.ts src/types/matchFirst.ts`; `cd frontend && npm run build`.
+
 ## Remaining Missing Or Partial Items
 
-- Phase 4 progress/success UI is still not implemented: review CTA must call the real run endpoint, progress must poll persisted status/stage, slow/failure/fallback/no-strong states need accessible recovery, and success must require terminal backend state.
 - Phase 5 Netherlands results map is still not implemented.
 - Phase 6 selected-neighborhood detail and selected-neighborhood-only 3D loading are still not implemented.
 - Phase 7 house-to-existing-Dossier bridge and full back-to-match-map restoration are still not implemented.

@@ -1,4 +1,4 @@
-import { recordMatchFirstEvent } from './matchFirstAnalytics';
+import { MATCH_FIRST_EVENTS, recordMatchFirstEvent } from './matchFirstAnalytics';
 
 const storageKey = 'buurt-check-match-first-analytics';
 
@@ -80,6 +80,112 @@ it('records privacy-safe survey lifecycle events', () => {
       locale: 'nl',
     },
   ]);
+});
+
+it('records privacy-safe match progress and success events', () => {
+  recordMatchFirstEvent('match_final_run_cta_clicked', {
+    locale: 'en',
+    source: 'review',
+    session_id: 'match-123',
+    job_id: 'match_job_123',
+    status: 'queued',
+    runtime_ms: 1024,
+  });
+  recordMatchFirstEvent('match_job_completed_with_fallback', {
+    locale: 'en',
+    source: 'progress',
+    session_id: 'match-123',
+    job_id: 'match_job_123',
+    status: 'completed_with_fallback',
+    fallback_reason_code: 'match.warning.advanced_ranking_skipped',
+    translated_label: 'Stable scoring model',
+  });
+  recordMatchFirstEvent('match_success_checkmark_shown', {
+    locale: 'en',
+    source: 'success',
+    session_id: 'match-123',
+    result_set_id: 'mrs_123',
+    status: 'completed_with_fallback',
+  });
+
+  expect(readStoredEvents()).toMatchObject([
+    {
+      event_name: 'match_final_run_cta_clicked',
+      context: {
+        locale: 'en',
+        source: 'review',
+        session_id: 'match-123',
+        job_id: 'match_job_123',
+        status: 'queued',
+        runtime_ms: 1024,
+      },
+    },
+    {
+      event_name: 'match_job_completed_with_fallback',
+      context: {
+        fallback_reason_code: 'match.warning.advanced_ranking_skipped',
+        status: 'completed_with_fallback',
+      },
+    },
+    {
+      event_name: 'match_success_checkmark_shown',
+      context: {
+        result_set_id: 'mrs_123',
+        status: 'completed_with_fallback',
+      },
+    },
+  ]);
+  expect(JSON.stringify(readStoredEvents())).not.toContain('Stable scoring model');
+});
+
+it('allows the full Phase 4 progress, terminal, retry, and unavailable event set', () => {
+  expect(MATCH_FIRST_EVENTS).toEqual(expect.arrayContaining([
+    'match_final_run_cta_clicked',
+    'match_job_queued',
+    'match_job_running',
+    'match_job_slow',
+    'match_job_completed',
+    'match_job_failed',
+    'match_job_completed_with_fallback',
+    'match_job_completed_no_strong_matches',
+    'match_job_retry_clicked',
+    'match_results_unavailable',
+    'match_success_checkmark_shown',
+    'match_results_map_opened',
+  ]));
+});
+
+it('records privacy-safe unavailable-results analytics without user text', () => {
+  recordMatchFirstEvent('match_results_unavailable', {
+    locale: 'en',
+    source: 'progress',
+    session_id: 'match-123',
+    job_id: 'match_job_123',
+    result_set_id: 'mrs_123',
+    status: 'completed',
+    reason: 'result_fetch_failed',
+    translated_label: 'Results unavailable',
+    free_text: 'Please show my matches',
+    anchor_label: 'Utrecht Centraal',
+  });
+
+  expect(readStoredEvents()).toMatchObject([
+    {
+      event_name: 'match_results_unavailable',
+      context: {
+        locale: 'en',
+        source: 'progress',
+        session_id: 'match-123',
+        job_id: 'match_job_123',
+        result_set_id: 'mrs_123',
+        status: 'completed',
+        reason: 'result_fetch_failed',
+      },
+    },
+  ]);
+  expect(JSON.stringify(readStoredEvents())).not.toContain('Results unavailable');
+  expect(JSON.stringify(readStoredEvents())).not.toContain('Please show my matches');
+  expect(JSON.stringify(readStoredEvents())).not.toContain('Utrecht Centraal');
 });
 
 it('drops translated labels exact anchors and free text from survey analytics context', () => {

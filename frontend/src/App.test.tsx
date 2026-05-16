@@ -90,6 +90,9 @@ function completeMatchSessionResponse(sessionId: string, answers: MatchFirstSurv
 function mockMatchFirstFetch(options: {
   sessionId?: string;
   getSessionBody?: Record<string, unknown>;
+  runBody?: Record<string, unknown>;
+  statusBody?: Record<string, unknown>;
+  resultsBody?: Record<string, unknown>;
   createStatus?: number;
 } = {}) {
   const sessionId = options.sessionId ?? 'match_backend_123';
@@ -123,6 +126,77 @@ function mockMatchFirstFetch(options: {
     }
     if (url.endsWith(`/api/match/sessions/${sessionId}`) && method === 'GET') {
       return new Response(JSON.stringify(options.getSessionBody ?? completeMatchSessionResponse(sessionId)), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith(`/api/match/sessions/${sessionId}/run`) && method === 'POST') {
+      return new Response(JSON.stringify(options.runBody ?? {
+        session_id: sessionId,
+        job_id: `match_job_${sessionId}`,
+        status: 'queued',
+        stage: 'queued',
+        progress: 5,
+        message_key: 'matchFirst.progress.queued',
+        preference_vector_id: `pv_${sessionId}`,
+        poll_after_ms: 1000,
+      }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith(`/api/match/sessions/${sessionId}/status`) && method === 'GET') {
+      return new Response(JSON.stringify(options.statusBody ?? {
+        session_id: sessionId,
+        job_id: `match_job_${sessionId}`,
+        status: 'running',
+        stage: 'reading_preferences',
+        progress: 20,
+        message_key: 'matchFirst.progress.reading_preferences',
+        model_mode: 'weighted_scoring',
+        model_version: 'match-score-v1',
+        scoring_version: 'match-score-v1',
+        evaluation_status: 'not_validated_no_labels',
+        fallback_used: false,
+        fallback_reason_code: null,
+        result_set_id: null,
+        error_code: null,
+        runtime_ms: 400,
+        updated_at: '2026-05-16T12:00:00Z',
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith(`/api/match/sessions/${sessionId}/results`) && method === 'GET') {
+      return new Response(JSON.stringify(options.resultsBody ?? {
+        session_id: sessionId,
+        job_id: `match_job_${sessionId}`,
+        result_set_id: `mrs_${sessionId}`,
+        preference_vector_version: `vector_${sessionId}`,
+        status: 'completed',
+        generated_at: '2026-05-16T12:00:01Z',
+        runtime_ms: 1900,
+        model_mode: 'weighted_scoring',
+        model_version: 'match-score-v1',
+        scoring_version: 'match-score-v1',
+        data_version: 'match-seed-v1',
+        evaluation_status: 'not_validated_no_labels',
+        predictive_probability_available: false,
+        fallback_used: false,
+        fallback_reason_code: null,
+        normal_recommendation_count: 0,
+        candidate_count: 0,
+        scored_candidate_count: 0,
+        ranked_results: [],
+        recommendations: [],
+        stretch_matches: [],
+        near_misses: [],
+        empty_state_code: null,
+        map_center: { lat: 52.2, lng: 5.3 },
+        bbox: [3.2, 50.7, 7.3, 53.6],
+        map: { type: 'FeatureCollection', display_bounds_wgs84: [3.2, 50.7, 7.3, 53.6], features: [] },
+      }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -917,10 +991,17 @@ describe('initial render', () => {
       expect(window.location.hash).toBe('#/match/session/match-review-run/run');
     });
     const sessionId = window.location.hash.split('/')[3];
-    expect(localStorage.getItem(`buurt-check-match-first-job-status:${sessionId}`)).toBe('run_pending');
-    expect(await screen.findByRole('status')).toHaveTextContent('Your answers are saved. Results will appear here when matching is available.');
+    expect(localStorage.getItem(`buurt-check-match-first-job-status:${sessionId}`)).toBe('queued');
+    expect(await screen.findByText('Getting your match ready')).toBeInTheDocument();
     expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions/match-review-run', expect.objectContaining({
       credentials: 'include',
+    }));
+    expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions/match-review-run/run', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        preference_vector_version: 'vector_match-review-run',
+        source: 'review_final_cta',
+      }),
     }));
 
     fetchSpy.mockRestore();
@@ -1032,29 +1113,38 @@ describe('initial render', () => {
   });
 
   it.each([
-    ['run_pending', '#/match/session/match-pending/run', 'Your answers are saved. Results will appear here when matching is available.'],
-    ['slow', '#/match/session/match-slow/run', 'This is taking longer than usual, but your match is still running.'],
+    ['run_pending', '#/match/session/match-pending/run', 'Getting your match ready'],
+    ['matching_slow', '#/match/session/match-slow/run', 'This is taking longer than usual, but your match is still running.'],
     ['failed', '#/match/session/match-failed/run', "We couldn't create your match map yet. Your answers are saved, so you can try again without starting over."],
   ])('renders the %s match shell from stored Phase 1 job state', async (status, hash, expectedCopy) => {
     const sessionId = hash.split('/')[3];
+    const fetchSpy = mockMatchFirstFetch({ sessionId });
     localStorage.setItem(`buurt-check-match-first-job-status:${sessionId}`, status);
     window.location.hash = hash;
     renderApp();
 
     expect(await screen.findByText(expectedCopy)).toBeInTheDocument();
     expect(screen.queryByText(/backend|polling|connected/i)).not.toBeInTheDocument();
+    fetchSpy.mockRestore();
   });
 
   it('lets failed match progress retry without restarting the survey', async () => {
+    const fetchSpy = mockMatchFirstFetch({ sessionId: 'match-failed' });
     localStorage.setItem('buurt-check-match-first-job-status:match-failed', 'failed');
     window.location.hash = '#/match/session/match-failed/run';
     renderApp();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
 
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions/match-failed/run', expect.objectContaining({
+        method: 'POST',
+      }));
+    });
     expect(window.location.hash).toBe('#/match/session/match-failed/run');
-    expect(localStorage.getItem('buurt-check-match-first-job-status:match-failed')).toBe('run_pending');
-    expect(await screen.findByRole('status')).toHaveTextContent('Your answers are saved. Results will appear here when matching is available.');
+    expect(localStorage.getItem('buurt-check-match-first-job-status:match-failed')).toBe('queued');
+    expect(await screen.findByRole('status')).toHaveTextContent('Getting your match ready');
+    fetchSpy.mockRestore();
   });
 
   it.each([

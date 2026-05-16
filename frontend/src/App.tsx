@@ -124,7 +124,12 @@ import {
   submitMatchFeedback,
   updateMatchAlertStatus,
 } from './services/matchApi';
-import { createMatchSession, getMatchSession } from './services/matchFirstApi';
+import {
+  createMatchSession,
+  getMatchSession,
+  runMatchSession,
+} from './services/matchFirstApi';
+import { recordMatchFirstEvent } from './services/matchFirstAnalytics';
 import { readMatchSessionSnapshot, saveMatchSessionSnapshot } from './services/matchSessionStorage';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import { useViewportBottomOffset } from './hooks/useViewportBottomOffset';
@@ -192,6 +197,10 @@ import {
 } from './routing/hashRoutes';
 import type {
   MatchFirstPreferenceVector,
+  MatchJobPublicStatus,
+  MatchJobStatusResponse,
+  MatchResultsResponse,
+  MatchRunResponse,
   MatchSessionResponse,
   MatchFirstSurveyAnswers,
 } from './types/matchFirst';
@@ -207,6 +216,8 @@ const MatchLanding = lazy(() => import('./components/match-first/MatchFirstLandi
 const MatchSurveyIntro = lazy(() => import('./components/match-first/SurveyIntro'));
 const MatchSurveyShell = lazy(() => import('./components/match-first/SurveyShell'));
 const MatchSurveyReview = lazy(() => import('./components/match-first/SurveyReview'));
+const MatchingProgressScreen = lazy(() => import('./components/match-first/MatchingProgressScreen'));
+const MatchSuccessCheckmark = lazy(() => import('./components/match-first/MatchSuccessCheckmark'));
 const MatchComparison = lazy(() => import('./components/match/MatchComparison'));
 const MatchSimilarSearch = lazy(() => import('./components/match/MatchSimilarSearch'));
 const MatchReport = lazy(() => import('./components/match/MatchReport'));
@@ -596,18 +607,20 @@ const MATCH_RETURN_ROUTES: ReadonlySet<HashRoute> = new Set([
 const MATCH_SESSION_STORAGE_KEY = 'buurt-check-match-first-session-id';
 type MatchJobStatus =
   | 'run_pending'
-  | 'running'
+  | MatchJobPublicStatus
   | 'slow'
-  | 'failed'
-  | 'completed_with_fallback'
   | 'no_results'
   | 'no_strong_matches';
 const MATCH_JOB_STATUS_STORAGE_KEY_PREFIX = 'buurt-check-match-first-job-status:';
 const MATCH_JOB_STORAGE_STATUSES: ReadonlySet<MatchJobStatus> = new Set([
   'run_pending',
+  'queued',
   'running',
+  'matching_slow',
   'slow',
   'failed',
+  'expired',
+  'cancelled',
 ]);
 const MATCH_RETURN_CONTEXT_KEY_PREFIX = 'buurt-check-match-first-return-context:';
 const MATCH_RETURN_CONTEXT_ACTIVATED_KEY = 'activatedFromDossierBack';
@@ -639,6 +652,7 @@ function matchJobStatusStorageKey(sessionId: string): string {
 }
 
 function normalizeMatchJobStatus(value: string | null | undefined): MatchJobStatus | null {
+  if (value === 'slow') return 'matching_slow';
   return value && MATCH_JOB_STORAGE_STATUSES.has(value as MatchJobStatus) ? value as MatchJobStatus : null;
 }
 
@@ -728,6 +742,62 @@ function storeMatchJobStatus(sessionId: string, status: MatchJobStatus): void {
   } catch {
     // The active tab still carries this neutral status in memory.
   }
+}
+
+function storedMatchStatusToInitialStatus(
+  sessionId: string | null | undefined,
+  status: MatchJobStatus | null,
+): MatchRunResponse | MatchJobStatusResponse | null {
+  if (!sessionId || !status) return null;
+  if (status === 'run_pending') {
+    return {
+      session_id: sessionId,
+      job_id: 'match_job_pending',
+      status: 'queued',
+      stage: 'queued',
+      progress: 5,
+      message_key: 'matchFirst.progress.queued',
+      preference_vector_id: 'pending',
+      poll_after_ms: 1000,
+    };
+  }
+  if (
+    status === 'queued'
+    || status === 'running'
+    || status === 'matching_slow'
+    || status === 'failed'
+    || status === 'expired'
+    || status === 'cancelled'
+  ) {
+    const stage = status === 'failed' || status === 'expired'
+      ? status
+      : status === 'matching_slow'
+        ? 'scoring_tradeoffs'
+        : status === 'queued'
+          ? 'queued'
+          : 'reading_preferences';
+    return {
+      session_id: sessionId,
+      job_id: 'match_job_restored',
+      status,
+      stage,
+      progress: status === 'failed' || status === 'expired' || status === 'cancelled' ? 100 : 10,
+      message_key: status === 'matching_slow'
+        ? 'matchFirst.progress.matching_slow'
+        : `matchFirst.progress.${stage}`,
+      model_mode: 'weighted_scoring',
+      model_version: 'match-score-v1',
+      scoring_version: 'match-score-v1',
+      evaluation_status: 'not_validated_no_labels',
+      fallback_used: false,
+      fallback_reason_code: null,
+      result_set_id: null,
+      error_code: null,
+      runtime_ms: 0,
+      updated_at: new Date(0).toISOString(),
+    };
+  }
+  return null;
 }
 
 function matchReturnContextStorageKey(sessionId: string): string {
@@ -1522,6 +1592,9 @@ function App() {
   const [activeMatchJobStatus, setActiveMatchJobStatus] = useState<MatchJobStatus | null>(() => (
     readStoredMatchJobStatus(initialMatchSessionId)
   ));
+  const [activeMatchRunStatus, setActiveMatchRunStatus] = useState<MatchRunResponse | MatchJobStatusResponse | null>(null);
+  const [verifiedMatchStatus, setVerifiedMatchStatus] = useState<MatchJobStatusResponse | null>(null);
+  const [verifiedMatchResults, setVerifiedMatchResults] = useState<MatchResultsResponse | null>(null);
   const [matchSessionErrorKey, setMatchSessionErrorKey] = useState<string | null>(null);
   const [matchReviewSyncErrorKey, setMatchReviewSyncErrorKey] = useState<string | null>(null);
   const [matchReviewSyncing, setMatchReviewSyncing] = useState(false);
@@ -5887,10 +5960,6 @@ function App() {
     || activeScreen === 'matchSurveyIntro'
     || activeScreen === 'matchSurvey'
     || activeScreen === 'matchReview';
-  const canShowMatchRunShell = activeMatchJobStatus === 'running'
-    || activeMatchJobStatus === 'run_pending'
-    || activeMatchJobStatus === 'slow'
-    || activeMatchJobStatus === 'failed';
   const restoredMatchMapContext = matchMapReturnContext;
   const canShowMatchNeighborhoodShell = Boolean(
     restoredMatchMapContext?.sessionId
@@ -5907,14 +5976,29 @@ function App() {
   const showDossierRouteMatchReturnAction = !!matchReturnContext && !showDossierInlineMatchReturnAction;
   const matchNotFoundRecovery = isMatchNotFoundRoute(notFoundRoute);
 
-  const startMatchRun = (sessionId: string) => {
+  const startMatchRun = async (sessionId: string, preferenceVectorVersion: string) => {
+    setVerifiedMatchStatus(null);
+    setVerifiedMatchResults(null);
+    setActiveMatchRunStatus(null);
     storeMatchJobStatus(sessionId, 'run_pending');
     setActiveMatchJobStatus('run_pending');
+    recordMatchFirstEvent('match_final_run_cta_clicked', {
+      locale: i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en',
+      source: 'review',
+      session_id: sessionId,
+    });
+    const runStatus = await runMatchSession(sessionId, {
+      preference_vector_version: preferenceVectorVersion,
+      source: 'review_final_cta',
+    });
+    setActiveMatchRunStatus(runStatus);
+    setActiveMatchJobStatus(runStatus.status);
+    storeMatchJobStatus(sessionId, runStatus.status);
     setActiveScreen('matchRun');
     setHashRoute(buildHashRoute({ route: 'matchRun', sessionId }));
   };
 
-  const retryMatchRun = () => {
+  const retryMatchRun = async () => {
     const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
     if (!sessionId) {
       setActiveMatchQuestionStep(1);
@@ -5922,16 +6006,28 @@ function App() {
       setHashRoute(buildHashRoute({ route: 'matchSurvey', questionStep: 1 }));
       return;
     }
-    setActiveMatchSessionId(sessionId);
-    storeMatchSessionId(sessionId);
-    storeMatchJobStatus(sessionId, 'run_pending');
-    setActiveMatchJobStatus('run_pending');
-    setActiveScreen('matchRun');
-    setHashRoute(buildHashRoute({ route: 'matchRun', sessionId }));
+    try {
+      const session = await getMatchSession(sessionId);
+      if (!session.is_complete || !session.preference_vector_version) {
+        returnToMatchSurvey();
+        return;
+      }
+      setActiveMatchSessionId(sessionId);
+      storeMatchSessionId(sessionId);
+      await startMatchRun(sessionId, session.preference_vector_version);
+    } catch {
+      setActiveMatchJobStatus('failed');
+      storeMatchJobStatus(sessionId, 'failed');
+      setActiveScreen('matchRun');
+      setHashRoute(buildHashRoute({ route: 'matchRun', sessionId }));
+    }
   };
 
   const returnToMatchSurvey = () => {
     const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+    setActiveMatchRunStatus(null);
+    setVerifiedMatchStatus(null);
+    setVerifiedMatchResults(null);
     if (sessionId) {
       setActiveMatchSessionId(sessionId);
       storeMatchSessionId(sessionId);
@@ -5970,6 +6066,7 @@ function App() {
       if (
         !session.is_complete
         || !session.preference_vector
+        || !session.preference_vector_version
         || !matchPreferenceVectorMatchesAnswers(session.preference_vector, answers)
       ) {
         setMatchReviewSyncErrorKey('matchFirst.review.syncFailed');
@@ -5978,7 +6075,7 @@ function App() {
       setActiveMatchSessionId(sessionId);
       storeMatchSessionId(sessionId);
       setMatchSurveyAnswers({ sessionId, answers });
-      startMatchRun(sessionId);
+      await startMatchRun(sessionId, session.preference_vector_version);
     } catch {
       setMatchReviewSyncErrorKey('matchFirst.review.syncFailed');
     } finally {
@@ -6062,52 +6159,28 @@ function App() {
     </section>
   );
 
-  const renderMatchRunShell = () => {
-    const bodyKey = activeMatchJobStatus === 'slow'
-      ? 'matchFirst.failure.slowBackend'
-      : activeMatchJobStatus === 'failed'
-        ? 'matchFirst.failure.failedBackend'
-        : 'matchFirst.progress.placeholder';
-    const titleKey = activeMatchJobStatus === 'failed'
-      ? 'matchFirst.results.unavailableTitle'
-      : 'matchFirst.progress.title';
-
-    return (
-      <section className="match-first-landing match-first-landing--simple" aria-labelledby="match-run-title">
-        <div className="match-first-landing__content">
-          <p className="match-first-landing__eyebrow">{t('matchFirst.progress.eyebrow')}</p>
-          <h1 id="match-run-title">{t(titleKey)}</h1>
-          <p className="match-first-landing__body" role="status">{t(bodyKey)}</p>
-          {(activeMatchJobStatus === 'running' || activeMatchJobStatus === 'run_pending') && (
-            <p className="match-first-landing__body">{t('matchFirst.progress.honesty')}</p>
-          )}
-          <div className="match-first-landing__actions">
-            {activeMatchJobStatus === 'failed' && (
-              <button
-                type="button"
-                className="match-first-landing__cta"
-                onClick={retryMatchRun}
-              >
-                {t('matchFirst.progress.retry')}
-              </button>
-            )}
-            <button
-              type="button"
-              className={activeMatchJobStatus === 'failed' ? 'match-first-landing__address-link' : 'match-first-landing__cta'}
-              onClick={returnToMatchSurvey}
-            >
-              {t('matchFirst.progress.backToSurvey')}
-            </button>
-          </div>
-        </div>
-      </section>
-    );
-  };
-
   const renderMatchResultsShell = (
     titleId: string,
     sectionDataProps: Record<string, string | undefined> = {},
   ) => {
+    if (verifiedMatchResults?.session_id === activeMatchSessionId) {
+      return (
+        <section
+          {...sectionDataProps}
+          className="match-first-landing match-first-landing--simple"
+          aria-labelledby={titleId}
+        >
+          <div className="match-first-landing__content">
+            <p className="match-first-landing__eyebrow">{t('matchFirst.results.eyebrow')}</p>
+            <h1 id={titleId}>{t('matchFirst.results.readyTitle')}</h1>
+            <p className="match-first-landing__body" role="status">{t('matchFirst.results.readyBody')}</p>
+            {verifiedMatchResults.fallback_used && (
+              <p className="match-first-landing__body">{t('matchFirst.failure.completedWithFallback')}</p>
+            )}
+          </div>
+        </section>
+      );
+    }
     const bodyKey = activeMatchJobStatus === 'completed_with_fallback'
       ? 'matchFirst.failure.completedWithFallback'
       : activeMatchJobStatus === 'no_results'
@@ -6139,6 +6212,48 @@ function App() {
       </section>
     );
   };
+
+  const handleMatchProgressComplete = (
+    status: MatchJobStatusResponse,
+    results: MatchResultsResponse,
+  ) => {
+    setVerifiedMatchStatus(status);
+    setVerifiedMatchResults(results);
+    setActiveMatchRunStatus(status);
+    setActiveMatchJobStatus(status.status);
+    recordMatchFirstEvent('match_success_checkmark_shown', {
+      locale: i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en',
+      source: 'success',
+      session_id: status.session_id,
+      job_id: status.job_id,
+      result_set_id: results.result_set_id,
+      status: status.status,
+      runtime_ms: status.runtime_ms,
+    });
+    setActiveScreen('matchSuccess');
+    setHashRoute(buildHashRoute({ route: 'matchSuccess', sessionId: status.session_id }));
+  };
+
+  const openVerifiedMatchResults = () => {
+    const sessionId = verifiedMatchResults?.session_id ?? activeMatchSessionId;
+    if (!sessionId) returnToMatchSurvey();
+    if (!sessionId) return;
+    recordMatchFirstEvent('match_results_map_opened', {
+      locale: i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en',
+      source: 'success',
+      session_id: sessionId,
+      result_set_id: verifiedMatchResults?.result_set_id,
+      status: verifiedMatchResults?.status,
+    });
+    setActiveScreen('matchResults');
+    setHashRoute(buildHashRoute({ route: 'matchResults', sessionId }));
+  };
+
+  const currentMatchRunInitialStatus = useMemo(
+    () => activeMatchRunStatus
+      ?? storedMatchStatusToInitialStatus(activeMatchSessionId, activeMatchJobStatus),
+    [activeMatchJobStatus, activeMatchRunStatus, activeMatchSessionId],
+  );
 
   const renderMatchReturnAction = () => (
     matchReturnContext ? (
@@ -6366,7 +6481,20 @@ function App() {
               className="app__screen"
               {...matchRouteMotionProps}
             >
-              {canShowMatchRunShell ? renderMatchRunShell() : renderMatchRecovery('match-run-title')}
+              {activeMatchSessionId ? (
+                <Suspense fallback={routeLoadingFallback}>
+                  <MatchingProgressScreen
+                    key={activeMatchSessionId}
+                    sessionId={activeMatchSessionId}
+                    initialStatus={currentMatchRunInitialStatus}
+                    onBackToSurvey={returnToMatchSurvey}
+                    onRetry={() => {
+                      void retryMatchRun();
+                    }}
+                    onComplete={handleMatchProgressComplete}
+                  />
+                </Suspense>
+              ) : renderMatchRecovery('match-run-title')}
             </motion.div>
           )}
 
@@ -6376,7 +6504,15 @@ function App() {
               className="app__screen"
               {...matchRouteMotionProps}
             >
-              {renderMatchSuccessUnavailable('match-success-title')}
+              {verifiedMatchStatus && verifiedMatchResults?.session_id === activeMatchSessionId ? (
+                <Suspense fallback={routeLoadingFallback}>
+                  <MatchSuccessCheckmark
+                    status={verifiedMatchStatus.status as MatchResultsResponse['status']}
+                    reducedMotion={Boolean(prefersReducedMotion)}
+                    onOpenResults={openVerifiedMatchResults}
+                  />
+                </Suspense>
+              ) : renderMatchSuccessUnavailable('match-success-title')}
             </motion.div>
           )}
 
