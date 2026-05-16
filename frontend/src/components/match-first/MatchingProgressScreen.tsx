@@ -70,10 +70,11 @@ function isStatusResponse(status: ProgressInput): status is MatchJobStatusRespon
 }
 
 function terminalResultsMatch(status: MatchJobStatusResponse, results: MatchResultsResponse): boolean {
-  return results.session_id === status.session_id
+  return Boolean(status.result_set_id)
+    && results.session_id === status.session_id
     && results.job_id === status.job_id
     && results.status === status.status
-    && (!status.result_set_id || results.result_set_id === status.result_set_id);
+    && results.result_set_id === status.result_set_id;
 }
 
 function toStatusResponse(status: ProgressInput): MatchJobStatusResponse {
@@ -144,6 +145,10 @@ export default function MatchingProgressScreen({
     let reason = 'result_fetch_failed';
     try {
       const results = await getMatchResults(sessionId);
+      if (!terminalStatus.result_set_id) {
+        reason = 'missing_result_set_id';
+        throw new Error('match.results.missing_result_set_id');
+      }
       if (!terminalResultsMatch(terminalStatus, results)) {
         reason = 'result_mismatch';
         throw new Error('match.results.mismatch');

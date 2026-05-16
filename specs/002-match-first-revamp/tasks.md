@@ -428,7 +428,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
 
 ## Phase 5: Results Map
 
-- ID: T-043
+- [X] ID: T-043
   Phase: 5
   Requirement covered: PRD Sections 16.2 and 23 Phase 5; Constitution IV/XII.
   Files likely touched: `specs/002-match-first-revamp/implementation-notes.md`, `frontend/package.json`, `frontend/package-lock.json`
@@ -437,7 +437,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability row "results map dependency decision" links to implementation note and lockfile diff if dependency is added.
   Dependencies: T-042.
 
-- ID: T-044
+- [X] ID: T-044
   Phase: 5
   Requirement covered: PRD FR-R1 to FR-R7; Sections 8.8 and 11.
   Files likely touched: `frontend/src/test/match-first-results-map.test.tsx`, `frontend/src/services/matchFirstApi.ts`, `frontend/src/types/matchFirst.ts`
@@ -446,7 +446,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability row "results map behavior" links to test assertions.
   Dependencies: T-042.
 
-- ID: T-045
+- [X] ID: T-045
   Phase: 5
   Requirement covered: PRD FR-R1, Section 14.3; Constitution XIV.
   Files likely touched: `frontend/src/services/matchFirstApi.ts`, `frontend/src/services/matchFirstApi.test.ts`, `frontend/src/types/matchFirst.ts`
@@ -455,7 +455,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability links TypeScript result contracts to API contract examples.
   Dependencies: T-044.
 
-- ID: T-046
+- [X] ID: T-046
   Phase: 5
   Requirement covered: PRD FR-R1, Section 24 AC10; Constitution XIV.
   Files likely touched: `frontend/src/App.tsx`, `frontend/src/routing/hashRoutes.ts`, `frontend/src/App.test.tsx`
@@ -464,7 +464,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability PRD AC10 states initial national orientation proof.
   Dependencies: T-045.
 
-- ID: T-047
+- [X] ID: T-047
   Phase: 5
   Requirement covered: PRD FR-R1, FR-R3, FR-R4, FR-R7; Section 16.2.
   Files likely touched: `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/test/match-first-results-map.test.tsx`
@@ -473,7 +473,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability links FR-R1/FR-R3/FR-R4/FR-R7 to component/test proof.
   Dependencies: T-043, T-045, T-046.
 
-- ID: T-048
+- [X] ID: T-048
   Phase: 5
   Requirement covered: PRD FR-R2, FR-R5, FR-R6; Constitution V/X.
   Files likely touched: `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/components/match-first/RecommendationCard.tsx`, `frontend/src/components/match-first/RecommendationList.css`, `frontend/src/test/match-first-results-map.test.tsx`
@@ -482,7 +482,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability rows FR-R2/FR-R5/FR-R6 link to list/card tests.
   Dependencies: T-045.
 
-- ID: T-049
+- [X] ID: T-049
   Phase: 5
   Requirement covered: PRD FR-R2 to FR-R7; A11Y-6; Constitution IX.
   Files likely touched: `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/services/matchSessionStorage.ts`, `frontend/src/test/match-first-results-map.test.tsx`
@@ -491,7 +491,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability PRD AC11 and A11Y-6 link to sync and keyboard tests.
   Dependencies: T-047, T-048.
 
-- ID: T-050
+- [X] ID: T-050
   Phase: 5
   Requirement covered: PRD Sections 20.3, 21, 15.3; Constitution XV.
   Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-fallbacks.test.tsx`
@@ -500,7 +500,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability row "results analytics and fallbacks" lists stable events and fallback keys.
   Dependencies: T-047, T-049.
 
-- ID: T-051
+- [X] ID: T-051
   Phase: 5
   Requirement covered: PRD Sections 16.2, 18, 20.3; Constitution IV/VII.
   Files likely touched: `frontend/tests/e2e/match-first-flow.spec.ts`, `frontend/src/test/match-first-map-performance.test.tsx`
@@ -509,7 +509,7 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Acceptance evidence: Traceability includes measured or documented target profile results.
   Dependencies: T-047, T-049.
 
-- ID: T-052
+- [X] ID: T-052
   Phase: 5
   Requirement covered: PRD Section 23 Phase 5; Constitution VIII/XI.
   Files likely touched: `docs/qa/match_first_revamp_traceability.md`, `docs/ai/latest_handoff.md`
@@ -517,6 +517,16 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
   Validation: `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts`; `cd frontend && npm run build`; selected E2E.
   Acceptance evidence: Traceability maps PRD AC10-AC11 and AC16-AC18 to files/tests.
   Dependencies: T-043 through T-051.
+
+Phase 5 closure note, 2026-05-16: T-043 through T-052 are marked complete for
+the user-requested Phase 5 slice: completed-session results hydration, national
+2D map/list synchronization, mobile map/list mode, list-only accessibility
+fallback, concise translated reason lines, map state persistence, no matching
+rerun on results open, no 3D building load, and no national-zoom amenities.
+Targeted Vitest coverage and frontend build passed. A selected Playwright e2e
+or browser perf run was not added in this slice because the Phase 6
+neighborhood/house route remains intentionally unimplemented; traceability
+records that as the residual Phase 5 verification gap.
 
 ## Phase 6: Neighborhood 3D Detail
 

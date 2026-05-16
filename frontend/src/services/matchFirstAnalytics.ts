@@ -21,6 +21,10 @@ export const MATCH_FIRST_EVENTS = [
   'match_results_unavailable',
   'match_success_checkmark_shown',
   'match_results_map_opened',
+  'match_results_confidence_sufficient',
+  'match_recommendation_selected',
+  'match_map_feature_selected',
+  'match_map_layer_failed',
 ] as const;
 
 export type MatchFirstEventName = typeof MATCH_FIRST_EVENTS[number];
@@ -54,6 +58,15 @@ const ALLOWED_CONTEXT_KEYS = new Set([
   'runtime_ms',
   'poll_after_ms',
   'result_set_id',
+  'preference_vector_version',
+  'recommendation_id',
+  'neighborhood_id',
+  'result_rank',
+  'selected_result_id',
+  'map_zoom',
+  'mobile_mode',
+  'confidence_level',
+  'confidence_score',
   'fallback_reason_code',
   'error_code',
 ]);

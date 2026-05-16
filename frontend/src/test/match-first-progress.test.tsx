@@ -151,6 +151,16 @@ function renderWithI18n(ui: ReactElement) {
   return render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
 }
 
+function readStoredMatchFirstEvents(): Array<{
+  event_name?: string;
+  context?: Record<string, unknown>;
+}> {
+  return JSON.parse(localStorage.getItem('buurt-check-match-first-analytics') ?? '[]') as Array<{
+    event_name?: string;
+    context?: Record<string, unknown>;
+  }>;
+}
+
 it.each([
   ['created', 'created', 'Getting your match ready'],
   ['queued', 'queued', 'Getting your match ready'],
@@ -387,6 +397,51 @@ it('does not complete when terminal results are stale or mismatched', async () =
   expect(screen.getByRole('status')).toHaveTextContent('Your answers are saved. Results will appear here when matching is available.');
   expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   expect(onComplete).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['null', null],
+  ['missing', undefined],
+] as const)('does not complete when terminal status result_set_id is %s even if results otherwise match', async (_label, resultSetId) => {
+  const onComplete = vi.fn();
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(resultsResponse()), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  }));
+  const terminalStatus = statusResponse({
+    status: 'completed',
+    stage: 'completed',
+    progress: 100,
+    message_key: 'matchFirst.progress.completed',
+    result_set_id: resultSetId ?? null,
+  });
+  if (typeof resultSetId === 'undefined') {
+    delete (terminalStatus as Partial<MatchJobStatusResponse>).result_set_id;
+  }
+
+  renderWithI18n(
+    <MatchingProgressScreen
+      sessionId="match-progress"
+      initialStatus={terminalStatus}
+      onBackToSurvey={() => {}}
+      onRetry={() => {}}
+      onComplete={onComplete}
+    />,
+  );
+
+  expect(await screen.findByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('Your answers are saved. Results will appear here when matching is available.');
+  expect(screen.queryByTestId('match-success-checkmark')).not.toBeInTheDocument();
+  expect(onComplete).not.toHaveBeenCalled();
+  expect(readStoredMatchFirstEvents()).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      event_name: 'match_results_unavailable',
+      context: expect.objectContaining({
+        reason: 'missing_result_set_id',
+        status: 'completed',
+      }),
+    }),
+  ]));
 });
 
 it('keeps the checkmark locked when results fetch fails and can retry result verification', async () => {

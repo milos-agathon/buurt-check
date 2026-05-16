@@ -6,15 +6,15 @@ Updated: 2026-05-16
 
 The active SpecKit feature is `specs/002-match-first-revamp`; `.specify/feature.json`
 now points at that complete feature directory.
-Phase 1, Phase 2, Phase 3 backend matching, and Phase 4 progress/success UI are
-documented as closed in `docs/qa/match_first_revamp_traceability.md`. Phase 4
-now consumes the Phase 3 run/status/results contract from the review CTA,
-polls backend status, renders friendly localized progress/failure/fallback
-states, shows the large Buurt Check checkmark only after verified terminal
-result payloads that match the terminal session/job/status, shows a distinct
-results-unavailable recovery when result hydration fails or is stale, and routes
-to a results placeholder. Phase 5 results map, Phase 6 selected-neighborhood
-detail/3D, and Phase 7 Dossier bridge work remain unimplemented.
+Phase 1, Phase 2, Phase 3 backend matching, Phase 4 progress/success UI, and
+Phase 5 Netherlands results map/list are documented as closed in
+`docs/qa/match_first_revamp_traceability.md`. Phase 5 now hydrates completed
+session results through `GET /api/match/sessions/{session_id}/results`, renders
+a Netherlands-oriented 2D results map plus ranked recommendation list, keeps
+list and map selection synchronized, preserves map/list state for later Dossier
+return, and keeps the list usable without map interaction. Phase 6
+selected-neighborhood detail/3D and Phase 7 Dossier bridge work remain
+unimplemented.
 
 ## Current Next Step
 
@@ -38,10 +38,155 @@ Before any task regeneration or new task slicing, use the audited
 `specs/002-match-first-revamp/plan.md`, `data-model.md`, and
 `contracts/match-first-api.md` from the 2026-05-15 plan audit update below.
 
-The next documented implementation phase is Phase 5: results map. Keep the
-Phase 4 boundary intact: do not treat the current results placeholder as the
-map, and do not implement selected-neighborhood 3D or Dossier bridge behavior
-until their later phases.
+The next documented implementation phase is Phase 6:
+selected-neighborhood detail. Keep the Phase 5 boundary intact: do not load
+national 3D buildings, do not add national-zoom amenities, and do not implement
+house click or Dossier bridge behavior until their later phases.
+
+## Latest Phase 4 Gating/A11y Audit Repair Update 2026-05-16
+
+This pass repaired Phase 4 before any Phase 6 work. It did not implement
+selected-neighborhood detail/3D, house click behavior, Dossier bridge behavior,
+or additional Phase 5 map behavior.
+
+Files changed:
+
+- `frontend/src/components/match-first/MatchingProgressScreen.tsx`
+- `frontend/src/test/match-first-progress.test.tsx`
+- `frontend/src/test/match-first-a11y.test.tsx`
+- `docs/qa/open_punchlist.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/ai/latest_handoff.md`
+
+Completed repair work:
+
+- Tightened terminal result hydration so `MatchingProgressScreen` now requires
+  terminal `status.result_set_id` to be present and exactly equal to
+  `results.result_set_id` before calling `onComplete`.
+- Added a null/missing `result_set_id` regression where `GET /results`
+  otherwise matches `session_id`, `job_id`, and `status`; the UI now shows
+  Results unavailable, emits no checkmark, does not call `onComplete`, and
+  records `match_results_unavailable` with reason `missing_result_set_id`.
+- Strengthened Phase 4 component accessibility evidence: axe coverage now
+  renders the real `MatchingProgressScreen` running, failed retry, and
+  results-unavailable states, plus `MatchSuccessCheckmark` animated and
+  reduced-motion states.
+- Reconciled `docs/qa/open_punchlist.md` so Phase 5 is closed for the documented
+  map/list slice, while Phase 6, Phase 7, anonymous deletion, production
+  data/validation, Phase 5 browser e2e/perf, full frontend lint, and npm audit
+  risks remain open where applicable.
+
+Red-first / repair evidence:
+
+- `cd frontend && npm run test -- src/test/match-first-progress.test.tsx`
+  initially failed with 2 failures for the new null/missing terminal
+  `result_set_id` cases; after the production fix it passed with 24 tests.
+- `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx`
+  first exposed a test expectation mismatch for the real progress heading; the
+  component contract was unchanged, the test was corrected, and the suite passed
+  with 19 tests.
+
+Final commands run:
+
+- `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/test/match-first-a11y.test.tsx src/components/match-first/MatchSuccessCheckmark.test.tsx src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts`
+  passed with 55 tests.
+- `cd frontend && npx eslint src/components/match-first/MatchingProgressScreen.tsx src/components/match-first/MatchSuccessCheckmark.tsx src/test/match-first-progress.test.tsx src/test/match-first-a11y.test.tsx`
+  passed.
+- `cd frontend && npm run build` passed. The build emitted the existing
+  placeholder assetlinks/AASA production-release notices.
+
+Residual risks / next checks:
+
+- The new Phase 4 a11y evidence is component-level axe coverage plus existing
+  keyboard/focus tests elsewhere. It does not constitute a full browser
+  touch-target or end-to-end focus audit for every Phase 4 path.
+- Full `cd frontend && npm run lint` was not rerun in this pass and remains a
+  known broader cleanup item from pre-existing non-Phase-4 files.
+- Phase 6 must still add selected-neighborhood detail without loading national
+  3D buildings; Phase 7 must wire house selection to the existing Dossier and
+  preserve return context.
+
+## Latest Phase 5 Results Map Update 2026-05-16
+
+Files changed:
+
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/src/App.tsx`
+- `frontend/src/components/match-first/ResultsMap.tsx`
+- `frontend/src/components/match-first/ResultsMap.css`
+- `frontend/src/components/match-first/RecommendationList.tsx`
+- `frontend/src/components/match-first/RecommendationCard.tsx`
+- `frontend/src/services/matchSessionStorage.ts`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/types/matchFirst.ts`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `frontend/src/test/match-first-results-map.test.tsx`
+- `frontend/src/test/match-i18n.test.ts`
+- `specs/002-match-first-revamp/tasks.md`
+- `specs/002-match-first-revamp/implementation-notes.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/ai/latest_handoff.md`
+
+Completed work:
+
+- Added `leaflet` for the lazy Phase 5 2D map route and documented why the
+  existing static/3D surfaces were not enough for pan/zoom/vector/list sync.
+- Replaced the verified results placeholder with `ResultsMap`, which fetches
+  completed results for direct results routes and does not call `/run` for an
+  existing completed session.
+- Added typed frontend result contracts for recommendations, confidence,
+  source metadata, geometry refs, and map payloads.
+- Built a Netherlands-centered map shell with local result markers/polygons,
+  manual pan/zoom controls, mobile Map/List toggle, list-to-map selection,
+  marker/polygon-to-list selection, no national amenities, and no 3D building
+  load.
+- Built ranked recommendation cards using translated fit labels and at most two
+  translated reason lines. Expandable details were intentionally left out for
+  this slice because the Phase 5 request required concise reason lines only.
+- Persisted selected recommendation, neighborhood, rank, map center/zoom,
+  list scroll, mobile mode, result set, vector version, and locale in
+  `sessionStorage` for later Dossier return wiring.
+- Added results analytics allowlist entries for map open, sufficient
+  confidence, recommendation selection, map feature selection, and map layer
+  failure.
+
+Red-first evidence:
+
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx`
+  initially failed because `ResultsMap` did not exist.
+
+Verification:
+
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx`
+  passed.
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx src/test/match-first-progress.test.tsx src/App.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts`
+  passed. Existing noisy Dossier/3D console output and React act warnings still
+  print in `App.test.tsx`, but no test failed.
+- `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx` passed
+  for the Phase 5 slice; the expanded current suite now passes with 19 tests
+  as documented in the Phase 4 audit repair above.
+- `cd frontend && npm exec -- eslint src/components/match-first/ResultsMap.tsx src/components/match-first/RecommendationCard.tsx src/components/match-first/RecommendationList.tsx src/test/match-first-results-map.test.tsx`
+  passed.
+- `cd frontend && npm run build` passed. The Phase 5 lazy chunk in the final
+  build was `ResultsMap-Be0p09RQ.js` at 159.82 kB, 46.10 kB gzip, with
+  `ResultsMap-CoY3xfYW.css` at 20.75 kB, 7.88 kB gzip.
+
+Residual risks / next checks:
+
+- Full `cd frontend && npm run lint` was attempted and still fails on
+  pre-existing non-Phase-5 files such as `ActionBar.tsx`, `CompareScreen.tsx`,
+  `ShadowTimeSlider.tsx`, test setup files, and other older hook/compiler
+  issues. The new Phase 5 files passed targeted ESLint.
+- No selected Playwright e2e or browser performance test was added in this
+  slice. Phase 5 has targeted unit/a11y/build evidence; browser-level map
+  profiling remains a residual verification gap before production release.
+- `npm install` reported the existing npm audit state with 15 vulnerabilities
+  after adding Leaflet dependencies; dependency remediation was not part of
+  this Phase 5 scope.
+- Phase 6 must add selected-neighborhood detail/placeholder behavior without
+  loading national 3D buildings.
 
 ## Latest CI Repair Update 2026-05-16
 
@@ -133,8 +278,9 @@ Blocked / not green:
 
 Residual risks / next checks:
 
-- The visible results surface is still a Phase 5 placeholder after verified
-  completion; do not claim Netherlands map implementation from this work.
+- At the time of this Phase 4 repair, the visible results surface was still a
+  Phase 5 placeholder. That limitation is superseded by the later Phase 5
+  map/list closure documented above.
 - The full `App.test.tsx` run still prints existing unrelated Dossier/3D console
   output and React act warnings, but the Phase 4 assertions passed.
 

@@ -218,6 +218,7 @@ const MatchSurveyShell = lazy(() => import('./components/match-first/SurveyShell
 const MatchSurveyReview = lazy(() => import('./components/match-first/SurveyReview'));
 const MatchingProgressScreen = lazy(() => import('./components/match-first/MatchingProgressScreen'));
 const MatchSuccessCheckmark = lazy(() => import('./components/match-first/MatchSuccessCheckmark'));
+const ResultsMap = lazy(() => import('./components/match-first/ResultsMap'));
 const MatchComparison = lazy(() => import('./components/match/MatchComparison'));
 const MatchSimilarSearch = lazy(() => import('./components/match/MatchSimilarSearch'));
 const MatchReport = lazy(() => import('./components/match/MatchReport'));
@@ -6117,31 +6118,6 @@ function App() {
     </section>
   );
 
-  const renderMatchResultsUnavailable = (
-    titleId: string,
-    sectionDataProps: Record<string, string | undefined> = {},
-  ) => (
-    <section
-      {...sectionDataProps}
-      className="match-first-landing match-first-landing--simple"
-      aria-labelledby={titleId}
-    >
-      <div className="match-first-landing__content">
-        <p className="match-first-landing__eyebrow">{t('matchFirst.results.eyebrow')}</p>
-        <h1 id={titleId}>{t('matchFirst.results.unavailableTitle')}</h1>
-        <p className="match-first-landing__body">{t('matchFirst.results.unavailableBody')}</p>
-        <p className="match-first-landing__body">{t('matchFirst.results.runRequired')}</p>
-        <button
-          type="button"
-          className="match-first-landing__cta"
-          onClick={returnToMatchSurvey}
-        >
-          {t('matchFirst.results.backToSurvey')}
-        </button>
-      </div>
-    </section>
-  );
-
   const renderMatchSuccessUnavailable = (titleId: string) => (
     <section className="match-first-landing match-first-landing--simple" aria-labelledby={titleId}>
       <div className="match-first-landing__content">
@@ -6163,34 +6139,23 @@ function App() {
     titleId: string,
     sectionDataProps: Record<string, string | undefined> = {},
   ) => {
-    if (verifiedMatchResults?.session_id === activeMatchSessionId) {
+    if (activeMatchSessionId) {
+      const initialResults = verifiedMatchResults?.session_id === activeMatchSessionId
+        ? verifiedMatchResults
+        : null;
       return (
-        <section
-          {...sectionDataProps}
-          className="match-first-landing match-first-landing--simple"
-          aria-labelledby={titleId}
-        >
-          <div className="match-first-landing__content">
-            <p className="match-first-landing__eyebrow">{t('matchFirst.results.eyebrow')}</p>
-            <h1 id={titleId}>{t('matchFirst.results.readyTitle')}</h1>
-            <p className="match-first-landing__body" role="status">{t('matchFirst.results.readyBody')}</p>
-            {verifiedMatchResults.fallback_used && (
-              <p className="match-first-landing__body">{t('matchFirst.failure.completedWithFallback')}</p>
-            )}
-          </div>
-        </section>
+        <div {...sectionDataProps}>
+          <Suspense fallback={routeLoadingFallback}>
+            <ResultsMap
+              key={`${activeMatchSessionId}:${initialResults?.result_set_id ?? 'load'}`}
+              sessionId={activeMatchSessionId}
+              initialResults={initialResults}
+              onBackToSurvey={returnToMatchSurvey}
+            />
+          </Suspense>
+        </div>
       );
     }
-    const bodyKey = activeMatchJobStatus === 'completed_with_fallback'
-      ? 'matchFirst.failure.completedWithFallback'
-      : activeMatchJobStatus === 'no_results'
-        ? 'matchFirst.failure.noResults'
-        : activeMatchJobStatus === 'no_strong_matches'
-          ? 'matchFirst.failure.noStrongMatches'
-          : null;
-
-    if (!bodyKey) return renderMatchResultsUnavailable(titleId, sectionDataProps);
-
     return (
       <section
         {...sectionDataProps}
@@ -6200,7 +6165,8 @@ function App() {
         <div className="match-first-landing__content">
           <p className="match-first-landing__eyebrow">{t('matchFirst.results.eyebrow')}</p>
           <h1 id={titleId}>{t('matchFirst.results.unavailableTitle')}</h1>
-          <p className="match-first-landing__body" role="status">{t(bodyKey)}</p>
+          <p className="match-first-landing__body" role="status">{t('matchFirst.results.unavailableBody')}</p>
+          <p className="match-first-landing__body">{t('matchFirst.results.runRequired')}</p>
           <button
             type="button"
             className="match-first-landing__cta"

@@ -7,13 +7,16 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import App from '../App';
 import HeroMapBackground from '../components/match-first/HeroMapBackground';
+import MatchingProgressScreen from '../components/match-first/MatchingProgressScreen';
 import MatchFirstLanding from '../components/match-first/MatchFirstLanding';
+import MatchSuccessCheckmark from '../components/match-first/MatchSuccessCheckmark';
 import MultiSelectQuestion from '../components/match-first/MultiSelectQuestion';
 import SurveyIntro from '../components/match-first/SurveyIntro';
 import SurveyReview from '../components/match-first/SurveyReview';
 import SurveyShell, { type MatchFirstSurveyAnswers } from '../components/match-first/SurveyShell';
 import { saveMatchSessionSnapshot } from '../services/matchSessionStorage';
 import { setupTestI18n } from './helpers';
+import type { MatchJobStatusResponse } from '../types/matchFirst';
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
 
@@ -22,6 +25,8 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   window.history.replaceState({}, '', '/');
   localStorage.clear();
   sessionStorage.clear();
@@ -34,6 +39,29 @@ function renderWithI18n(ui: ReactElement) {
       {ui}
     </I18nextProvider>,
   );
+}
+
+function progressStatus(overrides: Partial<MatchJobStatusResponse> = {}): MatchJobStatusResponse {
+  return {
+    session_id: 'match-a11y-progress',
+    job_id: 'match_job_a11y',
+    status: 'running',
+    stage: 'building_profile',
+    progress: 35,
+    message_key: 'matchFirst.progress.building_profile',
+    model_mode: 'weighted_scoring',
+    model_version: 'match-score-v1',
+    scoring_version: 'match-score-v1',
+    evaluation_status: 'not_validated_no_labels',
+    fallback_used: false,
+    fallback_reason_code: null,
+    result_set_id: null,
+    error_code: null,
+    runtime_ms: 600,
+    updated_at: '2026-05-16T12:00:00Z',
+    poll_after_ms: 60000,
+    ...overrides,
+  };
 }
 
 async function expectNoSeriousA11yViolations(container: HTMLElement) {
@@ -126,6 +154,93 @@ it('review missing-answer state has no serious accessibility violations', async 
   const { container } = renderWithI18n(<SurveyReview onBack={() => {}} onComplete={() => {}} />);
 
   expect(screen.getByRole('alert')).toHaveTextContent('Answer the survey questions before reviewing your match.');
+  await expectNoSeriousA11yViolations(container);
+});
+
+it('real matching progress running state has no serious accessibility violations', async () => {
+  const { container } = renderWithI18n(
+    <MatchingProgressScreen
+      sessionId="match-a11y-progress"
+      initialStatus={progressStatus()}
+      onBackToSurvey={() => {}}
+      onRetry={() => {}}
+      onComplete={() => {}}
+    />,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Preparing your match map' })).toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('Building your neighborhood profile');
+  expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '35');
+  await expectNoSeriousA11yViolations(container);
+});
+
+it('real matching progress failed retry state has no serious accessibility violations', async () => {
+  const { container } = renderWithI18n(
+    <MatchingProgressScreen
+      sessionId="match-a11y-progress"
+      initialStatus={progressStatus({
+        status: 'failed',
+        stage: 'failed',
+        progress: 100,
+        message_key: 'matchFirst.progress.failed',
+        error_code: 'match.warning.retryable_stale_job',
+      })}
+      onBackToSurvey={() => {}}
+      onRetry={() => {}}
+      onComplete={() => {}}
+    />,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Back to survey' })).toBeInTheDocument();
+  await expectNoSeriousA11yViolations(container);
+});
+
+it('real matching progress results-unavailable state has no serious accessibility violations', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+    detail: 'match.warning.results_unavailable',
+  }), {
+    status: 503,
+    headers: { 'Content-Type': 'application/json' },
+  }));
+  const { container } = renderWithI18n(
+    <MatchingProgressScreen
+      sessionId="match-a11y-progress"
+      initialStatus={progressStatus({
+        status: 'completed',
+        stage: 'completed',
+        progress: 100,
+        message_key: 'matchFirst.progress.completed',
+        result_set_id: 'mrs_a11y',
+      })}
+      onBackToSurvey={() => {}}
+      onRetry={() => {}}
+      onComplete={() => {}}
+    />,
+  );
+
+  expect(await screen.findByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Back to survey' })).toBeInTheDocument();
+  await expectNoSeriousA11yViolations(container);
+});
+
+it.each([
+  ['animated', false],
+  ['reduced-motion', true],
+] as const)('MatchSuccessCheckmark %s state has no serious accessibility violations', async (_label, reducedMotion) => {
+  const { container } = renderWithI18n(
+    <MatchSuccessCheckmark
+      status="completed"
+      reducedMotion={reducedMotion}
+      onOpenResults={() => {}}
+    />,
+  );
+
+  expect(screen.getByRole('img', { name: 'Buurt Check match complete' })).toBeInTheDocument();
+  expect(screen.getByTestId('match-success-checkmark')).toHaveAttribute('data-motion', reducedMotion ? 'reduced' : 'animated');
+  expect(screen.getByRole('button', { name: 'Open my map' })).toBeInTheDocument();
   await expectNoSeriousA11yViolations(container);
 });
 

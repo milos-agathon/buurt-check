@@ -254,6 +254,96 @@ export interface MatchJobStatusResponse {
   poll_after_ms?: number;
 }
 
+export type MatchRecommendationCategory =
+  | 'top'
+  | 'surprising'
+  | 'stretch'
+  | 'avoid_or_reconsider';
+
+export type MatchRecommendationEligibility =
+  | 'eligible'
+  | 'stretch'
+  | 'failed_hard_filter'
+  | 'insufficient_data';
+
+export type MatchConfidenceLevel = 'high' | 'medium' | 'low' | 'insufficient';
+
+export interface MatchRecommendationConfidence {
+  score: number;
+  level: MatchConfidenceLevel;
+  reasons: string[];
+}
+
+export interface MatchGeometryReference {
+  centroid_rd?: { x: number; y: number } | null;
+  bounds_rd?: [number, number, number, number] | number[] | null;
+  display_centroid_wgs84?: { lat: number; lng: number } | null;
+  display_bounds_wgs84?: [number, number, number, number] | number[] | null;
+  boundary_ref?: string | null;
+  boundary_source?: string | null;
+  boundary_freshness?: string | null;
+  building_layer_ref?: string | null;
+  building_layer_available?: boolean | null;
+  amenity_layer_refs?: string[] | null;
+  limitations?: string[];
+}
+
+export interface MatchResultSourceMetadata {
+  source_id: string;
+  source_type: 'official' | 'commercial' | 'derived' | 'mock' | 'user_provided' | 'missing';
+  source_name_key: string;
+  metric_key?: string | null;
+  measurement_date?: string | null;
+  retrieved_at?: string | null;
+  freshness_status: string;
+  confidence: number;
+  limitations: string[];
+}
+
+export interface MatchNeighborhoodRecommendation {
+  rank: number;
+  recommendation_id: string;
+  neighborhood_id: string;
+  name: string;
+  municipality: string;
+  fit_score: number;
+  fit_label_key: string;
+  category: MatchRecommendationCategory;
+  eligibility_status: MatchRecommendationEligibility;
+  confidence: MatchRecommendationConfidence;
+  reason_codes: string[];
+  tradeoffs: string[];
+  component_scores: Record<string, number>;
+  failed_filters: string[];
+  source_refs: string[];
+  source_metadata?: MatchResultSourceMetadata[];
+  limitations: string[];
+  freshness_status: string;
+  geometry_ref: MatchGeometryReference;
+  amenity_refs?: string[];
+}
+
+export interface MatchResultsMapPayload {
+  type: 'FeatureCollection';
+  display_bounds_wgs84?: [number, number, number, number] | number[];
+  features: unknown[];
+}
+
+export interface MatchResultsMapState {
+  sessionId: string;
+  jobId: string;
+  resultSetId: string;
+  preferenceVectorVersion: string;
+  selectedRecommendationId?: string;
+  selectedNeighborhoodId?: string;
+  selectedResultRank?: number;
+  mapCenter: [number, number];
+  mapZoom: number;
+  listScroll: number;
+  mobileMode: 'map' | 'list';
+  locale: MatchFirstLocale;
+}
+
 export interface MatchResultsResponse {
   session_id: string;
   job_id: string;
@@ -273,12 +363,12 @@ export interface MatchResultsResponse {
   normal_recommendation_count: number;
   candidate_count: number;
   scored_candidate_count: number;
-  ranked_results: Array<Record<string, unknown>>;
-  recommendations: Array<Record<string, unknown>>;
-  stretch_matches: Array<Record<string, unknown>>;
-  near_misses: Array<Record<string, unknown>>;
+  ranked_results: MatchNeighborhoodRecommendation[];
+  recommendations: MatchNeighborhoodRecommendation[];
+  stretch_matches: MatchNeighborhoodRecommendation[];
+  near_misses: MatchNeighborhoodRecommendation[];
   empty_state_code: string | null;
-  map_center: Record<string, unknown>;
+  map_center: { lat: number; lng: number };
   bbox: number[];
-  map: Record<string, unknown>;
+  map: MatchResultsMapPayload;
 }

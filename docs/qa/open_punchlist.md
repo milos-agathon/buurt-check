@@ -12,28 +12,29 @@ Updated: 2026-05-16
 
 ## Phase 4 Progress/Success UI Closure
 
-- Status: closed for documented Phase 4 scope after the 2026-05-16 review repair.
-- Evidence: review CTA starts the backend run, progress polls persisted status with `poll_after_ms`, all required progress stages have friendly bilingual copy, slow/failed/expired/cancelled/fallback/no-strong states have localized recovery, terminal success verifies matching `session_id`, `job_id`, `status`, and `result_set_id` before showing the checkmark, stale/unavailable results show a distinct recovery state, and `match_results_unavailable` analytics is emitted with sanitized context.
-- Commands passed: `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/App.test.tsx src/components/match-first/MatchSuccessCheckmark.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts`; `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx`; `cd frontend && npx eslint src/components/match-first/MatchingProgressScreen.tsx src/components/match-first/MatchSuccessCheckmark.tsx src/services/matchFirstAnalytics.ts src/services/matchFirstApi.ts src/types/matchFirst.ts`; `cd frontend && npm run build`.
+- Status: closed for documented Phase 4 scope after the 2026-05-16 review and audit repairs.
+- Evidence: review CTA starts the backend run, progress polls persisted status with `poll_after_ms`, all required progress stages have friendly bilingual copy, slow/failed/expired/cancelled/fallback/no-strong states have localized recovery, terminal success now requires matching `session_id`, `job_id`, terminal `status`, and a present/exact `result_set_id` before `onComplete`, stale/unavailable/missing-identity results show a distinct recovery state, and `match_results_unavailable` analytics is emitted with sanitized context.
+- Accessibility evidence: component-level axe tests now cover the real `MatchingProgressScreen` running, failed retry, and results-unavailable states plus `MatchSuccessCheckmark` animated and reduced-motion states. This does not claim a full browser touch-target or end-to-end focus audit for every Phase 4 path.
+- Commands passed: `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/test/match-first-a11y.test.tsx src/components/match-first/MatchSuccessCheckmark.test.tsx src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts` passed with 55 tests; `cd frontend && npx eslint src/components/match-first/MatchingProgressScreen.tsx src/components/match-first/MatchSuccessCheckmark.tsx src/test/match-first-progress.test.tsx src/test/match-first-a11y.test.tsx` passed; `cd frontend && npm run build` passed.
+
+## Phase 5 Netherlands Results Map/List Closure
+
+- Status: closed for the documented Phase 5 map/list slice. It is no longer an open implementation item in this punch list.
+- Evidence: completed results routes hydrate through `GET /api/match/sessions/{session_id}/results`, render a Netherlands-centered 2D map and ranked recommendation list, keep list and map selection synchronized, preserve map/list state for later Dossier return, and do not load national 3D buildings or national-zoom amenities.
+- Commands documented in traceability/handoff: focused Phase 5 Vitest coverage passed, `match-first-a11y.test.tsx` passed, targeted ESLint for the Phase 5 files passed, and `cd frontend && npm run build` passed.
+- Still open for Phase 5 before production release: no Playwright e2e/browser performance proof was added for the map slice; full frontend lint still has pre-existing non-Phase-5 failures; the npm audit state with 15 vulnerabilities remains unresolved after adding Leaflet.
 
 ## Remaining Missing Or Partial Items
 
-- Phase 5 Netherlands results map is still not implemented.
 - Phase 6 selected-neighborhood detail and selected-neighborhood-only 3D loading are still not implemented.
 - Phase 7 house-to-existing-Dossier bridge and full back-to-match-map restoration are still not implemented.
 - Anonymous match-session deletion remains a documented later gate unless implemented in a future phase.
 - Seed/mock feature data remains the Phase 3 source mode; production confidence still requires future live data and validation evidence.
+- Phase 5 browser-level e2e/performance coverage remains open even though the map/list implementation slice is closed.
+- Full frontend lint remains open because known pre-existing non-Phase-4/5 files still fail repo-wide lint; targeted lint for the touched Phase 4 and Phase 5 files passed.
+- npm audit remediation remains open; dependency vulnerability cleanup was outside the Phase 4/5 scope.
 
-## Worktree Scope Split
+## Worktree Scope Notes
 
-The current worktree contains unrelated governance/template/documentation changes that are not part of the Phase 3 backend closure repair: `.gitignore`, `.specify/*`, `AGENTS.md`, deleted `CLAUDE.md`, `docs/context/current_architecture.md`, and broad SpecKit spec/plan/contract/data-model edits. Do not include those in a Phase 3 backend repair commit unless intentionally grouped as governance/planning work.
-
-Phase 3 100% closure repair files are: `backend/app/db.py`,
-`backend/app/models/match.py`, `backend/app/services/match/instrumentation.py`,
-`backend/app/services/match/jobs.py`, `backend/app/services/match/results.py`,
-`backend/tests/test_match_instrumentation.py`, `backend/tests/test_match_jobs.py`,
-`backend/tests/test_match_results_contract.py`,
-`backend/tests/test_match_db_schema.py`, `frontend/src/i18n/en.json`,
-`frontend/src/i18n/nl.json`, `docs/ai/latest_handoff.md`,
-`docs/qa/match_first_revamp_traceability.md`, and this punch list. Split or
-commit unrelated governance/planning changes separately before starting Phase 4.
+- Keep Phase 6 selected-neighborhood detail/3D and Phase 7 Dossier bridge work out of Phase 4/5 repair commits unless intentionally starting those phases.
+- The current worktree includes Phase 5 map/list files plus this Phase 4 audit repair. Review/stage them intentionally instead of treating old Phase 3 commit-scope notes as current guidance.
