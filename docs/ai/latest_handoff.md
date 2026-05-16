@@ -43,6 +43,40 @@ Phase 4 boundary intact: do not treat the current results placeholder as the
 map, and do not implement selected-neighborhood 3D or Dossier bridge behavior
 until their later phases.
 
+## Latest CI Repair Update 2026-05-16
+
+This pass fixed PR 29 GitHub Actions failure for the `Frontend Build + Test`
+job at head SHA `71bc40ca316f87d1c4c77ee97a2665991b2af38c`.
+
+Files changed:
+
+- `frontend/src/test/match-first-copy-guard.test.ts`
+- `docs/ai/latest_handoff.md`
+- `docs/qa/match_first_revamp_traceability.md`
+
+Completed repair work:
+
+- Tightened the match-first visible-copy guard so it scans same-line JSX-like
+  text only. The previous regex crossed newlines from TypeScript syntax and
+  falsely flagged `MatchingProgressScreen.tsx` type declarations/generic types
+  as visible hard-coded copy.
+- No product behavior, translations, Dossier behavior, map behavior, matching
+  score logic, or Phase 5-7 scope was changed.
+
+Commands run:
+
+- `python "C:/Users/milos/.codex/plugins/cache/openai-curated/github/1b89ff49/skills/gh-fix-ci/scripts/inspect_pr_checks.py" --repo "." --pr "https://github.com/milos-agathon/buurt-check/pull/29" --json --max-lines 200 --context 50` identified the failing `Frontend Build + Test` job and the copy-guard assertion.
+- `cd frontend && npm run test -- src/test/match-first-copy-guard.test.ts` first reproduced the failure, then passed with 7 tests.
+- `cd frontend && npm run test` passed with the full Vitest suite. Existing noisy Dossier/3D console output and React act warnings still print, but no tests failed.
+- `cd frontend && npm run build` passed. The build emitted the existing placeholder assetlinks/AASA production-release notices.
+
+Residual risks / next checks:
+
+- GitHub Actions must rerun on PR 29 after this fix is pushed.
+- The GitHub Actions log also printed a post-job cleanup warning for missing
+  `.gitmodules` URL for `.claude/skills/webgpu-claude-skill`; it was a warning
+  after the failed test step, not the failing CI cause in this run.
+
 ## Latest Phase 4 Review Repair Update 2026-05-16
 
 This pass fixed the Phase 4 review blockers before Phase 5. It did not

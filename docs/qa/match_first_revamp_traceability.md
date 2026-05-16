@@ -6,6 +6,12 @@ Scope: Match-first revamp phase traceability, including Phase 1/2 closure
 evidence, Phase 3 backend 100% closure repair, and Phase 4 progress/success UI
 completion before Phase 5 results-map implementation.
 
+## CI Repair 2026-05-16
+
+| CI failure | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PR 29 `Frontend Build + Test` failed because `match-first-copy-guard.test.ts` crossed newlines from TypeScript syntax and falsely treated `MatchingProgressScreen.tsx` type declarations/generic type syntax as visible hard-coded copy. | Restricted the visible-copy regex to same-line JSX-like text, preserving the guard against hard-coded visible match-first copy while avoiding TypeScript declaration false positives. No product behavior changed. | `frontend/src/test/match-first-copy-guard.test.ts`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Reproduced the failing guard locally, then verified `cd frontend && npm run test -- src/test/match-first-copy-guard.test.ts` passed with 7 tests; `cd frontend && npm run test` passed; `cd frontend && npm run build` passed. |
+
 ## Phase 1 Acceptance Mapping
 
 | PRD / constitution item | Implementation surface | Acceptance criteria | Verification |
