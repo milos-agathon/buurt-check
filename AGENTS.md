@@ -1,124 +1,227 @@
-# CLAUDE.md -- buurt-check
+# AGENTS.md -- buurt-check
 
-Mobile-first web app helping expats and first-time homebuyers in the Netherlands avoid bad property purchases. User pastes an address, gets an evidence-backed dossier with risk cards, 3D context, neighborhood stats, and a viewing checklist.
+Mobile-first web app for Dutch home seekers. The current product contract is the
+Buurt Check match-first UI revamp: users start by matching with neighborhoods,
+then inspect houses, then open the existing address-level Dossier.
 
-## Tech stack
+## Required Reading Before Implementation
 
-| Layer | Stack |
-|-------|-------|
-| Backend | Python 3.12, FastAPI, httpx (async), Pydantic v2, pydantic-settings, Redis, scipy, fpdf2 |
-| Frontend | React 18, TypeScript 5, Vite 6, Framer Motion, Three.js, Leaflet, SunCalc, i18next |
-| Styling | Plain CSS with design tokens ("Polar Frost"). NO Tailwind, NO CSS-in-JS |
-| Testing | pytest + pytest-asyncio (backend), Vitest 4.x + Testing Library (frontend), Playwright (E2E) |
-| Linting | ruff (backend), TypeScript strict mode via `npm run build` (frontend) |
+Before planning or implementing match-first work, read these files in this
+order:
 
-## Project structure
+1. `docs/prd.md`
+2. `docs/ai/latest_handoff.md`
+3. `.specify/memory/constitution.md`
+4. `docs/qa/match_first_revamp_traceability.md`
 
-```
-backend/           # FastAPI external-data aggregator + buyer-bound monetization state
-  app/api/         # Route handlers (address.py — all 15 endpoints under /api/address/)
-  app/services/    # Business logic (bag, risk_cards, cbs, scoring, pdf_export, livability, etc.)
-  app/models/      # Pydantic response models
-  app/cache/       # Redis with circuit breaker
-  app/config.py    # pydantic-settings (BUURT_* env prefix)
-  tests/           # pytest (565+ non-live tests)
-frontend/          # React + Vite + TypeScript
-  src/components/  # All UI components (dossier cards, navigation, search, shortlist)
-  src/styles/      # tokens.css (195 CSS custom properties), satoshi.css (font)
-  src/services/    # api.ts (fetch), shortlist.ts, theme.ts (light default; dark opt-in)
-  src/i18n/        # en.json + nl.json (~380 keys each, parity enforced)
-  src/types/       # TypeScript interfaces mirroring backend models
-docs/              # Design specs, plans, palette, UI principles
-```
+If a file is missing, stop and document that blocker before implementing. The
+PRD is the product contract. SpecKit artifacts, task lists, and generated plans
+must serve the PRD rather than redefine it.
 
-## Commands
+## Repository Setup
 
 ```bash
-# Backend
-cd backend && uvicorn app.main:app --reload --port 8000
-cd backend && pytest -x -q -m "not live"   # CI tests (565+ baseline)
-cd backend && ruff check .                  # MUST pass before commit
+# Root / frontend dependencies
+npm ci
+npm --prefix frontend ci
 
-# Frontend
-cd frontend && npm run dev                  # Dev server (proxies /api to :8000)
-cd frontend && npm run build                # MUST pass before commit (strict TS)
-cd frontend && npm run test                 # Vitest (705+ baseline)
+# Backend dependencies
+cd backend && python -m pip install -e ".[dev]"
 ```
 
-## Architecture decisions
+Useful local startup commands:
 
-- **Stateless external data aggregator**: Backend proxies Dutch government APIs (BAG, CBS, RIVM, 3DBAG, Klimaateffectatlas, Leefbaarometer) with Redis caching; SQLite/Turso stores buyer-bound dossier purchase state
-- **Single router**: All endpoints in `api/address.py`. Services do the work
-- **0-100 risk scoring**: Backend normalizes raw values via `scoring.py`. 4-level severity: good (70-100), moderate (40-69), poor (20-39), critical (0-19)
-- **State management**: App-level `useState` in `App.tsx`. No Redux/Zustand. Screen routing via `activeScreen`
-- **i18n from day one**: All strings via `t()`. EN + NL. Warning codes from backend: `t('feature.warning.${code}', code)`
-- **Export contract**: `quick_brief` / quick checklist PDF is free; `full_dossier` requires payment before first download; the interactive viewer remains free
-- **Purchase scope**: No user accounts in MVP. Use a server-issued anonymous buyer key and bind entitlement to `buyer_key + vbo_id`
+```bash
+# Full local reset/check/start helper on Windows
+.\scripts\dev-start.ps1
 
-## Product principles
+# Backend
+cd backend && uvicorn app.main:app --reload --port 8000
 
-1. **Consequences over data** — translate every number into "what does this mean for me"
-2. **5-8 indicators max per section** — curate aggressively, no dashboard spam
-3. **Bilingual by default** — EN/NL, not bolted on later
-4. **Disclaimers mandatory** — always cite source, date, and limitations
-5. **Graceful degradation** — if a data source fails, show "unavailable", never crash the dossier
+# Frontend
+cd frontend && npm run dev
+```
 
-## Match-first revamp constitution
+## Discovered Commands
 
-- Primary flow is sacred: landing hero -> survey intro -> one-question survey -> review -> backend matching progress -> animated checkmark success -> Netherlands results map -> neighborhood 3D detail -> house click -> existing Dossier -> back to match map.
-- Search stays secondary on the first screen. It must not compete with match as an equal CTA, card, tab, or mode choice.
-- Onboarding is minimal: one decision per screen, exactly one survey question at a time, no dashboards, charts, feature grids, long explanations, ads, or unrelated content.
-- All user-facing text uses Dutch/English translation keys. Do not hard-code English or Dutch strings in components, services, route labels, progress states, fallbacks, or validation messages.
-- Map performance comes first: never load national 3D buildings. Load and render 3D houses only after a neighborhood is selected, and only within that selected neighborhood's bounds. Viewport-based loading may be used only for paging or level-of-detail inside the selected neighborhood, never as an independent trigger outside it. Include 2D, reduced-motion, and non-map list fallbacks.
-- Be honest about models. Without real labels and validation data, present deterministic or semi-deterministic weighted scoring as a data-backed fit score, not predictive probability.
-- Preserve the existing Dossier. Add route context and a persistent "Back to match map" action only as needed; do not casually rewrite Dossier modules.
-- Accessibility is P0: keyboard navigation, screen-reader labels, touch targets, contrast, focus management, reduced motion, and non-map alternatives.
-- Every phase needs tests or verification tied to acceptance criteria. Do not skip tests to move faster.
-- Preserve context across navigation: survey answers, session ID, selected neighborhood, map state, language, selected house, and Dossier return path.
-- Do not promise perfect fit, safety, happiness, investment certainty, future value, or guaranteed outcomes. Ground explanations in data, reason codes, sources, and limitations.
-- Before planning, read `docs/prd.md` and `docs/context/current_architecture.md`. Before implementation, produce tasks with exact file paths and acceptance criteria. If a requirement conflicts with the codebase, document the conflict and propose the smallest safe change.
+Root scripts:
 
-## Monetization notes
+```bash
+npm run build
+npm run landing:build
+npm run landing:serve
+npm run landing:test:e2e
+npm run landing:check
+npm run billing:preflight
+npm run billing:smoke
+```
 
-- Keep the supported product contract simple: free on-screen viewer, free `quick_brief`, paid-before-download `full_dossier`
-- Make entitlement decisions on the server, scoped to the anonymous buyer and the address
-- Do not treat `report_id` as a bearer token by itself; docs and future implementation should treat it as an export snapshot reference within a buyer-bound purchase flow
+Backend:
 
-## Development conventions
+```bash
+cd backend && ruff check .
+cd backend && pytest -x -q -m "not live"
+cd backend && pytest -x -q
+cd backend && pytest -x -q -m "visual"
+cd backend && pytest -x -q -m "benchmark"
+```
 
-- **Commits**: Conventional (`feat:`, `fix:`, `docs:`, `chore:`)
-- **Branches**: `main` (stable), `feat/<description>` for features
-- **Error handling**: Warning codes from backend, i18n keys on frontend
-- **Caching**: Never cache empty/error responses. Cache keys must include ALL params affecting response
-- **Config**: All external URLs in `config.py`. No hardcoded URLs in services
-- **Coordinates**: EPSG:28992 (RD New) everywhere. BAG IDs: 16 digits, validate `^[0-9]{16}$`
-- **Quality gates**: `ruff check` + `pytest` + `npm run build` + `npm run test` before any commit
+Frontend:
 
-## Anti-patterns — never do these
+```bash
+cd frontend && npm run dev
+cd frontend && npm run build
+cd frontend && npm run lint
+cd frontend && npm run test
+cd frontend && npm run test:a11y
+cd frontend && npm run test:perf
+cd frontend && npm run test:e2e
+cd frontend && npm run test:perf:e2e
+cd frontend && npm run test:visual
+```
 
-- `CQL_FILTER` for BAG WFS (silently ignored) — use OGC XML Filter
-- `requests` library — use `httpx` async
-- CSS `!important` on canvas dimensions — breaks Three.js `renderer.setSize()`
-- `--color-accent` (#0D9488) as text on light bg — use `--color-accent-text` / `--color-accent-hover` (#00685F); tertiary warm accent is #C36D4B; full palette in `docs/palette.md`
-- `react-three-fiber` or `drei` — plain Three.js only
-- React Query / Zustand / Redux — useState + props
-- Bare `= []` in Pydantic models — use `Field(default_factory=list)`
-- `sampled_at` as `source_date` fallback — let it be `None`
+Before committing, run the relevant gates for touched areas. For broad revamp
+work this usually means backend `ruff check` plus targeted/non-live pytest, and
+frontend `npm run build` plus targeted Vitest/Playwright.
 
-## Risk card contract
+## Current Stack
 
-Every frontend risk card must have: (1) score 0-100 + severity, (2) plain-language meaning, (3) viewing questions, (4) source + date. The app frontend renders only Noise, Air, and Climate risk tiles; tap opens detail with comparison chart (address vs city vs NL vs WHO). Sunlight analysis stays paid-report/PDF only and must not be rendered as a frontend risk tile or detail view.
+| Layer | Stack |
+| --- | --- |
+| Backend | Python 3.12 target, FastAPI, httpx async, Pydantic v2, pydantic-settings, Redis, SQLite/Turso/libsql, fpdf2 |
+| Frontend | React 19, TypeScript 5.9, Vite 7, Framer Motion, Three.js, SunCalc, i18next |
+| Styling | Plain CSS with Polar Frost design tokens. No Tailwind. No CSS-in-JS. |
+| Testing | pytest + pytest-asyncio, Vitest 4 + Testing Library, Playwright |
+| Linting | ruff for backend, ESLint/frontend build for frontend |
 
-## Reference docs (don't embed, just read when needed)
+## Project Structure
 
-- `docs/design-prd.md` — "Polar Frost" design direction
-- `docs/design-spec.md` — Pixel-level visual spec
-- `docs/palette.md` — Color palette with WCAG requirements
-- `docs/ui-principles.md` — Mobile UX principles
-- `backend/CLAUDE.md` — Backend-specific conventions
-- `frontend/CLAUDE.md` — Frontend-specific conventions
-- Data source endpoints + API quirks → already in auto-memory (MEMORY.md)
-- Historical session learnings → already in auto-memory (MEMORY.md)
+```text
+backend/
+  app/api/              FastAPI routers
+  app/services/         Business logic and external-data integrations
+  app/services/match/   Match-first/session/scoring/job services
+  app/models/           Pydantic response/request models
+  app/cache/            Redis cache with circuit breaker
+  app/config.py         pydantic-settings, BUURT_* env prefix
+  tests/                pytest suites
+
+frontend/
+  src/App.tsx           SPA orchestration and custom hash routing
+  src/components/       UI components
+  src/components/match-first/
+                         Match-first revamp screens
+  src/services/         Typed fetch, storage, analytics helpers
+  src/i18n/             en.json + nl.json
+  src/styles/           tokens.css and shared CSS
+  src/types/            TypeScript contracts
+
+docs/
+  prd.md                Product contract for match-first revamp
+  ai/                   Agent handoff and implementation rules
+  qa/                   Traceability and punch-list evidence
+
+specs/
+  002-match-first-revamp/
+                         SpecKit plan, spec, contracts, tasks
+```
+
+## Non-Negotiable Match-First Product Rules
+
+- The PRD is the product contract. When docs or generated tasks conflict with
+  `docs/prd.md`, preserve the PRD and document the conflict.
+- Primary flow is sacred: landing hero -> survey intro -> one-question survey
+  -> review -> backend matching progress -> animated checkmark success ->
+  Netherlands results map -> neighborhood 3D detail -> house click -> existing
+  Dossier -> back to match map.
+- Search must remain secondary on the landing screen. It must not compete with
+  Match as an equal CTA, card, tab, mode choice, or visual destination.
+- The survey is one-question-at-a-time. Show one question, one progress
+  indicator, and a back path after the first question. Do not add dashboards,
+  charts, feature grids, ads, pricing blocks, or unrelated content to
+  onboarding.
+- All user-facing text must use translation keys in both Dutch and English. Do
+  not hard-code English or Dutch strings in components, services, route labels,
+  validation messages, progress states, fallbacks, or analytics display labels.
+- Preserve the existing Dossier. Do not casually rewrite Dossier modules,
+  risk-card behavior, entitlement, checkout recovery, or export contracts. Add
+  route context and a persistent "Back to match map" action only as needed.
+- 3D buildings must load only for the selected neighborhood or a narrow
+  selected-neighborhood viewport used for paging/level-of-detail. Never load
+  national 3D buildings. Provide 2D, reduced-motion, and non-map list fallbacks.
+- Predictive claims require real labels and validation evidence. Without them,
+  present deterministic or semi-deterministic weighted scoring as a data-backed
+  fit score with reason codes, confidence, tradeoffs, sources, and limitations.
+- Do not promise perfect fit, safety, happiness, investment certainty, future
+  value, guaranteed affordability, or guaranteed outcomes.
+- Every implementation phase must run relevant tests and update
+  `docs/ai/latest_handoff.md` and
+  `docs/qa/match_first_revamp_traceability.md` with completed work, commands
+  run, residual risks, and next steps.
+
+## Architecture Decisions
+
+- **State management**: App-level `useState` and custom hash routing in
+  `App.tsx`. Do not add Redux, Zustand, React Query, or React Router for this
+  revamp.
+- **Backend shape**: Keep route handlers thin. Services own business logic.
+  Match-first endpoints live under `/api/match` unless a plan explicitly
+  justifies otherwise.
+- **Matching**: Use deterministic weighted scoring until real labels and
+  validation data exist. LLMs may explain structured results but must not create
+  or modify scores, eligibility, confidence, hard-filter outcomes, or source
+  metadata.
+- **Persistence**: Use existing SQLite/Turso/libsql patterns. Store stable keys,
+  raw answer references, vector versions, job state, result state, and return
+  context where required.
+- **Config**: All external URLs and provider settings belong in backend config.
+  Do not hardcode external URLs in frontend services.
+- **Coordinates**: EPSG:28992 (RD New) is canonical. WGS84 values are display
+  coordinates and must be named explicitly.
+- **Caching**: Never cache empty/error responses. Cache keys must include every
+  parameter that affects the response.
+
+## Dossier And Risk Card Contract
+
+- The on-screen Dossier viewer remains free.
+- `quick_brief` is free.
+- `full_dossier` requires server-side buyer/address entitlement before first
+  download.
+- Entitlement decisions are scoped to the anonymous buyer and address
+  (`buyer_key + vbo_id`), not to `report_id` alone.
+- Frontend risk tiles render only Noise, Air, and Climate. Sunlight remains
+  paid-report/PDF evidence and must not become a frontend risk tile or detail
+  view.
+- Every frontend risk card needs score/severity, plain-language meaning,
+  viewing questions, and source/date.
+
+## Development Conventions
+
+- Conventional commits: `feat:`, `fix:`, `docs:`, `chore:`.
+- Branches: `main` is stable; use `feat/<description>` for feature work.
+- Use `httpx` async, not `requests`.
+- Use Pydantic v2 `Field(default_factory=list)` for list defaults.
+- Use plain Three.js only. Do not add `react-three-fiber` or `drei`.
+- Use plain CSS and tokens. Do not add Tailwind, CSS modules, or styled
+  components.
+- Avoid CSS `!important` on canvas dimensions because it breaks
+  `renderer.setSize()`.
+- Use `--color-accent-text` / `--color-accent-hover` for teal text on light
+  backgrounds, not `--color-accent`.
+- Warning/error codes from backend should be stable keys rendered through i18n
+  on the frontend.
+
+## Reference Docs
+
+- `docs/prd.md` -- product contract
+- `docs/ai/implementation_rules.md` -- concise non-negotiable implementation rules
+- `docs/ai/latest_handoff.md` -- current phase, recent changes, commands, risks
+- `.specify/memory/constitution.md` -- governance rules
+- `docs/qa/match_first_revamp_traceability.md` -- phase closure and acceptance evidence
+- `docs/context/current_architecture.md` -- current architecture constraints
+- `docs/design-prd.md`, `docs/design-spec.md`, `docs/palette.md`,
+  `docs/ui-principles.md` -- design references
+- `backend/CLAUDE.md`, `frontend/CLAUDE.md` -- area-specific conventions
 
 <!-- SPECKIT START -->
 For additional context about the Buurt Check Revamp technical approach,

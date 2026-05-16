@@ -33,7 +33,7 @@
 
 | Gate | Requirement | Status / Evidence |
 |------|-------------|-------------------|
-| Required inputs read | Confirm `docs/prd.md` and `docs/context/current_architecture.md` were read before planning. | [PASS/FAIL with links] |
+| Required inputs read | Confirm `docs/prd.md`, `docs/context/current_architecture.md`, `docs/ai/implementation_rules.md`, and `.specify/memory/constitution.md` were read before planning. | [PASS/FAIL with links] |
 | Product flow | Identify the canonical journey step(s) affected and confirm search does not compete with match on the first screen. | [PASS/FAIL/N/A with links] |
 | Minimal UI | Confirm onboarding keeps one decision per screen and survey screens show exactly one question with progress/back behavior. | [PASS/FAIL/N/A with links] |
 | Bilingual by design | List every new or changed user-facing string surface and confirm Dutch/English translation keys, including validation and fallback messages. | [PASS/FAIL/N/A with links] |
@@ -43,6 +43,8 @@
 | Accessibility | Confirm keyboard access, screen-reader labels, touch targets, contrast, reduced motion, focus management, and non-map alternatives. | [PASS/FAIL/N/A with links] |
 | Phase testing | List unit, integration, E2E, accessibility, or map verification required for each affected phase and acceptance criterion. | [PASS/FAIL with links] |
 | Context preservation | Confirm survey answers, session ID, selected neighborhood, map state, language, and Dossier return path survive navigation. | [PASS/FAIL/N/A with links] |
+| Traceability | Confirm every PRD acceptance criterion touched by this plan maps to implementation files, tests or manual verification, and a missing/partial/pass status in `docs/qa/match_first_revamp_traceability.md`; confirm `docs/ai/latest_handoff.md` will be updated after the phase. | [PASS/FAIL with links] |
+| Small safe changes | Confirm the plan stays within the current phase, avoids new frameworks and unrelated rewrites, and documents explicit justification for any dependency, Dossier, routing, or map-engine expansion. | [PASS/FAIL with links] |
 | Unsupported claims | Confirm copy and explanations avoid perfect fit, safety, happiness, investment certainty, future value, and other unsupported claims. | [PASS/FAIL/N/A with links] |
 | Conflict handling | Document conflicts with the current codebase and propose the smallest safe change. | [PASS/FAIL/N/A with links] |
 

@@ -70,7 +70,7 @@ After the final survey question, the user reviews a concise summary and explicit
 
 1. **Given** the user reaches the review screen, **When** they have not clicked "Show my matches" or "Toon mijn matches", **Then** no match job has started.
 2. **Given** the user confirms the review, **When** matching starts, **Then** a match session/job enters a pollable progress state backed by actual backend state.
-3. **Given** the match job completes, **When** results are available, **Then** each ranked neighborhood includes a fit score, reason codes, tradeoffs, confidence, geometry references, and model/data version metadata.
+3. **Given** the match job completes, **When** results are available, **Then** each ranked neighborhood includes eligibility, fit score or fit label, reason codes, tradeoffs, 0-100 confidence, geometry references, source/freshness metadata, runtime, evaluation status, explicit limitations, and model/data version metadata.
 4. **Given** the system lacks validation labels for predictive modeling, **When** results are presented, **Then** they are described as data-backed fit scores rather than predictive probabilities or objective best neighborhoods.
 
 ---
@@ -97,7 +97,7 @@ The user opens a Netherlands-centered results map with a ranked list of recommen
 
 **Why this priority**: The results map is the first exploratory surface and must translate matching into places the user can inspect.
 
-**Independent Test**: Can be tested by opening completed match results, selecting neighborhoods from the list and map, checking mobile map/list behavior, and confirming state survives navigation and refresh where feasible.
+**Independent Test**: Can be tested by opening completed match results, selecting neighborhoods from the list and map, checking mobile map/list behavior, confirming state survives navigation and the Dossier round trip, and marking any refresh persistence gap as missing or partial in traceability.
 
 **Acceptance Scenarios**:
 
@@ -120,7 +120,7 @@ The user selects a neighborhood and sees a detail state with only that neighborh
 1. **Given** the user selects a neighborhood, **When** the detail map loads, **Then** only the selected neighborhood boundary and houses within that selected neighborhood are eligible to render in 3D.
 2. **Given** 3D data is unavailable, **When** the detail map loads, **Then** the user sees a localized explanation and a 2D fallback without losing house-selection capability where reliable address data exists.
 3. **Given** the user selected lifestyle priorities in the survey, **When** amenity tags are shown, **Then** the visible tags are preference-aware and limited to a concise default set.
-4. **Given** the user selects a neighborhood on a target acceptance device profile, **When** the detail state opens, **Then** the selected boundary and either 2D fallback context or the first selected-neighborhood building content become usable within the stated performance budget without loading national 3D buildings.
+4. **Given** the user selects a neighborhood on a plan-defined target acceptance device profile, **When** the detail state opens, **Then** the selected boundary and either 2D fallback context or the first selected-neighborhood building content become usable within the stated performance budget without loading national 3D buildings.
 
 ---
 
@@ -174,15 +174,15 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 ## Match-First Constitution Constraints *(mandatory)*
 
 - **Canonical journey step(s)**: This spec covers the full journey: landing hero -> survey intro -> one-question survey -> review -> backend matching progress -> animated checkmark success -> Netherlands results map -> neighborhood 3D detail -> house click -> existing Dossier -> back to match map.
-- **Search treatment**: Address search remains technically available only as a secondary path. On the first screen it appears as a small text link for users who already have an address. It must not appear as an equal CTA, card, tab, mode choice, or prominent form.
-- **One-decision UI**: Landing, intro, survey, review, progress, and success states contain one primary action or decision at a time. They must not include dashboards, charts, feature grids, long explanations, ads, pricing blocks, unrelated cards, or exploratory map controls.
+- **Search treatment**: Address search remains technically available only as a secondary path. On the first screen it appears as a small text link for users who already have an address. It MUST NOT appear as an equal CTA, card, tab, mode choice, or prominent form.
+- **One-decision UI**: Landing, intro, survey, review, progress, and success states contain one primary action or decision at a time. They MUST NOT include dashboards, charts, feature grids, long explanations, ads, pricing blocks, unrelated cards, or exploratory map controls.
 - **Bilingual copy**: All user-facing text uses stable translation keys with Dutch and English values. Required namespaces include landing, survey, review, progress, success, results, neighborhood, dossier, validation, failure, accessibility labels, and analytics labels where displayed.
 - **Map performance/fallbacks**: National 3D buildings are forbidden. 3D houses load and render only after a neighborhood is selected and only inside that selected neighborhood's bounds. Results and detail maps require 2D fallback, reduced-motion fallback, missing-3D fallback, and non-map list alternatives.
 - **Model honesty**: Matching is presented as deterministic or semi-deterministic data-backed fit scoring unless real labels, validation data, and evaluation results prove predictive claims. Confidence, tradeoffs, reason codes, source freshness, and limitations are required.
 - **Dossier preservation**: Existing Dossier modules, risk-card behavior, entitlement, PDF/export contracts, and premium/free boundaries are preserved. The revamp adds only the house-selection bridge, route context, and persistent back-to-match-map action needed for the match journey.
 - **Accessibility**: Keyboard navigation, screen-reader labels, touch targets, contrast, focus management, perceivable status states, reduced motion, and non-map alternatives are P0 across the full journey.
-- **Context preservation**: Survey answers, match session ID, selected neighborhood, map center/zoom/list state, language, selected house context, matching status, and Dossier return path must survive navigation and refresh where feasible.
-- **Unsupported claims**: Copy and explanations must not promise perfect fit, safety, happiness, investment certainty, future value, guaranteed affordability, or guaranteed lifestyle outcomes.
+- **Context preservation**: Survey answers, session ID, selected neighborhood, result state, map center, map zoom, list scroll position, mobile map/list mode, selected result ID/rank, selected house/building, language, matching status, return route, and Dossier return path MUST survive navigation and the Dossier round trip. Any refresh persistence gap MUST be documented as missing or partial in traceability.
+- **Unsupported claims**: Copy and explanations MUST NOT promise perfect fit, safety, happiness, investment certainty, future value, guaranteed affordability, or guaranteed lifestyle outcomes.
 - **Known codebase conflicts**: Current architecture is search-first on the landing surface, has a multi-section match form, synchronous match requests, a non-pan/zoom projected marker map, no selected-neighborhood 3D house layer, and no Dossier back-to-match-map context. The smallest safe change is to add match-first flow and contracts around existing Dossier behavior rather than redesigning Dossier.
 - **Repository architecture baseline**: The revamp targets the existing Vite React SPA and custom hash router in `frontend/src/App.tsx`, not Next.js or React Router. Existing hash routes remain compatible while new match-session route states are added.
 - **Map and 3D baseline**: The current repository has no Leaflet, Mapbox, or MapLibre map dependency. Existing 3D support is plain Three.js in the Dossier context through address-level 3DBAG data; the results map needs a deliberate map-layer implementation and must not treat the current projected `MatchMap` as sufficient for PRD pan/zoom/polygon behavior.
@@ -195,7 +195,7 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 
 #### Phase 0 - Landing Hero
 
-- **FR-001**: System MUST present a landing hero with a lightweight animated map atmosphere that remains readable and usable on mobile and desktop; MVP implementation SHOULD use a pre-rendered loop, static image with subtle CSS motion, or optimized 2D canvas rather than a heavy live 3D national scene. *(PRD: FR-L1, Section 16.1)*
+- **FR-001**: System MUST present a landing hero with a lightweight animated map atmosphere that remains readable and usable on mobile and desktop; MVP implementation MUST use a pre-rendered loop, static image with subtle CSS motion, or optimized 2D canvas unless a live scene has proven first-screen performance, readability, reduced-motion, and CTA-interaction budgets. Heavy live national 3D scenes are forbidden. *(PRD: FR-L1, Section 16.1; Constitution IV)*
 - **FR-002**: System MUST present exactly one dominant primary CTA on the landing hero: "Find my dream neighborhood" in English and "Vind mijn droombuurt" in Dutch through translation keys. *(PRD: FR-L2, Section 10.1)*
 - **FR-003**: System MUST demote address search to a small secondary "Already have an address?" or "Heb je al een adres?" link on the landing hero. *(PRD: FR-L3, Section 6.2)*
 - **FR-004**: System MUST provide a language switcher on the landing hero before the user starts the survey. *(PRD: FR-L4)*
@@ -214,12 +214,13 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 - **FR-011**: Survey MUST show exactly one question at a time. *(PRD: FR-S1)*
 - **FR-012**: Survey MUST show a progress indicator throughout the question flow. *(PRD: FR-S2)*
 - **FR-013**: Survey MUST show a back control after the first question and allow users to change prior answers without losing later answers unless those later answers become invalid. *(PRD: FR-S3, Section 9.3)*
-- **FR-014**: Survey MUST persist answers after each step within the active match session. *(PRD: FR-S4)*
+- **FR-014**: Survey MUST persist each answer selection or update immediately within the active match session before the user can rely on the answer in review or matching. *(PRD: FR-S4, Section 7 Phase 2)*
+- **FR-014A**: If answer persistence fails, the survey MUST keep the user on the current question, preserve the visible local selection, show an accessible localized retry state, and MUST NOT advance to the next question or review until persistence succeeds. *(PRD: FR-S4, FR-S5, Section 21)*
 - **FR-015**: Survey MUST validate required answers before allowing advancement and provide localized accessible validation messages. *(PRD: FR-S5)*
 - **FR-016**: Survey MUST support the required question types for the PRD survey: single select, multi-select, budget range or presets, commute/travel tolerance, anchor location, and review. *(PRD: FR-S6, Section 8.3)*
 - **FR-017**: Survey MUST use stable language-independent answer keys and localized labels. *(PRD: FR-P5, Section 10.3)*
 - **FR-018**: Survey MUST include 10 to 12 steps covering intent, budget, household type, anchor location, commute/travel tolerance, lifestyle priorities, must-haves, dealbreakers, housing type, area character, language/report preference where needed, and review. *(PRD: Section 8.3)*
-- **FR-019**: Survey MUST allow users to refresh or navigate away and resume completed answers within the active session where feasible. *(PRD: FR-S4, Constitution IX)*
+- **FR-019**: Survey MUST allow users to refresh or navigate away and resume completed answers within the active session; any refresh persistence gap MUST be marked missing or partial in traceability. *(PRD: FR-S4, Constitution IX)*
 - **FR-020**: Survey MUST NOT show multiple questions, sidebars, tips, charts, maps, unrelated content, or explanatory clutter during questions. *(PRD: FR-S7)*
 - **FR-021**: Survey MUST be completable with keyboard, screen reader, and touch input. *(PRD: A11Y-1, A11Y-4, A11Y-5)*
 
@@ -234,10 +235,10 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 
 - **FR-026**: System MUST convert raw survey answers into a structured preference vector containing hard filters, soft preferences, normalized weights, exclusions, housing preferences, language, and anchor context where provided. *(PRD: FR-P1, FR-P2, FR-P3)*
 - **FR-027**: System MUST preserve raw survey answers separately from derived preference weights for explanation, debugging, and future editing. *(PRD: FR-P4)*
-- **FR-028**: System MUST start an asynchronous matching job after final confirmation and expose real persisted or pollable session/job status to the user-facing progress screen; because the repository has no existing worker queue, the implementation plan must choose and justify an in-process FastAPI job pattern or a new worker/queue. *(PRD: FR-M2, Section 14.4)*
+- **FR-028**: System MUST start an asynchronous matching job after final confirmation and expose real persisted or pollable session/job status to the user-facing progress screen. The implementation plan MUST use the smallest safe backend execution approach compatible with the existing FastAPI/Redis/SQLite-Turso stack; any new worker or queue framework MUST be justified in Complexity Tracking with rejected simpler alternatives, operational impact, and test coverage. *(PRD: FR-M2, Section 14.4; Constitution XII)*
 - **FR-029**: System MUST compare the preference vector against neighborhood feature data and produce eligibility, score, reason codes, tradeoffs, and confidence for each candidate neighborhood. *(PRD: FR-M3)*
 - **FR-030**: System MUST exclude neighborhoods that fail hard constraints from normal top matches unless clearly labeled as stretch or near-miss results. *(PRD: FR-M5)*
-- **FR-031**: System MUST return ranked neighborhood recommendations with fit score, concise reasons, tradeoffs, confidence, geometry references, source/freshness metadata, model version, data version, and evaluation status. *(PRD: FR-M4, FR-M6, Section 8.7)*
+- **FR-031**: System MUST return ranked neighborhood recommendations with eligibility, fit score or fit label, concise reasons, reason codes, tradeoffs, confidence, geometry references, source/freshness metadata, model/scoring version, data version, runtime, evaluation status, and explicit limitations. Missing, mock, stale, or fallback fields MUST be labeled rather than silently omitted. *(PRD: FR-M4, FR-M6, Section 8.7; Constitution V)*
 - **FR-032**: System MUST use deterministic or semi-deterministic weighted scoring for MVP because no historical predictive labels or validation dataset exists in the repository. *(PRD: Section 8.6, Constitution V)*
 - **FR-033**: System MUST NOT present "highest predictive power", validated probability, objective best fit, or model superiority claims unless a future feature adds real labels, validation data, and documented evaluation results. *(PRD: Section 8.6, Constitution V)*
 - **FR-034**: System MUST handle advanced ranking failure by falling back to stable scoring where possible and labeling the run as completed with fallback. *(PRD: FR-M7, Section 14.6)*
@@ -247,7 +248,8 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 - **FR-035**: Progress screen MUST show friendly localized status messages mapped to real job stages, not technical logs, model names, or raw algorithm details. *(PRD: Section 7 Phase 4, Section 10.5)*
 - **FR-036**: Progress screen MUST show perceivable progress and a reduced-motion alternative. *(PRD: Section 7 Phase 4, A11Y-2)*
 - **FR-037**: Progress screen MUST preserve answers and expose retry or safe recovery when matching is slow or fails. *(PRD: Sections 14.6, 21.3, 21.4)*
-- **FR-038**: Backend job states MUST include at minimum `created`, `queued`, `reading_preferences`, `building_profile`, `loading_neighborhood_data`, `applying_filters`, `running_models`, `scoring_tradeoffs`, `preparing_map`, `completed`, `failed`, and `completed_with_fallback`; user-facing progress copy MUST map these technical states to friendly localized message keys rather than exposing raw state names. *(PRD: Section 14.5)*
+- **FR-038**: Backend job/result states MUST include at minimum `created`, `queued`, `reading_preferences`, `building_profile`, `loading_neighborhood_data`, `applying_filters`, `running_models`, `scoring_tradeoffs`, `preparing_map`, `completed`, `failed`, `completed_with_fallback`, and `completed_no_strong_matches`; user-facing progress copy MUST map these technical states to friendly localized message keys rather than exposing raw state names. *(PRD: Section 14.5, Sections 21.1, 21.4)*
+- **FR-038A**: The implementation plan MUST define the slow-backend threshold that triggers localized slow-progress copy and slow-backend analytics while preserving the active session. *(PRD: Section 21.3; Constitution XV)*
 
 #### Phase 5 - Successful Completion
 
@@ -257,7 +259,7 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 
 #### Phase 6 - Netherlands Results Map
 
-- **FR-042**: Results MUST open on a map centered on the Netherlands. *(PRD: FR-R1)*
+- **FR-042**: Results MUST open on a map centered on the Netherlands, backed by persisted completed result state rather than optimistic local state. *(PRD: FR-R1; Constitution XIV)*
 - **FR-043**: Results MUST show a ranked list of recommended neighborhoods synchronized with markers or polygons on the map. *(PRD: FR-R2, FR-R4)*
 - **FR-044**: Each recommendation MUST show a fit score or fit label and one to two concise reason lines by default. *(PRD: FR-R5)*
 - **FR-045**: Detailed explanation MUST be available only through expansion or detail state so the default results list stays clean. *(PRD: FR-R6)*
@@ -265,12 +267,14 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 - **FR-047**: Clicking a map marker or polygon MUST highlight the corresponding list item. *(PRD: FR-R4)*
 - **FR-048**: Mobile results MUST support a map/list switching pattern that preserves selected neighborhood and scroll/zoom state. *(PRD: FR-R7)*
 - **FR-049**: Results MUST provide a non-map list alternative that supports keyboard and screen-reader users. *(PRD: A11Y-6)*
+- **FR-049A**: The implementation plan MUST name target acceptance device profiles and preserve these minimum budgets unless it records a stricter replacement: landing hero headline/CTA/language/search-link usable within 2.5 seconds on the target mobile profile, results map initial list and national map frame usable within 3 seconds after completed results are available, list-to-map and map-to-list selection feedback within 150 ms after local result data is loaded, and pan/zoom input response within 100 ms for already-loaded result geometry. *(PRD: Sections 16.1, 16.2; Constitution IV)*
+- **FR-049B**: Results map MUST support manual pan and zoom controls on desktop and mobile in addition to list-to-map fly-to behavior, while preserving synchronized ranked-list state. *(PRD: Section 7 Phase 6, Section 16.2)*
 
 #### Phase 7 - Neighborhood Detail and House Selection
 
 - **FR-050**: Selecting a neighborhood MUST open a detail state that clearly highlights only the selected neighborhood boundary. *(PRD: FR-N2)*
 - **FR-051**: Neighborhood detail MUST load/render 3D houses only after neighborhood selection and only within that selected neighborhood's bounds. *(PRD: FR-N1, Section 16.3, Constitution IV)*
-- **FR-052**: Neighborhood detail MUST meet a measurable performance budget: after neighborhood selection, the selected boundary and either 2D fallback context or the first selected-neighborhood building content MUST become usable within 3 seconds on target acceptance device profiles, while any remaining buildings and amenities load progressively without blocking navigation. *(PRD: FR-N6, Section 16.3, Constitution IV)*
+- **FR-052**: Neighborhood detail MUST meet a measurable performance budget: after neighborhood selection, the selected boundary and either 2D fallback context or the first selected-neighborhood building content MUST become usable within 3 seconds on target acceptance device profiles named in the implementation plan, while any remaining buildings and amenities load progressively without blocking navigation. *(PRD: FR-N6, Section 16.3, Constitution IV)*
 - **FR-053**: Neighborhood detail MUST provide a missing-3D fallback that shows 2D context and a localized explanation. *(PRD: FR-N5)*
 - **FR-054**: Neighborhood detail MUST show preference-aware amenity tags or icons and limit default visible amenity categories to a curated set of 5 to 7. *(PRD: FR-N3, Section 16.4)*
 - **FR-055**: Neighborhood detail MUST allow selecting a house or building only when a reliable Dossier entry path or fallback address selection path is available. *(PRD: FR-N4, Section 21.5)*
@@ -279,28 +283,28 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 #### Phase 8 - Existing Dossier Integration
 
 - **FR-057**: House selection MUST open the existing address-level Dossier rather than a redesigned Dossier surface, using the current `#/address/{vbo_id}` route when a reliable BAG addressable object ID is resolved or a localized address-selection fallback when it is not. *(PRD: FR-D1)*
-- **FR-058**: Dossier entry from match context MUST preserve session ID, selected neighborhood, selected house/address context, preferences, language, return path, and current Dossier route query data where relevant (`lookup`, `report`, `session_id`, `buyer_resume`). *(PRD: FR-D2)*
+- **FR-058**: Dossier entry from match context MUST preserve session ID, job ID, result set ID, preference vector version, selected neighborhood, result state, map center, map zoom, list scroll position, mobile map/list mode, selected result ID/rank, selected house/building or address context, preferences, language, return route, Dossier return path, and current Dossier route query data where relevant (`lookup`, `report`, `session_id`, `buyer_resume`). *(PRD: FR-D2; Constitution IX)*
 - **FR-059**: Dossier MUST include a persistent localized "Back to match map" or "Terug naar matchkaart" action. *(PRD: FR-D3)*
 - **FR-060**: Returning from Dossier MUST restore the prior match map state, preferring the selected-neighborhood detail state when the house was opened from that detail view and otherwise restoring the Netherlands results map; matching MUST NOT rerun unless the user changed preferences. *(PRD: FR-D4, Section 13.3)*
 - **FR-061**: After returning from Dossier, the user MUST be able to inspect another house in the same selected neighborhood or a different matched neighborhood from the preserved results without restarting the survey or rerunning matching. *(PRD: FR-D5, Section 13.3)*
-- **FR-062**: Dossier changes MUST NOT alter risk-card contracts, entitlement behavior, PDF/export contract, premium/free boundaries, or existing evidence-backed Dossier modules except where necessary for route context and back navigation. *(PRD: Section 13, Constitution VI)*
+- **FR-062**: Dossier changes MUST NOT alter risk-card contracts, entitlement behavior, checkout recovery, PDF/export contract, premium/free boundaries, or existing evidence-backed Dossier modules except where necessary for route context and back navigation. The on-screen Dossier viewer and `quick_brief` MUST remain free; `full_dossier` MUST continue to require server-side buyer/address entitlement before download; frontend risk tiles MUST remain limited to Noise, Air, and Climate; and Sunlight MUST remain paid-report/PDF evidence rather than becoming a frontend risk tile or detail view. *(PRD: Section 13, Constitution VI)*
 
 #### Cross-Cutting Accessibility, I18n, Privacy, Analytics, and Scope
 
 - **FR-063**: Every user-facing string introduced or changed by the revamp MUST use translation keys with Dutch and English values. *(PRD: Section 5.5, Constitution III)*
 - **FR-064**: Validation, error, fallback, progress, map, route labels, Dossier return action, screen-reader labels, and status messages MUST be bilingual through translation keys. *(PRD: Section 26, Constitution III)*
-- **FR-065**: The full journey MUST support keyboard navigation, screen-reader labels, focus management, touch targets, text contrast, and reduced motion. *(PRD: Section 18, A11Y-1, A11Y-2, A11Y-3, A11Y-4, A11Y-5)*
+- **FR-065**: The full journey, including progress states, failure states, map/list interactions, house selection, and the Dossier return action, MUST support keyboard navigation, screen-reader labels, focus management, touch targets, text contrast, perceivable status updates, and reduced motion on mobile and desktop. *(PRD: Section 18, A11Y-1, A11Y-2, A11Y-3, A11Y-4, A11Y-5; Constitution VII)*
 - **FR-066**: Maps MUST have non-map alternatives for discovering recommendations and selecting neighborhoods. *(PRD: A11Y-6)*
 - **FR-067**: System MUST show source, freshness, confidence, and limitations in recommendation detail states or Dossier context without cluttering onboarding. *(PRD: Sections 5.6, 15.3)*
-- **FR-068**: System MUST treat preference data, budget, household context, and anchors as sensitive user context and avoid collecting names, emails, or accounts for MVP matching. *(PRD: Section 19.1)*
-- **FR-069**: Anchor inputs MUST allow city-level anchors as an alternative to exact addresses. *(PRD: Section 19.2)*
+- **FR-068**: System MUST treat preference data, budget, household context, and anchors as sensitive user context; MUST NOT sell preference data; MUST avoid collecting names, emails, or accounts for MVP matching; MUST separate anonymous match sessions from accounts; MUST retain preference data only as needed for active anonymous matching unless the user explicitly saves results or creates an account; MUST provide a session-deletion path for anonymous match data or mark deletion as missing/partial in traceability with the retention limit, blocker, and follow-up condition; and MUST show clear privacy copy before account creation or saving results. *(PRD: Sections 15.4, 19.1)*
+- **FR-069**: Anchor inputs MUST allow city-level anchors as an alternative to exact addresses, MUST mark exact address anchors as optional, MUST store geocoded anchors only when needed for matching, and MUST NOT expose exact anchors in shareable outputs unless the user explicitly chooses. *(PRD: Section 19.2)*
 - **FR-070**: Matching MUST NOT use protected or sensitive demographic traits as scoring or exclusion criteria. *(PRD: Section 19.3)*
-- **FR-071**: System MUST collect analytics events for activation, survey start, per-question survey progress and drop-off, survey completion, matching, results engagement, neighborhood list selection, marker or polygon selection, neighborhood detail, amenity tag interaction, house selection, Dossier conversion, back-to-map usage, failures, fallbacks, and quality feedback. *(PRD: Section 20)*
+- **FR-071**: System MUST collect analytics events for activation, survey start, per-question survey progress and drop-off, survey completion, final run CTA, match job queued/running/completed/failed/completed-with-fallback/completed-no-strong-matches, match runtime, slow backend, no strong matches, results confidence sufficiency, results engagement, neighborhood list selection, marker or polygon selection, neighborhood detail, missing-3D fallback, amenity tag interaction, house selection, no reliable address, Dossier open, back-to-map clicked, back-to-map return success, failures, fallbacks, and quality feedback where a feedback UI exists. *(PRD: Section 20; Constitution XV)*
 - **FR-072**: Analytics MUST use stable event names and MUST NOT store translated labels as event identifiers. *(PRD: Section 20, Constitution III)*
-- **FR-073**: System MUST provide localized empty, slow, failed, fallback, missing-3D, and no-address states. *(PRD: Section 21)*
+- **FR-073**: System MUST provide bilingual, accessible, non-deceptive recovery states for session creation failure, answer-save failure, no strong matches, slow backend, failed backend, completed-with-fallback scoring, stale or unavailable result sets, map-layer load failure, building-layer load failure, amenity-layer load failure, missing 3D data, and no reliable address for a selected house. Each state MUST preserve the session where possible, expose a clear recovery action, and avoid unsupported certainty. *(PRD: Section 21; Constitution XV)*
 - **FR-074**: System MUST NOT add a full listing marketplace, AI chat, account system, checkout redesign, paid-report redesign, complex dashboard, nationwide 3D preload, or all map layers as part of this revamp. *(PRD: Sections 3.2, 22.2)*
 - **FR-075**: System MUST keep search technically available for direct address checks while keeping it secondary in first-screen hierarchy. *(PRD: Section 27.3)*
-- **FR-076**: System MUST preserve user context across navigation, refresh where feasible, Dossier round trip, language changes, and map/list toggles. *(PRD: Section 27.5, Constitution IX)*
+- **FR-076**: System MUST preserve user context across navigation, Dossier round trip, language changes, and map/list toggles, including survey answers, session ID, selected neighborhood, result state, map center/zoom, list scroll, mobile map/list mode, selected result ID/rank, selected house/building, language, matching status, return route, and Dossier return path. Refresh persistence gaps MUST be marked missing or partial in traceability, never treated as pass. *(PRD: Section 27.5, Constitution IX)*
 - **FR-077**: System MUST avoid claims of perfect fit, safety, happiness, investment certainty, future value, guaranteed affordability, or guaranteed outcomes. *(PRD: Section 3.2, Constitution X)*
 - **FR-078**: Every implementation phase derived from this spec MUST include acceptance-linked tests or verification for affected behavior. *(PRD: Section 23, Constitution VIII)*
 
@@ -310,12 +314,12 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 - **Survey Answer Set**: Raw answers keyed by stable language-independent question and answer IDs. Includes required/optional status, validation status, modified timestamp, and whether downstream answers remain valid after edits.
 - **Preference Vector**: Derived representation of survey answers. Includes intent, budget range, household context key, anchor locations or city anchors, travel tolerance, hard filters, normalized weights, avoid list, housing preferences, and language key.
 - **Neighborhood Feature Record**: Data-backed neighborhood attributes available for matching. Includes neighborhood ID, name key or localized display data, municipality, centroid, geometry reference, feature values, missing/stale indicators, source references, and freshness metadata.
-- **Match Job**: Asynchronous matching run. Includes job ID, session ID, status, progress stage, started/completed timestamps, fallback flag, runtime, error class for internal use, model/scoring version, data version, and evaluation status.
-- **Neighborhood Recommendation**: Ranked result for a candidate neighborhood. Includes rank, neighborhood ID, fit score or label, eligibility status, confidence, reason codes, tradeoffs, matched preferences, failed hard filters where shown as near-miss, geometry references, and limitations.
+- **Match Job**: Asynchronous matching run. Includes job ID, session ID, status, progress stage, started/completed timestamps, fallback flag, runtime, error class for internal use, model/scoring version, data version, evaluation status, and stable failure/fallback reason codes.
+- **Neighborhood Recommendation**: Ranked result for a candidate neighborhood. Includes rank, neighborhood ID, fit score or label, eligibility status, confidence, reason codes, tradeoffs, matched preferences, failed hard filters where shown as near-miss, geometry references, source/freshness metadata, and explicit limitations.
 - **Geometry Reference**: Stable reference to map geometry needed for results and detail views. Includes neighborhood polygon reference, centroid, boundary source/freshness metadata, selected-neighborhood building layer reference, and amenity layer references.
 - **Amenity Tag Set**: Preference-aware visible amenity categories for the selected neighborhood. Includes tag keys, labels through translations, relevance reason codes, and source metadata.
 - **House Selection Context**: Selected house/building reference inside a neighborhood. Includes building or parcel ID where available, address resolution status, candidate addresses, selected address, Dossier route target, and fallback reason.
-- **Dossier Return Context**: State needed to return from Dossier to the match map. Includes session ID, result rank context, selected neighborhood, selected house/address, map center/zoom/list state, language, and whether preferences changed.
+- **Dossier Return Context**: State needed to return from Dossier to the match map. Includes session ID, job ID, result set ID, preference vector version, result state, selected result ID/rank, selected neighborhood, selected house/building/address, map center, map zoom, list scroll position, mobile map/list mode, language, return route, Dossier return path, current Dossier route query data where relevant, and whether preferences changed.
 - **Analytics Event**: Product telemetry event. Includes stable event name, session ID or anonymous journey ID, phase, locale, stable question key where relevant, result/neighborhood/amenity/house IDs where relevant, status/outcome, and non-sensitive metadata. Event identifiers MUST be stable keys and MUST NOT use translated labels, addresses, exact anchors, free-text answers, or sensitive household/budget details.
 
 ### Data Contracts and State Transitions
@@ -323,8 +327,14 @@ The user clicks a house and enters the existing address-level Dossier. The Dossi
 Current route compatibility contract:
 
 - Existing hash routes MUST remain valid during the revamp: `#/search`, `#/address/{vbo_id}`, `#/briefing`, `#/saved`, `#/compare`, `#/settings`, existing `#/match/*` routes, shared routes, and prebid pack routes.
+- Legacy `#/match/*` routes are compatibility-only surfaces during this revamp and MUST NOT reintroduce dashboards, competing search/match modes, or first-viewport destinations that conflict with the canonical match-first journey.
 - New match-first routes or route states MUST be added through the current custom route parser/hash builder unless the plan explicitly updates clean URL rewrites and documents compatibility.
 - Dossier route construction MUST retain support for `vbo_id`, `lookup`, `report`, `session_id`, and `buyer_resume` query context because these are already used for address lookup and checkout recovery.
+
+#### Minimum API Contract
+
+- Planning MUST define or preserve request body, response body, stable error-code, and retry/idempotency behavior for `POST /api/match/sessions`, `GET /api/match/sessions/{session_id}`, `PATCH /api/match/sessions/{session_id}/answers`, `POST /api/match/sessions/{session_id}/run`, `GET /api/match/sessions/{session_id}/status`, `GET /api/match/sessions/{session_id}/results`, `GET /api/match/neighborhoods/{neighborhood_id}`, `GET /api/match/neighborhoods/{neighborhood_id}/map-layers`, `GET /api/match/neighborhoods/{neighborhood_id}/buildings`, `GET /api/match/neighborhoods/{neighborhood_id}/amenities`, and `POST /api/match/dossier/from-building`.
+- API payloads MUST use stable language-independent keys, include every field required by the survey answer, preference vector, match result, confidence, map state, analytics, and Dossier return contracts below, and MUST NOT expose translated labels as stored identifiers.
 
 #### Survey Answer Contract
 
@@ -343,8 +353,8 @@ Current route compatibility contract:
 
 #### Match Result Contract
 
-- Result set MUST include session ID, job ID, completed status, model/scoring version, data version, evaluation status, generated timestamp, and fallback status.
-- Each recommendation MUST include rank, neighborhood ID, score/label, reason codes, tradeoffs, confidence, geometry references, and limitations.
+- Result set MUST include session ID, job ID, result set ID, preference vector version, completed status, model/scoring version, data version, runtime, evaluation status, generated timestamp, fallback status, and stable failure/fallback reason codes where applicable.
+- Each recommendation MUST include rank, neighborhood ID, eligibility, score, stable fit label key, reason codes, tradeoffs, confidence, geometry references, source/freshness metadata, and explicit limitations. Missing or fallback fields MUST be labeled with stable keys rendered through translation keys, not stored translated strings.
 - MVP result sets MUST report a weighted-scoring model mode unless a future validated predictive dataset is added.
 - Predictive probability fields MUST be absent or clearly disabled unless validation evidence exists.
 - Near-miss results MUST be labeled separately from normal top matches.
@@ -352,6 +362,7 @@ Current route compatibility contract:
 #### Confidence Contract
 
 - Recommendation confidence MUST be represented as a data-quality confidence score from 0 to 100 plus a stable confidence level key: `high` for 80-100, `medium` for 50-79, `low` for 20-49, and `insufficient` for 0-19.
+- Recommendation payloads MUST use this 0-100 confidence contract and the listed level keys; legacy label variants such as `medium_high` MUST NOT be used.
 - Confidence MUST describe data completeness, freshness, source coverage, geometry reliability, scoring fallback mode, and missing-feature impact; it MUST NOT be presented as predictive probability, likelihood of happiness, investment certainty, safety certainty, or objective truth.
 - A recommendation is considered to have sufficient confidence only when confidence is at least 50 and no blocking limitation exists for geometry, hard-filter eligibility, or required source coverage.
 - Confidence MUST be downgraded when required or heavily weighted features are missing, stale, mock-only, sparse, conflicting, fallback-derived, or supported only by approximate geometry; each downgrade MUST be expressible through stable reason or limitation codes.
@@ -359,54 +370,68 @@ Current route compatibility contract:
 
 #### Map State Contract
 
-- Results map state MUST include selected result ID, map center, zoom, list scroll/selection state, mobile map/list mode, and language.
+- Results map state MUST include session ID, job ID, result set ID, preference vector version, selected result ID, map center, zoom, list scroll/selection state, mobile map/list mode, and language.
 - Neighborhood detail state MUST include selected neighborhood ID, boundary reference, visible amenity tag keys, selected house/building if any, and whether 3D or 2D fallback is active.
 - Dossier return context MUST restore the latest relevant map state without rerunning matching unless preference vector version changed; return target MUST be the selected-neighborhood detail view when the Dossier was opened from a house in that view, otherwise the Netherlands results map.
 
 #### Analytics Event Contract
 
-- Funnel analytics MUST include stable events for landing CTA shown/clicked, survey intro shown, survey started, survey question shown, survey answer saved, survey question abandoned or skipped where applicable, survey completed, final run CTA clicked, match job queued/running/completed/failed/completed-with-fallback, success checkmark shown, results map opened, recommendation list item selected, map marker or polygon selected, neighborhood detail opened, amenity tag shown/toggled/selected, house selected, Dossier opened, back-to-match-map clicked, and quality feedback submitted.
+- Funnel analytics MUST include stable events including `match_landing_cta_shown`, `match_landing_cta_clicked`, `match_survey_intro_shown`, `match_survey_started`, `match_survey_question_shown`, `match_survey_answer_saved`, `match_survey_answer_save_failed`, `match_survey_question_abandoned`, `match_survey_completed`, `match_final_run_cta_clicked`, `match_job_queued`, `match_job_running`, `match_job_completed`, `match_job_failed`, `match_job_completed_with_fallback`, `match_job_completed_no_strong_matches`, `match_job_slow`, `match_results_unavailable`, `match_results_confidence_sufficient`, `match_success_checkmark_shown`, `match_results_map_opened`, `match_recommendation_selected`, `match_map_feature_selected`, `match_map_layer_failed`, `match_neighborhood_detail_opened`, `match_building_layer_failed`, `match_amenity_layer_failed`, `match_missing_3d_fallback_shown`, `match_amenity_interacted`, `match_house_selected`, `match_no_reliable_address_shown`, `match_dossier_opened`, `match_back_to_map_clicked`, `match_back_to_map_return_success`, and `match_quality_feedback_submitted` where a feedback UI exists.
 - Survey drop-off MUST be attributable to stable question keys and step numbers, not translated question text or answer labels.
 - Analytics payloads MUST use stable route, question, recommendation, neighborhood, amenity, and status keys; payloads MUST avoid translated labels, exact address anchors, free-text answers, and sensitive personal data.
 
 #### Core State Transitions
 
 1. `landing` -> `survey_intro`: user clicks primary match CTA.
-2. `survey_intro` -> `survey_question`: user starts the match.
-3. `survey_question[n]` -> `survey_question[n+1]`: required answer is valid and persisted.
-4. `survey_question[n]` -> `survey_question[n-1]`: user uses back control; prior answer is restored.
-5. `survey_question[last]` -> `review`: final answer is valid.
-6. `review` -> `matching_queued`: user confirms final CTA; preference vector is current.
-7. `matching_queued` -> `matching_running`: backend job starts with real status.
-8. `matching_running` -> `completed_with_fallback`: advanced ranking fails but stable scoring succeeds.
-9. `matching_running` -> `matching_failed`: no usable results can be produced.
-10. `matching_running` -> `success_checkmark`: results are complete.
-11. `success_checkmark` -> `results_map`: user opens map or timed transition completes.
-12. `results_map` -> `neighborhood_detail`: user selects a recommendation.
-13. `neighborhood_detail` -> `dossier`: user selects a house/address with a reliable Dossier path.
-14. `dossier` -> `neighborhood_detail` or `results_map`: user activates back-to-match-map action.
-15. Any state with changed preferences -> `review`: results are marked stale and matching must rerun only after confirmation.
+2. `landing` -> `session_create_failed`: session creation fails; localized retry state is shown without promoting address search.
+3. `session_create_failed` -> `survey_intro`: user retries and session creation succeeds.
+4. `survey_intro` -> `survey_question`: user starts the match.
+5. `survey_question[n]` -> `answer_persisting`: user selects or updates an answer.
+6. `answer_persisting` -> `survey_question[n]`: answer save fails; localized retry state is shown and the user remains on the same question.
+7. `answer_persisting` -> `survey_question[n+1]`: required answer is valid and persisted.
+8. `survey_question[n]` -> `survey_question[n-1]`: user uses back control; prior answer is restored.
+9. `survey_question[last]` -> `review`: final answer is valid and persisted.
+10. `review` -> `matching_queued`: user confirms final CTA; preference vector is current.
+11. `matching_queued` -> `matching_running`: backend job starts with real status.
+12. `matching_running` -> `matching_slow`: plan-defined slow-backend threshold is reached; localized slow-progress copy and slow-backend analytics fire while the same job continues.
+13. `matching_running` or `matching_slow` -> `completed_with_fallback`: advanced ranking fails but stable scoring succeeds.
+14. `matching_running` or `matching_slow` -> `matching_failed`: no usable results can be produced.
+15. `matching_running` or `matching_slow` -> `completed_no_strong_matches`: scoring completes but normal top matches are not strong enough; near-matches and constraint-relaxation actions are shown.
+16. `matching_failed` -> `review` or `matching_queued`: user edits answers or retries the same saved session.
+17. `matching_running` or `matching_slow` -> `completed`: persisted result set is complete.
+18. `completed`, `completed_with_fallback`, or `completed_no_strong_matches` -> `success_checkmark`: user sees the required completion confirmation with clearly labeled fallback or near-match context where applicable before results.
+19. `success_checkmark` -> `results_map`: user opens map or timed transition completes.
+20. `results_map` -> `results_unavailable`: completed result set is missing, stale, or cannot be loaded; localized recovery is shown without fabricating results.
+21. `results_unavailable` -> `review` or `matching_queued`: user edits answers or retries the same saved session.
+22. `results_map` -> `neighborhood_detail`: user selects a recommendation.
+23. `results_map` or `neighborhood_detail` -> `map_layer_failed`: map, building, or amenity layer fails; localized 2D/list fallback or retry is shown.
+24. `map_layer_failed` -> `results_map` or `neighborhood_detail`: user retries or continues with an available fallback.
+25. `neighborhood_detail` -> `address_selection_fallback`: user selects a building without a reliable address.
+26. `address_selection_fallback` -> `dossier` or `neighborhood_detail`: user chooses a nearby/manual address or returns to map.
+27. `neighborhood_detail` -> `dossier`: user selects a house/address with a reliable Dossier path.
+28. `dossier` -> `neighborhood_detail` or `results_map`: user activates back-to-match-map action.
+29. Any state with changed preferences -> `review`: results are marked stale and matching MUST rerun only after confirmation.
 
 ### Data, AI, and Trust Constraints *(mandatory when feature uses data or AI)*
 
 - **Data categories**: Official public data, existing Dossier data, neighborhood feature data, derived internal scores, geometry references, and explicitly labeled mock/seed data where real data is unavailable.
-- **Source and freshness**: Recommendation detail and Dossier context must show source, loaded date or source date where available, freshness, confidence, missing data, and limitation indicators without cluttering onboarding.
-- **AI boundary**: Language models may summarize, translate, or explain already-computed structured results. They must not create or change eligibility, scores, confidence, reason-code truth, hard-filter outcomes, or source metadata.
-- **Fairness guardrails**: Protected or sensitive demographic traits must not be used to score, exclude, or rank neighborhoods. Household and lifestyle preferences may be used only as user-stated needs, not demographic profiling.
+- **Source and freshness**: Recommendation detail and Dossier context MUST show source, loaded date or source date where available, freshness, confidence, missing data, and limitation indicators without cluttering onboarding.
+- **AI boundary**: Language models MAY summarize, translate, or explain already-computed structured results. They MUST NOT create or change eligibility, scores, confidence, reason-code truth, hard-filter outcomes, or source metadata.
+- **Fairness guardrails**: Protected or sensitive demographic traits MUST NOT be used to score, exclude, or rank neighborhoods. Household and lifestyle preferences MAY be used only as user-stated needs, not demographic profiling.
 - **Listing data mode**: This revamp is not a listing marketplace. House selection is a bridge to existing Dossier behavior; any listing or availability signal is a neighborhood-level proxy unless a licensed provider is explicitly added in a later feature.
-- **Admin visibility**: Operators need visibility into data freshness, missing feature data, source failures, match fallback rate, scoring anomalies, guardrail blocks, and job failures.
-- **Reason codes and limitations**: Recommendations must explain fit through stable reason codes, tradeoffs, source-backed data, and limitations. Copy must avoid unsupported promises or objective certainty.
+- **Operational visibility**: Logs and analytics MUST expose data freshness, missing feature data, source failures, match fallback rate, scoring anomalies, guardrail blocks, and job failures for operators without adding a new admin UI surface to MVP scope.
+- **Reason codes and limitations**: Recommendations MUST explain fit through stable reason codes, tradeoffs, source-backed data, and limitations. Copy MUST avoid unsupported promises or objective certainty.
 
 ## Success Criteria *(mandatory)*
 
 Phase completion test strategy:
 
 - **Phase 1 - UI shell and route cleanup**: Vitest/Testing Library MUST cover the landing hierarchy, demoted search link, route parser/hash builder compatibility, language switcher, reduced-motion hero fallback, and no competing search-first CTA; run `cd frontend && npm run build`, targeted Vitest, and accessibility checks for changed screens.
-- **Phase 2 - Survey and preference vector**: Frontend tests MUST cover one-question-at-a-time rendering, progress, back/edit behavior, validation, refresh persistence, language switching, and stable answer keys; backend tests MUST cover session/answer persistence and preference vector generation if backend contracts are touched.
+- **Phase 2 - Survey and preference vector**: Frontend tests MUST cover one-question-at-a-time rendering, progress, back/edit behavior, validation, refresh persistence, language switching, and stable answer keys; backend tests MUST cover session/answer persistence and preference vector generation.
 - **Phase 3 - Matching backend**: Backend pytest MUST cover session creation, answer patching, run confirmation, pollable job states, deterministic scoring, hard filters, reason codes, fallback behavior, no predictive probability without labels, and source/freshness metadata; run `cd backend && ruff check .` and relevant non-live pytest.
-- **Phase 4 - Progress and success states**: Tests MUST verify progress messages map to the required real backend job stages (`created`, `queued`, `reading_preferences`, `building_profile`, `loading_neighborhood_data`, `applying_filters`, `running_models`, `scoring_tradeoffs`, `preparing_map`, `completed`, `failed`, `completed_with_fallback`), slow/failed/fallback states preserve answers, reduced-motion progress is usable, and the success checkmark transitions to results without fake precision.
+- **Phase 4 - Progress and success states**: Tests MUST verify progress messages map to the required real backend job stages (`created`, `queued`, `reading_preferences`, `building_profile`, `loading_neighborhood_data`, `applying_filters`, `running_models`, `scoring_tradeoffs`, `preparing_map`, `completed`, `failed`, `completed_with_fallback`, `completed_no_strong_matches`), slow/failed/fallback/no-strong-match states preserve answers, reduced-motion progress is usable, and the success checkmark transitions to results without fake precision.
 - **Phase 5 - Results map**: Frontend tests and Playwright checks MUST cover Netherlands initial view, ranked list/map synchronization, marker or polygon selection, mobile map/list switching, keyboard-accessible non-map alternatives, and no match rerun when selecting a result.
-- **Phase 6 - Neighborhood 3D detail**: Tests MUST prove 3D building requests happen only after a neighborhood is selected and only for selected-neighborhood bounds, never nationally; verify 2D/missing-3D/reduced-motion fallbacks, amenity tag limits, house-selection availability, and the 3-second usable-state budget on target acceptance profiles.
+- **Phase 6 - Neighborhood 3D detail**: Tests MUST prove 3D building requests happen only after a neighborhood is selected and only for selected-neighborhood bounds, never nationally; verify 2D/missing-3D/reduced-motion fallbacks, amenity tag limits, house-selection availability, and the 3-second usable-state budget on target acceptance profiles named by the implementation plan before Phase 6 work starts.
 - **Phase 7 - Dossier bridge**: Integration and E2E tests MUST cover house-to-address resolution or fallback, entry into existing `#/address/{vbo_id}` Dossier, preservation of Dossier/export/risk-card contracts, persistent localized back-to-match-map action, restored selected-neighborhood/results map state, and opening a second house without restarting or rerunning matching.
 
 ### Measurable Outcomes
@@ -417,15 +442,15 @@ Phase completion test strategy:
 - **SC-004**: No survey screen displays more than one question at a time in automated or manual acceptance checks.
 - **SC-005**: 100% of completed survey sessions produce a valid preference vector with hard filters, weights, raw answer references, and language-independent keys.
 - **SC-006**: 100% of match runs start only after final review confirmation.
-- **SC-007**: At least 95% of successful match runs return ranked neighborhoods with required score/label, reason codes, tradeoffs, 0-100 data-quality confidence score, confidence level key, confidence downgrade reasons where applicable, geometry references, and model/data version metadata.
+- **SC-007**: At least 95% of successful match runs return ranked neighborhoods with required eligibility, score, stable fit label key, reason codes, tradeoffs, 0-100 data-quality confidence score, confidence level key, confidence downgrade reasons where applicable, geometry references, source/freshness metadata, explicit limitations, runtime, evaluation status, and model/data version metadata.
 - **SC-008**: 0 user-facing recommendation screens claim predictive probability or objective best fit unless validation evidence is present.
 - **SC-009**: At least 95% of completed match sessions can open the Netherlands results map and select a neighborhood from either the list or map.
 - **SC-010**: 0 selected-neighborhood detail states load or render national 3D building data.
 - **SC-011**: At least 95% of Dossier entries opened from match context can return to the prior match map state without rerunning matching.
 - **SC-012**: 100% of new or changed user-facing strings in the revamp have English and Dutch translation keys.
-- **SC-013**: Core flow accessibility checks verify keyboard navigation, screen-reader labels, readable text contrast including over hero/map backgrounds, touch targets, reduced motion, and non-map alternatives for all major screens.
-- **SC-014**: Funnel and drop-off analytics cover landing CTA, survey intro, survey start, survey question shown, survey answer saved, question-level drop-off by stable question key, survey completion, final run CTA, match run, fallback/failure, success checkmark, results open, recommendation list select, map marker or polygon select, neighborhood detail open, amenity tag interaction, house select, Dossier open, back-to-map, and quality feedback events.
-- **SC-015**: At least 95% of selected-neighborhood detail acceptance runs become usable within 3 seconds after neighborhood selection by showing the selected boundary plus either 2D fallback context or first selected-neighborhood building content.
+- **SC-013**: Core flow accessibility checks verify keyboard navigation, screen-reader labels, focus management, perceivable progress and failure states, readable text contrast including over hero/map backgrounds, touch targets, reduced motion, map/list interactions, Dossier return action, and non-map alternatives for all major screens.
+- **SC-014**: Funnel and drop-off analytics cover the stable event keys listed in the Analytics Event Contract, including landing CTA, survey intro, survey start, survey question shown, survey answer saved or failed, question-level drop-off by stable question key, survey completion, final run CTA, match job queued/running/completed/failed/completed-with-fallback/completed-no-strong-matches, match runtime, slow backend, no strong matches, unavailable results, results confidence sufficiency, success checkmark, results open, recommendation list select, map marker or polygon select, neighborhood detail open, map/building/amenity layer failures, missing-3D fallback, amenity interaction, house select, no reliable address, Dossier open, back-to-map clicked, back-to-map return success, failures, fallbacks, and quality feedback events where a feedback UI exists.
+- **SC-015**: At least 95% of selected-neighborhood detail acceptance runs on plan-defined target acceptance device profiles become usable within 3 seconds after neighborhood selection by showing the selected boundary plus either 2D fallback context or first selected-neighborhood building content.
 - **SC-016**: At least 95% of users who return from Dossier to the match map can open a second house Dossier from the preserved same-neighborhood or ranked-results context without restarting the survey or rerunning matching.
 
 ## Assumptions
@@ -433,8 +458,8 @@ Phase completion test strategy:
 - Users are anonymous for MVP matching unless an existing account or entitlement flow is already in use elsewhere in the product.
 - Match results and on-screen viewer remain free unless an existing product contract already requires gating outside this revamp.
 - Existing Dossier, risk-card, entitlement, quick brief, and full dossier export contracts remain in force and are not redesigned by this feature.
-- Current seed/mock match data may be used only when clearly labeled; production claims require real source/freshness metadata.
-- Because no historical predictive labels exist in the repository, the first implementation must use deterministic or semi-deterministic weighted scoring; predictive or model-selection claims require future validation data.
-- The MVP hero map should use a pre-rendered map loop, optimized 2D canvas, or static map image with subtle motion; live 3D may be revisited only after performance and accessibility budgets are proven.
-- The Netherlands is the intended results context. If data coverage is incomplete, unavailable areas must be labeled through confidence or limitation states rather than hidden behind unsupported certainty.
-- The survey's exact wording may evolve during design, but it must remain 10 to 12 steps, one question at a time, and fully bilingual through translation keys.
+- Current seed/mock match data MAY be used only when clearly labeled; production claims require real source/freshness metadata.
+- Because no historical predictive labels exist in the repository, the first implementation MUST use deterministic or semi-deterministic weighted scoring; predictive or model-selection claims require future validation data.
+- The MVP hero map MUST use a pre-rendered map loop, optimized 2D canvas, or static map image with subtle motion; live 3D MAY be revisited only after performance and accessibility budgets are proven.
+- The Netherlands is the intended results context. If data coverage is incomplete, unavailable areas MUST be labeled through confidence or limitation states rather than hidden behind unsupported certainty.
+- The survey's exact wording MAY evolve during design, but it MUST remain 10 to 12 steps, one question at a time, and fully bilingual through translation keys.

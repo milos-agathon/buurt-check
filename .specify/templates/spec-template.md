@@ -106,6 +106,8 @@
 - **Dossier preservation**: [Dossier touchpoints, smallest safe change, persistent back-to-map action, regression expectations]
 - **Accessibility**: [Keyboard, screen-reader, touch target, contrast, focus, reduced-motion, and non-map alternative requirements]
 - **Context preservation**: [Survey answers, session ID, selected neighborhood, map state, language, and Dossier return path]
+- **Traceability**: [How every PRD acceptance criterion touched by this spec will map to files, tests/manual verification, and missing/partial/pass status]
+- **Small safe changes**: [Current phase boundary, avoided scope expansions, and justification for any framework/dependency/routing/Dossier/map-engine change]
 - **Unsupported claims**: [Copy and explanation boundaries; reason codes and data limitations required]
 - **Known codebase conflicts**: [Conflict, smallest safe change, owner/follow-up or N/A]
 

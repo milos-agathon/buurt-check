@@ -15,11 +15,13 @@ Anonymous container for a user's match-first journey.
 - `preference_vector_id`: latest vector ID, nullable until review/run
 - `preference_vector_version`: hash of answer set used for the latest vector
 - `active_job_id`: latest job ID, nullable
+- `result_set_id`: latest completed result set ID, nullable until matching completes
+- `stale_results`: boolean set when answers change after results exist
 - `selected_neighborhood_id`: nullable
 - `selected_recommendation_id`: nullable
 - `selected_house_id`: nullable
-- `map_state_json`: center, zoom, selected item, list scroll, mobile mode
-- `dossier_return_context_json`: return target and state snapshot
+- `map_state_json`: optional persisted center, zoom, selected item, list scroll, and mobile mode; route/query context plus `sessionStorage` are the MVP default unless backend persistence is required for supported restore cases
+- `dossier_return_context_json`: return target and state snapshot, using explicit match fields rather than checkout `session_id`
 - `created_at`, `updated_at`, `expires_at`, `deleted_at`
 
 **Validation rules**:
@@ -77,8 +79,8 @@ Pollable backend matching run.
 - `job_id`
 - `session_id`
 - `preference_vector_id`
-- `status`: `created`, `queued`, `running`, `completed`, `completed_with_fallback`, `failed`, `cancelled`, `expired`
-- `stage`: `created`, `queued`, `reading_preferences`, `building_profile`, `loading_neighborhood_data`, `applying_filters`, `running_models`, `scoring_tradeoffs`, `preparing_map`, `completed`, `completed_with_fallback`, `failed`
+- `status`: `created`, `queued`, `running`, `matching_slow`, `completed`, `completed_with_fallback`, `completed_no_strong_matches`, `failed`, `cancelled`, `expired`
+- `stage`: `created`, `queued`, `reading_preferences`, `building_profile`, `loading_neighborhood_data`, `applying_filters`, `running_models`, `scoring_tradeoffs`, `preparing_map`, `completed`, `completed_with_fallback`, `completed_no_strong_matches`, `failed`, `expired`
 - `progress`: integer 0-100
 - `message_key`: stable i18n key
 - `model_mode`: `weighted_scoring`
@@ -95,7 +97,8 @@ Pollable backend matching run.
 **Validation rules**:
 
 - A run can start only from a complete current answer set.
-- `completed` and `completed_with_fallback` require a `result_set_id`.
+- `completed`, `completed_with_fallback`, and `completed_no_strong_matches` require a `result_set_id`.
+- `matching_slow` is a user-facing slow-state while the same backend job continues; it must not create a second job.
 - Public responses must not include stack traces or internal error text.
 
 ## MatchResultSet
@@ -108,8 +111,10 @@ Stored recommendation output for a completed job.
 - `session_id`
 - `job_id`
 - `preference_vector_id`
+- `preference_vector_version`
 - `status`
 - `generated_at`
+- `runtime_ms`
 - `model_mode`
 - `scoring_version`
 - `data_version`
@@ -117,18 +122,26 @@ Stored recommendation output for a completed job.
 - `predictive_probability_available`: always `false` for MVP
 - `fallback_used`
 - `fallback_reason_code`
+- `normal_recommendation_count`
+- `candidate_count`
+- `scored_candidate_count`
 - `recommendations_json`
 - `near_misses_json`
+- `stretch_matches_json`
 - `evidence_json`
 - `source_coverage_json`
 - `geometry_refs_json`
+- `map_json`
+- `map_center_json`
+- `bbox_json`
 - `empty_state_code`
 
 **Validation rules**:
 
 - Recommendations must include fit scores, not predictive probabilities.
 - Each recommendation must include reason codes, tradeoffs, confidence, limitations, and geometry references.
-- Near-miss results must be labeled separately from normal top matches.
+- Near-miss and stretch-match results must be structurally separate from normal top matches.
+- `candidate_count` and `scored_candidate_count` must match for the deterministic baseline unless a candidate is rejected before scoring by documented data-integrity rules.
 
 ## NeighborhoodRecommendation
 
@@ -142,6 +155,7 @@ One ranked candidate neighborhood.
 - `name`
 - `municipality`
 - `fit_score`: 0-100
+- `fit_label_key`
 - `category`: `top`, `surprising`, `stretch`, `avoid_or_reconsider`
 - `eligibility_status`: `eligible`, `stretch`, `failed_hard_filter`, `insufficient_data`
 - `confidence`: score 0-100 and level `high`, `medium`, `low`, `insufficient`
@@ -232,20 +246,28 @@ State required to return from Dossier to the match map.
 
 - `session_id`
 - `return_target`: `results_map` or `neighborhood_detail`
+- `job_id`
+- `result_set_id`
+- `preference_snapshot_ref`
+- `preference_vector_version`
+- `active_filter_keys`
 - `selected_neighborhood_id`
 - `selected_recommendation_id`
+- `selected_result_rank`
 - `selected_house_id`
 - `map_center`
 - `map_zoom`
 - `list_scroll`
 - `mobile_mode`
 - `locale`
-- `preference_vector_version`
+- `dossier_route`
+- `dossier_query_context`: existing `lookup`, `report`, checkout `session_id`, and `buyer_resume` values where present
 
 **Validation rules**:
 
 - Back-to-map must not rerun matching when `preference_vector_version` still matches current answers.
 - If preferences changed, return to review with stale-results messaging.
+- Match context must use `match_session`, `match_return`, and encoded `match_context`; it must not overwrite checkout `session_id`.
 
 ## AnalyticsEvent
 
@@ -269,21 +291,32 @@ Privacy-safe product telemetry event.
 ## State Transitions
 
 ```text
-landing -> survey_intro
+landing -> session_creating -> survey_intro
+session_creating -> session_create_failed -> survey_intro
 survey_intro -> survey_question
-survey_question[n] -> survey_question[n+1]
+survey_question[n] -> answer_persisting -> survey_question[n+1]
+answer_persisting -> answer_save_failed -> survey_question[n]
 survey_question[n] -> survey_question[n-1]
 survey_question[last] -> review
-review -> matching
-matching(created) -> matching(queued)
-matching(queued) -> matching(running)
-matching(running) -> success
-matching(running) -> failed
+review -> review_vector_readback_failed -> review
+review -> matching(created) -> matching(queued) -> matching(running)
+matching(running) -> matching_slow -> matching(running)
+matching(running) -> completed
 matching(running) -> completed_with_fallback
-success -> results_map
+matching(running) -> completed_no_strong_matches
+matching(running) -> failed
+matching(created|queued|running|matching_slow) -> expired
+completed|completed_with_fallback|completed_no_strong_matches -> success_checkmark -> results_map
+results_map -> results_unavailable -> review|matching(queued)
+results_map -> map_layer_failed -> results_map
 results_map -> neighborhood_detail
+neighborhood_detail -> building_layer_failed|amenity_layer_failed -> neighborhood_detail
+neighborhood_detail -> no_reliable_address -> neighborhood_detail
+neighborhood_detail -> dossier_bridge_failed -> neighborhood_detail
 neighborhood_detail -> dossier
+dossier -> dossier_return_failed
 dossier -> neighborhood_detail
 dossier -> results_map
 any state with changed preferences -> review
+any match state -> session_deleted|session_delete_failed
 ```
