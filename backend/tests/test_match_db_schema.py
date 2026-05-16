@@ -22,6 +22,8 @@ async def test_init_db_creates_match_foundation_tables(tmp_path):
         "match_preference_vectors",
         "match_sessions",
         "match_survey_answers",
+        "match_jobs",
+        "match_result_sets",
         "match_recommendation_evidence",
         "match_reports",
         "match_guardrail_events",
@@ -86,6 +88,96 @@ async def test_match_session_tables_store_answers_and_route_state(tmp_path):
         "warnings_json",
         "created_at",
     } <= preference_vector_columns
+
+
+@pytest.mark.asyncio
+async def test_match_job_and_result_tables_store_pollable_state(tmp_path):
+    db_path = str(tmp_path / "match.db")
+
+    await init_db(db_path)
+    await init_db(db_path)
+
+    async with get_db(db_path) as db:
+        cursor = await db.execute("PRAGMA table_info(match_jobs)")
+        job_columns = {row["name"] for row in await cursor.fetchall()}
+        cursor = await db.execute("PRAGMA index_list(match_jobs)")
+        job_indexes = {row["name"]: row for row in await cursor.fetchall()}
+        cursor = await db.execute("PRAGMA table_info(match_result_sets)")
+        result_columns = {row["name"] for row in await cursor.fetchall()}
+
+    assert {
+        "job_id",
+        "session_id",
+        "preference_vector_id",
+        "status",
+        "stage",
+        "progress",
+        "message_key",
+        "model_mode",
+        "model_version",
+        "data_version",
+        "evaluation_status",
+        "fallback_used",
+        "fallback_reason_code",
+        "result_set_id",
+        "error_code",
+        "internal_error_class",
+        "started_at",
+        "completed_at",
+        "runtime_ms",
+        "updated_at",
+    } <= job_columns
+    assert "idx_match_jobs_active_vector_unique" in job_indexes
+    assert job_indexes["idx_match_jobs_active_vector_unique"]["unique"] == 1
+    assert {
+        "result_set_id",
+        "session_id",
+        "job_id",
+        "preference_vector_id",
+        "preference_vector_version",
+        "status",
+        "generated_at",
+        "runtime_ms",
+        "model_mode",
+        "model_version",
+        "data_version",
+        "evaluation_status",
+        "predictive_probability_available",
+        "fallback_used",
+        "fallback_reason_code",
+        "recommendations_json",
+        "near_misses_json",
+        "stretch_matches_json",
+        "geometry_refs_json",
+        "map_json",
+        "map_center_json",
+        "bbox_json",
+        "normal_recommendation_count",
+        "candidate_count",
+        "scored_candidate_count",
+        "empty_state_code",
+    } <= result_columns
+
+
+@pytest.mark.asyncio
+async def test_match_analytics_table_stores_privacy_safe_event_records(tmp_path):
+    db_path = str(tmp_path / "match.db")
+
+    await init_db(db_path)
+
+    async with get_db(db_path) as db:
+        cursor = await db.execute("PRAGMA table_info(match_analytics_events)")
+        analytics_columns = {row["name"] for row in await cursor.fetchall()}
+
+    assert {
+        "analytics_event_id",
+        "event_name",
+        "session_id",
+        "locale",
+        "journey_intent",
+        "context_json",
+        "created_at",
+    } <= analytics_columns
 
 
 @pytest.mark.asyncio

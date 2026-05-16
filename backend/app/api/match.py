@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response
+from fastapi.responses import JSONResponse
 
 from app.models.match import (
     AlertCreateRequest,
@@ -13,6 +14,7 @@ from app.models.match import (
     MatchCompareResponse,
     MatchFeedbackRequest,
     MatchFeedbackResponse,
+    MatchJobStatusResponse,
     MatchMapResponse,
     MatchQuizRequest,
     MatchQuizResponse,
@@ -20,6 +22,9 @@ from app.models.match import (
     MatchRecommendationsResponse,
     MatchReportCreateRequest,
     MatchReportResponse,
+    MatchResultsResponse,
+    MatchRunRequest,
+    MatchRunResponse,
     MatchSessionCreateRequest,
     MatchSessionCreateResponse,
     MatchSessionResponse,
@@ -40,6 +45,19 @@ from app.models.match import (
 from app.services.match.alerts import create_alert, delete_alert, list_alerts, update_alert
 from app.services.match.comparison import build_neighborhood_comparison
 from app.services.match.feedback import record_feedback
+from app.services.match.jobs import (
+    AnswersIncompleteError,
+    MatchJobNotFoundError,
+    MatchResultsNotFoundError,
+    MatchResultsNotReadyError,
+    MatchSessionNotFoundError,
+    PreferenceVectorStaleError,
+    RunNotConfirmedError,
+    get_match_job_status,
+    get_match_results,
+    run_match_job,
+    start_match_job,
+)
 from app.services.match.listings import fetch_listing_matches
 from app.services.match.map_view import build_match_map
 from app.services.match.providers.seed import MVP_REGION_CONFIG_ID, SeedMockImporter
@@ -65,6 +83,11 @@ from app.services.match.sessions import (
 from app.services.match.similarity import find_similar_neighborhoods
 
 router = APIRouter(prefix="/match", tags=["match"])
+_NO_STORE_HEADERS = {"Cache-Control": "no-store"}
+
+
+def _mark_no_store(response: Response) -> None:
+    response.headers["Cache-Control"] = "no-store"
 
 
 @router.get("/health")
@@ -78,29 +101,129 @@ async def submit_match_quiz(payload: MatchQuizRequest) -> MatchQuizResponse:
 
 
 @router.post("/sessions", response_model=MatchSessionCreateResponse, status_code=201)
-async def create_session(payload: MatchSessionCreateRequest) -> MatchSessionCreateResponse:
+async def create_session(
+    payload: MatchSessionCreateRequest,
+    response: Response,
+) -> MatchSessionCreateResponse:
+    _mark_no_store(response)
     return await create_match_session(payload)
 
 
 @router.get("/sessions/{session_id}", response_model=MatchSessionResponse)
-async def read_session(session_id: str) -> MatchSessionResponse:
+async def read_session(session_id: str, response: Response) -> MatchSessionResponse:
+    _mark_no_store(response)
     try:
         return await get_match_session(session_id)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="match.warning.session_not_found") from exc
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
 
 
 @router.patch("/sessions/{session_id}/answers", response_model=SurveyAnswerPatchResponse)
 async def patch_session_answers(
     session_id: str,
     payload: SurveyAnswerPatchRequest,
+    response: Response,
 ) -> SurveyAnswerPatchResponse:
+    _mark_no_store(response)
     try:
         return await patch_match_session_answers(session_id, payload)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="match.warning.session_not_found") from exc
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.post("/sessions/{session_id}/run", response_model=MatchRunResponse, status_code=202)
+async def run_session_match(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    response: Response,
+    payload: MatchRunRequest | None = None,
+) -> MatchRunResponse:
+    _mark_no_store(response)
+    try:
+        run_start = await start_match_job(session_id, payload)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except RunNotConfirmedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc), headers=_NO_STORE_HEADERS) from exc
+    except PreferenceVectorStaleError as exc:
+        raise HTTPException(status_code=409, detail=str(exc), headers=_NO_STORE_HEADERS) from exc
+    except AnswersIncompleteError as exc:
+        return JSONResponse(
+            status_code=409,
+            content={"detail": str(exc), "invalid_questions": exc.invalid_questions},
+            headers=_NO_STORE_HEADERS,
+        )
+    if run_start.created and run_start.response.status == "queued":
+        background_tasks.add_task(run_match_job, run_start.response.job_id)
+    return run_start.response
+
+
+@router.get("/sessions/{session_id}/status", response_model=MatchJobStatusResponse)
+async def read_session_match_status(
+    session_id: str,
+    response: Response,
+) -> MatchJobStatusResponse:
+    _mark_no_store(response)
+    try:
+        return await get_match_job_status(session_id)
+    except MatchSessionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchJobNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.job.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.get("/sessions/{session_id}/results", response_model=MatchResultsResponse)
+async def read_session_match_results(
+    session_id: str,
+    response: Response,
+) -> MatchResultsResponse:
+    _mark_no_store(response)
+    try:
+        return await get_match_results(session_id)
+    except MatchSessionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchResultsNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.results.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchResultsNotReadyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
 
 
 async def _load_seed_context():

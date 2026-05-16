@@ -156,6 +156,10 @@ class NeighborhoodFeatureVector(BaseModel):
     confidence: ConfidenceScore
     missing_features: list[str] = Field(default_factory=list)
     stale_features: list[str] = Field(default_factory=list)
+    freshness_status: DataFreshnessStatus = DataFreshnessStatus.mock
+    limitations: list[str] = Field(
+        default_factory=lambda: ["limitation.seed_mock_feature_matrix_not_live"]
+    )
     created_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
@@ -263,6 +267,11 @@ class SurveyAnswerPatchResponse(BaseModel):
     stale_results: bool = True
 
 
+class MatchRunRequest(BaseModel):
+    source: str | None = None
+    preference_vector_version: str | None = None
+
+
 class MatchSessionResponse(BaseModel):
     session_id: str = Field(min_length=1)
     locale: Literal["en", "nl"]
@@ -280,6 +289,174 @@ class MatchSessionResponse(BaseModel):
     map_state: dict[str, object] | None = None
     dossier_return_context: dict[str, object] | None = None
     expires_at: datetime | None = None
+
+
+MatchJobPublicStatus = Literal[
+    "created",
+    "queued",
+    "running",
+    "matching_slow",
+    "completed",
+    "failed",
+    "completed_with_fallback",
+    "completed_no_strong_matches",
+    "expired",
+    "cancelled",
+]
+
+MatchJobStage = Literal[
+    "created",
+    "queued",
+    "reading_preferences",
+    "building_profile",
+    "loading_neighborhood_data",
+    "applying_filters",
+    "running_models",
+    "scoring_tradeoffs",
+    "preparing_map",
+    "completed",
+    "completed_with_fallback",
+    "completed_no_strong_matches",
+    "failed",
+    "expired",
+]
+
+
+class MatchRunResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    status: MatchJobPublicStatus
+    stage: MatchJobStage
+    progress: int = Field(ge=0, le=100)
+    message_key: str = Field(pattern=r"^matchFirst\.progress\.")
+    preference_vector_id: str = Field(min_length=1)
+    poll_after_ms: int = Field(default=1000, ge=250, le=5000)
+
+
+class MatchJobStatusResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    status: MatchJobPublicStatus
+    stage: MatchJobStage
+    progress: int = Field(ge=0, le=100)
+    message_key: str = Field(pattern=r"^matchFirst\.progress\.")
+    model_mode: Literal["weighted_scoring", "predictive_candidate"] = "weighted_scoring"
+    model_version: str = "match-score-v1"
+    scoring_version: str = "match-score-v1"
+    evaluation_status: Literal[
+        "not_validated_no_labels",
+        "labels_available_not_trained",
+        "not_validated_missing_evaluation",
+        "validated_labels_available",
+    ] = "not_validated_no_labels"
+    fallback_used: bool = False
+    fallback_reason_code: str | None = None
+    result_set_id: str | None = None
+    error_code: str | None = None
+    runtime_ms: int = Field(default=0, ge=0)
+    updated_at: datetime
+
+
+class MatchResultConfidence(BaseModel):
+    score: int = Field(ge=0, le=100)
+    level: Literal["high", "medium", "low", "insufficient"]
+    reasons: list[str] = Field(default_factory=list)
+
+
+class MatchResultSourceMetadata(BaseModel):
+    source_id: str = Field(min_length=1)
+    source_type: Literal["official", "commercial", "derived", "mock", "user_provided", "missing"]
+    source_name_key: str = Field(pattern=r"^match\.results\.sources\.")
+    metric_keys: list[str] = Field(default_factory=list)
+    measurement_date: str | None = None
+    retrieved_at: datetime | None = None
+    freshness_status: DataFreshnessStatus
+    confidence: int = Field(ge=0, le=100)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchGeometryReference(BaseModel):
+    centroid_rd: dict[str, float]
+    bounds_rd: list[float] = Field(min_length=4, max_length=4)
+    display_centroid_wgs84: dict[str, float]
+    display_bounds_wgs84: list[float] = Field(min_length=4, max_length=4)
+    boundary_ref: str = Field(min_length=1)
+    boundary_source: str = "match_seed"
+    boundary_freshness: DataFreshnessStatus = DataFreshnessStatus.mock
+    building_layer_ref: str | None = None
+    building_layer_available: bool = False
+    amenity_layer_refs: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchResultRecommendation(BaseModel):
+    rank: int = Field(ge=1)
+    recommendation_id: str = Field(min_length=1)
+    neighborhood_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    municipality: str = Field(min_length=1)
+    fit_score: int = Field(ge=0, le=100)
+    fit_label_key: str = Field(pattern=r"^matchFirst\.results\.fitLabel\.")
+    category: Literal["top", "surprising", "stretch", "avoid_or_reconsider"]
+    eligibility_status: Literal[
+        "eligible",
+        "stretch",
+        "failed_hard_filter",
+        "insufficient_data",
+    ]
+    confidence: MatchResultConfidence
+    reason_codes: list[str] = Field(default_factory=list)
+    tradeoffs: list[str] = Field(default_factory=list)
+    component_scores: dict[str, int] = Field(default_factory=dict)
+    matched_preferences: list[str] = Field(default_factory=list)
+    failed_filters: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+    source_metadata: list[MatchResultSourceMetadata] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    freshness_status: DataFreshnessStatus
+    geometry_ref: MatchGeometryReference
+    amenity_refs: list[str] = Field(default_factory=list)
+
+
+class MatchResultsMap(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    display_bounds_wgs84: list[float] = Field(min_length=4, max_length=4)
+    features: list[dict[str, object]] = Field(default_factory=list)
+
+
+class MatchResultsResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    preference_vector_version: str = Field(min_length=1)
+    status: Literal["completed", "completed_with_fallback", "completed_no_strong_matches"]
+    generated_at: datetime
+    runtime_ms: int = Field(default=0, ge=0)
+    model_mode: Literal["weighted_scoring"] = "weighted_scoring"
+    model_version: str = "match-score-v1"
+    scoring_version: str = "match-score-v1"
+    data_version: str = Field(min_length=1)
+    evaluation_status: Literal["not_validated_no_labels"] = "not_validated_no_labels"
+    predictive_probability_available: Literal[False] = False
+    fallback_used: bool = False
+    fallback_reason_code: str | None = None
+    ranked_results: list[MatchResultRecommendation] = Field(default_factory=list)
+    recommendations: list[MatchResultRecommendation] = Field(default_factory=list)
+    stretch_matches: list[MatchResultRecommendation] = Field(default_factory=list)
+    near_misses: list[MatchResultRecommendation] = Field(default_factory=list)
+    normal_recommendation_count: int = Field(default=0, ge=0)
+    candidate_count: int = Field(default=0, ge=0)
+    scored_candidate_count: int = Field(default=0, ge=0)
+    empty_state_code: str | None = None
+    map_center: dict[str, float]
+    bbox: list[float] = Field(min_length=4, max_length=4)
+    map: MatchResultsMap
+
+    @model_validator(mode="after")
+    def mirror_recommendation_alias(self) -> MatchResultsResponse:
+        if not self.recommendations:
+            self.recommendations = self.ranked_results
+        return self
 
 
 class QuizBudget(BaseModel):
@@ -904,6 +1081,14 @@ class ReportExportResponse(BaseModel):
 
 
 AnalyticsEventName = Literal[
+    "match_final_run_cta_clicked",
+    "match_job_queued",
+    "match_job_running",
+    "match_job_completed",
+    "match_job_failed",
+    "match_job_completed_with_fallback",
+    "match_job_completed_no_strong_matches",
+    "match_job_slow",
     "match_quiz_started",
     "match_quiz_completed",
     "match_report_viewed",

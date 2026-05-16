@@ -345,6 +345,58 @@ _MATCH_SCHEMA_STATEMENTS = (
         is_complete INTEGER NOT NULL,
         updated_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS match_jobs (
+        job_id TEXT NOT NULL PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        preference_vector_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        progress INTEGER NOT NULL,
+        message_key TEXT NOT NULL,
+        model_mode TEXT NOT NULL,
+        model_version TEXT NOT NULL,
+        data_version TEXT NOT NULL,
+        evaluation_status TEXT NOT NULL,
+        fallback_used INTEGER NOT NULL DEFAULT 0,
+        fallback_reason_code TEXT,
+        result_set_id TEXT,
+        error_code TEXT,
+        internal_error_class TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        runtime_ms INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_result_sets (
+        result_set_id TEXT NOT NULL PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        job_id TEXT NOT NULL,
+        preference_vector_id TEXT NOT NULL,
+        preference_vector_version TEXT,
+        status TEXT NOT NULL,
+        generated_at TEXT NOT NULL,
+        runtime_ms INTEGER NOT NULL DEFAULT 0,
+        model_mode TEXT NOT NULL,
+        model_version TEXT NOT NULL,
+        data_version TEXT NOT NULL,
+        evaluation_status TEXT NOT NULL,
+        predictive_probability_available INTEGER NOT NULL DEFAULT 0,
+        fallback_used INTEGER NOT NULL DEFAULT 0,
+        fallback_reason_code TEXT,
+        recommendations_json TEXT NOT NULL,
+        near_misses_json TEXT NOT NULL,
+        stretch_matches_json TEXT NOT NULL DEFAULT '{"stretch_matches":[]}',
+        evidence_json TEXT NOT NULL,
+        source_coverage_json TEXT NOT NULL,
+        geometry_refs_json TEXT NOT NULL,
+        map_json TEXT NOT NULL,
+        map_center_json TEXT NOT NULL,
+        bbox_json TEXT NOT NULL,
+        normal_recommendation_count INTEGER NOT NULL DEFAULT 0,
+        candidate_count INTEGER NOT NULL DEFAULT 0,
+        scored_candidate_count INTEGER NOT NULL DEFAULT 0,
+        empty_state_code TEXT
+    )""",
     """CREATE TABLE IF NOT EXISTS match_recommendation_evidence (
         evidence_id TEXT NOT NULL PRIMARY KEY,
         claim_code TEXT NOT NULL,
@@ -538,6 +590,19 @@ _MATCH_SCHEMA_STATEMENTS = (
     (
         "CREATE INDEX IF NOT EXISTS idx_match_survey_answers_version "
         "ON match_survey_answers(session_id, answer_version)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_jobs_session "
+        "ON match_jobs(session_id, updated_at DESC)"
+    ),
+    (
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_match_jobs_active_vector_unique "
+        "ON match_jobs(session_id, preference_vector_id) "
+        "WHERE status IN ('created', 'queued', 'running', 'matching_slow')"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_result_sets_session "
+        "ON match_result_sets(session_id, generated_at DESC)"
     ),
     (
         "CREATE INDEX IF NOT EXISTS idx_match_alerts_session "
@@ -734,6 +799,50 @@ async def _migrate_match_preference_vector_schema(db: DatabaseConnection) -> Non
     await db.commit()
 
 
+async def _migrate_match_job_result_schema(db: DatabaseConnection) -> None:
+    job_columns = await _table_column_names(db, "match_jobs")
+    job_migrations = {
+        "runtime_ms": (
+            "ALTER TABLE match_jobs "
+            "ADD COLUMN runtime_ms INTEGER NOT NULL DEFAULT 0"
+        ),
+    }
+    for column_name, statement in job_migrations.items():
+        if column_name not in job_columns:
+            await db.execute(statement)
+
+    result_columns = await _table_column_names(db, "match_result_sets")
+    result_migrations = {
+        "preference_vector_version": (
+            "ALTER TABLE match_result_sets ADD COLUMN preference_vector_version TEXT"
+        ),
+        "runtime_ms": (
+            "ALTER TABLE match_result_sets "
+            "ADD COLUMN runtime_ms INTEGER NOT NULL DEFAULT 0"
+        ),
+        "stretch_matches_json": (
+            "ALTER TABLE match_result_sets "
+            "ADD COLUMN stretch_matches_json TEXT NOT NULL DEFAULT '{\"stretch_matches\":[]}'"
+        ),
+        "normal_recommendation_count": (
+            "ALTER TABLE match_result_sets "
+            "ADD COLUMN normal_recommendation_count INTEGER NOT NULL DEFAULT 0"
+        ),
+        "candidate_count": (
+            "ALTER TABLE match_result_sets "
+            "ADD COLUMN candidate_count INTEGER NOT NULL DEFAULT 0"
+        ),
+        "scored_candidate_count": (
+            "ALTER TABLE match_result_sets "
+            "ADD COLUMN scored_candidate_count INTEGER NOT NULL DEFAULT 0"
+        ),
+    }
+    for column_name, statement in result_migrations.items():
+        if column_name not in result_columns:
+            await db.execute(statement)
+    await db.commit()
+
+
 async def init_db(db_path: str | None = None) -> None:
     """Create tables if they don't exist and enable WAL mode.
 
@@ -747,6 +856,7 @@ async def init_db(db_path: str | None = None) -> None:
                 await db.execute(statement)
             await _migrate_reports_schema(db)
             await _migrate_match_preference_vector_schema(db)
+            await _migrate_match_job_result_schema(db)
             await db.commit()
         finally:
             await db.close()
@@ -760,6 +870,7 @@ async def init_db(db_path: str | None = None) -> None:
             await db.execute(statement)
         await _migrate_reports_schema(db)
         await _migrate_match_preference_vector_schema(db)
+        await _migrate_match_job_result_schema(db)
         await db.commit()
     logger.info("Database initialized using local SQLite at %s", path)
 

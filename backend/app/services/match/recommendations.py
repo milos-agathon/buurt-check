@@ -161,11 +161,12 @@ def _evidence_items(items: list[NeighborhoodMatchScore]) -> list[RecommendationE
                 source_refs=[source_ref],
                 confidence=ConfidenceScore(
                     score=item.confidence.score,
-                    reasons=item.confidence.reasons or ["Recommendation evidence coverage."],
+                    reasons=item.confidence.reasons
+                    or ["match.results.confidence.recommendation_evidence_coverage"],
                 ),
                 freshness_status=item.freshness_status,
                 limitations=[
-                    "Seed/mock recommendation evidence is not live production data.",
+                    "match.results.limitations.seed_mock_recommendation_evidence",
                 ],
             )
     if not evidence and items:
@@ -177,7 +178,7 @@ def _evidence_items(items: list[NeighborhoodMatchScore]) -> list[RecommendationE
             source_refs=first.source_refs or ["seed"],
             confidence=first.confidence,
             freshness_status=DataFreshnessStatus.mock,
-            limitations=["Seed/mock recommendation evidence is not live production data."],
+            limitations=["match.results.limitations.seed_mock_recommendation_evidence"],
         )
     return sorted(evidence.values(), key=lambda item: item.evidence_id)
 

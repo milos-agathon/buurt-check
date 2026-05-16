@@ -121,6 +121,21 @@ class SeedMockImporter:
                 feature_metric_sources,
                 completeness_score=completeness_score,
             )
+            vector_freshness = (
+                DataFreshnessStatus.unavailable
+                if missing_features
+                else DataFreshnessStatus.stale
+                if stale_features
+                else DataFreshnessStatus.mock
+            )
+            limitations = sorted(
+                {
+                    limitation
+                    for source in feature_metric_sources
+                    for limitation in source.limitations
+                }
+                | {"match.results.limitations.seed_mock_feature_matrix"}
+            )
             vectors.append(
                 NeighborhoodFeatureVector(
                     feature_vector_id=f"fv_{row['neighborhood_id']}_seed_v1",
@@ -132,6 +147,8 @@ class SeedMockImporter:
                     confidence=ConfidenceScore(score=confidence.score, reasons=confidence.reasons),
                     missing_features=missing_features,
                     stale_features=stale_features,
+                    freshness_status=vector_freshness,
+                    limitations=limitations,
                     created_at=payload["retrieved_at"],
                 )
             )

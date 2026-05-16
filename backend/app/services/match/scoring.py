@@ -48,7 +48,31 @@ def _feature_for_preference(key: str, journey_intent: str) -> str:
         if journey_intent == "rent":
             return "affordability_rent"
         return "affordability_buy"
+    if alias == "budget":
+        if journey_intent == "rent":
+            return "affordability_rent"
+        return "affordability_buy"
+    if alias == "commute":
+        return "mobility"
     return alias
+
+
+def _features_for_hard_filter(key: str, journey_intent: str) -> list[str]:
+    if key == "intent:buy":
+        return ["listing_availability_buy", "housing_stock"]
+    if key == "intent:rent":
+        return ["listing_availability_rent", "housing_stock"]
+    if key == "intent:both":
+        return ["listing_availability_buy", "listing_availability_rent", "housing_stock"]
+    if key == "budget":
+        if journey_intent == "rent":
+            return ["affordability_rent"]
+        if journey_intent == "both":
+            return ["affordability_buy", "affordability_rent"]
+        return ["affordability_buy"]
+    if key == "commute":
+        return ["mobility"]
+    return [_feature_for_preference(key, journey_intent)]
 
 
 def _journey_average(
@@ -121,11 +145,15 @@ def _hard_filter_failures(
     for filter_key in preference.hard_filters:
         if filter_key in PROTECTED_TRAIT_FIELDS:
             continue
-        feature = _feature_for_preference(filter_key, preference.journey_intent)
-        value = vector.features.get(feature)
-        if value is None:
+        features = _features_for_hard_filter(filter_key, preference.journey_intent)
+        values = [
+            value
+            for feature in features
+            if (value := vector.features.get(feature)) is not None
+        ]
+        if not values:
             missing.append(filter_key)
-        elif value < HARD_FILTER_MINIMUM:
+        elif max(values) < HARD_FILTER_MINIMUM:
             failed.append(filter_key)
     return failed, missing
 
@@ -162,13 +190,13 @@ def _score_confidence(
     reasons = list(vector.confidence.reasons)
     if vector.completeness_score < 80:
         score -= 10
-        reasons.append("Feature coverage is incomplete.")
+        reasons.append("match.results.confidence.incomplete_feature_coverage")
     if vector.missing_features or missing_features:
         score -= 15
-        reasons.append("Some score inputs are missing.")
+        reasons.append("match.results.confidence.missing_score_inputs")
     if vector.stale_features:
         score -= 10
-        reasons.append("Some score inputs are stale.")
+        reasons.append("match.results.confidence.stale_score_inputs")
     return ConfidenceScore(score=max(0, min(100, score)), reasons=reasons)
 
 

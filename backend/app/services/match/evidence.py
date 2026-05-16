@@ -24,7 +24,7 @@ def calculate_confidence(
     if not sources:
         return ConfidenceScore(
             score=0,
-            reasons=["No source metadata is available."],
+            reasons=["match.results.confidence.no_source_metadata"],
         )
 
     score = base_score if base_score is not None else min(
@@ -37,21 +37,21 @@ def calculate_confidence(
 
     if "mock" in source_types:
         score -= 10
-        reasons.append("Contains mock source data.")
+        reasons.append("match.results.confidence.mock_source_data")
     if "missing" in source_types or DataFreshnessStatus.unavailable in freshness_statuses:
         score -= 25
-        reasons.append("Contains missing or unavailable source data.")
+        reasons.append("match.results.confidence.missing_or_unavailable_source_data")
     if DataFreshnessStatus.stale in freshness_statuses:
         score -= 15
-        reasons.append("Contains stale source data.")
+        reasons.append("match.results.confidence.stale_source_data")
     if DataFreshnessStatus.conflict in freshness_statuses:
         score -= 20
-        reasons.append("Contains conflicting source data.")
+        reasons.append("match.results.confidence.conflicting_source_data")
     if completeness_score < 80:
         score -= 10
-        reasons.append("Feature coverage is incomplete.")
+        reasons.append("match.results.confidence.incomplete_feature_coverage")
 
     if not reasons:
-        reasons.append("Source coverage is current and complete.")
+        reasons.append("match.results.confidence.current_complete_source_coverage")
 
     return ConfidenceScore(score=max(0, min(100, score)), reasons=reasons)

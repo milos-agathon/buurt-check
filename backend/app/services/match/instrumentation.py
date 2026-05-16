@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+import json
 import logging
 from collections import Counter
 
-from app.models.match import AnalyticsEvent, SuccessMetricSummary
+from app.db import get_db
+from app.models.match import AnalyticsEvent, AnalyticsEventName, SuccessMetricSummary
 
 logger = logging.getLogger("app.services.match")
 
 REQUIRED_PRODUCT_EVENT_NAMES = {
+    "match_final_run_cta_clicked",
+    "match_job_queued",
+    "match_job_running",
+    "match_job_completed",
+    "match_job_failed",
+    "match_job_completed_with_fallback",
+    "match_job_completed_no_strong_matches",
+    "match_job_slow",
     "match_quiz_started",
     "match_quiz_completed",
     "match_report_viewed",
@@ -25,12 +35,15 @@ REQUIRED_PRODUCT_EVENT_NAMES = {
 def _sanitize_context(context: dict[str, object]) -> dict[str, object]:
     sanitized: dict[str, object] = {}
     for key, value in context.items():
-        if isinstance(value, str) and "@" in value:
-            sanitized[key] = "[redacted]"
-        elif isinstance(value, dict):
-            sanitized[key] = _sanitize_context(value)  # type: ignore[arg-type]
-        else:
-            sanitized[key] = value
+        normalized = str(key).lower()
+        if normalized == "email":
+            sanitized[str(key)] = "[redacted]"
+            continue
+        if _is_private_context_key(key):
+            continue
+        sanitized_value = _sanitize_value(value)
+        if sanitized_value is not None:
+            sanitized[str(key)] = sanitized_value
     return sanitized
 
 
@@ -42,6 +55,96 @@ class InMemoryInstrumentationSink:
         sanitized = event.model_copy(update={"context": _sanitize_context(event.context)})
         self.events.append(sanitized)
         return sanitized
+
+
+MATCH_INSTRUMENTATION_SINK = InMemoryInstrumentationSink()
+
+PRIVATE_CONTEXT_KEYS = frozenset(
+    {
+        "address",
+        "anchor",
+        "anchor_location",
+        "anchor_locations",
+        "answers",
+        "display_label",
+        "email",
+        "exact_anchor",
+        "free_text",
+        "immigration_status",
+        "label",
+        "name",
+        "nationality",
+        "phone",
+        "postcode",
+        "query",
+        "race",
+        "raw_answer_refs",
+        "raw_answers",
+        "religion",
+        "text",
+    }
+)
+
+
+def _is_private_context_key(key: object) -> bool:
+    normalized = str(key).lower()
+    return normalized in PRIVATE_CONTEXT_KEYS or normalized.endswith("_label")
+
+
+def _sanitize_value(value: object) -> object:
+    if isinstance(value, dict):
+        return _sanitize_context(value)  # type: ignore[arg-type]
+    if isinstance(value, list):
+        return [
+            sanitized
+            for item in value
+            if (sanitized := _sanitize_value(item)) is not None
+        ]
+    if isinstance(value, str) and "@" in value:
+        return "[redacted]"
+    return value
+
+
+async def record_match_event(
+    event_name: AnalyticsEventName,
+    *,
+    session_id: str | None = None,
+    locale: str = "en",
+    context: dict[str, object] | None = None,
+) -> AnalyticsEvent:
+    sanitized_context = _sanitize_context(context or {})
+    event = AnalyticsEvent(
+        event_name=event_name,
+        session_id=session_id,
+        locale=locale,  # type: ignore[arg-type]
+        context=sanitized_context,
+    )
+    recorded = MATCH_INSTRUMENTATION_SINK.record(event)
+    async with get_db() as db:
+        await db.execute(
+            """
+            INSERT INTO match_analytics_events (
+                analytics_event_id,
+                event_name,
+                session_id,
+                locale,
+                journey_intent,
+                context_json,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                recorded.analytics_event_id,
+                recorded.event_name,
+                recorded.session_id,
+                recorded.locale,
+                recorded.journey_intent,
+                json.dumps(recorded.context, sort_keys=True, separators=(",", ":")),
+                recorded.created_at.isoformat().replace("+00:00", "Z"),
+            ),
+        )
+        await db.commit()
+    return recorded
 
 
 def log_match_observation(
