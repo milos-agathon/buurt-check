@@ -12,7 +12,8 @@ Phase 5 Netherlands results map/list are documented as closed in
 session results through `GET /api/match/sessions/{session_id}/results`, renders
 a Netherlands-oriented 2D results map plus ranked recommendation list, keeps
 list and map selection synchronized, preserves map/list state for later Dossier
-return, and keeps the list usable without map interaction. Phase 6
+return including cold results-route fetches, and keeps the list usable without
+map interaction. Phase 6
 selected-neighborhood detail/3D and Phase 7 Dossier bridge work remain
 unimplemented.
 
@@ -42,6 +43,62 @@ The next documented implementation phase is Phase 6:
 selected-neighborhood detail. Keep the Phase 5 boundary intact: do not load
 national 3D buildings, do not add national-zoom amenities, and do not implement
 house click or Dossier bridge behavior until their later phases.
+
+## Latest Phase 5 State-Preservation Repair Update 2026-05-16
+
+This pass stayed inside Phase 5. It did not implement selected-neighborhood
+detail/3D, house click behavior, Dossier bridge behavior, national amenities,
+or any matching rerun behavior.
+
+Files changed:
+
+- `frontend/src/components/match-first/ResultsMap.tsx`
+- `frontend/src/test/match-first-results-map.test.tsx`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/ai/latest_handoff.md`
+
+Completed repair work:
+
+- Added a regression for opening `#/match/session/{session_id}/results` with a
+  saved result-map state already in `sessionStorage` while the completed result
+  set is fetched from `GET /api/match/sessions/{session_id}/results`.
+- Fixed `ResultsMap` so fetched completed results preserve saved selected
+  recommendation, selected neighborhood, mobile Map/List mode, map center,
+  zoom, and list scroll when the saved `resultSetId` and
+  `preferenceVectorVersion` match the loaded result set.
+- Kept stale saved map state from being applied to a different result set or
+  preference-vector version.
+
+Red-first evidence:
+
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx -- -t "restores saved map view"`
+  first failed because the fetched route reset `data-map-center` to `52.2,5.3`
+  instead of the saved selected view `52.1,5.03`; after the fix the same command
+  passed.
+
+Verification:
+
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx`
+  passed with 5 tests.
+- `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts`
+  passed with 28 tests.
+- `cd frontend && npx eslint src/components/match-first/ResultsMap.tsx src/test/match-first-results-map.test.tsx`
+  passed.
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx src/test/match-first-progress.test.tsx src/App.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts`
+  passed. Existing noisy Dossier/3D console output and React act warnings still
+  print in `App.test.tsx`, but no test failed.
+- `cd frontend && npm run build` passed. The Phase 5 lazy results-map chunk in
+  this build was `ResultsMap-DPGLvjhc.js` at 160.18 kB, 46.20 kB gzip, with
+  `ResultsMap-CoY3xfYW.css` at 20.75 kB, 7.88 kB gzip.
+
+Residual risks / next checks:
+
+- Full `cd frontend && npm run lint` was not rerun; previous Phase 5 notes
+  still apply that repo-wide lint has pre-existing non-Phase-5 failures.
+- Browser-level Playwright/performance proof for the results map remains a
+  residual verification gap before production release.
+- Phase 6 remains the next product step and must add selected-neighborhood
+  detail without loading national 3D buildings.
 
 ## Latest Phase 4 Gating/A11y Audit Repair Update 2026-05-16
 

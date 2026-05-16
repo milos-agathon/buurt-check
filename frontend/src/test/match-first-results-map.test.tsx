@@ -160,6 +160,55 @@ it('loads completed session results on the results route without rerunning match
   expect(fetchSpy.mock.calls.some(([input]) => String(input).includes('/run'))).toBe(false);
 });
 
+it('restores saved map view when a completed results route fetches its result set', async () => {
+  const sessionId = 'match-route-restored-results';
+  saveMatchSessionSnapshot(sessionId, {
+    sessionId,
+    locale: 'en',
+    step: 11,
+    answerVersion: 11,
+    staleResults: false,
+    answers: { intent: 'buy' },
+  });
+  sessionStorage.setItem(getMatchResultsMapStateStorageKey(sessionId), JSON.stringify({
+    sessionId,
+    jobId: 'match_job_results',
+    resultSetId: 'mrs_results',
+    preferenceVectorVersion: 'pv_v1_results',
+    selectedRecommendationId: 'rec_2',
+    selectedNeighborhoodId: 'nh_utrecht_leidsche_rijn',
+    selectedResultRank: 2,
+    mapCenter: [52.1, 5.03],
+    mapZoom: 12,
+    listScroll: 280,
+    mobileMode: 'list',
+    locale: 'en',
+  }));
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+    if (url.endsWith(`/api/match/sessions/${sessionId}/results`) && method === 'GET') {
+      return new Response(JSON.stringify(resultsResponse({ session_id: sessionId })), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ detail: 'unexpected' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+  window.location.hash = `#/match/session/${sessionId}/results`;
+  renderWithI18n(<App />);
+
+  const map = await screen.findByRole('region', { name: 'Netherlands recommendations map' });
+  expect(map).toHaveAttribute('data-map-center', '52.1,5.03');
+  expect(map).toHaveAttribute('data-map-zoom', '12');
+  expect(screen.getByTestId('results-map-shell')).toHaveAttribute('data-mobile-mode', 'list');
+  expect(screen.getByTestId('recommendation-card-rec_2')).toHaveAttribute('aria-current', 'true');
+});
+
 it('keeps ranked list selection and map feature selection synchronized', async () => {
   const user = userEvent.setup();
   renderWithI18n(

@@ -123,6 +123,14 @@ function createMapState(
   };
 }
 
+function restoredStateMatchesResults(
+  state: MatchResultsMapState | null,
+  results: MatchResultsResponse,
+): state is MatchResultsMapState {
+  return state?.resultSetId === results.result_set_id
+    && state.preferenceVectorVersion === results.preference_vector_version;
+}
+
 export default function ResultsMap({
   sessionId,
   initialResults = null,
@@ -163,8 +171,17 @@ export default function ResultsMap({
       .then((response) => {
         if (cancelled) return;
         setFetchedResults(response);
-        setMapCenter(readCenter(response.map_center));
-        setMapZoom(NATIONAL_ZOOM);
+        const restoredState = restoredMapStateRef.current;
+        if (restoredStateMatchesResults(restoredState, response)) {
+          setSelectedRecommendationId(restoredState.selectedRecommendationId);
+          setMobileMode(restoredState.mobileMode);
+          setMapCenter(restoredState.mapCenter);
+          setMapZoom(restoredState.mapZoom);
+        } else {
+          setSelectedRecommendationId(undefined);
+          setMapCenter(readCenter(response.map_center));
+          setMapZoom(NATIONAL_ZOOM);
+        }
         setUnavailable(false);
       })
       .catch(() => {
@@ -184,6 +201,7 @@ export default function ResultsMap({
   ), [results]);
   const selectedRecommendation = recommendations.find((item) => item.recommendation_id === selectedRecommendationId);
   const mapBounds = useMemo(() => readBounds(results), [results]);
+  const listScrollRestoredRef = useRef(false);
 
   useEffect(() => {
     if (!results || recordedMapOpenRef.current) return;
@@ -213,6 +231,15 @@ export default function ResultsMap({
 
   useEffect(() => {
     if (!results) return;
+    const restoredState = restoredMapStateRef.current;
+    if (
+      !listScrollRestoredRef.current
+      && listRef.current
+      && restoredStateMatchesResults(restoredState, results)
+    ) {
+      listScrollRestoredRef.current = true;
+      listRef.current.scrollTop = restoredState.listScroll;
+    }
     saveMatchResultsMapState(
       sessionId,
       createMapState(
