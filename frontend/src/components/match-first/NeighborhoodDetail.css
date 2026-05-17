@@ -165,12 +165,68 @@
 
 .house-selection__list button {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
+}
+
+.house-selection__candidates {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.house-selection__candidate-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 8px;
+  list-style: none;
+}
+
+.house-selection__candidate-list button {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 117, 111, 0.28);
+  border-radius: 8px;
+  background: rgba(0, 117, 111, 0.08);
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.house-selection__candidate-list button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
+}
+
+.house-selection__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.house-selection__actions button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(0, 117, 111, 0.28);
+  border-radius: 8px;
+  background: rgba(0, 117, 111, 0.08);
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.house-selection__actions button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
 }
 
 .recommendation-card__actions {

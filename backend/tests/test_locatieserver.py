@@ -181,6 +181,77 @@ async def test_lookup_maps_huisnummertoevoeging(httpx_mock):
 
 
 @pytest.mark.asyncio
+async def test_reverse_addresses_uses_locatieserver_reverse_endpoint():
+    reverse_response = MagicMock()
+    reverse_response.raise_for_status.return_value = None
+    reverse_response.json.return_value = {
+        "response": {
+            "docs": [
+                {
+                    "id": "adr-provider-1",
+                    "weergavenaam": "IJburglaan 1000, 1087JK Amsterdam",
+                    "type": "adres",
+                    "score": 1.0,
+                    "adresseerbaarobject_id": "0363010000987651",
+                    "nummeraanduiding_id": "0363200000987651",
+                    "straatnaam": "IJburglaan",
+                    "huisnummer": 1000,
+                    "postcode": "1087JK",
+                    "woonplaatsnaam": "Amsterdam",
+                    "gemeentenaam": "Amsterdam",
+                    "provincienaam": "Noord-Holland",
+                    "centroide_ll": "POINT(5.0001 52.3551)",
+                    "centroide_rd": "POINT(126260 486810)",
+                    "buurtcode": "BU0363AA01",
+                    "wijkcode": "WK0363AA",
+                },
+                {
+                    "id": "adr-provider-2",
+                    "weergavenaam": "IJburglaan 1002, 1087JK Amsterdam",
+                    "type": "adres",
+                    "score": 0.8,
+                    "adresseerbaarobject_id": "0363010000987652",
+                    "nummeraanduiding_id": "0363200000987652",
+                    "straatnaam": "IJburglaan",
+                    "huisnummer": 1002,
+                    "postcode": "1087JK",
+                    "woonplaatsnaam": "Amsterdam",
+                    "centroide_ll": "POINT(5.0002 52.3552)",
+                    "centroide_rd": "POINT(126270 486820)",
+                },
+            ]
+        }
+    }
+
+    mock_client = MagicMock()
+    mock_client.get = AsyncMock(return_value=reverse_response)
+
+    with patch.object(locatieserver._client, "get", return_value=mock_client):
+        result = await locatieserver.reverse_addresses(
+            latitude=52.355,
+            longitude=5.0,
+            distance_m=75,
+            limit=2,
+        )
+
+    assert [address.id for address in result] == ["adr-provider-1", "adr-provider-2"]
+    assert result[0].adresseerbaar_object_id == "0363010000987651"
+    assert result[0].house_number == "1000"
+    assert result[0].postcode == "1087JK"
+    mock_client.get.assert_awaited_once()
+    call = mock_client.get.await_args
+    assert call.args[0] == "/reverse"
+    assert call.kwargs["params"] == {
+        "lat": "52.355000",
+        "lon": "5.000000",
+        "type": "adres",
+        "distance": 75,
+        "rows": 2,
+        "fl": "*",
+    }
+
+
+@pytest.mark.asyncio
 async def test_suggest_falls_back_to_free_results_when_suggest_is_empty():
     empty_response = MagicMock()
     empty_response.raise_for_status.return_value = None

@@ -6,6 +6,8 @@ import {
   getMatchNeighborhoodBuildings,
   getMatchNeighborhoodMapLayers,
   getMatchResults,
+  MatchFirstApiError,
+  resolveDossierFromBuilding,
 } from '../../services/matchFirstApi';
 import { recordMatchFirstEvent } from '../../services/matchFirstAnalytics';
 import {
@@ -13,15 +15,19 @@ import {
   saveMatchResultsMapState,
 } from '../../services/matchSessionStorage';
 import type {
+  MatchDossierBridgeReturnContext,
+  MatchDossierCandidateAddress,
   MatchFirstLocale,
   MatchNeighborhoodAmenitiesResponse,
   MatchNeighborhoodBuildingFeature,
   MatchNeighborhoodBuildingsResponse,
   MatchNeighborhoodMapLayersResponse,
   MatchNeighborhoodRecommendation,
+  MatchResultsMapState,
   MatchNeighborhoodSummaryResponse,
   MatchResultsResponse,
 } from '../../types/matchFirst';
+import type { MatchReturnContext } from '../../routing/hashRoutes';
 import AmenityTags from './AmenityTags';
 import HouseSelectionPanel from './HouseSelectionPanel';
 import './MatchFirstLanding.css';
@@ -34,6 +40,10 @@ interface NeighborhoodDetailProps {
   initialResults?: MatchResultsResponse | null;
   onBackToResults: () => void;
   onBackToSurvey: () => void;
+  onOpenDossier?: (route: string) => boolean | void;
+  onSearchManually?: (context: MatchReturnContext) => void;
+  onReturnHydrated?: () => void;
+  onReturnHydrationFailed?: (reason: string) => void;
 }
 
 interface LayerData {
@@ -51,6 +61,12 @@ interface BuildingData {
   failed: boolean;
 }
 
+interface CandidateAddressSelection {
+  building: MatchNeighborhoodBuildingFeature;
+  addresses: MatchDossierCandidateAddress[];
+  recoveryContext: MatchReturnContext;
+}
+
 function visibleRecommendations(results: MatchResultsResponse): MatchNeighborhoodRecommendation[] {
   if (results.ranked_results.length > 0) return results.ranked_results;
   return [...results.near_misses, ...results.stretch_matches];
@@ -64,12 +80,36 @@ function asBoundsAttribute(bounds: number[] | undefined): string | undefined {
   return bounds && bounds.length === 4 ? bounds.join(',') : undefined;
 }
 
+function getRestoredStateForDetail(
+  state: MatchResultsMapState | null,
+  results: MatchResultsResponse,
+  recommendation: MatchNeighborhoodRecommendation,
+): MatchResultsMapState | null {
+  if (
+    !state
+    || state.sessionId !== results.session_id
+    || state.jobId !== results.job_id
+    || state.resultSetId !== results.result_set_id
+    || state.preferenceVectorVersion !== results.preference_vector_version
+    || state.selectedNeighborhoodId !== recommendation.neighborhood_id
+    || state.selectedRecommendationId !== recommendation.recommendation_id
+    || state.selectedResultRank !== recommendation.rank
+  ) {
+    return null;
+  }
+  return state;
+}
+
 export default function NeighborhoodDetail({
   sessionId,
   neighborhoodId,
   initialResults = null,
   onBackToResults,
   onBackToSurvey,
+  onOpenDossier,
+  onSearchManually,
+  onReturnHydrated,
+  onReturnHydrationFailed,
 }: NeighborhoodDetailProps) {
   const { t, i18n } = useTranslation();
   const locale: MatchFirstLocale = i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en';
@@ -78,9 +118,15 @@ export default function NeighborhoodDetail({
   const [layerData, setLayerData] = useState<LayerData | null>(null);
   const [buildingData, setBuildingData] = useState<BuildingData | null>(null);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
+  const [pendingBuildingId, setPendingBuildingId] = useState<string | null>(null);
+  const [pendingCandidateId, setPendingCandidateId] = useState<string | null>(null);
+  const [candidateAddressState, setCandidateAddressState] = useState<CandidateAddressSelection | null>(null);
   const [selectionFallbackKey, setSelectionFallbackKey] = useState<string | null>(null);
+  const [selectionRecoveryContext, setSelectionRecoveryContext] = useState<MatchReturnContext | null>(null);
   const openedEventRef = useRef(false);
   const fallbackEventRef = useRef(false);
+  const returnHydratedEventRef = useRef(false);
+  const returnFailedEventRef = useRef(false);
   const results = initialResults ?? fetchedResults;
 
   useEffect(() => {
@@ -93,8 +139,16 @@ export default function NeighborhoodDetail({
           setResultsUnavailable(false);
         }
       })
-      .catch(() => {
-        if (!cancelled) setResultsUnavailable(true);
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setResultsUnavailable(true);
+          if (!returnFailedEventRef.current) {
+            returnFailedEventRef.current = true;
+            onReturnHydrationFailed?.(
+              error instanceof MatchFirstApiError ? error.detail : 'match.results.unavailable',
+            );
+          }
+        }
       });
     return () => {
       cancelled = true;
@@ -132,8 +186,25 @@ export default function NeighborhoodDetail({
   const loadingBuildings = Boolean(buildingRequestKey && !currentBuildingData);
 
   useEffect(() => {
+    if (!results || !recommendation || returnHydratedEventRef.current) return;
+    returnHydratedEventRef.current = true;
+    onReturnHydrated?.();
+  }, [onReturnHydrated, recommendation, results]);
+
+  useEffect(() => {
+    if (!results || recommendation || returnFailedEventRef.current) return;
+    returnFailedEventRef.current = true;
+    onReturnHydrationFailed?.('match.results.stale');
+  }, [onReturnHydrationFailed, recommendation, results]);
+
+  useEffect(() => {
     if (!results || !recommendation) return;
-    const restoredState = readMatchResultsMapState(sessionId);
+    const restoredState = getRestoredStateForDetail(
+      readMatchResultsMapState(sessionId),
+      results,
+      recommendation,
+    );
+    setSelectedBuildingId(restoredState?.selectedHouseId ?? null);
     const centroid = recommendation.geometry_ref.display_centroid_wgs84;
     saveMatchResultsMapState(sessionId, {
       sessionId: results.session_id,
@@ -144,38 +215,64 @@ export default function NeighborhoodDetail({
       selectedNeighborhoodId: recommendation.neighborhood_id,
       selectedResultRank: recommendation.rank,
       selectedHouseId: restoredState?.selectedHouseId,
-      mapCenter: centroid ? [centroid.lat, centroid.lng] : [52.2, 5.3],
-      mapZoom: Math.max(restoredState?.mapZoom ?? 14, 14),
+      mapCenter: restoredState?.mapCenter ?? (centroid ? [centroid.lat, centroid.lng] : [52.2, 5.3]),
+      mapZoom: restoredState?.mapZoom ?? 14,
       listScroll: restoredState?.listScroll ?? 0,
       mobileMode: restoredState?.mobileMode ?? 'map',
       locale,
     });
   }, [locale, recommendation, results, sessionId]);
 
-  const handleSelectHouse = (building: MatchNeighborhoodBuildingFeature) => {
-    if (!results || !recommendation) return;
-    setSelectedBuildingId(building.building_id);
-    setSelectionFallbackKey('matchFirst.neighborhood.dossierBridgeLater');
-    const restoredState = readMatchResultsMapState(sessionId);
+  const buildDossierBridgeContext = (building: MatchNeighborhoodBuildingFeature) => {
+    if (!results || !recommendation) return null;
+    const restoredState = getRestoredStateForDetail(
+      readMatchResultsMapState(sessionId),
+      results,
+      recommendation,
+    );
     const centroid = recommendation.geometry_ref.display_centroid_wgs84;
     const center = restoredState?.mapCenter
       ?? (centroid ? [centroid.lat, centroid.lng] as [number, number] : [52.2, 5.3] as [number, number]);
     const mapZoom = restoredState?.mapZoom ?? 14;
     const listScroll = restoredState?.listScroll ?? 0;
     const mobileMode = restoredState?.mobileMode ?? 'map';
-
-    recordMatchFirstEvent('match_house_selected', {
-      locale,
+    const returnUrl = `#/match/session/${encodeURIComponent(results.session_id)}/neighborhood/${encodeURIComponent(recommendation.neighborhood_id)}`;
+    const recoveryContext: MatchReturnContext = {
+      target: returnUrl,
+      sessionId: results.session_id,
+      neighborhoodId: recommendation.neighborhood_id,
+      jobId: results.job_id,
+      resultSetId: results.result_set_id,
+      preferenceVectorVersion: results.preference_vector_version,
       source: 'match_map',
+      buildingId: building.building_id,
+      returnUrl,
+      mapCenter: center,
+      mapZoom,
+      listScroll,
+      mobileMode,
+      selectedResultId: recommendation.recommendation_id,
+      selectedResultRank: recommendation.rank,
+      language: locale,
+      selectedHouseId: building.building_id,
+    };
+    const returnContext: MatchDossierBridgeReturnContext = {
       session_id: results.session_id,
+      job_id: results.job_id,
       result_set_id: results.result_set_id,
-      neighborhood_id: recommendation.neighborhood_id,
-      recommendation_id: recommendation.recommendation_id,
-      result_rank: recommendation.rank,
+      preference_vector_version: results.preference_vector_version,
+      source: 'match_map',
+      return_url: returnUrl,
+      map_center: center,
+      map_zoom: mapZoom,
+      list_scroll: listScroll,
+      mobile_mode: mobileMode,
+      selected_result_id: recommendation.recommendation_id,
+      selected_result_rank: recommendation.rank,
+      language: locale,
       selected_house_id: building.building_id,
-    });
-
-    saveMatchResultsMapState(sessionId, {
+    };
+    const selectedState = {
       sessionId: results.session_id,
       jobId: results.job_id,
       resultSetId: results.result_set_id,
@@ -189,7 +286,164 @@ export default function NeighborhoodDetail({
       listScroll,
       mobileMode,
       locale,
+    };
+    return { recoveryContext, returnContext, selectedState };
+  };
+
+  const showBridgeFallback = (
+    building: MatchNeighborhoodBuildingFeature,
+    recoveryContext: MatchReturnContext,
+    fallbackReasonCode: string,
+    fallbackKey = 'matchFirst.neighborhood.noReliableAddress',
+  ) => {
+    if (!results || !recommendation) return;
+    setCandidateAddressState(null);
+    setSelectionFallbackKey(fallbackKey);
+    setSelectionRecoveryContext(recoveryContext);
+    recordMatchFirstEvent('match_no_reliable_address_shown', {
+      locale,
+      source: 'match_map',
+      session_id: results.session_id,
+      result_set_id: results.result_set_id,
+      neighborhood_id: recommendation.neighborhood_id,
+      selected_house_id: building.building_id,
+      building_id: building.building_id,
+      fallback_reason_code: fallbackReasonCode,
     });
+  };
+
+  const handleBridgeOutcome = (
+    building: MatchNeighborhoodBuildingFeature,
+    recoveryContext: MatchReturnContext,
+    bridge: Awaited<ReturnType<typeof resolveDossierFromBuilding>>,
+  ) => {
+    if (bridge.status === 'resolved' && bridge.route) {
+      const routeAccepted = onOpenDossier?.(bridge.route) === true;
+      if (routeAccepted) {
+        return;
+      }
+      showBridgeFallback(
+        building,
+        recoveryContext,
+        'match.dossier.invalid_bridge_route',
+      );
+      return;
+    }
+
+    if (bridge.status === 'candidates' && bridge.candidate_addresses.length > 0) {
+      setCandidateAddressState({
+        building,
+        addresses: bridge.candidate_addresses,
+        recoveryContext,
+      });
+      setSelectionFallbackKey(null);
+      setSelectionRecoveryContext(recoveryContext);
+      return;
+    }
+
+    showBridgeFallback(
+      building,
+      recoveryContext,
+      bridge.fallback_reason_code ?? 'match.neighborhood.no_reliable_address',
+      bridge.status === 'manual_required'
+        ? 'matchFirst.neighborhood.manualAddressRequired'
+        : 'matchFirst.neighborhood.noReliableAddress',
+    );
+  };
+
+  const handleBridgeError = (
+    error: unknown,
+    building: MatchNeighborhoodBuildingFeature,
+    recoveryContext: MatchReturnContext,
+  ) => {
+    const detail = error instanceof MatchFirstApiError ? error.detail : null;
+    if (detail === 'match.results.stale' || detail === 'match.results.not_found') {
+      setResultsUnavailable(true);
+      setCandidateAddressState(null);
+      setSelectionRecoveryContext(null);
+      if (!returnFailedEventRef.current) {
+        returnFailedEventRef.current = true;
+        onReturnHydrationFailed?.(detail);
+      }
+      return;
+    }
+    showBridgeFallback(
+      building,
+      recoveryContext,
+      'match.neighborhood.no_reliable_address',
+    );
+  };
+
+  const handleSelectHouse = async (building: MatchNeighborhoodBuildingFeature) => {
+    if (!results || !recommendation) return;
+    const bridgeContext = buildDossierBridgeContext(building);
+    if (!bridgeContext) return;
+    setSelectedBuildingId(building.building_id);
+    setPendingBuildingId(building.building_id);
+    setPendingCandidateId(null);
+    setCandidateAddressState(null);
+    setSelectionFallbackKey(null);
+    setSelectionRecoveryContext(null);
+
+    recordMatchFirstEvent('match_house_selected', {
+      locale,
+      source: 'match_map',
+      session_id: results.session_id,
+      result_set_id: results.result_set_id,
+      neighborhood_id: recommendation.neighborhood_id,
+      recommendation_id: recommendation.recommendation_id,
+      result_rank: recommendation.rank,
+      selected_house_id: building.building_id,
+    });
+
+    saveMatchResultsMapState(sessionId, bridgeContext.selectedState);
+
+    try {
+      const bridge = await resolveDossierFromBuilding({
+        session_id: results.session_id,
+        neighborhood_id: recommendation.neighborhood_id,
+        building_id: building.building_id,
+        address_id: building.address_id ?? null,
+        vbo_id: building.vbo_id ?? null,
+        lookup_id: building.lookup_id ?? null,
+        return_context: bridgeContext.returnContext,
+      });
+
+      handleBridgeOutcome(building, bridgeContext.recoveryContext, bridge);
+    } catch (error: unknown) {
+      handleBridgeError(error, building, bridgeContext.recoveryContext);
+    } finally {
+      setPendingBuildingId(null);
+    }
+  };
+
+  const handleSelectCandidateAddress = async (candidateAddress: MatchDossierCandidateAddress) => {
+    if (!results || !recommendation || !candidateAddressState) return;
+    const building = candidateAddressState.building;
+    const bridgeContext = buildDossierBridgeContext(building);
+    if (!bridgeContext) return;
+    setPendingCandidateId(candidateAddress.candidate_id);
+    setSelectionFallbackKey(null);
+    setSelectionRecoveryContext(candidateAddressState.recoveryContext);
+    saveMatchResultsMapState(sessionId, bridgeContext.selectedState);
+
+    try {
+      const bridge = await resolveDossierFromBuilding({
+        session_id: results.session_id,
+        neighborhood_id: recommendation.neighborhood_id,
+        building_id: building.building_id,
+        address_id: null,
+        vbo_id: null,
+        lookup_id: null,
+        selected_candidate_id: candidateAddress.candidate_id,
+        return_context: bridgeContext.returnContext,
+      });
+      handleBridgeOutcome(building, bridgeContext.recoveryContext, bridge);
+    } catch (error: unknown) {
+      handleBridgeError(error, building, bridgeContext.recoveryContext);
+    } finally {
+      setPendingCandidateId(null);
+    }
   };
   useEffect(() => {
     if (!results || !recommendation || openedEventRef.current) return;
@@ -424,8 +678,17 @@ export default function NeighborhoodDetail({
               loading={loadingBuildings && !buildings}
               failed={buildingsFailed}
               selectedBuildingId={selectedBuildingId}
+              pendingBuildingId={pendingBuildingId}
+              pendingCandidateId={pendingCandidateId}
               fallbackKey={selectionFallbackKey}
-              onSelectHouse={handleSelectHouse}
+              candidateAddresses={candidateAddressState?.addresses ?? []}
+              candidateBuildingId={candidateAddressState?.building.building_id ?? null}
+              onSelectHouse={onOpenDossier ? handleSelectHouse : undefined}
+              onSelectCandidateAddress={onOpenDossier ? handleSelectCandidateAddress : undefined}
+              onSearchManually={selectionRecoveryContext && onSearchManually
+                ? () => onSearchManually(selectionRecoveryContext)
+                : undefined}
+              onBackToResults={onBackToResults}
             />
           </section>
         </aside>

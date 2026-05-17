@@ -14,6 +14,8 @@ from app.models.match import (
     ListingProviderResult,
     MatchCompareRequest,
     MatchCompareResponse,
+    MatchDossierBridgeRequest,
+    MatchDossierBridgeResponse,
     MatchFeedbackRequest,
     MatchFeedbackResponse,
     MatchJobStatusResponse,
@@ -50,7 +52,12 @@ from app.models.match import (
 )
 from app.services.match.alerts import create_alert, delete_alert, list_alerts, update_alert
 from app.services.match.amenities import get_preference_aware_amenities
-from app.services.match.buildings import get_scoped_neighborhood_buildings
+from app.services.match.buildings import (
+    DossierBridgeCandidateMismatchError,
+    DossierBridgeInvalidVboIdError,
+    get_scoped_neighborhood_buildings,
+    resolve_dossier_bridge,
+)
 from app.services.match.comparison import build_neighborhood_comparison
 from app.services.match.feedback import record_feedback
 from app.services.match.geometry import (
@@ -251,7 +258,7 @@ async def _validate_completed_neighborhood_context(
     session_id: str,
     result_set_id: str,
     neighborhood_id: str,
-) -> None:
+) -> MatchResultsResponse:
     try:
         results = await get_match_results(session_id)
     except MatchSessionNotFoundError as exc:
@@ -292,6 +299,59 @@ async def _validate_completed_neighborhood_context(
         raise HTTPException(
             status_code=404,
             detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    return results
+
+
+def _validate_dossier_return_context(
+    payload: MatchDossierBridgeRequest,
+    results: MatchResultsResponse,
+) -> None:
+    context = payload.return_context
+    if (
+        context.job_id != results.job_id
+        or context.preference_vector_version != results.preference_vector_version
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="match.results.stale",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    visible_results = [
+        *results.ranked_results,
+        *results.stretch_matches,
+        *results.near_misses,
+    ]
+    if not context.selected_result_id or context.selected_result_rank is None:
+        raise HTTPException(
+            status_code=422,
+            detail="match.dossier.selected_result_required",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    selected_result = next(
+        (
+            item
+            for item in visible_results
+            if item.recommendation_id == context.selected_result_id
+        ),
+        None,
+    )
+
+    if selected_result is None or selected_result.neighborhood_id != payload.neighborhood_id:
+        raise HTTPException(
+            status_code=409,
+            detail="match.results.stale",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    if selected_result.rank != context.selected_result_rank:
+        raise HTTPException(
+            status_code=409,
+            detail="match.results.stale",
             headers=_NO_STORE_HEADERS,
         )
 
@@ -423,6 +483,40 @@ async def read_match_neighborhood_amenities(
         raise HTTPException(
             status_code=404,
             detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.post("/dossier/from-building", response_model=MatchDossierBridgeResponse)
+async def resolve_match_dossier_from_building(
+    payload: MatchDossierBridgeRequest,
+    response: Response,
+) -> MatchDossierBridgeResponse:
+    _mark_no_store(response)
+    if payload.return_context.session_id != payload.session_id:
+        raise HTTPException(
+            status_code=422,
+            detail="match.dossier.context_session_mismatch",
+            headers=_NO_STORE_HEADERS,
+        )
+    results = await _validate_completed_neighborhood_context(
+        session_id=payload.session_id,
+        result_set_id=payload.return_context.result_set_id,
+        neighborhood_id=payload.neighborhood_id,
+    )
+    _validate_dossier_return_context(payload, results)
+    try:
+        return await resolve_dossier_bridge(payload)
+    except DossierBridgeInvalidVboIdError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="match.dossier.invalid_vbo_id",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except DossierBridgeCandidateMismatchError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="match.dossier.building_not_found",
             headers=_NO_STORE_HEADERS,
         ) from exc
 

@@ -19,8 +19,15 @@ recommendation, loads selected boundary/fit context, scopes building requests to
 selected-neighborhood RD bounds after selection, rejects national/out-of-bounds
 building requests in the backend, shows localized 2D fallback for missing 3D,
 caps preference-aware amenities, and preserves selected-neighborhood map state.
-Phase 7 house-to-Dossier bridge behavior is not implemented in the current
-worktree and remains the next product phase.
+Phase 7 now resolves selected server-side house/building candidates to existing
+Dossier routes when a reliable VBO/lookup path exists, returns selectable
+PDOK-backed candidate addresses when the bridge is ambiguous, carries match
+return context into Dossier, preserves direct address search entry, and restores
+the selected match map/neighborhood state through the persistent localized Back
+to match map action. The 2026-05-17 provider-backed repair tightened the backend
+trust boundary, candidate selection, stale/no-address/manual recovery,
+analytics privacy/timing, and browser round-trip E2E without starting Phase 8
+work. Phase 7 is now a pass for the documented Dossier bridge scope.
 
 ## Current Next Step
 
@@ -44,11 +51,380 @@ Before any task regeneration or new task slicing, use the audited
 `specs/002-match-first-revamp/plan.md`, `data-model.md`, and
 `contracts/match-first-api.md` from the 2026-05-15 plan audit update below.
 
-The next documented implementation step is Phase 7 house-to-existing-Dossier
-bridge work. Keep the Phase 6/7 boundaries intact: do not load national 3D
-buildings, do not show all amenities, do not rerun matching when opening
-completed results/selected-neighborhood detail, and do not rewrite existing
-Dossier modules beyond the route/context navigation required by Phase 7.
+The next documented implementation step is Phase 8 final QA. Keep the Phase 6/7
+boundaries intact: do not load national 3D buildings, do not show all amenities,
+do not rerun matching when opening completed results/selected-neighborhood
+detail or house Dossiers, and do not rewrite existing Dossier modules beyond
+route/context navigation.
+
+## Phase 7 Commit Readiness Verification 2026-05-17
+
+Final local CI-equivalent verification before committing and pushing Phase 7:
+
+- `cd backend && ruff check .` passed.
+- `cd backend && pytest -x -q -m "not live and not visual and not benchmark"` passed with 1354 passed, 8 skipped, and 17 deselected.
+- `cd backend && pytest -x -q -m "not live"` passed with 1356 passed, 12 skipped, and 11 deselected.
+- `cd backend && pytest -x -q -m "visual"` collected 4 skipped and 1375 deselected locally.
+- `cd backend && pytest -x -q -m "benchmark"` passed with 2 passed and 1377 deselected.
+- `cd frontend && npm run build` passed after the final type-only copy-guard repair.
+- `cd frontend && npm run test` passed.
+- `npm run landing:test:e2e` passed with 23 passed and 1 skipped.
+- `cd frontend && npm run test -- --run src/test/match-first-copy-guard.test.ts` passed with 7 tests after replacing the `Promise<void>` prop signatures in `HouseSelectionPanel` with local handler aliases so the existing JSX copy guard no longer misreads TypeScript generics as visible copy.
+
+Blocked / residual:
+
+- `cd frontend && npm run lint` still fails on repo-wide pre-existing lint
+  issues outside the Phase 7 CI workflow, including React Compiler
+  set-state/ref rules, Fast Refresh export rules, older test unused variables,
+  and unrelated `any` usages. The active GitHub CI workflow does not run this
+  frontend lint command.
+
+## Latest Provider-Backed Phase 7 Closure 2026-05-17
+
+This pass closed the remaining Phase 7 provider-backed candidate gap without
+starting Phase 8.
+
+Files changed in this repair:
+
+- `backend/app/services/locatieserver.py`
+- `backend/app/services/match/buildings.py`
+- `backend/tests/test_locatieserver.py`
+- `backend/tests/test_match_neighborhood_layers.py`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `frontend/tests/e2e/match-first-dossier-roundtrip.spec.ts`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `frontend/src/test/match-i18n.test.ts`
+- `specs/002-match-first-revamp/contracts/match-first-api.md`
+- `specs/002-match-first-revamp/tasks.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+- `docs/ai/latest_handoff.md`
+
+Completed repair work:
+
+- Added `locatieserver.reverse_addresses()` against the PDOK Locatieserver
+  Reverse API and parse it into the existing `ResolvedAddress` model.
+- Added an ambiguous third server-side seed house candidate; ambiguous bridge
+  requests derive the server-side footprint centroid and call PDOK reverse for
+  nearby address candidates.
+- Candidate IDs are stable from provider lookup IDs, candidate labels use EN/NL
+  translation keys with provider label params, and provider source refs include
+  `pdok_locatieserver_reverse`.
+- Empty or failed provider results recover to `manual_required` instead of
+  invented deterministic addresses.
+- Added backend tests for provider-backed candidates, selected provider
+  candidate to Dossier, provider-empty/manual recovery, provider failure, and
+  Locatieserver reverse parsing.
+- Added browser proof: Chromium creates a real completed backend match, opens
+  ambiguous house 3, receives PDOK reverse-backed candidates from the real
+  backend bridge, opens Dossier, returns to match map, and verifies no `/run`
+  during Dossier open or return. Firefox/WebKit skip only this backend-integrated
+  provider proof to avoid local shared-DB races; their UI round-trip proof still
+  runs.
+
+Red-first evidence:
+
+- `cd backend && pytest -q tests/test_locatieserver.py -k reverse` failed before
+  implementation because `reverse_addresses` did not exist.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "provider or candidate_addresses or selected_candidate_address"` failed before
+  implementation because candidate addresses were deterministic/non-provider and
+  provider-empty/failure recovery was absent.
+
+Verification:
+
+- `cd backend && ruff check app tests/test_match_neighborhood_layers.py tests/test_locatieserver.py` passed.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py tests/test_locatieserver.py` passed with 34 tests.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts` passed with 19 tests.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-dossier-roundtrip.spec.ts` passed with 10 tests and 2 intentional skips.
+
+Residual risk:
+
+- No Phase 7 provider-backed candidate blocker remains. Full frontend lint is
+  still a repo-wide pre-existing blocker outside this Phase 7 slice.
+
+## Latest Stop-Phase-8 Candidate Address Repair 2026-05-17
+
+This pass fixed the remaining Phase 7 candidate-address selection gap without
+starting Phase 8.
+
+Files changed in this repair:
+
+- `backend/app/models/match.py`
+- `backend/app/services/match/buildings.py`
+- `backend/tests/test_match_neighborhood_layers.py`
+- `frontend/src/types/matchFirst.ts`
+- `frontend/src/services/matchFirstApi.test.ts`
+- `frontend/src/components/match-first/HouseSelectionPanel.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.css`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `frontend/src/services/matchFirstAnalytics.test.ts`
+- `frontend/src/test/match-i18n.test.ts`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `frontend/tests/e2e/match-first-dossier-roundtrip.spec.ts`
+- `specs/002-match-first-revamp/contracts/match-first-api.md`
+- `specs/002-match-first-revamp/tasks.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+- `docs/ai/latest_handoff.md`
+
+Completed repair work:
+
+- Extended `MatchDossierBridgeResponse` to support `resolved`, `candidates`,
+  `manual_required`, and `unavailable`, plus `candidate_addresses` with stable
+  candidate IDs, VBO/lookup where available, translated display label keys and
+  params, reliability, source refs, and fallback reason codes.
+- Candidate selection is validated against server-generated selected-neighborhood
+  candidate addresses. Selected-candidate Dossier routes are built from server
+  candidate values, not client-supplied VBO/address/lookup IDs.
+- Frontend candidate choices render inside `HouseSelectionPanel`/`NeighborhoodDetail`
+  with keyboard-usable buttons, unique accessible names/descriptions, 44 px
+  touch targets, focus-visible styling, EN/NL translation keys only, manual
+  search, and Back to results.
+- Dossier return context remains preserved for session/job/result/vector,
+  neighborhood/result rank/house, map center/zoom, list scroll, mobile mode,
+  and language. Candidate selection and Dossier return do not call `/run`.
+- Analytics tests assert candidate IDs, VBOs, lookup IDs, and address labels are
+  not stored.
+- API contract, tasks, traceability, punch list, and this handoff were updated
+  with the candidate-address selection contract. The later provider-backed
+  closure section above supersedes the earlier reduced-scope status.
+
+Red-first evidence:
+
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "candidate_addresses or selected_candidate_address or manual_required or spoofed_candidate_address"` failed before implementation because ambiguous houses returned `unavailable`, selected candidates were ignored, manual-required was not represented, and spoofed candidate IDs returned 200.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts -- -t "candidate|manual|Phase 7 house-selection controls|translation"` failed before implementation because candidate choices were not rendered, manual-required showed no-reliable copy, and candidate touch-target CSS was missing.
+
+Final verification in this repair:
+
+- `cd backend && ruff check app tests/test_match_neighborhood_layers.py` passed.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py tests/test_export_entitlement.py tests/test_reports_api.py` passed with 40 tests.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 18 tests.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/App.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-first-routing.test.tsx src/services/matchSessionStorage.test.ts src/test/match-i18n.test.ts` passed.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-dossier-roundtrip.spec.ts` passed with 9 tests across Chromium, Firefox, and WebKit.
+- `cd frontend && npm run build` passed.
+- `git diff --check` passed with CRLF normalization warnings only.
+
+Residual risk:
+
+- Superseded by the provider-backed Phase 7 closure section above.
+
+## Latest Stop-Phase-8 Phase 7 Repair 2026-05-17
+
+This pass repaired Phase 7 before any Phase 8 work. It addressed the review
+items for backend trust boundaries, frontend recovery behavior, analytics
+privacy/timing, browser E2E proof, and documentation status.
+
+Files changed in this repair:
+
+- `backend/app/api/match.py`
+- `backend/app/models/match.py`
+- `backend/app/services/match/buildings.py`
+- `backend/tests/test_match_neighborhood_layers.py`
+- `frontend/src/App.tsx`
+- `frontend/src/components/match-first/HouseSelectionPanel.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.css`
+- `frontend/src/components/match-first/NeighborhoodDetail.tsx`
+- `frontend/src/components/match-first/ResultsMap.tsx`
+- `frontend/src/services/matchFirstApi.ts`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/services/matchFirstAnalytics.test.ts`
+- `frontend/src/App.test.tsx`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `frontend/tests/e2e/match-first-dossier-roundtrip.spec.ts`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `docs/qa/open_punchlist.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/ai/latest_handoff.md`
+- `specs/002-match-first-revamp/contracts/match-first-api.md`
+- `specs/002-match-first-revamp/tasks.md`
+
+Completed repair work:
+
+- Backend Dossier bridge now requires `selected_result_id` and
+  `selected_result_rank`, validates the completed result context, rejects
+  spoofed `building_id`, `vbo_id`, `address_id`, `lookup_id`, and
+  `selected_house_id` return-context values that are not server-side candidates
+  for the selected result/neighborhood, and builds the Dossier route/return
+  context from the server-resolved candidate. The server-side seed candidate set
+  now exposes and verifies both first and second deterministic house candidates.
+- Malformed `vbo_id` values now return stable `match.dossier.invalid_vbo_id`
+  instead of raw Pydantic validation details.
+- `NeighborhoodDetail` now distinguishes stable API errors: `match.results.stale`
+  and result-not-found cases show results-unavailable recovery, while no reliable
+  address and invalid bridge routes show localized manual-search and Back to
+  results actions.
+- Analytics no longer allowlist/store exact `address_id`; `match_dossier_opened`
+  is recorded only after `App` hydrates the returned Dossier lookup/VBO, not
+  merely when `NeighborhoodDetail` accepts a route. `App.openMatchDossierRoute`
+  now rejects bridge routes without structured `match_return` context containing
+  a `sessionId` and `target`, and failed lookups do not record Dossier-open.
+  Back-to-map return success/failure is recorded after target
+  results/neighborhood hydration, with App-level timing regressions and E2E
+  analytics assertions.
+- Added `frontend/tests/e2e/match-first-dossier-roundtrip.spec.ts` covering
+  mobile + reduced-motion house -> existing Dossier -> Back to match map ->
+  restored selected state -> second house without `/run`, bridge-route rejection
+  when `match_return` is missing, and lookup-failure-without-Dossier-open
+  analytics across Chromium, Firefox, and WebKit. The latest candidate repair
+  now routes the first house through a candidate-address choice before Dossier
+  entry. A later provider-backed closure adds PDOK Locatieserver reverse
+  candidate sourcing plus a Chromium backend-integrated browser proof; Firefox
+  and WebKit continue to cover the UI-mocked return flow.
+
+Red-first evidence:
+
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "selected_result_identity or client_spoofed"` initially failed because missing selected-result identity and spoofed candidate IDs were accepted.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "spoofed_return_selected_house_id"` initially failed because spoofed return-context selected-house IDs were echoed into Dossier context.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "second_selected_building or invalid_vbo"` initially failed because only candidate 001 resolved and malformed VBOs leaked raw Pydantic detail.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx` initially failed because bridge `match.results.stale` rendered no-reliable-address recovery and no manual-search/back recovery actions existed.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "rejects a resolved bridge route"` initially failed because rejected resolved bridge routes left the user on the house list with no recovery UI.
+- `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts` initially failed because `address_id` was still stored for `match_dossier_opened`.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -t "house-selection controls|reliable house candidate"` initially failed because `NeighborhoodDetail` recorded Dossier-open on route acceptance and house recovery controls lacked the required 44 px CSS proof.
+
+Verification:
+
+- `cd backend && ruff check app tests/test_match_neighborhood_layers.py` passed.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py tests/test_export_entitlement.py tests/test_reports_api.py` passed with 40 tests.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/App.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-first-routing.test.tsx src/services/matchSessionStorage.test.ts src/test/match-i18n.test.ts` passed.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-dossier-roundtrip.spec.ts` passed with 9 tests across Chromium, Firefox, and WebKit.
+- `cd frontend && npm run build` passed.
+- `git diff --check` passed with CRLF normalization warnings only.
+
+Residual risks:
+
+- Provider-backed live candidate address sourcing/proof is closed by the later
+  PDOK Locatieserver reverse repair in this handoff. The only remaining note is
+  that the provider-backed browser proof runs once in Chromium to avoid shared
+  local database races, while Firefox and WebKit keep UI-mocked route coverage.
+- Full repo `npm run lint` remains a known pre-existing blocker outside this
+  Phase 7 repair; the required Phase 7 verification commands passed.
+
+## Latest Phase 7 Review Gap Repair 2026-05-17
+
+This pass implemented only the Phase 7 gaps found in review. It did not start
+Phase 8 final QA or redesign Dossier modules. The later stop-Phase-8 repair
+above added browser E2E proof and tightened the trust boundary further.
+
+Files changed in this repair:
+
+- `backend/app/api/match.py`
+- `backend/tests/test_match_neighborhood_layers.py`
+- `frontend/src/components/match-first/HouseSelectionPanel.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.tsx`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `docs/ai/latest_handoff.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `specs/002-match-first-revamp/tasks.md`
+
+Completed repair work:
+
+- Added backend validation that Dossier bridge return context matches the
+  persisted completed result's `job_id`, `preference_vector_version`, selected
+  result ID, selected neighborhood, and selected result rank. Stale context now
+  returns stable `match.results.stale`.
+- Fixed selected-neighborhood detail hydration so a valid returned
+  map/list/house/language state is preserved exactly instead of being replaced
+  by the neighborhood centroid and minimum zoom.
+- Added unique bilingual accessible names for each house Dossier action while
+  keeping the visible button label unchanged.
+
+Red-first evidence:
+
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "dossier_bridge_rejects_stale_return_metadata"` initially failed because stale `job_id`, vector version, and selected-result metadata still returned 200.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx --runInBand` initially failed because returned center/zoom were overwritten and the house buttons still had the same accessible name.
+
+Verification:
+
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "dossier_bridge_rejects_stale_return_metadata"` passed.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx --runInBand` passed with 9 tests; npm warned that `--runInBand` is an unknown npm config.
+- `cd backend && ruff check app tests/test_match_neighborhood_layers.py` passed.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 10 tests.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/App.test.tsx` passed; the existing App suite still logs React `act(...)` warnings and sunlight debug output.
+- `cd frontend && npm run test -- src/services/matchFirstApi.test.ts src/test/match-first-routing.test.tsx src/services/matchSessionStorage.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts` passed with 35 tests.
+- `cd frontend && npm run build` passed.
+- `cd frontend && npx eslint src/components/match-first/HouseSelectionPanel.tsx src/components/match-first/NeighborhoodDetail.tsx src/services/matchFirstAnalytics.ts src/services/matchFirstAnalytics.test.ts src/services/matchFirstApi.ts src/services/matchFirstApi.test.ts src/test/match-first-neighborhood-detail.test.tsx src/types/matchFirst.ts` passed.
+- `cd frontend && npm run test -- src/components/DossierSheet.test.tsx src/components/RiskTilesGrid.test.tsx src/components/ExportBottomSheet.test.tsx src/components/ActionBar.test.tsx src/components/BuildingFactsCard.test.tsx src/components/ViewingChecklist.test.tsx` passed with 89 tests.
+- `cd backend && pytest -q tests/test_export_entitlement.py tests/test_reports_api.py` passed with 22 tests.
+- `git diff --check` passed, with only CRLF normalization warnings.
+
+Residual checks:
+
+- `cd frontend && npm run lint` remains a known pre-existing repo-wide lint
+  blocker outside this Phase 7 repair; touched TypeScript lint passed.
+- Dedicated browser/mobile E2E proof for house -> existing Dossier -> Back to
+  match map -> second house has since been added by the stop-Phase-8 repair
+  above.
+- Multi-address ambiguity remains constrained to the current
+  candidate/unavailable response contract until real provider data is
+  integrated.
+
+## Latest Phase 7 Dossier Bridge Update 2026-05-17
+
+This pass implemented only the house-to-existing-Dossier bridge and persistent
+Back to match map behavior.
+
+Files changed:
+
+- `backend/app/api/match.py`
+- `backend/app/models/match.py`
+- `backend/app/services/match/buildings.py`
+- `backend/tests/test_match_neighborhood_layers.py`
+- `frontend/src/App.tsx`
+- `frontend/src/components/match-first/HouseSelectionPanel.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.tsx`
+- `frontend/src/services/matchFirstApi.ts`
+- `frontend/src/services/matchFirstApi.test.ts`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/services/matchFirstAnalytics.test.ts`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `frontend/src/types/matchFirst.ts`
+- `docs/ai/latest_handoff.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `specs/002-match-first-revamp/tasks.md`
+
+Completed work:
+
+- Added `POST /api/match/dossier/from-building` with no-store responses,
+  completed-result validation, stale-result rejection, and no checkout
+  `session_id` query reuse.
+- Added deterministic bridge resolution in the existing building service:
+  reliable 16-digit VBO/address inputs produce `#/address/{vbo_id}` routes;
+  unresolved buildings return stable `match.neighborhood.no_reliable_address`.
+- Wired selected house buttons to call the bridge, persist selected
+  neighborhood/result/house/map/list/language state, and open the existing
+  Dossier route without rerunning matching.
+- Preserved direct Dossier entry from address search and existing Dossier
+  modules; only match-return route/context and the persistent localized Back to
+  match map action were used.
+- Added privacy-safe Phase 7 analytics for Dossier open, no reliable address,
+  Back to match map click, return success, and return failure.
+
+Verification:
+
+- `cd backend && ruff check app tests/test_match_neighborhood_layers.py` passed.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 10 tests after the Phase 7 review-gap repair.
+- `cd frontend && npm run test -- src/services/matchFirstApi.test.ts src/test/match-first-routing.test.tsx src/services/matchSessionStorage.test.ts src/services/matchFirstAnalytics.test.ts --runInBand` passed with 33 tests; npm warned that `--runInBand` is an unknown npm config.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/App.test.tsx --runInBand` passed; the existing App suite still logs React `act(...)` warnings and sunlight debug output.
+- `cd frontend && npm run build` passed.
+- `cd frontend && npx eslint src/components/match-first/HouseSelectionPanel.tsx src/components/match-first/NeighborhoodDetail.tsx src/services/matchFirstAnalytics.ts src/services/matchFirstAnalytics.test.ts src/services/matchFirstApi.ts src/services/matchFirstApi.test.ts src/test/match-first-neighborhood-detail.test.tsx src/types/matchFirst.ts` passed.
+- `cd frontend && npm run test -- src/components/DossierSheet.test.tsx src/components/RiskTilesGrid.test.tsx src/components/ExportBottomSheet.test.tsx src/components/ActionBar.test.tsx src/components/BuildingFactsCard.test.tsx src/components/ViewingChecklist.test.tsx --runInBand` passed with 89 tests.
+- `cd backend && pytest -q tests/test_export_entitlement.py tests/test_reports_api.py` passed with 22 tests.
+
+Blocked / residual checks:
+
+- `cd frontend && npm run lint` is still blocked by pre-existing repo-wide
+  React Compiler/Fast Refresh/no-unused-vars issues outside this Phase 7 slice;
+  `frontend/src/App.tsx` also still has the known pre-existing
+  `react-refresh/only-export-components` export warning.
+- Dedicated Playwright/mobile round-trip proof for house -> Dossier -> Back to
+  match map -> second house has since been added by the stop-Phase-8 repair
+  above. Component, routing, API, build, and Dossier preservation gates passed.
 
 ## Latest Phase 6 Boundary Repair Update 2026-05-17
 
@@ -101,8 +477,9 @@ Verification:
 
 Residual risks / next checks:
 
-- Phase 7 house-to-existing-Dossier bridge and persistent Back to match map
-  restoration remain unimplemented.
+- Phase 7 house-to-existing-Dossier bridge, persistent Back to match map
+  restoration, and browser/mobile round-trip proof have since been implemented
+  in the 2026-05-17 Phase 7 sections above.
 - Full repo frontend lint still has pre-existing failures outside the Phase 6
   touched surface and is not part of the active GitHub CI workflow.
 - Browser-level Playwright/mobile-performance proof for selected-neighborhood
@@ -169,8 +546,8 @@ Residual risks / next checks:
 - Browser-level Playwright/mobile performance proof for selected-neighborhood
   detail remains open before production release; this repair strengthens
   component-level fallback and bounds regression coverage.
-- Phase 7 house/building-to-Dossier bridge remains the next implementation
-  phase and is intentionally absent from the current worktree.
+- Phase 7 house/building-to-Dossier bridge and browser/mobile round-trip proof
+  have since been implemented in the 2026-05-17 sections above.
 
 ## Latest Phase 6 Selected-Neighborhood Detail Update 2026-05-16
 
@@ -253,8 +630,8 @@ Residual risks / next checks:
 - Direct `npx eslint src/App.tsx` still reports the existing
   `react-refresh/only-export-components` helper-export issue plus an unrelated
   hook dependency warning; targeted lint for Phase 6 files passed.
-- Phase 7 house/building-to-Dossier bridge remains the next implementation
-  phase and is intentionally absent from the current worktree.
+- Phase 7 house/building-to-Dossier bridge and browser/mobile round-trip proof
+  have since been implemented in the 2026-05-17 sections above.
 
 ## Latest Phase 5 Results Map Review Repair Update 2026-05-16
 
@@ -824,7 +1201,7 @@ This pass fixed Phase 3 before T-034. It reconciled the broad backend test
 evidence, repaired `/run` idempotency and queue-first behavior, tightened
 confidence thresholds and result-key coverage, and preserved session locale for
 persisted job lifecycle analytics. Phase 4 progress/success UI and later
-map/Dossier phases were not implemented.
+map/Dossier phases were outside that Phase 3 repair.
 
 Files changed in this final repair:
 
@@ -882,7 +1259,7 @@ Not run:
 
 Phase 3 matching backend work was implemented and verified. Frontend Phase 4
 progress/success UI, Phase 5 results map, selected-neighborhood 3D detail, and
-Dossier bridge remain later phases.
+Dossier bridge were later phases and are documented in the newer sections above.
 
 Files changed:
 

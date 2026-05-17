@@ -132,6 +132,7 @@ import {
 import { recordMatchFirstEvent } from './services/matchFirstAnalytics';
 import {
   readMatchSessionSnapshot,
+  saveMatchReturnContextAsResultsMapState,
   saveMatchSessionSnapshot,
 } from './services/matchSessionStorage';
 import { ToastContainer, useToast } from './components/ui/Toast';
@@ -1540,7 +1541,11 @@ function App() {
   useViewportBottomOffset();
   const { t, i18n } = useTranslation();
   const prefersReducedMotion = useReducedMotion();
-  const matchRouteMotionProps = getMatchRouteMotionProps(Boolean(prefersReducedMotion));
+  const browserPrefersReducedMotion = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const shouldReduceMotion = Boolean(prefersReducedMotion || browserPrefersReducedMotion);
+  const matchRouteMotionProps = getMatchRouteMotionProps(shouldReduceMotion);
   const uiLanguage = normalizeUiLanguage(i18n.resolvedLanguage ?? i18n.language);
   const isNl = uiLanguage === 'nl';
   const analyticsEnabled = isAnalyticsEnabled();
@@ -1601,7 +1606,9 @@ function App() {
     () => initialMatchMapReturnContext,
   );
   const matchMapReturnContextRef = useRef<MatchReturnContext | null>(initialMatchMapReturnContext);
+  const pendingMatchReturnAnalyticsRef = useRef<MatchReturnContext | null>(null);
   const pendingSearchMatchReturnContextRef = useRef<MatchReturnContext | null>(null);
+  const recordedMatchDossierOpenKeysRef = useRef<Set<string>>(new Set());
   const [activeMatchJobStatus, setActiveMatchJobStatus] = useState<MatchJobStatus | null>(() => (
     readStoredMatchJobStatus(initialMatchSessionId)
   ));
@@ -2988,8 +2995,88 @@ function App() {
     setExportSheetOpen(true);
   }, []);
 
+  const recordPendingMatchReturnSuccess = useCallback(() => {
+    const pendingContext = pendingMatchReturnAnalyticsRef.current;
+    if (!pendingContext) return;
+    pendingMatchReturnAnalyticsRef.current = null;
+    recordMatchFirstEvent('match_back_to_map_return_success', {
+      locale: pendingContext.language ?? (i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en'),
+      source: 'dossier',
+      session_id: pendingContext.sessionId,
+      result_set_id: pendingContext.resultSetId,
+      neighborhood_id: pendingContext.neighborhoodId,
+      selected_house_id: pendingContext.selectedHouseId,
+      building_id: pendingContext.buildingId,
+    });
+  }, [i18n]);
+
+  const recordPendingMatchReturnFailure = useCallback((reason: string) => {
+    const pendingContext = pendingMatchReturnAnalyticsRef.current;
+    if (!pendingContext) return;
+    pendingMatchReturnAnalyticsRef.current = null;
+    recordMatchFirstEvent('match_back_to_map_return_failed', {
+      locale: pendingContext?.language ?? (i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en'),
+      source: 'dossier',
+      session_id: pendingContext?.sessionId,
+      result_set_id: pendingContext?.resultSetId,
+      neighborhood_id: pendingContext?.neighborhoodId,
+      selected_house_id: pendingContext?.selectedHouseId,
+      building_id: pendingContext?.buildingId,
+      reason,
+    });
+  }, [i18n]);
+
+  const recordMatchDossierOpenedAfterHydration = useCallback((
+    context: MatchReturnContext | null | undefined,
+    hydrated: { vboId: string; lookupId?: string | null },
+  ) => {
+    if (!context?.sessionId || !context.target || !hydrated.vboId) return;
+    const eventKey = [
+      context.sessionId,
+      context.resultSetId ?? '',
+      context.neighborhoodId ?? '',
+      context.selectedResultId ?? '',
+      context.selectedHouseId ?? '',
+      context.buildingId ?? '',
+      hydrated.vboId,
+      hydrated.lookupId ?? '',
+    ].join('|');
+    if (recordedMatchDossierOpenKeysRef.current.has(eventKey)) return;
+    recordedMatchDossierOpenKeysRef.current.add(eventKey);
+
+    recordMatchFirstEvent('match_dossier_opened', {
+      locale: context.language ?? (i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en'),
+      source: context.source ?? 'match_map',
+      session_id: context.sessionId,
+      result_set_id: context.resultSetId,
+      neighborhood_id: context.neighborhoodId,
+      recommendation_id: context.selectedResultId,
+      selected_result_id: context.selectedResultId,
+      result_rank: context.selectedResultRank,
+      selected_house_id: context.selectedHouseId,
+      building_id: context.buildingId ?? context.selectedHouseId,
+    });
+  }, [i18n]);
+
   const handleBackToMatchMap = useCallback(() => {
     const target = normalizeMatchReturnTarget(matchReturnContext);
+    if (!matchReturnContext) {
+      recordMatchFirstEvent('match_back_to_map_return_failed', {
+        locale: i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en',
+        source: 'dossier',
+        reason: 'missing_match_return_context',
+      });
+      return;
+    }
+    recordMatchFirstEvent('match_back_to_map_clicked', {
+      locale: matchReturnContext.language ?? (i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en'),
+      source: 'dossier',
+      session_id: matchReturnContext.sessionId,
+      result_set_id: matchReturnContext.resultSetId,
+      neighborhood_id: matchReturnContext.neighborhoodId,
+      selected_house_id: matchReturnContext.selectedHouseId,
+      building_id: matchReturnContext.buildingId,
+    });
     if (matchReturnContext?.sessionId) {
       setActiveMatchSessionId(matchReturnContext.sessionId);
       storeMatchSessionId(matchReturnContext.sessionId);
@@ -3002,10 +3089,12 @@ function App() {
       matchMapReturnContextRef.current = matchReturnContext;
       setMatchMapReturnContext(matchReturnContext);
       storeMatchReturnContext(matchReturnContext, { activatedFromDossierBack: true });
+      saveMatchReturnContextAsResultsMapState(matchReturnContext);
     }
     if (matchReturnContext?.language) {
       void i18n.changeLanguage(matchReturnContext.language);
     }
+    pendingMatchReturnAnalyticsRef.current = matchReturnContext;
     setActiveTab('home');
     setActiveScreen(target.screen);
     setHashRoute(target.hash);
@@ -4393,6 +4482,10 @@ function App() {
         storeMatchReturnContext(preservedMatchReturnContext);
       }
       setHashRoute(dossierHash(vboId, activeSuggestion.id, preservedMatchReturnContext ?? null));
+      recordMatchDossierOpenedAfterHydration(preservedMatchReturnContext, {
+        vboId,
+        lookupId: activeSuggestion.id,
+      });
 
       setLoadingStep('loading3D');
       let phase1Promise: Promise<void> | null = null;
@@ -4696,6 +4789,7 @@ function App() {
     dossierHash,
     isActiveDossierRequest,
     matchReturnContext,
+    recordMatchDossierOpenedAfterHydration,
     setHashRoute,
     showToast,
     t,
@@ -5979,6 +6073,7 @@ function App() {
     && restoredMatchMapContext.sessionId === activeMatchSessionId
     && restoredMatchMapContext.neighborhoodId
     && restoredMatchMapContext.neighborhoodId === activeMatchNeighborhoodId
+    && !restoredMatchMapContext.resultSetId
   );
   const showDossierInlineMatchReturnAction = (
     activeScreen === 'dossier'
@@ -6178,6 +6273,8 @@ function App() {
               initialResults={initialResults}
               onBackToSurvey={returnToMatchSurvey}
               onOpenNeighborhood={openSelectedMatchNeighborhood}
+              onReturnHydrated={recordPendingMatchReturnSuccess}
+              onReturnHydrationFailed={recordPendingMatchReturnFailure}
             />
           </Suspense>
         </div>
@@ -6270,8 +6367,9 @@ function App() {
     ) : null
   );
 
-  const handleSearchManuallyFromMatchDossier = useCallback(() => {
-    const currentMatchReturnContext = matchReturnContext
+  const handleSearchManuallyFromMatchDossier = useCallback((context?: MatchReturnContext) => {
+    const currentMatchReturnContext = context
+      ?? matchReturnContext
       ?? (typeof window !== 'undefined' ? parseLocationRoute(window.location).matchReturn : undefined)
       ?? matchMapReturnContextRef.current;
     pendingSearchMatchReturnContextRef.current = currentMatchReturnContext;
@@ -6282,6 +6380,34 @@ function App() {
       matchReturn: currentMatchReturnContext ?? undefined,
     }));
   }, [matchReturnContext, setHashRoute]);
+
+  const openMatchDossierRoute = useCallback((route: string) => {
+    const parsed = parseHashRoute(route);
+    const routeMatchReturnContext = parsed.matchReturn;
+    if (
+      parsed.route !== 'dossier'
+      || !routeMatchReturnContext?.sessionId
+      || !routeMatchReturnContext.target
+    ) {
+      recordMatchFirstEvent('match_back_to_map_return_failed', {
+        locale: i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en',
+        source: 'match_map',
+        reason: parsed.route === 'dossier'
+          ? 'missing_match_return_context'
+          : 'invalid_dossier_bridge_route',
+      });
+      return false;
+    }
+    setMatchReturnContext(routeMatchReturnContext);
+    setMatchMapReturnContext(routeMatchReturnContext);
+    storeMatchReturnContext(routeMatchReturnContext);
+    setActiveTab('briefing');
+    setActiveScreen('dossier');
+    setSheetSnap('peek');
+    setHashRoute(route);
+    applyRouteRef.current();
+    return true;
+  }, [i18n, setHashRoute]);
 
   return (
     <div className="app" data-screen={activeScreen}>
@@ -6542,6 +6668,10 @@ function App() {
                       setHashRoute(buildHashRoute({ route: 'matchResults', sessionId: activeMatchSessionId }));
                     }}
                     onBackToSurvey={returnToMatchSurvey}
+                    onOpenDossier={openMatchDossierRoute}
+                    onSearchManually={handleSearchManuallyFromMatchDossier}
+                    onReturnHydrated={recordPendingMatchReturnSuccess}
+                    onReturnHydrationFailed={recordPendingMatchReturnFailure}
                   />
                 </Suspense>
               ) : canShowMatchNeighborhoodShell ? (
@@ -6843,10 +6973,8 @@ function App() {
             <motion.div
               key="screen-dossier"
               className="app__screen"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={SPRING_TAB}
+              data-match-motion={matchReturnContext ? (shouldReduceMotion ? 'reduced' : 'animated') : undefined}
+              {...matchRouteMotionProps}
             >
             {showDossierRouteMatchReturnAction && renderMatchReturnAction()}
             {error && <p className="app__error">{error}</p>}
@@ -6884,7 +7012,7 @@ function App() {
                   <button
                     type="button"
                     className="app__briefing-empty-action"
-                    onClick={handleSearchManuallyFromMatchDossier}
+                    onClick={() => handleSearchManuallyFromMatchDossier()}
                   >
                     {t('dossier.searchManually')}
                   </button>

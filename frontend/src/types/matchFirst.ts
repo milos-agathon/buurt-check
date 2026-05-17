@@ -464,3 +464,61 @@ export interface MatchNeighborhoodAmenitiesResponse {
   source_refs: string[];
   limitations: string[];
 }
+
+export interface MatchDossierBridgeReturnContext {
+  session_id: string;
+  job_id: string;
+  result_set_id: string;
+  preference_vector_version: string;
+  source: 'match_map';
+  return_url: string;
+  map_center?: [number, number] | number[] | null;
+  map_zoom?: number | null;
+  list_scroll?: number | null;
+  mobile_mode?: 'map' | 'list' | null;
+  selected_result_id?: string | null;
+  selected_result_rank?: number | null;
+  language?: MatchFirstLocale | null;
+  selected_house_id?: string | null;
+}
+
+export interface MatchDossierBridgeRequest {
+  session_id: string;
+  neighborhood_id: string;
+  building_id: string;
+  address_id?: string | null;
+  vbo_id?: string | null;
+  lookup_id?: string | null;
+  selected_candidate_id?: string | null;
+  coordinate_rd?: Record<string, number> | null;
+  return_context: MatchDossierBridgeReturnContext;
+}
+
+export interface MatchDossierAddressCandidate {
+  address_id?: string | null;
+  vbo_id?: string | null;
+  lookup_id?: string | null;
+  reliability: 'resolved' | 'candidate' | 'unavailable';
+}
+
+export interface MatchDossierCandidateAddress {
+  candidate_id: string;
+  address_id?: string | null;
+  vbo_id?: string | null;
+  lookup_id?: string | null;
+  display_label_key: string;
+  display_params: Record<string, string>;
+  reliability: 'resolved' | 'candidate' | 'unavailable';
+  source_refs: string[];
+  fallback_reason_code?: string | null;
+}
+
+export interface MatchDossierBridgeResponse {
+  status: 'resolved' | 'candidates' | 'manual_required' | 'unavailable';
+  route?: string | null;
+  vbo_id?: string | null;
+  lookup_id?: string | null;
+  address_candidate?: MatchDossierAddressCandidate | null;
+  candidate_addresses: MatchDossierCandidateAddress[];
+  fallback_reason_code?: string | null;
+}

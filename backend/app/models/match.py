@@ -537,6 +537,64 @@ class MatchNeighborhoodAmenitiesResponse(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class MatchDossierBridgeReturnContext(BaseModel):
+    session_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    preference_vector_version: str = Field(min_length=1)
+    source: Literal["match_map"]
+    return_url: str = Field(min_length=1)
+    map_center: list[float] | None = Field(default=None, min_length=2, max_length=2)
+    map_zoom: float | None = Field(default=None, ge=0)
+    list_scroll: float | None = Field(default=None, ge=0)
+    mobile_mode: Literal["map", "list"] | None = None
+    selected_result_id: str | None = None
+    selected_result_rank: int | None = Field(default=None, ge=1)
+    language: Literal["en", "nl"] | None = None
+    selected_house_id: str | None = None
+
+
+class MatchDossierBridgeRequest(BaseModel):
+    session_id: str = Field(min_length=1)
+    neighborhood_id: str = Field(min_length=1)
+    building_id: str = Field(min_length=1)
+    address_id: str | None = Field(default=None, min_length=1)
+    vbo_id: str | None = None
+    lookup_id: str | None = Field(default=None, min_length=1)
+    selected_candidate_id: str | None = Field(default=None, min_length=1)
+    coordinate_rd: dict[str, float] | None = None
+    return_context: MatchDossierBridgeReturnContext
+
+
+class MatchDossierAddressCandidate(BaseModel):
+    address_id: str | None = None
+    vbo_id: str | None = None
+    lookup_id: str | None = None
+    reliability: Literal["resolved", "candidate", "unavailable"]
+
+
+class MatchDossierCandidateAddress(BaseModel):
+    candidate_id: str = Field(min_length=1)
+    address_id: str | None = None
+    vbo_id: str | None = None
+    lookup_id: str | None = None
+    display_label_key: str = Field(pattern=r"^matchFirst\.neighborhood\.")
+    display_params: dict[str, str] = Field(default_factory=dict)
+    reliability: Literal["resolved", "candidate", "unavailable"]
+    source_refs: list[str] = Field(default_factory=list)
+    fallback_reason_code: str | None = None
+
+
+class MatchDossierBridgeResponse(BaseModel):
+    status: Literal["resolved", "candidates", "manual_required", "unavailable"]
+    route: str | None = None
+    vbo_id: str | None = None
+    lookup_id: str | None = None
+    address_candidate: MatchDossierAddressCandidate | None = None
+    candidate_addresses: list[MatchDossierCandidateAddress] = Field(default_factory=list)
+    fallback_reason_code: str | None = None
+
+
 class QuizBudget(BaseModel):
     buy_min: int | None = Field(default=None, ge=0)
     buy_max: int | None = Field(default=None, ge=0)

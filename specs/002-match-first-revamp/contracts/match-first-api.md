@@ -20,7 +20,7 @@ Every task generated from this contract must preserve these method-level rules.
 | `GET /api/match/neighborhoods/{neighborhood_id}/map-layers` | `200` | `match.map_layer.failed`, `match.neighborhood.not_found` | Safe. | Read-only. | Cache key must include `session_id`, `result_set_id`, `neighborhood_id`, data version, and preference/vector version where relevant. |
 | `GET /api/match/neighborhoods/{neighborhood_id}/buildings` | `200` | `match.building_layer.failed`, `match.building_bounds_out_of_scope`, `match.neighborhood.not_found` | Safe for the same clipped bounds. | Read-only. | Cache key must include `session_id`, `result_set_id`, `neighborhood_id`, `bounds_rd`, `lod`, `limit`, and building data version. Empty/error/fallback responses are not cached as success. |
 | `GET /api/match/neighborhoods/{neighborhood_id}/amenities` | `200` | `match.amenity_layer.failed`, `match.neighborhood.not_found` | Safe. | Read-only. | Cache key must include `session_id`, `result_set_id`, `neighborhood_id`, visible amenity keys, preference/vector version, and data version. |
-| `POST /api/match/dossier/from-building` | `200` | `match.dossier_bridge.failed`, `match.neighborhood.no_reliable_address`, `match.session.not_found` | Safe for same selected building and return context. | Same selected building/context returns the same resolved route or candidate set while data version is unchanged. | `no-store` |
+| `POST /api/match/dossier/from-building` | `200` | `match.dossier_bridge.failed`, `match.dossier.invalid_vbo_id`, `match.neighborhood.no_reliable_address`, `match.neighborhood.address_candidate_selection_required`, `match.neighborhood.manual_address_required`, `match.session.not_found` | Safe for same selected building, candidate selection, and return context. | Same selected building/context returns the same resolved route, PDOK-backed server-validated candidate list, manual-required, or unavailable recovery while data version is unchanged. Candidate selection uses the server-side selected-neighborhood candidate set and never trusts client-supplied VBO/address/lookup IDs. | `no-store` |
 | `POST /api/match/analytics` | `202` | `match.analytics.invalid_event`, `match.analytics.rejected_payload` | Safe if client supplies an `event_id`. | Same `event_id` is deduplicated. | `no-store` |
 
 Optional note: `PATCH /api/match/sessions/{session_id}/map-state` is not mandatory when route/query context plus `sessionStorage` satisfies supported refresh and Dossier-return cases. If omitted, tasks must explicitly document how the supported context restoration cases pass without it.
@@ -460,22 +460,26 @@ Resolve a selected building or map point to an existing Dossier route target.
   "session_id": "match_7f3b2c",
   "neighborhood_id": "nh_ams_01",
   "building_id": "bldg_123",
+  "address_id": null,
+  "vbo_id": null,
+  "lookup_id": null,
+  "selected_candidate_id": null,
   "coordinate_rd": {"x": 123520.0, "y": 487780.0},
   "return_context": {
-    "return_target": "neighborhood_detail",
+    "session_id": "match_7f3b2c",
     "job_id": "match_job_a91f",
     "result_set_id": "mrs_0b1e",
     "preference_vector_version": "pv_v1_8df64199c112",
-    "active_filter_keys": ["top_matches"],
-    "selected_neighborhood_id": "nh_ams_01",
-    "selected_recommendation_id": "rec_pv_8df64199c112_nh_ams_01",
-    "selected_result_rank": 1,
-    "selected_house_id": "bldg_123",
-    "display_map_center_wgs84": {"lat": 52.372, "lng": 4.919},
+    "source": "match_map",
+    "return_url": "#/match/session/match_7f3b2c/neighborhood/nh_ams_01",
+    "map_center": [52.372, 4.919],
     "map_zoom": 16,
     "list_scroll": 420,
     "mobile_mode": "map",
-    "dossier_query_context": {}
+    "selected_result_id": "rec_pv_8df64199c112_nh_ams_01",
+    "selected_result_rank": 1,
+    "language": "nl",
+    "selected_house_id": "bldg_123"
   }
 }
 ```
@@ -486,12 +490,24 @@ Resolve a selected building or map point to an existing Dossier route target.
 {
   "status": "resolved",
   "vbo_id": "0363010000123456",
-  "route": "#/address/0363010000123456?match_return=%23%2Fmatch%2Fsession%2Fmatch_7f3b2c%2Fneighborhood%2Fnh_ams_01&match_session=match_7f3b2c&match_context=%7B...%7D",
-  "candidate_addresses": []
+  "lookup_id": "adr-abc123",
+  "route": "#/address/0363010000123456?lookup=adr-abc123&match_return=%23%2Fmatch%2Fsession%2Fmatch_7f3b2c%2Fneighborhood%2Fnh_ams_01&match_session=match_7f3b2c&match_neighborhood=nh_ams_01&match_context=%7B...%7D",
+  "address_candidate": {
+    "address_id": "0363010000123456",
+    "vbo_id": "0363010000123456",
+    "lookup_id": "adr-abc123",
+    "reliability": "resolved"
+  },
+  "candidate_addresses": [],
+  "fallback_reason_code": null
 }
 ```
 
-The resolved route must preserve existing Dossier query parameters such as `lookup`, `report`, checkout `session_id`, and `buyer_resume` when present. Match identity must use `match_session`; the checkout `session_id` query parameter must not be repurposed for match sessions.
+The resolved route must carry `lookup`, `match_return`, `match_session`,
+`match_neighborhood`, and a structured `match_context` with job/result/vector,
+selected result, selected house, map center, zoom, list scroll, mobile mode, and
+language. Match identity must use `match_session`; the checkout `session_id`
+query parameter must not be repurposed for match sessions.
 
 **Response 200 candidates**
 
@@ -499,17 +515,97 @@ The resolved route must preserve existing Dossier query parameters such as `look
 {
   "status": "candidates",
   "vbo_id": null,
+  "lookup_id": null,
   "route": null,
-  "fallback_reason_code": "matchFirst.neighborhood.noReliableAddress",
+  "address_candidate": {
+    "address_id": null,
+    "vbo_id": null,
+    "lookup_id": null,
+    "reliability": "candidate"
+  },
   "candidate_addresses": [
     {
-      "vbo_id": "0363010000123456",
-      "display_key": "matchFirst.neighborhood.addressCandidate",
-      "display_params": {"street": "Example street", "house_number": "12"}
+      "candidate_id": "cand_bldg_123_adr_provider_1",
+      "address_id": "0363010000987651",
+      "vbo_id": "0363010000987651",
+      "lookup_id": "adr-provider-1",
+      "display_label_key": "matchFirst.neighborhood.nearbyAddressCandidateWithLabel",
+      "display_params": {
+        "index": "1",
+        "label": "IJburglaan 1000, 1087JK Amsterdam",
+        "houseNumber": "1000",
+        "postcode": "1087JK",
+        "city": "Amsterdam"
+      },
+      "reliability": "candidate",
+      "source_refs": ["pdok_locatieserver_reverse", "seed_match_source"],
+      "fallback_reason_code": "match.neighborhood.address_candidate_selection_required"
     }
-  ]
+  ],
+  "fallback_reason_code": "match.neighborhood.address_candidate_selection_required"
 }
 ```
+
+To resolve a candidate, repeat the same request with
+`selected_candidate_id` set to one of the returned `candidate_addresses`
+entries. The server must validate the selected candidate ID against the
+server-side selected-neighborhood candidate set and must build the Dossier route
+from server candidate values, not client-supplied `vbo_id`, `address_id`, or
+`lookup_id`.
+
+**Response 200 manual required**
+
+```json
+{
+  "status": "manual_required",
+  "route": null,
+  "vbo_id": null,
+  "lookup_id": null,
+  "address_candidate": {
+    "address_id": null,
+    "vbo_id": null,
+    "lookup_id": null,
+    "reliability": "unavailable"
+  },
+  "candidate_addresses": [],
+  "fallback_reason_code": "match.neighborhood.manual_address_required"
+}
+```
+
+**Response 200 unavailable**
+
+```json
+{
+  "status": "unavailable",
+  "route": null,
+  "vbo_id": null,
+  "lookup_id": null,
+  "address_candidate": {
+    "address_id": null,
+    "vbo_id": null,
+    "lookup_id": null,
+    "reliability": "unavailable"
+  },
+  "candidate_addresses": [],
+  "fallback_reason_code": "match.neighborhood.no_reliable_address"
+}
+```
+
+Phase 7 implements candidate-address selection for returned server candidates
+and keeps manual search plus Back to results as recovery. Ambiguous
+server-side building candidates use the backend PDOK Locatieserver reverse path
+to populate nearby address choices, and selected-candidate IDs are revalidated
+against that server-generated set on the follow-up request.
+
+Malformed VBO identifiers return stable `422` detail
+`match.dossier.invalid_vbo_id`; raw validation-detail arrays must not leak to
+the frontend. Spoofed building, selected candidate, VBO, address, lookup, or
+return-context selected-house values return stable
+`match.dossier.building_not_found`. The seed implementation verifies resolved
+first/second selected-neighborhood server candidates plus an ambiguous third
+candidate backed by PDOK reverse address choices. Browser proof includes one
+Chromium backend-integrated provider path and cross-browser UI-mocked
+round-trip coverage for the full Dossier return flow.
 
 ## POST /api/match/analytics
 

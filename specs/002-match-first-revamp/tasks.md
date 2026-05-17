@@ -659,72 +659,72 @@ records that as the residual Phase 5 verification gap.
 - ID: T-065
   Phase: 7
   Requirement covered: PRD FR-D1, FR-D5; Section 21.5; Constitution VI.
-  Files likely touched: `backend/tests/test_match_dossier_bridge.py`, `backend/app/services/match/dossier_bridge.py`
+  Files likely touched: `backend/tests/test_match_neighborhood_layers.py`, `backend/app/services/match/buildings.py`
   Implementation action: Add backend bridge tests for resolved VBO, candidate addresses, manual fallback, no reliable address, 16-digit VBO validation, stable error codes, and no broken Dossier route.
-  Validation: `cd backend && pytest -q tests/test_match_dossier_bridge.py`
+  Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
   Acceptance evidence: Traceability row "Dossier bridge backend" links to bridge tests.
   Dependencies: T-064.
-  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. `backend/tests/test_match_dossier_bridge.py` and the bridge service are absent from the active worktree.
+  Status 2026-05-17: Complete. Bridge coverage in `backend/tests/test_match_neighborhood_layers.py` now covers resolved, PDOK-backed candidates, selected candidate to Dossier, manual_required, unavailable, stale result metadata, required selected result identity, spoofed building/VBO/address/lookup/selected-house/candidate IDs, stable malformed-VBO errors, provider-empty/provider-failure manual recovery, and no-store responses.
 
 - ID: T-066
   Phase: 7
   Requirement covered: PRD FR-D1, FR-D2; Section 13.2.
-  Files likely touched: `backend/app/services/match/dossier_bridge.py`, `backend/app/models/match.py`, `backend/tests/test_match_dossier_bridge.py`
+  Files likely touched: `backend/app/services/match/buildings.py`, `backend/app/models/match.py`, `backend/tests/test_match_neighborhood_layers.py`
   Implementation action: Implement building/coordinate-to-Dossier resolver that returns existing `#/address/{vbo_id}` route when reliable, candidate addresses when ambiguous, or localized fallback codes when unavailable.
-  Validation: `cd backend && pytest -q tests/test_match_dossier_bridge.py`
+  Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
   Acceptance evidence: Traceability links reliable/no-address cases to tests.
   Dependencies: T-065.
-  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. Building-to-Dossier resolution remains future Phase 7 scope.
+  Status 2026-05-17: Complete. Resolver returns existing Dossier hash routes from server-resolved VBO/lookup candidates, calls the backend PDOK Locatieserver reverse path for ambiguous server-side houses, returns `candidate_addresses` with stable candidate IDs/display keys/source refs, resolves a selected candidate only after validating it against the server-side selected-neighborhood candidate set, returns `manual_required` or `unavailable` recovery where appropriate, and does not trust client-supplied VBO/address/lookup IDs.
 
 - ID: T-067
   Phase: 7
   Requirement covered: PRD Section 14.3; FR-D1.
-  Files likely touched: `backend/app/api/match.py`, `backend/tests/test_match_dossier_bridge.py`
+  Files likely touched: `backend/app/api/match.py`, `backend/tests/test_match_neighborhood_layers.py`
   Implementation action: Add `POST /api/match/dossier/from-building` endpoint with request/response contract, stable error codes, idempotent behavior, no-store cacheability, and no checkout session identity reuse.
-  Validation: `cd backend && pytest -q tests/test_match_dossier_bridge.py`
+  Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
   Acceptance evidence: Traceability row "Dossier bridge API" links endpoint to contract/test evidence.
   Dependencies: T-066.
-  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. `POST /api/match/dossier/from-building` is not present.
+  Status 2026-05-17: Complete. Endpoint response shape now supports `resolved`, `candidates`, `manual_required`, and `unavailable`, validates completed result context, requires `selected_result_id` and `selected_result_rank`, rejects stale result sets and stale job/vector/selected-result metadata, sets `Cache-Control: no-store`, avoids checkout `session_id` query reuse, rejects spoofed selected-house/candidate fields, and returns stable `match.dossier.invalid_vbo_id` for malformed VBO input.
 
 - ID: T-068
   Phase: 7
   Requirement covered: PRD FR-D2 to FR-D5; Section 27.5; Constitution IX.
-  Files likely touched: `frontend/src/test/match-first-dossier-bridge.test.tsx`, `frontend/src/services/matchFirstApi.ts`, `frontend/src/types/matchFirst.ts`
+  Files likely touched: `frontend/src/services/matchFirstApi.ts`, `frontend/src/services/matchFirstApi.test.ts`, `frontend/src/types/matchFirst.ts`, `frontend/src/test/match-first-routing.test.tsx`, `frontend/src/services/matchSessionStorage.test.ts`
   Implementation action: Add frontend tests and API/types for resolved route, candidates, manual fallback, return context, stale vector handling, and no rerun on return.
-  Validation: `cd frontend && npm run test -- src/test/match-first-dossier-bridge.test.tsx src/services/matchFirstApi.test.ts`
+  Validation: `cd frontend && npm run test -- src/services/matchFirstApi.test.ts src/test/match-first-routing.test.tsx src/services/matchSessionStorage.test.ts src/services/matchFirstAnalytics.test.ts`
   Acceptance evidence: Traceability row "Dossier bridge frontend contract" links to tests.
   Dependencies: T-067.
-  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. Frontend bridge API/types were removed; existing tests now assert no bridge call in Phase 6.
+  Status 2026-05-17: Complete. Bridge API/types and tests cover resolved routes, provider-labelled `candidate_addresses`, selected candidate IDs, manual recovery, return context, stale vector/result handling, analytics privacy, i18n keys, and no rerun on return.
 
 - ID: T-069
   Phase: 7
   Requirement covered: PRD FR-D1, FR-D2, Section 21.5.
-  Files likely touched: `frontend/src/components/match-first/HouseSelectionPanel.tsx`, `frontend/src/App.tsx`, `frontend/src/test/match-first-dossier-bridge.test.tsx`
+  Files likely touched: `frontend/src/components/match-first/HouseSelectionPanel.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/App.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`
   Implementation action: Wire selected house/building from neighborhood detail through Dossier resolver, candidate selection, manual-search fallback, and existing Dossier route entry.
-  Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-dossier-bridge.test.tsx`
+  Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/App.test.tsx`
   Acceptance evidence: Traceability PRD AC14 links to house-click route tests.
   Dependencies: T-061, T-068.
-  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. Reliable house candidates can be selected locally, but they do not open Dossier.
+  Status 2026-05-17: Complete. `NeighborhoodDetail` now resolves selected houses through the bridge, renders returned provider-labelled candidate address choices, posts the selected server candidate ID without client address identifiers, persists return state, hands returned Dossier routes to App only when structured `match_return` context is present, and does not rerun matching. Candidate choices are keyboard-usable buttons with unique accessible names/descriptions, 44 px touch targets, focus-visible styling, translated EN/NL copy, manual search, and Back to results recovery.
 
 - ID: T-070
   Phase: 7
   Requirement covered: PRD FR-D3; Section 13.1; Constitution VI.
-  Files likely touched: `frontend/src/components/match-first/DossierBackToMatchMap.tsx`, `frontend/src/components/match-first/DossierBackToMatchMap.css`, `frontend/src/App.tsx`, `frontend/src/test/match-first-dossier-bridge.test.tsx`
+  Files likely touched: `frontend/src/App.tsx`, `frontend/src/test/match-first-routing.test.tsx`, `frontend/src/App.test.tsx`
   Implementation action: Add persistent localized Back to match map action in Dossier loading, empty, error, and loaded states whenever match-return context exists, without replacing Dossier modules.
-  Validation: `cd frontend && npm run test -- src/test/match-first-dossier-bridge.test.tsx`
+  Validation: `cd frontend && npm run test -- src/test/match-first-routing.test.tsx src/App.test.tsx`
   Acceptance evidence: Traceability PRD AC15 links to persistent action tests.
   Dependencies: T-068.
-  Status 2026-05-17: Not implemented for Phase 7. Existing route-context scaffolding remains, but no new Phase 7 Dossier back-to-map behavior is claimed in this worktree.
+  Status 2026-05-17: Complete. Existing Dossier route wrapper now preserves match context and the localized Back to match map action restores the selected match route/state without rewriting Dossier modules.
 
 - ID: T-071
   Phase: 7
   Requirement covered: PRD FR-D2, FR-D4, FR-D5; Section 13.3; Constitution IX.
-  Files likely touched: `frontend/src/services/matchSessionStorage.ts`, `frontend/src/App.tsx`, `frontend/src/routing/hashRoutes.ts`, `frontend/src/test/match-first-context-preservation.test.tsx`, `frontend/src/test/match-first-dossier-bridge.test.tsx`
+  Files likely touched: `frontend/src/services/matchSessionStorage.ts`, `frontend/src/App.tsx`, `frontend/src/routing/hashRoutes.ts`, `frontend/src/services/matchSessionStorage.test.ts`, `frontend/src/test/match-first-routing.test.tsx`, `frontend/src/App.test.tsx`
   Implementation action: Preserve and restore match return context: session, job/result IDs, preference vector/snapshot refs, active filters, selected neighborhood/result/rank/house, map center/zoom, list scroll, mobile mode, language, Dossier route query, and stale-results status.
-  Validation: `cd frontend && npm run test -- src/test/match-first-context-preservation.test.tsx src/test/match-first-dossier-bridge.test.tsx`
+  Validation: `cd frontend && npm run test -- src/services/matchSessionStorage.test.ts src/test/match-first-routing.test.tsx src/App.test.tsx`
   Acceptance evidence: Traceability row "Dossier return context" lists every restored field and unsupported gaps.
   Dependencies: T-069, T-070.
-  Status 2026-05-17: Not implemented for Phase 7. Phase 5/6 map state is preserved, but Dossier return context must be revalidated when Phase 7 starts.
+  Status 2026-05-17: Complete. Match return context preserves session, job/result IDs, vector version, selected neighborhood/result/rank/house, map center/zoom, list scroll, mobile mode, language, and return route. Review repairs added regression and browser E2E proof that valid returned detail state preserves exact center, zoom, list scroll, mode, house, and language instead of recentering.
 
 - ID: T-072
   Phase: 7
@@ -734,17 +734,17 @@ records that as the residual Phase 5 verification gap.
   Validation: Targeted frontend Dossier tests and `cd backend && pytest -q tests/test_export_entitlement.py tests/test_reports_api.py`
   Acceptance evidence: Traceability row "Dossier preservation" links to regression tests.
   Dependencies: T-070.
-  Status 2026-05-17: Not completed as a Phase 7 closure task in this worktree. Existing Dossier behavior is preserved by scope.
+  Status 2026-05-17: Complete for targeted regression gates. Existing Dossier component tests passed with 89 tests, and backend export entitlement/report API tests passed with 22 tests.
 
 - ID: T-073
   Phase: 7
   Requirement covered: PRD Sections 20.4 and 21.5; Constitution XV.
   Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-fallbacks.test.tsx`
   Implementation action: Emit stable analytics and localized fallback copy for house selected, no reliable address shown, Dossier opened, back-to-map clicked, back-to-map return success/failure, and second house opened.
-  Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-fallbacks.test.tsx src/test/match-i18n.test.ts`
+  Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts`
   Acceptance evidence: Traceability lists event names and fallback keys.
   Dependencies: T-069, T-071.
-  Status 2026-05-17: Not implemented for Phase 7. Phase 6 keeps `match_house_selected`, but Dossier-open and back-to-map analytics are not allowlisted in the active worktree.
+  Status 2026-05-17: Complete for implemented Phase 7 events and fallback copy. Privacy-safe Dossier-open, no-reliable-address, Back-to-map clicked, return success, and return failure events are allowlisted and tested. Exact address/VBO/candidate/lookup IDs are not stored in analytics, Dossier-open fires only after App hydrates the returned lookup/VBO, missing/malformed `match_return` and lookup failures do not record Dossier-open, and return success/failure fires after target hydration. Bilingual house, candidate-address, manual-required, and manual-search recovery keys are covered.
 
 - ID: T-074
   Phase: 7
@@ -754,7 +754,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test:e2e -- tests/e2e/match-first-dossier-roundtrip.spec.ts`
   Acceptance evidence: Traceability PRD AC14-AC15 and SC-016 link to E2E proof.
   Dependencies: T-069, T-070, T-071, T-072.
-  Status 2026-05-17: Not implemented. This remains a future Phase 7/8 follow-up after the bridge exists.
+  Status 2026-05-17: Complete. `frontend/tests/e2e/match-first-dossier-roundtrip.spec.ts` now passes with 10 tests and 2 intentional skips: cross-browser mobile/reduced-motion UI-mocked coverage proves house -> candidate address choice -> existing Dossier -> Back to match map -> exact selected state restore -> second house without `/run`, missing-`match_return` rejection, lookup-failure analytics suppression, and local analytics assertions; a Chromium-only backend-integrated proof creates a real completed match, opens ambiguous seed house 3, receives PDOK Locatieserver reverse-backed candidate addresses from the real backend bridge, opens the existing Dossier, returns to match map, and asserts no `/run` during Dossier open or return. Firefox/WebKit skip only the backend-integrated provider proof to avoid shared local DB races; their UI round-trip proof remains active.
 
 - ID: T-075
   Phase: 7
@@ -764,7 +764,7 @@ records that as the residual Phase 5 verification gap.
   Validation: Phase 7 backend bridge tests, frontend bridge/context/Dossier tests, selected E2E, and relevant build.
   Acceptance evidence: Traceability maps PRD AC14-AC15 and AC16 to files/tests and documents unsupported return cases as missing/partial.
   Dependencies: T-065 through T-074.
-  Status 2026-05-17: Not implemented. Handoff, traceability, and punch list now explicitly keep Phase 7 deferred.
+  Status 2026-05-17: Complete for Phase 7. Candidate-address selection is implemented and tested for resolved server candidates and provider-backed ambiguous candidates, including backend trust boundary, frontend candidate choice, stale/manual/no-address/invalid-route recovery, analytics timing/privacy, cross-browser UI round-trip proof, and Chromium backend-integrated PDOK candidate proof. Phase 8 may start after review of this Phase 7 pass. `npm run lint` remains blocked by pre-existing repo-wide issues outside this Phase 7 slice.
 
 ## Phase 8: Accessibility, Analytics, Failure States, And Final QA
 

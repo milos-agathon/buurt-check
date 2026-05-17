@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import { I18nextProvider } from 'react-i18next';
 import type { ReactElement } from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import NeighborhoodDetail from '../components/match-first/NeighborhoodDetail';
 import ResultsMap from '../components/match-first/ResultsMap';
 import { getMatchResultsMapStateStorageKey } from '../services/matchSessionStorage';
@@ -154,6 +156,11 @@ interface MockNeighborhoodDetailFetchOptions {
   failAmenities?: boolean;
   allowedBoundsRd?: [number, number, number, number];
   buildings?: MatchNeighborhoodBuildingFeature[];
+  dossierBridgeStatus?: 'resolved' | 'unavailable' | 'candidates' | 'manual_required';
+  dossierBridgeError?: string;
+  dossierBridgeStatusCode?: number;
+  dossierBridgeRoute?: string;
+  dossierBridgeResponses?: Array<{ status?: number; body: unknown }>;
 }
 
 function boundsFromFetchCall(call: Parameters<typeof fetch> | undefined): number[] {
@@ -254,6 +261,69 @@ function mockNeighborhoodDetailFetches(
         source_refs: ['seed_match_source'],
         limitations: ['match.results.limitations.source_metadata_unavailable'],
       }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith('/api/match/dossier/from-building')) {
+      if (options.dossierBridgeResponses?.length) {
+        const next = options.dossierBridgeResponses.shift();
+        return new Response(JSON.stringify(next?.body ?? { detail: 'unexpected bridge call' }), {
+          status: next?.status ?? 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (options.dossierBridgeError) {
+        return new Response(JSON.stringify({ detail: options.dossierBridgeError }), {
+          status: options.dossierBridgeStatusCode ?? 409,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      const status = options.dossierBridgeStatus ?? 'resolved';
+      const body = status === 'resolved'
+        ? {
+          status: 'resolved',
+          route: options.dossierBridgeRoute
+            ?? '#/address/0363010000123456?lookup=adr-abc123&match_session=match-detail',
+          vbo_id: '0363010000123456',
+          lookup_id: 'adr-abc123',
+          address_candidate: {
+            address_id: '0363010000123456',
+            vbo_id: '0363010000123456',
+            lookup_id: 'adr-abc123',
+            reliability: 'resolved',
+          },
+          fallback_reason_code: null,
+        }
+        : status === 'manual_required'
+          ? {
+            status: 'manual_required',
+            route: null,
+            vbo_id: null,
+            lookup_id: null,
+            address_candidate: {
+              address_id: null,
+              vbo_id: null,
+              lookup_id: null,
+              reliability: 'unavailable',
+            },
+            candidate_addresses: [],
+            fallback_reason_code: 'match.neighborhood.manual_address_required',
+          }
+          : {
+          status: 'unavailable',
+          route: null,
+          vbo_id: null,
+          lookup_id: null,
+          address_candidate: {
+            address_id: null,
+            vbo_id: null,
+            lookup_id: null,
+            reliability: 'unavailable',
+          },
+          fallback_reason_code: 'match.neighborhood.no_reliable_address',
+        };
+      return new Response(JSON.stringify(body), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -431,12 +501,70 @@ it('preserves selected-neighborhood map state for later return and keeps list fa
   await expectNoSeriousA11yViolations(container);
 });
 
-it('selects a reliable house candidate locally without opening the Dossier bridge', async () => {
+it('preserves exact returned map and list state when reopening selected-neighborhood detail', async () => {
+  await i18n.changeLanguage('nl');
+  sessionStorage.setItem(getMatchResultsMapStateStorageKey('match-detail'), JSON.stringify({
+    sessionId: 'match-detail',
+    jobId: 'match_job_detail',
+    resultSetId: 'mrs_detail',
+    preferenceVectorVersion: 'pv_v1_detail',
+    selectedRecommendationId: 'rec_1',
+    selectedNeighborhoodId: 'nh_amsterdam_ijburg',
+    selectedResultRank: 1,
+    selectedHouseId: 'bldg_nh_amsterdam_ijburg_001',
+    mapCenter: [52.36, 4.9],
+    mapZoom: 13,
+    listScroll: 240,
+    mobileMode: 'list',
+    locale: 'nl',
+  }));
+  mockNeighborhoodDetailFetches();
+
+  renderWithI18n(
+    <NeighborhoodDetail
+      sessionId="match-detail"
+      neighborhoodId="nh_amsterdam_ijburg"
+      initialResults={resultsResponse()}
+      onBackToResults={() => {}}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  expect(await screen.findByRole('heading', { name: 'IJburg' })).toBeInTheDocument();
+  await waitFor(() => {
+    const stored = JSON.parse(sessionStorage.getItem(getMatchResultsMapStateStorageKey('match-detail')) ?? '{}') as Record<string, unknown>;
+    expect(stored).toMatchObject({
+      sessionId: 'match-detail',
+      jobId: 'match_job_detail',
+      resultSetId: 'mrs_detail',
+      preferenceVectorVersion: 'pv_v1_detail',
+      selectedNeighborhoodId: 'nh_amsterdam_ijburg',
+      selectedRecommendationId: 'rec_1',
+      selectedResultRank: 1,
+      selectedHouseId: 'bldg_nh_amsterdam_ijburg_001',
+      mapCenter: [52.36, 4.9],
+      mapZoom: 13,
+      listScroll: 240,
+      mobileMode: 'list',
+      locale: 'nl',
+    });
+  });
+});
+
+it('opens a reliable house candidate in the Dossier without rerunning matching', async () => {
   const user = userEvent.setup();
   const results = resultsResponse();
   const building = buildingCandidate();
+  const secondBuilding = buildingCandidate({
+    building_id: 'bldg_nh_amsterdam_ijburg_002',
+    vbo_id: '0363010000123457',
+    address_id: '0363010000123457',
+    lookup_id: 'adr-def456',
+  });
+  const onOpenDossier = vi.fn(() => true);
   const fetchSpy = mockNeighborhoodDetailFetches(results, {
-    buildings: [building],
+    buildings: [building, secondBuilding],
+    dossierBridgeRoute: '#/address/0363010000123456?lookup=adr-abc123&match_session=match-detail',
   });
 
   renderWithI18n(
@@ -446,18 +574,46 @@ it('selects a reliable house candidate locally without opening the Dossier bridg
       initialResults={results}
       onBackToResults={() => {}}
       onBackToSurvey={() => {}}
+      onOpenDossier={onOpenDossier}
     />,
   );
 
-  const selectHouseButton = await screen.findByRole('button', { name: 'Select house' });
-  await user.click(selectHouseButton);
+  const openDossierButton = await screen.findByRole('button', { name: 'Open Dossier for house 1' });
+  expect(screen.getByRole('button', { name: 'Open Dossier for house 2' })).toBeInTheDocument();
+  await user.click(openDossierButton);
 
   await waitFor(() => {
-    expect(screen.getByText('House selected')).toBeInTheDocument();
+    expect(onOpenDossier).toHaveBeenCalledWith('#/address/0363010000123456?lookup=adr-abc123&match_session=match-detail');
   });
-  expect(screen.getByText('Address dossier opening comes in the next step.')).toBeInTheDocument();
+  expect(JSON.stringify(localStorage.getItem('buurt-check-match-first-analytics'))).not.toContain('match_dossier_opened');
   expect(fetchSpy.mock.calls.some(([input]) => String(input).includes('/run'))).toBe(false);
-  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes('/dossier/from-building'))).toBe(false);
+  const dossierCall = fetchSpy.mock.calls.find(([input]) => String(input).includes('/dossier/from-building'));
+  expect(dossierCall).toBeDefined();
+  const bridgePayload = JSON.parse(String((dossierCall?.[1] as RequestInit | undefined)?.body ?? '{}')) as Record<string, unknown>;
+  expect(bridgePayload).toMatchObject({
+    session_id: 'match-detail',
+    neighborhood_id: 'nh_amsterdam_ijburg',
+    building_id: 'bldg_nh_amsterdam_ijburg_001',
+    address_id: '0363010000123456',
+    vbo_id: '0363010000123456',
+    lookup_id: 'adr-abc123',
+  });
+  expect(bridgePayload.return_context).toMatchObject({
+    session_id: 'match-detail',
+    job_id: 'match_job_detail',
+    result_set_id: 'mrs_detail',
+    preference_vector_version: 'pv_v1_detail',
+    source: 'match_map',
+    return_url: '#/match/session/match-detail/neighborhood/nh_amsterdam_ijburg',
+    map_center: [52.355, 5],
+    map_zoom: 14,
+    list_scroll: 0,
+    mobile_mode: 'map',
+    selected_result_id: 'rec_1',
+    selected_result_rank: 1,
+    language: 'en',
+    selected_house_id: 'bldg_nh_amsterdam_ijburg_001',
+  });
   const stored = JSON.parse(sessionStorage.getItem(getMatchResultsMapStateStorageKey('match-detail')) ?? '{}') as Record<string, unknown>;
   expect(stored).toMatchObject({
     sessionId: 'match-detail',
@@ -475,16 +631,76 @@ it('selects a reliable house candidate locally without opening the Dossier bridg
   });
 });
 
-it('keeps the selected-neighborhood detail usable when no reliable house candidate exists', async () => {
+it('renders candidate address choices and resolves the selected candidate without rerunning matching', async () => {
+  const user = userEvent.setup();
   const results = resultsResponse();
+  const building = buildingCandidate({
+    vbo_id: null,
+    address_id: null,
+    lookup_id: null,
+    address_resolution: 'candidate',
+    address_candidate_count: 2,
+  });
+  const onOpenDossier = vi.fn(() => true);
   const fetchSpy = mockNeighborhoodDetailFetches(results, {
-    buildings: [buildingCandidate({
-      vbo_id: null,
-      address_id: null,
-      lookup_id: null,
-      address_resolution: 'unavailable',
-      address_candidate_count: 0,
-    })],
+    buildings: [building],
+    dossierBridgeResponses: [
+      {
+        body: {
+          status: 'candidates',
+          route: null,
+          vbo_id: null,
+          lookup_id: null,
+          address_candidate: {
+            address_id: null,
+            vbo_id: null,
+            lookup_id: null,
+            reliability: 'candidate',
+          },
+          candidate_addresses: [
+            {
+              candidate_id: 'cand_bldg_nh_amsterdam_ijburg_001_adr_provider_1',
+              address_id: '0363010000987651',
+              vbo_id: '0363010000987651',
+              lookup_id: 'adr-provider-1',
+              display_label_key: 'matchFirst.neighborhood.nearbyAddressCandidateWithLabel',
+              display_params: { index: '1', label: 'IJburglaan 1000, 1087JK Amsterdam' },
+              reliability: 'candidate',
+              source_refs: ['pdok_locatieserver_reverse', 'seed_match_source'],
+              fallback_reason_code: 'match.neighborhood.address_candidate_selection_required',
+            },
+            {
+              candidate_id: 'cand_bldg_nh_amsterdam_ijburg_001_adr_provider_2',
+              address_id: '0363010000987652',
+              vbo_id: '0363010000987652',
+              lookup_id: 'adr-provider-2',
+              display_label_key: 'matchFirst.neighborhood.nearbyAddressCandidateWithLabel',
+              display_params: { index: '2', label: 'IJburglaan 1002, 1087JK Amsterdam' },
+              reliability: 'candidate',
+              source_refs: ['pdok_locatieserver_reverse', 'seed_match_source'],
+              fallback_reason_code: 'match.neighborhood.address_candidate_selection_required',
+            },
+          ],
+          fallback_reason_code: 'match.neighborhood.address_candidate_selection_required',
+        },
+      },
+      {
+        body: {
+          status: 'resolved',
+          route: '#/address/0363010000987652?lookup=adr-provider-2&match_session=match-detail',
+          vbo_id: '0363010000987652',
+          lookup_id: 'adr-provider-2',
+          address_candidate: {
+            address_id: '0363010000987652',
+            vbo_id: '0363010000987652',
+            lookup_id: 'adr-provider-2',
+            reliability: 'candidate',
+          },
+          candidate_addresses: [],
+          fallback_reason_code: null,
+        },
+      },
+    ],
   });
 
   renderWithI18n(
@@ -494,15 +710,365 @@ it('keeps the selected-neighborhood detail usable when no reliable house candida
       initialResults={results}
       onBackToResults={() => {}}
       onBackToSurvey={() => {}}
+      onOpenDossier={onOpenDossier}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Open Dossier for house 1' }));
+
+  const candidateOne = await screen.findByRole('button', {
+    name: 'Choose Nearby address 1: IJburglaan 1000, 1087JK Amsterdam for house 1',
+  });
+  const candidateTwo = screen.getByRole('button', {
+    name: 'Choose Nearby address 2: IJburglaan 1002, 1087JK Amsterdam for house 1',
+  });
+  expect(candidateOne).toHaveAccessibleDescription(
+    'Address candidate. Source: pdok_locatieserver_reverse, seed_match_source.',
+  );
+  expect(candidateTwo).toHaveAccessibleDescription(
+    'Address candidate. Source: pdok_locatieserver_reverse, seed_match_source.',
+  );
+  candidateTwo.focus();
+  await user.keyboard('{Enter}');
+
+  await waitFor(() => {
+    expect(onOpenDossier).toHaveBeenCalledWith('#/address/0363010000987652?lookup=adr-provider-2&match_session=match-detail');
+  });
+  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes('/run'))).toBe(false);
+  const bridgeCalls = fetchSpy.mock.calls.filter(([input]) => String(input).includes('/dossier/from-building'));
+  expect(bridgeCalls).toHaveLength(2);
+  const selectedCandidatePayload = JSON.parse(String((bridgeCalls[1]?.[1] as RequestInit | undefined)?.body ?? '{}')) as Record<string, unknown>;
+  expect(selectedCandidatePayload).toMatchObject({
+    session_id: 'match-detail',
+    neighborhood_id: 'nh_amsterdam_ijburg',
+    building_id: 'bldg_nh_amsterdam_ijburg_001',
+    selected_candidate_id: 'cand_bldg_nh_amsterdam_ijburg_001_adr_provider_2',
+  });
+  expect(JSON.stringify(localStorage.getItem('buurt-check-match-first-analytics'))).not.toContain('cand_bldg');
+  expect(JSON.stringify(localStorage.getItem('buurt-check-match-first-analytics'))).not.toContain('0363010000987652');
+  expect(JSON.stringify(localStorage.getItem('buurt-check-match-first-analytics'))).not.toContain('adr-provider-2');
+  expect(JSON.stringify(localStorage.getItem('buurt-check-match-first-analytics'))).not.toContain('Nearby address');
+});
+
+it('keeps candidate address controls keyboard usable with translated copy and recovery actions', async () => {
+  const user = userEvent.setup();
+  const results = resultsResponse();
+  const onOpenDossier = vi.fn(() => true);
+  const onBackToResults = vi.fn();
+  const onSearchManually = vi.fn();
+  mockNeighborhoodDetailFetches(results, {
+    buildings: [buildingCandidate({
+      vbo_id: null,
+      address_id: null,
+      lookup_id: null,
+      address_resolution: 'candidate',
+      address_candidate_count: 1,
+    })],
+    dossierBridgeResponses: [
+      {
+        body: {
+          status: 'candidates',
+          route: null,
+          vbo_id: null,
+          lookup_id: null,
+          address_candidate: {
+            address_id: null,
+            vbo_id: null,
+            lookup_id: null,
+            reliability: 'candidate',
+          },
+          candidate_addresses: [{
+            candidate_id: 'cand_bldg_nh_amsterdam_ijburg_001_001',
+            address_id: '0363010000123461',
+            vbo_id: '0363010000123461',
+            lookup_id: 'adr-candidate-001',
+            display_label_key: 'matchFirst.neighborhood.nearbyAddressCandidate',
+            display_params: { index: '1' },
+            reliability: 'candidate',
+            source_refs: ['seed_match_source'],
+            fallback_reason_code: 'match.neighborhood.address_candidate_selection_required',
+          }],
+          fallback_reason_code: 'match.neighborhood.address_candidate_selection_required',
+        },
+      },
+      {
+        body: {
+          status: 'resolved',
+          route: '#/address/0363010000123461?lookup=adr-candidate-001&match_session=match-detail',
+          vbo_id: '0363010000123461',
+          lookup_id: 'adr-candidate-001',
+          address_candidate: {
+            address_id: '0363010000123461',
+            vbo_id: '0363010000123461',
+            lookup_id: 'adr-candidate-001',
+            reliability: 'candidate',
+          },
+          candidate_addresses: [],
+          fallback_reason_code: null,
+        },
+      },
+    ],
+  });
+
+  renderWithI18n(
+    <NeighborhoodDetail
+      sessionId="match-detail"
+      neighborhoodId="nh_amsterdam_ijburg"
+      initialResults={results}
+      onBackToResults={onBackToResults}
+      onBackToSurvey={() => {}}
+      onOpenDossier={onOpenDossier}
+      onSearchManually={onSearchManually}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Open Dossier for house 1' }));
+
+  const housePanel = await screen.findByTestId('house-selection-panel');
+  expect(within(housePanel).getByRole('button', { name: 'Search manually' })).toBeInTheDocument();
+  expect(within(housePanel).getByRole('button', { name: 'Back to results' })).toBeInTheDocument();
+  const candidate = within(housePanel).getByRole('button', { name: 'Choose Nearby address 1 for house 1' });
+  candidate.focus();
+  await user.keyboard(' ');
+
+  await waitFor(() => {
+    expect(onOpenDossier).toHaveBeenCalledWith('#/address/0363010000123461?lookup=adr-candidate-001&match_session=match-detail');
+  });
+});
+
+it('shows stale result recovery when a selected candidate address becomes stale', async () => {
+  const user = userEvent.setup();
+  const results = resultsResponse();
+  mockNeighborhoodDetailFetches(results, {
+    buildings: [buildingCandidate({
+      vbo_id: null,
+      address_id: null,
+      lookup_id: null,
+      address_resolution: 'candidate',
+      address_candidate_count: 1,
+    })],
+    dossierBridgeResponses: [
+      {
+        body: {
+          status: 'candidates',
+          route: null,
+          vbo_id: null,
+          lookup_id: null,
+          address_candidate: {
+            address_id: null,
+            vbo_id: null,
+            lookup_id: null,
+            reliability: 'candidate',
+          },
+          candidate_addresses: [{
+            candidate_id: 'cand_bldg_nh_amsterdam_ijburg_001_001',
+            address_id: '0363010000123461',
+            vbo_id: '0363010000123461',
+            lookup_id: 'adr-candidate-001',
+            display_label_key: 'matchFirst.neighborhood.nearbyAddressCandidate',
+            display_params: { index: '1' },
+            reliability: 'candidate',
+            source_refs: ['seed_match_source'],
+            fallback_reason_code: 'match.neighborhood.address_candidate_selection_required',
+          }],
+          fallback_reason_code: 'match.neighborhood.address_candidate_selection_required',
+        },
+      },
+      { status: 409, body: { detail: 'match.results.stale' } },
+    ],
+  });
+
+  renderWithI18n(
+    <NeighborhoodDetail
+      sessionId="match-detail"
+      neighborhoodId="nh_amsterdam_ijburg"
+      initialResults={results}
+      onBackToResults={() => {}}
+      onBackToSurvey={() => {}}
+      onOpenDossier={() => true}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Open Dossier for house 1' }));
+  await user.click(await screen.findByRole('button', { name: 'Choose Nearby address 1 for house 1' }));
+
+  expect(await screen.findByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+  expect(screen.queryByText('No reliable house candidate is available yet.')).not.toBeInTheDocument();
+});
+
+it('keeps manual search and back recovery when the bridge requires manual address entry', async () => {
+  const user = userEvent.setup();
+  const results = resultsResponse();
+  const onBackToResults = vi.fn();
+  const onSearchManually = vi.fn();
+  mockNeighborhoodDetailFetches(results, {
+    buildings: [buildingCandidate({
+      vbo_id: null,
+      address_id: null,
+      lookup_id: null,
+      address_resolution: 'manual_required',
+      address_candidate_count: 0,
+    })],
+    dossierBridgeStatus: 'manual_required',
+  });
+
+  renderWithI18n(
+    <NeighborhoodDetail
+      sessionId="match-detail"
+      neighborhoodId="nh_amsterdam_ijburg"
+      initialResults={results}
+      onBackToResults={onBackToResults}
+      onBackToSurvey={() => {}}
+      onOpenDossier={() => true}
+      onSearchManually={onSearchManually}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Open Dossier for house 1' }));
+
+  const housePanel = await screen.findByTestId('house-selection-panel');
+  expect(housePanel).toHaveTextContent('Choose an address manually to open the Dossier.');
+  await user.click(within(housePanel).getByRole('button', { name: 'Search manually' }));
+  expect(onSearchManually).toHaveBeenCalledTimes(1);
+  await user.click(within(housePanel).getByRole('button', { name: 'Back to results' }));
+  expect(onBackToResults).toHaveBeenCalledTimes(1);
+});
+
+it('shows recovery and skips Dossier-open analytics when App rejects a resolved bridge route', async () => {
+  const user = userEvent.setup();
+  const results = resultsResponse();
+  mockNeighborhoodDetailFetches(results, {
+    buildings: [buildingCandidate()],
+    dossierBridgeRoute: '#/match/session/match-detail/results',
+  });
+  const onOpenDossier = vi.fn(() => false);
+  const onBackToResults = vi.fn();
+  const onSearchManually = vi.fn();
+
+  renderWithI18n(
+    <NeighborhoodDetail
+      sessionId="match-detail"
+      neighborhoodId="nh_amsterdam_ijburg"
+      initialResults={results}
+      onBackToResults={onBackToResults}
+      onBackToSurvey={() => {}}
+      onOpenDossier={onOpenDossier}
+      onSearchManually={onSearchManually}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Open Dossier for house 1' }));
+
+  const housePanel = await screen.findByTestId('house-selection-panel');
+  expect(housePanel).toHaveTextContent('No reliable house candidate is available yet.');
+  expect(JSON.stringify(localStorage.getItem('buurt-check-match-first-analytics'))).not.toContain('match_dossier_opened');
+  await user.click(within(housePanel).getByRole('button', { name: 'Search manually' }));
+  expect(onSearchManually).toHaveBeenCalledTimes(1);
+  await user.click(within(housePanel).getByRole('button', { name: 'Back to results' }));
+  expect(onBackToResults).toHaveBeenCalledTimes(1);
+});
+
+it('keeps Phase 7 house-selection controls at mobile touch target size', () => {
+  const css = readFileSync(
+    resolve(process.cwd(), 'src/components/match-first/NeighborhoodDetail.css'),
+    'utf8',
+  );
+
+  expect(css).toMatch(/\.house-selection__list button\s*\{[\s\S]*min-height:\s*44px/);
+  expect(css).toMatch(/\.house-selection__candidate-list button\s*\{[\s\S]*min-height:\s*44px/);
+  expect(css).toMatch(/\.house-selection__candidate-list button:focus-visible\s*\{/);
+  expect(css).toMatch(/\.house-selection__actions button\s*\{[\s\S]*min-height:\s*44px/);
+  expect(css).toMatch(/\.house-selection__actions button:focus-visible\s*\{/);
+});
+
+it('keeps candidate address production copy behind translation keys', () => {
+  const panelSource = readFileSync(
+    resolve(process.cwd(), 'src/components/match-first/HouseSelectionPanel.tsx'),
+    'utf8',
+  );
+  const detailSource = readFileSync(
+    resolve(process.cwd(), 'src/components/match-first/NeighborhoodDetail.tsx'),
+    'utf8',
+  );
+
+  expect(panelSource).not.toContain('Nearby address');
+  expect(panelSource).not.toContain('Choose an address');
+  expect(detailSource).not.toContain('Nearby address');
+  expect(detailSource).not.toContain('Choose an address');
+});
+
+it('keeps the selected-neighborhood detail in place when a house has no reliable Dossier address', async () => {
+  const user = userEvent.setup();
+  const results = resultsResponse();
+  const fetchSpy = mockNeighborhoodDetailFetches(results, {
+    buildings: [buildingCandidate({
+      vbo_id: null,
+      address_id: null,
+      lookup_id: null,
+      address_resolution: 'candidate',
+      address_candidate_count: 0,
+    })],
+    dossierBridgeStatus: 'unavailable',
+  });
+  const onOpenDossier = vi.fn();
+  const onBackToResults = vi.fn();
+  const onSearchManually = vi.fn();
+
+  renderWithI18n(
+    <NeighborhoodDetail
+      sessionId="match-detail"
+      neighborhoodId="nh_amsterdam_ijburg"
+      initialResults={results}
+      onBackToResults={onBackToResults}
+      onBackToSurvey={() => {}}
+      onOpenDossier={onOpenDossier}
+      onSearchManually={onSearchManually}
     />,
   );
 
   await waitFor(() => {
     expect(screen.getByTestId('neighborhood-detail')).toHaveAttribute('data-building-requested', 'true');
   });
-  expect(await screen.findByTestId('house-selection-panel')).toHaveTextContent('No reliable house candidate is available yet.');
-  expect(screen.queryByRole('button', { name: 'Select house' })).not.toBeInTheDocument();
-  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes('/dossier/from-building'))).toBe(false);
+  await user.click(await screen.findByRole('button', { name: 'Open Dossier for house 1' }));
+
+  const housePanel = await screen.findByTestId('house-selection-panel');
+  expect(housePanel).toHaveTextContent('No reliable house candidate is available yet.');
+  await user.click(within(housePanel).getByRole('button', { name: 'Search manually' }));
+  expect(onSearchManually).toHaveBeenCalledTimes(1);
+  await user.click(within(housePanel).getByRole('button', { name: 'Back to results' }));
+  expect(onBackToResults).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId('neighborhood-detail')).toHaveAttribute('data-neighborhood-id', 'nh_amsterdam_ijburg');
+  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes('/dossier/from-building'))).toBe(true);
+  expect(onOpenDossier).not.toHaveBeenCalled();
+});
+
+it('shows stale result recovery when the Dossier bridge rejects stale context', async () => {
+  const user = userEvent.setup();
+  const results = resultsResponse();
+  mockNeighborhoodDetailFetches(results, {
+    buildings: [buildingCandidate()],
+    dossierBridgeError: 'match.results.stale',
+    dossierBridgeStatusCode: 409,
+  });
+
+  renderWithI18n(
+    <NeighborhoodDetail
+      sessionId="match-detail"
+      neighborhoodId="nh_amsterdam_ijburg"
+      initialResults={results}
+      onBackToResults={() => {}}
+      onBackToSurvey={() => {}}
+      onOpenDossier={() => {}}
+    />,
+  );
+
+  await waitFor(() => {
+    expect(screen.getByTestId('neighborhood-detail')).toHaveAttribute('data-building-requested', 'true');
+  });
+  await user.click(await screen.findByRole('button', { name: 'Open Dossier for house 1' }));
+
+  expect(await screen.findByRole('heading', { name: 'Results unavailable' })).toBeInTheDocument();
+  expect(screen.queryByText('No reliable house candidate is available yet.')).not.toBeInTheDocument();
 });
 
 it('shows an empty unavailable state without building requests when the neighborhood is absent from completed results', async () => {

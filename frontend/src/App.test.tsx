@@ -700,6 +700,42 @@ function renderApp() {
   );
 }
 
+function readMatchFirstAnalyticsEvents(): Array<{ event_name: string; context: Record<string, unknown> }> {
+  const raw = localStorage.getItem('buurt-check-match-first-analytics');
+  return raw ? JSON.parse(raw) as Array<{ event_name: string; context: Record<string, unknown> }> : [];
+}
+
+function completedMatchResultsResponse(sessionId: string) {
+  return {
+    session_id: sessionId,
+    job_id: `match_job_${sessionId}`,
+    result_set_id: `mrs_${sessionId}`,
+    preference_vector_version: `vector_${sessionId}`,
+    status: 'completed',
+    generated_at: '2026-05-17T12:00:00Z',
+    runtime_ms: 900,
+    model_mode: 'weighted_scoring',
+    model_version: 'match-score-v1',
+    scoring_version: 'match-score-v1',
+    data_version: 'match-seed-v1',
+    evaluation_status: 'not_validated_no_labels',
+    predictive_probability_available: false,
+    fallback_used: false,
+    fallback_reason_code: null,
+    normal_recommendation_count: 0,
+    candidate_count: 0,
+    scored_candidate_count: 0,
+    ranked_results: [],
+    recommendations: [],
+    stretch_matches: [],
+    near_misses: [],
+    empty_state_code: null,
+    map_center: { lat: 52.2, lng: 5.3 },
+    bbox: [3.2, 50.7, 7.3, 53.6],
+    map: { type: 'FeatureCollection', display_bounds_wgs84: [3.2, 50.7, 7.3, 53.6], features: [] },
+  };
+}
+
 function makeScoredRiskCards() {
   const base = makeRiskCardsResponse();
   return makeRiskCardsResponse({
@@ -1445,6 +1481,46 @@ describe('hash route recovery', () => {
     fetchSpy.mockRestore();
   });
 
+  it('records match Dossier-open analytics only after a match-return Dossier hydrates', async () => {
+    window.location.hash = '#/address/vbo-123?lookup=adr-abc123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22jobId%22%3A%22match_job_123%22%2C%22resultSetId%22%3A%22mrs_123%22%2C%22preferenceVectorVersion%22%3A%22pv_v1%22%2C%22source%22%3A%22match_map%22%2C%22buildingId%22%3A%22bldg_BU0363AA01_001%22%2C%22selectedResultId%22%3A%22rec_1%22%2C%22selectedResultRank%22%3A1%2C%22language%22%3A%22en%22%2C%22selectedHouseId%22%3A%22bldg_BU0363AA01_001%22%7D';
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+
+    const { container } = renderApp();
+    expect(readMatchFirstAnalyticsEvents().map((event) => event.event_name)).not.toContain('match_dossier_opened');
+
+    await waitForDossierLoaded();
+
+    expect(container.querySelector('.app__screen[data-match-motion="reduced"]')).toBeInTheDocument();
+    expect(readMatchFirstAnalyticsEvents()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_name: 'match_dossier_opened',
+        context: expect.objectContaining({
+          source: 'match_map',
+          session_id: 'match-123',
+          result_set_id: 'mrs_123',
+          neighborhood_id: 'BU0363AA01',
+          recommendation_id: 'rec_1',
+          result_rank: 1,
+          selected_house_id: 'bldg_BU0363AA01_001',
+          building_id: 'bldg_BU0363AA01_001',
+        }),
+      }),
+    ]));
+  });
+
+  it('does not record Dossier-open analytics when a match bridge route is accepted but lookup fails', async () => {
+    window.location.hash = '#/address/vbo-err?lookup=adr-error&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01&match_context=%7B%22jobId%22%3A%22match_job_123%22%2C%22resultSetId%22%3A%22mrs_123%22%2C%22preferenceVectorVersion%22%3A%22pv_v1%22%2C%22source%22%3A%22match_map%22%2C%22buildingId%22%3A%22bldg_BU0363AA01_001%22%2C%22selectedResultId%22%3A%22rec_1%22%2C%22selectedResultRank%22%3A1%2C%22language%22%3A%22en%22%2C%22selectedHouseId%22%3A%22bldg_BU0363AA01_001%22%7D';
+    mockLookup.mockRejectedValue(new Error('Lookup failed'));
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: 'Back to match map' }).length).toBeGreaterThan(0);
+    });
+    expect(readMatchFirstAnalyticsEvents().map((event) => event.event_name)).not.toContain('match_dossier_opened');
+  });
+
   it('restores selected-neighborhood context from Dossier back without structured match_context', async () => {
     window.location.hash = '#/address/vbo-123?lookup=adr-abc123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fneighborhood%2FBU0363AA01&match_session=match-123&match_neighborhood=BU0363AA01';
     mockLookup.mockResolvedValue(makeResolvedAddress());
@@ -1637,6 +1713,90 @@ describe('hash route recovery', () => {
     });
     fireEvent.click(screen.getAllByRole('button', { name: 'Back to match map' })[0]);
     expect(window.location.hash).toBe('#/match/session/match-123/results');
+  });
+
+  it('records Back-to-map return success only after results hydration completes', async () => {
+    const encodedContext = encodeURIComponent(JSON.stringify({
+      jobId: 'match_job_match-123',
+      resultSetId: 'mrs_match-123',
+      preferenceVectorVersion: 'vector_match-123',
+      source: 'match_map',
+      returnUrl: '#/match/session/match-123/results',
+      selectedHouseId: 'house-7',
+      language: 'en',
+    }));
+    window.location.hash = `#/address/vbo-123?lookup=adr-abc123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fresults&match_session=match-123&match_context=${encodedContext}`;
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    let resolveResults!: (response: Response) => void;
+    const resultsPromise = new Promise<Response>((resolve) => {
+      resolveResults = resolve;
+    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).endsWith('/api/match/sessions/match-123/results')) {
+        return resultsPromise;
+      }
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    renderApp();
+    await waitForDossierLoaded();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to match map' }));
+
+    expect(window.location.hash).toBe('#/match/session/match-123/results');
+    expect(readMatchFirstAnalyticsEvents().map((event) => event.event_name)).toContain('match_back_to_map_clicked');
+    expect(readMatchFirstAnalyticsEvents().map((event) => event.event_name)).not.toContain('match_back_to_map_return_success');
+
+    await act(async () => {
+      resolveResults(new Response(JSON.stringify(completedMatchResultsResponse('match-123')), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    });
+
+    await waitFor(() => {
+      expect(readMatchFirstAnalyticsEvents().map((event) => event.event_name)).toContain('match_back_to_map_return_success');
+    });
+  });
+
+  it('records Back-to-map return failure only after results hydration fails', async () => {
+    const encodedContext = encodeURIComponent(JSON.stringify({
+      jobId: 'match_job_match-123',
+      resultSetId: 'mrs_match-123',
+      preferenceVectorVersion: 'vector_match-123',
+      source: 'match_map',
+      returnUrl: '#/match/session/match-123/results',
+      selectedHouseId: 'house-7',
+      language: 'en',
+    }));
+    window.location.hash = `#/address/vbo-123?lookup=adr-abc123&match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fresults&match_session=match-123&match_context=${encodedContext}`;
+    mockLookup.mockResolvedValue(makeResolvedAddress());
+    mockBuilding.mockResolvedValue(makeBuildingResponse());
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).endsWith('/api/match/sessions/match-123/results')) {
+        return new Response(JSON.stringify({ detail: 'match.results.unavailable' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    renderApp();
+    await waitForDossierLoaded();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to match map' }));
+
+    await waitFor(() => {
+      const events = readMatchFirstAnalyticsEvents();
+      expect(events.map((event) => event.event_name)).toContain('match_back_to_map_return_failed');
+      expect(events.map((event) => event.event_name)).not.toContain('match_back_to_map_return_success');
+    });
   });
 
   it('preserves structured match_context from a cold-start URL query when the hash carries the Dossier path', async () => {

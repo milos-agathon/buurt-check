@@ -62,6 +62,32 @@ def _parse_suggestion_docs(docs: list[dict]) -> list[AddressSuggestion]:
     return suggestions
 
 
+def _parse_resolved_address_doc(doc: dict) -> ResolvedAddress:
+    ll = _parse_wkt_point(doc.get("centroide_ll"))
+    rd = _parse_wkt_point(doc.get("centroide_rd"))
+
+    return ResolvedAddress(
+        id=doc.get("id", ""),
+        nummeraanduiding_id=doc.get("nummeraanduiding_id"),
+        adresseerbaar_object_id=doc.get("adresseerbaarobject_id"),
+        display_name=doc.get("weergavenaam", ""),
+        street=doc.get("straatnaam"),
+        house_number=str(doc.get("huisnummer", "")) if doc.get("huisnummer") else None,
+        house_letter=doc.get("huisletter") or None,
+        addition=doc.get("huisnummertoevoeging") or None,
+        postcode=doc.get("postcode"),
+        city=doc.get("woonplaatsnaam"),
+        municipality=doc.get("gemeentenaam"),
+        province=doc.get("provincienaam"),
+        latitude=ll[1] if ll else None,
+        longitude=ll[0] if ll else None,
+        rd_x=rd[0] if rd else None,
+        rd_y=rd[1] if rd else None,
+        buurt_code=doc.get("buurtcode"),
+        wijk_code=doc.get("wijkcode"),
+    )
+
+
 def _is_retryable_locatieserver_error(exc: Exception) -> bool:
     if isinstance(exc, httpx.RequestError):
         return True
@@ -135,28 +161,38 @@ async def lookup(locatieserver_id: str) -> ResolvedAddress | None:
     if not docs:
         return None
 
-    doc = docs[0]
+    return _parse_resolved_address_doc(docs[0])
 
-    ll = _parse_wkt_point(doc.get("centroide_ll"))
-    rd = _parse_wkt_point(doc.get("centroide_rd"))
 
-    return ResolvedAddress(
-        id=doc.get("id", ""),
-        nummeraanduiding_id=doc.get("nummeraanduiding_id"),
-        adresseerbaar_object_id=doc.get("adresseerbaarobject_id"),
-        display_name=doc.get("weergavenaam", ""),
-        street=doc.get("straatnaam"),
-        house_number=str(doc.get("huisnummer", "")) if doc.get("huisnummer") else None,
-        house_letter=doc.get("huisletter") or None,
-        addition=doc.get("huisnummertoevoeging") or None,
-        postcode=doc.get("postcode"),
-        city=doc.get("woonplaatsnaam"),
-        municipality=doc.get("gemeentenaam"),
-        province=doc.get("provincienaam"),
-        latitude=ll[1] if ll else None,
-        longitude=ll[0] if ll else None,
-        rd_x=rd[0] if rd else None,
-        rd_y=rd[1] if rd else None,
-        buurt_code=doc.get("buurtcode"),
-        wijk_code=doc.get("wijkcode"),
+async def reverse_addresses(
+    *,
+    latitude: float,
+    longitude: float,
+    distance_m: int = 75,
+    limit: int = 3,
+) -> list[ResolvedAddress]:
+    bounded_limit = max(1, min(limit, 20))
+    bounded_distance = max(1, min(distance_m, 1000))
+    resp = await _get_with_retry(
+        "/reverse",
+        params={
+            "lat": f"{latitude:.6f}",
+            "lon": f"{longitude:.6f}",
+            "type": "adres",
+            "distance": bounded_distance,
+            "rows": bounded_limit,
+            "fl": "*",
+        },
     )
+    data = resp.json()
+    docs = data.get("response", {}).get("docs", [])
+    addresses: list[ResolvedAddress] = []
+    seen: set[str] = set()
+    for doc in docs:
+        resolved = _parse_resolved_address_doc(doc)
+        dedupe_key = resolved.id or resolved.adresseerbaar_object_id or resolved.display_name
+        if not dedupe_key or dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        addresses.append(resolved)
+    return addresses

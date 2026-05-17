@@ -7,12 +7,26 @@ import type {
   MatchFirstSurveyAnswers,
   MatchRunResponse,
   MatchJobStatusResponse,
+  MatchDossierBridgeRequest,
+  MatchDossierBridgeResponse,
   MatchResultsResponse,
   MatchNeighborhoodAmenitiesResponse,
   MatchNeighborhoodBuildingsResponse,
   MatchNeighborhoodMapLayersResponse,
   MatchNeighborhoodSummaryResponse,
 } from '../types/matchFirst';
+
+export class MatchFirstApiError extends Error {
+  readonly status: number;
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.name = 'MatchFirstApiError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -25,7 +39,7 @@ async function readJson<T>(response: Response): Promise<T> {
     } catch {
       detail = null;
     }
-    throw new Error(detail ?? `match_first_api_${response.status}`);
+    throw new MatchFirstApiError(response.status, detail ?? `match_first_api_${response.status}`);
   }
   return response.json() as Promise<T>;
 }
@@ -177,4 +191,16 @@ export async function getMatchNeighborhoodAmenities(
     credentials: 'include',
   });
   return readJson<MatchNeighborhoodAmenitiesResponse>(response);
+}
+
+export async function resolveDossierFromBuilding(
+  payload: MatchDossierBridgeRequest,
+): Promise<MatchDossierBridgeResponse> {
+  const response = await fetch(buildPrimaryApiUrl('/match/dossier/from-building'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  return readJson<MatchDossierBridgeResponse>(response);
 }

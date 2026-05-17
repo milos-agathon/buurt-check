@@ -24,6 +24,8 @@ interface ResultsMapProps {
   initialResults?: MatchResultsResponse | null;
   onBackToSurvey: () => void;
   onOpenNeighborhood?: (recommendation: MatchNeighborhoodRecommendation) => void;
+  onReturnHydrated?: () => void;
+  onReturnHydrationFailed?: (reason: string) => void;
 }
 
 type MobileMode = 'map' | 'list';
@@ -138,6 +140,8 @@ export default function ResultsMap({
   initialResults = null,
   onBackToSurvey,
   onOpenNeighborhood,
+  onReturnHydrated,
+  onReturnHydrationFailed,
 }: ResultsMapProps) {
   const { t, i18n } = useTranslation();
   const reducedMotion = Boolean(useReducedMotion());
@@ -169,6 +173,8 @@ export default function ResultsMap({
   const leafletLayerRef = useRef<L.LayerGroup | null>(null);
   const listRef = useRef<HTMLOListElement | null>(null);
   const recordedMapOpenRef = useRef(false);
+  const returnHydratedEventRef = useRef(false);
+  const returnFailedEventRef = useRef(false);
   const lastSelectionSourceRef = useRef<SelectionSource | null>(null);
   const locale: MatchFirstLocale = i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en';
   const results = initialResults ?? fetchedResults;
@@ -196,7 +202,13 @@ export default function ResultsMap({
         setUnavailable(false);
       })
       .catch(() => {
-        if (!cancelled) setUnavailable(true);
+        if (!cancelled) {
+          setUnavailable(true);
+          if (!returnFailedEventRef.current) {
+            returnFailedEventRef.current = true;
+            onReturnHydrationFailed?.('match.results.unavailable');
+          }
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -229,6 +241,12 @@ export default function ResultsMap({
       ),
     );
   }, [locale, mapCenter, mapZoom, mobileMode, results, selectedRecommendation, sessionId]);
+
+  useEffect(() => {
+    if (!results || returnHydratedEventRef.current) return;
+    returnHydratedEventRef.current = true;
+    onReturnHydrated?.();
+  }, [onReturnHydrated, results]);
 
   useEffect(() => {
     if (!results || recordedMapOpenRef.current) return;

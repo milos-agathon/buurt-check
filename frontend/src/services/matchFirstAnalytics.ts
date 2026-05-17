@@ -30,6 +30,11 @@ export const MATCH_FIRST_EVENTS = [
   'match_amenity_layer_failed',
   'match_missing_3d_fallback_shown',
   'match_house_selected',
+  'match_dossier_opened',
+  'match_no_reliable_address_shown',
+  'match_back_to_map_clicked',
+  'match_back_to_map_return_success',
+  'match_back_to_map_return_failed',
 ] as const;
 
 export type MatchFirstEventName = typeof MATCH_FIRST_EVENTS[number];
@@ -69,7 +74,6 @@ const ALLOWED_CONTEXT_KEYS = new Set([
   'result_rank',
   'selected_result_id',
   'selected_house_id',
-  'address_id',
   'building_id',
   'map_zoom',
   'mobile_mode',

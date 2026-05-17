@@ -8,6 +8,7 @@ import {
   getMatchSession,
   getMatchStatus,
   patchMatchSessionAnswers,
+  resolveDossierFromBuilding,
   runMatchSession,
 } from './matchFirstApi';
 
@@ -338,4 +339,153 @@ it('requests capped preference-aware amenity tags for a completed result context
     '/api/match/neighborhoods/nh_api/amenities?session_id=match_api&result_set_id=mrs_api',
     expect.objectContaining({ credentials: 'include' }),
   );
+});
+
+it('resolves a selected building to a Dossier bridge route with match return context', async () => {
+  const fetchSpy = mockFetch({
+    status: 'resolved',
+    route: '#/address/0363010000123456?lookup=adr-123&match_session=match_api',
+    vbo_id: '0363010000123456',
+    lookup_id: 'adr-123',
+    address_candidate: {
+      address_id: '0363010000123456',
+      vbo_id: '0363010000123456',
+      lookup_id: 'adr-123',
+      reliability: 'resolved',
+    },
+    fallback_reason_code: null,
+  });
+
+  await expect(resolveDossierFromBuilding({
+    session_id: 'match_api',
+    neighborhood_id: 'nh_api',
+    building_id: 'bldg_nh_api_001',
+    address_id: '0363010000123456',
+    vbo_id: '0363010000123456',
+    lookup_id: 'adr-123',
+    return_context: {
+      session_id: 'match_api',
+      job_id: 'match_job_api',
+      result_set_id: 'mrs_api',
+      preference_vector_version: 'pv_api',
+      source: 'match_map',
+      return_url: '#/match/session/match_api/neighborhood/nh_api',
+      map_center: [52.36, 4.9],
+      map_zoom: 13,
+      list_scroll: 240,
+      mobile_mode: 'list',
+      selected_result_id: 'rec_api',
+      selected_result_rank: 1,
+      language: 'nl',
+      selected_house_id: 'bldg_nh_api_001',
+    },
+  })).resolves.toMatchObject({
+    status: 'resolved',
+    route: expect.stringContaining('#/address/0363010000123456'),
+  });
+
+  expect(fetchSpy).toHaveBeenCalledWith('/api/match/dossier/from-building', expect.objectContaining({
+    method: 'POST',
+    credentials: 'include',
+    body: JSON.stringify({
+      session_id: 'match_api',
+      neighborhood_id: 'nh_api',
+      building_id: 'bldg_nh_api_001',
+      address_id: '0363010000123456',
+      vbo_id: '0363010000123456',
+      lookup_id: 'adr-123',
+      return_context: {
+        session_id: 'match_api',
+        job_id: 'match_job_api',
+        result_set_id: 'mrs_api',
+        preference_vector_version: 'pv_api',
+        source: 'match_map',
+        return_url: '#/match/session/match_api/neighborhood/nh_api',
+        map_center: [52.36, 4.9],
+        map_zoom: 13,
+        list_scroll: 240,
+        mobile_mode: 'list',
+        selected_result_id: 'rec_api',
+        selected_result_rank: 1,
+        language: 'nl',
+        selected_house_id: 'bldg_nh_api_001',
+      },
+    }),
+  }));
+});
+
+it('posts selected candidate IDs to the Dossier bridge without client address identifiers', async () => {
+  const fetchSpy = mockFetch({
+    status: 'resolved',
+    route: '#/address/0363010000123462?lookup=adr-candidate-002&match_session=match_api',
+    vbo_id: '0363010000123462',
+    lookup_id: 'adr-candidate-002',
+    address_candidate: {
+      address_id: '0363010000123462',
+      vbo_id: '0363010000123462',
+      lookup_id: 'adr-candidate-002',
+      reliability: 'candidate',
+    },
+    candidate_addresses: [],
+    fallback_reason_code: null,
+  });
+
+  await expect(resolveDossierFromBuilding({
+    session_id: 'match_api',
+    neighborhood_id: 'nh_api',
+    building_id: 'bldg_nh_api_001',
+    address_id: null,
+    vbo_id: null,
+    lookup_id: null,
+    selected_candidate_id: 'cand_bldg_nh_api_001_002',
+    return_context: {
+      session_id: 'match_api',
+      job_id: 'match_job_api',
+      result_set_id: 'mrs_api',
+      preference_vector_version: 'pv_api',
+      source: 'match_map',
+      return_url: '#/match/session/match_api/neighborhood/nh_api',
+      map_center: [52.36, 4.9],
+      map_zoom: 13,
+      list_scroll: 240,
+      mobile_mode: 'list',
+      selected_result_id: 'rec_api',
+      selected_result_rank: 1,
+      language: 'nl',
+      selected_house_id: 'bldg_nh_api_001',
+    },
+  })).resolves.toMatchObject({
+    status: 'resolved',
+    address_candidate: expect.objectContaining({ reliability: 'candidate' }),
+  });
+
+  expect(fetchSpy).toHaveBeenCalledWith('/api/match/dossier/from-building', expect.objectContaining({
+    method: 'POST',
+    credentials: 'include',
+    body: JSON.stringify({
+      session_id: 'match_api',
+      neighborhood_id: 'nh_api',
+      building_id: 'bldg_nh_api_001',
+      address_id: null,
+      vbo_id: null,
+      lookup_id: null,
+      selected_candidate_id: 'cand_bldg_nh_api_001_002',
+      return_context: {
+        session_id: 'match_api',
+        job_id: 'match_job_api',
+        result_set_id: 'mrs_api',
+        preference_vector_version: 'pv_api',
+        source: 'match_map',
+        return_url: '#/match/session/match_api/neighborhood/nh_api',
+        map_center: [52.36, 4.9],
+        map_zoom: 13,
+        list_scroll: 240,
+        mobile_mode: 'list',
+        selected_result_id: 'rec_api',
+        selected_result_rank: 1,
+        language: 'nl',
+        selected_house_id: 'bldg_nh_api_001',
+      },
+    }),
+  }));
 });
