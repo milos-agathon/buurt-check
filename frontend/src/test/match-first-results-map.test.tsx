@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import type { ReactElement } from 'react';
@@ -209,6 +209,42 @@ it('restores saved map view when a completed results route fetches its result se
   expect(screen.getByTestId('recommendation-card-rec_2')).toHaveAttribute('aria-current', 'true');
 });
 
+it('ignores stale saved map view when verified in-memory results use a different result set', () => {
+  const sessionId = 'match-rerun-results';
+  sessionStorage.setItem(getMatchResultsMapStateStorageKey(sessionId), JSON.stringify({
+    sessionId,
+    jobId: 'match_job_old',
+    resultSetId: 'mrs_old',
+    preferenceVectorVersion: 'pv_v1_old',
+    selectedRecommendationId: 'rec_2',
+    selectedNeighborhoodId: 'nh_utrecht_leidsche_rijn',
+    selectedResultRank: 2,
+    mapCenter: [52.1, 5.03],
+    mapZoom: 12,
+    listScroll: 280,
+    mobileMode: 'list',
+    locale: 'en',
+  }));
+
+  renderWithI18n(
+    <ResultsMap
+      sessionId={sessionId}
+      initialResults={resultsResponse({
+        session_id: sessionId,
+        job_id: 'match_job_new',
+        result_set_id: 'mrs_new',
+        preference_vector_version: 'pv_v1_new',
+      })}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toHaveAttribute('data-map-center', '52.2,5.3');
+  expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toHaveAttribute('data-map-zoom', '7');
+  expect(screen.getByTestId('results-map-shell')).toHaveAttribute('data-mobile-mode', 'map');
+  expect(screen.getByTestId('recommendation-card-rec_2')).not.toHaveAttribute('aria-current');
+});
+
 it('keeps ranked list selection and map feature selection synchronized', async () => {
   const user = userEvent.setup();
   renderWithI18n(
@@ -219,7 +255,7 @@ it('keeps ranked list selection and map feature selection synchronized', async (
     />,
   );
 
-  await user.click(within(screen.getByTestId('recommendation-card-rec_2')).getByRole('button'));
+  await user.click(within(screen.getByTestId('recommendation-card-rec_2')).getByRole('button', { name: /Leidsche Rijn/ }));
 
   const utrechtCard = screen.getByTestId('recommendation-card-rec_2');
   expect(utrechtCard).toHaveAttribute('aria-current', 'true');
@@ -230,6 +266,36 @@ it('keeps ranked list selection and map feature selection synchronized', async (
 
   expect(screen.getByTestId('recommendation-card-rec_1')).toHaveAttribute('aria-current', 'true');
   expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toHaveAttribute('data-selected-neighborhood', 'nh_amsterdam_ijburg');
+});
+
+it('reveals the matching list card when a map feature is selected', async () => {
+  const user = userEvent.setup();
+  const scrollIntoView = vi.fn();
+  const originalScrollIntoView = Element.prototype.scrollIntoView;
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: scrollIntoView,
+  });
+
+  try {
+    renderWithI18n(
+      <ResultsMap
+        sessionId="match-results"
+        initialResults={resultsResponse()}
+        onBackToSurvey={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Show Leidsche Rijn on map' }));
+
+    expect(screen.getByTestId('recommendation-card-rec_2')).toHaveAttribute('aria-current', 'true');
+    expect(scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ block: 'nearest' }));
+  } finally {
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: originalScrollIntoView,
+    });
+  }
 });
 
 it('persists mobile map/list mode and selected map state for later Dossier return', async () => {
@@ -245,7 +311,7 @@ it('persists mobile map/list mode and selected map state for later Dossier retur
   await user.click(screen.getByRole('button', { name: 'List' }));
   expect(screen.getByTestId('results-map-shell')).toHaveAttribute('data-mobile-mode', 'list');
 
-  await user.click(within(screen.getByTestId('recommendation-card-rec_2')).getByRole('button'));
+  await user.click(within(screen.getByTestId('recommendation-card-rec_2')).getByRole('button', { name: /Leidsche Rijn/ }));
 
   const stored = JSON.parse(
     sessionStorage.getItem(getMatchResultsMapStateStorageKey('match-results')) ?? '{}',
@@ -259,6 +325,29 @@ it('persists mobile map/list mode and selected map state for later Dossier retur
     mobileMode: 'list',
     mapCenter: [52.1, 5.03],
     mapZoom: 12,
+  });
+});
+
+it('persists list scroll position when the user scrolls the recommendation list', () => {
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  const list = screen.getByRole('list', { name: 'Recommended neighborhoods' });
+  list.scrollTop = 144;
+  fireEvent.scroll(list);
+
+  const stored = JSON.parse(
+    sessionStorage.getItem(getMatchResultsMapStateStorageKey('match-results')) ?? '{}',
+  ) as Record<string, unknown>;
+  expect(stored).toMatchObject({
+    sessionId: 'match-results',
+    resultSetId: 'mrs_results',
+    listScroll: 144,
   });
 });
 

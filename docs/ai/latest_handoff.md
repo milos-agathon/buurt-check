@@ -1,21 +1,26 @@
 # Latest AI Handoff
 
-Updated: 2026-05-16
+Updated: 2026-05-17
 
 ## Current Phase
 
 The active SpecKit feature is `specs/002-match-first-revamp`; `.specify/feature.json`
 now points at that complete feature directory.
 Phase 1, Phase 2, Phase 3 backend matching, Phase 4 progress/success UI, and
-Phase 5 Netherlands results map/list are documented as closed in
+Phase 5 Netherlands results map/list and Phase 6 selected-neighborhood detail
+are documented with closure evidence in
 `docs/qa/match_first_revamp_traceability.md`. Phase 5 now hydrates completed
 session results through `GET /api/match/sessions/{session_id}/results`, renders
 a Netherlands-oriented 2D results map plus ranked recommendation list, keeps
 list and map selection synchronized, preserves map/list state for later Dossier
 return including cold results-route fetches, and keeps the list usable without
-map interaction. Phase 6
-selected-neighborhood detail/3D and Phase 7 Dossier bridge work remain
-unimplemented.
+map interaction. Phase 6 now opens selected-neighborhood route/state from a
+recommendation, loads selected boundary/fit context, scopes building requests to
+selected-neighborhood RD bounds after selection, rejects national/out-of-bounds
+building requests in the backend, shows localized 2D fallback for missing 3D,
+caps preference-aware amenities, and preserves selected-neighborhood map state.
+Phase 7 house-to-Dossier bridge behavior is not implemented in the current
+worktree and remains the next product phase.
 
 ## Current Next Step
 
@@ -39,10 +44,283 @@ Before any task regeneration or new task slicing, use the audited
 `specs/002-match-first-revamp/plan.md`, `data-model.md`, and
 `contracts/match-first-api.md` from the 2026-05-15 plan audit update below.
 
-The next documented implementation phase is Phase 6:
-selected-neighborhood detail. Keep the Phase 5 boundary intact: do not load
-national 3D buildings, do not add national-zoom amenities, and do not implement
-house click or Dossier bridge behavior until their later phases.
+The next documented implementation step is Phase 7 house-to-existing-Dossier
+bridge work. Keep the Phase 6/7 boundaries intact: do not load national 3D
+buildings, do not show all amenities, do not rerun matching when opening
+completed results/selected-neighborhood detail, and do not rewrite existing
+Dossier modules beyond the route/context navigation required by Phase 7.
+
+## Latest Phase 6 Boundary Repair Update 2026-05-17
+
+This pass removed stale Phase 7 Dossier bridge code that had been reintroduced
+after the Phase 6 review repair. The active implementation remains Phase 6-only:
+selected buildings can be selected locally and stored in match map state, but no
+Dossier bridge endpoint or route opening is present yet.
+
+Files changed:
+
+- `backend/app/api/match.py`
+- `backend/app/models/match.py`
+- `frontend/src/components/match-first/HouseSelectionPanel.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.tsx`
+- `frontend/src/services/matchFirstApi.ts`
+- `frontend/src/services/matchFirstApi.test.ts`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/services/matchFirstAnalytics.test.ts`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `frontend/src/types/matchFirst.ts`
+- `specs/002-match-first-revamp/tasks.md`
+- `docs/ai/latest_handoff.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+
+Completed work:
+
+- Removed `POST /api/match/dossier/from-building`, bridge models, bridge
+  service, and bridge tests from the active codebase.
+- Removed frontend bridge types/API calls and Phase 7 Dossier analytics event
+  names from the active Phase 6 implementation.
+- Kept local Phase 6 house selection: reliable/candidate/manual building rows
+  can be selected, `selectedHouseId` is stored with the selected-neighborhood
+  map state, and localized copy states that Dossier opening is a later step.
+- Strengthened detail tests so selecting a house does not call `/run` or
+  `/dossier/from-building`, and unavailable building records leave the list
+  fallback usable without a map or Dossier interaction.
+
+Verification:
+
+- `rg -n "resolveDossierFromBuilding|dossier/from-building|MatchDossier|DossierBridge|onOpenDossier|openMatchDossierRoute|pendingBuildingId|setPendingBuildingId|match_dossier_opened|match_back_to_map" frontend/src backend/app backend/tests` now reports only the existing manual Dossier fallback handler in `App.tsx` and negative assertions in `match-first-neighborhood-detail.test.tsx`.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts` passed with 27 tests.
+- `cd backend && ruff check .` passed.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 4 tests.
+- `cd frontend && npm run build` passed.
+- Earlier CI-style Phase 6 verification in this worktree also passed:
+  `cd frontend && npm run test`; `npm run landing:test:e2e`; `cd backend &&
+  pytest -x -q -m "not live and not visual and not benchmark"`; `cd backend &&
+  pytest -x -q -m "visual"`; and `cd backend && pytest -x -q -m "benchmark"`.
+
+Residual risks / next checks:
+
+- Phase 7 house-to-existing-Dossier bridge and persistent Back to match map
+  restoration remain unimplemented.
+- Full repo frontend lint still has pre-existing failures outside the Phase 6
+  touched surface and is not part of the active GitHub CI workflow.
+- Browser-level Playwright/mobile-performance proof for selected-neighborhood
+  detail remains open before production release.
+
+## Latest Phase 6 Review Repair Update 2026-05-17
+
+This pass repaired the Phase 6 review findings only. It did not implement Phase
+7 Dossier bridge behavior, national 3D loading, national amenities, or live 3D
+provider integration.
+
+Files changed in this repair:
+
+- `frontend/src/components/match-first/NeighborhoodDetail.tsx`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `backend/tests/test_match_neighborhood_layers.py`
+- `docs/ai/latest_handoff.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+- `specs/002-match-first-revamp/tasks.md`
+
+Completed repair work:
+
+- Decoupled selected-neighborhood summary/map-layer loading from amenity tag
+  loading with settled request handling. Amenity failures now show the localized
+  amenity fallback without clearing selected boundary/layer data or blocking the
+  selected-bounds building fallback request.
+- Added a regression that fails if an amenity endpoint failure prevents the
+  selected-neighborhood map, scoped building request, missing-3D fallback, or
+  nonblank canvas fallback from remaining usable.
+- Tightened frontend building-request assertions to parse `bounds_rd` and
+  require the exact selected-neighborhood `allowed_bounds_rd` returned by the
+  map-layer payload, instead of only checking that one national bounds string is
+  absent.
+- Strengthened backend building bounds coverage with a centimeter-scale
+  out-of-scope RD New request in addition to the national-bounds rejection.
+
+Red-first / repair evidence:
+
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "keeps selected map"` first failed because the map lost `data-display-bounds-wgs84` after an amenity failure. After the repair, `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "keeps selected map|uses the exact selected"` passed with 2 tests.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "building_requests"` passed after adding the extra out-of-scope edge case, confirming the existing backend guard already rejected the stricter request.
+
+Verification:
+
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-results-map.test.tsx src/services/matchFirstApi.test.ts src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts` passed with 53 tests.
+- `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts` passed with 7 tests.
+- `cd frontend && npx eslint src/components/match-first/ResultsMap.tsx src/components/match-first/RecommendationCard.tsx src/components/match-first/RecommendationList.tsx src/components/match-first/NeighborhoodDetail.tsx src/components/match-first/NeighborhoodBuildingLayer.tsx src/components/match-first/AmenityTags.tsx src/components/match-first/HouseSelectionPanel.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-results-map.test.tsx src/services/matchFirstApi.ts src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.ts` passed.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 4 tests.
+- `cd backend && ruff check app tests/test_match_neighborhood_layers.py` passed.
+- `cd frontend && npm run test` passed. Existing noisy Dossier/3D console output and React act warnings still print from older suites; no test failed.
+- `cd frontend && npm run build` passed. Build emitted
+  `NeighborhoodDetail-BZmcPcs8.js` at 11.63 kB / 3.30 kB gzip and
+  `ResultsMap-BDMzYqxK.js` at 161.28 kB / 46.52 kB gzip.
+- `cd backend && ruff check .` passed.
+- `cd backend && pytest -x -q -m "not live and not visual and not benchmark"` passed with 1337 tests, 8 skipped, and 17 deselected.
+- `npm run landing:test:e2e` passed with 23 tests and 1 skipped.
+- `cd backend && pytest -x -q -m "benchmark"` passed with 2 tests and 1360 deselected.
+- `cd backend && pytest -x -q -m "visual"` collected the visual marker locally with 4 skipped and 1358 deselected.
+
+Residual risks / next checks:
+
+- Real selected-neighborhood 3D rendering remains a provider/data integration
+  risk. Current seed data intentionally resolves to the localized 2D fallback.
+- Browser-level Playwright/mobile performance proof for selected-neighborhood
+  detail remains open before production release; this repair strengthens
+  component-level fallback and bounds regression coverage.
+- Phase 7 house/building-to-Dossier bridge remains the next implementation
+  phase and is intentionally absent from the current worktree.
+
+## Latest Phase 6 Selected-Neighborhood Detail Update 2026-05-16
+
+This pass implemented only SpecKit Phase 6. It did not implement Phase 7
+house-to-Dossier navigation or Dossier bridge endpoints.
+
+Files changed:
+
+- `backend/app/api/match.py`
+- `backend/app/models/match.py`
+- `backend/app/services/match/geometry.py`
+- `backend/app/services/match/buildings.py`
+- `backend/app/services/match/amenities.py`
+- `backend/tests/test_match_neighborhood_layers.py`
+- `frontend/src/App.tsx`
+- `frontend/src/components/match-first/ResultsMap.tsx`
+- `frontend/src/components/match-first/ResultsMap.css`
+- `frontend/src/components/match-first/RecommendationCard.tsx`
+- `frontend/src/components/match-first/RecommendationList.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.css`
+- `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`
+- `frontend/src/components/match-first/AmenityTags.tsx`
+- `frontend/src/components/match-first/HouseSelectionPanel.tsx`
+- `frontend/src/services/matchFirstApi.ts`
+- `frontend/src/services/matchFirstApi.test.ts`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/types/matchFirst.ts`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `frontend/src/test/match-first-results-map.test.tsx`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+- `docs/ai/latest_handoff.md`
+- `specs/002-match-first-revamp/tasks.md`
+- `.dockerignore`
+
+Completed work:
+
+- Added selected-neighborhood summary, map-layer, building, and amenity
+  contracts under `/api/match/neighborhoods/{neighborhood_id}`.
+- Added backend RD New bounds validation so national or out-of-scope building
+  requests return `match.building_bounds_out_of_scope`.
+- Added preference-aware amenity tags capped to the default 5-7 category range,
+  with stable frontend label/reason keys.
+- Added a selected-neighborhood detail route/screen that fetches completed
+  results, selected boundary/layers/amenities, then buildings for selected
+  bounds only. It does not call `/run`.
+- Added a nonblank localized 2D/canvas fallback for missing 3D, plus list-based
+  no-reliable-address fallback without Dossier navigation.
+- Added privacy-safe analytics keys for detail open, layer failures, and
+  missing-3D fallback.
+
+Verification:
+
+- `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks`
+  returned `FEATURE_DIR` as
+  `C:\Users\milos\buurt-check\specs\002-match-first-revamp`.
+- Checklist status: `requirements.md` passed with 76/76 completed items.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with
+  4 tests.
+- `cd backend && ruff check app tests/test_match_neighborhood_layers.py` passed.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-results-map.test.tsx src/services/matchFirstApi.test.ts src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts`
+  passed with 51 tests.
+- `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts`
+  passed with 7 tests.
+- `cd frontend && npx eslint src/components/match-first/ResultsMap.tsx src/components/match-first/RecommendationCard.tsx src/components/match-first/RecommendationList.tsx src/components/match-first/NeighborhoodDetail.tsx src/components/match-first/NeighborhoodBuildingLayer.tsx src/components/match-first/AmenityTags.tsx src/components/match-first/HouseSelectionPanel.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-results-map.test.tsx src/services/matchFirstApi.ts src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.ts`
+  passed.
+- `cd frontend && npm run build` passed. Build emitted
+  `NeighborhoodDetail-D6byeTfP.js` at 11.40 kB / 3.24 kB gzip and
+  `NeighborhoodDetail-BkE5_SO2.css` at 3.37 kB / 1.07 kB gzip.
+
+Residual risks / next checks:
+
+- Real selected-neighborhood 3D rendering remains a provider/data integration
+  risk. Current seed data intentionally resolves to the localized 2D fallback.
+- Browser-level Playwright/mobile performance proof for selected-neighborhood
+  detail remains open before production release.
+- Direct `npx eslint src/App.tsx` still reports the existing
+  `react-refresh/only-export-components` helper-export issue plus an unrelated
+  hook dependency warning; targeted lint for Phase 6 files passed.
+- Phase 7 house/building-to-Dossier bridge remains the next implementation
+  phase and is intentionally absent from the current worktree.
+
+## Latest Phase 5 Results Map Review Repair Update 2026-05-16
+
+This pass stayed inside Phase 5. It did not implement selected-neighborhood
+detail/3D, house click behavior, Dossier bridge behavior, national amenities,
+or any matching rerun behavior.
+
+Files changed:
+
+- `frontend/src/components/match-first/ResultsMap.tsx`
+- `frontend/src/components/match-first/RecommendationList.tsx`
+- `frontend/src/test/match-first-results-map.test.tsx`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/ai/latest_handoff.md`
+
+Completed repair work:
+
+- Fixed verified in-memory results rendering so saved map state is applied only
+  when `resultSetId` and `preferenceVectorVersion` match the active
+  `initialResults`. Stale state now falls back to the required Netherlands
+  start, map mode, national zoom, and no preselected recommendation.
+- Applied the same result identity guard to Leaflet initialization and reset
+  stale fetched-route mobile mode to Map when the saved state does not match.
+- Added map-to-list visual reveal by scrolling the selected recommendation row
+  into view after a marker or polygon selection, while leaving list-origin
+  selection behavior unchanged.
+- Added direct list scroll persistence through the recommendation list
+  `onScroll` handler so Dossier-return state records the user's final list
+  position even when no other tracked state changes afterward.
+
+Red-first evidence:
+
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx`
+  first failed with 3 expected failures: stale `initialResults` opened at
+  `52.1,5.03` instead of `52.2,5.3`, map-origin selection did not call
+  `scrollIntoView`, and list scroll persisted `0` instead of `144`. After the
+  repair, the same command passed with 8 tests.
+
+Verification:
+
+- `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks`
+  returned `FEATURE_DIR` as
+  `C:\Users\milos\buurt-check\specs\002-match-first-revamp` with
+  `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and
+  `tasks.md` available.
+- Checklist status: `requirements.md` passed with 76/76 completed items.
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx`
+  passed with 8 tests.
+- `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts`
+  passed with 28 tests.
+- `cd frontend && npx eslint src/components/match-first/ResultsMap.tsx src/components/match-first/RecommendationList.tsx src/test/match-first-results-map.test.tsx`
+  passed.
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx src/test/match-first-progress.test.tsx src/App.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts`
+  passed. Existing noisy Dossier/3D console output and React act warnings still
+  print in `App.test.tsx`; no test failed.
+- `cd frontend && npm run build` passed. The Phase 5 lazy results-map chunk in
+  this build was `ResultsMap-aGJKtWIH.js` at 160.78 kB, 46.41 kB gzip, with
+  `ResultsMap-CoY3xfYW.css` at 20.75 kB, 7.88 kB gzip.
+
+Residual risks / next checks:
+
+- Full `cd frontend && npm run lint` was not rerun; previous Phase 5 notes
+  still apply that repo-wide lint has pre-existing non-Phase-5 failures.
+- Browser-level Playwright/performance proof for the results map remains a
+  residual verification gap before production release.
+- Phase 6 is now implemented in the latest update above; Phase 7 remains next.
 
 ## Latest Phase 5 State-Preservation Repair Update 2026-05-16
 
@@ -97,8 +375,7 @@ Residual risks / next checks:
   still apply that repo-wide lint has pre-existing non-Phase-5 failures.
 - Browser-level Playwright/performance proof for the results map remains a
   residual verification gap before production release.
-- Phase 6 remains the next product step and must add selected-neighborhood
-  detail without loading national 3D buildings.
+- Phase 6 is now implemented in the latest update above; Phase 7 remains next.
 
 ## Latest Phase 4 Gating/A11y Audit Repair Update 2026-05-16
 
@@ -242,8 +519,7 @@ Residual risks / next checks:
 - `npm install` reported the existing npm audit state with 15 vulnerabilities
   after adding Leaflet dependencies; dependency remediation was not part of
   this Phase 5 scope.
-- Phase 6 must add selected-neighborhood detail/placeholder behavior without
-  loading national 3D buildings.
+- This historical Phase 5 residual is superseded by the Phase 6 update above.
 
 ## Latest CI Repair Update 2026-05-16
 

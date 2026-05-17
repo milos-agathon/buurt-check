@@ -6,6 +6,7 @@ interface RecommendationCardProps {
   recommendation: MatchNeighborhoodRecommendation;
   selected: boolean;
   onSelect: (recommendation: MatchNeighborhoodRecommendation) => void;
+  onOpenDetail?: (recommendation: MatchNeighborhoodRecommendation) => void;
 }
 
 function normalizeTranslationKey(code: string, prefix: string): string {
@@ -26,6 +27,7 @@ export default function RecommendationCard({
   recommendation,
   selected,
   onSelect,
+  onOpenDetail,
 }: RecommendationCardProps) {
   const { t, i18n } = useTranslation();
   const reasonLines = useRecommendationReasonLines(recommendation);
@@ -71,6 +73,17 @@ export default function RecommendationCard({
           score: recommendation.confidence.score,
         })}
       </p>
+      {onOpenDetail && (
+        <div className="recommendation-card__actions">
+          <button
+            type="button"
+            className="recommendation-card__detail"
+            onClick={() => onOpenDetail(recommendation)}
+          >
+            {t('matchFirst.results.viewNeighborhood')}
+          </button>
+        </div>
+      )}
     </article>
   );
 }

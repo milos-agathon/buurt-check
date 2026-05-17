@@ -1,6 +1,6 @@
 # Open Punch List
 
-Updated: 2026-05-16
+Updated: 2026-05-17
 
 ## Phase 3 Backend Closure
 
@@ -24,17 +24,27 @@ Updated: 2026-05-16
 - Commands documented in traceability/handoff: focused Phase 5 Vitest coverage passed, `match-first-a11y.test.tsx` passed, targeted ESLint for the Phase 5 files passed, and `cd frontend && npm run build` passed.
 - Still open for Phase 5 before production release: no Playwright e2e/browser performance proof was added for the map slice; full frontend lint still has pre-existing non-Phase-5 failures; the npm audit state with 15 vulnerabilities remains unresolved after adding Leaflet.
 
+## Phase 6 Selected-Neighborhood Detail Closure
+
+- Status: closed for the requested Phase 6 slice after the 2026-05-16 implementation, 2026-05-17 review repair, and 2026-05-17 Phase 6 boundary cleanup.
+- Evidence: selected recommendations can open `#/match/session/{session_id}/neighborhood/{neighborhood_id}` detail state; the detail route loads completed results without rerunning matching, shows selected boundary and fit context, requests buildings only after selected-neighborhood layer bounds are loaded, rejects national/out-of-bounds building requests server-side, renders localized missing-3D 2D fallback, caps preference-aware amenity tags to 5-7 categories, and keeps house/address fallback usable without Dossier navigation.
+- Review-repair evidence: amenity endpoint failure no longer blocks selected boundary/layer data, scoped building fallback, or the nonblank 2D fallback. Frontend building tests now parse `bounds_rd` and require the exact selected map-layer `allowed_bounds_rd`; backend tests include a near-edge out-of-scope RD New bounds rejection.
+- Boundary-cleanup evidence: stale Phase 7 Dossier bridge code was removed from the active backend/frontend. The selected house action remains local Phase 6 state only, stores `selectedHouseId`, shows localized "Dossier opening later" copy, and tests assert no `/run` or `/dossier/from-building` call.
+- Commands passed: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`; `cd backend && ruff check app tests/test_match_neighborhood_layers.py`; `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-results-map.test.tsx src/services/matchFirstApi.test.ts src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts`; `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts`; targeted ESLint for Phase 6 frontend files; `cd frontend && npm run build`.
+- 2026-05-17 CI-style commands also passed locally: `cd frontend && npm run test`; `cd frontend && npm run build`; `npm run landing:test:e2e`; `cd backend && ruff check .`; `cd backend && pytest -x -q -m "not live and not visual and not benchmark"`; `cd backend && pytest -x -q -m "benchmark"`; `cd backend && pytest -x -q -m "visual"` collected only skipped local visual tests.
+- 2026-05-17 boundary cleanup commands passed locally: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts` passed with 27 tests; `cd backend && ruff check .` passed; `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 4 tests.
+- Still open before production release: browser-level Playwright/mobile-performance proof for selected-neighborhood detail is not yet added; real selected-neighborhood 3D remains blocked on provider/data integration and currently resolves to the required localized 2D fallback.
+
 ## Remaining Missing Or Partial Items
 
-- Phase 6 selected-neighborhood detail and selected-neighborhood-only 3D loading are still not implemented.
 - Phase 7 house-to-existing-Dossier bridge and full back-to-match-map restoration are still not implemented.
 - Anonymous match-session deletion remains a documented later gate unless implemented in a future phase.
 - Seed/mock feature data remains the Phase 3 source mode; production confidence still requires future live data and validation evidence.
-- Phase 5 browser-level e2e/performance coverage remains open even though the map/list implementation slice is closed.
-- Full frontend lint remains open because known pre-existing non-Phase-4/5 files still fail repo-wide lint; targeted lint for the touched Phase 4 and Phase 5 files passed.
-- npm audit remediation remains open; dependency vulnerability cleanup was outside the Phase 4/5 scope.
+- Phase 5 and Phase 6 dedicated browser-level e2e/performance coverage remains open even though the implementation slices are closed; the 2026-05-17 repair did run the existing landing Playwright smoke and full local CI-style gates.
+- Full frontend lint remains open because known pre-existing files still fail repo-wide lint; targeted lint for the touched Phase 4, Phase 5, and Phase 6 files passed where scoped.
+- npm audit remediation remains open; dependency vulnerability cleanup was outside the Phase 4/5/6 scope.
 
 ## Worktree Scope Notes
 
-- Keep Phase 6 selected-neighborhood detail/3D and Phase 7 Dossier bridge work out of Phase 4/5 repair commits unless intentionally starting those phases.
-- The current worktree includes Phase 5 map/list files plus this Phase 4 audit repair. Review/stage them intentionally instead of treating old Phase 3 commit-scope notes as current guidance.
+- Keep Phase 7 Dossier bridge work out of Phase 6 commits unless intentionally starting that phase.
+- The current worktree includes Phase 5 map/list repair files plus Phase 6 selected-neighborhood files. Review/stage them intentionally instead of treating old Phase 3 commit-scope notes as current guidance.

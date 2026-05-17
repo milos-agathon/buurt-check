@@ -538,6 +538,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
   Acceptance evidence: Traceability row "selected-neighborhood layer contracts" links to backend tests.
   Dependencies: T-052.
+  Status 2026-05-16: Complete for Phase 6. Backend layer tests added and passing.
 
 - ID: T-054
   Phase: 6
@@ -547,6 +548,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
   Acceptance evidence: Traceability links coordinate naming and boundary tests.
   Dependencies: T-053.
+  Status 2026-05-16: Complete. Selected-neighborhood geometry service returns RD New `centroid_rd`/`bounds_rd`, display WGS84 fields, boundary refs, source refs, freshness, and limitations.
 
 - ID: T-055
   Phase: 6
@@ -556,6 +558,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
   Acceptance evidence: Traceability PRD AC12 links to "no national 3D" backend tests.
   Dependencies: T-054.
+  Status 2026-05-16: Complete for scoped requests and missing-3D fallback. Backend rejects national/out-of-scope RD bounds with `match.building_bounds_out_of_scope`; current seed data returns localized missing-3D fallback rather than real 3D buildings.
 
 - ID: T-056
   Phase: 6
@@ -565,6 +568,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
   Acceptance evidence: Traceability PRD AC13 links to amenity relevance/cap tests.
   Dependencies: T-054.
+  Status 2026-05-16: Complete. Amenity service is preference-aware from stored session answers and caps visible tags to 5-7 categories.
 
 - ID: T-057
   Phase: 6
@@ -574,6 +578,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
   Acceptance evidence: Traceability links endpoint contract to tests.
   Dependencies: T-054, T-055, T-056.
+  Status 2026-05-16: Complete. `/api/match/neighborhoods/{id}`, `/map-layers`, `/buildings`, and `/amenities` endpoints added under `/api/match` with selected-result context validation and stable errors.
 
 - ID: T-058
   Phase: 6
@@ -583,6 +588,8 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts`
   Acceptance evidence: Traceability row "neighborhood detail frontend contracts" links to tests.
   Dependencies: T-057.
+  Status 2026-05-16: Complete. Frontend types/API helpers and tests cover selected summary, layers, buildings, amenities, missing detail, and scoped bounds.
+  Review repair 2026-05-17: Complete. Added regression coverage that amenity endpoint failure does not block selected boundary/layers, scoped building fallback, or the missing-3D 2D fallback; strengthened frontend building-request tests to parse `bounds_rd` and assert exact equality to selected map-layer `allowed_bounds_rd`.
 
 - ID: T-059
   Phase: 6
@@ -592,6 +599,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx`
   Acceptance evidence: Traceability rows FR-N2/FR-N5/FR-N6 link to detail shell tests.
   Dependencies: T-058.
+  Status 2026-05-16: Complete. Detail shell opens from result CTA, loads completed results without `/run`, shows selected boundary/fit context, and preserves selected-neighborhood state.
 
 - ID: T-060
   Phase: 6
@@ -601,6 +609,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx`; canvas verification in E2E.
   Acceptance evidence: Traceability PRD AC12 links to frontend no-preload/canvas/fallback tests.
   Dependencies: T-055, T-059.
+  Status 2026-05-16: Complete for current missing-3D/fallback scope. Building fetch waits for selected-neighborhood bounds and renders a nonblank 2D canvas fallback. Real Three.js rendering remains a provider/data integration risk, documented in traceability.
 
 - ID: T-061
   Phase: 6
@@ -610,6 +619,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts`
   Acceptance evidence: Traceability PRD AC13 links to amenity cap and relevance tests.
   Dependencies: T-056, T-058, T-059.
+  Status 2026-05-16: Complete. Amenity tags use translated labels/reasons and cap to 7; house panel exposes fallback/no-reliable-address state without Phase 7 Dossier navigation.
 
 - ID: T-062
   Phase: 6
@@ -619,6 +629,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-fallbacks.test.tsx`
   Acceptance evidence: Traceability row "neighborhood analytics/fallbacks" lists event keys and fallback keys.
   Dependencies: T-059, T-060, T-061.
+  Status 2026-05-16: Complete for implemented Phase 6 events/fallbacks. Added privacy-safe detail open, building-layer failed, amenity-layer failed, and missing-3D fallback events; house-selected analytics remains Phase 7.
 
 - ID: T-063
   Phase: 6
@@ -628,6 +639,8 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx src/test/match-first-map-performance.test.tsx`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-neighborhood-detail.spec.ts`
   Acceptance evidence: Traceability includes target profile/device evidence and any residual performance risk.
   Dependencies: T-059, T-060, T-061.
+  Status 2026-05-16: Partial/complete for component-level Phase 6 evidence. Vitest covers a11y/list fallback, no national 3D request, and nonblank canvas state; browser Playwright/mobile performance proof remains open before production.
+  Review repair 2026-05-17: Component-level evidence strengthened for loading/error resilience and no-national-3D regression coverage. Existing landing Playwright smoke and full local CI-style gates passed; dedicated selected-neighborhood Playwright/mobile performance proof remains open before production.
 
 - ID: T-064
   Phase: 6
@@ -637,6 +650,9 @@ records that as the residual Phase 5 verification gap.
   Validation: Phase 6 backend tests, frontend detail/a11y/performance tests, selected E2E, and frontend build.
   Acceptance evidence: Traceability maps PRD AC12-AC13 and AC16-AC18 to files/tests.
   Dependencies: T-053 through T-063.
+  Status 2026-05-16: Complete. Handoff, traceability, open punch list, and this task status were updated with commands, residual risks, and next step: Phase 7 Dossier bridge.
+  Review repair 2026-05-17: Complete. Handoff, traceability, open punch list, and task status now include the amenity-failure isolation repair, exact selected-bounds frontend regression, backend near-edge bounds rejection regression, and local CI-style verification commands.
+  Boundary cleanup 2026-05-17: Complete. Removed stale Phase 7 bridge code from the active worktree; Phase 6 selected-house behavior is local state only and tests assert no `/dossier/from-building` or `/run` call.
 
 ## Phase 7: Dossier Bridge
 
@@ -648,6 +664,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd backend && pytest -q tests/test_match_dossier_bridge.py`
   Acceptance evidence: Traceability row "Dossier bridge backend" links to bridge tests.
   Dependencies: T-064.
+  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. `backend/tests/test_match_dossier_bridge.py` and the bridge service are absent from the active worktree.
 
 - ID: T-066
   Phase: 7
@@ -657,6 +674,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd backend && pytest -q tests/test_match_dossier_bridge.py`
   Acceptance evidence: Traceability links reliable/no-address cases to tests.
   Dependencies: T-065.
+  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. Building-to-Dossier resolution remains future Phase 7 scope.
 
 - ID: T-067
   Phase: 7
@@ -666,6 +684,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd backend && pytest -q tests/test_match_dossier_bridge.py`
   Acceptance evidence: Traceability row "Dossier bridge API" links endpoint to contract/test evidence.
   Dependencies: T-066.
+  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. `POST /api/match/dossier/from-building` is not present.
 
 - ID: T-068
   Phase: 7
@@ -675,6 +694,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/test/match-first-dossier-bridge.test.tsx src/services/matchFirstApi.test.ts`
   Acceptance evidence: Traceability row "Dossier bridge frontend contract" links to tests.
   Dependencies: T-067.
+  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. Frontend bridge API/types were removed; existing tests now assert no bridge call in Phase 6.
 
 - ID: T-069
   Phase: 7
@@ -684,6 +704,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-dossier-bridge.test.tsx`
   Acceptance evidence: Traceability PRD AC14 links to house-click route tests.
   Dependencies: T-061, T-068.
+  Status 2026-05-17: Not implemented after Phase 6 boundary cleanup. Reliable house candidates can be selected locally, but they do not open Dossier.
 
 - ID: T-070
   Phase: 7
@@ -693,6 +714,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/test/match-first-dossier-bridge.test.tsx`
   Acceptance evidence: Traceability PRD AC15 links to persistent action tests.
   Dependencies: T-068.
+  Status 2026-05-17: Not implemented for Phase 7. Existing route-context scaffolding remains, but no new Phase 7 Dossier back-to-map behavior is claimed in this worktree.
 
 - ID: T-071
   Phase: 7
@@ -702,6 +724,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/test/match-first-context-preservation.test.tsx src/test/match-first-dossier-bridge.test.tsx`
   Acceptance evidence: Traceability row "Dossier return context" lists every restored field and unsupported gaps.
   Dependencies: T-069, T-070.
+  Status 2026-05-17: Not implemented for Phase 7. Phase 5/6 map state is preserved, but Dossier return context must be revalidated when Phase 7 starts.
 
 - ID: T-072
   Phase: 7
@@ -711,6 +734,7 @@ records that as the residual Phase 5 verification gap.
   Validation: Targeted frontend Dossier tests and `cd backend && pytest -q tests/test_export_entitlement.py tests/test_reports_api.py`
   Acceptance evidence: Traceability row "Dossier preservation" links to regression tests.
   Dependencies: T-070.
+  Status 2026-05-17: Not completed as a Phase 7 closure task in this worktree. Existing Dossier behavior is preserved by scope.
 
 - ID: T-073
   Phase: 7
@@ -720,6 +744,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-fallbacks.test.tsx src/test/match-i18n.test.ts`
   Acceptance evidence: Traceability lists event names and fallback keys.
   Dependencies: T-069, T-071.
+  Status 2026-05-17: Not implemented for Phase 7. Phase 6 keeps `match_house_selected`, but Dossier-open and back-to-map analytics are not allowlisted in the active worktree.
 
 - ID: T-074
   Phase: 7
@@ -729,6 +754,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test:e2e -- tests/e2e/match-first-dossier-roundtrip.spec.ts`
   Acceptance evidence: Traceability PRD AC14-AC15 and SC-016 link to E2E proof.
   Dependencies: T-069, T-070, T-071, T-072.
+  Status 2026-05-17: Not implemented. This remains a future Phase 7/8 follow-up after the bridge exists.
 
 - ID: T-075
   Phase: 7
@@ -738,6 +764,7 @@ records that as the residual Phase 5 verification gap.
   Validation: Phase 7 backend bridge tests, frontend bridge/context/Dossier tests, selected E2E, and relevant build.
   Acceptance evidence: Traceability maps PRD AC14-AC15 and AC16 to files/tests and documents unsupported return cases as missing/partial.
   Dependencies: T-065 through T-074.
+  Status 2026-05-17: Not implemented. Handoff, traceability, and punch list now explicitly keep Phase 7 deferred.
 
 ## Phase 8: Accessibility, Analytics, Failure States, And Final QA
 

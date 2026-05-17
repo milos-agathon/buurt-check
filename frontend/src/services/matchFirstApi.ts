@@ -8,6 +8,10 @@ import type {
   MatchRunResponse,
   MatchJobStatusResponse,
   MatchResultsResponse,
+  MatchNeighborhoodAmenitiesResponse,
+  MatchNeighborhoodBuildingsResponse,
+  MatchNeighborhoodMapLayersResponse,
+  MatchNeighborhoodSummaryResponse,
 } from '../types/matchFirst';
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -91,4 +95,86 @@ export async function getMatchResults(sessionId: string): Promise<MatchResultsRe
     credentials: 'include',
   });
   return readJson<MatchResultsResponse>(response);
+}
+
+function appendLayerContext(
+  path: string,
+  params: {
+    sessionId: string;
+    resultSetId: string;
+  },
+): string {
+  const query = new URLSearchParams({
+    session_id: params.sessionId,
+    result_set_id: params.resultSetId,
+  });
+  return `${path}?${query.toString()}`;
+}
+
+export async function getMatchNeighborhood(
+  neighborhoodId: string,
+): Promise<MatchNeighborhoodSummaryResponse> {
+  const response = await fetch(buildPrimaryApiUrl(`/match/neighborhoods/${encodeURIComponent(neighborhoodId)}`), {
+    credentials: 'include',
+  });
+  return readJson<MatchNeighborhoodSummaryResponse>(response);
+}
+
+export async function getMatchNeighborhoodMapLayers(
+  neighborhoodId: string,
+  params: {
+    sessionId: string;
+    resultSetId: string;
+  },
+): Promise<MatchNeighborhoodMapLayersResponse> {
+  const path = appendLayerContext(
+    `/match/neighborhoods/${encodeURIComponent(neighborhoodId)}/map-layers`,
+    params,
+  );
+  const response = await fetch(buildPrimaryApiUrl(path), {
+    credentials: 'include',
+  });
+  return readJson<MatchNeighborhoodMapLayersResponse>(response);
+}
+
+export async function getMatchNeighborhoodBuildings(
+  neighborhoodId: string,
+  params: {
+    sessionId: string;
+    resultSetId: string;
+    boundsRd: [number, number, number, number] | number[];
+    lod?: 'low' | 'medium' | 'high';
+    limit?: number;
+  },
+): Promise<MatchNeighborhoodBuildingsResponse> {
+  const query = new URLSearchParams({
+    session_id: params.sessionId,
+    result_set_id: params.resultSetId,
+    bounds_rd: params.boundsRd.join(','),
+    lod: params.lod ?? 'low',
+    limit: String(params.limit ?? 50),
+  });
+  const response = await fetch(buildPrimaryApiUrl(
+    `/match/neighborhoods/${encodeURIComponent(neighborhoodId)}/buildings?${query.toString()}`,
+  ), {
+    credentials: 'include',
+  });
+  return readJson<MatchNeighborhoodBuildingsResponse>(response);
+}
+
+export async function getMatchNeighborhoodAmenities(
+  neighborhoodId: string,
+  params: {
+    sessionId: string;
+    resultSetId: string;
+  },
+): Promise<MatchNeighborhoodAmenitiesResponse> {
+  const path = appendLayerContext(
+    `/match/neighborhoods/${encodeURIComponent(neighborhoodId)}/amenities`,
+    params,
+  );
+  const response = await fetch(buildPrimaryApiUrl(path), {
+    credentials: 'include',
+  });
+  return readJson<MatchNeighborhoodAmenitiesResponse>(response);
 }

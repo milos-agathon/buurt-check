@@ -1,5 +1,21 @@
 import type { MatchResultsMapState, MatchSessionSnapshot } from '../types/matchFirst';
 
+export interface MatchReturnMapStateInput {
+  sessionId?: string;
+  jobId?: string;
+  resultSetId?: string;
+  preferenceVectorVersion?: string;
+  selectedResultId?: string;
+  neighborhoodId?: string;
+  selectedResultRank?: number;
+  selectedHouseId?: string;
+  mapCenter?: [number, number];
+  mapZoom?: number;
+  listScroll?: number;
+  mobileMode?: 'map' | 'list';
+  language?: 'en' | 'nl';
+}
+
 const SNAPSHOT_KEY_PREFIX = 'buurt-check-match-first-session:';
 const ACTIVE_SNAPSHOT_KEY = 'buurt-check-match-first-active-session';
 const RESULTS_MAP_STATE_KEY_PREFIX = 'buurt-check-match-results-map-state:';
@@ -103,6 +119,34 @@ export function saveMatchResultsMapState(sessionId: string, state: MatchResultsM
   } catch {
     // The active React state remains usable when browser storage is unavailable.
   }
+}
+
+export function saveMatchReturnContextAsResultsMapState(context: MatchReturnMapStateInput): void {
+  if (
+    !context.sessionId
+    || !context.jobId
+    || !context.resultSetId
+    || !context.preferenceVectorVersion
+    || !isMapCenter(context.mapCenter)
+    || !isFiniteNumber(context.mapZoom)
+  ) {
+    return;
+  }
+  saveMatchResultsMapState(context.sessionId, {
+    sessionId: context.sessionId,
+    jobId: context.jobId,
+    resultSetId: context.resultSetId,
+    preferenceVectorVersion: context.preferenceVectorVersion,
+    selectedRecommendationId: context.selectedResultId,
+    selectedNeighborhoodId: context.neighborhoodId,
+    selectedResultRank: context.selectedResultRank,
+    selectedHouseId: context.selectedHouseId,
+    mapCenter: context.mapCenter,
+    mapZoom: context.mapZoom,
+    listScroll: context.listScroll ?? 0,
+    mobileMode: context.mobileMode ?? 'map',
+    locale: context.language ?? 'en',
+  });
 }
 
 export function readMatchResultsMapState(sessionId: string | null | undefined): MatchResultsMapState | null {

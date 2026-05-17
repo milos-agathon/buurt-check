@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useReducedMotion } from 'framer-motion';
 import L from 'leaflet';
@@ -23,9 +23,11 @@ interface ResultsMapProps {
   sessionId: string;
   initialResults?: MatchResultsResponse | null;
   onBackToSurvey: () => void;
+  onOpenNeighborhood?: (recommendation: MatchNeighborhoodRecommendation) => void;
 }
 
 type MobileMode = 'map' | 'list';
+type SelectionSource = 'list' | 'map';
 
 const NETHERLANDS_CENTER: [number, number] = [52.2, 5.3];
 const NETHERLANDS_BOUNDS: [number, number, number, number] = [3.2, 50.7, 7.3, 53.6];
@@ -135,6 +137,7 @@ export default function ResultsMap({
   sessionId,
   initialResults = null,
   onBackToSurvey,
+  onOpenNeighborhood,
 }: ResultsMapProps) {
   const { t, i18n } = useTranslation();
   const reducedMotion = Boolean(useReducedMotion());
@@ -142,24 +145,31 @@ export default function ResultsMap({
   const [loading, setLoading] = useState(!initialResults);
   const [unavailable, setUnavailable] = useState(false);
   const restoredMapState = useMemo(() => readMatchResultsMapState(sessionId), [sessionId]);
+  const initialRestoredMapState = useMemo(() => (
+    initialResults && restoredStateMatchesResults(restoredMapState, initialResults)
+      ? restoredMapState
+      : null
+  ), [initialResults, restoredMapState]);
+  const startingMapState = initialResults ? initialRestoredMapState : restoredMapState;
   const restoredMapStateRef = useRef<MatchResultsMapState | null>(restoredMapState);
   const [selectedRecommendationId, setSelectedRecommendationId] = useState<string | undefined>(() => (
-    restoredMapState?.selectedRecommendationId
+    startingMapState?.selectedRecommendationId
   ));
   const [mobileMode, setMobileMode] = useState<MobileMode>(() => (
-    restoredMapState?.mobileMode ?? 'map'
+    startingMapState?.mobileMode ?? 'map'
   ));
   const [mapCenter, setMapCenter] = useState<[number, number]>(() => (
-    restoredMapState?.mapCenter ?? readCenter(initialResults?.map_center)
+    startingMapState?.mapCenter ?? readCenter(initialResults?.map_center)
   ));
   const [mapZoom, setMapZoom] = useState<number>(() => (
-    restoredMapState?.mapZoom ?? NATIONAL_ZOOM
+    startingMapState?.mapZoom ?? NATIONAL_ZOOM
   ));
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<L.Map | null>(null);
   const leafletLayerRef = useRef<L.LayerGroup | null>(null);
   const listRef = useRef<HTMLOListElement | null>(null);
   const recordedMapOpenRef = useRef(false);
+  const lastSelectionSourceRef = useRef<SelectionSource | null>(null);
   const locale: MatchFirstLocale = i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en';
   const results = initialResults ?? fetchedResults;
 
@@ -179,6 +189,7 @@ export default function ResultsMap({
           setMapZoom(restoredState.mapZoom);
         } else {
           setSelectedRecommendationId(undefined);
+          setMobileMode('map');
           setMapCenter(readCenter(response.map_center));
           setMapZoom(NATIONAL_ZOOM);
         }
@@ -202,6 +213,22 @@ export default function ResultsMap({
   const selectedRecommendation = recommendations.find((item) => item.recommendation_id === selectedRecommendationId);
   const mapBounds = useMemo(() => readBounds(results), [results]);
   const listScrollRestoredRef = useRef(false);
+
+  const persistMapState = useCallback((listScroll = listRef.current?.scrollTop ?? 0) => {
+    if (!results) return;
+    saveMatchResultsMapState(
+      sessionId,
+      createMapState(
+        results,
+        selectedRecommendation,
+        mapCenter,
+        mapZoom,
+        listScroll,
+        mobileMode,
+        locale,
+      ),
+    );
+  }, [locale, mapCenter, mapZoom, mobileMode, results, selectedRecommendation, sessionId]);
 
   useEffect(() => {
     if (!results || recordedMapOpenRef.current) return;
@@ -240,21 +267,26 @@ export default function ResultsMap({
       listScrollRestoredRef.current = true;
       listRef.current.scrollTop = restoredState.listScroll;
     }
-    saveMatchResultsMapState(
-      sessionId,
-      createMapState(
-        results,
-        selectedRecommendation,
-        mapCenter,
-        mapZoom,
-        listRef.current?.scrollTop ?? 0,
-        mobileMode,
-        locale,
-      ),
-    );
-  }, [locale, mapCenter, mapZoom, mobileMode, results, selectedRecommendation, sessionId]);
+    persistMapState(listRef.current?.scrollTop ?? 0);
+  }, [persistMapState, results]);
 
-  const moveMapToRecommendation = useCallback((recommendation: MatchNeighborhoodRecommendation, source: 'list' | 'map') => {
+  const handleListScroll = useCallback((event: UIEvent<HTMLOListElement>) => {
+    persistMapState(event.currentTarget.scrollTop);
+  }, [persistMapState]);
+
+  useEffect(() => {
+    if (lastSelectionSourceRef.current !== 'map' || !selectedRecommendationId) return;
+    const selectedItem = listRef.current?.querySelector<HTMLElement>('[data-selected-recommendation="true"]');
+    if (typeof selectedItem?.scrollIntoView === 'function') {
+      selectedItem.scrollIntoView({
+        block: 'nearest',
+        behavior: reducedMotion ? 'auto' : 'smooth',
+      });
+    }
+    lastSelectionSourceRef.current = null;
+  }, [reducedMotion, selectedRecommendationId]);
+
+  const moveMapToRecommendation = useCallback((recommendation: MatchNeighborhoodRecommendation, source: SelectionSource) => {
     const center = recommendationCenter(recommendation);
     setMapCenter(center);
     setMapZoom(SELECTED_ZOOM);
@@ -264,7 +296,8 @@ export default function ResultsMap({
     }
   }, [reducedMotion]);
 
-  const selectRecommendation = useCallback((recommendation: MatchNeighborhoodRecommendation, source: 'list' | 'map') => {
+  const selectRecommendation = useCallback((recommendation: MatchNeighborhoodRecommendation, source: SelectionSource) => {
+    lastSelectionSourceRef.current = source;
     setSelectedRecommendationId(recommendation.recommendation_id);
     moveMapToRecommendation(recommendation, source);
     recordMatchFirstEvent(source === 'map' ? 'match_map_feature_selected' : 'match_recommendation_selected', {
@@ -280,10 +313,34 @@ export default function ResultsMap({
     });
   }, [locale, mobileMode, moveMapToRecommendation, results, sessionId]);
 
+  const openNeighborhoodDetail = useCallback((recommendation: MatchNeighborhoodRecommendation) => {
+    if (!results || !onOpenNeighborhood) return;
+    const center = recommendationCenter(recommendation);
+    setSelectedRecommendationId(recommendation.recommendation_id);
+    setMapCenter(center);
+    setMapZoom(SELECTED_ZOOM);
+    leafletMapRef.current?.setView(center, SELECTED_ZOOM, { animate: false });
+    saveMatchResultsMapState(
+      sessionId,
+      createMapState(
+        results,
+        recommendation,
+        center,
+        SELECTED_ZOOM,
+        listRef.current?.scrollTop ?? 0,
+        mobileMode,
+        locale,
+      ),
+    );
+    onOpenNeighborhood(recommendation);
+  }, [locale, mobileMode, onOpenNeighborhood, results, sessionId]);
+
   useEffect(() => {
     if (!mapElementRef.current || leafletMapRef.current || !results) return;
     try {
-      const restoredMapState = restoredMapStateRef.current;
+      const restoredMapState = restoredStateMatchesResults(restoredMapStateRef.current, results)
+        ? restoredMapStateRef.current
+        : null;
       const initialCenter = restoredMapState?.mapCenter ?? readCenter(results.map_center);
       const initialZoom = restoredMapState?.mapZoom ?? NATIONAL_ZOOM;
       const leafletMap = L.map(mapElementRef.current, {
@@ -497,6 +554,8 @@ export default function ResultsMap({
             recommendations={recommendations}
             selectedRecommendationId={selectedRecommendationId}
             onSelect={(recommendation) => selectRecommendation(recommendation, 'list')}
+            onOpenDetail={onOpenNeighborhood ? openNeighborhoodDetail : undefined}
+            onScroll={handleListScroll}
           />
         </div>
       </div>

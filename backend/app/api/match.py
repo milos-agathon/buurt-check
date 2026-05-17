@@ -1,4 +1,6 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Response
+from typing import Literal
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response
 from fastapi.responses import JSONResponse
 
 from app.models.match import (
@@ -16,6 +18,10 @@ from app.models.match import (
     MatchFeedbackResponse,
     MatchJobStatusResponse,
     MatchMapResponse,
+    MatchNeighborhoodAmenitiesResponse,
+    MatchNeighborhoodBuildingsResponse,
+    MatchNeighborhoodMapLayersResponse,
+    MatchNeighborhoodSummaryResponse,
     MatchQuizRequest,
     MatchQuizResponse,
     MatchRecommendationsRequest,
@@ -43,8 +49,18 @@ from app.models.match import (
     SurveyAnswerPatchResponse,
 )
 from app.services.match.alerts import create_alert, delete_alert, list_alerts, update_alert
+from app.services.match.amenities import get_preference_aware_amenities
+from app.services.match.buildings import get_scoped_neighborhood_buildings
 from app.services.match.comparison import build_neighborhood_comparison
 from app.services.match.feedback import record_feedback
+from app.services.match.geometry import (
+    BoundsParseError,
+    BuildingBoundsOutOfScopeError,
+    NeighborhoodNotFoundError,
+    get_neighborhood_map_layers,
+    get_neighborhood_summary,
+    parse_bounds_rd,
+)
 from app.services.match.jobs import (
     AnswersIncompleteError,
     MatchJobNotFoundError,
@@ -228,6 +244,187 @@ async def read_session_match_results(
 
 async def _load_seed_context():
     return await SeedMockImporter().load_seed_data(MVP_REGION_CONFIG_ID)
+
+
+async def _validate_completed_neighborhood_context(
+    *,
+    session_id: str,
+    result_set_id: str,
+    neighborhood_id: str,
+) -> None:
+    try:
+        results = await get_match_results(session_id)
+    except MatchSessionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchResultsNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.results.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchResultsNotReadyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+    if results.result_set_id != result_set_id:
+        raise HTTPException(
+            status_code=409,
+            detail="match.results.stale",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    visible_neighborhood_ids = {
+        item.neighborhood_id
+        for item in [
+            *results.ranked_results,
+            *results.stretch_matches,
+            *results.near_misses,
+        ]
+    }
+    if neighborhood_id not in visible_neighborhood_ids:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        )
+
+
+@router.get("/neighborhoods/{neighborhood_id}", response_model=MatchNeighborhoodSummaryResponse)
+async def read_match_neighborhood(
+    neighborhood_id: str,
+    response: Response,
+) -> MatchNeighborhoodSummaryResponse:
+    _mark_no_store(response)
+    try:
+        return await get_neighborhood_summary(neighborhood_id)
+    except NeighborhoodNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.get(
+    "/neighborhoods/{neighborhood_id}/map-layers",
+    response_model=MatchNeighborhoodMapLayersResponse,
+)
+async def read_match_neighborhood_map_layers(
+    neighborhood_id: str,
+    response: Response,
+    session_id: str,
+    result_set_id: str,
+) -> MatchNeighborhoodMapLayersResponse:
+    _mark_no_store(response)
+    await _validate_completed_neighborhood_context(
+        session_id=session_id,
+        result_set_id=result_set_id,
+        neighborhood_id=neighborhood_id,
+    )
+    try:
+        return await get_neighborhood_map_layers(
+            neighborhood_id,
+            session_id=session_id,
+            result_set_id=result_set_id,
+        )
+    except NeighborhoodNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.get(
+    "/neighborhoods/{neighborhood_id}/buildings",
+    response_model=MatchNeighborhoodBuildingsResponse,
+)
+async def read_match_neighborhood_buildings(
+    neighborhood_id: str,
+    response: Response,
+    session_id: str,
+    result_set_id: str,
+    bounds_rd: str,
+    lod: Literal["low", "medium", "high"] = "low",
+    limit: int = Query(default=50, ge=1, le=100),
+) -> MatchNeighborhoodBuildingsResponse:
+    _mark_no_store(response)
+    await _validate_completed_neighborhood_context(
+        session_id=session_id,
+        result_set_id=result_set_id,
+        neighborhood_id=neighborhood_id,
+    )
+    try:
+        parsed_bounds = parse_bounds_rd(bounds_rd)
+        return await get_scoped_neighborhood_buildings(
+            neighborhood_id,
+            session_id=session_id,
+            result_set_id=result_set_id,
+            bounds_rd=parsed_bounds,
+            lod=lod,
+            limit=limit,
+        )
+    except BoundsParseError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except BuildingBoundsOutOfScopeError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except NeighborhoodNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.get(
+    "/neighborhoods/{neighborhood_id}/amenities",
+    response_model=MatchNeighborhoodAmenitiesResponse,
+)
+async def read_match_neighborhood_amenities(
+    neighborhood_id: str,
+    response: Response,
+    session_id: str,
+    result_set_id: str,
+) -> MatchNeighborhoodAmenitiesResponse:
+    _mark_no_store(response)
+    await _validate_completed_neighborhood_context(
+        session_id=session_id,
+        result_set_id=result_set_id,
+        neighborhood_id=neighborhood_id,
+    )
+    try:
+        return await get_preference_aware_amenities(
+            neighborhood_id,
+            session_id=session_id,
+            result_set_id=result_set_id,
+        )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except NeighborhoodNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
 
 
 @router.post("/recommendations", response_model=MatchRecommendationsResponse)

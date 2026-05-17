@@ -31,6 +31,13 @@ export interface MatchReturnContext {
   target: string;
   sessionId?: string;
   neighborhoodId?: string;
+  jobId?: string;
+  resultSetId?: string;
+  preferenceVectorVersion?: string;
+  source?: 'match_map';
+  addressId?: string;
+  buildingId?: string;
+  returnUrl?: string;
   mapCenter?: [number, number];
   mapZoom?: number;
   listScroll?: number;
@@ -158,6 +165,13 @@ function buildCanonicalMatchReturnContext(
     target,
     sessionId,
     neighborhoodId,
+    jobId: typeof value.jobId === 'string' ? value.jobId : undefined,
+    resultSetId: typeof value.resultSetId === 'string' ? value.resultSetId : undefined,
+    preferenceVectorVersion: typeof value.preferenceVectorVersion === 'string' ? value.preferenceVectorVersion : undefined,
+    source: value.source === 'match_map' ? value.source : undefined,
+    addressId: typeof value.addressId === 'string' ? value.addressId : undefined,
+    buildingId: typeof value.buildingId === 'string' ? value.buildingId : undefined,
+    returnUrl: typeof value.returnUrl === 'string' ? value.returnUrl : undefined,
     mapCenter: value.mapCenter,
     mapZoom: value.mapZoom,
     listScroll: value.listScroll,
@@ -221,6 +235,41 @@ function parseStructuredMatchReturnContext(encodedContext: string | undefined): 
     if (hasOwn(parsed, 'selectedHouseId')) {
       if (typeof parsed.selectedHouseId !== 'string') return { context: {}, malformed: true };
       context.selectedHouseId = parsed.selectedHouseId;
+    }
+
+    if (hasOwn(parsed, 'jobId')) {
+      if (typeof parsed.jobId !== 'string') return { context: {}, malformed: true };
+      context.jobId = parsed.jobId;
+    }
+
+    if (hasOwn(parsed, 'resultSetId')) {
+      if (typeof parsed.resultSetId !== 'string') return { context: {}, malformed: true };
+      context.resultSetId = parsed.resultSetId;
+    }
+
+    if (hasOwn(parsed, 'preferenceVectorVersion')) {
+      if (typeof parsed.preferenceVectorVersion !== 'string') return { context: {}, malformed: true };
+      context.preferenceVectorVersion = parsed.preferenceVectorVersion;
+    }
+
+    if (hasOwn(parsed, 'source')) {
+      if (parsed.source !== 'match_map') return { context: {}, malformed: true };
+      context.source = parsed.source;
+    }
+
+    if (hasOwn(parsed, 'addressId')) {
+      if (typeof parsed.addressId !== 'string') return { context: {}, malformed: true };
+      context.addressId = parsed.addressId;
+    }
+
+    if (hasOwn(parsed, 'buildingId')) {
+      if (typeof parsed.buildingId !== 'string') return { context: {}, malformed: true };
+      context.buildingId = parsed.buildingId;
+    }
+
+    if (hasOwn(parsed, 'returnUrl')) {
+      if (typeof parsed.returnUrl !== 'string') return { context: {}, malformed: true };
+      context.returnUrl = parsed.returnUrl;
     }
 
     return { context, malformed: false };
@@ -468,6 +517,13 @@ export function buildHashRoute(parsed: ParsedHashRoute): string {
           ...(typeof matchReturn.selectedResultRank === 'number' ? { selectedResultRank: matchReturn.selectedResultRank } : {}),
           ...(matchReturn.language ? { language: matchReturn.language } : {}),
           ...(matchReturn.selectedHouseId ? { selectedHouseId: matchReturn.selectedHouseId } : {}),
+          ...(matchReturn.jobId ? { jobId: matchReturn.jobId } : {}),
+          ...(matchReturn.resultSetId ? { resultSetId: matchReturn.resultSetId } : {}),
+          ...(matchReturn.preferenceVectorVersion ? { preferenceVectorVersion: matchReturn.preferenceVectorVersion } : {}),
+          ...(matchReturn.source ? { source: matchReturn.source } : {}),
+          ...(matchReturn.addressId ? { addressId: matchReturn.addressId } : {}),
+          ...(matchReturn.buildingId ? { buildingId: matchReturn.buildingId } : {}),
+          ...(matchReturn.returnUrl ? { returnUrl: matchReturn.returnUrl } : {}),
         };
         if (Object.keys(structuredContext).length > 0) {
           params.set('match_context', JSON.stringify(structuredContext));
@@ -503,6 +559,13 @@ export function buildHashRoute(parsed: ParsedHashRoute): string {
       ...(typeof matchReturn.selectedResultRank === 'number' ? { selectedResultRank: matchReturn.selectedResultRank } : {}),
       ...(matchReturn.language ? { language: matchReturn.language } : {}),
       ...(matchReturn.selectedHouseId ? { selectedHouseId: matchReturn.selectedHouseId } : {}),
+      ...(matchReturn.jobId ? { jobId: matchReturn.jobId } : {}),
+      ...(matchReturn.resultSetId ? { resultSetId: matchReturn.resultSetId } : {}),
+      ...(matchReturn.preferenceVectorVersion ? { preferenceVectorVersion: matchReturn.preferenceVectorVersion } : {}),
+      ...(matchReturn.source ? { source: matchReturn.source } : {}),
+      ...(matchReturn.addressId ? { addressId: matchReturn.addressId } : {}),
+      ...(matchReturn.buildingId ? { buildingId: matchReturn.buildingId } : {}),
+      ...(matchReturn.returnUrl ? { returnUrl: matchReturn.returnUrl } : {}),
     };
     if (Object.keys(structuredContext).length > 0) {
       params.set('match_context', JSON.stringify(structuredContext));

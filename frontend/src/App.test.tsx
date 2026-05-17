@@ -1422,6 +1422,7 @@ describe('hash route recovery', () => {
     await waitForDossierLoaded();
 
     const backToMap = screen.getByRole('button', { name: 'Back to match map' });
+    expect(screen.getByText('Selected neighborhood: BU0363AA01')).toBeInTheDocument();
     fireEvent.click(backToMap);
 
     expect(window.location.hash).toBe('#/match/session/match-123/neighborhood/BU0363AA01');

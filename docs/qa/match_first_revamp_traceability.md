@@ -1,11 +1,11 @@
 # Match-First Revamp Traceability
 
-Date: 2026-05-16
+Date: 2026-05-17
 
 Scope: Match-first revamp phase traceability, including Phase 1/2 closure
-evidence, Phase 3 backend 100% closure repair, Phase 4 progress/success UI
-completion, and Phase 5 Netherlands results map/list completion before Phase 6
-selected-neighborhood detail.
+evidence, Phase 3 backend 100% closure repair, Phase 4 progress/success UI,
+Phase 5 Netherlands results map/list, and Phase 6 selected-neighborhood detail
+completion. Phase 7 house-to-Dossier bridge behavior remains unimplemented.
 
 ## CI Repair 2026-05-16
 
@@ -133,7 +133,7 @@ Completion after review repair and audit repair: **100% (9/9 Phase 4 closure row
 | Terminal result gating still allowed completion when terminal status omitted `result_set_id`. | Require terminal `status.result_set_id` to be present and exactly equal to `results.result_set_id` before `onComplete`, and record `match_results_unavailable` with reason `missing_result_set_id` when the terminal identifier is null or missing. | `frontend/src/components/match-first/MatchingProgressScreen.tsx`, `frontend/src/test/match-first-progress.test.tsx` | A terminal status with null or missing `result_set_id` cannot unlock the checkmark even when `GET /results` otherwise matches `session_id`, `job_id`, and `status`; the user sees Results unavailable, `onComplete` is not called, and sanitized analytics records the unavailable result. | Red-first: `cd frontend && npm run test -- src/test/match-first-progress.test.tsx` failed with 2 null/missing `result_set_id` failures before the fix. Final: the same command passed with 24 tests; the broader requested Phase 4 command passed with 55 tests. |
 | Phase 4 accessibility evidence over-relied on route placeholders. | Add axe coverage for real `MatchingProgressScreen` running, failed retry, and results-unavailable states, plus `MatchSuccessCheckmark` animated and reduced-motion states. | `frontend/src/test/match-first-a11y.test.tsx` | Real Phase 4 progress and success components have no serious axe violations in those states. Focus/touch-target behavior is not overclaimed from this evidence and remains a browser-level residual check where not directly tested. | `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx` passed with 19 tests; broader requested Phase 4 command passed with 55 tests. |
 | Phase 4 needed privacy-safe frontend lifecycle analytics. | Extend the frontend analytics allowlist and tests for progress/success/results-unavailable events while keeping sanitized context only. | `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts` | Event names align with the Phase 3 backend/spec set; context permits stable status/runtime IDs but drops translated labels/free text. `match_results_unavailable` is recorded for stale or unavailable terminal result hydration. | `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts`; `cd frontend && npx eslint src/services/matchFirstAnalytics.ts` passed. |
-| Phase 4 needed closure proof before Phase 5/6. | Run targeted frontend tests, touched-file lint, frontend build, and document residual risks. | `specs/002-match-first-revamp/tasks.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | `T-034` through `T-042` are marked complete, Phase 4 evidence is recorded, and Phase 6 remains the next unimplemented product phase after the documented Phase 5 slice. | Earlier Phase 4 commands passed; audit repair final commands also passed: `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/test/match-first-a11y.test.tsx src/components/match-first/MatchSuccessCheckmark.test.tsx src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts` with 55 tests; targeted ESLint for the touched Phase 4 files; `cd frontend && npm run build`. |
+| Phase 4 needed closure proof before Phase 5/6. | Run targeted frontend tests, touched-file lint, frontend build, and document residual risks. | `specs/002-match-first-revamp/tasks.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | `T-034` through `T-042` are marked complete. Later Phase 5 and Phase 6 closure is recorded in their own sections below. | Earlier Phase 4 commands passed; audit repair final commands also passed: `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/test/match-first-a11y.test.tsx src/components/match-first/MatchSuccessCheckmark.test.tsx src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts` with 55 tests; targeted ESLint for the touched Phase 4 files; `cd frontend && npm run build`. |
 
 Closure status after 2026-05-16 review repair and audit repair verification: **Phase 4 progress and success states are 100% complete for the documented scope.** The flow now runs final matching through the backend, polls status, handles slow/failed/expired/cancelled/fallback/no-strong-match public states, validates terminal result payload identity before success including present/exact `result_set_id`, shows a distinct localized results-unavailable recovery when result hydration fails or terminal result identity is missing, shows the reduced-motion-aware branded checkmark only after verified results, and transitions by CTA to the results route. Phase 6 selected-neighborhood 3D/detail and Phase 7 Dossier bridge remain unimplemented. Full repo lint was attempted previously and still has pre-existing files outside the Phase 4 touched surface; touched Phase 4 lint targets passed. Phase 4 a11y evidence is component-level axe plus existing keyboard/focus coverage, not a full browser touch-target audit.
 
@@ -163,23 +163,118 @@ Completion after implementation: **100% (10/10 Phase 5 task rows marked complete
 | Results analytics needed stable event names. | Extended the frontend analytics allowlist for results open, sufficient confidence, recommendation selected, map feature selected, and map layer failed. | `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts` | Events keep stable IDs and sanitized context only. | `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts` passed as part of the focused command. |
 | Phase 5 needed closure proof and next-step handoff. | Updated task status, traceability, implementation notes, and latest handoff with files changed, commands, performance notes, fallbacks, and residual risks. | `specs/002-match-first-revamp/tasks.md`, `specs/002-match-first-revamp/implementation-notes.md`, `docs/qa/match_first_revamp_traceability.md`, `docs/ai/latest_handoff.md` | Phase 6 is clearly the next implementation step, and Phase 5 does not claim 3D/detail/Dossier bridge completion. | This document and `docs/ai/latest_handoff.md` updated. |
 
+## Phase 5 Review Repair 2026-05-16
+
+| Gap / requirement | Exact work completed | Files changed | Acceptance criteria | Verification |
+| --- | --- | --- | --- | --- |
+| Stale restored map state could bypass the required Netherlands start when success opened results from verified in-memory results after a rerun. | Validated saved map state against active `initialResults.result_set_id` and `preference_vector_version` before using selected recommendation, mobile mode, map center, or zoom. Also applied the same guard during Leaflet initialization and reset stale fetched-route mobile mode to Map. | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/test/match-first-results-map.test.tsx` | A new result set or vector version starts at the Netherlands center, national zoom, Map mode, and no preselected recommendation even when `sessionStorage` contains a previous selected view for the same session. | Red-first: `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx` failed with `data-map-center="52.1,5.03"` instead of `52.2,5.3`; final command passed with 8 tests. |
+| Map-origin selection highlighted the matching card but could leave it out of view in a longer scrollable list. | Added a selected list-row marker and scroll the selected recommendation row into view after marker or polygon selection. List-origin selection remains unchanged. | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/test/match-first-results-map.test.tsx` | Clicking a marker or polygon selects the recommendation and visibly reveals the matching list item through `scrollIntoView` where the browser supports it. | Red-first: map-origin selection did not call `scrollIntoView`; final map test suite passed. |
+| List scroll state was persisted only when another tracked state changed after scrolling. | Added an `onScroll` handler to `RecommendationList` and save `listScroll` directly from the scroll event. | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/test/match-first-results-map.test.tsx` | Scrolling the ranked list updates the saved map state immediately, so later Dossier-return restoration can use the user's final list position. | Red-first: scroll event persisted `listScroll: 0` instead of `144`; final map test suite passed. |
+| Phase 5 review repair needed closure proof without claiming Phase 6/7 work. | Ran SpecKit prerequisites/checklist validation, targeted map tests, related a11y/i18n/copy tests, touched-file ESLint, broader Phase 5-focused Vitest, frontend build, and updated handoff/traceability. | `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Phase 5 findings are closed for this map/list slice. Selected-neighborhood detail/3D, house click, and Dossier bridge remain later phases. | Commands listed below passed; broader Vitest still prints existing Dossier/3D console output and React act warnings from `App.test.tsx`, with no failed tests. |
+
 Final verified commands for Phase 5:
 
+- `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` returned `FEATURE_DIR` as `C:\Users\milos\buurt-check\specs\002-match-first-revamp` with `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and `tasks.md` available.
+- Checklist status: `requirements.md` passed with 76/76 completed items.
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx` first failed for the three review regressions, then passed with 8 tests after the repair.
 - `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx -- -t "restores saved map view"` first failed for the restored cold-route state regression, then passed after the repair.
-- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx` passed.
 - `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts` passed with 28 tests.
 - `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx src/test/match-first-progress.test.tsx src/App.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed. Existing noisy Dossier/3D console output and React act warnings still print from older tests, but no tests failed.
 - `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx` passed for the Phase 5 slice; the expanded current suite passes with 19 tests in the Phase 4 audit repair.
+- `cd frontend && npx eslint src/components/match-first/ResultsMap.tsx src/components/match-first/RecommendationList.tsx src/test/match-first-results-map.test.tsx` passed for the review repair.
 - `cd frontend && npx eslint src/components/match-first/ResultsMap.tsx src/test/match-first-results-map.test.tsx` passed for the repair.
 - `cd frontend && npm exec -- eslint src/components/match-first/ResultsMap.tsx src/components/match-first/RecommendationCard.tsx src/components/match-first/RecommendationList.tsx src/test/match-first-results-map.test.tsx` passed in the original Phase 5 closure.
-- `cd frontend && npm run build` passed.
+- `cd frontend && npm run build` passed; the review-repair build emitted `ResultsMap-aGJKtWIH.js` at 160.78 kB / 46.41 kB gzip and `ResultsMap-CoY3xfYW.css` at 20.75 kB / 7.88 kB gzip.
 
 Residual Phase 5 risks:
 
 - Full `cd frontend && npm run lint` still fails on pre-existing non-Phase-5 files; targeted lint for the new Phase 5 files passed.
 - No Playwright e2e/browser performance test was added in this slice. Build chunk evidence and targeted Vitest coverage exist, but browser-level map profiling remains open before production release.
-- Phase 6 must add selected-neighborhood detail without loading national 3D buildings. Phase 7 must connect persisted map state to the existing Dossier return flow.
+- Phase 7 must connect selected house/building context to the existing Dossier return flow.
 - `npm install` reported 15 audit vulnerabilities after adding Leaflet dependencies; remediation was outside this Phase 5 scope.
+
+## Phase 6 Selected-Neighborhood Detail
+
+Completion after implementation: **complete for the requested Phase 6 slice**. The
+selected-neighborhood route/state now opens from a result recommendation, loads
+completed results without rerunning matching, requests selected-neighborhood
+geometry/layers/amenities/buildings only after selection, validates building
+RD New bounds server-side, renders a nonblank 2D fallback when seed 3D is
+missing, and leaves Phase 7 Dossier bridge out of scope.
+
+| PRD / constitution item | Implementation surface | Acceptance criteria | Verification |
+| --- | --- | --- | --- |
+| PRD FR-N1, FR-N2, FR-N5, FR-N6; Sections 14.3 and 16.3; Constitution IV/XIII | `backend/app/api/match.py`, `backend/app/models/match.py`, `backend/app/services/match/geometry.py`, `backend/app/services/match/buildings.py`, `backend/tests/test_match_neighborhood_layers.py` | `/api/match/neighborhoods/{id}`, `/map-layers`, and `/buildings` expose selected-neighborhood-only geometry. Building requests require `session_id`, `result_set_id`, `bounds_rd`, `lod`, and `limit`; national/out-of-bounds RD requests return stable `match.building_bounds_out_of_scope`. | `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 4 tests; `cd backend && ruff check app tests/test_match_neighborhood_layers.py` passed. |
+| PRD FR-N3; Section 16.4; Constitution V/X | `backend/app/services/match/amenities.py`, `backend/app/models/match.py`, `frontend/src/components/match-first/AmenityTags.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-neighborhood-detail.test.tsx` | Amenity tags are preference-aware from stored session answers, use stable translated label/reason keys, are capped to 5-7 default-visible categories, and do not return national/all-amenity clutter. | Backend amenity cap/relevance test passed in `test_match_neighborhood_layers.py`; frontend detail test verifies 7 rendered tags and empty map points; i18n/copy guards passed. |
+| PRD FR-N1, FR-N2, FR-N5; A11Y-6; Constitution VII/IX | `frontend/src/App.tsx`, `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/RecommendationCard.tsx`, `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/test/match-first-results-map.test.tsx` | Result-card "View neighborhood" opens `#/match/session/{session_id}/neighborhood/{id}` state. The detail view shows selected boundary, fit context, concise translated reason lines, 2D missing-3D fallback, and stores selected-neighborhood map state for later return. Building fetches occur only after layer bounds are loaded for the selected neighborhood. | `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-results-map.test.tsx src/services/matchFirstApi.test.ts` passed with 23 tests. |
+| PRD FR-N4, FR-N6; Phase 7 boundary; Constitution VI | `frontend/src/components/match-first/HouseSelectionPanel.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx` | House/building selection is only exposed for reliable/candidate/manual fallback building records. With current missing 3D/no reliable address seed data, the list fallback remains usable and does not navigate to Dossier or implement Phase 7. | Frontend detail tests verify no-reliable-address list fallback and no `/run` or Dossier route behavior. |
+| PRD Sections 20.3, 21.2; Constitution XV | `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json` | Privacy-safe events cover detail open, building-layer failure, amenity-layer failure, and missing-3D fallback. Localized fallback keys cover missing 3D, layer/building/amenity failures, no reliable address, and selected-neighborhood loading. | `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts` passed. |
+| PRD A11Y-1 to A11Y-6; performance/canvas fallback requirement | `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/test/match-first-a11y.test.tsx` | Recommendations remain usable from the non-map list path, the selected-neighborhood fallback is accessible, and the canvas fallback reports a drawn nonblank state in component tests. | `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-a11y.test.tsx` passed as part of the 51-test focused command. |
+
+## Phase 6 Review Repair 2026-05-17
+
+| Review finding / risk | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Amenity endpoint failure could clear selected-neighborhood map/layer data and block the scoped building/2D fallback path. | Replaced the coupled detail fetch `Promise.all` with settled request handling. Summary and map-layer results now survive an amenity failure, amenities show their localized unavailable state, and the selected-bounds building fallback still runs. | `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx` | Red-first: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "keeps selected map"` first failed because the selected map lost display bounds after an amenity failure. Final targeted command passed with the strict bounds regression: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "keeps selected map|uses the exact selected"` passed with 2 tests. |
+| Frontend no-national-3D coverage checked only that one national bbox string was absent. | Parsed the building request URL and asserted `bounds_rd` exactly equals the selected map-layer `allowed_bounds_rd`, including a non-round decimal bounds regression. | `frontend/src/test/match-first-neighborhood-detail.test.tsx` | `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "uses the exact selected"` passed as part of the final targeted command. |
+| Backend national/out-of-scope coverage lacked a near-edge regression. | Added a centimeter-scale RD New bounds escape in addition to the national-bounds rejection. | `backend/tests/test_match_neighborhood_layers.py` | `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "building_requests"` passed; full `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 4 tests. |
+| CI confidence before commit/push needed full local gate evidence. | Ran the local equivalents of the active GitHub workflow jobs plus touched-file lint. | Frontend/backend test and build surfaces; documentation updated here and in handoff. | `cd frontend && npm run test` passed; `cd frontend && npm run build` passed; `npm run landing:test:e2e` passed with 23 tests and 1 skipped; `cd backend && ruff check .` passed; `cd backend && pytest -x -q -m "not live and not visual and not benchmark"` passed with 1337 tests, 8 skipped, and 17 deselected; `cd backend && pytest -x -q -m "benchmark"` passed with 2 tests and 1360 deselected; `cd backend && pytest -x -q -m "visual"` collected 4 skipped and 1358 deselected locally. |
+
+Final verified commands for Phase 6:
+
+- `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` returned `FEATURE_DIR` as `C:\Users\milos\buurt-check\specs\002-match-first-revamp` with required docs available.
+- Checklist status: `requirements.md` passed with 76/76 completed items.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 4 tests.
+- `cd backend && ruff check app tests/test_match_neighborhood_layers.py` passed.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-results-map.test.tsx src/services/matchFirstApi.test.ts src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts` passed with 51 tests.
+- `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts` passed with 7 tests.
+- `cd frontend && npx eslint src/components/match-first/ResultsMap.tsx src/components/match-first/RecommendationCard.tsx src/components/match-first/RecommendationList.tsx src/components/match-first/NeighborhoodDetail.tsx src/components/match-first/NeighborhoodBuildingLayer.tsx src/components/match-first/AmenityTags.tsx src/components/match-first/HouseSelectionPanel.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-results-map.test.tsx src/services/matchFirstApi.ts src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.ts` passed.
+- `cd frontend && npm run build` passed. Build emitted a lazy `NeighborhoodDetail-D6byeTfP.js` chunk at 11.40 kB / 3.24 kB gzip and `NeighborhoodDetail-BkE5_SO2.css` at 3.37 kB / 1.07 kB gzip.
+- 2026-05-17 review-repair verification additionally passed:
+  `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-first-results-map.test.tsx src/services/matchFirstApi.test.ts src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts` with 53 tests;
+  `cd frontend && npm run test`; `cd frontend && npm run build`;
+  `npm run landing:test:e2e`; `cd backend && ruff check .`;
+  `cd backend && pytest -x -q -m "not live and not visual and not benchmark"`;
+  `cd backend && pytest -x -q -m "benchmark"`; and
+  `cd backend && pytest -x -q -m "visual"` with local visual tests skipped.
+
+Residual Phase 6 risks:
+
+- Real selected-neighborhood 3D rendering remains a provider/data integration risk; the implemented path correctly scopes building requests and shows the localized 2D fallback for current missing 3D data.
+- Browser-level Playwright/mobile-performance proof for the selected-neighborhood canvas remains open before production release.
+- Direct `npx eslint src/App.tsx` still reports the repo's pre-existing `react-refresh/only-export-components` issue for exported helper `getMatchRouteMotionProps` plus an unrelated hook dependency warning; targeted lint for the new/changed Phase 6 files passed.
+- Phase 7 house-to-existing-Dossier bridge remains unimplemented and is tracked
+  as the next product phase.
+
+## Phase 7 Dossier Bridge
+
+Status: **not implemented**. A stale Phase 7 bridge implementation was removed
+on 2026-05-17 to keep the current commit Phase 6-only. Existing Dossier modules
+and route-context scaffolding from earlier phases remain preserved, but there is
+no active match house-to-Dossier resolver endpoint or selected-house Dossier
+navigation.
+
+| PRD / constitution item | Current status | Verification |
+| --- | --- | --- |
+| PRD FR-D1, FR-D5; Section 21.5; Constitution VI | Missing. `POST /api/match/dossier/from-building`, `backend/app/services/match/dossier_bridge.py`, bridge models, and bridge tests are absent from the active codebase. | `rg -n "resolveDossierFromBuilding|dossier/from-building|MatchDossier|DossierBridge" frontend/src backend/app backend/tests` reports no active backend/API/type implementation. |
+| PRD FR-D1, FR-D2, FR-D5; Constitution IX | Partial prerequisite only. Phase 6 selected-house state is stored locally, but it does not open Dossier or call a bridge. | `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts` passed with 27 tests, including negative `/dossier/from-building` assertions. |
+| PRD FR-D3; Dossier/risk-card contract; Constitution VI | Preserved existing Dossier behavior from earlier phases. No Phase 7 Dossier integration was added in this commit. | Existing Dossier modules were not changed by the Phase 6 boundary repair. |
+| PRD Sections 20.4 and 21.5; Constitution XV | Missing for Phase 7-specific Dossier open/back-to-map events. Phase 6 keeps only privacy-safe detail/fallback/house-selected analytics. | `frontend/src/services/matchFirstAnalytics.ts` no longer allowlists `match_dossier_opened` or `match_back_to_map_*` events. |
+
+Boundary repair verification:
+
+- `rg -n "resolveDossierFromBuilding|dossier/from-building|MatchDossier|DossierBridge|onOpenDossier|openMatchDossierRoute|pendingBuildingId|setPendingBuildingId|match_dossier_opened|match_back_to_map" frontend/src backend/app backend/tests` reports only the existing manual Dossier fallback handler in `App.tsx` and negative assertions in `match-first-neighborhood-detail.test.tsx`.
+- `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts src/services/matchFirstAnalytics.test.ts` passed with 27 tests.
+- `cd backend && ruff check .` passed.
+- `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 4 tests.
+
+Residual Phase 7 risks:
+
+- House click -> existing Dossier -> Back to match map -> second house remains
+  unimplemented and should be handled as a future Phase 7 slice.
+- Ambiguous multi-address candidate handling remains future provider-data scope.
+- Return context should be revalidated during Phase 7 against the then-current
+  Phase 5/6 map state model.
 
 ## Punch-List Fixes 2026-05-13 to 2026-05-14
 

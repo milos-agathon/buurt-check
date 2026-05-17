@@ -155,6 +155,54 @@ it('allows the full Phase 4 progress, terminal, retry, and unavailable event set
   ]));
 });
 
+it('allows Phase 6 selected-neighborhood analytics without address text', () => {
+  recordMatchFirstEvent('match_house_selected', {
+    locale: 'nl',
+    source: 'match_map',
+    session_id: 'match-123',
+    result_set_id: 'mrs-123',
+    neighborhood_id: 'BU0363AA01',
+    selected_house_id: 'bldg_001',
+    address_label: 'Do not store this address',
+  });
+  recordMatchFirstEvent('match_missing_3d_fallback_shown', {
+    locale: 'nl',
+    source: 'neighborhood',
+    session_id: 'match-123',
+    result_set_id: 'mrs-123',
+    neighborhood_id: 'BU0363AA01',
+    fallback_reason_code: 'matchFirst.neighborhood.missing3d',
+  });
+
+  expect(MATCH_FIRST_EVENTS).toEqual(expect.arrayContaining([
+    'match_neighborhood_detail_opened',
+    'match_building_layer_failed',
+    'match_amenity_layer_failed',
+    'match_missing_3d_fallback_shown',
+    'match_house_selected',
+  ]));
+  expect(readStoredEvents()).toMatchObject([
+    {
+      event_name: 'match_house_selected',
+      context: {
+        locale: 'nl',
+        source: 'match_map',
+        session_id: 'match-123',
+        result_set_id: 'mrs-123',
+        neighborhood_id: 'BU0363AA01',
+        selected_house_id: 'bldg_001',
+      },
+    },
+    {
+      event_name: 'match_missing_3d_fallback_shown',
+      context: {
+        fallback_reason_code: 'matchFirst.neighborhood.missing3d',
+      },
+    },
+  ]);
+  expect(JSON.stringify(readStoredEvents())).not.toContain('Do not store this address');
+});
+
 it('records privacy-safe unavailable-results analytics without user text', () => {
   recordMatchFirstEvent('match_results_unavailable', {
     locale: 'en',

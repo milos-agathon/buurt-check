@@ -201,6 +201,65 @@ it('canonicalizes Dossier match returns to map routes from stable session params
   })).toBe('#/address/0363010000123456?match_return=%23%2Fmatch%2Fsession%2Fmatch-123%2Fresults&match_session=match-123');
 });
 
+it('preserves Phase 7 Dossier bridge route context without reusing checkout session_id', () => {
+  const route = buildHashRoute({
+    route: 'dossier',
+    vboId: '0363010000123456',
+    lookupId: 'adr-123',
+    matchReturn: {
+      target: '#/match/session/match-123/neighborhood/BU0363AA01',
+      sessionId: 'match-123',
+      neighborhoodId: 'BU0363AA01',
+      jobId: 'match_job_123',
+      resultSetId: 'mrs_123',
+      preferenceVectorVersion: 'pv_v1',
+      source: 'match_map',
+      addressId: '0363010000123456',
+      buildingId: 'bldg_BU0363AA01_001',
+      returnUrl: '#/match/session/match-123/neighborhood/BU0363AA01',
+      mapCenter: [52.36, 4.9],
+      mapZoom: 13,
+      listScroll: 240,
+      mobileMode: 'list',
+      selectedResultId: 'rec_1',
+      selectedResultRank: 1,
+      language: 'nl',
+      selectedHouseId: 'bldg_BU0363AA01_001',
+    },
+  });
+  const params = new URLSearchParams(route.split('?')[1]);
+  const context = JSON.parse(params.get('match_context') ?? '{}') as Record<string, unknown>;
+
+  expect(route).toContain('#/address/0363010000123456?');
+  expect(params.get('lookup')).toBe('adr-123');
+  expect(params.get('session_id')).toBeNull();
+  expect(params.get('match_session')).toBe('match-123');
+  expect(context).toMatchObject({
+    jobId: 'match_job_123',
+    resultSetId: 'mrs_123',
+    preferenceVectorVersion: 'pv_v1',
+    source: 'match_map',
+    addressId: '0363010000123456',
+    buildingId: 'bldg_BU0363AA01_001',
+    returnUrl: '#/match/session/match-123/neighborhood/BU0363AA01',
+  });
+  expect(parseHashRoute(route)).toMatchObject({
+    route: 'dossier',
+    sessionId: undefined,
+    matchReturn: {
+      sessionId: 'match-123',
+      neighborhoodId: 'BU0363AA01',
+      jobId: 'match_job_123',
+      resultSetId: 'mrs_123',
+      preferenceVectorVersion: 'pv_v1',
+      source: 'match_map',
+      addressId: '0363010000123456',
+      buildingId: 'bldg_BU0363AA01_001',
+      returnUrl: '#/match/session/match-123/neighborhood/BU0363AA01',
+    },
+  });
+});
+
 it('routes malformed match return context to not found instead of storing unsafe values', () => {
   expect(parseHashRoute(
     '#/address/0363010000123456?match_session=match-123&match_context=%7B%22mapCenter%22%3A%5B%22NaN%22%2C%22Infinity%22%5D%2C%22mapZoom%22%3A13%7D',

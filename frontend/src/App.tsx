@@ -130,7 +130,10 @@ import {
   runMatchSession,
 } from './services/matchFirstApi';
 import { recordMatchFirstEvent } from './services/matchFirstAnalytics';
-import { readMatchSessionSnapshot, saveMatchSessionSnapshot } from './services/matchSessionStorage';
+import {
+  readMatchSessionSnapshot,
+  saveMatchSessionSnapshot,
+} from './services/matchSessionStorage';
 import { ToastContainer, useToast } from './components/ui/Toast';
 import { useViewportBottomOffset } from './hooks/useViewportBottomOffset';
 import type { Geometry, Position } from 'geojson';
@@ -199,6 +202,7 @@ import type {
   MatchFirstPreferenceVector,
   MatchJobPublicStatus,
   MatchJobStatusResponse,
+  MatchNeighborhoodRecommendation,
   MatchResultsResponse,
   MatchRunResponse,
   MatchSessionResponse,
@@ -219,6 +223,7 @@ const MatchSurveyReview = lazy(() => import('./components/match-first/SurveyRevi
 const MatchingProgressScreen = lazy(() => import('./components/match-first/MatchingProgressScreen'));
 const MatchSuccessCheckmark = lazy(() => import('./components/match-first/MatchSuccessCheckmark'));
 const ResultsMap = lazy(() => import('./components/match-first/ResultsMap'));
+const NeighborhoodDetail = lazy(() => import('./components/match-first/NeighborhoodDetail'));
 const MatchComparison = lazy(() => import('./components/match/MatchComparison'));
 const MatchSimilarSearch = lazy(() => import('./components/match/MatchSimilarSearch'));
 const MatchReport = lazy(() => import('./components/match/MatchReport'));
@@ -821,6 +826,13 @@ function normalizeStoredMatchReturnContext(value: Partial<MatchReturnContext> | 
     target,
     sessionId,
     neighborhoodId,
+    jobId: typeof value.jobId === 'string' ? value.jobId : undefined,
+    resultSetId: typeof value.resultSetId === 'string' ? value.resultSetId : undefined,
+    preferenceVectorVersion: typeof value.preferenceVectorVersion === 'string' ? value.preferenceVectorVersion : undefined,
+    source: value.source === 'match_map' ? value.source : undefined,
+    addressId: typeof value.addressId === 'string' ? value.addressId : undefined,
+    buildingId: typeof value.buildingId === 'string' ? value.buildingId : undefined,
+    returnUrl: typeof value.returnUrl === 'string' ? value.returnUrl : undefined,
     mapCenter: readFiniteMapCenter(value.mapCenter),
     mapZoom: readNonNegativeFiniteNumber(value.mapZoom),
     listScroll: readNonNegativeFiniteNumber(value.listScroll),
@@ -6135,6 +6147,20 @@ function App() {
     </section>
   );
 
+  const openSelectedMatchNeighborhood = useCallback((recommendation: MatchNeighborhoodRecommendation) => {
+    const sessionId = activeMatchSessionId ?? verifiedMatchResults?.session_id;
+    if (!sessionId) return;
+    setActiveMatchSessionId(sessionId);
+    storeMatchSessionId(sessionId);
+    setActiveMatchNeighborhoodId(recommendation.neighborhood_id);
+    setActiveScreen('matchNeighborhood');
+    setHashRoute(buildHashRoute({
+      route: 'matchNeighborhood',
+      sessionId,
+      neighborhoodId: recommendation.neighborhood_id,
+    }));
+  }, [activeMatchSessionId, setHashRoute, verifiedMatchResults?.session_id]);
+
   const renderMatchResultsShell = (
     titleId: string,
     sectionDataProps: Record<string, string | undefined> = {},
@@ -6151,6 +6177,7 @@ function App() {
               sessionId={activeMatchSessionId}
               initialResults={initialResults}
               onBackToSurvey={returnToMatchSurvey}
+              onOpenNeighborhood={openSelectedMatchNeighborhood}
             />
           </Suspense>
         </div>
@@ -6224,6 +6251,11 @@ function App() {
   const renderMatchReturnAction = () => (
     matchReturnContext ? (
       <div className="app__match-return">
+        {matchReturnContext.neighborhoodId && (
+          <p className="app__match-return-context">
+            {t('dossier.matchContextNeighborhood', { neighborhood: matchReturnContext.neighborhoodId })}
+          </p>
+        )}
         <button
           type="button"
           className="app__match-return-button"
@@ -6498,7 +6530,21 @@ function App() {
               className="app__screen"
               {...matchRouteMotionProps}
             >
-              {canShowMatchNeighborhoodShell ? (
+              {activeMatchSessionId && activeMatchNeighborhoodId && !canShowMatchNeighborhoodShell ? (
+                <Suspense fallback={routeLoadingFallback}>
+                  <NeighborhoodDetail
+                    key={`${activeMatchSessionId}:${activeMatchNeighborhoodId}:${verifiedMatchResults?.result_set_id ?? 'load'}`}
+                    sessionId={activeMatchSessionId}
+                    neighborhoodId={activeMatchNeighborhoodId}
+                    initialResults={verifiedMatchResults?.session_id === activeMatchSessionId ? verifiedMatchResults : null}
+                    onBackToResults={() => {
+                      setActiveScreen('matchResults');
+                      setHashRoute(buildHashRoute({ route: 'matchResults', sessionId: activeMatchSessionId }));
+                    }}
+                    onBackToSurvey={returnToMatchSurvey}
+                  />
+                </Suspense>
+              ) : canShowMatchNeighborhoodShell ? (
                 <section
                 className="match-first-landing match-first-landing--simple"
                 aria-labelledby="match-neighborhood-title"

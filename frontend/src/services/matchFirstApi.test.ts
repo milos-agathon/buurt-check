@@ -1,5 +1,9 @@
 import {
   createMatchSession,
+  getMatchNeighborhood,
+  getMatchNeighborhoodAmenities,
+  getMatchNeighborhoodBuildings,
+  getMatchNeighborhoodMapLayers,
   getMatchResults,
   getMatchSession,
   getMatchStatus,
@@ -213,4 +217,125 @@ it('reads persisted answers and a vector preview for review', async () => {
       raw_answer_refs: { intent: 'buy' },
     },
   });
+});
+
+it('reads selected-neighborhood summary and scoped detail layers', async () => {
+  const fetchSpy = mockFetch({
+    neighborhood_id: 'nh_api',
+    name: 'API neighborhood',
+    municipality: 'Utrecht',
+    centroid_rd: { x: 132900, y: 456200 },
+    bounds_rd: [132100, 455400, 133700, 457000],
+    display_centroid_wgs84: { lat: 52.1, lng: 5.03 },
+    display_bounds_wgs84: [5.01, 52.09, 5.05, 52.11],
+    boundary_ref: 'boundary_nh_api',
+    source_refs: ['seed_match_source'],
+    freshness_status: 'mock',
+    limitations: ['match.results.limitations.mock_data'],
+  });
+
+  await expect(getMatchNeighborhood('nh_api')).resolves.toMatchObject({
+    neighborhood_id: 'nh_api',
+    boundary_ref: 'boundary_nh_api',
+  });
+
+  expect(fetchSpy).toHaveBeenCalledWith('/api/match/neighborhoods/nh_api', expect.objectContaining({
+    credentials: 'include',
+  }));
+});
+
+it('requests selected-neighborhood map layers with completed result context', async () => {
+  const fetchSpy = mockFetch({
+    neighborhood_id: 'nh_api',
+    session_id: 'match_api',
+    result_set_id: 'mrs_api',
+    allowed_bounds_rd: [132100, 455400, 133700, 457000],
+    display_bounds_wgs84: [5.01, 52.09, 5.05, 52.11],
+    boundary: {
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [] },
+      properties: { neighborhood_id: 'nh_api' },
+    },
+    building_layer: {
+      available: false,
+      endpoint: '/api/match/neighborhoods/nh_api/buildings',
+      fallback_reason_code: 'matchFirst.neighborhood.missing3d',
+    },
+    amenity_layer: { endpoint: '/api/match/neighborhoods/nh_api/amenities' },
+    fallback_2d_available: true,
+    source_refs: ['seed_match_source'],
+    limitations: [],
+  });
+
+  await expect(getMatchNeighborhoodMapLayers('nh_api', {
+    sessionId: 'match_api',
+    resultSetId: 'mrs_api',
+  })).resolves.toMatchObject({
+    neighborhood_id: 'nh_api',
+    fallback_2d_available: true,
+  });
+
+  expect(fetchSpy).toHaveBeenCalledWith(
+    '/api/match/neighborhoods/nh_api/map-layers?session_id=match_api&result_set_id=mrs_api',
+    expect.objectContaining({ credentials: 'include' }),
+  );
+});
+
+it('requests buildings only with selected-neighborhood bounds', async () => {
+  const fetchSpy = mockFetch({
+    neighborhood_id: 'nh_api',
+    session_id: 'match_api',
+    result_set_id: 'mrs_api',
+    bounds_rd: [132100, 455400, 133700, 457000],
+    clipped_to_neighborhood: true,
+    buildings: [],
+    fallback_reason_code: 'matchFirst.neighborhood.missing3d',
+    data_version: 'match-seed-v1',
+    source_refs: ['seed_match_source'],
+    limitations: [],
+  });
+
+  await getMatchNeighborhoodBuildings('nh_api', {
+    sessionId: 'match_api',
+    resultSetId: 'mrs_api',
+    boundsRd: [132100, 455400, 133700, 457000],
+    lod: 'low',
+    limit: 25,
+  });
+
+  expect(fetchSpy).toHaveBeenCalledWith(
+    '/api/match/neighborhoods/nh_api/buildings?session_id=match_api&result_set_id=mrs_api&bounds_rd=132100%2C455400%2C133700%2C457000&lod=low&limit=25',
+    expect.objectContaining({ credentials: 'include' }),
+  );
+});
+
+it('requests capped preference-aware amenity tags for a completed result context', async () => {
+  const fetchSpy = mockFetch({
+    neighborhood_id: 'nh_api',
+    session_id: 'match_api',
+    result_set_id: 'mrs_api',
+    tags: [{
+      amenity_key: 'parks',
+      label_key: 'matchFirst.amenity.parks',
+      reason_code: 'green_space_priority',
+      source_refs: ['seed_match_source'],
+      relevance: 95,
+    }],
+    points: [],
+    source_refs: ['seed_match_source'],
+    limitations: [],
+  });
+
+  await expect(getMatchNeighborhoodAmenities('nh_api', {
+    sessionId: 'match_api',
+    resultSetId: 'mrs_api',
+  })).resolves.toMatchObject({
+    tags: [expect.objectContaining({ amenity_key: 'parks' })],
+    points: [],
+  });
+
+  expect(fetchSpy).toHaveBeenCalledWith(
+    '/api/match/neighborhoods/nh_api/amenities?session_id=match_api&result_set_id=mrs_api',
+    expect.objectContaining({ credentials: 'include' }),
+  );
 });

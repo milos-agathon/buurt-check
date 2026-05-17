@@ -459,6 +459,84 @@ class MatchResultsResponse(BaseModel):
         return self
 
 
+class MatchNeighborhoodSummaryResponse(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    municipality: str = Field(min_length=1)
+    centroid_rd: dict[str, float]
+    bounds_rd: list[float] = Field(min_length=4, max_length=4)
+    display_centroid_wgs84: dict[str, float]
+    display_bounds_wgs84: list[float] = Field(min_length=4, max_length=4)
+    boundary_ref: str = Field(min_length=1)
+    source_refs: list[str] = Field(default_factory=list)
+    freshness_status: DataFreshnessStatus = DataFreshnessStatus.mock
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchNeighborhoodLayerEndpoint(BaseModel):
+    available: bool | None = None
+    endpoint: str = Field(min_length=1)
+    fallback_reason_code: str | None = None
+
+
+class MatchNeighborhoodMapLayersResponse(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    allowed_bounds_rd: list[float] = Field(min_length=4, max_length=4)
+    display_bounds_wgs84: list[float] = Field(min_length=4, max_length=4)
+    boundary: dict[str, object]
+    building_layer: MatchNeighborhoodLayerEndpoint
+    amenity_layer: MatchNeighborhoodLayerEndpoint
+    fallback_2d_available: bool = True
+    source_refs: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchNeighborhoodBuildingFeature(BaseModel):
+    building_id: str = Field(min_length=1)
+    vbo_id: str | None = Field(default=None, pattern=r"^[0-9]{16}$")
+    address_id: str | None = Field(default=None, pattern=r"^[0-9]{16}$")
+    lookup_id: str | None = Field(default=None, min_length=1)
+    footprint: dict[str, object]
+    height_m: float | None = Field(default=None, ge=0)
+    source_refs: list[str] = Field(default_factory=list)
+    address_resolution: Literal["resolved", "candidate", "manual_required", "unavailable"]
+    address_candidate_count: int = Field(default=0, ge=0)
+    fallback_label_key: str | None = Field(default=None, pattern=r"^matchFirst\.neighborhood\.")
+
+
+class MatchNeighborhoodBuildingsResponse(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    bounds_rd: list[float] = Field(min_length=4, max_length=4)
+    clipped_to_neighborhood: bool = True
+    buildings: list[MatchNeighborhoodBuildingFeature] = Field(default_factory=list)
+    fallback_reason_code: str | None = None
+    data_version: str = Field(min_length=1)
+    source_refs: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchNeighborhoodAmenityTag(BaseModel):
+    amenity_key: str = Field(min_length=1)
+    label_key: str = Field(pattern=r"^matchFirst\.amenity\.")
+    reason_code: str = Field(min_length=1)
+    source_refs: list[str] = Field(default_factory=list)
+    relevance: int = Field(default=50, ge=0, le=100)
+
+
+class MatchNeighborhoodAmenitiesResponse(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    tags: list[MatchNeighborhoodAmenityTag] = Field(default_factory=list, max_length=7)
+    points: list[dict[str, object]] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class QuizBudget(BaseModel):
     buy_min: int | None = Field(default=None, ge=0)
     buy_max: int | None = Field(default=None, ge=0)

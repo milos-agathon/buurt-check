@@ -337,6 +337,7 @@ export interface MatchResultsMapState {
   selectedRecommendationId?: string;
   selectedNeighborhoodId?: string;
   selectedResultRank?: number;
+  selectedHouseId?: string;
   mapCenter: [number, number];
   mapZoom: number;
   listScroll: number;
@@ -371,4 +372,95 @@ export interface MatchResultsResponse {
   map_center: { lat: number; lng: number };
   bbox: number[];
   map: MatchResultsMapPayload;
+}
+
+export interface MatchNeighborhoodSummaryResponse {
+  neighborhood_id: string;
+  name: string;
+  municipality: string;
+  centroid_rd: { x: number; y: number };
+  bounds_rd: [number, number, number, number] | number[];
+  display_centroid_wgs84: { lat: number; lng: number };
+  display_bounds_wgs84: [number, number, number, number] | number[];
+  boundary_ref: string;
+  source_refs: string[];
+  freshness_status: string;
+  limitations: string[];
+}
+
+export interface MatchNeighborhoodLayerEndpoint {
+  available?: boolean | null;
+  endpoint: string;
+  fallback_reason_code?: string | null;
+}
+
+export interface MatchNeighborhoodMapLayersResponse {
+  neighborhood_id: string;
+  session_id: string;
+  result_set_id: string;
+  allowed_bounds_rd: [number, number, number, number] | number[];
+  display_bounds_wgs84: [number, number, number, number] | number[];
+  boundary: {
+    type: 'Feature';
+    geometry: { type: 'Polygon'; coordinates: number[][][] };
+    properties: Record<string, unknown>;
+  };
+  building_layer: MatchNeighborhoodLayerEndpoint;
+  amenity_layer: MatchNeighborhoodLayerEndpoint;
+  fallback_2d_available: boolean;
+  source_refs: string[];
+  limitations: string[];
+}
+
+export type MatchNeighborhoodAddressResolution =
+  | 'resolved'
+  | 'candidate'
+  | 'manual_required'
+  | 'unavailable';
+
+export interface MatchNeighborhoodBuildingFeature {
+  building_id: string;
+  vbo_id?: string | null;
+  address_id?: string | null;
+  lookup_id?: string | null;
+  footprint: {
+    type: 'Polygon';
+    coordinates: number[][][];
+  };
+  height_m?: number | null;
+  source_refs: string[];
+  address_resolution: MatchNeighborhoodAddressResolution;
+  address_candidate_count: number;
+  fallback_label_key?: string | null;
+}
+
+export interface MatchNeighborhoodBuildingsResponse {
+  neighborhood_id: string;
+  session_id: string;
+  result_set_id: string;
+  bounds_rd: [number, number, number, number] | number[];
+  clipped_to_neighborhood: boolean;
+  buildings: MatchNeighborhoodBuildingFeature[];
+  fallback_reason_code?: string | null;
+  data_version: string;
+  source_refs: string[];
+  limitations: string[];
+}
+
+export interface MatchNeighborhoodAmenityTag {
+  amenity_key: string;
+  label_key: string;
+  reason_code: string;
+  source_refs: string[];
+  relevance: number;
+}
+
+export interface MatchNeighborhoodAmenitiesResponse {
+  neighborhood_id: string;
+  session_id: string;
+  result_set_id: string;
+  tags: MatchNeighborhoodAmenityTag[];
+  points: unknown[];
+  source_refs: string[];
+  limitations: string[];
 }

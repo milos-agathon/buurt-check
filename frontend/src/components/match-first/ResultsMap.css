@@ -287,6 +287,25 @@
   margin: -6px 14px 14px 64px;
 }
 
+.recommendation-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 14px 14px 64px;
+}
+
+.recommendation-card__detail {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 117, 111, 0.28);
+  border-radius: 8px;
+  background: rgba(0, 117, 111, 0.08);
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 @media (max-width: 760px) {
   .results-map-shell {
     padding: 14px;
