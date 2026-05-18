@@ -425,6 +425,49 @@ it('loads boundary, scoped buildings, capped amenities, and missing-3D fallback 
   });
 });
 
+it('toggles amenity filters with visible pressed state and stable analytics keys', async () => {
+  const user = userEvent.setup();
+  mockNeighborhoodDetailFetches();
+  renderWithI18n(
+    <NeighborhoodDetail
+      sessionId="match-detail"
+      neighborhoodId="nh_amsterdam_ijburg"
+      initialResults={resultsResponse()}
+      onBackToResults={() => {}}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  const parksFilter = await screen.findByRole('button', { name: 'Filter by Parks' });
+  expect(parksFilter).toHaveAttribute('aria-pressed', 'false');
+
+  await user.click(parksFilter);
+
+  expect(parksFilter).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByText('Showing Parks context')).toBeInTheDocument();
+
+  const events = JSON.parse(localStorage.getItem('buurt-check-match-first-analytics') ?? '[]') as Array<{
+    event_name: string;
+    context: Record<string, unknown>;
+  }>;
+  expect(events).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      event_name: 'match_amenity_interacted',
+      context: expect.objectContaining({
+        amenity_key: 'parks',
+        neighborhood_id: 'nh_amsterdam_ijburg',
+        result_set_id: 'mrs_detail',
+      }),
+    }),
+  ]));
+  expect(JSON.stringify(events)).not.toContain('Parks');
+
+  await user.click(parksFilter);
+
+  expect(parksFilter).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.queryByText('Showing Parks context')).not.toBeInTheDocument();
+});
+
 it('keeps selected map and 2D fallback usable when amenity tags fail', async () => {
   const fetchSpy = mockNeighborhoodDetailFetches(resultsResponse(), { failAmenities: true });
   renderWithI18n(

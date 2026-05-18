@@ -980,6 +980,8 @@
   "matchFirst.neighborhood.fitContextTitle": "Waarom dit past",
   "matchFirst.neighborhood.amenitiesTitle": "Relevante voorzieningen",
   "matchFirst.neighborhood.amenitiesLabel": "Relevante voorzieningstags",
+  "matchFirst.neighborhood.filterAmenity": "Filter op {{amenity}}",
+  "matchFirst.neighborhood.activeAmenityFilter": "{{amenity}}-context tonen",
   "matchFirst.neighborhood.amenitiesLoading": "Relevante voorzieningen laden.",
   "matchFirst.neighborhood.amenitiesUnavailable": "Voorzieningstags zijn nu niet beschikbaar.",
   "matchFirst.neighborhood.amenitiesEmpty": "Er zijn nog geen relevante voorzieningstags beschikbaar.",

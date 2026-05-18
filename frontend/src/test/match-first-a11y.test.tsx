@@ -303,6 +303,18 @@ it('supports keyboard progress from landing to intro and through survey steps', 
   screen.getByRole('button', { name: 'Back' }).focus();
   await user.keyboard('{Enter}');
   expect(screen.getByRole('heading', { name: 'Are you looking to buy, rent, or both?' })).toBeInTheDocument();
+  expect(JSON.parse(localStorage.getItem('buurt-check-match-first-analytics') ?? '[]')).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        event_name: 'match_first_survey_back_clicked',
+        context: expect.objectContaining({
+          from_step: 2,
+          to_step: 1,
+          question_id: 'budget',
+        }),
+      }),
+    ]),
+  );
 });
 
 it('completes the full survey with keyboard input only', async () => {

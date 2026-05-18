@@ -494,18 +494,18 @@ Phase 3 closure repair note, 2026-05-15: T-025, T-026, T-031, and T-032 remain m
 - [X] ID: T-050
   Phase: 5
   Requirement covered: PRD Sections 20.3, 21, 15.3; Constitution XV.
-  Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-fallbacks.test.tsx`
+  Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/test/match-first-results-map.test.tsx`, `frontend/src/test/match-first-progress.test.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`
   Implementation action: Add results analytics and localized recovery for results opened, confidence sufficient/insufficient, result unavailable/stale, map layer failed, list selection, marker/polygon selection, and no strong matches.
-  Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-fallbacks.test.tsx src/test/match-i18n.test.ts`
+  Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-results-map.test.tsx src/test/match-first-progress.test.tsx src/test/match-i18n.test.ts`
   Acceptance evidence: Traceability row "results analytics and fallbacks" lists stable events and fallback keys.
   Dependencies: T-047, T-049.
 
 - [X] ID: T-051
   Phase: 5
   Requirement covered: PRD Sections 16.2, 18, 20.3; Constitution IV/VII.
-  Files likely touched: `frontend/tests/e2e/match-first-flow.spec.ts`, `frontend/src/test/match-first-map-performance.test.tsx`
+  Files likely touched: `frontend/tests/e2e/performance-budget.spec.ts`, `frontend/tests/e2e/match-first-final-journey.spec.ts`
   Implementation action: Add E2E/performance checks for results initial usability within target profiles, list/map sync latency, manual pan/zoom response, mobile map/list switching, and non-map list alternative.
-  Validation: `cd frontend && npm run test:e2e -- tests/e2e/match-first-flow.spec.ts`; targeted map performance test.
+  Validation: `cd frontend && npm run test:perf:e2e`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts`
   Acceptance evidence: Traceability includes measured or documented target profile results.
   Dependencies: T-047, T-049.
 
@@ -624,9 +624,9 @@ records that as the residual Phase 5 verification gap.
 - ID: T-062
   Phase: 6
   Requirement covered: PRD Sections 20.3, 20.4, 21.2; Constitution XV.
-  Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/test/match-first-fallbacks.test.tsx`
+  Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/test/match-i18n.test.ts`
   Implementation action: Emit privacy-safe analytics and localized fallbacks for neighborhood detail opened, building layer failed, amenity layer failed, missing 3D shown, amenity interacted, and house selected.
-  Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-fallbacks.test.tsx`
+  Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts`
   Acceptance evidence: Traceability row "neighborhood analytics/fallbacks" lists event keys and fallback keys.
   Dependencies: T-059, T-060, T-061.
   Status 2026-05-16: Complete for implemented Phase 6 events/fallbacks. Added privacy-safe detail open, building-layer failed, amenity-layer failed, and missing-3D fallback events; house-selected analytics remains Phase 7.
@@ -634,9 +634,9 @@ records that as the residual Phase 5 verification gap.
 - ID: T-063
   Phase: 6
   Requirement covered: PRD A11Y-1 to A11Y-6; Sections 16.3 and 18.
-  Files likely touched: `frontend/src/test/match-first-a11y.test.tsx`, `frontend/src/test/match-first-map-performance.test.tsx`, `frontend/tests/e2e/match-first-neighborhood-detail.spec.ts`
+  Files likely touched: `frontend/src/test/match-first-a11y.test.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/tests/e2e/performance-budget.spec.ts`, `frontend/tests/e2e/match-first-final-journey.spec.ts`
   Implementation action: Add accessibility and performance checks for selected-neighborhood detail usable within 3 seconds, no national 3D request, keyboard/non-map alternative, reduced motion, and nonblank 3D or 2D fallback.
-  Validation: `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx src/test/match-first-map-performance.test.tsx`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-neighborhood-detail.spec.ts`
+  Validation: `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx src/test/match-first-neighborhood-detail.test.tsx`; `cd frontend && npm run test:perf:e2e`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts`
   Acceptance evidence: Traceability includes target profile/device evidence and any residual performance risk.
   Dependencies: T-059, T-060, T-061.
   Status 2026-05-16: Partial/complete for component-level Phase 6 evidence. Vitest covers a11y/list fallback, no national 3D request, and nonblank canvas state; browser Playwright/mobile performance proof remains open before production.
@@ -739,7 +739,7 @@ records that as the residual Phase 5 verification gap.
 - ID: T-073
   Phase: 7
   Requirement covered: PRD Sections 20.4 and 21.5; Constitution XV.
-  Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-fallbacks.test.tsx`
+  Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`
   Implementation action: Emit stable analytics and localized fallback copy for house selected, no reliable address shown, Dossier opened, back-to-map clicked, back-to-map return success/failure, and second house opened.
   Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts`
   Acceptance evidence: Traceability lists event names and fallback keys.
@@ -754,7 +754,7 @@ records that as the residual Phase 5 verification gap.
   Validation: `cd frontend && npm run test:e2e -- tests/e2e/match-first-dossier-roundtrip.spec.ts`
   Acceptance evidence: Traceability PRD AC14-AC15 and SC-016 link to E2E proof.
   Dependencies: T-069, T-070, T-071, T-072.
-  Status 2026-05-17: Complete. `frontend/tests/e2e/match-first-dossier-roundtrip.spec.ts` now passes with 10 tests and 2 intentional skips: cross-browser mobile/reduced-motion UI-mocked coverage proves house -> candidate address choice -> existing Dossier -> Back to match map -> exact selected state restore -> second house without `/run`, missing-`match_return` rejection, lookup-failure analytics suppression, and local analytics assertions; a Chromium-only backend-integrated proof creates a real completed match, opens ambiguous seed house 3, receives PDOK Locatieserver reverse-backed candidate addresses from the real backend bridge, opens the existing Dossier, returns to match map, and asserts no `/run` during Dossier open or return. Firefox/WebKit skip only the backend-integrated provider proof to avoid shared local DB races; their UI round-trip proof remains active.
+  Status 2026-05-17/2026-05-18: Complete. `frontend/tests/e2e/match-first-dossier-roundtrip.spec.ts` cross-browser mobile/reduced-motion UI-mocked coverage proves house -> candidate address choice -> existing Dossier -> Back to match map -> exact selected state restore -> second house without `/run`, missing-`match_return` rejection, lookup-failure analytics suppression, and local analytics assertions. The backend-integrated provider proof is now opt-in to avoid shared local DB races in the two-worker combined suite; with `RUN_BACKEND_PROVIDER_PROOF=1`, Chromium creates a real completed match, opens the backend-selected candidate house, receives PDOK Locatieserver reverse-backed candidates from the real backend bridge, opens the existing Dossier, returns to match map, and asserts no `/run` during Dossier open or return. The default final+Dossier E2E command passes with 21 passed and 3 expected skips; the opt-in provider proof passes separately with 1 test.
 
 - ID: T-075
   Phase: 7
@@ -768,7 +768,7 @@ records that as the residual Phase 5 verification gap.
 
 ## Phase 8: Accessibility, Analytics, Failure States, And Final QA
 
-- ID: T-076
+- [X] ID: T-076
   Phase: 8
   Requirement covered: PRD Section 20; Section 19.1; Constitution XV.
   Files likely touched: `backend/tests/test_match_first_analytics_api.py`, `backend/app/api/match.py`, `backend/app/services/match/instrumentation.py`, `backend/app/services/match/analytics.py`
@@ -777,16 +777,16 @@ records that as the residual Phase 5 verification gap.
   Acceptance evidence: Traceability row "backend analytics API" links to privacy tests.
   Dependencies: T-075.
 
-- ID: T-077
+- [X] ID: T-077
   Phase: 8
   Requirement covered: PRD Section 21; Section 22.1 item 20; Constitution XV.
-  Files likely touched: `frontend/src/test/match-first-fallbacks.test.tsx`, `frontend/src/components/match-first/MatchingProgressScreen.tsx`, `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/HouseSelectionPanel.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`
+  Files likely touched: `frontend/src/test/match-first-progress.test.tsx`, `frontend/src/test/match-first-results-map.test.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/components/match-first/MatchingProgressScreen.tsx`, `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/HouseSelectionPanel.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`
   Implementation action: Complete localized fallback coverage for session creation failure, answer-save failure, slow backend, failed backend, completed-with-fallback, no strong matches, stale/unavailable results, map/building/amenity failures, missing 3D, no reliable address, and Dossier return failure.
-  Validation: `cd frontend && npm run test -- src/test/match-first-fallbacks.test.tsx src/test/match-i18n.test.ts`
+  Validation: `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts`
   Acceptance evidence: Traceability row "failure states" maps each fallback to file/test/status.
   Dependencies: T-042, T-052, T-064, T-075.
 
-- ID: T-078
+- [X] ID: T-078
   Phase: 8
   Requirement covered: PRD A11Y-1 to A11Y-6; Constitution VII.
   Files likely touched: `frontend/src/test/match-first-a11y.test.tsx`, `frontend/src/test/keyboard-navigation.test.tsx`, match-first components touched in prior phases.
@@ -795,25 +795,25 @@ records that as the residual Phase 5 verification gap.
   Acceptance evidence: Traceability SC-013/SC-015 links to accessibility test output.
   Dependencies: T-077.
 
-- ID: T-079
+- [X] ID: T-079
   Phase: 8
   Requirement covered: PRD Section 27.5; Constitution IX.
-  Files likely touched: `frontend/src/test/match-first-context-preservation.test.tsx`, `frontend/src/services/matchSessionStorage.ts`, `frontend/src/App.tsx`
+  Files likely touched: `frontend/src/App.test.tsx`, `frontend/src/test/match-first-results-map.test.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/services/matchSessionStorage.ts`, `frontend/src/services/matchSessionStorage.test.ts`, `frontend/src/App.tsx`
   Implementation action: Add cross-flow context preservation tests for survey answers, session ID, language, result state, selected neighborhood/result/house, map center/zoom, list scroll, mobile mode, Dossier return path, stale-results reroute, and refresh recovery.
-  Validation: `cd frontend && npm run test -- src/test/match-first-context-preservation.test.tsx`
+  Validation: `cd frontend && npm run test -- src/App.test.tsx src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/services/matchSessionStorage.test.ts`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-dossier-roundtrip.spec.ts`
   Acceptance evidence: Traceability SC-011/SC-016 lists preserved fields and unsupported gaps.
   Dependencies: T-071.
 
-- ID: T-080
+- [X] ID: T-080
   Phase: 8
   Requirement covered: PRD Sections 8.6, 27.1, 3.2; Constitution V/X.
-  Files likely touched: `frontend/src/test/match-first-copy-guard.test.ts`, `frontend/src/test/match-first-copy-guardrails.test.ts`, `backend/tests/test_match_model_honesty.py`
+  Files likely touched: `frontend/src/test/match-first-copy-guard.test.ts`, `backend/tests/test_match_model_honesty.py`
   Implementation action: Add final copy/model-honesty guard scanning all match-first user-facing surfaces for hard-coded visible copy and unsupported claims about perfect fit, safety, happiness, investment certainty, future value, guaranteed affordability, guaranteed outcomes, objective best, or predictive probability.
-  Validation: `cd frontend && npm run test -- src/test/match-first-copy-guard.test.ts src/test/match-first-copy-guardrails.test.ts`; `cd backend && pytest -q tests/test_match_model_honesty.py`
+  Validation: `cd frontend && npm run test -- src/test/match-first-copy-guard.test.ts`; `cd backend && pytest -q tests/test_match_model_honesty.py`
   Acceptance evidence: Traceability PRD AC18, SC-008, and imported model-honesty gate link to guard outputs.
   Dependencies: T-075.
 
-- ID: T-081
+- [X] ID: T-081
   Phase: 8
   Requirement covered: PRD Sections 15.4, 19.1-19.3; Constitution V/XV.
   Files likely touched: `backend/app/api/match.py`, `backend/app/services/match/sessions.py`, `backend/tests/test_match_sessions.py`, `backend/tests/test_match_first_analytics_api.py`, `docs/qa/match_first_revamp_traceability.md`
@@ -822,16 +822,16 @@ records that as the residual Phase 5 verification gap.
   Acceptance evidence: Traceability imported privacy/deletion gate marks deletion pass or missing/partial with retention limit, blocker, and follow-up condition.
   Dependencies: T-004, T-076.
 
-- ID: T-082
+- [X] ID: T-082
   Phase: 8
   Requirement covered: PRD Sections 16.1-16.3; Constitution IV.
-  Files likely touched: `frontend/src/test/match-first-map-performance.test.tsx`, `frontend/tests/e2e/match-first-flow.spec.ts`, `frontend/tests/e2e/match-first-neighborhood-detail.spec.ts`
+  Files likely touched: `frontend/tests/e2e/performance-budget.spec.ts`, `frontend/tests/e2e/match-first-final-journey.spec.ts`, `frontend/tests/e2e/match-first-dossier-roundtrip.spec.ts`
   Implementation action: Run final map/performance verification for hero readiness, results map initial usability, list/map sync, pan/zoom response, selected-neighborhood detail readiness, no national 3D request, and 2D/reduced-motion fallback.
-  Validation: Targeted frontend map performance tests plus selected Playwright checks; document any blocked perf gate with target profile and residual risk.
+  Validation: `cd frontend && npm run test:perf:e2e`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts`
   Acceptance evidence: Traceability imported map-performance gate links measured budgets or missing/partial status.
   Dependencies: T-051, T-063.
 
-- ID: T-083
+- [X] ID: T-083
   Phase: 8
   Requirement covered: Dossier/risk-card contract; PRD FR-D1 to FR-D5; Constitution VI.
   Files likely touched: `frontend/src/components/DossierSheet.test.tsx`, `frontend/src/components/RiskTilesGrid.test.tsx`, `frontend/src/components/ExportBottomSheet.test.tsx`, `backend/tests/test_export_entitlement.py`, `backend/tests/test_reports_api.py`, `docs/qa/match_first_revamp_traceability.md`
@@ -840,16 +840,16 @@ records that as the residual Phase 5 verification gap.
   Acceptance evidence: Traceability Dossier/risk-card rows include pass/missing/partial status and test links.
   Dependencies: T-072, T-075.
 
-- ID: T-084
+- [X] ID: T-084
   Phase: 8
   Requirement covered: PRD Section 23 Phase 8; Constitution VIII.
   Files likely touched: Backend and frontend test suites only unless failures require scoped fixes.
   Implementation action: Run final frontend quality gates for build, unit, accessibility, E2E, and selected performance/visual checks relevant to touched map/detail flows.
-  Validation: `cd frontend && npm run build`; `cd frontend && npm run test`; `cd frontend && npm run test:a11y`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-flow.spec.ts tests/e2e/match-first-neighborhood-detail.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts`; `cd frontend && npm run test:perf:e2e` where available.
+  Validation: `cd frontend && npm run build`; `cd frontend && npm run test`; `cd frontend && npm run test:a11y`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts`; `cd frontend && npm run test:perf:e2e`.
   Acceptance evidence: Traceability records exact commands, pass/fail, and blocked checks.
   Dependencies: T-076 through T-083.
 
-- ID: T-085
+- [X] ID: T-085
   Phase: 8
   Requirement covered: PRD Section 23 Phase 8; backend quality gates.
   Files likely touched: Backend tests/services only if failures require scoped fixes.
@@ -858,7 +858,7 @@ records that as the residual Phase 5 verification gap.
   Acceptance evidence: Traceability records exact backend command output and residual risks.
   Dependencies: T-076, T-081, T-083.
 
-- ID: T-086
+- [X] ID: T-086
   Phase: 8
   Requirement covered: PRD Section 24 AC1-AC18; Spec SC-001 to SC-016 plus imported review gates for model honesty, map performance, privacy/deletion, and context preservation; Constitution XI.
   Files likely touched: `docs/qa/match_first_revamp_traceability.md`, `specs/002-match-first-revamp/acceptance-traceability.md`
@@ -867,7 +867,7 @@ records that as the residual Phase 5 verification gap.
   Acceptance evidence: `acceptance-traceability.md` and QA traceability prove all PRD AC1-AC18 are pass/missing/partial with evidence.
   Dependencies: T-084, T-085.
 
-- ID: T-087
+- [X] ID: T-087
   Phase: 8
   Requirement covered: PRD final product statement; quickstart full canonical journey.
   Files likely touched: `specs/002-match-first-revamp/acceptance-traceability.md`, `docs/qa/match_first_revamp_traceability.md`
@@ -875,8 +875,14 @@ records that as the residual Phase 5 verification gap.
   Validation: Follow `specs/002-match-first-revamp/quickstart.md` and record browser, viewport, language, reduced-motion state, commands, screenshots/log notes where useful, and any failed step.
   Acceptance evidence: Manual smoke evidence links to PRD AC1-AC18 rows and any gaps are marked missing/partial.
   Dependencies: T-086.
+  Status 2026-05-18: Complete. Chromium quickstart smoke executed in English
+  and Dutch at 390x844 with `prefers-reduced-motion: reduce`, covering landing,
+  secondary search, survey, mid-survey refresh restoration, review, final run,
+  reduced-motion success checkmark, results, selected-neighborhood detail,
+  amenity filter state, house-to-Dossier, and Back to match map. Command:
+  `cd frontend && npx playwright test --project=chromium tests/e2e/match-first-final-journey.spec.ts -g "reduced-motion quickstart smoke"`.
 
-- ID: T-088
+- [X] ID: T-088
   Phase: 8
   Requirement covered: Constitution XI; final handoff.
   Files likely touched: `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md`
@@ -884,6 +890,35 @@ records that as the residual Phase 5 verification gap.
   Validation: Handoff date is current, points to active feature, names exact commands, and does not claim completion for missing/partial acceptance rows.
   Acceptance evidence: Final handoff and traceability are consistent with `acceptance-traceability.md`.
   Dependencies: T-087.
+  Status 2026-05-18: Complete for local automated final handoff and evidence
+  synchronization after EN/NL reduced-motion quickstart smoke evidence was
+  executed and recorded.
+
+Status 2026-05-18: Complete for local automated Phase 8 final QA and review
+repairs, with remaining release-condition items explicitly partial. Backend analytics
+endpoint/privacy tests strip exact address/VBO/lookup/candidate/selected-house/
+building identifiers and now reject private top-level analytics `session_id`
+values containing 16-digit address/VBO-like values, embedded address routes,
+`lookup=` markers, email-shaped values, or free-text sentence values with no
+persisted rows; backend match-first allowed context strings now must be stable
+tokens/routes, preventing free-text values under allowed keys from persisting.
+Frontend analytics writes sanitized local events
+and posts sanitized events to `/api/match/analytics`; analytics catalogs match
+the active spec contract except conditional quality feedback because no
+match-first feedback UI exists, and extra catalog events are limited to a
+documented optional set. The non-spec `match_neighborhood_clicked` event has
+been removed; ResultsMap records `match_recommendation_selected` before opening
+detail and relies on existing `match_neighborhood_detail_opened` analytics for
+the detail route. Final journey E2E asserts exact once-per-flow local and
+backend analytics counts for the key funnel events.
+Anonymous match-session deletion is implemented via
+`DELETE /api/match/sessions/{session_id}`; hero contrast has automated
+Playwright evidence; EN/NL reduced-motion quickstart smoke has Chromium browser
+evidence; final evidence, traceability, punchlist, acceptance traceability, and
+handoff have been updated. Unrelated `docs/superpowers` allowlisting/state
+files were removed from this Phase 8 changeset. Remaining open items are human
+usability research, live production/mobile profiling, provider-backed 3D
+coverage, and repo-wide lint cleanup.
 
 ## Dependencies And Execution Order
 
@@ -929,7 +964,7 @@ Parallel opportunities:
 - Frontend broad gate: `cd frontend && npm run build`
 - Frontend broad gate: `cd frontend && npm run test`
 - Accessibility gate: `cd frontend && npm run test:a11y`
-- Results/detail/Dossier E2E gate: `cd frontend && npm run test:e2e -- tests/e2e/match-first-flow.spec.ts tests/e2e/match-first-neighborhood-detail.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts`
+- Results/detail/Dossier E2E gate: `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts`
 
 ## Notes For Implementers
 

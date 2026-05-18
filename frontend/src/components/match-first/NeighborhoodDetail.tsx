@@ -123,6 +123,7 @@ export default function NeighborhoodDetail({
   const [candidateAddressState, setCandidateAddressState] = useState<CandidateAddressSelection | null>(null);
   const [selectionFallbackKey, setSelectionFallbackKey] = useState<string | null>(null);
   const [selectionRecoveryContext, setSelectionRecoveryContext] = useState<MatchReturnContext | null>(null);
+  const [activeAmenityKey, setActiveAmenityKey] = useState<string | null>(null);
   const openedEventRef = useRef(false);
   const fallbackEventRef = useRef(false);
   const returnHydratedEventRef = useRef(false);
@@ -445,6 +446,23 @@ export default function NeighborhoodDetail({
       setPendingCandidateId(null);
     }
   };
+
+  const handleAmenityFilterClick = (amenityKey: string) => {
+    if (!results || !recommendation) return;
+    const nextAmenityKey = activeAmenityKey === amenityKey ? null : amenityKey;
+    setActiveAmenityKey(nextAmenityKey);
+    recordMatchFirstEvent('match_amenity_interacted', {
+      locale,
+      source: 'neighborhood',
+      session_id: results.session_id,
+      result_set_id: results.result_set_id,
+      neighborhood_id: recommendation.neighborhood_id,
+      recommendation_id: recommendation.recommendation_id,
+      amenity_key: amenityKey,
+      status: nextAmenityKey ? 'selected' : 'cleared',
+    });
+  };
+
   useEffect(() => {
     if (!results || !recommendation || openedEventRef.current) return;
     openedEventRef.current = true;
@@ -668,6 +686,8 @@ export default function NeighborhoodDetail({
               tags={amenities?.tags ?? []}
               loading={loadingLayers && !amenities}
               failed={amenitiesFailed}
+              activeAmenityKey={activeAmenityKey}
+              onFilterClick={(tag) => handleAmenityFilterClick(tag.amenity_key)}
             />
           </section>
 

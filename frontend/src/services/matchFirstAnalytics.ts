@@ -1,13 +1,17 @@
+import { buildPrimaryApiUrl } from '../config/apiBase';
+
 export const MATCH_FIRST_EVENTS = [
-  'match_first_landing_shown',
-  'match_first_cta_clicked',
+  'match_landing_cta_shown',
+  'match_landing_cta_clicked',
   'match_first_search_link_clicked',
-  'match_first_survey_intro_shown',
-  'match_first_survey_started',
-  'match_first_survey_question_shown',
-  'match_first_survey_answer_saved',
-  'match_first_survey_abandoned',
-  'match_first_survey_completed',
+  'match_survey_intro_shown',
+  'match_survey_started',
+  'match_survey_question_shown',
+  'match_survey_answer_saved',
+  'match_survey_answer_save_failed',
+  'match_first_survey_back_clicked',
+  'match_survey_question_abandoned',
+  'match_survey_completed',
   'match_first_survey_review_shown',
   'match_final_run_cta_clicked',
   'match_job_queued',
@@ -28,6 +32,7 @@ export const MATCH_FIRST_EVENTS = [
   'match_neighborhood_detail_opened',
   'match_building_layer_failed',
   'match_amenity_layer_failed',
+  'match_amenity_interacted',
   'match_missing_3d_fallback_shown',
   'match_house_selected',
   'match_dossier_opened',
@@ -40,6 +45,7 @@ export const MATCH_FIRST_EVENTS = [
 export type MatchFirstEventName = typeof MATCH_FIRST_EVENTS[number];
 
 export interface MatchFirstAnalyticsEvent {
+  event_id: string;
   event_name: MatchFirstEventName;
   locale: 'en' | 'nl';
   context: Record<string, unknown>;
@@ -71,10 +77,9 @@ const ALLOWED_CONTEXT_KEYS = new Set([
   'preference_vector_version',
   'recommendation_id',
   'neighborhood_id',
+  'amenity_key',
   'result_rank',
   'selected_result_id',
-  'selected_house_id',
-  'building_id',
   'map_zoom',
   'mobile_mode',
   'confidence_level',
@@ -83,6 +88,12 @@ const ALLOWED_CONTEXT_KEYS = new Set([
   'error_code',
 ]);
 const SAFE_TOKEN_PATTERN = /^[a-z0-9_:#/.-]+$/i;
+const PRIVATE_VALUE_PATTERNS = [
+  /(?:^|[^\d])\d{16}(?:$|[^\d])/,
+  /(?:#)?\/address\//i,
+  /lookup=/i,
+];
+const ANALYTICS_ENDPOINT = '/match/analytics';
 
 function readStoredEvents(): MatchFirstAnalyticsEvent[] {
   if (typeof window === 'undefined') return [];
@@ -95,7 +106,11 @@ function readStoredEvents(): MatchFirstAnalyticsEvent[] {
 }
 
 function isSafeString(value: string): boolean {
-  return value.length <= 96 && SAFE_TOKEN_PATTERN.test(value);
+  return (
+    value.length <= 96
+    && SAFE_TOKEN_PATTERN.test(value)
+    && !PRIVATE_VALUE_PATTERNS.some((pattern) => pattern.test(value))
+  );
 }
 
 function sanitizeContext(context: Record<string, unknown>): Record<string, unknown> {
@@ -109,6 +124,37 @@ function sanitizeContext(context: Record<string, unknown>): Record<string, unkno
   );
 }
 
+function createEventId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `evt_${crypto.randomUUID()}`;
+  }
+  const random = Math.random().toString(36).slice(2, 12);
+  return `evt_${Date.now().toString(36)}_${random}`;
+}
+
+function postAnalyticsEvent(event: MatchFirstAnalyticsEvent): void {
+  if (typeof fetch !== 'function') return;
+
+  const sessionId = typeof event.context.session_id === 'string'
+    ? event.context.session_id
+    : undefined;
+
+  void fetch(buildPrimaryApiUrl(ANALYTICS_ENDPOINT), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      event_id: event.event_id,
+      event_name: event.event_name,
+      session_id: sessionId,
+      locale: event.locale,
+      context: event.context,
+    }),
+  }).catch(() => {
+    // Analytics transport must never block or surface in the match journey.
+  });
+}
+
 export function recordMatchFirstEvent(
   eventName: MatchFirstEventName,
   context: Record<string, unknown> = {},
@@ -116,6 +162,7 @@ export function recordMatchFirstEvent(
   const sanitizedContext = sanitizeContext(context);
   const locale = sanitizedContext.locale === 'nl' ? 'nl' : 'en';
   const event: MatchFirstAnalyticsEvent = {
+    event_id: createEventId(),
     event_name: eventName,
     locale,
     context: sanitizedContext,
@@ -125,11 +172,13 @@ export function recordMatchFirstEvent(
   if (typeof window !== 'undefined') {
     try {
       const events = readStoredEvents();
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...events, event].slice(-50)));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...events, event].slice(-100)));
     } catch {
       // Analytics must never block the primary match flow.
     }
   }
+
+  postAnalyticsEvent(event);
 
   return event;
 }

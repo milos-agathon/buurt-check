@@ -57,7 +57,7 @@ it('renders one dominant match CTA and demotes address search to a text link', a
 
   await user.click(primaryCta);
   expect(onStartMatch).toHaveBeenCalledTimes(1);
-  expect(mockRecordMatchFirstEvent).toHaveBeenCalledWith('match_first_cta_clicked', {
+  expect(mockRecordMatchFirstEvent).toHaveBeenCalledWith('match_landing_cta_clicked', {
     locale: 'en',
     source: 'landing',
   });

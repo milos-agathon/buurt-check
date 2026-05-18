@@ -58,6 +58,15 @@ docs/qa/*
 !docs/qa/match_first_revamp_traceability.md
 !docs/qa/requirements-verification-matrix.md
 !docs/qa/implementation-ledger.md
+!docs/qa/final_evidence.md
+!docs/qa/open_punchlist.md
+
+# SpecKit final acceptance evidence
+!specs/
+specs/*
+!specs/002-match-first-revamp/
+specs/002-match-first-revamp/*
+!specs/002-match-first-revamp/acceptance-traceability.md
 
 # Chrome debug profiles
 .chrome-debug-profile/

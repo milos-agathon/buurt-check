@@ -1,33 +1,51 @@
 # Latest AI Handoff
 
-Updated: 2026-05-17
+Updated: 2026-05-18
 
 ## Current Phase
 
 The active SpecKit feature is `specs/002-match-first-revamp`; `.specify/feature.json`
 now points at that complete feature directory.
-Phase 1, Phase 2, Phase 3 backend matching, Phase 4 progress/success UI, and
-Phase 5 Netherlands results map/list and Phase 6 selected-neighborhood detail
-are documented with closure evidence in
-`docs/qa/match_first_revamp_traceability.md`. Phase 5 now hydrates completed
-session results through `GET /api/match/sessions/{session_id}/results`, renders
-a Netherlands-oriented 2D results map plus ranked recommendation list, keeps
-list and map selection synchronized, preserves map/list state for later Dossier
-return including cold results-route fetches, and keeps the list usable without
-map interaction. Phase 6 now opens selected-neighborhood route/state from a
-recommendation, loads selected boundary/fit context, scopes building requests to
-selected-neighborhood RD bounds after selection, rejects national/out-of-bounds
-building requests in the backend, shows localized 2D fallback for missing 3D,
-caps preference-aware amenities, and preserves selected-neighborhood map state.
-Phase 7 now resolves selected server-side house/building candidates to existing
-Dossier routes when a reliable VBO/lookup path exists, returns selectable
-PDOK-backed candidate addresses when the bridge is ambiguous, carries match
-return context into Dossier, preserves direct address search entry, and restores
-the selected match map/neighborhood state through the persistent localized Back
-to match map action. The 2026-05-17 provider-backed repair tightened the backend
-trust boundary, candidate selection, stale/no-address/manual recovery,
-analytics privacy/timing, and browser round-trip E2E without starting Phase 8
-work. Phase 7 is now a pass for the documented Dossier bridge scope.
+Phase 1 through Phase 8 are documented with closure evidence in
+`docs/qa/match_first_revamp_traceability.md` and final QA evidence in
+`docs/qa/final_evidence.md`. The 2026-05-18 Phase 8 review repair added
+spec-aligned analytics event names, survey save-failure analytics, backend/
+frontend analytics contract parity tests, analytics exact-ID minimization,
+frontend analytics backend transport, anonymous match-session deletion,
+automated hero-contrast evidence, and local map/detail performance evidence.
+The follow-up Phase 8 fix hardened `/api/match/analytics` further by splitting
+the endpoint onto a match-first-only event catalog, rejecting legacy report/
+listing/alert events at the endpoint, rejecting private event IDs and unsafe
+phase values, and dropping unknown backend context keys so arbitrary free text
+cannot persist. The latest Phase 8 consistency repair corrected stale task
+validation references, converted amenity chips from no-op controls into real
+pressed-state filters, and executed the EN/NL reduced-motion quickstart smoke
+path in Chromium at a mobile viewport.
+The latest Phase 8 review-blocker repair closes the analytics privacy and
+contract findings from review: top-level match-first analytics `session_id`
+now rejects email-shaped, free-text, private address-route, lookup-query, and
+16-digit VBO/address-like values; allowed backend context strings must be
+stable tokens/routes so free text cannot persist under allowed keys such as
+`reason`, `source`, or `session_id`; the non-spec
+`match_neighborhood_clicked` event was removed from frontend/backend catalogs
+and ResultsMap now records
+`match_recommendation_selected` before opening detail; the results-map-open
+metric is emitted only by hydrated `ResultsMap`; the final journey E2E asserts
+exact once-per-flow counts for key funnel events; and unrelated
+`docs/superpowers` evidence files were removed from this Phase 8 changeset.
+Phase 7 remains a pass for the Dossier bridge scope; Phase 8 does not rewrite
+Dossier modules or add account, checkout, marketplace, AI chat, or unrelated
+analytics scope.
+
+The latest Phase 8 review-blocker follow-up corrects the remaining false
+acceptance claim and hardens proof for deletion and selection analytics:
+AC1 is now `PARTIAL / RELEASE RESEARCH`, automated landing hierarchy evidence
+is documented only as local implementation evidence, SC-001/SC-003 remain
+release-blocking research items, anonymous deletion tests create and verify
+job/result-set rows before deletion, and ResultsMap emits
+`match_recommendation_selected` exactly once for the Show-on-map ->
+View-neighborhood path while keeping `match_neighborhood_detail_opened` as the
+detail-entry event.
 
 ## Current Next Step
 
@@ -51,11 +69,484 @@ Before any task regeneration or new task slicing, use the audited
 `specs/002-match-first-revamp/plan.md`, `data-model.md`, and
 `contracts/match-first-api.md` from the 2026-05-15 plan audit update below.
 
-The next documented implementation step is Phase 8 final QA. Keep the Phase 6/7
-boundaries intact: do not load national 3D buildings, do not show all amenities,
-do not rerun matching when opening completed results/selected-neighborhood
-detail or house Dossiers, and do not rewrite existing Dossier modules beyond
-route/context navigation.
+The next documented step is final human/product review plus release-condition
+checks for human usability metrics, live production/mobile performance, and
+provider-backed 3D data coverage. Keep the Phase 6/7 boundaries intact: do not load national 3D
+buildings, do not show all amenities, do not rerun matching when opening
+completed results/selected-neighborhood detail or house Dossiers, and do not
+rewrite existing Dossier modules beyond route/context navigation.
+
+## Phase 8 Analytics Session-ID Privacy Follow-up 2026-05-18
+
+Files changed in this follow-up:
+
+- `backend/app/models/match.py`
+- `backend/tests/test_match_first_analytics_api.py`
+- `docs/ai/latest_handoff.md`
+- `docs/qa/final_evidence.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+- `specs/002-match-first-revamp/acceptance-traceability.md`
+- `specs/002-match-first-revamp/tasks.md`
+
+Completed work:
+
+- Added backend regression coverage that rejects email-shaped and free-text
+  top-level analytics `session_id` payloads, in addition to 16-digit
+  address/VBO-like values, embedded address routes, and `lookup=` markers.
+- Constrained `MatchFirstAnalyticsRequest.session_id` to stable analytics-token
+  characters before any analytics row can be persisted.
+- Kept the fix inside Phase 8 analytics privacy. No next-phase product behavior
+  or Dossier module rewrite was started.
+
+Verification:
+
+- Red-first: `cd backend && pytest -q tests/test_match_first_analytics_api.py -k private_session_id`
+  failed before the production fix because `/api/match/analytics` accepted
+  email-shaped/free-text top-level `session_id` values with 202.
+- `cd backend && pytest -q tests/test_match_first_analytics_api.py -k private_session_id`
+  passed with 1 test.
+- `cd backend && ruff check app/models/match.py tests/test_match_first_analytics_api.py`
+  passed.
+- `cd backend && pytest -q tests/test_match_sessions.py tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py`
+  passed with 23 tests.
+
+Residual risks:
+
+- Human usability metrics for SC-001/SC-003 remain release-research blockers.
+- Live production/mobile performance profiling, provider-backed 3D coverage,
+  and repo-wide frontend lint cleanup remain partial/release-condition items.
+
+## Phase 8 Review Blocker Follow-up 2026-05-18
+
+Files changed in this follow-up:
+
+- `backend/tests/test_match_sessions.py`
+- `frontend/src/components/match-first/ResultsMap.tsx`
+- `frontend/tests/e2e/match-first-final-journey.spec.ts`
+- `docs/ai/latest_handoff.md`
+- `docs/qa/final_evidence.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `specs/002-match-first-revamp/acceptance-traceability.md`
+
+Completed work:
+
+- Changed AC1 from PASS to `PARTIAL / RELEASE RESEARCH` and kept SC-001/SC-003
+  blocked on human/product research. Automated landing hierarchy checks are
+  now described as implementation evidence, not proof of first-time user
+  understanding.
+- Strengthened
+  `test_match_session_delete_removes_anonymous_match_data` so it completes
+  answers, reads `preference_vector_version`, runs matching from
+  `review_final_cta`, proves `match_jobs` and `match_result_sets` rows exist
+  before deletion, then proves jobs, result sets, survey answers, preference
+  vectors, and analytics rows are all zero for the deleted session.
+- Fixed selection analytics so a map/list selection emits
+  `match_recommendation_selected` once, and opening detail does not emit a
+  second selection event when that recommendation is already selected.
+  `match_neighborhood_detail_opened` remains the detail-entry event.
+- Added exact local and backend POST count assertions for
+  `match_recommendation_selected` in the final Show-on-map ->
+  View-neighborhood E2E path.
+
+Verification:
+
+- `cd backend && pytest -q tests/test_match_sessions.py tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py`
+  passed with 23 tests.
+- `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx src/services/matchFirstAnalytics.test.ts`
+  passed with 23 tests.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts`
+  passed with 12 tests across Chromium, Firefox, and WebKit.
+- `cd frontend && npm run build` passed. The build emitted the existing
+  placeholder assetlinks/AASA production-release notices.
+- `git diff --check` passed with CRLF normalization warnings only.
+
+Residual risks:
+
+- Human usability metrics for SC-001/SC-003 remain release-research blockers.
+- Live production/mobile performance profiling and provider-backed 3D coverage
+  remain release-condition items.
+
+## Phase 8 Analytics Privacy/Contract Repair 2026-05-18
+
+Files changed in this repair:
+
+- `backend/app/models/match.py`
+- `backend/app/services/match/instrumentation.py`
+- `backend/tests/test_match_first_analytics_api.py`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/services/matchFirstAnalytics.test.ts`
+- `frontend/src/components/match-first/ResultsMap.tsx`
+- `frontend/src/test/match-first-results-map.test.tsx`
+- `frontend/tests/e2e/match-first-final-journey.spec.ts`
+- `docs/ai/latest_handoff.md`
+- `docs/qa/final_evidence.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+- `specs/002-match-first-revamp/acceptance-traceability.md`
+- `specs/002-match-first-revamp/tasks.md`
+
+Completed work:
+
+- Added red-first backend coverage proving `/api/match/analytics` drops
+  allowed-key string values that are free text or contain private lookup
+  markers, including `reason`, `source`, and `session_id`.
+- Hardened match-first backend context sanitization so string values must be
+  short stable tokens/routes and `lookup=` is rejected anywhere in the string.
+  Email redaction remains in place, but arbitrary sentences no longer persist
+  just because the key is allowlisted.
+- Removed the non-spec `match_neighborhood_clicked` event from frontend and
+  backend analytics catalogs, request typing, tests, and final E2E
+  expectations.
+- Changed the ResultsMap "View neighborhood" action to record
+  `match_recommendation_selected` with recommendation/result metadata before
+  opening the detail route. `NeighborhoodDetail` remains responsible for
+  `match_neighborhood_detail_opened`.
+- Tightened frontend and backend catalog parity tests: required spec events
+  must be present, and extra events are allowed only through the documented
+  `OPTIONAL_MATCH_FIRST_EVENTS` set.
+- Updated Phase 8 evidence, traceability, punch list, acceptance traceability,
+  tasks, and this handoff so SC-014 only claims pass after the privacy and
+  contract repairs.
+
+Red-first evidence:
+
+- `cd backend && pytest -q tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py`
+  failed before the fix because `/api/match/analytics` persisted free-text
+  allowed-key values and because `match_neighborhood_clicked` was outside the
+  active spec contract.
+- `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-results-map.test.tsx`
+  failed before the fix because the frontend catalog still included
+  `match_neighborhood_clicked` and the ResultsMap detail button emitted that
+  non-spec event.
+
+Verification:
+
+- `cd backend && pytest -q tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py`
+  passed with 15 tests.
+- `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-results-map.test.tsx`
+  passed with 23 tests.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts`
+  passed with 12 tests. Vite emitted proxy ECONNRESET noise during teardown;
+  Playwright reported the suite passed.
+
+Residual risks:
+
+- Human usability metrics for SC-001/SC-003, live production/mobile profiling,
+  real selected-neighborhood 3D provider coverage, and repo-wide lint cleanup
+  remain the documented release-condition items.
+
+## Phase 8 Review Blocker Repair 2026-05-18
+
+Files changed in this repair:
+
+- `.gitignore`
+- `backend/app/models/match.py`
+- `backend/tests/test_match_first_analytics_api.py`
+- `frontend/src/App.tsx`
+- `frontend/tests/e2e/match-first-final-journey.spec.ts`
+- `docs/ai/latest_handoff.md`
+- `docs/qa/final_evidence.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+- `specs/002-match-first-revamp/acceptance-traceability.md`
+- `specs/002-match-first-revamp/tasks.md`
+
+Completed work:
+
+- Added red-first backend coverage proving `/api/match/analytics` rejects
+  private top-level `session_id` values: a 16-digit VBO/address-like value, an
+  embedded `#/address/...` route, and a `lookup=` marker. The test also proves
+  rejected rows are not persisted.
+- Applied the existing private analytics identifier validation to
+  `MatchFirstAnalyticsRequest.session_id` and broadened lookup detection so
+  `lookup=` is rejected anywhere inside analytics identifiers.
+- Removed the duplicate `match_results_map_opened` emission from the success
+  button path. Results-map-open is now emitted only when `ResultsMap` renders
+  or hydrates result state.
+- Strengthened the final journey E2E to assert exact once-per-flow counts for
+  `match_landing_cta_clicked`, `match_final_run_cta_clicked`,
+  `match_results_map_opened`, `match_dossier_opened`, and
+  `match_back_to_map_return_success` in both local analytics and backend
+  analytics POSTs.
+- Removed unrelated `docs/superpowers` allowlisting from `.gitignore` and
+  removed the untracked `docs/superpowers/state` files from this Phase 8
+  changeset.
+
+Red-first evidence:
+
+- `cd backend && pytest -q tests/test_match_first_analytics_api.py` failed
+  before the fix because private top-level `session_id` payloads were accepted
+  with 202.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts`
+  failed before the fix because `match_results_map_opened` occurred twice in
+  the canonical journey.
+
+Verification:
+
+- `cd backend && pytest -q tests/test_match_first_analytics_api.py` passed with
+  9 tests.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts`
+  passed with 12 tests.
+- `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts`
+  passed with 14 tests.
+- `cd frontend && npm run build` passed.
+- `git diff --check` passed with CRLF normalization warnings only.
+
+Residual risks:
+
+- Human usability metrics for SC-001/SC-003, live production/mobile profiling,
+  real selected-neighborhood 3D provider coverage, and repo-wide lint cleanup
+  remain the documented release-condition items.
+
+## Phase 8 Review Repair 2026-05-18
+
+Task IDs closed in this repair:
+
+- `T-076`: backend/frontend analytics privacy and server transport.
+- `T-077`: spec-aligned analytics fallback/failure event coverage, including
+  survey answer-save failure.
+- `T-078`: automated hero text contrast evidence.
+- `T-081`: anonymous match-session deletion and exact-ID minimization.
+- `T-082`: local map/detail performance coverage; live device profiling remains
+  a release condition.
+- `T-084`: final focused QA commands for the repaired surfaces.
+- `T-086`: traceability/evidence rows updated with no pass row lacking evidence.
+- `T-087`: complete after Chromium EN/NL reduced-motion quickstart smoke
+  evidence was recorded.
+- `T-088`: complete for local automated final handoff and evidence
+  synchronization.
+
+Files changed in this repair:
+
+- `backend/app/api/match.py`
+- `backend/app/models/match.py`
+- `backend/app/services/match/instrumentation.py`
+- `backend/app/services/match/sessions.py`
+- `backend/tests/test_match_first_analytics_api.py`
+- `backend/tests/test_match_sessions.py`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/services/matchFirstAnalytics.test.ts`
+- `frontend/src/components/match-first/SurveyShell.tsx`
+- `frontend/src/components/match-first/SurveyShell.test.tsx`
+- `frontend/src/components/match-first/AmenityTags.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.css`
+- `frontend/src/App.test.tsx`
+- `frontend/src/test/match-first-progress.test.tsx`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `frontend/tests/e2e/performance-budget.spec.ts`
+- `frontend/tests/e2e/match-first-final-journey.spec.ts`
+- `docs/qa/final_evidence.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+- `specs/002-match-first-revamp/acceptance-traceability.md`
+- `specs/002-match-first-revamp/tasks.md`
+
+Completed work:
+
+- Backend analytics now drops exact address/VBO/lookup/candidate/selected-house/
+  building identifiers, embedded address routes, lookup query markers, and
+  16-digit address/VBO-like values, including nested context values, before
+  persistence.
+- `/api/match/analytics` now validates against a match-first-only event catalog
+  instead of the broader legacy instrumentation catalog, rejects
+  `match_listing_clicked`, `match_alert_created`, and `match_report_viewed`,
+  and strips unknown context keys before persistence.
+- Match-first analytics request validation rejects private route/id-like
+  `event_id` values and unsafe `phase` values.
+- Backend and frontend analytics catalogs now use the stable event keys from
+  `specs/002-match-first-revamp/spec.md`, with parity tests that parse the
+  active spec contract. `match_quality_feedback_submitted` is documented as N/A
+  because no match-first feedback UI exists in this phase.
+- Frontend analytics now generates client event IDs, stores only sanitized local
+  events, and posts sanitized events to `/api/match/analytics` without blocking
+  the primary journey if transport fails.
+- Survey answer analytics now records `match_survey_answer_saved` only after
+  persistence succeeds and records `match_survey_answer_save_failed` with a
+  stable `error_code` when backend answer persistence fails.
+- Added `DELETE /api/match/sessions/{session_id}`. The endpoint soft-deletes
+  the anonymous session, makes subsequent reads return `match.session.not_found`,
+  and removes related anonymous survey answers, preference vectors, jobs,
+  result sets, and analytics rows.
+- Added browser E2E contrast evidence for the landing hero title against the
+  brightest hero overlay case.
+- Updated stale frontend unit expectations so match-progress and Dossier-return
+  tests distinguish analytics transport calls from match API calls and assert
+  exact house/building IDs and embedded address routes are not stored in
+  match-first analytics.
+- Performance E2E now measures local results map initial usability, list/map
+  sync, pan/zoom response, selected-neighborhood detail readiness, scoped
+  building requests, no national 3D request, and reduced-motion mobile behavior.
+- Amenity controls now expose real selected/cleared state with `aria-pressed`,
+  visible localized status text, focus styling, and analytics emitted only from
+  that visible user interaction.
+- Stale Phase 8 task validation references were replaced with the actual
+  passing tests/specs that provide equivalent coverage.
+- The quickstart smoke path from `specs/002-match-first-revamp/quickstart.md`
+  was executed in Chromium for English and Dutch at 390x844 with
+  `prefers-reduced-motion: reduce`, including landing, secondary search,
+  survey, mid-survey refresh restoration, review, final run, success, results,
+  selected-neighborhood detail, amenity state, house-to-Dossier, and Back to
+  match map.
+- Updated final evidence, traceability, acceptance traceability, open punchlist,
+  and tasks status. Human usability metrics, live production/mobile profiling,
+  provider-backed 3D coverage, and repo-wide lint cleanup remain
+  partial/release-condition items.
+
+Verification so far:
+
+- Follow-up analytics hardening red-first command
+  `cd backend && pytest -q tests/test_match_first_analytics_api.py` failed
+  before implementation because the match-first event catalog was missing,
+  unknown free-text context persisted, private event IDs/phases were accepted,
+  and legacy events were accepted by `/api/match/analytics`; after the fix it
+  passed with 8 tests.
+- Requested follow-up verification
+  `cd backend && pytest -q tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py tests/test_match_sessions.py`
+  passed with 21 tests.
+- Requested follow-up verification `cd backend && ruff check .` passed.
+- Requested follow-up verification
+  `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-i18n.test.ts`
+  passed with 16 tests.
+- Requested follow-up verification `cd frontend && npm run build` passed.
+- Requested follow-up verification `git diff --check` passed with CRLF
+  normalization warnings only.
+- `cd backend && pytest -q tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py` passed with 10 tests after adding backend spec-contract parity.
+- `cd frontend && npm run test -- src/components/match-first/SurveyShell.test.tsx src/services/matchFirstAnalytics.test.ts` passed with 28 tests after adding save-success/save-failure analytics and frontend spec-contract parity.
+- `cd backend && pytest -q tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py tests/test_match_sessions.py` passed with 18 tests.
+- `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/components/match-first/SurveyShell.test.tsx src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts` passed with 57 tests.
+- `cd frontend && npm run test:perf:e2e` initially failed while the new map/detail budget test used an inherited Dutch locale and then measured Playwright command overhead. After making language deterministic and measuring map/list/pan/zoom DOM updates in-browser, the same command passed with 9 tests.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts` initially hit a transient 422 in the Chromium backend-provider proof; after the quickstart and provider-proof repair, the exact combined command passed with 21 passed and 3 expected skips, and the opt-in provider proof passed separately in Chromium.
+- Post-edge refresh after decoupling survey save/failure analytics from the UI
+  sync guard: `cd frontend && npm run test -- src/components/match-first/SurveyShell.test.tsx src/services/matchFirstAnalytics.test.ts`
+  passed with 28 tests, `cd frontend && npm run build` passed, the exact
+  57-test frontend command passed, the exact final+Dossier E2E command passed
+  with 21 passed and 3 expected skips, and `cd frontend && npm run test:perf:e2e`
+  passed with 9 tests.
+- Red-first embedded-route privacy checks failed before the sanitizer patch,
+  then `cd backend && pytest -q tests/test_match_first_analytics_api.py -k private_payload`
+  and `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts -t "Dossier bridge"`
+  passed after the fix.
+- Latest embedded-route repair verification also reran
+  `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts`,
+  which passed with 6 tests across the configured browser projects.
+- Amenity accessibility red-first verification:
+  `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -t "toggles amenity filters"`
+  failed before implementation because amenity buttons had no pressed state,
+  then passed with 18 tests after adding the visible selected/cleared behavior.
+- Quickstart reduced-motion verification:
+  `cd frontend && npx playwright test --project=chromium tests/e2e/match-first-final-journey.spec.ts -g "reduced-motion quickstart smoke"`
+  passed with 2 tests: English and Dutch, Chromium, 390x844,
+  `prefers-reduced-motion: reduce`, no blockers.
+- Latest requested Phase 8 repair verification:
+  `cd frontend && npm run build` passed; `cd frontend && npm run test` passed
+  after tightening full-suite timing/performance assertions;
+  `cd frontend && npm run test:a11y` passed with 9 tests;
+  `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts`
+  passed with 21 passed and 3 expected skips; the opt-in shared-backend
+  provider proof also passed with
+  `$env:RUN_BACKEND_PROVIDER_PROOF='1'; npx playwright test --project=chromium tests/e2e/match-first-dossier-roundtrip.spec.ts -g "backend provider-backed candidate bridge"`;
+  `cd frontend && npm run test:perf:e2e` passed with 9 tests;
+  `cd backend && ruff check .` passed; `cd backend && pytest -x -q -m "not live"`
+  passed with 1365 passed, 12 skipped, and 11 deselected.
+- `cd frontend && npm run test:e2e -- --project=chromium tests/e2e/match-first-final-journey.spec.ts` passed; npm argument handling executed the configured Chromium, Firefox, and WebKit projects with 6 tests total.
+- Final verification refresh: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-a11y.test.tsx src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts src/test/match-i18n.test.ts` passed with 74 tests.
+- Final verification refresh: `cd backend && ruff check .`, `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts`, `cd frontend && npm run test:perf:e2e`, and `git diff --check` all passed; `git diff --check` reported CRLF normalization warnings only.
+- Final verification refresh: `cd frontend && npm run test` passed after stale analytics-transport test expectations were updated.
+- Final verification refresh: `cd backend && pytest -x -q -m "not live"` passed with 1365 passed, 12 skipped, and 11 deselected.
+
+Residual risks:
+
+- Live production/mobile-device performance profiling remains a release
+  condition outside this local run.
+- Human usability metrics for SC-001 and SC-003 remain release-research items.
+- Real selected-neighborhood 3D provider coverage remains provider/data
+  integration work; current behavior correctly scopes selected-neighborhood
+  requests and shows the localized 2D/list fallback when 3D data is missing.
+- Repo-wide frontend lint cleanup remains deferred unless lint is made a
+  release/CI gate for this branch.
+
+## Phase 8 Final QA Closure 2026-05-17
+
+Files changed in this pass:
+
+- `backend/app/api/match.py`
+- `.gitignore`
+- `backend/app/models/match.py`
+- `backend/app/services/match/instrumentation.py`
+- `backend/tests/test_match_first_analytics_api.py`
+- `frontend/src/services/matchFirstAnalytics.ts`
+- `frontend/src/services/matchFirstAnalytics.test.ts`
+- `frontend/src/components/match-first/SurveyShell.tsx`
+- `frontend/src/components/match-first/ResultsMap.tsx`
+- `frontend/src/components/match-first/AmenityTags.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.tsx`
+- `frontend/src/components/match-first/NeighborhoodDetail.css`
+- `frontend/src/test/match-first-a11y.test.tsx`
+- `frontend/src/test/match-first-results-map.test.tsx`
+- `frontend/src/test/match-first-neighborhood-detail.test.tsx`
+- `frontend/tests/e2e/match-first-final-journey.spec.ts`
+- `frontend/tests/e2e/performance-budget.spec.ts`
+- `frontend/src/i18n/en.json`
+- `frontend/src/i18n/nl.json`
+- `docs/qa/final_evidence.md`
+- `docs/qa/match_first_revamp_traceability.md`
+- `docs/qa/open_punchlist.md`
+- `specs/002-match-first-revamp/acceptance-traceability.md`
+- `specs/002-match-first-revamp/tasks.md`
+
+Completed work:
+
+- Added `POST /api/match/analytics` with stable event validation,
+  idempotent client event IDs, privacy rejection/redaction, no-store responses,
+  and tests for required Phase 8 analytics events.
+- Added missing frontend analytics for survey back, recommendation selection, and
+  amenity filter click; expanded the frontend event catalog to cover the
+  required Phase 8 funnel and edge-state events.
+- Converted amenity tags into keyboard/touch buttons with localized accessible
+  labels and 44 px target styling.
+- Added final cross-browser Playwright journey coverage for landing, secondary
+  search click, survey, review, backend matching, success, results, map/list
+  selection, neighborhood detail, amenity filter, house click, existing Dossier,
+  and Back to match map.
+- Updated performance E2E away from the pre-revamp immediate address-search
+  assumption. It now measures match-first landing readiness and secondary
+  search suggest feedback.
+- Updated final evidence, traceability, open punchlist, and task status. Rows
+  with deferred work are labelled partial and are not marked pass.
+
+Verification:
+
+- `cd backend && pytest -q tests/test_match_first_analytics_api.py` passed with
+  4 tests.
+- `cd backend && pytest -q tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py` passed with 9 tests.
+- `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-a11y.test.tsx src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts src/test/match-i18n.test.ts` passed with 74 tests on the final verification refresh.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts` passed across Chromium, Firefox, and WebKit.
+- `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts` now passes with 21 passed and 3 expected skips after the spec-aligned analytics repair and quickstart additions.
+- `cd frontend && npm run test:perf:e2e` now passes with 9 tests, including the local results map and selected-neighborhood detail performance budgets.
+- `cd frontend && npm run build` passed.
+- `cd frontend && npm run test` passed.
+- `cd frontend && npm run test:a11y` passed with 9 tests.
+- `cd backend && ruff check .` passed.
+- `cd backend && pytest -x -q -m "not live"` passed with 1365 passed, 12 skipped, and 11 deselected on the final verification refresh.
+- `git diff --check` passed with CRLF normalization warnings only.
+
+Residual risks:
+
+- Anonymous match-session deletion was later closed by the 2026-05-18 repair:
+  `DELETE /api/match/sessions/{session_id}` is implemented and covered by
+  backend tests.
+- Live production/mobile-device performance profiling remains deferred. Local
+  Playwright performance E2E passes.
+- Real selected-neighborhood 3D provider coverage remains a provider/data
+  integration item. Current behavior correctly scopes selected-neighborhood
+  requests and shows localized 2D/list fallback when 3D data is missing.
+- Repo-wide frontend lint cleanup remains deferred because known pre-existing
+  lint issues are outside the Phase 8 slice; build, full tests, a11y, E2E, and
+  performance gates passed.
 
 ## Phase 7 Commit Readiness Verification 2026-05-17
 
@@ -117,11 +608,11 @@ Completed repair work:
   candidate to Dossier, provider-empty/manual recovery, provider failure, and
   Locatieserver reverse parsing.
 - Added browser proof: Chromium creates a real completed backend match, opens
-  ambiguous house 3, receives PDOK reverse-backed candidates from the real
-  backend bridge, opens Dossier, returns to match map, and verifies no `/run`
-  during Dossier open or return. Firefox/WebKit skip only this backend-integrated
-  provider proof to avoid local shared-DB races; their UI round-trip proof still
-  runs.
+  the backend-selected candidate house, receives PDOK reverse-backed candidates
+  from the real backend bridge, opens Dossier, returns to match map, and
+  verifies no `/run` during Dossier open or return. The backend-integrated
+  provider proof is opt-in to avoid local shared-DB races in the two-worker
+  combined suite; the cross-browser UI round-trip proof still runs by default.
 
 Red-first evidence:
 
@@ -136,7 +627,7 @@ Verification:
 - `cd backend && ruff check app tests/test_match_neighborhood_layers.py tests/test_locatieserver.py` passed.
 - `cd backend && pytest -q tests/test_match_neighborhood_layers.py tests/test_locatieserver.py` passed with 34 tests.
 - `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts` passed with 19 tests.
-- `cd frontend && npm run test:e2e -- tests/e2e/match-first-dossier-roundtrip.spec.ts` passed with 10 tests and 2 intentional skips.
+- `$env:RUN_BACKEND_PROVIDER_PROOF='1'; npx playwright test --project=chromium tests/e2e/match-first-dossier-roundtrip.spec.ts -g "backend provider-backed candidate bridge"` passed with 1 test; the default final+Dossier E2E command passed with 21 passed and 3 expected skips.
 
 Residual risk:
 

@@ -8,6 +8,7 @@ from app.db import get_db
 from app.models.match import (
     MatchSessionCreateRequest,
     MatchSessionCreateResponse,
+    MatchSessionDeleteResponse,
     MatchSessionResponse,
     PreferenceVector,
     SurveyAnswerPatchRequest,
@@ -267,6 +268,54 @@ async def get_match_session(session_id: str) -> MatchSessionResponse:
         expires_at=datetime.fromisoformat(str(row["expires_at"]).replace("Z", "+00:00"))
         if row["expires_at"]
         else None,
+    )
+
+
+async def delete_match_session(session_id: str) -> MatchSessionDeleteResponse:
+    now = _utc_now()
+    async with get_db() as db:
+        cursor = await db.execute(
+            "SELECT session_id FROM match_sessions WHERE session_id = ?",
+            (session_id,),
+        )
+        if await cursor.fetchone() is None:
+            raise KeyError(session_id)
+
+        for table in (
+            "match_survey_answers",
+            "match_preference_vectors",
+            "match_result_sets",
+            "match_jobs",
+            "match_analytics_events",
+        ):
+            await db.execute(f"DELETE FROM {table} WHERE session_id = ?", (session_id,))
+
+        await db.execute(
+            """
+            UPDATE match_sessions
+            SET phase = ?,
+                current_step = NULL,
+                answer_version = 0,
+                preference_vector_id = NULL,
+                preference_vector_version = NULL,
+                active_job_id = NULL,
+                selected_neighborhood_id = NULL,
+                selected_recommendation_id = NULL,
+                selected_house_id = NULL,
+                map_state_json = NULL,
+                dossier_return_context_json = NULL,
+                updated_at = ?,
+                deleted_at = COALESCE(deleted_at, ?)
+            WHERE session_id = ?
+            """,
+            ("deleted", _iso(now), _iso(now), session_id),
+        )
+        await db.commit()
+
+    return MatchSessionDeleteResponse(
+        session_id=session_id,
+        delete_requested=True,
+        deleted_at=now,
     )
 
 

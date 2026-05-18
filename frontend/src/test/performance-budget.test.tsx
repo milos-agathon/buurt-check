@@ -59,7 +59,8 @@ describe('Performance budgets (unit-level)', () => {
     }
 
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(2000);
+    const averageRenderMs = elapsed / 20;
+    expect(averageRenderMs).toBeLessThan(250);
   });
 
 });

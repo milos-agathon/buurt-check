@@ -970,6 +970,8 @@
   "matchFirst.neighborhood.fitContextTitle": "Why it fits",
   "matchFirst.neighborhood.amenitiesTitle": "Relevant amenities",
   "matchFirst.neighborhood.amenitiesLabel": "Relevant amenity tags",
+  "matchFirst.neighborhood.filterAmenity": "Filter by {{amenity}}",
+  "matchFirst.neighborhood.activeAmenityFilter": "Showing {{amenity}} context",
   "matchFirst.neighborhood.amenitiesLoading": "Loading relevant amenities.",
   "matchFirst.neighborhood.amenitiesUnavailable": "Amenity tags are unavailable right now.",
   "matchFirst.neighborhood.amenitiesEmpty": "No relevant amenity tags are available yet.",

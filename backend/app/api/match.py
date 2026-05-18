@@ -1,14 +1,16 @@
-from typing import Literal
+from typing import Literal, cast
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response
 from fastapi.responses import JSONResponse
 
+from app.db import get_db
 from app.models.match import (
     AlertCreateRequest,
     AlertCreateResponse,
     AlertListResponse,
     AlertRule,
     AlertUpdateRequest,
+    AnalyticsEventName,
     DeleteResponse,
     ListingCriteria,
     ListingProviderResult,
@@ -18,6 +20,8 @@ from app.models.match import (
     MatchDossierBridgeResponse,
     MatchFeedbackRequest,
     MatchFeedbackResponse,
+    MatchFirstAnalyticsRequest,
+    MatchFirstAnalyticsResponse,
     MatchJobStatusResponse,
     MatchMapResponse,
     MatchNeighborhoodAmenitiesResponse,
@@ -35,6 +39,7 @@ from app.models.match import (
     MatchRunResponse,
     MatchSessionCreateRequest,
     MatchSessionCreateResponse,
+    MatchSessionDeleteResponse,
     MatchSessionResponse,
     MatchSimilarRequest,
     MatchSimilarResponse,
@@ -68,6 +73,12 @@ from app.services.match.geometry import (
     get_neighborhood_summary,
     parse_bounds_rd,
 )
+from app.services.match.instrumentation import (
+    MATCH_FIRST_ANALYTICS_EVENT_NAMES,
+    analytics_payload_contains_rejected_key,
+    record_match_event,
+    sanitize_match_first_analytics_context,
+)
 from app.services.match.jobs import (
     AnswersIncompleteError,
     MatchJobNotFoundError,
@@ -100,6 +111,7 @@ from app.services.match.reports import (
 )
 from app.services.match.sessions import (
     create_match_session,
+    delete_match_session,
     get_match_session,
     patch_match_session_answers,
 )
@@ -116,6 +128,54 @@ def _mark_no_store(response: Response) -> None:
 @router.get("/health")
 async def match_health() -> dict[str, str]:
     return {"status": "foundation_only"}
+
+
+@router.post(
+    "/analytics",
+    response_model=MatchFirstAnalyticsResponse,
+    status_code=202,
+)
+async def record_match_first_analytics(
+    payload: MatchFirstAnalyticsRequest,
+    response: Response,
+) -> MatchFirstAnalyticsResponse:
+    _mark_no_store(response)
+    if payload.event_name not in MATCH_FIRST_ANALYTICS_EVENT_NAMES:
+        raise HTTPException(
+            status_code=422,
+            detail="match.analytics.invalid_event",
+            headers=_NO_STORE_HEADERS,
+        )
+    if analytics_payload_contains_rejected_key(payload.context):
+        raise HTTPException(
+            status_code=422,
+            detail="match.analytics.rejected_payload",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT analytics_event_id
+            FROM match_analytics_events
+            WHERE analytics_event_id = ?
+            """,
+            (payload.event_id,),
+        )
+        if await cursor.fetchone():
+            return MatchFirstAnalyticsResponse(accepted=True, duplicate=True)
+
+    context = sanitize_match_first_analytics_context(payload.context)
+    if payload.phase:
+        context["phase"] = payload.phase
+    await record_match_event(
+        cast(AnalyticsEventName, payload.event_name),
+        analytics_event_id=payload.event_id,
+        session_id=payload.session_id,
+        locale=payload.locale,
+        context=context,
+    )
+    return MatchFirstAnalyticsResponse(accepted=True, duplicate=False)
 
 
 @router.post("/quiz", response_model=MatchQuizResponse)
@@ -137,6 +197,26 @@ async def read_session(session_id: str, response: Response) -> MatchSessionRespo
     _mark_no_store(response)
     try:
         return await get_match_session(session_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    response_model=MatchSessionDeleteResponse,
+    status_code=202,
+)
+async def delete_session(
+    session_id: str,
+    response: Response,
+) -> MatchSessionDeleteResponse:
+    _mark_no_store(response)
+    try:
+        return await delete_match_session(session_id)
     except KeyError as exc:
         raise HTTPException(
             status_code=404,

@@ -6328,13 +6328,6 @@ function App() {
     const sessionId = verifiedMatchResults?.session_id ?? activeMatchSessionId;
     if (!sessionId) returnToMatchSurvey();
     if (!sessionId) return;
-    recordMatchFirstEvent('match_results_map_opened', {
-      locale: i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en',
-      source: 'success',
-      session_id: sessionId,
-      result_set_id: verifiedMatchResults?.result_set_id,
-      status: verifiedMatchResults?.status,
-    });
     setActiveScreen('matchResults');
     setHashRoute(buildHashRoute({ route: 'matchResults', sessionId }));
   };

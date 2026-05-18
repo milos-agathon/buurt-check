@@ -1354,7 +1354,8 @@ describe('initial render', () => {
 
     expect(await screen.findByText('Finish the match first to see your personal map.')).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Search' })).not.toBeInTheDocument();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    const nonAnalyticsCalls = fetchSpy.mock.calls.filter(([input]) => !String(input).endsWith('/api/match/analytics'));
+    expect(nonAnalyticsCalls).toHaveLength(0);
 
     fetchSpy.mockRestore();
   });
@@ -1476,7 +1477,8 @@ describe('hash route recovery', () => {
       expect(restored).toHaveAttribute('data-selected-result-rank', '2');
       expect(restored).toHaveAttribute('data-selected-house-id', 'house-7');
     });
-    expect(fetchSpy).not.toHaveBeenCalled();
+    const nonAnalyticsCalls = fetchSpy.mock.calls.filter(([input]) => !String(input).endsWith('/api/match/analytics'));
+    expect(nonAnalyticsCalls).toHaveLength(0);
 
     fetchSpy.mockRestore();
   });
@@ -1492,7 +1494,8 @@ describe('hash route recovery', () => {
     await waitForDossierLoaded();
 
     expect(container.querySelector('.app__screen[data-match-motion="reduced"]')).toBeInTheDocument();
-    expect(readMatchFirstAnalyticsEvents()).toEqual(expect.arrayContaining([
+    const analyticsEvents = readMatchFirstAnalyticsEvents();
+    expect(analyticsEvents).toEqual(expect.arrayContaining([
       expect.objectContaining({
         event_name: 'match_dossier_opened',
         context: expect.objectContaining({
@@ -1502,11 +1505,10 @@ describe('hash route recovery', () => {
           neighborhood_id: 'BU0363AA01',
           recommendation_id: 'rec_1',
           result_rank: 1,
-          selected_house_id: 'bldg_BU0363AA01_001',
-          building_id: 'bldg_BU0363AA01_001',
         }),
       }),
     ]));
+    expect(JSON.stringify(analyticsEvents)).not.toContain('bldg_BU0363AA01_001');
   });
 
   it('does not record Dossier-open analytics when a match bridge route is accepted but lookup fails', async () => {

@@ -82,6 +82,13 @@ function renderSurvey(props: Partial<ComponentProps<typeof SurveyShell>> = {}) {
   return { ...rendered, onReview, onBack };
 }
 
+function readStoredAnalytics(): Array<{ event_name: string; context?: Record<string, unknown> }> {
+  return JSON.parse(localStorage.getItem('buurt-check-match-first-analytics') ?? '[]') as Array<{
+    event_name: string;
+    context?: Record<string, unknown>;
+  }>;
+}
+
 it('renders exactly one question with validation before advancing', async () => {
   const user = userEvent.setup();
   renderSurvey();
@@ -145,6 +152,84 @@ it('persists answers after selection and scopes them to the active match session
   await user.click(screen.getByRole('radio', { name: 'Rent' }));
   expect(readMatchSessionSnapshot('match-two')?.answers).toMatchObject({ intent: 'rent' });
   expect(readMatchSessionSnapshot('match-one')?.answers).toMatchObject({ intent: 'buy' });
+});
+
+it('records answer-saved analytics only after backend answer persistence succeeds', async () => {
+  const user = userEvent.setup();
+  let resolveAnswerPatch: ((response: Response) => void) | undefined;
+  fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+    if (String(input).endsWith('/answers')) {
+      return new Promise<Response>((resolve) => {
+        resolveAnswerPatch = resolve;
+      });
+    }
+    return new Response(JSON.stringify({ accepted: true, duplicate: false }), {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+  renderSurvey({ sessionId: 'match-analytics-save' });
+
+  await user.click(screen.getByRole('radio', { name: 'Buy' }));
+
+  expect(readStoredAnalytics().some((event) => event.event_name === 'match_survey_answer_saved')).toBe(false);
+
+  resolveAnswerPatch?.(new Response(JSON.stringify({
+    session_id: 'match-analytics-save',
+    answer_version: 1,
+    is_complete: false,
+    validation: {},
+    stale_results: true,
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  }));
+
+  await waitFor(() => {
+    expect(readStoredAnalytics()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_name: 'match_survey_answer_saved',
+        context: expect.objectContaining({
+          question_id: 'intent',
+          step: 1,
+          total_steps: 11,
+          answer_type: 'single',
+          answer_count: 1,
+        }),
+      }),
+    ]));
+  });
+});
+
+it('records answer-save-failed analytics without recording saved when backend persistence fails', async () => {
+  const user = userEvent.setup();
+  fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+    if (String(input).endsWith('/answers')) {
+      throw new Error('offline');
+    }
+    return new Response(JSON.stringify({ accepted: true, duplicate: false }), {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+  renderSurvey({ sessionId: 'match-analytics-fail' });
+
+  await user.click(screen.getByRole('radio', { name: 'Rent' }));
+
+  await waitFor(() => {
+    expect(readStoredAnalytics()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_name: 'match_survey_answer_save_failed',
+        context: expect.objectContaining({
+          question_id: 'intent',
+          step: 1,
+          total_steps: 11,
+          error_code: 'match.survey.answer_save_failed',
+        }),
+      }),
+    ]));
+  });
+  expect(readStoredAnalytics().some((event) => event.event_name === 'match_survey_answer_saved')).toBe(false);
 });
 
 it('captures a rent-only budget as monthly rent max', async () => {

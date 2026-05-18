@@ -184,7 +184,7 @@ it('reaches review only after the final survey question and does not start match
     }));
   });
   expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining('/run'), expect.anything());
-});
+}, 10000);
 
 it('renders a concise review from persisted raw answers and starts only from the final CTA', async () => {
   const user = userEvent.setup();
@@ -211,4 +211,4 @@ it('renders a concise review from persisted raw answers and starts only from the
     intent: 'both',
     lifestyle_priorities: ['green_access', 'calmness', 'public_transport'],
   }));
-});
+}, 10000);

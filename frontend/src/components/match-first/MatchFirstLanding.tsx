@@ -21,11 +21,11 @@ export default function MatchFirstLanding({
   const locale = i18n.language.startsWith('nl') ? 'nl' : 'en';
 
   useEffect(() => {
-    recordMatchFirstEvent('match_first_landing_shown', { locale, source: 'landing' });
+    recordMatchFirstEvent('match_landing_cta_shown', { locale, source: 'landing' });
   }, [locale]);
 
   const handleStartMatch = () => {
-    recordMatchFirstEvent('match_first_cta_clicked', { locale, source: 'landing' });
+    recordMatchFirstEvent('match_landing_cta_clicked', { locale, source: 'landing' });
     onStartMatch();
   };
 

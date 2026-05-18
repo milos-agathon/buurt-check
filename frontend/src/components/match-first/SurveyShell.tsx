@@ -77,6 +77,12 @@ function syncErrorKeyFromError(error: unknown): string {
     : 'matchFirst.survey.syncFailed';
 }
 
+function analyticsErrorCodeFromError(error: unknown): string {
+  return error instanceof Error && error.message.startsWith('match.warning.')
+    ? error.message
+    : 'match.survey.answer_save_failed';
+}
+
 function budgetHasValues(value: MatchFirstBudgetAnswer): boolean {
   return value.buy_min !== undefined || value.buy_max !== undefined || value.rent_max !== undefined;
 }
@@ -144,6 +150,7 @@ export default function SurveyShell({
   const syncAttemptRef = useRef(0);
   const latestAnalyticsContext = useRef({
     activeStep,
+    questionId: question.id,
     locale: normalizeLocale(i18n.resolvedLanguage ?? i18n.language),
     sessionKey: sessionId || 'default',
   });
@@ -171,11 +178,11 @@ export default function SurveyShell({
   }, [showValidation]);
 
   useEffect(() => {
-    latestAnalyticsContext.current = { activeStep, locale, sessionKey };
-  }, [activeStep, locale, sessionKey]);
+    latestAnalyticsContext.current = { activeStep, questionId: question.id, locale, sessionKey };
+  }, [activeStep, locale, question.id, sessionKey]);
 
   useEffect(() => {
-    recordMatchFirstEvent('match_first_survey_question_shown', {
+    recordMatchFirstEvent('match_survey_question_shown', {
       locale,
       source: 'survey',
       session_id: sessionKey,
@@ -189,10 +196,11 @@ export default function SurveyShell({
     return () => {
       if (completedRef.current) return;
       const latest = latestAnalyticsContext.current;
-      recordMatchFirstEvent('match_first_survey_abandoned', {
+      recordMatchFirstEvent('match_survey_question_abandoned', {
         locale: latest.locale,
         source: 'survey',
         session_id: latest.sessionKey,
+        question_id: latest.questionId,
         step: latest.activeStep,
         total_steps: MATCH_FIRST_SURVEY_QUESTION_COUNT,
         reason: 'route_change',
@@ -219,13 +227,53 @@ export default function SurveyShell({
     });
   };
 
+  const recordAnswerSaved = (
+    questionId: MatchFirstSurveyQuestionId,
+    stepNumber: number,
+    answerType: ReturnType<typeof analyticsAnswerType>,
+    answerCount: number,
+  ) => {
+    recordMatchFirstEvent('match_survey_answer_saved', {
+      locale,
+      source: 'survey',
+      session_id: sessionKey,
+      question_id: questionId,
+      step: stepNumber,
+      total_steps: MATCH_FIRST_SURVEY_QUESTION_COUNT,
+      answer_type: answerType,
+      answer_count: answerCount,
+    });
+  };
+
+  const recordAnswerSaveFailed = (
+    questionId: MatchFirstSurveyQuestionId,
+    stepNumber: number,
+    error: unknown,
+  ) => {
+    recordMatchFirstEvent('match_survey_answer_save_failed', {
+      locale,
+      source: 'survey',
+      session_id: sessionKey,
+      question_id: questionId,
+      step: stepNumber,
+      total_steps: MATCH_FIRST_SURVEY_QUESTION_COUNT,
+      error_code: analyticsErrorCodeFromError(error),
+    });
+  };
+
   const markSyncSuccess = (attempt: number) => {
     if (attempt === syncAttemptRef.current) {
       setSyncErrorKey(null);
     }
   };
 
-  const markSyncFailure = (attempt: number, error?: unknown) => {
+  const markSyncFailure = (
+    attempt: number,
+    error: unknown,
+    questionId: MatchFirstSurveyQuestionId,
+    stepNumber: number,
+  ) => {
+    recordAnswerSaveFailed(questionId, stepNumber, error);
     if (attempt === syncAttemptRef.current) {
       setSyncErrorKey(syncErrorKeyFromError(error));
     }
@@ -233,21 +281,16 @@ export default function SurveyShell({
 
   const updateAnswer = (questionId: MatchFirstSurveyQuestionId, value: MatchFirstSurveyAnswer) => {
     const nextAnswers = answersWithUpdatedValue(answers, questionId, value);
+    const answerType = analyticsAnswerType(question);
+    const answerCount = analyticsAnswerCount(value);
     setAnswers(nextAnswers);
     const syncAttempt = ++syncAttemptRef.current;
     void persistAnswers(nextAnswers)
-      .then(() => markSyncSuccess(syncAttempt))
-      .catch((error: unknown) => markSyncFailure(syncAttempt, error));
-    recordMatchFirstEvent('match_first_survey_answer_saved', {
-      locale,
-      source: 'survey',
-      session_id: sessionKey,
-      question_id: questionId,
-      step: activeStep,
-      total_steps: MATCH_FIRST_SURVEY_QUESTION_COUNT,
-      answer_type: analyticsAnswerType(question),
-      answer_count: analyticsAnswerCount(value),
-    });
+      .then(() => {
+        recordAnswerSaved(questionId, activeStep, answerType, answerCount);
+        markSyncSuccess(syncAttempt);
+      })
+      .catch((error: unknown) => markSyncFailure(syncAttempt, error, questionId, activeStep));
     setShowValidation(false);
   };
 
@@ -260,8 +303,17 @@ export default function SurveyShell({
     const syncAttempt = ++syncAttemptRef.current;
     void persistAnswers(answers, previousStep)
       .then(() => markSyncSuccess(syncAttempt))
-      .catch((error: unknown) => markSyncFailure(syncAttempt, error));
+      .catch((error: unknown) => markSyncFailure(syncAttempt, error, question.id, activeStep));
     setShowValidation(false);
+    recordMatchFirstEvent('match_first_survey_back_clicked', {
+      locale,
+      source: 'survey',
+      session_id: sessionKey,
+      question_id: question.id,
+      from_step: activeStep,
+      to_step: previousStep,
+      total_steps: MATCH_FIRST_SURVEY_QUESTION_COUNT,
+    });
     onStepChange?.(previousStep);
   };
 
@@ -281,7 +333,7 @@ export default function SurveyShell({
         await persistAnswers(answersForStep, nextStep);
         markSyncSuccess(syncAttempt);
       } catch (error) {
-        markSyncFailure(syncAttempt, error);
+        markSyncFailure(syncAttempt, error, question.id, activeStep);
         return;
       }
       setShowValidation(false);
@@ -294,11 +346,11 @@ export default function SurveyShell({
       await persistAnswers(completedAnswers, activeStep);
       markSyncSuccess(syncAttempt);
     } catch (error) {
-      markSyncFailure(syncAttempt, error);
+      markSyncFailure(syncAttempt, error, question.id, activeStep);
       return;
     }
     completedRef.current = true;
-    recordMatchFirstEvent('match_first_survey_completed', {
+    recordMatchFirstEvent('match_survey_completed', {
       locale,
       source: 'survey',
       session_id: sessionKey,

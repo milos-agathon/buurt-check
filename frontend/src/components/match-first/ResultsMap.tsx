@@ -315,24 +315,41 @@ export default function ResultsMap({
   }, [reducedMotion]);
 
   const selectRecommendation = useCallback((recommendation: MatchNeighborhoodRecommendation, source: SelectionSource) => {
+    const wasAlreadySelected = selectedRecommendationId === recommendation.recommendation_id;
     lastSelectionSourceRef.current = source;
     setSelectedRecommendationId(recommendation.recommendation_id);
     moveMapToRecommendation(recommendation, source);
-    recordMatchFirstEvent(source === 'map' ? 'match_map_feature_selected' : 'match_recommendation_selected', {
-      locale,
-      source: 'results',
-      session_id: results?.session_id ?? sessionId,
-      result_set_id: results?.result_set_id,
-      recommendation_id: recommendation.recommendation_id,
-      neighborhood_id: recommendation.neighborhood_id,
-      result_rank: recommendation.rank,
-      map_zoom: SELECTED_ZOOM,
-      mobile_mode: mobileMode,
-    });
-  }, [locale, mobileMode, moveMapToRecommendation, results, sessionId]);
+    if (source === 'map') {
+      recordMatchFirstEvent('match_map_feature_selected', {
+        locale,
+        source: 'results',
+        session_id: results?.session_id ?? sessionId,
+        result_set_id: results?.result_set_id,
+        recommendation_id: recommendation.recommendation_id,
+        neighborhood_id: recommendation.neighborhood_id,
+        result_rank: recommendation.rank,
+        map_zoom: SELECTED_ZOOM,
+        mobile_mode: mobileMode,
+      });
+    }
+    if (!wasAlreadySelected) {
+      recordMatchFirstEvent('match_recommendation_selected', {
+        locale,
+        source: 'results',
+        session_id: results?.session_id ?? sessionId,
+        result_set_id: results?.result_set_id,
+        recommendation_id: recommendation.recommendation_id,
+        neighborhood_id: recommendation.neighborhood_id,
+        result_rank: recommendation.rank,
+        map_zoom: SELECTED_ZOOM,
+        mobile_mode: mobileMode,
+      });
+    }
+  }, [locale, mobileMode, moveMapToRecommendation, results, selectedRecommendationId, sessionId]);
 
   const openNeighborhoodDetail = useCallback((recommendation: MatchNeighborhoodRecommendation) => {
     if (!results || !onOpenNeighborhood) return;
+    const wasAlreadySelected = selectedRecommendationId === recommendation.recommendation_id;
     const center = recommendationCenter(recommendation);
     setSelectedRecommendationId(recommendation.recommendation_id);
     setMapCenter(center);
@@ -350,8 +367,21 @@ export default function ResultsMap({
         locale,
       ),
     );
+    if (!wasAlreadySelected) {
+      recordMatchFirstEvent('match_recommendation_selected', {
+        locale,
+        source: 'results',
+        session_id: results.session_id,
+        result_set_id: results.result_set_id,
+        recommendation_id: recommendation.recommendation_id,
+        neighborhood_id: recommendation.neighborhood_id,
+        result_rank: recommendation.rank,
+        map_zoom: SELECTED_ZOOM,
+        mobile_mode: mobileMode,
+      });
+    }
     onOpenNeighborhood(recommendation);
-  }, [locale, mobileMode, onOpenNeighborhood, results, sessionId]);
+  }, [locale, mobileMode, onOpenNeighborhood, results, selectedRecommendationId, sessionId]);
 
   useEffect(() => {
     if (!mapElementRef.current || leafletMapRef.current || !results) return;

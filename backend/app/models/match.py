@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
@@ -245,6 +246,12 @@ class MatchSessionCreateResponse(BaseModel):
     current_step: int | None = None
     answer_version: int = Field(ge=0)
     expires_at: datetime
+
+
+class MatchSessionDeleteResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    delete_requested: bool
+    deleted_at: datetime
 
 
 class SurveyAnswerValidation(BaseModel):
@@ -1217,6 +1224,18 @@ class ReportExportResponse(BaseModel):
 
 
 AnalyticsEventName = Literal[
+    "match_landing_cta_shown",
+    "match_landing_cta_clicked",
+    "match_first_search_link_clicked",
+    "match_survey_intro_shown",
+    "match_survey_started",
+    "match_survey_question_shown",
+    "match_survey_answer_saved",
+    "match_survey_answer_save_failed",
+    "match_first_survey_back_clicked",
+    "match_survey_question_abandoned",
+    "match_survey_completed",
+    "match_first_survey_review_shown",
     "match_final_run_cta_clicked",
     "match_job_queued",
     "match_job_running",
@@ -1225,6 +1244,25 @@ AnalyticsEventName = Literal[
     "match_job_completed_with_fallback",
     "match_job_completed_no_strong_matches",
     "match_job_slow",
+    "match_job_retry_clicked",
+    "match_results_unavailable",
+    "match_success_checkmark_shown",
+    "match_results_map_opened",
+    "match_results_confidence_sufficient",
+    "match_recommendation_selected",
+    "match_map_feature_selected",
+    "match_map_layer_failed",
+    "match_neighborhood_detail_opened",
+    "match_building_layer_failed",
+    "match_amenity_layer_failed",
+    "match_amenity_interacted",
+    "match_missing_3d_fallback_shown",
+    "match_house_selected",
+    "match_dossier_opened",
+    "match_no_reliable_address_shown",
+    "match_back_to_map_clicked",
+    "match_back_to_map_return_success",
+    "match_back_to_map_return_failed",
     "match_quiz_started",
     "match_quiz_completed",
     "match_report_viewed",
@@ -1241,6 +1279,12 @@ AnalyticsEventName = Literal[
 
 PROTECTED_FEEDBACK_PAYLOAD_KEYS = frozenset(
     {"nationality", "ethnicity", "religion", "immigration_status", "race"}
+)
+
+PRIVATE_ANALYTICS_VALUE_PATTERNS = (
+    re.compile(r"(?:^|[^\d])\d{16}(?:$|[^\d])"),
+    re.compile(r"(?:#)?/address/", re.IGNORECASE),
+    re.compile(r"lookup=", re.IGNORECASE),
 )
 
 
@@ -1279,6 +1323,33 @@ class AnalyticsEvent(BaseModel):
         if _payload_contains_protected_key(value):
             raise ValueError("analytics context must not include protected traits")
         return value
+
+
+class MatchFirstAnalyticsRequest(BaseModel):
+    event_id: str = Field(min_length=1, max_length=96, pattern=r"^[A-Za-z0-9_:.-]+$")
+    event_name: str = Field(min_length=1, max_length=96)
+    session_id: str | None = Field(
+        default=None, max_length=96, pattern=r"^[A-Za-z0-9_:.-]+$"
+    )
+    locale: Literal["en", "nl"] = "en"
+    phase: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_.:-]+$")
+    context: dict[str, object] = Field(default_factory=dict)
+
+    @field_validator("event_id", "session_id", "phase")
+    @classmethod
+    def validate_no_private_route_or_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if any(pattern.search(value) for pattern in PRIVATE_ANALYTICS_VALUE_PATTERNS):
+            raise ValueError(
+                "analytics identifier must not include private route or address identifiers"
+            )
+        return value
+
+
+class MatchFirstAnalyticsResponse(BaseModel):
+    accepted: bool
+    duplicate: bool = False
 
 
 class SuccessMetricSummary(BaseModel):

@@ -161,6 +161,17 @@ function readStoredMatchFirstEvents(): Array<{
   }>;
 }
 
+function isAnalyticsRequest(input: unknown): boolean {
+  return String(input).endsWith('/api/match/analytics');
+}
+
+function analyticsAcceptedResponse(): Response {
+  return new Response(JSON.stringify({ accepted: true, duplicate: false }), {
+    status: 202,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 it.each([
   ['created', 'created', 'Getting your match ready'],
   ['queued', 'queued', 'Getting your match ready'],
@@ -212,13 +223,15 @@ it('waits for the backend poll_after_ms before requesting the next status', asyn
     />,
   );
 
+  const statusCalls = () => fetchSpy.mock.calls.filter(([input]) => String(input).endsWith('/status'));
+
   expect(screen.getByRole('status')).toHaveTextContent('Getting your match ready');
-  expect(fetchSpy).not.toHaveBeenCalled();
+  expect(statusCalls()).toHaveLength(0);
 
   await act(async () => {
     vi.advanceTimersByTime(249);
   });
-  expect(fetchSpy).not.toHaveBeenCalled();
+  expect(statusCalls()).toHaveLength(0);
 
   await act(async () => {
     vi.advanceTimersByTime(1);
@@ -447,15 +460,24 @@ it.each([
 it('keeps the checkmark locked when results fetch fails and can retry result verification', async () => {
   const user = userEvent.setup();
   const onComplete = vi.fn();
-  const fetchSpy = vi.spyOn(globalThis, 'fetch')
-    .mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'match.warning.results_unavailable' }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' },
-    }))
-    .mockResolvedValueOnce(new Response(JSON.stringify(resultsResponse()), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }));
+  let resultFetches = 0;
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    if (isAnalyticsRequest(input)) return analyticsAcceptedResponse();
+    if (String(input).endsWith('/api/match/sessions/match-progress/results')) {
+      resultFetches += 1;
+      if (resultFetches === 1) {
+        return new Response(JSON.stringify({ detail: 'match.warning.results_unavailable' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify(resultsResponse()), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({}), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  });
 
   renderWithI18n(
     <MatchingProgressScreen
@@ -484,30 +506,42 @@ it('keeps the checkmark locked when results fetch fails and can retry result ver
       result_set_id: 'mrs_123',
     }));
   });
-  expect(fetchSpy).toHaveBeenCalledTimes(2);
+  expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions/match-progress/results', expect.anything());
+  expect(resultFetches).toBe(2);
 });
 
 it('polls status, verifies completed results, and notifies completion', async () => {
   const onComplete = vi.fn();
-  const fetchSpy = vi.spyOn(globalThis, 'fetch')
-    .mockResolvedValueOnce(new Response(JSON.stringify(statusResponse({
+  const statuses = [
+    statusResponse({
       status: 'running',
       stage: 'building_profile',
       progress: 35,
       message_key: 'matchFirst.progress.building_profile',
       poll_after_ms: 1,
-    })), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-    .mockResolvedValueOnce(new Response(JSON.stringify(statusResponse({
+    }),
+    statusResponse({
       status: 'completed',
       stage: 'completed',
       progress: 100,
       message_key: 'matchFirst.progress.completed',
       result_set_id: 'mrs_123',
-    })), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-    .mockResolvedValueOnce(new Response(JSON.stringify(resultsResponse()), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }));
+    }),
+  ];
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    if (isAnalyticsRequest(input)) return analyticsAcceptedResponse();
+    if (String(input).endsWith('/api/match/sessions/match-progress/status')) {
+      const nextStatus = statuses.shift();
+      return new Response(JSON.stringify(nextStatus), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (String(input).endsWith('/api/match/sessions/match-progress/results')) {
+      return new Response(JSON.stringify(resultsResponse()), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({}), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  });
 
   renderWithI18n(
       <MatchingProgressScreen

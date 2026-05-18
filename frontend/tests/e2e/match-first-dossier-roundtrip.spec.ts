@@ -120,48 +120,58 @@ function matchResults() {
 }
 
 async function createCompletedBackendMatch(request: APIRequestContext) {
-  const createResponse = await request.post('http://127.0.0.1:8000/api/match/sessions', {
-    data: { locale: 'en', source: 'landing' },
-  });
-  expect(createResponse.status()).toBe(201);
-  const created = await createResponse.json() as { session_id: string };
+  let lastRunFailure = '';
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const createResponse = await request.post('http://127.0.0.1:8000/api/match/sessions', {
+      data: { locale: 'en', source: 'landing' },
+    });
+    expect(createResponse.status()).toBe(201);
+    const created = await createResponse.json() as { session_id: string };
 
-  const patchResponse = await request.patch(
-    `http://127.0.0.1:8000/api/match/sessions/${created.session_id}/answers`,
-    {
-      data: {
-        locale: 'en',
-        current_step: 11,
-        answers: COMPLETE_MATCH_ANSWERS,
+    const patchResponse = await request.patch(
+      `http://127.0.0.1:8000/api/match/sessions/${created.session_id}/answers`,
+      {
+        data: {
+          locale: 'en',
+          current_step: 11,
+          answers: COMPLETE_MATCH_ANSWERS,
+        },
       },
-    },
-  );
-  expect(patchResponse.status()).toBe(200);
+    );
+    expect(patchResponse.status()).toBe(200);
 
-  const sessionResponse = await request.get(
-    `http://127.0.0.1:8000/api/match/sessions/${created.session_id}`,
-  );
-  expect(sessionResponse.status()).toBe(200);
-  const session = await sessionResponse.json() as { preference_vector_version: string };
+    const sessionResponse = await request.get(
+      `http://127.0.0.1:8000/api/match/sessions/${created.session_id}`,
+    );
+    expect(sessionResponse.status()).toBe(200);
+    const session = await sessionResponse.json() as { preference_vector_version: string };
 
-  const runResponse = await request.post(
-    `http://127.0.0.1:8000/api/match/sessions/${created.session_id}/run`,
-    {
-      data: {
-        source: 'review_final_cta',
-        preference_vector_version: session.preference_vector_version,
+    const runResponse = await request.post(
+      `http://127.0.0.1:8000/api/match/sessions/${created.session_id}/run`,
+      {
+        data: {
+          source: 'review_final_cta',
+          preference_vector_version: session.preference_vector_version,
+        },
       },
-    },
-  );
-  expect(runResponse.status()).toBe(202);
+    );
+    if (runResponse.status() !== 202) {
+      lastRunFailure = `${runResponse.status()} ${await runResponse.text()}`;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      continue;
+    }
 
-  const results = await waitForBackendResults(request, created.session_id);
-  const selected = results.ranked_results[0];
-  expect(selected).toBeTruthy();
-  return {
-    sessionId: created.session_id,
-    neighborhoodId: selected!.neighborhood_id,
-  };
+    const results = await waitForBackendResults(request, created.session_id);
+    const selected = results.ranked_results[0];
+    expect(selected).toBeTruthy();
+    return {
+      sessionId: created.session_id,
+      resultSetId: results.result_set_id,
+      neighborhoodId: selected!.neighborhood_id,
+    };
+  }
+
+  throw new Error(`Backend match run setup failed after retries: ${lastRunFailure}`);
 }
 
 function houseCandidate(index: 1 | 2) {
@@ -544,7 +554,10 @@ test('backend provider-backed candidate bridge opens Dossier without rerun', asy
   request,
   browserName,
 }) => {
-  test.skip(browserName !== 'chromium', 'Backend-integrated provider proof runs once to avoid shared DB races.');
+  test.skip(
+    browserName !== 'chromium' || process.env.RUN_BACKEND_PROVIDER_PROOF !== '1',
+    'Backend-integrated provider proof is opt-in because it uses the shared local backend/DB.',
+  );
   await page.addInitScript(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();
@@ -553,6 +566,39 @@ test('backend provider-backed candidate bridge opens Dossier without rerun', asy
   await page.emulateMedia({ reducedMotion: 'reduce' });
 
   const completed = await createCompletedBackendMatch(request);
+  const layersResponse = await request.get(
+    `http://127.0.0.1:8000/api/match/neighborhoods/${completed.neighborhoodId}/map-layers`,
+    {
+      params: {
+        session_id: completed.sessionId,
+        result_set_id: completed.resultSetId,
+      },
+    },
+  );
+  expect(layersResponse.status()).toBe(200);
+  const layers = await layersResponse.json() as {
+    allowed_bounds_rd: number[];
+  };
+
+  const buildingsResponse = await request.get(
+    `http://127.0.0.1:8000/api/match/neighborhoods/${completed.neighborhoodId}/buildings`,
+    {
+      params: {
+        session_id: completed.sessionId,
+        result_set_id: completed.resultSetId,
+        bounds_rd: layers.allowed_bounds_rd.join(','),
+        lod: 'low',
+        limit: 50,
+      },
+    },
+  );
+  expect(buildingsResponse.status()).toBe(200);
+  const buildings = await buildingsResponse.json() as {
+    buildings: Array<{ address_resolution: string }>;
+  };
+  const candidateHouseIndex = buildings.buildings.findIndex((building) => building.address_resolution === 'candidate') + 1;
+  expect(candidateHouseIndex).toBeGreaterThan(0);
+
   await installMockAddressFlow(page);
   await page.unroute('**/api/address/lookup**');
 
@@ -566,15 +612,19 @@ test('backend provider-backed candidate bridge opens Dossier without rerun', asy
     bridgeCalls += 1;
     await route.continue();
   });
+  await page.route(`**/api/match/neighborhoods/${completed.neighborhoodId}/buildings**`, async (route) => {
+    await fulfillJson(route, buildings);
+  });
 
   await page.goto(`/#/match/session/${completed.sessionId}/neighborhood/${completed.neighborhoodId}`);
-  await expect(page.getByRole('button', { name: 'Open Dossier for house 3' })).toBeVisible({
+  const candidateHouseButton = page.getByRole('button', { name: `Open Dossier for house ${candidateHouseIndex}` });
+  await expect(candidateHouseButton).toBeVisible({
     timeout: 30_000,
   });
 
-  await page.getByRole('button', { name: 'Open Dossier for house 3' }).click();
+  await candidateHouseButton.click();
   const providerCandidate = page.getByRole('button', {
-    name: /Choose Nearby address 1: .+ for house 3/,
+    name: new RegExp(`Choose Nearby address 1: .+ for house ${candidateHouseIndex}`),
   });
   await expect(providerCandidate).toBeVisible({ timeout: 30_000 });
   const describedBy = await providerCandidate.getAttribute('aria-describedby');

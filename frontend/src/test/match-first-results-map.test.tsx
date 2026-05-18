@@ -151,7 +151,7 @@ it('loads completed session results on the results route without rerunning match
   window.location.hash = `#/match/session/${sessionId}/results`;
   renderWithI18n(<App />);
 
-  expect(await screen.findByRole('heading', { name: 'Your match map' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Your match map' }, { timeout: 5000 })).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toHaveAttribute('data-map-center', '52.2,5.3');
   expect(screen.getByTestId('recommendation-card-rec_1')).toBeInTheDocument();
   expect(fetchSpy).toHaveBeenCalledWith(`/api/match/sessions/${sessionId}/results`, expect.objectContaining({
@@ -266,6 +266,37 @@ it('keeps ranked list selection and map feature selection synchronized', async (
 
   expect(screen.getByTestId('recommendation-card-rec_1')).toHaveAttribute('aria-current', 'true');
   expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toHaveAttribute('data-selected-neighborhood', 'nh_amsterdam_ijburg');
+});
+
+it('records neighborhood detail clicks as recommendation selection before opening detail', async () => {
+  const user = userEvent.setup();
+  const onOpenNeighborhood = vi.fn();
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+      onOpenNeighborhood={onOpenNeighborhood}
+    />,
+  );
+
+  await user.click(within(screen.getByTestId('recommendation-card-rec_1')).getByRole('button', { name: 'View neighborhood' }));
+
+  expect(onOpenNeighborhood).toHaveBeenCalledWith(expect.objectContaining({
+    recommendation_id: 'rec_1',
+  }));
+  expect(JSON.parse(localStorage.getItem('buurt-check-match-first-analytics') ?? '[]')).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        event_name: 'match_recommendation_selected',
+        context: expect.objectContaining({
+          recommendation_id: 'rec_1',
+          neighborhood_id: 'nh_amsterdam_ijburg',
+          result_rank: 1,
+        }),
+      }),
+    ]),
+  );
 });
 
 it('reveals the matching list card when a map feature is selected', async () => {

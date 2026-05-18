@@ -19,7 +19,7 @@ export default function SurveyIntro({ sessionId, sessionErrorKey, onStartSurvey 
   const locale = normalizeLocale(i18n.resolvedLanguage ?? i18n.language);
 
   useEffect(() => {
-    recordMatchFirstEvent('match_first_survey_intro_shown', {
+    recordMatchFirstEvent('match_survey_intro_shown', {
       locale,
       source: 'survey_intro',
       session_id: sessionId ?? 'default',
@@ -27,7 +27,7 @@ export default function SurveyIntro({ sessionId, sessionErrorKey, onStartSurvey 
   }, [locale, sessionId]);
 
   const startSurvey = () => {
-    recordMatchFirstEvent('match_first_survey_started', {
+    recordMatchFirstEvent('match_survey_started', {
       locale,
       source: 'survey_intro',
       session_id: sessionId ?? 'default',

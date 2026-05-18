@@ -240,3 +240,115 @@ async def test_match_session_rejects_protected_trait_answer_keys(client, match_d
     read_response = await client.get(f"/api/match/sessions/{session_id}")
     assert read_response.status_code == 200
     assert "nationality" not in read_response.json()["answers"]
+
+
+@pytest.mark.asyncio
+async def test_match_session_delete_removes_anonymous_match_data(client, match_db):
+    create_response = await client.post(
+        "/api/match/sessions",
+        json={"locale": "en", "source": "landing"},
+    )
+    session_id = create_response.json()["session_id"]
+
+    patch_response = await client.patch(
+        f"/api/match/sessions/{session_id}/answers",
+        json={"locale": "en", "current_step": 11, "answers": COMPLETE_ANSWERS},
+    )
+    assert patch_response.status_code == 200
+
+    completed_session_response = await client.get(f"/api/match/sessions/{session_id}")
+    assert completed_session_response.status_code == 200
+    vector_version = completed_session_response.json()["preference_vector_version"]
+
+    run_response = await client.post(
+        f"/api/match/sessions/{session_id}/run",
+        json={
+            "source": "review_final_cta",
+            "preference_vector_version": vector_version,
+        },
+    )
+    assert run_response.status_code == 202
+    status_response = await client.get(f"/api/match/sessions/{session_id}/status")
+    assert status_response.status_code == 200
+    status_body = status_response.json()
+    assert status_body["job_id"] == run_response.json()["job_id"]
+    assert status_body["result_set_id"].startswith("mrs_")
+
+    analytics_response = await client.post(
+        "/api/match/analytics",
+        json={
+            "event_id": "evt_delete_session",
+            "event_name": "match_survey_completed",
+            "session_id": session_id,
+            "locale": "en",
+            "phase": "review",
+            "context": {"session_id": session_id, "total_steps": 11},
+        },
+    )
+    assert analytics_response.status_code == 202
+
+    async with get_db() as db:
+        pre_delete_job_cursor = await db.execute(
+            "SELECT COUNT(*) AS count FROM match_jobs WHERE session_id = ?",
+            (session_id,),
+        )
+        pre_delete_job_row = await pre_delete_job_cursor.fetchone()
+        pre_delete_result_cursor = await db.execute(
+            "SELECT COUNT(*) AS count FROM match_result_sets WHERE session_id = ?",
+            (session_id,),
+        )
+        pre_delete_result_row = await pre_delete_result_cursor.fetchone()
+
+    assert pre_delete_job_row["count"] > 0
+    assert pre_delete_result_row["count"] > 0
+
+    delete_response = await client.delete(f"/api/match/sessions/{session_id}")
+
+    assert delete_response.status_code == 202
+    body = delete_response.json()
+    assert body["session_id"] == session_id
+    assert body["delete_requested"] is True
+    assert body["deleted_at"].endswith("Z")
+
+    read_response = await client.get(f"/api/match/sessions/{session_id}")
+    assert read_response.status_code == 404
+    assert read_response.json()["detail"] == "match.session.not_found"
+
+    async with get_db() as db:
+        session_cursor = await db.execute(
+            "SELECT deleted_at FROM match_sessions WHERE session_id = ?",
+            (session_id,),
+        )
+        session_row = await session_cursor.fetchone()
+        answer_cursor = await db.execute(
+            "SELECT COUNT(*) AS count FROM match_survey_answers WHERE session_id = ?",
+            (session_id,),
+        )
+        answer_row = await answer_cursor.fetchone()
+        vector_cursor = await db.execute(
+            "SELECT COUNT(*) AS count FROM match_preference_vectors WHERE session_id = ?",
+            (session_id,),
+        )
+        vector_row = await vector_cursor.fetchone()
+        job_cursor = await db.execute(
+            "SELECT COUNT(*) AS count FROM match_jobs WHERE session_id = ?",
+            (session_id,),
+        )
+        job_row = await job_cursor.fetchone()
+        result_cursor = await db.execute(
+            "SELECT COUNT(*) AS count FROM match_result_sets WHERE session_id = ?",
+            (session_id,),
+        )
+        result_row = await result_cursor.fetchone()
+        analytics_cursor = await db.execute(
+            "SELECT COUNT(*) AS count FROM match_analytics_events WHERE session_id = ?",
+            (session_id,),
+        )
+        analytics_row = await analytics_cursor.fetchone()
+
+    assert session_row["deleted_at"].endswith("Z")
+    assert answer_row["count"] == 0
+    assert vector_row["count"] == 0
+    assert job_row["count"] == 0
+    assert result_row["count"] == 0
+    assert analytics_row["count"] == 0

@@ -136,13 +136,39 @@
 }
 
 .amenity-tags__item {
-  display: grid;
-  gap: 2px;
   max-width: 180px;
+}
+
+.amenity-tags__button {
+  display: grid;
+  min-height: 44px;
+  gap: 2px;
+  width: 100%;
   padding: 9px 10px;
   border: 1px solid rgba(0, 117, 111, 0.2);
   border-radius: 8px;
   background: rgba(0, 117, 111, 0.07);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.amenity-tags__button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
+}
+
+.amenity-tags__button--active {
+  border-color: rgba(0, 117, 111, 0.55);
+  background: rgba(0, 117, 111, 0.16);
+}
+
+.amenity-tags__status {
+  margin: 0 0 8px;
+  color: var(--color-accent-text);
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .amenity-tags__label {
