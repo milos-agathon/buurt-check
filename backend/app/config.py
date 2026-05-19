@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     brt_wms_base: str = (
         "https://service.pdok.nl/brt/achtergrondkaart/wms/v2_0"
     )
+    brt_wmts_base: str = "https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0"
+    brt_wmts_theme: str = "standaard"
 
     # Leefbaarometer
     leefbaarometer_wfs_base: str = "https://geo.leefbaarometer.nl/lbm3/ows"
@@ -80,6 +82,17 @@ class Settings(BaseSettings):
     match_notification_provider_mode: str = "mock"
     match_notification_provider_base_url: str = ""
     match_notification_provider_api_key: str = ""
+    match_amenity_refresh_enabled: bool = False
+    match_amenity_refresh_on_startup: bool = False
+    match_amenity_refresh_interval_hours: int = 24
+    match_amenity_duo_source_pages: list[str] = [
+        "https://duo.nl/open_onderwijsdata/primair-onderwijs/scholen-en-adressen/schoolvestigingen-basisonderwijs.jsp",
+        "https://duo.nl/open_onderwijsdata/voortgezet-onderwijs/adressen/vestigingen.jsp",
+    ]
+    match_amenity_lrk_csv_url: str = (
+        "https://www.landelijkregisterkinderopvang.nl/opendata/export_opendata_lrk.csv"
+    )
+    match_amenity_pdok_bgt_ogc_base: str = "https://api.pdok.nl/lv/bgt/ogc/v1"
 
     # Pre-bid source stack
     prebid_enabled: bool = True

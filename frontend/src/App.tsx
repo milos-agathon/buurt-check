@@ -127,6 +127,7 @@ import {
 import {
   createMatchSession,
   getMatchSession,
+  patchMatchSessionAnswers,
   runMatchSession,
 } from './services/matchFirstApi';
 import { recordMatchFirstEvent } from './services/matchFirstAnalytics';
@@ -1593,6 +1594,7 @@ function App() {
   ));
   const matchSessionBootstrapInFlightRef = useRef(false);
   const createdMatchSessionIdsRef = useRef<Set<string>>(new Set());
+  const recoveredMatchSessionIdRef = useRef<string | null>(null);
   const [activeMatchQuestionStep, setActiveMatchQuestionStep] = useState<number>(() => (
     resolveMatchSurveyQuestionStep(initialMatchSessionId, initialRoute.questionStep)
   ));
@@ -2200,6 +2202,33 @@ function App() {
     }
     return createBackendMatchSession(source);
   }, [activeMatchSessionId, createBackendMatchSession]);
+
+  const recoverSurveyMatchSession = useCallback(async (
+    answers: MatchFirstSurveyAnswers,
+    step: number,
+  ) => {
+    const created = await createMatchSession({ locale: uiLanguage, source: 'resume' });
+    createdMatchSessionIdsRef.current.add(created.session_id);
+    recoveredMatchSessionIdRef.current = created.session_id;
+    setActiveMatchSessionId(created.session_id);
+    storeMatchSessionId(created.session_id);
+    saveMatchSessionSnapshot(created.session_id, {
+      sessionId: created.session_id,
+      locale: created.locale,
+      step,
+      answerVersion: created.answer_version,
+      staleResults: true,
+      answers,
+    });
+    setMatchSessionErrorKey(null);
+    setMatchReviewSyncErrorKey(null);
+    setHashRoute(buildHashRoute({
+      route: 'matchSurvey',
+      sessionId: created.session_id,
+      questionStep: step,
+    }));
+    return created.session_id;
+  }, [setHashRoute, uiLanguage]);
 
   useEffect(() => {
     const needsSession = (
@@ -6170,6 +6199,11 @@ function App() {
     setMatchReviewSyncing(true);
     setMatchReviewSyncErrorKey(null);
     try {
+      await patchMatchSessionAnswers(sessionId, {
+        locale: uiLanguage,
+        current_step: MATCH_FIRST_SURVEY_QUESTION_COUNT,
+        answers,
+      });
       const session = await getMatchSession(sessionId);
       if (
         !session.is_complete
@@ -6505,8 +6539,16 @@ function App() {
                   <MatchSurveyShell
                     sessionId={activeMatchSessionId}
                     step={activeMatchQuestionStep}
-                    onStepChange={(nextStep) => {
-                      const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+                    onStepChange={(nextStep, recoveredSessionId) => {
+                      const sessionId = (
+                        recoveredSessionId
+                        ?? recoveredMatchSessionIdRef.current
+                        ?? activeMatchSessionId
+                        ?? readStoredMatchSessionId()
+                      );
+                      if (recoveredMatchSessionIdRef.current === sessionId) {
+                        recoveredMatchSessionIdRef.current = null;
+                      }
                       const boundedStep = Math.min(Math.max(nextStep, 1), MATCH_FIRST_SURVEY_QUESTION_COUNT);
                       if (sessionId) {
                         setActiveMatchSessionId(sessionId);
@@ -6519,6 +6561,7 @@ function App() {
                         questionStep: boundedStep,
                       }));
                     }}
+                    onRecoverSession={recoverSurveyMatchSession}
                     onBack={() => {
                       const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
                       if (sessionId) {

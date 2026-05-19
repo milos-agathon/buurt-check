@@ -36,6 +36,8 @@ else:
     # libsql currently raises ValueError for SQL and transport failures.
     DatabaseError = (aiosqlite.Error, LibsqlError, ValueError)
 
+_TURSO_CONNECTION_CONTEXT_LOCK = asyncio.Lock()
+
 _REPORTS_TABLE_SCHEMA = """\
 CREATE TABLE IF NOT EXISTS reports (
     report_id TEXT NOT NULL PRIMARY KEY,
@@ -557,6 +559,51 @@ _MATCH_SCHEMA_STATEMENTS = (
         details_json TEXT NOT NULL,
         created_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS match_amenity_import_runs (
+        amenity_import_run_id TEXT NOT NULL PRIMARY KEY,
+        neighborhood_id TEXT NOT NULL,
+        category_key TEXT NOT NULL,
+        source_ref TEXT NOT NULL,
+        source_name TEXT NOT NULL,
+        source_version TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT NOT NULL,
+        records_imported INTEGER NOT NULL,
+        records_failed INTEGER NOT NULL,
+        records_skipped INTEGER NOT NULL,
+        withheld_address_count INTEGER NOT NULL,
+        unmatched_address_count INTEGER NOT NULL,
+        bbox_wgs84_json TEXT NOT NULL,
+        bbox_rd_json TEXT NOT NULL,
+        error_reason_code TEXT,
+        details_json TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_amenity_records (
+        amenity_record_id TEXT NOT NULL PRIMARY KEY,
+        neighborhood_id TEXT NOT NULL,
+        category_key TEXT NOT NULL,
+        source_ref TEXT NOT NULL,
+        source_name TEXT NOT NULL,
+        source_record_id TEXT,
+        source_version TEXT NOT NULL,
+        name TEXT,
+        freshness_date TEXT,
+        loaded_at TEXT NOT NULL,
+        display_lat REAL NOT NULL,
+        display_lng REAL NOT NULL,
+        display_coordinate_system TEXT NOT NULL DEFAULT 'WGS84',
+        source_coordinate_system TEXT,
+        source_geometry_coordinate_system TEXT,
+        source_geometry_json TEXT NOT NULL,
+        bag_address_id TEXT,
+        bag_vbo_id TEXT,
+        bag_pand_id TEXT,
+        withheld_address INTEGER NOT NULL DEFAULT 0,
+        limitations_json TEXT NOT NULL,
+        import_run_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS match_scoring_anomalies (
         scoring_anomaly_id TEXT NOT NULL PRIMARY KEY,
         preference_vector_id TEXT,
@@ -623,6 +670,18 @@ _MATCH_SCHEMA_STATEMENTS = (
     (
         "CREATE INDEX IF NOT EXISTS idx_match_guardrail_events_report "
         "ON match_guardrail_events(report_id, created_at DESC)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_amenity_records_scope "
+        "ON match_amenity_records(neighborhood_id, category_key, source_ref)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_amenity_records_bbox "
+        "ON match_amenity_records(category_key, display_lng, display_lat)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS idx_match_amenity_import_runs_scope "
+        "ON match_amenity_import_runs(neighborhood_id, category_key, started_at DESC)"
     ),
 )
 
@@ -886,11 +945,12 @@ async def get_db(db_path: str | None = None) -> AsyncIterator[DatabaseConnection
         db_path: Path to the SQLite database file. Ignored when using Turso.
     """
     if using_turso():
-        db = _create_turso_connection()
-        try:
-            yield db
-        finally:
-            await db.close()
+        async with _TURSO_CONNECTION_CONTEXT_LOCK:
+            db = _create_turso_connection()
+            try:
+                yield db
+            finally:
+                await db.close()
         return
 
     path = db_path if db_path is not None else settings.database_path

@@ -15,6 +15,40 @@ DISPLAY_LNG_DELTA = 0.012
 DISPLAY_LAT_DELTA = 0.008
 SOURCE_REFS = ["seed_match_source"]
 LIMITATIONS = ["match.results.limitations.mock_data"]
+RD_REFERENCE_X = 155000.0
+RD_REFERENCE_Y = 463000.0
+WGS84_REFERENCE_LAT = 52.15517440
+WGS84_REFERENCE_LNG = 5.38720621
+RD_SCALE = 100000.0
+
+RD_TO_WGS84_LAT_TERMS = (
+    (0, 1, 3235.65389),
+    (2, 0, -32.58297),
+    (0, 2, -0.24750),
+    (2, 1, -0.84978),
+    (0, 3, -0.06550),
+    (2, 2, -0.01709),
+    (1, 0, -0.00738),
+    (4, 0, 0.00530),
+    (2, 3, -0.00039),
+    (4, 1, 0.00033),
+    (1, 1, -0.00012),
+)
+
+RD_TO_WGS84_LNG_TERMS = (
+    (1, 0, 5260.52916),
+    (1, 1, 105.94684),
+    (1, 2, 2.45656),
+    (3, 0, -0.81885),
+    (1, 3, 0.05594),
+    (3, 1, -0.05607),
+    (0, 1, 0.01199),
+    (3, 2, -0.00256),
+    (1, 4, 0.00128),
+    (0, 2, 0.00022),
+    (2, 0, -0.00022),
+    (5, 0, 0.00026),
+)
 
 
 class NeighborhoodNotFoundError(KeyError):
@@ -36,7 +70,48 @@ def _centroid_rd(neighborhood: Neighborhood) -> dict[str, float]:
     }
 
 
+def rd_to_wgs84(x: float, y: float) -> dict[str, float]:
+    dx = (x - RD_REFERENCE_X) / RD_SCALE
+    dy = (y - RD_REFERENCE_Y) / RD_SCALE
+    lat_seconds = sum(
+        coefficient * (dx**p) * (dy**q)
+        for p, q, coefficient in RD_TO_WGS84_LAT_TERMS
+    )
+    lng_seconds = sum(
+        coefficient * (dx**p) * (dy**q)
+        for p, q, coefficient in RD_TO_WGS84_LNG_TERMS
+    )
+    return {
+        "lat": WGS84_REFERENCE_LAT + (lat_seconds / 3600.0),
+        "lng": WGS84_REFERENCE_LNG + (lng_seconds / 3600.0),
+    }
+
+
+def rd_bounds_to_wgs84(bounds_rd: list[float]) -> list[float]:
+    west, south, east, north = bounds_rd
+    corners = [
+        rd_to_wgs84(west, south),
+        rd_to_wgs84(west, north),
+        rd_to_wgs84(east, south),
+        rd_to_wgs84(east, north),
+    ]
+    lngs = [corner["lng"] for corner in corners]
+    lats = [corner["lat"] for corner in corners]
+    return [
+        round(min(lngs), 7),
+        round(min(lats), 7),
+        round(max(lngs), 7),
+        round(max(lats), 7),
+    ]
+
+
 def _centroid_wgs84(neighborhood: Neighborhood) -> dict[str, float]:
+    if neighborhood.centroid_rd_x is not None and neighborhood.centroid_rd_y is not None:
+        centroid = rd_to_wgs84(float(neighborhood.centroid_rd_x), float(neighborhood.centroid_rd_y))
+        return {
+            "lat": round(centroid["lat"], 7),
+            "lng": round(centroid["lng"], 7),
+        }
     return {
         "lat": float(neighborhood.centroid_lat or 52.2),
         "lng": float(neighborhood.centroid_lng or 5.3),
@@ -54,12 +129,14 @@ def neighborhood_bounds_rd(neighborhood: Neighborhood) -> list[float]:
 
 
 def display_bounds_wgs84(neighborhood: Neighborhood) -> list[float]:
+    if neighborhood.centroid_rd_x is not None and neighborhood.centroid_rd_y is not None:
+        return rd_bounds_to_wgs84(neighborhood_bounds_rd(neighborhood))
     centroid = _centroid_wgs84(neighborhood)
     return [
-        centroid["lng"] - DISPLAY_LNG_DELTA,
-        centroid["lat"] - DISPLAY_LAT_DELTA,
-        centroid["lng"] + DISPLAY_LNG_DELTA,
-        centroid["lat"] + DISPLAY_LAT_DELTA,
+        round(centroid["lng"] - DISPLAY_LNG_DELTA, 7),
+        round(centroid["lat"] - DISPLAY_LAT_DELTA, 7),
+        round(centroid["lng"] + DISPLAY_LNG_DELTA, 7),
+        round(centroid["lat"] + DISPLAY_LAT_DELTA, 7),
     ]
 
 
@@ -129,9 +206,9 @@ async def get_neighborhood_map_layers(
         display_bounds_wgs84=display_bounds_wgs84(neighborhood),
         boundary=selected_boundary_feature(neighborhood),
         building_layer=MatchNeighborhoodLayerEndpoint(
-            available=False,
+            available=True,
             endpoint=f"/api/match/neighborhoods/{neighborhood_id}/buildings",
-            fallback_reason_code="matchFirst.neighborhood.missing3d",
+            fallback_reason_code=None,
         ),
         amenity_layer=MatchNeighborhoodLayerEndpoint(
             endpoint=f"/api/match/neighborhoods/{neighborhood_id}/amenities",

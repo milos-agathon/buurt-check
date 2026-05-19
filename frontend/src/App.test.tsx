@@ -1043,6 +1043,96 @@ describe('initial render', () => {
     fetchSpy.mockRestore();
   });
 
+  it('syncs displayed review answers before starting the match run', async () => {
+    let patched = false;
+    const sessionId = 'match-review-active-sync';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (url.endsWith(`/api/match/sessions/${sessionId}/answers`) && method === 'PATCH') {
+        patched = true;
+        return new Response(JSON.stringify({
+          session_id: sessionId,
+          answer_version: 12,
+          is_complete: true,
+          validation: {},
+          stale_results: true,
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.endsWith(`/api/match/sessions/${sessionId}`) && method === 'GET') {
+        return new Response(JSON.stringify(
+          patched
+            ? completeMatchSessionResponse(sessionId)
+            : {
+              session_id: sessionId,
+              locale: 'en',
+              phase: 'review',
+              current_step: 11,
+              answer_version: 11,
+              answers: completeMatchAnswers,
+              validation: {},
+              is_complete: false,
+              preference_vector: null,
+            },
+        ), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.endsWith(`/api/match/sessions/${sessionId}/run`) && method === 'POST') {
+        return new Response(JSON.stringify({
+          session_id: sessionId,
+          job_id: `match_job_${sessionId}`,
+          status: 'queued',
+          stage: 'queued',
+          progress: 5,
+          message_key: 'matchFirst.progress.queued',
+          preference_vector_id: `pv_${sessionId}`,
+          poll_after_ms: 1000,
+        }), {
+          status: 202,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ accepted: true, duplicate: false }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    saveMatchSessionSnapshot(sessionId, {
+      sessionId,
+      locale: 'en',
+      step: 11,
+      answerVersion: 11,
+      staleResults: true,
+      answers: completeMatchAnswers,
+    });
+    window.location.hash = `#/match/session/${sessionId}/review`;
+    renderApp();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show my matches' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe(`#/match/session/${sessionId}/run`);
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(`/api/match/sessions/${sessionId}/answers`, expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify({
+        locale: 'en',
+        current_step: 11,
+        answers: completeMatchAnswers,
+      }),
+    }));
+    expect(fetchSpy).toHaveBeenCalledWith(`/api/match/sessions/${sessionId}/run`, expect.objectContaining({
+      method: 'POST',
+    }));
+
+    fetchSpy.mockRestore();
+  });
+
   it('requires backend vector readback before the review CTA can enter run state', async () => {
     const fetchSpy = mockMatchFirstFetch({
       sessionId: 'match-review-sync-fail',
@@ -1179,7 +1269,7 @@ describe('initial render', () => {
     });
     expect(window.location.hash).toBe('#/match/session/match-failed/run');
     expect(localStorage.getItem('buurt-check-match-first-job-status:match-failed')).toBe('queued');
-    expect(await screen.findByRole('status')).toHaveTextContent('Getting your match ready');
+    expect(await screen.findByRole('status')).toHaveTextContent('Reading your living preferences');
     fetchSpy.mockRestore();
   });
 

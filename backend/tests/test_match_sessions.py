@@ -111,6 +111,30 @@ async def test_match_session_complete_answers_return_vector_preview(client, matc
 
 
 @pytest.mark.asyncio
+async def test_match_session_answer_sync_survives_onboarding_answer_save_burst(client, match_db):
+    create_response = await client.post(
+        "/api/match/sessions",
+        json={"locale": "en", "source": "landing"},
+    )
+    assert create_response.status_code == 201
+    session_id = create_response.json()["session_id"]
+
+    for _index in range(22):
+        await client.patch(
+            f"/api/match/sessions/{session_id}/answers",
+            json={"locale": "en", "current_step": 1, "answers": {"intent": "buy"}},
+        )
+
+    response = await client.patch(
+        f"/api/match/sessions/{session_id}/answers",
+        json={"locale": "en", "current_step": 11, "answers": COMPLETE_ANSWERS},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_complete"] is True
+
+
+@pytest.mark.asyncio
 async def test_match_session_prunes_stale_budget_when_intent_changes(client, match_db):
     create_response = await client.post(
         "/api/match/sessions",

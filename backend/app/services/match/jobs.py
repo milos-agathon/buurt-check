@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from app.db import DatabaseError, get_db
+from app.db import DatabaseConnection, DatabaseError, get_db
 from app.models.match import (
     MatchJobStatusResponse,
     MatchResultsResponse,
@@ -176,16 +176,19 @@ async def _record_job_event(
     session_id: str | None,
     locale: str = "en",
     context: dict[str, object] | None = None,
+    db: DatabaseConnection | None = None,
 ) -> None:
     await record_match_event(
         event_name,  # type: ignore[arg-type]
         session_id=session_id,
         locale=locale,
         context=context,
+        db=db,
     )
 
 
-async def _update_job_stage(
+async def _update_job_stage_in_db(
+    db: DatabaseConnection,
     job_id: str,
     *,
     stage: str,
@@ -202,94 +205,132 @@ async def _update_job_stage(
         if stage in TERMINAL_JOB_STATUSES
         else None
     )
-    async with get_db() as db:
-        cursor = await db.execute(
-            """
-            SELECT j.session_id,
-                   j.started_at,
-                   j.status,
-                   COALESCE(s.locale, 'en') AS locale
-            FROM match_jobs j
-            LEFT JOIN match_sessions s ON s.session_id = j.session_id
-            WHERE j.job_id = ?
-            """,
-            (job_id,),
-        )
-        row = await cursor.fetchone()
-        public_status = _public_status_for_stage(
+    cursor = await db.execute(
+        """
+        SELECT j.session_id,
+               j.started_at,
+               j.status,
+               COALESCE(s.locale, 'en') AS locale
+        FROM match_jobs j
+        LEFT JOIN match_sessions s ON s.session_id = j.session_id
+        WHERE j.job_id = ?
+        """,
+        (job_id,),
+    )
+    row = await cursor.fetchone()
+    public_status = _public_status_for_stage(
+        stage,
+        current_status=row["status"] if row is not None else None,
+    )
+    runtime_ms = (
+        _runtime_ms(row["started_at"], completed_at)
+        if completed_at and row is not None
+        else None
+    )
+    await db.execute(
+        """
+        UPDATE match_jobs
+        SET status = ?,
+            stage = ?,
+            progress = ?,
+            message_key = ?,
+            data_version = ?,
+            fallback_used = ?,
+            fallback_reason_code = ?,
+            result_set_id = COALESCE(?, result_set_id),
+            error_code = ?,
+            internal_error_class = ?,
+            completed_at = COALESCE(?, completed_at),
+            runtime_ms = COALESCE(?, runtime_ms),
+            updated_at = ?
+        WHERE job_id = ?
+        """,
+        (
+            public_status,
             stage,
-            current_status=row["status"] if row is not None else None,
-        )
-        runtime_ms = (
-            _runtime_ms(row["started_at"], completed_at)
-            if completed_at and row is not None
-            else None
-        )
-        await db.execute(
-            """
-            UPDATE match_jobs
-            SET status = ?,
-                stage = ?,
-                progress = ?,
-                message_key = ?,
-                data_version = ?,
-                fallback_used = ?,
-                fallback_reason_code = ?,
-                result_set_id = COALESCE(?, result_set_id),
-                error_code = ?,
-                internal_error_class = ?,
-                completed_at = COALESCE(?, completed_at),
-                runtime_ms = COALESCE(?, runtime_ms),
-                updated_at = ?
-            WHERE job_id = ?
-            """,
-            (
-                public_status,
-                stage,
-                STAGE_PROGRESS[stage],
-                _message_key(stage),
-                data_version,
-                1 if fallback_used else 0,
-                fallback_reason_code,
-                result_set_id_value,
-                error_code,
-                internal_error_class,
-                _iso(completed_at),
-                runtime_ms,
-                _iso(now),
-                job_id,
-            ),
+            STAGE_PROGRESS[stage],
+            _message_key(stage),
+            data_version,
+            1 if fallback_used else 0,
+            fallback_reason_code,
+            result_set_id_value,
+            error_code,
+            internal_error_class,
+            _iso(completed_at),
+            runtime_ms,
+            _iso(now),
+            job_id,
+        ),
+    )
+    if row is not None:
+        event_name = _terminal_event_name(stage)
+        if event_name is not None:
+            if row["status"] == "queued":
+                await _record_job_event(
+                    "match_job_running",
+                    session_id=row["session_id"],
+                    locale=row["locale"] or "en",
+                    context={
+                        "job_id": job_id,
+                        "status": "running",
+                        "stage": "running_models",
+                        "progress": STAGE_PROGRESS["running_models"],
+                    },
+                    db=db,
+                )
+            await _record_job_event(
+                event_name,
+                session_id=row["session_id"],
+                locale=row["locale"] or "en",
+                context={
+                    "job_id": job_id,
+                    "status": public_status,
+                    "stage": stage,
+                    "fallback_used": fallback_used,
+                    "fallback_reason_code": fallback_reason_code,
+                    "error_code": error_code,
+                },
+                db=db,
+            )
+        elif stage not in {"created", "queued", "expired"}:
+            await _record_job_event(
+                "match_job_running",
+                session_id=row["session_id"],
+                locale=row["locale"] or "en",
+                context={
+                    "job_id": job_id,
+                    "status": public_status,
+                    "stage": stage,
+                    "progress": STAGE_PROGRESS[stage],
+                },
+                db=db,
+            )
+
+
+async def _update_job_stage(
+    job_id: str,
+    *,
+    stage: str,
+    data_version: str,
+    result_set_id_value: str | None = None,
+    fallback_used: bool = False,
+    fallback_reason_code: str | None = None,
+    error_code: str | None = None,
+    internal_error_class: str | None = None,
+) -> None:
+    async with get_db() as db:
+        await _update_job_stage_in_db(
+            db,
+            job_id,
+            stage=stage,
+            data_version=data_version,
+            result_set_id_value=result_set_id_value,
+            fallback_used=fallback_used,
+            fallback_reason_code=fallback_reason_code,
+            error_code=error_code,
+            internal_error_class=internal_error_class,
         )
         await db.commit()
-    if row is None:
-        return
-    event_name = _terminal_event_name(stage)
-    if event_name is not None:
-        await _record_job_event(
-            event_name,
-            session_id=row["session_id"],
-            locale=row["locale"] or "en",
-            context={
-                "job_id": job_id,
-                "status": public_status,
-                "stage": stage,
-                "fallback_used": fallback_used,
-                "fallback_reason_code": fallback_reason_code,
-                "error_code": error_code,
-            },
-        )
-    elif stage not in {"created", "queued", "expired"}:
-        await _record_job_event(
-            "match_job_running",
-            session_id=row["session_id"],
-            locale=row["locale"] or "en",
-            context={
-                "job_id": job_id,
-                "status": public_status,
-                "stage": stage,
-                "progress": STAGE_PROGRESS[stage],
-            },
-        )
 
 
 def _run_response_from_row(row) -> MatchRunResponse:
@@ -332,25 +373,39 @@ async def start_match_job(
         raise AnswersIncompleteError(invalid)
     _validate_run_request(payload, current_vector_version=session.preference_vector_version)
     await recover_stale_jobs(max_age_seconds=MATCH_JOB_STALE_SECONDS, session_id=session_id)
-    await _record_job_event(
-        "match_final_run_cta_clicked",
-        session_id=session_id,
-        locale=session.locale,
-        context={"preference_vector_version": session.preference_vector_version or ""},
-    )
-
-    active_job = await _read_active_job_row(session_id)
-    if (
-        active_job is not None
-        and active_job["preference_vector_id"] == session.preference_vector.preference_vector_id
-        and active_job["status"] not in {"failed", "expired"}
-    ):
-        return MatchJobStartResult(response=_run_response_from_row(active_job), created=False)
 
     now = _utc_now()
     job_id = _job_id()
     try:
         async with get_db() as db:
+            await _record_job_event(
+                "match_final_run_cta_clicked",
+                session_id=session_id,
+                locale=session.locale,
+                context={"preference_vector_version": session.preference_vector_version or ""},
+                db=db,
+            )
+            cursor = await db.execute(
+                """
+                SELECT j.*
+                FROM match_jobs j
+                JOIN match_sessions s ON s.active_job_id = j.job_id
+                WHERE s.session_id = ?
+                """,
+                (session_id,),
+            )
+            active_job = await cursor.fetchone()
+            if (
+                active_job is not None
+                and active_job["preference_vector_id"]
+                == session.preference_vector.preference_vector_id
+                and active_job["status"] not in {"failed", "expired"}
+            ):
+                await db.commit()
+                return MatchJobStartResult(
+                    response=_run_response_from_row(active_job),
+                    created=False,
+                )
             await db.execute(
                 """
                 INSERT INTO match_jobs (
@@ -399,6 +454,17 @@ async def start_match_job(
                 """,
                 (job_id, _iso(now), session_id),
             )
+            await _record_job_event(
+                "match_job_queued",
+                session_id=session_id,
+                locale=session.locale,
+                context={
+                    "job_id": job_id,
+                    "preference_vector_id": session.preference_vector.preference_vector_id,
+                    "stage": "queued",
+                },
+                db=db,
+            )
             await db.commit()
     except DatabaseError:
         existing_job = await _read_started_job_for_vector(
@@ -411,17 +477,6 @@ async def start_match_job(
                 created=False,
             )
         raise
-
-    await _record_job_event(
-        "match_job_queued",
-        session_id=session_id,
-        locale=session.locale,
-        context={
-            "job_id": job_id,
-            "preference_vector_id": session.preference_vector.preference_vector_id,
-            "stage": "queued",
-        },
-    )
 
     return MatchJobStartResult(
         response=MatchRunResponse(
@@ -452,27 +507,12 @@ async def run_match_job(job_id: str) -> None:
 
     data_version = row["data_version"]
     try:
-        for stage in ("reading_preferences", "building_profile"):
-            await _update_job_stage(job_id, stage=stage, data_version=data_version)
-
         session = await get_match_session(row["session_id"])
         if session.preference_vector is None:
             raise AnswersIncompleteError(["preference_vector"])
 
-        await _update_job_stage(
-            job_id,
-            stage="loading_neighborhood_data",
-            data_version=data_version,
-        )
         matrix = await NeighborhoodFeatureStore().load_matrix()
         data_version = matrix.data_version
-        for stage in (
-            "applying_filters",
-            "running_models",
-            "scoring_tradeoffs",
-            "preparing_map",
-        ):
-            await _update_job_stage(job_id, stage=stage, data_version=data_version)
 
         scored = score_neighborhoods(
             session.preference_vector,
@@ -522,16 +562,31 @@ async def run_match_job(job_id: str) -> None:
                 for source in matrix.source_context.sources
             },
         )
-        await _store_result_set(response, preference_vector_id=row["preference_vector_id"])
-        await _update_job_stage(
-            job_id,
-            stage=terminal_status,
-            data_version=matrix.data_version,
-            result_set_id_value=result_id,
-            fallback_used=fallback_used,
-            fallback_reason_code=fallback_reason_code,
-        )
-        await _mark_session_completed(row["session_id"])
+        async with get_db() as db:
+            await _store_result_set_in_db(
+                db,
+                response,
+                preference_vector_id=row["preference_vector_id"],
+            )
+            await _update_job_stage_in_db(
+                db,
+                job_id,
+                stage=terminal_status,
+                data_version=matrix.data_version,
+                result_set_id_value=result_id,
+                fallback_used=fallback_used,
+                fallback_reason_code=fallback_reason_code,
+            )
+            await db.execute(
+                """
+                UPDATE match_sessions
+                SET phase = 'success',
+                    updated_at = ?
+                WHERE session_id = ?
+                """,
+                (_iso(_utc_now()), row["session_id"]),
+            )
+            await db.commit()
     except Exception as exc:
         if isinstance(exc, AnswersIncompleteError):
             error_code = "match.warning.answers_incomplete"
@@ -546,17 +601,8 @@ async def run_match_job(job_id: str) -> None:
         )
 
 
-async def _mark_session_completed(session_id: str) -> None:
-    now = _utc_now()
-    async with get_db() as db:
-        await db.execute(
-            "UPDATE match_sessions SET phase = 'success', updated_at = ? WHERE session_id = ?",
-            (_iso(now), session_id),
-        )
-        await db.commit()
-
-
-async def _store_result_set(
+async def _store_result_set_in_db(
+    db: DatabaseConnection,
     response: MatchResultsResponse,
     *,
     preference_vector_id: str,
@@ -572,75 +618,87 @@ async def _store_result_set(
             for source in item.source_refs
         }
     )
-    async with get_db() as db:
-        await db.execute(
-            """
-            INSERT INTO match_result_sets (
-                result_set_id,
-                session_id,
-                job_id,
-                preference_vector_id,
-                preference_vector_version,
-                status,
-                generated_at,
-                runtime_ms,
-                model_mode,
-                model_version,
-                data_version,
-                evaluation_status,
-                predictive_probability_available,
-                fallback_used,
-                fallback_reason_code,
-                recommendations_json,
-                near_misses_json,
-                stretch_matches_json,
-                evidence_json,
-                source_coverage_json,
-                geometry_refs_json,
-                map_json,
-                map_center_json,
-                bbox_json,
-                normal_recommendation_count,
-                candidate_count,
-                scored_candidate_count,
-                empty_state_code
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-            """,
-            (
-                response.result_set_id,
-                response.session_id,
-                response.job_id,
-                preference_vector_id,
-                response.preference_vector_version,
-                response.status,
-                _iso(response.generated_at),
-                response.runtime_ms,
-                response.model_mode,
-                response.model_version,
-                response.data_version,
-                response.evaluation_status,
-                0,
-                1 if response.fallback_used else 0,
-                response.fallback_reason_code,
-                response.model_dump_json(include={"ranked_results"}),
-                response.model_dump_json(include={"near_misses"}),
-                response.model_dump_json(include={"stretch_matches"}),
-                json_dumps({}),
-                json_dumps(source_coverage),
-                response.model_dump_json(
-                    include={"ranked_results", "stretch_matches", "near_misses"}
-                ),
-                response.map.model_dump_json(),
-                json_dumps(response.map_center),
-                json_dumps(response.bbox),
-                response.normal_recommendation_count,
-                response.candidate_count,
-                response.scored_candidate_count,
-                response.empty_state_code,
+    await db.execute(
+        """
+        INSERT INTO match_result_sets (
+            result_set_id,
+            session_id,
+            job_id,
+            preference_vector_id,
+            preference_vector_version,
+            status,
+            generated_at,
+            runtime_ms,
+            model_mode,
+            model_version,
+            data_version,
+            evaluation_status,
+            predictive_probability_available,
+            fallback_used,
+            fallback_reason_code,
+            recommendations_json,
+            near_misses_json,
+            stretch_matches_json,
+            evidence_json,
+            source_coverage_json,
+            geometry_refs_json,
+            map_json,
+            map_center_json,
+            bbox_json,
+            normal_recommendation_count,
+            candidate_count,
+            scored_candidate_count,
+            empty_state_code
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+        """,
+        (
+            response.result_set_id,
+            response.session_id,
+            response.job_id,
+            preference_vector_id,
+            response.preference_vector_version,
+            response.status,
+            _iso(response.generated_at),
+            response.runtime_ms,
+            response.model_mode,
+            response.model_version,
+            response.data_version,
+            response.evaluation_status,
+            0,
+            1 if response.fallback_used else 0,
+            response.fallback_reason_code,
+            response.model_dump_json(include={"ranked_results"}),
+            response.model_dump_json(include={"near_misses"}),
+            response.model_dump_json(include={"stretch_matches"}),
+            json_dumps({}),
+            json_dumps(source_coverage),
+            response.model_dump_json(
+                include={"ranked_results", "stretch_matches", "near_misses"}
             ),
+            response.map.model_dump_json(),
+            json_dumps(response.map_center),
+            json_dumps(response.bbox),
+            response.normal_recommendation_count,
+            response.candidate_count,
+            response.scored_candidate_count,
+            response.empty_state_code,
+        ),
+    )
+
+
+async def _store_result_set(
+    response: MatchResultsResponse,
+    *,
+    preference_vector_id: str,
+) -> None:
+    async with get_db() as db:
+        await _store_result_set_in_db(
+            db,
+            response,
+            preference_vector_id=preference_vector_id,
         )
         await db.commit()
 
@@ -663,6 +721,44 @@ async def _read_active_job_row(session_id: str):
             (session_id,),
         )
         return await cursor.fetchone()
+
+
+async def _read_session_active_job_row_in_db(db: DatabaseConnection, session_id: str):
+    cursor = await db.execute(
+        """
+        SELECT s.session_id AS existing_session_id,
+               j.job_id,
+               j.session_id,
+               j.preference_vector_id,
+               j.status,
+               j.stage,
+               j.progress,
+               j.message_key,
+               j.model_mode,
+               j.model_version,
+               j.data_version,
+               j.evaluation_status,
+               j.fallback_used,
+               j.fallback_reason_code,
+               j.result_set_id,
+               j.error_code,
+               j.internal_error_class,
+               j.started_at,
+               j.completed_at,
+               j.runtime_ms,
+               j.updated_at
+        FROM match_sessions s
+        LEFT JOIN match_jobs j ON s.active_job_id = j.job_id
+        WHERE s.session_id = ?
+        """,
+        (session_id,),
+    )
+    return await cursor.fetchone()
+
+
+async def _read_session_active_job_row(session_id: str):
+    async with get_db() as db:
+        return await _read_session_active_job_row_in_db(db, session_id)
 
 
 async def _read_started_job_for_vector(session_id: str, preference_vector_id: str):
@@ -701,13 +797,26 @@ async def _session_exists(session_id: str) -> bool:
         return await cursor.fetchone() is not None
 
 
+def _should_mark_job_slow(row, *, max_age_seconds: int = 10) -> bool:
+    if row["status"] in {*TERMINAL_JOB_STATUSES, "matching_slow"}:
+        return False
+    reference = row["started_at"] or row["updated_at"]
+    if not reference:
+        return False
+    return _parse_dt(reference) < _utc_now() - timedelta(seconds=max_age_seconds)
+
+
 async def get_match_job_status(session_id: str) -> MatchJobStatusResponse:
-    if not await _session_exists(session_id):
-        raise MatchSessionNotFoundError(session_id)
-    await mark_slow_jobs(session_id=session_id)
-    row = await _read_active_job_row(session_id)
+    row = await _read_session_active_job_row(session_id)
     if row is None:
+        raise MatchSessionNotFoundError(session_id)
+    if row["job_id"] is None:
         raise MatchJobNotFoundError(session_id)
+    if _should_mark_job_slow(row):
+        await mark_slow_jobs(session_id=session_id)
+        row = await _read_active_job_row(session_id)
+        if row is None:
+            raise MatchJobNotFoundError(session_id)
     return MatchJobStatusResponse(
         session_id=row["session_id"],
         job_id=row["job_id"],
@@ -729,19 +838,18 @@ async def get_match_job_status(session_id: str) -> MatchJobStatusResponse:
 
 
 async def get_match_results(session_id: str) -> MatchResultsResponse:
-    if not await _session_exists(session_id):
-        raise MatchSessionNotFoundError(session_id)
-    job = await _read_active_job_row(session_id)
-    if job is None:
-        raise MatchResultsNotFoundError(session_id)
-    if (
-        job["status"]
-        not in {"completed", "completed_with_fallback", "completed_no_strong_matches"}
-        or not job["result_set_id"]
-    ):
-        raise MatchResultsNotReadyError()
-
     async with get_db() as db:
+        job = await _read_session_active_job_row_in_db(db, session_id)
+        if job is None:
+            raise MatchSessionNotFoundError(session_id)
+        if job["job_id"] is None:
+            raise MatchResultsNotFoundError(session_id)
+        if (
+            job["status"]
+            not in {"completed", "completed_with_fallback", "completed_no_strong_matches"}
+            or not job["result_set_id"]
+        ):
+            raise MatchResultsNotReadyError()
         cursor = await db.execute(
             "SELECT * FROM match_result_sets WHERE result_set_id = ?",
             (job["result_set_id"],),

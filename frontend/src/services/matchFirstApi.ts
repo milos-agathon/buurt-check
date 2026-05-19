@@ -10,6 +10,7 @@ import type {
   MatchDossierBridgeRequest,
   MatchDossierBridgeResponse,
   MatchResultsResponse,
+  MatchResultsBasemapConfig,
   MatchNeighborhoodAmenitiesResponse,
   MatchNeighborhoodBuildingsResponse,
   MatchNeighborhoodMapLayersResponse,
@@ -109,6 +110,13 @@ export async function getMatchResults(sessionId: string): Promise<MatchResultsRe
     credentials: 'include',
   });
   return readJson<MatchResultsResponse>(response);
+}
+
+export async function getMatchResultsBasemapConfig(): Promise<MatchResultsBasemapConfig> {
+  const response = await fetch(buildPrimaryApiUrl('/match/results-basemap'), {
+    credentials: 'include',
+  });
+  return readJson<MatchResultsBasemapConfig>(response);
 }
 
 function appendLayerContext(

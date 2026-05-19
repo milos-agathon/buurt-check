@@ -9,6 +9,8 @@ const NEIGHBORHOOD_ID = 'nh_final_ijburg';
 const RECOMMENDATION_ID = 'rec_final_1';
 const BUILDING_ID = 'bldg_final_1';
 const VBO_ID = '0363010000999999';
+const ONE_PIXEL_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
 
 const completeAnswers = {
   intent: 'both',
@@ -96,6 +98,8 @@ function resultsResponse() {
 
 async function installFinalJourneyMocks(page: Page) {
   let runCalls = 0;
+  let basemapConfigCalls = 0;
+  let pdokTileCalls = 0;
   let storedAnswers = completeAnswers;
   const analyticsEvents: Array<{
     event_name: string;
@@ -108,6 +112,30 @@ async function installFinalJourneyMocks(page: Page) {
       context?: Record<string, unknown>;
     });
     await fulfillJson(route, { accepted: true, duplicate: false }, 202);
+  });
+
+  await page.route('**/api/match/results-basemap', async (route) => {
+    basemapConfigCalls += 1;
+    await fulfillJson(route, {
+      source_id: 'pdok_brt_achtergrondkaart',
+      source_name: 'PDOK BRT Achtergrondkaart',
+      service_type: 'wmts_raster',
+      theme: 'standaard',
+      tile_matrix_set: 'EPSG:3857',
+      tile_url_template: 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png',
+      attribution: 'PDOK / Kadaster / BRT Achtergrondkaart (standaard WMTS)',
+      min_zoom: 0,
+      max_zoom: 19,
+    });
+  });
+
+  await page.route('**/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/**/*.png', async (route) => {
+    pdokTileCalls += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: Buffer.from(ONE_PIXEL_PNG_BASE64, 'base64'),
+    });
   });
 
   await page.route('**/api/match/sessions', async (route) => {
@@ -334,6 +362,8 @@ async function installFinalJourneyMocks(page: Page) {
 
   return {
     getRunCalls: () => runCalls,
+    getBasemapConfigCalls: () => basemapConfigCalls,
+    getPdokTileCalls: () => pdokTileCalls,
     getAnalyticsEvents: () => analyticsEvents,
   };
 }
@@ -385,46 +415,56 @@ async function withAnswerPatch(page: Page, action: () => Promise<void>) {
   await response;
 }
 
+async function advanceSurveyToQuestion(page: Page, step: number) {
+  await clickPrimaryCta(page);
+  await expect(page).toHaveURL(new RegExp(`/question/${step}$`));
+}
+
+async function advanceSurveyToReview(page: Page) {
+  await clickPrimaryCta(page);
+  await expect(page).toHaveURL(/\/review$/);
+}
+
 async function answerSurveyWithStableControls(page: Page, language: 'en' | 'nl') {
   await withAnswerPatch(page, () => page.locator('input[name="match-first-intent"][value="both"]').check());
   await page.evaluate(() => window.location.reload());
   await expect(page.locator('input[name="match-first-intent"][value="both"]')).toBeChecked();
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToQuestion(page, 2);
 
   const budgetInputs = page.locator('.survey-question__range input[type="number"]');
   await withAnswerPatch(page, () => budgetInputs.nth(0).fill('450000'));
   await withAnswerPatch(page, () => budgetInputs.nth(1).fill('650000'));
   await withAnswerPatch(page, () => budgetInputs.nth(2).fill('2500'));
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToQuestion(page, 3);
 
   await withAnswerPatch(page, () => page.locator('input[name="match-first-household_type"][value="family_young_child"]').check());
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToQuestion(page, 4);
 
   await withAnswerPatch(page, () => page.locator('.survey-question__anchor input[type="text"]').fill('Utrecht Centraal'));
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToQuestion(page, 5);
+  await advanceSurveyToQuestion(page, 6);
 
   await withAnswerPatch(page, () => page.locator('input[name="match-first-lifestyle_priorities"][value="green_access"]').check());
   await withAnswerPatch(page, () => page.locator('input[name="match-first-lifestyle_priorities"][value="calmness"]').check());
   await withAnswerPatch(page, () => page.locator('input[name="match-first-lifestyle_priorities"][value="public_transport"]').check());
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToQuestion(page, 7);
 
   await withAnswerPatch(page, () => page.locator('input[name="match-first-must_haves"][value="parks_nearby"]').check());
   await withAnswerPatch(page, () => page.locator('input[name="match-first-must_haves"][value="good_transit"]').check());
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToQuestion(page, 8);
 
   await withAnswerPatch(page, () => page.locator('input[name="match-first-dealbreakers"][value="busy_nightlife"]').check());
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToQuestion(page, 9);
 
   await withAnswerPatch(page, () => page.locator('input[name="match-first-housing_types"][value="row_house"]').check());
   await withAnswerPatch(page, () => page.locator('input[name="match-first-housing_types"][value="family_house"]').check());
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToQuestion(page, 10);
 
   await withAnswerPatch(page, () => page.locator('input[name="match-first-area_character"][value="quiet_city"]').check());
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToQuestion(page, 11);
 
   await withAnswerPatch(page, () => page.locator(`input[name="match-first-language"][value="${language}"]`).check());
-  await withAnswerPatch(page, () => clickPrimaryCta(page));
+  await advanceSurveyToReview(page);
 }
 
 test.use({
@@ -499,6 +539,9 @@ test('complete match-first journey emits required analytics and restores from Do
   await expect(page.getByRole('heading', { name: 'Your neighborhood matches are ready.' })).toBeVisible();
   await page.getByRole('button', { name: 'Open my map' }).click();
   await expect(page.getByRole('heading', { name: 'Your match map' })).toBeVisible();
+  await expect(page.getByText('PDOK / Kadaster / BRT Achtergrondkaart (standaard WMTS)')).toBeVisible();
+  expect(mocks.getBasemapConfigCalls()).toBeGreaterThan(0);
+  await expect.poll(() => mocks.getPdokTileCalls()).toBeGreaterThan(0);
 
   await page.getByRole('button', { name: 'Show IJburg on map' }).click();
   await page.getByRole('button', { name: 'List' }).click();

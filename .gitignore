@@ -79,6 +79,8 @@ backend/.claude/
 backend/tests/baselines/
 backend/tmp/
 .tmp/
+.tmp-*
+frontend/.tmp-*
 .pytest-basetemp-local/
 tmp/
 assets/google-stitch

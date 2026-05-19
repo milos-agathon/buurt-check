@@ -204,13 +204,14 @@ it.each([
   expect(screen.queryByText(/reading_preferences|running_models|match_job|traceback|exception/i)).not.toBeInTheDocument();
 });
 
-it('waits for the backend poll_after_ms before requesting the next status', async () => {
+it('polls queued runs immediately, then respects backend poll_after_ms for the next status', async () => {
   vi.useFakeTimers();
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(statusResponse({
     status: 'running',
     stage: 'building_profile',
     progress: 35,
     message_key: 'matchFirst.progress.building_profile',
+    poll_after_ms: 250,
   })), { status: 200, headers: { 'Content-Type': 'application/json' } }));
 
   renderWithI18n(
@@ -226,18 +227,22 @@ it('waits for the backend poll_after_ms before requesting the next status', asyn
   const statusCalls = () => fetchSpy.mock.calls.filter(([input]) => String(input).endsWith('/status'));
 
   expect(screen.getByRole('status')).toHaveTextContent('Getting your match ready');
-  expect(statusCalls()).toHaveLength(0);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(statusCalls()).toHaveLength(1);
 
   await act(async () => {
     vi.advanceTimersByTime(249);
   });
-  expect(statusCalls()).toHaveLength(0);
+  expect(statusCalls()).toHaveLength(1);
 
   await act(async () => {
     vi.advanceTimersByTime(1);
     await Promise.resolve();
   });
   expect(fetchSpy).toHaveBeenCalledWith('/api/match/sessions/match-progress/status', expect.anything());
+  expect(statusCalls()).toHaveLength(2);
   vi.useRealTimers();
 });
 
@@ -580,6 +585,15 @@ it('starts backend matching from the review CTA, polls, shows checkmark, and rou
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
+    if (url.endsWith(`/api/match/sessions/${sessionId}/answers`) && method === 'PATCH') {
+      return new Response(JSON.stringify({
+        session_id: sessionId,
+        answer_version: 12,
+        is_complete: true,
+        validation: {},
+        stale_results: true,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     if (url.endsWith(`/api/match/sessions/${sessionId}`) && method === 'GET') {
       return new Response(JSON.stringify(completeSessionResponse(sessionId)), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }

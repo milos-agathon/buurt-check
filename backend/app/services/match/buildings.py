@@ -15,14 +15,14 @@ from app.models.match import (
     MatchNeighborhoodBuildingFeature,
     MatchNeighborhoodBuildingsResponse,
 )
-from app.services import locatieserver
+from app.models.neighborhood3d import BuildingBlock
+from app.services import locatieserver, three_d_bag
 from app.services.match.geometry import (
-    DATA_VERSION,
-    LIMITATIONS,
     SOURCE_REFS,
     display_bounds_wgs84,
     load_seed_neighborhood,
     neighborhood_bounds_rd,
+    rd_to_wgs84,
     validate_building_bounds,
 )
 
@@ -32,6 +32,13 @@ _DEFAULT_NO_ADDRESS_REASON = "match.neighborhood.no_reliable_address"
 _CANDIDATE_SELECTION_REASON = "match.neighborhood.address_candidate_selection_required"
 _MANUAL_REQUIRED_REASON = "match.neighborhood.manual_address_required"
 _PROVIDER_SOURCE_REF = "pdok_locatieserver_reverse"
+_BAG_BUILDING_ID_PREFIX = "bag_pand_"
+_BAG_LOD22_SOURCE_REF = "3dbag_lod22"
+_BAG_LOD0_SOURCE_REF = "3dbag_lod0"
+_BAG_DATA_VERSION = "3dbag-lod22-selected-v1"
+_BAG_LOD22_LIMITATION = "match.results.limitations.3dbag_lod22"
+_BAG_LOD0_LIMITATION = "match.results.limitations.3dbag_lod0_fallback"
+_BAG_PARTIAL_LIMITATION = "match.results.limitations.3dbag_partial"
 logger = logging.getLogger(__name__)
 
 
@@ -172,6 +179,119 @@ def _provider_source_refs(candidate: MatchNeighborhoodBuildingFeature) -> list[s
     return list(dict.fromkeys(ref for ref in refs if ref))
 
 
+def _building_source_ref(block: BuildingBlock) -> str:
+    return _BAG_LOD22_SOURCE_REF if block.roof_surfaces else _BAG_LOD0_SOURCE_REF
+
+
+def _building_id_from_pand_id(pand_id: str) -> str:
+    return f"{_BAG_BUILDING_ID_PREFIX}{pand_id}"
+
+
+def _center_rd_from_bounds(bounds_rd: list[float]) -> dict[str, float]:
+    west, south, east, north = bounds_rd
+    return {
+        "x": round((west + east) / 2, 2),
+        "y": round((south + north) / 2, 2),
+    }
+
+
+def _rd_offset_to_wgs84(
+    *,
+    dx: float,
+    dy: float,
+    center_rd: dict[str, float],
+) -> list[float]:
+    exact = rd_to_wgs84(center_rd["x"] + dx, center_rd["y"] + dy)
+    return [round(exact["lng"], 7), round(exact["lat"], 7)]
+
+
+def _wgs84_footprint_from_rd_offsets(
+    block: BuildingBlock,
+    *,
+    center_rd: dict[str, float],
+) -> dict[str, object]:
+    ring = [
+        _rd_offset_to_wgs84(
+            dx=point[0],
+            dy=point[1],
+            center_rd=center_rd,
+        )
+        for point in block.footprint
+    ]
+    if ring and ring[0] != ring[-1]:
+        ring.append(ring[0])
+    return {"type": "Polygon", "coordinates": [ring]}
+
+
+def _match_feature_from_3dbag_block(
+    block: BuildingBlock,
+    *,
+    center_rd: dict[str, float],
+) -> MatchNeighborhoodBuildingFeature:
+    source_ref = _building_source_ref(block)
+    return MatchNeighborhoodBuildingFeature(
+        building_id=_building_id_from_pand_id(block.pand_id),
+        vbo_id=None,
+        address_id=None,
+        lookup_id=None,
+        footprint=_wgs84_footprint_from_rd_offsets(
+            block,
+            center_rd=center_rd,
+        ),
+        height_m=block.building_height,
+        source_refs=[source_ref],
+        address_resolution="candidate",
+        address_candidate_count=3,
+        fallback_label_key="matchFirst.neighborhood.addressCandidate",
+        geometry_source=source_ref,
+        lod="2.2" if source_ref == _BAG_LOD22_SOURCE_REF else "0",
+        center_rd=center_rd,
+        footprint_rd=block.footprint,
+        ground_height_m=block.ground_height,
+        roof_surfaces=block.roof_surfaces,
+        year=block.year,
+        orientation_deg=block.orientation_deg,
+    )
+
+
+async def _fetch_lod22_buildings_for_bounds(
+    *,
+    bounds_rd: list[float],
+    limit: int,
+) -> tuple[list[BuildingBlock], bool]:
+    return await three_d_bag.get_buildings_in_rd_bounds(bounds_rd, limit=limit)
+
+
+async def _real_building_candidates_for_neighborhood(
+    neighborhood_id: str,
+    *,
+    limit: int,
+) -> list[MatchNeighborhoodBuildingFeature]:
+    neighborhood = await load_seed_neighborhood(neighborhood_id)
+    bounds_rd = neighborhood_bounds_rd(neighborhood)
+    center_rd = _center_rd_from_bounds(bounds_rd)
+    try:
+        blocks, _partial = await _fetch_lod22_buildings_for_bounds(
+            bounds_rd=bounds_rd,
+            limit=limit,
+        )
+    except Exception as exc:
+        logger.warning(
+            "match 3DBAG selected-neighborhood candidate lookup failed "
+            "neighborhood_id=%s reason=%s",
+            neighborhood_id,
+            exc,
+        )
+        return []
+    return [
+        _match_feature_from_3dbag_block(
+            block,
+            center_rd=center_rd,
+        )
+        for block in blocks
+    ]
+
+
 async def _candidate_address_options(
     candidate: MatchNeighborhoodBuildingFeature,
 ) -> list[MatchDossierCandidateAddress]:
@@ -285,7 +405,11 @@ def _resolved_bridge_response(
 
 async def resolve_dossier_bridge(payload: MatchDossierBridgeRequest) -> MatchDossierBridgeResponse:
     neighborhood = await load_seed_neighborhood(payload.neighborhood_id)
-    candidates = _seed_house_candidates(payload.neighborhood_id, display_bounds_wgs84(neighborhood))
+    candidates = (
+        await _real_building_candidates_for_neighborhood(payload.neighborhood_id, limit=100)
+        if payload.building_id.startswith(_BAG_BUILDING_ID_PREFIX)
+        else _seed_house_candidates(payload.neighborhood_id, display_bounds_wgs84(neighborhood))
+    )
     candidate = next(
         (candidate for candidate in candidates if candidate.building_id == payload.building_id),
         None,
@@ -504,10 +628,40 @@ async def get_scoped_neighborhood_buildings(
     validate_building_bounds(bounds_rd, allowed_bounds)
     bounded_limit = max(1, min(limit, 100))
     _ = lod
-    buildings = _seed_house_candidates(
-        neighborhood_id,
-        display_bounds_wgs84(neighborhood),
-    )[:bounded_limit]
+    center_rd = _center_rd_from_bounds(bounds_rd)
+    partial = False
+    try:
+        blocks, partial = await _fetch_lod22_buildings_for_bounds(
+            bounds_rd=bounds_rd,
+            limit=bounded_limit,
+        )
+    except Exception as exc:
+        logger.warning(
+            "match 3DBAG selected-neighborhood building fetch failed neighborhood_id=%s reason=%s",
+            neighborhood_id,
+            exc,
+        )
+        blocks = []
+        partial = True
+
+    buildings = [
+        _match_feature_from_3dbag_block(
+            block,
+            center_rd=center_rd,
+        )
+        for block in blocks[:bounded_limit]
+    ]
+    fallback_reason_code = None if buildings else "matchFirst.neighborhood.missing3d"
+    source_refs = list(
+        dict.fromkeys(source_ref for building in buildings for source_ref in building.source_refs)
+    )
+    limitations: list[str] = []
+    if any(building.geometry_source == _BAG_LOD22_SOURCE_REF for building in buildings):
+        limitations.append(_BAG_LOD22_LIMITATION)
+    if any(building.geometry_source == _BAG_LOD0_SOURCE_REF for building in buildings):
+        limitations.append(_BAG_LOD0_LIMITATION)
+    if partial:
+        limitations.append(_BAG_PARTIAL_LIMITATION)
 
     return MatchNeighborhoodBuildingsResponse(
         neighborhood_id=neighborhood_id,
@@ -516,8 +670,8 @@ async def get_scoped_neighborhood_buildings(
         bounds_rd=bounds_rd,
         clipped_to_neighborhood=True,
         buildings=buildings,
-        fallback_reason_code="matchFirst.neighborhood.missing3d",
-        data_version=DATA_VERSION,
-        source_refs=SOURCE_REFS,
-        limitations=[*LIMITATIONS, "match.results.limitations.source_metadata_unavailable"],
+        fallback_reason_code=fallback_reason_code,
+        data_version=_BAG_DATA_VERSION,
+        source_refs=source_refs,
+        limitations=limitations,
     )

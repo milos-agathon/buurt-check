@@ -431,6 +431,32 @@ class MatchResultsMap(BaseModel):
     features: list[dict[str, object]] = Field(default_factory=list)
 
 
+class MatchResultsBasemapConfig(BaseModel):
+    source_id: Literal["pdok_brt_achtergrondkaart"] = "pdok_brt_achtergrondkaart"
+    source_name: Literal["PDOK BRT Achtergrondkaart"] = "PDOK BRT Achtergrondkaart"
+    service_type: Literal["wmts_raster"] = "wmts_raster"
+    theme: Literal["standaard", "grijs", "pastel"]
+    tile_matrix_set: Literal["EPSG:3857"] = "EPSG:3857"
+    tile_url_template: str = Field(min_length=1)
+    attribution: str = Field(min_length=1)
+    min_zoom: int = Field(default=0, ge=0)
+    max_zoom: int = Field(default=19, ge=0)
+
+    @field_validator("tile_url_template")
+    @classmethod
+    def validate_pdok_brt_url(cls, value: str) -> str:
+        lowered = value.lower()
+        if not lowered.startswith(
+            "https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/"
+        ):
+            raise ValueError("basemap tile URL must use PDOK BRT WMTS")
+        if any(blocked in lowered for blocked in ("openstreetmap", "mapbox", "google")):
+            raise ValueError("basemap tile URL must not use unsupported providers")
+        if "{z}" not in value or "{x}" not in value or "{y}" not in value:
+            raise ValueError("basemap tile URL must expose z/x/y placeholders")
+        return value
+
+
 class MatchResultsResponse(BaseModel):
     session_id: str = Field(min_length=1)
     job_id: str = Field(min_length=1)
@@ -511,6 +537,14 @@ class MatchNeighborhoodBuildingFeature(BaseModel):
     address_resolution: Literal["resolved", "candidate", "manual_required", "unavailable"]
     address_candidate_count: int = Field(default=0, ge=0)
     fallback_label_key: str | None = Field(default=None, pattern=r"^matchFirst\.neighborhood\.")
+    geometry_source: Literal["3dbag_lod22", "3dbag_lod0"] | None = None
+    lod: Literal["2.2", "0"] | None = None
+    center_rd: dict[str, float] | None = None
+    footprint_rd: list[list[float]] = Field(default_factory=list)
+    ground_height_m: float | None = None
+    roof_surfaces: list[list[list[float]]] | None = None
+    year: int | None = None
+    orientation_deg: float | None = None
 
 
 class MatchNeighborhoodBuildingsResponse(BaseModel):
@@ -534,12 +568,33 @@ class MatchNeighborhoodAmenityTag(BaseModel):
     relevance: int = Field(default=50, ge=0, le=100)
 
 
+class MatchNeighborhoodAmenityPoint(BaseModel):
+    point_id: str = Field(min_length=1)
+    amenity_key: str = Field(min_length=1)
+    category_key: str = Field(min_length=1)
+    label_key: str = Field(pattern=r"^matchFirst\.amenity\.")
+    name: str | None = None
+    emoji: str = Field(min_length=1)
+    display_lat: float
+    display_lng: float
+    display_coordinate_system: Literal["WGS84"] = "WGS84"
+    source_name: str = Field(min_length=1)
+    source_record_id: str | None = None
+    freshness_date: str | None = None
+    loaded_at: datetime
+    source_coordinate_system: Literal["EPSG:4326", "EPSG:28992"] | None = None
+    source_geometry: dict[str, object] = Field(default_factory=dict)
+    source_geometry_coordinate_system: Literal["EPSG:4326", "EPSG:28992"] | None = None
+    source_refs: list[str] = Field(default_factory=list)
+    relevance: int = Field(default=50, ge=0, le=100)
+
+
 class MatchNeighborhoodAmenitiesResponse(BaseModel):
     neighborhood_id: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
     result_set_id: str = Field(min_length=1)
     tags: list[MatchNeighborhoodAmenityTag] = Field(default_factory=list, max_length=7)
-    points: list[dict[str, object]] = Field(default_factory=list)
+    points: list[MatchNeighborhoodAmenityPoint] = Field(default_factory=list, max_length=7)
     source_refs: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
 

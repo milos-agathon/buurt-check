@@ -11,10 +11,11 @@ interface HouseSelectionPanelProps {
   selectedBuildingId?: string | null;
   pendingBuildingId?: string | null;
   pendingCandidateId?: string | null;
+  selectedBuilding?: MatchNeighborhoodBuildingFeature | null;
   fallbackKey?: string | null;
   candidateAddresses?: MatchDossierCandidateAddress[];
   candidateBuildingId?: string | null;
-  onSelectHouse?: SelectHouseHandler;
+  onPreviewHouse?: SelectHouseHandler;
   onSelectCandidateAddress?: SelectCandidateAddressHandler;
   onSearchManually?: () => void;
   onBackToResults?: () => void;
@@ -37,10 +38,11 @@ export default function HouseSelectionPanel({
   selectedBuildingId = null,
   pendingBuildingId = null,
   pendingCandidateId = null,
+  selectedBuilding = null,
   fallbackKey = null,
   candidateAddresses = [],
   candidateBuildingId = null,
-  onSelectHouse,
+  onPreviewHouse,
   onSelectCandidateAddress,
   onSearchManually,
   onBackToResults,
@@ -85,23 +87,27 @@ export default function HouseSelectionPanel({
 
   return (
     <div className="house-selection" data-testid="house-selection-panel">
+      <p className="house-selection__summary">
+        {t('matchFirst.neighborhood.loadedHousesSummary', { count: candidates.length })}
+      </p>
       <ul className="house-selection__list" aria-label={t('matchFirst.neighborhood.houseCandidatesLabel')}>
         {candidates.map((building, index) => {
           const descriptionId = `house-candidate-${index + 1}`;
+          const isSelected = selectedBuildingId === building.building_id;
           return (
             <li key={building.building_id}>
               <button
                 type="button"
-                aria-label={t('matchFirst.neighborhood.openDossierForHouse', { index: index + 1 })}
+                aria-label={t('matchFirst.neighborhood.showHouseOnMapForHouse', { index: index + 1 })}
                 aria-describedby={descriptionId}
-                disabled={!onSelectHouse || pendingBuildingId === building.building_id}
+                disabled={!onPreviewHouse}
                 aria-busy={pendingBuildingId === building.building_id}
-                aria-pressed={selectedBuildingId === building.building_id}
-                onClick={() => onSelectHouse?.(building)}
+                aria-pressed={isSelected}
+                onClick={() => onPreviewHouse?.(building)}
               >
-                {pendingBuildingId === building.building_id
-                  ? t('matchFirst.neighborhood.housesLoading')
-                  : t('matchFirst.neighborhood.openDossier')}
+                {isSelected
+                  ? t('matchFirst.neighborhood.houseSelected')
+                  : t('matchFirst.neighborhood.showHouseOnMap')}
                 <span id={descriptionId} className="sr-only">
                   {t(building.fallback_label_key ?? 'matchFirst.neighborhood.addressCandidate')}
                 </span>
@@ -110,6 +116,19 @@ export default function HouseSelectionPanel({
           );
         })}
       </ul>
+      {selectedBuilding && (
+        <div className="house-selection__selected">
+          <h3>{t('matchFirst.neighborhood.selectedHouseTitle', {
+            index: Math.max(
+              1,
+              candidates.findIndex((building) => building.building_id === selectedBuilding.building_id) + 1,
+            ),
+          })}</h3>
+          <p className="neighborhood-detail__muted">
+            {t(selectedBuilding.fallback_label_key ?? 'matchFirst.neighborhood.addressCandidate')}
+          </p>
+        </div>
+      )}
       {candidateAddresses.length > 0 && (
         <div className="house-selection__candidates">
           <p className="neighborhood-detail__muted">{t('matchFirst.neighborhood.candidateAddressesIntro')}</p>

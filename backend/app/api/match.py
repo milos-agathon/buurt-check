@@ -1,8 +1,9 @@
 from typing import Literal, cast
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 
+from app.config import settings
 from app.db import get_db
 from app.models.match import (
     AlertCreateRequest,
@@ -34,6 +35,7 @@ from app.models.match import (
     MatchRecommendationsResponse,
     MatchReportCreateRequest,
     MatchReportResponse,
+    MatchResultsBasemapConfig,
     MatchResultsResponse,
     MatchRunRequest,
     MatchRunResponse,
@@ -55,6 +57,7 @@ from app.models.match import (
     SurveyAnswerPatchRequest,
     SurveyAnswerPatchResponse,
 )
+from app.rate_limit import limiter
 from app.services.match.alerts import create_alert, delete_alert, list_alerts, update_alert
 from app.services.match.amenities import get_preference_aware_amenities
 from app.services.match.buildings import (
@@ -119,6 +122,8 @@ from app.services.match.similarity import find_similar_neighborhoods
 
 router = APIRouter(prefix="/match", tags=["match"])
 _NO_STORE_HEADERS = {"Cache-Control": "no-store"}
+_MATCH_FIRST_ANALYTICS_RATE_LIMIT = "240/minute"
+_MATCH_FIRST_ANSWER_SYNC_RATE_LIMIT = "120/minute"
 
 
 def _mark_no_store(response: Response) -> None:
@@ -130,12 +135,30 @@ async def match_health() -> dict[str, str]:
     return {"status": "foundation_only"}
 
 
+@router.get("/results-basemap", response_model=MatchResultsBasemapConfig)
+async def read_match_results_basemap(response: Response) -> MatchResultsBasemapConfig:
+    _mark_no_store(response)
+    allowed_themes = {"standaard", "grijs", "pastel"}
+    theme = cast(
+        Literal["standaard", "grijs", "pastel"],
+        settings.brt_wmts_theme if settings.brt_wmts_theme in allowed_themes else "standaard",
+    )
+    base = settings.brt_wmts_base.rstrip("/")
+    return MatchResultsBasemapConfig(
+        theme=theme,
+        tile_url_template=f"{base}/{theme}/EPSG:3857/{{z}}/{{x}}/{{y}}.png",
+        attribution=f"PDOK / Kadaster / BRT Achtergrondkaart ({theme} WMTS)",
+    )
+
+
+@limiter.limit(_MATCH_FIRST_ANALYTICS_RATE_LIMIT)
 @router.post(
     "/analytics",
     response_model=MatchFirstAnalyticsResponse,
     status_code=202,
 )
 async def record_match_first_analytics(
+    request: Request,
     payload: MatchFirstAnalyticsRequest,
     response: Response,
 ) -> MatchFirstAnalyticsResponse:
@@ -225,8 +248,10 @@ async def delete_session(
         ) from exc
 
 
+@limiter.limit(_MATCH_FIRST_ANSWER_SYNC_RATE_LIMIT)
 @router.patch("/sessions/{session_id}/answers", response_model=SurveyAnswerPatchResponse)
 async def patch_session_answers(
+    request: Request,
     session_id: str,
     payload: SurveyAnswerPatchRequest,
     response: Response,

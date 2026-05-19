@@ -59,9 +59,9 @@ function SurveyHarness(props: Partial<ComponentProps<typeof SurveyShell>> = {}) 
     <SurveyShell
       {...props}
       step={step}
-      onStepChange={(nextStep) => {
+      onStepChange={(nextStep, nextSessionId) => {
         setStep(nextStep);
-        props.onStepChange?.(nextStep);
+        props.onStepChange?.(nextStep, nextSessionId);
       }}
     />
   );
@@ -232,6 +232,29 @@ it('records answer-save-failed analytics without recording saved when backend pe
   expect(readStoredAnalytics().some((event) => event.event_name === 'match_survey_answer_saved')).toBe(false);
 });
 
+it('advances to the next question without waiting for the backend answer save', async () => {
+  const user = userEvent.setup();
+  const onStepChange = vi.fn();
+  fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+    if (String(input).endsWith('/answers')) {
+      return new Promise<Response>(() => undefined);
+    }
+    return new Response(JSON.stringify({ accepted: true, duplicate: false }), {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+  renderSurvey({ sessionId: 'match-slow-save', onStepChange });
+
+  await user.click(screen.getByRole('radio', { name: 'Rent' }));
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('What budget range should we respect?');
+  expect(onStepChange).toHaveBeenCalledWith(2, undefined);
+  const answerPatchCalls = fetchSpy.mock.calls.filter((call: unknown[]) => String(call[0]).endsWith('/answers'));
+  expect(answerPatchCalls).toHaveLength(1);
+});
+
 it('captures a rent-only budget as monthly rent max', async () => {
   const user = userEvent.setup();
   renderSurvey({ sessionId: 'match-rent-budget' });
@@ -323,20 +346,158 @@ it('keeps the current answer usable when sessionStorage writes fail', async () =
   }
 });
 
-it('keeps the user on the current question when backend answer sync fails', async () => {
+it('keeps the current question usable and reports when backend answer sync fails', async () => {
   const user = userEvent.setup();
   const onStepChange = vi.fn();
   fetchSpy.mockRejectedValue(new Error('offline'));
   renderSurvey({ sessionId: 'match-sync-fail', onStepChange });
 
   await user.click(screen.getByRole('radio', { name: 'Rent' }));
-  await user.click(screen.getByRole('button', { name: 'Next' }));
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'We could not save your latest answer yet. Check your connection and try again.',
   );
   expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Are you looking to buy, rent, or both?');
   expect(onStepChange).not.toHaveBeenCalled();
+});
+
+it('recovers a missing backend session and retries the current survey answer', async () => {
+  const user = userEvent.setup();
+  const onRecoverSession = vi.fn(async () => 'match-recovered');
+  const onStepChange = vi.fn();
+  saveMatchSessionSnapshot('match-missing', {
+    sessionId: 'match-missing',
+    locale: 'en',
+    step: 10,
+    answerVersion: 10,
+    staleResults: true,
+    answers: {
+      ...completeAnswers,
+      area_character: undefined,
+      language: undefined,
+    },
+  });
+  fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const body = init?.body ? JSON.parse(String(init.body)) as { answers?: MatchFirstSurveyAnswers } : {};
+    if (url.endsWith('/match-missing/answers')) {
+      return new Response(JSON.stringify({ detail: 'match.session.not_found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith('/match-recovered/answers')) {
+      return new Response(JSON.stringify({
+        session_id: 'match-recovered',
+        answer_version: 1,
+        is_complete: false,
+        validation: {},
+        stale_results: true,
+        answers: body.answers,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ accepted: true, duplicate: false }), {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+  renderSurvey({
+    sessionId: 'match-missing',
+    step: 10,
+    onStepChange,
+    onRecoverSession,
+  });
+
+  await user.click(screen.getByRole('radio', { name: 'Village' }));
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+
+  await waitFor(() => {
+    expect(onRecoverSession).toHaveBeenCalledWith(
+      expect.objectContaining({ area_character: 'village' }),
+      10,
+    );
+  });
+  await waitFor(() => {
+    expect(onStepChange).toHaveBeenCalledWith(11, 'match-recovered');
+  });
+  expect(screen.queryByText('We could not save your latest answer yet. Check your connection and try again.')).not.toBeInTheDocument();
+  expect(fetchSpy).toHaveBeenCalledWith(
+    '/api/match/sessions/match-recovered/answers',
+    expect.objectContaining({ method: 'PATCH' }),
+  );
+});
+
+it('keeps the advanced question active when stale-session recovery finishes after Next', async () => {
+  const user = userEvent.setup();
+  let resolveRecovery: ((sessionId: string) => void) | undefined;
+  const onRecoverSession = vi.fn(() => new Promise<string>((resolve) => {
+    resolveRecovery = resolve;
+  }));
+  const onStepChange = vi.fn();
+  saveMatchSessionSnapshot('match-slow-recovery', {
+    sessionId: 'match-slow-recovery',
+    locale: 'en',
+    step: 10,
+    answerVersion: 10,
+    staleResults: true,
+    answers: {
+      ...completeAnswers,
+      area_character: undefined,
+      language: undefined,
+    },
+  });
+  fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const body = init?.body ? JSON.parse(String(init.body)) as { answers?: MatchFirstSurveyAnswers } : {};
+    if (url.endsWith('/match-slow-recovery/answers')) {
+      return new Response(JSON.stringify({ detail: 'match.session.not_found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith('/match-recovered-late/answers')) {
+      return new Response(JSON.stringify({
+        session_id: 'match-recovered-late',
+        answer_version: 1,
+        is_complete: false,
+        validation: {},
+        stale_results: true,
+        answers: body.answers,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ accepted: true, duplicate: false }), {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+  renderSurvey({
+    sessionId: 'match-slow-recovery',
+    step: 10,
+    onStepChange,
+    onRecoverSession,
+  });
+
+  await user.click(screen.getByRole('radio', { name: 'Village' }));
+  await waitFor(() => {
+    expect(onRecoverSession).toHaveBeenCalled();
+  });
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Which language should the match use?');
+
+  resolveRecovery?.('match-recovered-late');
+
+  await waitFor(() => {
+    expect(onStepChange).toHaveBeenCalledWith(11, 'match-recovered-late');
+  });
 });
 
 it('surfaces stable backend warning codes when answer sync is rejected', async () => {
@@ -356,10 +517,18 @@ it('surfaces stable backend warning codes when answer sync is rejected', async (
   );
 });
 
-it('does not open review when the final backend answer sync fails', async () => {
+it('opens review from complete local answers without waiting for the final backend sync', async () => {
   const user = userEvent.setup();
   const onReview = vi.fn();
-  fetchSpy.mockRejectedValue(new Error('offline'));
+  fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+    if (String(input).endsWith('/answers')) {
+      return new Promise<Response>(() => undefined);
+    }
+    return new Response(JSON.stringify({ accepted: true, duplicate: false }), {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
   saveMatchSessionSnapshot('match-final-sync-fail', {
     sessionId: 'match-final-sync-fail',
     locale: 'en',
@@ -372,8 +541,5 @@ it('does not open review when the final backend answer sync fails', async () => 
   renderSurvey({ sessionId: 'match-final-sync-fail', step: 11, onReview });
   await user.click(screen.getByRole('button', { name: 'Review answers' }));
 
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'We could not save your latest answer yet. Check your connection and try again.',
-  );
-  expect(onReview).not.toHaveBeenCalled();
+  expect(onReview).toHaveBeenCalledWith(expect.objectContaining({ language: 'en' }));
 });

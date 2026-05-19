@@ -18,6 +18,7 @@ from app.services.three_d_bag import (
     _fetch_target_building,
     _parse_building,
     _quadrant_bboxes,
+    get_buildings_in_rd_bounds,
     get_neighborhood_3d,
     get_target_building_3d,
 )
@@ -281,6 +282,30 @@ def _make_single_item_response(
             # Note: NO metadata inside feature (matches real API)
         },
         # Transform is at ROOT level metadata
+        "metadata": {
+            "transform": {
+                "scale": [0.001, 0.001, 0.001],
+                "translate": [121000.0, 487000.0, 0.0],
+            }
+        },
+    }
+
+
+def _make_single_item_lod22_response(
+    pand_id="0363100012253924",
+    h_maaiveld=1.75,
+    h_dak_max=10.0,
+    year=1917,
+):
+    feature = _make_feature_with_lod22_child(pand_id, h_maaiveld, h_dak_max, year)
+    co_name = f"NL.IMBAG.Pand.{pand_id}"
+    return {
+        "type": "CityJSONFeature",
+        "id": co_name,
+        "feature": {
+            "CityObjects": feature["CityObjects"],
+            "vertices": feature["vertices"],
+        },
         "metadata": {
             "transform": {
                 "scale": [0.001, 0.001, 0.001],
@@ -1488,6 +1513,46 @@ async def test_neighborhood_context_gets_lod22_from_bbox_without_enrichment(
     assert neighbor is not None
     assert neighbor.roof_surfaces is not None
     assert len(neighbor.roof_surfaces) == 6
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._get_client")
+async def test_selected_bounds_fetch_enriches_lod0_bbox_buildings_to_lod22(
+    mock_get_client, mock_settings,
+):
+    """Selected-neighborhood bounds should not stop at bbox-only LoD0 blocks."""
+    mock_settings.enable_lod22_roofs = True
+    mock_settings.three_d_bag_base = "https://api.3dbag.nl"
+
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    pand_id = "0363100012253924"
+    bbox_data = _make_3dbag_response([_make_feature(pand_id)])
+    seen_urls: list[str] = []
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        seen_urls.append(s_url)
+        if f"NL.IMBAG.Pand.{pand_id}" in s_url:
+            return _make_mock_resp(_make_single_item_lod22_response(pand_id))
+        return _make_mock_resp(bbox_data)
+
+    mock_client.get.side_effect = side_effect
+
+    buildings, partial = await get_buildings_in_rd_bounds(
+        [121000.0, 487000.0, 121020.0, 487020.0],
+        limit=1,
+    )
+
+    assert partial is False
+    assert len(buildings) == 1
+    assert buildings[0].pand_id == pand_id
+    assert buildings[0].roof_surfaces is not None
+    assert len(buildings[0].roof_surfaces) == 6
+    assert any("bbox=" in url for url in seen_urls)
+    assert any(f"NL.IMBAG.Pand.{pand_id}" in url for url in seen_urls)
 
 
 def test_accelerated_mode_constants_within_latency_bounds():

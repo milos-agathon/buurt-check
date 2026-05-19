@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   getMatchNeighborhood,
   getMatchNeighborhoodAmenities,
   getMatchNeighborhoodBuildings,
   getMatchNeighborhoodMapLayers,
+  getMatchResultsBasemapConfig,
   getMatchResults,
   MatchFirstApiError,
   resolveDossierFromBuilding,
@@ -24,12 +25,12 @@ import type {
   MatchNeighborhoodMapLayersResponse,
   MatchNeighborhoodRecommendation,
   MatchResultsMapState,
+  MatchResultsBasemapConfig,
   MatchNeighborhoodSummaryResponse,
   MatchResultsResponse,
 } from '../../types/matchFirst';
 import type { MatchReturnContext } from '../../routing/hashRoutes';
 import AmenityTags from './AmenityTags';
-import HouseSelectionPanel from './HouseSelectionPanel';
 import './MatchFirstLanding.css';
 import './NeighborhoodDetail.css';
 import NeighborhoodBuildingLayer from './NeighborhoodBuildingLayer';
@@ -67,6 +68,10 @@ interface CandidateAddressSelection {
   recoveryContext: MatchReturnContext;
 }
 
+const APPROVED_BASEMAP_THEMES = new Set(['standaard', 'grijs', 'pastel']);
+const APPROVED_PDOK_BRT_WMTS_PREFIX = 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/';
+const BLOCKED_BASEMAP_PROVIDERS = ['openstreetmap', 'mapbox', 'google'];
+
 function visibleRecommendations(results: MatchResultsResponse): MatchNeighborhoodRecommendation[] {
   if (results.ranked_results.length > 0) return results.ranked_results;
   return [...results.near_misses, ...results.stretch_matches];
@@ -100,6 +105,20 @@ function getRestoredStateForDetail(
   return state;
 }
 
+function isApprovedBasemapConfig(config: MatchResultsBasemapConfig): boolean {
+  const tileUrl = config.tile_url_template.toLowerCase();
+  return config.source_id === 'pdok_brt_achtergrondkaart'
+    && config.service_type === 'wmts_raster'
+    && config.tile_matrix_set === 'EPSG:3857'
+    && APPROVED_BASEMAP_THEMES.has(config.theme)
+    && tileUrl.startsWith(APPROVED_PDOK_BRT_WMTS_PREFIX)
+    && tileUrl.includes('/epsg:3857/')
+    && tileUrl.includes('{z}')
+    && tileUrl.includes('{x}')
+    && tileUrl.includes('{y}')
+    && !BLOCKED_BASEMAP_PROVIDERS.some((provider) => tileUrl.includes(provider));
+}
+
 export default function NeighborhoodDetail({
   sessionId,
   neighborhoodId,
@@ -124,10 +143,13 @@ export default function NeighborhoodDetail({
   const [selectionFallbackKey, setSelectionFallbackKey] = useState<string | null>(null);
   const [selectionRecoveryContext, setSelectionRecoveryContext] = useState<MatchReturnContext | null>(null);
   const [activeAmenityKey, setActiveAmenityKey] = useState<string | null>(null);
+  const [basemapConfig, setBasemapConfig] = useState<MatchResultsBasemapConfig | null>(null);
+  const [basemapFailed, setBasemapFailed] = useState(false);
   const openedEventRef = useRef(false);
   const fallbackEventRef = useRef(false);
   const returnHydratedEventRef = useRef(false);
   const returnFailedEventRef = useRef(false);
+  const basemapFailureEventRef = useRef(false);
   const results = initialResults ?? fetchedResults;
 
   useEffect(() => {
@@ -154,7 +176,7 @@ export default function NeighborhoodDetail({
     return () => {
       cancelled = true;
     };
-  }, [initialResults, sessionId]);
+  }, [initialResults, onReturnHydrationFailed, sessionId]);
 
   const recommendation = useMemo(() => (
     results
@@ -185,6 +207,28 @@ export default function NeighborhoodDetail({
   const buildings = currentBuildingData?.buildings ?? null;
   const buildingsFailed = currentBuildingData?.failed ?? false;
   const loadingBuildings = Boolean(buildingRequestKey && !currentBuildingData);
+  const selectedBuilding = useMemo(() => (
+    buildings?.buildings.find((building) => building.building_id === selectedBuildingId) ?? null
+  ), [buildings?.buildings, selectedBuildingId]);
+  const selectedBuildingIndex = useMemo(() => {
+    if (!selectedBuilding || !buildings?.buildings.length) return 1;
+    return Math.max(
+      1,
+      buildings.buildings.findIndex((building) => building.building_id === selectedBuilding.building_id) + 1,
+    );
+  }, [buildings?.buildings, selectedBuilding]);
+  const selectedCandidateAddresses = selectedBuilding
+    && candidateAddressState?.building.building_id === selectedBuilding.building_id
+    ? candidateAddressState.addresses
+    : [];
+  const showHouseRecoveryActions = Boolean(
+    selectedBuilding
+    && (
+      selectionFallbackKey === 'matchFirst.neighborhood.noReliableAddress'
+      || selectionFallbackKey === 'matchFirst.neighborhood.manualAddressRequired'
+      || selectedCandidateAddresses.length > 0
+    ),
+  );
 
   useEffect(() => {
     if (!results || !recommendation || returnHydratedEventRef.current) return;
@@ -375,16 +419,16 @@ export default function NeighborhoodDetail({
     );
   };
 
-  const handleSelectHouse = async (building: MatchNeighborhoodBuildingFeature) => {
+  const handlePreviewHouse = (building: MatchNeighborhoodBuildingFeature) => {
     if (!results || !recommendation) return;
     const bridgeContext = buildDossierBridgeContext(building);
     if (!bridgeContext) return;
     setSelectedBuildingId(building.building_id);
-    setPendingBuildingId(building.building_id);
     setPendingCandidateId(null);
     setCandidateAddressState(null);
     setSelectionFallbackKey(null);
     setSelectionRecoveryContext(null);
+    saveMatchResultsMapState(sessionId, bridgeContext.selectedState);
 
     recordMatchFirstEvent('match_house_selected', {
       locale,
@@ -396,8 +440,21 @@ export default function NeighborhoodDetail({
       result_rank: recommendation.rank,
       selected_house_id: building.building_id,
     });
+  };
 
-    saveMatchResultsMapState(sessionId, bridgeContext.selectedState);
+  const handleSelectHouse = async (building: MatchNeighborhoodBuildingFeature) => {
+    if (!results || !recommendation) return;
+    const bridgeContext = buildDossierBridgeContext(building);
+    if (!bridgeContext) return;
+    if (selectedBuildingId !== building.building_id) {
+      setSelectedBuildingId(building.building_id);
+      saveMatchResultsMapState(sessionId, bridgeContext.selectedState);
+    }
+    setPendingBuildingId(building.building_id);
+    setPendingCandidateId(null);
+    setCandidateAddressState(null);
+    setSelectionFallbackKey(null);
+    setSelectionRecoveryContext(null);
 
     try {
       const bridge = await resolveDossierFromBuilding({
@@ -463,6 +520,20 @@ export default function NeighborhoodDetail({
     });
   };
 
+  const recordBasemapFailure = useCallback((reason: string) => {
+    if (basemapFailureEventRef.current) return;
+    basemapFailureEventRef.current = true;
+    setBasemapFailed(true);
+    recordMatchFirstEvent('match_map_layer_failed', {
+      locale,
+      source: 'neighborhood',
+      session_id: results?.session_id ?? sessionId,
+      result_set_id: results?.result_set_id,
+      neighborhood_id: neighborhoodId,
+      reason,
+    });
+  }, [locale, neighborhoodId, results?.result_set_id, results?.session_id, sessionId]);
+
   useEffect(() => {
     if (!results || !recommendation || openedEventRef.current) return;
     openedEventRef.current = true;
@@ -477,6 +548,30 @@ export default function NeighborhoodDetail({
       result_rank: recommendation.rank,
     });
   }, [locale, recommendation, results, sessionId]);
+
+  useEffect(() => {
+    if (!results || !recommendation || !layers) return;
+    let cancelled = false;
+    void getMatchResultsBasemapConfig()
+      .then((config) => {
+        if (cancelled) return;
+        if (!isApprovedBasemapConfig(config)) {
+          recordBasemapFailure('pdok_brt_config_rejected');
+          return;
+        }
+        setBasemapConfig(config);
+        setBasemapFailed(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          recordBasemapFailure('pdok_brt_config_failed');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [layers, recommendation, recordBasemapFailure, results]);
 
   useEffect(() => {
     if (!results || !recommendation || !layerRequestKey) return;
@@ -664,7 +759,106 @@ export default function NeighborhoodDetail({
             buildings={buildings}
             loading={loadingLayers || loadingBuildings}
             failed={layersFailed || buildingsFailed}
+            selectedBuildingId={selectedBuildingId}
+            amenityPoints={amenities?.points ?? []}
+            activeAmenityKey={activeAmenityKey}
+            basemapConfig={basemapConfig}
+            basemapFailed={basemapFailed}
+            onBasemapFailed={recordBasemapFailure}
+            onSelectBuilding={onOpenDossier ? handlePreviewHouse : undefined}
           />
+          {selectedBuilding && (
+            <div
+              className="neighborhood-detail__house-popup"
+              role="dialog"
+              aria-labelledby="match-neighborhood-selected-house-title"
+            >
+              <p className="neighborhood-detail__popup-kicker">
+                {t('matchFirst.neighborhood.loadedHouseCount', {
+                  index: selectedBuildingIndex,
+                  count: buildings?.buildings.length ?? 1,
+                })}
+              </p>
+              <h2 id="match-neighborhood-selected-house-title">
+                {t('matchFirst.neighborhood.selectedHouseTitle', { index: selectedBuildingIndex })}
+              </h2>
+              <p>{t(selectedBuilding.fallback_label_key ?? 'matchFirst.neighborhood.addressCandidate')}</p>
+              {selectedCandidateAddresses.length > 0 && (
+                <div className="neighborhood-detail__house-candidates">
+                  <p className="neighborhood-detail__muted">{t('matchFirst.neighborhood.candidateAddressesIntro')}</p>
+                  <ul
+                    className="house-selection__candidate-list"
+                    aria-label={t('matchFirst.neighborhood.candidateAddressesLabel')}
+                  >
+                    {selectedCandidateAddresses.map((candidateAddress, index) => {
+                      const label = t(
+                        candidateAddress.display_label_key,
+                        candidateAddress.display_params ?? {},
+                      );
+                      const descriptionId = `selected-house-candidate-address-${index + 1}`;
+                      const sourceRefs = candidateAddress.source_refs.length > 0
+                        ? candidateAddress.source_refs.join(', ')
+                        : t('matchFirst.neighborhood.sourceUnavailable');
+                      return (
+                        <li key={candidateAddress.candidate_id}>
+                          <button
+                            type="button"
+                            aria-label={t('matchFirst.neighborhood.chooseCandidateAddressForHouse', {
+                              label,
+                              houseIndex: selectedBuildingIndex,
+                            })}
+                            aria-describedby={descriptionId}
+                            disabled={pendingCandidateId === candidateAddress.candidate_id}
+                            aria-busy={pendingCandidateId === candidateAddress.candidate_id}
+                            onClick={() => handleSelectCandidateAddress(candidateAddress)}
+                          >
+                            {label}
+                            <span id={descriptionId} className="sr-only">
+                              {t('matchFirst.neighborhood.addressCandidateDescription', { sourceRefs })}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {selectionFallbackKey && (
+                <p className="neighborhood-detail__muted" role="status">{t(selectionFallbackKey)}</p>
+              )}
+              <div className="neighborhood-detail__house-popup-actions">
+                <button
+                  type="button"
+                  onClick={() => handleSelectHouse(selectedBuilding)}
+                  disabled={pendingBuildingId === selectedBuilding.building_id}
+                  aria-busy={pendingBuildingId === selectedBuilding.building_id}
+                >
+                  {pendingBuildingId === selectedBuilding.building_id
+                    ? t('matchFirst.neighborhood.housesLoading')
+                    : t('matchFirst.neighborhood.viewHouse')}
+                </button>
+                <button type="button" onClick={() => setSelectedBuildingId(null)}>
+                  {t('matchFirst.neighborhood.closeHousePreview')}
+                </button>
+              </div>
+              {showHouseRecoveryActions && (
+                <div className="house-selection__actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectionRecoveryContext) onSearchManually?.(selectionRecoveryContext);
+                    }}
+                    disabled={!selectionRecoveryContext || !onSearchManually}
+                  >
+                    {t('matchFirst.neighborhood.searchManually')}
+                  </button>
+                  <button type="button" onClick={onBackToResults}>
+                    {t('matchFirst.neighborhood.backToResults')}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <aside className="neighborhood-detail__side" aria-label={t('matchFirst.neighborhood.contextLabel')}>
@@ -691,26 +885,6 @@ export default function NeighborhoodDetail({
             />
           </section>
 
-          <section className="neighborhood-detail__panel" aria-labelledby="match-neighborhood-houses-title">
-            <h2 id="match-neighborhood-houses-title">{t('matchFirst.neighborhood.housesTitle')}</h2>
-            <HouseSelectionPanel
-              buildings={buildings?.buildings ?? []}
-              loading={loadingBuildings && !buildings}
-              failed={buildingsFailed}
-              selectedBuildingId={selectedBuildingId}
-              pendingBuildingId={pendingBuildingId}
-              pendingCandidateId={pendingCandidateId}
-              fallbackKey={selectionFallbackKey}
-              candidateAddresses={candidateAddressState?.addresses ?? []}
-              candidateBuildingId={candidateAddressState?.building.building_id ?? null}
-              onSelectHouse={onOpenDossier ? handleSelectHouse : undefined}
-              onSelectCandidateAddress={onOpenDossier ? handleSelectCandidateAddress : undefined}
-              onSearchManually={selectionRecoveryContext && onSearchManually
-                ? () => onSearchManually(selectionRecoveryContext)
-                : undefined}
-              onBackToResults={onBackToResults}
-            />
-          </section>
         </aside>
       </div>
     </section>

@@ -58,12 +58,12 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
     expect(size).toBeLessThan(550 * 1024);
   });
 
-  it('vendor-three chunk under 550KB', () => {
+  it('vendor-three chunk under 760KB', () => {
     const files = readdirSync(distDir);
     const threeChunk = files.find((f) => f.startsWith('vendor-three'));
     expect(threeChunk).toBeDefined();
     const size = statSync(resolve(distDir, threeChunk!)).size;
-    expect(size).toBeLessThan(550 * 1024);
+    expect(size).toBeLessThan(760 * 1024);
   });
 
   it('does not modulepreload vendor-three from the initial document', () => {

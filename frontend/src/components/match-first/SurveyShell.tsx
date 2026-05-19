@@ -7,9 +7,10 @@ import type {
   MatchFirstSurveyAnswers,
   MatchFirstSurveyQuestion,
   MatchFirstSurveyQuestionId,
+  MatchSessionRecoveryHandler,
 } from '../../types/matchFirst';
 import { recordMatchFirstEvent } from '../../services/matchFirstAnalytics';
-import { patchMatchSessionAnswers } from '../../services/matchFirstApi';
+import { MatchFirstApiError, patchMatchSessionAnswers } from '../../services/matchFirstApi';
 import {
   readMatchSessionSnapshot,
   saveMatchSessionSnapshot,
@@ -28,10 +29,11 @@ import './SurveyShell.css';
 interface SurveyShellProps {
   sessionId?: string | null;
   step?: number;
-  onStepChange?: (step: number) => void;
+  onStepChange?: (step: number, sessionId?: string) => void;
   onComplete?: (answers: MatchFirstSurveyAnswers) => void;
   onReview?: (answers: MatchFirstSurveyAnswers) => void;
   onBack?: () => void;
+  onRecoverSession?: MatchSessionRecoveryHandler;
 }
 
 const STORAGE_KEY_PREFIX = 'buurt-check-match-first-session';
@@ -75,6 +77,13 @@ function syncErrorKeyFromError(error: unknown): string {
   return error instanceof Error && error.message.startsWith('match.warning.')
     ? error.message
     : 'matchFirst.survey.syncFailed';
+}
+
+function isMissingSessionError(error: unknown): boolean {
+  if (error instanceof MatchFirstApiError) {
+    return error.detail === 'match.session.not_found';
+  }
+  return error instanceof Error && error.message === 'match.session.not_found';
 }
 
 function analyticsErrorCodeFromError(error: unknown): string {
@@ -135,6 +144,7 @@ export default function SurveyShell({
   onComplete,
   onReview,
   onBack,
+  onRecoverSession,
 }: SurveyShellProps) {
   const { t, i18n } = useTranslation();
   const activeStep = clampStep(step);
@@ -148,6 +158,8 @@ export default function SurveyShell({
   const validationRef = useRef<HTMLParagraphElement | null>(null);
   const completedRef = useRef(false);
   const syncAttemptRef = useRef(0);
+  const effectiveSessionIdRef = useRef(sessionId ?? null);
+  const visibleStepRef = useRef(activeStep);
   const latestAnalyticsContext = useRef({
     activeStep,
     questionId: question.id,
@@ -166,6 +178,7 @@ export default function SurveyShell({
     : t('matchFirst.survey.next');
 
   useEffect(() => {
+    effectiveSessionIdRef.current = sessionId ?? null;
     setAnswers(readStoredSurveyAnswers(sessionId));
     setShowValidation(false);
     setSyncErrorKey(null);
@@ -179,6 +192,7 @@ export default function SurveyShell({
 
   useEffect(() => {
     latestAnalyticsContext.current = { activeStep, questionId: question.id, locale, sessionKey };
+    visibleStepRef.current = activeStep;
   }, [activeStep, locale, question.id, sessionKey]);
 
   useEffect(() => {
@@ -208,23 +222,56 @@ export default function SurveyShell({
     };
   }, []);
 
-  const persistAnswers = async (nextAnswers: MatchFirstSurveyAnswers, nextStep = activeStep) => {
-    const previous = readMatchSessionSnapshot(sessionKey);
+  const saveAnswersLocally = (nextAnswers: MatchFirstSurveyAnswers, nextStep: number) => {
+    const targetSessionId = effectiveSessionIdRef.current;
+    const storageSessionId = targetSessionId ?? sessionKey;
+    const previous = readMatchSessionSnapshot(storageSessionId);
     const nextVersion = (previous?.answerVersion ?? 0) + 1;
-    saveMatchSessionSnapshot(sessionKey, {
-      sessionId: sessionKey,
+    saveMatchSessionSnapshot(storageSessionId, {
+      sessionId: storageSessionId,
       locale,
       step: nextStep,
       answerVersion: nextVersion,
       staleResults: true,
       answers: nextAnswers,
     });
-    if (!sessionId) return;
-    await patchMatchSessionAnswers(sessionId, {
+  };
+
+  const persistAnswers = async (nextAnswers: MatchFirstSurveyAnswers, nextStep = activeStep) => {
+    const targetSessionId = effectiveSessionIdRef.current;
+    saveAnswersLocally(nextAnswers, nextStep);
+    if (!targetSessionId) return;
+    const payload = {
       locale,
       current_step: nextStep,
       answers: nextAnswers,
-    });
+    };
+    try {
+      await patchMatchSessionAnswers(targetSessionId, payload);
+    } catch (error) {
+      if (!isMissingSessionError(error) || !onRecoverSession) {
+        throw error;
+      }
+      const requestedRecoveryStep = Math.max(nextStep, visibleStepRef.current);
+      const recoveredSessionId = await onRecoverSession(nextAnswers, requestedRecoveryStep);
+      effectiveSessionIdRef.current = recoveredSessionId;
+      const recoveredStep = Math.max(requestedRecoveryStep, visibleStepRef.current);
+      saveMatchSessionSnapshot(recoveredSessionId, {
+        sessionId: recoveredSessionId,
+        locale,
+        step: recoveredStep,
+        answerVersion: 0,
+        staleResults: true,
+        answers: nextAnswers,
+      });
+      await patchMatchSessionAnswers(recoveredSessionId, {
+        ...payload,
+        current_step: recoveredStep,
+      });
+      if (recoveredSessionId !== sessionId) {
+        onStepChange?.(recoveredStep, recoveredSessionId);
+      }
+    }
   };
 
   const recordAnswerSaved = (
@@ -314,7 +361,11 @@ export default function SurveyShell({
       to_step: previousStep,
       total_steps: MATCH_FIRST_SURVEY_QUESTION_COUNT,
     });
-    onStepChange?.(previousStep);
+    const effectiveSessionId = effectiveSessionIdRef.current;
+    onStepChange?.(
+      previousStep,
+      effectiveSessionId && effectiveSessionId !== sessionId ? effectiveSessionId : undefined,
+    );
   };
 
   const goNext = async () => {
@@ -328,27 +379,21 @@ export default function SurveyShell({
     if (activeStep < MATCH_FIRST_SURVEY_QUESTION_COUNT) {
       const nextStep = activeStep + 1;
       setAnswers(answersForStep);
-      const syncAttempt = ++syncAttemptRef.current;
-      try {
-        await persistAnswers(answersForStep, nextStep);
-        markSyncSuccess(syncAttempt);
-      } catch (error) {
-        markSyncFailure(syncAttempt, error, question.id, activeStep);
-        return;
-      }
+      saveAnswersLocally(answersForStep, nextStep);
       setShowValidation(false);
-      onStepChange?.(nextStep);
+      visibleStepRef.current = nextStep;
+      const effectiveSessionId = effectiveSessionIdRef.current;
+      onStepChange?.(
+        nextStep,
+        effectiveSessionId && effectiveSessionId !== sessionId ? effectiveSessionId : undefined,
+      );
       return;
     }
     const completedAnswers = { ...answersForStep };
     const syncAttempt = ++syncAttemptRef.current;
-    try {
-      await persistAnswers(completedAnswers, activeStep);
-      markSyncSuccess(syncAttempt);
-    } catch (error) {
-      markSyncFailure(syncAttempt, error, question.id, activeStep);
-      return;
-    }
+    void persistAnswers(completedAnswers, activeStep)
+      .then(() => markSyncSuccess(syncAttempt))
+      .catch((error: unknown) => markSyncFailure(syncAttempt, error, question.id, activeStep));
     completedRef.current = true;
     recordMatchFirstEvent('match_survey_completed', {
       locale,

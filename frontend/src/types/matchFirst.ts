@@ -89,6 +89,11 @@ export interface MatchFirstSurveyAnswers {
   language?: MatchFirstLocale;
 }
 
+export type MatchSessionRecoveryHandler = (
+  answers: MatchFirstSurveyAnswers,
+  step: number,
+) => Promise<string>;
+
 export type MatchFirstSurveyAnswer =
   | MatchFirstIntent
   | MatchFirstBudgetAnswer
@@ -345,6 +350,18 @@ export interface MatchResultsMapState {
   locale: MatchFirstLocale;
 }
 
+export interface MatchResultsBasemapConfig {
+  source_id: 'pdok_brt_achtergrondkaart';
+  source_name: 'PDOK BRT Achtergrondkaart';
+  service_type: 'wmts_raster';
+  theme: 'standaard' | 'grijs' | 'pastel';
+  tile_matrix_set: 'EPSG:3857';
+  tile_url_template: string;
+  attribution: string;
+  min_zoom: number;
+  max_zoom: number;
+}
+
 export interface MatchResultsResponse {
   session_id: string;
   job_id: string;
@@ -432,6 +449,14 @@ export interface MatchNeighborhoodBuildingFeature {
   address_resolution: MatchNeighborhoodAddressResolution;
   address_candidate_count: number;
   fallback_label_key?: string | null;
+  geometry_source?: '3dbag_lod22' | '3dbag_lod0' | null;
+  lod?: '2.2' | '0' | null;
+  center_rd?: { x: number; y: number } | null;
+  footprint_rd?: number[][] | null;
+  ground_height_m?: number | null;
+  roof_surfaces?: number[][][] | null;
+  year?: number | null;
+  orientation_deg?: number | null;
 }
 
 export interface MatchNeighborhoodBuildingsResponse {
@@ -455,12 +480,33 @@ export interface MatchNeighborhoodAmenityTag {
   relevance: number;
 }
 
+export interface MatchNeighborhoodAmenityPoint {
+  point_id: string;
+  amenity_key: string;
+  category_key: string;
+  label_key: string;
+  name?: string | null;
+  emoji: string;
+  display_lat: number;
+  display_lng: number;
+  display_coordinate_system: 'WGS84';
+  source_name: string;
+  source_record_id?: string | null;
+  freshness_date?: string | null;
+  loaded_at: string;
+  source_coordinate_system?: 'EPSG:4326' | 'EPSG:28992' | null;
+  source_geometry?: Record<string, unknown>;
+  source_geometry_coordinate_system?: 'EPSG:4326' | 'EPSG:28992' | null;
+  source_refs: string[];
+  relevance: number;
+}
+
 export interface MatchNeighborhoodAmenitiesResponse {
   neighborhood_id: string;
   session_id: string;
   result_set_id: string;
   tags: MatchNeighborhoodAmenityTag[];
-  points: unknown[];
+  points: MatchNeighborhoodAmenityPoint[];
   source_refs: string[];
   limitations: string[];
 }

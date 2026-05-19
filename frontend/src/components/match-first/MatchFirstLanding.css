@@ -66,6 +66,18 @@
   padding-top: var(--space-5xl);
 }
 
+.match-first-landing--simple {
+  min-height: auto;
+  display: block;
+  overflow: visible;
+  background: transparent;
+  padding: 0 0 var(--space-2xl);
+}
+
+.match-first-landing--simple .match-first-landing__content {
+  padding-top: 0;
+}
+
 .match-first-landing__eyebrow {
   margin: 0 0 var(--space-sm);
   color: var(--color-accent-text);
@@ -185,6 +197,10 @@ button.match-first-landing__address-link {
 
   .match-first-landing__content {
     padding-top: calc(var(--space-5xl) + var(--space-base));
+  }
+
+  .match-first-landing--simple .match-first-landing__content {
+    padding-top: 0;
   }
 
   .match-first-landing h1 {

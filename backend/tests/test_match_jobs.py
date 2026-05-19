@@ -242,6 +242,23 @@ async def test_job_completes_with_results_and_retryable_status(client, match_job
 
 
 @pytest.mark.asyncio
+async def test_seed_match_records_one_running_lifecycle_event(client, match_job_db):
+    session_id, vector_version = await _complete_session(client)
+
+    run_response = await client.post(
+        f"/api/match/sessions/{session_id}/run",
+        json=_review_run_payload(vector_version),
+    )
+    assert run_response.status_code == 202
+
+    status_response = await client.get(f"/api/match/sessions/{session_id}/status")
+    assert status_response.status_code == 200
+    assert status_response.json()["status"] in {"completed", "completed_with_fallback"}
+
+    assert await _analytics_event_count("match_job_running", session_id) == 1
+
+
+@pytest.mark.asyncio
 async def test_running_job_can_enter_matching_slow_without_new_job(client, match_job_db):
     session_id, vector_version = await _complete_session(client)
     run_response = await client.post(

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useReducedMotion } from 'framer-motion';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getMatchResults } from '../../services/matchFirstApi';
+import { getMatchResults, getMatchResultsBasemapConfig } from '../../services/matchFirstApi';
 import { recordMatchFirstEvent } from '../../services/matchFirstAnalytics';
 import {
   readMatchResultsMapState,
@@ -12,6 +12,7 @@ import {
 import type {
   MatchFirstLocale,
   MatchNeighborhoodRecommendation,
+  MatchResultsBasemapConfig,
   MatchResultsMapState,
   MatchResultsResponse,
 } from '../../types/matchFirst';
@@ -30,11 +31,18 @@ interface ResultsMapProps {
 
 type MobileMode = 'map' | 'list';
 type SelectionSource = 'list' | 'map';
+type MapPopupPlacement = 'above' | 'below';
 
 const NETHERLANDS_CENTER: [number, number] = [52.2, 5.3];
 const NETHERLANDS_BOUNDS: [number, number, number, number] = [3.2, 50.7, 7.3, 53.6];
 const NATIONAL_ZOOM = 7;
 const SELECTED_ZOOM = 12;
+const POPUP_HORIZONTAL_CLEARANCE = 118;
+const POPUP_ABOVE_TOP_CLEARANCE = 132;
+const POPUP_ABOVE_BOTTOM_CLEARANCE = 96;
+const APPROVED_BASEMAP_THEMES = new Set(['standaard', 'grijs', 'pastel']);
+const APPROVED_PDOK_BRT_WMTS_PREFIX = 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/';
+const BLOCKED_BASEMAP_PROVIDERS = ['openstreetmap', 'mapbox', 'google'];
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -77,29 +85,41 @@ function recommendationBounds(recommendation: MatchNeighborhoodRecommendation): 
   return null;
 }
 
-function markerPosition(
-  recommendation: MatchNeighborhoodRecommendation,
-  bounds: [number, number, number, number],
-): { left: string; top: string } {
-  const [west, south, east, north] = bounds;
-  const [lat, lng] = recommendationCenter(recommendation);
-  const x = ((lng - west) / Math.max(east - west, 0.0001)) * 100;
-  const y = ((north - lat) / Math.max(north - south, 0.0001)) * 100;
-  return {
-    left: `${Math.max(3, Math.min(97, x))}%`,
-    top: `${Math.max(3, Math.min(97, y))}%`,
-  };
-}
-
 function visibleRecommendations(results: MatchResultsResponse): MatchNeighborhoodRecommendation[] {
-  if (results.ranked_results.length > 0) return results.ranked_results;
-  return [...results.near_misses, ...results.stretch_matches];
+  const rankedResults = Array.isArray(results.ranked_results) ? results.ranked_results : [];
+  if (rankedResults.length > 0) return rankedResults;
+  const nearMisses = Array.isArray(results.near_misses) ? results.near_misses : [];
+  const stretchMatches = Array.isArray(results.stretch_matches) ? results.stretch_matches : [];
+  return [...nearMisses, ...stretchMatches];
 }
 
 function hasNoStrongMatches(results: MatchResultsResponse): boolean {
   return results.status === 'completed_no_strong_matches'
     || results.empty_state_code === 'match.empty.no_strong_matches'
     || (results.normal_recommendation_count === 0 && visibleRecommendations(results).length > 0);
+}
+
+function isUsableMatchResults(value: MatchResultsResponse): boolean {
+  return typeof value.session_id === 'string'
+    && typeof value.job_id === 'string'
+    && typeof value.result_set_id === 'string'
+    && Array.isArray(value.ranked_results)
+    && Array.isArray(value.near_misses)
+    && Array.isArray(value.stretch_matches);
+}
+
+function isApprovedBasemapConfig(config: MatchResultsBasemapConfig): boolean {
+  const tileUrl = config.tile_url_template.toLowerCase();
+  return config.source_id === 'pdok_brt_achtergrondkaart'
+    && config.service_type === 'wmts_raster'
+    && config.tile_matrix_set === 'EPSG:3857'
+    && APPROVED_BASEMAP_THEMES.has(config.theme)
+    && tileUrl.startsWith(APPROVED_PDOK_BRT_WMTS_PREFIX)
+    && tileUrl.includes('/epsg:3857/')
+    && tileUrl.includes('{z}')
+    && tileUrl.includes('{x}')
+    && tileUrl.includes('{y}')
+    && !BLOCKED_BASEMAP_PROVIDERS.some((provider) => tileUrl.includes(provider));
 }
 
 function createMapState(
@@ -148,6 +168,8 @@ export default function ResultsMap({
   const [fetchedResults, setFetchedResults] = useState<MatchResultsResponse | null>(null);
   const [loading, setLoading] = useState(!initialResults);
   const [unavailable, setUnavailable] = useState(false);
+  const [basemapConfig, setBasemapConfig] = useState<MatchResultsBasemapConfig | null>(null);
+  const [basemapFailed, setBasemapFailed] = useState(false);
   const restoredMapState = useMemo(() => readMatchResultsMapState(sessionId), [sessionId]);
   const initialRestoredMapState = useMemo(() => (
     initialResults && restoredStateMatchesResults(restoredMapState, initialResults)
@@ -159,6 +181,8 @@ export default function ResultsMap({
   const [selectedRecommendationId, setSelectedRecommendationId] = useState<string | undefined>(() => (
     startingMapState?.selectedRecommendationId
   ));
+  const [mapPopupRecommendationId, setMapPopupRecommendationId] = useState<string | undefined>();
+  const [mapPopupPosition, setMapPopupPosition] = useState<{ x: number; y: number; placement: MapPopupPlacement } | null>(null);
   const [mobileMode, setMobileMode] = useState<MobileMode>(() => (
     startingMapState?.mobileMode ?? 'map'
   ));
@@ -170,14 +194,41 @@ export default function ResultsMap({
   ));
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<L.Map | null>(null);
+  const leafletBasemapRef = useRef<L.TileLayer | null>(null);
   const leafletLayerRef = useRef<L.LayerGroup | null>(null);
+  const mapResizeFrameRef = useRef<number | null>(null);
   const listRef = useRef<HTMLOListElement | null>(null);
   const recordedMapOpenRef = useRef(false);
   const returnHydratedEventRef = useRef(false);
   const returnFailedEventRef = useRef(false);
+  const basemapFailureEventRef = useRef(false);
   const lastSelectionSourceRef = useRef<SelectionSource | null>(null);
   const locale: MatchFirstLocale = i18n.resolvedLanguage?.startsWith('nl') ? 'nl' : 'en';
   const results = initialResults ?? fetchedResults;
+
+  const refreshLeafletSize = useCallback(() => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    if (mapResizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(mapResizeFrameRef.current);
+    }
+    mapResizeFrameRef.current = window.requestAnimationFrame(() => {
+      mapResizeFrameRef.current = null;
+      map.invalidateSize({ animate: false, pan: false });
+    });
+  }, []);
+
+  const recordBasemapFailure = useCallback((reason: string) => {
+    if (basemapFailureEventRef.current) return;
+    basemapFailureEventRef.current = true;
+    recordMatchFirstEvent('match_map_layer_failed', {
+      locale,
+      source: 'results',
+      session_id: results?.session_id ?? sessionId,
+      result_set_id: results?.result_set_id,
+      reason,
+    });
+  }, [locale, results, sessionId]);
 
   useEffect(() => {
     if (initialResults) return;
@@ -186,6 +237,14 @@ export default function ResultsMap({
     void getMatchResults(sessionId)
       .then((response) => {
         if (cancelled) return;
+        if (!isUsableMatchResults(response)) {
+          setUnavailable(true);
+          if (!returnFailedEventRef.current) {
+            returnFailedEventRef.current = true;
+            onReturnHydrationFailed?.('match.results.unavailable');
+          }
+          return;
+        }
         setFetchedResults(response);
         const restoredState = restoredMapStateRef.current;
         if (restoredStateMatchesResults(restoredState, response)) {
@@ -217,12 +276,39 @@ export default function ResultsMap({
     return () => {
       cancelled = true;
     };
-  }, [initialResults, sessionId]);
+  }, [initialResults, onReturnHydrationFailed, sessionId]);
+
+  useEffect(() => {
+    if (!results) return;
+    let cancelled = false;
+    void getMatchResultsBasemapConfig()
+      .then((config) => {
+        if (cancelled) return;
+        if (!isApprovedBasemapConfig(config)) {
+          setBasemapFailed(true);
+          recordBasemapFailure('pdok_brt_config_rejected');
+          return;
+        }
+        setBasemapConfig(config);
+        setBasemapFailed(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBasemapFailed(true);
+          recordBasemapFailure('pdok_brt_config_failed');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recordBasemapFailure, results]);
 
   const recommendations = useMemo(() => (
     results ? visibleRecommendations(results) : []
   ), [results]);
   const selectedRecommendation = recommendations.find((item) => item.recommendation_id === selectedRecommendationId);
+  const mapPopupRecommendation = recommendations.find((item) => item.recommendation_id === mapPopupRecommendationId);
   const mapBounds = useMemo(() => readBounds(results), [results]);
   const listScrollRestoredRef = useRef(false);
 
@@ -292,6 +378,43 @@ export default function ResultsMap({
     persistMapState(event.currentTarget.scrollTop);
   }, [persistMapState]);
 
+  const updateMapPopupPosition = useCallback((recommendation: MatchNeighborhoodRecommendation) => {
+    const map = leafletMapRef.current;
+    const element = mapElementRef.current;
+    if (!map || !element) {
+      setMapPopupPosition(null);
+      return;
+    }
+    const [lat, lng] = recommendationCenter(recommendation);
+    const point = map.latLngToContainerPoint([lat, lng]);
+    const bounds = element.getBoundingClientRect();
+    const width = element.clientWidth || bounds.width;
+    const height = element.clientHeight || bounds.height;
+    const x = width > 0
+      ? Math.min(
+        Math.max(point.x, POPUP_HORIZONTAL_CLEARANCE),
+        Math.max(POPUP_HORIZONTAL_CLEARANCE, width - POPUP_HORIZONTAL_CLEARANCE),
+      )
+      : point.x;
+    const placement: MapPopupPlacement = point.y < POPUP_ABOVE_TOP_CLEARANCE ? 'below' : 'above';
+    const y = height > 0 && placement === 'above'
+      ? Math.min(
+        Math.max(point.y, POPUP_ABOVE_TOP_CLEARANCE),
+        Math.max(POPUP_ABOVE_TOP_CLEARANCE, height - POPUP_ABOVE_BOTTOM_CLEARANCE),
+      )
+      : point.y;
+    setMapPopupPosition({
+      x: Number(x.toFixed(1)),
+      y: Number(y.toFixed(1)),
+      placement,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!mapPopupRecommendation) return;
+    updateMapPopupPosition(mapPopupRecommendation);
+  }, [mapCenter, mapPopupRecommendation, mapZoom, updateMapPopupPosition]);
+
   useEffect(() => {
     if (lastSelectionSourceRef.current !== 'map' || !selectedRecommendationId) return;
     const selectedItem = listRef.current?.querySelector<HTMLElement>('[data-selected-recommendation="true"]');
@@ -317,6 +440,7 @@ export default function ResultsMap({
   const selectRecommendation = useCallback((recommendation: MatchNeighborhoodRecommendation, source: SelectionSource) => {
     const wasAlreadySelected = selectedRecommendationId === recommendation.recommendation_id;
     lastSelectionSourceRef.current = source;
+    setMapPopupRecommendationId(source === 'map' ? recommendation.recommendation_id : undefined);
     setSelectedRecommendationId(recommendation.recommendation_id);
     moveMapToRecommendation(recommendation, source);
     if (source === 'map') {
@@ -409,6 +533,7 @@ export default function ResultsMap({
       });
       leafletMapRef.current = leafletMap;
       leafletLayerRef.current = L.layerGroup().addTo(leafletMap);
+      refreshLeafletSize();
     } catch {
       recordMatchFirstEvent('match_map_layer_failed', {
         locale,
@@ -419,11 +544,58 @@ export default function ResultsMap({
     }
 
     return () => {
+      if (mapResizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(mapResizeFrameRef.current);
+        mapResizeFrameRef.current = null;
+      }
+      leafletBasemapRef.current?.remove();
+      leafletBasemapRef.current = null;
       leafletMapRef.current?.remove();
       leafletMapRef.current = null;
       leafletLayerRef.current = null;
     };
-  }, [locale, mapBounds, results, sessionId]);
+  }, [locale, mapBounds, refreshLeafletSize, results, sessionId]);
+
+  useEffect(() => {
+    if (!results || mobileMode !== 'map') return;
+    const element = mapElementRef.current;
+    if (!element || !leafletMapRef.current) return;
+    refreshLeafletSize();
+
+    if (typeof ResizeObserver === 'undefined') {
+      const resizeTimer = window.setTimeout(refreshLeafletSize, 80);
+      return () => window.clearTimeout(resizeTimer);
+    }
+
+    const resizeObserver = new ResizeObserver(() => refreshLeafletSize());
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
+  }, [mobileMode, refreshLeafletSize, results]);
+
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map || !basemapConfig || leafletBasemapRef.current) return;
+    const basemapLayer = L.tileLayer(basemapConfig.tile_url_template, {
+      attribution: basemapConfig.attribution,
+      minZoom: basemapConfig.min_zoom,
+      maxZoom: basemapConfig.max_zoom,
+      pane: 'tilePane',
+    });
+    basemapLayer.on('tileerror', () => {
+      setBasemapFailed(true);
+      recordBasemapFailure('pdok_brt_tile_failed');
+    });
+    basemapLayer.addTo(map);
+    leafletBasemapRef.current = basemapLayer;
+    refreshLeafletSize();
+
+    return () => {
+      basemapLayer.remove();
+      if (leafletBasemapRef.current === basemapLayer) {
+        leafletBasemapRef.current = null;
+      }
+    };
+  }, [basemapConfig, recordBasemapFailure, refreshLeafletSize]);
 
   useEffect(() => {
     if (!leafletMapRef.current || !leafletLayerRef.current || !results) return;
@@ -445,15 +617,32 @@ export default function ResultsMap({
         }).on('click', () => selectRecommendation(recommendation, 'map')).addTo(group);
       }
       const [lat, lng] = recommendationCenter(recommendation);
-      L.circleMarker([lat, lng], {
-        radius: selected ? 8 : 6,
-        color: selected ? '#005c57' : '#375653',
-        fillColor: selected ? '#00a896' : '#ffffff',
-        fillOpacity: 0.95,
-        weight: selected ? 3 : 2,
-      }).on('click', () => selectRecommendation(recommendation, 'map')).addTo(group);
+      const size = selected ? 42 : 34;
+      const markerButton = document.createElement('button');
+      markerButton.type = 'button';
+      markerButton.className = selected
+        ? 'results-map__marker results-map__marker--selected'
+        : 'results-map__marker';
+      markerButton.setAttribute('aria-label', t('matchFirst.results.markerLabel', { name: recommendation.name }));
+      markerButton.setAttribute('aria-pressed', String(selected));
+      markerButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        selectRecommendation(recommendation, 'map');
+      });
+      const rankLabel = document.createElement('span');
+      rankLabel.textContent = String(recommendation.rank);
+      markerButton.append(rankLabel);
+      L.marker([lat, lng], {
+        icon: L.divIcon({
+          className: 'results-map__leaflet-marker-icon',
+          html: markerButton,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        }),
+        keyboard: false,
+      }).addTo(group);
     }
-  }, [recommendations, results, selectRecommendation, selectedRecommendationId]);
+  }, [recommendations, results, selectRecommendation, selectedRecommendationId, t]);
 
   const adjustMap = (deltaLat: number, deltaLng: number, deltaZoom = 0) => {
     const nextCenter: [number, number] = [
@@ -542,48 +731,38 @@ export default function ResultsMap({
             data-map-zoom={mapZoom}
             data-selected-neighborhood={selectedRecommendation?.neighborhood_id}
           >
-            <div ref={mapElementRef} className="results-map__leaflet" aria-hidden="true" />
-            <div className="results-map__overlay" aria-hidden="true">
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false">
-                <path className="results-map__nl-shape" d="M45 4 64 10 76 25 72 47 84 67 69 90 43 96 27 78 31 57 16 40 26 17Z" />
-                {recommendations.map((recommendation) => {
-                  const bounds = recommendationBounds(recommendation);
-                  if (!bounds) return null;
-                  const [west, south, east, north] = mapBounds;
-                  const x = ((bounds[0] - west) / Math.max(east - west, 0.0001)) * 100;
-                  const y = ((north - bounds[3]) / Math.max(north - south, 0.0001)) * 100;
-                  const width = ((bounds[2] - bounds[0]) / Math.max(east - west, 0.0001)) * 100;
-                  const height = ((bounds[3] - bounds[1]) / Math.max(north - south, 0.0001)) * 100;
-                  return (
-                    <rect
-                      key={recommendation.recommendation_id}
-                      className={recommendation.recommendation_id === selectedRecommendationId
-                        ? 'results-map__polygon results-map__polygon--selected'
-                        : 'results-map__polygon'}
-                      x={x}
-                      y={y}
-                      width={Math.max(width, 2)}
-                      height={Math.max(height, 2)}
-                    />
-                  );
-                })}
-              </svg>
-            </div>
-            {recommendations.map((recommendation) => (
-              <button
-                key={recommendation.recommendation_id}
-                type="button"
-                className={recommendation.recommendation_id === selectedRecommendationId
-                  ? 'results-map__marker results-map__marker--selected'
-                  : 'results-map__marker'}
-                style={markerPosition(recommendation, mapBounds)}
-                aria-label={t('matchFirst.results.markerLabel', { name: recommendation.name })}
-                aria-pressed={recommendation.recommendation_id === selectedRecommendationId}
-                onClick={() => selectRecommendation(recommendation, 'map')}
+            <div ref={mapElementRef} className="results-map__leaflet" />
+            <p className="results-map__attribution">{t('matchFirst.results.basemapAttribution')}</p>
+            {basemapFailed ? (
+              <p className="results-map__basemap-fallback" role="status">
+                {t('matchFirst.results.basemapUnavailable')}
+              </p>
+            ) : null}
+            {mapPopupRecommendation && onOpenNeighborhood && mobileMode === 'map' ? (
+              <article
+                className="results-map__selection-popup"
+                role="dialog"
+                aria-label={mapPopupRecommendation.name}
+                data-placement={mapPopupPosition?.placement ?? 'above'}
+                style={mapPopupPosition ? {
+                  left: `${mapPopupPosition.x}px`,
+                  top: `${mapPopupPosition.y}px`,
+                } : undefined}
               >
-                <span>{recommendation.rank}</span>
-              </button>
-            ))}
+                <div className="results-map__selection-popup-main">
+                  <strong>{mapPopupRecommendation.name}</strong>
+                  <span>{mapPopupRecommendation.municipality}</span>
+                  <span>{t('matchFirst.results.fitScore', { score: mapPopupRecommendation.fit_score })}</span>
+                </div>
+                <button
+                  type="button"
+                  className="recommendation-card__detail results-map__selection-popup-cta"
+                  onClick={() => openNeighborhoodDetail(mapPopupRecommendation)}
+                >
+                  {t('matchFirst.results.viewNeighborhood')}
+                </button>
+              </article>
+            ) : null}
             <div className="results-map__controls" role="group" aria-label={t('matchFirst.results.mapControlsLabel')}>
               <button type="button" onClick={() => adjustMap(0, 0, 1)}>{t('matchFirst.results.zoomIn')}</button>
               <button type="button" onClick={() => adjustMap(0, 0, -1)}>{t('matchFirst.results.zoomOut')}</button>

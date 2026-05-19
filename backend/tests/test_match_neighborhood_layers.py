@@ -7,7 +7,14 @@ import pytest
 from app.config import settings
 from app.db import init_db
 from app.models.address import ResolvedAddress
+from app.models.neighborhood3d import BuildingBlock
+from app.services.match import amenities as amenities_service
 from app.services.match import buildings as buildings_service
+from app.services.match.amenity_ingestion import run_amenity_refresh_once
+from app.services.match.buildings import get_scoped_neighborhood_buildings
+from app.services.match.geometry import get_neighborhood_map_layers, rd_to_wgs84
+from app.services.match.providers.amenities import load_official_amenity_records
+from tests.test_match_amenity_ingestion import FakeAmenityClient
 from tests.test_match_sessions import COMPLETE_ANSWERS
 
 
@@ -47,6 +54,14 @@ async def _run_completed_match(client):
     results_response = await client.get(f"/api/match/sessions/{session_id}/results")
     assert results_response.status_code == 200
     return results_response.json()
+
+
+async def _seed_official_amenities(neighborhood_id: str) -> None:
+    amenities_service.clear_amenity_response_cache()
+    await run_amenity_refresh_once(
+        neighborhood_ids=(neighborhood_id,),
+        client=FakeAmenityClient(),
+    )
 
 
 def _bridge_payload(results: dict[str, object], **overrides):
@@ -141,6 +156,41 @@ def _provider_addresses() -> list[ResolvedAddress]:
     ]
 
 
+def _lod22_building_block(
+    pand_id: str = "0363100012253924",
+    *,
+    footprint: list[list[float]] | None = None,
+) -> BuildingBlock:
+    block_footprint = footprint or [
+        [-15.0, -10.0],
+        [12.0, -10.0],
+        [12.0, 9.0],
+        [-15.0, 9.0],
+        [-15.0, -10.0],
+    ]
+    return BuildingBlock(
+        pand_id=pand_id,
+        ground_height=1.25,
+        building_height=8.5,
+        footprint=block_footprint,
+        year=2019,
+        roof_surfaces=[
+            [
+                [block_footprint[0][0], block_footprint[0][1], 1.25],
+                [block_footprint[1][0], block_footprint[1][1], 1.25],
+                [block_footprint[2][0], block_footprint[2][1], 9.75],
+                [block_footprint[3][0], block_footprint[3][1], 9.75],
+            ],
+            [
+                [block_footprint[0][0], block_footprint[0][1], 1.25],
+                [block_footprint[3][0], block_footprint[3][1], 9.75],
+                [block_footprint[3][0], block_footprint[3][1], 1.25],
+            ],
+        ],
+        orientation_deg=90.0,
+    )
+
+
 def _patch_provider_addresses(monkeypatch, addresses: list[ResolvedAddress] | None = None):
     provider = AsyncMock(return_value=addresses if addresses is not None else _provider_addresses())
     monkeypatch.setattr(buildings_service.locatieserver, "reverse_addresses", provider)
@@ -180,16 +230,112 @@ async def test_selected_neighborhood_summary_and_map_layers_are_scoped(
     assert layers["allowed_bounds_rd"] == summary["bounds_rd"]
     assert layers["boundary"]["properties"]["neighborhood_id"] == neighborhood_id
     assert layers["building_layer"]["endpoint"].endswith(f"/{neighborhood_id}/buildings")
-    assert layers["building_layer"]["available"] is False
-    assert layers["building_layer"]["fallback_reason_code"] == "matchFirst.neighborhood.missing3d"
+    assert layers["building_layer"]["available"] is True
+    assert layers["building_layer"]["fallback_reason_code"] is None
     assert layers["amenity_layer"]["endpoint"].endswith(f"/{neighborhood_id}/amenities")
     assert layers["fallback_2d_available"] is True
 
 
 @pytest.mark.asyncio
-async def test_building_requests_are_clipped_and_reject_national_bounds(
+async def test_selected_detail_display_bounds_follow_rd_new_for_missing_data_seed(
+    match_neighborhood_layers_db,
+    monkeypatch,
+):
+    neighborhood_id = "nh_seed_missing_data_example"
+    layers = (
+        await get_neighborhood_map_layers(
+            neighborhood_id,
+            session_id="match-crs-proof",
+            result_set_id="mrs-crs-proof",
+        )
+    ).model_dump(mode="json")
+    west, south, east, north = layers["display_bounds_wgs84"]
+    display_center_lng = (west + east) / 2
+    display_center_lat = (south + north) / 2
+    assert display_center_lng == pytest.approx(4.87608, abs=0.00005)
+    assert display_center_lat == pytest.approx(52.12710, abs=0.00005)
+    assert display_center_lng != pytest.approx(4.92, abs=0.001)
+
+    lod22_provider = AsyncMock(return_value=([_lod22_building_block("0363100012253999")], False))
+    monkeypatch.setattr(
+        buildings_service,
+        "_fetch_lod22_buildings_for_bounds",
+        lod22_provider,
+        raising=False,
+    )
+
+    scoped_response = await get_scoped_neighborhood_buildings(
+        neighborhood_id,
+        session_id="match-crs-proof",
+        result_set_id="mrs-crs-proof",
+        bounds_rd=layers["allowed_bounds_rd"],
+        lod="low",
+        limit=25,
+    )
+    building = scoped_response.model_dump(mode="json")["buildings"][0]
+    ring = building["footprint"]["coordinates"][0][:-1]
+    footprint_center_lng = sum(point[0] for point in ring) / len(ring)
+    footprint_center_lat = sum(point[1] for point in ring) / len(ring)
+    assert footprint_center_lng == pytest.approx(display_center_lng, abs=0.0003)
+    assert footprint_center_lat == pytest.approx(display_center_lat, abs=0.0003)
+    assert west < footprint_center_lng < east
+    assert south < footprint_center_lat < north
+
+
+@pytest.mark.asyncio
+async def test_scoped_3dbag_offsets_are_projected_from_absolute_rd_new(
+    match_neighborhood_layers_db,
+    monkeypatch,
+):
+    neighborhood_id = "nh_seed_missing_data_example"
+    layers = (
+        await get_neighborhood_map_layers(
+            neighborhood_id,
+            session_id="match-rd-offset-proof",
+            result_set_id="mrs-rd-offset-proof",
+        )
+    ).model_dump(mode="json")
+    footprint = [
+        [760.0, -260.0],
+        [790.0, -260.0],
+        [790.0, -230.0],
+        [760.0, -230.0],
+        [760.0, -260.0],
+    ]
+    lod22_provider = AsyncMock(
+        return_value=([
+            _lod22_building_block("0363100012254888", footprint=footprint),
+        ], False)
+    )
+    monkeypatch.setattr(
+        buildings_service,
+        "_fetch_lod22_buildings_for_bounds",
+        lod22_provider,
+        raising=False,
+    )
+
+    scoped_response = await get_scoped_neighborhood_buildings(
+        neighborhood_id,
+        session_id="match-rd-offset-proof",
+        result_set_id="mrs-rd-offset-proof",
+        bounds_rd=layers["allowed_bounds_rd"],
+        lod="low",
+        limit=25,
+    )
+
+    building = scoped_response.model_dump(mode="json")["buildings"][0]
+    center_rd = building["center_rd"]
+    first_lng, first_lat = building["footprint"]["coordinates"][0][0]
+    expected = rd_to_wgs84(center_rd["x"] + footprint[0][0], center_rd["y"] + footprint[0][1])
+    assert first_lng == pytest.approx(round(expected["lng"], 7), abs=0.0000001)
+    assert first_lat == pytest.approx(round(expected["lat"], 7), abs=0.0000001)
+
+
+@pytest.mark.asyncio
+async def test_scoped_building_requests_return_renderable_buildings_without_missing3d(
     client,
     match_neighborhood_layers_db,
+    monkeypatch,
 ):
     results = await _run_completed_match(client)
     neighborhood_id = results["ranked_results"][0]["neighborhood_id"]
@@ -202,6 +348,13 @@ async def test_building_requests_are_clipped_and_reject_national_bounds(
     )
     assert layer_response.status_code == 200
     allowed_bounds = layer_response.json()["allowed_bounds_rd"]
+    lod22_provider = AsyncMock(return_value=([_lod22_building_block("0363100012253999")], False))
+    monkeypatch.setattr(
+        buildings_service,
+        "_fetch_lod22_buildings_for_bounds",
+        lod22_provider,
+        raising=False,
+    )
 
     scoped_response = await client.get(
         f"/api/match/neighborhoods/{neighborhood_id}/buildings",
@@ -218,11 +371,122 @@ async def test_building_requests_are_clipped_and_reject_national_bounds(
     assert body["neighborhood_id"] == neighborhood_id
     assert body["bounds_rd"] == allowed_bounds
     assert body["clipped_to_neighborhood"] is True
-    assert body["buildings"][0]["building_id"] == f"bldg_{neighborhood_id}_001"
-    assert body["buildings"][0]["vbo_id"] == "0363010000123456"
-    assert body["buildings"][0]["lookup_id"] == "adr-abc123"
-    assert body["buildings"][0]["address_resolution"] == "resolved"
+    assert body["buildings"][0]["building_id"] == "bag_pand_0363100012253999"
+    assert body["buildings"][0]["geometry_source"] == "3dbag_lod22"
+    assert body["buildings"][0]["address_resolution"] == "candidate"
+    assert body["fallback_reason_code"] is None
+
+
+@pytest.mark.asyncio
+async def test_scoped_building_requests_return_real_3dbag_lod22_geometry_without_missing3d(
+    client,
+    match_neighborhood_layers_db,
+    monkeypatch,
+):
+    results = await _run_completed_match(client)
+    neighborhood_id = results["ranked_results"][0]["neighborhood_id"]
+    layer_response = await client.get(
+        f"/api/match/neighborhoods/{neighborhood_id}/map-layers",
+        params={
+            "session_id": results["session_id"],
+            "result_set_id": results["result_set_id"],
+        },
+    )
+    assert layer_response.status_code == 200
+    allowed_bounds = layer_response.json()["allowed_bounds_rd"]
+    lod22_provider = AsyncMock(return_value=([_lod22_building_block()], False))
+    monkeypatch.setattr(
+        buildings_service,
+        "_fetch_lod22_buildings_for_bounds",
+        lod22_provider,
+        raising=False,
+    )
+
+    response = await client.get(
+        f"/api/match/neighborhoods/{neighborhood_id}/buildings",
+        params={
+            "session_id": results["session_id"],
+            "result_set_id": results["result_set_id"],
+            "bounds_rd": ",".join(str(item) for item in allowed_bounds),
+            "lod": "low",
+            "limit": 25,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["fallback_reason_code"] is None
+    assert body["source_refs"] == ["3dbag_lod22"]
+    assert body["buildings"][0]["building_id"] == "bag_pand_0363100012253924"
+    assert body["buildings"][0]["geometry_source"] == "3dbag_lod22"
+    assert body["buildings"][0]["lod"] == "2.2"
+    assert body["buildings"][0]["source_refs"] == ["3dbag_lod22"]
+    assert body["buildings"][0]["height_m"] == 8.5
+    assert body["buildings"][0]["ground_height_m"] == 1.25
+    assert body["buildings"][0]["footprint_rd"][0] == [-15.0, -10.0]
+    assert body["buildings"][0]["roof_surfaces"][0][2] == [12.0, 9.0, 9.75]
+    lod22_provider.assert_awaited_once()
+    assert lod22_provider.await_args.kwargs["bounds_rd"] == allowed_bounds
+    assert lod22_provider.await_args.kwargs["limit"] == 25
+
+
+@pytest.mark.asyncio
+async def test_empty_scoped_building_data_keeps_missing3d_fallback_reason(
+    client,
+    match_neighborhood_layers_db,
+    monkeypatch,
+):
+    results = await _run_completed_match(client)
+    neighborhood_id = results["ranked_results"][0]["neighborhood_id"]
+    layer_response = await client.get(
+        f"/api/match/neighborhoods/{neighborhood_id}/map-layers",
+        params={
+            "session_id": results["session_id"],
+            "result_set_id": results["result_set_id"],
+        },
+    )
+    assert layer_response.status_code == 200
+    allowed_bounds = layer_response.json()["allowed_bounds_rd"]
+    empty_provider = AsyncMock(return_value=([], False))
+    monkeypatch.setattr(
+        buildings_service,
+        "_fetch_lod22_buildings_for_bounds",
+        empty_provider,
+        raising=False,
+    )
+
+    response = await client.get(
+        f"/api/match/neighborhoods/{neighborhood_id}/buildings",
+        params={
+            "session_id": results["session_id"],
+            "result_set_id": results["result_set_id"],
+            "bounds_rd": ",".join(str(item) for item in allowed_bounds),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["buildings"] == []
     assert body["fallback_reason_code"] == "matchFirst.neighborhood.missing3d"
+    empty_provider.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_building_requests_reject_national_or_escaped_bounds(
+    client,
+    match_neighborhood_layers_db,
+):
+    results = await _run_completed_match(client)
+    neighborhood_id = results["ranked_results"][0]["neighborhood_id"]
+    layer_response = await client.get(
+        f"/api/match/neighborhoods/{neighborhood_id}/map-layers",
+        params={
+            "session_id": results["session_id"],
+            "result_set_id": results["result_set_id"],
+        },
+    )
+    assert layer_response.status_code == 200
+    allowed_bounds = layer_response.json()["allowed_bounds_rd"]
 
     national_response = await client.get(
         f"/api/match/neighborhoods/{neighborhood_id}/buildings",
@@ -254,12 +518,13 @@ async def test_building_requests_are_clipped_and_reject_national_bounds(
 
 
 @pytest.mark.asyncio
-async def test_amenities_are_preference_aware_capped_and_do_not_return_all_points(
+async def test_amenities_are_preference_aware_capped_and_return_map_points(
     client,
     match_neighborhood_layers_db,
 ):
     results = await _run_completed_match(client)
     neighborhood_id = results["ranked_results"][0]["neighborhood_id"]
+    await _seed_official_amenities(neighborhood_id)
 
     response = await client.get(
         f"/api/match/neighborhoods/{neighborhood_id}/amenities",
@@ -272,13 +537,146 @@ async def test_amenities_are_preference_aware_capped_and_do_not_return_all_point
     body = response.json()
     tags = body["tags"]
     keys = [tag["amenity_key"] for tag in tags]
-    assert 5 <= len(tags) <= 7
+    assert 4 <= len(tags) <= 7
     assert len(keys) == len(set(keys))
-    assert "parks" in keys
-    assert "transit" in keys
+    assert "parks_green" in keys
+    assert "sports_fields" in keys
     assert all(tag["label_key"].startswith("matchFirst.amenity.") for tag in tags)
     assert all(tag["source_refs"] for tag in tags)
-    assert body["points"] == []
+    points = body["points"]
+    assert 1 <= len(points) <= 7
+    assert {point["amenity_key"] for point in points}.issubset(set(keys))
+    assert all(point["label_key"].startswith("matchFirst.amenity.") for point in points)
+    assert all(point["display_coordinate_system"] == "WGS84" for point in points)
+    assert all(point["source_refs"] for point in points)
+
+
+@pytest.mark.asyncio
+async def test_official_amenity_markers_include_exact_source_and_geometry_metadata(
+    client,
+    match_neighborhood_layers_db,
+):
+    results = await _run_completed_match(client)
+    neighborhood_id = results["ranked_results"][0]["neighborhood_id"]
+    await _seed_official_amenities(neighborhood_id)
+
+    response = await client.get(
+        f"/api/match/neighborhoods/{neighborhood_id}/amenities",
+        params={
+            "session_id": results["session_id"],
+            "result_set_id": results["result_set_id"],
+        },
+    )
+
+    assert response.status_code == 200
+    points = response.json()["points"]
+    by_category = {point["amenity_key"]: point for point in points}
+    assert set(by_category) == {
+        "schools",
+        "childcare",
+        "parks_green",
+        "sports_fields",
+    }
+    assert by_category["schools"]["emoji"] == "🏫"
+    assert by_category["childcare"]["emoji"] == "🧸"
+    assert by_category["parks_green"]["emoji"] == "🌳"
+    assert by_category["sports_fields"]["emoji"] == "⚽"
+    for point in points:
+        assert point["category_key"] == point["amenity_key"]
+        assert point["display_coordinate_system"] == "WGS84"
+        assert isinstance(point["display_lat"], float)
+        assert isinstance(point["display_lng"], float)
+        assert point["source_name"]
+        assert "source_record_id" in point
+        assert point["freshness_date"]
+        assert point["loaded_at"]
+        assert point["source_coordinate_system"] in {"EPSG:4326", "EPSG:28992"}
+        assert point["source_geometry"]["type"] in {"Point", "Polygon"}
+        assert point["source_geometry_coordinate_system"] in {"EPSG:4326", "EPSG:28992"}
+
+
+@pytest.mark.asyncio
+async def test_amenity_cache_key_is_scoped_and_empty_provider_results_are_not_cached(
+    client,
+    match_neighborhood_layers_db,
+    monkeypatch,
+):
+    results = await _run_completed_match(client)
+    neighborhood_id = results["ranked_results"][0]["neighborhood_id"]
+    await _seed_official_amenities(neighborhood_id)
+    bounds = [4.988, 52.347, 5.012, 52.363]
+    assert amenities_service._cache_key(  # noqa: SLF001 - cache contract regression.
+        neighborhood_id,
+        bounds,
+        ("schools", "childcare"),
+        5,
+    ) != amenities_service._cache_key(  # noqa: SLF001 - cache contract regression.
+        neighborhood_id,
+        [4.989, 52.347, 5.012, 52.363],
+        ("schools", "childcare"),
+        5,
+    )
+    assert amenities_service._cache_key(  # noqa: SLF001 - cache contract regression.
+        neighborhood_id,
+        bounds,
+        ("schools", "childcare"),
+        5,
+    ) != amenities_service._cache_key(  # noqa: SLF001 - cache contract regression.
+        neighborhood_id,
+        bounds,
+        ("schools",),
+        5,
+    )
+    assert amenities_service._cache_key(  # noqa: SLF001 - cache contract regression.
+        neighborhood_id,
+        bounds,
+        ("schools",),
+        5,
+        {"schools": "duo:2026-05-01"},
+    ) != amenities_service._cache_key(  # noqa: SLF001 - cache contract regression.
+        neighborhood_id,
+        bounds,
+        ("schools",),
+        5,
+        {"schools": "duo:2026-05-02"},
+    )
+
+    call_count = 0
+
+    async def empty_then_real(selected_neighborhood_id, bounds_wgs84, categories):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return [], []
+        return await load_official_amenity_records(
+            selected_neighborhood_id,
+            bounds_wgs84,
+            categories,
+        )
+
+    amenities_service.clear_amenity_response_cache()
+    monkeypatch.setattr(amenities_service, "load_official_amenity_records", empty_then_real)
+
+    first_response = await client.get(
+        f"/api/match/neighborhoods/{neighborhood_id}/amenities",
+        params={
+            "session_id": results["session_id"],
+            "result_set_id": results["result_set_id"],
+        },
+    )
+    assert first_response.status_code == 200
+    assert first_response.json()["points"] == []
+
+    second_response = await client.get(
+        f"/api/match/neighborhoods/{neighborhood_id}/amenities",
+        params={
+            "session_id": results["session_id"],
+            "result_set_id": results["result_set_id"],
+        },
+    )
+    assert second_response.status_code == 200
+    assert second_response.json()["points"]
+    assert call_count == 2
 
 
 @pytest.mark.asyncio
@@ -494,6 +892,45 @@ async def test_dossier_bridge_returns_candidate_addresses_for_ambiguous_house(
     assert provider_kwargs["limit"] == 2
     assert 50.7 <= provider_kwargs["latitude"] <= 53.6
     assert 3.2 <= provider_kwargs["longitude"] <= 7.3
+
+
+@pytest.mark.asyncio
+async def test_dossier_bridge_accepts_selected_3dbag_lod22_building_candidate(
+    client,
+    match_neighborhood_layers_db,
+    monkeypatch,
+):
+    results = await _run_completed_match(client)
+    building_id = "bag_pand_0363100012253924"
+    lod22_provider = AsyncMock(return_value=([_lod22_building_block()], False))
+    monkeypatch.setattr(
+        buildings_service,
+        "_fetch_lod22_buildings_for_bounds",
+        lod22_provider,
+        raising=False,
+    )
+    provider = _patch_provider_addresses(monkeypatch)
+    payload = _bridge_payload(
+        results,
+        building_id=building_id,
+        vbo_id=None,
+        address_id=None,
+        lookup_id=None,
+        return_context={"selected_house_id": building_id},
+    )
+
+    response = await client.post("/api/match/dossier/from-building", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "candidates"
+    assert body["fallback_reason_code"] == "match.neighborhood.address_candidate_selection_required"
+    assert body["candidate_addresses"][0]["source_refs"] == [
+        "pdok_locatieserver_reverse",
+        "3dbag_lod22",
+    ]
+    provider.assert_awaited_once()
+    lod22_provider.assert_awaited_once()
 
 
 @pytest.mark.asyncio

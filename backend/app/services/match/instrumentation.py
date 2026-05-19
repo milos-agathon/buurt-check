@@ -5,7 +5,7 @@ import logging
 import re
 from collections import Counter
 
-from app.db import get_db
+from app.db import DatabaseConnection, get_db
 from app.models.match import AnalyticsEvent, AnalyticsEventName, SuccessMetricSummary
 
 logger = logging.getLogger("app.services.match")
@@ -261,6 +261,7 @@ async def record_match_event(
     session_id: str | None = None,
     locale: str = "en",
     context: dict[str, object] | None = None,
+    db: DatabaseConnection | None = None,
 ) -> AnalyticsEvent:
     sanitized_context = _sanitize_context(context or {})
     event_kwargs: dict[str, object] = {
@@ -273,7 +274,16 @@ async def record_match_event(
         event_kwargs["analytics_event_id"] = analytics_event_id
     event = AnalyticsEvent(**event_kwargs)
     recorded = MATCH_INSTRUMENTATION_SINK.record(event)
-    async with get_db() as db:
+    params = (
+        recorded.analytics_event_id,
+        recorded.event_name,
+        recorded.session_id,
+        recorded.locale,
+        recorded.journey_intent,
+        json.dumps(recorded.context, sort_keys=True, separators=(",", ":")),
+        recorded.created_at.isoformat().replace("+00:00", "Z"),
+    )
+    if db is not None:
         await db.execute(
             """
             INSERT INTO match_analytics_events (
@@ -286,17 +296,25 @@ async def record_match_event(
                 created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (
-                recorded.analytics_event_id,
-                recorded.event_name,
-                recorded.session_id,
-                recorded.locale,
-                recorded.journey_intent,
-                json.dumps(recorded.context, sort_keys=True, separators=(",", ":")),
-                recorded.created_at.isoformat().replace("+00:00", "Z"),
-            ),
+            params,
         )
-        await db.commit()
+    else:
+        async with get_db() as owned_db:
+            await owned_db.execute(
+                """
+                INSERT INTO match_analytics_events (
+                    analytics_event_id,
+                    event_name,
+                    session_id,
+                    locale,
+                    journey_intent,
+                    context_json,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                params,
+            )
+            await owned_db.commit()
     return recorded
 
 

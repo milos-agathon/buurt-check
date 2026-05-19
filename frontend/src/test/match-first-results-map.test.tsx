@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import type { ReactElement } from 'react';
+import L from 'leaflet';
 import App from '../App';
 import ResultsMap from '../components/match-first/ResultsMap';
 import {
@@ -26,6 +27,25 @@ beforeEach(async () => {
   sessionStorage.clear();
   window.history.replaceState({}, '', '/');
   await i18n.changeLanguage('en');
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const url = String(input);
+    if (url.endsWith('/api/match/results-basemap')) {
+      return new Response(JSON.stringify(basemapConfig()), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith('/api/match/analytics')) {
+      return new Response(JSON.stringify({ accepted: true, duplicate: false }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ detail: 'unexpected' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
 });
 
 function renderWithI18n(ui: ReactElement) {
@@ -123,6 +143,109 @@ function resultsResponse(overrides: Partial<MatchResultsResponse> = {}): MatchRe
   };
 }
 
+function basemapConfig(overrides: Record<string, unknown> = {}) {
+  return {
+    source_id: 'pdok_brt_achtergrondkaart',
+    source_name: 'PDOK BRT Achtergrondkaart',
+    service_type: 'wmts_raster',
+    theme: 'standaard',
+    tile_matrix_set: 'EPSG:3857',
+    tile_url_template: 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png',
+    attribution: 'PDOK / Kadaster / BRT Achtergrondkaart (standaard WMTS)',
+    min_zoom: 0,
+    max_zoom: 19,
+    ...overrides,
+  };
+}
+
+function mockBasemapFetch(config = basemapConfig()) {
+  return vi.mocked(globalThis.fetch).mockImplementation(async (input) => {
+    if (String(input).endsWith('/api/match/results-basemap')) {
+      return new Response(JSON.stringify(config), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ detail: 'unexpected' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+}
+
+it('fetches a backend-configured PDOK BRT basemap for the Leaflet results map', async () => {
+  const fetchSpy = mockBasemapFetch();
+
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  await waitFor(() => {
+    expect(fetchSpy).toHaveBeenCalledWith('/api/match/results-basemap', expect.objectContaining({
+      credentials: 'include',
+    }));
+  });
+  expect(await screen.findByText('PDOK / Kadaster / BRT Achtergrondkaart (standaard WMTS)')).toBeInTheDocument();
+});
+
+it('rejects OSM, Mapbox, and Google basemap configuration in the results map', async () => {
+  mockBasemapFetch();
+
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  const attribution = await screen.findByText('PDOK / Kadaster / BRT Achtergrondkaart (standaard WMTS)');
+  expect(attribution).not.toHaveTextContent(/openstreetmap|mapbox|google/i);
+});
+
+it('records PDOK tile failures while leaving the recommendation list usable', async () => {
+  mockBasemapFetch();
+  const tileErrorHandlers: Array<() => void> = [];
+  const tileLayer = {
+    addTo: vi.fn(() => tileLayer),
+    remove: vi.fn(),
+    on: vi.fn((eventName: string, handler: () => void) => {
+      if (eventName === 'tileerror') tileErrorHandlers.push(handler);
+      return tileLayer;
+    }),
+  };
+  vi.spyOn(L, 'tileLayer').mockReturnValue(tileLayer as unknown as L.TileLayer);
+
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  await waitFor(() => expect(tileErrorHandlers).toHaveLength(1));
+  act(() => tileErrorHandlers[0]());
+
+  expect(await screen.findByText('The official PDOK/BRT map layer did not load. You can still use the recommendation list.')).toBeInTheDocument();
+  expect(screen.getByTestId('recommendation-card-rec_1')).toBeInTheDocument();
+  expect(JSON.parse(localStorage.getItem('buurt-check-match-first-analytics') ?? '[]')).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        event_name: 'match_map_layer_failed',
+        context: expect.objectContaining({
+          reason: 'pdok_brt_tile_failed',
+          source: 'results',
+        }),
+      }),
+    ]),
+  );
+});
+
 it('loads completed session results on the results route without rerunning matching', async () => {
   const sessionId = 'match-route-results';
   saveMatchSessionSnapshot(sessionId, {
@@ -209,7 +332,7 @@ it('restores saved map view when a completed results route fetches its result se
   expect(screen.getByTestId('recommendation-card-rec_2')).toHaveAttribute('aria-current', 'true');
 });
 
-it('ignores stale saved map view when verified in-memory results use a different result set', () => {
+it('ignores stale saved map view when verified in-memory results use a different result set', async () => {
   const sessionId = 'match-rerun-results';
   sessionStorage.setItem(getMatchResultsMapStateStorageKey(sessionId), JSON.stringify({
     sessionId,
@@ -243,6 +366,7 @@ it('ignores stale saved map view when verified in-memory results use a different
   expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toHaveAttribute('data-map-zoom', '7');
   expect(screen.getByTestId('results-map-shell')).toHaveAttribute('data-mobile-mode', 'map');
   expect(screen.getByTestId('recommendation-card-rec_2')).not.toHaveAttribute('aria-current');
+  expect(await screen.findByText('PDOK / Kadaster / BRT Achtergrondkaart (standaard WMTS)')).toBeInTheDocument();
 });
 
 it('keeps ranked list selection and map feature selection synchronized', async () => {
@@ -266,6 +390,36 @@ it('keeps ranked list selection and map feature selection synchronized', async (
 
   expect(screen.getByTestId('recommendation-card-rec_1')).toHaveAttribute('aria-current', 'true');
   expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toHaveAttribute('data-selected-neighborhood', 'nh_amsterdam_ijburg');
+});
+
+it('renders numbered recommendation markers inside Leaflet so they stay projected during pan and zoom', async () => {
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  const ijburgMarker = await screen.findByRole('button', { name: 'Show IJburg on map' });
+
+  expect(ijburgMarker.closest('.leaflet-marker-pane')).not.toBeNull();
+});
+
+it('invalidates the Leaflet size after rendering so PDOK tiles fill the map panel', async () => {
+  const invalidateSize = vi.spyOn(L.Map.prototype, 'invalidateSize');
+
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  await waitFor(() => {
+    expect(invalidateSize).toHaveBeenCalled();
+  });
 });
 
 it('records neighborhood detail clicks as recommendation selection before opening detail', async () => {
@@ -297,6 +451,79 @@ it('records neighborhood detail clicks as recommendation selection before openin
       }),
     ]),
   );
+});
+
+it('shows a map popup with the neighborhood detail CTA when a numbered marker is clicked', async () => {
+  const user = userEvent.setup();
+  const onOpenNeighborhood = vi.fn();
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+      onOpenNeighborhood={onOpenNeighborhood}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show IJburg on map' }));
+
+  const popup = screen.getByRole('dialog', { name: 'IJburg' });
+  expect(within(popup).getByText('Amsterdam')).toBeInTheDocument();
+
+  await user.click(within(popup).getByRole('button', { name: 'View neighborhood' }));
+
+  expect(onOpenNeighborhood).toHaveBeenCalledWith(expect.objectContaining({
+    recommendation_id: 'rec_1',
+    neighborhood_id: 'nh_amsterdam_ijburg',
+  }));
+});
+
+it('places a marker popup below the marker when an above placement would clip on mobile', async () => {
+  const user = userEvent.setup();
+  const onOpenNeighborhood = vi.fn();
+  const latLngSpy = vi.spyOn(L.Map.prototype, 'latLngToContainerPoint').mockReturnValue({
+    x: 24,
+    y: 18,
+  } as L.Point);
+  const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+  const originalClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+    configurable: true,
+    get() {
+      return this.classList.contains('results-map__leaflet') ? 320 : 0;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+    configurable: true,
+    get() {
+      return this.classList.contains('results-map__leaflet') ? 220 : 0;
+    },
+  });
+
+  try {
+    renderWithI18n(
+      <ResultsMap
+        sessionId="match-results"
+        initialResults={resultsResponse()}
+        onBackToSurvey={() => {}}
+        onOpenNeighborhood={onOpenNeighborhood}
+      />,
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Show IJburg on map' }));
+
+    const popup = screen.getByRole('dialog', { name: 'IJburg' });
+    expect(popup).toHaveAttribute('data-placement', 'below');
+    expect(popup).toHaveStyle({ left: '118px', top: '18px' });
+    expect(latLngSpy).toHaveBeenCalled();
+  } finally {
+    if (originalClientWidth) {
+      Object.defineProperty(HTMLElement.prototype, 'clientWidth', originalClientWidth);
+    }
+    if (originalClientHeight) {
+      Object.defineProperty(HTMLElement.prototype, 'clientHeight', originalClientHeight);
+    }
+  }
 });
 
 it('reveals the matching list card when a map feature is selected', async () => {
@@ -359,7 +586,7 @@ it('persists mobile map/list mode and selected map state for later Dossier retur
   });
 });
 
-it('persists list scroll position when the user scrolls the recommendation list', () => {
+it('persists list scroll position when the user scrolls the recommendation list', async () => {
   renderWithI18n(
     <ResultsMap
       sessionId="match-results"
@@ -367,6 +594,7 @@ it('persists list scroll position when the user scrolls the recommendation list'
       onBackToSurvey={() => {}}
     />,
   );
+  expect(await screen.findByText('PDOK / Kadaster / BRT Achtergrondkaart (standaard WMTS)')).toBeInTheDocument();
 
   const list = screen.getByRole('list', { name: 'Recommended neighborhoods' });
   list.scrollTop = 144;

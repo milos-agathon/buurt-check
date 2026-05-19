@@ -512,6 +512,48 @@ async def _fetch_single_quadrant(
     return buildings, has_next
 
 
+async def get_buildings_in_rd_bounds(
+    bounds_rd: list[float],
+    *,
+    limit: int = BBOX_PAGE_LIMIT,
+) -> tuple[list[BuildingBlock], bool]:
+    """Fetch 3DBAG buildings for one exact RD New bounding box.
+
+    The returned BuildingBlock footprint and LoD 2.2 surface coordinates are
+    meter offsets from the requested bounds centroid, not from a target address.
+    """
+    if len(bounds_rd) != 4:
+        return [], False
+    west, south, east, north = bounds_rd
+    if west >= east or south >= north:
+        return [], False
+
+    center_x = (west + east) / 2
+    center_y = (south + north) / 2
+    bbox = f"{west:.0f},{south:.0f},{east:.0f},{north:.0f}"
+    buildings, partial = await _fetch_single_quadrant(
+        center_x,
+        center_y,
+        bbox,
+        "selected-neighborhood",
+    )
+
+    bounded_limit = max(1, min(limit, BBOX_PAGE_LIMIT))
+    buildings.sort(
+        key=lambda block: min(
+            ((point[0] * point[0]) + (point[1] * point[1]) for point in block.footprint),
+            default=float("inf"),
+        )
+    )
+    selected_buildings = buildings[:bounded_limit]
+    selected_buildings, enrichment_partial = await _enrich_with_lod22(
+        selected_buildings,
+        center_x,
+        center_y,
+    )
+    return selected_buildings, partial or enrichment_partial
+
+
 async def _fetch_bbox_parallel_quadrants(
     center_x: float, center_y: float, radius: float
 ) -> tuple[list[BuildingBlock], bool]:

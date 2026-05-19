@@ -179,7 +179,10 @@ export default function MatchingProgressScreen({
     setResultsUnavailable(false);
     setTerminalStatusPendingResults(null);
 
-    const handleStatus = async (nextStatus: ProgressInput) => {
+    const handleStatus = async (
+      nextStatus: ProgressInput,
+      options: { pollImmediately?: boolean } = {},
+    ) => {
       if (cancelled) return;
       setUnavailable(false);
       setResultsUnavailable(false);
@@ -190,6 +193,14 @@ export default function MatchingProgressScreen({
         return;
       }
       if (TERMINAL_FAILED_STATUSES.has(nextStatus.status)) return;
+      if (
+        options.pollImmediately
+        && !isStatusResponse(nextStatus)
+        && (nextStatus.status === 'created' || nextStatus.status === 'queued')
+      ) {
+        void pollStatus();
+        return;
+      }
       const pollAfterMs = 'poll_after_ms' in nextStatus && typeof nextStatus.poll_after_ms === 'number'
         ? nextStatus.poll_after_ms
         : DEFAULT_POLL_AFTER_MS;
@@ -212,7 +223,7 @@ export default function MatchingProgressScreen({
     };
 
     if (initialStatus) {
-      void handleStatus(initialStatus);
+      void handleStatus(initialStatus, { pollImmediately: true });
     } else {
       void pollStatus();
     }
