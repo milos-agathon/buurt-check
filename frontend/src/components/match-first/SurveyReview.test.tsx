@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import SurveyReview from './SurveyReview';
 import { saveMatchSessionSnapshot } from '../../services/matchSessionStorage';
-import type { MatchFirstSurveyAnswers } from '../../types/matchFirst';
+import type { MatchCustomPreferenceItem, MatchFirstSurveyAnswers } from '../../types/matchFirst';
 import { setupTestI18n } from '../../test/helpers';
 
 let i18n: Awaited<ReturnType<typeof setupTestI18n>>;
@@ -22,6 +22,39 @@ const completeAnswers: MatchFirstSurveyAnswers = {
   area_character: 'quiet_city',
   language: 'en',
 };
+
+const customPreferences: MatchCustomPreferenceItem[] = [
+  {
+    custom_preference_id: 'cp_coast',
+    raw_user_phrase_ref: 'custom_preferences:0',
+    normalized_key: 'coast_or_beach_proximity',
+    category: 'geography',
+    use_status: 'saved_unsupported',
+    feature_key: null,
+    default_weight: 0,
+    weight: 0,
+    source_requirement: 'coast_distance_metric',
+    privacy_class: 'standard',
+    label_key: 'matchFirst.additionalPreferences.label.coast',
+    explanation_key: 'matchFirst.additionalPreferences.explanation.coastSavedUnsupported',
+    reason_code: 'match.customPreference.coast_distance_unavailable',
+  },
+  {
+    custom_preference_id: 'cp_worship',
+    raw_user_phrase_ref: 'custom_preferences:1',
+    normalized_key: 'place_of_worship_proximity',
+    category: 'amenity',
+    use_status: 'map_context_only',
+    feature_key: null,
+    default_weight: 0,
+    weight: 0,
+    source_requirement: 'neutral_amenity_overlay',
+    privacy_class: 'sensitive_context',
+    label_key: 'matchFirst.additionalPreferences.label.placeOfWorship',
+    explanation_key: 'matchFirst.additionalPreferences.explanation.placeOfWorshipMapContext',
+    reason_code: 'match.customPreference.sensitive_amenity_context_only',
+  },
+];
 
 beforeAll(async () => {
   i18n = await setupTestI18n('en');
@@ -145,6 +178,28 @@ it('renders a backend sync error without losing the review answers', async () =>
   expect(screen.getByRole('alert')).toHaveTextContent('We could not sync your saved answers yet. Try again before opening your match map.');
   expect(screen.getByRole('button', { name: 'Show my matches' })).toBeInTheDocument();
   expect(screen.getByText('Rent')).toBeInTheDocument();
+});
+
+it('shows reviewed custom preferences with their non-scoring usage status', async () => {
+  const user = userEvent.setup();
+  const onEditCustomPreferences = vi.fn();
+  renderReview({
+    sessionId: 'match-custom-review',
+    answers: completeAnswers,
+    customPreferences,
+    customPreferencesReviewed: true,
+    onEditCustomPreferences,
+  });
+
+  expect(screen.getByText('Additional preferences')).toBeInTheDocument();
+  expect(screen.getByText('Coast or beach access')).toBeInTheDocument();
+  expect(screen.getByText('Saved for future support')).toBeInTheDocument();
+  expect(screen.getByText('Place of worship nearby')).toBeInTheDocument();
+  expect(screen.getByText('Shown as map context')).toBeInTheDocument();
+  expect(screen.queryByText('Close to the beach')).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: 'Edit additional preferences' }));
+  expect(onEditCustomPreferences).toHaveBeenCalledTimes(1);
 });
 
 it('does not read answers saved for a different match session', async () => {

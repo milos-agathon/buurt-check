@@ -33,6 +33,11 @@ it('adds survey intro and survey shell routes without breaking legacy match and 
     questionStep: 11,
   });
   expect(buildHashRoute({ route: 'matchSurvey', sessionId: 'match-123', questionStep: 1 })).toBe('#/match/session/match-123/question/1');
+  expect(parseHashRoute('#/match/session/match-123/additional-preferences')).toMatchObject({
+    route: 'matchAdditionalPreferences',
+    sessionId: 'match-123',
+  });
+  expect(buildHashRoute({ route: 'matchAdditionalPreferences', sessionId: 'match-123' })).toBe('#/match/session/match-123/additional-preferences');
   expect(parseHashRoute('#/match/session/match-123/review')).toMatchObject({
     route: 'matchReview',
     sessionId: 'match-123',

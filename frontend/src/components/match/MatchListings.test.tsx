@@ -66,10 +66,98 @@ it('shows buy and rent listings with provider/source status and mock label', () 
 
   expect(screen.getByText('MockListingProvider')).toBeInTheDocument();
   expect(screen.getByText('Availability density: 70/100')).toBeInTheDocument();
+  expect(screen.getByText('Mock-only provider')).toBeInTheDocument();
+  expect(screen.queryByText('mock_only')).not.toBeInTheDocument();
   expect(screen.getAllByText(/Price range:/)).toHaveLength(2);
   expect(screen.getByText('Buy home')).toBeInTheDocument();
   expect(screen.getByText('Rental home')).toBeInTheDocument();
   expect(screen.getAllByText('Mock data, not live supply')).toHaveLength(2);
   expect(screen.getByText('18')).toBeInTheDocument();
   expect(screen.getByText('9')).toBeInTheDocument();
+});
+
+it('localizes listing property and availability status tokens', () => {
+  render(
+    <I18nextProvider i18n={i18n}>
+      <MatchListings result={result} />
+    </I18nextProvider>,
+  );
+
+  expect(screen.getAllByText('Apartment')).toHaveLength(2);
+  expect(screen.getAllByText('Available')).toHaveLength(2);
+  expect(screen.queryByText('apartment')).not.toBeInTheDocument();
+  expect(screen.queryByText('available')).not.toBeInTheDocument();
+});
+
+it('renders missing listing prices as localized unavailable copy', () => {
+  const missingPriceResult: MatchListingProviderResult = {
+    ...result,
+    listings: [
+      {
+        ...result.listings[0],
+        price_cents: null,
+      },
+    ],
+  };
+
+  render(
+    <I18nextProvider i18n={i18n}>
+      <MatchListings result={missingPriceResult} />
+    </I18nextProvider>,
+  );
+
+  expect(screen.getAllByText('Unavailable')).not.toHaveLength(0);
+  expect(screen.getAllByText('Price range: Unavailable')).toHaveLength(2);
+  expect(screen.queryAllByText('Price range: -')).toHaveLength(0);
+});
+
+it('localizes listing provider unavailable reason codes', () => {
+  const unavailableResult: MatchListingProviderResult = {
+    ...result,
+    listings: [],
+    unavailable_reason: 'listing_provider_unconfigured',
+  };
+
+  const { rerender } = render(
+    <I18nextProvider i18n={i18n}>
+      <MatchListings result={unavailableResult} />
+    </I18nextProvider>,
+  );
+
+  expect(screen.getByText('Provider state: Listing provider is not configured yet.')).toBeInTheDocument();
+  expect(screen.queryByText(/listing_provider_unconfigured/)).not.toBeInTheDocument();
+
+  rerender(
+    <I18nextProvider i18n={i18n}>
+      <MatchListings
+        result={{
+          ...unavailableResult,
+          unavailable_reason: 'listing_provider_failed:ValidationError',
+        }}
+      />
+    </I18nextProvider>,
+  );
+
+  expect(screen.getByText('Provider state: Listing provider failed.')).toBeInTheDocument();
+  expect(screen.queryByText(/listing_provider_failed/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/ValidationError/)).not.toBeInTheDocument();
+});
+
+it('falls back to a localized provider mode label for unknown backend modes', () => {
+  const unknownModeResult: MatchListingProviderResult = {
+    ...result,
+    provider: {
+      ...result.provider,
+      mode: 'future_mode' as MatchListingProviderResult['provider']['mode'],
+    },
+  };
+
+  render(
+    <I18nextProvider i18n={i18n}>
+      <MatchListings result={unknownModeResult} />
+    </I18nextProvider>,
+  );
+
+  expect(screen.getByText('Provider unavailable')).toBeInTheDocument();
+  expect(screen.queryByText('match.listings.providerMode.future_mode')).not.toBeInTheDocument();
 });

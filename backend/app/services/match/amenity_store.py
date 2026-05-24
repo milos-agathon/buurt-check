@@ -13,7 +13,13 @@ AmenityCategoryKey = Literal[
     "schools",
     "childcare",
     "parks_green",
-    "sports_fields",
+    "parking",
+    "ev_charging",
+    "swimming_water",
+    "daily_shops",
+    "cafes_restaurants",
+    "healthcare",
+    "libraries_culture",
 ]
 
 

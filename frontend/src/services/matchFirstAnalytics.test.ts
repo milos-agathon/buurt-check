@@ -257,7 +257,7 @@ it('allows Phase 6 selected-neighborhood analytics without address text', () => 
     selected_house_id: 'bldg_001',
     address_label: 'Do not store this address',
   });
-  recordMatchFirstEvent('match_missing_3d_fallback_shown', {
+  recordMatchFirstEvent('match_missing_footprint_fallback_shown', {
     locale: 'nl',
     source: 'neighborhood',
     session_id: 'match-123',
@@ -269,8 +269,10 @@ it('allows Phase 6 selected-neighborhood analytics without address text', () => 
   expect(MATCH_FIRST_EVENTS).toEqual(expect.arrayContaining([
     'match_neighborhood_detail_opened',
     'match_building_layer_failed',
+    'match_building_layer_partial',
+    'match_building_layer_complete',
     'match_amenity_layer_failed',
-    'match_missing_3d_fallback_shown',
+    'match_missing_footprint_fallback_shown',
     'match_house_selected',
   ]));
   expect(readStoredEvents()).toMatchObject([
@@ -285,7 +287,7 @@ it('allows Phase 6 selected-neighborhood analytics without address text', () => 
       },
     },
     {
-      event_name: 'match_missing_3d_fallback_shown',
+      event_name: 'match_missing_footprint_fallback_shown',
       context: {
         fallback_reason_code: 'matchFirst.neighborhood.missing3d',
       },

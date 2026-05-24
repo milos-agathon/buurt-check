@@ -1,36 +1,31 @@
 <!--
 Sync Impact Report
-Version change: 2.1.0 -> 2.2.0
+Version change: 2.4.0 -> 2.5.0
 Modified principles:
-- I. Product Flow Is Sacred: expanded banned first-viewport search patterns
-- V. Model Honesty: expanded structured match-results evidence contract
-- VI. Existing Dossier Preservation: hardened Dossier rewrite restriction
-- VII. Accessibility Is Mandatory: made mobile, reduced-motion, failure, and
-  non-map alternatives non-deferrable
-- VIII. Test Every Phase: generalized quality-gate language and required
-  traceability rows before phase closure
-- IX. Preserve Context: expanded required persisted/return context fields
-- XII. Small Safe Changes: SHOULD -> MUST for smallest safe change
+- IV. Map Performance First: clarified that selected-neighborhood footprints are
+  BAG `pand` records, with house semantics derived from linked
+  `verblijfsobject.gebruiksdoel`; non-house pands stay visible but deferred
+  from arbitrary house selection.
+- XV. Failure States And Analytics Are Required: added partial/progressive
+  building-loading visibility alongside missing-footprint states.
 Added sections:
-- XIII. Run And Results Are Gated
-- XIV. Results Map Starts National
-- XV. Failure States And Analytics Are Required
+- None
 Removed sections:
 - None
 Templates requiring updates:
-- pending by explicit file-scope constraint: .specify/templates/plan-template.md
-- pending by explicit file-scope constraint: .specify/templates/spec-template.md
-- pending by explicit file-scope constraint: .specify/templates/tasks-template.md
-- pending by explicit file-scope constraint: .specify/templates/checklist-template.md
-- pending by explicit file-scope constraint: .specify/templates/commands/*.md
+- reviewed: .specify/templates/plan-template.md has no direct journey placeholder
+- reviewed: .specify/templates/spec-template.md already delegates map scope to
+  active specs
+- reviewed: .specify/templates/tasks-template.md has no direct journey placeholder
+- reviewed: .specify/templates/checklist-template.md has no direct journey placeholder
 Runtime guidance requiring updates:
 - updated: docs/ai/implementation_rules.md
 - updated: docs/ai/latest_handoff.md
-- not updated by explicit file-scope constraint: AGENTS.md
-- not updated by explicit file-scope constraint: CLAUDE.md
+- updated: docs/context/current_architecture.md
+- updated: AGENTS.md
 Follow-up TODOs:
-- Re-run SpecKit template synchronization when edits outside the three-file
-  scope are permitted.
+- Continue validating PDOK BAG OGC v2 paging/cache behavior under dense
+  selected-neighborhood footprints before closing the progressive loading delta.
 -->
 # Buurt Check Match-First Revamp Constitution
 
@@ -38,9 +33,10 @@ Follow-up TODOs:
 
 ### I. Product Flow Is Sacred
 All match-first revamp implementation MUST preserve the primary journey:
-landing hero -> survey intro -> one-question survey -> review -> backend
-matching progress -> animated checkmark success -> Netherlands results map ->
-neighborhood 3D detail -> house click -> existing Dossier -> back to match map.
+landing hero -> survey intro -> one-question guided intake -> optional
+additional-preferences prompt -> review -> backend matching progress ->
+animated checkmark success -> Netherlands results map -> neighborhood 2D
+detail -> house click -> existing Dossier -> back to match map.
 Address search MAY remain available as a secondary path, but it MUST NOT compete
 with neighborhood matching on the first screen as a search form, equal CTA,
 equal card, tab, mode choice, or visually dominant first-viewport destination.
@@ -52,9 +48,12 @@ breaks the central product decision.
 ### II. Minimal UI, One Decision Per Screen
 Onboarding screens MUST ask for exactly one mental action at a time. The survey
 MUST show exactly one question at a time, with one progress indicator and a back
-path after the first question. Landing, intro, survey, review, progress, and
-success states MUST NOT include dashboards, charts, feature grids, long
-explanations, ads, pricing blocks, unrelated cards, or exploratory map controls.
+path after the first question. The additional-preferences step MAY provide one
+focused free-text prompt plus bounded clarification, but it MUST NOT become an
+open-ended assistant, dashboard, search mode, or recommendation chat. Landing,
+intro, survey, review, progress, and success states MUST NOT include dashboards,
+charts, feature grids, long explanations, ads, pricing blocks, unrelated cards,
+or exploratory map controls.
 
 Rationale: The PRD prioritizes calm guided discovery. Extra UI during onboarding
 creates cognitive load and reintroduces the dashboard pattern the revamp removes.
@@ -63,25 +62,47 @@ creates cognitive load and reintroduces the dashboard pattern the revamp removes
 Every user-facing string introduced or changed by the revamp MUST use
 translation keys with Dutch and English values. Components, services, route
 labels, progress states, fallback states, validation messages, error messages,
-map labels, and Dossier return actions MUST NOT hard-code English or Dutch copy.
-Stored values and API payloads MUST use stable language-independent keys.
+map labels, Dossier return actions, custom-preference extraction labels, and
+review status labels MUST NOT hard-code English or Dutch copy. Stored values and
+API payloads MUST use stable language-independent keys.
 
 Rationale: Bilingual support is a product requirement for Dutch users and
 international home seekers. Deferring translations makes the flow harder to test
 and easier to regress.
 
 ### IV. Map Performance First
-The app MUST NOT load national 3D buildings. 3D houses MUST load and render
-only after a neighborhood is selected, and only within that selected
-neighborhood's bounds. Viewport-based loading MAY be used only as a paging or
-level-of-detail strategy inside the selected neighborhood, never as an
-independent trigger outside it. Results maps MUST provide a 2D fallback,
-missing-3D fallback, reduced-motion fallback, and a non-map list alternative.
+The app MUST NOT load national 3D buildings or national building footprints.
+Selected-neighborhood BAG `pand` records MUST load and render as 2D footprints
+on the 2D basemap only after a neighborhood is selected, and only within that
+selected neighborhood's bounds. A `pand` is not itself a house type; house
+candidate semantics MUST come from linked `verblijfsobject.gebruiksdoel`
+metadata where available. Pands whose use purpose contains `woonfunctie` MAY be
+prioritized as house candidates, while non-residential-only pands, pands with
+only `overige gebruiksfunctie`, and pands with `aantal_verblijfsobjecten = 0`
+MUST remain visible as valid footprints but MUST be deferred or greyed out from
+arbitrary house selection unless a reliable address path exists. Where source
+data exists, selected-neighborhood detail MUST eventually show every available
+footprint inside the selected neighborhood or current selected-neighborhood
+viewport through complete or progressive loading. Viewport-based loading MAY be
+used only as a paging strategy inside the selected neighborhood, never as an
+independent trigger outside it. The app MUST NOT silently present a
+representative sample as the selected neighborhood's buildings; partial
+viewport/page states MUST be labeled honestly. Results maps MUST provide
+reduced-motion and non-map list
+alternatives, and selected-neighborhood detail MUST provide honest missing-
+footprint and partial-loading fallbacks.
+Selected-neighborhood amenity overlays MUST render every backend-returned
+no-paid amenity point marker inside the selected map frame, with marker shape
+and a dedicated emoji communicating amenity type. The right-side Relevant
+amenities panel MUST mirror those shapes and dedicated emojis as the marker
+legend and amenity filter surface.
 Hero map animation MUST remain lightweight enough that first-screen readability
 and CTA interaction are not delayed by 3D work.
 
-Rationale: The map is central to the experience, but nationwide 3D loading would
-damage performance, accessibility, and mobile usability.
+Rationale: The map is central to the experience, but nationwide building
+loading and mixing national 3D or footprint data with the selected-neighborhood
+2D basemap would damage performance, accessibility, visual consistency, and
+mobile usability.
 
 ### V. Model Honesty
 The product MUST NOT claim validated predictive probability, highest predictive
@@ -91,6 +112,12 @@ deterministic or semi-deterministic weighted scoring and present the result as a
 data-backed fit score with reason codes, confidence, tradeoffs, and limitations.
 LLM output MAY explain or translate structured results, but it MUST NOT create
 or change match scores, eligibility, confidence, or reason-code truth.
+LLM output MAY also extract user-stated additional preferences into a strict
+schema and ask bounded clarification questions. The backend MUST validate those
+extracted preferences against a typed custom-preference registry before they can
+be reviewed, scored, used as map context, saved as unsupported, or rejected.
+LLM output MUST NOT score, rank, exclude, invent eligibility, infer protected or
+sensitive traits, create confidence, or modify source metadata.
 
 Matching output MUST include the structured evidence required to interpret a
 recommendation: eligibility, score or fit label, reason codes, tradeoffs,
@@ -140,13 +167,14 @@ accessibility, and the Dossier bridge. Visual polish alone is not evidence of
 correct behavior.
 
 ### IX. Preserve Context
-Survey answers, session ID, selected neighborhood, result state, map center,
-map zoom, list scroll position, mobile map/list mode, selected result ID/rank,
-selected house/building, language, matching status, return route, and Dossier
-return path MUST survive navigation and the Dossier round trip. A user MUST NOT
-be forced to restart the survey after opening a Dossier or moving back from
-Dossier to the match map. Any refresh persistence gap MUST be documented as
-missing or partial in traceability, never treated as pass.
+Survey answers, reviewed custom preferences, extraction status, session ID,
+selected neighborhood, result state, map center, map zoom, list scroll position,
+mobile map/list mode, selected result ID/rank, selected house/building,
+language, matching status, return route, and Dossier return path MUST survive
+navigation and the Dossier round trip. A user MUST NOT be forced to restart the
+survey after opening a Dossier or moving back from Dossier to the match map. Any
+refresh persistence gap MUST be documented as missing or partial in
+traceability, never treated as pass.
 
 Rationale: The product flow fails if users lose their recommendation context
 while inspecting houses.
@@ -155,8 +183,9 @@ while inspecting houses.
 The app MUST NOT promise perfect fit, safety, happiness, investment certainty,
 future value, guaranteed affordability, or guaranteed lifestyle outcomes.
 Explanations MUST be grounded in available data, deterministic score inputs,
-reason codes, source/freshness metadata, and explicit limitations. Missing,
-mock, stale, or fallback data MUST be labeled rather than hidden or inflated.
+reason codes, source/freshness metadata, reviewed custom-preference status, and
+explicit limitations. Missing, mock, stale, unsupported, disallowed, or fallback
+data MUST be labeled rather than hidden or inflated.
 
 Rationale: Buurt Check can help users reason about neighborhoods and houses, but
 it cannot guarantee personal outcomes or market performance.
@@ -209,12 +238,16 @@ inspection. Skipping directly into local detail removes the discovery step.
 
 ### XV. Failure States And Analytics Are Required
 Slow backend, failed backend, completed-with-fallback scoring, no strong
-matches, missing 3D data, and no reliable address for a selected house MUST
-have bilingual, accessible, non-deceptive recovery states. Match-first analytics
+matches, missing building-footprint data, partial selected-neighborhood
+building loading, and no reliable address for a selected house MUST have
+bilingual, accessible, non-deceptive recovery states. Match-first analytics
 MUST cover funnel progress, survey drop-off, match job success/fallback, map and
-list engagement, neighborhood detail entry, house click, Dossier open, and
-back-to-map return. User-facing analytics labels MUST use translation keys, and
-stored analytics values MUST use stable language-independent keys.
+list engagement, additional-preference prompt shown/skipped/submitted,
+custom-preference extraction/review outcomes, neighborhood detail entry, house
+click, Dossier open, and back-to-map return. User-facing analytics labels MUST
+use translation keys, and stored analytics values MUST use stable
+language-independent keys. Analytics MUST NOT store raw free-text preference
+content.
 
 Rationale: The product cannot be operated or trusted if failure and engagement
 states are invisible or treated as optional.
@@ -225,16 +258,21 @@ The canonical journey for this revamp is:
 
 1. Landing hero with one dominant match CTA and demoted address search.
 2. Survey intro explaining the purpose in brief bilingual copy.
-3. One-question-at-a-time survey with progress, back behavior, and persistence.
-4. Review screen with a single final run CTA.
-5. Backend matching progress backed by real persisted session/job state.
-6. Animated checkmark success with reduced-motion fallback.
-7. Netherlands-centered results map with ranked list and map/list
+3. One-question-at-a-time guided intake with progress, back behavior, and
+   persistence.
+4. Optional additional-preferences prompt that extracts only reviewed,
+   registry-validated structured preferences.
+5. Review screen with a single final run CTA.
+6. Backend matching progress backed by real persisted session/job state.
+7. Animated checkmark success with reduced-motion fallback.
+8. Netherlands-centered results map with ranked list and map/list
    synchronization.
-8. Selected-neighborhood detail with selected-neighborhood-only 3D houses,
-   amenities, and 2D fallback.
-9. House click or selection bridge into the existing Dossier.
-10. Persistent return from Dossier to the match map without losing context.
+9. Selected-neighborhood detail with progressively loaded all-available
+   selected-neighborhood-only 2D BAG `pand` footprints, woonfunctie-prioritized
+   house candidates, amenities, and honest missing-footprint or partial-loading
+   fallback.
+10. House click or selection bridge into the existing Dossier.
+11. Persistent return from Dossier to the match map without losing context.
 
 Plans, specs, tasks, code reviews, and tests MUST explicitly state which step or
 steps they affect. Any deviation from this sequence MUST be documented as a
@@ -296,4 +334,4 @@ verify constitution compliance. Violations MAY proceed only when documented in
 the plan's Complexity Tracking section with a reason, rejected simpler
 alternative, owner, and follow-up review condition.
 
-**Version**: 2.2.0 | **Ratified**: 2026-05-11 | **Last Amended**: 2026-05-15
+**Version**: 2.5.0 | **Ratified**: 2026-05-11 | **Last Amended**: 2026-05-22

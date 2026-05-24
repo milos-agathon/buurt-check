@@ -1,24 +1,34 @@
 import { useEffect } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import type { MatchFirstSurveyAnswers } from '../../types/matchFirst';
+import type {
+  MatchCustomPreferenceItem,
+  MatchCustomPreferenceUseStatus,
+  MatchFirstSurveyAnswers,
+  MatchSessionSnapshot,
+} from '../../types/matchFirst';
 import { recordMatchFirstEvent } from '../../services/matchFirstAnalytics';
 import { readMatchSessionSnapshot } from '../../services/matchSessionStorage';
 import { MATCH_FIRST_SURVEY_QUESTION_COUNT, matchFirstSurveyQuestions } from './surveyQuestions';
 import { surveyAnswersAreComplete } from './surveyValidation';
 import './MatchFirstLanding.css';
+import './SurveyShell.css';
 
 interface SurveyReviewProps {
   sessionId?: string | null;
   answers?: MatchFirstSurveyAnswers | null;
+  customPreferences?: MatchCustomPreferenceItem[] | null;
+  customPreferencesReviewed?: boolean;
+  customPreferencesSkipped?: boolean;
   syncErrorKey?: string | null;
   syncing?: boolean;
   onBack: () => void;
+  onEditCustomPreferences?: () => void;
   onComplete: (answers: MatchFirstSurveyAnswers) => void;
 }
 
-function readStoredReviewAnswers(sessionId?: string | null): MatchFirstSurveyAnswers | null {
-  return readMatchSessionSnapshot(sessionId)?.answers ?? null;
+function readStoredReviewSnapshot(sessionId?: string | null): MatchSessionSnapshot | null {
+  return readMatchSessionSnapshot(sessionId);
 }
 
 function findOptionLabel(questionId: string, value: string | undefined): string | null {
@@ -72,17 +82,42 @@ function formatBudgetSummary(
   return parts.length > 0 ? parts.join('; ') : null;
 }
 
+function statusKey(status: MatchCustomPreferenceUseStatus): string {
+  return `matchFirst.additionalPreferences.status.${status}`;
+}
+
 export default function SurveyReview({
   sessionId,
   answers: providedAnswers,
+  customPreferences: providedCustomPreferences,
+  customPreferencesReviewed: providedCustomPreferencesReviewed,
+  customPreferencesSkipped: providedCustomPreferencesSkipped,
   syncErrorKey,
   syncing = false,
   onBack,
+  onEditCustomPreferences,
   onComplete,
 }: SurveyReviewProps) {
   const { t, i18n } = useTranslation();
-  const answers = providedAnswers ?? readStoredReviewAnswers(sessionId);
+  const storedSnapshot = readStoredReviewSnapshot(sessionId);
+  const answers = providedAnswers ?? storedSnapshot?.answers ?? null;
+  const customPreferences = providedCustomPreferences
+    ?? storedSnapshot?.customPreferences
+    ?? [];
+  const customPreferencesReviewed = providedCustomPreferencesReviewed
+    ?? storedSnapshot?.customPreferencesReviewed
+    ?? false;
+  const customPreferencesSkipped = providedCustomPreferencesSkipped
+    ?? storedSnapshot?.customPreferencesSkipped
+    ?? false;
+  const hasCustomPreferenceReviewState = providedCustomPreferencesReviewed !== undefined
+    || providedCustomPreferencesSkipped !== undefined
+    || storedSnapshot?.customPreferencesReviewed !== undefined
+    || storedSnapshot?.customPreferencesSkipped !== undefined;
   const hasCompleteAnswers = surveyAnswersAreComplete(answers);
+  const customPreferencesReady = !hasCustomPreferenceReviewState
+    || customPreferencesReviewed
+    || customPreferencesSkipped;
   const progressLabel = t('matchFirst.survey.progressLabel', {
     current: MATCH_FIRST_SURVEY_QUESTION_COUNT,
     total: MATCH_FIRST_SURVEY_QUESTION_COUNT,
@@ -130,6 +165,7 @@ export default function SurveyReview({
     <section className="match-first-landing match-first-landing--simple" aria-labelledby="match-survey-review-title">
       <div className="match-first-landing__content">
         <progress
+          className="survey-question__progress"
           role="progressbar"
           aria-label={progressLabel}
           max={MATCH_FIRST_SURVEY_QUESTION_COUNT}
@@ -186,6 +222,37 @@ export default function SurveyReview({
             </div>
           )}
         </dl>
+        {hasCustomPreferenceReviewState && (
+          <section className="additional-preferences__summary" aria-labelledby="match-custom-preferences-title">
+            <h2 id="match-custom-preferences-title">{t('matchFirst.review.customPreferencesLabel')}</h2>
+            {customPreferencesSkipped && (
+              <p className="match-first-landing__body">{t('matchFirst.review.customPreferencesSkipped')}</p>
+            )}
+            {!customPreferencesSkipped && customPreferences.length === 0 && (
+              <p className="match-first-landing__body">{t('matchFirst.review.customPreferencesMissing')}</p>
+            )}
+            {!customPreferencesSkipped && customPreferences.length > 0 && (
+              <ul>
+                {customPreferences.map((item) => (
+                  <li key={item.custom_preference_id}>
+                    <span className="additional-preferences__item-label">{t(item.label_key)}</span>
+                    <span className="additional-preferences__status">{t(statusKey(item.use_status))}</span>
+                    <span className="additional-preferences__explanation">{t(item.explanation_key)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {onEditCustomPreferences && (
+              <button
+                type="button"
+                className="additional-preferences__remove"
+                onClick={onEditCustomPreferences}
+              >
+                {t('matchFirst.review.editCustomPreferences')}
+              </button>
+            )}
+          </section>
+        )}
         {syncErrorKey && (
           <p className="match-first-landing__validation" role="alert">
             {t(syncErrorKey)}
@@ -198,7 +265,7 @@ export default function SurveyReview({
           <button
             type="button"
             className="match-first-landing__cta"
-            disabled={syncing}
+            disabled={syncing || !customPreferencesReady}
             onClick={() => onComplete(answers)}
           >
             {t('matchFirst.review.showMatches')}

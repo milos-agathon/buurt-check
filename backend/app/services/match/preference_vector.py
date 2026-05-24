@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from hashlib import sha256
 
-from app.models.match import PreferenceVector
+from app.models.match import CustomPreferenceItem, PreferenceVector
 from app.services.match.survey_schema import (
     FAMILY_HOUSEHOLDS,
     MUST_HAVE_TO_FILTER,
@@ -59,12 +59,36 @@ def _raw_answer_refs(answers: Mapping[str, object]) -> dict[str, object]:
     }
 
 
+def _custom_preferences_for_vector(
+    custom_preferences: Sequence[CustomPreferenceItem] | None,
+) -> list[CustomPreferenceItem]:
+    if not custom_preferences:
+        return []
+    return [
+        item
+        for item in custom_preferences
+        if item.use_status
+        in {
+            "scoreable",
+            "map_context_only",
+            "saved_unsupported",
+            "needs_clarification",
+            "disallowed",
+        }
+    ]
+
+
+def _custom_preferences_payload(items: Sequence[CustomPreferenceItem]) -> list[dict[str, object]]:
+    return [item.model_dump(mode="json") for item in items]
+
+
 def build_preference_vector_from_answers(
     *,
     session_id: str,
     locale: str,
     answers: Mapping[str, object],
     answer_version: int,
+    custom_preferences: Sequence[CustomPreferenceItem] | None = None,
 ) -> PreferenceVector:
     validation = validate_survey_answers(answers)
     if not survey_is_complete(validation):
@@ -103,10 +127,12 @@ def build_preference_vector_from_answers(
             points[mapped] = points.get(mapped, 0.0) + 1.0
 
     raw_answer_refs = _raw_answer_refs(answers)
+    custom_preference_items = _custom_preferences_for_vector(custom_preferences)
     vector_payload = {
         "session_id": session_id,
         "answer_version": answer_version,
         "raw_answer_refs": raw_answer_refs,
+        "custom_preferences": _custom_preferences_payload(custom_preference_items),
         "method_version": METHOD_VERSION,
     }
     vector_version = sha256(_canonical_json(vector_payload).encode("utf-8")).hexdigest()
@@ -149,6 +175,7 @@ def build_preference_vector_from_answers(
             "area_character": area_character,
             "language_preference": language,
         },
+        custom_preferences=custom_preference_items,
         locale=language,  # type: ignore[arg-type]
         method_version=METHOD_VERSION,
         source_answer_version=answer_version,

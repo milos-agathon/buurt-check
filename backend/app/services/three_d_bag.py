@@ -1,7 +1,11 @@
 import asyncio
+import base64
+import json
 import logging
 import math
 import time
+from dataclasses import dataclass
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -23,6 +27,14 @@ IMMEDIATE_CONTEXT_LIMIT = 200
 IMMEDIATE_CONTEXT_MAX_PAGES = 2
 SECONDARY_FALLBACK_RADIUS = 50.0
 TRANSIENT_STATUS_CODES = {502, 503, 504}
+PAGE_CURSOR_VERSION = 1
+
+
+@dataclass(frozen=True)
+class BuildingBoundsPage:
+    blocks: list[BuildingBlock]
+    next_cursor: str | None = None
+    partial: bool = False
 
 
 def _quadrant_bboxes(
@@ -393,6 +405,60 @@ def _get_next_page_url(data: dict, limit: int) -> str | None:
     return None
 
 
+def _bbox_string_from_rd_bounds(bounds_rd: list[float]) -> str | None:
+    if len(bounds_rd) != 4:
+        return None
+    west, south, east, north = bounds_rd
+    if west >= east or south >= north:
+        return None
+    return f"{west:.0f},{south:.0f},{east:.0f},{north:.0f}"
+
+
+def _normalize_3dbag_page_url(url: str) -> str:
+    base = settings.three_d_bag_base.rstrip("/") + "/"
+    return urljoin(base, url)
+
+
+def _is_allowed_3dbag_page_url(url: str) -> bool:
+    parsed = urlparse(url)
+    base = urlparse(settings.three_d_bag_base)
+    return parsed.scheme == base.scheme and parsed.netloc == base.netloc
+
+
+def _encode_page_cursor(*, bbox: str, next_url: str) -> str:
+    normalized_url = _normalize_3dbag_page_url(next_url)
+    payload = {
+        "v": PAGE_CURSOR_VERSION,
+        "bbox": bbox,
+        "next_url": normalized_url,
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_page_cursor(cursor: str, *, expected_bbox: str) -> str:
+    padding = "=" * (-len(cursor) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(f"{cursor}{padding}".encode("ascii"))
+        payload = json.loads(raw.decode("utf-8"))
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise ValueError("invalid 3DBAG page cursor") from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError("invalid 3DBAG page cursor")
+    if payload.get("v") != PAGE_CURSOR_VERSION:
+        raise ValueError("unsupported 3DBAG page cursor")
+    if payload.get("bbox") != expected_bbox:
+        raise ValueError("3DBAG page cursor does not match requested bounds")
+    next_url = payload.get("next_url")
+    if not isinstance(next_url, str) or not next_url:
+        raise ValueError("invalid 3DBAG page cursor URL")
+    normalized_url = _normalize_3dbag_page_url(next_url)
+    if not _is_allowed_3dbag_page_url(normalized_url):
+        raise ValueError("3DBAG page cursor URL is out of scope")
+    return normalized_url
+
+
 def _parse_bbox_page(
     data: dict,
     center_x: float,
@@ -510,6 +576,64 @@ async def _fetch_single_quadrant(
     if has_next:
         logger.info("Quadrant %s has more pages (not fetched)", label)
     return buildings, has_next
+
+
+async def get_buildings_in_rd_bounds_page(
+    bounds_rd: list[float],
+    *,
+    limit: int = BBOX_PAGE_LIMIT,
+    cursor: str | None = None,
+) -> BuildingBoundsPage:
+    """Fetch one exact selected-neighborhood RD bounds page from 3DBAG.
+
+    The cursor is an opaque server-generated wrapper around the provider's
+    next-page URL and is only valid for the same requested RD bbox.
+    """
+    bbox = _bbox_string_from_rd_bounds(bounds_rd)
+    if bbox is None:
+        return BuildingBoundsPage(blocks=[], next_cursor=None, partial=False)
+
+    west, south, east, north = bounds_rd
+    center_x = (west + east) / 2
+    center_y = (south + north) / 2
+    bounded_limit = max(1, min(limit, BBOX_PAGE_LIMIT))
+    if cursor:
+        url = _decode_page_cursor(cursor, expected_bbox=bbox)
+    else:
+        url = (
+            f"{settings.three_d_bag_base}/collections/pand/items"
+            f"?bbox={bbox}&limit={bounded_limit}"
+        )
+
+    client = _get_client()
+    try:
+        data = await _get_json_with_retries(
+            client,
+            url,
+            timeout=httpx.Timeout(BBOX_PAGE_TIMEOUT, connect=3.0),
+            attempts=BBOX_FETCH_RETRIES,
+        )
+    except (httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.warning("Selected-neighborhood bbox page fetch failed: %s", exc)
+        return BuildingBoundsPage(blocks=[], next_cursor=None, partial=True)
+
+    blocks = _parse_bbox_page(data, center_x, center_y)[:bounded_limit]
+    blocks, enrichment_partial = await _enrich_with_lod22(
+        blocks,
+        center_x,
+        center_y,
+    )
+    next_url = _get_next_page_url(data, bounded_limit)
+    next_cursor = (
+        _encode_page_cursor(bbox=bbox, next_url=next_url)
+        if next_url
+        else None
+    )
+    return BuildingBoundsPage(
+        blocks=blocks,
+        next_cursor=next_cursor,
+        partial=enrichment_partial,
+    )
 
 
 async def get_buildings_in_rd_bounds(

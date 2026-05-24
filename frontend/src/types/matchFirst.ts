@@ -129,6 +129,10 @@ export interface MatchSessionSnapshot {
   answerVersion: number;
   staleResults: boolean;
   answers: MatchFirstSurveyAnswers;
+  customPreferencesReviewed?: boolean;
+  customPreferencesSkipped?: boolean;
+  customPreferenceVersion?: number;
+  customPreferences?: MatchCustomPreferenceItem[];
 }
 
 export interface SurveyAnswerValidation {
@@ -152,6 +156,7 @@ export interface MatchFirstPreferenceVector {
   avoid_signals: string[];
   lifestyle_weights: Record<string, number>;
   persona_inputs: Record<string, unknown>;
+  custom_preferences: MatchCustomPreferenceItem[];
   locale: MatchFirstLocale;
   method_version: string;
   source_answer_version: number;
@@ -181,6 +186,10 @@ export interface MatchSessionResponse {
   preference_vector_id?: string | null;
   preference_vector_version?: string | null;
   preference_vector?: MatchFirstPreferenceVector | null;
+  custom_preferences_reviewed?: boolean;
+  custom_preferences_skipped?: boolean;
+  custom_preference_version?: number;
+  custom_preferences?: MatchCustomPreferenceItem[];
 }
 
 export interface SurveyAnswerPatchResponse {
@@ -419,7 +428,9 @@ export interface MatchNeighborhoodMapLayersResponse {
   display_bounds_wgs84: [number, number, number, number] | number[];
   boundary: {
     type: 'Feature';
-    geometry: { type: 'Polygon'; coordinates: number[][][] };
+    geometry:
+      | { type: 'Polygon'; coordinates: number[][][] }
+      | { type: 'MultiPolygon'; coordinates: number[][][][] };
     properties: Record<string, unknown>;
   };
   building_layer: MatchNeighborhoodLayerEndpoint;
@@ -435,6 +446,13 @@ export type MatchNeighborhoodAddressResolution =
   | 'manual_required'
   | 'unavailable';
 
+export type MatchNeighborhoodBuildingUsageClassification =
+  | 'residential'
+  | 'mixed_residential'
+  | 'non_residential'
+  | 'no_verblijfsobject'
+  | 'unknown';
+
 export interface MatchNeighborhoodBuildingFeature {
   building_id: string;
   vbo_id?: string | null;
@@ -449,7 +467,7 @@ export interface MatchNeighborhoodBuildingFeature {
   address_resolution: MatchNeighborhoodAddressResolution;
   address_candidate_count: number;
   fallback_label_key?: string | null;
-  geometry_source?: '3dbag_lod22' | '3dbag_lod0' | null;
+  geometry_source?: '3dbag_lod22' | '3dbag_lod0' | 'pdok_bag_pand' | null;
   lod?: '2.2' | '0' | null;
   center_rd?: { x: number; y: number } | null;
   footprint_rd?: number[][] | null;
@@ -457,6 +475,66 @@ export interface MatchNeighborhoodBuildingFeature {
   roof_surfaces?: number[][][] | null;
   year?: number | null;
   orientation_deg?: number | null;
+  bag_status?: string | null;
+  bag_gebruiksdoelen?: string[];
+  bag_verblijfsobject_count?: number | null;
+  building_usage_classification?: MatchNeighborhoodBuildingUsageClassification;
+  house_selectable?: boolean;
+}
+
+export type MatchCustomPreferenceUseStatus =
+  | 'scoreable'
+  | 'map_context_only'
+  | 'saved_unsupported'
+  | 'disallowed'
+  | 'needs_clarification';
+
+export type MatchCustomPreferencePrivacyClass =
+  | 'standard'
+  | 'sensitive_context'
+  | 'protected_trait_risk';
+
+export interface MatchCustomPreferenceItem {
+  custom_preference_id: string;
+  raw_user_phrase_ref: string;
+  normalized_key: string | null;
+  category:
+    | 'geography'
+    | 'amenity'
+    | 'mobility'
+    | 'environment'
+    | 'housing'
+    | 'safety'
+    | 'protected'
+    | 'other';
+  use_status: MatchCustomPreferenceUseStatus;
+  feature_key: string | null;
+  default_weight: number;
+  weight: number;
+  source_requirement: string | null;
+  privacy_class: MatchCustomPreferencePrivacyClass;
+  label_key: string;
+  explanation_key: string;
+  reason_code: string;
+}
+
+export interface MatchCustomPreferenceExtractionResponse {
+  session_id: string;
+  locale: MatchFirstLocale;
+  items: MatchCustomPreferenceItem[];
+  needs_clarification: boolean;
+  warnings: string[];
+}
+
+export interface MatchCustomPreferenceReviewResponse {
+  session_id: string;
+  locale: MatchFirstLocale;
+  reviewed: boolean;
+  skipped: boolean;
+  custom_preference_version: number;
+  items: MatchCustomPreferenceItem[];
+  preference_vector_id?: string | null;
+  preference_vector_version?: string | null;
 }
 
 export interface MatchNeighborhoodBuildingsResponse {
@@ -467,6 +545,10 @@ export interface MatchNeighborhoodBuildingsResponse {
   clipped_to_neighborhood: boolean;
   buildings: MatchNeighborhoodBuildingFeature[];
   fallback_reason_code?: string | null;
+  complete: boolean;
+  next_cursor?: string | null;
+  loaded_scope: 'selected_neighborhood' | 'selected_viewport';
+  partial_reason_code?: string | null;
   data_version: string;
   source_refs: string[];
   limitations: string[];
@@ -486,7 +568,7 @@ export interface MatchNeighborhoodAmenityPoint {
   category_key: string;
   label_key: string;
   name?: string | null;
-  emoji: string;
+  marker_shape: string;
   display_lat: number;
   display_lng: number;
   display_coordinate_system: 'WGS84';
@@ -501,12 +583,19 @@ export interface MatchNeighborhoodAmenityPoint {
   relevance: number;
 }
 
+export interface MatchNeighborhoodAmenityUnavailable {
+  amenity_key: string;
+  reason_code: string;
+  source_name?: string | null;
+}
+
 export interface MatchNeighborhoodAmenitiesResponse {
   neighborhood_id: string;
   session_id: string;
   result_set_id: string;
   tags: MatchNeighborhoodAmenityTag[];
   points: MatchNeighborhoodAmenityPoint[];
+  unavailable?: MatchNeighborhoodAmenityUnavailable[];
   source_refs: string[];
   limitations: string[];
 }

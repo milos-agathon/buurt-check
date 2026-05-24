@@ -12,6 +12,7 @@ export type HashRoute =
   | 'matchLanding'
   | 'matchSurveyIntro'
   | 'matchSurvey'
+  | 'matchAdditionalPreferences'
   | 'matchReview'
   | 'matchRun'
   | 'matchSuccess'
@@ -66,6 +67,7 @@ export interface ParsedHashRoute {
 
 const MATCH_SESSION_STEP_ROUTES: Partial<Record<string, HashRoute>> = {
   intro: 'matchSurveyIntro',
+  'additional-preferences': 'matchAdditionalPreferences',
   review: 'matchReview',
   run: 'matchRun',
   success: 'matchSuccess',
@@ -74,6 +76,7 @@ const MATCH_SESSION_STEP_ROUTES: Partial<Record<string, HashRoute>> = {
 
 const MATCH_SESSION_ROUTE_STEPS: Partial<Record<HashRoute, string>> = {
   matchSurveyIntro: 'intro',
+  matchAdditionalPreferences: 'additional-preferences',
   matchReview: 'review',
   matchRun: 'run',
   matchSuccess: 'success',

@@ -1,5 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import type { MatchCompareResponse } from '../../types/match';
+import {
+  getMatchComparisonValueLabel,
+  getMatchDimensionLabel,
+  getMatchFreshnessStatusLabel,
+} from './matchDisplayLabels';
 import './MatchComparison.css';
 
 interface MatchComparisonProps {
@@ -66,14 +71,18 @@ export default function MatchComparison({
               </div>
               <div>
                 <dt>{t('match.comparison.freshness')}</dt>
-                <dd>{neighborhood.freshness_status}</dd>
+                <dd>{getMatchFreshnessStatusLabel(neighborhood.freshness_status, t)}</dd>
               </div>
             </dl>
             <p>{t('match.comparison.evidenceCount', { count: neighborhood.evidence.length })}</p>
             <p>{t('match.comparison.tradeoffCount', { count: neighborhood.tradeoffs.length })}</p>
             {neighborhood.missing_data.length > 0 && (
               <p className="match-comparison__missing">
-                {t('match.comparison.missingData', { items: neighborhood.missing_data.join(', ') })}
+                {t('match.comparison.missingData', {
+                  items: neighborhood.missing_data
+                    .map((item) => getMatchDimensionLabel(item, t))
+                    .join(', '),
+                })}
               </p>
             )}
           </article>
@@ -98,13 +107,17 @@ export default function MatchComparison({
                 {comparison.neighborhoods.map((neighborhood) => {
                   const cell = row.cells[neighborhood.neighborhood_id];
                   return (
-                    <td key={neighborhood.neighborhood_id} data-state={cell.state}>
-                      <strong>{cell.display_value}</strong>
+                    <td
+                      key={neighborhood.neighborhood_id}
+                      data-column-label={neighborhood.name}
+                      data-state={cell.state}
+                    >
+                      <strong>{getMatchComparisonValueLabel(cell.display_value, t)}</strong>
                       <span>{t(`match.comparison.state.${cell.state}`)}</span>
                       <small>
                         {t('match.comparison.cellMeta', {
                           confidence: cell.confidence,
-                          freshness: cell.freshness_status,
+                          freshness: getMatchFreshnessStatusLabel(cell.freshness_status, t),
                         })}
                       </small>
                       <small>{cell.sources.map((source) => source.source_name).join(', ') || t('match.common.noSource')}</small>

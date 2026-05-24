@@ -26,7 +26,7 @@
 **Alternatives considered**:
 
 - Reuse current `MatchMap`: rejected because it lacks real map interactions.
-- MapLibre GL: rejected for MVP because it is heavier and adds WebGL map complexity while selected-neighborhood 3D already uses Three.js.
+- MapLibre GL: rejected for MVP because it is heavier and adds WebGL map complexity while the match-first selected-neighborhood surface uses 2D building footprints on a 2D basemap.
 - Custom canvas/WebGL map: rejected because it would recreate mature map behavior and accessibility work.
 
 ## Decision: Use lightweight hero animation first
@@ -57,6 +57,29 @@
 - Fit/select multiple predictive models now: rejected because no target labels exist.
 - Use LLM scoring: rejected because LLMs may explain structured outputs but must not create or modify scores, eligibility, confidence, or reason-code truth.
 
+## Decision: Use hybrid guided intake plus optional structured preference extraction
+
+**Rationale**: Fixed questions cover the core matching dimensions efficiently,
+but users may care about preferences not present in the survey, such as beach
+proximity, religious/cultural amenity proximity, or other lifestyle details.
+The safest flow keeps the one-question guided intake and adds one optional
+"anything else that matters?" prompt. Any LLM use is limited to extracting
+user-stated preferences into a strict schema, asking bounded clarification, and
+classifying items through a backend custom-preference registry. Scoring remains
+deterministic and backend-owned.
+
+**Alternatives considered**:
+
+- Unbounded AI chat: rejected because it is too loose for a high-stakes housing
+  flow, can overfit to unsupported preferences, and conflicts with the
+  one-decision onboarding rule.
+- Let the LLM directly choose best-fit neighborhoods: rejected because it would
+  bypass source metadata, confidence, hard-filter, fairness, and validation
+  contracts.
+- Ignore uncovered preferences: rejected because the product should capture
+  user-stated needs that the fixed question set misses, while clearly labeling
+  whether they affect scoring, map context, or future support only.
+
 ## Decision: Store match sessions, answers, jobs, and result sets in DB
 
 **Rationale**: Existing match tables cover neighborhoods, metrics, feature vectors, preference vectors, reports, saved neighborhoods, feedback, analytics, and source health, but not resumable sessions or pollable jobs. The PRD requires answer persistence, refresh recovery, progress state, and Dossier return context.
@@ -66,14 +89,17 @@
 - Browser-only session state: rejected because backend matching and Dossier return need canonical session state.
 - Redis-only job state: rejected because the repo already uses SQLite/Turso for buyer-bound state and Redis may be unavailable or transient.
 
-## Decision: Load 3D buildings only for selected neighborhoods
+## Decision: Load all available 2D building footprints only for selected neighborhoods
 
-**Rationale**: The constitution forbids national 3D loading. Existing Dossier 3D is address/neighborhood scoped and uses plain Three.js. The revamp should follow that pattern with server-side neighborhood bounds validation and 2D fallback.
+**Rationale**: The constitution forbids national building loading, and the selected-neighborhood match map uses a 2D basemap. Existing Dossier 3D remains address/neighborhood scoped and uses plain Three.js, but match-first selected-neighborhood buildings should render as scoped 2D footprints with server-side neighborhood bounds validation and honest fallback. The user mental model is neighborhood inspection, so the intended UX is all available selected-neighborhood footprints or all available current selected-neighborhood viewport footprints loaded progressively, not a silent representative sample.
 
 **Alternatives considered**:
 
-- National 3D building layer: rejected for performance and constitutional compliance.
-- Viewport-triggered loading outside selected neighborhood: rejected because viewport loading may only page/LOD inside the selected neighborhood.
+- National building-footprint or 3D building layer: rejected for performance and constitutional compliance.
+- Viewport-triggered loading outside selected neighborhood: rejected because viewport loading may only page inside the selected neighborhood.
+- Representative nearby building sample: rejected because users infer those are
+  the only clickable houses and because house-to-Dossier selection requires the
+  map to feel like a real neighborhood surface.
 
 ## Decision: Preserve Dossier and add only route context plus return action
 

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatchSimilarResponse } from '../../types/match';
+import { getMatchDimensionLabel } from './matchDisplayLabels';
 import './MatchSimilarSearch.css';
 
 interface KnownNeighborhood {
@@ -78,7 +79,9 @@ export default function MatchSimilarSearch({
               <p>{t('match.similar.confidence', { score: result.confidence.score })}</p>
               {result.meaningful_differences.length > 0 && (
                 <p>{t('match.similar.differences', {
-                  items: result.meaningful_differences.map((item) => item.feature).join(', '),
+                  items: result.meaningful_differences
+                    .map((item) => getMatchDimensionLabel(item.feature, t))
+                    .join(', '),
                 })}</p>
               )}
             </article>

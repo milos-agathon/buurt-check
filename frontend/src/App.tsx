@@ -126,8 +126,10 @@ import {
 } from './services/matchApi';
 import {
   createMatchSession,
+  extractMatchCustomPreferences,
   getMatchSession,
   patchMatchSessionAnswers,
+  reviewMatchCustomPreferences,
   runMatchSession,
 } from './services/matchFirstApi';
 import { recordMatchFirstEvent } from './services/matchFirstAnalytics';
@@ -201,6 +203,8 @@ import {
   type ParsedHashRoute,
 } from './routing/hashRoutes';
 import type {
+  MatchCustomPreferenceItem,
+  MatchCustomPreferenceReviewResponse,
   MatchFirstPreferenceVector,
   MatchJobPublicStatus,
   MatchJobStatusResponse,
@@ -212,6 +216,11 @@ import type {
 } from './types/matchFirst';
 import { MATCH_FIRST_SURVEY_QUESTION_COUNT } from './components/match-first/surveyQuestions';
 import { firstIncompleteSurveyStep, surveyAnswersAreComplete } from './components/match-first/surveyValidation';
+import {
+  getMatchFreshnessIndicatorLabel,
+  getMatchFreshnessStatusLabel,
+  getMatchRecommendationReasonLabel,
+} from './components/match/matchDisplayLabels';
 import './App.css';
 
 const BuildingFootprintMap = lazy(() => import('./components/BuildingFootprintMap'));
@@ -221,6 +230,7 @@ const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 const MatchLanding = lazy(() => import('./components/match-first/MatchFirstLanding'));
 const MatchSurveyIntro = lazy(() => import('./components/match-first/SurveyIntro'));
 const MatchSurveyShell = lazy(() => import('./components/match-first/SurveyShell'));
+const MatchAdditionalPreferences = lazy(() => import('./components/match-first/AdditionalPreferencesPrompt'));
 const MatchSurveyReview = lazy(() => import('./components/match-first/SurveyReview'));
 const MatchingProgressScreen = lazy(() => import('./components/match-first/MatchingProgressScreen'));
 const MatchSuccessCheckmark = lazy(() => import('./components/match-first/MatchSuccessCheckmark'));
@@ -238,6 +248,7 @@ const MatchFeedbackControls = lazy(() => import('./components/match/MatchFeedbac
 type Screen = HashRoute;
 type ComparisonRow = { label: string; value: number; pattern?: 'dashed'; colorKey: ComparisonColorKey };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getMatchRouteMotionProps(reducedMotion: boolean) {
   return reducedMotion
     ? {
@@ -612,6 +623,12 @@ const MATCH_RETURN_ROUTES: ReadonlySet<HashRoute> = new Set([
   'matchMap',
 ]);
 
+const MATCH_ROUTES_REQUIRING_SESSION: ReadonlySet<HashRoute> = new Set([
+  'matchSurvey',
+  'matchAdditionalPreferences',
+  'matchReview',
+]);
+
 const MATCH_SESSION_STORAGE_KEY = 'buurt-check-match-first-session-id';
 type MatchJobStatus =
   | 'run_pending'
@@ -695,6 +712,10 @@ function resolveMatchSurveyQuestionStep(
   return Math.min(boundedStep, firstIncompleteStep);
 }
 
+function matchRouteRequiresExplicitSession(route: HashRoute): boolean {
+  return MATCH_ROUTES_REQUIRING_SESSION.has(route);
+}
+
 function hydrateMatchSessionSnapshot(session: MatchSessionResponse): void {
   const answers = session.answers ?? {};
   const step = session.is_complete
@@ -707,6 +728,10 @@ function hydrateMatchSessionSnapshot(session: MatchSessionResponse): void {
     answerVersion: session.answer_version,
     staleResults: !session.preference_vector,
     answers,
+    customPreferencesReviewed: session.custom_preferences_reviewed ?? false,
+    customPreferencesSkipped: session.custom_preferences_skipped ?? false,
+    customPreferenceVersion: session.custom_preference_version ?? 0,
+    customPreferences: session.custom_preferences ?? [],
   });
 }
 
@@ -1565,7 +1590,7 @@ function App() {
       return initialRoute.matchReturn?.sessionId ?? null;
     }
     if (
-      (initialRoute.route === 'matchSurvey' || initialRoute.route === 'matchReview')
+      matchRouteRequiresExplicitSession(initialRoute.route)
       && !initialRoute.sessionId
     ) {
       return null;
@@ -1623,6 +1648,12 @@ function App() {
   const [matchSurveyAnswers, setMatchSurveyAnswers] = useState<{
     sessionId: string | null;
     answers: MatchFirstSurveyAnswers;
+  } | null>(null);
+  const [matchCustomPreferenceReview, setMatchCustomPreferenceReview] = useState<{
+    sessionId: string | null;
+    reviewed: boolean;
+    skipped: boolean;
+    items: MatchCustomPreferenceItem[];
   } | null>(null);
   const mainContentRef = useRef<HTMLElement | null>(null);
   const [matchQuizResponse] = useState<MatchQuizResponse | null>(null);
@@ -4945,7 +4976,7 @@ function App() {
     }
     if (parsed.route.startsWith('match')) {
       const stepSessionId = parsed.sessionId
-        ?? (parsed.route === 'matchSurvey' || parsed.route === 'matchReview' ? null : readStoredMatchSessionId());
+        ?? (matchRouteRequiresExplicitSession(parsed.route) ? null : readStoredMatchSessionId());
       const resolvedQuestionStep = parsed.route === 'matchSurvey'
         ? resolveMatchSurveyQuestionStep(stepSessionId, parsed.questionStep)
         : parsed.questionStep ?? 1;
@@ -4961,7 +4992,7 @@ function App() {
         matchMapReturnContextRef.current = routeReturnContext;
         setMatchMapReturnContext(routeReturnContext);
       } else {
-        if (parsed.route === 'matchSurvey' || parsed.route === 'matchReview') {
+        if (matchRouteRequiresExplicitSession(parsed.route)) {
           setActiveMatchSessionId(null);
         }
         setActiveMatchJobStatus(null);
@@ -5010,6 +5041,11 @@ function App() {
     if (parsed.route === 'matchSurvey') {
       setActiveTab('home');
       setActiveScreen('matchSurvey');
+      return;
+    }
+    if (parsed.route === 'matchAdditionalPreferences') {
+      setActiveTab('home');
+      setActiveScreen('matchAdditionalPreferences');
       return;
     }
     if (parsed.route === 'matchReview') {
@@ -5749,6 +5785,8 @@ function App() {
           ? '#/match/intro'
         : activeScreen === 'matchSurvey'
           ? '#/match/survey'
+        : activeScreen === 'matchAdditionalPreferences'
+          ? activeMatchSessionId ? `#/match/session/${encodeURIComponent(activeMatchSessionId)}/additional-preferences` : '#/match/survey'
         : activeScreen === 'matchReview'
           ? activeMatchSessionId ? `#/match/session/${encodeURIComponent(activeMatchSessionId)}/review` : '#/match/survey'
         : activeScreen === 'matchRun'
@@ -6095,6 +6133,7 @@ function App() {
   const hideTopBarSettings = activeScreen === 'matchLanding'
     || activeScreen === 'matchSurveyIntro'
     || activeScreen === 'matchSurvey'
+    || activeScreen === 'matchAdditionalPreferences'
     || activeScreen === 'matchReview';
   const restoredMatchMapContext = matchMapReturnContext;
   const canShowMatchNeighborhoodShell = Boolean(
@@ -6172,6 +6211,77 @@ function App() {
     setActiveMatchQuestionStep(1);
     setActiveScreen('matchSurvey');
     setHashRoute(buildHashRoute({ route: 'matchSurvey', sessionId: sessionId ?? undefined, questionStep: 1 }));
+  };
+
+  const storeCustomPreferenceReviewState = (
+    sessionId: string,
+    review: MatchCustomPreferenceReviewResponse,
+  ) => {
+    const previous = readMatchSessionSnapshot(sessionId);
+    const answers = previous?.answers
+      ?? (
+        matchSurveyAnswers?.sessionId === sessionId
+          ? matchSurveyAnswers.answers
+          : {}
+      );
+    saveMatchSessionSnapshot(sessionId, {
+      sessionId,
+      locale: review.locale,
+      step: MATCH_FIRST_SURVEY_QUESTION_COUNT,
+      answerVersion: previous?.answerVersion ?? 0,
+      staleResults: true,
+      answers,
+      customPreferencesReviewed: review.reviewed,
+      customPreferencesSkipped: review.skipped,
+      customPreferenceVersion: review.custom_preference_version,
+      customPreferences: review.items,
+    });
+    setMatchCustomPreferenceReview({
+      sessionId,
+      reviewed: review.reviewed,
+      skipped: review.skipped,
+      items: review.items,
+    });
+  };
+
+  const openMatchReviewAfterCustomPreferences = (
+    sessionId: string,
+    review: MatchCustomPreferenceReviewResponse,
+  ) => {
+    storeCustomPreferenceReviewState(sessionId, review);
+    setMatchReviewSyncErrorKey(null);
+    setActiveMatchSessionId(sessionId);
+    storeMatchSessionId(sessionId);
+    setActiveScreen('matchReview');
+    setHashRoute(buildHashRoute({ route: 'matchReview', sessionId }));
+  };
+
+  const handleAdditionalPreferencesReviewed = async (
+    items: MatchCustomPreferenceItem[],
+  ) => {
+    const sessionId = activeMatchSessionId ?? matchSurveyAnswers?.sessionId ?? readStoredMatchSessionId();
+    if (!sessionId) {
+      throw new Error('match.session.not_found');
+    }
+    const review = await reviewMatchCustomPreferences(sessionId, {
+      locale: uiLanguage,
+      skipped: false,
+      items,
+    });
+    openMatchReviewAfterCustomPreferences(sessionId, review);
+  };
+
+  const handleAdditionalPreferencesSkipped = async () => {
+    const sessionId = activeMatchSessionId ?? matchSurveyAnswers?.sessionId ?? readStoredMatchSessionId();
+    if (!sessionId) {
+      throw new Error('match.session.not_found');
+    }
+    const review = await reviewMatchCustomPreferences(sessionId, {
+      locale: uiLanguage,
+      skipped: true,
+      items: [],
+    });
+    openMatchReviewAfterCustomPreferences(sessionId, review);
   };
 
   const recoverMatchNotFoundRoute = () => {
@@ -6510,8 +6620,19 @@ function App() {
                         if (surveyAnswersAreComplete(snapshotAnswers)) {
                           setMatchReviewSyncErrorKey(null);
                           setMatchSurveyAnswers({ sessionId, answers: snapshotAnswers });
-                          setActiveScreen('matchReview');
-                          setHashRoute(buildHashRoute({ route: 'matchReview', sessionId }));
+                          if (snapshot?.customPreferencesReviewed || snapshot?.customPreferencesSkipped) {
+                            setMatchCustomPreferenceReview({
+                              sessionId,
+                              reviewed: Boolean(snapshot.customPreferencesReviewed),
+                              skipped: Boolean(snapshot.customPreferencesSkipped),
+                              items: snapshot.customPreferences ?? [],
+                            });
+                            setActiveScreen('matchReview');
+                            setHashRoute(buildHashRoute({ route: 'matchReview', sessionId }));
+                            return;
+                          }
+                          setActiveScreen('matchAdditionalPreferences');
+                          setHashRoute(buildHashRoute({ route: 'matchAdditionalPreferences', sessionId }));
                           return;
                         }
                         const nextStep = firstIncompleteSurveyStep(snapshotAnswers);
@@ -6582,12 +6703,54 @@ function App() {
                       }
                       setMatchReviewSyncErrorKey(null);
                       setMatchSurveyAnswers({ sessionId: sessionId ?? null, answers });
-                      setActiveScreen('matchReview');
+                      setMatchCustomPreferenceReview(null);
+                      setActiveScreen('matchAdditionalPreferences');
                       setHashRoute(buildHashRoute({
-                        route: 'matchReview',
+                        route: 'matchAdditionalPreferences',
                         sessionId: sessionId ?? undefined,
                       }));
                     }}
+                  />
+                ) : routeLoadingFallback}
+              </Suspense>
+            </motion.div>
+          )}
+
+          {activeScreen === 'matchAdditionalPreferences' && (
+            <motion.div
+              key="screen-match-additional-preferences"
+              className="app__screen"
+              {...matchRouteMotionProps}
+            >
+              <Suspense fallback={routeLoadingFallback}>
+                {activeMatchSessionId ? (
+                  <MatchAdditionalPreferences
+                    sessionId={activeMatchSessionId}
+                    initialItems={
+                      matchCustomPreferenceReview?.sessionId === activeMatchSessionId
+                        ? matchCustomPreferenceReview.items
+                        : readMatchSessionSnapshot(activeMatchSessionId)?.customPreferences ?? []
+                    }
+                    onBack={() => {
+                      const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+                      if (sessionId) {
+                        setActiveMatchSessionId(sessionId);
+                        storeMatchSessionId(sessionId);
+                      }
+                      setActiveMatchQuestionStep(MATCH_FIRST_SURVEY_QUESTION_COUNT);
+                      setActiveScreen('matchSurvey');
+                      setHashRoute(buildHashRoute({
+                        route: 'matchSurvey',
+                        sessionId: sessionId ?? undefined,
+                        questionStep: MATCH_FIRST_SURVEY_QUESTION_COUNT,
+                      }));
+                    }}
+                    onSkip={handleAdditionalPreferencesSkipped}
+                    onReview={handleAdditionalPreferencesReviewed}
+                    onExtract={(text) => extractMatchCustomPreferences(activeMatchSessionId, {
+                      locale: uiLanguage,
+                      text,
+                    })}
                   />
                 ) : routeLoadingFallback}
               </Suspense>
@@ -6609,8 +6772,35 @@ function App() {
                         ? matchSurveyAnswers.answers
                         : null
                     }
+                    customPreferences={
+                      matchCustomPreferenceReview?.sessionId === activeMatchSessionId
+                        ? matchCustomPreferenceReview.items
+                        : readMatchSessionSnapshot(activeMatchSessionId)?.customPreferences ?? null
+                    }
+                    customPreferencesReviewed={
+                      matchCustomPreferenceReview?.sessionId === activeMatchSessionId
+                        ? matchCustomPreferenceReview.reviewed
+                        : readMatchSessionSnapshot(activeMatchSessionId)?.customPreferencesReviewed
+                    }
+                    customPreferencesSkipped={
+                      matchCustomPreferenceReview?.sessionId === activeMatchSessionId
+                        ? matchCustomPreferenceReview.skipped
+                        : readMatchSessionSnapshot(activeMatchSessionId)?.customPreferencesSkipped
+                    }
                     syncErrorKey={matchReviewSyncErrorKey}
                     syncing={matchReviewSyncing}
+                    onEditCustomPreferences={() => {
+                      const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
+                      if (sessionId) {
+                        setActiveMatchSessionId(sessionId);
+                        storeMatchSessionId(sessionId);
+                      }
+                      setActiveScreen('matchAdditionalPreferences');
+                      setHashRoute(buildHashRoute({
+                        route: 'matchAdditionalPreferences',
+                        sessionId: sessionId ?? undefined,
+                      }));
+                    }}
                     onBack={() => {
                       const sessionId = activeMatchSessionId ?? readStoredMatchSessionId();
                       if (sessionId) {
@@ -6618,12 +6808,10 @@ function App() {
                         storeMatchSessionId(sessionId);
                       }
                       setMatchReviewSyncErrorKey(null);
-                      setActiveMatchQuestionStep(MATCH_FIRST_SURVEY_QUESTION_COUNT);
-                      setActiveScreen('matchSurvey');
+                      setActiveScreen('matchAdditionalPreferences');
                       setHashRoute(buildHashRoute({
-                        route: 'matchSurvey',
+                        route: 'matchAdditionalPreferences',
                         sessionId: sessionId ?? undefined,
-                        questionStep: MATCH_FIRST_SURVEY_QUESTION_COUNT,
                       }));
                     }}
                     onComplete={(answers) => {
@@ -6774,9 +6962,6 @@ function App() {
                   <button type="button" onClick={() => { setActiveScreen('matchSaved'); setHashRoute('#/match/saved'); }}>
                     {t('match.navigation.saved')}
                   </button>
-                  <button type="button" onClick={() => { setActiveScreen('matchAdmin'); setHashRoute('#/match/admin'); }}>
-                    {t('match.navigation.admin')}
-                  </button>
                 </section>
 
                 <section className="match-recommendations" aria-labelledby="match-recommendations-title">
@@ -6801,14 +6986,18 @@ function App() {
                           <p>{t('match.recommendations.method')}</p>
                           <p>{t('match.recommendations.confidence', { score: item.confidence.score })}</p>
                           <p>{t('match.recommendations.freshness', {
-                            status: item.data_freshness_indicator || item.freshness_status,
+                            status: item.data_freshness_indicator
+                              ? getMatchFreshnessIndicatorLabel(item.data_freshness_indicator, t)
+                              : getMatchFreshnessStatusLabel(item.freshness_status, t),
                           })}</p>
                           <p>{t('match.recommendations.sources', {
                             sources: item.source_refs.join(', ') || t('match.common.noSource'),
                           })}</p>
                           <ul>
                             {item.why_it_fits.slice(0, 3).map((reason) => (
-                              <li key={reason.code}>{reason.code}</li>
+                              <li key={reason.code}>
+                                {getMatchRecommendationReasonLabel(reason.code, t, i18n.exists.bind(i18n))}
+                              </li>
                             ))}
                           </ul>
                           <p>{t('match.recommendations.tradeoffs', { count: item.tradeoffs.length })}</p>

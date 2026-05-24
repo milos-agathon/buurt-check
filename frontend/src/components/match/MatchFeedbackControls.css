@@ -1,31 +1,36 @@
 .match-feedback {
   display: grid;
-  gap: var(--space-2, 8px);
+  gap: var(--space-sm);
 }
 
 .match-feedback__buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2, 8px);
+  gap: var(--space-sm);
 }
 
 .match-feedback__button {
-  min-height: 2.5rem;
-  border: 1px solid var(--color-border, #d8e2ea);
-  border-radius: var(--radius-sm, 8px);
-  background: var(--color-surface, #fff);
-  color: var(--color-text, #17212b);
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
   padding: 0.5rem 0.75rem;
   font: inherit;
   cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.match-feedback__button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .match-feedback__button--active {
-  border-color: var(--color-accent-text, #00685f);
-  background: var(--color-accent-muted, #e3f3f1);
+  border-color: var(--color-accent-text);
+  background: var(--color-accent-light);
 }
 
 .match-feedback__button:focus-visible {
-  outline: 3px solid var(--color-focus, #0d9488);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
 }

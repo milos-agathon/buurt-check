@@ -37,15 +37,12 @@ logger = logging.getLogger(__name__)
 _DUO_SOURCE_REF = "duo_open_onderwijsdata_bag"
 _LRK_SOURCE_REF = "lrk_bag_locations"
 _GREEN_SOURCE_REF = "pdok_bgt_brt_green"
-_SPORTS_SOURCE_REF = "pdok_bgt_bag_sports"
-_BGT_SPORT_SOURCE_REF = "pdok_bgt_sportterrein"
-_BAG_SPORT_SOURCE_REF = "pdok_bag_sportfunctie"
+_ADDRESS_MATCH_CONCURRENCY = 8
 
 _SOURCE_NAMES = {
     _DUO_SOURCE_REF: "DUO Open Onderwijsdata school vestigingen matched to BAG",
     _LRK_SOURCE_REF: "Landelijk Register Kinderopvang matched to BAG",
     _GREEN_SOURCE_REF: "PDOK BGT/BRT green-space geometry",
-    _SPORTS_SOURCE_REF: "PDOK BGT sportterrein and BAG sportfunctie geometry",
 }
 
 _LIMITATIONS = (
@@ -66,11 +63,6 @@ class OfficialAmenityClient(Protocol):
     async def match_bag_address(self, query: str) -> ResolvedAddress | None: ...
 
     async def fetch_pdok_green_features(
-        self,
-        bounds_rd: tuple[float, float, float, float],
-    ) -> dict[str, object]: ...
-
-    async def fetch_pdok_sports_features(
         self,
         bounds_rd: tuple[float, float, float, float],
     ) -> dict[str, object]: ...
@@ -142,12 +134,6 @@ class LiveOfficialAmenityClient:
     ) -> dict[str, object]:
         return await self._fetch_bgt_collection("begroeidterreindeel", bounds_rd)
 
-    async def fetch_pdok_sports_features(
-        self,
-        bounds_rd: tuple[float, float, float, float],
-    ) -> dict[str, object]:
-        return await self._fetch_bgt_collection("functioneelgebied", bounds_rd)
-
     async def fetch_bag_sport_features(
         self,
         bounds_rd: tuple[float, float, float, float],
@@ -179,7 +165,7 @@ class LiveOfficialAmenityClient:
                 f"{settings.match_amenity_pdok_bgt_ogc_base.rstrip('/')}/collections/{collection}/items",
                 params={
                     "f": "json",
-                    "limit": "1000",
+                    "limit": str(settings.match_amenity_pdok_bgt_ogc_limit),
                     "bbox": ",".join(str(value) for value in bounds_rd),
                     "bbox-crs": _RD_NEW,
                     "crs": _CRS84,
@@ -197,13 +183,17 @@ def _first_csv_url(page_url: str, page_html: str) -> str:
 
 
 def _parse_csv_rows(text: str, *, source_url: str) -> list[dict[str, object]]:
-    sample = text[:4096]
-    try:
-        dialect = csv.Sniffer().sniff(sample, delimiters=";,")
-    except csv.Error:
-        dialect = csv.excel
-        dialect.delimiter = ";"
-    reader = csv.DictReader(StringIO(text.lstrip("\ufeff")), dialect=dialect)
+    clean_text = text.lstrip("\ufeff")
+    if clean_text.casefold().startswith("lrk_id;"):
+        reader = csv.DictReader(StringIO(clean_text), delimiter=";", quotechar='"')
+    else:
+        sample = clean_text[:4096]
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=";,")
+        except csv.Error:
+            dialect = csv.excel
+            dialect.delimiter = ";"
+        reader = csv.DictReader(StringIO(clean_text), dialect=dialect)
     rows: list[dict[str, object]] = []
     for row in reader:
         normalized = {str(key or "").strip(): value for key, value in row.items()}
@@ -222,17 +212,36 @@ def _value(row: dict[str, object], *candidates: str) -> str:
 
 
 def _address_query(row: dict[str, object]) -> str:
-    street = _value(row, "straatnaam", "straat", "vestigingsadres_straatnaam")
-    number = _value(row, "huisnummer", "vestigingsadres_huisnummer")
+    street = _value(
+        row,
+        "straatnaam",
+        "straat",
+        "vestigingsadres_straatnaam",
+        "opvanglocatie_adres",
+    )
+    number = _value(row, "huisnummer", "vestigingsadres_huisnummer", "huisnummer-toevoeging")
     suffix = _value(row, "huisletter", "huisnummertoevoeging", "toevoeging")
-    postcode = _value(row, "postcode", "vestigingsadres_postcode")
-    city = _value(row, "plaatsnaam", "woonplaats", "vestigingsadres_plaatsnaam")
+    postcode = _value(row, "postcode", "vestigingsadres_postcode", "opvanglocatie_postcode")
+    city = _value(
+        row,
+        "plaatsnaam",
+        "woonplaats",
+        "vestigingsadres_plaatsnaam",
+        "opvanglocatie_woonplaats",
+    )
     return " ".join(part for part in (street, number + suffix, postcode, city) if part).strip()
 
 
 def _row_may_belong_to_neighborhood(row: dict[str, object], municipality: str) -> bool:
-    target = municipality.strip().casefold()
-    if not target:
+    def aliases(value: str) -> set[str]:
+        normalized = value.strip().casefold()
+        values = {normalized} if normalized else set()
+        if normalized in {"den haag", "'s-gravenhage", "'s gravenhage", "s-gravenhage"}:
+            values.update({"den haag", "'s-gravenhage", "'s gravenhage", "s-gravenhage"})
+        return values
+
+    targets = aliases(municipality)
+    if not targets:
         return True
     row_places = {
         _value(
@@ -242,10 +251,13 @@ def _row_may_belong_to_neighborhood(row: dict[str, object], municipality: str) -
             "gemeentenaam",
             "gemeente",
             "vestigingsadres_plaatsnaam",
+            "opvanglocatie_woonplaats",
+            "verantwoordelijke_gemeente",
         ).casefold()
     }
     row_places.discard("")
-    return not row_places or target in row_places
+    row_place_aliases = set().union(*(aliases(place) for place in row_places))
+    return not row_place_aliases or bool(targets.intersection(row_place_aliases))
 
 
 def _in_bounds(bounds_wgs84: tuple[float, float, float, float], lat: float, lng: float) -> bool:
@@ -267,6 +279,7 @@ async def _duo_records(
     records: list[StoredAmenityRecord] = []
     skipped = 0
     unmatched = 0
+    candidates: list[tuple[dict[str, object], str]] = []
     for row in await client.fetch_duo_school_rows():
         if not _row_may_belong_to_neighborhood(row, municipality):
             skipped += 1
@@ -275,16 +288,23 @@ async def _duo_records(
         if not query:
             skipped += 1
             continue
-        address = await client.match_bag_address(query)
+        candidates.append((row, query))
+
+    semaphore = asyncio.Semaphore(_ADDRESS_MATCH_CONCURRENCY)
+
+    async def resolve(
+        row: dict[str, object],
+        query: str,
+    ) -> tuple[StoredAmenityRecord | None, str | None]:
+        async with semaphore:
+            address = await client.match_bag_address(query)
         if not _has_exact_wgs84(address):
-            unmatched += 1
-            continue
+            return None, "unmatched"
         assert address is not None
         if not _in_bounds(bounds_wgs84, address.latitude, address.longitude):
-            skipped += 1
-            continue
+            return None, "skipped"
         freshness_date = _value(row, "peildatum", "publicatiedatum") or loaded_at.date().isoformat()
-        records.append(
+        return (
             StoredAmenityRecord(
                 category_key="schools",
                 record_id=_value(row, "vestigingscode", "vestigingsnummer", "brin", "brin_nummer")
@@ -303,8 +323,25 @@ async def _duo_records(
                 limitations=_LIMITATIONS,
                 bag_address_id=address.nummeraanduiding_id,
                 bag_vbo_id=address.adresseerbaar_object_id,
-            )
+            ),
+            None,
         )
+
+    resolved = await asyncio.gather(
+        *(resolve(row, query) for row, query in candidates),
+        return_exceptions=True,
+    )
+    for item in resolved:
+        if isinstance(item, Exception):
+            unmatched += 1
+            continue
+        record, status = item
+        if record is not None:
+            records.append(record)
+        elif status == "skipped":
+            skipped += 1
+        else:
+            unmatched += 1
     return records, skipped, unmatched
 
 
@@ -319,6 +356,7 @@ async def _lrk_records(
     skipped = 0
     unmatched = 0
     withheld = 0
+    candidates: list[tuple[dict[str, object], str]] = []
     for row in await client.fetch_lrk_childcare_rows():
         if not _row_may_belong_to_neighborhood(row, municipality):
             skipped += 1
@@ -330,21 +368,28 @@ async def _lrk_records(
         if not query:
             skipped += 1
             continue
-        address = await client.match_bag_address(query)
+        candidates.append((row, query))
+
+    semaphore = asyncio.Semaphore(_ADDRESS_MATCH_CONCURRENCY)
+
+    async def resolve(
+        row: dict[str, object],
+        query: str,
+    ) -> tuple[StoredAmenityRecord | None, str | None]:
+        async with semaphore:
+            address = await client.match_bag_address(query)
         if not _has_exact_wgs84(address):
-            unmatched += 1
-            continue
+            return None, "unmatched"
         assert address is not None
         if not _in_bounds(bounds_wgs84, address.latitude, address.longitude):
-            skipped += 1
-            continue
+            return None, "skipped"
         freshness_date = _value(row, "peildatum", "publicatiedatum") or loaded_at.date().isoformat()
-        records.append(
+        return (
             StoredAmenityRecord(
                 category_key="childcare",
                 record_id=_value(row, "lrk_id", "lrk_nummer", "registratienummer") or address.id,
                 name=(
-                    _value(row, "naam", "naam_voorziening", "voorzieningnaam")
+                    _value(row, "naam", "naam_voorziening", "voorzieningnaam", "actuele_naam_oko")
                     or address.display_name
                 ),
                 source_name=_SOURCE_NAMES[_LRK_SOURCE_REF],
@@ -363,6 +408,87 @@ async def _lrk_records(
                 ),
                 bag_address_id=address.nummeraanduiding_id,
                 bag_vbo_id=address.adresseerbaar_object_id,
+            ),
+            None,
+        )
+
+    resolved = await asyncio.gather(
+        *(resolve(row, query) for row, query in candidates),
+        return_exceptions=True,
+    )
+    for item in resolved:
+        if isinstance(item, Exception):
+            unmatched += 1
+            continue
+        record, status = item
+        if record is not None:
+            records.append(record)
+        elif status == "skipped":
+            skipped += 1
+        else:
+            unmatched += 1
+    return records, skipped, unmatched, withheld
+
+
+async def _lrk_records_from_bag_index(
+    *,
+    client: OfficialAmenityClient,
+    bounds_wgs84: tuple[float, float, float, float],
+    bounds_rd: tuple[float, float, float, float],
+    municipality: str,
+    loaded_at: datetime,
+) -> tuple[list[StoredAmenityRecord], int, int, int]:
+    records: list[StoredAmenityRecord] = []
+    skipped = 0
+    unmatched = 0
+    withheld = 0
+    bag_index = _bag_feature_index(
+        await client.fetch_bag_sport_features(bounds_rd),
+        bounds_wgs84=bounds_wgs84,
+    )
+    for row in await client.fetch_lrk_childcare_rows():
+        if not _row_may_belong_to_neighborhood(row, municipality):
+            skipped += 1
+            continue
+        query = _address_query(row)
+        if _is_withheld_lrk_address(row, query):
+            withheld += 1
+            continue
+        bag_id = _value(row, "bag_id")
+        indexed = bag_index.get(bag_id)
+        if indexed is None:
+            unmatched += 1
+            continue
+        lat, lng, geometry = indexed
+        freshness_date = _value(row, "peildatum", "publicatiedatum") or loaded_at.date().isoformat()
+        records.append(
+            StoredAmenityRecord(
+                category_key="childcare",
+                record_id=_value(row, "lrk_id", "lrk_nummer", "registratienummer") or bag_id,
+                name=(
+                    _value(row, "naam", "naam_voorziening", "voorzieningnaam", "actuele_naam_oko")
+                    or query
+                    or _SOURCE_NAMES[_LRK_SOURCE_REF]
+                ),
+                source_name=_SOURCE_NAMES[_LRK_SOURCE_REF],
+                source_ref=_LRK_SOURCE_REF,
+                source_version=_source_version(
+                    _LRK_SOURCE_REF,
+                    freshness_date,
+                    loaded_at,
+                ),
+                freshness_date=freshness_date,
+                loaded_at=loaded_at,
+                display_lat=lat,
+                display_lng=lng,
+                source_coordinate_system="EPSG:4326",
+                source_geometry_coordinate_system="EPSG:4326",
+                source_geometry=geometry,
+                limitations=(
+                    *_LIMITATIONS,
+                    "match.amenities.limitations.lrk_withheld_gastouder_addresses",
+                ),
+                bag_vbo_id=bag_id,
             )
         )
     return records, skipped, unmatched, withheld
@@ -385,9 +511,10 @@ def _is_withheld_lrk_address(row: dict[str, object], query: str) -> bool:
         "opvang_op_adres_vraagouder",
         "opvangadres_vraagouder",
         "adres_afgeschermd",
+        "opvanglocatie_adres",
     ).casefold()
     return ("vgo" in type_value or "gastouder" in type_value) and (
-        not query or at_home in {"ja", "j", "true", "1"}
+        not query or at_home in {"ja", "j", "true", "1", "opvang bij de vraagouder"}
     )
 
 
@@ -468,11 +595,6 @@ def _green_predicate(properties: dict[str, object]) -> bool:
     return any(token in text for token in ("park", "groen", "bos", "plantsoen", "gras"))
 
 
-def _sport_predicate(properties: dict[str, object]) -> bool:
-    text = " ".join(str(value).casefold() for value in properties.values() if value is not None)
-    return "sport" in text or "recreatie: sportterrein" in text
-
-
 def _representative_wgs84(geometry: dict[str, object]) -> tuple[float, float] | None:
     geometry_type = geometry.get("type")
     coordinates = geometry.get("coordinates")
@@ -486,6 +608,35 @@ def _representative_wgs84(geometry: dict[str, object]) -> tuple[float, float] | 
     lng = sum(point[0] for point in points) / len(points)
     lat = sum(point[1] for point in points) / len(points)
     return lng, lat
+
+
+def _bag_feature_index(
+    collection: dict[str, object],
+    *,
+    bounds_wgs84: tuple[float, float, float, float],
+) -> dict[str, tuple[float, float, dict[str, object]]]:
+    indexed: dict[str, tuple[float, float, dict[str, object]]] = {}
+    features = collection.get("features")
+    if not isinstance(features, list):
+        return indexed
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        properties = feature.get("properties")
+        if not isinstance(properties, dict):
+            continue
+        bag_id = str(properties.get("identificatie") or "").strip()
+        geometry = feature.get("geometry")
+        if not bag_id or not isinstance(geometry, dict):
+            continue
+        representative = _representative_wgs84(geometry)
+        if representative is None:
+            continue
+        lng, lat = representative
+        if not _in_bounds(bounds_wgs84, lat, lng):
+            continue
+        indexed[bag_id] = (lat, lng, geometry)
+    return indexed
 
 
 def _flatten_points(value: object) -> list[tuple[float, float]]:
@@ -815,62 +966,6 @@ async def _refresh_geometry_sources(
             )
         )
 
-    sports_started = datetime.now(UTC)
-    sports_version = _source_version(_SPORTS_SOURCE_REF, loaded_at.date().isoformat(), loaded_at)
-    try:
-        bgt_sports, bgt_skipped = _feature_records(
-            collection=await client.fetch_pdok_sports_features(bounds_rd),
-            category_key="sports_fields",
-            source_ref=_BGT_SPORT_SOURCE_REF,
-            source_name="PDOK BGT functioneelgebied sportterrein",
-            source_version=sports_version,
-            loaded_at=loaded_at,
-            bounds_wgs84=bounds_wgs84,
-            predicate=_sport_predicate,
-        )
-        bag_sports, bag_skipped = _feature_records(
-            collection=await client.fetch_bag_sport_features(bounds_rd),
-            category_key="sports_fields",
-            source_ref=_BAG_SPORT_SOURCE_REF,
-            source_name="PDOK BAG verblijfsobject sportfunctie",
-            source_version=sports_version,
-            loaded_at=loaded_at,
-            bounds_wgs84=bounds_wgs84,
-            predicate=_sport_predicate,
-        )
-        coverage.append(
-            await _store_source_result(
-                neighborhood_id=neighborhood_id,
-                category_key="sports_fields",
-                source_ref=_SPORTS_SOURCE_REF,
-                source_name=_SOURCE_NAMES[_SPORTS_SOURCE_REF],
-                source_version=sports_version,
-                records=[*bgt_sports, *bag_sports],
-                records_skipped=bgt_skipped + bag_skipped,
-                started_at=sports_started,
-                finished_at=datetime.now(UTC),
-                bbox_wgs84=bounds_wgs84,
-                bbox_rd=bounds_rd,
-            )
-        )
-    except Exception as exc:
-        logger.warning("PDOK/BAG sports amenity refresh failed: %s", exc)
-        coverage.append(
-            await _store_source_result(
-                neighborhood_id=neighborhood_id,
-                category_key="sports_fields",
-                source_ref=_SPORTS_SOURCE_REF,
-                source_name=_SOURCE_NAMES[_SPORTS_SOURCE_REF],
-                source_version=sports_version,
-                records=[],
-                records_failed=1,
-                error_reason_code="match.amenities.source_failed",
-                started_at=sports_started,
-                finished_at=datetime.now(UTC),
-                bbox_wgs84=bounds_wgs84,
-                bbox_rd=bounds_rd,
-            )
-        )
     return coverage
 
 

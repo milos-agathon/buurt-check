@@ -9,7 +9,7 @@ Anonymous container for a user's match-first journey.
 - `session_id`: stable ID such as `match_{uuid}`
 - `anonymous_buyer_key`: optional server-issued buyer key when available
 - `locale`: `en` or `nl`
-- `phase`: `landing`, `survey_intro`, `survey_question`, `review`, `matching`, `success`, `results_map`, `neighborhood_detail`, `dossier`
+- `phase`: `landing`, `survey_intro`, `survey_question`, `additional_preferences`, `review`, `matching`, `success`, `results_map`, `neighborhood_detail`, `dossier`
 - `current_step`: integer survey step, nullable outside survey
 - `answer_version`: monotonic integer
 - `preference_vector_id`: latest vector ID, nullable until review/run
@@ -30,7 +30,7 @@ Anonymous container for a user's match-first journey.
 - `phase` must match the route state.
 - `preference_vector_version` must match the answer version used to create results.
 
-## SurveyAnswerSet
+## GuidedIntakeAnswerSet
 
 Raw user answers keyed by stable IDs.
 
@@ -51,13 +51,43 @@ Raw user answers keyed by stable IDs.
 - Optional answers must be distinguishable from missing required answers.
 - Editing any answer increments `answer_version` and marks downstream vector/results stale.
 
+## CustomPreference
+
+Structured representation of a user-stated preference that the fixed questions
+did not cover.
+
+**Fields**:
+
+- `session_id`
+- `custom_preference_id`
+- `preference_key`: stable registry key such as `coast_or_beach_proximity`
+- `status`: `scoreable`, `map_context_only`, `saved_unsupported`, `disallowed`, or `needs_clarification`
+- `privacy_class`: `ordinary_preference`, `sensitive_possible`, or `disallowed_sensitive`
+- `source_support`: `official_source_available`, `map_context_available`, `unsupported`, or `blocked`
+- `review_state`: `pending`, `accepted`, `edited`, `removed`, or `skipped`
+- `reason_code`: stable explanation code
+- `clarification_prompt_key`: optional translation key for bounded clarification
+- `source_refs`: optional official source keys when the preference can be scored or shown as map context
+- `created_at`, `updated_at`
+
+**Validation rules**:
+
+- Raw additional-preference text is used only for extraction and MUST NOT be stored in analytics.
+- `scoreable` preferences require an approved scoring feature and source coverage.
+- `map_context_only` preferences may affect map overlays/explanations but not scores.
+- `saved_unsupported` preferences are retained for future support/review but do not score.
+- `disallowed` preferences are excluded from scoring, ranking, map filters, analytics content, and explanation claims.
+- The user must review extracted preferences before matching starts.
+
 ## PreferenceVector
 
-Derived scoring input built from `SurveyAnswerSet`.
+Derived scoring input built from `GuidedIntakeAnswerSet` plus reviewed
+registry-validated `CustomPreference` rows.
 
 **Fields**:
 
 - Existing `preference_vector_id`, `session_id`, `profile_id`, `journey_intent`, budget fields, anchors, commute limits, property types, hard filters, nice-to-haves, avoid signals, lifestyle weights, persona inputs, locale, and method version
+- `custom_preferences`: reviewed structured preferences and use statuses
 - `source_answer_version`
 - `vector_version`
 - `raw_answer_refs`
@@ -68,6 +98,7 @@ Derived scoring input built from `SurveyAnswerSet`.
 - Hard filters are separate from weighted preferences.
 - Weights are normalized between 0 and 1.
 - Protected or sensitive demographic traits must not be score inputs.
+- Only accepted `scoreable` custom preferences can become hard filters or weighted score inputs; `map_context_only`, `saved_unsupported`, `disallowed`, and `needs_clarification` cannot affect scores.
 - `method_version` must be present.
 
 ## MatchJob
@@ -200,6 +231,56 @@ Map metadata needed by results and detail views.
 - Building layer refs are valid only for the selected neighborhood.
 - Building request bounds must use EPSG:28992 and must be clipped to the selected neighborhood.
 
+## BuildingFootprintPage
+
+Scoped payload for selected-neighborhood 2D building footprints.
+
+The primary selected-neighborhood 2D footprint source is PDOK BAG OGC v2 `pand`
+where available. A footprint is a BAG `pand`; its house-candidate meaning comes
+from linked `verblijfsobject.gebruiksdoel`. The model therefore stores use
+purpose metadata separately from geometry so the UI can prioritize
+`woonfunctie` pands without removing other valid footprints.
+
+**Fields**:
+
+- `session_id`
+- `result_set_id`
+- `neighborhood_id`
+- `bounds_rd` or `tile_id`: selected-neighborhood viewport/chunk in EPSG:28992
+- `loaded_scope`: `selected_neighborhood` or `selected_viewport`
+- `complete`: whether all available footprints for the requested scope are loaded
+- `next_cursor`: provider/cache cursor for the next selected-neighborhood page, or null
+- `partial_reason_code`: stable reason when `complete` is false
+- `data_version`
+- `simplification_level`
+- `clipped_to_neighborhood`
+- `buildings`: list of footprint features with stable `building_id`, WGS84 display footprint, optional RD footprint, source refs, address resolution status, BAG semantic metadata where available, and limitations
+- `fallback_reason_code`
+
+**Building feature semantic fields**:
+
+- `geometry_source`: `pdok_bag_pand`, `3dbag_lod22`, or `3dbag_lod0`
+- `bag_status`: optional BAG pand status, such as `Pand in gebruik`
+- `bag_gebruiksdoelen`: optional normalized BAG use-purpose list from linked
+  verblijfsobject records
+- `bag_verblijfsobject_count`: optional `aantal_verblijfsobjecten`
+- `building_usage_classification`: `residential`, `mixed_residential`,
+  `non_residential`, `no_verblijfsobject`, or `unknown`
+- `house_selectable`: whether the frontend may treat the footprint as a
+  selectable house candidate
+
+**Validation rules**:
+
+- Pages are valid only after a neighborhood is selected and only inside the
+  selected boundary.
+- National or out-of-scope bounds are rejected, not expanded.
+- A response with `complete=false` must not be presented as complete
+  neighborhood coverage.
+- Pands with no `woonfunctie`, only `overige gebruiksfunctie`, or
+  `aantal_verblijfsobjecten = 0` remain renderable footprints, but default to
+  deferred/non-selectable house state unless a reliable address path exists.
+- Empty/error/fallback responses are not cached as successful footprint data.
+
 ## AmenityTagSet
 
 Preference-aware amenity tags for selected-neighborhood detail.
@@ -285,7 +366,7 @@ Privacy-safe product telemetry event.
 
 **Validation rules**:
 
-- Do not store translated labels, exact anchors, free-text answers, protected traits, names, or emails.
+- Do not store translated labels, exact anchors, free-text answers, raw additional-preference text, protected traits, names, or emails.
 - Survey drop-off must use question keys and step numbers.
 
 ## State Transitions
@@ -297,7 +378,9 @@ survey_intro -> survey_question
 survey_question[n] -> answer_persisting -> survey_question[n+1]
 answer_persisting -> answer_save_failed -> survey_question[n]
 survey_question[n] -> survey_question[n-1]
-survey_question[last] -> review
+survey_question[last] -> additional_preferences
+additional_preferences -> preference_extracting|review
+preference_extracting -> additional_preferences|review
 review -> review_vector_readback_failed -> review
 review -> matching(created) -> matching(queued) -> matching(running)
 matching(running) -> matching_slow -> matching(running)

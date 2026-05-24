@@ -19,6 +19,7 @@ from app.services.three_d_bag import (
     _parse_building,
     _quadrant_bboxes,
     get_buildings_in_rd_bounds,
+    get_buildings_in_rd_bounds_page,
     get_neighborhood_3d,
     get_target_building_3d,
 )
@@ -1513,6 +1514,61 @@ async def test_neighborhood_context_gets_lod22_from_bbox_without_enrichment(
     assert neighbor is not None
     assert neighbor.roof_surfaces is not None
     assert len(neighbor.roof_surfaces) == 6
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._get_client")
+async def test_selected_bounds_page_returns_cursor_and_accepts_next_cursor(
+    mock_get_client, mock_settings,
+):
+    mock_settings.enable_lod22_roofs = True
+    mock_settings.three_d_bag_base = "https://api.3dbag.nl"
+
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    next_url = (
+        "https://api.3dbag.nl/collections/pand/items"
+        "?bbox=121000,487000,121020,487020&offset=100&limit=1"
+    )
+    first_id = "0363100012253924"
+    second_id = "0363100012253925"
+    first_page = _make_3dbag_response([_make_feature(first_id)], next_link=next_url)
+    second_page = _make_3dbag_response([_make_feature(second_id)])
+    seen_urls: list[str] = []
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        seen_urls.append(s_url)
+        if f"NL.IMBAG.Pand.{first_id}" in s_url:
+            return _make_mock_resp(_make_single_item_response(first_id))
+        if f"NL.IMBAG.Pand.{second_id}" in s_url:
+            return _make_mock_resp(_make_single_item_response(second_id))
+        if "offset=100" in s_url:
+            return _make_mock_resp(second_page)
+        return _make_mock_resp(first_page)
+
+    mock_client.get.side_effect = side_effect
+
+    first = await get_buildings_in_rd_bounds_page(
+        [121000.0, 487000.0, 121020.0, 487020.0],
+        limit=1,
+    )
+    second = await get_buildings_in_rd_bounds_page(
+        [121000.0, 487000.0, 121020.0, 487020.0],
+        limit=1,
+        cursor=first.next_cursor,
+    )
+
+    assert [block.pand_id for block in first.blocks] == [first_id]
+    assert first.next_cursor is not None
+    assert first.partial is False
+    assert [block.pand_id for block in second.blocks] == [second_id]
+    assert second.next_cursor is None
+    assert second.partial is False
+    assert any("bbox=121000,487000,121020,487020" in url for url in seen_urls)
+    assert any("offset=100" in url for url in seen_urls)
 
 
 @pytest.mark.asyncio

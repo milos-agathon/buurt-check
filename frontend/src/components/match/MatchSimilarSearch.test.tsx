@@ -60,7 +60,8 @@ it('starts from a known neighborhood and ranks similar alternatives', () => {
   const cards = screen.getAllByRole('listitem');
   expect(cards[0]).toHaveTextContent('Higher score');
   expect(cards[1]).toHaveTextContent('Lower score');
-  expect(cards[1]).toHaveTextContent('Different: affordability_buy');
+  expect(cards[1]).toHaveTextContent('Different: Buy affordability');
+  expect(cards[1]).not.toHaveTextContent('affordability_buy');
 });
 
 it('submits cheaper greener calmer filters', async () => {

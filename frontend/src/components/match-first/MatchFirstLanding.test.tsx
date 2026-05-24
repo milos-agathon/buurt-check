@@ -111,3 +111,13 @@ it('styles the landing as a full-width hero instead of a framed card', () => {
   expect(heroRule).toContain('box-shadow: none');
   expect(heroRule).not.toContain('1180px');
 });
+
+it('keeps guided-flow headings below hero scale on simple match screens', () => {
+  const css = readFileSync(join(process.cwd(), 'src/components/match-first/MatchFirstLanding.css'), 'utf8');
+  const simpleHeadingRule = css.match(/\.match-first-landing--simple h1\s*{(?<body>[^}]+)}/)?.groups?.body ?? '';
+
+  expect(simpleHeadingRule).toContain('max-width: min(100%, 16ch)');
+  expect(simpleHeadingRule).toContain('font: 850 3.15rem/1.02 var(--font-family)');
+  expect(simpleHeadingRule).not.toMatch(/(?:vw|vh|vmin|vmax)/);
+  expect(simpleHeadingRule).not.toContain('font: 900 5rem');
+});

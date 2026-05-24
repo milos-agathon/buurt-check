@@ -2353,7 +2353,7 @@ When a specific data source fails, the corresponding risk tile shows a degraded 
 | VS-14 | All icons use 1.5px stroke weight consistently |
 | VS-15 | All risk category icons are visually distinct from each other at 16px size |
 | VS-16 | All severity icons are distinguishable by shape alone (colorblind-safe) |
-| VS-17 | No emoji is used in the UI except in the season buttons (❄️🌸☀️🍂) — all other icons are custom SVG |
+| VS-17 | No emoji is used in the UI except in the season buttons (❄️🌸☀️🍂) and the match-first selected-neighborhood amenity map markers / Relevant amenities legend, where each amenity type must have its dedicated emoji paired with its marker shape. All other icons are custom SVG. |
 
 ### Buttons
 

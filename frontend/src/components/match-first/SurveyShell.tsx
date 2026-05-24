@@ -36,12 +36,6 @@ interface SurveyShellProps {
   onRecoverSession?: MatchSessionRecoveryHandler;
 }
 
-const STORAGE_KEY_PREFIX = 'buurt-check-match-first-session';
-
-function getSurveyStorageKey(sessionId?: string | null): string {
-  return `${STORAGE_KEY_PREFIX}:${sessionId || 'default'}`;
-}
-
 function clampStep(step: number | undefined): number {
   if (!step || !Number.isInteger(step)) return 1;
   return Math.min(Math.max(step, 1), MATCH_FIRST_SURVEY_QUESTION_COUNT);
@@ -134,10 +128,22 @@ function answersWithUpdatedValue(
   return { ...currentAnswers, [questionId]: value };
 }
 
-export { STORAGE_KEY_PREFIX as MATCH_FIRST_SURVEY_STORAGE_KEY_PREFIX, getSurveyStorageKey, readStoredSurveyAnswers };
 export type { MatchFirstSurveyAnswers };
 
 export default function SurveyShell({
+  sessionId,
+  ...props
+}: SurveyShellProps) {
+  return (
+    <SurveyShellSession
+      key={sessionId ?? 'default'}
+      sessionId={sessionId}
+      {...props}
+    />
+  );
+}
+
+function SurveyShellSession({
   sessionId,
   step = 1,
   onStepChange,
@@ -149,10 +155,7 @@ export default function SurveyShell({
   const { t, i18n } = useTranslation();
   const activeStep = clampStep(step);
   const question = matchFirstSurveyQuestions[activeStep - 1];
-  const readInitialAnswers = () => {
-    return readStoredSurveyAnswers(sessionId);
-  };
-  const [answers, setAnswers] = useState(readInitialAnswers);
+  const [answers, setAnswers] = useState(() => readStoredSurveyAnswers(sessionId));
   const [showValidation, setShowValidation] = useState(false);
   const [syncErrorKey, setSyncErrorKey] = useState<string | null>(null);
   const validationRef = useRef<HTMLParagraphElement | null>(null);
@@ -176,13 +179,6 @@ export default function SurveyShell({
   const nextLabel = activeStep === MATCH_FIRST_SURVEY_QUESTION_COUNT
     ? t('matchFirst.survey.review')
     : t('matchFirst.survey.next');
-
-  useEffect(() => {
-    effectiveSessionIdRef.current = sessionId ?? null;
-    setAnswers(readStoredSurveyAnswers(sessionId));
-    setShowValidation(false);
-    setSyncErrorKey(null);
-  }, [sessionId]);
 
   useEffect(() => {
     if (showValidation) {

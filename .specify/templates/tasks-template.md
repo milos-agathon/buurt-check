@@ -81,7 +81,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T008 Configure error handling and logging infrastructure
 - [ ] T009 Setup environment configuration management
 - [ ] TXXX [P] [PRD: Section 7/8] [Journey: cross-flow] Add match session/context persistence scaffolding for survey answers, session ID, selected neighborhood, map state, language, and Dossier return path. Acceptance: refresh/navigation does not clear required context in covered flows.
-- [ ] TXXX [P] [PRD: Section 16] [Journey: results/neighborhood map] Add map fallback scaffolding for selected-neighborhood-only 3D loading, 2D fallback, reduced motion, and non-map recommendation list. Acceptance: 3D houses are not requested or rendered until a neighborhood is selected, and viewport paging/LOD stays inside selected-neighborhood bounds.
+- [ ] TXXX [P] [PRD: Section 16] [Journey: results/neighborhood map] Add map fallback scaffolding for selected-neighborhood-only 2D building-footprint loading, missing-footprint fallback, reduced motion, and non-map recommendation list. Acceptance: building footprints are not requested or rendered until a neighborhood is selected, and viewport paging stays inside selected-neighborhood bounds.
 - [ ] TXXX [P] [PRD: FR-L4/FR-S6/Section 26] [Journey: cross-flow] Add Dutch/English i18n key scaffolding for every new user-facing state, validation message, fallback, route label, and Dossier return action. Acceptance: no hard-coded user-facing copy in touched components/services.
 - [ ] TXXX [P] [PRD: Section 24] [Journey: cross-flow] Add phase traceability scaffolding in `docs/qa/match_first_revamp_traceability.md` and handoff update expectations in `docs/ai/latest_handoff.md`. Acceptance: touched PRD acceptance criteria can be marked missing, partial, or pass with evidence.
 
@@ -174,7 +174,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Security hardening
 - [ ] TXXX [P] Verify Dutch/English i18n parity and absence of hard-coded user-facing copy in touched files
 - [ ] TXXX [P] Verify keyboard navigation, screen-reader labels, touch targets, contrast, reduced motion, and non-map alternatives
-- [ ] TXXX [P] Verify map performance constraints: no national 3D building requests, selected-neighborhood-only 3D loading/rendering, viewport paging/LOD only inside selected-neighborhood bounds, 2D fallback, reduced-motion fallback
+- [ ] TXXX [P] Verify map performance constraints: no national building-footprint or national 3D building requests, selected-neighborhood-only 2D building-footprint loading/rendering, viewport paging only inside selected-neighborhood bounds, missing-footprint fallback, reduced-motion fallback
 - [ ] TXXX [P] Verify context preservation across survey, results map, neighborhood detail, Dossier, and back-to-map navigation
 - [ ] TXXX [P] Verify model/copy honesty: no unsupported claims about perfect fit, safety, happiness, investment certainty, or future value
 - [ ] TXXX [P] Update `docs/qa/match_first_revamp_traceability.md` with implementation files, tests/manual verification, status, residual risks, and missing/partial items for this phase

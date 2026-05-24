@@ -77,6 +77,7 @@ function completeMatchSessionResponse(sessionId: string, answers: MatchFirstSurv
       avoid_signals: answers.dealbreakers ?? [],
       lifestyle_weights: { green_access: 0.5, calmness: 0.5 },
       persona_inputs: {},
+      custom_preferences: [],
       locale: answers.language ?? 'en',
       method_version: 'preference-vector-v2',
       source_answer_version: 11,
@@ -84,6 +85,10 @@ function completeMatchSessionResponse(sessionId: string, answers: MatchFirstSurv
       raw_answer_refs: answers,
       warnings: [],
     },
+    custom_preferences_reviewed: false,
+    custom_preferences_skipped: false,
+    custom_preference_version: 0,
+    custom_preferences: [],
   };
 }
 
@@ -1002,8 +1007,8 @@ describe('initial render', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Start the match' }));
 
-    expect(await screen.findByRole('heading', { name: 'Ready to find your best neighborhoods?' })).toBeInTheDocument();
-    expect(window.location.hash).toBe('#/match/session/match_resume_backend/review');
+    expect(await screen.findByRole('heading', { name: 'Anything else that matters?' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/match/session/match_resume_backend/additional-preferences');
 
     fetchSpy.mockRestore();
   });
@@ -1480,6 +1485,15 @@ describe('initial render', () => {
     expect(screen.queryByRole('heading', { name: 'First, we need to understand how you want to live.' })).not.toBeInTheDocument();
 
     fetchSpy.mockRestore();
+  });
+
+  it('keeps the operational admin dashboard out of the visible Match report actions', async () => {
+    window.location.hash = '#/match/report';
+    renderApp();
+
+    expect(await screen.findByRole('button', { name: 'Listings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Saved' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
   });
 
   it('applies browser back and forward popstate route changes after app-driven navigation', async () => {

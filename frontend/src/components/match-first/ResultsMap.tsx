@@ -183,9 +183,7 @@ export default function ResultsMap({
   ));
   const [mapPopupRecommendationId, setMapPopupRecommendationId] = useState<string | undefined>();
   const [mapPopupPosition, setMapPopupPosition] = useState<{ x: number; y: number; placement: MapPopupPlacement } | null>(null);
-  const [mobileMode, setMobileMode] = useState<MobileMode>(() => (
-    startingMapState?.mobileMode ?? 'map'
-  ));
+  const mobileMode: MobileMode = 'map';
   const [mapCenter, setMapCenter] = useState<[number, number]>(() => (
     startingMapState?.mapCenter ?? readCenter(initialResults?.map_center)
   ));
@@ -249,12 +247,10 @@ export default function ResultsMap({
         const restoredState = restoredMapStateRef.current;
         if (restoredStateMatchesResults(restoredState, response)) {
           setSelectedRecommendationId(restoredState.selectedRecommendationId);
-          setMobileMode(restoredState.mobileMode);
           setMapCenter(restoredState.mapCenter);
           setMapZoom(restoredState.mapZoom);
         } else {
           setSelectedRecommendationId(undefined);
-          setMobileMode('map');
           setMapCenter(readCenter(response.map_center));
           setMapZoom(NATIONAL_ZOOM);
         }
@@ -557,7 +553,7 @@ export default function ResultsMap({
   }, [locale, mapBounds, refreshLeafletSize, results, sessionId]);
 
   useEffect(() => {
-    if (!results || mobileMode !== 'map') return;
+    if (!results) return;
     const element = mapElementRef.current;
     if (!element || !leafletMapRef.current) return;
     refreshLeafletSize();
@@ -570,7 +566,7 @@ export default function ResultsMap({
     const resizeObserver = new ResizeObserver(() => refreshLeafletSize());
     resizeObserver.observe(element);
     return () => resizeObserver.disconnect();
-  }, [mobileMode, refreshLeafletSize, results]);
+  }, [refreshLeafletSize, results]);
 
   useEffect(() => {
     const map = leafletMapRef.current;
@@ -617,7 +613,7 @@ export default function ResultsMap({
         }).on('click', () => selectRecommendation(recommendation, 'map')).addTo(group);
       }
       const [lat, lng] = recommendationCenter(recommendation);
-      const size = selected ? 42 : 34;
+      const size = selected ? 48 : 44;
       const markerButton = document.createElement('button');
       markerButton.type = 'button';
       markerButton.className = selected
@@ -688,7 +684,6 @@ export default function ResultsMap({
       className="results-map-shell"
       aria-labelledby="match-results-title"
       data-testid="results-map-shell"
-      data-mobile-mode={mobileMode}
     >
       <header className="results-map-shell__header">
         <div>
@@ -697,31 +692,15 @@ export default function ResultsMap({
           <p className="results-map-shell__summary" role="status">
             {hasNoStrongMatches(results)
               ? t('matchFirst.results.noStrongBody')
-              : t('matchFirst.results.readyBody')}
+            : t('matchFirst.results.readyBody')}
           </p>
-        </div>
-        <div className="results-map-shell__toggle" role="group" aria-label={t('matchFirst.results.mobileToggleLabel')}>
-          <button
-            type="button"
-            aria-pressed={mobileMode === 'map'}
-            onClick={() => setMobileMode('map')}
-          >
-            {t('matchFirst.results.toggleMap')}
-          </button>
-          <button
-            type="button"
-            aria-pressed={mobileMode === 'list'}
-            onClick={() => setMobileMode('list')}
-          >
-            {t('matchFirst.results.toggleList')}
-          </button>
         </div>
       </header>
 
       <div className="results-map-shell__body">
         <div
           className="results-map-shell__map-panel"
-          data-active-mobile={mobileMode === 'map'}
+          data-testid="results-map-panel"
         >
           <div
             className="results-map"
@@ -738,7 +717,7 @@ export default function ResultsMap({
                 {t('matchFirst.results.basemapUnavailable')}
               </p>
             ) : null}
-            {mapPopupRecommendation && onOpenNeighborhood && mobileMode === 'map' ? (
+            {mapPopupRecommendation && onOpenNeighborhood ? (
               <article
                 className="results-map__selection-popup"
                 role="dialog"
@@ -764,17 +743,61 @@ export default function ResultsMap({
               </article>
             ) : null}
             <div className="results-map__controls" role="group" aria-label={t('matchFirst.results.mapControlsLabel')}>
-              <button type="button" onClick={() => adjustMap(0, 0, 1)}>{t('matchFirst.results.zoomIn')}</button>
-              <button type="button" onClick={() => adjustMap(0, 0, -1)}>{t('matchFirst.results.zoomOut')}</button>
-              <button type="button" onClick={() => adjustMap(0.1, 0, 0)}>{t('matchFirst.results.panNorth')}</button>
-              <button type="button" onClick={() => adjustMap(0, 0.1, 0)}>{t('matchFirst.results.panEast')}</button>
+              <button type="button" aria-label={t('matchFirst.results.zoomIn')} onClick={() => adjustMap(0, 0, 1)}>
+                <svg
+                  aria-hidden="true"
+                  data-testid="results-map-zoom-in-icon"
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                >
+                  <path
+                    d="M12 5v14M5 12h14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </button>
+              <button type="button" aria-label={t('matchFirst.results.zoomOut')} onClick={() => adjustMap(0, 0, -1)}>
+                <svg
+                  aria-hidden="true"
+                  data-testid="results-map-zoom-out-icon"
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                >
+                  <path
+                    d="M5 12h14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </button>
+              <button type="button" aria-label={t('matchFirst.results.panNorth')} onClick={() => adjustMap(0.1, 0, 0)}>
+                <span
+                  aria-hidden="true"
+                  className="results-map__control-icon results-map__control-icon--pan-north"
+                  data-testid="results-map-pan-north-icon"
+                />
+              </button>
+              <button type="button" aria-label={t('matchFirst.results.panEast')} onClick={() => adjustMap(0, 0.1, 0)}>
+                <span
+                  aria-hidden="true"
+                  className="results-map__control-icon results-map__control-icon--pan-east"
+                  data-testid="results-map-pan-east-icon"
+                />
+              </button>
             </div>
           </div>
         </div>
 
         <div
           className="results-map-shell__list-panel"
-          data-active-mobile={mobileMode === 'list'}
+          data-testid="results-list-panel"
         >
           <RecommendationList
             ref={listRef}

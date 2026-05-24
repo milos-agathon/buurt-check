@@ -7,6 +7,9 @@ import type {
   MatchFirstSurveyAnswers,
   MatchRunResponse,
   MatchJobStatusResponse,
+  MatchCustomPreferenceExtractionResponse,
+  MatchCustomPreferenceItem,
+  MatchCustomPreferenceReviewResponse,
   MatchDossierBridgeRequest,
   MatchDossierBridgeResponse,
   MatchResultsResponse,
@@ -80,6 +83,43 @@ export async function patchMatchSessionAnswers(
     body: JSON.stringify(payload),
   });
   return readJson<SurveyAnswerPatchResponse>(response);
+}
+
+export async function extractMatchCustomPreferences(
+  sessionId: string,
+  payload: {
+    locale: MatchFirstLocale;
+    text: string;
+  },
+): Promise<MatchCustomPreferenceExtractionResponse> {
+  const response = await fetch(buildPrimaryApiUrl(
+    `/match/sessions/${encodeURIComponent(sessionId)}/custom-preferences/extract`,
+  ), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  return readJson<MatchCustomPreferenceExtractionResponse>(response);
+}
+
+export async function reviewMatchCustomPreferences(
+  sessionId: string,
+  payload: {
+    locale: MatchFirstLocale;
+    skipped: boolean;
+    items: MatchCustomPreferenceItem[];
+  },
+): Promise<MatchCustomPreferenceReviewResponse> {
+  const response = await fetch(buildPrimaryApiUrl(
+    `/match/sessions/${encodeURIComponent(sessionId)}/custom-preferences/review`,
+  ), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  return readJson<MatchCustomPreferenceReviewResponse>(response);
 }
 
 export async function runMatchSession(
@@ -167,6 +207,7 @@ export async function getMatchNeighborhoodBuildings(
     boundsRd: [number, number, number, number] | number[];
     lod?: 'low' | 'medium' | 'high';
     limit?: number;
+    cursor?: string | null;
   },
 ): Promise<MatchNeighborhoodBuildingsResponse> {
   const query = new URLSearchParams({
@@ -176,6 +217,9 @@ export async function getMatchNeighborhoodBuildings(
     lod: params.lod ?? 'low',
     limit: String(params.limit ?? 50),
   });
+  if (params.cursor) {
+    query.set('cursor', params.cursor);
+  }
   const response = await fetch(buildPrimaryApiUrl(
     `/match/neighborhoods/${encodeURIComponent(neighborhoodId)}/buildings?${query.toString()}`,
   ), {

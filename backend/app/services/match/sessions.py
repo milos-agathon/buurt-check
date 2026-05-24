@@ -6,6 +6,11 @@ from uuid import uuid4
 
 from app.db import get_db
 from app.models.match import (
+    CustomPreferenceExtractionRequest,
+    CustomPreferenceExtractionResponse,
+    CustomPreferenceItem,
+    CustomPreferenceReviewRequest,
+    CustomPreferenceReviewResponse,
     MatchSessionCreateRequest,
     MatchSessionCreateResponse,
     MatchSessionDeleteResponse,
@@ -15,6 +20,7 @@ from app.models.match import (
     SurveyAnswerPatchResponse,
     SurveyAnswerValidation,
 )
+from app.services.match.custom_preferences import extract_custom_preferences
 from app.services.match.preference_vector import build_preference_vector_from_answers
 from app.services.match.survey_schema import (
     SURVEY_QUESTION_ORDER,
@@ -42,6 +48,25 @@ def _json_loads_object(value: str | None) -> dict[str, object]:
         return {}
     parsed = json.loads(value)
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _json_loads_list(value: str | None) -> list[object]:
+    if not value:
+        return []
+    parsed = json.loads(value)
+    return parsed if isinstance(parsed, list) else []
+
+
+def _custom_preferences_from_json(value: str | None) -> list[CustomPreferenceItem]:
+    items: list[CustomPreferenceItem] = []
+    for item in _json_loads_list(value):
+        if isinstance(item, dict):
+            items.append(CustomPreferenceItem.model_validate(item))
+    return items
+
+
+def _custom_preferences_to_json(items: list[CustomPreferenceItem]) -> str:
+    return _json_dumps([item.model_dump(mode="json") for item in items])
 
 
 def _validation_to_json(
@@ -97,9 +122,10 @@ async def _store_preference_vector(db, vector: PreferenceVector) -> None:
             source_answer_version,
             vector_version,
             raw_answer_refs_json,
+            custom_preferences_json,
             warnings_json,
             created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(preference_vector_id) DO UPDATE SET
             session_id = excluded.session_id,
             profile_id = excluded.profile_id,
@@ -120,6 +146,7 @@ async def _store_preference_vector(db, vector: PreferenceVector) -> None:
             source_answer_version = excluded.source_answer_version,
             vector_version = excluded.vector_version,
             raw_answer_refs_json = excluded.raw_answer_refs_json,
+            custom_preferences_json = excluded.custom_preferences_json,
             warnings_json = excluded.warnings_json,
             created_at = excluded.created_at
         """,
@@ -144,6 +171,7 @@ async def _store_preference_vector(db, vector: PreferenceVector) -> None:
             vector.source_answer_version,
             vector.vector_version,
             _json_dumps(vector.raw_answer_refs),
+            _custom_preferences_to_json(vector.custom_preferences),
             _json_dumps(vector.warnings),
             _iso(vector.created_at),
         ),
@@ -211,9 +239,13 @@ async def _read_session_row(session_id: str):
                 s.expires_at,
                 a.answers_json,
                 a.validation_json,
-                a.is_complete
+                a.is_complete,
+                cp.custom_preference_version,
+                cp.reviewed_items_json,
+                cp.skipped
             FROM match_sessions s
             LEFT JOIN match_survey_answers a ON a.session_id = s.session_id
+            LEFT JOIN match_custom_preferences cp ON cp.session_id = s.session_id
             WHERE s.session_id = ? AND s.deleted_at IS NULL
             """,
             (session_id,),
@@ -229,6 +261,12 @@ async def get_match_session(session_id: str) -> MatchSessionResponse:
     answers = _json_loads_object(row["answers_json"])
     validation = _validation_from_json(row["validation_json"])
     is_complete = bool(row["is_complete"])
+    custom_preference_version = int(row["custom_preference_version"] or 0)
+    custom_preferences_reviewed = custom_preference_version > 0
+    custom_preferences_skipped = bool(row["skipped"])
+    custom_preferences = [] if custom_preferences_skipped else _custom_preferences_from_json(
+        row["reviewed_items_json"]
+    )
     preference_vector = None
     if is_complete:
         preference_vector = build_preference_vector_from_answers(
@@ -236,6 +274,7 @@ async def get_match_session(session_id: str) -> MatchSessionResponse:
             locale=row["locale"],
             answers=answers,
             answer_version=int(row["answer_version"]),
+            custom_preferences=custom_preferences if custom_preferences_reviewed else [],
         )
 
     preference_vector_id = (
@@ -261,6 +300,10 @@ async def get_match_session(session_id: str) -> MatchSessionResponse:
         preference_vector_id=preference_vector_id,
         preference_vector_version=preference_vector_version,
         preference_vector=preference_vector,
+        custom_preferences_reviewed=custom_preferences_reviewed,
+        custom_preferences_skipped=custom_preferences_skipped,
+        custom_preference_version=custom_preference_version,
+        custom_preferences=custom_preferences,
         active_job_id=row["active_job_id"],
         selected_neighborhood_id=row["selected_neighborhood_id"],
         map_state=_json_loads_object(row["map_state_json"]) or None,
@@ -283,6 +326,7 @@ async def delete_match_session(session_id: str) -> MatchSessionDeleteResponse:
 
         for table in (
             "match_survey_answers",
+            "match_custom_preferences",
             "match_preference_vectors",
             "match_result_sets",
             "match_jobs",
@@ -336,6 +380,12 @@ async def patch_match_session_answers(
 
     is_complete = survey_is_complete(validation)
     answer_version = int(row["answer_version"]) + 1
+    custom_preference_version = int(row["custom_preference_version"] or 0)
+    custom_preferences_reviewed = custom_preference_version > 0
+    custom_preferences_skipped = bool(row["skipped"])
+    custom_preferences = [] if custom_preferences_skipped else _custom_preferences_from_json(
+        row["reviewed_items_json"]
+    )
     now = _utc_now()
     phase = _phase_for_step(payload.current_step, is_complete)
     preference_vector: PreferenceVector | None = None
@@ -347,6 +397,7 @@ async def patch_match_session_answers(
             locale=payload.locale,
             answers=next_answers,
             answer_version=answer_version,
+            custom_preferences=custom_preferences if custom_preferences_reviewed else [],
         )
         preference_vector_id = preference_vector.preference_vector_id
         preference_vector_version = preference_vector.vector_version
@@ -414,4 +465,108 @@ async def patch_match_session_answers(
         is_complete=is_complete,
         validation=validation,
         stale_results=True,
+    )
+
+
+async def extract_match_session_custom_preferences(
+    session_id: str,
+    payload: CustomPreferenceExtractionRequest,
+) -> CustomPreferenceExtractionResponse:
+    row = await _read_session_row(session_id)
+    if row is None:
+        raise KeyError(session_id)
+
+    extraction = extract_custom_preferences(payload.text, locale=payload.locale)
+    return CustomPreferenceExtractionResponse(
+        session_id=session_id,
+        locale=extraction.locale,
+        items=extraction.items,
+        needs_clarification=extraction.needs_clarification,
+        warnings=extraction.warnings,
+    )
+
+
+async def review_match_session_custom_preferences(
+    session_id: str,
+    payload: CustomPreferenceReviewRequest,
+) -> CustomPreferenceReviewResponse:
+    row = await _read_session_row(session_id)
+    if row is None:
+        raise KeyError(session_id)
+
+    now = _utc_now()
+    custom_preference_version = int(row["custom_preference_version"] or 0) + 1
+    reviewed_items = [] if payload.skipped else payload.items
+    answers = _json_loads_object(row["answers_json"])
+    is_complete = bool(row["is_complete"])
+    preference_vector: PreferenceVector | None = None
+    preference_vector_id: str | None = row["preference_vector_id"]
+    preference_vector_version: str | None = row["preference_vector_version"]
+    if is_complete:
+        preference_vector = build_preference_vector_from_answers(
+            session_id=session_id,
+            locale=payload.locale,
+            answers=answers,
+            answer_version=int(row["answer_version"]),
+            custom_preferences=reviewed_items,
+        )
+        preference_vector_id = preference_vector.preference_vector_id
+        preference_vector_version = preference_vector.vector_version
+
+    async with get_db() as db:
+        await db.execute(
+            """
+            INSERT INTO match_custom_preferences (
+                session_id,
+                custom_preference_version,
+                reviewed_items_json,
+                skipped,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                custom_preference_version = excluded.custom_preference_version,
+                reviewed_items_json = excluded.reviewed_items_json,
+                skipped = excluded.skipped,
+                updated_at = excluded.updated_at
+            """,
+            (
+                session_id,
+                custom_preference_version,
+                _custom_preferences_to_json(reviewed_items),
+                1 if payload.skipped else 0,
+                _iso(now),
+            ),
+        )
+        await db.execute(
+            """
+            UPDATE match_sessions
+            SET locale = ?,
+                phase = ?,
+                preference_vector_id = ?,
+                preference_vector_version = ?,
+                updated_at = ?
+            WHERE session_id = ?
+            """,
+            (
+                payload.locale,
+                "review",
+                preference_vector_id,
+                preference_vector_version,
+                _iso(now),
+                session_id,
+            ),
+        )
+        if preference_vector is not None:
+            await _store_preference_vector(db, preference_vector)
+        await db.commit()
+
+    return CustomPreferenceReviewResponse(
+        session_id=session_id,
+        locale=payload.locale,
+        reviewed=True,
+        skipped=payload.skipped,
+        custom_preference_version=custom_preference_version,
+        items=reviewed_items,
+        preference_vector_id=preference_vector_id,
+        preference_vector_version=preference_vector_version,
     )

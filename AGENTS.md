@@ -130,25 +130,45 @@ specs/
 
 - The PRD is the product contract. When docs or generated tasks conflict with
   `docs/prd.md`, preserve the PRD and document the conflict.
-- Primary flow is sacred: landing hero -> survey intro -> one-question survey
-  -> review -> backend matching progress -> animated checkmark success ->
-  Netherlands results map -> neighborhood 3D detail -> house click -> existing
-  Dossier -> back to match map.
+- Primary flow is sacred: landing hero -> survey intro -> one-question guided
+  intake -> optional additional-preferences prompt -> review -> backend
+  matching progress -> animated checkmark success -> Netherlands results map ->
+  neighborhood 2D detail -> house click -> existing Dossier -> back to match
+  map.
 - Search must remain secondary on the landing screen. It must not compete with
   Match as an equal CTA, card, tab, mode choice, or visual destination.
-- The survey is one-question-at-a-time. Show one question, one progress
-  indicator, and a back path after the first question. Do not add dashboards,
-  charts, feature grids, ads, pricing blocks, or unrelated content to
-  onboarding.
+- The guided intake is one-question-at-a-time. Show one question or one
+  optional additional-preferences prompt, one progress indicator, and a back
+  path after the first question. Do not add dashboards, charts, feature grids,
+  ads, pricing blocks, or unrelated content to onboarding.
+- Conversational intake may use an LLM only to extract user-stated preferences
+  into a strict schema, ask bounded follow-ups, and classify preferences through
+  a typed registry as scoreable, map-context-only, saved-unsupported,
+  disallowed, or needs-clarification. LLM output must be reviewed by the user
+  before matching and must not score or rank neighborhoods.
 - All user-facing text must use translation keys in both Dutch and English. Do
   not hard-code English or Dutch strings in components, services, route labels,
   validation messages, progress states, fallbacks, or analytics display labels.
 - Preserve the existing Dossier. Do not casually rewrite Dossier modules,
   risk-card behavior, entitlement, checkout recovery, or export contracts. Add
   route context and a persistent "Back to match map" action only as needed.
-- 3D buildings must load only for the selected neighborhood or a narrow
-  selected-neighborhood viewport used for paging/level-of-detail. Never load
-  national 3D buildings. Provide 2D, reduced-motion, and non-map list fallbacks.
+- Selected-neighborhood buildings must render as 2D BAG `pand` footprints on
+  the 2D basemap, scoped only to the selected neighborhood or the current
+  selected-neighborhood viewport used for progressive paging. House semantics
+  come from linked `verblijfsobject.gebruiksdoel`, not from the `pand`
+  footprint itself. Prioritize pands whose `gebruiksdoel` contains
+  `woonfunctie`; keep non-residential-only pands, `overige gebruiksfunctie`,
+  and `aantal_verblijfsobjecten = 0` pands visible as deferred/greyed
+  footprints rather than permanently filtering them out. The intended product
+  behavior is to show every available footprint inside the selected
+  neighborhood where source data exists, not an unlabeled representative
+  sample. If only part of the selected neighborhood is loaded, label the
+  partial state honestly. Never load national building footprints or national
+  3D buildings. Selected-neighborhood amenity overlays
+  must render every returned no-paid amenity point marker from the backend
+  response, with type-specific shapes plus dedicated amenity emojis, and a
+  matching right-side Relevant amenities marker legend/filter panel that shows
+  those same emojis. Provide reduced-motion and non-map list fallbacks.
 - Predictive claims require real labels and validation evidence. Without them,
   present deterministic or semi-deterministic weighted scoring as a data-backed
   fit score with reason codes, confidence, tradeoffs, sources, and limitations.
@@ -170,7 +190,8 @@ specs/
 - **Matching**: Use deterministic weighted scoring until real labels and
   validation data exist. LLMs may explain structured results but must not create
   or modify scores, eligibility, confidence, hard-filter outcomes, or source
-  metadata.
+  metadata. LLMs may support conversational intake only as structured
+  extraction into the backend preference registry.
 - **Persistence**: Use existing SQLite/Turso/libsql patterns. Store stable keys,
   raw answer references, vector versions, job state, result state, and return
   context where required.
@@ -201,7 +222,9 @@ specs/
 - Branches: `main` is stable; use `feat/<description>` for feature work.
 - Use `httpx` async, not `requests`.
 - Use Pydantic v2 `Field(default_factory=list)` for list defaults.
-- Use plain Three.js only. Do not add `react-three-fiber` or `drei`.
+- Keep match-first selected-neighborhood buildings as 2D footprints. For
+  existing Dossier 3D surfaces, use plain Three.js only and do not add
+  `react-three-fiber` or `drei`.
 - Use plain CSS and tokens. Do not add Tailwind, CSS modules, or styled
   components.
 - Avoid CSS `!important` on canvas dimensions because it breaks

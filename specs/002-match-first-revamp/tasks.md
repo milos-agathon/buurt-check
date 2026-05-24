@@ -20,10 +20,10 @@ Generation notes:
 
 - `specs/002-match-first-revamp` is the active planned feature. `.specify/feature.json` currently points to `specs/002-match-first-revamp`; future Spec Kit commands should use that active pointer unless a formal promotion creates a complete alternate feature with its own plan/tasks.
 - Imported review gates are treated as stricter input constraints, not as a competing implementation track.
-- Phase 1 and Phase 2 are documented as closed in traceability. Phase 3 is marked complete in the previous task list and current handoff but should be verified before broader frontend work depends on it.
+- Phase 1 and the original fixed-question Phase 2 are documented as closed in traceability. The 2026-05-21 PRD update adds a new hybrid additional-preferences intake delta that is not implemented yet and must not be treated as covered by the old Phase 2 pass evidence.
 - Each implementation phase includes a handoff/traceability closure task. Missing or partial behavior must not be marked pass.
 - Every user-facing string introduced by these tasks must use translation keys in `frontend/src/i18n/en.json` and `frontend/src/i18n/nl.json`.
-- Matching remains deterministic weighted scoring unless real labels, validation data, evaluation results, and regression tests exist.
+- Matching remains deterministic weighted scoring unless real labels, validation data, evaluation results, and regression tests exist. LLMs may support optional additional-preference extraction only through strict schema/registry validation and user review; they must not score, rank, exclude, infer protected traits, or modify source metadata.
 
 Task format:
 
@@ -248,6 +248,80 @@ Task format:
   Validation: Run Phase 2 targeted frontend tests, `cd frontend && npm run build`, backend session/vector/schema tests, and relevant backend ruff.
   Acceptance evidence: Traceability Phase 2 closure maps FR-S1 to FR-S7 and FR-P1 to FR-P5 to files/tests.
   Dependencies: T-013 through T-022.
+
+## Phase 2A: Hybrid Additional-Preferences Intake Delta
+
+- ID: T-089
+  Phase: 2A
+  Requirement covered: PRD FR-S8 to FR-S10; Section 8.3; Constitution II/III.
+  Files likely touched: `frontend/src/components/match-first/AdditionalPreferencesQuestion.tsx`, `frontend/src/components/match-first/SurveyShell.tsx`, `frontend/src/App.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-survey.test.tsx`, `frontend/src/test/match-i18n.test.ts`
+  Implementation action: Add the optional additional-preferences prompt after the final guided question, with skip, retry, bounded clarification/error states, translation keys, and no unbounded chat UI.
+  Validation: `cd frontend && npm run test -- src/test/match-first-survey.test.tsx src/test/match-i18n.test.ts`
+  Acceptance evidence: Traceability rows for FR-S8 to FR-S10 show the prompt, skip path, one-action UI, and bilingual copy.
+  Dependencies: T-013 through T-023.
+
+- ID: T-090
+  Phase: 2A
+  Requirement covered: PRD Section 8.4.1; FR-P6; Constitution V/X.
+  Files likely touched: `backend/app/services/match/custom_preference_registry.py`, `backend/app/models/match.py`, `backend/tests/test_match_custom_preference_registry.py`
+  Implementation action: Implement a typed custom-preference registry with stable keys, privacy class, supported use status, source support, scoring/map-context policy, disallowed reason codes, and examples for beach/coast proximity, place-of-worship proximity, demographic similarity, and safety-certainty requests.
+  Validation: `cd backend && pytest -q tests/test_match_custom_preference_registry.py`
+  Acceptance evidence: Traceability proves scoreable, map-context-only, saved-unsupported, disallowed, and needs-clarification classifications.
+  Dependencies: T-014, T-016.
+
+- ID: T-091
+  Phase: 2A
+  Requirement covered: PRD FR-S9, FR-P7; Sections 8.4.1 and 19.3; Constitution V/XV.
+  Files likely touched: `backend/app/services/match/preference_extraction.py`, `backend/app/api/match.py`, `backend/tests/test_match_preference_extraction.py`
+  Implementation action: Add the optional extraction endpoint/service. Use deterministic extraction first where practical; any LLM adapter must return strict schema only, ask bounded clarification, and be unable to create scores, ranks, eligibility, confidence, hard-filter outcomes, reason-code truth, or source metadata.
+  Validation: `cd backend && pytest -q tests/test_match_preference_extraction.py`
+  Acceptance evidence: Tests prove raw text is not analytics content, extraction failures are retryable/skippable, and protected-trait/demographic requests are blocked.
+  Dependencies: T-090.
+
+- ID: T-092
+  Phase: 2A
+  Requirement covered: PRD FR-S10, FR-P6 to FR-P7; Constitution IX/XIII.
+  Files likely touched: `frontend/src/components/match-first/CustomPreferenceReviewList.tsx`, `frontend/src/components/match-first/SurveyReview.tsx`, `frontend/src/services/matchFirstApi.ts`, `frontend/src/types/matchFirst.ts`, `frontend/src/test/match-first-survey.test.tsx`
+  Implementation action: Show extracted custom preferences on review with localized statuses: used in score, shown as map context, saved for future support, needs clarification, not used/disallowed. Let users accept, edit, remove, or skip before the final run CTA.
+  Validation: `cd frontend && npm run test -- src/test/match-first-survey.test.tsx src/components/match-first/SurveyReview.test.tsx`
+  Acceptance evidence: Traceability proves matching cannot start until reviewed custom preferences are current or explicitly skipped.
+  Dependencies: T-089, T-091.
+
+- ID: T-093
+  Phase: 2A
+  Requirement covered: PRD FR-P1 to FR-P7; Section 8.4; Constitution V.
+  Files likely touched: `backend/app/services/match/preference_vector.py`, `backend/tests/test_match_preference_vector_builder.py`
+  Implementation action: Extend preference-vector generation so only accepted registry-approved `scoreable` custom preferences can become hard filters or weighted score inputs; map-context-only, saved-unsupported, disallowed, and needs-clarification items remain non-scoring with reason codes.
+  Validation: `cd backend && pytest -q tests/test_match_preference_vector_builder.py tests/test_match_custom_preference_registry.py`
+  Acceptance evidence: Traceability links vector output to guided answer refs plus reviewed custom-preference refs and status codes.
+  Dependencies: T-090, T-092.
+
+- ID: T-094
+  Phase: 2A
+  Requirement covered: PRD Section 20; Sections 19.1-19.3; Constitution XV.
+  Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `backend/app/services/match/instrumentation.py`, `backend/tests/test_match_first_analytics_api.py`
+  Implementation action: Add privacy-safe analytics for additional-preferences prompt shown/skipped/submitted and custom-preference extraction/review outcomes using stable preference keys/statuses only; reject raw text, sensitive identity, exact anchors, translated labels, and private identifiers.
+  Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts`; `cd backend && pytest -q tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py`
+  Acceptance evidence: Traceability proves no raw free-text preference content persists locally or server-side.
+  Dependencies: T-091, T-092.
+
+- ID: T-095
+  Phase: 2A
+  Requirement covered: PRD Sections 18, 21, 26; Constitution III/VII/X.
+  Files likely touched: `frontend/src/test/match-first-a11y.test.tsx`, `frontend/src/test/match-first-copy-guard.test.ts`, `frontend/src/test/match-i18n.test.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`
+  Implementation action: Add accessibility, i18n, and model-honesty guards for additional-preferences prompt, extraction failure/clarification statuses, disallowed preference copy, and no unsupported fit/safety/religious/demographic claims.
+  Validation: `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx src/test/match-first-copy-guard.test.ts src/test/match-i18n.test.ts`
+  Acceptance evidence: Traceability lists prompt/review/failure translation keys and copy-guard evidence.
+  Dependencies: T-089, T-092.
+
+- ID: T-096
+  Phase: 2A
+  Requirement covered: PRD Section 23; Constitution VIII/XI.
+  Files likely touched: `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md`, `specs/002-match-first-revamp/acceptance-traceability.md`
+  Implementation action: Close the hybrid intake delta only after frontend/backend tests pass and traceability distinguishes old fixed-question Phase 2 evidence from new additional-preference behavior.
+  Validation: Run T-089 through T-095 validation commands plus relevant build/lint gates for touched areas.
+  Acceptance evidence: Handoff and traceability mark the hybrid additional-preference workflow pass/partial/missing with exact command evidence.
+  Dependencies: T-089 through T-095.
 
 ## Phase 3: Matching Backend
 
@@ -522,19 +596,19 @@ Phase 5 closure note, 2026-05-16: T-043 through T-052 are marked complete for
 the user-requested Phase 5 slice: completed-session results hydration, national
 2D map/list synchronization, mobile map/list mode, list-only accessibility
 fallback, concise translated reason lines, map state persistence, no matching
-rerun on results open, no 3D building load, and no national-zoom amenities.
+rerun on results open, no building-footprint or 3D building load, and no national-zoom amenities.
 Targeted Vitest coverage and frontend build passed. A selected Playwright e2e
 or browser perf run was not added in this slice because the Phase 6
 neighborhood/house route remains intentionally unimplemented; traceability
 records that as the residual Phase 5 verification gap.
 
-## Phase 6: Neighborhood 3D Detail
+## Phase 6: Neighborhood 2D Building Detail
 
 - ID: T-053
   Phase: 6
   Requirement covered: PRD FR-N1 to FR-N6; Sections 16.3-16.4; Constitution IV.
   Files likely touched: `backend/tests/test_match_neighborhood_layers.py`, `backend/app/services/match/geometry.py`, `backend/app/services/match/buildings.py`, `backend/app/services/match/amenities.py`
-  Implementation action: Add backend tests for selected-neighborhood boundary lookup, RD New canonical geometry, WGS84 display naming, building bounds validation, no national 3D data, amenity tag cap, and cache-key constraints.
+  Implementation action: Add backend tests for selected-neighborhood boundary lookup, RD New canonical geometry, WGS84 display naming, building bounds validation, no national building-footprint or 3D data, amenity tag cap, and cache-key constraints.
   Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
   Acceptance evidence: Traceability row "selected-neighborhood layer contracts" links to backend tests.
   Dependencies: T-052.
@@ -553,12 +627,13 @@ records that as the residual Phase 5 verification gap.
 - ID: T-055
   Phase: 6
   Requirement covered: PRD FR-N1, FR-N5, FR-N6; Section 16.3; Constitution IV.
-  Files likely touched: `backend/app/services/match/buildings.py`, `backend/app/models/match.py`, `backend/tests/test_match_neighborhood_layers.py`
-  Implementation action: Implement selected-neighborhood building service requiring `neighborhood_id`, `session_id`, `result_set_id`, clipped `bounds_rd`, `lod`, and `limit`; reject missing/out-of-scope national requests with stable codes.
+  Files likely touched: `backend/app/services/bag_ogc.py`, `backend/app/services/match/buildings.py`, `backend/app/models/match.py`, `backend/tests/test_bag_ogc.py`, `backend/tests/test_match_neighborhood_layers.py`
+  Implementation action: Implement selected-neighborhood building service requiring `neighborhood_id`, `session_id`, `result_set_id`, clipped `bounds_rd`, `lod`, and `limit`; prefer PDOK BAG OGC v2 `pand` geometry with linked verblijfsobject `gebruiksdoel` metadata for selected-neighborhood 2D footprints; reject missing/out-of-scope national requests with stable codes.
   Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
-  Acceptance evidence: Traceability PRD AC12 links to "no national 3D" backend tests.
+  Acceptance evidence: Traceability PRD AC12 links to "no national building footprint/3D" backend tests.
   Dependencies: T-054.
-  Status 2026-05-16: Complete for scoped requests and missing-3D fallback. Backend rejects national/out-of-scope RD bounds with `match.building_bounds_out_of_scope`; current seed data returns localized missing-3D fallback rather than real 3D buildings.
+  Status 2026-05-16: Complete for scoped requests and missing-footprint fallback. Backend rejects national/out-of-scope RD bounds with `match.building_bounds_out_of_scope`; current seed data returns localized missing-footprint fallback rather than fake buildings.
+  BAG semantic update 2026-05-22: Backend now has a PDOK BAG OGC v2 `pand` page parser and selected-building path that prioritizes `woonfunctie`, keeps non-house pands visible/deferred, and falls back to 3DBAG if PDOK BAG fails or returns a partial-empty provider response.
 
 - ID: T-056
   Phase: 6
@@ -569,6 +644,7 @@ records that as the residual Phase 5 verification gap.
   Acceptance evidence: Traceability PRD AC13 links to amenity relevance/cap tests.
   Dependencies: T-054.
   Status 2026-05-16: Complete. Amenity service is preference-aware from stored session answers and caps visible tags to 5-7 categories.
+  Follow-up 2026-05-20/2026-05-23: Frontend selected-neighborhood map renders every returned amenity point marker from the backend response without an additional marker cap; the right-side Relevant amenities panel is the marker legend/filter surface with type-specific shapes and dedicated emojis.
 
 - ID: T-057
   Phase: 6
@@ -584,18 +660,18 @@ records that as the residual Phase 5 verification gap.
   Phase: 6
   Requirement covered: PRD FR-N1 to FR-N6; Section 12.
   Files likely touched: `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/services/matchFirstApi.ts`, `frontend/src/types/matchFirst.ts`
-  Implementation action: Add frontend tests and API/types for selected-neighborhood summary, map layers, buildings, amenities, loading, empty, missing-3D, stale-request cancellation, and error states.
+  Implementation action: Add frontend tests and API/types for selected-neighborhood summary, map layers, 2D building footprints, amenities, loading, empty, missing-footprint, stale-request cancellation, and error states.
   Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts`
   Acceptance evidence: Traceability row "neighborhood detail frontend contracts" links to tests.
   Dependencies: T-057.
   Status 2026-05-16: Complete. Frontend types/API helpers and tests cover selected summary, layers, buildings, amenities, missing detail, and scoped bounds.
-  Review repair 2026-05-17: Complete. Added regression coverage that amenity endpoint failure does not block selected boundary/layers, scoped building fallback, or the missing-3D 2D fallback; strengthened frontend building-request tests to parse `bounds_rd` and assert exact equality to selected map-layer `allowed_bounds_rd`.
+  Review repair 2026-05-17: Complete. Added regression coverage that amenity endpoint failure does not block selected boundary/layers, scoped building fallback, or the missing-footprint fallback; strengthened frontend building-request tests to parse `bounds_rd` and assert exact equality to selected map-layer `allowed_bounds_rd`.
 
 - ID: T-059
   Phase: 6
   Requirement covered: PRD FR-N2, FR-N5, FR-N6; Section 7 Phase 7.
   Files likely touched: `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/App.tsx`
-  Implementation action: Build selected-neighborhood detail shell with boundary, fit explanation, tradeoffs, confidence/limitations, loading state, return-to-results action, refresh restoration, and 2D fallback.
+  Implementation action: Build selected-neighborhood detail shell with boundary, fit explanation, tradeoffs, confidence/limitations, loading state, return-to-results action, refresh restoration, and missing-footprint fallback.
   Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx`
   Acceptance evidence: Traceability rows FR-N2/FR-N5/FR-N6 link to detail shell tests.
   Dependencies: T-058.
@@ -605,11 +681,11 @@ records that as the residual Phase 5 verification gap.
   Phase: 6
   Requirement covered: PRD FR-N1, FR-N5, FR-N6; Constitution IV.
   Files likely touched: `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.css`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`
-  Implementation action: Build plain Three.js selected-neighborhood building layer with renderer cleanup, canvas sizing without CSS `!important`, no fetch before selection, reduced-motion camera behavior, nonblank rendering, and 2D fallback.
+  Implementation action: Build selected-neighborhood 2D building-footprint layer with canvas/Leaflet projection cleanup, canvas sizing without CSS `!important`, no fetch before selection, reduced-motion behavior, nonblank rendering, and missing-footprint fallback.
   Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx`; canvas verification in E2E.
   Acceptance evidence: Traceability PRD AC12 links to frontend no-preload/canvas/fallback tests.
   Dependencies: T-055, T-059.
-  Status 2026-05-16: Complete for current missing-3D/fallback scope. Building fetch waits for selected-neighborhood bounds and renders a nonblank 2D canvas fallback. Real Three.js rendering remains a provider/data integration risk, documented in traceability.
+  Status 2026-05-16: Complete for current missing-footprint/fallback scope. Building fetch waits for selected-neighborhood bounds and renders a nonblank 2D canvas fallback. Selected-neighborhood 3D is no longer part of the match map contract because the basemap is 2D.
 
 - ID: T-061
   Phase: 6
@@ -620,27 +696,28 @@ records that as the residual Phase 5 verification gap.
   Acceptance evidence: Traceability PRD AC13 links to amenity cap and relevance tests.
   Dependencies: T-056, T-058, T-059.
   Status 2026-05-16: Complete. Amenity tags use translated labels/reasons and cap to 7; house panel exposes fallback/no-reliable-address state without Phase 7 Dossier navigation.
+  Follow-up 2026-05-20/2026-05-23: Complete marker legend update. Amenity filters display the same type-specific shapes and dedicated emojis as map markers, and map markers are no longer sliced to seven after projection.
 
 - ID: T-062
   Phase: 6
   Requirement covered: PRD Sections 20.3, 20.4, 21.2; Constitution XV.
   Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/test/match-i18n.test.ts`
-  Implementation action: Emit privacy-safe analytics and localized fallbacks for neighborhood detail opened, building layer failed, amenity layer failed, missing 3D shown, amenity interacted, and house selected.
+  Implementation action: Emit privacy-safe analytics and localized fallbacks for neighborhood detail opened, building layer failed, amenity layer failed, missing footprints shown, amenity interacted, and house selected.
   Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts`
   Acceptance evidence: Traceability row "neighborhood analytics/fallbacks" lists event keys and fallback keys.
   Dependencies: T-059, T-060, T-061.
-  Status 2026-05-16: Complete for implemented Phase 6 events/fallbacks. Added privacy-safe detail open, building-layer failed, amenity-layer failed, and missing-3D fallback events; house-selected analytics remains Phase 7.
+  Status 2026-05-16: Complete for implemented Phase 6 events/fallbacks. Added privacy-safe detail open, building-layer failed, amenity-layer failed, and missing-footprint fallback events; house-selected analytics remains Phase 7.
 
 - ID: T-063
   Phase: 6
   Requirement covered: PRD A11Y-1 to A11Y-6; Sections 16.3 and 18.
   Files likely touched: `frontend/src/test/match-first-a11y.test.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/tests/e2e/performance-budget.spec.ts`, `frontend/tests/e2e/match-first-final-journey.spec.ts`
-  Implementation action: Add accessibility and performance checks for selected-neighborhood detail usable within 3 seconds, no national 3D request, keyboard/non-map alternative, reduced motion, and nonblank 3D or 2D fallback.
+  Implementation action: Add accessibility and performance checks for selected-neighborhood detail usable within 3 seconds, no national building-footprint or 3D request, keyboard/non-map alternative, reduced motion, and nonblank 2D footprints or fallback.
   Validation: `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx src/test/match-first-neighborhood-detail.test.tsx`; `cd frontend && npm run test:perf:e2e`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts`
   Acceptance evidence: Traceability includes target profile/device evidence and any residual performance risk.
   Dependencies: T-059, T-060, T-061.
-  Status 2026-05-16: Partial/complete for component-level Phase 6 evidence. Vitest covers a11y/list fallback, no national 3D request, and nonblank canvas state; browser Playwright/mobile performance proof remains open before production.
-  Review repair 2026-05-17: Component-level evidence strengthened for loading/error resilience and no-national-3D regression coverage. Existing landing Playwright smoke and full local CI-style gates passed; dedicated selected-neighborhood Playwright/mobile performance proof remains open before production.
+  Status 2026-05-16: Partial/complete for component-level Phase 6 evidence. Vitest covers a11y/list fallback, no national building-footprint/3D request, and nonblank canvas state; browser Playwright/mobile performance proof remains open before production.
+  Review repair 2026-05-17: Component-level evidence strengthened for loading/error resilience and no-national-building regression coverage. Existing landing Playwright smoke and full local CI-style gates passed; dedicated selected-neighborhood Playwright/mobile performance proof remains open before production.
 
 - ID: T-064
   Phase: 6
@@ -653,6 +730,53 @@ records that as the residual Phase 5 verification gap.
   Status 2026-05-16: Complete. Handoff, traceability, open punch list, and this task status were updated with commands, residual risks, and next step: Phase 7 Dossier bridge.
   Review repair 2026-05-17: Complete. Handoff, traceability, open punch list, and task status now include the amenity-failure isolation repair, exact selected-bounds frontend regression, backend near-edge bounds rejection regression, and local CI-style verification commands.
   Boundary cleanup 2026-05-17: Complete. Removed stale Phase 7 bridge code from the active worktree; Phase 6 selected-house behavior is local state only and tests assert no `/dossier/from-building` or `/run` call.
+
+## Phase 6A: Progressive All-Available Building Footprint Delta
+
+- ID: T-097
+  Phase: 6A
+  Requirement covered: PRD FR-N1, FR-N6; Sections 12.3 and 16.3; Constitution IV/XV.
+  Files likely touched: `backend/app/models/match.py`, `backend/app/services/match/buildings.py`, `backend/app/api/match.py`, `backend/tests/test_match_neighborhood_layers.py`, `specs/002-match-first-revamp/contracts/match-first-api.md`
+  Implementation action: Extend the selected-neighborhood building response with completion metadata such as `complete`, `next_cursor`, `loaded_scope`, `partial_reason_code`, data version, and simplification level. Keep strict selected-neighborhood bounds validation and reject national/out-of-scope requests.
+  Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "building"`
+  Acceptance evidence: Traceability marks PRD AC12 partial until completion metadata and out-of-scope regressions pass.
+  Dependencies: T-055, T-057, current official-boundary containment repairs.
+
+- ID: T-098
+  Phase: 6A
+  Requirement covered: PRD FR-N1, FR-N6; Section 16.3; Constitution IV.
+  Files likely touched: `backend/app/services/bag_ogc.py`, `backend/app/services/match/buildings.py`, `backend/app/services/three_d_bag.py`, `backend/tests/test_bag_ogc.py`, `backend/tests/test_match_neighborhood_layers.py`
+  Implementation action: Replace single-page representative-style building loading with progressive selected-neighborhood viewport/page loading. Prefer PDOK BAG OGC v2 `pand` pages for 2D footprint/use-purpose metadata; use 3DBAG only as fallback or richer detail. Fetch provider pages or cached chunks until the requested selected-neighborhood viewport is complete or a `next_cursor` is returned, then clip every footprint to the selected boundary.
+  Validation: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "progressive_building or building_requests"`
+  Acceptance evidence: Backend tests prove more-than-one-page provider responses are not truncated without `complete=false` and `next_cursor`.
+  Dependencies: T-097.
+
+- ID: T-099
+  Phase: 6A
+  Requirement covered: PRD FR-N1, FR-N6; Sections 12.3 and 21.2A; Constitution III/VII/XV.
+  Files likely touched: `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/services/matchFirstApi.ts`, `frontend/src/types/matchFirst.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/test/match-i18n.test.ts`
+  Implementation action: Consume building completion metadata, request additional pages/chunks on selected-neighborhood viewport changes, append footprints without losing selected-house state, and show localized partial-loading copy until the backend marks the loaded scope complete.
+  Validation: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts`
+  Acceptance evidence: Frontend tests prove partial pages are labeled and cannot be presented as complete selected-neighborhood coverage.
+  Dependencies: T-097, T-098.
+
+- ID: T-100
+  Phase: 6A
+  Requirement covered: PRD Sections 16.3 and 20.3; Constitution XV.
+  Files likely touched: `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `backend/app/services/match/instrumentation.py`, `backend/tests/test_match_first_analytics_api.py`
+  Implementation action: Add privacy-safe stable analytics for building layer partial and complete states without address, VBO, selected-house, or raw provider identifiers.
+  Validation: `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts`; `cd backend && pytest -q tests/test_match_first_analytics_api.py tests/test_match_instrumentation.py`
+  Acceptance evidence: Analytics rows include stable status keys only.
+  Dependencies: T-099.
+
+- ID: T-101
+  Phase: 6A
+  Requirement covered: PRD AC12, FR-N1, FR-N6; Constitution VIII/XI.
+  Files likely touched: `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md`, `specs/002-match-first-revamp/acceptance-traceability.md`, `docs/qa/open_punchlist.md`
+  Implementation action: Close the progressive building footprint delta only after backend/frontend tests, build/lint gates for touched areas, and map performance checks prove selected-neighborhood footprints are all-available or honestly partial.
+  Validation: Run T-097 through T-100 validation commands plus relevant `cd frontend && npm run build`, `cd backend && ruff check .`, and map performance gates for touched areas.
+  Acceptance evidence: Handoff, traceability, and acceptance traceability stop marking this delta partial only after all commands pass.
+  Dependencies: T-097 through T-100.
 
 ## Phase 7: Dossier Bridge
 
@@ -781,7 +905,7 @@ records that as the residual Phase 5 verification gap.
   Phase: 8
   Requirement covered: PRD Section 21; Section 22.1 item 20; Constitution XV.
   Files likely touched: `frontend/src/test/match-first-progress.test.tsx`, `frontend/src/test/match-first-results-map.test.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/components/match-first/MatchingProgressScreen.tsx`, `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/HouseSelectionPanel.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`
-  Implementation action: Complete localized fallback coverage for session creation failure, answer-save failure, slow backend, failed backend, completed-with-fallback, no strong matches, stale/unavailable results, map/building/amenity failures, missing 3D, no reliable address, and Dossier return failure.
+  Implementation action: Complete localized fallback coverage for session creation failure, answer-save failure, slow backend, failed backend, completed-with-fallback, no strong matches, stale/unavailable results, map/building/amenity failures, missing building footprints, no reliable address, and Dossier return failure.
   Validation: `cd frontend && npm run test -- src/test/match-first-progress.test.tsx src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts`
   Acceptance evidence: Traceability row "failure states" maps each fallback to file/test/status.
   Dependencies: T-042, T-052, T-064, T-075.
@@ -826,7 +950,7 @@ records that as the residual Phase 5 verification gap.
   Phase: 8
   Requirement covered: PRD Sections 16.1-16.3; Constitution IV.
   Files likely touched: `frontend/tests/e2e/performance-budget.spec.ts`, `frontend/tests/e2e/match-first-final-journey.spec.ts`, `frontend/tests/e2e/match-first-dossier-roundtrip.spec.ts`
-  Implementation action: Run final map/performance verification for hero readiness, results map initial usability, list/map sync, pan/zoom response, selected-neighborhood detail readiness, no national 3D request, and 2D/reduced-motion fallback.
+  Implementation action: Run final map/performance verification for hero readiness, results map initial usability, list/map sync, pan/zoom response, selected-neighborhood detail readiness, no national building-footprint or 3D request, and 2D/reduced-motion fallback.
   Validation: `cd frontend && npm run test:perf:e2e`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts`
   Acceptance evidence: Traceability imported map-performance gate links measured budgets or missing/partial status.
   Dependencies: T-051, T-063.
@@ -917,8 +1041,8 @@ Playwright evidence; EN/NL reduced-motion quickstart smoke has Chromium browser
 evidence; final evidence, traceability, punchlist, acceptance traceability, and
 handoff have been updated. Unrelated `docs/superpowers` allowlisting/state
 files were removed from this Phase 8 changeset. Remaining open items are human
-usability research, live production/mobile profiling, provider-backed 3D
-coverage, and repo-wide lint cleanup.
+usability research, live production/mobile profiling, provider-backed 2D
+footprint coverage, and repo-wide lint cleanup.
 
 ## Dependencies And Execution Order
 
@@ -927,21 +1051,23 @@ Phase dependencies:
 - Phase 0 verifies the active source and completes evidence scaffolding before further implementation.
 - Phase 1 depends on Phase 0 and protects the match-first entry and legacy route compatibility.
 - Phase 2 depends on Phase 1 route/session entry and blocks backend matching because run confirmation needs persisted answers and a current vector.
-- Phase 3 depends on Phase 2 backend session/vector contracts and blocks real progress/results UI.
+- Phase 2A depends on the original Phase 2 session/vector work and adds the hybrid optional additional-preferences workflow; Phase 3 scoring must not consume custom preferences until T-093 proves registry-reviewed scoreable inputs only.
+- Phase 3 depends on Phase 2 backend session/vector contracts and the Phase 2A custom-preference delta when custom preferences are enabled, and blocks real progress/results UI.
 - Phase 4 depends on Phase 3 run/status/results endpoints.
 - Phase 5 depends on Phase 3 result contracts and Phase 4 completed routing.
 - Phase 6 depends on Phase 5 selected result/neighborhood state and result geometry refs.
-- Phase 7 depends on Phase 6 house/building selection context and existing Dossier route compatibility.
+- Phase 6A depends on Phase 6 selected-neighborhood detail and official-boundary containment; it upgrades building footprints from scoped bounded loading to progressive all-available selected-neighborhood loading.
+- Phase 7 depends on Phase 6 house/building selection context and existing Dossier route compatibility; Phase 6A must close before PRD AC12 can return to pass under the updated product contract.
 - Phase 8 depends on the implemented phases and verifies the full canonical journey.
 
 Independent user-story mapping:
 
 - US1: T-006 to T-012
-- US2: T-013 to T-023
-- US3: T-024 to T-033
+- US2: T-013 to T-023 plus T-089 to T-096 for the hybrid intake delta
+- US3: T-024 to T-033 plus T-093 for scoreable custom-preference handling
 - US4: T-034 to T-042
 - US5: T-043 to T-052
-- US6: T-053 to T-064
+- US6: T-053 to T-064 plus T-097 to T-101 for the progressive all-available footprint delta
 - US7: T-065 to T-075
 - Cross-cutting final QA: T-076 to T-088
 
@@ -950,10 +1076,12 @@ Parallel opportunities:
 - Phase 0: T-002, T-003, and T-004 can proceed after T-001.
 - Phase 1: T-007, T-008, T-010, and T-011 can proceed in parallel after T-006.
 - Phase 2: T-014 and T-018 can proceed in parallel after T-013 if ownership is split backend/frontend.
+- Phase 2A: T-089 frontend prompt work and T-090 backend registry work can proceed in parallel; T-091 depends on registry shape, while T-092 and T-093 depend on extraction/review contracts.
 - Phase 3: T-024, T-025, and T-026 are independent test tasks; T-029 and T-030 can proceed in parallel after result contracts are established.
 - Phase 4: T-034 and T-035 can proceed in parallel; T-040 and T-041 can proceed after screen wiring starts.
 - Phase 5: T-043 and T-044 can proceed in parallel; T-047 and T-048 can proceed in parallel after T-045.
 - Phase 6: T-054, T-055, and T-056 are separate backend services once T-053 tests exist; T-060 and T-061 can proceed in parallel after T-059.
+- Phase 6A: T-097 backend contract and T-098 provider paging can proceed before frontend work; T-099 depends on the response contract; T-100 can proceed after T-099 event semantics are known.
 - Phase 7: T-065, T-068, and T-074 can be prepared in parallel; T-072 can run independently of bridge UI once Dossier tests exist.
 - Phase 8: T-076 through T-083 can run in parallel after Phase 7 closure, then T-084 to T-088 close in order.
 

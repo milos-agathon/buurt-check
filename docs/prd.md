@@ -2,8 +2,8 @@
 
 **Product:** Buurt Check
 **Document:** Product Requirements Document
-**Version:** v2.0 — Match-first UI revamp
-**Date:** 12 May 2026
+**Version:** v2.2 - Match-first UI revamp with BAG semantic footprint metadata
+**Date:** 22 May 2026
 **Owner:** Milos GIS / Buurt Check
 **Primary market:** Netherlands
 **Primary languages:** Dutch and English
@@ -22,17 +22,19 @@ The new flow begins with a simple, emotionally clear landing screen. The user se
 > **Find my dream neighborhood**
 > **Vind mijn droombuurt**
 
-When the user clicks the CTA, the app opens a smooth one-question-at-a-time survey. The survey captures preferences, constraints, household context, budget, lifestyle priorities, and tradeoffs. The interface remains calm: one question, one set of choices, one progress indicator, one back button.
+When the user clicks the CTA, the app opens a smooth guided intake. The core intake remains one-question-at-a-time so the experience stays calm and reliable: one question, one set of choices, one progress indicator, one back button. The intake also supports an optional conversational preference step where users can describe needs that fixed questions did not cover, such as proximity to the beach, a preferred type of amenity, or another personal context.
 
-After the final question, the user triggers a matching phase. The backend turns the answers into a structured preference vector, compares it with neighborhood data, runs the matching model, computes fit probabilities or scores, and returns ranked neighborhood recommendations.
+The conversational step is not a free-form scorer. If an LLM is used, it may only extract user-stated needs into a strict structured schema, ask bounded follow-up questions for missing required fields, and label unsupported or sensitive preferences. The backend then validates those extracted preferences against a typed preference registry, turns supported items into hard filters, weights, map-context overlays, or saved unsupported signals, and only then triggers matching after the user confirms the review screen.
+
+After the final review, the user triggers a matching phase. The backend turns the confirmed answers and supported custom preferences into a structured preference vector, compares it with neighborhood data, runs deterministic scoring unless validated labels exist, computes fit scores, and returns ranked neighborhood recommendations.
 
 While the backend works, the frontend shows a friendly animated progress screen. Once matching is complete, the app confirms success with a large animated Buurt Check checkmark, then opens the results map.
 
-The results map starts centered on the Netherlands. Recommended neighborhoods are shown as map markers and as a clean ranked list. Users can zoom manually or click a recommendation to fly into a neighborhood. At neighborhood level, the map shows the selected neighborhood, relevant amenities, and 3D houses only inside that neighborhood. Clicking a house starts the existing address-level search flow and opens the current Dossier interface.
+The results map starts centered on the Netherlands. Recommended neighborhoods are shown as map markers and as a clean ranked list. Users can zoom manually or click a recommendation to fly into a neighborhood. At neighborhood level, the map shows the selected neighborhood, relevant amenities, and all available 2D BAG `pand` footprints inside that selected neighborhood or inside the current selected-neighborhood viewport as it progressively loads. It must not silently show only a representative sample. A `pand` becomes a house candidate only through linked `verblijfsobject` use-purpose metadata, especially `gebruiksdoel` containing `woonfunctie`. Clicking a selectable house candidate starts the existing address-level search flow and opens the current Dossier interface.
 
 The final product should feel like this:
 
-> “Tell us how you want to live. We’ll show you where to look. Then you can check the exact house.”
+> “Tell us how you want to live, in quick choices or your own words. We’ll show you where to look. Then you can check the exact house.”
 
 ---
 
@@ -85,17 +87,18 @@ It should not be visually equal to the match CTA on the landing screen.
 
 1. Replace the confusing search/match split with one clear match-first journey.
 2. Make the first screen emotionally compelling, visually distinctive, and extremely simple.
-3. Capture user preferences through a smooth one-question-at-a-time survey.
-4. Convert survey answers into a structured preference vector.
-5. Trigger backend model fitting or scoring after the user completes the survey.
-6. Show clear animated progress while the backend computes recommendations.
-7. Present recommended neighborhoods on an interactive map of the Netherlands.
-8. Allow users to zoom into neighborhoods manually or through list interaction.
-9. Show only relevant 3D houses and important amenities inside the selected neighborhood.
-10. Let users click a house and continue into the existing Dossier interface.
-11. Keep an obvious route back from Dossier to the recommendation map.
-12. Support bilingual UI text in Dutch and English from day one.
-13. Keep the UI minimal, calm, and focused at every stage.
+3. Capture core user preferences through a smooth one-question-at-a-time guided intake.
+4. Capture user-stated preferences that fixed questions do not cover through an optional structured conversational intake.
+5. Convert confirmed guided and conversational inputs into a structured preference vector.
+6. Trigger backend model fitting or scoring after the user confirms the review screen.
+7. Show clear animated progress while the backend computes recommendations.
+8. Present recommended neighborhoods on an interactive map of the Netherlands.
+9. Allow users to zoom into neighborhoods manually or through list interaction.
+10. Show all available selected-neighborhood 2D BAG `pand` footprints and important amenities, loaded progressively when needed, while visually prioritizing footprints whose linked verblijfsobject usage includes `woonfunctie`.
+11. Let users click a house and continue into the existing Dossier interface.
+12. Keep an obvious route back from Dossier to the recommendation map.
+13. Support bilingual UI text in Dutch and English from day one.
+14. Keep the UI minimal, calm, and focused at every stage.
 
 ### 3.2 Non-goals
 
@@ -107,6 +110,9 @@ It should not be visually equal to the match CTA on the landing screen.
 6. Do not make the user choose between “Search” and “Match” on the first screen.
 7. Do not present the model output as objective truth. It is a recommendation based on stated preferences and available data.
 8. Do not make unsupported claims about safety, happiness, future value, or perfect fit.
+9. Do not let an LLM directly score, rank, exclude, or invent neighborhood recommendations.
+10. Do not infer protected traits, religious identity, ethnicity, nationality, income class identity, or other sensitive demographic attributes from free text.
+11. Do not store or analyze free-text preference content in analytics; store stable extracted keys, classifications, and privacy-safe status codes only.
 
 ---
 
@@ -207,7 +213,7 @@ Recommended route structure:
 ```text
 /                         Landing / hero / match-first entry
 /match                    Survey shell
-/match/:sessionId         Active survey session
+/match/:sessionId         Active guided-intake session
 /match/:sessionId/run     Matching progress screen
 /match/:sessionId/results Results map
 /match/:sessionId/neighborhood/:id Neighborhood map detail
@@ -288,9 +294,9 @@ CTA:
 - EN: **Start the match**
 - NL: **Start de match**
 
-### Phase 2 — One-question survey
+### Phase 2 — Guided intake
 
-The survey begins.
+The guided intake begins.
 
 Rules:
 
@@ -301,12 +307,21 @@ Rules:
 - The answer is saved immediately when selected, but the user can modify it.
 - The next question opens with a smooth transition.
 - The screen must not contain sidebars, tips, charts, or unrelated content.
+- An optional “anything else that matters?” step may let users answer in their own words, but it is still one focused prompt, not a general chat surface.
+- If the user enters free text, the system must extract only user-stated preferences into stable keys and show the extracted interpretation on the review screen.
 
 ### Phase 3 — Review and run model
 
-After the final question, show a simple review screen.
+After the final guided or conversational preference step, show a simple review screen.
 
 This is the only screen where a short summary may appear.
+It must include any extracted custom preferences, clearly labeled by how the
+system will use them:
+
+- **Used in score**: supported by a known feature or distance metric.
+- **Shown as map context**: useful for exploration but not used to rank.
+- **Saved for future support**: understood but not scoreable with current data.
+- **Not used**: disallowed, sensitive, unsupported, or too ambiguous.
 
 English:
 
@@ -389,13 +404,20 @@ When a user selects a neighborhood, the map zooms into it.
 The neighborhood detail state shows:
 
 - only the selected neighborhood highlighted,
-- 3D houses inside the selected neighborhood,
-- important amenities as restrained tags or icons,
+- 2D house/building footprints inside the selected neighborhood,
+- all returned no-paid amenity point markers inside the selected neighborhood, using a distinct
+  restrained marker shape and a dedicated emoji per amenity type,
+- a right-side relevant-amenities legend that uses the same marker shape and
+  dedicated emoji identity and doubles as the amenity filter controls,
 - short neighborhood fit explanation,
 - button to inspect individual houses,
 - button to return to the Netherlands results view.
 
-The map must not show 3D houses across the whole country. That would be visually noisy and technically heavy. 3D houses should load only for the selected neighborhood or current viewport when zoomed in enough.
+The map must not show building footprints across the whole country. That would be visually noisy and technically heavy. Building footprints should render as 2D shapes on the 2D basemap and load only for the selected neighborhood or the current selected-neighborhood viewport when zoomed in enough.
+
+For BAG data, the rendered footprint object is a `pand`. It is not a "building type" by itself. Semantic use comes from linked `verblijfsobject` records through `gebruiksdoel`. The detail map should prioritize clickable house candidates where `gebruiksdoel` contains `woonfunctie`, including mixed-use pands such as `winkelfunctie,woonfunctie`. Pands with `aantal_verblijfsobjecten = 0`, only non-residential purposes, or only `overige gebruiksfunctie` remain valid footprints and should stay visible, but should be deferred or greyed out instead of treated as immediately clickable houses unless a reliable address path exists.
+
+The intended UX is not a representative sample. If source data exists, the selected-neighborhood detail should eventually show every available footprint inside the selected neighborhood boundary, either from a complete selected-neighborhood response or through progressive viewport/page loading as the user pans and zooms. If only part of the neighborhood is loaded, the UI must say so honestly, such as "Loading more buildings" or "Showing buildings in the visible area." If footprint data is unavailable, use the missing-footprint fallback instead of fake or seed-only buildings.
 
 ### Phase 8 — House selection and Dossier
 
@@ -436,17 +458,20 @@ This is critical. Users must be able to inspect a house, return to the neighborh
 
 | ID | Requirement | Priority | Acceptance criteria |
 |---|---|---:|---|
-| FR-S1 | Show only one question at a time. | P0 | No screen contains multiple survey questions. |
+| FR-S1 | Show only one guided intake prompt at a time. | P0 | No screen contains multiple survey questions or multiple conversational prompts. |
 | FR-S2 | Show progress bar throughout survey. | P0 | User sees current step and remaining progress. |
 | FR-S3 | Provide back button after first question. | P0 | User can return to any previous question and change answer. |
 | FR-S4 | Save answers after every step. | P0 | Refreshing page does not lose completed answers within active session. |
 | FR-S5 | Validate required answers before advancing. | P0 | User cannot proceed without required selection. |
 | FR-S6 | Support single-select, multi-select, range, and optional address/anchor input questions. | P0 | Components work consistently in Dutch and English. |
 | FR-S7 | Keep survey visually minimal. | P0 | No unrelated cards, explanations, maps, or metrics appear during questions. |
+| FR-S8 | Provide an optional free-text preference prompt. | P1 | User can state additional needs not covered by fixed questions without opening an unbounded chat assistant. |
+| FR-S9 | Extract custom preferences into stable typed keys. | P0 if free text is enabled | Free-text content is converted to structured keys, statuses, weights where applicable, localized labels, and reason codes before matching. |
+| FR-S10 | Require user review of extracted custom preferences before matching. | P0 if free text is enabled | Matching cannot start until the review screen shows how each extracted preference will be used and the user confirms. |
 
 ### 8.3 Survey content
 
-The MVP survey should contain 10–12 questions. It must be short enough to complete, but detailed enough to produce meaningful matches.
+The MVP guided intake should contain 10–12 core questions plus, if enabled, one optional custom-preference prompt. It must be short enough to complete, but detailed enough to produce meaningful matches.
 
 Recommended question set:
 
@@ -463,7 +488,25 @@ Recommended question set:
 | 9 | Housing type | Multi-select | Yes |
 | 10 | Area character | Single select | Yes |
 | 11 | Language/report preference | Single select | Yes if not already chosen |
-| 12 | Review | Summary + run CTA | Yes |
+| 12 | Additional preferences | Optional free text / structured extraction | Optional |
+| 13 | Review | Summary + run CTA | Yes |
+
+The additional-preferences step should use plain prompts such as:
+
+English:
+
+> **Anything else that matters?**
+> Tell us about preferences the questions did not cover, like being close to the coast, a specific amenity, or a type of daily-life environment.
+
+Dutch:
+
+> **Is er nog iets anders belangrijk?**
+> Vertel ons over wensen die niet in de vragen stonden, zoals dichtbij de kust wonen, een specifieke voorziening, of een bepaald dagelijks leefgevoel.
+
+The step may be skipped. If used, it must not ask users to disclose protected
+traits or sensitive identity. If the user voluntarily mentions a sensitive
+context, the system must handle it as described in Section 8.4.1 and Section
+19.3.
 
 ### 8.4 Preference vector creation
 
@@ -474,6 +517,39 @@ Recommended question set:
 | FR-P3 | Normalize preference weights. | P0 | User priorities become comparable model inputs. |
 | FR-P4 | Preserve raw answers. | P0 | Raw survey answers remain available for explanation and debugging. |
 | FR-P5 | Support bilingual labels independent of stored values. | P0 | Backend stores stable keys, not translated strings. |
+| FR-P6 | Classify custom preferences through a typed preference registry. | P0 if free text is enabled | Every custom preference is classified as scoreable, map-context-only, saved-unsupported, disallowed, or needs-clarification. |
+| FR-P7 | Keep LLM extraction separate from matching truth. | P0 if LLM extraction is enabled | LLM output may propose structured preference keys but cannot create scores, eligibility, confidence, reason-code truth, or source metadata. |
+
+### 8.4.1 Custom preference registry
+
+The preference registry is the controlled vocabulary that determines whether an
+extracted user preference can affect matching.
+
+Registry fields:
+
+| Field | Meaning |
+|---|---|
+| `normalized_key` | Stable language-independent key, such as `coast_or_beach_proximity`. |
+| `category` | Preference family, such as `geography`, `amenity`, `mobility`, `environment`, or `housing`. |
+| `use_status` | One of `scoreable`, `map_context_only`, `saved_unsupported`, `disallowed`, or `needs_clarification`. |
+| `feature_key` | Backend feature or distance metric used when `scoreable`. |
+| `default_weight` | Bounded score influence when user has not specified importance. |
+| `source_requirement` | Required source type and freshness rules. |
+| `privacy_class` | `standard`, `sensitive_context`, or `protected_trait_risk`. |
+| `explanation_key` | Translation key explaining how this preference is used. |
+
+Examples:
+
+| User phrase | Normalized key | Status | Allowed use |
+|---|---|---|---|
+| “close to the beach” | `coast_or_beach_proximity` | `scoreable` when coastline/beach-distance data exists | Add a bounded geography score component and show source limitations. |
+| “near a church/mosque/synagogue/temple” | `place_of_worship_proximity` | `map_context_only` unless a neutral amenity-distance feature is explicitly supported | Show nearby places of worship as user-requested amenity context; do not infer religion or rank by religious identity. |
+| “where people like me live” | none | `disallowed` | Do not infer or score demographic identity. Ask for concrete non-sensitive needs instead. |
+| “very safe area” | none or `safety_claim_requested` | `needs_clarification` or `disallowed` for unsupported certainty | Ask for observable proxies or show limitations; do not promise safety. |
+
+If a preference is `map_context_only`, it may affect default overlays or detail
+panels but must not affect rank unless it later becomes a validated scoreable
+registry entry.
 
 Example preference vector:
 
@@ -504,7 +580,25 @@ Example preference vector:
     "environmental_quality": 0.06
   },
   "avoid": ["high_noise", "busy_nightlife", "low_listing_supply"],
-  "housing_preferences": ["row_house", "family_house", "garden"]
+  "housing_preferences": ["row_house", "family_house", "garden"],
+  "custom_preferences": [
+    {
+      "raw_user_phrase_ref": "extra_preferences:0",
+      "normalized_key": "coast_or_beach_proximity",
+      "use_status": "scoreable",
+      "weight": 0.12,
+      "feature_key": "coast_distance",
+      "privacy_class": "standard"
+    },
+    {
+      "raw_user_phrase_ref": "extra_preferences:1",
+      "normalized_key": "place_of_worship_proximity",
+      "use_status": "map_context_only",
+      "weight": 0,
+      "feature_key": null,
+      "privacy_class": "sensitive_context"
+    }
+  ]
 }
 ```
 
@@ -512,10 +606,10 @@ Example preference vector:
 
 | ID | Requirement | Priority | Acceptance criteria |
 |---|---|---:|---|
-| FR-M1 | Trigger matching only after the final survey CTA. | P0 | Model run does not start before user confirms. |
+| FR-M1 | Trigger matching only after the final review CTA. | P0 | Model run does not start before user confirms reviewed guided and extracted preferences. |
 | FR-M2 | Start an asynchronous backend job. | P0 | User receives a job/session ID and progress state. |
 | FR-M3 | Compare user preference vector to neighborhood feature matrix. | P0 | Every candidate neighborhood receives eligibility, score, and reason codes. |
-| FR-M4 | Return ranked neighborhood recommendations. | P0 | Results include top matches, scores/probabilities, reasons, tradeoffs, confidence, and geometry IDs. |
+| FR-M4 | Return ranked neighborhood recommendations. | P0 | Results include top matches, fit scores, reasons, tradeoffs, confidence, and geometry IDs; predictive probabilities appear only if validated labels and evaluation evidence exist. |
 | FR-M5 | Exclude neighborhoods that fail hard constraints unless shown as stretch/near-miss. | P0 | Hard filter failures are not presented as normal top matches. |
 | FR-M6 | Store model run metadata. | P0 | Result includes model version, data version, runtime, and evaluation status. |
 | FR-M7 | Handle model failure gracefully. | P0 | User sees fallback message and deterministic score results if predictive model fails. |
@@ -525,6 +619,24 @@ Example preference vector:
 The requested backend should fit multiple models and choose the one with the highest predictive power. This is only statistically valid if the system has a target variable or validation data.
 
 Therefore the PRD requires two operating modes.
+
+LLMs are not a third scoring mode. They may support intake and explanation only
+under strict boundaries:
+
+- extract structured preferences from user-provided text,
+- ask bounded follow-up questions for missing or ambiguous fields,
+- classify unsupported or sensitive preferences through stable registry keys,
+- explain already-computed structured recommendations.
+
+LLMs must not:
+
+- create or modify match scores,
+- create or modify eligibility,
+- create or modify confidence,
+- create or modify hard-filter outcomes,
+- invent source metadata,
+- infer protected traits or identity,
+- claim a neighborhood is objectively best.
 
 #### Mode A — MVP without enough historical labels
 
@@ -632,16 +744,16 @@ Recommended output:
 | FR-R6 | Show detailed explanation only on expansion or detail view. | P1 | Default list remains visually clean. |
 | FR-R7 | Support mobile map/list switching. | P0 | Mobile users can toggle Map and List without losing state. |
 
-### 8.9 Neighborhood 3D detail
+### 8.9 Neighborhood 2D building detail
 
 | ID | Requirement | Priority | Acceptance criteria |
 |---|---|---:|---|
-| FR-N1 | Load 3D houses only inside selected neighborhood. | P0 | 3D buildings are not rendered nationally. |
+| FR-N1 | Load all available selected-neighborhood 2D BAG `pand` footprints, progressively if needed. | P0 | Footprints are not rendered nationally, are not silently sampled as representative, match the 2D basemap, and preserve non-house pands as visible deferred footprints rather than deleting them. |
 | FR-N2 | Highlight neighborhood boundary. | P0 | User clearly sees selected area. |
 | FR-N3 | Show important amenities as minimal tags. | P0 | No more than 5–7 amenity categories visible by default. |
-| FR-N4 | Allow house click to open Dossier. | P0 | Clicking a selectable house routes to existing Dossier. |
-| FR-N5 | Provide fallback for missing 3D data. | P0 | If 3D houses unavailable, show 2D building footprints and message. |
-| FR-N6 | Keep map performant. | P0 | Detail map loads within target performance budget. |
+| FR-N4 | Allow selectable house-candidate click to open Dossier. | P0 | Clicking a selectable `pand` whose linked verblijfsobject usage contains `woonfunctie`, or another building with a reliable address path, routes to the existing Dossier. Non-residential-only and zero-verblijfsobject footprints are not arbitrary Dossier targets. |
+| FR-N5 | Provide fallback for missing building footprints. | P0 | If footprints are unavailable, show the basemap/amenities and a localized message. |
+| FR-N6 | Keep map performant. | P0 | Detail map loads within target performance budget, progressively pages dense footprints, and labels partial loading states. |
 
 ### 8.10 Dossier integration
 
@@ -722,6 +834,30 @@ Avoid long forms.
 The survey should feel like a calm conversation, not a government intake form.
 
 Use soft surfaces, large spacing, and clear typography.
+
+### 9.6 Optional conversational preference step
+
+If enabled, the additional-preferences step should feel like a single calm
+question, not an AI chat product. It should contain:
+
+1. one prompt,
+2. one text area or speech-to-text equivalent if speech is later supported,
+3. optional example chips for non-sensitive examples,
+4. a clear skip action,
+5. a localized privacy note,
+6. a reviewable extracted-preferences summary on the review screen.
+
+Do not include:
+
+- a persistent chat transcript,
+- AI personality messages,
+- generated neighborhood suggestions before backend matching,
+- demographic or identity prompts,
+- model claims such as “I know the perfect neighborhood for you.”
+
+If extraction confidence is low, the system should ask one bounded follow-up or
+mark the item `needs_clarification`. It should not silently convert ambiguous
+text into a scoring signal.
 
 ---
 
@@ -913,7 +1049,7 @@ Avoid:
 
 ---
 
-## 12. Neighborhood 3D detail UX specification
+## 12. Neighborhood 2D building detail UX specification
 
 ### 12.1 Entry animation
 
@@ -921,7 +1057,7 @@ When a neighborhood is selected:
 
 1. map flies to neighborhood,
 2. boundary appears,
-3. buildings load progressively,
+3. 2D building footprints load progressively,
 4. amenity tags fade in,
 5. detail panel opens with concise explanation.
 
@@ -930,7 +1066,7 @@ When a neighborhood is selected:
 Default visible layers:
 
 1. selected neighborhood boundary,
-2. 3D houses/buildings inside boundary,
+2. 2D houses/building footprints inside boundary,
 3. important amenities,
 4. roads/water/green context,
 5. selected/hovered house.
@@ -943,7 +1079,31 @@ Hidden by default:
 - all nearby neighborhoods,
 - all Dossier modules.
 
-### 12.3 Amenity tags
+### 12.3 Building footprint loading
+
+The selected-neighborhood detail should feel like a real inspectable
+neighborhood surface, not a curated preview.
+
+Rules:
+
+- Results map: no building footprints.
+- Neighborhood detail: show all available building footprints inside the
+  selected neighborhood boundary, or inside the current selected-neighborhood
+  viewport while more pages load.
+- Progressive loading is allowed and preferred for dense areas: request scoped
+  bounds, page/cursor through provider results, clip to the selected boundary,
+  cache chunks by selected neighborhood and data version, and append newly
+  loaded footprints without losing selected house context.
+- If the backend has returned only part of the selected neighborhood, the UI
+  must show an honest partial state such as "Loading more buildings" or
+  "Showing buildings in the visible area."
+- Do not label a small bounded result set as the selected neighborhood's houses
+  unless it is complete for that neighborhood or clearly scoped to the visible
+  viewport.
+- Do not fabricate or retain deterministic seed rectangles as if they were real
+  footprint data.
+
+### 12.4 Amenity tags
 
 Show only the most relevant amenities based on the user’s stated preferences.
 
@@ -955,13 +1115,14 @@ Examples:
 - train station,
 - park,
 - healthcare,
-- sports.
+- EV charging,
+- library/culture.
 
 If the user prioritized families, show schools and childcare first.
 If the user prioritized mobility, show stations and transit first.
 If the user prioritized green space, show parks/nature first.
 
-### 12.4 House selection
+### 12.5 House selection
 
 Clickable houses should have clear hover/active states.
 
@@ -1063,7 +1224,8 @@ Map + Dossier UI
 | Preference service | Convert answers to hard filters, weights, and feature preferences. |
 | Matching service | Run model/scoring logic in Python. |
 | Feature store | Provide neighborhood-level feature matrix. |
-| Geometry service | Provide neighborhood polygons, centroids, and 3D building layer refs. |
+| Geometry service | Provide neighborhood polygons, centroids, and scoped 2D building footprint refs. |
+| Building footprint service | Fetch, page, clip, simplify, and cache selected-neighborhood 2D building footprints without national loads. |
 | Results service | Store and serve recommendation output. |
 | Dossier bridge | Convert selected house/address into existing Dossier route. |
 
@@ -1083,6 +1245,13 @@ GET    /api/neighborhoods/:neighborhoodId/amenities
 POST   /api/dossier/from-building
 GET    /api/dossier/:addressId
 ```
+
+The selected-neighborhood building endpoint must support scoped bounds and
+progressive completion metadata, such as cursor/next-page or explicit
+`partial`/`complete` status. Backend validation must reject requests outside
+the selected neighborhood. Cache keys must include the selected neighborhood,
+requested bounds or tile/chunk, data version, simplification level, and any
+cursor or paging state that changes the response.
 
 ### 14.4 Progress updates
 
@@ -1191,7 +1360,6 @@ Required geometry layers:
 - national boundary or basemap,
 - neighborhood polygons,
 - building footprints,
-- 3D building data where available,
 - amenity point layers,
 - selected house/address geometry.
 
@@ -1214,7 +1382,7 @@ Personal preference data should be stored by anonymous session unless the user c
 
 ---
 
-## 16. Map and 3D requirements
+## 16. Map and building-footprint requirements
 
 ### 16.1 Hero background map
 
@@ -1245,35 +1413,111 @@ Requirements:
 - mobile support,
 - accessible keyboard alternatives where possible.
 
-### 16.3 3D building map
+### 16.3 Selected-neighborhood building footprint map
 
-The 3D building detail should load only after a neighborhood is selected.
+The selected-neighborhood building footprint detail should load only after a neighborhood is selected. Because the basemap is 2D, selected buildings render as flat 2D footprints rather than 3D extrusions.
+
+Selected-neighborhood footprints use BAG semantics:
+
+- The footprint object is a BAG `pand`; semantic use is not a pand "type" and must come from linked `verblijfsobject.gebruiksdoel` metadata.
+- Primary selected-neighborhood 2D footprint loading should use PDOK BAG OGC v2 `pand` where available, because it exposes 2D geometry plus `status`, `gebruiksdoel`, and `aantal_verblijfsobjecten` in the scoped response.
+- 3DBAG may remain a fallback or richer-detail source when height/LoD detail is needed, but the current selected-building 3DBAG `collections/pand/items` path does not expose parsed BAG use purpose. Filtering or prioritizing by use purpose therefore requires PDOK BAG OGC v2 or a join from 3DBAG pand IDs back to BAG.
+- Preferred first-pass statuses are `Pand in gebruik`, `Pand in gebruik (niet ingemeten)`, and `Verbouwing pand`.
+- Prioritize pands whose `gebruiksdoel` contains `woonfunctie`; mixed-use pands such as `winkelfunctie,woonfunctie` remain house candidates.
+- Defer or grey out pands with `aantal_verblijfsobjecten = 0`, only non-residential purposes, or only `overige gebruiksfunctie`. Do not permanently filter them out, because the selected-neighborhood contract is all available footprints where source data exists.
+
+BAG `gebruiksdoel` values:
+
+| Use purpose |
+| --- |
+| `woonfunctie` |
+| `bijeenkomstfunctie` |
+| `celfunctie` |
+| `gezondheidszorgfunctie` |
+| `industriefunctie` |
+| `kantoorfunctie` |
+| `logiesfunctie` |
+| `onderwijsfunctie` |
+| `sportfunctie` |
+| `winkelfunctie` |
+| `overige gebruiksfunctie` |
+
+CBS StatLine `86098NED`, period `2026KW01` provisional, gives this BAG-based national stock distribution by verblijfsobject count:
+
+| Category | Count | Share of all VBOs |
+| --- | ---: | ---: |
+| Woning / contains `woonfunctie` | 8,358,386 | 87.17% |
+| Niet-woning total | 1,229,960 | 12.83% |
+| Overige gebruiksfunctie | 439,709 | 4.59% |
+| Industriefunctie | 242,853 | 2.53% |
+| Logiesfunctie | 153,615 | 1.60% |
+| Winkelfunctie | 125,955 | 1.31% |
+| Kantoorfunctie | 94,085 | 0.98% |
+| Bijeenkomstfunctie | 64,914 | 0.68% |
+| Meerdere niet-woonfuncties | 62,753 | 0.65% |
+| Gezondheidszorgfunctie | 23,217 | 0.24% |
+| Onderwijsfunctie | 13,052 | 0.14% |
+| Sportfunctie | 9,753 | 0.10% |
+| Celfunctie | 54 | ~0.00% |
+
+Reference sources: [Kadaster BAG gebruiksdoel](https://catalogus.kadaster.nl/bag/nl/page/?anylang=on&clang=nl&uri=Gebruiksdoel), [CBS StatLine 86098NED](https://opendata.cbs.nl/CBS/nl/dataset/86098NED/table), [PDOK BAG OGC v2](https://api.pdok.nl/kadaster/bag/ogc/v2?f=html&lang=nl), and [3DBAG schema](https://docs.3dbag.nl/en/schema/layers/).
 
 Performance rules:
 
-- do not load national 3D building data,
-- load by neighborhood ID or bounding box,
-- simplify geometry where possible,
-- use level-of-detail,
+- do not load national building footprint or 3D building data,
+- load by selected neighborhood ID plus scoped bounds, tile/chunk, or cursor,
+- progressively page dense responses until all available footprints in the
+  selected neighborhood or current visible viewport have loaded,
+- label partial loading states; never silently present a small bounded sample as
+  the complete neighborhood,
+- cache successful chunks by selected neighborhood, bounds/tile, data version,
+  simplification level, and cursor/page where applicable,
+- simplify footprint geometry where possible at the current zoom while
+  preserving click/selection accuracy,
 - lazy-load amenities,
 - show skeleton/loading state,
-- provide 2D fallback.
+- provide missing-footprint and non-map fallbacks.
 
 ### 16.4 Amenity layer
 
 The amenity layer must be preference-aware.
 
-Example:
+The selected-neighborhood amenity layer uses a no-paid marker-source stack. It
+must never invent POIs and must never fetch national amenity dumps during a map
+open. Backend responses remain scoped to the selected neighborhood or selected
+neighborhood bounds. If a source is not configured or has no selected-bounds
+record, the right-side Relevant amenities panel shows localized unavailable
+metadata rather than fake pins.
 
-If user selected `schools`, `green`, and `calm`, default visible amenities should be:
+Final no-paid marker sources:
 
-- schools,
-- childcare,
-- parks/nature,
-- playgrounds,
-- supermarkets if relevant.
+| Marker category | Primary no-paid source | Use in MVP |
+| --- | --- | --- |
+| Parks / green space | PDOK BGT/BRT green geometry | Live scoped lookup and stored records |
+| Schools | DUO Open Onderwijsdata matched to BAG | Live scoped lookup and stored records |
+| Childcare | Landelijk Register Kinderopvang matched to BAG | Live scoped lookup and stored records |
+| Public transport stops/stations | OV-haltes Nederland actueel WFS; NDOV / REISinformatiegroep GTFS as preferred import source | Live scoped lookup and stored records |
+| Parking | RDW / Nationaal Parkeerregister open parking data | Live scoped lookup and stored records |
+| EV charging | NDW DOT-NL public charging points GeoJSON | Live scoped lookup and stored records |
+| Swimming water | Zwemwater.nl official bathing-water locations | Live bounded lookup with selected-bounds filtering; stored records optional |
+| Daily shops | Overture Places open POI data | Live scoped bbox lookup and stored records |
+| Cafes / restaurants | Overture Places open POI data | Live scoped bbox lookup and stored records |
+| Healthcare | Overture Places open POI data | Live scoped bbox lookup and stored records |
+| Libraries / culture | Overture Places open POI data | Live scoped bbox lookup and stored records |
 
-The UI should not show all amenities at once.
+Direct OpenStreetMap POI enrichment beyond explicitly approved
+government-hosted layers may be evaluated later only if the project accepts
+ODbL obligations. CBS data may support scoring or context, but it is not a
+marker-pin source.
+
+Sports-field markers are intentionally not part of the active marker stack
+because the available broad sports filters included unreliable non-field
+locations such as sports shops and gyms.
+
+Example: if a user selected `schools`, `green`, `calm`, and daily amenities,
+default visible amenities may include schools, childcare, parks/green space,
+public transport, daily shops, EV charging, cafes/restaurants, and healthcare.
+The UI should show no more than 5-7 relevant amenity categories by default.
 
 ---
 
@@ -1390,6 +1634,20 @@ The model must not recommend or exclude neighborhoods based on protected charact
 
 The matching engine should use housing, environment, accessibility, amenities, and livability signals, not sensitive demographic profiling.
 
+Conversational intake adds extra fairness requirements:
+
+- Do not infer religion, ethnicity, nationality, race, immigration status,
+  income class identity, disability, sexual orientation, or similar protected
+  traits from free text.
+- If a user explicitly asks for proximity to a place of worship, treat it only
+  as a user-requested amenity or map-context preference. Do not infer the
+  user's religion and do not rank neighborhoods by religious demographics.
+- If a user asks for a preference that would require demographic profiling,
+  mark it `disallowed` and ask for concrete non-sensitive needs such as travel
+  time, amenity access, quietness, green space, housing type, or budget.
+- Do not persist free-text preference content in analytics. Store only stable
+  extraction status keys and privacy-safe normalized preference keys.
+
 ---
 
 ## 20. Analytics and success metrics
@@ -1399,6 +1657,8 @@ The matching engine should use housing, environment, accessibility, amenities, a
 - Landing CTA click rate.
 - Survey start rate.
 - Survey completion rate.
+- Additional-preference prompt skip rate.
+- Additional-preference extraction review acceptance/edit rate.
 - Average time to complete survey.
 - Drop-off by question.
 
@@ -1416,7 +1676,8 @@ The matching engine should use housing, environment, accessibility, amenities, a
 - Neighborhood list click rate.
 - Marker click rate.
 - Neighborhood detail open rate.
-- 3D map interaction rate.
+- Selected-neighborhood map interaction rate.
+- Building footprint partial-load and complete-load rate.
 - Amenity tag interaction rate.
 
 ### 20.4 Dossier conversion metrics
@@ -1456,15 +1717,25 @@ UI should offer:
 - reduce must-haves,
 - show near-matches.
 
-### 21.2 Missing 3D building data
+### 21.2 Missing building footprint data
 
 English:
 
-> 3D buildings are not available here yet, so we’re showing the neighborhood in 2D.
+> Building footprints are not available here yet, so we’re showing the basemap and amenities only.
 
 Dutch:
 
-> 3D-gebouwen zijn hier nog niet beschikbaar, daarom tonen we de buurt in 2D.
+> Gebouwcontouren zijn hier nog niet beschikbaar, daarom tonen we alleen de basiskaart en voorzieningen.
+
+### 21.2A Partial building footprint loading
+
+English:
+
+> We’re still loading building footprints for this area.
+
+Dutch:
+
+> We laden nog gebouwcontouren voor dit gebied.
 
 ### 21.3 Slow backend
 
@@ -1512,34 +1783,36 @@ Options:
 2. Animated hero background with fallback.
 3. Dutch/English UI translation system.
 4. One-question-at-a-time survey.
-5. Progress bar and back button.
-6. Survey answer persistence.
-7. Preference vector builder.
-8. Python matching service triggered after final CTA.
-9. Async progress screen.
-10. Success checkmark animation.
-11. Results map centered on the Netherlands.
-12. Ranked list of recommended neighborhoods.
-13. List-to-map and map-to-list synchronization.
-14. Neighborhood detail view.
-15. 3D houses for selected neighborhood where data exists.
-16. Amenity tags based on user preferences.
-17. House click to existing Dossier.
-18. Persistent back-to-map action in Dossier.
-19. Basic analytics for funnel and drop-off.
-20. Failure states.
+5. Optional additional-preferences prompt with structured extraction and skip path.
+6. Review screen showing how extracted custom preferences will be used.
+7. Progress bar and back button.
+8. Survey answer persistence.
+9. Preference vector builder with typed custom-preference registry support.
+10. Python matching service triggered after final CTA.
+11. Async progress screen.
+12. Success checkmark animation.
+13. Results map centered on the Netherlands.
+14. Ranked list of recommended neighborhoods.
+15. List-to-map and map-to-list synchronization.
+16. Neighborhood detail view.
+17. All available 2D house/building footprints for selected neighborhood where data exists, with progressive loading for dense areas.
+18. Amenity tags based on user preferences.
+19. House click to existing Dossier.
+20. Persistent back-to-map action in Dossier.
+21. Basic analytics for funnel and drop-off.
+22. Failure states.
 
 ### 22.2 MVP should not include
 
 1. Account system unless already available.
 2. Paid checkout redesign.
 3. Full listing marketplace.
-4. AI chat assistant.
+4. Unbounded AI chat assistant or LLM-based scorer.
 5. Partner lead handoff.
 6. Full report PDF.
 7. Complex user dashboards.
 8. All possible map layers.
-9. Nationwide 3D preloading.
+9. Nationwide building-footprint or 3D preloading.
 10. Model claims that cannot be statistically validated.
 
 ---
@@ -1569,6 +1842,9 @@ Exit criteria:
 Build:
 
 - final question set,
+- optional additional-preferences prompt,
+- structured preference extractor contract,
+- typed custom-preference registry,
 - answer validation,
 - answer persistence,
 - preference vector builder,
@@ -1576,7 +1852,8 @@ Build:
 
 Exit criteria:
 
-- completed survey produces stable JSON preference vector,
+- completed guided intake produces stable JSON preference vector,
+- extracted custom preferences are reviewed, classified, and either mapped into supported features, shown as map context, saved as unsupported, rejected, or marked for clarification,
 - vector can be sent to backend matching service.
 
 ### Phase 3 — Matching backend
@@ -1585,6 +1862,7 @@ Build:
 
 - Python matching service,
 - deterministic scoring baseline,
+- supported custom-preference scoring and map-context handling,
 - optional predictive model selection if labels exist,
 - async job status,
 - results schema,
@@ -1621,19 +1899,22 @@ Exit criteria:
 
 - user can move from results list to selected neighborhood.
 
-### Phase 6 — Neighborhood 3D detail
+### Phase 6 — Neighborhood 2D building detail
 
 Build:
 
 - selected neighborhood detail view,
-- 3D house loading by neighborhood,
+- all-available 2D house/building footprint loading by selected neighborhood
+  or selected-neighborhood viewport,
+- progressive building paging/chunk caching with honest partial states,
 - amenity tags,
 - house selection state,
-- 2D fallback.
+- missing-footprint fallback.
 
 Exit criteria:
 
-- user can inspect selected neighborhood and click a house.
+- user can inspect selected neighborhood, understand whether buildings are
+  complete or still loading, and click a house.
 
 ### Phase 7 — Dossier bridge
 
@@ -1665,7 +1946,7 @@ The revamp is successful only if all of the following are true:
 9. Completion is visually confirmed with a Buurt Check checkmark.
 10. Results open on a Netherlands map with ranked neighborhoods.
 11. Clicking a result zooms to that neighborhood.
-12. The selected neighborhood view shows 3D houses only for that neighborhood.
+12. The selected neighborhood view shows all available 2D house/building footprints for that neighborhood or current selected-neighborhood viewport, loaded progressively, and never as an unlabeled representative sample.
 13. Amenity tags are relevant to the user’s preferences.
 14. Clicking a house opens the existing Dossier.
 15. The Dossier includes a clear route back to the map.
@@ -1693,6 +1974,8 @@ MultiSelectQuestion
 BudgetRangeQuestion
 CommuteSliderQuestion
 AnchorLocationQuestion
+AdditionalPreferencesQuestion
+CustomPreferenceReviewList
 SurveyReview
 MatchingProgressScreen
 AnimatedCheckmark
@@ -1702,7 +1985,7 @@ RecommendationCard
 NeighborhoodMarker
 NeighborhoodDetailMap
 AmenityTags
-BuildingLayer
+BuildingFootprintLayer
 HouseSelectionCard
 DossierBackButton
 ```
@@ -1713,6 +1996,8 @@ DossierBackButton
 match_session.py
 survey_answers.py
 preference_vector.py
+custom_preference_registry.py
+preference_extraction.py
 neighborhood_features.py
 match_engine.py
 model_selection.py
@@ -1753,6 +2038,10 @@ Recommended translation key structure:
     "en": "Comparing neighborhoods across the Netherlands",
     "nl": "Buurten in Nederland vergelijken"
   },
+  "intake.additional_preferences.title": {
+    "en": "Anything else that matters?",
+    "nl": "Is er nog iets anders belangrijk?"
+  },
   "results.title": {
     "en": "Your best neighborhood matches",
     "nl": "Je beste buurtmatches"
@@ -1771,6 +2060,10 @@ Recommended translation key structure:
 ### 27.1 Do not overpromise model intelligence
 
 The backend can fit multiple models only when there is enough training or validation signal. If the app has no labels yet, begin with a transparent scoring baseline. This is better than pretending to have predictive power.
+
+The same rule applies to conversational intake. An LLM may help understand how a
+user describes their needs, but the scoring truth must come from typed,
+validated backend features and source-backed registry entries.
 
 ### 27.2 Start with a beautiful but lightweight hero
 
@@ -1802,15 +2095,20 @@ The whole flow fails if users lose their recommendation context when opening a D
 
 3. Should the hero map be a real interactive scene or a pre-rendered loop for MVP?
 
-4. How many survey questions is the ideal balance: 8, 10, or 12?
+4. How many core guided-intake questions is the ideal balance: 8, 10, or 12?
 
 5. Does the first release support the full Netherlands or a prioritized set of regions with stronger data quality?
 
 6. Which existing Dossier modules must be preserved unchanged, and which need light UI adjustments for the new journey?
 
-7. What exact data source will power 3D houses in the web map?
+7. What exact selected-neighborhood footprint source/cache strategy will power progressive 2D building loading: live provider paging only, prewarmed backend cache, vector tiles, or a later dedicated GIS/tile service?
 
 8. Will match results be free, paid, or partially gated after preview?
+
+9. Which custom preference registry entries are scoreable in the first
+   implementation, and which are map-context-only? Initial candidates include
+   coast/beach proximity, water proximity, transit station proximity, places of
+   worship as neutral amenity context, and specialized daily-life amenities.
 
 ---
 
@@ -1822,10 +2120,10 @@ It should not ask users to start with an address. It should start with the life 
 
 The new flow is simple:
 
-> **Choose how you want to live. Get matched with neighborhoods. Explore them on a beautiful map. Click a house. Open the full Dossier. Go back anytime.**
+> **Choose how you want to live, or describe it in your own words. Get matched with neighborhoods. Explore them on a beautiful map. Click a house. Open the full Dossier. Go back anytime.**
 
 Dutch:
 
-> **Kies hoe je wilt wonen. Ontdek passende buurten. Verken ze op een mooie kaart. Klik op een woning. Open het volledige Dossier. Ga altijd terug naar de kaart.**
+> **Kies hoe je wilt wonen, of vertel het in je eigen woorden. Ontdek passende buurten. Verken ze op een mooie kaart. Klik op een woning. Open het volledige Dossier. Ga altijd terug naar de kaart.**
 
 That is the core of the revamp.

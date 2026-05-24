@@ -1,6 +1,6 @@
 # Match-First Revamp Traceability
 
-Date: 2026-05-19
+Date: 2026-05-23
 
 Scope: Match-first revamp phase traceability, including Phase 1/2 closure
 evidence, Phase 3 backend 100% closure repair, Phase 4 progress/success UI,
@@ -10,6 +10,946 @@ QA/accessibility/analytics/failure-state closure. Phase 7 includes
 provider-backed nearby address selection through the backend PDOK Locatieserver
 reverse path plus localized manual recovery; Phase 8 final evidence is recorded
 in `docs/qa/final_evidence.md`.
+
+## Selected-Neighborhood Building Eager Paging Cap 2026-05-23
+
+Status: **PASS FOR QUICK FRONTEND PERFORMANCE REPAIR; FINAL NEAR-INSTANT
+BUILDING ARCHITECTURE STILL NEEDS CACHING/PREWARMING OR VECTOR TILES**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD Phase 7 and Acceptance 12; selected-neighborhood detail must progressively show scoped building footprints with honest partial states, without making users wait on long provider cursor chains. | Added a red-first regression test proving eager selected-neighborhood building paging stops after 3 backend page requests, renders the loaded 3 pages, leaves `data-building-complete="false"`, and shows existing partial-loading copy when more pages remain. | `frontend/src/test/match-first-neighborhood-detail.test.tsx` | Red-first `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "stops eager"` failed before implementation because the component fetched a fourth page and rendered `data-rendered-buildings="4"`. The same focused command passed after implementation with 1 test. |
+| Prevent dense neighborhoods such as Hof van Delft from running the old 50-request eager page loop on the user-visible path. | Reduced `MAX_BUILDING_PAGE_REQUESTS` from 50 to 3 in the selected-neighborhood detail loader. Existing merge, cursor, selected-bounds, partial-state, and loaded-footprint behavior remains intact. | `frontend/src/components/match-first/NeighborhoodDetail.tsx` | `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx` passed with 53 tests. `cd frontend && npx eslint src/components/match-first/NeighborhoodDetail.tsx src/test/match-first-neighborhood-detail.test.tsx` passed. `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA production-release notices. Existing React `act(...)` warning noise remains in one selected-neighborhood map-state test. |
+
+Residual release risk:
+
+- This quick repair makes the detail view stop quickly and label partial
+  coverage, but it does not make all dense-neighborhood footprints complete
+  near-instantly. The production-grade follow-up is backend cache/prewarming or
+  selected-neighborhood vector tiles so live PDOK BAG pagination is not on the
+  user's critical path.
+
+## Selected-Neighborhood Building Page Rate-Limit Fallback Repair 2026-05-23
+
+Status: **PASS FOR SCOPED FRONTEND REPAIR; EAGER BUILDING PAGE LOADING STILL
+NEEDS A FUTURE PACING/VIEWPORT PASS**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD Phase 7 and Acceptance 12; selected-neighborhood detail must keep available scoped building footprints visible and use honest partial/missing states. | Reproduced Hof van Delft behavior: PDOK BAG building pages were valid, but a later cursor request hit backend `429 Rate limit exceeded: 20 per 1 minute`; before the repair the frontend discarded the already loaded footprints and showed "Building data is unavailable right now." Added a regression test for one successful page followed by a rate-limited cursor request. | `frontend/src/test/match-first-neighborhood-detail.test.tsx` | Red-first `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "rate limited"` failed before implementation with `data-rendered-buildings="0"` and `data-fallback-reason="building_layer_failed"`. The same command passed after implementation with 1 test. |
+| Preserve selected-neighborhood-only 2D BAG footprint rendering while preventing later cursor failures from blanking earlier pages. | Updated the building page loop so first-page failures still show the unavailable failure state, but failures after at least one successful page keep the merged buildings in state, set `complete: false`, preserve partial copy, and avoid the missing-footprint fallback. | `frontend/src/components/match-first/NeighborhoodDetail.tsx` | `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx` passed with 52 tests. `cd frontend && npx eslint src/components/match-first/NeighborhoodDetail.tsx src/test/match-first-neighborhood-detail.test.tsx` passed. |
+| Build and source hygiene for the scoped frontend repair. | No i18n resources changed; existing partial/unavailable copy keys remain in use. No Dossier, scoring, amenity, route, or backend provider contracts were changed. | same component/test files plus this traceability file and handoff | `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA production-release notices. `git diff --check -- frontend/src/components/match-first/NeighborhoodDetail.tsx frontend/src/test/match-first-neighborhood-detail.test.tsx` passed with CRLF normalization warnings only. |
+
+Residual release risk:
+
+- Dense neighborhoods can still have more building pages than should be eagerly
+  loaded in one burst. This repair keeps already loaded footprints visible and
+  labels the state as partial, but a future pass should pace cursor loading or
+  make it viewport-driven to avoid hitting backend rate limits.
+- Existing React `act(...)` warning noise remains in one selected-neighborhood
+  map-state test.
+
+## Legacy Match Admin Report Failure Fallback I18n Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH ADMIN REPORT FAILURE FALLBACK I18N
+ALIGNMENT; FULL FRONTEND LINT NOT RERUN IN THIS SLICE**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User-facing admin fallback values should use translation-backed copy instead of raw placeholders. | Added a red-first regression test proving report-generation failures without `report_id` render `Unknown report: PDF generation failed` instead of `-: PDF generation failed`. | `frontend/src/components/match/MatchAdminDashboard.test.tsx` | Red-first `cd frontend && npx vitest run src/components/match/MatchAdminDashboard.test.tsx -t "missing report"` failed before implementation because the UI rendered `-: PDF generation failed`. The same focused command passed after implementation with 1 test. |
+| Preserve admin health contracts, operational error-code labels, provider status display, route flow, scoring behavior, and Dossier behavior while localizing the fallback. | Added EN/NL `match.admin.reportUnknown` resources and used that key when `report_id` is absent or blank. | `frontend/src/components/match/MatchAdminDashboard.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json` | Expanded suite passed: `cd frontend && npx vitest run src/components/match/MatchAdminDashboard.test.tsx src/components/match/matchDisplayLabels.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts src/test/match-first-copy-guard.test.ts src/test/mobile-ui-gates.test.ts` with 48 tests. Focused ESLint passed for `src/components/match/MatchAdminDashboard.tsx`, `src/components/match/MatchAdminDashboard.test.tsx`, `src/components/match/matchDisplayLabels.ts`, `src/components/match/matchDisplayLabels.test.ts`, `src/test/match-i18n.test.ts`, and `src/test/mobile-ui-gates.test.ts`. |
+| Source-level proof that the old raw report-id dash fallback is gone from the admin dashboard. | Ran a focused source scan after implementation. | same component/test/i18n files | `cd frontend && rg -n "reportUnknown\|report_id \?\?\|Unknown report\|Onbekend rapport\|\?\? '-'" src/components/match/MatchAdminDashboard.tsx src/components/match/MatchAdminDashboard.test.tsx src/i18n/en.json src/i18n/nl.json` found the localized fallback key/resources and did not find the old `report_id ?? '-'` fallback. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/components/match/MatchAdminDashboard.tsx frontend/src/components/match/MatchAdminDashboard.test.tsx frontend/src/i18n/en.json frontend/src/i18n/nl.json` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` was not rerun in this slice; focused
+  ESLint for touched and related display-label files passed.
+- Existing React `act(...)` warning noise remains in accessibility tests.
+- This closes only the missing report-id fallback drift found in the legacy
+  Match admin dashboard. A full requirement-by-requirement whole-Match design
+  audit is still not complete.
+
+## Legacy Match Listings Provider-Mode Label Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH LISTINGS PROVIDER-MODE LABEL ALIGNMENT;
+FULL FRONTEND LINT NOT RERUN IN THIS SLICE**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Backend provider-mode values surfaced in Match listings should use the shared localized label path with a safe fallback. | Added a red-first regression test proving an unknown provider mode does not render the raw `match.listings.providerMode.future_mode` key and instead renders localized provider-unavailable copy. | `frontend/src/components/match/MatchListings.test.tsx` | Red-first `cd frontend && npx vitest run src/components/match/MatchListings.test.tsx -t "provider mode"` failed before implementation because the UI rendered `match.listings.providerMode.future_mode`. The same focused command passed after implementation with 1 test. |
+| Preserve listing provider contracts, grouping, provider health display, valid provider-mode labels, price formatting, alert actions, route flow, scoring behavior, and Dossier behavior while hardening provider-mode display. | Replaced the direct `t(\`match.listings.providerMode.${result.provider.mode}\`)` usage with `getMatchProviderModeLabel(result.provider.mode, t)`. | `frontend/src/components/match/MatchListings.tsx` | Expanded suite passed: `cd frontend && npx vitest run src/components/match/MatchListings.test.tsx src/components/match/matchDisplayLabels.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts src/test/match-first-copy-guard.test.ts src/test/mobile-ui-gates.test.ts` with 51 tests. Focused ESLint passed for `src/components/match/MatchListings.tsx`, `src/components/match/MatchListings.test.tsx`, `src/components/match/matchDisplayLabels.ts`, `src/components/match/matchDisplayLabels.test.ts`, `src/test/match-i18n.test.ts`, and `src/test/mobile-ui-gates.test.ts`. |
+| Source-level proof that the previous dynamic provider-mode key rendering expression is gone. | Ran a focused source scan after implementation. | same component/test files | `cd frontend && rg -n "match\.listings\.providerMode\.\$\{\|getMatchProviderModeLabel\|future_mode" src/components/match/MatchListings.tsx src/components/match/MatchListings.test.tsx` found the helper usage and unknown-mode regression fixture only. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/components/match/MatchListings.tsx frontend/src/components/match/MatchListings.test.tsx` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` was not rerun in this slice; focused
+  ESLint for touched and related display-label files passed.
+- Existing React `act(...)` warning noise remains in accessibility tests.
+- This closes only the legacy Match listings provider-mode fallback drift found
+  during the design audit. A full requirement-by-requirement whole-Match design
+  audit is still not complete.
+
+## Legacy Match Listings Unavailable-Reason I18n Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH LISTINGS UNAVAILABLE-REASON I18N
+ALIGNMENT; FULL FRONTEND LINT NOT RERUN IN THIS SLICE**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Backend warning/error/status codes surfaced in Match listings should render through i18n rather than raw stable codes. | Added a red-first regression test proving `listing_provider_unconfigured` and `listing_provider_failed:ValidationError` do not render raw and instead appear as localized provider-state reasons. | `frontend/src/components/match/MatchListings.test.tsx` | Red-first `cd frontend && npx vitest run src/components/match/MatchListings.test.tsx -t "unavailable reason"` failed before implementation because the UI rendered `Provider state: listing_provider_unconfigured`. The same focused command passed after implementation with 1 test. |
+| Preserve provider-state wrapper copy, listing provider contracts, valid listing data display, alert actions, route flow, scoring behavior, and Dossier behavior while localizing the reason code. | Added `getListingUnavailableReasonLabel`, mapped `listing_provider_unconfigured` and `listing_provider_failed:*`, added EN/NL reason-code resources, and used the localized reason inside `match.listings.unavailableReason`. | `frontend/src/components/match/MatchListings.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json` | Expanded suite passed: `cd frontend && npx vitest run src/components/match/MatchListings.test.tsx src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts src/test/match-first-copy-guard.test.ts src/test/mobile-ui-gates.test.ts` with 47 tests. Focused ESLint passed for `src/components/match/MatchListings.tsx`, `src/components/match/MatchListings.test.tsx`, `src/test/match-i18n.test.ts`, and `src/test/mobile-ui-gates.test.ts`. |
+| Source-level proof that known backend reason codes remain internal fixtures/mapper inputs and no longer appear as rendered copy. | Ran a focused source scan after implementation. | same component/test/i18n files | `cd frontend && rg -n "listing_provider_unconfigured\|listing_provider_failed\|unavailableReasonCode\|Provider state: Listing provider" src/components/match/MatchListings.tsx src/components/match/MatchListings.test.tsx src/i18n/en.json src/i18n/nl.json src/test` showed the backend codes only in mapper/test fixtures and localized labels/resources for rendered copy. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/components/match/MatchListings.tsx frontend/src/components/match/MatchListings.test.tsx frontend/src/i18n/en.json frontend/src/i18n/nl.json` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` was not rerun in this slice; focused
+  ESLint for touched and related guard files passed.
+- This closes only the legacy Match listings unavailable-reason display drift
+  found during the design audit. A full requirement-by-requirement whole-Match
+  design audit is still not complete.
+
+## Legacy Match Listings Missing-Price Fallback I18n Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH LISTINGS MISSING-PRICE FALLBACK I18N
+ALIGNMENT; FULL FRONTEND LINT NOT RERUN IN THIS SLICE**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User-facing missing-price fallbacks in Match listings must use translation-backed copy instead of raw placeholders. | Added a red-first regression test proving a listing without `price_cents` renders localized `Unavailable` copy for the row price and both empty group price ranges, and does not render `Price range: -`. | `frontend/src/components/match/MatchListings.test.tsx` | Red-first `cd frontend && npx vitest run src/components/match/MatchListings.test.tsx -t "missing listing prices"` failed before implementation because the rendered listing still showed price `-` and `Price range: -`. The same focused command passed after implementation with 1 test. |
+| Preserve listing provider contracts, listing grouping, valid price formatting, alert actions, route flow, scoring behavior, and Dossier behavior while replacing the fallback. | Updated `formatMoney` and `formatPriceRange` to accept a localized unavailable label and routed row/range fallbacks through `t('match.common.unavailable')`. | `frontend/src/components/match/MatchListings.tsx` | Expanded suite passed: `cd frontend && npx vitest run src/components/match/MatchListings.test.tsx src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts src/test/match-first-copy-guard.test.ts src/test/mobile-ui-gates.test.ts` with 46 tests. Focused ESLint passed for `src/components/match/MatchListings.tsx`, `src/components/match/MatchListings.test.tsx`, `src/test/match-i18n.test.ts`, and `src/test/mobile-ui-gates.test.ts`. |
+| Source-level proof that the old formatter-level raw dash fallback is gone and the existing unavailable translations are used. | Ran a focused source scan after implementation. | same component/test files plus EN/NL resources | `cd frontend && rg -n "return '-'\|Price range: -\|formatMoney\(\|formatPriceRange\(\|match\.common\.unavailable" src/components/match/MatchListings.tsx src/components/match/MatchListings.test.tsx src/i18n/en.json src/i18n/nl.json` found the new formatter paths, regression assertion, and existing EN/NL unavailable resources; it did not find an old `return '-'` formatter fallback. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/components/match/MatchListings.tsx frontend/src/components/match/MatchListings.test.tsx` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` was not rerun in this slice; focused
+  ESLint for touched and related guard files passed.
+- Existing React `act(...)` warning noise remains in accessibility tests.
+- This closes only the legacy Match listings missing-price fallback drift found
+  during the design audit. A full requirement-by-requirement whole-Match design
+  audit is still not complete.
+
+## Match Landing Language Surface Token Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH LANDING LANGUAGE SURFACE TOKEN ALIGNMENT; FULL
+FRONTEND LINT NOT RERUN IN THIS SLICE**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Match-first landing controls should stay on shared Polar Frost/tokenized surfaces instead of local raw RGBA colors. | Added a red-first mobile UI gate requiring `.match-first-landing__language` to avoid raw `rgba(...)` and use a tokenized surface background. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "language switcher"` failed before implementation because `.match-first-landing__language` still used raw `rgba(255, 255, 255, 0.82)`. The same focused command passed after implementation with 1 test. |
+| Preserve landing behavior, i18n labels, language switching, CTA hierarchy, analytics, route flow, survey flow, scoring behavior, and Dossier behavior while improving the switcher surface. | Replaced the raw RGBA background with `background: color-mix(in srgb, var(--color-surface) 82%, transparent)`. | `frontend/src/components/match-first/MatchFirstLanding.css` | Affected suite passed: `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts src/components/match-first/MatchFirstLanding.test.tsx` with 35 tests. Focused ESLint passed for `src/test/mobile-ui-gates.test.ts`. |
+| Source-level proof that the targeted landing language switcher no longer has a raw RGBA background. | Ran a focused source scan after implementation. | same CSS/test files | `cd frontend && rg -n "\.match-first-landing__language\s*\{[\s\S]*rgba\|background: color-mix\(in srgb, var\(--color-surface\) 82%, transparent\)" src/components/match-first/MatchFirstLanding.css src/test/mobile-ui-gates.test.ts` found the new tokenized declaration/test expectation and no targeted raw RGBA language-switcher match. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/components/match-first/MatchFirstLanding.css frontend/src/test/mobile-ui-gates.test.ts` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Existing React `act(...)` warning noise remains in accessibility tests.
+- Full `cd frontend && npm run lint` was not rerun in this slice; focused
+  ESLint for the touched test file passed.
+- This closes only the landing language-switcher raw RGBA surface drift found
+  during the design audit. A full requirement-by-requirement whole-Match design
+  audit is still not complete.
+
+## Legacy Match Report No-Source Fallback I18n Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH REPORT NO-SOURCE FALLBACK I18N
+ALIGNMENT; FULL FRONTEND LINT NOT RERUN IN THIS SLICE**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User-facing fallback text in Match report claim metadata must use translation keys in both English and Dutch. | Added a red-first regression test proving a claim with no source refs renders localized no-source copy and does not render the raw `-` placeholder. | `frontend/src/components/match/MatchReport.test.tsx` | Red-first `cd frontend && npx vitest run src/components/match/MatchReport.test.tsx -t "renders missing claim sources"` failed before implementation because the claim metadata rendered a visible `-`. The same focused command passed after implementation with 1 test. |
+| Preserve report data contracts, source badges when sources exist, scoring boundaries, generated report content, route flow, and Dossier behavior while replacing the raw placeholder. | Updated `SourceBadges` to read `match.report.noSources` through `useTranslation()` and added English/Dutch resources: `No sources listed` / `Geen bronnen vermeld`. | `frontend/src/components/match/MatchReport.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json` | Expanded suite passed: `cd frontend && npx vitest run src/components/match/MatchReport.test.tsx src/test/match-report-i18n.test.tsx src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts src/test/match-first-copy-guard.test.ts` with 17 tests. Focused ESLint passed for `src/components/match/MatchReport.tsx`, `src/components/match/MatchReport.test.tsx`, `src/test/match-report-i18n.test.tsx`, and `src/test/match-i18n.test.ts`. |
+| Source-level proof that the old raw dash fallback is gone from the scanned Match report paths and that the new key exists in both locales. | Ran a focused source scan after implementation. | same component/test/i18n files | `cd frontend && rg -n "match\.report\.noSources\|No sources listed\|Geen bronnen vermeld\|\{'-'\}" src/components/match src/i18n/en.json src/i18n/nl.json src/test` found only the new component key, EN/NL resources, and regression test. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/components/match/MatchReport.tsx frontend/src/components/match/MatchReport.test.tsx frontend/src/i18n/en.json frontend/src/i18n/nl.json` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` was not rerun in this slice; focused
+  ESLint for the touched component/test files passed.
+- Existing React `act(...)` warning noise remains in the accessibility tests.
+- This closes only the legacy Match report no-source fallback drift found during
+  the design audit. A full requirement-by-requirement whole-Match design audit
+  is still not complete.
+
+## Match Map Control Token Surface Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH MAP CONTROL TOKEN SURFACE ALIGNMENT; FULL
+FRONTEND LINT NOT RERUN IN THIS SLICE**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Active Match-first map controls should use the shared Polar Frost token system instead of local raw RGBA surface colors. | Added a red-first mobile UI gate requiring the results-map control buttons and selected-neighborhood map/house action buttons to avoid raw `rgba(...)` in their control-surface selectors and to use tokenized `color-mix()` declarations. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "tokenized surfaces"` failed before implementation because `.results-map__controls button` still used raw RGBA border/background colors. The same focused command passed after implementation with 1 test. |
+| Preserve behavior, i18n, route flow, analytics, scoring, Dossier behavior, touch targets, icon controls, focus rings, tactile feedback, and reduced-motion behavior while improving surface styling. | Replaced the affected raw RGBA declarations with `border: 1px solid color-mix(in srgb, var(--color-accent-text) 28%, transparent)` and `background: color-mix(in srgb, var(--color-surface) 92%, transparent)`. | `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match-first/NeighborhoodDetail.css` | Affected map/mobile suite passed: `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx` with 96 tests. Focused ESLint passed for `src/test/mobile-ui-gates.test.ts`. |
+| Source-level proof that the targeted active map-control selectors no longer contain raw RGBA colors. | Ran a focused selector scan after implementation. | same CSS/test files | `rg -n "\.results-map__controls button\s*\{[\s\S]*rgba\|\.neighborhood-building-layer__controls button,[\s\S]*?\{[\s\S]*rgba\(" frontend/src/components/match-first/ResultsMap.css frontend/src/components/match-first/NeighborhoodDetail.css` returned no matches. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/components/match-first/ResultsMap.css frontend/src/components/match-first/NeighborhoodDetail.css frontend/src/test/mobile-ui-gates.test.ts` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Existing React `act(...)` warning noise remains in the affected map/a11y
+  tests.
+- Other map overlays still intentionally use existing RGBA styling and were
+  left for separate scoped passes.
+- Full `cd frontend && npm run lint` was not rerun in this slice; focused
+  ESLint for the touched test file passed.
+- This closes only the active map-control raw RGBA surface drift found during
+  the design audit. A full requirement-by-requirement whole-Match design audit
+  is still not complete.
+
+## Match Map Icon-Control Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH MAP ICON-CONTROL ALIGNMENT; FULL FRONTEND LINT
+NOT RERUN IN THIS SLICE**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Match map controls should behave as icon buttons with translated accessible labels, not visible text-symbol buttons. | Added red-first expectations that results-map zoom controls, selected-neighborhood zoom controls, and the selected-neighborhood amenity-details close action render icon-only controls while preserving translated `aria-label` values. | `frontend/src/test/match-first-results-map.test.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx` | Red-first `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx -t "renders results map controls"` failed before implementation on visible `+`; `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "visible map zoom controls"` failed before implementation on visible `+`; `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "official amenity type shapes"` failed before implementation on visible `x`. The same focused commands passed after implementation. |
+| Preserve map behavior, product copy, i18n labels, analytics payloads, map data contracts, Dossier behavior, and scoring behavior while improving control presentation. | Replaced literal `+`, `-`, and `x` control text with aria-hidden SVG icons and stable test IDs. No icon dependency was added because `frontend/package.json` has no installed icon library such as `lucide-react`. | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx` | Affected suite passed: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts` with 95 tests. Focused ESLint passed for the two component files and two touched test files. |
+| Source-level proof that Match/Match-first TSX no longer contains the identified text-symbol control pattern, and CSS design gates remain unchanged. | Ran text-symbol and CSS design scans after implementation. | same TSX/test files | `rg -n -g '*.tsx' '>\s*[+\-xX]\s*</\|<span aria-hidden="true">[+\-xX]</span>' frontend/src/components/match-first frontend/src/components/match` returned no matches. The broad Match CSS design scan returned only the intentional runtime marker custom-property fallback in `NeighborhoodDetail.css`. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/components/match-first/ResultsMap.tsx frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx frontend/src/test/match-first-results-map.test.tsx frontend/src/test/match-first-neighborhood-detail.test.tsx` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Existing React `act(...)` warning noise remains in the affected map/a11y
+  tests.
+- Full `cd frontend && npm run lint` was not rerun in this slice; focused
+  ESLint for touched TypeScript/test files passed.
+- This closes only the map-control text-symbol drift found during the design
+  audit. A full requirement-by-requirement whole-Match design audit is still
+  not complete.
+
+## Legacy Match Comparison Mobile Stack Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH COMPARISON MOBILE STACK ALIGNMENT; FULL
+FRONTEND LINT STILL KNOWN-BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Legacy Match comparison data should fit narrow screens without requiring side-scroll as the only way to read the table. | Added a red-first mobile UI gate requiring `data-column-label` values on comparison cells and a narrow-screen stacked table override with `overflow-x: visible`, `min-width: 0`, and visible per-cell labels. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "legacy Match comparison table stacks"` failed before implementation because `MatchComparison.tsx` lacked `data-column-label={neighborhood.name}` and CSS had no stacked mobile table override; the same focused gate passed after implementation with 1 test. |
+| Preserve desktop comparison table behavior while improving mobile readability. | Added `data-column-label={neighborhood.name}` to table cells. Added a `max-width: 720px` CSS layout that renders caption/body/rows/cells as blocks, visually hides the desktop header, removes the mobile `min-width: 760px` constraint, and shows the per-cell label via `td::before`. | `frontend/src/components/match/MatchComparison.tsx`, `frontend/src/components/match/MatchComparison.css` | Focused comparison/mobile suite passed: `cd frontend && npx vitest run src/components/match/MatchComparison.test.tsx src/test/mobile-ui-gates.test.ts` with 30 tests. |
+| Source-level proof that the comparison change did not reintroduce clipped text, raw colors, static token fallbacks, viewport typography, or negative letter spacing. | Ran Match CSS and focused comparison scans after implementation. | same TS/CSS/test files | The scan `rg -n -g "*.css" "text-overflow:\s*ellipsis\|white-space:\s*nowrap\|font-size:\s*[^;]*(vw\|vh\|vmin\|vmax)\|letter-spacing:\s*-[0-9.]\|#[0-9a-fA-F]{3,8}\b\|var\(--[^)]+," frontend/src/components/match frontend/src/components/match-first` returned only the intentional runtime marker custom-property fallback in `NeighborhoodDetail.css`. A focused comparison scan confirmed the desktop `overflow-x: auto` and `min-width: 760px` remain only for wider layouts, with mobile `overflow-x: visible` and `min-width: 0` overrides present. `cd frontend && npx eslint src/components/match/MatchComparison.tsx src/components/match/MatchComparison.test.tsx src/test/mobile-ui-gates.test.ts`, `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/components/match/MatchComparison.css frontend/src/components/match/MatchComparison.tsx frontend/src/test/mobile-ui-gates.test.ts` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` was not rerun in this slice; it remains
+  known-blocked from earlier audits by existing unrelated repo-wide lint debt.
+  Focused ESLint for touched TypeScript/test files passed.
+- This closes only the legacy Match comparison-table mobile side-scroll drift
+  found during the design audit. A full requirement-by-requirement whole-Match
+  design audit is still not complete.
+
+## Legacy Match Action Button Touch Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH ACTION BUTTON TOUCH ALIGNMENT; FULL
+FRONTEND LINT STILL KNOWN-BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Legacy Match action buttons that remain route-accessible should meet mobile touch target and tactile-state expectations. | Added a red-first mobile UI gate requiring saved, share/export, listing, alert, and similar-search action buttons to expose at least 44px targets, pointer cursors, transform-backed active states, and reduced-motion transition overrides. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "legacy Match action buttons"` failed before implementation because `.match-saved__item button` and other legacy action selectors had no local touch-target/tactile-state CSS; the same focused gate passed after implementation with 1 test. |
+| Keep legacy Match behavior, copy, i18n, route flow, analytics, APIs, scoring, maps, reports, and Dossier behavior unchanged while improving action ergonomics. | Added token-based local button styling, focus-visible `--focus-ring-accent`, `translateY(1px)` active feedback, and reduced-motion overrides for saved-neighborhood unsave actions, share/export report actions, listing alert creation, alert suggestions/form/management actions, and similar-search actions. Added `min-height: 44px` to the share/export consent row. | `frontend/src/components/match/MatchAlerts.css`, `frontend/src/components/match/MatchListings.css`, `frontend/src/components/match/MatchSaved.css`, `frontend/src/components/match/MatchShareExport.css`, `frontend/src/components/match/MatchSimilarSearch.css` | Full mobile UI gates passed: `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts` with 27 tests. Focused legacy action suite passed: `cd frontend && npx vitest run src/components/match/MatchSaved.test.tsx src/components/match/MatchListings.test.tsx src/components/match/MatchAlerts.test.tsx src/components/match/MatchSimilarSearch.test.tsx src/test/mobile-ui-gates.test.ts` with 34 tests. |
+| Source-level proof that the added button styling did not reintroduce raw colors or other banned Match CSS patterns. | Ran the broad Match CSS design scan after implementation. | same CSS/test files | The scan for raw colors, static token fallbacks, gradients, viewport-scaled fonts, negative letter spacing, `!important`, classic `vh`, heavy shadows, and large radii returned only the intentional runtime marker custom-property fallback in `NeighborhoodDetail.css`. `cd frontend && npx eslint src/test/mobile-ui-gates.test.ts`, `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/test/mobile-ui-gates.test.ts frontend/src/components/match/MatchSaved.css frontend/src/components/match/MatchShareExport.css frontend/src/components/match/MatchListings.css frontend/src/components/match/MatchAlerts.css frontend/src/components/match/MatchSimilarSearch.css` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` was not rerun in this slice; it remains
+  known-blocked from earlier audits by existing unrelated repo-wide lint debt.
+  Focused ESLint for the touched test file passed.
+- This closes only the legacy Match action-button touch/tactile drift found
+  during the design audit. A full requirement-by-requirement whole-Match design
+  audit is still not complete.
+
+## Legacy Match Saved-Neighborhood Fallback I18n Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH SAVED-NEIGHBORHOOD FALLBACK I18N
+ALIGNMENT; FULL FRONTEND LINT STILL KNOWN-BLOCKED BY EXISTING REPO-WIDE LINT
+DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User-facing fallback text in Match surfaces must use translation keys in both English and Dutch. | Added red-first tests proving a saved neighborhood without a backend-provided name renders a localized fallback label instead of a generated title-case label from the ID. | `frontend/src/components/match/matchDisplayLabels.test.ts`, `frontend/src/components/match/MatchSaved.test.tsx` | Red-first `cd frontend && npx vitest run src/components/match/matchDisplayLabels.test.ts src/components/match/MatchSaved.test.tsx` failed before implementation because the missing-name fallback rendered `Amsterdam IJburg` from `nh_amsterdam_ijburg`; the same focused command passed after implementation with 4 tests. |
+| Preserve source-provided neighborhood names while keeping missing-name fallbacks localized and honest. | Updated `getSavedNeighborhoodDisplayName` to return backend-provided `neighborhood_name`/`name` values when present, otherwise return `t('match.saved.neighborhoodFallback', { id })`. Passed `t` from `MatchSaved.tsx` and added English/Dutch `match.saved.neighborhoodFallback` translations. | `frontend/src/components/match/matchDisplayLabels.ts`, `frontend/src/components/match/MatchSaved.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json` | Expanded i18n/copy suite passed: `cd frontend && npx vitest run src/components/match/matchDisplayLabels.test.ts src/components/match/MatchSaved.test.tsx src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts src/test/match-first-copy-guard.test.ts` with 17 tests. |
+| Keep the Match-first visible-copy guard accurate so it catches real visible text without flagging TypeScript types. | Fixed an existing false positive by changing the visible-text regex so it does not treat the `=>` arrow token in function types as a JSX text boundary. | `frontend/src/test/match-first-copy-guard.test.ts` | `cd frontend && npx vitest run src/test/match-first-copy-guard.test.ts -t "keeps visible match-first component copy"` failed before the regex fix with `void \| Promise` matches from `AdditionalPreferencesPrompt.tsx`, then passed after the `=>` exclusion. |
+| Source-level proof that the old saved-neighborhood ID-to-title fallback logic is gone. | Ran source scans over legacy Match helper and usages. | same TS/test/i18n files | `rg -n "replace\(/\\^nh_\|startsWith\('ij'\)\|charAt\(0\)\.toUpperCase\(\)" frontend/src/components/match` returned no matches. `rg -n "getSavedNeighborhoodDisplayName\(" frontend/src/components/match frontend/src/test` showed only the helper definition, focused tests, and the `MatchSaved.tsx` call that passes `t`. `cd frontend && npx eslint src/components/match/matchDisplayLabels.ts src/components/match/matchDisplayLabels.test.ts src/components/match/MatchSaved.tsx src/components/match/MatchSaved.test.tsx src/test/match-first-copy-guard.test.ts`, `cd frontend && npm run build`, `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- ...` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` was not rerun in this slice; it remains
+  known-blocked from earlier audits by existing unrelated repo-wide lint debt.
+  Focused ESLint for touched TypeScript/test files passed.
+- This closes only the saved-neighborhood missing-name fallback i18n drift found
+  during the Match copy audit. A full requirement-by-requirement whole-Match
+  design audit is still not complete.
+
+## Match Result Label Wrapping Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH RESULT LABEL WRAPPING ALIGNMENT; FULL FRONTEND
+LINT STILL KNOWN-BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Match result and report text must fit within mobile containers instead of clipping or forcing horizontal overflow. | Added a red-first mobile UI gate requiring results-map popup names, recommendation-card names, and legacy Match report status/guardrail labels to wrap with `overflow-wrap: anywhere`, `white-space: normal`, and no ellipsis/no-wrap clipping. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "Match result and report labels wrap"` failed before implementation because `.results-map__selection-popup-main strong` still used `text-overflow: ellipsis` and `white-space: nowrap`; the same focused gate passed after implementation with 1 test. |
+| Keep PRD flow, route behavior, i18n, scoring, map behavior, report data, and Dossier behavior unchanged while improving responsive text fit. | Removed ellipsis/no-wrap clipping from results-map popup/card neighborhood names; added line-height, `overflow-wrap: anywhere`, and wrapping white-space. Updated legacy Match report status/guardrail pills with bounded width, wrapping text, and an `inline-block` guardrail so long localized labels can wrap predictably. | `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match/MatchReport.css` | Full mobile UI gates passed: `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts` with 26 tests. Focused result/report component suite passed: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx src/components/match/MatchReport.test.tsx src/test/match-report-i18n.test.tsx` with 21 tests. Existing React `act(...)` warning noise remains in `match-first-results-map.test.tsx`. |
+| Source-level proof that Match CSS no longer carries the identified label-clipping pattern. | Ran a clipping scan and broad Match CSS design scan after implementation. | same CSS/test files | `rg -n -g "*.css" "text-overflow:\s*ellipsis\|white-space:\s*nowrap" frontend/src/components/match frontend/src/components/match-first` returned no matches. The broad scan for raw colors, static token fallbacks, gradients, viewport-scaled fonts, negative letter spacing, `!important`, classic `vh`, heavy shadows, and large radii returned only the intentional runtime marker custom-property fallback in `NeighborhoodDetail.css`. `cd frontend && npx eslint src/test/mobile-ui-gates.test.ts`, `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- frontend/src/test/mobile-ui-gates.test.ts frontend/src/components/match-first/ResultsMap.css frontend/src/components/match/MatchReport.css` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` was not rerun in this slice; it remains
+  known-blocked from the immediately preceding audit by existing unrelated
+  repo-wide lint debt. Focused ESLint for the touched test file passed.
+- This closes only the result/report label-clipping drift found during the
+  responsive text audit. A full requirement-by-requirement whole-Match design
+  audit is still not complete.
+
+## Legacy Match Raw Fallback Token Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH RAW FALLBACK TOKEN ALIGNMENT; FULL
+FRONTEND LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Older Match surfaces that remain route-accessible should use the shared Polar Frost token system rather than raw fallback colors. | Added a red-first mobile UI gate requiring all legacy Match CSS files to avoid raw hex fallback colors. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "legacy Match CSS avoids raw hex"` failed before implementation because legacy Match CSS still contained fallback colors such as `#5d6b78` and `#d8e2ea`; focused green proof `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "legacy Match CSS avoids raw hex\|legacy Match surfaces avoid generic\|legacy Match surfaces use defined"` passed after implementation with 3 tests. |
+| Legacy Match CSS should not keep static `var(--token, fallback)` values where the Polar Frost tokens are already defined. | Added a red-first static-fallback gate, then replaced the remaining `var(--radius-sm, 8px)` fallback in `MatchFeedbackControls.css` with `var(--radius-sm)`. | `frontend/src/components/match/MatchFeedbackControls.css`, `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "legacy Match CSS avoids static token fallbacks"` failed before implementation because `MatchFeedbackControls.css` still used `var(--radius-sm, 8px)`; focused green proof `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "legacy Match CSS avoids raw hex\|legacy Match CSS avoids static token fallbacks\|Match preference"` passed with 3 tests. |
+| Keep legacy Match behavior, copy, i18n, route flow, analytics, APIs, scoring, maps, and Dossier behavior unchanged while aligning CSS fallback usage. | Removed raw color fallbacks from legacy Match border, surface, text, and active-state token references, relying on already-defined Polar Frost tokens. Updated existing layout/token gate expectations from fallback strings to token-only strings. | `frontend/src/components/match/MatchAdminDashboard.css`, `frontend/src/components/match/MatchAlerts.css`, `frontend/src/components/match/MatchComparison.css`, `frontend/src/components/match/MatchFeedbackControls.css`, `frontend/src/components/match/MatchListings.css`, `frontend/src/components/match/MatchSaved.css`, `frontend/src/components/match/MatchShareExport.css`, `frontend/src/components/match/MatchSimilarSearch.css`, `frontend/src/test/mobile-ui-gates.test.ts` | Full mobile UI gates passed: `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts` with 25 tests. Focused legacy Match suite passed: `cd frontend && npx vitest run src/components/match/MatchFeedbackControls.test.tsx src/components/match/MatchComparison.test.tsx src/components/match/MatchListings.test.tsx src/components/match/MatchAlerts.test.tsx src/components/match/MatchAdminDashboard.test.tsx src/components/match/MatchSaved.test.tsx src/components/match/MatchSimilarSearch.test.tsx src/components/match/matchDisplayLabels.test.ts src/test/mobile-ui-gates.test.ts` with 38 tests. Focused ESLint for touched legacy Match TypeScript/test files passed. |
+| Source-level proof that Match CSS no longer carries raw fallback colors, static token fallbacks, or the previously identified private token aliases. | Ran raw-color, static-fallback, and private-alias scans across Match and Match-first CSS. | same CSS/test files | `rg -n -g "*.css" "#[0-9a-fA-F]{3,8}\b" frontend/src/components/match frontend/src/components/match-first`, `rg -n -g "*.css" "var\(--[^)]+," frontend/src/components/match`, `rg -n --pcre2 -g "*.css" -- "--(?:space-2\|color-focus\|color-accent-muted\|color-warning-text)(?![a-zA-Z0-9-])" frontend/src/components/match frontend/src/components/match-first`, and a focused fallback-color scan over `frontend/src/components/match` returned no matches. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- ...` passed; diff check emitted CRLF warnings only. Full `cd frontend && npm run lint` still fails with the known 39 existing repo-wide problems outside this pass. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass. Focused legacy Match ESLint passed.
+- This closes only the legacy Match raw fallback color drift found during the
+  CSS audit. A full requirement-by-requirement whole-Match design audit is still
+  not complete.
+
+## Match Map Detail Token Color Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH MAP DETAIL TOKEN COLOR ALIGNMENT; FULL
+FRONTEND LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD Phase 5 results map and Phase 6 selected-neighborhood detail require calm, token-based map surfaces rather than ad-hoc raw colors. | Added a red-first mobile UI gate requiring the active Match results-map and selected-neighborhood CSS files to avoid raw hex colors. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "raw hex colors"` failed before implementation because `ResultsMap.css` still contained `#e9efea` and `#ffffff`; the same focused gate passed after implementation. |
+| Keep map/list sync, Leaflet behavior, selected-neighborhood buildings, amenity markers, route flow, analytics, matching contracts, and Dossier behavior unchanged while aligning raw colors to design tokens. | Replaced the results-map fallback panel background with `--color-surface-alt`; replaced result marker raw border/fill colors with token-based `color-mix(...)` and `--color-surface`; replaced selected-neighborhood building-layer/basemap backgrounds with `--color-surface-alt`; replaced boundary raw halo/fill/stroke colors with token-based `color-mix(...)` values. | `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match-first/NeighborhoodDetail.css` | Focused map/detail/i18n/CSS suite passed: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 96 tests. Existing React `act(...)` warning noise remains. Focused ESLint for `mobile-ui-gates.test.ts` passed. |
+| Source-level proof that raw hex colors no longer drive those active map/detail surfaces. | Ran a raw-color scan over the touched map CSS. | same CSS files | `rg -n "#[0-9a-fA-F]{3,8}\b" frontend/src/components/match-first/ResultsMap.css frontend/src/components/match-first/NeighborhoodDetail.css` returned no matches. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, and `cd frontend && npm run test:perf` passed. Full `cd frontend && npm run lint` still fails with the known 39 existing repo-wide lint problems outside this pass. Optional `cd frontend && npx playwright test --project=chromium tests/e2e/match-first-final-journey.spec.ts -g "reduced-motion quickstart smoke"` failed before loading Buurt Check because Playwright reused an unrelated Forge3D preview on `127.0.0.1:4173` (PID `25692`); the error snapshot showed "Forge3D Studio", so this is an environment port conflict rather than a Match regression. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass. Focused Match-first ESLint passed.
+- Optional Playwright quickstart smoke remains environment-blocked until port
+  `4173` is free or the test runs with a dedicated Buurt Check base URL.
+- This closes only the map/detail raw-hex token drift found during the CSS
+  audit. A full requirement-by-requirement whole-Match design audit is still
+  not complete.
+
+## Legacy Match State Token Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED LEGACY MATCH STATE TOKEN ALIGNMENT; FULL FRONTEND
+LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Existing legacy Match surfaces that remain available should use the shared Polar Frost token system rather than private fallback aliases. | Added a red-first mobile UI gate requiring feedback/comparison state CSS to avoid `--space-2`, `--color-accent-muted`, `--color-focus`, and `--color-warning-text`. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "legacy Match surfaces use defined"` failed before implementation because `MatchFeedbackControls.css` still referenced `--space-2`, `--color-accent-muted`, and `--color-focus`; the same focused gate passed after implementation. |
+| Keep legacy feedback/comparison behavior, copy, i18n, route flow, analytics, APIs, scoring, maps, and Dossier behavior unchanged while aligning state styling. | Replaced legacy private state aliases with defined tokens: `--space-sm` for feedback gaps, `--color-accent-light` for active feedback background, `--focus-ring-accent` for focus treatment, and `--color-tertiary-text` for comparison missing-data text. | `frontend/src/components/match/MatchFeedbackControls.css`, `frontend/src/components/match/MatchComparison.css` | Focused legacy Match/CSS suite passed: `cd frontend && npx vitest run src/components/match/MatchFeedbackControls.test.tsx src/components/match/MatchComparison.test.tsx src/test/mobile-ui-gates.test.ts` with 25 tests. Focused ESLint for touched TypeScript/test files passed. |
+| Match CSS token scan should not report undefined static Match design-token aliases. | Ran a PowerShell token audit comparing `var(--*)` references in Match CSS against CSS variables defined under `frontend/src`. | same CSS files | The scan now reports only `--marker-offset-x` and `--marker-offset-y`, which are intentional runtime custom properties set inline by `NeighborhoodBuildingLayer.tsx`. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, and `cd frontend && npm run test:perf` passed. Full `cd frontend && npm run lint` still fails with the known 39 existing repo-wide lint problems outside this pass. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass. Focused Match ESLint passed.
+- This closes only the legacy Match private-token drift found during the CSS
+  token audit. A full requirement-by-requirement whole-Match design audit is
+  still not complete.
+
+## Match Review Lazy Style Token Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH REVIEW LAZY STYLE TOKEN ALIGNMENT; FULL
+FRONTEND LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD Phase 3 review requires a calm, readable summary before matching, and the lazy route must own the styles for its progress and additional-preference review surface. | Added a red-first mobile UI gate requiring `SurveyReview.tsx` to import `SurveyShell.css`, to render the existing `survey-question__progress` class, and to keep additional-preference summary classes backed by loaded CSS. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "review screen owns"` failed before implementation because `SurveyReview.tsx` did not import `SurveyShell.css`; the same focused gate passed after implementation. |
+| Keep copy, translation keys, answer persistence, additional-preference extraction/review semantics, analytics payload shape, matching, backend contracts, maps, and Dossier behavior unchanged while fixing the direct review route styling. | Added `import './SurveyShell.css';` to `SurveyReview.tsx` and added `className="survey-question__progress"` to the review progress element. | `frontend/src/components/match-first/SurveyReview.tsx` | Focused suite passed: `cd frontend && npx vitest run src/components/match-first/SurveyReview.test.tsx src/components/match-first/AdditionalPreferencesPrompt.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 39 tests. Focused ESLint for touched TypeScript/test files passed. |
+| Match progress/review tracks must use real design tokens so progress tracks and custom-preference dividers do not disappear at runtime. | Replaced the undefined `--color-border-subtle` reference with existing `--landing-border-soft` in the survey/review progress track, additional-preference summary divider, and matching-progress bar track. | `frontend/src/components/match-first/SurveyShell.css`, `frontend/src/components/match-first/MatchingProgressScreen.css` | Red-first token proof `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "review screen owns\|matching progress uses"` failed before the token replacement; the same focused gate passed after implementation. `rg -n "color-border-subtle" frontend/src/components/match-first` returned no matches. |
+| Browser-level evidence that a direct mobile review route gets the intended lazy CSS and remains stable. | Ran an inline Playwright smoke against the active Vite server on `http://127.0.0.1:5178/`, viewport `390x844`, with a seeded complete review snapshot and mocked analytics. | Runtime smoke passed: `progress.survey-question__progress` rendered at `10px` height and `310px` width, the custom-preference summary divider computed as a `1px` solid `rgba(188, 201, 198, 0.72)` border, the progress track background used the same token color, and horizontal overflow was `0`. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, and `cd frontend && npm run test:perf` passed. Full `cd frontend && npm run lint` still fails with the known 39 existing repo-wide lint problems outside this pass. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass. Focused Match-first ESLint passed.
+- This closes only the review lazy-style ownership and undefined Match style
+  token drift found during the browser audit. A full requirement-by-requirement
+  whole-Match design audit is still not complete.
+
+## Match Map Dynamic Viewport Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH MAP DYNAMIC VIEWPORT ALIGNMENT; FULL FRONTEND
+LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD map/detail phases and frontend design guidance require mobile-stable map workspaces. The existing shell gate used `dvh`, but map panel heights could still depend on classic mobile `vh`. | Extended the red-first mobile UI gate to reject classic numeric `vh` units in Match results/detail map CSS and to assert the intended `66dvh`, `62dvh`, and `54dvh` panel heights. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "dynamic viewport units"` failed before implementation because `ResultsMap.css` still contained `66vh` and `62vh`; the same focused gate passed after implementation. |
+| Keep results-map/list sync, selected-neighborhood overlays, building/amenity loading, route flow, analytics, matching contracts, and Dossier behavior unchanged while improving mobile viewport stability. | Converted results map and recommendation-list viewport-relative heights from `66vh` to `66dvh`, mobile results map height from `62vh` to `62dvh`, and selected-neighborhood mobile building-layer/canvas height from `54vh` to `54dvh`. | `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match-first/NeighborhoodDetail.css` | Focused suite passed: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 93 tests. Existing React `act(...)` warning noise remains. Focused ESLint for `mobile-ui-gates.test.ts` passed. |
+| Browser-level evidence that the runtime results and selected-neighborhood routes serve dynamic viewport CSS and remain mobile-stable. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5178/`, viewport `390x844`, with mocked results, selected-neighborhood layer/building/amenity, basemap, and analytics APIs. | Runtime smoke passed: served CSSOM rules included `66dvh`, `62dvh`, and `54dvh` with no classic numeric `vh`; rendered results map height was about `523px`, selected-neighborhood map height was about `456px`, and horizontal overflow was `0` on both routes. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, `rg -n "[0-9.]+vh\b" ...`, and `git diff --check -- ...` passed; diff check emitted CRLF warnings only. Full `cd frontend && npm run lint` remains blocked by known repo-wide lint debt. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass. Focused ESLint for the touched test
+  file passed; CSS is covered by the CSS contract and production build.
+- This closes only the classic-`vh` map-panel stability drift found during the
+  CSS audit. A full requirement-by-requirement whole-Match design audit is still
+  not complete.
+
+## Match Landing Intake Tactile Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH LANDING/INTAKE TACTILE ALIGNMENT; FULL
+FRONTEND LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD landing and guided-intake phases plus frontend design guidance require complete interactive states for touch/pointer controls without changing the one-question intake contract. | Added a red-first CSS gate requiring the landing language buttons, primary Match CTA, secondary address-search link, guided-intake choice cards, additional-preference chips, and remove/edit controls to expose transform-backed active feedback, with transitions disabled under reduced motion. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "landing and guided-intake controls"` failed before implementation because `.match-first-landing__lang-btn` had no transform transition; the same focused gate passed after implementation. |
+| Keep copy, translation keys, answer persistence, validation, additional-preference extraction/review, analytics payload shape, matching, backend contracts, map behavior, and Dossier behavior unchanged while making early controls tactile. | Added restrained `transform 160ms ease` transitions and `translateY(1px)` active feedback to landing language/CTA/address controls, survey choice cards, additional-preference chips, and remove/edit controls. Added pointer cursors where the early intake controls were clickable but not cursor-marked, and added reduced-motion transition overrides. | `frontend/src/components/match-first/MatchFirstLanding.css`, `frontend/src/components/match-first/SurveyShell.css` | Focused suite passed: `cd frontend && npx vitest run src/components/match-first/MatchFirstLanding.test.tsx src/components/match-first/SurveyIntro.test.tsx src/components/match-first/SurveyShell.test.tsx src/components/match-first/AdditionalPreferencesPrompt.test.tsx src/components/match-first/SurveyReview.test.tsx src/test/match-first-survey.test.tsx src/test/match-first-a11y.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 86 tests. Focused ESLint for touched TypeScript/test files passed. |
+| Browser-level evidence that the rendered mobile controls expose the new tactile behavior without overflow and without transition motion under reduced-motion settings. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5178/`, viewport `390x844`, with mocked session and analytics APIs, across standard and reduced-motion media modes. | Runtime smoke passed: standard motion computed transform transitions for the landing CTA, address link, language button, survey choice, additional-preference chip, and additional-preference skip link; active probes applied translateY matrices to the CTA, survey choice, and chip; reduced motion computed `transition: none`; horizontal overflow was `0` in both modes. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- ...` passed; diff check emitted CRLF warnings only. Full `cd frontend && npm run lint` failed with the known 39 existing repo-wide problems outside the focused Match directories. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass. Focused ESLint for touched
+  TypeScript/test files passed; CSS is covered by the CSS contract and
+  production build.
+- This closes only the early-journey tactile-feedback drift found during the
+  rendered Match audit. A full requirement-by-requirement whole-Match design
+  audit is still not complete.
+
+## Match Results Rank Slot Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH RESULTS RANK SLOT ALIGNMENT; FULL FRONTEND
+LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD map/list phases and frontend design guidance require fixed-format counters and controls to reserve stable dimensions on mobile. | Added a red-first CSS gate requiring `.recommendation-card__rank` to use an at-least-44px fixed slot alongside existing map/detail touch-target checks. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "map and selected-neighborhood controls"` failed before implementation because `.recommendation-card__rank` used `38px`; the same focused gate passed after implementation. |
+| Keep recommendation ordering, labels, selection behavior, map/list sync, analytics, matching contracts, and Dossier behavior unchanged while stabilizing the result row. | Increased `.recommendation-card__rank` from `38px` to `44px` for `min-width` and `height`. | `frontend/src/components/match-first/ResultsMap.css` | Focused suite passed: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 43 tests. Existing React `act(...)` warning noise remains. Focused ESLint for `mobile-ui-gates.test.ts` passed. |
+| Browser-level evidence that the rendered result card rank slot meets the mobile size contract without overflow. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5178/`, viewport `390x844`, with mocked results, basemap, and analytics APIs. | Runtime smoke passed: `.recommendation-card__rank` measured `44x44`, the row height stayed stable at about `76px`, and horizontal overflow was `0`. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- ...` passed; diff check emitted CRLF warnings only. Full `cd frontend && npm run lint` failed with the known 39 existing repo-wide problems outside the focused Match directories. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass. A focused ESLint command for touched
+  TypeScript files passed; CSS is covered by the CSS contract and production
+  build.
+- This closes only the result-card fixed-rank-slot drift found during the CSS
+  audit. A full requirement-by-requirement whole-Match design audit is still
+  not complete.
+
+## Match Map Detail Elevation Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH MAP DETAIL ELEVATION ALIGNMENT; FULL FRONTEND
+LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD map/detail phases and design references require calm, briefing-style surfaces rather than heavy floating panels. | Added a red-first CSS gate requiring results-map and selected-neighborhood detail CSS to avoid ad-hoc `box-shadow: 0 12px+ ...` values and to use explicit restrained elevations for the map popup, selected card, map layer, amenity popup, house popup, and context rail. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "restrained briefing elevation"` failed before implementation because `ResultsMap.css` still contained `box-shadow: 0 14px ...`; the same focused gate passed after implementation. |
+| Keep map/list sync, selected-neighborhood buildings, amenity markers, route flow, analytics, matching contracts, and Dossier behavior unchanged while reducing heavy visual elevation. | Replaced the results selection popup shadow with `0 8px 24px`, selected recommendation-card shadow with `0 2px 8px`, selected-neighborhood map layer/context rail shadows with `0 2px 8px`, amenity/house popup shadows with `0 8px 24px`, and active amenity-marker shadow with `0 6px 14px`. | `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match-first/NeighborhoodDetail.css` | Focused suite passed: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 92 tests. Existing React `act(...)` warning noise remains. Focused ESLint for `mobile-ui-gates.test.ts` passed. |
+| Browser-level evidence that rendered map/detail workspaces use restrained elevations without mobile overflow. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5178/`, viewport `390x844`, with mocked results, basemap, selected-neighborhood map-layer, building, amenity, and analytics APIs. | Runtime smoke passed: results popup shadow `rgba(20, 54, 49, 0.1) 0px 8px 24px 0px`, selected card shadow `rgba(20, 54, 49, 0.1) 0px 2px 8px 0px`, selected-neighborhood layer/context rail shadows `rgba(28, 45, 63, 0.06) 0px 2px 8px 0px`, amenity popup shadow `rgba(31, 82, 78, 0.12) 0px 8px 24px 0px`, and horizontal overflow `0` on both routes. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- ...` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass. A focused ESLint command for touched
+  TypeScript files passed; CSS is covered by the CSS contract and production
+  build.
+- This closes only the heavy ad-hoc map/detail elevation drift found in the CSS
+  audit. A full requirement-by-requirement whole-Match design audit is still
+  not complete.
+
+## Match Landing Hero Image Surface Alignment 2026-05-23
+
+Status: **PASS FOR SCOPED MATCH LANDING HERO IMAGE SURFACE ALIGNMENT; FULL
+FRONTEND LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD landing rules require a match-first hero where search stays secondary, and design guidance requires a real image-backed first viewport rather than generated gradient art. | Added a red-first mobile UI gate requiring the landing hero to retain `/images/showcase-neighborhood.webp`, remove the decorative grid layer, avoid `linear-gradient` / `radial-gradient`, and keep reduced-motion coverage. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "landing hero background relies"` failed before implementation because `HeroMapBackground.tsx` still rendered `.hero-map-background__grid`; the same focused gate passed after implementation. |
+| Keep the match-first landing calm and image-led without changing copy, CTAs, language controls, analytics, route flow, session creation, matching behavior, or Dossier behavior. | Removed the decorative `.hero-map-background__grid` element and CSS. Replaced gradient veil styles with solid `color-mix(...)` token washes for default and mobile layouts. Preserved the image drift animation and reduced-motion opt-out. | `frontend/src/components/match-first/HeroMapBackground.tsx`, `frontend/src/components/match-first/HeroMapBackground.css` | Focused suite passed: `cd frontend && npx vitest run src/components/match-first/MatchFirstLanding.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 29 tests. Focused ESLint for touched TypeScript/test files passed. |
+| Browser-level evidence that the runtime hero is image-backed, non-gradient, reduced-motion aware, and mobile-stable. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5178/`, viewport `390x844`, with standard and reduced-motion media modes. | Runtime smoke passed: no `.hero-map-background__grid`, image source `/images/showcase-neighborhood.webp`, loaded image natural width `497`, hero and veil computed `background-image: none`, normal motion used `hero-map-image-drift`, reduced motion used `animation-name: none`, and horizontal overflow was `0`. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check -- ...` passed; diff check emitted CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass. A focused ESLint command for touched
+  TypeScript files passed; CSS is covered by the CSS contract and production
+  build.
+- This closes only the landing hero generated-gradient/grid drift found in the
+  CSS audit. A full requirement-by-requirement whole-Match design audit is still
+  not complete.
+
+## Guided Intake SurveyShell Lint Structure Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED GUIDED-INTAKE SURVEYSHELL STRUCTURE ALIGNMENT; FULL
+FRONTEND LINT STILL BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD guided-intake rules and Constitution VII require a stable, maintainable one-question survey shell. The local component should satisfy focused React lint rules without changing the survey contract. | Used focused ESLint as the red proof. `SurveyShell.tsx` failed on exported runtime helpers from a component module and a synchronous session-reset `setState` effect. | `frontend/src/components/match-first/SurveyShell.tsx` | Red-first `cd frontend && npx eslint src/components/match-first/SurveyShell.tsx` failed before implementation with `react-refresh/only-export-components` and `react-hooks/set-state-in-effect` errors; the same focused lint command passed after implementation. |
+| Preserve one-question intake behavior, persisted answers, validation, backend sync, review routing, analytics, matching, and Dossier behavior while removing the local lint blocker. | Converted the default export into a thin keyed wrapper and moved the existing implementation into non-exported `SurveyShellSession`. Changing `sessionId` now remounts the inner component and resets state from initial storage instead of synchronously setting state in an effect. Removed unused local survey storage-key helper exports. | same as above | Focused survey/a11y/i18n suite passed: `cd frontend && npx vitest run src/components/match-first/SurveyShell.test.tsx src/test/match-first-survey.test.tsx src/test/match-first-a11y.test.tsx src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 48 tests. Focused ESLint for `SurveyShell.tsx` and related tests passed. |
+| Phase verification for the structure pass. | Ran frontend build, accessibility/performance contracts, full frontend lint, and diff whitespace check. | same as above plus docs | `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, and `cd frontend && npm run test:perf` passed. `git diff --check -- ...` for touched files passed with CRLF warnings only. Full `cd frontend && npm run lint` still fails on 39 repo-wide problems, but `SurveyShell.tsx` is no longer listed. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass, including React hook rule errors in
+  shared components, fast-refresh export rules in `Toast.tsx`, unused test
+  mocks, and unrelated `any` usage.
+- This closes only the local SurveyShell lint structure issue found during the
+  Match surface audit. A full requirement-by-requirement whole-Match design
+  audit is still not complete.
+
+## Match Map Workspace Shell Surface Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED MATCH MAP WORKSPACE SHELL SURFACE ALIGNMENT; FULL
+FRONTEND LINT BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD map/detail phases and frontend design guidance require the primary match workspaces to stay calm, data-forward, and visually stable rather than relying on decorative page-shell gradients. | Added a CSS gate requiring `.results-map-shell` and `.neighborhood-detail` to avoid `linear-gradient` / `radial-gradient` backgrounds and use a solid app background token. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "solid token backgrounds"` failed before implementation because `.results-map-shell` still contained `linear-gradient(...)`; the same focused gate passed after CSS changes. |
+| Keep map panels, Leaflet layers, selected-neighborhood footprints, amenities, legends, list fallbacks, route flow, analytics, matching contracts, and Dossier behavior unchanged while removing decorative shell drift. | Replaced `.results-map-shell` and `.neighborhood-detail` backgrounds with `var(--color-bg)`. No component code or API contract changed. | `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match-first/NeighborhoodDetail.css` | Focused suite passed: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 90 tests. Existing React `act(...)` warning noise remains. Focused ESLint for `mobile-ui-gates.test.ts` passed. |
+| Browser-level evidence that the real results and selected-neighborhood route shells resolve to solid backgrounds without mobile overflow. | Ran an inline Playwright smoke on a fresh Buurt Check Vite server at `http://127.0.0.1:5178/`, direct results and selected-neighborhood routes, viewport `390x844`, with mocked results, basemap, map-layer, building, and amenity APIs. | Browser smoke passed: `.results-map-shell` and `.neighborhood-detail` both computed `background-image: none`; horizontal overflow was `0` on both routes. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, and `cd frontend && npm run test:perf` passed. `git diff --check -- ...` for touched files passed with CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass, including React hook rule errors in
+  shared components, fast-refresh export rules, unused test mocks, and
+  unrelated `any` usage. The touched TypeScript test ESLint command passed;
+  CSS is covered by the CSS contract and production build.
+- This closes only the map/detail decorative page-shell gradient drift found in
+  the CSS audit. A full requirement-by-requirement whole-Match design audit is
+  still not complete.
+
+## Matching Progress Calm Surface Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED MATCHING-PROGRESS SURFACE ALIGNMENT; FULL FRONTEND
+LINT BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD Phase 4 and progress-screen rules require friendly, calm, honest matching progress without raw internals or flashy decorative motion. Frontend design guidance favors token surfaces and transform/opacity-only motion over decorative gradients. | Added a CSS gate requiring `MatchingProgressScreen.css` to avoid `linear-gradient` / `radial-gradient`, use a token-backed section background, keep the map-line accent on a static token fill, and keep drift animation transform-based. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "matching progress uses calm"` failed before implementation because `MatchingProgressScreen.css` still contained `linear-gradient(...)`; the same focused gate passed after CSS changes. |
+| Keep progress semantics, result verification, retry/back behavior, i18n, analytics, matching contracts, and Dossier behavior unchanged while removing decorative surface drift. | Replaced `.matching-progress` background with `var(--landing-bg-top)` and replaced the animated map-line shimmer gradient with `color-mix(in srgb, var(--color-accent-text) 10%, var(--color-surface))`. The existing `matching-progress-drift` keyframes still animate only `transform`, and the existing reduced-motion override still disables animation. | `frontend/src/components/match-first/MatchingProgressScreen.css` | Focused suite passed: `cd frontend && npx vitest run src/test/match-first-progress.test.tsx src/test/match-first-a11y.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 65 tests. Focused ESLint for `mobile-ui-gates.test.ts` passed. |
+| Browser-level evidence that the real progress route resolves to non-gradient surfaces, no mobile overflow, and a reduced-motion animation opt-out. | Ran an inline Playwright smoke on a fresh Buurt Check Vite server at `http://127.0.0.1:5178/`, direct `#/match/session/match-progress-smoke/run`, viewport `390x844`, with mocked running match status. | Browser smoke passed: progress section and line accent both computed `background-image: none`; normal motion used `matching-progress-drift`; reduced motion used `animation-name: none`; progress value was `35`; horizontal overflow was `0`. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, and `cd frontend && npm run test:perf` passed. `git diff --check -- ...` for touched files passed with CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass, including React hook rule errors in
+  shared components, fast-refresh export rules, unused test mocks, and
+  unrelated `any` usage. The touched TypeScript test ESLint command passed;
+  CSS is covered by the CSS contract and production build.
+- This closes only the matching-progress decorative gradient drift found in
+  the CSS audit. A full requirement-by-requirement whole-Match design audit is
+  still not complete.
+
+## Guided Intake Layout Track Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED GUIDED-INTAKE LAYOUT TRACK ALIGNMENT; FULL FRONTEND
+LINT BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD FR-S1 and PRD guided-intake rules require one calm question screen with one set of controls. Frontend design guidance favors stable, bounded control layouts over generic responsive card-grid behavior. | Added a CSS gate requiring guided-intake choice and range controls to avoid `repeat(auto-fit...)` and use explicit bounded tracks with a mobile one-column collapse. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "guided intake controls"` failed before implementation because `.survey-question__choices` still used `repeat(auto-fit...)`; the same focused gate passed after CSS changes. |
+| Keep the one-question survey predictable on desktop/tablet and compact on mobile without changing copy, validation, persistence, analytics, matching, or Dossier behavior. | Replaced `.survey-question__choices` with `repeat(2, minmax(0, 1fr))` and `.survey-question__range` with explicit two-column tracks, while preserving the existing `max-width: 680px` one-column mobile override. | `frontend/src/components/match-first/SurveyShell.css` | Focused suite passed: `cd frontend && npx vitest run src/components/match-first/SurveyShell.test.tsx src/test/match-first-survey.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 44 tests. Focused ESLint for `mobile-ui-gates.test.ts` passed. |
+| Browser-level evidence that the guided intake resolves to the intended tracks without overflow. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5177/` with mocked health/pricing/analytics responses. | same as above | Browser smoke passed: at `900x760`, rendered survey choices used `repeat(2, minmax(0px, 1fr))`; at `390x844`, choices used `1fr`; horizontal overflow was `0` in both viewports. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, and `cd frontend && npm run test:perf` passed. `git diff --check -- ...` for touched files passed with CRLF warnings only. |
+
+Residual release risk:
+
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass, including React hook rule errors in
+  shared components and unused test mocks. The touched TypeScript test ESLint
+  command passed; CSS is covered by the CSS contract and production build.
+- This closes only the guided-intake auto-fit layout drift found in the CSS
+  audit. A full requirement-by-requirement whole-Match design audit is still
+  not complete.
+
+## Selected-Neighborhood Amenity Marker Control Avoidance Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED SELECTED-NEIGHBORHOOD MARKER CONTROL AVOIDANCE;
+FULL PLAYWRIGHT CONFIG STILL BLOCKED BY PORT CONFLICT; FULL FRONTEND LINT
+BLOCKED BY EXISTING REPO-WIDE LINT DEBT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD A11Y-5, A11Y-6, PRD Phase 7, and Constitution IV/VII require every returned selected-neighborhood amenity marker to remain usable through map interaction and non-map alternatives. Markers must remain reachable without making real map controls pointer-transparent. | Added a red-first placement regression for a compact selected-neighborhood map frame with an amenity anchored inside the bottom-right mobile zoom/reset control area. | `frontend/src/test/match-first-neighborhood-detail.test.tsx` | Red-first `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "mobile map controls"` failed before implementation because the marker kept a zero offset inside the mobile control cluster; the same focused test passed after implementation. |
+| Keep mobile map controls interactive while preventing returned no-paid amenity markers from being hidden or blocked by them. | Moved marker offset placement into `amenityMarkerPlacement.ts` and added compact-map control avoidance zones plus additional candidate offsets. `NeighborhoodBuildingLayer` still renders every returned marker and still leaves pan/zoom/reset controls interactive. | `frontend/src/components/match-first/amenityMarkerPlacement.ts`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx` | Focused suite passed: `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 69 tests. Existing React `act(...)` warning noise remains. Focused ESLint passed for touched files. |
+| Browser-level evidence that markers near the mobile control cluster remain clickable. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5177/`, viewport `390x844`, with mocked selected-neighborhood API responses and an amenity point near the bottom-right controls. | same as above | Browser smoke passed: marker box `44x44` did not overlap the `144x44` controls box, marker offset resolved to `0px, -28px` in the rendered fixture, a normal pointer click opened the amenity detail dialog, and horizontal overflow was `0`. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, and `cd frontend && npm run test:perf` passed. `git diff --check -- ...` for touched files passed with CRLF warnings only. |
+
+Residual release risk:
+
+- The configured Playwright specs were not rerun because the existing
+  Playwright config still targets/reuses `127.0.0.1:4173`, previously shown to
+  be serving a different Forge3D Studio app. The scoped browser smoke used the
+  active Buurt Check server on `5177`.
+- Full `cd frontend && npm run lint` remains blocked by existing unrelated
+  repo-wide lint debt outside this pass, including React hook rule errors in
+  shared components and unused test mocks. The touched-file ESLint command
+  passed.
+- This closes only the selected-neighborhood mobile control collision issue
+  found in the previous browser smoke. A full requirement-by-requirement
+  whole-Match design audit is still not complete.
+
+## Selected-Neighborhood Overlay Click-Through Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED SELECTED-NEIGHBORHOOD OVERLAY CLICK-THROUGH
+ALIGNMENT; FULL PLAYWRIGHT CONFIG STILL BLOCKED BY PORT CONFLICT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD A11Y-5, A11Y-6, PRD Phase 7, and Constitution IV/VII require every returned selected-neighborhood amenity marker to remain usable through map interaction and non-map alternatives. Passive map overlays must not block marker clicks. | Added a CSS gate requiring the selected-neighborhood map explanation overlay, building fallback/status overlay, and basemap fallback/attribution overlay group to opt out of pointer hit-testing. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "intercept amenity"` failed before implementation because `.neighborhood-building-layer__legend` did not include `pointer-events: none`; the same focused gate passed after CSS changes. |
+| Keep marker interactions available without disabling real map controls or changing copy, routes, data, analytics, scoring, or Dossier behavior. | Set `pointer-events: none` on passive selected-neighborhood overlays: `.neighborhood-building-layer__legend`, `.neighborhood-building-layer__fallback`, `p[role='status']` inside the layer, and the basemap fallback/attribution overlay group. Actual map controls and amenity markers still receive pointer events. | `frontend/src/components/match-first/NeighborhoodDetail.css` | Focused suite passed: `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 68 tests. Existing React `act(...)` warning noise remains. Focused ESLint passed. |
+| Browser-level evidence that passive overlays no longer block marker clicks. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5177/`, viewport `390x844`, with mocked selected-neighborhood API responses. The smoke deliberately placed one marker under the map explanation overlay and one marker under the missing-footprint fallback/status overlay. | same as above | Browser smoke passed: both markers opened marker detail dialogs with normal pointer clicks; computed `pointer-events` for the legend and fallback overlays was `none`; two amenity markers rendered; horizontal overflow was `0`. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, and `cd frontend && npm run test:perf` passed. |
+
+Residual release risk:
+
+- The configured Playwright specs were not rerun because the existing
+  Playwright config still targets/reuses `127.0.0.1:4173`, previously shown to
+  be serving a different Forge3D Studio app. The scoped browser smoke used the
+  active Buurt Check server on `5177`.
+- The later Selected-Neighborhood Amenity Marker Control Avoidance Alignment
+  pass now keeps markers out from under the mobile zoom/reset controls while
+  preserving those controls as interactive.
+
+## Match Tactile Interaction Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED MATCH TACTILE INTERACTION ALIGNMENT; FULL PLAYWRIGHT
+CONFIG STILL BLOCKED BY PORT CONFLICT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD A11Y-1, A11Y-5, A11Y-6 and Constitution VII require Match map/list controls and selected-neighborhood interactions to remain usable and perceivable on touch and pointer devices. | Added a CSS gate requiring transform-backed active feedback for results markers, ranked recommendation card buttons, recommendation detail CTAs, selected-neighborhood back controls, amenity markers, amenity popup close, map pan/zoom controls, selected-house actions, house candidate buttons, candidate-address buttons, and recovery actions. Added reduced-motion assertions for the newly expanded selected-neighborhood transitions. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "tactile active"` failed before implementation because `.results-map__marker` had no transform transition or active transform. The same gate failed again until the selected-neighborhood `prefers-reduced-motion` override was added, then passed. |
+| Keep tactile feedback consistent without changing route flow, visible copy, translations, analytics payloads, scoring, backend contracts, or Dossier behavior. | Added restrained `translateY(1px)` active feedback to the results marker, ranked-list card button, recommendation detail CTA, selected-neighborhood back action, amenity popup close, map controls, selected-house controls, house candidates, candidate-address buttons, and recovery actions. Amenity markers use `--amenity-marker-press-y` so the active press does not overwrite the map-positioning transform. New selected-neighborhood transitions are disabled under `prefers-reduced-motion: reduce`. | `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match-first/NeighborhoodDetail.css` | Focused suite passed: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 85 tests. Existing React `act(...)` warning noise remains in map/detail tests. Focused ESLint passed. |
+| Results-map Leaflet marker hit boxes must match the CSS touch target so projected markers and anchors stay aligned. | Updated the Leaflet `divIcon` size constants from 34/42 to 44/48 and added component coverage that checks the closest `.leaflet-marker-icon` renders at least `44x44` for a numbered recommendation marker. | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/test/match-first-results-map.test.tsx` | Red-first `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx -t "renders numbered recommendation markers"` failed because the Leaflet marker icon was still `34x34`; the same focused test passed after the size constant fix. |
+| Browser-level rendered evidence for tactile controls. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5177/`, viewport `390x844`, with mocked match/results/detail API responses and a visible amenity point plus non-empty scoped building response. Measured rendered marker/icon boxes and active-state styles from the DOM. | same as above | Browser smoke passed: results marker `44x44`, closest Leaflet icon `44x44`, marker transition included `transform`, active marker transform applied, selected-neighborhood amenity marker `44x44`, amenity/back/control/close transitions included `transform`, amenity active press variable became `1px`, and horizontal overflow was `0`. `cd frontend && npm run build`, `cd frontend && npm run test:a11y`, `cd frontend && npm run test:perf`, and `git diff --check` all passed; `git diff --check` emitted CRLF normalization warnings only. |
+
+Residual release risk:
+
+- The configured Playwright specs were not rerun because the existing
+  Playwright config still targets/reuses `127.0.0.1:4173`, previously shown to
+  be serving a different Forge3D Studio app. The scoped browser smoke used the
+  active Buurt Check server on `5177`.
+- Earlier browser smoke fixture attempts placed an amenity marker under the
+  selected-neighborhood legend and then under the missing-footprint fallback,
+  causing pointer interception. This tactile pass did not change overlay
+  collision behavior; a future selected-neighborhood map audit should verify
+  markers are not hidden or blocked by legend/control/status overlays.
+
+## Match Map Touch Target Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED MATCH MAP TOUCH-TARGET ALIGNMENT; FULL PLAYWRIGHT
+CONFIG STILL BLOCKED BY PORT CONFLICT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD A11Y-5 and Constitution VII require Match map/list interactions and selected-neighborhood detail to remain usable on mobile touch screens. | Added a CSS gate requiring 44px minimum hit boxes for results markers, selected results markers, recommendation detail CTAs, selected-neighborhood back/secondary controls, amenity marker buttons, amenity popup close, selected-neighborhood pan/zoom controls, and selected-neighborhood detail action controls. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "map and selected-neighborhood controls"` failed before implementation because `.results-map__marker` still used `width: 34px`. The same focused gate passed after CSS changes. |
+| Keep map controls tactile without changing map state, route flow, copy, or backend contracts. | Raised results markers from 34px to 44px and selected markers from 42px to 48px. Raised recommendation detail buttons from 36px to 44px. Raised selected-neighborhood back controls from 42px to 44px. Raised amenity marker buttons from 30px desktop and 34px mobile to 44px while preserving the smaller inner shape token. Raised amenity popup close from 26px to 44px. Raised selected-neighborhood pan/zoom controls from 42x40 to 44x44 and changed the mobile control grid to `repeat(3, 44px)`. | `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match-first/NeighborhoodDetail.css` | Focused suite passed: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 84 tests. Focused ESLint passed. |
+| Browser-level evidence for rendered mobile hit boxes. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5177/`, viewport `390x844`, reduced motion, with mocked match/results/detail API responses and a valid selected-neighborhood boundary. Measured key controls from the rendered DOM and checked no horizontal overflow. | same as above | Browser smoke passed with computed boxes: results marker `44x44`, recommendation detail `157x44`, selected-neighborhood back `322x44`, selected-neighborhood map control `44x44`, amenity marker `44x44`, amenity popup close `44x44`. `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. `cd frontend && npm run test:a11y` passed with 9 tests, with existing React `act(...)` warning noise. `cd frontend && npm run test:perf` passed with 1 test. |
+
+Residual release risk:
+
+- The configured Playwright specs were not rerun because the existing
+  Playwright config still targets/reuses `127.0.0.1:4173`, previously shown to
+  be serving a different Forge3D Studio app. The scoped browser smoke used the
+  active Buurt Check server on `5177`.
+- This pass covers the main Match map/detail controls. A later whole-Match
+  audit should keep checking secondary direct-route links and shared imported
+  controls not covered by this selector set.
+
+## Match Viewport Typography Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED MATCH TYPOGRAPHY ALIGNMENT; FULL PLAYWRIGHT CONFIG
+STILL BLOCKED BY PORT CONFLICT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Active frontend design guidance requires UI text not to scale directly with viewport width. PRD Sections 17 and 18 still require a calm, readable hierarchy on mobile and desktop. | Added a CSS gate that scans all Match and match-first component CSS files and rejects `font-size` declarations using `vw`, `vh`, `vmin`, or `vmax`. | `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "viewport-scaled"` failed before implementation because `ResultsMap.css` still used `font-size: clamp(2rem, 4vw, 3.5rem)`. The same focused gate passed after CSS changes. A direct `rg` scan for viewport units in Match `font-size` rules returned no matches. |
+| Keep the match-first journey visually calm without changing copy, routes, data, or Dossier behavior. | Replaced viewport-driven heading clamps on simple Match screens, results map, and neighborhood detail with fixed rem values plus existing mobile breakpoint overrides: simple heading `3.15rem` / `2.35rem`, results heading `3.1rem` / `2.1rem`, and neighborhood heading `3.25rem` / `2.15rem`. Updated the landing heading test to expect fixed rem sizing and reject viewport font units. | `frontend/src/components/match-first/MatchFirstLanding.css`, `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/components/match-first/MatchFirstLanding.test.tsx` | Focused suite passed: `cd frontend && npx vitest run src/components/match-first/MatchFirstLanding.test.tsx src/test/match-first-results-map.test.tsx src/test/match-first-neighborhood-detail.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 88 tests. Focused ESLint passed. |
+| Browser-level evidence for mobile typography stability on rendered Match screens. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5177/`, viewport `390x844`, reduced motion, with mocked match/results/detail API responses. Measured computed heading sizes for landing, survey intro, results, and neighborhood detail, and checked no horizontal overflow. | same as above | Browser smoke passed with computed sizes: landing hero `48px`, survey intro `37.6px`, results heading `33.6px`, and neighborhood detail heading `34.4px`. `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. `cd frontend && npm run test:a11y` passed with 9 tests, with existing React `act(...)` warning noise. `cd frontend && npm run test:perf` passed with 1 test. |
+
+Residual release risk:
+
+- The configured Playwright specs were not rerun because the existing
+  Playwright config still targets/reuses `127.0.0.1:4173`, previously shown to
+  be serving a different Forge3D Studio app. The scoped browser smoke used the
+  active Buurt Check server on `5177`.
+- This pass gates Match and match-first component CSS only. A whole-app
+  no-viewport-font gate remains outside this scoped Match alignment pass.
+
+## Match Touch Target Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED MATCH TOUCH-TARGET ALIGNMENT; FULL PLAYWRIGHT CONFIG
+STILL BLOCKED BY PORT CONFLICT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD A11Y-5 and Constitution VII require Match controls to remain usable on mobile touch screens. | Added a CSS gate requiring 44px minimum targets for the primary additional-preferences example chips, post-extraction remove controls, and legacy Match recommendation feedback buttons. Raised `.additional-preferences__chip` from 40px to 44px, raised `.additional-preferences__remove` from 36px to 44px with inline-flex alignment, and raised `.match-feedback__button` from `2.5rem` to 44px. | `frontend/src/components/match-first/SurveyShell.css`, `frontend/src/components/match/MatchFeedbackControls.css`, `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "touch targets"` failed before implementation because `.additional-preferences__chip` still used `min-height: 40px`; the same focused gate passed after CSS changes. |
+| Active frontend design guidance expects tactile control feedback without changing data contracts or route flow. | Added a restrained active press transform to legacy Match feedback buttons. No route behavior, visible copy, translation key, analytics payload, matching behavior, or Dossier behavior changed. | same as above | Focused component/i18n/CSS suite passed: `cd frontend && npx vitest run src/components/match/MatchFeedbackControls.test.tsx src/components/match-first/AdditionalPreferencesPrompt.test.tsx src/test/mobile-ui-gates.test.ts src/test/match-i18n.test.ts src/test/i18n-completeness.test.ts` with 21 tests. Focused ESLint passed. |
+| Browser-level evidence for the primary additional-preferences prompt on mobile. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5177/`, direct `#/match/session/touch-smoke/additional-preferences`, viewport `390x844`, with mocked extraction/analytics responses. Measured the example chip and post-extraction remove button from the rendered DOM and verified both are at least 44px tall. | same as above | Browser smoke passed. `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. `cd frontend && npm run test:a11y` passed with 9 tests, with existing React `act(...)` warning noise. `cd frontend && npm run test:perf` passed with 1 test. |
+
+Residual release risk:
+
+- A first browser script also attempted to measure legacy feedback buttons via
+  direct `#/match/report`, but that route did not render feedback without a
+  full mocked recommendation payload and timed out. The legacy feedback button
+  size is covered by CSS contract and component tests in this pass.
+- The configured Playwright specs were not rerun because the existing
+  Playwright config still targets/reuses `127.0.0.1:4173`, previously shown to
+  be serving a different Forge3D Studio app. The scoped browser smoke used the
+  active Buurt Check server on `5177`.
+
+## Legacy Match Layout Density Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED LEGACY MATCH LAYOUT ALIGNMENT; FULL PLAYWRIGHT
+CONFIG STILL BLOCKED BY PORT CONFLICT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Design guidance and Constitution II require reachable Match compatibility surfaces to avoid dashboard-like card grids and generic equal-column layouts. | Extended the CSS gate to reject remaining legacy Match `repeat(auto-fit...)` section grids and the similar-search `repeat(3, auto)` control row. Reworked saved neighborhoods and saved alerts into transparent rule-separated lists. Replaced listings and share/export auto-fit tracks with explicit asymmetric two-column layouts and mobile one-column collapse. Changed similar-search controls to a wrapping flex row with stable 44px filter/button hit areas. | `frontend/src/components/match/MatchSaved.css`, `frontend/src/components/match/MatchAlerts.css`, `frontend/src/components/match/MatchListings.css`, `frontend/src/components/match/MatchSimilarSearch.css`, `frontend/src/components/match/MatchShareExport.css`, `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "legacy Match"` failed before implementation because legacy Match CSS still contained `repeat(auto-fit...)`. The same focused gate passed after CSS changes. |
+| Preserve product flow, i18n, and data contracts while improving layout density. | Made CSS-only layout changes; no route, visible copy, translation key, API payload, matching, or Dossier behavior was changed. Alert input/select hit areas now meet the 44px touch-target floor. | same as above | Focused legacy Match suite passed: `cd frontend && npx vitest run src/App.test.tsx src/components/match/matchDisplayLabels.test.ts src/components/match/MatchListings.test.tsx src/components/match/MatchAlerts.test.tsx src/components/match/MatchComparison.test.tsx src/components/match/MatchSimilarSearch.test.tsx src/components/match/MatchReport.test.tsx src/components/match/MatchSaved.test.tsx src/components/match/MatchAdminDashboard.test.tsx src/test/mobile-ui-gates.test.ts src/test/i18n-completeness.test.ts`. Existing App `act(...)` warnings and sunlight/shadow diagnostic logs remain. Touched-file ESLint passed. |
+| Browser-level mobile layout evidence for direct compatibility routes. | Ran an inline Playwright smoke against the active Buurt Check Vite server on `http://127.0.0.1:5177/` with mocked API responses for listings, alerts, saved neighborhoods, admin health, and similar search. Checked direct `#/match/listings`, `#/match/alerts`, `#/match/saved`, `#/match/admin`, and `#/match/similar` at `390x844` for no horizontal overflow, and checked listings desktop layout resolves to two computed columns. | same as above | Inline Playwright script passed. `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. `cd frontend && npm run test:a11y` passed with 9 tests. `cd frontend && npm run test:perf` passed with 1 test. |
+
+Residual release risk:
+
+- The configured Playwright specs were not rerun because the existing
+  Playwright config still targets/reuses `127.0.0.1:4173`, previously shown to
+  be serving a different Forge3D Studio app. The scoped browser smoke used the
+  active Buurt Check server on `5177`.
+- These legacy Match routes remain direct compatibility surfaces and are still
+  not promoted from the match-first landing or guided onboarding flow.
+
+## Legacy Match Direct Route Hardening 2026-05-22
+
+Status: **PASS FOR SCOPED DIRECT LEGACY MATCH ROUTE HARDENING; FULL PLAYWRIGHT
+SMOKE BLOCKED BY PORT CONFLICT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Constitution III and the frontend design brief require reachable Match UI to render user-facing labels instead of raw backend enum tokens. | Added shared display-label helpers for freshness indicators, generation modes, locales, saved-neighborhood display names, recommendation reason codes, provider modes, and admin operational status/error/event/severity labels. Direct admin rows now render labels such as `Source timeout`, `PDF generation failed`, `Feedback submitted`, `Mock-only provider`, and `Mobility` instead of backend keys. Legacy report generation metadata and App-rendered legacy recommendation freshness/reason labels use translation-backed labels. | `frontend/src/components/match/matchDisplayLabels.ts`, `frontend/src/components/match/matchDisplayLabels.test.ts`, `frontend/src/components/match/MatchAdminDashboard.tsx`, `frontend/src/components/match/MatchAdminDashboard.test.tsx`, `frontend/src/components/match/MatchReport.tsx`, `frontend/src/components/match/MatchReport.test.tsx`, `frontend/src/App.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json` | Red-first helper/admin/report tests failed before implementation for missing helpers and visible raw tokens; final focused legacy Match suite passed. |
+| Direct legacy operational route should not read like a promoted dashboard in the user journey. | Renamed the direct admin heading from an Admin dashboard label to localized Match health monitor copy, and changed the admin CSS from an auto-fit card grid to a single audit list with rule separators. The route remains direct/operational and is still not exposed from the visible Match report action row. | `frontend/src/components/match/MatchAdminDashboard.tsx`, `frontend/src/components/match/MatchAdminDashboard.css`, `frontend/src/components/match/MatchAdminDashboard.test.tsx`, `frontend/src/test/mobile-ui-gates.test.ts` | Red-first CSS gate failed while the admin route still used the auto-fit card grid; final mobile UI gates passed. |
+| Saved and report-action legacy surfaces should not expose raw machine IDs or locale codes when display labels are available. | Saved neighborhoods now show a display place name such as `Amsterdam IJburg` when no stored display name exists. Report action metadata now renders localized language names such as `English` instead of `en`. | `frontend/src/components/match/MatchSaved.tsx`, `frontend/src/components/match/MatchSaved.test.tsx`, `frontend/src/components/match/MatchShareExport.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json` | Red-first saved-route test failed before implementation because it rendered `nh_amsterdam_ijburg` and `en`; final saved-route test passed. |
+| Phase verification for direct-route hardening. | Ran focused Vitest, i18n completeness, focused ESLint, production build, accessibility/performance contracts, and a browser check against the active Buurt Check Vite server. | same as above plus docs | Final focused command passed: `cd frontend && npx vitest run src/App.test.tsx src/components/match/matchDisplayLabels.test.ts src/components/match/MatchListings.test.tsx src/components/match/MatchAlerts.test.tsx src/components/match/MatchComparison.test.tsx src/components/match/MatchSimilarSearch.test.tsx src/components/match/MatchReport.test.tsx src/components/match/MatchSaved.test.tsx src/components/match/MatchAdminDashboard.test.tsx src/test/mobile-ui-gates.test.ts src/test/i18n-completeness.test.ts`. Focused ESLint passed with the existing `activeLookupId` warning. `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. `cd frontend && npm run test:a11y` passed with 9 tests, and `cd frontend && npm run test:perf` passed with 1 test. Inline Playwright browser check against `http://127.0.0.1:5177/` passed for landing, direct admin, and direct saved routes with mocked data. |
+
+Residual release risk:
+
+- `cd frontend && npx playwright test --project=chromium tests/e2e/match-first-final-journey.spec.ts -g "reduced-motion quickstart smoke"`
+  failed because Playwright reused `127.0.0.1:4173`, which is currently serving
+  a different Forge3D Studio app. The captured page snapshot showed
+  `Forge3D Studio prototype`, not Buurt Check. Rerun after freeing/replacing
+  that stale port or updating the Playwright server configuration.
+- Direct `#/match/admin` remains reachable by URL for operational
+  compatibility. It is not advertised from the visible Match report actions.
+
+## Legacy Match Surface Design And I18n Alignment 2026-05-22
+
+Status: **PASS FOR SCOPED LEGACY MATCH FRONTEND ALIGNMENT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Constitution III and PRD bilingual rules require user-facing Match text to come from translation resources rather than visible backend enum tokens. | Added shared Match display-label helpers and EN/NL keys for property types, availability status, provider health, freshness status, and match dimension labels. Listings, alerts, comparison, similar-search, and report claim metadata now render localized labels such as `Apartment`, `Available`, `Mock-only provider`, `Mock data`, `Mobility`, and `Buy affordability` while preserving stable backend payload values. | `frontend/src/components/match/matchDisplayLabels.ts`, `frontend/src/components/match/MatchListings.tsx`, `frontend/src/components/match/MatchAlerts.tsx`, `frontend/src/components/match/MatchComparison.tsx`, `frontend/src/components/match/MatchSimilarSearch.tsx`, `frontend/src/components/match/MatchReport.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, related component tests | Red-first tests failed before implementation for visible `apartment`, `available`, `mock_only`, `mock`, `mobility`, `unavailable`, and `affordability_buy`; final focused component suite passed with 10 tests across listings, alerts, comparison, similar search, and report. |
+| Design guidance requires option sets to use controls with readable labels, not free-form visible backend tokens. | Changed the Match alert property type field from a text input showing `apartment` to a localized select. The form still submits stable values such as `property_types: ['apartment']`. | `frontend/src/components/match/MatchAlerts.tsx`, `frontend/src/components/match/MatchAlerts.test.tsx` | Red-first `MatchAlerts.test.tsx -t "localized property type"` failed before implementation; final affected component suite passed. |
+| Design guidance bans generic three-column card/metric layouts, and mobile layout must remain stable. | Replaced literal three-column metric grids in legacy listings and comparison summaries with two-column/asymmetric grid tracks and explicit mobile one-column collapse. Added a CSS contract in `mobile-ui-gates.test.ts`. | `frontend/src/components/match/MatchListings.css`, `frontend/src/components/match/MatchComparison.css`, `frontend/src/test/mobile-ui-gates.test.ts` | Red-first `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "legacy Match"` failed while `repeat(3, minmax(0, 1fr))` remained; final mobile UI gates passed. |
+| PRD/constitution forbid dashboard content in the visible user Match journey. | Removed the visible Admin dashboard shortcut from the Match report action row. The direct legacy `#/match/admin` route remains available for operational compatibility but is not advertised from user-facing report actions. | `frontend/src/App.tsx`, `frontend/src/App.test.tsx` | Red-first `cd frontend && npx vitest run src/App.test.tsx -t "operational admin"` failed while the `Admin` action was visible; final route regression passed. |
+| Phase verification for scoped alignment. | Ran focused component/route/CSS/i18n tests, focused ESLint, and a production frontend build. | same as above plus docs | Final command passed: `cd frontend && npx vitest run src/App.test.tsx src/components/match/MatchListings.test.tsx src/components/match/MatchAlerts.test.tsx src/components/match/MatchComparison.test.tsx src/components/match/MatchSimilarSearch.test.tsx src/components/match/MatchReport.test.tsx src/test/mobile-ui-gates.test.ts src/test/i18n-completeness.test.ts`. Focused ESLint passed with the existing `activeLookupId` hook warning in `App.tsx`. `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. |
+
+Residual release risk:
+
+- Direct `#/match/admin` still contains internal operational status-key text.
+  It is no longer exposed from the visible Match report action row; hardening or
+  gating that direct operational route remains a separate task.
+- Browser E2E was not rerun for this legacy-surface repair; component, route,
+  CSS-contract, i18n, lint, and build evidence cover the touched behavior.
+
+## Selected-Neighborhood Building, Emoji Marker, And Boundary-Frame Repair 2026-05-23
+
+Status: **PASS FOR FRONTEND SELECTED-NEIGHBORHOOD REPAIR**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD Phase 7 / AC12 and Constitution IV require selected-neighborhood building data to render as 2D footprints when source data exists, without a fake red display-bounds frame. | Added red-first regressions proving backend-clipped building responses still render when the local boundary coordinate system is not WGS84-classifiable, and empty building data does not draw the red display-bounds frame or fake building blocks. Updated the frontend to trust `clipped_to_neighborhood` responses when local WGS84 containment cannot safely run, and removed the hard-coded red fallback frame/fake blocks. Official boundary outlines remain as the only neighborhood frame. | `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx` | Red-first `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "dedicated emoji glyphs\|local boundary projection\|red display-bounds frame"` failed before implementation because rendered buildings stayed at `0` and the fallback canvas reported `drawn`. The same focused command passed after implementation with 3 tests. |
+| User request and PRD Phase 7 / AC13 require selected-neighborhood amenity markers and the Relevant amenities legend to have dedicated emojis. | Added dedicated frontend emoji mapping for each active amenity category while preserving existing stable marker-shape identity and translated accessible labels. Map marker buttons now expose `data-marker-emoji` and visible emoji glyphs; the right-side Relevant amenities legend/filter controls render the same emojis. | `frontend/src/components/match-first/amenityMarkerShapes.ts`, `frontend/src/components/match-first/AmenityTags.tsx`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/test/match-first-neighborhood-detail.test.tsx` | Red-first focused command above failed before implementation because marker emoji attributes/glyphs were missing. The same command passed after implementation with dedicated emoji coverage for Transit, Schools, Childcare, and Parks / green space. |
+| Keep product/spec docs aligned so future work does not re-remove marker emojis. | Updated the PRD, constitution, implementation rules, SpecKit spec/plan/contracts/quickstart/tasks/acceptance traceability, QA evidence/punch list, handoff, and local agent guidance to state that map markers and the Relevant amenities legend must use dedicated emojis alongside type-specific shapes. | `AGENTS.md`, `.specify/memory/constitution.md`, `docs/prd.md`, `docs/ai/implementation_rules.md`, `docs/ai/latest_handoff.md`, `docs/qa/final_evidence.md`, `docs/qa/match_first_revamp_traceability.md`, `docs/qa/open_punchlist.md`, `specs/002-match-first-revamp/acceptance-traceability.md`, `specs/002-match-first-revamp/contracts/match-first-api.md`, `specs/002-match-first-revamp/plan.md`, `specs/002-match-first-revamp/quickstart.md`, `specs/002-match-first-revamp/spec.md`, `specs/002-match-first-revamp/tasks.md` | Documentation/source scans for old no-emoji and marker-shape-only language returned no active hits. Focused ESLint passed. `git diff --check -- <touched frontend/docs/spec files>` passed with only existing Windows line-ending warnings. |
+
+Residual release risk:
+
+- `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx`
+  passed with 51 tests. Vitest still prints existing React `act(...)` warnings
+  in the map-state/list-fallback test, but exits green.
+- `cd frontend && npm run build` passed with the existing placeholder
+  assetlinks/AASA notices.
+- Backend gates were not rerun because this pass only changed frontend
+  selected-neighborhood rendering plus docs/spec contract text.
+- Dense real provider responses still need desktop/mobile visual smoke for
+  emoji overlap and touch ergonomics.
+
+## Amenity Marker Shape Design Alignment 2026-05-22
+
+Status: **SUPERSEDED BY 2026-05-23 DEDICATED-EMOJI MARKER CONTRACT; HISTORICAL
+SHAPE-ONLY EVIDENCE RETAINED FOR CONTEXT**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD Phase 7 / AC13 and Constitution IV require selected-neighborhood amenity markers to use restrained type-specific marker shapes, with the right-side Relevant amenities panel mirroring that marker identity as a legend/filter surface. This 2026-05-22 shape-only decision is superseded by the 2026-05-23 dedicated-emoji contract above. | Replaced backend amenity point `emoji` payload metadata with stable `marker_shape` metadata and updated the API contract example. This historical pass removed frontend amenity emoji lookup/rendering, but the current product contract now requires frontend-derived dedicated emojis in both selected-neighborhood map markers and the Relevant amenities legend. Accessible labels remain translated text such as "Schools amenity marker" and "Filter by Schools"; marker counts, unavailable explanations, source details, and map filtering behavior are preserved. | `backend/app/models/match.py`, `backend/app/services/match/amenities.py`, `backend/app/services/match/providers/amenities.py`, `backend/tests/test_match_neighborhood_layers.py`, `frontend/src/components/match-first/amenityMarkerShapes.ts`, `frontend/src/components/match-first/AmenityTags.tsx`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/types/matchFirst.ts`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `specs/002-match-first-revamp/contracts/match-first-api.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Historical red-first frontend: `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "without emoji glyphs"` failed because the Transit marker rendered a pictographic glyph. Red-first backend: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "official_amenity_markers_include_exact_source" --tb=short` failed because amenity points lacked `marker_shape`. Final backend selected-neighborhood suite passed with 52 tests; backend focused ruff passed; final focused marker suite passed with 6 tests; full selected-neighborhood detail suite passed with 48 tests; focused frontend ESLint passed; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices; `git diff --check -- <touched files>` passed with line-ending warnings only. |
+
+## Hybrid Additional-Preferences Implementation 2026-05-22
+
+Status: **PASS FOR PHASE 2A MVP AUTOMATED EVIDENCE**. The optional
+additional-preferences workflow is implemented with deterministic strict-schema
+classification, user review, no raw-text analytics, and no custom-text scoring.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD hybrid intake flow: keep guided intake one-question-at-a-time, then add one optional "anything else that matters?" prompt before review and matching. | Added the `#/match/session/{id}/additional-preferences` route and App orchestration so completed sessions resume into the optional prompt unless custom preferences were reviewed or skipped. Added a one-prompt UI with examples, textarea, privacy/use note, extraction summary, remove/retry/skip/continue states, and review-screen edit/display of custom preference use status. Raw typed text is cleared after extraction and is not displayed back on summary/review surfaces. | `frontend/src/App.tsx`, `frontend/src/App.test.tsx`, `frontend/src/components/match-first/AdditionalPreferencesPrompt.tsx`, `frontend/src/components/match-first/AdditionalPreferencesPrompt.test.tsx`, `frontend/src/components/match-first/SurveyReview.tsx`, `frontend/src/components/match-first/SurveyReview.test.tsx`, `frontend/src/components/match-first/SurveyShell.css`, `frontend/src/routing/hashRoutes.ts`, `frontend/src/services/matchFirstApi.ts`, `frontend/src/types/matchFirst.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-routing.test.tsx`, `frontend/src/test/match-i18n.test.ts` | Red-first frontend prompt/review/routing/i18n tests failed before implementation, then `cd frontend && npm run test -- src/components/match-first/AdditionalPreferencesPrompt.test.tsx src/components/match-first/SurveyReview.test.tsx src/test/match-first-routing.test.tsx src/test/match-i18n.test.ts` passed with 22 tests. `cd frontend && npm run test -- src/App.test.tsx src/components/match-first/AdditionalPreferencesPrompt.test.tsx src/components/match-first/SurveyReview.test.tsx src/test/match-first-routing.test.tsx src/test/match-i18n.test.ts` passed; existing App `act(...)` warnings and unrelated Dossier sunlight/shadow console output remain. |
+| Backend extraction/review contract: classify custom text through a typed registry, persist reviewed decisions, and require review before matching. | Added `POST /api/match/sessions/{session_id}/custom-preferences/extract` and `PATCH /api/match/sessions/{session_id}/custom-preferences/review`. Added `match_custom_preferences` persistence plus session fields for reviewed/skipped/version state. Current deterministic registry emits `saved_unsupported` for coast/beach proximity, `map_context_only` for place-of-worship proximity, `disallowed` for protected-trait preference language, `needs_clarification` for safety claims and unknown text, and reserves `scoreable` for future reviewed registry entries. | `backend/app/api/match.py`, `backend/app/db.py`, `backend/app/models/match.py`, `backend/app/services/match/custom_preferences.py`, `backend/app/services/match/sessions.py`, `backend/tests/test_match_custom_preferences.py`, `backend/tests/test_match_db_schema.py` | Red-first: `cd backend && pytest -q tests/test_match_custom_preferences.py` failed before the custom-preference service/endpoints existed, then passed with 6 tests. `cd backend && pytest -q tests/test_match_custom_preferences.py tests/test_match_db_schema.py tests/test_match_sessions.py` passed with 21 tests; pytest printed the known Windows temp cleanup `PermissionError` after successful exit. |
+| No-LLM-scoring, vector, and privacy guardrails. | Extended preference vectors with reviewed custom preferences while keeping non-scoreable statuses weightless and without feature keys. Analytics accepts only stable custom-preference keys/status/action metadata. LLMs are not used in this implementation; any future extractor must remain behind the same strict schema and review boundary. | `backend/app/services/match/preference_vector.py`, `backend/app/services/match/instrumentation.py`, `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstApi.ts`, `frontend/src/types/matchFirst.ts`, `frontend/src/test/match-i18n.test.ts` | Backend lint passed: `cd backend && ruff check app/models/match.py app/services/match/custom_preferences.py app/services/match/preference_vector.py app/services/match/sessions.py app/services/match/instrumentation.py app/api/match.py app/db.py tests/test_match_custom_preferences.py tests/test_match_db_schema.py`. Focused frontend lint passed: `cd frontend && npx eslint src/App.tsx src/App.test.tsx src/components/match-first/AdditionalPreferencesPrompt.tsx src/components/match-first/AdditionalPreferencesPrompt.test.tsx src/components/match-first/SurveyReview.tsx src/components/match-first/SurveyReview.test.tsx src/services/matchFirstApi.ts src/services/matchFirstAnalytics.ts src/routing/hashRoutes.ts src/test/match-first-routing.test.tsx src/test/match-i18n.test.ts`, with one existing `react-hooks/exhaustive-deps` warning in `App.tsx` for `activeLookupId`. `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. |
+
+Residual release risk:
+
+- The MVP registry is intentionally deterministic and narrow. It proves the
+  schema/status/review/no-scoring boundary, but broader natural-language
+  extraction coverage remains future work.
+- A full Playwright browser journey including the new optional prompt was not
+  rerun in this pass; App/component and backend contract tests cover the new
+  route, prompt, review gating, i18n, persistence, and vector guardrails.
+- Repo-wide `cd frontend && npm run lint` remains blocked by pre-existing
+  unrelated lint failures because the script runs `eslint .`; touched-file lint
+  passed as listed above.
+
+## Match UI Design Alignment Pass 2026-05-22
+
+Status: **PASS FOR SCOPED FRONTEND DESIGN-SYSTEM ALIGNMENT**. At the time this
+section was written, it did not close the broader hybrid additional-preferences
+Phase 2A workflow; that implementation evidence is now recorded above.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| Match-first controls should use compact familiar controls with stable dimensions, translated accessible names, focus states, and no redundant visible text where an icon/symbol is clearer. | Converted results-map pan/zoom controls to fixed 44px icon-style buttons with translated `aria-label`s, CSS arrow icons for pan controls, tactile active state, focus-visible ring, and reduced-motion-safe transitions. | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/test/match-first-results-map.test.tsx` | Red-first: `cd frontend && npx vitest run src/test/match-first-results-map.test.tsx -t "renders results map controls"` failed while zoom controls exposed visible text labels. Final focused suite passed with existing React `act(...)` warning noise from async map state updates. |
+| Guided-flow headings should not use landing-hero scale inside compact survey/review/progress surfaces. | Added a simple-flow H1 rule for `.match-first-landing--simple h1` so match intake and recovery screens stay below hero scale while preserving the landing hero. | `frontend/src/components/match-first/MatchFirstLanding.css`, `frontend/src/components/match-first/MatchFirstLanding.test.tsx` | Red-first: `cd frontend && npx vitest run src/components/match-first/MatchFirstLanding.test.tsx -t "guided-flow headings"` failed before the simple-flow H1 contract existed. Final focused suite passed. |
+| All Match user-facing copy must use Dutch/English translation resources; legacy surfaces must not use English `defaultValue` fallbacks. | Removed `defaultValue` fallbacks from `MatchFeedbackControls`, added `i18n.exists` handling for backend explanation keys, and added EN/NL feedback title/loading/button/success/error keys. | `frontend/src/components/match/MatchFeedbackControls.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-i18n.test.ts` | Red-first: `cd frontend && npx vitest run src/test/match-i18n.test.ts -t "legacy match feedback"` failed while `defaultValue` copy existed. Final: feedback i18n guard and `MatchFeedbackControls.test.tsx` passed. |
+| Match-first map shells should use dynamic viewport units for mobile viewport stability. | Added a mobile UI CSS contract and changed results-map and selected-neighborhood detail shell heights from `100vh` to `100dvh`. | `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/test/mobile-ui-gates.test.ts` | Red-first: `cd frontend && npx vitest run src/test/mobile-ui-gates.test.ts -t "dynamic viewport"` failed with `100vh`. Final: same command passed, and full focused frontend test command passed with 35 tests. |
+| Phase closure for scoped UI design pass. | Recorded completed work, exact commands, residual risks, and the remaining Phase 2A caveat. Started a local review server at `http://127.0.0.1:5177/`. | `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Final commands passed: `cd frontend && npx vitest run src/test/match-i18n.test.ts src/components/match/MatchFeedbackControls.test.tsx src/components/match-first/MatchFirstLanding.test.tsx src/test/match-first-results-map.test.tsx src/test/mobile-ui-gates.test.ts`; `cd frontend && npx eslint src/components/match-first/ResultsMap.tsx src/components/match-first/MatchFirstLanding.test.tsx src/test/match-first-results-map.test.tsx src/test/match-i18n.test.ts src/components/match/MatchFeedbackControls.tsx src/test/mobile-ui-gates.test.ts`; `cd frontend && npm run build`; local dev server response check returned HTTP 200 for `http://127.0.0.1:5177/`. Build kept existing placeholder assetlinks/AASA release notices. |
+
+## BAG Semantic Selected-Neighborhood Footprint Implementation 2026-05-22
+
+Status: **PASS FOR BAG PAND USE-PURPOSE PRIORITIZATION AND DEFERRED NON-HOUSE
+FOOTPRINTS**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User clarified that BAG "building type" is misleading: the footprint is a `pand`, semantic use comes from linked `verblijfsobject.gebruiksdoel`, pands can be mixed-use, and zero-verblijfsobject/non-residential pands should remain visible but not become arbitrary clickable houses. PRD FR-N1/FR-N4/Section 16.3 and Constitution IV now require all available selected-neighborhood footprints while prioritizing `woonfunctie` for house selection. | Updated PRD, constitution, implementation rules, architecture, AGENTS, and SpecKit contracts/data model/spec/plan/tasks with BAG `pand` semantics, the 11 BAG use purposes, the provided CBS StatLine `86098NED` 2026KW01 provisional stock distribution, and the PDOK BAG OGC v2 source strategy. Added `backend/app/services/bag_ogc.py` for PDOK BAG OGC v2 `pand` pages with `status`, `gebruiksdoel`, `aantal_verblijfsobjecten`, 2D geometry, cursor validation, classification, and woonfunctie-priority sorting. Added BAG semantic fields to the selected-building API model and wired the match building service to prefer PDOK BAG for 2D selected-neighborhood footprints, falling back to 3DBAG only when PDOK BAG fails or returns a partial-empty provider response. Updated the frontend 2D building layer so non-house pands remain rendered as deferred grey footprints and are excluded from map house selection. Added EN/NL source limitation and deferred-footprint labels. | `backend/app/config.py`, `backend/app/models/match.py`, `backend/app/services/bag_ogc.py`, `backend/app/services/match/buildings.py`, `backend/tests/test_bag_ogc.py`, `backend/tests/test_match_neighborhood_layers.py`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/types/matchFirst.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `docs/prd.md`, `.specify/memory/constitution.md`, `docs/ai/implementation_rules.md`, `docs/context/current_architecture.md`, `AGENTS.md`, `specs/002-match-first-revamp/contracts/match-first-api.md`, `specs/002-match-first-revamp/data-model.md`, `specs/002-match-first-revamp/spec.md`, `specs/002-match-first-revamp/plan.md`, `specs/002-match-first-revamp/tasks.md`, `specs/002-match-first-revamp/acceptance-traceability.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first backend: `cd backend && pytest -q tests/test_bag_ogc.py tests/test_match_neighborhood_layers.py -k "pdok_bag_pand_page or pdok_bag_usage" --tb=short` initially failed before `bag_ogc`/BAG fields existed. Red-first frontend: `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "BAG non-house footprints"` initially failed before the layer exposed `pdok_bag_pand` and deferred non-house counts. Final: backend selected suite passed with 50 tests; backend ruff focused command passed; frontend detail/i18n Vitest passed with 48 tests; focused frontend ESLint passed; `cd frontend && npm run build` passed; `git diff --check -- <touched files>` passed with line-ending warnings only. Residual risks: no live dense PDOK BAG browser smoke was run in this pass; all-available completion still depends on provider paging and honest partial-state UX. |
+
+## Progressive Selected-Neighborhood Building Footprint Implementation 2026-05-22
+
+Status: **PASS FOR PROGRESSIVE SELECTED-NEIGHBORHOOD FOOTPRINT PAGING AND
+PARTIAL-STATE UX**.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| PRD AC12 / Phase 7 / Phase 6A: selected-neighborhood detail should show every available building footprint inside the selected neighborhood or selected-neighborhood viewport, loaded progressively when needed, and must not silently present a representative sample as complete. | Added backend building response completion metadata (`complete`, `next_cursor`, `loaded_scope`, `partial_reason_code`) and a cursor-aware `/buildings` query. Added a 3DBAG selected-bounds page helper that wraps provider `next` links in an opaque server cursor and validates cursor bounds before fetching the next page. The frontend now requests pages progressively, merges footprints by `building_id`, keeps partial/loading state visible, removes the old 80-building render cap, and renders localized partial-loading copy. Analytics now includes `match_building_layer_partial` and `match_building_layer_complete`; the missing-footprint fallback event name was aligned to `match_missing_footprint_fallback_shown`. | `backend/app/api/match.py`, `backend/app/models/match.py`, `backend/app/services/match/buildings.py`, `backend/app/services/match/instrumentation.py`, `backend/app/services/three_d_bag.py`, `backend/tests/test_match_neighborhood_layers.py`, `backend/tests/test_three_d_bag.py`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/services/matchFirstApi.ts`, `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/types/matchFirst.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/services/matchFirstApi.test.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first backend: selected-building endpoint tests failed because `complete` was missing and cursor requests still returned the first page; provider test failed because the page helper did not exist. Red-first frontend: selected-neighborhood detail fetched one page only and had no partial-loading copy. Final: `cd backend && pytest -q tests/test_match_neighborhood_layers.py --tb=short` passed with 48 tests; `cd backend && pytest -q tests/test_three_d_bag.py --tb=short` passed with 63 passed / 4 skipped; backend analytics catalog focused tests passed; backend ruff focused command passed; `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx src/services/matchFirstApi.test.ts src/test/match-i18n.test.ts src/services/matchFirstAnalytics.test.ts` passed with 75 tests; focused frontend ESLint passed; `cd frontend && npm run build` passed; `git diff --check -- <touched runtime/test files>` passed. Started frontend dev server at `http://127.0.0.1:5174/`; existing local backend on `http://127.0.0.1:8000` responded `200` for `/api/match/results-basemap`. Residual risk: this is provider-page progressive loading, not a dedicated vector-tile/cache server; dense neighborhoods can remain honestly partial if the page guard is reached or 3DBAG is unavailable. |
+
+## Progressive Selected-Neighborhood Building Footprint PRD Update 2026-05-22
+
+Status: **SUPERSEDED BY IMPLEMENTATION EVIDENCE ABOVE**. This row records the
+earlier documentation-only contract update; the runtime implementation evidence
+is now captured in the 2026-05-22 implementation section above.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User clarified that selected-neighborhood detail should show every available building footprint inside the selected neighborhood or current selected-neighborhood viewport, loaded progressively when needed, and must not silently show only a representative sample. | Updated the PRD and dependent docs to define the intended UX: results map has no building footprints; neighborhood detail loads all available selected-neighborhood footprints or current selected-neighborhood viewport footprints; dense areas may page/chunk/cursor progressively; partial states must be labeled; missing data still uses the existing missing-footprint fallback. Added Phase 6A pending tasks T-097 through T-101. | `docs/prd.md`, `.specify/memory/constitution.md`, `docs/ai/implementation_rules.md`, `AGENTS.md`, `docs/context/current_architecture.md`, `specs/002-match-first-revamp/spec.md`, `specs/002-match-first-revamp/plan.md`, `specs/002-match-first-revamp/contracts/match-first-api.md`, `specs/002-match-first-revamp/tasks.md`, `specs/002-match-first-revamp/acceptance-traceability.md`, `specs/002-match-first-revamp/data-model.md`, `specs/002-match-first-revamp/research.md`, `specs/002-match-first-revamp/quickstart.md`, `specs/002-match-first-revamp/checklists/requirements.md`, `specs/002-match-first-revamp/implementation-notes.md`, `docs/qa/open_punchlist.md`, `docs/qa/final_evidence.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Documentation consistency checks only. `rg` confirmed the new all-available/progressive/partial-state language, AC12/SC-010 partial rows, Phase 6A tasks, `complete=false`, `next_cursor`, `match_building_layer_partial`, PRD `21.2A`, and `BuildingFootprintPage` hooks are present. `git diff --check -- <updated docs>` passed with line-ending warnings only. This row's pending-status note is superseded by the implementation evidence above. |
+
+## Selected-Neighborhood Container Organization 2026-05-22
+
+Status: **PASS FOR SCOPED FRONTEND LAYOUT ORGANIZATION**.
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User screenshot showed the selected-neighborhood detail containers feeling disjointed: back/title split across the page, map as one large surface, and fit/amenity cards stacked separately. PRD Phase 7 still requires the map to remain the primary selected-neighborhood detail surface with a right-side relevant-amenities legend/filter panel. | Reorganized the detail DOM into a `map-with-context-rail` layout: the selected map is the primary workspace, the right rail is one unified context container, and the fit explanation plus Relevant amenities controls are divided sections inside that rail. Updated desktop CSS so the rail is sticky, height-aligned to the map, and scrolls internally when amenity content is taller than the map. Mobile remains a single-column layout. No backend contracts, scoring, Dossier bridge behavior, map loading, amenity marker semantics, or user-facing copy changed. | `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -t "map workspace"` failed because the old layout had no workspace/context-rail structure. Final: `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "map workspace"` passed; `cd frontend && npx eslint src/components/match-first/NeighborhoodDetail.tsx src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx` passed with 43 tests and existing React `act(...)` warning noise; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. Browser smoke on `http://127.0.0.1:4176` with mocked selected-neighborhood data at 1050x768 confirmed the map and rail do not overlap, the rail is 360 px wide, has two context sections, and uses internal scrolling. The configured Playwright port `4173` was occupied by an unrelated Forge3D app, so the full configured journey was not rerun. |
+
+## Hybrid Additional-Preferences PRD Update 2026-05-21
+
+Status: **SUPERSEDED BY IMPLEMENTATION EVIDENCE ABOVE**. This was the earlier
+documentation-only contract update; runtime implementation evidence is now
+captured in the 2026-05-22 implementation section above.
+
+| Requirement / change | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| New PRD workflow: keep the one-question guided intake, then add one optional "anything else that matters?" prompt for preferences not covered by fixed questions. Extracted preferences must be reviewed before matching. | Updated the PRD and dependent docs to define the hybrid intake flow, strict extraction schema, custom-preference registry statuses, review requirements, privacy rules, and no-LLM-scoring boundary. Added Phase 2A pending tasks T-089 through T-096. | `docs/prd.md`, `docs/ai/implementation_rules.md`, `AGENTS.md`, `.specify/memory/constitution.md`, `.specify/templates/spec-template.md`, `docs/context/current_architecture.md`, `docs/speckit_playbook.md`, `specs/002-match-first-revamp/spec.md`, `specs/002-match-first-revamp/plan.md`, `specs/002-match-first-revamp/data-model.md`, `specs/002-match-first-revamp/contracts/match-first-api.md`, `specs/002-match-first-revamp/tasks.md`, `specs/002-match-first-revamp/research.md`, `specs/002-match-first-revamp/quickstart.md`, `specs/002-match-first-revamp/acceptance-traceability.md`, `specs/002-match-first-revamp/checklists/requirements.md`, `specs/002-match-first-revamp/implementation-notes.md`, `docs/qa/open_punchlist.md`, `docs/qa/final_evidence.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Documentation consistency checks only. `git diff --check -- <updated docs>` passed with line-ending warnings only. Stale-term grep for old one-question/3D/missing3d contracts returned `NO_MATCHES` across active docs. New workflow grep confirmed additional-preferences, registry, extraction, Phase 2A, pending implementation, and status terms are present. Existing Phase 1-8 pass evidence still covers the pre-hybrid flow; acceptance rows for additional-preference prompt, extraction/review, custom-preference vector status, and analytics privacy are partial/missing until implementation evidence exists. |
+| LLM boundary for conversational intake. | Defined LLMs as extraction/clarification/explanation aids only. LLMs must not score, rank, exclude, infer protected traits or religious identity, create confidence, or modify eligibility, hard-filter outcomes, reason-code truth, source metadata, or recommendation limitations. | Same documentation files above. | Pending implementation tests: backend extraction contract, registry classification, vector builder no-score guard, analytics raw-text rejection, frontend review UI, i18n/a11y/copy guards. |
+
+## Statenkwartier Parks And Childcare Live Amenity Repair 2026-05-22
+
+Status: **PASS FOR STATENKWARTIER AMENITY AVAILABILITY REPAIR**.
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User screenshot showed `Parks / green space` and `Childcare` as unavailable for Statenkwartier even though selected-neighborhood amenity markers must use source-backed no-paid providers and honestly render every returned point inside the selected boundary. | Reproduced the default Statenkwartier amenity response: parks and childcare were unavailable while transit, daily shops, schools, parking, and EV charging returned points. Root cause was backend-scoped: live BGT/BAG provider calls still used the stale seed RD rectangle after the official CBS boundary was selected, so BGT green features were fetched from the wrong area and then clipped out. LRK childcare used the stale BAG bbox, then fell through to a slow sequential geocoding fallback that timed out. Added WGS84-to-RD conversion helpers so live BGT/BAG requests use selected official boundary bounds, filtered LRK BAG-index records against the selected boundary before trusting them, used the geocoded LRK fallback when indexed records clip out or time out, and made that fallback concurrent. | `backend/app/services/match/geometry.py`, `backend/app/services/match/amenities.py`, `backend/app/services/match/amenity_ingestion.py`, `backend/tests/test_match_neighborhood_layers.py`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "official_boundary_bounds_when_seed_centroid_is_stale or geocoded_lrk_fallback_when_index_match_clips" --tb=short` failed before implementation with missing `parks_green` and `childcare` points. Final: the same focused command passed; the broader focused amenity command passed with 9 tests; `cd backend && pytest -q tests/test_match_neighborhood_layers.py --tb=short` passed with 46 tests; `cd backend && pytest -q tests/test_match_amenity_ingestion.py --tb=short` passed with 10 tests; `cd backend && ruff check app/services/match/geometry.py app/services/match/amenities.py app/services/match/amenity_ingestion.py tests/test_match_neighborhood_layers.py` passed; `cd backend && ruff check .` passed. Live direct-service proof and live HTTP proof through the running local backend for `nh_den_haag_statenkwartier` returned `parks_green:14`, `schools:6`, `childcare:12`, `transit:12`, `daily_shops:12`, `parking:12`, and `ev_charging:12`, with no unavailable amenity categories. Residual risk: this still depends on live external providers; the direct-service probe took about 26 seconds before a complete no-gap response could be cached. |
+
+## Selected-Neighborhood Boundary Containment Repair 2026-05-22
+
+Status: **PASS FOR SELECTED-BOUNDARY CONTAINMENT REPAIR**.
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User screenshot showed buildings and amenity markers rendering outside the selected neighborhood outline, then a follow-up showed Statenkwartier still using the rectangular seed bbox instead of the official neighborhood shape. PRD Phase 7 / AC12-AC13 and Constitution IV require selected-neighborhood buildings and returned amenity markers to stay inside the selected neighborhood boundary, not merely inside the bbox. | Added boundary-containment helpers for WGS84 `Polygon` and `MultiPolygon` geometry. Official CBS boundary candidates must contain the selected seed centroid, or be a strong exact code/name match whose bounds overlap the seed viewport; loose partial-name matches such as `Overig Almere Poort` remain rejected. This allows the exact CBS `BU05180907 Statenkwartier` boundary even though the seed centroid is slightly stale. Backend selected-neighborhood building responses filter returned 3DBAG footprints to the selected boundary. Backend amenity responses filter stored and live points to the selected boundary before limiting, unavailable-category derivation, source refs, and caching. The frontend map layer also filters buildings and markers against the map-layer boundary so stale or malformed backend responses cannot visibly leak outside the outlined area. | `backend/app/services/match/geometry.py`, `backend/app/services/match/buildings.py`, `backend/app/services/match/amenities.py`, `backend/tests/test_match_neighborhood_layers.py`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first: frontend containment test failed with `data-rendered-buildings="2"` instead of `1`; backend focused containment tests failed because outside-boundary buildings and amenity points were returned; stale-centroid regression `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "nearby_stale_seed_centroid"` failed because Statenkwartier still fell back to the seed rectangle. Final: `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx` passed with 42 tests and existing React `act(...)` warning noise; `cd backend && pytest -q tests/test_match_neighborhood_layers.py --tb=short` passed with 44 tests and the existing ignored Windows temp cleanup warning; `cd backend && ruff check .` passed; `cd backend && ruff check app/services/match/geometry.py tests/test_match_neighborhood_layers.py` passed; `cd frontend && npx eslint src/components/match-first/NeighborhoodBuildingLayer.tsx src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. Live HTTP proof through `http://127.0.0.1:4174/api/.../map-layers` returned `cbs_wijk_en_buurtkaart_2024`, `BU05180907`, `MultiPolygon`, and bounds `[4.2702541, 52.0857779, 4.2859993, 52.1022801]`. |
+
+## Official Selected-Neighborhood Boundary Repair 2026-05-22
+
+Status: **PASS FOR OFFICIAL CBS/PDOK BOUNDARY REPAIR**.
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User rejected the square "official" boundary and asked for real neighborhood boundaries from an official Dutch source. PRD Phase 7 / AC12-AC13 requires selected-neighborhood-only building footprints and relevant amenity markers scoped to that neighborhood. | Replaced the backend map-layer rectangle boundary with an official CBS Wijk- en Buurtkaart 2024 lookup through PDOK OGC API Features. The backend requests only the selected seed neighborhood bbox, compares `buurten` and `wijken`, prefers exact official code/name matches, and falls back to CBS name matching for stale seed codes. Statenkwartier now resolves to official `BU05180907 Statenkwartier` even though the seed code is stale. Boundary features return curated source metadata and `current` freshness; PDOK/CBS failures fall back to the old display-bounds polygon with an explicit limitation key and no empty/error cache. The frontend boundary overlay now supports both GeoJSON `Polygon` and `MultiPolygon` rings. | `backend/app/config.py`, `backend/app/services/match/geometry.py`, `backend/tests/test_match_neighborhood_layers.py`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/types/matchFirst.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/test/match-i18n.test.ts`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first: backend focused test failed while map layers still returned the rectangular `Polygon` and no CBS candidate selector existed; frontend multipolygon test failed while `NeighborhoodBuildingLayer` only treated `Polygon.coordinates` as boundary rings. Final: `pytest -q backend/tests/test_match_neighborhood_layers.py` passed with 40 tests; `cd backend && ruff check .` passed; `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx` passed with 41 tests and existing React `act(...)` warning noise; `cd frontend && npx vitest run src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed with 9 tests; `cd frontend && npx eslint src/components/match-first/NeighborhoodBuildingLayer.tsx src/types/matchFirst.ts src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run build` passed. Live direct-service proof for `nh_den_haag_statenkwartier` returned `buurten BU05180907 Statenkwartier`, `MultiPolygon`, bounds `[4.2702541, 52.0857779, 4.2859993, 52.1022801]`. |
+
+## No-Paid Marker Live Loader Expansion 2026-05-22
+
+Status: **PASS FOR SCOPED BACKEND/LEGEND CONTRACT REPAIR**.
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User asked to restore parks, remove unreliable sports fields, and implement real no-paid markers for daily shops, cafes/restaurants, healthcare, EV charging, swimming water, and libraries/culture. PRD Phase 7 / AC13-AC14 requires selected-neighborhood scoped amenity markers, no invented POIs, source metadata, and no frontend marker cap after the backend response. | Removed `sports_fields` from the active marker category catalog, preference/default tag selection, frontend marker-shape mapping, i18n labels, stored category type, and sports refresh path. Added live selected-bounds loaders for Overture Places POI categories, NDW DOT-NL EV charging, and Zwemwater.nl swimming-water rows. Kept PDOK BGT/BRT parks as a live scoped source, reduced the PDOK BGT OGC request limit to 500, parallelized independent live loaders, and stopped caching partial live responses that are missing live-on-demand categories. Updated the PRD/spec/contracts and open punch list to reflect the final no-paid marker stack. | `backend/pyproject.toml`, `backend/app/config.py`, `backend/app/services/match/amenities.py`, `backend/app/services/match/amenity_ingestion.py`, `backend/app/services/match/amenity_store.py`, `backend/app/services/match/providers/amenities.py`, `backend/tests/test_match_amenity_ingestion.py`, `backend/tests/test_match_neighborhood_layers.py`, `frontend/src/components/match-first/amenityMarkerShapes.ts`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `docs/prd.md`, `docs/ai/implementation_rules.md`, `docs/qa/open_punchlist.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md`, `specs/002-match-first-revamp/spec.md`, `specs/002-match-first-revamp/contracts/match-first-api.md` | Red-first: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "open_poi_ev_and_swimming or partial_live_amenity_failures or amenities_are_preference_aware or no_paid_marker_stack or transit_and_parking"` failed before implementation because sports was still selected, live open POI/EV/swimming loaders were not wired, and partial live responses were cached. Final backend: focused command passed with 5 tests; `cd backend && pytest -q tests/test_match_amenity_ingestion.py` passed with 10 tests; `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 38 tests; `cd backend && ruff check app/config.py app/services/match/amenities.py app/services/match/amenity_ingestion.py app/services/match/amenity_store.py app/services/match/providers/amenities.py tests/test_match_neighborhood_layers.py tests/test_match_amenity_ingestion.py` passed. Final frontend: `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "official amenity type shapes\|no-paid marker stack\|loads boundary"` passed with 3 focused tests; `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx` passed with 40 tests and existing React `act()` warning noise; `cd frontend && npm run test -- src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed with 9 tests; `cd frontend && npx eslint src/components/match-first/amenityMarkerShapes.ts src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices; `git diff --check -- <touched files>` passed with line-ending warnings only. Live direct-service and HTTP probes for Statenkwartier returned parks, daily shops, cafes/restaurants, healthcare, EV charging, and libraries/culture markers after balanced point limiting; swimming water was honestly unavailable because no official Zwemwater.nl spot is inside the selected bounds. |
+
+## No-Paid Transit And Parking Live Marker Repair 2026-05-22
+
+Status: **PASS FOR SCOPED BACKEND REPAIR**.
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User reported that Statenkwartier still showed no additional marker categories beyond the old parks/sports/schools/childcare set. PRD Phase 7 / AC13-AC14 requires preference-aware selected-neighborhood no-paid amenity markers without invented POIs or request-time national amenity dumps. | Reproduced the stale local HTTP response and found the running backend on port 8000 was serving without `--reload`. Added selected-bounds live marker loading for public transport stops through `OV_HALTES_NL_ACTUEEL` WFS and for active parking through RDW/Nationaal Parkeerregister open parking data. Transit now uses a WFS bbox request rather than an all-Netherlands stop index during map open. Provider URLs/type names live in backend settings, and source metadata/docs now describe OV-haltes WFS live coverage with NDOV/GTFS as the preferred future import source. Restarted the local backend on `http://127.0.0.1:8000` with `--reload`. | `backend/app/config.py`, `backend/app/services/match/amenities.py`, `backend/app/services/match/providers/amenities.py`, `backend/tests/test_match_amenity_ingestion.py`, `backend/tests/test_match_neighborhood_layers.py`, `docs/prd.md`, `docs/ai/implementation_rules.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md`, `specs/002-match-first-revamp/spec.md`, `specs/002-match-first-revamp/contracts/match-first-api.md` | Red-first: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "no_paid_transit_and_parking"` failed because no live point-source loader populated transit or parking markers. Final: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "no_paid_transit_and_parking or no_paid_marker_stack or school_and_childcare_markers or slow_childcare_lookup or parks_only_live_geometry or point_limit_preserves or selected_geometry_markers or slow_selected_geometry_lookup"` passed with 8 tests; `cd backend && ruff check app/config.py app/services/match/amenities.py app/services/match/providers/amenities.py tests/test_match_neighborhood_layers.py tests/test_match_amenity_ingestion.py` passed; `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 36 tests; `cd backend && pytest -q tests/test_match_amenity_ingestion.py` passed with 10 tests. Live source probe for `nh_den_haag_statenkwartier` returned 39 transit records and 139 active RDW parking records before point limiting. Live HTTP probe after restart returned `transit:39` and `parking:41` marker points after the configured balanced limit, plus honest unavailable metadata for categories still lacking configured selected-bounds sources. Residual risk: daily shops, cafes/restaurants, healthcare, EV charging, swimming water, and libraries/culture still need dedicated no-paid loaders/imports before they render real markers. |
+
+## Amenity Marker Clutter And Category Availability Repair 2026-05-21
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User asked for the final no-paid marker source stack to be integrated into docs, backend, and the selected-neighborhood detail map/legend. PRD Phase 7 / FR-N3 requires preference-aware selected-neighborhood amenities without invented POIs, paid dependencies, or national amenity clutter. | Registered the final no-paid marker stack: PDOK BGT/BRT parks/green, PDOK BGT plus BAG sports, DUO schools, LRK childcare, NDOV/GTFS transit, RDW/Nationaal Parkeerregister parking, NDW DOT-NL EV charging with Open Charge Map fallback, Zwemwater.nl swim spots, and Foursquare OS Places plus Overture Places for open POI context. Backend amenity tags now include the new categories within the 5-7 category cap and return `source_unconfigured` metadata for registered sources that are not yet imported/configured. Frontend selected-neighborhood map and Relevant amenities legend now have localized labels, emoji glyphs, and stable marker shapes for the new categories. Docs now distinguish live scoped DUO/LRK/PDOK/BAG coverage from registered stored-marker categories. | `backend/app/services/match/amenity_store.py`, `backend/app/services/match/providers/amenities.py`, `backend/app/services/match/amenities.py`, `backend/tests/test_match_amenity_ingestion.py`, `backend/tests/test_match_neighborhood_layers.py`, `frontend/src/components/match-first/amenityMarkerShapes.ts`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `docs/prd.md`, `docs/ai/implementation_rules.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md`, `specs/002-match-first-revamp/spec.md`, `specs/002-match-first-revamp/contracts/match-first-api.md`, `AGENTS.md`, `.specify/memory/constitution.md` | Red-first: `cd backend && pytest -q tests/test_match_amenity_ingestion.py -k no_paid` failed with `KeyError: 'parking'`; `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k no_paid` failed because only the old amenity set was selected; `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -t "no-paid marker stack"` failed because new labels/shapes were absent. Final: `cd backend && pytest -q tests/test_match_amenity_ingestion.py` passed with 10 tests; `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 35 tests; `cd backend && ruff check app/services/match/amenities.py app/services/match/providers/amenities.py app/services/match/amenity_store.py tests/test_match_neighborhood_layers.py tests/test_match_amenity_ingestion.py` passed; `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx` passed with 40 tests and existing React `act()` warnings; `cd frontend && npm run test -- src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed with 9 tests; `cd frontend && npx eslint src/components/match-first/NeighborhoodBuildingLayer.tsx src/components/match-first/AmenityTags.tsx src/components/match-first/NeighborhoodDetail.tsx src/components/match-first/amenityMarkerShapes.ts src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. Residual risk: live importers for NDOV, RDW, NDW DOT-NL, Zwemwater.nl, Foursquare OS Places, and Overture Places remain future work; until then those registered sources honestly show `source_unconfigured` unless stored records are imported. |
+| User reported that the completed results screen no longer needs a Map/List toggle because both the map and ranked list are displayed at the same time. PRD Phase 5 / AC10-AC11 requires a synchronized Netherlands results map and ranked list, not a redundant mode choice. | Removed the Map/List segmented control from the results header. Removed mobile CSS that hid one pane according to the old toggle state, so narrow layouts stack the map above the list while keeping both available. Preserved selected recommendation, map center/zoom, marker popup, list scroll, analytics, and Dossier-return map-state persistence; the stored state keeps `mobileMode: "map"` for existing context compatibility without exposing a visible switch. | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/test/match-first-results-map.test.tsx`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first: `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx -- -t "shows map and list together\|persists selected map state"` failed before implementation because the `Map` button was still rendered. Final: `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx -- -t "shows map and list together\|persists selected map state\|restores saved map view\|ignores stale saved map view"` passed with 4 tests and existing React `act()` warnings; `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx` passed with 17 tests and existing React `act()` warnings; `cd frontend && npx eslint src/components/match-first/ResultsMap.tsx src/test/match-first-results-map.test.tsx` passed; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. |
+| User reported that the right-side Relevant amenities legend used abstract marker symbols while the selected-neighborhood map markers used emoji. PRD Phase 7 / AC13-AC14 requires the right-side Relevant amenities panel to act as the map marker legend/filter surface. | Changed the legend to render the first backend-returned marker emoji per amenity category, matching the glyphs visible on the map. Removed the visual CSS shape swatches from the legend while preserving localized labels, marker counts, active filter state, disabled empty-marker behavior, and stable analytics keys. | `frontend/src/components/match-first/AmenityTags.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "renders official amenity type shapes"` failed before implementation because the legend lacked the map emoji and still rendered `.amenity-tags__shape`. Final: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "renders official amenity type shapes"` passed; `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx` passed with 39 tests and existing React `act()` warnings; `cd frontend && npx eslint src/components/match-first/AmenityTags.tsx src/components/match-first/NeighborhoodDetail.tsx src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. |
+| User reported that selected-neighborhood maps became messy because dense amenity markers rendered repeated full text labels, and asked why other amenity marker categories were unavailable. Follow-up: after the first repair, the user still saw only parks. PRD Phase 7 / AC13-AC14 requires every backend-returned official amenity point marker on the selected-neighborhood map, with the right-side Relevant amenities panel serving as legend/filter, without invented POIs. | Changed selected-neighborhood map amenity markers to icon-only buttons while keeping localized accessible labels and click-to-open source details. Added marker counts and localized unavailable reasons to the right-side Relevant amenities legend/filter panel. Extended the backend amenity response with per-category unavailable reason metadata. Fixed backend point limiting so dense parks/green geometry cannot consume the full configured point limit and crowd out other available categories such as sports fields. Added a regression for parks-only live provider responses so missing tagged categories are explicitly reported unavailable. Restarted the local backend on `http://127.0.0.1:8000` after discovering the previous process was still serving the stale no-unavailable-metadata contract. | `backend/app/models/match.py`, `backend/app/services/match/amenities.py`, `backend/tests/test_match_neighborhood_layers.py`, `frontend/src/components/match-first/AmenityTags.tsx`, `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/types/matchFirst.ts`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first frontend: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "official amenity type shapes\|official street basemap\|explains unavailable"` failed before implementation because markers still contained category text and disabled categories did not explain unavailable marker data. Red-first backend: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "point_limit_preserves"` failed before implementation because the configured point limit returned only `parks_green` markers when an available `sports_fields` marker followed dense parks geometry. Follow-up regression: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "parks_only_live_geometry"` passed and locks the explicit unavailable metadata for parks-only provider responses. Final: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "parks_only_live_geometry or point_limit_preserves or selected_geometry_markers or amenities_are_preference_aware"` passed with 4 tests; `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "amenities_are_preference_aware or official_amenity_markers or amenity_cache_key or selected_geometry_markers or point_limit_preserves or slow_selected_geometry_lookup"` passed with 6 tests; `cd backend && pytest -q tests/test_match_neighborhood_layers.py` passed with 31 tests before the follow-up test and focused coverage passed afterward; `cd backend && ruff check app/models/match.py app/services/match/amenities.py tests/test_match_neighborhood_layers.py` passed; `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx` passed with 39 tests and existing React `act()` warning noise; `cd frontend && npm run test -- src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed with 9 tests; `cd frontend && npx eslint src/components/match-first/NeighborhoodBuildingLayer.tsx src/components/match-first/AmenityTags.tsx src/components/match-first/NeighborhoodDetail.tsx src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. Live probe after restart: `nh_den_haag_statenkwartier` returned `parks_green` and `sports_fields`; `nh_amsterdam_ijburg` returned `parks_green`, `schools`, and `sports_fields`; `nh_almere_poort` still returned only `parks_green` plus unavailable metadata for other tagged categories. Superseded by the follow-up row below: schools and childcare now have a scoped DUO/LRK on-demand fallback, while absent official records still produce unavailable metadata rather than invented markers. |
+| User clarified that they still did not see schools and childcare. PRD Phase 7 / AC13-AC14 requires selected-neighborhood official amenity markers for every backend-returned point while preserving source honesty and avoiding invented POIs. | Added scoped on-demand official DUO/LRK lookup for `schools` and `childcare` when those tags are relevant and the selected-neighborhood amenity store has no points. Updated LRK parsing for current open-data columns, including `opvanglocatie_adres`, `opvanglocatie_postcode`, `opvanglocatie_woonplaats`, and `actuele_naam_oko`. Added a BAG-indexed LRK fast path so childcare points can resolve from official LRK BAG ids plus selected-bounds BAG features without slow per-row geocoding during map open. The response still returns unavailable metadata, not fabricated markers, when official DUO/LRK/BAG data has no selected-bounds record. | `backend/app/services/match/amenities.py`, `backend/app/services/match/amenity_ingestion.py`, `backend/tests/test_match_neighborhood_layers.py`, `backend/tests/test_match_amenity_ingestion.py`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first backend: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "school_and_childcare_markers"` failed before implementation because an empty amenity store could not load school or childcare markers on demand. Red-first LRK parser: `cd backend && pytest -q tests/test_match_amenity_ingestion.py -k "current_open_data_columns"` failed before current LRK column names were mapped. Final: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "school_and_childcare_markers or parks_only_live_geometry or point_limit_preserves or selected_geometry_markers or slow_selected_geometry_lookup"` passed with 5 tests; `cd backend && pytest -q tests/test_match_amenity_ingestion.py` passed with 5 tests; `cd backend && ruff check app/services/match/amenities.py app/services/match/amenity_ingestion.py app/models/match.py tests/test_match_neighborhood_layers.py tests/test_match_amenity_ingestion.py` passed; `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx` passed with 39 tests and existing React `act()` warnings; `cd frontend && npm run test -- src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed with 9 tests; `cd frontend && npm run build` passed. Live local API probe after backend restart used a valid family-oriented match session and returned Leidsche Rijn with `schools:7`, Strijp-S with `childcare:3` and `schools:5`, while Almere Poort still returned only `parks_green:80` plus unavailable metadata for absent official categories. Residual risk: some selected neighborhoods have no matched official DUO/LRK/BAG record inside the selected bounds, and the UI must continue to report that honestly instead of inventing markers. |
+| Follow-up after the user still reported missing schools/childcare: a slow official childcare lookup could cancel the combined on-demand address lookup and discard successful school results for the same selected map request. A later user challenge on Den Haag/Statenkwartier proved the earlier "no official records" conclusion was wrong. | Split on-demand school and childcare loading into independent bounded tasks. Added municipality alias handling so `Den Haag` matches DUO/LRK rows using official `'S-GRAVENHAGE` / `s-Gravenhage` naming. Corrected the Statenkwartier seed center so selected bounds include named DUO schools just north of the previous bbox, including `IC Basisschool Statenkwartier`. Forced LRK current open-data CSV parsing to the file's semicolon format with normal double-quote handling so `s-Gravenhage` rows and LRK BAG ids are not quote-corrupted. | `backend/app/services/match/amenities.py`, `backend/app/services/match/amenity_ingestion.py`, `backend/app/data/match_seed/neighborhoods.json`, `backend/tests/test_match_neighborhood_layers.py`, `backend/tests/test_match_amenity_ingestion.py`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first: `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "slow_childcare_lookup"` failed because a slow childcare lookup cancelled a successful DUO school marker. Red-first Den Haag alias: `cd backend && pytest -q tests/test_match_amenity_ingestion.py -k "den_haag_municipality_alias"` failed while `Den Haag` did not match DUO `'S-GRAVENHAGE`. Red-first bounds: `cd backend && pytest -q tests/test_match_amenity_ingestion.py -k "statenkwartier_selected_bounds"` failed because `IC Basisschool Statenkwartier` was north of the selected bbox. Final: `cd backend && pytest -q tests/test_match_amenity_ingestion.py` passed with 9 tests; `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "school_and_childcare_markers or slow_childcare_lookup or parks_only_live_geometry or point_limit_preserves or selected_geometry_markers or slow_selected_geometry_lookup"` passed with 6 tests; `cd backend && ruff check app/services/match/amenity_ingestion.py app/services/match/amenities.py tests/test_match_amenity_ingestion.py tests/test_match_neighborhood_layers.py` passed. Live direct-service probe after the full correction returned Den Haag/Statenkwartier with `parks_green:32`, `sports_fields:32`, `schools:13`, and `childcare:3`, with no unavailable amenity categories. |
+
+## Amenity Empty-Filter Visibility Repair 2026-05-20
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User reported that amenities were not visible on the selected-neighborhood map. Root cause found in the frontend filter path: a relevant amenity tag could be activated even when the backend returned zero marker points for that amenity category, causing the map to hide other returned amenity markers and appear empty. PRD Phase 7 / AC13-AC14 requires selected-neighborhood amenity overlays and a right-side relevant-amenities legend/filter panel without invented POIs. | Added marker-count-aware amenity filtering. Tags with zero returned marker points are disabled as filters, stale active filters are cleared when refreshed amenity data no longer includes points for that category, and a localized EN/NL no-marker state appears when tags exist but no official marker points are available yet. This preserves the contract that the map renders every returned backend amenity point while avoiding blank maps from empty filter selections. | `frontend/src/components/match-first/AmenityTags.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "keeps map markers visible"` failed before implementation because the Parks / green space filter was enabled with no returned Parks marker points. Final: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "keeps map markers visible\|toggles amenity filters\|official street basemap"` passed; `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx` passed with 37 tests and existing React `act()` warning noise; `cd frontend && npm run test -- src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed with 9 tests; `cd frontend && npx eslint src/components/match-first/NeighborhoodDetail.tsx src/components/match-first/AmenityTags.tsx src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. Residual risk: neighborhoods with no stored official amenity records still show no markers because the frontend must not invent amenities. |
+
+## Amenity Marker Legend Follow-Up 2026-05-20
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User clarified that selected-neighborhood maps must render all available returned amenity markers, with different shapes by amenity type, and that the marker legend belongs in the right-side Relevant amenities container. PRD Phase 7 / FR-N3 requires preference-aware selected-neighborhood amenities without invented POIs or national amenity clutter. | Removed the frontend post-projection seven-marker cap so every backend-returned amenity point renders when it projects into the selected map frame. Added stable type-specific marker shapes: transit triangle, schools square, childcare rounded square, parks/green circle, and sports fields diamond. Updated the right-side Relevant amenities controls to show matching shape swatches, making the panel the marker legend and filter surface while preserving stable analytics keys and no invented markers. Updated PRD, constitution, implementation rules, SpecKit artifacts, QA evidence/punch list, handoff, and local agent instructions to record the new contract. | `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/components/match-first/AmenityTags.tsx`, `frontend/src/components/match-first/amenityMarkerShapes.ts`, `frontend/src/components/match-first/NeighborhoodDetail.css`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `docs/prd.md`, `.specify/memory/constitution.md`, `docs/ai/implementation_rules.md`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md`, `docs/qa/final_evidence.md`, `docs/qa/open_punchlist.md`, `specs/002-match-first-revamp/spec.md`, `specs/002-match-first-revamp/plan.md`, `specs/002-match-first-revamp/contracts/match-first-api.md`, `specs/002-match-first-revamp/quickstart.md`, `specs/002-match-first-revamp/tasks.md`, `specs/002-match-first-revamp/acceptance-traceability.md`, `AGENTS.md` | Focused verification: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "amenity type shapes\|every returned amenity point"` passed with 2 tests. Final verification: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx` passed with 36 tests and existing React `act()` warning noise; `cd frontend && npx eslint src/components/match-first/NeighborhoodBuildingLayer.tsx src/components/match-first/AmenityTags.tsx src/components/match-first/amenityMarkerShapes.ts src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run test -- src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed with 9 tests; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. Residual risk: live desktop/mobile browser smoke should inspect dense real amenity responses for overlap and touch ergonomics. |
+
+## View House Direct Address Bridge 2026-05-20
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User clarified that clicking `View house` in the selected-house popup must not open an additional dialogue/pop-up, but should trigger the Buurt Check address search/Dossier route for that address. The follow-up clarified that redirecting to Buurt Check search was still too slow for houses without a direct address id. PRD Phase 7 requires the house click -> existing Dossier/search bridge while preserving return context. | `View house` now builds the canonical address route with match-return context directly for buildings that already have `vbo_id`/`address_id`, avoiding the extra bridge call. For backend bridge responses with multiple address candidates, the first returned candidate is opened directly instead of rendering candidate-choice controls in the popup. Buildings without direct `vbo_id`/`address_id` now trigger the Buurt Check search route immediately through `onSearchManually`, with selected session/neighborhood/house/building context, instead of waiting for `/api/match/dossier/from-building`. The backend bridge remains as fallback when no app-level manual-search handler is available. | `frontend/src/components/match-first/NeighborhoodDetail.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `docs/ai/latest_handoff.md`, `docs/qa/match_first_revamp_traceability.md` | Red-first: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "routes View house directly"` failed before implementation because the candidate bridge did not call `onOpenDossier` and exposed candidate-choice UI. Slow-path red-first: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "opens Buurt Check search immediately"` failed before implementation because `onSearchManually` was not called while the bridge was pending. Final: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx` passed with 35 tests and existing React `act()` warning noise; `cd frontend && npx eslint src/components/match-first/NeighborhoodDetail.tsx src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run test -- src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed with 9 tests; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices; Vite preview was restarted on `http://127.0.0.1:4174`. Residual risk: live browser smoke should verify the direct route against real provider data and Back to match map context restoration. |
+
+## Selected-Neighborhood 2D Footprint Contract 2026-05-20
+
+| Requirement / bug | Exact work completed | Files changed | Verification |
+| --- | --- | --- | --- |
+| User clarified that the selected-neighborhood buildings shown on the PDOK BRT basemap should be 2D, not 3D, because the basemap is 2D. PRD Phase 6 / AC12-AC14 still require selected-neighborhood scoping, visible/selectable houses, relevant amenities, reduced-motion/list fallbacks, and the Dossier bridge. | Removed the selected-neighborhood Three.js/WebGL render path and now draw scoped buildings as flat 2D footprints aligned to the Leaflet/PDOK basemap. Preserved footprint hit-testing, selected-house map framing, amenity overlays, zoom/reset controls, reduced-motion behavior, and non-map fallback. Updated EN/NL copy and match-first docs/spec/templates so current contract says selected-neighborhood 2D building footprints, no national building-footprint loading, and no selected-neighborhood 3D overlay on the 2D basemap. Historical 3D repair rows below remain dated audit history and are superseded for this surface. | `frontend/src/components/match-first/NeighborhoodBuildingLayer.tsx`, `frontend/src/test/match-first-neighborhood-detail.test.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `docs/prd.md`, `.specify/memory/constitution.md`, `docs/ai/implementation_rules.md`, `docs/ai/latest_handoff.md`, `docs/qa/final_evidence.md`, `docs/qa/open_punchlist.md`, `AGENTS.md`, `.specify/templates/checklist-template.md`, `.specify/templates/plan-template.md`, `.specify/templates/tasks-template.md`, `specs/002-match-first-revamp/spec.md`, `specs/002-match-first-revamp/plan.md`, `specs/002-match-first-revamp/tasks.md`, `specs/002-match-first-revamp/research.md`, `specs/002-match-first-revamp/quickstart.md`, `specs/002-match-first-revamp/contracts/match-first-api.md`, `specs/002-match-first-revamp/acceptance-traceability.md` | Red-first: `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "2D\|WebGL\|street basemap\|LoD 2.2\|copper\|tiny projected"` failed before implementation because the layer still reported `data-canvas-state="three"` and `data-render-mode="3d"`. Final: `cd frontend && npx eslint src/components/match-first/NeighborhoodBuildingLayer.tsx src/test/match-first-neighborhood-detail.test.tsx` passed; `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed with 42 tests and the existing React `act()` warning; `cd frontend && npm run build` passed with existing placeholder assetlinks/AASA notices. Residual risk: live visual smoke should inspect the 2D footprint overlay against real tiles/provider data. |
 
 ## Neighborhood Detail House Hit And Zoom Repair 2026-05-19
 
@@ -286,7 +1226,7 @@ Closure status after 2026-05-16 review repair and audit repair verification: **P
 | PRD FR-R1; Sections 14.3 and 24 AC10; Constitution XIII/XIV | `frontend/src/App.tsx`, `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/types/matchFirst.ts`, `frontend/src/test/match-first-results-map.test.tsx` | `#/match/session/{session_id}/results` hydrates a completed session through `GET /api/match/sessions/{session_id}/results`, renders verified result payloads, and does not call `/run` for an existing completed session. | `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx`; broader focused command including `src/App.test.tsx` and `src/services/matchFirstApi.test.ts` passed. |
 | PRD FR-R1, FR-R3, FR-R4, FR-R7; Section 16.2; Constitution IV/XII | `frontend/package.json`, `frontend/package-lock.json`, `specs/002-match-first-revamp/implementation-notes.md`, `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/ResultsMap.css` | Leaflet is added only for the lazy 2D results map. The map starts at the Netherlands center from the result payload or fallback `[52.2, 5.3]`, uses local markers/polygons from result geometry, supports manual pan/zoom, and does not load 3D buildings, external tiles, or national-zoom amenities. | `cd frontend && npm run build` passed; targeted ESLint for new map files passed. Build output showed the lazy `ResultsMap` JS chunk at 159.82 kB / 46.10 kB gzip and CSS at 20.75 kB / 7.88 kB gzip. |
 | PRD FR-R2, FR-R5, FR-R6; Constitution V/X | `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/components/match-first/RecommendationCard.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-results-map.test.tsx`, `frontend/src/test/match-first-copy-guard.test.ts` | Ranked list shows recommendation rank, name, municipality, score/fit label, confidence summary, and at most two translated reason lines. It avoids unsupported certainty, safety, happiness, investment, future-value, guarantee, and predictive-probability claims. Expandable details were intentionally left out because this Phase 5 request required concise translated reason lines only. | `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx src/test/match-first-copy-guard.test.ts`; broader focused command passed. |
-| PRD FR-R2 to FR-R7; A11Y-6; Constitution VII/IX | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/services/matchSessionStorage.ts`, `frontend/src/test/match-first-results-map.test.tsx`, `frontend/src/test/match-first-a11y.test.tsx` | List click moves the map and highlights the selected neighborhood; marker/polygon click highlights the matching list item; mobile users can switch Map/List modes; recommendations remain usable from the list without any map interaction. Selected recommendation, map center/zoom, rank, mobile mode, locale, result set, vector version, and list scroll are persisted for later Dossier return. | `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx` covered sync, mobile toggle, empty/no-strong-match, and state preservation; `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx` passed for the Phase 5 slice, and the expanded current a11y suite passes with 19 tests in the Phase 4 audit repair. |
+| PRD FR-R2 to FR-R7; A11Y-6; Constitution VII/IX | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/services/matchSessionStorage.ts`, `frontend/src/test/match-first-results-map.test.tsx`, `frontend/src/test/match-first-a11y.test.tsx` | List click moves the map and highlights the selected neighborhood; marker/polygon click highlights the matching list item; map and list are displayed together, with narrow layouts stacking both panes instead of exposing a Map/List mode toggle; recommendations remain usable from the list without any map interaction. Selected recommendation, map center/zoom, rank, locale, result set, vector version, and list scroll are persisted for later Dossier return. | `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx` covers sync, simultaneous map/list display, empty/no-strong-match, and state preservation; `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx` passed for the Phase 5 slice, and the expanded current a11y suite passes with 19 tests in the Phase 4 audit repair. |
 | PRD Sections 20.3, 21, 15.3; Constitution XV | `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts`, `frontend/src/components/match-first/ResultsMap.tsx` | Results-map analytics use stable allowlisted event names for results open, sufficient confidence, list selection, map feature selection, and map-layer failure. Context uses stable IDs, rank, zoom/mode, and confidence metadata without translated labels or raw answers. | `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts`; broader focused command passed. |
 | PRD AC16-AC18 and no-strong-match honesty; Constitution V/XV | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-first-results-map.test.tsx` | `completed_no_strong_matches` renders honest possible-match copy, keeps near-miss/stretch recommendations usable from the list, and does not imply perfect fit or guaranteed outcomes. | `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx` passed. |
 
@@ -300,7 +1240,7 @@ Completion after implementation: **100% (10/10 Phase 5 task rows marked complete
 | Existing map surfaces could not provide Phase 5 pan/zoom/vector/list synchronization. | Added `leaflet` plus `@types/leaflet`, documented the dependency decision, and kept the map tile-free and Phase-5-scoped. | `frontend/package.json`, `frontend/package-lock.json`, `specs/002-match-first-revamp/implementation-notes.md` | The dependency is justified; build succeeds; no external tile URL, 3D building, or national amenity loading is introduced. | `cd frontend && npm run build` passed; targeted ESLint for new files passed. |
 | Result data was still typed as loose records. | Added typed recommendation, confidence, geometry, source metadata, map payload, and persisted map-state contracts. | `frontend/src/types/matchFirst.ts`, `frontend/src/services/matchSessionStorage.ts` | Components consume typed completed result payloads and store stable return-state keys. | `cd frontend && npm run build` passed. |
 | Ranked recommendations needed concise, translated display. | Added recommendation list/card components with rank, fit score/label, municipality, confidence summary, and max two translated reason lines. | `frontend/src/components/match-first/RecommendationList.tsx`, `frontend/src/components/match-first/RecommendationCard.tsx`, `frontend/src/i18n/en.json`, `frontend/src/i18n/nl.json`, `frontend/src/test/match-i18n.test.ts` | No hard-coded user-facing match-first strings; EN/NL key parity covers the new results copy. | `cd frontend && npm run test -- src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts` passed as part of the focused command. |
-| List/map selection and mobile usability were missing. | Added synchronized selected state, marker buttons, Leaflet vector click handlers, mobile Map/List toggle, keyboard-selectable cards, and a list-first fallback. | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/test/match-first-results-map.test.tsx` | List click flies/sets the map to the result and highlights it; marker/polygon click highlights the card; mobile toggle switches visible panel; list remains usable without map. | `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx` passed with sync/mobile/no-strong/state tests. |
+| List/map selection and mobile usability were missing. | Added synchronized selected state, marker buttons, Leaflet vector click handlers, keyboard-selectable cards, and a list-first fallback. A later 2026-05-21 follow-up removed the visible mobile Map/List toggle because both panes now display together. | `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/components/match-first/ResultsMap.css`, `frontend/src/test/match-first-results-map.test.tsx` | List click flies/sets the map to the result and highlights it; marker/polygon click highlights the card; map and list remain visible together, with mobile stacking both panes; list remains usable without map. | `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx` passed with sync, simultaneous map/list display, no-strong-match, and state tests. |
 | Later Dossier return needs stable map state, but Phase 7 bridge is not in scope. | Persisted selected recommendation/neighborhood/rank, result set, vector version, map center/zoom, list scroll, mobile mode, and locale to sessionStorage. Repaired cold completed-results routes so fetched result payloads restore saved map/list state only when `resultSetId` and `preferenceVectorVersion` match. | `frontend/src/services/matchSessionStorage.ts`, `frontend/src/components/match-first/ResultsMap.tsx`, `frontend/src/test/match-first-results-map.test.tsx` | State is stored for later Dossier return without implementing house click or Dossier route changes. Reopening a completed results route preserves saved selected view, zoom, mobile mode, and selected recommendation instead of resetting to the national default. | Red-first: `cd frontend && npm run test -- src/test/match-first-results-map.test.tsx -- -t "restores saved map view"` failed with `data-map-center="52.2,5.3"` instead of `52.1,5.03`; after the fix the same command passed. Full map-state test suite passed with 5 tests. |
 | Results analytics needed stable event names. | Extended the frontend analytics allowlist for results open, sufficient confidence, recommendation selected, map feature selected, and map layer failed. | `frontend/src/services/matchFirstAnalytics.ts`, `frontend/src/services/matchFirstAnalytics.test.ts` | Events keep stable IDs and sanitized context only. | `cd frontend && npm run test -- src/services/matchFirstAnalytics.test.ts` passed as part of the focused command. |
 | Phase 5 needed closure proof and next-step handoff. | Updated task status, traceability, implementation notes, and latest handoff with files changed, commands, performance notes, fallbacks, and residual risks. | `specs/002-match-first-revamp/tasks.md`, `specs/002-match-first-revamp/implementation-notes.md`, `docs/qa/match_first_revamp_traceability.md`, `docs/ai/latest_handoff.md` | Phase 6 is clearly the next implementation step, and Phase 5 does not claim 3D/detail/Dossier bridge completion. | This document and `docs/ai/latest_handoff.md` updated. |
@@ -500,6 +1440,133 @@ manual evidence.
 | Final complete journey | PASS. The new final E2E covers landing -> secondary search click -> landing CTA -> intro -> survey -> review -> backend run/progress/success -> results -> marker/list alternative -> selected neighborhood -> amenity filter -> house -> existing Dossier -> Back to match map. | `frontend/tests/e2e/match-first-final-journey.spec.ts`; `cd frontend && npm run test:e2e -- tests/e2e/match-first-final-journey.spec.ts tests/e2e/match-first-dossier-roundtrip.spec.ts` passed with 21 passed and 3 expected skips. `$env:RUN_BACKEND_PROVIDER_PROOF='1'; npx playwright test --project=chromium tests/e2e/match-first-dossier-roundtrip.spec.ts -g "backend provider-backed candidate bridge"` passed with 1 test. |
 | Final backend gates | PASS. | `cd backend && ruff check .` passed; `cd backend && pytest -x -q -m "not live"` passed with 1365 passed, 12 skipped, and 11 deselected on the final verification refresh. |
 | Final frontend gates | PASS for automated local gates and Chromium EN/NL reduced-motion quickstart smoke. | `cd frontend && npm run build` passed; `cd frontend && npm run test` passed; `cd frontend && npm run test:a11y` passed with 9 tests; `cd frontend && npm run test:perf:e2e` passed with 9 tests; final+Dossier E2E passed with 21 passed and 3 skipped; quickstart reduced-motion smoke passed with 2 tests. |
+
+## Selected-Neighborhood Amenity Marker Repair 2026-05-20
+
+Status: **PASS FOR SCOPED AUTOMATED REPAIR**.
+
+Acceptance-linked evidence:
+
+- PRD selected-neighborhood amenity overlays now have both sides covered:
+  frontend renders every returned official point with type-specific marker
+  shapes and marker-count-aware legend filters, and backend can now supply
+  official selected-bounds geometry markers for parks/green space and sports
+  fields even when the stored amenity table is empty for the selected
+  neighborhood.
+- The backend fallback remains scoped to the selected neighborhood RD bounds,
+  uses official PDOK/BAG geometry providers only, is configurable/time-limited,
+  and keeps empty/error responses out of the response cache.
+- Slow official geometry providers are bounded at the service layer, so a
+  provider delay degrades to available amenity tags/no live points instead of
+  the visible "Amenity tags are unavailable right now" state.
+- The frontend keeps a localized no-marker state for true empty categories and
+  disables zero-point filters so a relevant tag cannot blank the map.
+- The selected-neighborhood frontend retries transient amenity tag failures and
+  replaces the visible unavailable state when the retry succeeds, covering the
+  stale open-page case after a backend/provider hiccup.
+
+Verification:
+
+- Red-first frontend proof:
+  `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "keeps map markers visible"`
+  failed before the filter repair.
+- Red-first backend proof:
+  `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "selected_geometry_markers"`
+  failed before the on-demand geometry fallback because selected-neighborhood
+  amenity points were empty when the store had no records.
+- Final backend commands passed:
+  `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "slow_selected_geometry_lookup or selected_geometry_markers or amenities_are_preference_aware or amenity_cache_key"`;
+  `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "amenities_are_preference_aware or selected_geometry_markers or amenity_cache_key"`;
+  `cd backend && pytest -q tests/test_match_neighborhood_layers.py`;
+  `cd backend && pytest -q tests/test_match_amenity_ingestion.py tests/test_match_neighborhood_layers.py`;
+  `cd backend && ruff check app/config.py app/models/match.py app/services/match/amenities.py tests/test_match_neighborhood_layers.py`.
+- A local live fallback probe against `nh_rotterdam_katendrecht` returned 790
+  official `parks_green` PDOK geometry points before the service-level point
+  limit is applied.
+- A local live endpoint probe for the first generated result returned `200`
+  with amenity tags and 80 marker points in about 7.3 seconds after the bounded
+  fallback change.
+- Final frontend commands passed:
+  `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx -- -t "retries transient amenity|keeps selected map and 2D fallback usable when amenity tags fail"`;
+  `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx`;
+  `cd frontend && npm run test -- src/test/match-i18n.test.ts src/test/match-first-copy-guard.test.ts`;
+  `cd frontend && npx eslint src/components/match-first/NeighborhoodDetail.tsx src/components/match-first/AmenityTags.tsx src/test/match-first-neighborhood-detail.test.tsx`;
+  `cd frontend && npm run build`.
+- Local service validation: the backend Uvicorn process on `127.0.0.1:8000`
+  was restarted because the existing process predated the repair and had no
+  `--reload`; the Vite preview on `127.0.0.1:4174` was restarted after the
+  rebuilt frontend bundle was generated.
+
+Residual risks:
+
+- This 2026-05-20 residual risk is superseded by the 2026-05-21 school and
+  childcare repair above: those sources now have a bounded scoped on-demand
+  fallback, while absent official records still return unavailable metadata.
+- If PDOK/BAG geometry providers time out or return no selected-bounds records,
+  the app shows the honest no-marker state rather than fabricated amenities.
+
+## Selected-Neighborhood Boundary Enforcement 2026-05-22
+
+Status: **PASS FOR SCOPED AUTOMATED REPAIR; FRONTEND BUILD BLOCKED BY UNRELATED
+APP WIP**.
+
+Acceptance-linked evidence:
+
+- PRD selected-neighborhood boundary rule is now enforced for the map-layer,
+  buildings, and amenities path: official CBS boundary geometry is required for
+  selected-neighborhood overlays, and the backend no longer emits a seed display
+  bbox as the selected boundary.
+- IJburg stale seed metadata is handled by accepting current CBS wijk/buurt name
+  variants. A local live probe resolved `nh_amsterdam_ijburg` to
+  `cbs_wijk_en_buurtkaart_2024 / wijken / WK0363MJ / IJburg-West`.
+- When the official boundary is unavailable, `/map-layers` returns an explicit
+  unavailable empty `MultiPolygon`, building and amenity layers are marked
+  unavailable with `matchFirst.neighborhood.boundaryUnavailable`, and building
+  provider calls are skipped.
+- Building and amenity responses are clipped to official boundary geometry.
+  The frontend skips building fetches when the layer is unavailable and shows
+  localized unavailable-boundary copy rather than drawing a rectangle.
+- Grey building polygons remain PRD-compliant deferred BAG `pand` footprints:
+  not selectable as house candidates because linked VBO semantics do not show
+  `woonfunctie`, because the pand has zero linked VBOs, or because it is
+  non-residential/`overige gebruiksfunctie` only.
+
+Verification:
+
+- Red-first backend proof:
+  `cd backend && pytest -q tests/test_match_neighborhood_layers.py -k "current_wijk_name_variant or seed_bbox_as_selected_boundary or provider_without_official_boundary" --tb=short`
+  failed before implementation and passed after the repair.
+- Red-first frontend proof:
+  `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx -t "does not draw a display-bounds rectangle"`
+  failed before implementation and passed after the repair.
+- Final backend selected-neighborhood suite:
+  `cd backend && pytest -q tests/test_match_neighborhood_layers.py --tb=short`
+  passed with 52 tests.
+- Adjacent backend provider/amenity suite:
+  `cd backend && pytest -q tests/test_bag_ogc.py tests/test_match_amenity_ingestion.py --tb=short`
+  passed with 11 tests.
+- Backend lint:
+  `cd backend && ruff check app/services/match/geometry.py app/services/match/buildings.py app/services/match/amenities.py tests/test_match_neighborhood_layers.py`
+  passed.
+- Frontend focused tests:
+  `cd frontend && npx vitest run src/test/match-first-neighborhood-detail.test.tsx src/test/match-i18n.test.ts`
+  passed with 50 tests.
+- Frontend lint:
+  `cd frontend && npx eslint src/components/match-first/NeighborhoodBuildingLayer.tsx src/components/match-first/NeighborhoodDetail.tsx src/test/match-first-neighborhood-detail.test.tsx`
+  passed.
+- Frontend build:
+  `cd frontend && npm run build` is currently blocked by unrelated unused
+  declarations in `frontend/src/App.tsx` for the in-progress
+  additional-preferences flow.
+
+Residual release risk:
+
+- If official CBS boundary lookup is unavailable, selected-neighborhood overlays
+  pause rather than showing boundary-shaped building/amenity data. This is the
+  intended honest fallback but leaves the detail map without overlays until the
+  boundary source recovers.
+- The full frontend build still needs the unrelated `App.tsx` unused
+  additional-preferences declarations resolved.
 
 ## Commit-Readiness CI Refresh 2026-05-19
 

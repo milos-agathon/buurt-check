@@ -10,13 +10,14 @@
 Build the PRD's match-first journey in the existing Buurt Check Vite/React SPA and FastAPI backend:
 
 ```text
-landing hero -> survey intro -> one-question survey -> review ->
-backend matching progress -> animated checkmark success ->
-Netherlands results map -> selected-neighborhood detail with scoped 3D ->
+landing hero -> survey intro -> one-question guided intake ->
+optional additional-preferences prompt -> review -> backend matching progress ->
+animated checkmark success ->
+Netherlands results map -> selected-neighborhood detail with progressively loaded all-available scoped 2D building footprints ->
 house click -> existing Dossier -> back to match map
 ```
 
-The smallest safe technical approach is to keep app-level React state and the custom hash router in `frontend/src/App.tsx`, keep the existing Dossier route/modules, reuse existing match session/vector/job backend services where present, use deterministic weighted scoring, poll backend job status, add one lightweight 2D map dependency only if the current static map surfaces cannot satisfy pan/zoom/polygon/list sync, and reuse plain Three.js patterns only after a selected neighborhood exists.
+The smallest safe technical approach is to keep app-level React state and the custom hash router in `frontend/src/App.tsx`, keep the existing Dossier route/modules, reuse existing match session/vector/job backend services where present, add a typed custom-preference registry and optional extraction service, use deterministic weighted scoring, poll backend job status, add one lightweight 2D map dependency only if the current static map surfaces cannot satisfy pan/zoom/polygon/list sync, and render selected-neighborhood buildings as 2D footprints on the 2D basemap.
 
 No product implementation is performed by this plan.
 
@@ -40,14 +41,15 @@ No product implementation is performed by this plan.
 - Matching progress polling every 1-2 seconds.
 - Target acceptance profiles for map work are mobile Chromium at 390x844 and desktop Chromium at 1366x768; if local hardware or CI differs, record the actual profile in traceability before marking the phase pass.
 - First completed results map usable within 3 seconds on both target profiles, with list-to-map and map-to-list selection feedback within 150 ms after local result data is loaded, and pan/zoom input response within 100 ms for already-loaded result geometry.
-- Selected-neighborhood detail shows boundary plus 2D fallback or first scoped 3D content within 3 seconds on both target profiles.
-- Zero national 3D building requests.
+- Selected-neighborhood detail shows boundary plus fallback context or first scoped 2D building-footprint content within 3 seconds on both target profiles, then progressively loads remaining selected-neighborhood or visible-viewport footprints without blocking interaction.
+- Zero national building-footprint or national 3D building requests.
 
 **Constraints**:
 
 - PRD is the product contract.
 - Search remains secondary on landing.
-- Survey stays one-question-at-a-time.
+- Guided intake stays one-question-at-a-time and includes at most one optional additional-preferences prompt.
+- LLMs may be used only for strict-schema additional-preference extraction, bounded clarification, and explanation of already-structured outputs; they must not score, rank, exclude, infer protected traits, or modify source metadata.
 - Backend run starts only after final review CTA.
 - Progress/success/results require persisted session/job/result state.
 - All visible copy uses EN/NL translation keys.
@@ -56,7 +58,7 @@ No product implementation is performed by this plan.
 - EPSG:28992/RD New is canonical for stored geometry; WGS84 values are derived display fields and must be named explicitly.
 - Empty/error/fallback data must not be cached as successful data.
 
-**Scale/Scope**: Nine phases, 0 through 8, covering source-of-truth scaffolding, UI shell, survey/vector, backend matching, progress/success, results map, selected-neighborhood 3D, Dossier bridge, and final QA.
+**Scale/Scope**: Nine phases, 0 through 8, covering source-of-truth scaffolding, UI shell, survey/vector, backend matching, progress/success, results map, selected-neighborhood 2D building detail, Dossier bridge, and final QA.
 
 ## Constitution Check
 
@@ -68,7 +70,7 @@ No product implementation is performed by this plan.
 | Product flow | Preserve canonical match-first journey and demote search. | PASS. Phases follow the required journey; search remains `#/search` as a secondary link only. |
 | Minimal UI | One decision per onboarding screen; one survey question at a time. | PASS. Phase 1-2 acceptance keeps onboarding free of dashboards, cards, ads, pricing, or exploratory controls. |
 | Bilingual by design | All visible copy behind EN/NL keys; stored values stable. | PASS. Phase acceptance includes i18n parity and copy-guard tests. |
-| Map performance | No national 3D; provide 2D, reduced-motion, missing-3D, and list fallbacks. | PASS. Phase 5 is 2D results; Phase 6 scopes 3D to selected neighborhood only. |
+| Map performance | No national building footprints or national 3D; provide reduced-motion, missing-footprint, partial-loading, and list fallbacks. | PASS for planned architecture. Phase 5 is 2D results; Phase 6 scopes 2D building footprints to selected neighborhood only and requires progressive all-available loading rather than unlabeled representative samples. |
 | Model honesty | No predictive claims without labels/evaluation. | PASS. MVP uses weighted scoring with evidence, confidence, limitations, and `not_validated_no_labels`. |
 | Dossier preservation | Keep existing Dossier modules and contracts. | PASS. Phase 7 adds only bridge/context/back action with regression coverage. |
 | Accessibility | Keyboard, focus, screen reader, touch, contrast, reduced motion, and non-map alternatives. | PASS. Each UI phase includes accessibility acceptance and tests. |
@@ -86,16 +88,16 @@ This audit keeps the phase boundaries intact and blocks task generation on the g
 **Critical changes required before tasks**:
 
 - Treat `specs/002-match-first-revamp` as the only planned implementation target for this pass; do not generate implementation tasks from any alternate feature directory unless `.specify/feature.json` is intentionally changed in a future formal promotion.
-- Keep the canonical PRD flow exactly as written: landing hero -> survey intro -> one-question survey -> review -> backend matching progress -> checkmark success -> Netherlands results map -> selected-neighborhood detail -> house click -> existing Dossier -> back to match map.
+- Keep the canonical PRD flow exactly as written: landing hero -> survey intro -> one-question guided intake -> optional additional-preferences prompt -> review -> backend matching progress -> checkmark success -> Netherlands results map -> selected-neighborhood detail -> house click -> existing Dossier -> back to match map.
 - Synchronize `data-model.md` and `contracts/match-first-api.md` with this plan before task generation, especially job terminal states, Dossier return context, stable API operation metadata, and checkout-safe match return parameters.
-- Use existing FastAPI/React/hash-route/i18next/Three.js architecture; any new 2D map dependency is Phase 5-only and must be justified against existing static/projected map limitations.
+- Use existing FastAPI/React/hash-route/i18next architecture; any new 2D map dependency is Phase 5-only and must be justified against existing static/projected map limitations. Keep match-first selected-neighborhood buildings as 2D footprints; existing Dossier 3D surfaces remain separate.
 - Preserve the existing Dossier and paid/free/risk-card contracts; match-origin Dossier URLs must use explicit `match_return`, `match_session`, and `match_context` fields, never checkout `session_id`, as match identity.
 - Keep MVP model mode as deterministic weighted scoring with `not_validated_no_labels`; predictive probabilities and model-superiority claims remain absent unless future labels, validation, evaluation, and regression tests exist.
 
 **Over-engineered elements simplified**:
 
 - Server persistence of map viewport/list scroll is not mandatory for MVP when route context plus `sessionStorage` satisfies supported Dossier return and refresh cases; a `PATCH /map-state` endpoint is optional and must be justified in Phase 5 or Phase 7.
-- Do not introduce SSE/WebSockets, Celery/RQ/ARQ, a new admin UI, account flows, checkout changes, AI chat, listing marketplace scope, or Dossier redesign for this MVP.
+- Do not introduce SSE/WebSockets, Celery/RQ/ARQ, a new admin UI, account flows, checkout changes, unbounded AI chat, LLM-based scoring, listing marketplace scope, or Dossier redesign for this MVP.
 - Do not promote old `001` match report/listings/alerts/admin scope into the match-first MVP unless a later plan explicitly separates that work from the PRD journey.
 
 **Missing implementation details now required in generated tasks**:
@@ -115,7 +117,7 @@ For implementation continuity, `specs/002-match-first-revamp` remains the active
 - `docs/context/current_architecture.md` identifies `002` as the active planned feature.
 - The prior pointer drift has been resolved by restoring `.specify/feature.json` to `002`; no alternate feature directory is an implementation source for this plan.
 
-The stricter gate feedback is incorporated here as Phase 0 gates and acceptance constraints, especially around API contracts, analytics, data deletion, selected-neighborhood 3D, Dossier preservation, and context restoration.
+The stricter gate feedback is incorporated here as Phase 0 gates and acceptance constraints, especially around API contracts, analytics, data deletion, selected-neighborhood 2D building footprints, Dossier preservation, and context restoration.
 
 ## Project Structure
 
@@ -149,6 +151,8 @@ backend/
     survey_schema.py
     survey_constants.py
     preference_vector.py
+    custom_preference_registry.py
+    preference_extraction.py
     jobs.py
     scoring.py
     recommendations.py
@@ -223,7 +227,8 @@ Primary match-first routes:
 ```text
 #/ or #/match                                      landing hero
 #/match/session/{session_id}/intro                 survey intro
-#/match/session/{session_id}/question/{step}       one-question survey
+#/match/session/{session_id}/question/{step}       one-question guided intake
+#/match/session/{session_id}/additional-preferences optional additional-preferences prompt
 #/match/session/{session_id}/review                review and final run CTA
 #/match/session/{session_id}/run                   matching progress
 #/match/session/{session_id}/success               checkmark success
@@ -245,28 +250,30 @@ Compatibility rules:
 - `MatchFirstLanding` + `HeroMapBackground`: one dominant CTA, secondary address link, lightweight map atmosphere, reduced-motion/static fallback.
 - `SurveyIntro`: one brief purpose screen with one start action.
 - `SurveyShell` + `SurveyQuestionScreen`: one-question rendering, validation, progress, answer persistence, back/edit, focus.
+- `AdditionalPreferencesQuestion`: optional focused free-text step, skip path, bounded extraction retry/clarification state, and no unbounded chat UI.
+- `CustomPreferenceReviewList`: shows extracted custom preferences, classification/status, edit/remove/accept actions, and registry-backed limitations before matching.
 - Question inputs: single-select, multi-select, budget/rent range, commute slider, anchor input, all using stable answer IDs.
-- `SurveyReview`: concise 5-8 item summary and final run gate with backend vector readback.
+- `SurveyReview`: concise guided-answer and custom-preference summary, extracted-preference status readback, and final run gate with backend vector readback.
 - `MatchingProgressScreen`: status polling, localized stage messages, slow/failure/fallback retry states.
 - `MatchSuccessCheckmark`: branded completion state backed by terminal job/result state.
 - `ResultsMap`: 2D Netherlands map, marker/polygon selection, map/list sync, reduced-motion movement.
 - `RecommendationList`: complete non-map alternative for selection and detail entry.
-- `NeighborhoodDetail`: selected boundary, fit explanation, tradeoffs, amenities, 2D/3D state, house selection.
-- `NeighborhoodBuildingLayer`: plain Three.js only, scoped to selected-neighborhood building payloads.
+- `NeighborhoodDetail`: selected boundary, fit explanation, tradeoffs, amenities, 2D footprint/fallback state, house selection.
+- `NeighborhoodBuildingLayer`: 2D canvas/Leaflet-projected building footprints only, scoped to selected-neighborhood building payloads.
 - `DossierBackToMatchMap`: persistent localized action within existing Dossier shell when match origin exists.
 
 ## Survey State Management
 
 Use existing app-level React state and focused helpers; do not add a global state library.
 
-- Backend is canonical for session ID, answer version, raw answers, preference vector, job, result set, and any persisted Dossier return context.
+- Backend is canonical for session ID, answer version, raw answers, reviewed custom preferences, preference vector, job, result set, and any persisted Dossier return context.
 - Route/query context plus `sessionStorage` own ephemeral UI map state for MVP unless Phase 5 or Phase 7 proves backend map-state persistence is needed for supported refresh or Dossier-return cases.
 - Frontend mirrors in-progress state in `sessionStorage` for resilience and immediate UI restoration.
 - Answers store stable `question_key` and answer IDs, never translated labels.
 - Answer updates persist immediately before advancing or reviewing.
 - Answer-save failure blocks advancement and shows localized accessible retry.
 - Direct question routes redirect/render the earliest incomplete required step unless a complete backend session allows review.
-- Changing any answer after results marks result state stale and returns to review; matching reruns only after final confirmation.
+- Changing any answer or reviewed custom preference after results marks result state stale and returns to review; matching reruns only after final confirmation.
 - Language changes update display copy only and keep stable stored values.
 
 ## I18n Strategy
@@ -281,6 +288,8 @@ matchFirst.surveyIntro.*
 matchFirst.survey.questions.*
 matchFirst.survey.answers.*
 matchFirst.survey.validation.*
+matchFirst.additionalPreferences.*
+matchFirst.customPreferences.*
 matchFirst.review.*
 matchFirst.progress.*
 matchFirst.success.*
@@ -306,6 +315,8 @@ Use existing `/api/match` where possible. Endpoint contracts must define request
 POST   /api/match/sessions
 GET    /api/match/sessions/{session_id}
 PATCH  /api/match/sessions/{session_id}/answers
+POST   /api/match/sessions/{session_id}/preference-extraction
+PATCH  /api/match/sessions/{session_id}/custom-preferences
 DELETE /api/match/sessions/{session_id}
 POST   /api/match/sessions/{session_id}/run
 GET    /api/match/sessions/{session_id}/status
@@ -332,6 +343,36 @@ Caching:
 
 Before tasks are generated, `contracts/match-first-api.md` must list operation metadata for each endpoint: request shape, response shape, stable success/error codes, retry behavior, idempotency semantics, cacheability, and language-independent payload keys.
 
+## Custom Preference Registry And Extraction
+
+The optional additional-preferences prompt is a typed intake extension, not an
+AI recommendation chat.
+
+Backend service responsibilities:
+
+- `custom_preference_registry.py`: registry of supported preference keys,
+  privacy class, supported use status, source coverage, score/mapping rules,
+  disallowed-pattern reason codes, and i18n status keys.
+- `preference_extraction.py`: strict-schema extraction adapter. It may use
+  deterministic rules first and MAY call an LLM only to map user-stated text to
+  registry candidates or ask bounded clarification questions.
+- Review persistence must store structured custom preferences and user review
+  decisions; analytics may store only stable keys/status counts, never raw text.
+
+Allowed custom-preference statuses are `scoreable`, `map_context_only`,
+`saved_unsupported`, `disallowed`, and `needs_clarification`. Examples:
+
+- "near the beach" -> `coast_or_beach_proximity`, scoreable only if the scoring
+  source exists.
+- "near a church/mosque/synagogue/temple" ->
+  `place_of_worship_proximity`, map context only unless a neutral amenity
+  scoring feature and official source coverage are explicitly added.
+- "people like me" -> disallowed demographic similarity request.
+
+LLMs must not score, rank, exclude, infer protected traits, create confidence,
+or modify eligibility, hard-filter outcomes, reason-code truth, source metadata,
+or recommendation limitations.
+
 ## Preference Vector Builder
 
 The vector builder lives in backend match services and consumes persisted raw answers.
@@ -343,6 +384,7 @@ Required vector fields:
 - `source_answer_version`
 - `preference_vector_version`
 - `raw_answer_refs`
+- reviewed `custom_preferences` references and statuses
 - hard filters: intent, budget, commute/radius, required anchors, applicable housing constraints
 - soft weights: normalized lifestyle and amenity priorities
 - avoid/exclusion keys
@@ -359,6 +401,8 @@ Implementation rules:
 - Weights are normalized and bounded.
 - Exact anchors are minimized; city-level anchors remain acceptable.
 - Vector creation/readback is required before run starts.
+- Only accepted registry-approved `scoreable` custom preferences become score
+  inputs; map-context-only or unsupported preferences stay explanatory/contextual.
 
 ## Python Matching And Scoring Integration
 
@@ -367,7 +411,9 @@ Use deterministic weighted scoring for MVP.
 Backend service responsibilities:
 
 - `sessions.py`: create/read/update/delete sessions, validate answers, persist raw answers and vector metadata.
-- `preference_vector.py`: derive stable vectors from answer sets.
+- `preference_vector.py`: derive stable vectors from answer sets and reviewed custom preferences.
+- `custom_preference_registry.py`: own supported/disallowed preference keys and use-status policy.
+- `preference_extraction.py`: extract optional additional preferences into the registry schema without scoring.
 - `jobs.py`: create persisted jobs and advance status/stage/progress.
 - `neighborhood_features.py`: load seed/official neighborhood feature matrices with source/freshness metadata.
 - `scoring.py`: apply hard filters and weighted score components.
@@ -378,7 +424,7 @@ Backend service responsibilities:
 - `dossier_bridge.py`: building/address resolution into existing Dossier route.
 - `instrumentation.py` or `analytics.py`: privacy-safe event persistence.
 
-LLMs may explain already-computed structured results later, but must not create or change score, eligibility, confidence, hard-filter outcomes, reason codes, or source metadata.
+LLMs may extract additional preferences into a strict schema and explain already-computed structured results later, but must not create or change score, rank, eligibility, confidence, hard-filter outcomes, reason codes, source metadata, or recommendation limitations.
 
 ## Job Status Model
 
@@ -487,17 +533,22 @@ Phase 5 implements the first exploratory surface.
 - The ranked list remains fully usable without the map.
 - No external tile URLs are hardcoded in frontend services; tile config comes from backend config or same-origin proxy if needed.
 
-## Neighborhood 3D Layer Strategy
+## Neighborhood 2D Building Footprint Strategy
 
-Phase 6 starts live 3D only after selected-neighborhood entry.
+Phase 6 loads building footprints only after selected-neighborhood entry and renders them as 2D footprints on the 2D basemap. The intended selected-neighborhood UX is all available BAG `pand` footprints where source data exists, progressively loaded by selected-neighborhood viewport, page, tile/chunk, or cursor when dense data would exceed the initial performance budget. House-candidate semantics come from linked `verblijfsobject.gebruiksdoel`, so pands containing `woonfunctie` are prioritized while non-residential-only, `overige gebruiksfunctie`, and `aantal_verblijfsobjecten = 0` pands remain visible but deferred from house selection.
 
 - `GET /map-layers` returns selected boundary, allowed RD New bounds, and layer refs.
 - `GET /buildings` requires `neighborhood_id` and `bounds_rd`; backend clips/validates bounds against the selected neighborhood.
+- Building responses expose completion metadata such as `complete`, `next_cursor`, `loaded_scope`, and `partial_reason_code` so the frontend can distinguish complete selected-neighborhood coverage from an in-progress viewport/page.
 - Frontend never requests building data from national results state.
-- Viewport paging/LOD is allowed only inside selected-neighborhood bounds.
-- Reuse existing plain Three.js cleanup, renderer sizing, device guard, and reduced-motion patterns.
-- Missing 3D shows localized explanation and 2D/list fallback.
-- Amenity tags are derived from stable preference keys and capped to a concise default set, not all amenities.
+- Viewport paging is allowed only inside selected-neighborhood bounds.
+- The frontend must not present a small bounded result set as a representative sample or complete neighborhood coverage unless the backend marks it complete.
+- Reuse existing Leaflet projection and canvas cleanup/sizing patterns.
+- Missing footprints show localized explanation plus basemap/amenity and list fallback.
+- Amenity categories are derived from stable preference keys and capped to a concise default set, not all amenities.
+- The selected-neighborhood map renders every returned official amenity point marker from the backend response; the frontend must not add a second marker-count cap.
+- Amenity marker shape and dedicated emoji communicate amenity type: transit triangle/🚊, schools square/🎓, childcare rounded square/🧸, parks/green circle/🌳, parking hexagon/🅿️, EV bolt/🔌, swimming water wave/💧, daily shops rounded square/🛒, cafes/restaurants circle/☕, healthcare cross/➕, and libraries/culture book/📚.
+- The right-side Relevant amenities panel is the marker legend and filter control surface, using the same amenity-type shapes and dedicated emojis as the map markers.
 
 ## Dossier Bridge Strategy
 
@@ -550,6 +601,12 @@ match_review_edit_clicked
 match_review_vector_readback_failed
 match_survey_completed
 match_survey_completion_duration_recorded
+match_additional_preferences_prompt_shown
+match_additional_preferences_skipped
+match_additional_preferences_submitted
+match_custom_preferences_extracted
+match_custom_preferences_reviewed
+match_custom_preference_rejected
 match_final_run_cta_clicked
 match_job_queued
 match_job_running
@@ -569,11 +626,11 @@ match_recommendation_selected
 match_map_feature_selected
 match_neighborhood_detail_opened
 match_amenity_tag_toggled
-match_3d_loaded
-match_missing_3d_fallback_shown
+match_building_layer_loaded
+match_missing_footprint_fallback_shown
 match_building_layer_failed
 match_amenity_layer_failed
-match_3d_interacted
+match_building_layer_interacted
 match_house_selected
 match_house_checked_count_updated
 match_no_reliable_address_shown
@@ -608,7 +665,7 @@ Privacy rules:
 - Map marker actions are mirrored by list controls.
 - Touch targets meet mobile requirements.
 - Hero/map text contrast is verified across image/fallback backgrounds.
-- Motion checks `prefers-reduced-motion` for hero drift, transitions, progress, checkmark, map fly-to, and 3D camera.
+- Motion checks `prefers-reduced-motion` for hero drift, transitions, progress, checkmark, map fly-to, and selected-neighborhood footprint rendering.
 
 ## Implementation Phases
 
@@ -703,9 +760,9 @@ Privacy rules:
 
 **Rollback risk**: Medium. Route parser changes can break Dossier/checkout recovery. Rollback by restoring route parser/builders and landing wiring while leaving translations harmlessly unused.
 
-### Phase 2: Survey And Preference Vector
+### Phase 2: Guided Intake And Preference Vector
 
-**Objective**: Preserve and extend the documented closed Phase 2 flow: backend-issued sessions, one-question survey, answer persistence, validation, review, and vector readiness.
+**Objective**: Preserve and extend the documented closed Phase 2 flow: backend-issued sessions, one-question guided intake, optional additional-preferences prompt, structured custom-preference extraction/review, answer persistence, validation, review, and vector readiness.
 
 **Files likely to change**:
 
@@ -713,6 +770,8 @@ Privacy rules:
 - `frontend/src/components/match-first/SurveyIntro.tsx`
 - `frontend/src/components/match-first/SurveyShell.tsx`
 - `frontend/src/components/match-first/SurveyQuestionScreen.tsx`
+- `frontend/src/components/match-first/AdditionalPreferencesQuestion.tsx`
+- `frontend/src/components/match-first/CustomPreferenceReviewList.tsx`
 - `frontend/src/components/match-first/SurveyReview.tsx`
 - `frontend/src/components/match-first/surveyQuestions.ts`
 - `frontend/src/components/match-first/surveyValidation.ts`
@@ -723,6 +782,8 @@ Privacy rules:
 - `backend/app/models/match.py`
 - `backend/app/services/match/sessions.py`
 - `backend/app/services/match/survey_schema.py`
+- `backend/app/services/match/custom_preference_registry.py`
+- `backend/app/services/match/preference_extraction.py`
 - `backend/app/services/match/preference_vector.py`
 
 **Explicit non-goals**:
@@ -730,29 +791,33 @@ Privacy rules:
 - Do not start matching before final review CTA.
 - Do not show more than one question at a time.
 - Do not store translated answer labels.
+- Do not store raw additional-preference text in analytics.
+- Do not let an LLM score, rank, exclude, or infer sensitive traits.
 - Do not build results map or Dossier bridge.
 
 **Acceptance criteria**:
 
 - Survey intro appears before the first question.
-- Survey has 10-12 one-question steps plus review.
+- Guided intake has 10-12 one-question steps plus an optional additional-preferences prompt and review.
+- The additional-preferences prompt has a skip path, bounded retry/clarification state, and no unbounded chat UI.
+- Extracted custom preferences are registry-validated, classified, and reviewed before matching.
 - Progress, back, validation, persistence, keyboard completion, and refresh recovery work.
 - Server-issued session is required before answers are accepted.
 - Review blocks run if backend vector is stale, missing, or mismatched.
-- Preference vector contains hard filters, normalized weights, raw answer refs, versions, locale, warnings, and no protected scoring traits.
+- Preference vector contains hard filters, normalized weights, raw answer refs, reviewed custom-preference statuses, versions, locale, warnings, and no protected scoring traits.
 
 **Tests to run**:
 
 - `cd frontend && npm run test -- src/test/match-first-survey.test.tsx src/components/match-first/SurveyShell.test.tsx src/components/match-first/SurveyReview.test.tsx`
 - `cd frontend && npm run test -- src/services/matchFirstApi.test.ts src/services/matchSessionStorage.test.ts src/test/match-i18n.test.ts src/test/match-first-a11y.test.tsx`
-- `cd backend && pytest -q tests/test_match_sessions.py tests/test_match_preference_vector_builder.py tests/test_match_survey_schema.py tests/test_match_db_schema.py`
+- `cd backend && pytest -q tests/test_match_sessions.py tests/test_match_preference_vector_builder.py tests/test_match_survey_schema.py tests/test_match_custom_preference_registry.py tests/test_match_preference_extraction.py tests/test_match_db_schema.py`
 - `cd frontend && npm run build`
 
 **Traceability rows to update**:
 
-- FR-S1 to FR-S7.
-- PRD Section 8.3 survey content.
-- FR-P1 to FR-P5.
+- FR-S1 to FR-S10.
+- PRD Sections 8.3, 8.4.1, and 9.6 guided/custom intake content.
+- FR-P1 to FR-P7.
 - PRD Acceptance 4-7 and 16.
 - Constitution II, III, VII, IX, XIII.
 - Handoff entry with any Phase 2 residual risks.
@@ -784,7 +849,7 @@ Privacy rules:
 
 - Do not add Celery/RQ/ARQ unless polling/in-process jobs fail a documented requirement.
 - Do not expose predictive probabilities.
-- Do not use LLMs to score or rank.
+- Do not use LLMs to score, rank, exclude, infer protected traits, create confidence, or modify source metadata.
 - Do not cache empty/error responses as successful results.
 
 **Acceptance criteria**:
@@ -795,6 +860,7 @@ Privacy rules:
 - Results include the full evidence contract and stable error/fallback codes.
 - Hard-filter failures are excluded from normal top matches and separated as near/stretched matches where shown.
 - `model_mode` is `weighted_scoring`; predictive probability is unavailable.
+- Custom preferences affect scores only when accepted by the user and marked `scoreable` by the registry; map-context-only, unsupported, disallowed, and clarification-needed items do not affect scores.
 
 **Tests to run**:
 
@@ -884,7 +950,7 @@ Privacy rules:
 **Explicit non-goals**:
 
 - Do not start in selected-neighborhood zoom unless restoring explicit saved selection.
-- Do not load 3D buildings.
+- Do not load building footprints or 3D buildings nationally.
 - Do not show all amenities.
 - Do not add a dashboard or unrelated metrics to results.
 
@@ -915,9 +981,9 @@ Privacy rules:
 
 **Rollback risk**: Medium-high if a new map dependency is added. Rollback by preserving non-map ranked list and disabling map pane behind localized map-unavailable fallback.
 
-### Phase 6: Neighborhood 3D Detail
+### Phase 6: Neighborhood 2D Building Detail
 
-**Objective**: Let users inspect a selected neighborhood with boundary, fit explanation, preference-aware amenities, selected-neighborhood-only 3D/2D building context, and house selection.
+**Objective**: Let users inspect a selected neighborhood with boundary, fit explanation, preference-aware amenities, progressively loaded all-available selected-neighborhood-only 2D building-footprint context, and house selection.
 
 **Files likely to change**:
 
@@ -937,19 +1003,22 @@ Privacy rules:
 
 **Explicit non-goals**:
 
-- Do not load national 3D buildings.
+- Do not load national building footprints or national 3D buildings.
 - Do not load buildings before selected-neighborhood route.
+- Do not silently show a representative building sample as if it were complete selected-neighborhood coverage.
 - Do not use `react-three-fiber` or `drei`.
 - Do not make the selected-neighborhood page a full listing marketplace.
 
 **Acceptance criteria**:
 
 - Detail opens only from selected result or explicit saved selection.
-- Boundary and selected-neighborhood context render before 3D.
+- Boundary and selected-neighborhood context render before building footprints.
 - Building requests require `neighborhood_id` and clipped RD New bounds.
 - Backend rejects out-of-bounds/national building requests.
-- Missing 3D shows localized 2D/list fallback.
-- Amenity tags are preference-aware, source-backed, and capped to a concise default set.
+- Backend and frontend support progressive selected-neighborhood building loading with completion/cursor metadata and localized partial-loading copy.
+- Missing footprints show localized basemap/amenity and list fallback.
+- Amenity categories are preference-aware, source-backed, and capped to a concise default set; all returned amenity point markers render on the map with type-specific shapes and dedicated emojis.
+- The right-side Relevant amenities panel serves as the marker legend and amenity filter control surface, mirroring the same dedicated emojis.
 - House selection is possible where reliable address candidates exist.
 - Performance budget is measured on named target profiles.
 
@@ -957,9 +1026,10 @@ Privacy rules:
 
 - `cd backend && pytest -q tests/test_match_neighborhood_layers.py`
 - `cd frontend && npm run test -- src/test/match-first-neighborhood-detail.test.tsx`
+- Add focused backend/frontend regressions that fail if a partial provider/page response is rendered as complete coverage or if next-page/cursor data is ignored.
 - `cd frontend && npm run test -- src/test/match-first-a11y.test.tsx src/test/match-first-map-performance.test.tsx`
 - `cd frontend && npm run test:e2e -- tests/e2e/match-first-neighborhood-detail.spec.ts`
-- Canvas/screenshot checks for nonblank 3D or 2D fallback where applicable.
+- Canvas/screenshot checks for nonblank 2D footprints or fallback where applicable.
 
 **Traceability rows to update**:
 
@@ -969,7 +1039,7 @@ Privacy rules:
 - Constitution IV, VII, IX, XV.
 - Handoff next step should become Phase 7 Dossier bridge.
 
-**Rollback risk**: High. 3D and map layers can affect performance. Rollback by disabling 3D layer and retaining selected boundary, ranked list, 2D fallback, amenities, and Dossier selection where possible.
+**Rollback risk**: Medium. Building-footprint and map layers can affect performance. Rollback by disabling the footprint layer and retaining selected boundary, ranked list, basemap/amenity fallback, amenities, and Dossier selection where possible.
 
 ### Phase 7: Dossier Bridge
 
@@ -1046,13 +1116,13 @@ Privacy rules:
 **Explicit non-goals**:
 
 - Do not add an MVP admin UI.
-- Do not add account, checkout, payment, marketplace, or AI chat scope.
+- Do not add account, checkout, payment, marketplace, unbounded AI chat, or LLM-scoring scope.
 - Do not mark acceptance rows pass without evidence.
 
 **Acceptance criteria**:
 
 - All required fallback states are localized, accessible, and non-deceptive.
-- Analytics covers required funnel, job, map, detail, Dossier, failure, fallback, deletion, and feedback events.
+- Analytics covers required funnel, additional-preference prompt/extraction/review, job, map, detail, Dossier, failure, fallback, deletion, and feedback events.
 - Analytics payloads pass privacy filters.
 - Copy guard blocks unsupported claims and hard-coded visible copy.
 - Accessibility checks cover landing, survey, review, progress, success, results, detail, house selection, Dossier return, reduced motion, and non-map alternatives.
@@ -1113,7 +1183,7 @@ Manual verification:
 - Dutch and English.
 - Reduced motion enabled.
 - Map failure/list-only mode.
-- Missing 3D.
+- Missing building footprints.
 - No reliable address.
 - Dossier round trip and second-house selection.
 
@@ -1139,7 +1209,7 @@ Manual verification:
 | Leaflet uses WGS84 while RD New is canonical. | Backend stores RD New and emits explicitly named WGS84 display geometry for the frontend. |
 | In-process background jobs can be interrupted. | Persist job/result state, mark stale running jobs retryable/expired, and defer a real queue until runtime evidence requires it. |
 | Seed/mock data can look too authoritative. | Surface data version, source freshness, confidence, limitations, and `not_validated_no_labels`. |
-| 3D performance can regress mobile UX. | Load selected-neighborhood-only, clip bounds server-side, page/LOD inside selected neighborhood, and keep 2D/list fallback. |
+| Building-footprint performance can regress mobile UX. | Load selected-neighborhood-only, clip bounds server-side, page inside selected neighborhood, and keep basemap/list fallback. |
 | Dossier bridge can destabilize paid/export behavior. | Add only context/back action and bridge entry; run entitlement/export/risk-card regressions. |
 | I18n drift can introduce hard-coded copy. | Enforce EN/NL parity and no-default-string copy guards in every UI phase. |
 | Analytics can leak sensitive preferences. | Use stable keys, buckets, and sanitization; prohibit translated labels, exact anchors, free text, protected traits, and precise personal data. |
@@ -1150,7 +1220,7 @@ Manual verification:
 | --- | --- | --- |
 | Possible `leaflet` + `@types/leaflet` dependency in Phase 5 | The repo has no production pan/zoom/polygon map library, and the PRD requires a live Netherlands map with synchronized list/marker/polygon selection. | Current static/projected map surfaces cannot meet pan/zoom/list sync/accessibility requirements; custom map engine is higher risk. |
 | Persisted match jobs and result sets | Progress, refresh recovery, checkmark/results gating, and Dossier return require real backend state. | Browser-only or synchronous `/quiz` style calls cannot prove progress state or restore after navigation. |
-| Selected-neighborhood geometry/building/amenity APIs | The PRD requires scoped 3D and preference-aware detail layers. | Reusing address-level Dossier 3D endpoints directly cannot provide selected-neighborhood map/list/detail contracts or enforce national 3D prohibition. |
+| Selected-neighborhood geometry/building/amenity APIs | The PRD requires scoped 2D building footprints and preference-aware detail layers. | Reusing address-level Dossier 3D endpoints directly cannot provide selected-neighborhood map/list/detail contracts or enforce national building-load prohibition. |
 
 Rejected MVP complexity: always-on backend persistence for every map pan/zoom/list-scroll change. Route/query context plus `sessionStorage` is the default; backend map-state persistence is added only if Phase 5/7 evidence shows it is required for supported refresh or Dossier-return restoration.
 
@@ -1162,7 +1232,7 @@ The design remains compliant after incorporating the stricter generated checklis
 - Survey remains one-question-at-a-time.
 - Backend run/result states are gated by final confirmation and persisted state.
 - Weighted deterministic scoring is the MVP model mode.
-- 3D is selected-neighborhood-only.
+- Building footprints are selected-neighborhood-only and rendered in 2D.
 - Dossier is preserved with route context/back action only.
 - EN/NL translation keys are required for every visible surface.
 - Accessibility, failure states, analytics, traceability, and latest handoff updates are phase closure requirements.

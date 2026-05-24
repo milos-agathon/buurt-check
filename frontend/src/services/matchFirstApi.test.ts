@@ -291,6 +291,10 @@ it('requests buildings only with selected-neighborhood bounds', async () => {
     clipped_to_neighborhood: true,
     buildings: [],
     fallback_reason_code: 'matchFirst.neighborhood.missing3d',
+    complete: true,
+    next_cursor: null,
+    loaded_scope: 'selected_neighborhood',
+    partial_reason_code: null,
     data_version: 'match-seed-v1',
     source_refs: ['seed_match_source'],
     limitations: [],
@@ -306,6 +310,39 @@ it('requests buildings only with selected-neighborhood bounds', async () => {
 
   expect(fetchSpy).toHaveBeenCalledWith(
     '/api/match/neighborhoods/nh_api/buildings?session_id=match_api&result_set_id=mrs_api&bounds_rd=132100%2C455400%2C133700%2C457000&lod=low&limit=25',
+    expect.objectContaining({ credentials: 'include' }),
+  );
+});
+
+it('passes selected-neighborhood building cursor when loading the next page', async () => {
+  const fetchSpy = mockFetch({
+    neighborhood_id: 'nh_api',
+    session_id: 'match_api',
+    result_set_id: 'mrs_api',
+    bounds_rd: [132100, 455400, 133700, 457000],
+    clipped_to_neighborhood: true,
+    buildings: [],
+    fallback_reason_code: null,
+    complete: true,
+    next_cursor: null,
+    loaded_scope: 'selected_neighborhood',
+    partial_reason_code: null,
+    data_version: 'match-seed-v1',
+    source_refs: ['seed_match_source'],
+    limitations: [],
+  });
+
+  await getMatchNeighborhoodBuildings('nh_api', {
+    sessionId: 'match_api',
+    resultSetId: 'mrs_api',
+    boundsRd: [132100, 455400, 133700, 457000],
+    lod: 'low',
+    limit: 25,
+    cursor: 'cursor-page-2',
+  });
+
+  expect(fetchSpy).toHaveBeenCalledWith(
+    '/api/match/neighborhoods/nh_api/buildings?session_id=match_api&result_set_id=mrs_api&bounds_rd=132100%2C455400%2C133700%2C457000&lod=low&limit=25&cursor=cursor-page-2',
     expect.objectContaining({ credentials: 'include' }),
   );
 });

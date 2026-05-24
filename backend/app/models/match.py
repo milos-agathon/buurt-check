@@ -147,6 +147,95 @@ PREFERENCE_CATEGORY_KEYS = frozenset(
 )
 
 
+CustomPreferenceUseStatus = Literal[
+    "scoreable",
+    "map_context_only",
+    "saved_unsupported",
+    "disallowed",
+    "needs_clarification",
+]
+
+CustomPreferencePrivacyClass = Literal[
+    "standard",
+    "sensitive_context",
+    "protected_trait_risk",
+]
+
+
+class CustomPreferenceItem(BaseModel):
+    custom_preference_id: str = Field(min_length=1)
+    raw_user_phrase_ref: str = Field(pattern=r"^custom_preferences:\d+$")
+    normalized_key: str | None = None
+    category: Literal[
+        "geography",
+        "amenity",
+        "mobility",
+        "environment",
+        "housing",
+        "safety",
+        "protected",
+        "other",
+    ]
+    use_status: CustomPreferenceUseStatus
+    feature_key: str | None = None
+    default_weight: float = Field(default=0.0, ge=0, le=1)
+    weight: float = Field(default=0.0, ge=0, le=1)
+    source_requirement: str | None = None
+    privacy_class: CustomPreferencePrivacyClass = "standard"
+    label_key: str = Field(pattern=r"^matchFirst\.additionalPreferences\.")
+    explanation_key: str = Field(pattern=r"^matchFirst\.additionalPreferences\.")
+    reason_code: str = Field(pattern=r"^match\.customPreference\.")
+
+    @model_validator(mode="after")
+    def non_scoreable_preferences_must_not_score(self) -> CustomPreferenceItem:
+        if self.use_status != "scoreable":
+            self.feature_key = None
+            self.default_weight = 0.0
+            self.weight = 0.0
+        return self
+
+
+class CustomPreferenceExtractionRequest(BaseModel):
+    locale: Literal["en", "nl"] = "en"
+    text: str = Field(min_length=1, max_length=800)
+
+    @field_validator("text")
+    @classmethod
+    def validate_text_is_not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("match.customPreference.text_required")
+        return stripped
+
+
+class CustomPreferenceExtractionResult(BaseModel):
+    locale: Literal["en", "nl"]
+    items: list[CustomPreferenceItem] = Field(default_factory=list)
+    needs_clarification: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
+class CustomPreferenceExtractionResponse(CustomPreferenceExtractionResult):
+    session_id: str = Field(min_length=1)
+
+
+class CustomPreferenceReviewRequest(BaseModel):
+    locale: Literal["en", "nl"] = "en"
+    skipped: bool = False
+    items: list[CustomPreferenceItem] = Field(default_factory=list)
+
+
+class CustomPreferenceReviewResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    locale: Literal["en", "nl"]
+    reviewed: bool
+    skipped: bool
+    custom_preference_version: int = Field(ge=0)
+    items: list[CustomPreferenceItem] = Field(default_factory=list)
+    preference_vector_id: str | None = None
+    preference_vector_version: str | None = None
+
+
 class NeighborhoodFeatureVector(BaseModel):
     feature_vector_id: str = Field(min_length=1)
     neighborhood_id: str = Field(min_length=1)
@@ -203,6 +292,7 @@ class PreferenceVector(BaseModel):
     avoid_signals: list[str] = Field(default_factory=list)
     lifestyle_weights: dict[str, float] = Field(default_factory=dict)
     persona_inputs: dict[str, object] = Field(default_factory=dict)
+    custom_preferences: list[CustomPreferenceItem] = Field(default_factory=list)
     locale: Literal["en", "nl"]
     method_version: str = Field(min_length=1)
     source_answer_version: int | None = Field(default=None, ge=0)
@@ -291,6 +381,10 @@ class MatchSessionResponse(BaseModel):
     preference_vector_id: str | None = None
     preference_vector_version: str | None = None
     preference_vector: PreferenceVector | None = None
+    custom_preferences_reviewed: bool = False
+    custom_preferences_skipped: bool = False
+    custom_preference_version: int = 0
+    custom_preferences: list[CustomPreferenceItem] = Field(default_factory=list)
     active_job_id: str | None = None
     selected_neighborhood_id: str | None = None
     map_state: dict[str, object] | None = None
@@ -537,7 +631,7 @@ class MatchNeighborhoodBuildingFeature(BaseModel):
     address_resolution: Literal["resolved", "candidate", "manual_required", "unavailable"]
     address_candidate_count: int = Field(default=0, ge=0)
     fallback_label_key: str | None = Field(default=None, pattern=r"^matchFirst\.neighborhood\.")
-    geometry_source: Literal["3dbag_lod22", "3dbag_lod0"] | None = None
+    geometry_source: Literal["3dbag_lod22", "3dbag_lod0", "pdok_bag_pand"] | None = None
     lod: Literal["2.2", "0"] | None = None
     center_rd: dict[str, float] | None = None
     footprint_rd: list[list[float]] = Field(default_factory=list)
@@ -545,6 +639,17 @@ class MatchNeighborhoodBuildingFeature(BaseModel):
     roof_surfaces: list[list[list[float]]] | None = None
     year: int | None = None
     orientation_deg: float | None = None
+    bag_status: str | None = None
+    bag_gebruiksdoelen: list[str] = Field(default_factory=list)
+    bag_verblijfsobject_count: int | None = Field(default=None, ge=0)
+    building_usage_classification: Literal[
+        "residential",
+        "mixed_residential",
+        "non_residential",
+        "no_verblijfsobject",
+        "unknown",
+    ] = "unknown"
+    house_selectable: bool = True
 
 
 class MatchNeighborhoodBuildingsResponse(BaseModel):
@@ -555,6 +660,10 @@ class MatchNeighborhoodBuildingsResponse(BaseModel):
     clipped_to_neighborhood: bool = True
     buildings: list[MatchNeighborhoodBuildingFeature] = Field(default_factory=list)
     fallback_reason_code: str | None = None
+    complete: bool = True
+    next_cursor: str | None = None
+    loaded_scope: Literal["selected_neighborhood", "selected_viewport"] = "selected_neighborhood"
+    partial_reason_code: str | None = None
     data_version: str = Field(min_length=1)
     source_refs: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
@@ -574,7 +683,7 @@ class MatchNeighborhoodAmenityPoint(BaseModel):
     category_key: str = Field(min_length=1)
     label_key: str = Field(pattern=r"^matchFirst\.amenity\.")
     name: str | None = None
-    emoji: str = Field(min_length=1)
+    marker_shape: str = Field(min_length=1)
     display_lat: float
     display_lng: float
     display_coordinate_system: Literal["WGS84"] = "WGS84"
@@ -589,12 +698,19 @@ class MatchNeighborhoodAmenityPoint(BaseModel):
     relevance: int = Field(default=50, ge=0, le=100)
 
 
+class MatchNeighborhoodAmenityUnavailable(BaseModel):
+    amenity_key: str = Field(min_length=1)
+    reason_code: str = Field(min_length=1)
+    source_name: str | None = None
+
+
 class MatchNeighborhoodAmenitiesResponse(BaseModel):
     neighborhood_id: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
     result_set_id: str = Field(min_length=1)
     tags: list[MatchNeighborhoodAmenityTag] = Field(default_factory=list, max_length=7)
-    points: list[MatchNeighborhoodAmenityPoint] = Field(default_factory=list, max_length=7)
+    points: list[MatchNeighborhoodAmenityPoint] = Field(default_factory=list)
+    unavailable: list[MatchNeighborhoodAmenityUnavailable] = Field(default_factory=list)
     source_refs: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
 
@@ -1290,6 +1406,12 @@ AnalyticsEventName = Literal[
     "match_first_survey_back_clicked",
     "match_survey_question_abandoned",
     "match_survey_completed",
+    "match_additional_preferences_prompt_shown",
+    "match_additional_preferences_skipped",
+    "match_additional_preferences_submitted",
+    "match_custom_preferences_extracted",
+    "match_custom_preferences_reviewed",
+    "match_custom_preference_rejected",
     "match_first_survey_review_shown",
     "match_final_run_cta_clicked",
     "match_job_queued",
@@ -1309,9 +1431,11 @@ AnalyticsEventName = Literal[
     "match_map_layer_failed",
     "match_neighborhood_detail_opened",
     "match_building_layer_failed",
+    "match_building_layer_partial",
+    "match_building_layer_complete",
     "match_amenity_layer_failed",
     "match_amenity_interacted",
-    "match_missing_3d_fallback_shown",
+    "match_missing_footprint_fallback_shown",
     "match_house_selected",
     "match_dossier_opened",
     "match_no_reliable_address_shown",

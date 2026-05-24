@@ -62,7 +62,7 @@ it('renders key data quality, provider, failure, mock/live and metric statuses',
     </I18nextProvider>,
   );
 
-  expect(screen.getByText('Admin data dashboard')).toBeInTheDocument();
+  expect(screen.getByText('Match health monitor')).toBeInTheDocument();
   expect(screen.getByText('Data freshness')).toBeInTheDocument();
   expect(screen.getByText('Missing data')).toBeInTheDocument();
   expect(screen.getByText('Source failures')).toBeInTheDocument();
@@ -73,8 +73,28 @@ it('renders key data quality, provider, failure, mock/live and metric statuses',
   expect(screen.getByText('Mock vs live data')).toBeInTheDocument();
   expect(screen.getByText('Product metrics')).toBeInTheDocument();
   expect(screen.getByText('PRD FR1-FR14 traceability')).toBeInTheDocument();
-  expect(screen.getByText(/source_timeout/)).toBeInTheDocument();
+  expect(screen.getByText(/Source timeout/)).toBeInTheDocument();
+  expect(screen.getByText(/PDF generation failed/)).toBeInTheDocument();
+  expect(screen.getByText(/Feedback submitted/)).toBeInTheDocument();
+  expect(screen.getByText(/Mock-only provider/)).toBeInTheDocument();
+  expect(screen.getByText(/Mobility/)).toBeInTheDocument();
   expect(screen.getByText(/FR1: Preference quiz/)).toBeInTheDocument();
-  expect(screen.getByText(/pdf_failed/)).toBeInTheDocument();
-  expect(screen.getByText(/match_feedback_submitted/)).toBeInTheDocument();
+  expect(screen.queryByText(/mock_only|source_timeout|pdf_failed|match_feedback_submitted|score_outlier/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/mobility:|green_access:/)).not.toBeInTheDocument();
+});
+
+it('renders missing report generation identifiers as localized admin copy', () => {
+  render(
+    <I18nextProvider i18n={i18n}>
+      <MatchAdminDashboard
+        health={{
+          ...health,
+          report_generation_failures: [{ error_code: 'pdf_failed' }],
+        }}
+      />
+    </I18nextProvider>,
+  );
+
+  expect(screen.getByText('Unknown report: PDF generation failed')).toBeInTheDocument();
+  expect(screen.queryByText(/^-: PDF generation failed$/)).not.toBeInTheDocument();
 });

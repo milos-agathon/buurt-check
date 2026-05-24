@@ -11,7 +11,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.5));
+  background: color-mix(in srgb, var(--landing-bg-top) 78%, transparent);
 }
 
 .hero-map-background__image {
@@ -28,19 +28,7 @@
   animation: hero-map-image-drift 24s ease-in-out infinite alternate;
 }
 
-.hero-map-background__grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.34;
-  background:
-    linear-gradient(90deg, rgba(0, 104, 95, 0.12) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(0, 104, 95, 0.10) 1px, transparent 1px);
-  background-size: 84px 84px;
-  transform: rotate(-7deg) scale(1.2);
-}
-
-.hero-map-background[data-motion="reduced"] .hero-map-background__image,
-.hero-map-background[data-motion="reduced"] .hero-map-background__grid {
+.hero-map-background[data-motion="reduced"] .hero-map-background__image {
   animation: none;
   transform: none;
 }
@@ -58,18 +46,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-map-background__image,
-  .hero-map-background__grid {
+  .hero-map-background__image {
     animation: none;
   }
 }
 
 @media (max-width: 680px) {
   .hero-map-background::after {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(249, 250, 251, 0.94));
-  }
-
-  .hero-map-background__grid {
-    background-size: 58px 58px;
+    background: color-mix(in srgb, var(--landing-bg-top) 88%, transparent);
   }
 }

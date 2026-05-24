@@ -32,7 +32,7 @@
   padding: 2px;
   border: 1px solid var(--landing-border-soft);
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
 }
 
 .match-first-landing__lang-btn {
@@ -46,6 +46,7 @@
   cursor: pointer;
   font: var(--type-small);
   font-weight: 800;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .match-first-landing__lang-btn:focus-visible,
@@ -54,6 +55,10 @@
 .match-first-landing__address-link:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring-accent);
+}
+
+.match-first-landing__lang-btn:active {
+  transform: translateY(1px);
 }
 
 .match-first-landing__lang-btn--active {
@@ -95,6 +100,11 @@
   letter-spacing: 0;
 }
 
+.match-first-landing--simple h1 {
+  max-width: min(100%, 16ch);
+  font: 850 3.15rem/1.02 var(--font-family);
+}
+
 .match-first-landing__body {
   max-width: 38rem;
   margin: var(--space-lg) 0 0;
@@ -121,6 +131,11 @@
   cursor: pointer;
   font: var(--type-body);
   font-weight: 850;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.match-first-landing__cta:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .match-first-landing__cta[aria-pressed="true"],
@@ -139,6 +154,11 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-sm);
+  transition: transform 160ms ease;
+}
+
+.match-first-landing__radio-choice:active {
+  transform: translateY(1px);
 }
 
 .match-first-landing__radio-choice input {
@@ -157,6 +177,11 @@
   font-weight: 800;
   text-decoration: underline;
   text-underline-offset: 4px;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.match-first-landing__address-link:active {
+  transform: translateY(1px);
 }
 
 button.match-first-landing__address-link {
@@ -208,6 +233,11 @@ button.match-first-landing__address-link {
     font-size: 3rem;
   }
 
+  .match-first-landing--simple h1 {
+    max-width: 100%;
+    font-size: 2.35rem;
+  }
+
   .match-first-landing__body {
     font-size: 1rem;
   }
@@ -219,5 +249,14 @@ button.match-first-landing__address-link {
 
   .match-first-landing__cta {
     width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-first-landing__lang-btn,
+  .match-first-landing__cta,
+  .match-first-landing__radio-choice,
+  .match-first-landing__address-link {
+    transition: none;
   }
 }

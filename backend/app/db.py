@@ -315,6 +315,7 @@ _MATCH_SCHEMA_STATEMENTS = (
         source_answer_version INTEGER,
         vector_version TEXT,
         raw_answer_refs_json TEXT NOT NULL DEFAULT '{}',
+        custom_preferences_json TEXT NOT NULL DEFAULT '[]',
         warnings_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL
     )""",
@@ -345,6 +346,13 @@ _MATCH_SCHEMA_STATEMENTS = (
         validation_json TEXT NOT NULL,
         completed_step_count INTEGER NOT NULL,
         is_complete INTEGER NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS match_custom_preferences (
+        session_id TEXT NOT NULL PRIMARY KEY,
+        custom_preference_version INTEGER NOT NULL,
+        reviewed_items_json TEXT NOT NULL,
+        skipped INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS match_jobs (
@@ -850,6 +858,10 @@ async def _migrate_match_preference_vector_schema(db: DatabaseConnection) -> Non
         "warnings_json": (
             "ALTER TABLE match_preference_vectors "
             "ADD COLUMN warnings_json TEXT NOT NULL DEFAULT '[]'"
+        ),
+        "custom_preferences_json": (
+            "ALTER TABLE match_preference_vectors "
+            "ADD COLUMN custom_preferences_json TEXT NOT NULL DEFAULT '[]'"
         ),
     }
     for column_name, statement in migrations.items():

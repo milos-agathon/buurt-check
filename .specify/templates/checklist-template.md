@@ -34,7 +34,7 @@
 - [ ] CHKXXX Landing keeps one dominant match CTA and address search remains visually secondary
 - [ ] CHKXXX Survey/onboarding screens show one decision at a time and no dashboards, charts, feature grids, ads, or unrelated content
 - [ ] CHKXXX Every user-facing string has Dutch and English translation keys, including validation, fallback, progress, map, and Dossier return copy
-- [ ] CHKXXX Map work avoids national 3D building loads; loads/renders 3D houses only after neighborhood selection and only within selected-neighborhood bounds; uses viewport paging/LOD only inside that neighborhood; includes 2D fallback, reduced-motion fallback, and non-map list alternative
+- [ ] CHKXXX Map work avoids national building-footprint and national 3D building loads; loads/renders 2D building footprints only after neighborhood selection and only within selected-neighborhood bounds; uses viewport paging only inside that neighborhood; includes missing-footprint, reduced-motion, and non-map list alternatives
 - [ ] CHKXXX Model output is framed honestly as deterministic/semi-deterministic fit scoring unless labels and validation data support predictive claims
 - [ ] CHKXXX Existing Dossier behavior is preserved except for scoped route context and persistent back-to-match-map action
 - [ ] CHKXXX Keyboard navigation, screen-reader labels, touch targets, contrast, focus management, reduced motion, and non-map alternatives are covered

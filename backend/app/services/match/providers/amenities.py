@@ -13,18 +13,31 @@ from app.services.match.amenity_store import (
 OfficialAmenityCategory = AmenityCategoryKey
 
 OFFICIAL_AMENITY_CATEGORIES: tuple[OfficialAmenityCategory, ...] = (
+    "transit",
     "schools",
     "childcare",
     "parks_green",
-    "sports_fields",
+    "parking",
+    "ev_charging",
+    "swimming_water",
+    "daily_shops",
+    "cafes_restaurants",
+    "healthcare",
+    "libraries_culture",
 )
 
-OFFICIAL_AMENITY_EMOJI: dict[OfficialAmenityCategory, str] = {
-    "transit": "🚉",
-    "schools": "🏫",
-    "childcare": "🧸",
-    "parks_green": "🌳",
-    "sports_fields": "⚽",
+OFFICIAL_AMENITY_MARKER_SHAPES: dict[OfficialAmenityCategory, str] = {
+    "transit": "triangle",
+    "schools": "square",
+    "childcare": "rounded-square",
+    "parks_green": "circle",
+    "parking": "hexagon",
+    "ev_charging": "bolt",
+    "swimming_water": "wave",
+    "daily_shops": "rounded-square",
+    "cafes_restaurants": "circle",
+    "healthcare": "cross",
+    "libraries_culture": "book",
 }
 
 OFFICIAL_AMENITY_SOURCE_VERSIONS: dict[OfficialAmenityCategory, str] = {
@@ -32,8 +45,27 @@ OFFICIAL_AMENITY_SOURCE_VERSIONS: dict[OfficialAmenityCategory, str] = {
     "schools": "duo_open_onderwijsdata_bag:unloaded",
     "childcare": "lrk_bag_locations:unloaded",
     "parks_green": "pdok_bgt_brt_green:unloaded",
-    "sports_fields": "pdok_bgt_bag_sports:unloaded",
+    "parking": "source_unconfigured",
+    "ev_charging": "source_unconfigured",
+    "swimming_water": "source_unconfigured",
+    "daily_shops": "source_unconfigured",
+    "cafes_restaurants": "source_unconfigured",
+    "healthcare": "source_unconfigured",
+    "libraries_culture": "source_unconfigured",
 }
+
+STORED_ONLY_AMENITY_CATEGORIES: frozenset[OfficialAmenityCategory] = frozenset(
+    {
+        "transit",
+        "parking",
+        "ev_charging",
+        "swimming_water",
+        "daily_shops",
+        "cafes_restaurants",
+        "healthcare",
+        "libraries_culture",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -62,11 +94,17 @@ class OfficialAmenityUnavailable:
 
 
 _CATEGORY_SOURCE_NAMES: dict[OfficialAmenityCategory, str] = {
-    "transit": "NDOV / REISinformatiegroep GTFS stops",
+    "transit": "OV-haltes Nederland actueel WFS / NDOV GTFS transit stops",
     "schools": "DUO Open Onderwijsdata school vestigingen matched to BAG",
     "childcare": "Landelijk Register Kinderopvang matched to BAG",
     "parks_green": "PDOK BGT/BRT green-space geometry",
-    "sports_fields": "PDOK BGT sportterrein and BAG sportfunctie geometry",
+    "parking": "RDW / Nationaal Parkeerregister open parking data",
+    "ev_charging": "NDW DOT-NL public charging points GeoJSON",
+    "swimming_water": "Zwemwater.nl official bathing water locations",
+    "daily_shops": "Overture Places open POI data",
+    "cafes_restaurants": "Overture Places open POI data",
+    "healthcare": "Overture Places open POI data",
+    "libraries_culture": "Overture Places open POI data",
 }
 
 _CATEGORY_SOURCE_REFS: dict[OfficialAmenityCategory, str] = {
@@ -74,7 +112,13 @@ _CATEGORY_SOURCE_REFS: dict[OfficialAmenityCategory, str] = {
     "schools": "duo_open_onderwijsdata_bag",
     "childcare": "lrk_bag_locations",
     "parks_green": "pdok_bgt_brt_green",
-    "sports_fields": "pdok_bgt_bag_sports",
+    "parking": "rdw_npr_open_parking",
+    "ev_charging": "ndw_dot_nl_charging_points",
+    "swimming_water": "zwemwater_official_bathing_locations",
+    "daily_shops": "overture_places_daily_shops",
+    "cafes_restaurants": "overture_places_cafes_restaurants",
+    "healthcare": "overture_places_healthcare",
+    "libraries_culture": "overture_places_libraries_culture",
 }
 
 
@@ -83,7 +127,7 @@ async def load_official_amenity_records(
     bounds_wgs84: list[float],
     categories: tuple[OfficialAmenityCategory, ...] = OFFICIAL_AMENITY_CATEGORIES,
 ) -> tuple[list[OfficialAmenityRecord], list[OfficialAmenityUnavailable]]:
-    """Return bounded normalized official amenities for one selected neighborhood.
+    """Return bounded normalized no-paid amenities for one selected neighborhood.
 
     This helper is intentionally scoped by selected-neighborhood bounds and never exposes
     a national amenity dataset to the frontend.
@@ -139,7 +183,7 @@ async def load_official_amenity_records(
                     category_key=category,
                     reason_code=(
                         "match.amenities.source_unconfigured"
-                        if category == "transit"
+                        if category in STORED_ONLY_AMENITY_CATEGORIES
                         else "match.amenities.official_record_unavailable"
                     ),
                     source_name=_CATEGORY_SOURCE_NAMES[category],

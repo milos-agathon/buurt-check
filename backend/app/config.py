@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     # External API base URLs
     locatieserver_base: str = "https://api.pdok.nl/bzk/locatieserver/search/v3_1"
     bag_wfs_base: str = "https://service.pdok.nl/kadaster/bag/wfs/v2_0"
+    bag_ogc_base: str = "https://api.pdok.nl/kadaster/bag/ogc/v2"
     three_d_bag_base: str = "https://api.3dbag.nl"
     rivm_alo_wms_base: str = "https://data.rivm.nl/geo/alo/wms"
     rivm_gcn_wms_base: str = "https://data.rivm.nl/geo/gcn/wms"
@@ -85,6 +86,11 @@ class Settings(BaseSettings):
     match_amenity_refresh_enabled: bool = False
     match_amenity_refresh_on_startup: bool = False
     match_amenity_refresh_interval_hours: int = 24
+    match_amenity_on_demand_geometry_enabled: bool = True
+    match_amenity_on_demand_timeout_seconds: float = 18.0
+    match_amenity_point_limit: int = 80
+    match_boundary_on_demand_timeout_seconds: float = 8.0
+    match_boundary_ogc_limit: int = 100
     match_amenity_duo_source_pages: list[str] = [
         "https://duo.nl/open_onderwijsdata/primair-onderwijs/scholen-en-adressen/schoolvestigingen-basisonderwijs.jsp",
         "https://duo.nl/open_onderwijsdata/voortgezet-onderwijs/adressen/vestigingen.jsp",
@@ -93,6 +99,23 @@ class Settings(BaseSettings):
         "https://www.landelijkregisterkinderopvang.nl/opendata/export_opendata_lrk.csv"
     )
     match_amenity_pdok_bgt_ogc_base: str = "https://api.pdok.nl/lv/bgt/ogc/v1"
+    match_amenity_pdok_bgt_ogc_limit: int = 500
+    match_amenity_transit_wfs_base: str = (
+        "https://geodata.zuid-holland.nl/geoserver/verkeer/wfs"
+    )
+    match_amenity_transit_wfs_type_name: str = "verkeer:OV_HALTES_NL_ACTUEEL"
+    match_amenity_ev_charging_geojson_base: str = (
+        "https://dotnl.ndw.nu/api/rest/geojson/dynamic-road-status/charge-point-data/v1/features"
+    )
+    match_amenity_overture_places_s3_path: str = (
+        "overturemaps-us-west-2/release/2026-05-20.0/theme=places/type=place/"
+    )
+    match_amenity_overture_places_s3_region: str = "us-west-2"
+    match_amenity_overture_places_release: str = "2026-05-20.0"
+    match_amenity_zwemwater_locations_url: str = "https://www.zwemwater.nl/"
+    match_building_footprint_provider: str = "pdok_bag"
+    match_bag_ogc_limit: int = 100
+    match_bag_ogc_timeout_seconds: float = 20.0
 
     # Pre-bid source stack
     prebid_enabled: bool = True

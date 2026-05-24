@@ -38,7 +38,7 @@ describe('match-first copy guard', () => {
 
     const violations = tsxFiles.flatMap((filePath) => {
       const source = read(filePath);
-      const visibleTextMatches = [...source.matchAll(/>[ \t]*([A-Za-z][^<{\r\n]*[A-Za-z])[ \t]*</g)]
+      const visibleTextMatches = [...source.matchAll(/(?<!=)>[ \t]*([A-Za-z][^<{\r\n]*[A-Za-z])[ \t]*</g)]
         .map((match) => `${relative(projectRoot, filePath)}: ${match[1].trim()}`);
       const hardCodedLanguageMatches = [...source.matchAll(/(['"`])(NL|EN|Survey shell|Survey-shell)\1/g)]
         .map((match) => `${relative(projectRoot, filePath)}: ${match[2]}`);

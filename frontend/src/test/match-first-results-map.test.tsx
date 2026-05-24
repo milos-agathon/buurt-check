@@ -328,7 +328,7 @@ it('restores saved map view when a completed results route fetches its result se
   const map = await screen.findByRole('region', { name: 'Netherlands recommendations map' });
   expect(map).toHaveAttribute('data-map-center', '52.1,5.03');
   expect(map).toHaveAttribute('data-map-zoom', '12');
-  expect(screen.getByTestId('results-map-shell')).toHaveAttribute('data-mobile-mode', 'list');
+  expect(screen.getByTestId('results-map-shell')).not.toHaveAttribute('data-mobile-mode');
   expect(screen.getByTestId('recommendation-card-rec_2')).toHaveAttribute('aria-current', 'true');
 });
 
@@ -364,9 +364,52 @@ it('ignores stale saved map view when verified in-memory results use a different
 
   expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toHaveAttribute('data-map-center', '52.2,5.3');
   expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toHaveAttribute('data-map-zoom', '7');
-  expect(screen.getByTestId('results-map-shell')).toHaveAttribute('data-mobile-mode', 'map');
+  expect(screen.getByTestId('results-map-shell')).not.toHaveAttribute('data-mobile-mode');
   expect(screen.getByTestId('recommendation-card-rec_2')).not.toHaveAttribute('aria-current');
   expect(await screen.findByText('PDOK / Kadaster / BRT Achtergrondkaart (standaard WMTS)')).toBeInTheDocument();
+});
+
+it('shows map and list together without a map/list toggle', async () => {
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'List' })).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Netherlands recommendations map' })).toBeInTheDocument();
+  expect(screen.getByRole('list', { name: 'Recommended neighborhoods' })).toBeInTheDocument();
+  expect(screen.getByTestId('results-map-shell')).not.toHaveAttribute('data-mobile-mode');
+  expect(screen.getByTestId('results-map-panel')).not.toHaveAttribute('data-active-mobile');
+  expect(screen.getByTestId('results-list-panel')).not.toHaveAttribute('data-active-mobile');
+});
+
+it('renders results map controls as icon buttons with translated accessible labels', async () => {
+  renderWithI18n(
+    <ResultsMap
+      sessionId="match-results"
+      initialResults={resultsResponse()}
+      onBackToSurvey={() => {}}
+    />,
+  );
+
+  const controls = screen.getByRole('group', { name: 'Map controls' });
+  const zoomIn = within(controls).getByRole('button', { name: 'Zoom in' });
+  const zoomOut = within(controls).getByRole('button', { name: 'Zoom out' });
+  const panNorth = within(controls).getByRole('button', { name: 'North' });
+  const panEast = within(controls).getByRole('button', { name: 'East' });
+
+  expect(zoomIn).not.toHaveTextContent('+');
+  expect(zoomOut).not.toHaveTextContent('-');
+  expect(within(zoomIn).getByTestId('results-map-zoom-in-icon')).toBeInTheDocument();
+  expect(within(zoomOut).getByTestId('results-map-zoom-out-icon')).toBeInTheDocument();
+  expect(panNorth).not.toHaveTextContent('North');
+  expect(panEast).not.toHaveTextContent('East');
+  expect(within(panNorth).getByTestId('results-map-pan-north-icon')).toBeInTheDocument();
+  expect(within(panEast).getByTestId('results-map-pan-east-icon')).toBeInTheDocument();
 });
 
 it('keeps ranked list selection and map feature selection synchronized', async () => {
@@ -404,6 +447,10 @@ it('renders numbered recommendation markers inside Leaflet so they stay projecte
   const ijburgMarker = await screen.findByRole('button', { name: 'Show IJburg on map' });
 
   expect(ijburgMarker.closest('.leaflet-marker-pane')).not.toBeNull();
+  expect(ijburgMarker.closest('.leaflet-marker-icon')).toHaveStyle({
+    width: '44px',
+    height: '44px',
+  });
 });
 
 it('invalidates the Leaflet size after rendering so PDOK tiles fill the map panel', async () => {
@@ -556,8 +603,7 @@ it('reveals the matching list card when a map feature is selected', async () => 
   }
 });
 
-it('persists mobile map/list mode and selected map state for later Dossier return', async () => {
-  const user = userEvent.setup();
+it('persists selected map state for later Dossier return without a display-mode toggle', async () => {
   renderWithI18n(
     <ResultsMap
       sessionId="match-results"
@@ -566,9 +612,7 @@ it('persists mobile map/list mode and selected map state for later Dossier retur
     />,
   );
 
-  await user.click(screen.getByRole('button', { name: 'List' }));
-  expect(screen.getByTestId('results-map-shell')).toHaveAttribute('data-mobile-mode', 'list');
-
+  const user = userEvent.setup();
   await user.click(within(screen.getByTestId('recommendation-card-rec_2')).getByRole('button', { name: /Leidsche Rijn/ }));
 
   const stored = JSON.parse(
@@ -580,7 +624,7 @@ it('persists mobile map/list mode and selected map state for later Dossier retur
     selectedRecommendationId: 'rec_2',
     selectedNeighborhoodId: 'nh_utrecht_leidsche_rijn',
     selectedResultRank: 2,
-    mobileMode: 'list',
+    mobileMode: 'map',
     mapCenter: [52.1, 5.03],
     mapZoom: 12,
   });

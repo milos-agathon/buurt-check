@@ -5,8 +5,17 @@
 }
 
 .match-listings__header,
-.match-listings__sections,
-.match-listings__group,
+.match-listings__group {
+  display: grid;
+  gap: 12px;
+}
+
+.match-listings__sections {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.9fr);
+}
+
 .match-listings__item {
   display: grid;
   gap: 12px;
@@ -24,7 +33,7 @@
 .match-listings__density,
 .match-listings__unavailable,
 .match-listings__range {
-  color: var(--color-text-muted, #5d6b78);
+  color: var(--color-text-muted);
 }
 
 .match-listings__status {
@@ -34,31 +43,50 @@
   font-size: 0.85rem;
 }
 
-.match-listings__sections {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-}
-
 .match-listings__item {
-  border: 1px solid var(--color-border, #d8e2ea);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 16px;
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
 }
 
 .match-listings__item dl {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(112px, 1.1fr) minmax(112px, 0.9fr);
   gap: 8px;
   margin: 0;
 }
 
 .match-listings__item dt {
-  color: var(--color-text-muted, #5d6b78);
+  color: var(--color-text-muted);
   font-size: 0.78rem;
 }
 
 .match-listings__item dd {
   margin: 0;
+}
+
+.match-listings__item button {
+  min-height: 44px;
+  justify-self: start;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.match-listings__item button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
+}
+
+.match-listings__item button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 @media (max-width: 720px) {
@@ -70,11 +98,21 @@
     grid-template-columns: 1fr;
   }
 
+  .match-listings__sections {
+    grid-template-columns: 1fr;
+  }
+
   .match-listings__status {
     justify-items: start;
   }
 
   .match-listings__item dl {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-listings__item button {
+    transition: none;
   }
 }

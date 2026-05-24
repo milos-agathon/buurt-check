@@ -22,6 +22,7 @@ async def test_init_db_creates_match_foundation_tables(tmp_path):
         "match_preference_vectors",
         "match_sessions",
         "match_survey_answers",
+        "match_custom_preferences",
         "match_jobs",
         "match_result_sets",
         "match_recommendation_evidence",
@@ -50,6 +51,8 @@ async def test_match_session_tables_store_answers_and_route_state(tmp_path):
         session_columns = {row["name"] for row in await cursor.fetchall()}
         cursor = await db.execute("PRAGMA table_info(match_survey_answers)")
         answer_columns = {row["name"] for row in await cursor.fetchall()}
+        cursor = await db.execute("PRAGMA table_info(match_custom_preferences)")
+        custom_preference_columns = {row["name"] for row in await cursor.fetchall()}
         cursor = await db.execute("PRAGMA table_info(match_preference_vectors)")
         preference_vector_columns = {row["name"] for row in await cursor.fetchall()}
 
@@ -76,6 +79,13 @@ async def test_match_session_tables_store_answers_and_route_state(tmp_path):
         "updated_at",
     } <= answer_columns
     assert {
+        "session_id",
+        "custom_preference_version",
+        "reviewed_items_json",
+        "skipped",
+        "updated_at",
+    } <= custom_preference_columns
+    assert {
         "preference_vector_id",
         "session_id",
         "journey_intent",
@@ -85,6 +95,7 @@ async def test_match_session_tables_store_answers_and_route_state(tmp_path):
         "source_answer_version",
         "vector_version",
         "raw_answer_refs_json",
+        "custom_preferences_json",
         "warnings_json",
         "created_at",
     } <= preference_vector_columns

@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import quote, urlencode
 
+from app.config import settings
 from app.models.address import ResolvedAddress
 from app.models.match import (
     MatchDossierAddressCandidate,
@@ -16,14 +18,18 @@ from app.models.match import (
     MatchNeighborhoodBuildingsResponse,
 )
 from app.models.neighborhood3d import BuildingBlock
-from app.services import locatieserver, three_d_bag
+from app.services import bag_ogc, locatieserver, three_d_bag
+from app.services.bag_ogc import BagPandFootprint, BagPandFootprintPage
+from app.services.match import geometry as geometry_service
 from app.services.match.geometry import (
     SOURCE_REFS,
+    boundary_display_bounds_wgs84,
     display_bounds_wgs84,
     load_seed_neighborhood,
     neighborhood_bounds_rd,
     rd_to_wgs84,
     validate_building_bounds,
+    wgs84_bounds_to_rd,
 )
 
 _VBO_ID_PATTERN = re.compile(r"^[0-9]{16}$")
@@ -35,11 +41,24 @@ _PROVIDER_SOURCE_REF = "pdok_locatieserver_reverse"
 _BAG_BUILDING_ID_PREFIX = "bag_pand_"
 _BAG_LOD22_SOURCE_REF = "3dbag_lod22"
 _BAG_LOD0_SOURCE_REF = "3dbag_lod0"
+_PDOK_BAG_PAND_SOURCE_REF = bag_ogc.PAND_SOURCE_REF
 _BAG_DATA_VERSION = "3dbag-lod22-selected-v1"
+_PDOK_BAG_DATA_VERSION = bag_ogc.PAND_DATA_VERSION
 _BAG_LOD22_LIMITATION = "match.results.limitations.3dbag_lod22"
 _BAG_LOD0_LIMITATION = "match.results.limitations.3dbag_lod0_fallback"
 _BAG_PARTIAL_LIMITATION = "match.results.limitations.3dbag_partial"
+_PDOK_BAG_PAND_LIMITATION = "match.results.limitations.pdok_bag_pand"
+_BUILDINGS_MORE_AVAILABLE_REASON = "match.buildings.more_available"
+_BUILDINGS_PROVIDER_PARTIAL_REASON = "match.buildings.provider_partial"
+_BOUNDARY_REQUIRED_DATA_VERSION = "official-boundary-required-v1"
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class BuildingFootprintPage:
+    blocks: list[BuildingBlock]
+    next_cursor: str | None = None
+    partial: bool = False
 
 
 class DossierBridgeCandidateMismatchError(ValueError):
@@ -223,6 +242,41 @@ def _wgs84_footprint_from_rd_offsets(
     return {"type": "Polygon", "coordinates": [ring]}
 
 
+def _building_footprint_ring(
+    building: MatchNeighborhoodBuildingFeature,
+) -> list[list[float]]:
+    coordinates = building.footprint.get("coordinates")
+    if not isinstance(coordinates, list) or not coordinates:
+        return []
+    ring = coordinates[0]
+    if not isinstance(ring, list):
+        return []
+    points: list[list[float]] = []
+    for point in ring:
+        if (
+            isinstance(point, list)
+            and len(point) >= 2
+            and isinstance(point[0], int | float)
+            and isinstance(point[1], int | float)
+        ):
+            points.append([float(point[0]), float(point[1])])
+    if len(points) > 1 and points[0] == points[-1]:
+        points = points[:-1]
+    return points if len(points) >= 3 else []
+
+
+def _filter_buildings_to_boundary(
+    buildings: list[MatchNeighborhoodBuildingFeature],
+    boundary: dict[str, object],
+) -> list[MatchNeighborhoodBuildingFeature]:
+    clipped: list[MatchNeighborhoodBuildingFeature] = []
+    for building in buildings:
+        ring = _building_footprint_ring(building)
+        if ring and geometry_service.wgs84_ring_within_boundary(ring, boundary):
+            clipped.append(building)
+    return clipped
+
+
 def _match_feature_from_3dbag_block(
     block: BuildingBlock,
     *,
@@ -254,6 +308,38 @@ def _match_feature_from_3dbag_block(
     )
 
 
+def _match_feature_from_bag_pand(
+    pand: BagPandFootprint,
+    *,
+    center_rd: dict[str, float],
+) -> MatchNeighborhoodBuildingFeature:
+    return MatchNeighborhoodBuildingFeature(
+        building_id=_building_id_from_pand_id(pand.pand_id),
+        vbo_id=None,
+        address_id=None,
+        lookup_id=None,
+        footprint=pand.footprint,
+        height_m=None,
+        source_refs=[_PDOK_BAG_PAND_SOURCE_REF],
+        address_resolution="candidate" if pand.house_selectable else "unavailable",
+        address_candidate_count=3 if pand.house_selectable else 0,
+        fallback_label_key=(
+            "matchFirst.neighborhood.addressCandidate"
+            if pand.house_selectable
+            else "matchFirst.neighborhood.notHouseCandidate"
+        ),
+        geometry_source=bag_ogc.PAND_GEOMETRY_SOURCE,
+        center_rd=center_rd,
+        footprint_rd=pand.footprint_rd,
+        year=pand.bouwjaar,
+        bag_status=pand.status,
+        bag_gebruiksdoelen=pand.gebruiksdoelen,
+        bag_verblijfsobject_count=pand.aantal_verblijfsobjecten,
+        building_usage_classification=pand.usage_classification,
+        house_selectable=pand.house_selectable,
+    )
+
+
 async def _fetch_lod22_buildings_for_bounds(
     *,
     bounds_rd: list[float],
@@ -262,13 +348,52 @@ async def _fetch_lod22_buildings_for_bounds(
     return await three_d_bag.get_buildings_in_rd_bounds(bounds_rd, limit=limit)
 
 
+async def _fetch_lod22_building_page_for_bounds(
+    *,
+    bounds_rd: list[float],
+    limit: int,
+    cursor: str | None = None,
+) -> BuildingFootprintPage:
+    page = await three_d_bag.get_buildings_in_rd_bounds_page(
+        bounds_rd,
+        limit=limit,
+        cursor=cursor,
+    )
+    return BuildingFootprintPage(
+        blocks=page.blocks,
+        next_cursor=page.next_cursor,
+        partial=page.partial,
+    )
+
+
+async def _fetch_bag_pand_footprint_page_for_bounds(
+    *,
+    bounds_rd: list[float],
+    limit: int,
+    cursor: str | None = None,
+) -> BagPandFootprintPage:
+    return await bag_ogc.get_pand_footprints_in_rd_bounds_page(
+        bounds_rd,
+        limit=limit,
+        cursor=cursor,
+    )
+
+
 async def _real_building_candidates_for_neighborhood(
     neighborhood_id: str,
     *,
     limit: int,
 ) -> list[MatchNeighborhoodBuildingFeature]:
     neighborhood = await load_seed_neighborhood(neighborhood_id)
-    bounds_rd = neighborhood_bounds_rd(neighborhood)
+    boundary = await geometry_service.fetch_official_boundary_feature(neighborhood)
+    if not geometry_service.boundary_is_official(boundary):
+        return []
+    bounds_wgs84 = boundary_display_bounds_wgs84(boundary or {})
+    bounds_rd = (
+        wgs84_bounds_to_rd(bounds_wgs84)
+        if bounds_wgs84
+        else neighborhood_bounds_rd(neighborhood)
+    )
     center_rd = _center_rd_from_bounds(bounds_rd)
     try:
         blocks, _partial = await _fetch_lod22_buildings_for_bounds(
@@ -283,13 +408,14 @@ async def _real_building_candidates_for_neighborhood(
             exc,
         )
         return []
-    return [
+    buildings = [
         _match_feature_from_3dbag_block(
             block,
             center_rd=center_rd,
         )
         for block in blocks
     ]
+    return _filter_buildings_to_boundary(buildings, boundary or {})
 
 
 async def _candidate_address_options(
@@ -622,18 +748,105 @@ async def get_scoped_neighborhood_buildings(
     bounds_rd: list[float],
     lod: str = "low",
     limit: int = 50,
+    cursor: str | None = None,
 ) -> MatchNeighborhoodBuildingsResponse:
     neighborhood = await load_seed_neighborhood(neighborhood_id)
-    allowed_bounds = neighborhood_bounds_rd(neighborhood)
+    boundary = await geometry_service.fetch_official_boundary_feature(neighborhood)
+    if not geometry_service.boundary_is_official(boundary):
+        return MatchNeighborhoodBuildingsResponse(
+            neighborhood_id=neighborhood_id,
+            session_id=session_id,
+            result_set_id=result_set_id,
+            bounds_rd=bounds_rd,
+            clipped_to_neighborhood=True,
+            buildings=[],
+            fallback_reason_code=geometry_service.BOUNDARY_UNAVAILABLE_UI_KEY,
+            complete=True,
+            next_cursor=None,
+            loaded_scope="selected_neighborhood",
+            partial_reason_code=None,
+            data_version=_BOUNDARY_REQUIRED_DATA_VERSION,
+            source_refs=[],
+            limitations=[geometry_service.OFFICIAL_BOUNDARY_UNAVAILABLE_LIMITATION],
+        )
+    boundary_bounds_wgs84 = boundary_display_bounds_wgs84(boundary or {})
+    allowed_bounds = (
+        wgs84_bounds_to_rd(boundary_bounds_wgs84)
+        if boundary_bounds_wgs84
+        else neighborhood_bounds_rd(neighborhood)
+    )
     validate_building_bounds(bounds_rd, allowed_bounds)
     bounded_limit = max(1, min(limit, 100))
     _ = lod
     center_rd = _center_rd_from_bounds(bounds_rd)
-    partial = False
+    provider = getattr(settings, "match_building_footprint_provider", "pdok_bag")
+    if provider == "pdok_bag":
+        bag_page = BagPandFootprintPage(pands=[], partial=True)
+        try:
+            bag_page = await _fetch_bag_pand_footprint_page_for_bounds(
+                bounds_rd=bounds_rd,
+                limit=bounded_limit,
+                cursor=cursor,
+            )
+        except Exception as exc:
+            logger.warning(
+                "match PDOK BAG selected-neighborhood building fetch failed "
+                "neighborhood_id=%s reason=%s",
+                neighborhood_id,
+                exc,
+            )
+
+        if bag_page.pands or bag_page.next_cursor or not bag_page.partial:
+            sorted_pands = sorted(bag_page.pands, key=bag_ogc.pand_priority)
+            buildings = [
+                _match_feature_from_bag_pand(pand, center_rd=center_rd)
+                for pand in sorted_pands[:bounded_limit]
+            ]
+            buildings = _filter_buildings_to_boundary(buildings, boundary or {})
+            fallback_reason_code = (
+                None
+                if buildings or bag_page.next_cursor or bag_page.partial
+                else "matchFirst.neighborhood.missing3d"
+            )
+            limitations = [_PDOK_BAG_PAND_LIMITATION]
+            if bag_page.partial:
+                limitations.append(_BAG_PARTIAL_LIMITATION)
+            complete = bag_page.next_cursor is None and not bag_page.partial
+            partial_reason_code = None
+            if bag_page.next_cursor:
+                partial_reason_code = _BUILDINGS_MORE_AVAILABLE_REASON
+            elif bag_page.partial:
+                partial_reason_code = _BUILDINGS_PROVIDER_PARTIAL_REASON
+
+            return MatchNeighborhoodBuildingsResponse(
+                neighborhood_id=neighborhood_id,
+                session_id=session_id,
+                result_set_id=result_set_id,
+                bounds_rd=bounds_rd,
+                clipped_to_neighborhood=True,
+                buildings=buildings,
+                fallback_reason_code=fallback_reason_code,
+                complete=complete,
+                next_cursor=bag_page.next_cursor,
+                loaded_scope="selected_neighborhood",
+                partial_reason_code=partial_reason_code,
+                data_version=_PDOK_BAG_DATA_VERSION,
+                source_refs=([_PDOK_BAG_PAND_SOURCE_REF] if buildings else []),
+                limitations=limitations,
+            )
+
+        logger.warning(
+            "match PDOK BAG selected-neighborhood building fetch returned no usable "
+            "data; falling back to 3DBAG neighborhood_id=%s",
+            neighborhood_id,
+        )
+
+    page = BuildingFootprintPage(blocks=[])
     try:
-        blocks, partial = await _fetch_lod22_buildings_for_bounds(
+        page = await _fetch_lod22_building_page_for_bounds(
             bounds_rd=bounds_rd,
             limit=bounded_limit,
+            cursor=cursor,
         )
     except Exception as exc:
         logger.warning(
@@ -641,17 +854,21 @@ async def get_scoped_neighborhood_buildings(
             neighborhood_id,
             exc,
         )
-        blocks = []
-        partial = True
+        page = BuildingFootprintPage(blocks=[], partial=True)
 
     buildings = [
         _match_feature_from_3dbag_block(
             block,
             center_rd=center_rd,
         )
-        for block in blocks[:bounded_limit]
+        for block in page.blocks[:bounded_limit]
     ]
-    fallback_reason_code = None if buildings else "matchFirst.neighborhood.missing3d"
+    buildings = _filter_buildings_to_boundary(buildings, boundary or {})
+    fallback_reason_code = (
+        None
+        if buildings or page.next_cursor or page.partial
+        else "matchFirst.neighborhood.missing3d"
+    )
     source_refs = list(
         dict.fromkeys(source_ref for building in buildings for source_ref in building.source_refs)
     )
@@ -660,8 +877,14 @@ async def get_scoped_neighborhood_buildings(
         limitations.append(_BAG_LOD22_LIMITATION)
     if any(building.geometry_source == _BAG_LOD0_SOURCE_REF for building in buildings):
         limitations.append(_BAG_LOD0_LIMITATION)
-    if partial:
+    if page.partial:
         limitations.append(_BAG_PARTIAL_LIMITATION)
+    complete = page.next_cursor is None and not page.partial
+    partial_reason_code = None
+    if page.next_cursor:
+        partial_reason_code = _BUILDINGS_MORE_AVAILABLE_REASON
+    elif page.partial:
+        partial_reason_code = _BUILDINGS_PROVIDER_PARTIAL_REASON
 
     return MatchNeighborhoodBuildingsResponse(
         neighborhood_id=neighborhood_id,
@@ -671,6 +894,10 @@ async def get_scoped_neighborhood_buildings(
         clipped_to_neighborhood=True,
         buildings=buildings,
         fallback_reason_code=fallback_reason_code,
+        complete=complete,
+        next_cursor=page.next_cursor,
+        loaded_scope="selected_neighborhood",
+        partial_reason_code=partial_reason_code,
         data_version=_BAG_DATA_VERSION,
         source_refs=source_refs,
         limitations=limitations,

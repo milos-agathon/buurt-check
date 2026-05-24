@@ -12,6 +12,10 @@ from app.models.match import (
     AlertRule,
     AlertUpdateRequest,
     AnalyticsEventName,
+    CustomPreferenceExtractionRequest,
+    CustomPreferenceExtractionResponse,
+    CustomPreferenceReviewRequest,
+    CustomPreferenceReviewResponse,
     DeleteResponse,
     ListingCriteria,
     ListingProviderResult,
@@ -115,8 +119,10 @@ from app.services.match.reports import (
 from app.services.match.sessions import (
     create_match_session,
     delete_match_session,
+    extract_match_session_custom_preferences,
     get_match_session,
     patch_match_session_answers,
+    review_match_session_custom_preferences,
 )
 from app.services.match.similarity import find_similar_neighborhoods
 
@@ -259,6 +265,62 @@ async def patch_session_answers(
     _mark_no_store(response)
     try:
         return await patch_match_session_answers(session_id, payload)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@limiter.limit(_MATCH_FIRST_ANSWER_SYNC_RATE_LIMIT)
+@router.post(
+    "/sessions/{session_id}/custom-preferences/extract",
+    response_model=CustomPreferenceExtractionResponse,
+)
+async def extract_session_custom_preferences(
+    request: Request,
+    session_id: str,
+    payload: CustomPreferenceExtractionRequest,
+    response: Response,
+) -> CustomPreferenceExtractionResponse:
+    _mark_no_store(response)
+    try:
+        return await extract_match_session_custom_preferences(session_id, payload)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@limiter.limit(_MATCH_FIRST_ANSWER_SYNC_RATE_LIMIT)
+@router.patch(
+    "/sessions/{session_id}/custom-preferences/review",
+    response_model=CustomPreferenceReviewResponse,
+)
+async def review_session_custom_preferences(
+    request: Request,
+    session_id: str,
+    payload: CustomPreferenceReviewRequest,
+    response: Response,
+) -> CustomPreferenceReviewResponse:
+    _mark_no_store(response)
+    try:
+        return await review_match_session_custom_preferences(session_id, payload)
     except KeyError as exc:
         raise HTTPException(
             status_code=404,
@@ -519,6 +581,7 @@ async def read_match_neighborhood_buildings(
     bounds_rd: str,
     lod: Literal["low", "medium", "high"] = "low",
     limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = Query(default=None, min_length=1),
 ) -> MatchNeighborhoodBuildingsResponse:
     _mark_no_store(response)
     await _validate_completed_neighborhood_context(
@@ -535,6 +598,7 @@ async def read_match_neighborhood_buildings(
             bounds_rd=parsed_bounds,
             lod=lod,
             limit=limit,
+            cursor=cursor,
         )
     except BoundsParseError as exc:
         raise HTTPException(

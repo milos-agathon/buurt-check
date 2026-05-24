@@ -9,11 +9,27 @@ from app.config import settings
 from app.db import get_db, init_db
 from app.models.address import ResolvedAddress
 from app.services.match import amenity_ingestion
-from app.services.match.amenity_ingestion import run_amenity_refresh_once
+from app.services.match.amenity_ingestion import (
+    _duo_records,
+    _parse_csv_rows,
+    _row_may_belong_to_neighborhood,
+    run_amenity_refresh_once,
+)
 from app.services.match.geometry import display_bounds_wgs84, load_seed_neighborhood
 from app.services.match.providers.amenities import (
     load_amenity_source_versions,
     load_official_amenity_records,
+)
+
+NO_PAID_OPEN_MARKER_CATEGORIES = (
+    "transit",
+    "parking",
+    "ev_charging",
+    "swimming_water",
+    "daily_shops",
+    "cafes_restaurants",
+    "healthcare",
+    "libraries_culture",
 )
 
 
@@ -147,39 +163,6 @@ class FakeAmenityClient:
             ],
         }
 
-    async def fetch_pdok_sports_features(
-        self,
-        bounds_rd: tuple[float, float, float, float],
-    ) -> dict[str, object]:
-        self.bbox_calls.append(("sports_fields", bounds_rd))
-        if self.empty:
-            return {"type": "FeatureCollection", "features": []}
-        return {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "id": "bgt-sport-1",
-                    "properties": {
-                        "lokaal_id": "bgt-sport-1",
-                        "naam": "Sportveld Test",
-                        "bgt_functie": "recreatie: sportterrein",
-                    },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [
-                            [
-                                [5.1270, 52.3605],
-                                [5.1290, 52.3605],
-                                [5.1290, 52.3618],
-                                [5.1270, 52.3618],
-                                [5.1270, 52.3605],
-                            ]
-                        ],
-                    },
-                }
-            ],
-        }
-
     async def fetch_bag_sport_features(
         self,
         bounds_rd: tuple[float, float, float, float],
@@ -201,6 +184,102 @@ class FakeAmenityClient:
                 }
             ],
         }
+
+
+def test_den_haag_municipality_alias_matches_duo_s_gravenhage_rows():
+    assert _row_may_belong_to_neighborhood(
+        {"plaatsnaam": "'S-GRAVENHAGE"},
+        "Den Haag",
+    )
+
+
+def test_lrk_semicolon_rows_with_s_gravenhage_are_not_quote_corrupted():
+    rows = _parse_csv_rows(
+        "\ufefflrk_id;type_oko;opc;actuele_naam_oko;aantal_kindplaatsen;ve;status;"
+        "inschrijfdatum;opvanglocatie_adres;opvanglocatie_postcode;"
+        "opvanglocatie_woonplaats;bag_id;naam_houder;kvk_nummer_houder;"
+        "vestigingsnummer_houder;rechtsvorm_houder;start_geschillencommissie;"
+        "einde_geschillencommissie;houder_adres;houder_postcode;houder_woonplaats;"
+        "houder_buitenland;correspondentie_adres;correspondentie_postcode;"
+        "correspondentie_woonplaats;correspondentie_buitenland;contact_persoon;"
+        "contact_telefoon;contact_emailadres;contact_website;cbs_code;"
+        "verantwoordelijke_gemeente;gastouderbureau_1;gastouderbureau_2;lrk_url\r\n"
+        "1;BSO;Nee;CompaNanny Statenkwartier BSO;20;;Ingeschreven;01-01-2020;"
+        "Eisenhowerlaan 53;2517KK;s-Gravenhage;0518010000492877;Holder;;;;;;;;;;;;"
+        ";;;'';;;0518;s-Gravenhage;;;https://www.landelijkregisterkinderopvang.nl/pp/#/inzien/oko/gegevens/test\r\n",
+        source_url="https://example.test/lrk.csv",
+    )
+
+    assert rows[0]["opvanglocatie_woonplaats"] == "s-Gravenhage"
+    assert rows[0]["bag_id"] == "0518010000492877"
+    assert rows[0]["cbs_code"] == "0518"
+    assert rows[0]["verantwoordelijke_gemeente"] == "s-Gravenhage"
+    assert rows[0]["lrk_url"].endswith("/test")
+
+
+@pytest.mark.asyncio
+async def test_statenkwartier_selected_bounds_include_named_duo_school():
+    neighborhood = await load_seed_neighborhood("nh_den_haag_statenkwartier")
+    west, south, east, north = display_bounds_wgs84(neighborhood)
+
+    assert west <= 4.2726422 <= east
+    assert south <= 52.09171925 <= north
+
+
+@pytest.mark.asyncio
+async def test_duo_matching_is_concurrent_enough_for_den_haag_school_rows():
+    class SlowDenHaagDuoClient:
+        async def fetch_duo_school_rows(self) -> list[dict[str, object]]:
+            return [
+                {
+                    "vestigingscode": f"DUO-DH-{index}",
+                    "naam": f"Den Haag School {index}",
+                    "straatnaam": "Otherstraat",
+                    "huisnummer": str(index),
+                    "postcode": "2582 AA",
+                    "plaatsnaam": "'S-GRAVENHAGE",
+                }
+                for index in range(20)
+            ] + [
+                {
+                    "vestigingscode": "DUO-STATEN",
+                    "naam": "IC Basisschool Statenkwartier",
+                    "straatnaam": "Van Beverningkstraat",
+                    "huisnummer": "29",
+                    "postcode": "2582 VB",
+                    "plaatsnaam": "'S-GRAVENHAGE",
+                }
+            ]
+
+        async def match_bag_address(self, query: str) -> ResolvedAddress | None:
+            await asyncio.sleep(0.02)
+            if "Van Beverningkstraat" not in query:
+                return None
+            return ResolvedAddress(
+                id="adr-statenkwartier-school",
+                nummeraanduiding_id="0518200000000001",
+                adresseerbaar_object_id="0518010000000001",
+                display_name="Van Beverningkstraat 29, 's-Gravenhage",
+                latitude=52.0860,
+                longitude=4.2770,
+                rd_x=78900.0,
+                rd_y=455900.0,
+            )
+
+    neighborhood = await load_seed_neighborhood("nh_den_haag_statenkwartier")
+    records, skipped, unmatched = await asyncio.wait_for(
+        _duo_records(
+            client=SlowDenHaagDuoClient(),
+            bounds_wgs84=tuple(display_bounds_wgs84(neighborhood)),
+            municipality=neighborhood.municipality,
+            loaded_at=datetime(2026, 5, 21, 10, 0, tzinfo=UTC),
+        ),
+        timeout=0.15,
+    )
+
+    assert [record.name for record in records] == ["IC Basisschool Statenkwartier"]
+    assert skipped == 0
+    assert unmatched == 20
 
 
 @pytest.fixture
@@ -233,18 +312,13 @@ async def test_lrk_duo_pdok_bag_refresh_stores_exact_scoped_amenity_records(
     assert coverage["lrk_bag_locations"].records_imported == 1
     assert coverage["lrk_bag_locations"].withheld_address_count == 1
     assert coverage["pdok_bgt_brt_green"].records_imported == 1
-    assert coverage["pdok_bgt_bag_sports"].records_imported == 2
-    assert {call[0] for call in client.bbox_calls} == {
-        "parks_green",
-        "sports_fields",
-        "bag_sportfunctie",
-    }
+    assert {call[0] for call in client.bbox_calls} == {"parks_green"}
 
     neighborhood = await load_seed_neighborhood(neighborhood_id)
     records, unavailable = await load_official_amenity_records(
         neighborhood_id,
         display_bounds_wgs84(neighborhood),
-        ("transit", "schools", "childcare", "parks_green", "sports_fields"),
+        ("transit", "schools", "childcare", "parks_green"),
     )
     by_category = {}
     for record in records:
@@ -266,10 +340,47 @@ async def test_lrk_duo_pdok_bag_refresh_stores_exact_scoped_amenity_records(
     assert green.display_lng == pytest.approx(5.1250)
     assert green.source_geometry["type"] == "Polygon"
     assert green.source_geometry_coordinate_system == "EPSG:4326"
-    assert {item.source_ref for item in by_category["sports_fields"]} == {
-        "pdok_bgt_sportterrein",
-        "pdok_bag_sportfunctie",
-    }
+
+
+@pytest.mark.asyncio
+async def test_lrk_current_open_data_columns_are_matched_to_childcare_records(
+    amenity_ingestion_db,
+):
+    class CurrentLrkColumnClient(FakeAmenityClient):
+        async def fetch_lrk_childcare_rows(self) -> list[dict[str, object]]:
+            return [
+                {
+                    "lrk_id": "LRK-CURRENT-1",
+                    "type_oko": "KDV",
+                    "actuele_naam_oko": "Kinderopvang Huidige Kolommen",
+                    "opvanglocatie_adres": "Opvanglaan 2 ",
+                    "opvanglocatie_postcode": "1234AC",
+                    "opvanglocatie_woonplaats": "Almere",
+                    "verantwoordelijke_gemeente": "Almere",
+                    "peildatum": "2026-05-18",
+                }
+            ]
+
+    result = await run_amenity_refresh_once(
+        neighborhood_ids=("nh_almere_poort",),
+        client=CurrentLrkColumnClient(),
+        now=datetime(2026, 5, 19, 9, 30, tzinfo=UTC),
+    )
+
+    coverage = {item.source_ref: item for item in result.coverage}
+    assert coverage["lrk_bag_locations"].records_imported == 1
+
+    records, unavailable = await load_official_amenity_records(
+        "nh_almere_poort",
+        display_bounds_wgs84(await load_seed_neighborhood("nh_almere_poort")),
+        ("childcare",),
+    )
+
+    assert unavailable == []
+    assert len(records) == 1
+    assert records[0].category_key == "childcare"
+    assert records[0].record_id == "LRK-CURRENT-1"
+    assert records[0].name == "Kinderopvang Huidige Kolommen"
 
 
 @pytest.mark.asyncio
@@ -296,13 +407,12 @@ async def test_amenity_refresh_does_not_replace_previous_success_with_empty_or_f
     records, _unavailable = await load_official_amenity_records(
         neighborhood_id,
         display_bounds_wgs84(neighborhood),
-        ("schools", "childcare", "parks_green", "sports_fields"),
+        ("schools", "childcare", "parks_green"),
     )
     assert {record.category_key for record in records} == {
         "schools",
         "childcare",
         "parks_green",
-        "sports_fields",
     }
 
 
@@ -317,15 +427,13 @@ async def test_amenity_source_versions_reflect_loaded_official_source_dates(
     )
 
     versions = await load_amenity_source_versions(
-        ("transit", "schools", "childcare", "parks_green", "sports_fields")
+        ("transit", "schools", "childcare", "parks_green")
     )
 
     assert versions["transit"] == "source_unconfigured"
     assert versions["schools"].startswith("duo_open_onderwijsdata_bag:2026-05-01:")
     assert versions["childcare"].startswith("lrk_bag_locations:2026-05-18:")
     assert "pdok_bgt_brt_green" in versions["parks_green"]
-    assert "pdok_bgt_sportterrein" in versions["sports_fields"]
-    assert "pdok_bag_sportfunctie" in versions["sports_fields"]
 
     async with get_db() as db:
         cursor = await db.execute(
@@ -335,6 +443,43 @@ async def test_amenity_source_versions_reflect_loaded_official_source_dates(
         rows = await cursor.fetchall()
     assert rows
     assert all(row["status"] in {"success", "partial", "empty"} for row in rows)
+
+
+@pytest.mark.asyncio
+async def test_no_paid_marker_stack_sources_are_registered_without_fake_points(
+    amenity_ingestion_db,
+):
+    neighborhood_id = "nh_almere_poort"
+    neighborhood = await load_seed_neighborhood(neighborhood_id)
+
+    versions = await load_amenity_source_versions(NO_PAID_OPEN_MARKER_CATEGORIES)
+
+    assert versions == {
+        category: "source_unconfigured"
+        for category in NO_PAID_OPEN_MARKER_CATEGORIES
+    }
+
+    records, unavailable = await load_official_amenity_records(
+        neighborhood_id,
+        display_bounds_wgs84(neighborhood),
+        NO_PAID_OPEN_MARKER_CATEGORIES,
+    )
+
+    assert records == []
+    unavailable_by_category = {item.category_key: item for item in unavailable}
+    assert set(unavailable_by_category) == set(NO_PAID_OPEN_MARKER_CATEGORIES)
+    assert all(
+        item.reason_code == "match.amenities.source_unconfigured"
+        for item in unavailable_by_category.values()
+    )
+    assert "OV-haltes Nederland actueel" in unavailable_by_category["transit"].source_name
+    assert unavailable_by_category["parking"].source_name.startswith("RDW")
+    assert unavailable_by_category["ev_charging"].source_name.startswith("NDW DOT-NL")
+    assert "Zwemwater" in unavailable_by_category["swimming_water"].source_name
+    assert "Overture Places" in unavailable_by_category["daily_shops"].source_name
+    assert "Overture Places" in unavailable_by_category["cafes_restaurants"].source_name
+    assert "Overture Places" in unavailable_by_category["healthcare"].source_name
+    assert "Overture Places" in unavailable_by_category["libraries_culture"].source_name
 
 
 @pytest.mark.asyncio

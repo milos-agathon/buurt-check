@@ -24,6 +24,7 @@ const requiredMatchKeys = [
   'matchFirst.routes.landing',
   'matchFirst.routes.intro',
   'matchFirst.routes.survey',
+  'matchFirst.routes.additionalPreferences',
   'matchFirst.routes.review',
   'matchFirst.routes.run',
   'matchFirst.routes.success',
@@ -42,12 +43,48 @@ const requiredMatchKeys = [
   'matchFirst.survey.validationRequired',
   'matchFirst.survey.review',
   'matchFirst.survey.back',
+  'matchFirst.additionalPreferences.eyebrow',
+  'matchFirst.additionalPreferences.title',
+  'matchFirst.additionalPreferences.body',
+  'matchFirst.additionalPreferences.textareaLabel',
+  'matchFirst.additionalPreferences.textareaPlaceholder',
+  'matchFirst.additionalPreferences.privacyNote',
+  'matchFirst.additionalPreferences.skip',
+  'matchFirst.additionalPreferences.submit',
+  'matchFirst.additionalPreferences.retry',
+  'matchFirst.additionalPreferences.continue',
+  'matchFirst.additionalPreferences.error',
+  'matchFirst.additionalPreferences.empty',
+  'matchFirst.additionalPreferences.examples.coast',
+  'matchFirst.additionalPreferences.examples.dailyMarket',
+  'matchFirst.additionalPreferences.examples.swimmingWater',
+  'matchFirst.additionalPreferences.summaryTitle',
+  'matchFirst.additionalPreferences.status.scoreable',
+  'matchFirst.additionalPreferences.status.map_context_only',
+  'matchFirst.additionalPreferences.status.saved_unsupported',
+  'matchFirst.additionalPreferences.status.disallowed',
+  'matchFirst.additionalPreferences.status.needs_clarification',
+  'matchFirst.additionalPreferences.label.coast',
+  'matchFirst.additionalPreferences.label.placeOfWorship',
+  'matchFirst.additionalPreferences.label.protectedTrait',
+  'matchFirst.additionalPreferences.label.safetyClaim',
+  'matchFirst.additionalPreferences.label.unclassified',
+  'matchFirst.additionalPreferences.explanation.coastSavedUnsupported',
+  'matchFirst.additionalPreferences.explanation.placeOfWorshipMapContext',
+  'matchFirst.additionalPreferences.explanation.protectedTraitDisallowed',
+  'matchFirst.additionalPreferences.explanation.safetyNeedsClarification',
+  'matchFirst.additionalPreferences.explanation.unclassifiedNeedsClarification',
+  'matchFirst.additionalPreferences.remove',
   'matchFirst.review.eyebrow',
   'matchFirst.review.title',
   'matchFirst.review.body',
   'matchFirst.review.answerLabel',
   'matchFirst.review.showMatches',
   'matchFirst.review.missingAnswer',
+  'matchFirst.review.customPreferencesLabel',
+  'matchFirst.review.customPreferencesSkipped',
+  'matchFirst.review.customPreferencesMissing',
+  'matchFirst.review.editCustomPreferences',
   'matchFirst.progress.eyebrow',
   'matchFirst.progress.title',
   'matchFirst.progress.placeholder',
@@ -135,6 +172,7 @@ const requiredMatchKeys = [
   'matchFirst.neighborhood.selectedHouseTitle',
   'matchFirst.neighborhood.viewHouse',
   'matchFirst.neighborhood.closeHousePreview',
+  'matchFirst.neighborhood.boundaryLabel',
   'matchFirst.neighborhood.mapExplanationTitle',
   'matchFirst.neighborhood.mapExplanationBody',
   'matchFirst.neighborhood.mapClickHint',
@@ -213,4 +251,26 @@ it('keeps admin dashboard user-facing copy in i18n resources', async () => {
   expect(source).not.toContain('defaultValue');
   expect(getPath(en, 'match.admin.title')).toEqual(expect.any(String));
   expect(getPath(nl, 'match.admin.title')).toEqual(expect.any(String));
+});
+
+it('keeps legacy match feedback controls user-facing copy in i18n resources', async () => {
+  const source = await readFile(
+    join(process.cwd(), 'src/components/match/MatchFeedbackControls.tsx'),
+    'utf8',
+  );
+  const requiredFeedbackKeys = [
+    'match.feedback.title',
+    'match.feedback.saving',
+    'match.feedback.love',
+    'match.feedback.maybe',
+    'match.feedback.notForMe',
+    'match.feedback.explanation.updatedRanking',
+    'match.feedback.error',
+  ];
+
+  expect(source).not.toContain('defaultValue');
+  for (const key of requiredFeedbackKeys) {
+    expect(getPath(en, key), `Missing EN key ${key}`).toEqual(expect.any(String));
+    expect(getPath(nl, key), `Missing NL key ${key}`).toEqual(expect.any(String));
+  }
 });

@@ -30,6 +30,7 @@ import type {
   MatchResultsResponse,
 } from '../../types/matchFirst';
 import type { MatchReturnContext } from '../../routing/hashRoutes';
+import { buildHashRoute } from '../../routing/hashRoutes';
 import AmenityTags from './AmenityTags';
 import './MatchFirstLanding.css';
 import './NeighborhoodDetail.css';
@@ -60,6 +61,7 @@ interface BuildingData {
   requestKey: string;
   buildings: MatchNeighborhoodBuildingsResponse | null;
   failed: boolean;
+  loadingMore: boolean;
 }
 
 interface CandidateAddressSelection {
@@ -71,6 +73,10 @@ interface CandidateAddressSelection {
 const APPROVED_BASEMAP_THEMES = new Set(['standaard', 'grijs', 'pastel']);
 const APPROVED_PDOK_BRT_WMTS_PREFIX = 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/';
 const BLOCKED_BASEMAP_PROVIDERS = ['openstreetmap', 'mapbox', 'google'];
+const AMENITY_RETRY_DELAY_MS = 500;
+const MAX_AMENITY_RETRIES = 2;
+const BUILDING_PAGE_LIMIT = 100;
+const MAX_BUILDING_PAGE_REQUESTS = 3;
 
 function visibleRecommendations(results: MatchResultsResponse): MatchNeighborhoodRecommendation[] {
   if (results.ranked_results.length > 0) return results.ranked_results;
@@ -83,6 +89,42 @@ function normalizeTranslationKey(code: string, prefix: string): string {
 
 function asBoundsAttribute(bounds: number[] | undefined): string | undefined {
   return bounds && bounds.length === 4 ? bounds.join(',') : undefined;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function mergeBuildingPage(
+  current: MatchNeighborhoodBuildingsResponse | null,
+  page: MatchNeighborhoodBuildingsResponse,
+): MatchNeighborhoodBuildingsResponse {
+  const byId = new Map<string, MatchNeighborhoodBuildingFeature>();
+  for (const building of current?.buildings ?? []) {
+    byId.set(building.building_id, building);
+  }
+  for (const building of page.buildings) {
+    byId.set(building.building_id, building);
+  }
+  const buildings = Array.from(byId.values());
+  return {
+    ...page,
+    buildings,
+    fallback_reason_code: buildings.length > 0 ? null : page.fallback_reason_code,
+    complete: page.complete ?? true,
+    next_cursor: page.next_cursor ?? null,
+    loaded_scope: page.loaded_scope ?? 'selected_neighborhood',
+    partial_reason_code: page.partial_reason_code ?? null,
+    source_refs: uniqueStrings([
+      ...(current?.source_refs ?? []),
+      ...page.source_refs,
+      ...buildings.flatMap((building) => building.source_refs),
+    ]),
+    limitations: uniqueStrings([
+      ...(current?.limitations ?? []),
+      ...page.limitations,
+    ]),
+  };
 }
 
 function getRestoredStateForDetail(
@@ -143,13 +185,16 @@ export default function NeighborhoodDetail({
   const [selectionFallbackKey, setSelectionFallbackKey] = useState<string | null>(null);
   const [selectionRecoveryContext, setSelectionRecoveryContext] = useState<MatchReturnContext | null>(null);
   const [activeAmenityKey, setActiveAmenityKey] = useState<string | null>(null);
+  const [amenityRetryNonce, setAmenityRetryNonce] = useState(0);
   const [basemapConfig, setBasemapConfig] = useState<MatchResultsBasemapConfig | null>(null);
   const [basemapFailed, setBasemapFailed] = useState(false);
   const openedEventRef = useRef(false);
   const fallbackEventRef = useRef(false);
+  const buildingStatusEventRef = useRef<string | null>(null);
   const returnHydratedEventRef = useRef(false);
   const returnFailedEventRef = useRef(false);
   const basemapFailureEventRef = useRef(false);
+  const amenityRetryCountsRef = useRef(new Map<string, number>());
   const results = initialResults ?? fetchedResults;
 
   useEffect(() => {
@@ -200,13 +245,28 @@ export default function NeighborhoodDetail({
   const layersFailed = currentLayerData?.failed ?? false;
   const amenitiesFailed = currentLayerData?.amenitiesFailed ?? false;
   const loadingLayers = Boolean(layerRequestKey && !currentLayerData);
+  const amenityMarkerCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const point of amenities?.points ?? []) {
+      counts[point.amenity_key] = (counts[point.amenity_key] ?? 0) + 1;
+    }
+    return counts;
+  }, [amenities?.points]);
+  const amenityUnavailableByKey = useMemo(() => {
+    const unavailable: NonNullable<MatchNeighborhoodAmenitiesResponse['unavailable']> = amenities?.unavailable ?? [];
+    return Object.fromEntries(
+      unavailable.map((item) => [item.amenity_key, item]),
+    );
+  }, [amenities?.unavailable]);
   const buildingRequestKey = layers
     ? `${layerRequestKey}:${layers.allowed_bounds_rd.join(',')}`
     : null;
+  const buildingLayerUnavailable = layers?.building_layer.available === false;
   const currentBuildingData = buildingData?.requestKey === buildingRequestKey ? buildingData : null;
   const buildings = currentBuildingData?.buildings ?? null;
   const buildingsFailed = currentBuildingData?.failed ?? false;
-  const loadingBuildings = Boolean(buildingRequestKey && !currentBuildingData);
+  const loadingBuildings = Boolean(buildingRequestKey && !buildingLayerUnavailable && !currentBuildingData);
+  const loadingMoreBuildings = currentBuildingData?.loadingMore ?? false;
   const selectedBuilding = useMemo(() => (
     buildings?.buildings.find((building) => building.building_id === selectedBuildingId) ?? null
   ), [buildings?.buildings, selectedBuildingId]);
@@ -342,6 +402,7 @@ export default function NeighborhoodDetail({
     fallbackKey = 'matchFirst.neighborhood.noReliableAddress',
   ) => {
     if (!results || !recommendation) return;
+    setSelectedBuildingId(building.building_id);
     setCandidateAddressState(null);
     setSelectionFallbackKey(fallbackKey);
     setSelectionRecoveryContext(recoveryContext);
@@ -362,8 +423,33 @@ export default function NeighborhoodDetail({
     recoveryContext: MatchReturnContext,
     bridge: Awaited<ReturnType<typeof resolveDossierFromBuilding>>,
   ) => {
+    const openAddressRoute = (address: {
+      address_id?: string | null;
+      vbo_id?: string | null;
+      lookup_id?: string | null;
+    }) => {
+      const vboId = address.vbo_id ?? address.address_id ?? null;
+      if (!vboId) return false;
+      const route = buildHashRoute({
+        route: 'dossier',
+        vboId,
+        lookupId: address.lookup_id ?? undefined,
+        matchReturn: {
+          ...recoveryContext,
+          addressId: vboId,
+          buildingId: building.building_id,
+          selectedHouseId: building.building_id,
+        },
+      });
+      return onOpenDossier?.(route) === true;
+    };
+
     if (bridge.status === 'resolved' && bridge.route) {
-      const routeAccepted = onOpenDossier?.(bridge.route) === true;
+      const routeAccepted = openAddressRoute({
+        address_id: bridge.address_candidate?.address_id ?? bridge.vbo_id,
+        vbo_id: bridge.address_candidate?.vbo_id ?? bridge.vbo_id,
+        lookup_id: bridge.address_candidate?.lookup_id ?? bridge.lookup_id,
+      }) || onOpenDossier?.(bridge.route) === true;
       if (routeAccepted) {
         return;
       }
@@ -376,13 +462,13 @@ export default function NeighborhoodDetail({
     }
 
     if (bridge.status === 'candidates' && bridge.candidate_addresses.length > 0) {
-      setCandidateAddressState({
+      const routeAccepted = openAddressRoute(bridge.candidate_addresses[0]);
+      if (routeAccepted) return;
+      showBridgeFallback(
         building,
-        addresses: bridge.candidate_addresses,
         recoveryContext,
-      });
-      setSelectionFallbackKey(null);
-      setSelectionRecoveryContext(recoveryContext);
+        bridge.fallback_reason_code ?? 'match.neighborhood.address_candidate_selection_required',
+      );
       return;
     }
 
@@ -456,6 +542,32 @@ export default function NeighborhoodDetail({
     setSelectionFallbackKey(null);
     setSelectionRecoveryContext(null);
 
+    if (building.vbo_id || building.address_id) {
+      const route = buildHashRoute({
+        route: 'dossier',
+        vboId: building.vbo_id ?? building.address_id ?? undefined,
+        lookupId: building.lookup_id ?? undefined,
+        matchReturn: {
+          ...bridgeContext.recoveryContext,
+          addressId: building.vbo_id ?? building.address_id ?? undefined,
+          buildingId: building.building_id,
+          selectedHouseId: building.building_id,
+        },
+      });
+      const routeAccepted = onOpenDossier?.(route) === true;
+      if (routeAccepted) {
+        setPendingBuildingId(null);
+        return;
+      }
+    }
+
+    setSelectedBuildingId(null);
+    if (onSearchManually) {
+      onSearchManually(bridgeContext.recoveryContext);
+      setPendingBuildingId(null);
+      return;
+    }
+
     try {
       const bridge = await resolveDossierFromBuilding({
         session_id: results.session_id,
@@ -506,6 +618,7 @@ export default function NeighborhoodDetail({
 
   const handleAmenityFilterClick = (amenityKey: string) => {
     if (!results || !recommendation) return;
+    if ((amenityMarkerCounts[amenityKey] ?? 0) === 0) return;
     const nextAmenityKey = activeAmenityKey === amenityKey ? null : amenityKey;
     setActiveAmenityKey(nextAmenityKey);
     recordMatchFirstEvent('match_amenity_interacted', {
@@ -519,6 +632,11 @@ export default function NeighborhoodDetail({
       status: nextAmenityKey ? 'selected' : 'cleared',
     });
   };
+
+  useEffect(() => {
+    if (!activeAmenityKey || (amenityMarkerCounts[activeAmenityKey] ?? 0) > 0) return;
+    setActiveAmenityKey(null);
+  }, [activeAmenityKey, amenityMarkerCounts]);
 
   const recordBasemapFailure = useCallback((reason: string) => {
     if (basemapFailureEventRef.current) return;
@@ -576,6 +694,7 @@ export default function NeighborhoodDetail({
   useEffect(() => {
     if (!results || !recommendation || !layerRequestKey) return;
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     void Promise.allSettled([
       getMatchNeighborhood(neighborhoodId),
@@ -617,6 +736,7 @@ export default function NeighborhoodDetail({
         }
 
         if (amenitiesFailed) {
+          const retryCount = amenityRetryCountsRef.current.get(layerRequestKey) ?? 0;
           recordMatchFirstEvent('match_amenity_layer_failed', {
             locale,
             source: 'neighborhood',
@@ -625,39 +745,126 @@ export default function NeighborhoodDetail({
             neighborhood_id: neighborhoodId,
             reason: 'amenity_fetch_failed',
           });
+          if (retryCount < MAX_AMENITY_RETRIES) {
+            amenityRetryCountsRef.current.set(layerRequestKey, retryCount + 1);
+            retryTimer = setTimeout(() => {
+              if (!cancelled) {
+                setAmenityRetryNonce((value) => value + 1);
+              }
+            }, AMENITY_RETRY_DELAY_MS);
+          }
+        } else {
+          amenityRetryCountsRef.current.delete(layerRequestKey);
         }
       });
 
     return () => {
       cancelled = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
     };
-  }, [layerRequestKey, locale, neighborhoodId, recommendation, results, sessionId]);
+  }, [amenityRetryNonce, layerRequestKey, locale, neighborhoodId, recommendation, results, sessionId]);
 
   useEffect(() => {
     if (!results || !layers || !buildingRequestKey) return;
+    if (layers.building_layer.available === false) {
+      setBuildingData({
+        requestKey: buildingRequestKey,
+        buildings: null,
+        failed: false,
+        loadingMore: false,
+      });
+      return;
+    }
     let cancelled = false;
-    void getMatchNeighborhoodBuildings(neighborhoodId, {
-      sessionId,
-      resultSetId: results.result_set_id,
-      boundsRd: layers.allowed_bounds_rd,
-      lod: 'low',
-      limit: 50,
-    })
-      .then((response) => {
+    const resultSetId = results.result_set_id;
+    const allowedBoundsRd = layers.allowed_bounds_rd;
+    const requestKey = buildingRequestKey;
+    async function loadBuildingPages() {
+      let merged: MatchNeighborhoodBuildingsResponse | null = null;
+      let cursor: string | null = null;
+      let pageCount = 0;
+
+      while (!cancelled && pageCount < MAX_BUILDING_PAGE_REQUESTS) {
+        let response: MatchNeighborhoodBuildingsResponse;
+        try {
+          response = await getMatchNeighborhoodBuildings(neighborhoodId, {
+            sessionId,
+            resultSetId,
+            boundsRd: allowedBoundsRd,
+            lod: 'low',
+            limit: BUILDING_PAGE_LIMIT,
+            cursor,
+          });
+        } catch (error) {
+          if (!merged) {
+            throw error;
+          }
+          if (!cancelled) {
+            setBuildingData({
+              requestKey,
+              buildings: {
+                ...merged,
+                fallback_reason_code: null,
+                complete: false,
+                next_cursor: cursor,
+                partial_reason_code: merged.partial_reason_code ?? 'match.buildings.provider_partial',
+              },
+              failed: false,
+              loadingMore: false,
+            });
+            recordMatchFirstEvent('match_building_layer_failed', {
+              locale,
+              source: 'neighborhood',
+              session_id: sessionId,
+              result_set_id: resultSetId,
+              neighborhood_id: neighborhoodId,
+              reason: error instanceof MatchFirstApiError && error.status === 429
+                ? 'building_page_rate_limited'
+                : 'building_page_fetch_failed',
+            });
+          }
+          return;
+        }
+        pageCount += 1;
+        merged = mergeBuildingPage(merged, response);
+        const nextCursor = response.next_cursor ?? null;
+        const hasNextPage = Boolean(nextCursor && !response.complete);
+        const hitPageLimit = hasNextPage && pageCount >= MAX_BUILDING_PAGE_REQUESTS;
+        const visibleResponse = hitPageLimit
+          ? {
+            ...merged,
+            complete: false,
+            next_cursor: nextCursor,
+            partial_reason_code: response.partial_reason_code ?? 'match.buildings.more_available',
+          }
+          : merged;
+
         if (!cancelled) {
           setBuildingData({
-            requestKey: buildingRequestKey,
-            buildings: response,
+            requestKey,
+            buildings: visibleResponse,
             failed: false,
+            loadingMore: hasNextPage && !hitPageLimit,
           });
         }
-      })
+
+        if (!nextCursor || response.complete || hitPageLimit) {
+          break;
+        }
+        cursor = nextCursor;
+      }
+    }
+
+    void loadBuildingPages()
       .catch(() => {
         if (!cancelled) {
           setBuildingData({
             requestKey: buildingRequestKey,
             buildings: null,
             failed: true,
+            loadingMore: false,
           });
           recordMatchFirstEvent('match_building_layer_failed', {
             locale,
@@ -677,7 +884,7 @@ export default function NeighborhoodDetail({
   useEffect(() => {
     if (!buildings?.fallback_reason_code || fallbackEventRef.current) return;
     fallbackEventRef.current = true;
-    recordMatchFirstEvent('match_missing_3d_fallback_shown', {
+    recordMatchFirstEvent('match_missing_footprint_fallback_shown', {
       locale,
       source: 'neighborhood',
       session_id: sessionId,
@@ -686,6 +893,26 @@ export default function NeighborhoodDetail({
       fallback_reason_code: buildings.fallback_reason_code,
     });
   }, [buildings, locale, neighborhoodId, sessionId]);
+
+  useEffect(() => {
+    if (!buildings || !buildingRequestKey) return;
+    const status = buildings.complete ? 'complete' : 'partial';
+    const eventKey = `${buildingRequestKey}:${status}:${buildings.partial_reason_code ?? ''}`;
+    if (buildingStatusEventRef.current === eventKey) return;
+    buildingStatusEventRef.current = eventKey;
+    recordMatchFirstEvent(
+      buildings.complete ? 'match_building_layer_complete' : 'match_building_layer_partial',
+      {
+        locale,
+        source: 'neighborhood',
+        session_id: sessionId,
+        result_set_id: buildings.result_set_id,
+        neighborhood_id: neighborhoodId,
+        status,
+        reason: buildings.partial_reason_code ?? status,
+      },
+    );
+  }, [buildingRequestKey, buildings, locale, neighborhoodId, sessionId]);
 
   if (!results && !resultsUnavailable) {
     return (
@@ -725,6 +952,7 @@ export default function NeighborhoodDetail({
       aria-labelledby="match-neighborhood-title"
       data-testid="neighborhood-detail"
       data-neighborhood-id={neighborhoodId}
+      data-layout="map-with-context-rail"
       data-building-requested={buildings || loadingBuildings ? 'true' : 'false'}
       data-building-bounds-rd={asBoundsAttribute(buildings?.bounds_rd ?? layers?.allowed_bounds_rd)}
     >
@@ -732,7 +960,7 @@ export default function NeighborhoodDetail({
         <button type="button" className="neighborhood-detail__back" onClick={onBackToResults}>
           {t('matchFirst.neighborhood.backToResults')}
         </button>
-        <div>
+        <div className="neighborhood-detail__title">
           <p className="match-first-landing__eyebrow">{t('matchFirst.neighborhood.eyebrow')}</p>
           <h1 id="match-neighborhood-title">{recommendation.name}</h1>
           <p className="neighborhood-detail__summary">
@@ -744,7 +972,7 @@ export default function NeighborhoodDetail({
         </div>
       </header>
 
-      <div className="neighborhood-detail__body">
+      <div className="neighborhood-detail__body neighborhood-detail__workspace" data-testid="neighborhood-detail-workspace">
         <div
           className="neighborhood-detail__map"
           role="region"
@@ -757,7 +985,7 @@ export default function NeighborhoodDetail({
           <NeighborhoodBuildingLayer
             layers={layers}
             buildings={buildings}
-            loading={loadingLayers || loadingBuildings}
+            loading={loadingLayers || loadingBuildings || loadingMoreBuildings}
             failed={layersFailed || buildingsFailed}
             selectedBuildingId={selectedBuildingId}
             amenityPoints={amenities?.points ?? []}
@@ -862,29 +1090,32 @@ export default function NeighborhoodDetail({
         </div>
 
         <aside className="neighborhood-detail__side" aria-label={t('matchFirst.neighborhood.contextLabel')}>
-          <section className="neighborhood-detail__panel" aria-labelledby="match-neighborhood-fit-title">
-            <h2 id="match-neighborhood-fit-title">{t('matchFirst.neighborhood.fitContextTitle')}</h2>
-            <p className="neighborhood-detail__metric">
-              {t('matchFirst.results.fitScore', { score: recommendation.fit_score })}
-            </p>
-            {reasonLines.length > 0 && (
-              <ul className="neighborhood-detail__reasons" aria-label={t('matchFirst.results.reasonLinesLabel')}>
-                {reasonLines.map((line) => <li key={line}>{line}</li>)}
-              </ul>
-            )}
-          </section>
+          <div className="neighborhood-detail__context-rail" data-testid="neighborhood-detail-context-rail">
+            <section className="neighborhood-detail__context-section" aria-labelledby="match-neighborhood-fit-title">
+              <h2 id="match-neighborhood-fit-title">{t('matchFirst.neighborhood.fitContextTitle')}</h2>
+              <p className="neighborhood-detail__metric">
+                {t('matchFirst.results.fitScore', { score: recommendation.fit_score })}
+              </p>
+              {reasonLines.length > 0 && (
+                <ul className="neighborhood-detail__reasons" aria-label={t('matchFirst.results.reasonLinesLabel')}>
+                  {reasonLines.map((line) => <li key={line}>{line}</li>)}
+                </ul>
+              )}
+            </section>
 
-          <section className="neighborhood-detail__panel" aria-labelledby="match-neighborhood-amenities-title">
-            <h2 id="match-neighborhood-amenities-title">{t('matchFirst.neighborhood.amenitiesTitle')}</h2>
-            <AmenityTags
-              tags={amenities?.tags ?? []}
-              loading={loadingLayers && !amenities}
-              failed={amenitiesFailed}
-              activeAmenityKey={activeAmenityKey}
-              onFilterClick={(tag) => handleAmenityFilterClick(tag.amenity_key)}
-            />
-          </section>
-
+            <section className="neighborhood-detail__context-section" aria-labelledby="match-neighborhood-amenities-title">
+              <h2 id="match-neighborhood-amenities-title">{t('matchFirst.neighborhood.amenitiesTitle')}</h2>
+              <AmenityTags
+                tags={amenities?.tags ?? []}
+                loading={loadingLayers && !amenities}
+                failed={amenitiesFailed}
+                activeAmenityKey={activeAmenityKey}
+                markerCountsByAmenity={amenityMarkerCounts}
+                unavailableByAmenity={amenityUnavailableByKey}
+                onFilterClick={(tag) => handleAmenityFilterClick(tag.amenity_key)}
+              />
+            </section>
+          </div>
         </aside>
       </div>
     </section>

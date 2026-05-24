@@ -357,7 +357,7 @@ Persistence and cache:
 
 External data dependencies configured in `backend/app/config.py`:
 
-- PDOK Locatieserver, BAG WFS, PDOK Luchtfoto WMS, PDOK BRT WMS.
+- PDOK Locatieserver, BAG WFS, PDOK BAG OGC v2, PDOK Luchtfoto WMS, PDOK BRT WMS.
 - 3DBAG API.
 - RIVM ALO/noise and GCN/air WMS.
 - Climate Atlas WMS and layer index.
@@ -370,7 +370,7 @@ External data dependencies configured in `backend/app/config.py`:
 
 Address/Dossier services:
 
-- `locatieserver.py`, `bag.py`, `three_d_bag.py`, `wms_tile.py`,
+- `locatieserver.py`, `bag.py`, `bag_ogc.py`, `three_d_bag.py`, `wms_tile.py`,
   `cbs.py`, `leefbaarometer.py`, `risk_cards.py`,
   `risk_comparisons.py`, `foundation_risk.py`, `property_warnings.py`,
   `viewing_questions.py`, `source_orchestrator.py`, source connectors,
@@ -477,9 +477,27 @@ Lockfiles:
 - Neighborhood-to-house-to-Dossier bridge is not implemented. Current address
   Dossier entry starts from Locatieserver lookup/VBO id, not from a building
   clicked in a recommendation map.
-- Current 3D support is Dossier/address-centered. PRD selected-neighborhood 3D
-  requires strict neighborhood-scoped loading and must not reuse any pattern
-  that fetches broad/national 3D data.
+- Current 3D support is Dossier/address-centered. PRD selected-neighborhood
+  buildings for match-first must render as neighborhood-scoped 2D footprints on
+  the 2D basemap, and must not reuse any pattern that fetches broad/national 3D
+  or building-footprint data.
+- The 2026-05-22 PRD update clarifies that selected-neighborhood detail should
+  show all available footprints inside the selected neighborhood or current
+  selected-neighborhood viewport, progressively loaded with honest partial
+  state copy. The current implementation evidence proves scoped/non-national
+  requests and boundary clipping, but not all-available paging/completion
+  metadata yet.
+- The 2026-05-22 BAG semantic update clarifies that selected-neighborhood
+  footprints are BAG `pand` records, while house-candidate semantics come from
+  linked `verblijfsobject.gebruiksdoel`. The current selected-neighborhood path
+  now prefers PDOK BAG OGC v2 `pand` geometry because it includes
+  `gebruiksdoel`, `status`, and `aantal_verblijfsobjecten`; 3DBAG remains a
+  fallback/richer-detail source and does not by itself provide parsed
+  use-purpose metadata in the current model.
+- The 2026-05-21 PRD update adds optional additional-preference intake. The
+  current architecture has no typed custom-preference registry, extraction
+  endpoint, review UI, or tests proving LLM extraction cannot score, rank,
+  exclude, infer protected traits, or persist raw free-text analytics content.
 - Match data is seeded/mock for current scoring. Until real labels and
   validation data exist, UI copy and API contracts must keep deterministic
   scoring, confidence, limitations, and mock/source metadata explicit.

@@ -5,19 +5,29 @@
 }
 
 .match-alerts__eyebrow {
-  color: var(--color-text-muted, #5d6b78);
+  color: var(--color-text-muted);
 }
 
 .match-alerts__suggestions,
-.match-alerts__form,
-.match-alerts__list,
-.match-alerts__item {
+.match-alerts__list {
   display: grid;
   gap: 12px;
 }
 
+.match-alerts__item {
+  display: grid;
+  gap: 12px;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  padding: 16px 0;
+  background: transparent;
+}
+
 .match-alerts__form {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1.35fr) minmax(150px, 0.65fr);
   align-items: end;
 }
 
@@ -28,16 +38,10 @@
 
 .match-alerts__form input,
 .match-alerts__form select {
-  min-height: 42px;
-  border: 1px solid var(--color-border, #d8e2ea);
+  min-height: 44px;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 0 12px;
-}
-
-.match-alerts__item {
-  border: 1px solid var(--color-border, #d8e2ea);
-  border-radius: 8px;
-  padding: 16px;
 }
 
 .match-alerts__actions {
@@ -46,8 +50,53 @@
   gap: 8px;
 }
 
+.match-alerts__suggestions button,
+.match-alerts__form button,
+.match-alerts__actions button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.match-alerts__suggestions button {
+  justify-self: start;
+  text-align: left;
+}
+
+.match-alerts__suggestions button:focus-visible,
+.match-alerts__form button:focus-visible,
+.match-alerts__actions button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
+}
+
+.match-alerts__suggestions button:active:not(:disabled),
+.match-alerts__form button:active:not(:disabled),
+.match-alerts__actions button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
 @media (max-width: 720px) {
   .match-alerts {
     padding: 16px;
+  }
+
+  .match-alerts__form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-alerts__suggestions button,
+  .match-alerts__form button,
+  .match-alerts__actions button {
+    transition: none;
   }
 }

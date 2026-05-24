@@ -49,7 +49,6 @@ export default function HeroMapBackground() {
           onError={() => setImageStatus('fallback')}
         />
       )}
-      <div className="hero-map-background__grid" />
     </div>
   );
 }

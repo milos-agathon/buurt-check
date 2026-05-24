@@ -1,7 +1,5 @@
 .matching-progress {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.9)),
-    var(--landing-bg-top);
+  background: var(--landing-bg-top);
 }
 
 .matching-progress__map-lines {
@@ -17,8 +15,7 @@
   height: 18px;
   border: 1px solid color-mix(in srgb, var(--color-accent-text) 28%, transparent);
   border-radius: var(--radius-pill);
-  background:
-    linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent-text) 18%, transparent), transparent);
+  background: color-mix(in srgb, var(--color-accent-text) 10%, var(--color-surface));
   animation: matching-progress-drift 2.4s ease-in-out infinite;
 }
 
@@ -40,11 +37,11 @@
   border: 0;
   border-radius: var(--radius-pill);
   overflow: hidden;
-  background: var(--color-border-subtle);
+  background: var(--landing-border-soft);
 }
 
 .matching-progress__bar::-webkit-progress-bar {
-  background: var(--color-border-subtle);
+  background: var(--landing-border-soft);
 }
 
 .matching-progress__bar::-webkit-progress-value {
