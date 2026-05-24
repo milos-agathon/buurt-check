@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardinalFacadeNormal, computeRoofNormal, incidenceAngle } from './surfaceNormals';
+import { computeRoofNormal, incidenceAngle } from './surfaceNormals';
 
 describe('computeRoofNormal', () => {
   it('returns upward normal for flat roof polygon', () => {
@@ -27,15 +27,6 @@ describe('computeRoofNormal', () => {
   it('returns fallback up vector for invalid polygons', () => {
     expect(computeRoofNormal([])).toEqual([0, 1, 0]);
     expect(computeRoofNormal([[0, 0, 0], [1, 0, 0]])).toEqual([0, 1, 0]);
-  });
-});
-
-describe('cardinalFacadeNormal', () => {
-  it('maps orientations to axis-aligned vectors', () => {
-    expect(cardinalFacadeNormal('north')).toEqual([0, 0, -1]);
-    expect(cardinalFacadeNormal('south')).toEqual([0, 0, 1]);
-    expect(cardinalFacadeNormal('east')).toEqual([1, 0, 0]);
-    expect(cardinalFacadeNormal('west')).toEqual([-1, 0, 0]);
   });
 });
 

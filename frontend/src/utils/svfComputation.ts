@@ -314,55 +314,6 @@ function computeIsotropicSvfFromFaces(
 }
 
 /**
- * Compute SVF at a single point using a cubemap render + sky classification.
- */
-export function computeSvf(
-  renderer: WebGLRenderer,
-  buildingMeshes: Object3D[],
-  evalPoint: [number, number, number],
-): number {
-  const res = createSvfSceneResources(buildingMeshes);
-
-  try {
-    const facePixels = renderAndReadCubemapFaces(renderer, res, evalPoint);
-    return computeIsotropicSvfFromFaces(facePixels);
-  } finally {
-    disposeSvfSceneResources(res, renderer);
-  }
-}
-
-/**
- * Compute anisotropic SVF at a single point using Perez luminance weighting.
- *
- * Instead of uniform cosine weighting over the hemisphere, each Tregenza sky
- * patch is weighted by the Perez all-weather sky luminance distribution for
- * the given sun position. This captures directional sky brightness.
- *
- * @param renderer - WebGL renderer
- * @param buildingMeshes - building geometry for obstruction
- * @param evalPoint - [x, y, z] evaluation point
- * @param sunAlt - solar altitude in radians [0, PI/2]
- * @param sunAz - solar azimuth in radians [0, 2*PI), 0 = north, clockwise
- * @returns Anisotropic SVF in [0, 1]
- */
-export function computeAnisotropicSvfFromCubemap(
-  renderer: WebGLRenderer,
-  buildingMeshes: Object3D[],
-  evalPoint: [number, number, number],
-  sunAlt: number,
-  sunAz: number,
-): number {
-  const res = createSvfSceneResources(buildingMeshes);
-
-  try {
-    const facePixels = renderAndReadCubemapFaces(renderer, res, evalPoint);
-    return computeAnisotropicSvfFromFaces(facePixels, sunAlt, sunAz);
-  } finally {
-    disposeSvfSceneResources(res, renderer);
-  }
-}
-
-/**
  * Compute anisotropic SVF from pre-read cubemap face pixel data.
  *
  * For each of 145 Tregenza sky patches:

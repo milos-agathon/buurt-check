@@ -69,7 +69,7 @@ export interface SunlightAnalysisOptions {
 const DEFAULT_INTERVAL_MINUTES = 30;
 const DEFAULT_CHUNK_RAYCASTS = 200;
 const SELF_HIT_EPSILON_METERS = 0.15;
-export const SUNLIGHT_METHOD_VERSION = 'sunlight-v2-interval-dayweighted';
+const SUNLIGHT_METHOD_VERSION = 'sunlight-v2-interval-dayweighted';
 const ORIENTATION_ORDER: Record<FacadeSunlightResult['orientation'], number> = {
   north: 0,
   east: 1,
@@ -136,16 +136,7 @@ export function getSampleIntervalsForDay(
   return intervals;
 }
 
-export function getSampleMinutesForDay(
-  sunriseHour: number,
-  sunsetHour: number,
-  intervalMinutes: number,
-): number[] {
-  return getSampleIntervalsForDay(sunriseHour, sunsetHour, intervalMinutes)
-    .map((interval) => Math.round(interval.midpointMinute));
-}
-
-export function yieldToMainThread(): Promise<void> {
+function yieldToMainThread(): Promise<void> {
   return new Promise((resolve) => {
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       let resolved = false;

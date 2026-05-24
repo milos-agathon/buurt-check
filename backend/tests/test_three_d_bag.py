@@ -18,6 +18,8 @@ from app.services.three_d_bag import (
     _fetch_target_building,
     _parse_building,
     _quadrant_bboxes,
+    get_buildings_in_rd_bounds,
+    get_buildings_in_rd_bounds_page,
     get_neighborhood_3d,
     get_target_building_3d,
 )
@@ -290,6 +292,30 @@ def _make_single_item_response(
     }
 
 
+def _make_single_item_lod22_response(
+    pand_id="0363100012253924",
+    h_maaiveld=1.75,
+    h_dak_max=10.0,
+    year=1917,
+):
+    feature = _make_feature_with_lod22_child(pand_id, h_maaiveld, h_dak_max, year)
+    co_name = f"NL.IMBAG.Pand.{pand_id}"
+    return {
+        "type": "CityJSONFeature",
+        "id": co_name,
+        "feature": {
+            "CityObjects": feature["CityObjects"],
+            "vertices": feature["vertices"],
+        },
+        "metadata": {
+            "transform": {
+                "scale": [0.001, 0.001, 0.001],
+                "translate": [121000.0, 487000.0, 0.0],
+            }
+        },
+    }
+
+
 def _make_mock_resp(data):
     """Create a MagicMock HTTP response with the given JSON data."""
     resp = MagicMock()
@@ -298,7 +324,7 @@ def _make_mock_resp(data):
     return resp
 
 
-def _route_responses(direct_resp, bbox_resp):
+def _route_responses(bbox_resp):
     """Create a side_effect function that routes by URL pattern.
 
     Any single-item request returns a matching single-item payload for that pand_id,
@@ -511,12 +537,9 @@ async def test_get_neighborhood_3d_single_page(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    direct_data = _make_single_item_response()
     bbox_data = _make_3dbag_response([_make_feature()])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id="0363100012253924",
@@ -963,13 +986,10 @@ async def test_get_neighborhood_3d_target_via_direct(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    direct_data = _make_single_item_response("0363100012253924")
     # Bbox only has a different building
     bbox_data = _make_3dbag_response([_make_feature("0363100099999999")])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id="0363100012253924",
@@ -994,16 +1014,13 @@ async def test_get_neighborhood_3d_deduplication(mock_get_client):
     mock_get_client.return_value = mock_client
 
     pand_id = "0363100012253924"
-    direct_data = _make_single_item_response(pand_id)
     # Bbox also has the same target + another building
     bbox_data = _make_3dbag_response([
         _make_feature(pand_id),
         _make_feature("0363100099999999"),
     ])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id=pand_id,
@@ -1027,12 +1044,9 @@ async def test_get_neighborhood_3d_vbo_id_as_address_id(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    direct_data = _make_single_item_response()
     bbox_data = _make_3dbag_response([])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id="0363100012253924",
@@ -1053,12 +1067,9 @@ async def test_get_neighborhood_3d_address_id_fallback_to_pand_id(mock_get_clien
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    direct_data = _make_single_item_response()
     bbox_data = _make_3dbag_response([])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id="0363100012253924",
@@ -1487,12 +1498,9 @@ async def test_neighborhood_context_gets_lod22_from_bbox_without_enrichment(
 
     target_id = "0363100012253924"
     neighbor_id = "0363100099999999"
-    direct_data = _make_single_item_response(target_id)
     bbox_data = _make_3dbag_response([_make_feature_with_lod22_child(neighbor_id)])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id=target_id,
@@ -1506,6 +1514,101 @@ async def test_neighborhood_context_gets_lod22_from_bbox_without_enrichment(
     assert neighbor is not None
     assert neighbor.roof_surfaces is not None
     assert len(neighbor.roof_surfaces) == 6
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._get_client")
+async def test_selected_bounds_page_returns_cursor_and_accepts_next_cursor(
+    mock_get_client, mock_settings,
+):
+    mock_settings.enable_lod22_roofs = True
+    mock_settings.three_d_bag_base = "https://api.3dbag.nl"
+
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    next_url = (
+        "https://api.3dbag.nl/collections/pand/items"
+        "?bbox=121000,487000,121020,487020&offset=100&limit=1"
+    )
+    first_id = "0363100012253924"
+    second_id = "0363100012253925"
+    first_page = _make_3dbag_response([_make_feature(first_id)], next_link=next_url)
+    second_page = _make_3dbag_response([_make_feature(second_id)])
+    seen_urls: list[str] = []
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        seen_urls.append(s_url)
+        if f"NL.IMBAG.Pand.{first_id}" in s_url:
+            return _make_mock_resp(_make_single_item_response(first_id))
+        if f"NL.IMBAG.Pand.{second_id}" in s_url:
+            return _make_mock_resp(_make_single_item_response(second_id))
+        if "offset=100" in s_url:
+            return _make_mock_resp(second_page)
+        return _make_mock_resp(first_page)
+
+    mock_client.get.side_effect = side_effect
+
+    first = await get_buildings_in_rd_bounds_page(
+        [121000.0, 487000.0, 121020.0, 487020.0],
+        limit=1,
+    )
+    second = await get_buildings_in_rd_bounds_page(
+        [121000.0, 487000.0, 121020.0, 487020.0],
+        limit=1,
+        cursor=first.next_cursor,
+    )
+
+    assert [block.pand_id for block in first.blocks] == [first_id]
+    assert first.next_cursor is not None
+    assert first.partial is False
+    assert [block.pand_id for block in second.blocks] == [second_id]
+    assert second.next_cursor is None
+    assert second.partial is False
+    assert any("bbox=121000,487000,121020,487020" in url for url in seen_urls)
+    assert any("offset=100" in url for url in seen_urls)
+
+
+@pytest.mark.asyncio
+@patch("app.services.three_d_bag.settings")
+@patch("app.services.three_d_bag._get_client")
+async def test_selected_bounds_fetch_enriches_lod0_bbox_buildings_to_lod22(
+    mock_get_client, mock_settings,
+):
+    """Selected-neighborhood bounds should not stop at bbox-only LoD0 blocks."""
+    mock_settings.enable_lod22_roofs = True
+    mock_settings.three_d_bag_base = "https://api.3dbag.nl"
+
+    mock_client = AsyncMock()
+    mock_get_client.return_value = mock_client
+
+    pand_id = "0363100012253924"
+    bbox_data = _make_3dbag_response([_make_feature(pand_id)])
+    seen_urls: list[str] = []
+
+    def side_effect(url, **kwargs):
+        s_url = str(url)
+        seen_urls.append(s_url)
+        if f"NL.IMBAG.Pand.{pand_id}" in s_url:
+            return _make_mock_resp(_make_single_item_lod22_response(pand_id))
+        return _make_mock_resp(bbox_data)
+
+    mock_client.get.side_effect = side_effect
+
+    buildings, partial = await get_buildings_in_rd_bounds(
+        [121000.0, 487000.0, 121020.0, 487020.0],
+        limit=1,
+    )
+
+    assert partial is False
+    assert len(buildings) == 1
+    assert buildings[0].pand_id == pand_id
+    assert buildings[0].roof_surfaces is not None
+    assert len(buildings[0].roof_surfaces) == 6
+    assert any("bbox=" in url for url in seen_urls)
+    assert any(f"NL.IMBAG.Pand.{pand_id}" in url for url in seen_urls)
 
 
 def test_accelerated_mode_constants_within_latency_bounds():

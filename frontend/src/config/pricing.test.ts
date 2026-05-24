@@ -10,19 +10,18 @@ describe('pricing config', () => {
   it('uses env fallback before API response', async () => {
     vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '3.99');
 
-    const { getDossierPrice, getDossierPriceDisplay } = await import('./pricing');
+    const { getDossierPrice } = await import('./pricing');
 
     expect(getDossierPrice()).toBe('3.99');
-    expect(getDossierPriceDisplay()).toBe('€3.99');
   });
 
-  it('updates cached price from /api/pricing', async () => {
+  it('updates cached price and server-render availability from /api/pricing', async () => {
     vi.stubEnv('VITE_DOSSIER_PRICE_EUR', '3.99');
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({
         price_eur: '19.99',
-        web_checkout_available: false,
+        server_render_available: true,
       }),
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -30,16 +29,14 @@ describe('pricing config', () => {
     const {
       fetchPrice,
       getDossierPrice,
-      getDossierPriceDisplay,
-      isWebCheckoutAvailable,
+      isServerRenderAvailable,
     } = await import('./pricing');
     const fetched = await fetchPrice();
 
     expect(fetchMock).toHaveBeenCalledWith('/api/pricing');
     expect(fetched).toBe('19.99');
     expect(getDossierPrice()).toBe('19.99');
-    expect(getDossierPriceDisplay()).toBe('€19.99');
-    expect(isWebCheckoutAvailable()).toBe(false);
+    expect(isServerRenderAvailable()).toBe(true);
   });
 
   it('keeps hosted web pricing requests first-party when VITE_API_BASE is cross-origin', async () => {

@@ -30,10 +30,10 @@ describe('TabBar', () => {
     expect(tabs).toHaveLength(3);
   });
 
-  it('labels the primary address entry tab as Search', () => {
+  it('labels the primary entry tab as Match, not Search', () => {
     renderTabBar();
-    expect(screen.getByRole('tab', { name: 'Search' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Home' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Match' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Search' })).not.toBeInTheDocument();
   });
 
   it('marks active tab', () => {

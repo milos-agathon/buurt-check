@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import type { SavedNeighborhood } from '../../types/match';
 import MatchShareExport from './MatchShareExport';
 import type { MatchLocale, ReportShareResponse } from '../../types/match';
+import { getSavedNeighborhoodDisplayName } from './matchDisplayLabels';
 import './MatchSaved.css';
 
 interface MatchSavedProps {
@@ -49,7 +50,7 @@ export default function MatchSaved({
         ) : (
           neighborhoods.map((saved) => (
             <article className="match-saved__item" key={saved.saved_neighborhood_id}>
-              <h2>{saved.neighborhood_id}</h2>
+              <h2>{getSavedNeighborhoodDisplayName(saved.neighborhood_id, saved.note, t)}</h2>
               <p>{t(`match.saved.from.${saved.saved_from}`)}</p>
               <button
                 type="button"

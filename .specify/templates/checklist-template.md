@@ -29,17 +29,20 @@
 
 ## Constitution Gates
 
-- [ ] CHKXXX Planning references `docs/prd.md` and `docs/context/current_architecture.md`
+- [ ] CHKXXX Planning references `docs/prd.md`, `docs/context/current_architecture.md`, `docs/ai/implementation_rules.md`, and `.specify/memory/constitution.md`
 - [ ] CHKXXX Checked feature, task, and acceptance criterion maps to a PRD requirement or section and a canonical journey step
 - [ ] CHKXXX Landing keeps one dominant match CTA and address search remains visually secondary
 - [ ] CHKXXX Survey/onboarding screens show one decision at a time and no dashboards, charts, feature grids, ads, or unrelated content
 - [ ] CHKXXX Every user-facing string has Dutch and English translation keys, including validation, fallback, progress, map, and Dossier return copy
-- [ ] CHKXXX Map work avoids national 3D building loads; loads/renders 3D houses only after neighborhood selection and only within selected-neighborhood bounds; uses viewport paging/LOD only inside that neighborhood; includes 2D fallback, reduced-motion fallback, and non-map list alternative
+- [ ] CHKXXX Map work avoids national building-footprint and national 3D building loads; loads/renders 2D building footprints only after neighborhood selection and only within selected-neighborhood bounds; uses viewport paging only inside that neighborhood; includes missing-footprint, reduced-motion, and non-map list alternatives
 - [ ] CHKXXX Model output is framed honestly as deterministic/semi-deterministic fit scoring unless labels and validation data support predictive claims
 - [ ] CHKXXX Existing Dossier behavior is preserved except for scoped route context and persistent back-to-match-map action
 - [ ] CHKXXX Keyboard navigation, screen-reader labels, touch targets, contrast, focus management, reduced motion, and non-map alternatives are covered
 - [ ] CHKXXX Each phase has appropriate tests or verification commands tied to acceptance criteria
 - [ ] CHKXXX Survey answers, session ID, selected neighborhood, map state, language, and Dossier return path survive navigation
+- [ ] CHKXXX `docs/qa/match_first_revamp_traceability.md` maps every touched PRD acceptance criterion to implementation files, tests/manual verification, and missing/partial/pass status
+- [ ] CHKXXX `docs/ai/latest_handoff.md` records completed work, commands run, pass/fail status, residual risks, and next steps after the phase
+- [ ] CHKXXX Work stays phase-scoped and avoids new frameworks, unrelated rewrites, and added product scope unless explicitly justified
 - [ ] CHKXXX Copy avoids unsupported claims about perfect fit, safety, happiness, investment certainty, future value, or guaranteed outcomes
 - [ ] CHKXXX Codebase conflicts are documented with the smallest safe change and follow-up criteria
 

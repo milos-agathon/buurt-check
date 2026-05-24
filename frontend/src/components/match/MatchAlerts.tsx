@@ -6,6 +6,7 @@ import type {
   MatchAlertRule,
   AlertStatus,
 } from '../../types/match';
+import { MATCH_PROPERTY_TYPE_OPTIONS, getMatchPropertyTypeLabel } from './matchDisplayLabels';
 import './MatchAlerts.css';
 
 interface SuggestedAlert {
@@ -50,6 +51,7 @@ export default function MatchAlerts({
   const [budget, setBudget] = useState('');
   const [rentBudget, setRentBudget] = useState('');
   const [propertyType, setPropertyType] = useState(suggestedAlerts[0]?.property_type ?? 'apartment');
+  const hasKnownPropertyType = MATCH_PROPERTY_TYPE_OPTIONS.some((option) => option.value === propertyType);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -149,7 +151,16 @@ export default function MatchAlerts({
         )}
         <label>
           {t('match.alerts.fields.propertyType')}
-          <input value={propertyType} onChange={(event) => setPropertyType(event.target.value)} required />
+          <select value={propertyType} onChange={(event) => setPropertyType(event.target.value)} required>
+            {!hasKnownPropertyType && (
+              <option value={propertyType}>{getMatchPropertyTypeLabel(propertyType, t)}</option>
+            )}
+            {MATCH_PROPERTY_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {t(option.labelKey)}
+              </option>
+            ))}
+          </select>
         </label>
         <button type="submit">{t('match.alerts.create')}</button>
       </form>
@@ -162,7 +173,8 @@ export default function MatchAlerts({
             <article className="match-alerts__item" key={alert.alert_id}>
               <h2>{alert.neighborhood_ids.join(', ')}</h2>
               <p>
-                {t(`match.quiz.journey.${alert.journey_intent}`)} · {alert.property_types.join(', ')}
+                {t(`match.quiz.journey.${alert.journey_intent}`)} ·{' '}
+                {alert.property_types.map((type) => getMatchPropertyTypeLabel(type, t)).join(', ')}
               </p>
               <p>{t(`match.alerts.status.${alert.status}`)}</p>
               <p>{t('match.alerts.mockDispatch')}</p>

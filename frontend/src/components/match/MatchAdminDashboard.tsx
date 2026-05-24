@@ -1,5 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import type { MatchAdminHealthResponse } from '../../types/match';
+import {
+  getMatchAdminAnomalyLabel,
+  getMatchAdminErrorLabel,
+  getMatchAdminEventLabel,
+  getMatchAdminSeverityLabel,
+  getMatchAdminStatusLabel,
+  getMatchAdminTraceStatusLabel,
+  getMatchDimensionLabel,
+  getMatchFreshnessStatusLabel,
+  getMatchProviderHealthLabel,
+  getMatchProviderModeLabel,
+} from './matchDisplayLabels';
 import './MatchAdminDashboard.css';
 
 interface MatchAdminDashboardProps {
@@ -70,7 +82,7 @@ export default function MatchAdminDashboard({
           <p className="match-admin__eyebrow">{t('match.admin.eyebrow')}</p>
           <h1 id="match-admin-title">{t('match.admin.title')}</h1>
         </div>
-        <strong>{health.overall_status}</strong>
+        <strong>{getMatchAdminStatusLabel(health.overall_status, t)}</strong>
       </header>
 
       <div className="match-admin__grid">
@@ -81,7 +93,7 @@ export default function MatchAdminDashboard({
             empty={t('match.admin.none')}
             render={(item) => {
               const indicator = item as MatchAdminHealthResponse['data_freshness'][number];
-              return `${indicator.label}: ${indicator.status} (${indicator.count})`;
+              return `${indicator.label}: ${getMatchFreshnessStatusLabel(indicator.status, t)} (${indicator.count})`;
             }}
           />
         </article>
@@ -92,7 +104,7 @@ export default function MatchAdminDashboard({
             empty={t('match.admin.none')}
             render={(item) => {
               const indicator = item as MatchAdminHealthResponse['missing_data'][number];
-              return `${indicator.metric_key}: ${indicator.count} ${indicator.severity}`;
+              return `${getMatchDimensionLabel(indicator.metric_key, t)}: ${indicator.count} ${getMatchAdminSeverityLabel(indicator.severity, t)}`;
             }}
           />
         </article>
@@ -103,7 +115,7 @@ export default function MatchAdminDashboard({
             empty={t('match.admin.none')}
             render={(item) => {
               const failure = item as MatchAdminHealthResponse['source_failures'][number];
-              return `${failure.provider_name}: ${failure.error_code}`;
+              return `${failure.provider_name}: ${getMatchAdminStatusLabel(failure.status, t)} - ${getMatchAdminErrorLabel(failure.error_code, t)}`;
             }}
           />
         </article>
@@ -114,7 +126,7 @@ export default function MatchAdminDashboard({
             empty={t('match.admin.none')}
             render={(item) => {
               const anomaly = item as MatchAdminHealthResponse['scoring_anomalies'][number];
-              return `${anomaly.anomaly_type}: ${anomaly.count} ${anomaly.severity}`;
+              return `${getMatchAdminAnomalyLabel(anomaly.anomaly_type, t)}: ${anomaly.count} ${getMatchAdminSeverityLabel(anomaly.severity, t)}`;
             }}
           />
         </article>
@@ -125,19 +137,19 @@ export default function MatchAdminDashboard({
             empty={t('match.admin.none')}
             render={(item) => {
               const provider = item as MatchAdminHealthResponse['listing_provider_status'][number];
-              return `${provider.name}: ${provider.mode} ${provider.health}`;
+              return `${provider.name}: ${getMatchProviderModeLabel(provider.mode, t)} - ${getMatchProviderHealthLabel(provider.health, t)}`;
             }}
           />
         </article>
         <article>
           <h2>{t('match.admin.alertDispatcherStatus')}</h2>
-          <p>{`${health.alert_dispatcher_status.provider_name}: ${health.alert_dispatcher_status.health}`}</p>
+          <p>{`${health.alert_dispatcher_status.provider_name}: ${getMatchProviderHealthLabel(health.alert_dispatcher_status.health, t)}`}</p>
           <CountList
             items={health.alert_dispatcher_status.failures}
             empty={t('match.admin.none')}
             render={(item) => {
               const failure = item as MatchAdminHealthResponse['alert_dispatcher_status']['failures'][number];
-              return `${failure.alert_id}: ${failure.error_code ?? '-'}`;
+              return `${failure.alert_id}: ${getMatchAdminErrorLabel(failure.error_code, t)}`;
             }}
           />
         </article>
@@ -148,7 +160,10 @@ export default function MatchAdminDashboard({
             empty={t('match.admin.none')}
             render={(item) => {
               const failure = item as Record<string, unknown>;
-              return `${String(failure.report_id ?? '-')}: ${String(failure.error_code ?? '-')}`;
+              const reportId = failure.report_id == null || String(failure.report_id).trim() === ''
+                ? t('match.admin.reportUnknown')
+                : String(failure.report_id);
+              return `${reportId}: ${getMatchAdminErrorLabel(String(failure.error_code ?? ''), t)}`;
             }}
           />
         </article>
@@ -159,7 +174,7 @@ export default function MatchAdminDashboard({
             empty={t('match.admin.none')}
             render={(item) => {
               const indicator = item as MatchAdminHealthResponse['mock_data_indicators'][number];
-              return `${indicator.label}: ${indicator.count}`;
+              return `${indicator.label}: ${getMatchFreshnessStatusLabel(indicator.status, t)} (${indicator.count})`;
             }}
           />
         </article>
@@ -170,7 +185,7 @@ export default function MatchAdminDashboard({
             empty={t('match.admin.none')}
             render={(item) => {
               const metric = item as MatchAdminHealthResponse['success_metrics'][number];
-              return `${metric.event_name}: ${metric.count}`;
+              return `${getMatchAdminEventLabel(metric.event_name, t)}: ${metric.count}`;
             }}
           />
         </article>
@@ -181,7 +196,7 @@ export default function MatchAdminDashboard({
             empty={t('match.admin.none')}
             render={(item) => {
               const trace = item as MatchAdminHealthResponse['prd_traceability'][number];
-              return `${trace.fr_id}: ${trace.label} (${trace.status})`;
+              return `${trace.fr_id}: ${trace.label} (${getMatchAdminTraceStatusLabel(trace.status, t)})`;
             }}
           />
         </article>

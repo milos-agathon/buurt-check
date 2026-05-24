@@ -62,3 +62,36 @@ it('creates alerts from suggested context and manages saved alerts', async () =>
   expect(screen.getByText('Mock notification recorded')).toBeInTheDocument();
 });
 
+it('uses localized property type labels while submitting stable property keys', async () => {
+  const onCreate = vi.fn();
+  render(
+    <I18nextProvider i18n={i18n}>
+      <MatchAlerts
+        alerts={[alert]}
+        suggestedAlerts={[{
+          neighborhood_id: 'nh_amsterdam_ijburg',
+          neighborhood_name: 'IJburg',
+          journey_intent: 'buy',
+          budget_max_cents: 65000000,
+          property_type: 'apartment',
+          source_context: 'report',
+        }]}
+        onCreate={onCreate}
+        onUpdateStatus={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    </I18nextProvider>,
+  );
+
+  expect(screen.getByText('Buy · Apartment')).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Apartment' })).toBeInTheDocument();
+  expect(screen.queryByText('Buy · apartment')).not.toBeInTheDocument();
+  expect(screen.queryByDisplayValue('apartment')).not.toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole('button', { name: /IJburg/i }));
+  await userEvent.click(screen.getByRole('button', { name: 'Create alert' }));
+
+  expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
+    property_types: ['apartment'],
+  }));
+});

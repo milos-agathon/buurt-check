@@ -102,16 +102,43 @@ it('renders validated report sections with claim metadata', () => {
 
   expect(screen.getByRole('heading', { name: 'Neighborhood report' })).toBeInTheDocument();
   expect(screen.getByText('Profile summary')).toBeInTheDocument();
-  expect(screen.getByText('AI explanation layer: deterministic fallback')).toBeInTheDocument();
+  expect(screen.getByText('AI explanation layer: Deterministic fallback')).toBeInTheDocument();
+  expect(screen.queryByText('AI explanation layer: deterministic fallback')).not.toBeInTheDocument();
   expect(screen.getByText('Scores cannot be changed by AI')).toBeInTheDocument();
   const claim = screen.getAllByText('Your preferences are translated into a structured neighborhood profile.')[1].closest('article');
   expect(claim).not.toBeNull();
   expect(within(claim as HTMLElement).getByText('Confidence')).toBeInTheDocument();
   expect(within(claim as HTMLElement).getByText('82/100')).toBeInTheDocument();
   expect(within(claim as HTMLElement).getByText('Freshness')).toBeInTheDocument();
-  expect(within(claim as HTMLElement).getByText('mock')).toBeInTheDocument();
+  expect(within(claim as HTMLElement).getByText('Mock data')).toBeInTheDocument();
+  expect(within(claim as HTMLElement).queryByText('mock')).not.toBeInTheDocument();
   expect(within(claim as HTMLElement).getByText('Sources')).toBeInTheDocument();
   expect(within(claim as HTMLElement).getByText('src_green')).toHaveClass('match-source-badge');
+});
+
+it('renders missing claim sources as localized report copy', () => {
+  const reportWithoutClaimSources: MatchReportResponse = {
+    ...report,
+    sections: [
+      {
+        ...report.sections[0],
+        claims: [
+          {
+            ...report.sections[0].claims[0],
+            source_refs: [],
+          },
+        ],
+      },
+    ],
+  };
+
+  renderReport(i18nEn, { report: reportWithoutClaimSources });
+
+  const claim = screen.getAllByText('Your preferences are translated into a structured neighborhood profile.')[1].closest('article');
+
+  expect(claim).not.toBeNull();
+  expect(within(claim as HTMLElement).getByText('No sources listed')).toBeInTheDocument();
+  expect(within(claim as HTMLElement).queryByText('-')).not.toBeInTheDocument();
 });
 
 it('renders fallback and empty states in the active locale', () => {
@@ -120,4 +147,6 @@ it('renders fallback and empty states in the active locale', () => {
   expect(screen.getByRole('heading', { name: 'Buurrapport' })).toBeInTheDocument();
   expect(screen.getByText('Er is nog geen rapportinhoud beschikbaar.')).toBeInTheDocument();
   expect(screen.getByText('Deterministische fallback gebruikt')).toBeInTheDocument();
+  expect(screen.getByText('AI-uitleglaag: Deterministische fallback')).toBeInTheDocument();
+  expect(screen.queryByText('AI-uitleglaag: deterministic fallback')).not.toBeInTheDocument();
 });

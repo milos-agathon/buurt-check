@@ -1,0 +1,58 @@
+.hero-map-background {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--landing-bg-mid);
+  pointer-events: none;
+}
+
+.hero-map-background::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--landing-bg-top) 78%, transparent);
+}
+
+.hero-map-background__image {
+  position: absolute;
+  inset: -6%;
+  width: 112%;
+  height: 112%;
+  object-fit: cover;
+  opacity: 0.34;
+  transform: translate3d(0, 0, 0) scale(1.02);
+}
+
+.hero-map-background[data-motion="standard"] .hero-map-background__image {
+  animation: hero-map-image-drift 24s ease-in-out infinite alternate;
+}
+
+.hero-map-background[data-motion="reduced"] .hero-map-background__image {
+  animation: none;
+  transform: none;
+}
+
+@keyframes hero-map-image-drift {
+  from {
+    opacity: 0.3;
+    transform: translate3d(-1.4%, -0.8%, 0) scale(1.02);
+  }
+
+  to {
+    opacity: 0.38;
+    transform: translate3d(1.2%, 0.9%, 0) scale(1.045);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-map-background__image {
+    animation: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .hero-map-background::after {
+    background: color-mix(in srgb, var(--landing-bg-top) 88%, transparent);
+  }
+}

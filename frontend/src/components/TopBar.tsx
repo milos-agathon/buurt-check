@@ -7,15 +7,23 @@ interface TopBarProps {
   onSettingsClick?: () => void;
   inert?: boolean;
   activeScreen?: string;
+  hideLanguageSwitcher?: boolean;
 }
 
 const LOGO_TITLE = 'buurt-check';
 const SETTINGS_GEAR_ROTATIONS = [0, 45, 90, 135, 180, 225, 270, 315];
 
-export default function TopBar({ title, onSettingsClick, inert, activeScreen }: TopBarProps) {
+export default function TopBar({
+  title,
+  onSettingsClick,
+  inert,
+  activeScreen,
+  hideLanguageSwitcher = false,
+}: TopBarProps) {
   const { t, i18n } = useTranslation();
   const [scrolled, setScrolled] = useState(false);
   const isLogo = title === LOGO_TITLE;
+  const locale = i18n.language.startsWith('nl') ? 'nl' : 'en';
 
   useEffect(() => {
     let dossierScrollRoot: HTMLElement | null = null;
@@ -62,27 +70,29 @@ export default function TopBar({ title, onSettingsClick, inert, activeScreen }: 
         <h1 className="top-bar__title">{title}</h1>
       )}
       <div className="top-bar__actions">
-        <div className="top-bar__lang-toggle" role="radiogroup" aria-label={t('aria.language')}>
+        {!hideLanguageSwitcher && (
+        <div className="top-bar__lang-toggle" role="group" aria-label={t('aria.language')}>
           <button
             type="button"
-            role="radio"
-            aria-checked={i18n.language === 'nl'}
-            className={`top-bar__lang-btn${i18n.language === 'nl' ? ' top-bar__lang-btn--active' : ''}`}
+            aria-label={t('language.dutch')}
+            aria-pressed={locale === 'nl'}
+            className={`top-bar__lang-btn${locale === 'nl' ? ' top-bar__lang-btn--active' : ''}`}
             onClick={() => i18n.changeLanguage('nl')}
           >
-            NL
+            {t('language.nlShort')}
           </button>
           <span className="top-bar__lang-separator" aria-hidden="true">/</span>
           <button
             type="button"
-            role="radio"
-            aria-checked={i18n.language === 'en'}
-            className={`top-bar__lang-btn${i18n.language === 'en' ? ' top-bar__lang-btn--active' : ''}`}
+            aria-label={t('language.english')}
+            aria-pressed={locale === 'en'}
+            className={`top-bar__lang-btn${locale === 'en' ? ' top-bar__lang-btn--active' : ''}`}
             onClick={() => i18n.changeLanguage('en')}
           >
-            EN
+            {t('language.enShort')}
           </button>
         </div>
+        )}
         {onSettingsClick && (
           <button type="button" className="top-bar__settings" onClick={onSettingsClick} aria-label={t('aria.settings')}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">

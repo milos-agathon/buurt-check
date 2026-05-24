@@ -1,5 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import type { MatchReportResponse, ReportClaim } from '../../types/match';
+import {
+  getMatchFreshnessStatusLabel,
+  getMatchGenerationModeLabel,
+} from './matchDisplayLabels';
 import './MatchReport.css';
 
 interface MatchReportProps {
@@ -9,9 +13,12 @@ interface MatchReportProps {
 }
 
 function SourceBadges({ sourceRefs }: { sourceRefs: string[] }) {
+  const { t } = useTranslation();
+
   if (sourceRefs.length === 0) {
-    return <span>{'-'}</span>;
+    return <span>{t('match.report.noSources')}</span>;
   }
+
   return (
     <span className="match-source-badges">
       {sourceRefs.map((sourceRef) => (
@@ -19,10 +26,6 @@ function SourceBadges({ sourceRefs }: { sourceRefs: string[] }) {
       ))}
     </span>
   );
-}
-
-function formatGenerationMode(mode: string): string {
-  return mode.replace(/_/g, ' ');
 }
 
 function ClaimMetadata({ claim }: { claim: ReportClaim }) {
@@ -35,7 +38,7 @@ function ClaimMetadata({ claim }: { claim: ReportClaim }) {
       </div>
       <div>
         <dt>{t('match.report.freshness')}</dt>
-        <dd>{claim.freshness_status}</dd>
+        <dd>{getMatchFreshnessStatusLabel(claim.freshness_status, t)}</dd>
       </div>
       <div>
         <dt>{t('match.report.sources')}</dt>
@@ -89,7 +92,7 @@ export default function MatchReport({ report, loading = false, errorCode = null 
         </p>
       </header>
       <div className="match-report__generation" aria-label={t('match.report.generationMetadata')}>
-        <p>{t('match.report.aiLayer', { mode: formatGenerationMode(report.generation_metadata.resolved_mode) })}</p>
+        <p>{t('match.report.aiLayer', { mode: getMatchGenerationModeLabel(report.generation_metadata.resolved_mode, t) })}</p>
         <p>{t('match.report.aiScoringBoundary')}</p>
       </div>
 

@@ -34,6 +34,7 @@ logs/
 
 # Claude Code local overrides
 CLAUDE.local.md
+.specify/
 
 # Worktrees
 .worktrees/
@@ -45,23 +46,27 @@ CLAUDE.local.md
 
 # Tasks
 tasks/
-!specs/**/tasks/
-!specs/**/tasks/**
-docs/
-!docs/
+specs/
 docs/*
-!docs/README.md
-!docs/context/
-!docs/context/**
-!docs/plans/
-docs/plans/*
-!docs/plans/ui-scorecard-9-5-evidence.md
-!docs/work/
-!docs/work/**
-!docs/palette.md
-!docs/data/
-docs/data/*
-!docs/data/risk-benchmarks.md
+!docs/ai/
+docs/ai/*
+!docs/ai/context_index.md
+!docs/ai/implementation_rules.md
+!docs/ai/latest_handoff.md
+!docs/qa/
+docs/qa/*
+!docs/qa/match_first_revamp_traceability.md
+!docs/qa/requirements-verification-matrix.md
+!docs/qa/implementation-ledger.md
+!docs/qa/final_evidence.md
+!docs/qa/open_punchlist.md
+
+# SpecKit final acceptance evidence
+!specs/
+specs/*
+!specs/002-match-first-revamp/
+specs/002-match-first-revamp/*
+!specs/002-match-first-revamp/acceptance-traceability.md
 
 # Chrome debug profiles
 .chrome-debug-profile/
@@ -74,6 +79,8 @@ backend/.claude/
 backend/tests/baselines/
 backend/tmp/
 .tmp/
+.tmp-*
+frontend/.tmp-*
 .pytest-basetemp-local/
 tmp/
 assets/google-stitch

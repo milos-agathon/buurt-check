@@ -110,7 +110,7 @@ export interface BuildingBlock {
   orientation_deg?: number; // Longest edge azimuth, 0=N, clockwise, 0-180 range
 }
 
-export interface Neighborhood3DCenter {
+interface Neighborhood3DCenter {
   lat: number;
   lng: number;
   rd_x: number;
@@ -189,7 +189,7 @@ export type RiskLevel = 'low' | 'medium' | 'high' | 'unavailable';
 
 export type SeverityLevel = 'good' | 'moderate' | 'poor' | 'critical' | 'unavailable';
 
-export interface NoiseRiskCard {
+interface NoiseRiskCard {
   level: RiskLevel;
   lden_db?: number;
   source: string;
@@ -204,7 +204,7 @@ export interface NoiseRiskCard {
   summary_nl?: string;
 }
 
-export interface AirQualityRiskCard {
+interface AirQualityRiskCard {
   level: RiskLevel;
   pm25_ug_m3?: number;
   no2_ug_m3?: number;
@@ -223,7 +223,7 @@ export interface AirQualityRiskCard {
   summary_nl?: string;
 }
 
-export interface ClimateStressRiskCard {
+interface ClimateStressRiskCard {
   level: RiskLevel;
   heat_value?: number;
   heat_level: RiskLevel;
@@ -244,7 +244,7 @@ export interface ClimateStressRiskCard {
   summary_nl?: string;
 }
 
-export interface FacadeResultApi {
+interface FacadeResultApi {
   orientation: string;
   height_label: string;
   winter_hours: number;
@@ -252,7 +252,7 @@ export interface FacadeResultApi {
   annual_average: number;
 }
 
-export interface SunlightRiskCard {
+interface SunlightRiskCard {
   level?: SeverityLevel;
   score?: number;
   severity?: SeverityLevel;
@@ -283,7 +283,7 @@ export interface RiskCardsResponse {
   sunlight?: SunlightRiskCard;
 }
 
-export type ComparisonLabelCode =
+type ComparisonLabelCode =
   | 'city_avg'
   | 'nl_avg'
   | 'who_limit'
@@ -292,11 +292,11 @@ export type ComparisonLabelCode =
   | 'daylight_target'
   | 'address';
 
-export type ComparisonPattern = 'solid' | 'dashed';
-export type ComparisonRole = 'address' | 'peer' | 'national' | 'reference';
-export type ComparisonScope = 'address' | 'urbanization_peer' | 'national' | 'reference';
+type ComparisonPattern = 'solid' | 'dashed';
+type ComparisonRole = 'address' | 'peer' | 'national' | 'reference';
+type ComparisonScope = 'address' | 'urbanization_peer' | 'national' | 'reference';
 
-export interface RiskComparisonRow {
+interface RiskComparisonRow {
   label_code: ComparisonLabelCode;
   value: number;
   pattern?: ComparisonPattern;
@@ -317,7 +317,7 @@ export interface RiskComparisonsResponse {
   generated_at: string;
 }
 
-export type UrbanizationLevel =
+type UrbanizationLevel =
   | 'very_urban'
   | 'urban'
   | 'moderate'
@@ -343,7 +343,7 @@ export interface NeighborhoodIndicator {
   source_note?: string | null;
 }
 
-export interface NeighborhoodStats {
+interface NeighborhoodStats {
   buurt_code: string;
   buurt_name?: string;
   gemeente_name?: string;
@@ -386,7 +386,7 @@ export interface ViewingQuestionsResponse {
   categories: QuestionCategory[];
 }
 
-export type NonEmptyArray<T> = [T, ...T[]];
+type NonEmptyArray<T> = [T, ...T[]];
 
 export type PrebidCoverageStatus =
   | 'checked'
@@ -397,7 +397,7 @@ export type PrebidCoverageStatus =
   | 'skipped'
   | 'review';
 
-export type PrebidResultState =
+type PrebidResultState =
   | 'ready'
   | 'signals_found'
   | 'no_major_signal_found'
@@ -408,7 +408,7 @@ export type PrebidResultState =
   | 'review_required'
   | 'source_incomplete';
 
-export type PrebidPackStatus =
+type PrebidPackStatus =
   | 'ready'
   | 'queued_for_review'
   | 'pack_under_review'
@@ -419,14 +419,14 @@ export type PrebidPackStatus =
   | 'expired'
   | 'error';
 
-export type PrebidConfidence =
+type PrebidConfidence =
   | 'high'
   | 'medium'
   | 'low'
   | 'needs_review'
   | 'data_incomplete';
 
-export interface PrebidSourceReference {
+interface PrebidSourceReference {
   id?: string;
   name: string;
   source_date?: string;
@@ -457,7 +457,7 @@ export interface PrebidCoverageRow {
   limitation_nl?: string;
 }
 
-export interface PrebidQuestionText {
+interface PrebidQuestionText {
   en: string;
   nl?: string;
 }
@@ -508,7 +508,7 @@ export interface PrebidBriefingResponse {
   };
 }
 
-export interface PrebidPackQuestionGroup {
+interface PrebidPackQuestionGroup {
   recipient: string;
   questions: PrebidQuestionText[];
   requests: string[];
@@ -541,7 +541,7 @@ export interface PrebidShareResponse {
   error_code?: 'email_provider_unavailable';
 }
 
-export type SharedPrebidState =
+type SharedPrebidState =
   | 'valid'
   | 'expired'
   | 'revoked'
@@ -558,7 +558,7 @@ export interface SharedPrebidResponse {
 }
 
 // Property Warnings
-export interface FoundationRisk {
+interface FoundationRisk {
   level: 'high' | 'medium' | 'low' | 'unavailable';
   construction_year?: number;
   soil_type?: string;
@@ -566,7 +566,7 @@ export interface FoundationRisk {
   messages: string[];
 }
 
-export interface ErfpachtWarning {
+interface ErfpachtWarning {
   detected: boolean;
   confidence?: 'confirmed' | 'municipality_based';
   municipality?: string;
@@ -575,19 +575,19 @@ export interface ErfpachtWarning {
   messages: string[];
 }
 
-export interface VvEInfo {
+interface VvEInfo {
   is_apartment: boolean;
   num_units?: number;
   messages: string[];
 }
 
-export interface SharedBuildingInfo {
+interface SharedBuildingInfo {
   detected: boolean;
   num_addressable_units?: number;
   messages: string[];
 }
 
-export interface AsbestosWarning {
+interface AsbestosWarning {
   flagged: boolean;
   construction_year?: number;
   messages: string[];
@@ -599,14 +599,14 @@ export interface AttentionFlag {
   label: string;
 }
 
-export interface AttentionSummary {
+interface AttentionSummary {
   flag_count: number;
   flags: AttentionFlag[];
   risk_categories_assessed: number;
   risk_categories_total: number;
 }
 
-export interface LeadPipeWarning {
+interface LeadPipeWarning {
   flagged: boolean;
   construction_year?: number;
   messages: string[];
@@ -624,7 +624,7 @@ export interface PropertyWarningsResponse {
 }
 
 // Livability (Leefbaarometer)
-export type LivabilityDimensionName =
+type LivabilityDimensionName =
   | 'physical'
   | 'safety'
   | 'social'
@@ -680,7 +680,7 @@ export interface LivabilityAvailableResponse {
   messages: string[];
 }
 
-export interface LivabilityUnavailableResponse {
+interface LivabilityUnavailableResponse {
   available: false;
   message: string;
 }

@@ -15,14 +15,13 @@ describe('initSentry', () => {
 
   it('does not call Sentry.init when DSN is empty', async () => {
     vi.stubEnv('VITE_SENTRY_DSN', '');
-    const { initSentry } = await import('./sentry');
+    const { initSentry } = await import('./errorReporting');
     initSentry();
     expect(Sentry.init).not.toHaveBeenCalled();
   });
 
   it('does not call Sentry.init when DSN is undefined', async () => {
-    // VITE_SENTRY_DSN not set at all
-    const { initSentry } = await import('./sentry');
+    const { initSentry } = await import('./errorReporting');
     initSentry();
     expect(Sentry.init).not.toHaveBeenCalled();
   });
@@ -30,7 +29,7 @@ describe('initSentry', () => {
   it('calls Sentry.init when DSN is set', async () => {
     vi.stubEnv('VITE_SENTRY_DSN', 'https://example@sentry.io/1');
     vi.stubEnv('VITE_SENTRY_ENVIRONMENT', 'test');
-    const { initSentry } = await import('./sentry');
+    const { initSentry } = await import('./errorReporting');
     initSentry();
     await vi.waitFor(() => expect(Sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -43,7 +42,7 @@ describe('initSentry', () => {
 
   it('defaults environment to dev when VITE_SENTRY_ENVIRONMENT is not set', async () => {
     vi.stubEnv('VITE_SENTRY_DSN', 'https://example@sentry.io/1');
-    const { initSentry } = await import('./sentry');
+    const { initSentry } = await import('./errorReporting');
     initSentry();
     await vi.waitFor(() => expect(Sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -53,7 +52,7 @@ describe('initSentry', () => {
   });
 
   it('records breadcrumbs without throwing', async () => {
-    const { addTelemetryBreadcrumb } = await import('./sentry');
+    const { addTelemetryBreadcrumb } = await import('./errorReporting');
 
     addTelemetryBreadcrumb({
       category: 'analytics',

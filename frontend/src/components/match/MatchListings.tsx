@@ -1,6 +1,13 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { MatchListing, MatchListingProviderResult } from '../../types/match';
+import {
+  getMatchAvailabilityStatusLabel,
+  getMatchProviderHealthLabel,
+  getMatchProviderModeLabel,
+  getMatchPropertyTypeLabel,
+} from './matchDisplayLabels';
 import './MatchListings.css';
 
 interface MatchListingsProps {
@@ -10,8 +17,9 @@ interface MatchListingsProps {
   onCreateAlert?: (listing: MatchListing) => void;
 }
 
-function formatMoney(cents?: number | null): string {
-  if (cents == null) return '-';
+function formatMoney(cents: number | null | undefined, unavailableLabel: string): string {
+  if (cents == null) return unavailableLabel;
+
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
     currency: 'EUR',
@@ -19,12 +27,25 @@ function formatMoney(cents?: number | null): string {
   }).format(cents / 100);
 }
 
-function formatPriceRange(listings: MatchListing[]): string {
+function formatPriceRange(listings: MatchListing[], unavailableLabel: string): string {
   const prices = listings
     .map((listing) => listing.journey_intent === 'buy' ? listing.price_cents : listing.rent_cents)
     .filter((price): price is number => price != null);
-  if (prices.length === 0) return '-';
-  return `${formatMoney(Math.min(...prices))} - ${formatMoney(Math.max(...prices))}`;
+  if (prices.length === 0) return unavailableLabel;
+
+  return `${formatMoney(Math.min(...prices), unavailableLabel)} - ${formatMoney(Math.max(...prices), unavailableLabel)}`;
+}
+
+function getListingUnavailableReasonLabel(reason: string, t: TFunction): string {
+  if (reason === 'listing_provider_unconfigured') {
+    return t('match.listings.unavailableReasonCode.listingProviderUnconfigured');
+  }
+
+  if (reason.startsWith('listing_provider_failed:')) {
+    return t('match.listings.unavailableReasonCode.listingProviderFailed');
+  }
+
+  return t('match.listings.unavailableReasonCode.unknown');
 }
 
 function ListingRow({ listing, onCreateAlert }: {
@@ -33,16 +54,18 @@ function ListingRow({ listing, onCreateAlert }: {
 }) {
   const { t } = useTranslation();
   const price = listing.journey_intent === 'buy' ? listing.price_cents : listing.rent_cents;
+  const unavailableLabel = t('match.common.unavailable');
+
   return (
     <article className="match-listings__item">
       <div>
         <h3>{t(`match.listings.intent.${listing.journey_intent}`)}</h3>
-        <p>{formatMoney(price)}</p>
+        <p>{formatMoney(price, unavailableLabel)}</p>
       </div>
       <dl>
         <div>
           <dt>{t('match.listings.propertyType')}</dt>
-          <dd>{listing.property_type ?? '-'}</dd>
+          <dd>{getMatchPropertyTypeLabel(listing.property_type, t)}</dd>
         </div>
         <div>
           <dt>{t('match.listings.daysOnMarket')}</dt>
@@ -50,7 +73,7 @@ function ListingRow({ listing, onCreateAlert }: {
         </div>
         <div>
           <dt>{t('match.listings.availability')}</dt>
-          <dd>{listing.availability_status}</dd>
+          <dd>{getMatchAvailabilityStatusLabel(listing.availability_status, t)}</dd>
         </div>
       </dl>
       {listing.provider_mode === 'mock' && (
@@ -114,8 +137,8 @@ export default function MatchListings({
         </div>
         <div className="match-listings__status">
           <strong>{result.provider.name}</strong>
-          <span>{t(`match.listings.providerMode.${result.provider.mode}`)}</span>
-          <span>{result.provider.health}</span>
+          <span>{getMatchProviderModeLabel(result.provider.mode, t)}</span>
+          <span>{getMatchProviderHealthLabel(result.provider.health, t)}</span>
         </div>
       </header>
 
@@ -127,7 +150,9 @@ export default function MatchListings({
 
       {result.unavailable_reason && (
         <p className="match-listings__unavailable">
-          {t('match.listings.unavailableReason', { reason: result.unavailable_reason })}
+          {t('match.listings.unavailableReason', {
+            reason: getListingUnavailableReasonLabel(result.unavailable_reason, t),
+          })}
         </p>
       )}
 
@@ -136,7 +161,9 @@ export default function MatchListings({
           <section key={intent} className="match-listings__group">
             <h2>{t(`match.listings.group.${intent}`)}</h2>
             <p className="match-listings__range">
-              {t('match.listings.priceRange', { range: formatPriceRange(grouped[intent]) })}
+              {t('match.listings.priceRange', {
+                range: formatPriceRange(grouped[intent], t('match.common.unavailable')),
+              })}
             </p>
             {grouped[intent].length === 0 ? (
               <p>{t('match.listings.noHomes')}</p>

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
+
+from app.services.match.survey_constants import MATCH_SURVEY_QUESTION_COUNT
 
 
 def utc_now() -> datetime:
@@ -144,6 +147,95 @@ PREFERENCE_CATEGORY_KEYS = frozenset(
 )
 
 
+CustomPreferenceUseStatus = Literal[
+    "scoreable",
+    "map_context_only",
+    "saved_unsupported",
+    "disallowed",
+    "needs_clarification",
+]
+
+CustomPreferencePrivacyClass = Literal[
+    "standard",
+    "sensitive_context",
+    "protected_trait_risk",
+]
+
+
+class CustomPreferenceItem(BaseModel):
+    custom_preference_id: str = Field(min_length=1)
+    raw_user_phrase_ref: str = Field(pattern=r"^custom_preferences:\d+$")
+    normalized_key: str | None = None
+    category: Literal[
+        "geography",
+        "amenity",
+        "mobility",
+        "environment",
+        "housing",
+        "safety",
+        "protected",
+        "other",
+    ]
+    use_status: CustomPreferenceUseStatus
+    feature_key: str | None = None
+    default_weight: float = Field(default=0.0, ge=0, le=1)
+    weight: float = Field(default=0.0, ge=0, le=1)
+    source_requirement: str | None = None
+    privacy_class: CustomPreferencePrivacyClass = "standard"
+    label_key: str = Field(pattern=r"^matchFirst\.additionalPreferences\.")
+    explanation_key: str = Field(pattern=r"^matchFirst\.additionalPreferences\.")
+    reason_code: str = Field(pattern=r"^match\.customPreference\.")
+
+    @model_validator(mode="after")
+    def non_scoreable_preferences_must_not_score(self) -> CustomPreferenceItem:
+        if self.use_status != "scoreable":
+            self.feature_key = None
+            self.default_weight = 0.0
+            self.weight = 0.0
+        return self
+
+
+class CustomPreferenceExtractionRequest(BaseModel):
+    locale: Literal["en", "nl"] = "en"
+    text: str = Field(min_length=1, max_length=800)
+
+    @field_validator("text")
+    @classmethod
+    def validate_text_is_not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("match.customPreference.text_required")
+        return stripped
+
+
+class CustomPreferenceExtractionResult(BaseModel):
+    locale: Literal["en", "nl"]
+    items: list[CustomPreferenceItem] = Field(default_factory=list)
+    needs_clarification: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
+class CustomPreferenceExtractionResponse(CustomPreferenceExtractionResult):
+    session_id: str = Field(min_length=1)
+
+
+class CustomPreferenceReviewRequest(BaseModel):
+    locale: Literal["en", "nl"] = "en"
+    skipped: bool = False
+    items: list[CustomPreferenceItem] = Field(default_factory=list)
+
+
+class CustomPreferenceReviewResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    locale: Literal["en", "nl"]
+    reviewed: bool
+    skipped: bool
+    custom_preference_version: int = Field(ge=0)
+    items: list[CustomPreferenceItem] = Field(default_factory=list)
+    preference_vector_id: str | None = None
+    preference_vector_version: str | None = None
+
+
 class NeighborhoodFeatureVector(BaseModel):
     feature_vector_id: str = Field(min_length=1)
     neighborhood_id: str = Field(min_length=1)
@@ -154,6 +246,10 @@ class NeighborhoodFeatureVector(BaseModel):
     confidence: ConfidenceScore
     missing_features: list[str] = Field(default_factory=list)
     stale_features: list[str] = Field(default_factory=list)
+    freshness_status: DataFreshnessStatus = DataFreshnessStatus.mock
+    limitations: list[str] = Field(
+        default_factory=lambda: ["limitation.seed_mock_feature_matrix_not_live"]
+    )
     created_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
@@ -196,8 +292,13 @@ class PreferenceVector(BaseModel):
     avoid_signals: list[str] = Field(default_factory=list)
     lifestyle_weights: dict[str, float] = Field(default_factory=dict)
     persona_inputs: dict[str, object] = Field(default_factory=dict)
+    custom_preferences: list[CustomPreferenceItem] = Field(default_factory=list)
     locale: Literal["en", "nl"]
     method_version: str = Field(min_length=1)
+    source_answer_version: int | None = Field(default=None, ge=0)
+    vector_version: str | None = None
+    raw_answer_refs: dict[str, object] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utc_now)
 
     @field_validator("lifestyle_weights")
@@ -209,6 +310,467 @@ class PreferenceVector(BaseModel):
             if not 0 <= weight <= 1:
                 raise ValueError(f"lifestyle weight {key} must be between 0 and 1")
         return value
+
+
+MatchSessionPhase = Literal[
+    "landing",
+    "survey_intro",
+    "survey_question",
+    "review",
+    "matching",
+    "success",
+    "results_map",
+    "neighborhood_detail",
+    "dossier",
+]
+
+class MatchSessionCreateRequest(BaseModel):
+    locale: Literal["en", "nl"] = "en"
+    source: Literal["landing", "intro", "resume"] = "landing"
+
+
+class MatchSessionCreateResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    locale: Literal["en", "nl"]
+    phase: MatchSessionPhase
+    current_step: int | None = None
+    answer_version: int = Field(ge=0)
+    expires_at: datetime
+
+
+class MatchSessionDeleteResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    delete_requested: bool
+    deleted_at: datetime
+
+
+class SurveyAnswerValidation(BaseModel):
+    valid: bool
+    required: bool
+    error_code: str | None = None
+
+
+class SurveyAnswerPatchRequest(BaseModel):
+    answers: dict[str, object]
+    current_step: int | None = Field(default=None, ge=1, le=MATCH_SURVEY_QUESTION_COUNT)
+    locale: Literal["en", "nl"] = "en"
+
+
+class SurveyAnswerPatchResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    answer_version: int = Field(ge=0)
+    is_complete: bool
+    validation: dict[str, SurveyAnswerValidation]
+    stale_results: bool = True
+
+
+class MatchRunRequest(BaseModel):
+    source: str | None = None
+    preference_vector_version: str | None = None
+
+
+class MatchSessionResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    locale: Literal["en", "nl"]
+    phase: MatchSessionPhase
+    current_step: int | None = None
+    answer_version: int = Field(ge=0)
+    answers: dict[str, object] = Field(default_factory=dict)
+    validation: dict[str, SurveyAnswerValidation] = Field(default_factory=dict)
+    is_complete: bool = False
+    preference_vector_id: str | None = None
+    preference_vector_version: str | None = None
+    preference_vector: PreferenceVector | None = None
+    custom_preferences_reviewed: bool = False
+    custom_preferences_skipped: bool = False
+    custom_preference_version: int = 0
+    custom_preferences: list[CustomPreferenceItem] = Field(default_factory=list)
+    active_job_id: str | None = None
+    selected_neighborhood_id: str | None = None
+    map_state: dict[str, object] | None = None
+    dossier_return_context: dict[str, object] | None = None
+    expires_at: datetime | None = None
+
+
+MatchJobPublicStatus = Literal[
+    "created",
+    "queued",
+    "running",
+    "matching_slow",
+    "completed",
+    "failed",
+    "completed_with_fallback",
+    "completed_no_strong_matches",
+    "expired",
+    "cancelled",
+]
+
+MatchJobStage = Literal[
+    "created",
+    "queued",
+    "reading_preferences",
+    "building_profile",
+    "loading_neighborhood_data",
+    "applying_filters",
+    "running_models",
+    "scoring_tradeoffs",
+    "preparing_map",
+    "completed",
+    "completed_with_fallback",
+    "completed_no_strong_matches",
+    "failed",
+    "expired",
+]
+
+
+class MatchRunResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    status: MatchJobPublicStatus
+    stage: MatchJobStage
+    progress: int = Field(ge=0, le=100)
+    message_key: str = Field(pattern=r"^matchFirst\.progress\.")
+    preference_vector_id: str = Field(min_length=1)
+    poll_after_ms: int = Field(default=1000, ge=250, le=5000)
+
+
+class MatchJobStatusResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    status: MatchJobPublicStatus
+    stage: MatchJobStage
+    progress: int = Field(ge=0, le=100)
+    message_key: str = Field(pattern=r"^matchFirst\.progress\.")
+    model_mode: Literal["weighted_scoring", "predictive_candidate"] = "weighted_scoring"
+    model_version: str = "match-score-v1"
+    scoring_version: str = "match-score-v1"
+    evaluation_status: Literal[
+        "not_validated_no_labels",
+        "labels_available_not_trained",
+        "not_validated_missing_evaluation",
+        "validated_labels_available",
+    ] = "not_validated_no_labels"
+    fallback_used: bool = False
+    fallback_reason_code: str | None = None
+    result_set_id: str | None = None
+    error_code: str | None = None
+    runtime_ms: int = Field(default=0, ge=0)
+    updated_at: datetime
+
+
+class MatchResultConfidence(BaseModel):
+    score: int = Field(ge=0, le=100)
+    level: Literal["high", "medium", "low", "insufficient"]
+    reasons: list[str] = Field(default_factory=list)
+
+
+class MatchResultSourceMetadata(BaseModel):
+    source_id: str = Field(min_length=1)
+    source_type: Literal["official", "commercial", "derived", "mock", "user_provided", "missing"]
+    source_name_key: str = Field(pattern=r"^match\.results\.sources\.")
+    metric_keys: list[str] = Field(default_factory=list)
+    measurement_date: str | None = None
+    retrieved_at: datetime | None = None
+    freshness_status: DataFreshnessStatus
+    confidence: int = Field(ge=0, le=100)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchGeometryReference(BaseModel):
+    centroid_rd: dict[str, float]
+    bounds_rd: list[float] = Field(min_length=4, max_length=4)
+    display_centroid_wgs84: dict[str, float]
+    display_bounds_wgs84: list[float] = Field(min_length=4, max_length=4)
+    boundary_ref: str = Field(min_length=1)
+    boundary_source: str = "match_seed"
+    boundary_freshness: DataFreshnessStatus = DataFreshnessStatus.mock
+    building_layer_ref: str | None = None
+    building_layer_available: bool = False
+    amenity_layer_refs: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchResultRecommendation(BaseModel):
+    rank: int = Field(ge=1)
+    recommendation_id: str = Field(min_length=1)
+    neighborhood_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    municipality: str = Field(min_length=1)
+    fit_score: int = Field(ge=0, le=100)
+    fit_label_key: str = Field(pattern=r"^matchFirst\.results\.fitLabel\.")
+    category: Literal["top", "surprising", "stretch", "avoid_or_reconsider"]
+    eligibility_status: Literal[
+        "eligible",
+        "stretch",
+        "failed_hard_filter",
+        "insufficient_data",
+    ]
+    confidence: MatchResultConfidence
+    reason_codes: list[str] = Field(default_factory=list)
+    tradeoffs: list[str] = Field(default_factory=list)
+    component_scores: dict[str, int] = Field(default_factory=dict)
+    matched_preferences: list[str] = Field(default_factory=list)
+    failed_filters: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+    source_metadata: list[MatchResultSourceMetadata] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    freshness_status: DataFreshnessStatus
+    geometry_ref: MatchGeometryReference
+    amenity_refs: list[str] = Field(default_factory=list)
+
+
+class MatchResultsMap(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    display_bounds_wgs84: list[float] = Field(min_length=4, max_length=4)
+    features: list[dict[str, object]] = Field(default_factory=list)
+
+
+class MatchResultsBasemapConfig(BaseModel):
+    source_id: Literal["pdok_brt_achtergrondkaart"] = "pdok_brt_achtergrondkaart"
+    source_name: Literal["PDOK BRT Achtergrondkaart"] = "PDOK BRT Achtergrondkaart"
+    service_type: Literal["wmts_raster"] = "wmts_raster"
+    theme: Literal["standaard", "grijs", "pastel"]
+    tile_matrix_set: Literal["EPSG:3857"] = "EPSG:3857"
+    tile_url_template: str = Field(min_length=1)
+    attribution: str = Field(min_length=1)
+    min_zoom: int = Field(default=0, ge=0)
+    max_zoom: int = Field(default=19, ge=0)
+
+    @field_validator("tile_url_template")
+    @classmethod
+    def validate_pdok_brt_url(cls, value: str) -> str:
+        lowered = value.lower()
+        if not lowered.startswith(
+            "https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/"
+        ):
+            raise ValueError("basemap tile URL must use PDOK BRT WMTS")
+        if any(blocked in lowered for blocked in ("openstreetmap", "mapbox", "google")):
+            raise ValueError("basemap tile URL must not use unsupported providers")
+        if "{z}" not in value or "{x}" not in value or "{y}" not in value:
+            raise ValueError("basemap tile URL must expose z/x/y placeholders")
+        return value
+
+
+class MatchResultsResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    preference_vector_version: str = Field(min_length=1)
+    status: Literal["completed", "completed_with_fallback", "completed_no_strong_matches"]
+    generated_at: datetime
+    runtime_ms: int = Field(default=0, ge=0)
+    model_mode: Literal["weighted_scoring"] = "weighted_scoring"
+    model_version: str = "match-score-v1"
+    scoring_version: str = "match-score-v1"
+    data_version: str = Field(min_length=1)
+    evaluation_status: Literal["not_validated_no_labels"] = "not_validated_no_labels"
+    predictive_probability_available: Literal[False] = False
+    fallback_used: bool = False
+    fallback_reason_code: str | None = None
+    ranked_results: list[MatchResultRecommendation] = Field(default_factory=list)
+    recommendations: list[MatchResultRecommendation] = Field(default_factory=list)
+    stretch_matches: list[MatchResultRecommendation] = Field(default_factory=list)
+    near_misses: list[MatchResultRecommendation] = Field(default_factory=list)
+    normal_recommendation_count: int = Field(default=0, ge=0)
+    candidate_count: int = Field(default=0, ge=0)
+    scored_candidate_count: int = Field(default=0, ge=0)
+    empty_state_code: str | None = None
+    map_center: dict[str, float]
+    bbox: list[float] = Field(min_length=4, max_length=4)
+    map: MatchResultsMap
+
+    @model_validator(mode="after")
+    def mirror_recommendation_alias(self) -> MatchResultsResponse:
+        if not self.recommendations:
+            self.recommendations = self.ranked_results
+        return self
+
+
+class MatchNeighborhoodSummaryResponse(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    municipality: str = Field(min_length=1)
+    centroid_rd: dict[str, float]
+    bounds_rd: list[float] = Field(min_length=4, max_length=4)
+    display_centroid_wgs84: dict[str, float]
+    display_bounds_wgs84: list[float] = Field(min_length=4, max_length=4)
+    boundary_ref: str = Field(min_length=1)
+    source_refs: list[str] = Field(default_factory=list)
+    freshness_status: DataFreshnessStatus = DataFreshnessStatus.mock
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchNeighborhoodLayerEndpoint(BaseModel):
+    available: bool | None = None
+    endpoint: str = Field(min_length=1)
+    fallback_reason_code: str | None = None
+
+
+class MatchNeighborhoodMapLayersResponse(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    allowed_bounds_rd: list[float] = Field(min_length=4, max_length=4)
+    display_bounds_wgs84: list[float] = Field(min_length=4, max_length=4)
+    boundary: dict[str, object]
+    building_layer: MatchNeighborhoodLayerEndpoint
+    amenity_layer: MatchNeighborhoodLayerEndpoint
+    fallback_2d_available: bool = True
+    source_refs: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchNeighborhoodBuildingFeature(BaseModel):
+    building_id: str = Field(min_length=1)
+    vbo_id: str | None = Field(default=None, pattern=r"^[0-9]{16}$")
+    address_id: str | None = Field(default=None, pattern=r"^[0-9]{16}$")
+    lookup_id: str | None = Field(default=None, min_length=1)
+    footprint: dict[str, object]
+    height_m: float | None = Field(default=None, ge=0)
+    source_refs: list[str] = Field(default_factory=list)
+    address_resolution: Literal["resolved", "candidate", "manual_required", "unavailable"]
+    address_candidate_count: int = Field(default=0, ge=0)
+    fallback_label_key: str | None = Field(default=None, pattern=r"^matchFirst\.neighborhood\.")
+    geometry_source: Literal["3dbag_lod22", "3dbag_lod0", "pdok_bag_pand"] | None = None
+    lod: Literal["2.2", "0"] | None = None
+    center_rd: dict[str, float] | None = None
+    footprint_rd: list[list[float]] = Field(default_factory=list)
+    ground_height_m: float | None = None
+    roof_surfaces: list[list[list[float]]] | None = None
+    year: int | None = None
+    orientation_deg: float | None = None
+    bag_status: str | None = None
+    bag_gebruiksdoelen: list[str] = Field(default_factory=list)
+    bag_verblijfsobject_count: int | None = Field(default=None, ge=0)
+    building_usage_classification: Literal[
+        "residential",
+        "mixed_residential",
+        "non_residential",
+        "no_verblijfsobject",
+        "unknown",
+    ] = "unknown"
+    house_selectable: bool = True
+
+
+class MatchNeighborhoodBuildingsResponse(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    bounds_rd: list[float] = Field(min_length=4, max_length=4)
+    clipped_to_neighborhood: bool = True
+    buildings: list[MatchNeighborhoodBuildingFeature] = Field(default_factory=list)
+    fallback_reason_code: str | None = None
+    complete: bool = True
+    next_cursor: str | None = None
+    loaded_scope: Literal["selected_neighborhood", "selected_viewport"] = "selected_neighborhood"
+    partial_reason_code: str | None = None
+    data_version: str = Field(min_length=1)
+    source_refs: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchNeighborhoodAmenityTag(BaseModel):
+    amenity_key: str = Field(min_length=1)
+    label_key: str = Field(pattern=r"^matchFirst\.amenity\.")
+    reason_code: str = Field(min_length=1)
+    source_refs: list[str] = Field(default_factory=list)
+    relevance: int = Field(default=50, ge=0, le=100)
+
+
+class MatchNeighborhoodAmenityPoint(BaseModel):
+    point_id: str = Field(min_length=1)
+    amenity_key: str = Field(min_length=1)
+    category_key: str = Field(min_length=1)
+    label_key: str = Field(pattern=r"^matchFirst\.amenity\.")
+    name: str | None = None
+    marker_shape: str = Field(min_length=1)
+    display_lat: float
+    display_lng: float
+    display_coordinate_system: Literal["WGS84"] = "WGS84"
+    source_name: str = Field(min_length=1)
+    source_record_id: str | None = None
+    freshness_date: str | None = None
+    loaded_at: datetime
+    source_coordinate_system: Literal["EPSG:4326", "EPSG:28992"] | None = None
+    source_geometry: dict[str, object] = Field(default_factory=dict)
+    source_geometry_coordinate_system: Literal["EPSG:4326", "EPSG:28992"] | None = None
+    source_refs: list[str] = Field(default_factory=list)
+    relevance: int = Field(default=50, ge=0, le=100)
+
+
+class MatchNeighborhoodAmenityUnavailable(BaseModel):
+    amenity_key: str = Field(min_length=1)
+    reason_code: str = Field(min_length=1)
+    source_name: str | None = None
+
+
+class MatchNeighborhoodAmenitiesResponse(BaseModel):
+    neighborhood_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    tags: list[MatchNeighborhoodAmenityTag] = Field(default_factory=list, max_length=7)
+    points: list[MatchNeighborhoodAmenityPoint] = Field(default_factory=list)
+    unavailable: list[MatchNeighborhoodAmenityUnavailable] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MatchDossierBridgeReturnContext(BaseModel):
+    session_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1)
+    result_set_id: str = Field(min_length=1)
+    preference_vector_version: str = Field(min_length=1)
+    source: Literal["match_map"]
+    return_url: str = Field(min_length=1)
+    map_center: list[float] | None = Field(default=None, min_length=2, max_length=2)
+    map_zoom: float | None = Field(default=None, ge=0)
+    list_scroll: float | None = Field(default=None, ge=0)
+    mobile_mode: Literal["map", "list"] | None = None
+    selected_result_id: str | None = None
+    selected_result_rank: int | None = Field(default=None, ge=1)
+    language: Literal["en", "nl"] | None = None
+    selected_house_id: str | None = None
+
+
+class MatchDossierBridgeRequest(BaseModel):
+    session_id: str = Field(min_length=1)
+    neighborhood_id: str = Field(min_length=1)
+    building_id: str = Field(min_length=1)
+    address_id: str | None = Field(default=None, min_length=1)
+    vbo_id: str | None = None
+    lookup_id: str | None = Field(default=None, min_length=1)
+    selected_candidate_id: str | None = Field(default=None, min_length=1)
+    coordinate_rd: dict[str, float] | None = None
+    return_context: MatchDossierBridgeReturnContext
+
+
+class MatchDossierAddressCandidate(BaseModel):
+    address_id: str | None = None
+    vbo_id: str | None = None
+    lookup_id: str | None = None
+    reliability: Literal["resolved", "candidate", "unavailable"]
+
+
+class MatchDossierCandidateAddress(BaseModel):
+    candidate_id: str = Field(min_length=1)
+    address_id: str | None = None
+    vbo_id: str | None = None
+    lookup_id: str | None = None
+    display_label_key: str = Field(pattern=r"^matchFirst\.neighborhood\.")
+    display_params: dict[str, str] = Field(default_factory=dict)
+    reliability: Literal["resolved", "candidate", "unavailable"]
+    source_refs: list[str] = Field(default_factory=list)
+    fallback_reason_code: str | None = None
+
+
+class MatchDossierBridgeResponse(BaseModel):
+    status: Literal["resolved", "candidates", "manual_required", "unavailable"]
+    route: str | None = None
+    vbo_id: str | None = None
+    lookup_id: str | None = None
+    address_candidate: MatchDossierAddressCandidate | None = None
+    candidate_addresses: list[MatchDossierCandidateAddress] = Field(default_factory=list)
+    fallback_reason_code: str | None = None
 
 
 class QuizBudget(BaseModel):
@@ -833,6 +1395,53 @@ class ReportExportResponse(BaseModel):
 
 
 AnalyticsEventName = Literal[
+    "match_landing_cta_shown",
+    "match_landing_cta_clicked",
+    "match_first_search_link_clicked",
+    "match_survey_intro_shown",
+    "match_survey_started",
+    "match_survey_question_shown",
+    "match_survey_answer_saved",
+    "match_survey_answer_save_failed",
+    "match_first_survey_back_clicked",
+    "match_survey_question_abandoned",
+    "match_survey_completed",
+    "match_additional_preferences_prompt_shown",
+    "match_additional_preferences_skipped",
+    "match_additional_preferences_submitted",
+    "match_custom_preferences_extracted",
+    "match_custom_preferences_reviewed",
+    "match_custom_preference_rejected",
+    "match_first_survey_review_shown",
+    "match_final_run_cta_clicked",
+    "match_job_queued",
+    "match_job_running",
+    "match_job_completed",
+    "match_job_failed",
+    "match_job_completed_with_fallback",
+    "match_job_completed_no_strong_matches",
+    "match_job_slow",
+    "match_job_retry_clicked",
+    "match_results_unavailable",
+    "match_success_checkmark_shown",
+    "match_results_map_opened",
+    "match_results_confidence_sufficient",
+    "match_recommendation_selected",
+    "match_map_feature_selected",
+    "match_map_layer_failed",
+    "match_neighborhood_detail_opened",
+    "match_building_layer_failed",
+    "match_building_layer_partial",
+    "match_building_layer_complete",
+    "match_amenity_layer_failed",
+    "match_amenity_interacted",
+    "match_missing_footprint_fallback_shown",
+    "match_house_selected",
+    "match_dossier_opened",
+    "match_no_reliable_address_shown",
+    "match_back_to_map_clicked",
+    "match_back_to_map_return_success",
+    "match_back_to_map_return_failed",
     "match_quiz_started",
     "match_quiz_completed",
     "match_report_viewed",
@@ -849,6 +1458,12 @@ AnalyticsEventName = Literal[
 
 PROTECTED_FEEDBACK_PAYLOAD_KEYS = frozenset(
     {"nationality", "ethnicity", "religion", "immigration_status", "race"}
+)
+
+PRIVATE_ANALYTICS_VALUE_PATTERNS = (
+    re.compile(r"(?:^|[^\d])\d{16}(?:$|[^\d])"),
+    re.compile(r"(?:#)?/address/", re.IGNORECASE),
+    re.compile(r"lookup=", re.IGNORECASE),
 )
 
 
@@ -887,6 +1502,33 @@ class AnalyticsEvent(BaseModel):
         if _payload_contains_protected_key(value):
             raise ValueError("analytics context must not include protected traits")
         return value
+
+
+class MatchFirstAnalyticsRequest(BaseModel):
+    event_id: str = Field(min_length=1, max_length=96, pattern=r"^[A-Za-z0-9_:.-]+$")
+    event_name: str = Field(min_length=1, max_length=96)
+    session_id: str | None = Field(
+        default=None, max_length=96, pattern=r"^[A-Za-z0-9_:.-]+$"
+    )
+    locale: Literal["en", "nl"] = "en"
+    phase: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_.:-]+$")
+    context: dict[str, object] = Field(default_factory=dict)
+
+    @field_validator("event_id", "session_id", "phase")
+    @classmethod
+    def validate_no_private_route_or_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if any(pattern.search(value) for pattern in PRIVATE_ANALYTICS_VALUE_PATTERNS):
+            raise ValueError(
+                "analytics identifier must not include private route or address identifiers"
+            )
+        return value
+
+
+class MatchFirstAnalyticsResponse(BaseModel):
+    accepted: bool
+    duplicate: bool = False
 
 
 class SuccessMetricSummary(BaseModel):

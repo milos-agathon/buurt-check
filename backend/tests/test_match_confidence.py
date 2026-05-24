@@ -57,9 +57,9 @@ def test_confidence_downgrades_for_stale_mock_and_missing_sources():
 
     assert confidence.score < 75
     assert confidence.label == "low"
-    assert "Contains mock source data." in confidence.reasons
-    assert "Contains missing or unavailable source data." in confidence.reasons
-    assert "Contains stale source data." in confidence.reasons
+    assert "match.results.confidence.mock_source_data" in confidence.reasons
+    assert "match.results.confidence.missing_or_unavailable_source_data" in confidence.reasons
+    assert "match.results.confidence.stale_source_data" in confidence.reasons
 
 
 def test_confidence_returns_high_for_current_complete_official_sources():

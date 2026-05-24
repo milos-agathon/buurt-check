@@ -51,6 +51,12 @@ export default defineConfig({
     },
   },
   build: {
+    modulePreload: {
+      resolveDependencies: (_filename, deps, context) => {
+        if (context.hostType !== 'html') return deps;
+        return deps.filter((dep) => !dep.includes('vendor-three'));
+      },
+    },
     minify: 'terser',
     terserOptions: {
       compress: {

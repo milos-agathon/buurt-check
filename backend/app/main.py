@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -14,6 +15,7 @@ from app.config import settings
 from app.db import database_backend_label, init_db
 from app.rate_limit import limiter
 from app.sentry_setup import init_sentry
+from app.services.match.amenity_ingestion import run_amenity_refresh_scheduler
 
 logger = logging.getLogger(__name__)
 _access = logging.getLogger("buurt.access")
@@ -29,7 +31,18 @@ init_sentry()
 async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Persistence backend ready: %s", database_backend_label())
-    yield
+    amenity_stop_event: asyncio.Event | None = None
+    amenity_task: asyncio.Task | None = None
+    if settings.match_amenity_refresh_enabled:
+        amenity_stop_event = asyncio.Event()
+        amenity_task = asyncio.create_task(run_amenity_refresh_scheduler(amenity_stop_event))
+    try:
+        yield
+    finally:
+        if amenity_stop_event is not None:
+            amenity_stop_event.set()
+        if amenity_task is not None:
+            await amenity_task
 
 
 app = FastAPI(

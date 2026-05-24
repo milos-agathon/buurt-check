@@ -1,25 +1,52 @@
-from fastapi import APIRouter, HTTPException, Response
+from typing import Literal, cast
 
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
+
+from app.config import settings
+from app.db import get_db
 from app.models.match import (
     AlertCreateRequest,
     AlertCreateResponse,
     AlertListResponse,
     AlertRule,
     AlertUpdateRequest,
+    AnalyticsEventName,
+    CustomPreferenceExtractionRequest,
+    CustomPreferenceExtractionResponse,
+    CustomPreferenceReviewRequest,
+    CustomPreferenceReviewResponse,
     DeleteResponse,
     ListingCriteria,
     ListingProviderResult,
     MatchCompareRequest,
     MatchCompareResponse,
+    MatchDossierBridgeRequest,
+    MatchDossierBridgeResponse,
     MatchFeedbackRequest,
     MatchFeedbackResponse,
+    MatchFirstAnalyticsRequest,
+    MatchFirstAnalyticsResponse,
+    MatchJobStatusResponse,
     MatchMapResponse,
+    MatchNeighborhoodAmenitiesResponse,
+    MatchNeighborhoodBuildingsResponse,
+    MatchNeighborhoodMapLayersResponse,
+    MatchNeighborhoodSummaryResponse,
     MatchQuizRequest,
     MatchQuizResponse,
     MatchRecommendationsRequest,
     MatchRecommendationsResponse,
     MatchReportCreateRequest,
     MatchReportResponse,
+    MatchResultsBasemapConfig,
+    MatchResultsResponse,
+    MatchRunRequest,
+    MatchRunResponse,
+    MatchSessionCreateRequest,
+    MatchSessionCreateResponse,
+    MatchSessionDeleteResponse,
+    MatchSessionResponse,
     MatchSimilarRequest,
     MatchSimilarResponse,
     ReportExportRequest,
@@ -31,10 +58,47 @@ from app.models.match import (
     SavedNeighborhood,
     SavedNeighborhoodCreateRequest,
     SavedNeighborhoodListResponse,
+    SurveyAnswerPatchRequest,
+    SurveyAnswerPatchResponse,
 )
+from app.rate_limit import limiter
 from app.services.match.alerts import create_alert, delete_alert, list_alerts, update_alert
+from app.services.match.amenities import get_preference_aware_amenities
+from app.services.match.buildings import (
+    DossierBridgeCandidateMismatchError,
+    DossierBridgeInvalidVboIdError,
+    get_scoped_neighborhood_buildings,
+    resolve_dossier_bridge,
+)
 from app.services.match.comparison import build_neighborhood_comparison
 from app.services.match.feedback import record_feedback
+from app.services.match.geometry import (
+    BoundsParseError,
+    BuildingBoundsOutOfScopeError,
+    NeighborhoodNotFoundError,
+    get_neighborhood_map_layers,
+    get_neighborhood_summary,
+    parse_bounds_rd,
+)
+from app.services.match.instrumentation import (
+    MATCH_FIRST_ANALYTICS_EVENT_NAMES,
+    analytics_payload_contains_rejected_key,
+    record_match_event,
+    sanitize_match_first_analytics_context,
+)
+from app.services.match.jobs import (
+    AnswersIncompleteError,
+    MatchJobNotFoundError,
+    MatchResultsNotFoundError,
+    MatchResultsNotReadyError,
+    MatchSessionNotFoundError,
+    PreferenceVectorStaleError,
+    RunNotConfirmedError,
+    get_match_job_status,
+    get_match_results,
+    run_match_job,
+    start_match_job,
+)
 from app.services.match.listings import fetch_listing_matches
 from app.services.match.map_view import build_match_map
 from app.services.match.providers.seed import MVP_REGION_CONFIG_ID, SeedMockImporter
@@ -52,9 +116,24 @@ from app.services.match.reports import (
     save_neighborhood,
     save_report,
 )
+from app.services.match.sessions import (
+    create_match_session,
+    delete_match_session,
+    extract_match_session_custom_preferences,
+    get_match_session,
+    patch_match_session_answers,
+    review_match_session_custom_preferences,
+)
 from app.services.match.similarity import find_similar_neighborhoods
 
 router = APIRouter(prefix="/match", tags=["match"])
+_NO_STORE_HEADERS = {"Cache-Control": "no-store"}
+_MATCH_FIRST_ANALYTICS_RATE_LIMIT = "240/minute"
+_MATCH_FIRST_ANSWER_SYNC_RATE_LIMIT = "120/minute"
+
+
+def _mark_no_store(response: Response) -> None:
+    response.headers["Cache-Control"] = "no-store"
 
 
 @router.get("/health")
@@ -62,13 +141,553 @@ async def match_health() -> dict[str, str]:
     return {"status": "foundation_only"}
 
 
+@router.get("/results-basemap", response_model=MatchResultsBasemapConfig)
+async def read_match_results_basemap(response: Response) -> MatchResultsBasemapConfig:
+    _mark_no_store(response)
+    allowed_themes = {"standaard", "grijs", "pastel"}
+    theme = cast(
+        Literal["standaard", "grijs", "pastel"],
+        settings.brt_wmts_theme if settings.brt_wmts_theme in allowed_themes else "standaard",
+    )
+    base = settings.brt_wmts_base.rstrip("/")
+    return MatchResultsBasemapConfig(
+        theme=theme,
+        tile_url_template=f"{base}/{theme}/EPSG:3857/{{z}}/{{x}}/{{y}}.png",
+        attribution=f"PDOK / Kadaster / BRT Achtergrondkaart ({theme} WMTS)",
+    )
+
+
+@limiter.limit(_MATCH_FIRST_ANALYTICS_RATE_LIMIT)
+@router.post(
+    "/analytics",
+    response_model=MatchFirstAnalyticsResponse,
+    status_code=202,
+)
+async def record_match_first_analytics(
+    request: Request,
+    payload: MatchFirstAnalyticsRequest,
+    response: Response,
+) -> MatchFirstAnalyticsResponse:
+    _mark_no_store(response)
+    if payload.event_name not in MATCH_FIRST_ANALYTICS_EVENT_NAMES:
+        raise HTTPException(
+            status_code=422,
+            detail="match.analytics.invalid_event",
+            headers=_NO_STORE_HEADERS,
+        )
+    if analytics_payload_contains_rejected_key(payload.context):
+        raise HTTPException(
+            status_code=422,
+            detail="match.analytics.rejected_payload",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT analytics_event_id
+            FROM match_analytics_events
+            WHERE analytics_event_id = ?
+            """,
+            (payload.event_id,),
+        )
+        if await cursor.fetchone():
+            return MatchFirstAnalyticsResponse(accepted=True, duplicate=True)
+
+    context = sanitize_match_first_analytics_context(payload.context)
+    if payload.phase:
+        context["phase"] = payload.phase
+    await record_match_event(
+        cast(AnalyticsEventName, payload.event_name),
+        analytics_event_id=payload.event_id,
+        session_id=payload.session_id,
+        locale=payload.locale,
+        context=context,
+    )
+    return MatchFirstAnalyticsResponse(accepted=True, duplicate=False)
+
+
 @router.post("/quiz", response_model=MatchQuizResponse)
 async def submit_match_quiz(payload: MatchQuizRequest) -> MatchQuizResponse:
     return process_match_quiz(payload)
 
 
+@router.post("/sessions", response_model=MatchSessionCreateResponse, status_code=201)
+async def create_session(
+    payload: MatchSessionCreateRequest,
+    response: Response,
+) -> MatchSessionCreateResponse:
+    _mark_no_store(response)
+    return await create_match_session(payload)
+
+
+@router.get("/sessions/{session_id}", response_model=MatchSessionResponse)
+async def read_session(session_id: str, response: Response) -> MatchSessionResponse:
+    _mark_no_store(response)
+    try:
+        return await get_match_session(session_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    response_model=MatchSessionDeleteResponse,
+    status_code=202,
+)
+async def delete_session(
+    session_id: str,
+    response: Response,
+) -> MatchSessionDeleteResponse:
+    _mark_no_store(response)
+    try:
+        return await delete_match_session(session_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@limiter.limit(_MATCH_FIRST_ANSWER_SYNC_RATE_LIMIT)
+@router.patch("/sessions/{session_id}/answers", response_model=SurveyAnswerPatchResponse)
+async def patch_session_answers(
+    request: Request,
+    session_id: str,
+    payload: SurveyAnswerPatchRequest,
+    response: Response,
+) -> SurveyAnswerPatchResponse:
+    _mark_no_store(response)
+    try:
+        return await patch_match_session_answers(session_id, payload)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@limiter.limit(_MATCH_FIRST_ANSWER_SYNC_RATE_LIMIT)
+@router.post(
+    "/sessions/{session_id}/custom-preferences/extract",
+    response_model=CustomPreferenceExtractionResponse,
+)
+async def extract_session_custom_preferences(
+    request: Request,
+    session_id: str,
+    payload: CustomPreferenceExtractionRequest,
+    response: Response,
+) -> CustomPreferenceExtractionResponse:
+    _mark_no_store(response)
+    try:
+        return await extract_match_session_custom_preferences(session_id, payload)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@limiter.limit(_MATCH_FIRST_ANSWER_SYNC_RATE_LIMIT)
+@router.patch(
+    "/sessions/{session_id}/custom-preferences/review",
+    response_model=CustomPreferenceReviewResponse,
+)
+async def review_session_custom_preferences(
+    request: Request,
+    session_id: str,
+    payload: CustomPreferenceReviewRequest,
+    response: Response,
+) -> CustomPreferenceReviewResponse:
+    _mark_no_store(response)
+    try:
+        return await review_match_session_custom_preferences(session_id, payload)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.post("/sessions/{session_id}/run", response_model=MatchRunResponse, status_code=202)
+async def run_session_match(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    response: Response,
+    payload: MatchRunRequest | None = None,
+) -> MatchRunResponse:
+    _mark_no_store(response)
+    try:
+        run_start = await start_match_job(session_id, payload)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except RunNotConfirmedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc), headers=_NO_STORE_HEADERS) from exc
+    except PreferenceVectorStaleError as exc:
+        raise HTTPException(status_code=409, detail=str(exc), headers=_NO_STORE_HEADERS) from exc
+    except AnswersIncompleteError as exc:
+        return JSONResponse(
+            status_code=409,
+            content={"detail": str(exc), "invalid_questions": exc.invalid_questions},
+            headers=_NO_STORE_HEADERS,
+        )
+    if run_start.created and run_start.response.status == "queued":
+        background_tasks.add_task(run_match_job, run_start.response.job_id)
+    return run_start.response
+
+
+@router.get("/sessions/{session_id}/status", response_model=MatchJobStatusResponse)
+async def read_session_match_status(
+    session_id: str,
+    response: Response,
+) -> MatchJobStatusResponse:
+    _mark_no_store(response)
+    try:
+        return await get_match_job_status(session_id)
+    except MatchSessionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchJobNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.job.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.get("/sessions/{session_id}/results", response_model=MatchResultsResponse)
+async def read_session_match_results(
+    session_id: str,
+    response: Response,
+) -> MatchResultsResponse:
+    _mark_no_store(response)
+    try:
+        return await get_match_results(session_id)
+    except MatchSessionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchResultsNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.results.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchResultsNotReadyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
 async def _load_seed_context():
     return await SeedMockImporter().load_seed_data(MVP_REGION_CONFIG_ID)
+
+
+async def _validate_completed_neighborhood_context(
+    *,
+    session_id: str,
+    result_set_id: str,
+    neighborhood_id: str,
+) -> MatchResultsResponse:
+    try:
+        results = await get_match_results(session_id)
+    except MatchSessionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchResultsNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.results.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except MatchResultsNotReadyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+    if results.result_set_id != result_set_id:
+        raise HTTPException(
+            status_code=409,
+            detail="match.results.stale",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    visible_neighborhood_ids = {
+        item.neighborhood_id
+        for item in [
+            *results.ranked_results,
+            *results.stretch_matches,
+            *results.near_misses,
+        ]
+    }
+    if neighborhood_id not in visible_neighborhood_ids:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    return results
+
+
+def _validate_dossier_return_context(
+    payload: MatchDossierBridgeRequest,
+    results: MatchResultsResponse,
+) -> None:
+    context = payload.return_context
+    if (
+        context.job_id != results.job_id
+        or context.preference_vector_version != results.preference_vector_version
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="match.results.stale",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    visible_results = [
+        *results.ranked_results,
+        *results.stretch_matches,
+        *results.near_misses,
+    ]
+    if not context.selected_result_id or context.selected_result_rank is None:
+        raise HTTPException(
+            status_code=422,
+            detail="match.dossier.selected_result_required",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    selected_result = next(
+        (
+            item
+            for item in visible_results
+            if item.recommendation_id == context.selected_result_id
+        ),
+        None,
+    )
+
+    if selected_result is None or selected_result.neighborhood_id != payload.neighborhood_id:
+        raise HTTPException(
+            status_code=409,
+            detail="match.results.stale",
+            headers=_NO_STORE_HEADERS,
+        )
+
+    if selected_result.rank != context.selected_result_rank:
+        raise HTTPException(
+            status_code=409,
+            detail="match.results.stale",
+            headers=_NO_STORE_HEADERS,
+        )
+
+
+@router.get("/neighborhoods/{neighborhood_id}", response_model=MatchNeighborhoodSummaryResponse)
+async def read_match_neighborhood(
+    neighborhood_id: str,
+    response: Response,
+) -> MatchNeighborhoodSummaryResponse:
+    _mark_no_store(response)
+    try:
+        return await get_neighborhood_summary(neighborhood_id)
+    except NeighborhoodNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.get(
+    "/neighborhoods/{neighborhood_id}/map-layers",
+    response_model=MatchNeighborhoodMapLayersResponse,
+)
+async def read_match_neighborhood_map_layers(
+    neighborhood_id: str,
+    response: Response,
+    session_id: str,
+    result_set_id: str,
+) -> MatchNeighborhoodMapLayersResponse:
+    _mark_no_store(response)
+    await _validate_completed_neighborhood_context(
+        session_id=session_id,
+        result_set_id=result_set_id,
+        neighborhood_id=neighborhood_id,
+    )
+    try:
+        return await get_neighborhood_map_layers(
+            neighborhood_id,
+            session_id=session_id,
+            result_set_id=result_set_id,
+        )
+    except NeighborhoodNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.get(
+    "/neighborhoods/{neighborhood_id}/buildings",
+    response_model=MatchNeighborhoodBuildingsResponse,
+)
+async def read_match_neighborhood_buildings(
+    neighborhood_id: str,
+    response: Response,
+    session_id: str,
+    result_set_id: str,
+    bounds_rd: str,
+    lod: Literal["low", "medium", "high"] = "low",
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = Query(default=None, min_length=1),
+) -> MatchNeighborhoodBuildingsResponse:
+    _mark_no_store(response)
+    await _validate_completed_neighborhood_context(
+        session_id=session_id,
+        result_set_id=result_set_id,
+        neighborhood_id=neighborhood_id,
+    )
+    try:
+        parsed_bounds = parse_bounds_rd(bounds_rd)
+        return await get_scoped_neighborhood_buildings(
+            neighborhood_id,
+            session_id=session_id,
+            result_set_id=result_set_id,
+            bounds_rd=parsed_bounds,
+            lod=lod,
+            limit=limit,
+            cursor=cursor,
+        )
+    except BoundsParseError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except BuildingBoundsOutOfScopeError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except NeighborhoodNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.get(
+    "/neighborhoods/{neighborhood_id}/amenities",
+    response_model=MatchNeighborhoodAmenitiesResponse,
+)
+async def read_match_neighborhood_amenities(
+    neighborhood_id: str,
+    response: Response,
+    session_id: str,
+    result_set_id: str,
+) -> MatchNeighborhoodAmenitiesResponse:
+    _mark_no_store(response)
+    await _validate_completed_neighborhood_context(
+        session_id=session_id,
+        result_set_id=result_set_id,
+        neighborhood_id=neighborhood_id,
+    )
+    try:
+        return await get_preference_aware_amenities(
+            neighborhood_id,
+            session_id=session_id,
+            result_set_id=result_set_id,
+        )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.session.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except NeighborhoodNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="match.neighborhood.not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+
+
+@router.post("/dossier/from-building", response_model=MatchDossierBridgeResponse)
+async def resolve_match_dossier_from_building(
+    payload: MatchDossierBridgeRequest,
+    response: Response,
+) -> MatchDossierBridgeResponse:
+    _mark_no_store(response)
+    if payload.return_context.session_id != payload.session_id:
+        raise HTTPException(
+            status_code=422,
+            detail="match.dossier.context_session_mismatch",
+            headers=_NO_STORE_HEADERS,
+        )
+    results = await _validate_completed_neighborhood_context(
+        session_id=payload.session_id,
+        result_set_id=payload.return_context.result_set_id,
+        neighborhood_id=payload.neighborhood_id,
+    )
+    _validate_dossier_return_context(payload, results)
+    try:
+        return await resolve_dossier_bridge(payload)
+    except DossierBridgeInvalidVboIdError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="match.dossier.invalid_vbo_id",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
+    except DossierBridgeCandidateMismatchError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="match.dossier.building_not_found",
+            headers=_NO_STORE_HEADERS,
+        ) from exc
 
 
 @router.post("/recommendations", response_model=MatchRecommendationsResponse)

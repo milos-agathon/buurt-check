@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatchLocale, ReportShareResponse } from '../../types/match';
+import { getMatchLocaleLabel } from './matchDisplayLabels';
 import './MatchShareExport.css';
 
 interface MatchShareExportProps {
@@ -47,7 +48,7 @@ export default function MatchShareExport({
         </div>
         <div>
           <dt>{t('match.share.locale')}</dt>
-          <dd>{locale}</dd>
+          <dd>{getMatchLocaleLabel(locale, t)}</dd>
         </div>
       </dl>
       <p className="match-share-export__metadata-note">

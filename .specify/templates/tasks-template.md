@@ -11,7 +11,9 @@ description: "Task list template for feature implementation"
 **Tests**: Tests are REQUIRED for every phase touched by the feature. Use unit,
 integration, E2E, accessibility, or map-performance verification according to
 the acceptance criteria and risk. A phase is not complete when it looks good; it
-is complete when its acceptance criteria pass.
+is complete when its acceptance criteria pass with evidence. Failed or blocked
+test gates MUST be reported honestly and carried into the punch list or
+traceability notes until fixed.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -23,6 +25,9 @@ is complete when its acceptance criteria pass.
 - **[Journey: step]**: Which canonical journey step this task changes
 - Include exact file paths in descriptions
 - Include task-level acceptance criteria for implementation and verification tasks
+- Include traceability and handoff update tasks for every implementation phase
+- Keep tasks within the current phase unless a later-phase dependency is
+  explicitly justified
 
 ## Path Conventions
 
@@ -76,8 +81,9 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T008 Configure error handling and logging infrastructure
 - [ ] T009 Setup environment configuration management
 - [ ] TXXX [P] [PRD: Section 7/8] [Journey: cross-flow] Add match session/context persistence scaffolding for survey answers, session ID, selected neighborhood, map state, language, and Dossier return path. Acceptance: refresh/navigation does not clear required context in covered flows.
-- [ ] TXXX [P] [PRD: Section 16] [Journey: results/neighborhood map] Add map fallback scaffolding for selected-neighborhood-only 3D loading, 2D fallback, reduced motion, and non-map recommendation list. Acceptance: 3D houses are not requested or rendered until a neighborhood is selected, and viewport paging/LOD stays inside selected-neighborhood bounds.
+- [ ] TXXX [P] [PRD: Section 16] [Journey: results/neighborhood map] Add map fallback scaffolding for selected-neighborhood-only 2D building-footprint loading, missing-footprint fallback, reduced motion, and non-map recommendation list. Acceptance: building footprints are not requested or rendered until a neighborhood is selected, and viewport paging stays inside selected-neighborhood bounds.
 - [ ] TXXX [P] [PRD: FR-L4/FR-S6/Section 26] [Journey: cross-flow] Add Dutch/English i18n key scaffolding for every new user-facing state, validation message, fallback, route label, and Dossier return action. Acceptance: no hard-coded user-facing copy in touched components/services.
+- [ ] TXXX [P] [PRD: Section 24] [Journey: cross-flow] Add phase traceability scaffolding in `docs/qa/match_first_revamp_traceability.md` and handoff update expectations in `docs/ai/latest_handoff.md`. Acceptance: touched PRD acceptance criteria can be marked missing, partial, or pass with evidence.
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -168,9 +174,11 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Security hardening
 - [ ] TXXX [P] Verify Dutch/English i18n parity and absence of hard-coded user-facing copy in touched files
 - [ ] TXXX [P] Verify keyboard navigation, screen-reader labels, touch targets, contrast, reduced motion, and non-map alternatives
-- [ ] TXXX [P] Verify map performance constraints: no national 3D building requests, selected-neighborhood-only 3D loading/rendering, viewport paging/LOD only inside selected-neighborhood bounds, 2D fallback, reduced-motion fallback
+- [ ] TXXX [P] Verify map performance constraints: no national building-footprint or national 3D building requests, selected-neighborhood-only 2D building-footprint loading/rendering, viewport paging only inside selected-neighborhood bounds, missing-footprint fallback, reduced-motion fallback
 - [ ] TXXX [P] Verify context preservation across survey, results map, neighborhood detail, Dossier, and back-to-map navigation
 - [ ] TXXX [P] Verify model/copy honesty: no unsupported claims about perfect fit, safety, happiness, investment certainty, or future value
+- [ ] TXXX [P] Update `docs/qa/match_first_revamp_traceability.md` with implementation files, tests/manual verification, status, residual risks, and missing/partial items for this phase
+- [ ] TXXX [P] Update `docs/ai/latest_handoff.md` with completed work, commands run, pass/fail status, residual risks, and next smallest safe step
 - [ ] TXXX Run quickstart.md validation
 
 ---
@@ -264,6 +272,8 @@ With multiple developers:
 - [Journey: step] label maps task to the canonical match-first journey
 - Each user story should be independently completable and testable
 - Verify phase acceptance criteria with tests or documented commands before completion
+- Do not mark a PRD acceptance criterion pass unless linked evidence exists in traceability
+- Do not introduce new frameworks, rewrite unrelated modules, or jump phases without explicit justification
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence

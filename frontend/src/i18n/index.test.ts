@@ -9,7 +9,8 @@ describe('i18n bootstrap', () => {
   it('uses the cached language on reload', async () => {
     localStorage.setItem('i18nextLng', 'en');
 
-    const { default: i18n } = await import('./index');
+    const { default: i18n } = await import('i18next');
+    await import('./index');
 
     expect(i18n.resolvedLanguage).toBe('en');
   });

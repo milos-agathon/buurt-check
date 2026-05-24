@@ -134,11 +134,13 @@ it('renders side-by-side comparison for at least three neighborhoods with missin
   expect(screen.getByRole('columnheader', { name: 'IJburg' })).toBeInTheDocument();
   expect(screen.getByRole('columnheader', { name: 'Leidsche Rijn' })).toBeInTheDocument();
   expect(screen.getByRole('columnheader', { name: 'Katendrecht' })).toBeInTheDocument();
-  expect(screen.getByText('Missing: mobility')).toBeInTheDocument();
+  expect(screen.getByText('Missing: Mobility')).toBeInTheDocument();
+  expect(screen.queryByText('Missing: mobility')).not.toBeInTheDocument();
 
   const greenRow = screen.getByRole('row', { name: /Green access/i });
   expect(within(greenRow).getAllByText('MOCK DATA - seed')).toHaveLength(2);
-  expect(within(greenRow).getByText('unavailable')).toBeInTheDocument();
+  expect(within(greenRow).getByText('Unavailable')).toBeInTheDocument();
+  expect(within(greenRow).queryByText('unavailable')).not.toBeInTheDocument();
 });
 
 it('renders loading and empty states', () => {

@@ -4,7 +4,6 @@ import {
   addToShortlist,
   removeFromShortlist,
   isInShortlist,
-  getShortlistCount,
   clearShortlist,
 } from './shortlist';
 import type { ShortlistItem } from '../types/api';
@@ -29,7 +28,6 @@ describe('shortlist service', () => {
 
   it('returns empty array when no items saved', () => {
     expect(getShortlist()).toEqual([]);
-    expect(getShortlistCount()).toBe(0);
   });
 
   it('adds an item and retrieves it', () => {
@@ -42,7 +40,7 @@ describe('shortlist service', () => {
   it('upserts duplicate vboId entries instead of duplicating them', () => {
     addToShortlist(makeItem());
     expect(addToShortlist(makeItem({ city: 'Rotterdam' }))).toBe(true);
-    expect(getShortlistCount()).toBe(1);
+    expect(getShortlist()).toHaveLength(1);
     expect(getShortlist()[0].city).toBe('Rotterdam');
   });
 
@@ -51,14 +49,14 @@ describe('shortlist service', () => {
     addToShortlist(makeItem({ vboId: 'b' }));
     addToShortlist(makeItem({ vboId: 'c' }));
     expect(addToShortlist(makeItem({ vboId: 'd' }))).toBe(false);
-    expect(getShortlistCount()).toBe(3);
+    expect(getShortlist()).toHaveLength(3);
   });
 
   it('removes an item by vboId', () => {
     addToShortlist(makeItem({ vboId: 'a' }));
     addToShortlist(makeItem({ vboId: 'b' }));
     removeFromShortlist('a');
-    expect(getShortlistCount()).toBe(1);
+    expect(getShortlist()).toHaveLength(1);
     expect(getShortlist()[0].vboId).toBe('b');
   });
 
@@ -73,7 +71,6 @@ describe('shortlist service', () => {
     addToShortlist(makeItem({ vboId: 'b' }));
     clearShortlist();
     expect(getShortlist()).toEqual([]);
-    expect(getShortlistCount()).toBe(0);
   });
 
   it('handles corrupted localStorage gracefully', () => {

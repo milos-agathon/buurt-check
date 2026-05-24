@@ -5,25 +5,56 @@
 }
 
 .match-saved__eyebrow {
-  color: var(--color-text-muted, #5d6b78);
+  color: var(--color-text-muted);
 }
 
 .match-saved__neighborhoods {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 
 .match-saved__item {
   display: grid;
   gap: 8px;
-  border: 1px solid var(--color-border, #d8e2ea);
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  padding: 16px 0;
+  background: transparent;
+}
+
+.match-saved__item button {
+  min-height: 44px;
+  justify-self: start;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  padding: 16px;
+  background: var(--color-surface);
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.match-saved__item button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-accent);
+}
+
+.match-saved__item button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 @media (max-width: 720px) {
   .match-saved {
     padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-saved__item button {
+    transition: none;
   }
 }

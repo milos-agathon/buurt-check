@@ -3,6 +3,8 @@ import asyncio
 import aiosqlite
 import pytest
 
+import app.db as db_module
+from app.config import settings
 from app.db import get_db, init_db
 
 LEGACY_REPORTS_SCHEMA = """\
@@ -109,3 +111,30 @@ async def test_concurrent_reads_and_writes(tmp_path):
     results = await asyncio.gather(*tasks, return_exceptions=True)
     errors = [r for r in results if isinstance(r, Exception)]
     assert errors == [], f"Concurrent DB access errors: {errors}"
+
+
+@pytest.mark.asyncio
+async def test_turso_db_contexts_are_serialized(monkeypatch):
+    monkeypatch.setattr(settings, "turso_database_url", "libsql://example.test")
+    monkeypatch.setattr(settings, "turso_auth_token", "token")
+
+    class FakeTursoConnection:
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(db_module, "_create_turso_connection", lambda: FakeTursoConnection())
+
+    active_contexts = 0
+    max_active_contexts = 0
+
+    async def use_db_context() -> None:
+        nonlocal active_contexts, max_active_contexts
+        async with db_module.get_db():
+            active_contexts += 1
+            max_active_contexts = max(max_active_contexts, active_contexts)
+            await asyncio.sleep(0.01)
+            active_contexts -= 1
+
+    await asyncio.gather(use_db_context(), use_db_context())
+
+    assert max_active_contexts == 1

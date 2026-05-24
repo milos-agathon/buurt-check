@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/sw.ts",
+    "src/test/jest-axe.d.ts",
+    "playwright.landing.config.ts",
+    "scripts/generate-assetlinks.mjs",
+    "scripts/generate-apple-app-site-association.mjs",
+    "public/analytics-consent.js",
+    "public/legal.js"
+  ]
+}

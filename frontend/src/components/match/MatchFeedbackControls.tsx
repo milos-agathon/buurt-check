@@ -28,11 +28,14 @@ export default function MatchFeedbackControls({
   neighborhoodId,
   onSubmit,
 }: MatchFeedbackControlsProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [selected, setSelected] = useState<MatchFeedbackType | null>(null);
   const [loadingType, setLoadingType] = useState<MatchFeedbackType | null>(null);
   const [messageKey, setMessageKey] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const resolvedMessageKey = messageKey && i18n.exists(messageKey)
+    ? messageKey
+    : 'match.feedback.explanation.updatedRanking';
 
   const submit = async (feedbackType: MatchFeedbackType) => {
     setLoadingType(feedbackType);
@@ -56,7 +59,7 @@ export default function MatchFeedbackControls({
   };
 
   return (
-    <section className="match-feedback" aria-label={t('match.feedback.title', { defaultValue: 'Feedback' })}>
+    <section className="match-feedback" aria-label={t('match.feedback.title')}>
       <div className="match-feedback__buttons">
         {feedbackOptions.map((option) => (
           <button
@@ -68,23 +71,17 @@ export default function MatchFeedbackControls({
             onClick={() => void submit(option.type)}
           >
             {loadingType === option.type
-              ? t('match.feedback.saving', { defaultValue: 'Saving...' })
-              : t(`match.feedback.${option.key}`, {
-                defaultValue: option.key === 'notForMe'
-                  ? 'Not for me'
-                  : option.key === 'maybe'
-                    ? 'Maybe'
-                    : 'Love',
-              })}
+              ? t('match.feedback.saving')
+              : t(`match.feedback.${option.key}`)}
           </button>
         ))}
       </div>
       {messageKey && (
         <p role="status">
-          {t(messageKey, { defaultValue: 'Updated recommendations reflect your stated feedback.' })}
+          {t(resolvedMessageKey)}
         </p>
       )}
-      {error && <p role="alert">{t('match.feedback.error', { defaultValue: 'Feedback was not saved.' })}</p>}
+      {error && <p role="alert">{t('match.feedback.error')}</p>}
     </section>
   );
 }

@@ -219,6 +219,7 @@ def test_pdf_export_chart_tmp_dirs_use_preferred_tmp_dir(
             return str(self._path)
 
         def __exit__(self, exc_type, exc, tb) -> bool:  # type: ignore[no-untyped-def]
+            del exc_type, tb
             return False
 
     monkeypatch.setattr(pdf_export.tempfile, "TemporaryDirectory", _FakeTempDir)

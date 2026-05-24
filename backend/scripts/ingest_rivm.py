@@ -10,7 +10,7 @@ Downloads:
 - Noise: RIVM Geluid Lden wegverkeer raster from data.rivm.nl
 - Air quality: GCN PM2.5 and NO2 concentration rasters
 
-Files are saved to ``backend/data/{noise,air}/`` for offline_store to pick up.
+Files are saved to ``backend/data/{noise,air}/`` for future offline sampling experiments.
 """
 
 import asyncio

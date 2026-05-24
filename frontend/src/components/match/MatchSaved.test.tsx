@@ -47,6 +47,10 @@ it('renders saved neighborhoods and share/export report actions', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Share with partner or family' }));
   await userEvent.click(screen.getByRole('button', { name: 'Export PDF' }));
 
+  expect(screen.getByRole('heading', { name: 'Saved neighborhood nh_amsterdam_ijburg' })).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Amsterdam IJburg' })).not.toBeInTheDocument();
+  expect(screen.getByText('English')).toBeInTheDocument();
+  expect(screen.queryByText('en')).not.toBeInTheDocument();
   expect(onDeleteNeighborhood).toHaveBeenCalledWith('saved_ui');
   expect(onSaveReport).toHaveBeenCalled();
   expect(onShareReport).toHaveBeenCalledWith(true);
@@ -54,4 +58,3 @@ it('renders saved neighborhoods and share/export report actions', async () => {
   expect(screen.getByText('Share link ready: /shared/match/report/token')).toBeInTheDocument();
   expect(screen.getByText('Export is ready.')).toBeInTheDocument();
 });
-
