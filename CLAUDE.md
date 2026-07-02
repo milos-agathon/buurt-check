@@ -436,3 +436,13 @@ Key findings from two expert design/data-visualization audits of the generated f
 - **Shadow legend repeated 3x identically**: Each seasonal panel repeats the same legend. Show once, reclaim space for larger renders.
 - **Property check card borders too thin for print**: 1pt `\fcolorbox` left borders nearly disappear at print resolution. Use 3-4pt borders or background tint.
 - **"Sunlight Status: Available" is system noise**: Replace with actual insight ("7.4h winter, up to 14.9h summer"). Only show status for pending/missing states.
+
+
+## Session Learnings (2026-07-02) — Nightly Compound Cron Silent Failure
+
+Findings from the first successful nightly compound run after a month-long outage:
+
+- **The nightly 23:30 compound cron failed silently for 30 consecutive nights (2026-06-02 through 2026-07-01)**: June 2-19 failed with "Your organization does not have access to Claude"; June 20 - July 1 with 401 "Invalid authentication credentials". Each run produced only a 2-message transcript stub. Nothing alerted — the outage was discovered only by reading transcript files after the fact.
+- **Credential expiry is invisible to scheduled headless runs**: after re-login the interactive session works, but a cron using stale OAuth credentials keeps failing. Verify scheduled-job health by artifact (a compound commit in `git log`, memory-file mtime), never by "the cron fired".
+- **Transcript retention (~30 days) can outlast an outage**: session logs for the May 11-12 revamp work (PR #27, commits `4338656`..`a4a629e`) expired before ever being compounded. Those session learnings are unrecoverable except via git archaeology. Compound at end-of-session; the nightly cron is a safety net, not the primary mechanism.
+- **Every compound run must start with a health check of prior runs**: if recent nightly transcripts are tiny auth-failure stubs, report the outage loudly in the final message (and via notification if available) instead of silently concluding "nothing to compound".
