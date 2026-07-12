@@ -7,7 +7,7 @@ vi.mock('./errorReporting', () => ({
 
 async function loadAnalyticsModule() {
   vi.resetModules();
-  return import('./analytics');
+  return import('./clientEvents');
 }
 
 function clearAnalyticsGlobals() {

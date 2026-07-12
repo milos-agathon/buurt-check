@@ -298,7 +298,7 @@ def _make_mock_resp(data):
     return resp
 
 
-def _route_responses(direct_resp, bbox_resp):
+def _route_responses(bbox_resp):
     """Create a side_effect function that routes by URL pattern.
 
     Any single-item request returns a matching single-item payload for that pand_id,
@@ -511,12 +511,9 @@ async def test_get_neighborhood_3d_single_page(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    direct_data = _make_single_item_response()
     bbox_data = _make_3dbag_response([_make_feature()])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id="0363100012253924",
@@ -963,13 +960,10 @@ async def test_get_neighborhood_3d_target_via_direct(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    direct_data = _make_single_item_response("0363100012253924")
     # Bbox only has a different building
     bbox_data = _make_3dbag_response([_make_feature("0363100099999999")])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id="0363100012253924",
@@ -994,16 +988,13 @@ async def test_get_neighborhood_3d_deduplication(mock_get_client):
     mock_get_client.return_value = mock_client
 
     pand_id = "0363100012253924"
-    direct_data = _make_single_item_response(pand_id)
     # Bbox also has the same target + another building
     bbox_data = _make_3dbag_response([
         _make_feature(pand_id),
         _make_feature("0363100099999999"),
     ])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id=pand_id,
@@ -1027,12 +1018,9 @@ async def test_get_neighborhood_3d_vbo_id_as_address_id(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    direct_data = _make_single_item_response()
     bbox_data = _make_3dbag_response([])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id="0363100012253924",
@@ -1053,12 +1041,9 @@ async def test_get_neighborhood_3d_address_id_fallback_to_pand_id(mock_get_clien
     mock_client = AsyncMock()
     mock_get_client.return_value = mock_client
 
-    direct_data = _make_single_item_response()
     bbox_data = _make_3dbag_response([])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id="0363100012253924",
@@ -1487,12 +1472,9 @@ async def test_neighborhood_context_gets_lod22_from_bbox_without_enrichment(
 
     target_id = "0363100012253924"
     neighbor_id = "0363100099999999"
-    direct_data = _make_single_item_response(target_id)
     bbox_data = _make_3dbag_response([_make_feature_with_lod22_child(neighbor_id)])
 
-    mock_client.get.side_effect = _route_responses(
-        _make_mock_resp(direct_data), _make_mock_resp(bbox_data)
-    )
+    mock_client.get.side_effect = _route_responses(_make_mock_resp(bbox_data))
 
     result = await get_neighborhood_3d(
         pand_id=target_id,

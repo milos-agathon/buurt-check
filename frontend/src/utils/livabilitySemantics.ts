@@ -53,7 +53,7 @@ export function formatLivabilityClass(
   return t('livability.classValue', { value: classValue });
 }
 
-export function formatLivabilityDeviationValue(
+function formatLivabilityDeviationValue(
   deviation: number,
   language: string,
 ): string {

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ResolvedAddress } from '../types/api';
 import './LoadingScreen.css';
 
-export const LOADING_PROGRESS_SEQUENCE = [
+const LOADING_PROGRESS_SEQUENCE = [
   'findingBuilding',
   'loading3D',
   'checkingNoise',

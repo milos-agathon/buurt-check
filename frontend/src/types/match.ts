@@ -1,7 +1,7 @@
 export type MatchLocale = 'en' | 'nl';
 export type JourneyIntent = 'buy' | 'rent' | 'both';
-export type HouseholdType = 'starter' | 'single' | 'couple' | 'family' | 'future_family' | 'other';
-export type PersonaOverlayType =
+type HouseholdType = 'starter' | 'single' | 'couple' | 'family' | 'future_family' | 'other';
+type PersonaOverlayType =
   | 'family'
   | 'newcomer'
   | 'city_escape'
@@ -10,45 +10,7 @@ export type PersonaOverlayType =
   | 'renter'
   | 'starter';
 
-export interface MatchQuizBudget {
-  buy_min?: number;
-  buy_max?: number;
-  rent_max?: number;
-}
-
-export interface MatchLocationAnchor {
-  label: string;
-  query: string;
-  lat?: number;
-  lng?: number;
-}
-
-export interface MatchCommuteLimit {
-  mode: 'bike' | 'walk' | 'car' | 'public_transport' | 'mixed' | 'radius';
-  max_minutes?: number;
-  radius_km?: number;
-}
-
-export interface MatchQuizPayload {
-  session_id?: string;
-  locale: MatchLocale;
-  journey_intent: JourneyIntent;
-  budget: MatchQuizBudget;
-  household_type: HouseholdType;
-  current_city?: string;
-  preferred_anchor_location?: string;
-  anchor_locations: MatchLocationAnchor[];
-  commute_limits: MatchCommuteLimit[];
-  property_types: string[];
-  must_haves: string[];
-  nice_to_haves: string[];
-  avoid_signals: string[];
-  language_preference: MatchLocale;
-  lifestyle_priorities: Record<string, number>;
-  newcomer_status?: 'yes' | 'no' | 'prefer_not_to_say' | 'unknown';
-}
-
-export interface UserPreferenceProfile {
+interface UserPreferenceProfile {
   profile_id: string;
   session_id?: string | null;
   locale: MatchLocale;
@@ -56,7 +18,7 @@ export interface UserPreferenceProfile {
   newcomer_status: 'yes' | 'no' | 'prefer_not_to_say' | 'unknown';
 }
 
-export interface PreferenceVector {
+interface PreferenceVector {
   preference_vector_id: string;
   session_id?: string | null;
   profile_id?: string | null;
@@ -76,13 +38,13 @@ export interface PreferenceVector {
   method_version: string;
 }
 
-export interface PersonaOverlay {
+interface PersonaOverlay {
   type: PersonaOverlayType;
   confidence: number;
   reasons: string[];
 }
 
-export interface MatchValidationWarning {
+interface MatchValidationWarning {
   code: string;
   severity: 'info' | 'warning';
   field?: string | null;
@@ -98,12 +60,12 @@ export interface MatchQuizResponse {
   analytics_event: 'match_quiz_completed';
 }
 
-export type DataFreshnessStatus = 'current' | 'aging' | 'stale' | 'unavailable' | 'mock' | 'conflict';
-export type ConfidenceLabel = 'high' | 'medium' | 'low';
-export type MatchReportStatus = 'generated' | 'fallback' | 'invalid';
-export type ReportGeneratedBy = 'ai' | 'deterministic_fallback';
-export type ReportValidationStatus = 'passed' | 'fallback_used' | 'blocked';
-export type ReportSectionType =
+type DataFreshnessStatus = 'current' | 'aging' | 'stale' | 'unavailable' | 'mock' | 'conflict';
+type ConfidenceLabel = 'high' | 'medium' | 'low';
+type MatchReportStatus = 'generated' | 'fallback' | 'invalid';
+type ReportGeneratedBy = 'ai' | 'deterministic_fallback';
+type ReportValidationStatus = 'passed' | 'fallback_used' | 'blocked';
+type ReportSectionType =
   | 'profile_summary'
   | 'top_neighborhood_matches'
   | 'why_these_neighborhoods_fit'
@@ -113,7 +75,7 @@ export type ReportSectionType =
   | 'suggested_alerts'
   | 'next_steps';
 
-export interface ConfidenceScore {
+interface ConfidenceScore {
   score: number;
   label?: ConfidenceLabel | null;
   reasons: string[];
@@ -134,19 +96,19 @@ export interface MetricSource {
   freshness_status: DataFreshnessStatus;
 }
 
-export interface RecommendationExplanation {
+interface RecommendationExplanation {
   code: string;
   evidence_refs: string[];
 }
 
-export interface ScoreDriver {
+interface ScoreDriver {
   feature: string;
   impact: number;
   score: number;
   source_refs: string[];
 }
 
-export interface NeighborhoodMatchScore {
+interface NeighborhoodMatchScore {
   recommendation_id: string;
   neighborhood_id: string;
   name: string;
@@ -168,19 +130,13 @@ export interface NeighborhoodMatchScore {
   missing_features: string[];
 }
 
-export interface RecommendationSet {
+interface RecommendationSet {
   top: NeighborhoodMatchScore[];
   surprising: NeighborhoodMatchScore[];
   stretch: NeighborhoodMatchScore[];
   avoid_or_reconsider: NeighborhoodMatchScore[];
   empty_result_relaxations: string[];
   source_coverage: string[];
-}
-
-export interface MatchRecommendationsPayload {
-  preference_vector: PreferenceVector;
-  limit?: number;
-  locale: MatchLocale;
 }
 
 export interface MatchRecommendationsResponse {
@@ -197,7 +153,7 @@ export interface MatchRecommendationsResponse {
   };
 }
 
-export interface SimilarNeighborhoodResult {
+interface SimilarNeighborhoodResult {
   neighborhood_id: string;
   name: string;
   municipality: string;
@@ -223,7 +179,7 @@ export interface MatchSimilarResponse {
   empty_state_code?: string | null;
 }
 
-export interface ComparisonCell {
+interface ComparisonCell {
   value?: number | null;
   display_value: string;
   state: 'available' | 'missing' | 'stale' | 'mock';
@@ -234,13 +190,13 @@ export interface ComparisonCell {
   limitations: string[];
 }
 
-export interface ComparisonIndicatorRow {
+interface ComparisonIndicatorRow {
   indicator_key: string;
   label_code: string;
   cells: Record<string, ComparisonCell>;
 }
 
-export interface ComparisonNeighborhoodSummary {
+interface ComparisonNeighborhoodSummary {
   neighborhood_id: string;
   name: string;
   municipality: string;
@@ -269,38 +225,7 @@ export interface MatchCompareResponse {
   missing_data_states: string[];
 }
 
-export interface MatchMapFeature {
-  type: 'Feature';
-  geometry: { type: 'Point'; coordinates: [number, number] };
-  properties: {
-    neighborhood_id: string;
-    name: string;
-    municipality: string;
-    match_score: number;
-    category: 'top' | 'surprising' | 'stretch' | 'avoid_or_reconsider';
-    confidence: ConfidenceScore;
-    freshness_status: DataFreshnessStatus;
-    source_refs: string[];
-    missing_data: string[];
-  };
-}
-
-export interface MapMissingCoordinate {
-  neighborhood_id: string;
-  name: string;
-  reason_code: 'match.map.missingCoordinates';
-}
-
-export interface MatchMapResponse {
-  type: 'FeatureCollection';
-  bounds: number[];
-  features: MatchMapFeature[];
-  unsupported_regions: string[];
-  missing_coordinates: MapMissingCoordinate[];
-  empty_state_code?: string | null;
-}
-
-export interface RecommendationEvidence {
+interface RecommendationEvidence {
   evidence_id: string;
   claim_code: string;
   metric_keys: string[];
@@ -319,7 +244,7 @@ export interface ReportClaim {
   score_driver_refs: string[];
 }
 
-export interface ReportSection {
+interface ReportSection {
   section_type: ReportSectionType;
   title: string;
   body: string;
@@ -327,7 +252,7 @@ export interface ReportSection {
   claims: ReportClaim[];
 }
 
-export interface GuardrailEvent {
+interface GuardrailEvent {
   guardrail_event_id?: string;
   report_id?: string | null;
   event_type: string;
@@ -336,7 +261,7 @@ export interface GuardrailEvent {
   created_at?: string;
 }
 
-export interface ReportInput {
+interface ReportInput {
   locale: MatchLocale;
   profile_summary: Record<string, unknown>;
   preference_vector: PreferenceVector;
@@ -350,16 +275,7 @@ export interface ReportInput {
   generated_at: string;
 }
 
-export interface MatchReportCreatePayload {
-  session_id?: string | null;
-  preference_vector_id?: string | null;
-  recommendation_ids?: string[];
-  locale: MatchLocale;
-  generation_mode: 'ai_with_fallback' | 'fallback_only';
-  report_input: ReportInput;
-}
-
-export interface ReportGenerationMetadata {
+interface ReportGenerationMetadata {
   requested_mode: 'ai_with_fallback' | 'fallback_only';
   resolved_mode: 'ai' | 'deterministic_fallback';
   ai_provider: string;
@@ -383,14 +299,14 @@ export interface MatchReportResponse {
   generated_at: string;
 }
 
-export type ListingProviderMode =
+type ListingProviderMode =
   | 'licensed'
   | 'mock'
   | 'user_provided'
   | 'outbound_placeholder'
   | 'unavailable';
 
-export interface ProviderStatus {
+interface ProviderStatus {
   name: string;
   mode: ListingProviderMode;
   license_status: 'open' | 'licensed' | 'mock' | 'unknown' | 'unavailable';
@@ -438,7 +354,7 @@ export interface MatchListingProviderResult {
 }
 
 export type AlertStatus = 'active' | 'paused' | 'deleted';
-export type AlertSourceContext = 'report' | 'listing' | 'saved' | 'map' | 'manual' | 'recommendation';
+type AlertSourceContext = 'report' | 'listing' | 'saved' | 'map' | 'manual' | 'recommendation';
 
 export interface MatchAlertRule {
   alert_id: string;
@@ -458,7 +374,7 @@ export interface MatchAlertRule {
   updated_at: string;
 }
 
-export interface NotificationDispatchRecord {
+interface NotificationDispatchRecord {
   dispatch_id: string;
   alert_id: string;
   provider_name: string;
@@ -585,7 +501,7 @@ export interface MatchFeedbackPayload {
   payload?: Record<string, unknown>;
 }
 
-export interface FeedbackEvent {
+interface FeedbackEvent {
   feedback_event_id: string;
   session_id?: string | null;
   report_id?: string | null;
@@ -597,7 +513,7 @@ export interface FeedbackEvent {
   created_at: string;
 }
 
-export interface FeedbackRerankingHint {
+interface FeedbackRerankingHint {
   boost_neighborhood_ids: string[];
   soften_neighborhood_ids: string[];
   suppress_neighborhood_ids: string[];
@@ -615,7 +531,7 @@ export interface MatchFeedbackResponse {
   analytics_event: 'match_feedback_submitted';
 }
 
-export interface SourceHealthSnapshot {
+interface SourceHealthSnapshot {
   source_health_id: string;
   provider_name: string;
   region_config_id: string;
@@ -629,7 +545,7 @@ export interface SourceHealthSnapshot {
   created_at: string;
 }
 
-export interface SuccessMetricSummary {
+interface SuccessMetricSummary {
   event_name: MatchProductEventName;
   count: number;
   latest_value?: number | null;

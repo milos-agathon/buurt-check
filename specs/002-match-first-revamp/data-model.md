@@ -1,0 +1,289 @@
+# Data Model: Buurt Check Match-First UI Revamp
+
+## MatchSession
+
+Anonymous container for a user's match-first journey.
+
+**Fields**:
+
+- `session_id`: stable ID such as `match_{uuid}`
+- `anonymous_buyer_key`: optional server-issued buyer key when available
+- `locale`: `en` or `nl`
+- `phase`: `landing`, `survey_intro`, `survey_question`, `review`, `matching`, `success`, `results_map`, `neighborhood_detail`, `dossier`
+- `current_step`: integer survey step, nullable outside survey
+- `answer_version`: monotonic integer
+- `preference_vector_id`: latest vector ID, nullable until review/run
+- `preference_vector_version`: hash of answer set used for the latest vector
+- `active_job_id`: latest job ID, nullable
+- `selected_neighborhood_id`: nullable
+- `selected_recommendation_id`: nullable
+- `selected_house_id`: nullable
+- `map_state_json`: center, zoom, selected item, list scroll, mobile mode
+- `dossier_return_context_json`: return target and state snapshot
+- `created_at`, `updated_at`, `expires_at`, `deleted_at`
+
+**Validation rules**:
+
+- `locale` must be language-independent and not derived from translated labels.
+- `phase` must match the route state.
+- `preference_vector_version` must match the answer version used to create results.
+
+## SurveyAnswerSet
+
+Raw user answers keyed by stable IDs.
+
+**Fields**:
+
+- `session_id`
+- `answer_version`
+- `answers`: object keyed by question ID
+- `validation`: object keyed by question ID with `valid`, `required`, and stable error code
+- `completed_step_count`
+- `is_complete`
+- `updated_at`
+
+**Validation rules**:
+
+- Store answer IDs and numeric values, never translated labels.
+- Required questions must have a validation status.
+- Optional answers must be distinguishable from missing required answers.
+- Editing any answer increments `answer_version` and marks downstream vector/results stale.
+
+## PreferenceVector
+
+Derived scoring input built from `SurveyAnswerSet`.
+
+**Fields**:
+
+- Existing `preference_vector_id`, `session_id`, `profile_id`, `journey_intent`, budget fields, anchors, commute limits, property types, hard filters, nice-to-haves, avoid signals, lifestyle weights, persona inputs, locale, and method version
+- `source_answer_version`
+- `vector_version`
+- `raw_answer_refs`
+- `warnings`
+
+**Validation rules**:
+
+- Hard filters are separate from weighted preferences.
+- Weights are normalized between 0 and 1.
+- Protected or sensitive demographic traits must not be score inputs.
+- `method_version` must be present.
+
+## MatchJob
+
+Pollable backend matching run.
+
+**Fields**:
+
+- `job_id`
+- `session_id`
+- `preference_vector_id`
+- `status`: `created`, `queued`, `running`, `completed`, `completed_with_fallback`, `failed`, `cancelled`, `expired`
+- `stage`: `created`, `queued`, `reading_preferences`, `building_profile`, `loading_neighborhood_data`, `applying_filters`, `running_models`, `scoring_tradeoffs`, `preparing_map`, `completed`, `completed_with_fallback`, `failed`
+- `progress`: integer 0-100
+- `message_key`: stable i18n key
+- `model_mode`: `weighted_scoring`
+- `scoring_version`
+- `data_version`
+- `evaluation_status`: `not_validated_no_labels`
+- `fallback_used`
+- `fallback_reason_code`
+- `result_set_id`
+- `error_code`: stable public code, nullable
+- `internal_error_class`: internal only, not returned to frontend
+- `started_at`, `completed_at`, `updated_at`
+
+**Validation rules**:
+
+- A run can start only from a complete current answer set.
+- `completed` and `completed_with_fallback` require a `result_set_id`.
+- Public responses must not include stack traces or internal error text.
+
+## MatchResultSet
+
+Stored recommendation output for a completed job.
+
+**Fields**:
+
+- `result_set_id`
+- `session_id`
+- `job_id`
+- `preference_vector_id`
+- `status`
+- `generated_at`
+- `model_mode`
+- `scoring_version`
+- `data_version`
+- `evaluation_status`
+- `predictive_probability_available`: always `false` for MVP
+- `fallback_used`
+- `fallback_reason_code`
+- `recommendations_json`
+- `near_misses_json`
+- `evidence_json`
+- `source_coverage_json`
+- `geometry_refs_json`
+- `empty_state_code`
+
+**Validation rules**:
+
+- Recommendations must include fit scores, not predictive probabilities.
+- Each recommendation must include reason codes, tradeoffs, confidence, limitations, and geometry references.
+- Near-miss results must be labeled separately from normal top matches.
+
+## NeighborhoodRecommendation
+
+One ranked candidate neighborhood.
+
+**Fields**:
+
+- `rank`
+- `recommendation_id`
+- `neighborhood_id`
+- `name`
+- `municipality`
+- `fit_score`: 0-100
+- `category`: `top`, `surprising`, `stretch`, `avoid_or_reconsider`
+- `eligibility_status`: `eligible`, `stretch`, `failed_hard_filter`, `insufficient_data`
+- `confidence`: score 0-100 and level `high`, `medium`, `low`, `insufficient`
+- `reason_codes`
+- `tradeoff_codes`
+- `component_scores`
+- `matched_preferences`
+- `failed_filters`
+- `source_refs`
+- `freshness_status`
+- `limitations`
+- `geometry_ref`
+- `amenity_refs`
+
+**Validation rules**:
+
+- `rank` is stable within a result set.
+- Confidence is data-quality confidence, not predictive probability.
+- Failed hard filters cannot appear as normal top matches.
+
+## GeometryReference
+
+Map metadata needed by results and detail views.
+
+**Fields**:
+
+- `neighborhood_id`
+- `centroid_rd`: `{x, y}` in EPSG:28992
+- `bounds_rd`: `[min_x, min_y, max_x, max_y]` in EPSG:28992
+- `display_centroid_wgs84`: derived `{lat, lng}` only for Leaflet rendering
+- `display_bounds_wgs84`: derived `[west, south, east, north]` only for Leaflet rendering
+- `boundary_ref`
+- `boundary_source`
+- `boundary_freshness`
+- `building_layer_ref`
+- `building_layer_available`
+- `amenity_layer_refs`
+- `limitations`
+
+**Validation rules**:
+
+- Building layer refs are valid only for the selected neighborhood.
+- Building request bounds must use EPSG:28992 and must be clipped to the selected neighborhood.
+
+## AmenityTagSet
+
+Preference-aware amenity tags for selected-neighborhood detail.
+
+**Fields**:
+
+- `session_id`
+- `neighborhood_id`
+- `tags`: list of stable amenity keys
+- `reason_codes`
+- `source_refs`
+- `freshness_status`
+
+**Validation rules**:
+
+- Visible default tags should be concise and preference-aware.
+- Labels are rendered from translation keys.
+
+## HouseSelectionContext
+
+State for opening Dossier from a selected building or address candidate.
+
+**Fields**:
+
+- `session_id`
+- `neighborhood_id`
+- `building_id`
+- `geometry`
+- `address_resolution_status`: `resolved`, `candidates`, `manual_required`, `unavailable`
+- `candidate_addresses`
+- `selected_vbo_id`
+- `fallback_reason_code`
+
+**Validation rules**:
+
+- `selected_vbo_id` must match `^[0-9]{16}$` before navigating to `#/address/{vbo_id}`.
+- If no reliable address exists, return localized fallback options instead of opening a broken Dossier.
+
+## DossierReturnContext
+
+State required to return from Dossier to the match map.
+
+**Fields**:
+
+- `session_id`
+- `return_target`: `results_map` or `neighborhood_detail`
+- `selected_neighborhood_id`
+- `selected_recommendation_id`
+- `selected_house_id`
+- `map_center`
+- `map_zoom`
+- `list_scroll`
+- `mobile_mode`
+- `locale`
+- `preference_vector_version`
+
+**Validation rules**:
+
+- Back-to-map must not rerun matching when `preference_vector_version` still matches current answers.
+- If preferences changed, return to review with stale-results messaging.
+
+## AnalyticsEvent
+
+Privacy-safe product telemetry event.
+
+**Fields**:
+
+- `analytics_event_id`
+- `event_name`: stable enum
+- `session_id`
+- `locale`
+- `phase`
+- `context`: stable keys only
+- `created_at`
+
+**Validation rules**:
+
+- Do not store translated labels, exact anchors, free-text answers, protected traits, names, or emails.
+- Survey drop-off must use question keys and step numbers.
+
+## State Transitions
+
+```text
+landing -> survey_intro
+survey_intro -> survey_question
+survey_question[n] -> survey_question[n+1]
+survey_question[n] -> survey_question[n-1]
+survey_question[last] -> review
+review -> matching
+matching(created) -> matching(queued)
+matching(queued) -> matching(running)
+matching(running) -> success
+matching(running) -> failed
+matching(running) -> completed_with_fallback
+success -> results_map
+results_map -> neighborhood_detail
+neighborhood_detail -> dossier
+dossier -> neighborhood_detail
+dossier -> results_map
+any state with changed preferences -> review
+```

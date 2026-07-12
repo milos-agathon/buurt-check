@@ -28,7 +28,7 @@ describe('Keyboard navigation', () => {
     renderWithI18n(<TabBar activeTab="home" onTabChange={onTabChange} savedCount={2} />);
 
     await user.tab();
-    expect(screen.getByRole('tab', { name: 'Search' })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: 'Match' })).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(onTabChange).toHaveBeenCalledWith('home');
 
@@ -47,15 +47,15 @@ describe('Keyboard navigation', () => {
     const user = userEvent.setup();
     renderWithI18n(<TopBar title="buurt-check" />);
 
-    const en = screen.getByRole('radio', { name: 'EN' });
-    const nl = screen.getByRole('radio', { name: 'NL' });
-    expect(en).toHaveAttribute('aria-checked', 'true');
+    const en = screen.getByRole('button', { name: 'English' });
+    const nl = screen.getByRole('button', { name: 'Dutch' });
+    expect(en).toHaveAttribute('aria-pressed', 'true');
 
     await user.tab(); // logo link
     await user.tab(); // NL button
     expect(nl).toHaveFocus();
     await user.keyboard('{Enter}');
-    expect(nl).toHaveAttribute('aria-checked', 'true');
+    expect(nl).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('ActionBar primary actions are keyboard operable', async () => {

@@ -68,20 +68,3 @@ def assemble_feature_vector(
         missing_features=missing_features,
         stale_features=stale_features,
     )
-
-
-def assemble_feature_vectors(
-    neighborhoods: Iterable[Neighborhood],
-    metrics: Iterable[NeighborhoodMetric],
-    *,
-    required_features: Iterable[str] | None = None,
-) -> list[NeighborhoodFeatureVector]:
-    metric_list = list(metrics)
-    return [
-        assemble_feature_vector(
-            neighborhood,
-            metric_list,
-            required_features=required_features,
-        )
-        for neighborhood in neighborhoods
-    ]

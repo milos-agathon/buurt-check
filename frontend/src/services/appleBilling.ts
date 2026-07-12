@@ -3,8 +3,6 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 const APPLE_BILLING_PENDING_REPORT_KEY = 'buurt-check:apple-billing:pending-report';
 const APPLE_PRODUCT_ID = (import.meta.env.VITE_APPLE_PRODUCT_ID ?? 'full_dossier_unlock').trim();
 
-type AppleBillingErrorCode = 'PURCHASE_CANCELLED' | 'PURCHASE_PENDING';
-
 interface AppleBillingBridgePlugin {
   isAvailable(): Promise<{ available: boolean }>;
   getProduct(options: { productId: string }): Promise<AppleBillingProduct>;
@@ -43,21 +41,13 @@ export interface AppleBillingPendingTransaction {
   signedTransactionInfo: string;
 }
 
-type AppleBillingError = Error & { code?: string };
-
 const AppleBillingBridge = registerPlugin<AppleBillingBridgePlugin>('AppleBillingBridge');
 
 function isConfigured(): boolean {
   return APPLE_PRODUCT_ID.length > 0;
 }
 
-function makeAppleBillingError(message: string, code: AppleBillingErrorCode): AppleBillingError {
-  const error = new Error(message) as AppleBillingError;
-  error.code = code;
-  return error;
-}
-
-export function getAppleBillingProductId(): string | null {
+function getAppleBillingProductId(): string | null {
   return isConfigured() ? APPLE_PRODUCT_ID : null;
 }
 
@@ -94,7 +84,7 @@ export async function getAppleBillingProduct(): Promise<AppleBillingProduct> {
   return AppleBillingBridge.getProduct({ productId });
 }
 
-export function storePendingAppleBillingReport(reportId: string): void {
+function storePendingAppleBillingReport(reportId: string): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(APPLE_BILLING_PENDING_REPORT_KEY, reportId);
@@ -210,4 +200,3 @@ export async function presentAppleBillingPdfShareSheet(
   });
 }
 
-export { makeAppleBillingError };

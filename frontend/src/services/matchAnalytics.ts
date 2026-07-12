@@ -40,7 +40,3 @@ export function recordMatchEvent(
 
   return event;
 }
-
-export function getStoredMatchEvents(): MatchAnalyticsEvent[] {
-  return readStoredEvents();
-}

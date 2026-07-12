@@ -41,23 +41,6 @@ export function computeRoofNormal(vertices: number[][]): SurfaceVector3 {
   return normal;
 }
 
-export function cardinalFacadeNormal(
-  orientation: 'north' | 'south' | 'east' | 'west',
-): SurfaceVector3 {
-  switch (orientation) {
-    case 'north':
-      return [0, 0, -1];
-    case 'south':
-      return [0, 0, 1];
-    case 'east':
-      return [1, 0, 0];
-    case 'west':
-      return [-1, 0, 0];
-    default:
-      return [0, 0, 1];
-  }
-}
-
 /**
  * Angle between surface normal and sun direction in radians.
  * Returns 0..PI.

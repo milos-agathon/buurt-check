@@ -7,6 +7,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
+from app.services.match.survey_constants import MATCH_SURVEY_QUESTION_COUNT
+
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
@@ -198,6 +200,10 @@ class PreferenceVector(BaseModel):
     persona_inputs: dict[str, object] = Field(default_factory=dict)
     locale: Literal["en", "nl"]
     method_version: str = Field(min_length=1)
+    source_answer_version: int | None = Field(default=None, ge=0)
+    vector_version: str | None = None
+    raw_answer_refs: dict[str, object] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utc_now)
 
     @field_validator("lifestyle_weights")
@@ -209,6 +215,71 @@ class PreferenceVector(BaseModel):
             if not 0 <= weight <= 1:
                 raise ValueError(f"lifestyle weight {key} must be between 0 and 1")
         return value
+
+
+MatchSessionPhase = Literal[
+    "landing",
+    "survey_intro",
+    "survey_question",
+    "review",
+    "matching",
+    "success",
+    "results_map",
+    "neighborhood_detail",
+    "dossier",
+]
+
+class MatchSessionCreateRequest(BaseModel):
+    locale: Literal["en", "nl"] = "en"
+    source: Literal["landing", "intro", "resume"] = "landing"
+
+
+class MatchSessionCreateResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    locale: Literal["en", "nl"]
+    phase: MatchSessionPhase
+    current_step: int | None = None
+    answer_version: int = Field(ge=0)
+    expires_at: datetime
+
+
+class SurveyAnswerValidation(BaseModel):
+    valid: bool
+    required: bool
+    error_code: str | None = None
+
+
+class SurveyAnswerPatchRequest(BaseModel):
+    answers: dict[str, object]
+    current_step: int | None = Field(default=None, ge=1, le=MATCH_SURVEY_QUESTION_COUNT)
+    locale: Literal["en", "nl"] = "en"
+
+
+class SurveyAnswerPatchResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    answer_version: int = Field(ge=0)
+    is_complete: bool
+    validation: dict[str, SurveyAnswerValidation]
+    stale_results: bool = True
+
+
+class MatchSessionResponse(BaseModel):
+    session_id: str = Field(min_length=1)
+    locale: Literal["en", "nl"]
+    phase: MatchSessionPhase
+    current_step: int | None = None
+    answer_version: int = Field(ge=0)
+    answers: dict[str, object] = Field(default_factory=dict)
+    validation: dict[str, SurveyAnswerValidation] = Field(default_factory=dict)
+    is_complete: bool = False
+    preference_vector_id: str | None = None
+    preference_vector_version: str | None = None
+    preference_vector: PreferenceVector | None = None
+    active_job_id: str | None = None
+    selected_neighborhood_id: str | None = None
+    map_state: dict[str, object] | None = None
+    dossier_return_context: dict[str, object] | None = None
+    expires_at: datetime | None = None
 
 
 class QuizBudget(BaseModel):

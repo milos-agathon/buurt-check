@@ -790,7 +790,7 @@ export async function fetchSharedPrebidPack(
   }
 }
 
-export interface ShadowImagePayload {
+interface ShadowImagePayload {
   hour: number;
   label: string;
   image_b64: string;
@@ -1087,7 +1087,7 @@ export async function fetchWeatherTmy(
   }
 }
 
-export interface FacadeSubmissionPayload {
+interface FacadeSubmissionPayload {
   orientation: string;
   height_label: string;
   winter_hours: number;

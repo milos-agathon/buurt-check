@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
-import { resolve, dirname, relative } from 'path';
+import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { gzipSync } from 'zlib';
 
@@ -10,58 +10,31 @@ const distDir = resolve(__dirname, '../../dist/assets');
 
 const hasDistDir = existsSync(distDir);
 
-function collectFiles(dir: string): string[] {
-  const entries = readdirSync(dir);
-  return entries.flatMap((entry) => {
-    const filePath = resolve(dir, entry);
-    const stats = statSync(filePath);
-    if (stats.isDirectory()) {
-      return collectFiles(filePath);
-    }
-    return [filePath];
-  });
+function readIndexHtml(): string {
+  return readFileSync(resolve(distRoot, 'index.html'), 'utf-8');
 }
 
-function normalizeDistPath(filePath: string): string {
-  return relative(distRoot, filePath).replace(/\\/g, '/');
-}
+function initialDocumentFiles(): string[] {
+  const html = readIndexHtml();
+  const scriptAssets = [...html.matchAll(/<script[^>]+type="module"[^>]+src="([^"]+)"/g)]
+    .map((match) => match[1]);
+  const linkedAssets = [...html.matchAll(/<link[^>]+rel="(?:modulepreload|stylesheet)"[^>]+href="([^"]+)"/g)]
+    .map((match) => match[1]);
+  const assetPaths = [...new Set([...scriptAssets, ...linkedAssets])]
+    .filter((href) => href.startsWith('/assets/'))
+    .map((href) => resolve(distRoot, href.slice(1)));
 
-function isStandaloneRuntimeAsset(filePath: string): boolean {
-  const normalized = normalizeDistPath(filePath);
-  if (normalized.startsWith('__pycache__/') || normalized.endsWith('.py') || normalized.endsWith('.pyc')) {
-    return true;
-  }
-  if (normalized.startsWith('assets/vendor-sentry')) {
-    return true;
-  }
-  if (normalized.startsWith('images/showcase-') && normalized.endsWith('.webp')) {
-    return true;
-  }
-  return normalized === 'privacy.html'
-    || normalized === 'terms.html'
-    || normalized === 'landing.html'
-    || normalized === '404.html'
-    || normalized === 'offline.html'
-    || normalized === 'legal.css'
-    || normalized === 'og-image.svg'
-    || normalized === 'og-image-en.svg'
-    || normalized === 'og-image.png'
-    || normalized === '.well-known/apple-app-site-association'
-    || normalized === '.well-known/assetlinks.json';
+  return [resolve(distRoot, 'index.html'), ...assetPaths];
 }
 
 function mainIndexChunkName(): string | undefined {
-  const html = readFileSync(resolve(distRoot, 'index.html'), 'utf-8');
+  const html = readIndexHtml();
   return html.match(/src="\/assets\/(index-[^"]+\.js)"/)?.[1];
 }
 
 describe.skipIf(!hasDistDir)('Bundle budget', () => {
-  it('initial app dist gzip total under 500KB (excludes workers, service worker, and standalone docs)', () => {
-    const files = collectFiles(distRoot).filter((filePath) => (
-      !filePath.includes('sunlightWorker-') && !filePath.includes('svfWorker-')
-      && normalizeDistPath(filePath) !== 'sw.js'
-      && !isStandaloneRuntimeAsset(filePath)
-    ));
+  it('initial document gzip total under 500KB', () => {
+    const files = initialDocumentFiles();
     const totalGzip = files.reduce((sum, filePath) => {
       const gzipped = gzipSync(readFileSync(filePath)).length;
       return sum + gzipped;
@@ -91,6 +64,14 @@ describe.skipIf(!hasDistDir)('Bundle budget', () => {
     expect(threeChunk).toBeDefined();
     const size = statSync(resolve(distDir, threeChunk!)).size;
     expect(size).toBeLessThan(550 * 1024);
+  });
+
+  it('does not modulepreload vendor-three from the initial document', () => {
+    const html = readFileSync(resolve(distRoot, 'index.html'), 'utf-8');
+    const modulePreloads = [...html.matchAll(/<link[^>]+rel="modulepreload"[^>]+href="([^"]+)"/g)]
+      .map((match) => match[1]);
+
+    expect(modulePreloads.filter((href) => href.includes('/assets/vendor-three'))).toEqual([]);
   });
 
   it('vendor-react chunk under 200KB', () => {

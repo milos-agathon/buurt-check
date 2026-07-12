@@ -2,6 +2,35 @@ const PLAY_BILLING_METHOD = 'https://play.google.com/billing';
 const PLAY_BILLING_PENDING_REPORT_KEY = 'buurt-check:play-billing:pending-report';
 const PLAY_PRODUCT_ID = (import.meta.env.VITE_GOOGLE_PLAY_PRODUCT_ID ?? 'full_dossier_unlock').trim();
 
+interface DigitalGoodsPrice {
+  currency: string;
+  value: string;
+}
+
+interface DigitalGoodsItemDetails {
+  itemId: string;
+  title?: string;
+  description?: string;
+  price: DigitalGoodsPrice;
+}
+
+interface DigitalGoodsPurchaseDetails {
+  itemId: string;
+  purchaseToken: string;
+}
+
+interface DigitalGoodsService {
+  getDetails(itemIds: string[]): Promise<DigitalGoodsItemDetails[]>;
+  listPurchases(): Promise<DigitalGoodsPurchaseDetails[]>;
+  consume(purchaseToken: string): Promise<void>;
+}
+
+declare global {
+  interface Window {
+    getDigitalGoodsService?: (paymentMethod: string) => Promise<DigitalGoodsService>;
+  }
+}
+
 export interface PlayBillingPurchaseSession {
   productId: string;
   purchaseToken: string;
@@ -41,7 +70,7 @@ async function getProductDetails(
   return details;
 }
 
-export function getPlayBillingProductId(): string | null {
+function getPlayBillingProductId(): string | null {
   return isConfigured() ? PLAY_PRODUCT_ID : null;
 }
 
@@ -63,7 +92,7 @@ export async function isPlayBillingReady(): Promise<boolean> {
   }
 }
 
-export function storePendingPlayBillingReport(reportId: string): void {
+function storePendingPlayBillingReport(reportId: string): void {
   if (typeof window === 'undefined') return;
   try {
     window.sessionStorage.setItem(PLAY_BILLING_PENDING_REPORT_KEY, reportId);

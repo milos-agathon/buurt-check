@@ -123,6 +123,6 @@ Every frontend risk card must have: (1) score 0-100 + severity, (2) plain-langua
 <!-- SPECKIT START -->
 For additional context about the Buurt Check Revamp technical approach,
 architecture, data model, contracts, testing strategy, and implementation
-phases, read `specs/001-buurt-check-revamp/plan.md`. For governing rules,
+phases, read `specs/002-match-first-revamp/plan.md`. For governing rules,
 read `.specify/memory/constitution.md`.
 <!-- SPECKIT END -->

@@ -75,6 +75,11 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 });
 
+Object.defineProperty(window, 'scrollTo', {
+  writable: true,
+  value: vi.fn(),
+});
+
 // Mock IntersectionObserver for jsdom (required by viewport-gated 3D fetch + AnimatedScore)
 // Stores ALL observer instances so tests can trigger specific ones or broadcast to all.
 interface MockObserverEntry { callback: IntersectionObserverCallback; targets: Set<Element>; disconnected: boolean }

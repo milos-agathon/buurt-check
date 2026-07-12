@@ -52,8 +52,9 @@ def turso_settings(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("turso_settings")
 async def test_get_db_uses_turso_adapter_and_ignores_db_path(
-    monkeypatch, turso_settings
+    monkeypatch,
 ):
     fake_connection = FakeLibsqlConnection()
     captured = {}
@@ -101,7 +102,8 @@ async def test_get_db_uses_turso_adapter_and_ignores_db_path(
 
 
 @pytest.mark.asyncio
-async def test_init_db_executes_schema_on_turso(monkeypatch, turso_settings):
+@pytest.mark.usefixtures("turso_settings")
+async def test_init_db_executes_schema_on_turso(monkeypatch):
     fake_connection = FakeLibsqlConnection()
 
     def fake_connect(url, auth_token, _check_same_thread):
